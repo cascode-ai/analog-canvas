@@ -22,6 +22,7 @@
   "include": [
     "apps/**/*.ts",
     "apps/**/*.tsx",
+    "worker/**/*.ts",
     "packages/**/*.ts",
     "vitest.config.ts"
   ]

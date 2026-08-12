@@ -1,7 +1,8 @@
 {
   "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
   "name": "interactive-circuit-maker",
-  "compatibility_date": "2026-08-12",
+  "main": "./worker/index.ts",
+  "compatibility_date": "2026-08-11",
   "workers_dev": true,
   "routes": [
     {
@@ -12,5 +13,23 @@
   "assets": {
     "directory": "./apps/editor/dist",
     "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"],
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "ANALYTICS",
+        "class_name": "AnalyticsDO",
+      },
+    ],
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["AnalyticsDO"],
+    },
+  ],
+  "observability": {
+    "enabled": true,
   },
 }

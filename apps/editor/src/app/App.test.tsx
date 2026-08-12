@@ -139,6 +139,18 @@ describe("editor shell", () => {
     expect(markup).not.toContain("Agent");
   });
 
+  it("links to first-party visitor analytics without crowding editor commands", () => {
+    const project = createEmptyProject("analytics-entry", "Analytics Entry");
+    const markup = renderToStaticMarkup(
+      <App project={project} visitStats={{ pv: 42, uv: 17 }} />,
+    );
+
+    expect(markup).toContain('href="/analytics"');
+    expect(markup).toContain("17 visitors");
+    expect(markup).toContain("42 views");
+    expect(markup).not.toContain("<summary>Analytics</summary>");
+  });
+
   it("keeps Selection as an explicit overlay without a permanent library", () => {
     const project = createEmptyProject("selection-shelf", "Selection Shelf");
     const markup = renderToStaticMarkup(<App project={project} />);

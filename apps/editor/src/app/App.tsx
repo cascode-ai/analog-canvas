@@ -226,6 +226,7 @@ const EMPTY_SUPPLEMENTAL_SELECTION: SupplementalSelection = {
 
 export interface AppProps {
   project?: CircuitProject;
+  visitStats?: { pv: number; uv: number } | null;
 }
 
 function dismissOpenCommandMenus(): boolean {
@@ -476,7 +477,7 @@ function isTypingTarget(target: EventTarget | null): boolean {
   );
 }
 
-export function App({ project: initialProject }: AppProps) {
+export function App({ project: initialProject, visitStats }: AppProps) {
   const [status, setStatus] = useState("Ready");
   const [insertDialogOpen, setInsertDialogOpen] = useState(false);
   const [selectionOpen, setSelectionOpen] = useState(false);
@@ -5121,9 +5122,26 @@ export function App({ project: initialProject }: AppProps) {
             Help
           </button>
         </nav>
-        <p className="editor-status" data-testid="status" aria-live="polite">
-          {status}
-        </p>
+        <div className="editor-header-meta">
+          <p className="editor-status" data-testid="status" aria-live="polite">
+            {status}
+          </p>
+          <a
+            className="analytics-link"
+            href="/analytics"
+            aria-label="Open visitor analytics"
+          >
+            {visitStats ? (
+              <>
+                <span>{visitStats.uv.toLocaleString()} visitors</span>
+                <span aria-hidden="true">·</span>
+                <span>{visitStats.pv.toLocaleString()} views</span>
+              </>
+            ) : (
+              "Analytics"
+            )}
+          </a>
+        </div>
         <div data-testid="editor-test-telemetry" hidden>
           <output data-testid="selected-internal-route-count">
             {internalSelection.routeIds.length}

@@ -1416,6 +1416,46 @@ test("keeps the production command surface compact and publishes PWA metadata", 
   });
 });
 
+test("shows first-party visitor analytics without tracking the dashboard itself", async ({
+  page,
+}) => {
+  let dashboardTracked = false;
+  await page.route("**/api/track", async (route) => {
+    dashboardTracked = true;
+    await route.fulfill({ status: 204 });
+  });
+  await page.route("**/api/analytics", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        generatedAt: "2026-08-12T00:00:00.000Z",
+        totals: { pv: 12, uv: 7 },
+        today: { date: "2026-08-12", pv: 3, uv: 2 },
+        days: [{ date: "2026-08-12", pv: 3, uv: 2 }],
+        countries: [{ code: "CN", pv: 8, uv: 5 }],
+        points: [{ lat: 40, lng: 116, count: 8 }],
+        paths: [{ path: "/", pv: 12, uv: 7 }],
+        sources: [{ source: "direct-or-unknown", pv: 12, uv: 7 }],
+        breakdownStartedAt: "2026-08-12T00:00:00.000Z",
+        breakdownTotals: {
+          countries: { pv: 12, uv: 7 },
+          sources: { pv: 12, uv: 7 },
+          pages: { pv: 12, uv: 7 },
+        },
+      }),
+    });
+  });
+
+  await page.goto("/analytics");
+  await expect(
+    page.getByRole("heading", { name: "Visitor analytics" }),
+  ).toBeVisible();
+  await expect(page.getByText("Countries and regions")).toBeVisible();
+  await expect(page.getByText("China")).toBeVisible();
+  await expect(page.getByText("No IP addresses")).toBeVisible();
+  expect(dashboardTracked).toBe(false);
+});
+
 test("dismisses a command menu on outside click or Escape", async ({
   page,
 }) => {
