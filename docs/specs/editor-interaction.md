@@ -2,7 +2,7 @@
 
 Status: `accepted`
 
-Version: `1.6`
+Version: `1.13`
 
 Owning phase: `Phase 8`
 
@@ -42,32 +42,42 @@ Project and Document baseline.
 
 ## Command surface
 
-The production header exposes document/navigation and high-frequency document
-commands. Component placement uses one modeless master/detail insertion dialog;
-drawing tools live in the compact `Draw` menu rather than a permanent toolbar
-row or component sidebar:
+The production chrome uses a compact schematic-editor shell with calm surfaces:
+menubar, left tool rail, left Shapes quick-place column, canvas, right
+Properties panel, and bottom status bar. There is no permanent second toolbar
+row for Draw or Edit commands; those live in the left rail and menus.
+Keyboard shortcuts remain the fast path for Undo/Redo/Delete/Rotate. Full
+component setup still uses one modeless master/detail insertion dialog; the
+left Shapes column offers starter and recent chips only (not a permanent
+searchable catalog).
 
 ```text
-File | Edit | Draw | More
+File | Edit | Draw | More | Help
+[tool rail: Library/Wire/Text/…] [Library quick-place + Insert]  canvas  [Properties]
+status · active tool · zoom
 ```
 
 The exact visual treatment may use icons, labels, or responsive grouping, but
 the information architecture is normative:
 
-| Group | Commands                                                              |
-| ----- | --------------------------------------------------------------------- |
-| File  | Open, Save, Import, Export, and recent/example documents              |
-| Edit  | Undo, Redo, Delete, and contextual Align                              |
-| Draw  | Insert Component; Wire, Text, Arrow, Construction line, and Rectangle |
-| More  | Guides and shortcut reference; diagnostics remain in Import Review    |
+| Group      | Commands                                                                     |
+| ---------- | ---------------------------------------------------------------------------- |
+| File       | Open, Save, Import, Export, and recent/example documents                     |
+| Edit       | Undo, Redo, Delete, Rotate, Mirror, and contextual Align (menu home)         |
+| Draw       | Insert Component; Wire, Text, Arrow, Construction line, and Rectangle        |
+| More       | Guides and shortcut reference; diagnostics remain in Import Review           |
+| Tool rail  | Library toggles the left library panel; Wire, Text, Arrow, Line, Rect, Guide |
+| Library    | Starter/recent chips; title click or bottom Insert opens the full dialog     |
+| Properties | Contextual inspector docked on the right; closed by default                  |
 
 The following are not permanent production toolbar modes:
 
-- Select, Junction, Crossing, Stretch, Detach, Rotate, Mirror, Zoom, and Pan.
+- Select, Junction, Crossing, Stretch, Detach, Mirror, Zoom, and Pan as exclusive modes.
 - Save snapshot and Reopen snapshot; recovery is automatic infrastructure.
 - Phase/demo actions; examples belong in File/Open Example or development mode.
+- A permanent searchable full-catalog sidebar; `I` / library title / shapes Insert opens the dialog. Rail Library folds or expands the panel.
 
-`I` or `Draw > Insert component` opens one stable two-column dialog. Its left
+`I`, library title, shapes-panel **Insert**, or `Draw > Insert component` opens one stable two-column dialog. The rail **Library** control only shows or hides the panel. Its left
 setup column contains one compact searchable component picker, device-specific
 parameters, and one compact placement row for initial rotation plus an optional
 label/name; the
@@ -177,6 +187,7 @@ component or short Route drag.
 | `L`                        | Edit/create the selected Route's electrical Net Label.                             |
 | `P`                        | Enter Construction line mode.                                                      |
 | `Q`                        | Open Properties for the selected object and focus its primary editor.              |
+| Double-click (instance)    | Open Properties for a non-hierarchical device; enter cell for hierarchical cells.  |
 | `Escape`                   | Cancel the active gesture, then return to Pointer mode.                            |
 | `Delete` / `Backspace`     | Delete the selected object after applying the selection-specific semantic command. |
 | `U` / `Shift+U`            | Undo / redo one committed transaction.                                             |
@@ -262,10 +273,12 @@ operation.
 - Component selection is transient in the `I` insertion dialog. No permanent
   component library consumes canvas width or duplicates the Draw command
   surface.
-- Object properties live in a floating left `Properties` shelf. It is collapsed
-  by default; direct selection never opens it. `Q`, a direct click on the shelf,
-  and the explicit Import Review exception can expand it. It overlays rather
-  than resizes the canvas and scrolls internally when its details overflow.
+- Object properties live in the right `Properties` dock. It is collapsed by
+  default; a single click that only selects never opens it. `Q`, double-click on
+  a non-hierarchical instance, a direct click on the shelf header, and the
+  explicit Import Review exception expand it. Hierarchical instance double-click
+  still enters the child cell instead of opening Properties. The dock reflows
+  the workspace when open and scrolls internally when details overflow.
 - A component's identity card shows only its reference and symbol. Editable
   `X`, `Y`, and `Rotate` appear once in a compact Properties row; device
   parameters use the same inline symbol/unit/explanation notation as `I`.
