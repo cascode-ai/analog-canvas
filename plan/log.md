@@ -15,6 +15,16 @@ Use concise entries:
 
 Keep reusable lessons in `docs/experience/`, not in this log.
 
+## 2026-08-12 - Editor chrome shell redesign
+
+- Target: restructure the editor shell for clearer operation (menubar, tool
+  rail, library panel, properties dock, status bar) and a consistent visual
+  scale without changing formal schematic export styling.
+- Changed areas: editor App shell, styles tokens, tool icons, library
+  quick-place panel, help dialog, interaction contract, e2e/unit coverage.
+- Validation: App/shapes unit tests and editor Playwright suites passed.
+- Commit status: rebased onto latest main and force-pushed for PR mergeability.
+
 ## 2026-08-12 - Align Analytics Dashboard with Analog Arena
 
 - Target: make Analog Canvas analytics match the existing Analog Arena page
@@ -28,6 +38,7 @@ Keep reusable lessons in `docs/experience/`, not in this log.
   both remote browser shards passed.
 - Commit status: initial implementation merged through PR #11; post-deployment
   reset-alignment follow-up ready for review.
+
 
 ## 2026-08-12 - Bound transient canvas state and runtime caches
 
