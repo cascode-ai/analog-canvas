@@ -1,5 +1,5 @@
 ---
-status: active
+status: completed
 experience: none
 ---
 
@@ -88,4 +88,11 @@ feat(web): add privacy-friendly visitor analytics
 
 ## Outcome
 
-To be recorded after production verification.
+Analog Canvas now records privacy-friendly first-party PV/UV, daily traffic,
+country, rounded location, acquisition source, and page breakdowns in its own
+SQLite-backed Durable Object. The editor header exposes compact totals and
+links to a noindex `/analytics` dashboard; the dashboard does not count itself.
+Pull request #8 passed all five remote CI jobs and merged as `4b9a09e`; the
+subsequent Cloudflare workflow succeeded. Live production checks recorded and
+read back all dimensions, while cross-site and DNT submissions returned 204
+without incrementing counts.

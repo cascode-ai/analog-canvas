@@ -4630,3 +4630,17 @@ diff --check` passed. The full Playwright baseline completed 30/49, with the
 - Validation: direct production deploy, Wrangler dry-run, all five pull request
   CI jobs, successful `main` Cloudflare workflow, and live URL checks passed.
 - Commit status: merged through pull request #6 as `b7a4424`.
+
+## 2026-08-12 - Visitor Analytics
+
+- Target: add Analog Arena-style first-party visitor counts, origins, and
+  acquisition analytics to Analog Canvas.
+- Changed areas: Worker API, SQLite-backed Durable Object, bounded privacy
+  filters, custom-domain-only tracking, editor totals link, noindex dashboard,
+  world heatmap, tests, and Cloudflare migration/configuration.
+- Validation: 475 unit/integration tests, release contracts, focused analytics
+  browser test, remote five-job CI matrix, Wrangler dry-run, successful
+  Cloudflare deploy, live PV/UV/dimension reads, and cross-site/DNT rejection
+  passed.
+- Commit status: merged through pull request #8 as `4b9a09e`; production is
+  live at `https://analog-canvas.tokenzhang.com/analytics`.
