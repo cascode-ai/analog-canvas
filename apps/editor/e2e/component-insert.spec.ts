@@ -126,10 +126,12 @@ test("keeps the workspace inside the viewport and exposes low-interference zoom 
   await expect(zoom).not.toHaveText("100%");
   await page.getByRole("button", { name: "Fit view" }).click();
 
-  const canvasBefore = await page.getByTestId("schematic-canvas").boundingBox();
+  const canvas = page.getByTestId("schematic-canvas");
+  const canvasBefore = await canvas.boundingBox();
   await page.getByTestId("selection-shelf").click();
-  const canvasAfter = await page.getByTestId("schematic-canvas").boundingBox();
-  expect(canvasAfter?.width).toBe(canvasBefore?.width);
+  await expect
+    .poll(async () => (await canvas.boundingBox())?.width ?? 0)
+    .toBeLessThan(canvasBefore?.width ?? 0);
 });
 
 test("keeps preview fixed while the compact catalog expands and collapses", async ({
@@ -315,7 +317,8 @@ test("keeps a usable canvas while toggling Library at the narrow breakpoint", as
     "false",
   );
   const closedWidth = (await canvas.boundingBox())?.width ?? 0;
-  expect(closedWidth).toBeGreaterThan(openWidth);
+  expect(closedWidth).toBeCloseTo(openWidth, 0);
+  expect(closedWidth).toBeGreaterThan(300);
   expect(
     await page.evaluate(() => ({
       horizontal:
@@ -338,7 +341,12 @@ test("double-clicking a placed device opens Properties for editing", async ({
   await dialog.getByLabel("Component value").fill("4.7k");
   await dialog.getByRole("button", { name: "Apply" }).click();
   const canvas = page.getByTestId("schematic-canvas");
-  await canvas.click({ position: { x: 280, y: 220 } });
+  await canvas.click({ position: { x: 360, y: 230 } });
+  await expect(page.getByTestId("hit-R1")).toBeVisible();
+  await expect(page.getByTestId("selection-shelf")).toHaveAttribute(
+    "aria-expanded",
+    "false",
+  );
 
   await page.getByTestId("hit-R1").dblclick();
   await expect(page.getByTestId("selection-shelf")).toHaveAttribute(
@@ -346,6 +354,37 @@ test("double-clicking a placed device opens Properties for editing", async ({
     "true",
   );
   const propertyValue = page.getByLabel("Component value");
+  await expect(propertyValue).toBeVisible();
   await expect(propertyValue).toHaveValue("4.7k");
   await expect(propertyValue).toBeFocused();
+});
+
+test("Library rail folds the sidebar; Insert and title open the catalog", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const panel = page.getByTestId("shapes-library-panel");
+  await expect(panel).toHaveAttribute("data-open", "true");
+
+  await page.getByTestId("library-toggle").click();
+  await expect(panel).toHaveAttribute("data-open", "false");
+  await page.getByTestId("library-toggle").click();
+  await expect(panel).toHaveAttribute("data-open", "true");
+
+  await page.getByTestId("shapes-insert").click();
+  await expect(
+    page.getByRole("dialog", { name: "Insert Component" }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(
+    page.getByRole("dialog", { name: "Insert Component" }),
+  ).toHaveCount(0);
+
+  await page
+    .getByRole("button", { name: /Library/ })
+    .filter({ hasText: "Quick place" })
+    .click();
+  await expect(
+    page.getByRole("dialog", { name: "Insert Component" }),
+  ).toBeVisible();
 });

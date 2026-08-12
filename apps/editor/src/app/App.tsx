@@ -5197,45 +5197,264 @@ export function App({ project: initialProject, visitStats }: AppProps) {
   }
 
   return (
-    <main className={libraryPanelOpen ? "app-shell library-open" : "app-shell"}>
-      <header className="app-header">
-        <div>
-          <h1>Interactive Circuit Maker</h1>
-          <p>
-            {project.name} /{" "}
-            <span data-testid="active-document-name">{document.name}</span>
-          </p>
-        </div>
-        <nav
-          className="toolbar"
-          aria-label="Editor commands"
-          onClick={(event) => {
-            const target = event.target;
-            if (
-              target instanceof Element &&
-              target.closest(".command-popover button")
-            ) {
-              dismissOpenCommandMenus();
-            }
-          }}
-        >
-          <button
-            type="button"
-            aria-controls="shapes-library-panel"
-            aria-expanded={libraryPanelOpen}
-            aria-pressed={libraryPanelOpen}
-            data-testid="library-toggle"
-            title={
-              libraryPanelOpen
-                ? "Hide component library"
-                : "Show component library"
-            }
-            onClick={toggleLibraryPanel}
+    <main className="app-shell">
+      <header className="app-chrome">
+        <div className="app-chrome-main">
+          <div className="app-brand">
+            <span className="app-brand-mark" aria-hidden="true" />
+            <div className="app-brand-copy">
+              <h1 title="Interactive Circuit Maker">Circuit Maker</h1>
+              <p title={`${project.name} / ${document.name}`}>
+                {project.name} /{" "}
+                <span data-testid="active-document-name">{document.name}</span>
+              </p>
+            </div>
+          </div>
+          <nav
+            className="app-command-surface"
+            aria-label="Editor commands"
+            onClick={(event) => {
+              const target = event.target;
+              if (
+                target instanceof Element &&
+                target.closest(".command-popover button")
+              ) {
+                dismissOpenCommandMenus();
+              }
+            }}
           >
-            <ToolIcon name="library" />
-            Library
-          </button>
-          {hasImportedHierarchy ? (
+            <div className="menubar-row">
+              <details className="command-menu" name="editor-command-menu">
+                <summary>File</summary>
+                <div className="command-popover">
+                  <button type="button" onClick={saveProjectFile}>
+                    Save Project
+                  </button>
+                  <label className="file-import">
+                    Open Project
+                    <input
+                      ref={projectInputRef}
+                      data-testid="project-file"
+                      type="file"
+                      accept=".json,.icproj.json,application/json"
+                      onChange={(event) =>
+                        void openProjectFile(
+                          event.currentTarget.files?.[0] ?? null,
+                        )
+                      }
+                    />
+                  </label>
+                  <label className="file-import">
+                    Import SPICE
+                    <input
+                      data-testid="spice-files"
+                      type="file"
+                      accept=".spi,.cir,.sp,.inc,.lib"
+                      multiple
+                      onChange={(event) =>
+                        void importSpiceFiles(event.currentTarget.files)
+                      }
+                    />
+                  </label>
+                  <span className="command-group-label">Export</span>
+                  <button
+                    type="button"
+                    aria-label="Export SVG"
+                    onClick={exportSvg}
+                  >
+                    SVG
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Export PNG"
+                    onClick={() => void exportRaster("png")}
+                  >
+                    PNG
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Export PDF"
+                    onClick={() => void exportRaster("pdf")}
+                  >
+                    PDF
+                  </button>
+                  {recoveryCandidate ? (
+                    <>
+                      <button type="button" onClick={restoreRecovery}>
+                        Restore recovery
+                      </button>
+                      <button type="button" onClick={discardRecovery}>
+                        Discard recovery
+                      </button>
+                    </>
+                  ) : null}
+                </div>
+              </details>
+              <details className="command-menu" name="editor-command-menu">
+                <summary>Edit</summary>
+                <div className="command-popover">
+                  <button
+                    type="button"
+                    onClick={() => transact([{ kind: "undo" }])}
+                    disabled={!canUndo}
+                  >
+                    Undo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => transact([{ kind: "redo" }])}
+                    disabled={!canRedo}
+                  >
+                    Redo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={deleteSelection}
+                    disabled={
+                      !hasVisualSelection(visualSelection) && !selectedEndpoint
+                    }
+                  >
+                    Delete
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => rotateSelected()}
+                    disabled={selectedIds.length === 0}
+                  >
+                    <ToolIcon name="rotate" />
+                    Rotate
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => mirrorSelected("left-right")}
+                    disabled={selectedIds.length === 0}
+                  >
+                    Mirror left/right (Shift+R)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => mirrorSelected("top-bottom")}
+                    disabled={selectedIds.length === 0}
+                  >
+                    Mirror top/bottom (Shift+V)
+                  </button>
+                  {selectedIds.length > 1 ? (
+                    <button type="button" onClick={alignSelectedInstances}>
+                      Align
+                    </button>
+                  ) : null}
+                </div>
+              </details>
+              <details className="command-menu" name="editor-command-menu">
+                <summary>Draw</summary>
+                <div className="command-popover">
+                  <button type="button" onClick={openInsertComponentDialog}>
+                    <ToolIcon name="insert" />
+                    Insert component (I)
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={tool === "wire"}
+                    onClick={() => activateTool("wire")}
+                  >
+                    <ToolIcon name="wire" />
+                    Wire (W)
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Text"
+                    onClick={addPlainText}
+                  >
+                    <ToolIcon name="text" />
+                    Text (T)
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={tool === "arrow"}
+                    onClick={() => activateTool("arrow")}
+                  >
+                    <ToolIcon name="arrow" />
+                    Arrow (A)
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={tool === "construction-line"}
+                    onClick={() => activateTool("construction-line")}
+                  >
+                    <ToolIcon name="line" />
+                    Construction line (K)
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={tool === "rectangle"}
+                    onClick={() => activateTool("rectangle")}
+                  >
+                    <ToolIcon name="rectangle" />
+                    Rectangle (R)
+                  </button>
+                </div>
+              </details>
+              <details className="command-menu" name="editor-command-menu">
+                <summary>More</summary>
+                <div className="command-popover">
+                  <span className="command-group-label">Guides</span>
+                  <button type="button" onClick={() => addGuide("vertical")}>
+                    Add vertical guide
+                  </button>
+                  <button type="button" onClick={() => addGuide("horizontal")}>
+                    Add horizontal guide
+                  </button>
+                  <button type="button" onClick={toggleGuidesVisible}>
+                    Show/hide guides
+                  </button>
+                  <button type="button" onClick={clearUnlockedGuides}>
+                    Clear unlocked guides
+                  </button>
+                  <button type="button" onClick={() => activateTool("guide")}>
+                    Guide tool (G)
+                  </button>
+                </div>
+              </details>
+              <button
+                type="button"
+                data-testid="project-search-button"
+                aria-haspopup="dialog"
+                aria-expanded={searchOpen}
+                onClick={() => setSearchOpen(true)}
+              >
+                Search
+              </button>
+              <button
+                type="button"
+                className="menubar-help"
+                ref={helpButtonRef}
+                aria-haspopup="dialog"
+                aria-expanded={helpOpen}
+                aria-controls="editor-help-dialog"
+                onClick={() => setHelpOpen(true)}
+              >
+                Help
+              </button>
+            </div>
+          </nav>
+          <a
+            className="analytics-link"
+            href="/analytics"
+            aria-label="Open visitor analytics"
+          >
+            {visitStats ? (
+              <>
+                <span>{visitStats.uv.toLocaleString()} visitors</span>
+                <span aria-hidden="true">·</span>
+                <span>{visitStats.pv.toLocaleString()} views</span>
+              </>
+            ) : (
+              "Analytics"
+            )}
+          </a>
+        </div>
+        {hasImportedHierarchy ? (
+          <div className="toolbar-row" aria-label="Document hierarchy">
             <div
               className="document-nav"
               aria-label="Imported cell navigation"
@@ -5288,232 +5507,8 @@ export function App({ project: initialProject, visitStats }: AppProps) {
                 Enter Cell
               </button>
             </div>
-          ) : null}
-          <details className="command-menu" name="editor-command-menu">
-            <summary>Draw</summary>
-            <div className="command-popover">
-              <button type="button" onClick={openInsertComponentDialog}>
-                <ToolIcon name="insert" />
-                Insert component (I)
-              </button>
-              <button
-                type="button"
-                aria-pressed={tool === "wire"}
-                onClick={() => activateTool("wire")}
-              >
-                <ToolIcon name="wire" />
-                Wire (W)
-              </button>
-              <button type="button" aria-label="Text" onClick={addPlainText}>
-                <ToolIcon name="text" />
-                Text (T)
-              </button>
-              <button
-                type="button"
-                aria-pressed={tool === "arrow"}
-                onClick={() => activateTool("arrow")}
-              >
-                <ToolIcon name="arrow" />
-                Arrow (A)
-              </button>
-              <button
-                type="button"
-                aria-pressed={tool === "construction-line"}
-                onClick={() => activateTool("construction-line")}
-              >
-                <ToolIcon name="line" />
-                Construction line (K)
-              </button>
-              <button
-                type="button"
-                aria-pressed={tool === "rectangle"}
-                onClick={() => activateTool("rectangle")}
-              >
-                <ToolIcon name="rectangle" />
-                Rectangle (R)
-              </button>
-            </div>
-          </details>
-          <details className="command-menu" name="editor-command-menu">
-            <summary>File</summary>
-            <div className="command-popover">
-              <button type="button" onClick={saveProjectFile}>
-                Save Project
-              </button>
-              <label className="file-import">
-                Open Project
-                <input
-                  ref={projectInputRef}
-                  data-testid="project-file"
-                  type="file"
-                  accept=".json,.icproj.json,application/json"
-                  onChange={(event) =>
-                    void openProjectFile(event.currentTarget.files?.[0] ?? null)
-                  }
-                />
-              </label>
-              <label className="file-import">
-                Import SPICE
-                <input
-                  data-testid="spice-files"
-                  type="file"
-                  accept=".spi,.cir,.sp,.inc,.lib"
-                  multiple
-                  onChange={(event) =>
-                    void importSpiceFiles(event.currentTarget.files)
-                  }
-                />
-              </label>
-              <span className="command-group-label">Export</span>
-              <button type="button" aria-label="Export SVG" onClick={exportSvg}>
-                SVG
-              </button>
-              <button
-                type="button"
-                aria-label="Export PNG"
-                onClick={() => void exportRaster("png")}
-              >
-                PNG
-              </button>
-              <button
-                type="button"
-                aria-label="Export PDF"
-                onClick={() => void exportRaster("pdf")}
-              >
-                PDF
-              </button>
-              {recoveryCandidate ? (
-                <>
-                  <button type="button" onClick={restoreRecovery}>
-                    Restore recovery
-                  </button>
-                  <button type="button" onClick={discardRecovery}>
-                    Discard recovery
-                  </button>
-                </>
-              ) : null}
-            </div>
-          </details>
-          <details className="command-menu" name="editor-command-menu">
-            <summary>Edit</summary>
-            <div className="command-popover">
-              <button
-                type="button"
-                onClick={() => transact([{ kind: "undo" }])}
-                disabled={!canUndo}
-              >
-                Undo
-              </button>
-              <button
-                type="button"
-                onClick={() => transact([{ kind: "redo" }])}
-                disabled={!canRedo}
-              >
-                Redo
-              </button>
-              <button
-                type="button"
-                onClick={deleteSelection}
-                disabled={
-                  !hasVisualSelection(visualSelection) && !selectedEndpoint
-                }
-              >
-                Delete
-              </button>
-              <button
-                type="button"
-                onClick={() => rotateSelected()}
-                disabled={selectedIds.length === 0}
-              >
-                <ToolIcon name="rotate" />
-                Rotate
-              </button>
-              <button
-                type="button"
-                onClick={() => mirrorSelected("left-right")}
-                disabled={selectedIds.length === 0}
-              >
-                Mirror left/right (Shift+R)
-              </button>
-              <button
-                type="button"
-                onClick={() => mirrorSelected("top-bottom")}
-                disabled={selectedIds.length === 0}
-              >
-                Mirror top/bottom (Shift+V)
-              </button>
-              {selectedIds.length > 1 ? (
-                <button type="button" onClick={alignSelectedInstances}>
-                  Align
-                </button>
-              ) : null}
-            </div>
-          </details>
-          <details className="command-menu" name="editor-command-menu">
-            <summary>More</summary>
-            <div className="command-popover">
-              <span className="command-group-label">Guides</span>
-              <button type="button" onClick={() => addGuide("vertical")}>
-                Add vertical guide
-              </button>
-              <button type="button" onClick={() => addGuide("horizontal")}>
-                Add horizontal guide
-              </button>
-              <button type="button" onClick={toggleGuidesVisible}>
-                Show/hide guides
-              </button>
-              <button type="button" onClick={clearUnlockedGuides}>
-                Clear unlocked guides
-              </button>
-              <button type="button" onClick={() => activateTool("guide")}>
-                Guide tool (G)
-              </button>
-              <small>
-                I insert · C copy · R rotate · W wire · G guide · Home fit ·
-                wheel zoom · middle-drag pan · Enter finish
-              </small>
-            </div>
-          </details>
-          <button
-            type="button"
-            ref={helpButtonRef}
-            aria-haspopup="dialog"
-            aria-expanded={helpOpen}
-            aria-controls="editor-help-dialog"
-            onClick={() => setHelpOpen(true)}
-          >
-            Help
-          </button>
-          <button
-            type="button"
-            data-testid="project-search-button"
-            aria-haspopup="dialog"
-            aria-expanded={searchOpen}
-            onClick={() => setSearchOpen(true)}
-          >
-            Search
-          </button>
-        </nav>
-        <div className="editor-header-meta">
-          <p className="editor-status" data-testid="status" aria-live="polite">
-            {status}
-          </p>
-          <a
-            className="analytics-link"
-            href="/analytics"
-            aria-label="Open visitor analytics"
-          >
-            {visitStats ? (
-              <>
-                <span>{visitStats.uv.toLocaleString()} visitors</span>
-                <span aria-hidden="true">·</span>
-                <span>{visitStats.pv.toLocaleString()} views</span>
-              </>
-            ) : (
-              "Analytics"
-            )}
-          </a>
-        </div>
+          </div>
+        ) : null}
         <div data-testid="editor-test-telemetry" hidden>
           <output data-testid="selected-internal-route-count">
             {internalSelection.routeIds.length}
@@ -5564,1539 +5559,1605 @@ export function App({ project: initialProject, visitStats }: AppProps) {
         onApply={beginInsertedComponentPlacement}
         onCancel={cancelComponentInsert}
       />
-      <ShapesPanel
-        styleProfileId={document.presentation.styleProfileId}
-        recentSymbolIds={recentSymbolIds}
-        open={libraryPanelOpen}
-        onOpenInsert={openInsertComponentDialog}
-        onQuickPlace={beginInsertedComponentPlacement}
-      />
-      <aside
-        className={selectionOpen ? "selection-dock open" : "selection-dock"}
-        aria-label="Properties"
-        role="complementary"
+      <div
+        className={
+          libraryPanelOpen ? "app-workspace" : "app-workspace library-collapsed"
+        }
       >
-        <section className="selection-shelf" aria-label="Selection">
+        <aside className="tool-rail" aria-label="Tool rail">
           <button
             type="button"
-            ref={selectionShelfRef}
-            className="selection-shelf-header"
-            data-testid="selection-shelf"
-            aria-expanded={selectionOpen}
-            onClick={() => {
-              setSelectionOpen((current) => !current);
-              if (selectionOpen) setImportReviewOpen(false);
-            }}
+            className="tool-rail-button"
+            title={
+              libraryPanelOpen
+                ? "Hide component library"
+                : "Show component library"
+            }
+            aria-pressed={libraryPanelOpen}
+            aria-controls="shapes-library-panel"
+            aria-expanded={libraryPanelOpen}
+            data-testid="library-toggle"
+            onClick={toggleLibraryPanel}
           >
-            <span className="selection-shelf-title">
-              <ToolIcon name="inspect" />
-              <span>Properties</span>
-            </span>
-            <span className="selection-shelf-summary">
-              {selectedIds.length > 0
-                ? selectedIds.join(", ")
-                : (selectedRouteId ??
-                  selectedAnnotationId ??
-                  selectedDraftingId ??
-                  "None")}
-              {hasInspectableSelection ? (
-                <span
-                  className="selection-shelf-indicator"
-                  aria-hidden="true"
-                />
-              ) : null}
-            </span>
+            <ToolIcon name="library" />
+            <span>Library</span>
           </button>
-          <div className="selection-panel" hidden={!selectionOpen}>
-            {!hasInspectableSelection ? (
-              <p className="inspect-empty">Select an object to inspect.</p>
-            ) : null}
-            {selectedIds.length > 1 ? (
-              <section className="selection-overview">
-                <span>Component group</span>
-                <h2>{selectedIds.length} components</h2>
-                <p>{selectedIds.join(", ")}</p>
-              </section>
-            ) : null}
-            {selectedInstance?.placement ? (
-              <section className="selection-overview">
-                <span>Component</span>
-                <h2>{selectedInstance.id}</h2>
-                <dl>
-                  <dt>Symbol</dt>
-                  <dd>{selectedInstance.symbolId}</dd>
-                </dl>
-              </section>
-            ) : null}
-            {selectedInstance ? (
-              <section
-                className="context-actions"
-                aria-label="Component properties"
-              >
-                <h2>Component properties</h2>
-                {componentParameters(selectedInstance.symbolId).map(
-                  (parameter, index) => (
-                    <label key={parameter.key} title={parameter.help}>
-                      <span className="property-parameter-name">
-                        {parameter.label}
-                        {parameter.unit ? ` / ${parameter.unit}` : ""}
-                        <em>({parameter.help})</em>
-                      </span>
-                      <input
-                        ref={index === 0 ? instanceValueInputRef : undefined}
-                        aria-label={`Component ${parameter.label.toLowerCase()}`}
-                        inputMode={parameter.inputMode}
-                        value={
-                          instancePropertyDraft.parameters[parameter.key] ?? ""
-                        }
-                        placeholder={parameter.placeholder}
-                        onChange={(event) => {
-                          const value = event.currentTarget.value;
-                          setInstancePropertyDraft((current) => ({
-                            ...current,
-                            parameters: {
-                              ...current.parameters,
-                              [parameter.key]: value,
-                            },
-                          }));
-                        }}
-                      />
-                    </label>
-                  ),
-                )}
-                {typeof selectedInstance.properties["spice.target"] ===
-                "string" ? (
-                  <p className="property-source-fact">
-                    Model: {selectedInstance.properties["spice.target"]}
-                  </p>
+          <button
+            type="button"
+            className="tool-rail-button"
+            aria-pressed={tool === "wire"}
+            title="Wire (W)"
+            onClick={() => activateTool("wire")}
+          >
+            <ToolIcon name="wire" />
+            <span>Wire</span>
+          </button>
+          <button
+            type="button"
+            className="tool-rail-button"
+            title="Text (T)"
+            aria-label="Text"
+            onClick={addPlainText}
+          >
+            <ToolIcon name="text" />
+            <span>Text</span>
+          </button>
+          <button
+            type="button"
+            className="tool-rail-button"
+            aria-pressed={tool === "arrow"}
+            title="Arrow (A)"
+            onClick={() => activateTool("arrow")}
+          >
+            <ToolIcon name="arrow" />
+            <span>Arrow</span>
+          </button>
+          <button
+            type="button"
+            className="tool-rail-button"
+            aria-pressed={tool === "construction-line"}
+            title="Construction line (K)"
+            onClick={() => activateTool("construction-line")}
+          >
+            <ToolIcon name="line" />
+            <span>Line</span>
+          </button>
+          <button
+            type="button"
+            className="tool-rail-button"
+            aria-pressed={tool === "rectangle"}
+            title="Rectangle"
+            onClick={() => activateTool("rectangle")}
+          >
+            <ToolIcon name="rectangle" />
+            <span>Rect</span>
+          </button>
+          <div className="tool-rail-divider" aria-hidden="true" />
+          <button
+            type="button"
+            className="tool-rail-button"
+            title="Guide tool (G)"
+            aria-pressed={tool === "guide"}
+            onClick={() => activateTool("guide")}
+          >
+            <ToolIcon name="guide" />
+            <span>Guide</span>
+          </button>
+        </aside>
+        <ShapesPanel
+          styleProfileId={document.presentation.styleProfileId}
+          recentSymbolIds={recentSymbolIds}
+          open={libraryPanelOpen}
+          onOpenInsert={openInsertComponentDialog}
+          onQuickPlace={beginInsertedComponentPlacement}
+        />
+        <aside
+          className={selectionOpen ? "selection-dock open" : "selection-dock"}
+          aria-label="Properties"
+          role="complementary"
+        >
+          <section className="selection-shelf" aria-label="Selection">
+            <button
+              type="button"
+              ref={selectionShelfRef}
+              className="selection-shelf-header"
+              data-testid="selection-shelf"
+              aria-expanded={selectionOpen}
+              onClick={() => {
+                setSelectionOpen((current) => !current);
+                if (selectionOpen) setImportReviewOpen(false);
+              }}
+            >
+              <span className="selection-shelf-title">
+                <ToolIcon name="inspect" />
+                <span>Properties</span>
+              </span>
+              <span className="selection-shelf-summary">
+                {selectedIds.length > 0
+                  ? selectedIds.join(", ")
+                  : (selectedRouteId ??
+                    selectedAnnotationId ??
+                    selectedDraftingId ??
+                    "None")}
+                {hasInspectableSelection ? (
+                  <span
+                    className="selection-shelf-indicator"
+                    aria-hidden="true"
+                  />
                 ) : null}
-                {selectedInstance.placement ? (
-                  <>
-                    <div
-                      className="component-geometry-row"
-                      aria-label="Component geometry"
-                    >
-                      <label>
-                        X
+              </span>
+            </button>
+            <div className="selection-panel" hidden={!selectionOpen}>
+              {!hasInspectableSelection ? (
+                <p className="inspect-empty">Select an object to inspect.</p>
+              ) : null}
+              {selectedIds.length > 1 ? (
+                <section className="selection-overview">
+                  <span>Component group</span>
+                  <h2>{selectedIds.length} components</h2>
+                  <p>{selectedIds.join(", ")}</p>
+                </section>
+              ) : null}
+              {selectedInstance?.placement ? (
+                <section className="selection-overview">
+                  <span>Component</span>
+                  <h2>{selectedInstance.id}</h2>
+                  <dl>
+                    <dt>Symbol</dt>
+                    <dd>{selectedInstance.symbolId}</dd>
+                  </dl>
+                </section>
+              ) : null}
+              {selectedInstance ? (
+                <section
+                  className="context-actions"
+                  aria-label="Component properties"
+                >
+                  <h2>Component properties</h2>
+                  {componentParameters(selectedInstance.symbolId).map(
+                    (parameter, index) => (
+                      <label key={parameter.key} title={parameter.help}>
+                        <span className="property-parameter-name">
+                          {parameter.label}
+                          {parameter.unit ? ` / ${parameter.unit}` : ""}
+                          <em>({parameter.help})</em>
+                        </span>
                         <input
-                          aria-label="Component X position"
-                          inputMode="decimal"
-                          value={instancePropertyDraft.x}
-                          onChange={(event) => {
-                            const x = event.currentTarget.value;
-                            setInstancePropertyDraft((current) => ({
-                              ...current,
-                              x,
-                            }));
-                          }}
-                        />
-                      </label>
-                      <label>
-                        Y
-                        <input
-                          aria-label="Component Y position"
-                          inputMode="decimal"
-                          value={instancePropertyDraft.y}
-                          onChange={(event) => {
-                            const y = event.currentTarget.value;
-                            setInstancePropertyDraft((current) => ({
-                              ...current,
-                              y,
-                            }));
-                          }}
-                        />
-                      </label>
-                      <label>
-                        Rotate
-                        <select
-                          aria-label="Component rotation"
-                          value={instancePropertyDraft.rotation}
-                          onChange={(event) => {
-                            const rotation = event.currentTarget.value as
-                              "0" | "90" | "180" | "270";
-                            setInstancePropertyDraft((current) => ({
-                              ...current,
-                              rotation,
-                            }));
-                          }}
-                        >
-                          <option value="0">0°</option>
-                          <option value="90">90°</option>
-                          <option value="180">180°</option>
-                          <option value="270">270°</option>
-                        </select>
-                      </label>
-                    </div>
-                    <div
-                      className="component-mirror-row"
-                      aria-label="Mirror component"
-                    >
-                      <button
-                        type="button"
-                        aria-label="Mirror component left to right, Shift+R"
-                        title="Mirror left/right (Shift+R)"
-                        onClick={() => mirrorSelected("left-right")}
-                      >
-                        ↔ Shift+R
-                      </button>
-                      <button
-                        type="button"
-                        aria-label="Mirror component top to bottom, Shift+V"
-                        title="Mirror top/bottom (Shift+V)"
-                        onClick={() => mirrorSelected("top-bottom")}
-                      >
-                        ↕ Shift+V
-                      </button>
-                    </div>
-                  </>
-                ) : null}
-                <button type="button" onClick={applyInstanceProperties}>
-                  Apply component properties
-                </button>
-                <button type="button" onClick={discardInstancePropertyDraft}>
-                  Cancel property edits
-                </button>
-              </section>
-            ) : null}
-            {selectedRoute ? (
-              <section className="selection-overview">
-                <span>Electrical route</span>
-                <h2>{selectedRoute.id}</h2>
-                <dl>
-                  <dt>Net</dt>
-                  <dd>
-                    {document.nets.find((net) => net.id === selectedRoute.netId)
-                      ?.name ?? selectedRoute.netId}
-                  </dd>
-                  <dt>Segment</dt>
-                  <dd>{(selectedRouteSegmentIndex ?? 0) + 1}</dd>
-                </dl>
-              </section>
-            ) : null}
-            {selectedAnnotation ? (
-              <section className="selection-overview">
-                <span>Annotation</span>
-                <h2>{selectedAnnotation.id}</h2>
-                <dl>
-                  <dt>Kind</dt>
-                  <dd>{selectedAnnotation.kind}</dd>
-                  <dt>Locked</dt>
-                  <dd>{selectedAnnotation.locked ? "Yes" : "No"}</dd>
-                </dl>
-              </section>
-            ) : null}
-            {selectedDrafting ? (
-              <section className="selection-overview">
-                <span>Drawing</span>
-                <h2>{selectedDrafting.id}</h2>
-                <dl>
-                  <dt>Kind</dt>
-                  <dd>{selectedDrafting.kind}</dd>
-                  <dt>Locked</dt>
-                  <dd>{selectedDrafting.locked ? "Yes" : "No"}</dd>
-                </dl>
-              </section>
-            ) : null}
-            {selectedDrafting
-              ? (() => {
-                  const geometry = resolveDraftingObjectGeometry(
-                    document,
-                    resolver,
-                    selectedDrafting,
-                  );
-                  if (
-                    geometry.kind !== "arrow" &&
-                    geometry.kind !== "construction-line" &&
-                    geometry.kind !== "rectangle"
-                  ) {
-                    return null;
-                  }
-                  const lineStyle =
-                    selectedDrafting.styleOverride?.lineStyle ??
-                    (selectedDrafting.kind === "construction-line" ||
-                    selectedDrafting.kind === "rectangle"
-                      ? selectedDrafting.lineStyle
-                      : "solid");
-                  const isRectangle = geometry.kind === "rectangle";
-                  const points = isRectangle
-                    ? geometry.corners
-                    : geometry.points;
-                  const curveControls = isRectangle
-                    ? points.slice(0, -1).map(() => null)
-                    : geometry.curveControls;
-                  const segmentIndex =
-                    draftingInspectorSegment?.objectId === selectedDrafting.id
-                      ? draftingInspectorSegment.index
-                      : Math.max(0, curveControls.findIndex(Boolean));
-                  const tangentAngle = isRectangle
-                    ? 0
-                    : quadraticTangentAngle(
-                        points[segmentIndex]!,
-                        curveControls[segmentIndex] ?? null,
-                        points[segmentIndex + 1]!,
-                      );
-                  const tangentInputKey = `${selectedDrafting.id}:${segmentIndex}`;
-                  const realizedAngleText = String(
-                    Math.round(tangentAngle * 10) / 10,
-                  );
-                  const tangentInputValue =
-                    draftingTangentInput?.key === tangentInputKey
-                      ? draftingTangentInput.value
-                      : realizedAngleText;
-                  const bearing = isRectangle
-                    ? geometry.rotation
-                    : normalizedBearing(points[0]!, points[1]!);
-                  const realizedBearingText = String(
-                    Math.round(bearing * 10) / 10,
-                  );
-                  const bearingInputValue =
-                    draftingBearingInput?.objectId === selectedDrafting.id
-                      ? draftingBearingInput.value
-                      : realizedBearingText;
-                  return (
-                    <section
-                      className="context-actions drawing-properties"
-                      aria-label="Drawing style"
-                      data-testid="drafting-properties"
-                    >
-                      <h2>Drawing style</h2>
-                      <label>
-                        Line style
-                        <select
-                          aria-label="Line style"
-                          value={lineStyle}
-                          disabled={selectedDrafting.locked}
-                          onChange={(event) =>
-                            setDraftingStyle({
-                              lineStyle: event.currentTarget.value as
-                                "solid" | "dashed" | "dotted",
-                            })
+                          ref={index === 0 ? instanceValueInputRef : undefined}
+                          aria-label={`Component ${parameter.label.toLowerCase()}`}
+                          inputMode={parameter.inputMode}
+                          value={
+                            instancePropertyDraft.parameters[parameter.key] ??
+                            ""
                           }
-                        >
-                          <option value="solid">Solid</option>
-                          <option value="dashed">Dashed</option>
-                          <option value="dotted">Dotted</option>
-                        </select>
-                      </label>
-                      <label>
-                        Stroke width
-                        <select
-                          aria-label="Stroke width"
-                          value={String(
-                            selectedDrafting.styleOverride?.strokeScale ?? 1,
-                          )}
-                          disabled={selectedDrafting.locked}
-                          onChange={(event) =>
-                            setDraftingStyle({
-                              strokeScale: Number(event.currentTarget.value) as
-                                0.75 | 1 | 1.5 | 2,
-                            })
-                          }
-                        >
-                          <option value="0.75">0.75×</option>
-                          <option value="1">1×</option>
-                          <option value="1.5">1.5×</option>
-                          <option value="2">2×</option>
-                        </select>
-                      </label>
-                      {selectedDrafting.kind === "construction-line" &&
-                      points.length > 2 ? (
-                        <label>
-                          Curve segment
-                          <select
-                            aria-label="Curve segment"
-                            value={String(segmentIndex)}
-                            disabled={selectedDrafting.locked}
-                            onChange={(event) => {
-                              setDraftingInspectorSegment({
-                                objectId: selectedDrafting.id,
-                                index: Number(event.currentTarget.value),
-                              });
-                              setDraftingTangentInput(null);
-                            }}
-                          >
-                            {points.slice(0, -1).map((_, index) => (
-                              <option key={index} value={index}>
-                                Segment {index + 1}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                      ) : null}
-                      {!isRectangle ? (
-                        <label>
-                          Tangent angle (°)
-                          <input
-                            aria-label="Tangent angle"
-                            type="number"
-                            min="0"
-                            max="170"
-                            step="1"
-                            value={tangentInputValue}
-                            disabled={selectedDrafting.locked}
-                            placeholder={realizedAngleText}
-                            onFocus={() => {
-                              setDraftingTangentInput({
-                                key: tangentInputKey,
-                                value: "",
-                              });
-                            }}
-                            onChange={(event) => {
-                              const value = event.currentTarget.value;
-                              setDraftingTangentInput({
-                                key: tangentInputKey,
-                                value,
-                              });
-                              const angle = Number(value);
-                              if (value !== "" && Number.isFinite(angle)) {
-                                setDraftingTangentAngle(angle);
-                              }
-                            }}
-                            onBlur={() => setDraftingTangentInput(null)}
-                          />
-                        </label>
-                      ) : null}
-                      <label>
-                        Bearing (°)
-                        <input
-                          aria-label="Drawing bearing"
-                          type="number"
-                          min="0"
-                          max="359"
-                          step="1"
-                          value={bearingInputValue}
-                          disabled={selectedDrafting.locked}
-                          placeholder={realizedBearingText}
-                          onFocus={() =>
-                            setDraftingBearingInput({
-                              objectId: selectedDrafting.id,
-                              value: "",
-                            })
-                          }
+                          placeholder={parameter.placeholder}
                           onChange={(event) => {
                             const value = event.currentTarget.value;
-                            setDraftingBearingInput({
-                              objectId: selectedDrafting.id,
-                              value,
-                            });
-                            const bearing = Number(value);
-                            if (value !== "" && Number.isFinite(bearing)) {
-                              setDraftingBearing(bearing);
-                            }
+                            setInstancePropertyDraft((current) => ({
+                              ...current,
+                              parameters: {
+                                ...current.parameters,
+                                [parameter.key]: value,
+                              },
+                            }));
                           }}
-                          onBlur={() => setDraftingBearingInput(null)}
                         />
                       </label>
-                      {selectedDrafting.kind === "arrow" ? (
-                        <>
-                          <label>
-                            Arrow head
-                            <select
-                              aria-label="Arrow head"
-                              value={
-                                selectedDrafting.styleOverride?.arrowHead ??
-                                "filled"
-                              }
-                              disabled={selectedDrafting.locked}
-                              onChange={(event) =>
-                                setDraftingStyle({
-                                  arrowHead: event.currentTarget.value as
-                                    "none" | "filled" | "open",
-                                })
-                              }
-                            >
-                              <option value="none">No head</option>
-                              <option value="filled">Filled</option>
-                              <option value="open">Open</option>
-                            </select>
-                          </label>
-                          <label>
-                            Arrow head size
-                            <select
-                              aria-label="Arrow head size"
-                              value={String(
-                                selectedDrafting.styleOverride
-                                  ?.arrowHeadScale ?? 1,
-                              )}
-                              disabled={selectedDrafting.locked}
-                              onChange={(event) =>
-                                setDraftingStyle({
-                                  arrowHeadScale: Number(
-                                    event.currentTarget.value,
-                                  ) as 0.75 | 1 | 1.25 | 1.5,
-                                })
-                              }
-                            >
-                              <option value="0.75">0.75×</option>
-                              <option value="1">1×</option>
-                              <option value="1.25">1.25×</option>
-                              <option value="1.5">1.5×</option>
-                            </select>
-                          </label>
-                          <button
-                            type="button"
-                            disabled={selectedDrafting.locked}
-                            onClick={() => {
-                              const { from, to } = selectedDrafting;
-                              transact([
-                                {
-                                  kind: "upsert_drafting_object",
-                                  object: {
-                                    ...selectedDrafting,
-                                    from: to,
-                                    to: from,
-                                    waypoints: [
-                                      ...(selectedDrafting.waypoints ?? []),
-                                    ].reverse(),
-                                    curveControls: [
-                                      ...(selectedDrafting.curveControls ?? []),
-                                    ].reverse(),
-                                  },
-                                },
-                              ]);
+                    ),
+                  )}
+                  {typeof selectedInstance.properties["spice.target"] ===
+                  "string" ? (
+                    <p className="property-source-fact">
+                      Model: {selectedInstance.properties["spice.target"]}
+                    </p>
+                  ) : null}
+                  {selectedInstance.placement ? (
+                    <>
+                      <div
+                        className="component-geometry-row"
+                        aria-label="Component geometry"
+                      >
+                        <label>
+                          X
+                          <input
+                            aria-label="Component X position"
+                            inputMode="decimal"
+                            value={instancePropertyDraft.x}
+                            onChange={(event) => {
+                              const x = event.currentTarget.value;
+                              setInstancePropertyDraft((current) => ({
+                                ...current,
+                                x,
+                              }));
+                            }}
+                          />
+                        </label>
+                        <label>
+                          Y
+                          <input
+                            aria-label="Component Y position"
+                            inputMode="decimal"
+                            value={instancePropertyDraft.y}
+                            onChange={(event) => {
+                              const y = event.currentTarget.value;
+                              setInstancePropertyDraft((current) => ({
+                                ...current,
+                                y,
+                              }));
+                            }}
+                          />
+                        </label>
+                        <label>
+                          Rotate
+                          <select
+                            aria-label="Component rotation"
+                            value={instancePropertyDraft.rotation}
+                            onChange={(event) => {
+                              const rotation = event.currentTarget.value as
+                                "0" | "90" | "180" | "270";
+                              setInstancePropertyDraft((current) => ({
+                                ...current,
+                                rotation,
+                              }));
                             }}
                           >
-                            Reverse
-                          </button>
-                        </>
-                      ) : null}
-                      <button
-                        type="button"
-                        disabled={selectedDrafting.locked}
-                        onClick={() => rotateSelected()}
+                            <option value="0">0°</option>
+                            <option value="90">90°</option>
+                            <option value="180">180°</option>
+                            <option value="270">270°</option>
+                          </select>
+                        </label>
+                      </div>
+                      <div
+                        className="component-mirror-row"
+                        aria-label="Mirror component"
                       >
-                        <ToolIcon name="rotate" />
-                        Rotate
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => toggleDraftingLock(selectedDrafting)}
-                      >
-                        <ToolIcon name="lock" />
-                        {selectedDrafting.locked ? "Unlock" : "Lock"}
-                      </button>
-                    </section>
-                  );
-                })()
-              : null}
-            {unplaced.length > 0 ? <h3>Unplaced Instances</h3> : null}
-            {unplaced.map((instance) => (
-              <button
-                type="button"
-                draggable
-                data-testid={`unplaced-${instance.id}`}
-                key={instance.id}
-                onClick={() => {
-                  selectOnly("instance", [instance.id]);
-                  setStatus(`Selected ${instance.id}`);
-                }}
-                onDragStart={(event) => {
-                  event.dataTransfer.setData(
-                    "application/x-icm-instance",
-                    instance.id,
-                  );
-                  event.dataTransfer.effectAllowed = "move";
-                }}
-              >
-                {instance.id} · {instance.symbolId}
-              </button>
-            ))}
-            {unplacedPorts.length > 0 ? <h3>Unplaced Ports</h3> : null}
-            {unplacedPorts.map((port) => (
-              <button
-                type="button"
-                data-testid={`unplaced-port-${port.id}`}
-                key={port.id}
-                onClick={() => placePortAtViewCenter(port.id)}
-              >
-                Place {port.name}
-              </button>
-            ))}
-            {selectedInstance && selectedHiddenBulkNet ? (
-              <section
-                className="context-actions"
-                aria-label="Hidden MOS bulk warning"
-              >
-                <h2>Hidden bulk warning</h2>
-                <p>
-                  {selectedInstance.id}.B is electrically connected to{" "}
-                  {selectedHiddenBulkNet.name ?? selectedHiddenBulkNet.id}, but
-                  Razavi MOS stays in three-terminal display.
-                </p>
-              </section>
-            ) : null}
-            {selectedRouteId ? (
-              <section className="context-actions" aria-label="Route actions">
-                <h2>Route</h2>
-                <p>Segment {(selectedRouteSegmentIndex ?? 0) + 1} selected</p>
-                <label>
-                  Electrical Net label
-                  <input
-                    ref={netLabelPropertyInputRef}
-                    aria-label="Electrical Net label"
-                    value={netLabelDraft}
-                    onChange={(event) =>
-                      setNetLabelDraft(event.currentTarget.value)
-                    }
-                  />
-                </label>
-                <button type="button" onClick={applyNetLabel}>
-                  Apply Net label
-                </button>
-                <button type="button" onClick={deleteSelectedRouteNetLabel}>
-                  Delete Net label
-                </button>
-                <button type="button" onClick={addCurrentArrow}>
-                  Add current arrow
-                </button>
-                <button type="button" onClick={toggleHighlightedNet}>
-                  {selectedHighlightIsActive
-                    ? "Clear Net highlight (H)"
-                    : "Highlight Net (H)"}
-                </button>
-                <button type="button" onClick={deleteSelectedRouteConnection}>
-                  Delete wire
-                </button>
-              </section>
-            ) : null}
-            {selectedEndpoint &&
-            selectedEndpoint.endpoint.kind !== "junction" ? (
-              <section
-                className="context-actions"
-                aria-label="Endpoint actions"
-              >
-                <h2>Endpoint</h2>
-                <button
-                  type="button"
-                  onClick={() => disconnectSelectedEndpoint(false)}
-                >
-                  Disconnect endpoint
-                </button>
-                <button
-                  type="button"
-                  onClick={() => disconnectSelectedEndpoint(true)}
-                >
-                  Delete connection
-                </button>
-                <button
-                  type="button"
-                  onClick={toggleSelectedNoConnect}
-                  disabled={
-                    !selectedNoConnect && selectedEndpointNetId !== null
-                  }
-                >
-                  {selectedNoConnect ? "Clear No Connect" : "Mark No Connect"}
-                </button>
-                {!selectedNoConnect && selectedEndpointNetId ? (
-                  <small>
-                    Disconnect this endpoint before marking No Connect.
-                  </small>
-                ) : null}
-                {selectedPortId ? (
-                  <button
-                    type="button"
-                    onClick={() => placePortAtViewCenter(selectedPortId)}
-                  >
-                    Move port to view center
+                        <button
+                          type="button"
+                          aria-label="Mirror component left to right, Shift+R"
+                          title="Mirror left/right (Shift+R)"
+                          onClick={() => mirrorSelected("left-right")}
+                        >
+                          ↔ Shift+R
+                        </button>
+                        <button
+                          type="button"
+                          aria-label="Mirror component top to bottom, Shift+V"
+                          title="Mirror top/bottom (Shift+V)"
+                          onClick={() => mirrorSelected("top-bottom")}
+                        >
+                          ↕ Shift+V
+                        </button>
+                      </div>
+                    </>
+                  ) : null}
+                  <button type="button" onClick={applyInstanceProperties}>
+                    Apply component properties
                   </button>
-                ) : null}
-              </section>
-            ) : null}
-            {selectedEndpoint?.endpoint.kind === "junction" ? (
-              <section
-                className="context-actions"
-                aria-label="Junction actions"
-              >
-                <h2>Junction</h2>
-                <button type="button" onClick={deleteSelectedJunction}>
-                  Delete junction and attached wires
+                  <button type="button" onClick={discardInstancePropertyDraft}>
+                    Cancel property edits
+                  </button>
+                </section>
+              ) : null}
+              {selectedRoute ? (
+                <section className="selection-overview">
+                  <span>Electrical route</span>
+                  <h2>{selectedRoute.id}</h2>
+                  <dl>
+                    <dt>Net</dt>
+                    <dd>
+                      {document.nets.find(
+                        (net) => net.id === selectedRoute.netId,
+                      )?.name ?? selectedRoute.netId}
+                    </dd>
+                    <dt>Segment</dt>
+                    <dd>{(selectedRouteSegmentIndex ?? 0) + 1}</dd>
+                  </dl>
+                </section>
+              ) : null}
+              {selectedAnnotation ? (
+                <section className="selection-overview">
+                  <span>Annotation</span>
+                  <h2>{selectedAnnotation.id}</h2>
+                  <dl>
+                    <dt>Kind</dt>
+                    <dd>{selectedAnnotation.kind}</dd>
+                    <dt>Locked</dt>
+                    <dd>{selectedAnnotation.locked ? "Yes" : "No"}</dd>
+                  </dl>
+                </section>
+              ) : null}
+              {selectedDrafting ? (
+                <section className="selection-overview">
+                  <span>Drawing</span>
+                  <h2>{selectedDrafting.id}</h2>
+                  <dl>
+                    <dt>Kind</dt>
+                    <dd>{selectedDrafting.kind}</dd>
+                    <dt>Locked</dt>
+                    <dd>{selectedDrafting.locked ? "Yes" : "No"}</dd>
+                  </dl>
+                </section>
+              ) : null}
+              {selectedDrafting
+                ? (() => {
+                    const geometry = resolveDraftingObjectGeometry(
+                      document,
+                      resolver,
+                      selectedDrafting,
+                    );
+                    if (
+                      geometry.kind !== "arrow" &&
+                      geometry.kind !== "construction-line" &&
+                      geometry.kind !== "rectangle"
+                    ) {
+                      return null;
+                    }
+                    const lineStyle =
+                      selectedDrafting.styleOverride?.lineStyle ??
+                      (selectedDrafting.kind === "construction-line" ||
+                      selectedDrafting.kind === "rectangle"
+                        ? selectedDrafting.lineStyle
+                        : "solid");
+                    const isRectangle = geometry.kind === "rectangle";
+                    const points = isRectangle
+                      ? geometry.corners
+                      : geometry.points;
+                    const curveControls = isRectangle
+                      ? points.slice(0, -1).map(() => null)
+                      : geometry.curveControls;
+                    const segmentIndex =
+                      draftingInspectorSegment?.objectId === selectedDrafting.id
+                        ? draftingInspectorSegment.index
+                        : Math.max(0, curveControls.findIndex(Boolean));
+                    const tangentAngle = isRectangle
+                      ? 0
+                      : quadraticTangentAngle(
+                          points[segmentIndex]!,
+                          curveControls[segmentIndex] ?? null,
+                          points[segmentIndex + 1]!,
+                        );
+                    const tangentInputKey = `${selectedDrafting.id}:${segmentIndex}`;
+                    const realizedAngleText = String(
+                      Math.round(tangentAngle * 10) / 10,
+                    );
+                    const tangentInputValue =
+                      draftingTangentInput?.key === tangentInputKey
+                        ? draftingTangentInput.value
+                        : realizedAngleText;
+                    const bearing = isRectangle
+                      ? geometry.rotation
+                      : normalizedBearing(points[0]!, points[1]!);
+                    const realizedBearingText = String(
+                      Math.round(bearing * 10) / 10,
+                    );
+                    const bearingInputValue =
+                      draftingBearingInput?.objectId === selectedDrafting.id
+                        ? draftingBearingInput.value
+                        : realizedBearingText;
+                    return (
+                      <section
+                        className="context-actions drawing-properties"
+                        aria-label="Drawing style"
+                        data-testid="drafting-properties"
+                      >
+                        <h2>Drawing style</h2>
+                        <label>
+                          Line style
+                          <select
+                            aria-label="Line style"
+                            value={lineStyle}
+                            disabled={selectedDrafting.locked}
+                            onChange={(event) =>
+                              setDraftingStyle({
+                                lineStyle: event.currentTarget.value as
+                                  "solid" | "dashed" | "dotted",
+                              })
+                            }
+                          >
+                            <option value="solid">Solid</option>
+                            <option value="dashed">Dashed</option>
+                            <option value="dotted">Dotted</option>
+                          </select>
+                        </label>
+                        <label>
+                          Stroke width
+                          <select
+                            aria-label="Stroke width"
+                            value={String(
+                              selectedDrafting.styleOverride?.strokeScale ?? 1,
+                            )}
+                            disabled={selectedDrafting.locked}
+                            onChange={(event) =>
+                              setDraftingStyle({
+                                strokeScale: Number(
+                                  event.currentTarget.value,
+                                ) as 0.75 | 1 | 1.5 | 2,
+                              })
+                            }
+                          >
+                            <option value="0.75">0.75×</option>
+                            <option value="1">1×</option>
+                            <option value="1.5">1.5×</option>
+                            <option value="2">2×</option>
+                          </select>
+                        </label>
+                        {selectedDrafting.kind === "construction-line" &&
+                        points.length > 2 ? (
+                          <label>
+                            Curve segment
+                            <select
+                              aria-label="Curve segment"
+                              value={String(segmentIndex)}
+                              disabled={selectedDrafting.locked}
+                              onChange={(event) => {
+                                setDraftingInspectorSegment({
+                                  objectId: selectedDrafting.id,
+                                  index: Number(event.currentTarget.value),
+                                });
+                                setDraftingTangentInput(null);
+                              }}
+                            >
+                              {points.slice(0, -1).map((_, index) => (
+                                <option key={index} value={index}>
+                                  Segment {index + 1}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        ) : null}
+                        {!isRectangle ? (
+                          <label>
+                            Tangent angle (°)
+                            <input
+                              aria-label="Tangent angle"
+                              type="number"
+                              min="0"
+                              max="170"
+                              step="1"
+                              value={tangentInputValue}
+                              disabled={selectedDrafting.locked}
+                              placeholder={realizedAngleText}
+                              onFocus={() => {
+                                setDraftingTangentInput({
+                                  key: tangentInputKey,
+                                  value: "",
+                                });
+                              }}
+                              onChange={(event) => {
+                                const value = event.currentTarget.value;
+                                setDraftingTangentInput({
+                                  key: tangentInputKey,
+                                  value,
+                                });
+                                const angle = Number(value);
+                                if (value !== "" && Number.isFinite(angle)) {
+                                  setDraftingTangentAngle(angle);
+                                }
+                              }}
+                              onBlur={() => setDraftingTangentInput(null)}
+                            />
+                          </label>
+                        ) : null}
+                        <label>
+                          Bearing (°)
+                          <input
+                            aria-label="Drawing bearing"
+                            type="number"
+                            min="0"
+                            max="359"
+                            step="1"
+                            value={bearingInputValue}
+                            disabled={selectedDrafting.locked}
+                            placeholder={realizedBearingText}
+                            onFocus={() =>
+                              setDraftingBearingInput({
+                                objectId: selectedDrafting.id,
+                                value: "",
+                              })
+                            }
+                            onChange={(event) => {
+                              const value = event.currentTarget.value;
+                              setDraftingBearingInput({
+                                objectId: selectedDrafting.id,
+                                value,
+                              });
+                              const bearing = Number(value);
+                              if (value !== "" && Number.isFinite(bearing)) {
+                                setDraftingBearing(bearing);
+                              }
+                            }}
+                            onBlur={() => setDraftingBearingInput(null)}
+                          />
+                        </label>
+                        {selectedDrafting.kind === "arrow" ? (
+                          <>
+                            <label>
+                              Arrow head
+                              <select
+                                aria-label="Arrow head"
+                                value={
+                                  selectedDrafting.styleOverride?.arrowHead ??
+                                  "filled"
+                                }
+                                disabled={selectedDrafting.locked}
+                                onChange={(event) =>
+                                  setDraftingStyle({
+                                    arrowHead: event.currentTarget.value as
+                                      "none" | "filled" | "open",
+                                  })
+                                }
+                              >
+                                <option value="none">No head</option>
+                                <option value="filled">Filled</option>
+                                <option value="open">Open</option>
+                              </select>
+                            </label>
+                            <label>
+                              Arrow head size
+                              <select
+                                aria-label="Arrow head size"
+                                value={String(
+                                  selectedDrafting.styleOverride
+                                    ?.arrowHeadScale ?? 1,
+                                )}
+                                disabled={selectedDrafting.locked}
+                                onChange={(event) =>
+                                  setDraftingStyle({
+                                    arrowHeadScale: Number(
+                                      event.currentTarget.value,
+                                    ) as 0.75 | 1 | 1.25 | 1.5,
+                                  })
+                                }
+                              >
+                                <option value="0.75">0.75×</option>
+                                <option value="1">1×</option>
+                                <option value="1.25">1.25×</option>
+                                <option value="1.5">1.5×</option>
+                              </select>
+                            </label>
+                            <button
+                              type="button"
+                              disabled={selectedDrafting.locked}
+                              onClick={() => {
+                                const { from, to } = selectedDrafting;
+                                transact([
+                                  {
+                                    kind: "upsert_drafting_object",
+                                    object: {
+                                      ...selectedDrafting,
+                                      from: to,
+                                      to: from,
+                                      waypoints: [
+                                        ...(selectedDrafting.waypoints ?? []),
+                                      ].reverse(),
+                                      curveControls: [
+                                        ...(selectedDrafting.curveControls ??
+                                          []),
+                                      ].reverse(),
+                                    },
+                                  },
+                                ]);
+                              }}
+                            >
+                              Reverse
+                            </button>
+                          </>
+                        ) : null}
+                        <button
+                          type="button"
+                          disabled={selectedDrafting.locked}
+                          onClick={() => rotateSelected()}
+                        >
+                          <ToolIcon name="rotate" />
+                          Rotate
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => toggleDraftingLock(selectedDrafting)}
+                        >
+                          <ToolIcon name="lock" />
+                          {selectedDrafting.locked ? "Unlock" : "Lock"}
+                        </button>
+                      </section>
+                    );
+                  })()
+                : null}
+              {unplaced.length > 0 ? <h3>Unplaced Instances</h3> : null}
+              {unplaced.map((instance) => (
+                <button
+                  type="button"
+                  draggable
+                  data-testid={`unplaced-${instance.id}`}
+                  key={instance.id}
+                  onClick={() => {
+                    selectOnly("instance", [instance.id]);
+                    setStatus(`Selected ${instance.id}`);
+                  }}
+                  onDragStart={(event) => {
+                    event.dataTransfer.setData(
+                      "application/x-icm-instance",
+                      instance.id,
+                    );
+                    event.dataTransfer.effectAllowed = "move";
+                  }}
+                >
+                  {instance.id} · {instance.symbolId}
                 </button>
-              </section>
-            ) : null}
-            {selectedAnnotation && isRoutedMarker(selectedAnnotation) ? (
-              <section
-                className="context-actions"
-                aria-label="Current arrow actions"
-              >
-                <h2>Current arrow</h2>
-                <button type="button" onClick={reverseSelectedCurrentArrow}>
-                  Reverse direction (X)
+              ))}
+              {unplacedPorts.length > 0 ? <h3>Unplaced Ports</h3> : null}
+              {unplacedPorts.map((port) => (
+                <button
+                  type="button"
+                  data-testid={`unplaced-port-${port.id}`}
+                  key={port.id}
+                  onClick={() => placePortAtViewCenter(port.id)}
+                >
+                  Place {port.name}
                 </button>
-                <small>Drag to slide along the wire or move its label.</small>
-                <button type="button" onClick={deleteSelectedAnnotation}>
-                  Delete current arrow
-                </button>
-              </section>
-            ) : null}
-            {selectedAnnotation && !isRoutedMarker(selectedAnnotation) ? (
-              <section
-                className="context-actions"
-                aria-label="Annotation actions"
-              >
-                <h2>Annotation</h2>
-                {selectedNetLabelBinding ? (
+              ))}
+              {selectedInstance && selectedHiddenBulkNet ? (
+                <section
+                  className="context-actions"
+                  aria-label="Hidden MOS bulk warning"
+                >
+                  <h2>Hidden bulk warning</h2>
+                  <p>
+                    {selectedInstance.id}.B is electrically connected to{" "}
+                    {selectedHiddenBulkNet.name ?? selectedHiddenBulkNet.id},
+                    but Razavi MOS stays in three-terminal display.
+                  </p>
+                </section>
+              ) : null}
+              {selectedRouteId ? (
+                <section className="context-actions" aria-label="Route actions">
+                  <h2>Route</h2>
+                  <p>Segment {(selectedRouteSegmentIndex ?? 0) + 1} selected</p>
+                  <label>
+                    Electrical Net label
+                    <input
+                      ref={netLabelPropertyInputRef}
+                      aria-label="Electrical Net label"
+                      value={netLabelDraft}
+                      onChange={(event) =>
+                        setNetLabelDraft(event.currentTarget.value)
+                      }
+                    />
+                  </label>
+                  <button type="button" onClick={applyNetLabel}>
+                    Apply Net label
+                  </button>
+                  <button type="button" onClick={deleteSelectedRouteNetLabel}>
+                    Delete Net label
+                  </button>
+                  <button type="button" onClick={addCurrentArrow}>
+                    Add current arrow
+                  </button>
                   <button type="button" onClick={toggleHighlightedNet}>
                     {selectedHighlightIsActive
                       ? "Clear Net highlight (H)"
                       : "Highlight Net (H)"}
                   </button>
-                ) : null}
-                <button type="button" onClick={deleteSelectedAnnotation}>
-                  {selectedAnnotation.kind === "net-label"
-                    ? "Delete selected Net label"
-                    : "Delete annotation"}
-                </button>
-              </section>
-            ) : null}
-            {projectDiagnostics.length > 0 ? (
-              <ProjectDiagnosticsSection
-                diagnostics={projectDiagnostics}
-                documentLabel={(documentId) =>
-                  project.documents.find(
-                    (candidate) => candidate.id === documentId,
-                  )?.name ?? documentId
-                }
-                onSelectDiagnostic={jumpToProjectDiagnostic}
-              />
-            ) : null}
-            {highlightedTrace && highlightedTrace.hops.length > 0 ? (
-              <NetTraceSection
-                trace={highlightedTrace}
-                documentLabel={(documentId) =>
-                  project.documents.find(
-                    (candidate) => candidate.id === documentId,
-                  )?.name ?? documentId
-                }
-                onNavigateHop={navigateTraceHop}
-              />
-            ) : null}
-            {importReviewOpen ? (
-              <section className="import-review" aria-label="Import Review">
-                <h2>Import Review</h2>
-                <SelectionInspectorDetails
-                  snapshot={{
-                    selected:
-                      selectedIds.length > 0
-                        ? selectedIds.join(", ")
-                        : (selectedRouteId ?? selectedAnnotationId ?? "None"),
-                    internalRouteCount: internalSelection.routeIds.length,
-                    revision: document.revision,
-                    sourceStatus: document.sourceStatus,
-                    documentCount: project.documents.length,
-                    activeDocumentId: document.id,
-                    activeInstanceCount: document.instances.length,
-                    projectInstanceCount,
-                    netCount: document.nets.length,
-                    tool,
-                    flightlineCount: flightlines.length,
-                    crossingCount: crossings.length,
-                    annotationCount: document.annotations.length,
-                    status,
-                  }}
-                  importDiagnostics={importDiagnostics}
-                  visualSummary={visualDiagnosticSummary}
-                  onSelectVisualDiagnostic={jumpToVisualDiagnostic}
+                  <button type="button" onClick={deleteSelectedRouteConnection}>
+                    Delete wire
+                  </button>
+                </section>
+              ) : null}
+              {selectedEndpoint &&
+              selectedEndpoint.endpoint.kind !== "junction" ? (
+                <section
+                  className="context-actions"
+                  aria-label="Endpoint actions"
+                >
+                  <h2>Endpoint</h2>
+                  <button
+                    type="button"
+                    onClick={() => disconnectSelectedEndpoint(false)}
+                  >
+                    Disconnect endpoint
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => disconnectSelectedEndpoint(true)}
+                  >
+                    Delete connection
+                  </button>
+                  <button
+                    type="button"
+                    onClick={toggleSelectedNoConnect}
+                    disabled={
+                      !selectedNoConnect && selectedEndpointNetId !== null
+                    }
+                  >
+                    {selectedNoConnect ? "Clear No Connect" : "Mark No Connect"}
+                  </button>
+                  {!selectedNoConnect && selectedEndpointNetId ? (
+                    <small>
+                      Disconnect this endpoint before marking No Connect.
+                    </small>
+                  ) : null}
+                  {selectedPortId ? (
+                    <button
+                      type="button"
+                      onClick={() => placePortAtViewCenter(selectedPortId)}
+                    >
+                      Move port to view center
+                    </button>
+                  ) : null}
+                </section>
+              ) : null}
+              {selectedEndpoint?.endpoint.kind === "junction" ? (
+                <section
+                  className="context-actions"
+                  aria-label="Junction actions"
+                >
+                  <h2>Junction</h2>
+                  <button type="button" onClick={deleteSelectedJunction}>
+                    Delete junction and attached wires
+                  </button>
+                </section>
+              ) : null}
+              {selectedAnnotation && isRoutedMarker(selectedAnnotation) ? (
+                <section
+                  className="context-actions"
+                  aria-label="Current arrow actions"
+                >
+                  <h2>Current arrow</h2>
+                  <button type="button" onClick={reverseSelectedCurrentArrow}>
+                    Reverse direction (X)
+                  </button>
+                  <small>Drag to slide along the wire or move its label.</small>
+                  <button type="button" onClick={deleteSelectedAnnotation}>
+                    Delete current arrow
+                  </button>
+                </section>
+              ) : null}
+              {selectedAnnotation && !isRoutedMarker(selectedAnnotation) ? (
+                <section
+                  className="context-actions"
+                  aria-label="Annotation actions"
+                >
+                  <h2>Annotation</h2>
+                  {selectedNetLabelBinding ? (
+                    <button type="button" onClick={toggleHighlightedNet}>
+                      {selectedHighlightIsActive
+                        ? "Clear Net highlight (H)"
+                        : "Highlight Net (H)"}
+                    </button>
+                  ) : null}
+                  <button type="button" onClick={deleteSelectedAnnotation}>
+                    {selectedAnnotation.kind === "net-label"
+                      ? "Delete selected Net label"
+                      : "Delete annotation"}
+                  </button>
+                </section>
+              ) : null}
+              {projectDiagnostics.length > 0 ? (
+                <ProjectDiagnosticsSection
+                  diagnostics={projectDiagnostics}
+                  documentLabel={(documentId) =>
+                    project.documents.find(
+                      (candidate) => candidate.id === documentId,
+                    )?.name ?? documentId
+                  }
+                  onSelectDiagnostic={jumpToProjectDiagnostic}
                 />
-              </section>
-            ) : null}
-          </div>
-        </section>
-      </aside>
-      <section className="canvas-panel">
-        {canvasIsEmpty ? (
-          <div className="canvas-empty-state" data-testid="canvas-empty-state">
-            <strong>Start a schematic</strong>
-            <span>
-              Press <kbd>I</kbd> to insert a component or <kbd>W</kbd> to wire.
-            </span>
-          </div>
-        ) : null}
-        <svg
-          className={[
-            "schematic-canvas",
-            tool === "wire" ? "wire-mode" : "",
-            pendingSymbolId ? "component-mode" : "",
-            tool === "arrow" ||
-            tool === "construction-line" ||
-            tool === "rectangle"
-              ? "drawing-mode"
-              : "",
-            panPreview ? "pan-mode" : "",
-          ]
-            .filter(Boolean)
-            .join(" ")}
-          data-testid="schematic-canvas"
-          role="img"
-          aria-label="Schematic canvas"
-          viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`}
-          onWheel={handleWheel}
-          onPointerDownCapture={(event) => {
-            const target = event.target as Element;
-            if (
-              selectedDrafting &&
-              (selectedDrafting.kind === "arrow" ||
-                selectedDrafting.kind === "construction-line" ||
-                selectedDrafting.kind === "rectangle") &&
-              !target.closest(
-                `[data-testid="drafting-hit-${selectedDrafting.id}"]`,
-              ) &&
-              !target.closest(
-                `[data-testid="drafting-handles-${selectedDrafting.id}"]`,
+              ) : null}
+              {highlightedTrace && highlightedTrace.hops.length > 0 ? (
+                <NetTraceSection
+                  trace={highlightedTrace}
+                  documentLabel={(documentId) =>
+                    project.documents.find(
+                      (candidate) => candidate.id === documentId,
+                    )?.name ?? documentId
+                  }
+                  onNavigateHop={navigateTraceHop}
+                />
+              ) : null}
+              {importReviewOpen ? (
+                <section className="import-review" aria-label="Import Review">
+                  <h2>Import Review</h2>
+                  <SelectionInspectorDetails
+                    snapshot={{
+                      selected:
+                        selectedIds.length > 0
+                          ? selectedIds.join(", ")
+                          : (selectedRouteId ?? selectedAnnotationId ?? "None"),
+                      internalRouteCount: internalSelection.routeIds.length,
+                      revision: document.revision,
+                      sourceStatus: document.sourceStatus,
+                      documentCount: project.documents.length,
+                      activeDocumentId: document.id,
+                      activeInstanceCount: document.instances.length,
+                      projectInstanceCount,
+                      netCount: document.nets.length,
+                      tool,
+                      flightlineCount: flightlines.length,
+                      crossingCount: crossings.length,
+                      annotationCount: document.annotations.length,
+                      status,
+                    }}
+                    importDiagnostics={importDiagnostics}
+                    visualSummary={visualDiagnosticSummary}
+                    onSelectVisualDiagnostic={jumpToVisualDiagnostic}
+                  />
+                </section>
+              ) : null}
+            </div>
+          </section>
+        </aside>
+        <section className="canvas-panel">
+          {canvasIsEmpty ? (
+            <div
+              className="canvas-empty-state"
+              data-testid="canvas-empty-state"
+            >
+              <strong>Start a schematic</strong>
+              <span>
+                Press <kbd>I</kbd> to insert a component or <kbd>W</kbd> to
+                wire.
+              </span>
+            </div>
+          ) : null}
+          <svg
+            className={[
+              "schematic-canvas",
+              tool === "wire" ? "wire-mode" : "",
+              pendingSymbolId ? "component-mode" : "",
+              tool === "arrow" ||
+              tool === "construction-line" ||
+              tool === "rectangle"
+                ? "drawing-mode"
+                : "",
+              panPreview ? "pan-mode" : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+            data-testid="schematic-canvas"
+            role="img"
+            aria-label="Schematic canvas"
+            viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`}
+            onWheel={handleWheel}
+            onPointerDownCapture={(event) => {
+              const target = event.target as Element;
+              if (
+                selectedDrafting &&
+                (selectedDrafting.kind === "arrow" ||
+                  selectedDrafting.kind === "construction-line" ||
+                  selectedDrafting.kind === "rectangle") &&
+                !target.closest(
+                  `[data-testid="drafting-hit-${selectedDrafting.id}"]`,
+                ) &&
+                !target.closest(
+                  `[data-testid="drafting-handles-${selectedDrafting.id}"]`,
+                )
+              ) {
+                replaceSelectionKind("drafting", []);
+              }
+              handleCanvasHitPointerDown(event);
+            }}
+            onPointerDown={beginCanvasGesture}
+            onPointerMove={continueCanvasGesture}
+            onPointerLeave={() => {
+              if (pendingSymbolId) setComponentPreviewPoint(null);
+              if (copyPlacement) setCopyPreviewPoint(null);
+            }}
+            onPointerUp={finishCanvasGesture}
+            onPointerCancel={finishCanvasGesture}
+            onClick={(event) => {
+              if (copyPlacement) {
+                const point = pointFromClient(
+                  event.clientX,
+                  event.clientY,
+                  event.currentTarget,
+                );
+                commitCopyPlacement({
+                  x: snapCoordinate(point.x, document.presentation.grid),
+                  y: snapCoordinate(point.y, document.presentation.grid),
+                });
+                return;
+              }
+              if (pendingSymbolId && pendingComponentPlacement) {
+                placeNewComponent(
+                  pendingSymbolId,
+                  pointFromClient(
+                    event.clientX,
+                    event.clientY,
+                    event.currentTarget,
+                  ),
+                  pendingComponentPlacement,
+                );
+                return;
+              }
+              const target = event.target as Element;
+              const onBackground =
+                target === event.currentTarget || target.tagName === "rect";
+              if (
+                (tool === "arrow" ||
+                  tool === "construction-line" ||
+                  tool === "rectangle") &&
+                event.detail === 1 &&
+                onBackground
+              ) {
+                handleDraftingCanvasClick(
+                  pointFromClient(
+                    event.clientX,
+                    event.clientY,
+                    event.currentTarget,
+                  ),
+                  event.altKey,
+                  event.shiftKey,
+                  logicalRadiusForPixels(
+                    event.currentTarget,
+                    SNAP_CAPTURE_RADIUS_PX,
+                  ),
+                );
+                return;
+              }
+              if (tool !== "wire" || event.detail !== 1) return;
+              applyWireCanvasPoint(
+                pointFromClient(
+                  event.clientX,
+                  event.clientY,
+                  event.currentTarget,
+                  false,
+                ),
+                event.currentTarget,
+                event.altKey,
+                false,
+              );
+            }}
+            onDoubleClick={(event) => {
+              const target = event.target as Element;
+              if (
+                tool === "arrow" ||
+                tool === "construction-line" ||
+                tool === "rectangle"
+              ) {
+                if (target !== event.currentTarget && target.tagName !== "rect")
+                  return;
+                finishDraftingCreate();
+                return;
+              }
+              if (
+                tool !== "wire" ||
+                (target !== event.currentTarget && target.tagName !== "rect")
               )
-            ) {
-              replaceSelectionKind("drafting", []);
-            }
-            handleCanvasHitPointerDown(event);
-          }}
-          onPointerDown={beginCanvasGesture}
-          onPointerMove={continueCanvasGesture}
-          onPointerLeave={() => {
-            if (pendingSymbolId) setComponentPreviewPoint(null);
-            if (copyPlacement) setCopyPreviewPoint(null);
-          }}
-          onPointerUp={finishCanvasGesture}
-          onPointerCancel={finishCanvasGesture}
-          onClick={(event) => {
-            if (copyPlacement) {
+                return;
               const point = pointFromClient(
                 event.clientX,
                 event.clientY,
                 event.currentTarget,
-              );
-              commitCopyPlacement({
-                x: snapCoordinate(point.x, document.presentation.grid),
-                y: snapCoordinate(point.y, document.presentation.grid),
-              });
-              return;
-            }
-            if (pendingSymbolId && pendingComponentPlacement) {
-              placeNewComponent(
-                pendingSymbolId,
-                pointFromClient(
-                  event.clientX,
-                  event.clientY,
-                  event.currentTarget,
-                ),
-                pendingComponentPlacement,
-              );
-              return;
-            }
-            const target = event.target as Element;
-            const onBackground =
-              target === event.currentTarget || target.tagName === "rect";
-            if (
-              (tool === "arrow" ||
-                tool === "construction-line" ||
-                tool === "rectangle") &&
-              event.detail === 1 &&
-              onBackground
-            ) {
-              handleDraftingCanvasClick(
-                pointFromClient(
-                  event.clientX,
-                  event.clientY,
-                  event.currentTarget,
-                ),
-                event.altKey,
-                event.shiftKey,
-                logicalRadiusForPixels(
-                  event.currentTarget,
-                  SNAP_CAPTURE_RADIUS_PX,
-                ),
-              );
-              return;
-            }
-            if (tool !== "wire" || event.detail !== 1) return;
-            applyWireCanvasPoint(
-              pointFromClient(
-                event.clientX,
-                event.clientY,
-                event.currentTarget,
                 false,
-              ),
-              event.currentTarget,
-              event.altKey,
-              false,
-            );
-          }}
-          onDoubleClick={(event) => {
-            const target = event.target as Element;
-            if (
-              tool === "arrow" ||
-              tool === "construction-line" ||
-              tool === "rectangle"
-            ) {
-              if (target !== event.currentTarget && target.tagName !== "rect")
+              );
+              const resolved = resolveWireCanvasSnap(
+                point,
+                event.currentTarget,
+                event.altKey,
+              );
+              if (
+                wireSource?.endpoint.kind === "junction" &&
+                wireSource.preludeEdits.some(
+                  (edit) => edit.kind === "add_junction" && edit.createNet,
+                ) &&
+                wireSource.point.x === resolved.point.x &&
+                wireSource.point.y === resolved.point.y
+              ) {
+                setStatus("Choose a different point to finish the wire");
                 return;
-              finishDraftingCreate();
-              return;
-            }
-            if (
-              tool !== "wire" ||
-              (target !== event.currentTarget && target.tagName !== "rect")
-            )
-              return;
-            const point = pointFromClient(
-              event.clientX,
-              event.clientY,
-              event.currentTarget,
-              false,
-            );
-            const resolved = resolveWireCanvasSnap(
-              point,
-              event.currentTarget,
-              event.altKey,
-            );
-            if (
-              wireSource?.endpoint.kind === "junction" &&
-              wireSource.preludeEdits.some(
-                (edit) => edit.kind === "add_junction" && edit.createNet,
-              ) &&
-              wireSource.point.x === resolved.point.x &&
-              wireSource.point.y === resolved.point.y
-            ) {
-              setStatus("Choose a different point to finish the wire");
-              return;
-            }
-            applyWireCanvasPoint(
-              point,
-              event.currentTarget,
-              event.altKey,
-              true,
-            );
-          }}
-          onContextMenu={(event) => {
-            event.preventDefault();
-            if (
-              tool === "arrow" ||
-              tool === "construction-line" ||
-              tool === "rectangle"
-            ) {
-              if (draftingSource !== null) {
-                clearDraftingCreate();
-                setStatus("Drawing cancelled");
               }
-              return;
-            }
-            if (wireSource) {
-              setWireSource(null);
-              setWirePreviewPoint(null);
-              setWireWaypoints([]);
-              setTool("pointer");
-              setStatus("Wire cancelled");
-            }
-          }}
-          onDragOver={(event) => event.preventDefault()}
-          onDrop={handleDrop}
-        >
-          <defs>
-            <pattern
-              id="grid"
-              width="10"
-              height="10"
-              patternUnits="userSpaceOnUse"
-            >
-              <circle cx="0" cy="0" r="0.7" fill="#d8d8d2" />
-            </pattern>
-          </defs>
-          <rect
-            x={viewBox.x}
-            y={viewBox.y}
-            width={viewBox.width}
-            height={viewBox.height}
-            fill="url(#grid)"
-          />
-          <g dangerouslySetInnerHTML={{ __html: scene.formalBody }} />
-          {highlightedNet ? (
-            <g
-              data-testid="net-highlight-overlay"
-              data-net-id={highlightedNet.netId}
-              className="net-highlight-overlay"
-              pointerEvents="none"
-            >
-              {routePolylines
-                .filter(({ route }) => highlightedNet.routes.includes(route.id))
-                .map(({ route, polyline }) => (
-                  <polyline
-                    key={route.id}
-                    className="net-highlight-halo"
-                    points={serializePolylinePoints(polyline.points)}
-                  />
-                ))}
-              {routePolylines
-                .filter(({ route }) => highlightedNet.routes.includes(route.id))
-                .map(({ route, polyline }) => (
-                  <polyline
-                    key={`${route.id}-core`}
-                    className="net-highlight-core"
-                    points={serializePolylinePoints(polyline.points)}
-                  />
-                ))}
-              {document.junctions
-                .filter((junction) =>
-                  highlightedNet.junctions.includes(junction.id),
-                )
-                .map((junction) => (
-                  <circle
-                    key={junction.id}
-                    cx={junction.position.x}
-                    cy={junction.position.y}
-                    r="4.5"
-                  />
-                ))}
-              {highlightedNet.visibleEndpoints.flatMap((endpoint) => {
-                const point = resolveEndpointPoint(
-                  document,
-                  resolver,
-                  endpoint,
-                );
-                if (!point) return [];
-                return [
-                  <circle
-                    key={`endpoint:${endpointKey(endpoint)}`}
-                    className="net-highlight-endpoint"
-                    cx={point.x}
-                    cy={point.y}
-                    r="5.5"
-                  />,
-                ];
-              })}
-            </g>
-          ) : null}
-          {copyPreviewScene ? (
-            <g
-              data-testid="copy-placement-preview"
-              className="copy-placement-preview"
-              dangerouslySetInnerHTML={{ __html: copyPreviewScene.formalBody }}
-            />
-          ) : null}
-          {tool === "wire" ? (
+              applyWireCanvasPoint(
+                point,
+                event.currentTarget,
+                event.altKey,
+                true,
+              );
+            }}
+            onContextMenu={(event) => {
+              event.preventDefault();
+              if (
+                tool === "arrow" ||
+                tool === "construction-line" ||
+                tool === "rectangle"
+              ) {
+                if (draftingSource !== null) {
+                  clearDraftingCreate();
+                  setStatus("Drawing cancelled");
+                }
+                return;
+              }
+              if (wireSource) {
+                setWireSource(null);
+                setWirePreviewPoint(null);
+                setWireWaypoints([]);
+                setTool("pointer");
+                setStatus("Wire cancelled");
+              }
+            }}
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={handleDrop}
+          >
+            <defs>
+              <pattern
+                id="grid"
+                width="10"
+                height="10"
+                patternUnits="userSpaceOnUse"
+              >
+                <circle cx="0" cy="0" r="0.7" fill="#d8d8d2" />
+              </pattern>
+            </defs>
             <rect
-              data-testid="wire-input-plane"
-              className="wire-input-plane"
               x={viewBox.x}
               y={viewBox.y}
               width={viewBox.width}
               height={viewBox.height}
+              fill="url(#grid)"
             />
-          ) : null}
-          {pendingSymbolId || copyPlacement ? (
-            <rect
-              data-testid={
-                copyPlacement
-                  ? "copy-placement-input-plane"
-                  : "component-input-plane"
-              }
-              className="component-input-plane"
-              x={viewBox.x}
-              y={viewBox.y}
-              width={viewBox.width}
-              height={viewBox.height}
-            />
-          ) : null}
-          <g data-layer="editor-overlay">
-            {pendingSymbolId && componentPreviewPoint ? (
-              <ComponentPlacementPreview
-                styleProfileId={document.presentation.styleProfileId}
-                symbolId={pendingSymbolId}
-                position={componentPreviewPoint}
-                rotation={componentPlacementRotation}
+            <g dangerouslySetInnerHTML={{ __html: scene.formalBody }} />
+            {highlightedNet ? (
+              <g
+                data-testid="net-highlight-overlay"
+                data-net-id={highlightedNet.netId}
+                className="net-highlight-overlay"
+                pointerEvents="none"
+              >
+                {routePolylines
+                  .filter(({ route }) =>
+                    highlightedNet.routes.includes(route.id),
+                  )
+                  .map(({ route, polyline }) => (
+                    <polyline
+                      key={route.id}
+                      className="net-highlight-halo"
+                      points={serializePolylinePoints(polyline.points)}
+                    />
+                  ))}
+                {routePolylines
+                  .filter(({ route }) =>
+                    highlightedNet.routes.includes(route.id),
+                  )
+                  .map(({ route, polyline }) => (
+                    <polyline
+                      key={`${route.id}-core`}
+                      className="net-highlight-core"
+                      points={serializePolylinePoints(polyline.points)}
+                    />
+                  ))}
+                {document.junctions
+                  .filter((junction) =>
+                    highlightedNet.junctions.includes(junction.id),
+                  )
+                  .map((junction) => (
+                    <circle
+                      key={junction.id}
+                      cx={junction.position.x}
+                      cy={junction.position.y}
+                      r="4.5"
+                    />
+                  ))}
+                {highlightedNet.visibleEndpoints.flatMap((endpoint) => {
+                  const point = resolveEndpointPoint(
+                    document,
+                    resolver,
+                    endpoint,
+                  );
+                  if (!point) return [];
+                  return [
+                    <circle
+                      key={`endpoint:${endpointKey(endpoint)}`}
+                      className="net-highlight-endpoint"
+                      cx={point.x}
+                      cy={point.y}
+                      r="5.5"
+                    />,
+                  ];
+                })}
+              </g>
+            ) : null}
+            {copyPreviewScene ? (
+              <g
+                data-testid="copy-placement-preview"
+                className="copy-placement-preview"
+                dangerouslySetInnerHTML={{
+                  __html: copyPreviewScene.formalBody,
+                }}
               />
             ) : null}
-            {netLabelEditorOpen && selectedRoute
-              ? (() => {
-                  const polyline = routePolylines.find(
-                    ({ route }) => route.id === selectedRoute.id,
-                  )?.polyline;
-                  if (!polyline) return null;
+            {tool === "wire" ? (
+              <rect
+                data-testid="wire-input-plane"
+                className="wire-input-plane"
+                x={viewBox.x}
+                y={viewBox.y}
+                width={viewBox.width}
+                height={viewBox.height}
+              />
+            ) : null}
+            {pendingSymbolId || copyPlacement ? (
+              <rect
+                data-testid={
+                  copyPlacement
+                    ? "copy-placement-input-plane"
+                    : "component-input-plane"
+                }
+                className="component-input-plane"
+                x={viewBox.x}
+                y={viewBox.y}
+                width={viewBox.width}
+                height={viewBox.height}
+              />
+            ) : null}
+            <g data-layer="editor-overlay">
+              {pendingSymbolId && componentPreviewPoint ? (
+                <ComponentPlacementPreview
+                  styleProfileId={document.presentation.styleProfileId}
+                  symbolId={pendingSymbolId}
+                  position={componentPreviewPoint}
+                  rotation={componentPlacementRotation}
+                />
+              ) : null}
+              {netLabelEditorOpen && selectedRoute
+                ? (() => {
+                    const polyline = routePolylines.find(
+                      ({ route }) => route.id === selectedRoute.id,
+                    )?.polyline;
+                    if (!polyline) return null;
+                    const segmentIndex = Math.min(
+                      selectedRouteSegmentIndex ?? 0,
+                      polyline.points.length - 2,
+                    );
+                    const from = polyline.points[segmentIndex]!;
+                    const to = polyline.points[segmentIndex + 1]!;
+                    const x = Math.round((from.x + to.x) / 2 - 58);
+                    const y = Math.round((from.y + to.y) / 2 - 34);
+                    return (
+                      <foreignObject
+                        data-testid="net-label-editor"
+                        x={x}
+                        y={y}
+                        width="116"
+                        height="32"
+                      >
+                        <form
+                          className="net-label-editor"
+                          onPointerDown={(event) => event.stopPropagation()}
+                          onSubmit={(event) => {
+                            event.preventDefault();
+                            commitNetLabelEditing();
+                          }}
+                        >
+                          <input
+                            ref={netLabelEditorInputRef}
+                            aria-label="Net Label"
+                            value={netLabelDraft}
+                            onChange={(event) =>
+                              setNetLabelDraft(event.currentTarget.value)
+                            }
+                            onKeyDown={(event) => {
+                              if (event.key === "Escape") {
+                                event.preventDefault();
+                                setNetLabelEditorOpen(false);
+                              }
+                            }}
+                          />
+                        </form>
+                      </foreignObject>
+                    );
+                  })()
+                : null}
+              {displayedFlightlines.map((flightline) => (
+                <g key={flightline.id}>
+                  <line
+                    data-testid="flightline-hit"
+                    className="flightline-hit"
+                    data-net-id={flightline.netId}
+                    x1={flightline.fromPoint.x}
+                    y1={flightline.fromPoint.y}
+                    x2={flightline.toPoint.x}
+                    y2={flightline.toPoint.y}
+                    onClick={(event) => handleFlightline(event, flightline)}
+                  />
+                  <line
+                    data-testid="flightline"
+                    className="flightline"
+                    data-net-id={flightline.netId}
+                    x1={flightline.fromPoint.x}
+                    y1={flightline.fromPoint.y}
+                    x2={flightline.toPoint.x}
+                    y2={flightline.toPoint.y}
+                  />
+                </g>
+              ))}
+              {wireDraftPoints.length >= 2 ? (
+                <polyline
+                  data-testid="wire-preview"
+                  className="wire-preview"
+                  points={serializePolylinePoints(wireDraftPoints)}
+                />
+              ) : null}
+              {(document.drafting?.guides ?? [])
+                .filter((guide) => guide.visible)
+                .map((guide) => (
+                  <g key={guide.id}>
+                    <line
+                      className="guide-hit"
+                      x1={
+                        guide.axis === "vertical" ? guide.coordinate : viewBox.x
+                      }
+                      y1={
+                        guide.axis === "horizontal"
+                          ? guide.coordinate
+                          : viewBox.y
+                      }
+                      x2={
+                        guide.axis === "vertical"
+                          ? guide.coordinate
+                          : viewBox.x + viewBox.width
+                      }
+                      y2={
+                        guide.axis === "horizontal"
+                          ? guide.coordinate
+                          : viewBox.y + viewBox.height
+                      }
+                      onPointerDown={(event) => {
+                        const visual = event.currentTarget
+                          .nextElementSibling as SVGLineElement | null;
+                        if (visual) beginGuideDrag(event, guide, visual);
+                      }}
+                      pointerEvents={tool === "wire" ? "none" : undefined}
+                      onDoubleClick={() => toggleGuideLock(guide.id)}
+                    />
+                    <line
+                      data-testid={`guide-${guide.id}`}
+                      className={guide.locked ? "guide guide-locked" : "guide"}
+                      x1={
+                        guide.axis === "vertical" ? guide.coordinate : viewBox.x
+                      }
+                      y1={
+                        guide.axis === "horizontal"
+                          ? guide.coordinate
+                          : viewBox.y
+                      }
+                      x2={
+                        guide.axis === "vertical"
+                          ? guide.coordinate
+                          : viewBox.x + viewBox.width
+                      }
+                      y2={
+                        guide.axis === "horizontal"
+                          ? guide.coordinate
+                          : viewBox.y + viewBox.height
+                      }
+                      pointerEvents="none"
+                      onKeyDown={(event) => {
+                        if (
+                          event.key === "Delete" ||
+                          event.key === "Backspace"
+                        ) {
+                          event.stopPropagation();
+                          deleteGuide(guide.id);
+                        }
+                      }}
+                      tabIndex={0}
+                    />
+                  </g>
+                ))}
+              <g ref={snapGuideLayerRef} data-layer="snap-guides" />
+              {routePolylines
+                .filter(({ route }) => route.id === selectedRouteId)
+                .map(({ route, polyline }) => {
                   const segmentIndex = Math.min(
                     selectedRouteSegmentIndex ?? 0,
                     polyline.points.length - 2,
                   );
                   const from = polyline.points[segmentIndex]!;
                   const to = polyline.points[segmentIndex + 1]!;
-                  const x = Math.round((from.x + to.x) / 2 - 58);
-                  const y = Math.round((from.y + to.y) / 2 - 34);
-                  return (
-                    <foreignObject
-                      data-testid="net-label-editor"
-                      x={x}
-                      y={y}
-                      width="116"
-                      height="32"
-                    >
-                      <form
-                        className="net-label-editor"
-                        onPointerDown={(event) => event.stopPropagation()}
-                        onSubmit={(event) => {
-                          event.preventDefault();
-                          commitNetLabelEditing();
-                        }}
-                      >
-                        <input
-                          ref={netLabelEditorInputRef}
-                          aria-label="Net Label"
-                          value={netLabelDraft}
-                          onChange={(event) =>
-                            setNetLabelDraft(event.currentTarget.value)
-                          }
-                          onKeyDown={(event) => {
-                            if (event.key === "Escape") {
-                              event.preventDefault();
-                              setNetLabelEditorOpen(false);
-                            }
-                          }}
-                        />
-                      </form>
-                    </foreignObject>
+                  const translatesWholeRoute =
+                    looseRouteAnchorIds(document, route) !== null;
+                  const routeCenter = centerOfBounds(
+                    polylineBounds(polyline.points),
                   );
-                })()
-              : null}
-            {displayedFlightlines.map((flightline) => (
-              <g key={flightline.id}>
-                <line
-                  data-testid="flightline-hit"
-                  className="flightline-hit"
-                  data-net-id={flightline.netId}
-                  x1={flightline.fromPoint.x}
-                  y1={flightline.fromPoint.y}
-                  x2={flightline.toPoint.x}
-                  y2={flightline.toPoint.y}
-                  onClick={(event) => handleFlightline(event, flightline)}
-                />
-                <line
-                  data-testid="flightline"
-                  className="flightline"
-                  data-net-id={flightline.netId}
-                  x1={flightline.fromPoint.x}
-                  y1={flightline.fromPoint.y}
-                  x2={flightline.toPoint.x}
-                  y2={flightline.toPoint.y}
-                />
-              </g>
-            ))}
-            {wireDraftPoints.length >= 2 ? (
-              <polyline
-                data-testid="wire-preview"
-                className="wire-preview"
-                points={serializePolylinePoints(wireDraftPoints)}
-              />
-            ) : null}
-            {(document.drafting?.guides ?? [])
-              .filter((guide) => guide.visible)
-              .map((guide) => (
-                <g key={guide.id}>
-                  <line
-                    className="guide-hit"
-                    x1={
-                      guide.axis === "vertical" ? guide.coordinate : viewBox.x
-                    }
-                    y1={
-                      guide.axis === "horizontal" ? guide.coordinate : viewBox.y
-                    }
-                    x2={
-                      guide.axis === "vertical"
-                        ? guide.coordinate
-                        : viewBox.x + viewBox.width
-                    }
-                    y2={
-                      guide.axis === "horizontal"
-                        ? guide.coordinate
-                        : viewBox.y + viewBox.height
-                    }
-                    onPointerDown={(event) => {
-                      const visual = event.currentTarget
-                        .nextElementSibling as SVGLineElement | null;
-                      if (visual) beginGuideDrag(event, guide, visual);
-                    }}
-                    pointerEvents={tool === "wire" ? "none" : undefined}
-                    onDoubleClick={() => toggleGuideLock(guide.id)}
-                  />
-                  <line
-                    data-testid={`guide-${guide.id}`}
-                    className={guide.locked ? "guide guide-locked" : "guide"}
-                    x1={
-                      guide.axis === "vertical" ? guide.coordinate : viewBox.x
-                    }
-                    y1={
-                      guide.axis === "horizontal" ? guide.coordinate : viewBox.y
-                    }
-                    x2={
-                      guide.axis === "vertical"
-                        ? guide.coordinate
-                        : viewBox.x + viewBox.width
-                    }
-                    y2={
-                      guide.axis === "horizontal"
-                        ? guide.coordinate
-                        : viewBox.y + viewBox.height
-                    }
-                    pointerEvents="none"
-                    onKeyDown={(event) => {
-                      if (event.key === "Delete" || event.key === "Backspace") {
+                  const preview =
+                    routeStretchPreview?.routeId === route.id
+                      ? routeStretchPreview.point
+                      : null;
+                  return (
+                    <circle
+                      key={`handle-${route.id}`}
+                      data-testid={`route-handle-${route.id}`}
+                      data-canvas-hit-kind="handle"
+                      data-canvas-hit-id={`route-handle-${route.id}`}
+                      className="route-handle"
+                      cx={
+                        translatesWholeRoute
+                          ? (preview?.x ?? routeCenter.x)
+                          : from.y === to.y
+                            ? (from.x + to.x) / 2
+                            : (preview?.x ?? (from.x + to.x) / 2)
+                      }
+                      cy={
+                        translatesWholeRoute
+                          ? (preview?.y ?? routeCenter.y)
+                          : from.x === to.x
+                            ? (from.y + to.y) / 2
+                            : (preview?.y ?? (from.y + to.y) / 2)
+                      }
+                      r="6"
+                      onPointerDown={(event) => {
+                        const primaryInstanceId = selectedIds.at(-1);
+                        if (
+                          primaryInstanceId &&
+                          compositeSelectionOwnsHit("route", route.id)
+                        ) {
+                          beginMove(event, primaryInstanceId);
+                          return;
+                        }
+                        beginRouteStretch(
+                          event,
+                          route.id,
+                          segmentIndex,
+                          translatesWholeRoute ? "translate" : "segment",
+                        );
+                      }}
+                      pointerEvents={tool === "wire" ? "none" : undefined}
+                    />
+                  );
+                })}
+              {document.instances
+                .filter((instance) => instance.placement !== null)
+                .map((instance) => {
+                  const hitBox = instanceHitBox(instance, resolver);
+                  if (!hitBox) return null;
+                  const childDocumentId = referencedDocumentId(
+                    project,
+                    instance,
+                  );
+                  return (
+                    <rect
+                      key={instance.id}
+                      data-testid={`hit-${instance.id}`}
+                      data-canvas-hit-kind="instance"
+                      data-canvas-hit-id={instance.id}
+                      data-drag-object-id={instance.id}
+                      {...hitBox}
+                      className={
+                        selectedIds.includes(instance.id)
+                          ? "hit-target selected"
+                          : "hit-target"
+                      }
+                      onClick={(event) => {
                         event.stopPropagation();
-                        deleteGuide(guide.id);
-                      }
-                    }}
-                    tabIndex={0}
-                  />
-                </g>
-              ))}
-            <g ref={snapGuideLayerRef} data-layer="snap-guides" />
-            {routePolylines
-              .filter(({ route }) => route.id === selectedRouteId)
-              .map(({ route, polyline }) => {
-                const segmentIndex = Math.min(
-                  selectedRouteSegmentIndex ?? 0,
-                  polyline.points.length - 2,
+                        if (suppressInstanceClick.current) {
+                          suppressInstanceClick.current = false;
+                          return;
+                        }
+                        selectInstance(
+                          instance.id,
+                          event.shiftKey || event.ctrlKey,
+                        );
+                      }}
+                      onDoubleClick={(event) => {
+                        event.stopPropagation();
+                        if (childDocumentId) {
+                          enterHierarchy(instance.id);
+                          return;
+                        }
+                        inspectInstance(instance.id);
+                      }}
+                      onPointerDown={(event) => beginMove(event, instance.id)}
+                      pointerEvents={tool === "wire" ? "none" : undefined}
+                    />
+                  );
+                })}
+              {document.instances.map((instance) => {
+                if (
+                  document.annotations.some(
+                    (annotation) =>
+                      annotation.kind === "instance-label" &&
+                      annotation.attachedObjectId === instance.id,
+                  )
+                ) {
+                  return null;
+                }
+                const label = defaultInstanceLabel(
+                  document,
+                  instance,
+                  resolver,
+                  styleProfile,
                 );
-                const from = polyline.points[segmentIndex]!;
-                const to = polyline.points[segmentIndex + 1]!;
-                const translatesWholeRoute =
-                  looseRouteAnchorIds(document, route) !== null;
-                const routeCenter = centerOfBounds(
-                  polylineBounds(polyline.points),
-                );
-                const preview =
-                  routeStretchPreview?.routeId === route.id
-                    ? routeStretchPreview.point
-                    : null;
-                return (
-                  <circle
-                    key={`handle-${route.id}`}
-                    data-testid={`route-handle-${route.id}`}
-                    data-canvas-hit-kind="handle"
-                    data-canvas-hit-id={`route-handle-${route.id}`}
-                    className="route-handle"
-                    cx={
-                      translatesWholeRoute
-                        ? (preview?.x ?? routeCenter.x)
-                        : from.y === to.y
-                          ? (from.x + to.x) / 2
-                          : (preview?.x ?? (from.x + to.x) / 2)
-                    }
-                    cy={
-                      translatesWholeRoute
-                        ? (preview?.y ?? routeCenter.y)
-                        : from.x === to.x
-                          ? (from.y + to.y) / 2
-                          : (preview?.y ?? (from.y + to.y) / 2)
-                    }
-                    r="6"
-                    onPointerDown={(event) => {
-                      const primaryInstanceId = selectedIds.at(-1);
-                      if (
-                        primaryInstanceId &&
-                        compositeSelectionOwnsHit("route", route.id)
-                      ) {
-                        beginMove(event, primaryInstanceId);
-                        return;
-                      }
-                      beginRouteStretch(
-                        event,
-                        route.id,
-                        segmentIndex,
-                        translatesWholeRoute ? "translate" : "segment",
-                      );
-                    }}
-                    pointerEvents={tool === "wire" ? "none" : undefined}
-                  />
-                );
-              })}
-            {document.instances
-              .filter((instance) => instance.placement !== null)
-              .map((instance) => {
-                const hitBox = instanceHitBox(instance, resolver);
-                if (!hitBox) return null;
-                const childDocumentId = referencedDocumentId(project, instance);
+                if (!label) return null;
                 return (
                   <rect
-                    key={instance.id}
-                    data-testid={`hit-${instance.id}`}
-                    data-canvas-hit-kind="instance"
+                    key={`default-label-hit-${instance.id}`}
+                    data-testid={`default-label-hit-${instance.id}`}
+                    data-canvas-hit-kind="instance-label"
                     data-canvas-hit-id={instance.id}
                     data-drag-object-id={instance.id}
-                    {...hitBox}
-                    className={
-                      selectedIds.includes(instance.id)
-                        ? "hit-target selected"
-                        : "hit-target"
+                    className="annotation-hit"
+                    {...annotationHitBox(
+                      label,
+                      label.position,
+                      routePolylines,
+                      styleProfile,
+                    )}
+                    onClick={(event) => event.stopPropagation()}
+                    onPointerDown={(event) =>
+                      selectDefaultInstanceLabel(event, instance)
                     }
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      if (suppressInstanceClick.current) {
-                        suppressInstanceClick.current = false;
-                        return;
-                      }
-                      selectInstance(
-                        instance.id,
-                        event.shiftKey || event.ctrlKey,
-                      );
-                    }}
-                    onDoubleClick={(event) => {
-                      event.stopPropagation();
-                      if (childDocumentId) {
-                        enterHierarchy(instance.id);
-                        return;
-                      }
-                      inspectInstance(instance.id);
-                    }}
-                    onPointerDown={(event) => beginMove(event, instance.id)}
+                    onDoubleClick={(event) =>
+                      editDefaultInstanceLabel(event, instance)
+                    }
                     pointerEvents={tool === "wire" ? "none" : undefined}
                   />
                 );
               })}
-            {document.instances.map((instance) => {
-              if (
-                document.annotations.some(
-                  (annotation) =>
-                    annotation.kind === "instance-label" &&
-                    annotation.attachedObjectId === instance.id,
-                )
-              ) {
-                return null;
-              }
-              const label = defaultInstanceLabel(
-                document,
-                instance,
-                resolver,
-                styleProfile,
-              );
-              if (!label) return null;
-              return (
-                <rect
-                  key={`default-label-hit-${instance.id}`}
-                  data-testid={`default-label-hit-${instance.id}`}
-                  data-canvas-hit-kind="instance-label"
-                  data-canvas-hit-id={instance.id}
-                  data-drag-object-id={instance.id}
-                  className="annotation-hit"
-                  {...annotationHitBox(
-                    label,
-                    label.position,
-                    routePolylines,
-                    styleProfile,
-                  )}
-                  onClick={(event) => event.stopPropagation()}
+              {routePolylines.map(({ route, polyline }) => (
+                <polyline
+                  key={route.id}
+                  data-testid={`route-hit-${route.id}`}
+                  data-canvas-hit-kind="route"
+                  data-canvas-hit-id={route.id}
+                  data-drag-object-id={route.id}
+                  className={
+                    selectedRouteId === route.id ||
+                    supplementalSelection.routeIds.includes(route.id) ||
+                    selectedInternalRouteIds.has(route.id)
+                      ? "route-hit selected"
+                      : "route-hit"
+                  }
+                  points={serializePolylinePoints(polyline.points)}
                   onPointerDown={(event) =>
-                    selectDefaultInstanceLabel(event, instance)
+                    handleRoutePointerDown(event, route.id)
                   }
-                  onDoubleClick={(event) =>
-                    editDefaultInstanceLabel(event, instance)
-                  }
-                  pointerEvents={tool === "wire" ? "none" : undefined}
+                  onClick={(event) => event.stopPropagation()}
                 />
-              );
-            })}
-            {routePolylines.map(({ route, polyline }) => (
-              <polyline
-                key={route.id}
-                data-testid={`route-hit-${route.id}`}
-                data-canvas-hit-kind="route"
-                data-canvas-hit-id={route.id}
-                data-drag-object-id={route.id}
-                className={
-                  selectedRouteId === route.id ||
-                  supplementalSelection.routeIds.includes(route.id) ||
-                  selectedInternalRouteIds.has(route.id)
-                    ? "route-hit selected"
-                    : "route-hit"
-                }
-                points={serializePolylinePoints(polyline.points)}
-                onPointerDown={(event) =>
-                  handleRoutePointerDown(event, route.id)
-                }
-                onClick={(event) => event.stopPropagation()}
-              />
-            ))}
-            {visibleEndpoints.map((candidate) => (
-              <circle
-                key={`${candidate.netId}:${endpointTestId(candidate.endpoint)}`}
-                data-testid={endpointTestId(candidate.endpoint)}
-                data-canvas-hit-kind={
-                  candidate.endpoint.kind === "junction"
-                    ? "junction"
-                    : undefined
-                }
-                data-canvas-hit-id={
-                  candidate.endpoint.kind === "junction"
-                    ? candidate.endpoint.junctionId
-                    : undefined
-                }
-                data-drag-object-id={
-                  candidate.endpoint.kind === "junction"
-                    ? candidate.endpoint.junctionId
-                    : undefined
-                }
-                className={
-                  tool === "wire" ||
-                  (candidate.endpoint.kind === "junction" &&
-                    supplementalSelection.junctionIds.includes(
-                      candidate.endpoint.junctionId,
-                    )) ||
-                  (selectedEndpoint?.endpoint.kind === "junction" &&
-                    candidate.endpoint.kind === "junction" &&
-                    selectedEndpoint.endpoint.junctionId ===
-                      candidate.endpoint.junctionId)
-                    ? "endpoint-hit active"
-                    : "endpoint-hit"
-                }
-                cx={candidate.point.x}
-                cy={candidate.point.y}
-                r={4}
-                onClick={(event) => event.stopPropagation()}
-                onContextMenu={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  selectEndpoint(candidate);
-                  setStatus(
-                    `Endpoint actions: ${endpointTestId(candidate.endpoint)}`,
-                  );
-                }}
-                onPointerDown={(event) => {
-                  if (
-                    tool === "pointer" &&
+              ))}
+              {visibleEndpoints.map((candidate) => (
+                <circle
+                  key={`${candidate.netId}:${endpointTestId(candidate.endpoint)}`}
+                  data-testid={endpointTestId(candidate.endpoint)}
+                  data-canvas-hit-kind={
                     candidate.endpoint.kind === "junction"
-                  ) {
+                      ? "junction"
+                      : undefined
+                  }
+                  data-canvas-hit-id={
+                    candidate.endpoint.kind === "junction"
+                      ? candidate.endpoint.junctionId
+                      : undefined
+                  }
+                  data-drag-object-id={
+                    candidate.endpoint.kind === "junction"
+                      ? candidate.endpoint.junctionId
+                      : undefined
+                  }
+                  className={
+                    tool === "wire" ||
+                    (candidate.endpoint.kind === "junction" &&
+                      supplementalSelection.junctionIds.includes(
+                        candidate.endpoint.junctionId,
+                      )) ||
+                    (selectedEndpoint?.endpoint.kind === "junction" &&
+                      candidate.endpoint.kind === "junction" &&
+                      selectedEndpoint.endpoint.junctionId ===
+                        candidate.endpoint.junctionId)
+                      ? "endpoint-hit active"
+                      : "endpoint-hit"
+                  }
+                  cx={candidate.point.x}
+                  cy={candidate.point.y}
+                  r={4}
+                  onClick={(event) => event.stopPropagation()}
+                  onContextMenu={(event) => {
+                    event.preventDefault();
                     event.stopPropagation();
                     selectEndpoint(candidate);
-                    setStatus(`Selected ${endpointTestId(candidate.endpoint)}`);
-                    return;
-                  }
-                  handleWireEndpoint(event, candidate);
-                }}
-              />
-            ))}
-            {document.annotations.map((annotation) => {
-              const anchor = annotationAnchor(annotation, routePolylines);
-              const hitBox = annotationHitBox(
-                annotation,
-                anchor,
-                routePolylines,
-                styleProfile,
-              );
-              const selected =
-                selectedAnnotationId === annotation.id ||
-                supplementalSelection.annotationIds.includes(annotation.id);
-              return (
-                <rect
-                  key={`annotation-hit-${annotation.id}`}
-                  data-testid={`annotation-hit-${annotation.id}`}
-                  data-canvas-hit-kind="annotation"
-                  data-canvas-hit-id={annotation.id}
-                  data-drag-object-id={annotation.id}
-                  className={
-                    selected
-                      ? "hit-target annotation-text-hit selected"
-                      : "hit-target annotation-text-hit"
-                  }
-                  {...hitBox}
-                  onClick={(event) => event.stopPropagation()}
-                  onPointerDown={(event) =>
-                    beginAnnotationDrag(event, annotation)
-                  }
-                  pointerEvents={tool === "wire" ? "none" : undefined}
-                  onDoubleClick={(event) => {
-                    event.stopPropagation();
-                    beginAnnotationTextEditing(annotation);
+                    setStatus(
+                      `Endpoint actions: ${endpointTestId(candidate.endpoint)}`,
+                    );
+                  }}
+                  onPointerDown={(event) => {
+                    if (
+                      tool === "pointer" &&
+                      candidate.endpoint.kind === "junction"
+                    ) {
+                      event.stopPropagation();
+                      selectEndpoint(candidate);
+                      setStatus(
+                        `Selected ${endpointTestId(candidate.endpoint)}`,
+                      );
+                      return;
+                    }
+                    handleWireEndpoint(event, candidate);
                   }}
                 />
-              );
-            })}
-            {(document.drafting?.objects ?? []).map((object) => {
-              // WP-R5/P1: every drafting object gets a selectable/deletable hit
-              // shape derived from the shared geometry. P1: use the object's
-              // actual shape (stroke polyline/line for lines and arrows) instead
-              // of a full bounding rect, so large leader/callout boxes do not
-              // block the canvas underneath.
-              const geometry = resolveDraftingObjectGeometry(
-                document,
-                resolver,
-                object,
-              );
-              const draggable = !object.locked && draftingDragOrigin(object);
-              const selected =
-                selectedDraftingId === object.id ||
-                supplementalSelection.draftingIds.includes(object.id)
-                  ? "annotation-hit selected"
-                  : "annotation-hit";
-              const textSelected =
-                selectedDraftingId === object.id ||
-                supplementalSelection.draftingIds.includes(object.id)
-                  ? "hit-target annotation-text-hit selected"
-                  : "hit-target annotation-text-hit";
-              const onDown = (event: ReactPointerEvent<SVGElement>): void => {
-                if (draggable) {
-                  beginDraftingDrag(event, object);
-                } else {
-                  event.stopPropagation();
-                  selectDraftingObject(object.id);
-                }
-              };
-              if (
-                object.kind === "construction-line" &&
-                geometry.kind === "construction-line"
-              ) {
-                const points = object.points
-                  .map((point) => `${point.x},${point.y}`)
-                  .join(" ");
-                const hasCurve = geometry.curveControls.some(Boolean);
-                const commonProps = {
-                  "data-testid": `drafting-hit-${object.id}`,
-                  "data-canvas-hit-kind": "drafting",
-                  "data-canvas-hit-id": object.id,
-                  "data-drag-object-id": object.id,
-                  className: selected,
-                  fill: "none",
-                  onPointerDown: onDown,
-                  onDoubleClick: (event: ReactMouseEvent<SVGElement>) => {
+              ))}
+              {document.annotations.map((annotation) => {
+                const anchor = annotationAnchor(annotation, routePolylines);
+                const hitBox = annotationHitBox(
+                  annotation,
+                  anchor,
+                  routePolylines,
+                  styleProfile,
+                );
+                const selected =
+                  selectedAnnotationId === annotation.id ||
+                  supplementalSelection.annotationIds.includes(annotation.id);
+                return (
+                  <rect
+                    key={`annotation-hit-${annotation.id}`}
+                    data-testid={`annotation-hit-${annotation.id}`}
+                    data-canvas-hit-kind="annotation"
+                    data-canvas-hit-id={annotation.id}
+                    data-drag-object-id={annotation.id}
+                    className={
+                      selected
+                        ? "hit-target annotation-text-hit selected"
+                        : "hit-target annotation-text-hit"
+                    }
+                    {...hitBox}
+                    onClick={(event) => event.stopPropagation()}
+                    onPointerDown={(event) =>
+                      beginAnnotationDrag(event, annotation)
+                    }
+                    pointerEvents={tool === "wire" ? "none" : undefined}
+                    onDoubleClick={(event) => {
+                      event.stopPropagation();
+                      beginAnnotationTextEditing(annotation);
+                    }}
+                  />
+                );
+              })}
+              {(document.drafting?.objects ?? []).map((object) => {
+                // WP-R5/P1: every drafting object gets a selectable/deletable hit
+                // shape derived from the shared geometry. P1: use the object's
+                // actual shape (stroke polyline/line for lines and arrows) instead
+                // of a full bounding rect, so large leader/callout boxes do not
+                // block the canvas underneath.
+                const geometry = resolveDraftingObjectGeometry(
+                  document,
+                  resolver,
+                  object,
+                );
+                const draggable = !object.locked && draftingDragOrigin(object);
+                const selected =
+                  selectedDraftingId === object.id ||
+                  supplementalSelection.draftingIds.includes(object.id)
+                    ? "annotation-hit selected"
+                    : "annotation-hit";
+                const textSelected =
+                  selectedDraftingId === object.id ||
+                  supplementalSelection.draftingIds.includes(object.id)
+                    ? "hit-target annotation-text-hit selected"
+                    : "hit-target annotation-text-hit";
+                const onDown = (event: ReactPointerEvent<SVGElement>): void => {
+                  if (draggable) {
+                    beginDraftingDrag(event, object);
+                  } else {
                     event.stopPropagation();
-                    insertConstructionVertex(
-                      object,
-                      pointFromClient(
-                        event.clientX,
-                        event.clientY,
-                        event.currentTarget.ownerSVGElement!,
-                      ),
-                    );
-                  },
-                  pointerEvents: tool === "wire" ? "none" : undefined,
+                    selectDraftingObject(object.id);
+                  }
                 };
-                return hasCurve ? (
-                  <path
-                    key={`drafting-hit-${object.id}`}
-                    {...commonProps}
-                    d={draftingPathData(
-                      geometry.points,
-                      geometry.curveControls,
-                    )}
-                  />
-                ) : (
-                  <polyline
-                    key={`drafting-hit-${object.id}`}
-                    {...commonProps}
-                    points={points}
-                  />
-                );
-              }
-              if (object.kind === "arrow" && geometry.kind === "arrow") {
-                return geometry.curveControls.some(Boolean) ? (
-                  <path
-                    key={`drafting-hit-${object.id}`}
-                    data-testid={`drafting-hit-${object.id}`}
-                    data-canvas-hit-kind="drafting"
-                    data-canvas-hit-id={object.id}
-                    data-drag-object-id={object.id}
-                    className={selected}
-                    d={draftingPathData(
-                      geometry.points,
-                      geometry.curveControls,
-                    )}
-                    fill="none"
-                    onPointerDown={onDown}
-                    onDoubleClick={(event) => {
+                if (
+                  object.kind === "construction-line" &&
+                  geometry.kind === "construction-line"
+                ) {
+                  const points = object.points
+                    .map((point) => `${point.x},${point.y}`)
+                    .join(" ");
+                  const hasCurve = geometry.curveControls.some(Boolean);
+                  const commonProps = {
+                    "data-testid": `drafting-hit-${object.id}`,
+                    "data-canvas-hit-kind": "drafting",
+                    "data-canvas-hit-id": object.id,
+                    "data-drag-object-id": object.id,
+                    className: selected,
+                    fill: "none",
+                    onPointerDown: onDown,
+                    onDoubleClick: (event: ReactMouseEvent<SVGElement>) => {
                       event.stopPropagation();
-                      insertArrowWaypoint(
+                      insertConstructionVertex(
                         object,
                         pointFromClient(
                           event.clientX,
@@ -7104,333 +7165,397 @@ export function App({ project: initialProject, visitStats }: AppProps) {
                           event.currentTarget.ownerSVGElement!,
                         ),
                       );
-                    }}
-                    pointerEvents={tool === "wire" ? "none" : undefined}
-                  />
-                ) : (
-                  <polyline
-                    key={`drafting-hit-${object.id}`}
-                    data-testid={`drafting-hit-${object.id}`}
-                    data-canvas-hit-kind="drafting"
-                    data-canvas-hit-id={object.id}
-                    data-drag-object-id={object.id}
-                    className={selected}
-                    points={geometry.points
-                      .map((point) => `${point.x},${point.y}`)
-                      .join(" ")}
-                    fill="none"
-                    onPointerDown={onDown}
-                    onDoubleClick={(event) => {
-                      event.stopPropagation();
-                      insertArrowWaypoint(
-                        object,
-                        pointFromClient(
-                          event.clientX,
-                          event.clientY,
-                          event.currentTarget.ownerSVGElement!,
-                        ),
-                      );
-                    }}
-                    pointerEvents={tool === "wire" ? "none" : undefined}
-                  />
-                );
-              }
-              if (
-                object.kind === "rectangle" &&
-                geometry.kind === "rectangle"
-              ) {
-                return (
-                  <polygon
-                    key={`drafting-hit-${object.id}`}
-                    data-testid={`drafting-hit-${object.id}`}
-                    data-canvas-hit-kind="drafting"
-                    data-canvas-hit-id={object.id}
-                    data-drag-object-id={object.id}
-                    className={`${selected} drafting-rectangle-hit`}
-                    points={serializePolylinePoints(geometry.corners)}
-                    fill="none"
-                    onPointerDown={onDown}
-                    pointerEvents={tool === "wire" ? "none" : undefined}
-                  />
-                );
-              }
-              if (object.kind === "leader" && geometry.kind === "leader") {
-                return (
-                  <line
-                    key={`drafting-hit-${object.id}`}
-                    data-testid={`drafting-hit-${object.id}`}
-                    data-canvas-hit-kind="drafting"
-                    data-canvas-hit-id={object.id}
-                    data-drag-object-id={object.id}
-                    className={selected}
-                    x1={geometry.anchor.x}
-                    y1={geometry.anchor.y}
-                    x2={geometry.target.x}
-                    y2={geometry.target.y}
-                    onPointerDown={onDown}
-                    pointerEvents={tool === "wire" ? "none" : undefined}
-                  />
-                );
-              }
-              if (object.kind === "callout" && geometry.kind === "callout") {
-                return (
-                  <g
-                    key={`drafting-hit-${object.id}`}
-                    data-testid={`drafting-hit-${object.id}`}
-                    data-canvas-hit-kind="drafting"
-                    data-canvas-hit-id={object.id}
-                    data-drag-object-id={object.id}
-                    onPointerDown={onDown}
-                    pointerEvents={tool === "wire" ? "none" : undefined}
-                  >
-                    <line
+                    },
+                    pointerEvents: tool === "wire" ? "none" : undefined,
+                  };
+                  return hasCurve ? (
+                    <path
+                      key={`drafting-hit-${object.id}`}
+                      {...commonProps}
+                      d={draftingPathData(
+                        geometry.points,
+                        geometry.curveControls,
+                      )}
+                    />
+                  ) : (
+                    <polyline
+                      key={`drafting-hit-${object.id}`}
+                      {...commonProps}
+                      points={points}
+                    />
+                  );
+                }
+                if (object.kind === "arrow" && geometry.kind === "arrow") {
+                  return geometry.curveControls.some(Boolean) ? (
+                    <path
+                      key={`drafting-hit-${object.id}`}
+                      data-testid={`drafting-hit-${object.id}`}
+                      data-canvas-hit-kind="drafting"
+                      data-canvas-hit-id={object.id}
+                      data-drag-object-id={object.id}
                       className={selected}
-                      x1={geometry.textPosition.x}
-                      y1={geometry.textPosition.y}
+                      d={draftingPathData(
+                        geometry.points,
+                        geometry.curveControls,
+                      )}
+                      fill="none"
+                      onPointerDown={onDown}
+                      onDoubleClick={(event) => {
+                        event.stopPropagation();
+                        insertArrowWaypoint(
+                          object,
+                          pointFromClient(
+                            event.clientX,
+                            event.clientY,
+                            event.currentTarget.ownerSVGElement!,
+                          ),
+                        );
+                      }}
+                      pointerEvents={tool === "wire" ? "none" : undefined}
+                    />
+                  ) : (
+                    <polyline
+                      key={`drafting-hit-${object.id}`}
+                      data-testid={`drafting-hit-${object.id}`}
+                      data-canvas-hit-kind="drafting"
+                      data-canvas-hit-id={object.id}
+                      data-drag-object-id={object.id}
+                      className={selected}
+                      points={geometry.points
+                        .map((point) => `${point.x},${point.y}`)
+                        .join(" ")}
+                      fill="none"
+                      onPointerDown={onDown}
+                      onDoubleClick={(event) => {
+                        event.stopPropagation();
+                        insertArrowWaypoint(
+                          object,
+                          pointFromClient(
+                            event.clientX,
+                            event.clientY,
+                            event.currentTarget.ownerSVGElement!,
+                          ),
+                        );
+                      }}
+                      pointerEvents={tool === "wire" ? "none" : undefined}
+                    />
+                  );
+                }
+                if (
+                  object.kind === "rectangle" &&
+                  geometry.kind === "rectangle"
+                ) {
+                  return (
+                    <polygon
+                      key={`drafting-hit-${object.id}`}
+                      data-testid={`drafting-hit-${object.id}`}
+                      data-canvas-hit-kind="drafting"
+                      data-canvas-hit-id={object.id}
+                      data-drag-object-id={object.id}
+                      className={`${selected} drafting-rectangle-hit`}
+                      points={serializePolylinePoints(geometry.corners)}
+                      fill="none"
+                      onPointerDown={onDown}
+                      pointerEvents={tool === "wire" ? "none" : undefined}
+                    />
+                  );
+                }
+                if (object.kind === "leader" && geometry.kind === "leader") {
+                  return (
+                    <line
+                      key={`drafting-hit-${object.id}`}
+                      data-testid={`drafting-hit-${object.id}`}
+                      data-canvas-hit-kind="drafting"
+                      data-canvas-hit-id={object.id}
+                      data-drag-object-id={object.id}
+                      className={selected}
+                      x1={geometry.anchor.x}
+                      y1={geometry.anchor.y}
                       x2={geometry.target.x}
                       y2={geometry.target.y}
+                      onPointerDown={onDown}
+                      pointerEvents={tool === "wire" ? "none" : undefined}
                     />
-                    <rect className={selected} {...geometry.textBounds} />
-                  </g>
+                  );
+                }
+                if (object.kind === "callout" && geometry.kind === "callout") {
+                  return (
+                    <g
+                      key={`drafting-hit-${object.id}`}
+                      data-testid={`drafting-hit-${object.id}`}
+                      data-canvas-hit-kind="drafting"
+                      data-canvas-hit-id={object.id}
+                      data-drag-object-id={object.id}
+                      onPointerDown={onDown}
+                      pointerEvents={tool === "wire" ? "none" : undefined}
+                    >
+                      <line
+                        className={selected}
+                        x1={geometry.textPosition.x}
+                        y1={geometry.textPosition.y}
+                        x2={geometry.target.x}
+                        y2={geometry.target.y}
+                      />
+                      <rect className={selected} {...geometry.textBounds} />
+                    </g>
+                  );
+                }
+                return (
+                  <rect
+                    key={`drafting-hit-${object.id}`}
+                    data-testid={`drafting-hit-${object.id}`}
+                    data-canvas-hit-kind="drafting"
+                    data-canvas-hit-id={object.id}
+                    data-drag-object-id={object.id}
+                    className={object.kind === "text" ? textSelected : selected}
+                    {...geometry.bounds}
+                    onPointerDown={onDown}
+                    onDoubleClick={(event) => {
+                      if (object.kind !== "text") return;
+                      event.stopPropagation();
+                      beginDraftingTextEditing(object);
+                    }}
+                  />
                 );
-              }
-              return (
+              })}
+              {selectedDraftingId
+                ? (() => {
+                    const object = document.drafting?.objects.find(
+                      (candidate) => candidate.id === selectedDraftingId,
+                    );
+                    if (!object || object.locked) return null;
+                    const geometry = resolveDraftingObjectGeometry(
+                      document,
+                      resolver,
+                      object,
+                    );
+                    if (object.kind === "arrow" && geometry.kind === "arrow") {
+                      return (
+                        <g
+                          data-testid={`drafting-handles-${object.id}`}
+                          data-canvas-hit-kind="handle"
+                          data-canvas-hit-id={`drafting-handles-${object.id}`}
+                        >
+                          <circle
+                            className="draft-handle"
+                            data-testid={`draft-handle-from-${object.id}`}
+                            cx={geometry.from.x}
+                            cy={geometry.from.y}
+                            r="5"
+                            onPointerDown={(event) =>
+                              beginDraftingHandleDrag(event, object, {
+                                kind: "from",
+                              })
+                            }
+                          />
+                          {geometry.points.slice(1, -1).map((point, index) => (
+                            <circle
+                              key={`draft-arrow-waypoint-${index}`}
+                              className="draft-handle"
+                              data-testid={`draft-handle-waypoint-${index}-${object.id}`}
+                              cx={point.x}
+                              cy={point.y}
+                              r="5"
+                              onPointerDown={(event) =>
+                                beginDraftingHandleDrag(event, object, {
+                                  kind: "waypoint",
+                                  index,
+                                })
+                              }
+                            />
+                          ))}
+                          {geometry.points.slice(0, -1).map((point, index) => {
+                            const next = geometry.points[index + 1]!;
+                            const midpoint = quadraticMidpoint(
+                              point,
+                              geometry.curveControls[index] ?? null,
+                              next,
+                            );
+                            return (
+                              <rect
+                                key={`draft-arrow-segment-${index}`}
+                                className="draft-handle draft-midpoint-handle"
+                                data-testid={`draft-handle-segment-${index}-${object.id}`}
+                                x={midpoint.x - 3}
+                                y={midpoint.y - 3}
+                                width="6"
+                                height="6"
+                                transform={`rotate(45 ${midpoint.x} ${midpoint.y})`}
+                                onPointerDown={(event) =>
+                                  beginDraftingHandleDrag(event, object, {
+                                    kind: "curve",
+                                    index,
+                                  })
+                                }
+                              />
+                            );
+                          })}
+                          <circle
+                            className="draft-handle"
+                            data-testid={`draft-handle-to-${object.id}`}
+                            cx={geometry.to.x}
+                            cy={geometry.to.y}
+                            r="5"
+                            onPointerDown={(event) =>
+                              beginDraftingHandleDrag(event, object, {
+                                kind: "to",
+                              })
+                            }
+                          />
+                        </g>
+                      );
+                    }
+                    if (
+                      object.kind === "construction-line" &&
+                      geometry.kind === "construction-line"
+                    ) {
+                      return (
+                        <g
+                          data-testid={`drafting-handles-${object.id}`}
+                          data-canvas-hit-kind="handle"
+                          data-canvas-hit-id={`drafting-handles-${object.id}`}
+                        >
+                          {geometry.vertices.map((vertex, index) => (
+                            <circle
+                              key={`draft-vx-${index}`}
+                              className="draft-handle"
+                              data-testid={`draft-handle-vx-${index}-${object.id}`}
+                              cx={vertex.x}
+                              cy={vertex.y}
+                              r="5"
+                              onPointerDown={(event) =>
+                                beginDraftingHandleDrag(event, object, {
+                                  kind: "vertex",
+                                  index,
+                                })
+                              }
+                              onDoubleClick={(event) => {
+                                event.stopPropagation();
+                                deleteConstructionVertex(object, index);
+                              }}
+                            />
+                          ))}
+                          {geometry.vertices
+                            .slice(0, -1)
+                            .map((vertex, index) => {
+                              const next = geometry.vertices[index + 1]!;
+                              const midpoint = quadraticMidpoint(
+                                vertex,
+                                geometry.curveControls[index] ?? null,
+                                next,
+                              );
+                              return (
+                                <rect
+                                  key={`draft-line-segment-${index}`}
+                                  className="draft-handle draft-midpoint-handle"
+                                  data-testid={`draft-handle-segment-${index}-${object.id}`}
+                                  x={midpoint.x - 3}
+                                  y={midpoint.y - 3}
+                                  width="6"
+                                  height="6"
+                                  transform={`rotate(45 ${midpoint.x} ${midpoint.y})`}
+                                  onPointerDown={(event) =>
+                                    beginDraftingHandleDrag(event, object, {
+                                      kind: "curve",
+                                      index,
+                                    })
+                                  }
+                                />
+                              );
+                            })}
+                        </g>
+                      );
+                    }
+                    if (
+                      object.kind === "rectangle" &&
+                      geometry.kind === "rectangle"
+                    ) {
+                      return (
+                        <g data-testid={`drafting-handles-${object.id}`}>
+                          {geometry.corners.map((corner, index) => (
+                            <rect
+                              key={`draft-rectangle-corner-${index}`}
+                              className="draft-handle"
+                              data-testid={`draft-handle-corner-${index}-${object.id}`}
+                              x={corner.x - 4}
+                              y={corner.y - 4}
+                              width="8"
+                              height="8"
+                              onPointerDown={(event) =>
+                                beginDraftingHandleDrag(event, object, {
+                                  kind: "rectangle-corner",
+                                  index,
+                                })
+                              }
+                            />
+                          ))}
+                        </g>
+                      );
+                    }
+                    return null;
+                  })()
+                : null}
+              {boxPreview ? (
                 <rect
-                  key={`drafting-hit-${object.id}`}
-                  data-testid={`drafting-hit-${object.id}`}
-                  data-canvas-hit-kind="drafting"
-                  data-canvas-hit-id={object.id}
-                  data-drag-object-id={object.id}
-                  className={object.kind === "text" ? textSelected : selected}
-                  {...geometry.bounds}
-                  onPointerDown={onDown}
-                  onDoubleClick={(event) => {
-                    if (object.kind !== "text") return;
-                    event.stopPropagation();
-                    beginDraftingTextEditing(object);
-                  }}
+                  data-testid="selection-box"
+                  className="selection-box"
+                  {...normalizedRect(boxPreview.start, boxPreview.end)}
                 />
-              );
-            })}
-            {selectedDraftingId
-              ? (() => {
-                  const object = document.drafting?.objects.find(
-                    (candidate) => candidate.id === selectedDraftingId,
-                  );
-                  if (!object || object.locked) return null;
-                  const geometry = resolveDraftingObjectGeometry(
-                    document,
-                    resolver,
-                    object,
-                  );
-                  if (object.kind === "arrow" && geometry.kind === "arrow") {
-                    return (
-                      <g
-                        data-testid={`drafting-handles-${object.id}`}
-                        data-canvas-hit-kind="handle"
-                        data-canvas-hit-id={`drafting-handles-${object.id}`}
-                      >
-                        <circle
-                          className="draft-handle"
-                          data-testid={`draft-handle-from-${object.id}`}
-                          cx={geometry.from.x}
-                          cy={geometry.from.y}
-                          r="5"
-                          onPointerDown={(event) =>
-                            beginDraftingHandleDrag(event, object, {
-                              kind: "from",
-                            })
-                          }
-                        />
-                        {geometry.points.slice(1, -1).map((point, index) => (
-                          <circle
-                            key={`draft-arrow-waypoint-${index}`}
-                            className="draft-handle"
-                            data-testid={`draft-handle-waypoint-${index}-${object.id}`}
-                            cx={point.x}
-                            cy={point.y}
-                            r="5"
-                            onPointerDown={(event) =>
-                              beginDraftingHandleDrag(event, object, {
-                                kind: "waypoint",
-                                index,
-                              })
-                            }
-                          />
-                        ))}
-                        {geometry.points.slice(0, -1).map((point, index) => {
-                          const next = geometry.points[index + 1]!;
-                          const midpoint = quadraticMidpoint(
-                            point,
-                            geometry.curveControls[index] ?? null,
-                            next,
-                          );
-                          return (
-                            <rect
-                              key={`draft-arrow-segment-${index}`}
-                              className="draft-handle draft-midpoint-handle"
-                              data-testid={`draft-handle-segment-${index}-${object.id}`}
-                              x={midpoint.x - 3}
-                              y={midpoint.y - 3}
-                              width="6"
-                              height="6"
-                              transform={`rotate(45 ${midpoint.x} ${midpoint.y})`}
-                              onPointerDown={(event) =>
-                                beginDraftingHandleDrag(event, object, {
-                                  kind: "curve",
-                                  index,
-                                })
-                              }
-                            />
-                          );
-                        })}
-                        <circle
-                          className="draft-handle"
-                          data-testid={`draft-handle-to-${object.id}`}
-                          cx={geometry.to.x}
-                          cy={geometry.to.y}
-                          r="5"
-                          onPointerDown={(event) =>
-                            beginDraftingHandleDrag(event, object, {
-                              kind: "to",
-                            })
-                          }
-                        />
-                      </g>
-                    );
-                  }
-                  if (
-                    object.kind === "construction-line" &&
-                    geometry.kind === "construction-line"
-                  ) {
-                    return (
-                      <g
-                        data-testid={`drafting-handles-${object.id}`}
-                        data-canvas-hit-kind="handle"
-                        data-canvas-hit-id={`drafting-handles-${object.id}`}
-                      >
-                        {geometry.vertices.map((vertex, index) => (
-                          <circle
-                            key={`draft-vx-${index}`}
-                            className="draft-handle"
-                            data-testid={`draft-handle-vx-${index}-${object.id}`}
-                            cx={vertex.x}
-                            cy={vertex.y}
-                            r="5"
-                            onPointerDown={(event) =>
-                              beginDraftingHandleDrag(event, object, {
-                                kind: "vertex",
-                                index,
-                              })
-                            }
-                            onDoubleClick={(event) => {
-                              event.stopPropagation();
-                              deleteConstructionVertex(object, index);
-                            }}
-                          />
-                        ))}
-                        {geometry.vertices.slice(0, -1).map((vertex, index) => {
-                          const next = geometry.vertices[index + 1]!;
-                          const midpoint = quadraticMidpoint(
-                            vertex,
-                            geometry.curveControls[index] ?? null,
-                            next,
-                          );
-                          return (
-                            <rect
-                              key={`draft-line-segment-${index}`}
-                              className="draft-handle draft-midpoint-handle"
-                              data-testid={`draft-handle-segment-${index}-${object.id}`}
-                              x={midpoint.x - 3}
-                              y={midpoint.y - 3}
-                              width="6"
-                              height="6"
-                              transform={`rotate(45 ${midpoint.x} ${midpoint.y})`}
-                              onPointerDown={(event) =>
-                                beginDraftingHandleDrag(event, object, {
-                                  kind: "curve",
-                                  index,
-                                })
-                              }
-                            />
-                          );
-                        })}
-                      </g>
-                    );
-                  }
-                  if (
-                    object.kind === "rectangle" &&
-                    geometry.kind === "rectangle"
-                  ) {
-                    return (
-                      <g data-testid={`drafting-handles-${object.id}`}>
-                        {geometry.corners.map((corner, index) => (
-                          <rect
-                            key={`draft-rectangle-corner-${index}`}
-                            className="draft-handle"
-                            data-testid={`draft-handle-corner-${index}-${object.id}`}
-                            x={corner.x - 4}
-                            y={corner.y - 4}
-                            width="8"
-                            height="8"
-                            onPointerDown={(event) =>
-                              beginDraftingHandleDrag(event, object, {
-                                kind: "rectangle-corner",
-                                index,
-                              })
-                            }
-                          />
-                        ))}
-                      </g>
-                    );
-                  }
-                  return null;
-                })()
-              : null}
-            {boxPreview ? (
-              <rect
-                data-testid="selection-box"
-                className="selection-box"
-                {...normalizedRect(boxPreview.start, boxPreview.end)}
-              />
-            ) : null}
-            {draftingSource && draftingHover ? (
-              <DraftingCreatePreview
-                tool={tool}
-                start={draftingSource}
-                waypoints={draftingWaypoints}
-                hover={draftingHover}
-                snap={draftingSnapPoint}
-                styleProfile={styleProfile}
-              />
-            ) : null}
-            {tool === "wire" && wirePreviewPoint ? (
-              <circle
-                className="snap-preview"
-                cx={wirePreviewPoint.x}
-                cy={wirePreviewPoint.y}
-                r="4"
-              />
-            ) : null}
-            {textEditing && textEditingBounds ? (
-              <CanvasTextEditorOverlay
-                session={textEditing}
-                bounds={textEditingBounds}
-                viewBox={viewBox}
-                disabled={textEditingLocked}
-                onUpdate={updateTextEditing}
-                onCommit={commitTextEditing}
-                onCancel={() => setTextEditing(null)}
-                onDelete={deleteTextEditing}
-                {...(editingAnnotation &&
-                isRoutedMarker(editingAnnotation) &&
-                effectiveRouteAttachment(editingAnnotation)
-                  ? { onReverseCurrentArrow: reverseSelectedCurrentArrow }
-                  : {})}
-              />
-            ) : null}
-          </g>
-        </svg>
+              ) : null}
+              {draftingSource && draftingHover ? (
+                <DraftingCreatePreview
+                  tool={tool}
+                  start={draftingSource}
+                  waypoints={draftingWaypoints}
+                  hover={draftingHover}
+                  snap={draftingSnapPoint}
+                  styleProfile={styleProfile}
+                />
+              ) : null}
+              {tool === "wire" && wirePreviewPoint ? (
+                <circle
+                  className="snap-preview"
+                  cx={wirePreviewPoint.x}
+                  cy={wirePreviewPoint.y}
+                  r="4"
+                />
+              ) : null}
+              {textEditing && textEditingBounds ? (
+                <CanvasTextEditorOverlay
+                  session={textEditing}
+                  bounds={textEditingBounds}
+                  viewBox={viewBox}
+                  disabled={textEditingLocked}
+                  onUpdate={updateTextEditing}
+                  onCommit={commitTextEditing}
+                  onCancel={() => setTextEditing(null)}
+                  onDelete={deleteTextEditing}
+                  {...(editingAnnotation &&
+                  isRoutedMarker(editingAnnotation) &&
+                  effectiveRouteAttachment(editingAnnotation)
+                    ? { onReverseCurrentArrow: reverseSelectedCurrentArrow }
+                    : {})}
+                />
+              ) : null}
+            </g>
+          </svg>
+        </section>
+      </div>
+      <footer className="app-statusbar">
+        <div className="statusbar-left">
+          <p className="editor-status" data-testid="status" aria-live="polite">
+            {status}
+          </p>
+          <span className="statusbar-tool" data-testid="statusbar-tool">
+            {pendingSymbolId
+              ? `Placing ${pendingSymbolId}`
+              : tool === "pointer"
+                ? "Select"
+                : tool === "construction-line"
+                  ? "Line"
+                  : tool.charAt(0).toUpperCase() + tool.slice(1)}
+          </span>
+        </div>
         <div className="canvas-controls" aria-label="Canvas zoom controls">
           <button
             type="button"
@@ -7458,7 +7583,7 @@ export function App({ project: initialProject, visitStats }: AppProps) {
             <ToolIcon name="fit" />
           </button>
         </div>
-      </section>
+      </footer>
     </main>
   );
 }

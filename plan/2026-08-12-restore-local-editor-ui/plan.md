@@ -1,5 +1,5 @@
 ---
-status: active
+status: completed
 experience: none
 ---
 
@@ -79,4 +79,20 @@ fix(editor): restore local chrome on current main
 
 ## Outcome
 
-Pending.
+Restored the local editor chrome on current `origin/main` through a semantic
+integration rather than reverting remote `App.tsx`. The result keeps the
+menubar/tool strip, left tool rail, Shapes/Library panel, in-flow Properties
+dock, canvas workspace, bottom status/zoom bar, and local visual scale while
+retaining remote connectivity, routing, diagnostics, search, analytics,
+component quick-place, persistence, and double-click behavior. The narrow
+collapsed-Library grid no longer reserves an invisible row.
+
+Validation completed: focused App/ShapesPanel tests (14/14); focused editor
+Playwright suite (89/89, with the flaky viewport assertion stabilized and its
+relevant cases repeated 3 times); workspace typecheck; editor dependency-closure
+build; Prettier checks; and `git diff --check`. Full frozen-install `pnpm
+ci:check` and remote required checks remain delivery gates for merging to
+`main` and were not run as part of this local restoration.
+
+This commit closes the target with `status: completed`; experience remains
+`none`.

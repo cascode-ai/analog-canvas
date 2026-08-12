@@ -1,5 +1,6 @@
 export type ToolIconName =
   | "insert"
+  | "library"
   | "wire"
   | "text"
   | "arrow"
@@ -11,7 +12,10 @@ export type ToolIconName =
   | "zoom-out"
   | "fit"
   | "inspect"
-  | "library";
+  | "undo"
+  | "redo"
+  | "delete"
+  | "guide";
 
 export function ToolIcon({ name }: { name: ToolIconName }) {
   const common = {
@@ -23,17 +27,20 @@ export function ToolIcon({ name }: { name: ToolIconName }) {
   };
 
   return (
-    <svg
-      className="tool-icon"
-      viewBox="0 0 20 20"
-      width="18"
-      height="18"
-      aria-hidden="true"
-    >
+    <svg className="tool-icon" viewBox="0 0 20 20" aria-hidden="true">
       {name === "insert" ? (
         <>
           <rect x="4" y="4" width="12" height="12" rx="1.5" {...common} />
           <path d="M10 7v6M7 10h6" {...common} />
+        </>
+      ) : null}
+      {name === "library" ? (
+        <>
+          {/* 2x2 tile grid = one clear library / catalog mark */}
+          <rect x="3" y="3.5" width="6" height="6" rx="1" {...common} />
+          <rect x="11" y="3.5" width="6" height="6" rx="1" {...common} />
+          <rect x="3" y="10.5" width="6" height="6" rx="1" {...common} />
+          <rect x="11" y="10.5" width="6" height="6" rx="1" {...common} />
         </>
       ) : null}
       {name === "wire" ? (
@@ -87,12 +94,26 @@ export function ToolIcon({ name }: { name: ToolIconName }) {
           <path d="M7 7h6M7 10h6M7 13h4" {...common} />
         </>
       ) : null}
-      {name === "library" ? (
+      {name === "undo" ? (
         <>
-          <path
-            d="M3.5 4.5h5v11h-5zM11.5 4.5h5v4h-5zM11.5 11.5h5v4h-5z"
-            {...common}
-          />
+          <path d="M4 9h8a4 4 0 1 1 0 8H8" {...common} />
+          <path d="M7 5L3 9l4 4" {...common} />
+        </>
+      ) : null}
+      {name === "redo" ? (
+        <>
+          <path d="M16 9H8a4 4 0 1 0 0 8h4" {...common} />
+          <path d="M13 5l4 4-4 4" {...common} />
+        </>
+      ) : null}
+      {name === "delete" ? (
+        <>
+          <path d="M4 6h12M8 6V4h4v2M7 6l.6 10h4.8L13 6" {...common} />
+        </>
+      ) : null}
+      {name === "guide" ? (
+        <>
+          <path d="M4 3v14M16 3v14M4 10h12" {...common} />
         </>
       ) : null}
     </svg>

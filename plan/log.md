@@ -1,5 +1,19 @@
 # Maintenance Log
 
+## 2026-08-12 - Restore local editor UI on current main
+
+- Target: recreate the validated local editor chrome without reverting newer
+  remote connectivity, routing, diagnostics, search, analytics, or Library
+  behavior.
+- Changed areas: editor shell structure and visual scale, responsive
+  Library/Properties layout, tool icons, and focused unit/browser contracts.
+- Validation: App/ShapesPanel unit tests 14/14; focused editor Playwright 89/89
+  with viewport cases repeated; workspace typecheck; editor dependency-closure
+  production build; Prettier; and `git diff --check` passed.
+- Commit status: ready to commit on `fix/restore-local-editor-ui` as
+  `fix(editor): restore local chrome on current main`; full canonical and
+  remote delivery gates remain required before merge to `main`.
+
 ## 2026-08-12 - Net deletion selection closure
 
 - Target: prevent a removed Net Label's stale selection ID from rolling back

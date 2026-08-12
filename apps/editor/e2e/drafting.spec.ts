@@ -206,7 +206,7 @@ test("text floating editor closes on Escape or an outside pointer", async ({
   await expect(page.getByTestId("canvas-text-editor")).toBeVisible();
   await page
     .getByTestId("schematic-canvas")
-    .click({ position: { x: 700, y: 100 } });
+    .click({ position: { x: 300, y: 100 } });
   await expect(page.getByTestId("canvas-text-editor")).toHaveCount(0);
 });
 
@@ -600,7 +600,6 @@ test("R creates a selectable, styleable rectangle with four resize handles", asy
   await expect(page.getByTestId("revision")).toHaveText("3");
 
   const pointsBeforeResize = await rectangle.getAttribute("points");
-  await page.getByTestId("selection-shelf").click();
   await dragLocator(page.getByTestId(/^draft-handle-corner-0-/), {
     x: -20,
     y: -10,
@@ -735,7 +734,7 @@ test("drawing Properties follows selection and closes with the dock", async ({
   await expect(page.getByTestId("drafting-properties")).toBeVisible();
   await page
     .getByTestId("schematic-canvas")
-    .click({ position: { x: 820, y: 520 } });
+    .click({ position: { x: 300, y: 520 } });
   await expect(page.getByTestId("drafting-properties")).toHaveCount(0);
 });
 
