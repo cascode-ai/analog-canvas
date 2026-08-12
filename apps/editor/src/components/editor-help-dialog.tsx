@@ -65,19 +65,26 @@ export function EditorHelpDialog({
             </p>
             <h3>Place, select, and connect</h3>
             <p>
-              Select a symbol in the left library, or a drawing tool from
-              <strong>Draw</strong>, then click the canvas to place or draw.
-              Select objects to move them or reveal selection actions. Choose
-              Wire (or <kbd>W</kbd>), click a terminal to start, click to add
-              bends, then press <kbd>Enter</kbd> to finish. <kbd>Delete</kbd> or
+              Click a starter or recent chip in the left{" "}
+              <strong>Library</strong>
+              column for quick placement defaults, or press <kbd>I</kbd> / use{" "}
+              <strong>Insert</strong> at the bottom of that column for the full
+              library with parameters. Drawing tools live on the left tool rail
+              and in the
+              <strong>Draw</strong> menu. Select objects to move them; open
+              Properties with <kbd>Q</kbd> or by double-clicking a device.
+              Choose Wire (or <kbd>W</kbd>), click a terminal to start, click to
+              add bends, then press
+              <kbd>Enter</kbd> to finish. <kbd>Delete</kbd> or
               <kbd>Backspace</kbd> removes the selection, or removes the latest
               wire bend while drawing.
             </p>
             <h3>View and drawing tools</h3>
             <p>
               With the pointer over the canvas, use the mouse wheel to zoom and
-              middle-drag to pan; <kbd>F</kbd> fits the circuit in view. Draw
-              also contains Wire, Text, Arrow, Construction line, and Rectangle.
+              middle-drag to pan; <kbd>F</kbd> fits the circuit in view. The
+              left rail is the primary Draw home; the <strong>Draw</strong>
+              menu mirrors Wire, Text, Arrow, Construction line, and Rectangle.
               With no rotatable selection, <kbd>R</kbd> starts Rectangle; with a
               component or drawing selected it rotates clockwise.{" "}
               <kbd>Shift+R</kbd> mirrors left/right; <kbd>Shift+V</kbd> mirrors
@@ -89,6 +96,12 @@ export function EditorHelpDialog({
           </section>
           <section id="help-shortcuts" className="help-shortcuts">
             <h3>Keyboard shortcuts</h3>
+            <p className="help-quick-ref">
+              <strong>Quick reference:</strong> <kbd>I</kbd> insert ·{" "}
+              <kbd>C</kbd> copy · <kbd>R</kbd> rotate · <kbd>W</kbd> wire ·{" "}
+              <kbd>G</kbd> guide · <kbd>Home</kbd> fit · wheel zoom ·
+              middle-drag pan · <kbd>Enter</kbd> finish
+            </p>
             <dl>
               <div>
                 <dt>File and history</dt>
