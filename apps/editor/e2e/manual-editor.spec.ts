@@ -42,6 +42,13 @@ async function openSelectionShelf(page: Page): Promise<void> {
   }
 }
 
+async function closeSelectionShelf(page: Page): Promise<void> {
+  const shelf = page.getByTestId("selection-shelf");
+  if ((await shelf.getAttribute("aria-expanded")) === "true") {
+    await shelf.click();
+  }
+}
+
 async function clickRoute(
   page: Page,
   routeId: string,
@@ -1038,8 +1045,10 @@ test("edits instance, electrical Net, and free text with bounded label handles",
   const noteHandle = page.locator('[data-testid^="drafting-hit-note-"]');
   const beforeBox = await noteHandle.boundingBox();
   if (!beforeBox) throw new Error("Text handle is not measurable");
+  // Properties dock is in-flow on the right; close it and aim left of center.
+  await closeSelectionShelf(page);
   await noteHandle.dragTo(page.getByTestId("schematic-canvas"), {
-    targetPosition: { x: 700, y: 300 },
+    targetPosition: { x: 360, y: 300 },
   });
   const afterBox = await noteHandle.boundingBox();
   expect(afterBox?.x).not.toBe(beforeBox.x);
@@ -1115,26 +1124,28 @@ test("selects and moves multiple instances while viewport gestures stay transien
   await expect(
     page.getByTestId("selection-shelf").getByText("M1, M2", { exact: true }),
   ).toBeVisible();
+  await closeSelectionShelf(page);
 
   await page
     .getByTestId("hit-M1")
     .dragTo(page.getByTestId("schematic-canvas"), {
-      targetPosition: { x: 450, y: 330 },
+      targetPosition: { x: 360, y: 280 },
     });
   await expect(page.getByTestId("revision")).toHaveText("3");
 
   const canvas = page.getByTestId("schematic-canvas");
   const beforeViewBox = await canvas.getAttribute("viewBox");
-  await canvas.hover({ position: { x: 700, y: 350 } });
+  // Stay in the open canvas area (library + properties shrink usable width).
+  await canvas.hover({ position: { x: 320, y: 280 } });
   await page.mouse.wheel(0, -120);
   await expect(canvas).not.toHaveAttribute("viewBox", beforeViewBox!);
   await expect(page.getByTestId("revision")).toHaveText("3");
 
   const canvasBox = await canvas.boundingBox();
   if (!canvasBox) throw new Error("Canvas is not measurable");
-  await page.mouse.move(canvasBox.x + 700, canvasBox.y + 350);
+  await page.mouse.move(canvasBox.x + 320, canvasBox.y + 280);
   await page.mouse.down({ button: "middle" });
-  await page.mouse.move(canvasBox.x + 750, canvasBox.y + 390, { steps: 3 });
+  await page.mouse.move(canvasBox.x + 370, canvasBox.y + 320, { steps: 3 });
   await page.mouse.up({ button: "middle" });
   await expect(page.getByTestId("revision")).toHaveText("3");
 
@@ -1295,7 +1306,7 @@ test("uses automatic recovery and guards shortcuts while typing", async ({
   await expect(page.getByTestId("revision")).toHaveText("1");
 });
 
-test("keeps component insertion and inspection from resizing the canvas", async ({
+test("keeps component insertion from resizing the canvas until Properties opens", async ({
   page,
 }) => {
   await page.goto("/");
@@ -1318,9 +1329,20 @@ test("keeps component insertion and inspection from resizing the canvas", async 
   await expect(
     page.getByRole("complementary", { name: "Properties" }),
   ).toBeVisible();
+  // Placement leaves Properties collapsed, so canvas width stays stable until
+  // the dock is opened explicitly.
+  expect((await canvas.boundingBox())?.width).toBe(beforePlaceCanvas.width);
   await page.getByTestId("selection-shelf").click();
-  const afterCanvas = await canvas.boundingBox();
-  expect(afterCanvas?.width).toBe(beforePlaceCanvas.width);
+  await expect(page.getByTestId("selection-shelf")).toHaveAttribute(
+    "aria-expanded",
+    "true",
+  );
+  await expect
+    .poll(
+      async () =>
+        (await canvas.boundingBox())?.width ?? beforePlaceCanvas.width,
+    )
+    .toBeLessThan(beforePlaceCanvas.width);
 
   await expect(page.getByTestId("selection-shelf")).toContainText("M1");
 });
@@ -1504,9 +1526,7 @@ test("dismisses a command menu on outside click or Escape", async ({
   const fileMenu = await openMenu(page, "File");
   await expect(fileMenu).toHaveAttribute("open", "");
 
-  await page
-    .getByRole("heading", { name: "Interactive Circuit Maker" })
-    .click();
+  await page.getByRole("heading", { name: "Circuit Maker" }).click();
   await expect(fileMenu).not.toHaveAttribute("open", "");
 
   await openMenu(page, "File");
@@ -1514,16 +1534,21 @@ test("dismisses a command menu on outside click or Escape", async ({
   await expect(fileMenu).not.toHaveAttribute("open", "");
 });
 
-test("selecting an object does not change canvas width", async ({ page }) => {
+test("selecting an object does not open Properties or reflow the canvas", async ({
+  page,
+}) => {
   await page.goto("/");
   const canvas = page.getByTestId("schematic-canvas");
   const widthBefore = (await canvas.boundingBox())!.width;
 
-  // placeComponent selects the placed instance, which before E opened a right
-  // Properties column and shrank the canvas. With the inspector in the left
-  // dock, the canvas column count and width must stay constant.
+  // Placement selects the instance but leaves Properties collapsed. Canvas
+  // width must stay constant until the user explicitly opens the dock.
   await placeComponent(page, "resistor", { x: 280, y: 180 });
   await expect(page.getByTestId("hit-R1")).toBeVisible();
+  await expect(page.getByTestId("selection-shelf")).toHaveAttribute(
+    "aria-expanded",
+    "false",
+  );
 
   const widthAfter = (await canvas.boundingBox())!.width;
   expect(widthAfter).toBe(widthBefore);

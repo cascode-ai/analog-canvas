@@ -151,7 +151,7 @@ describe("editor shell", () => {
     expect(markup).not.toContain("<summary>Analytics</summary>");
   });
 
-  it("keeps Selection as an explicit overlay without a permanent library", () => {
+  it("keeps Properties docked with shapes quick-place, not a searchable catalog", () => {
     const project = createEmptyProject("selection-shelf", "Selection Shelf");
     const markup = renderToStaticMarkup(<App project={project} />);
 
@@ -160,9 +160,19 @@ describe("editor shell", () => {
     );
     expect(markup).toContain('data-testid="selection-shelf"');
     expect(markup).toContain('aria-label="Properties"');
+    expect(markup).toContain('aria-label="Tool rail"');
+    expect(markup).toContain('aria-label="Shapes"');
+    expect(markup).toContain('data-testid="shapes-chip-resistor"');
+    expect(markup).toContain('data-testid="shapes-insert"');
+    expect(markup).toContain('data-testid="library-toggle"');
+    expect(markup).toContain('data-testid="shapes-library-panel"');
+    expect(markup).toContain('data-open="true"');
+    expect(markup).toContain(">Library</span>");
     expect(markup).toContain("Insert component (I)");
+    expect(markup).toContain('data-testid="canvas-empty-state"');
     expect(markup).not.toContain("Symbols &amp; Tools");
     expect(markup).not.toContain("Search components");
+    expect(markup).not.toContain("Browse all");
   });
 
   it("gives an implicit instance label its own selection surface", () => {
