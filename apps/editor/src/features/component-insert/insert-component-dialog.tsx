@@ -34,16 +34,19 @@ export interface ComponentInsertRequest {
 export function SymbolArtwork({
   symbol,
   className,
+  /** Fraction of max(viewBox width, height) added around the glyph. */
+  paddingRatio = 0.18,
 }: {
   symbol: SymbolDefinition;
   className: string;
+  paddingRatio?: number;
 }) {
   const variantId = defaultRazaviSymbolVariantId(symbol.id);
   const variant = symbol.variants.find(
     (candidate) => candidate.id === variantId,
   );
   const { x, y, width, height } = symbol.viewBox;
-  const padding = Math.max(width, height) * 0.18;
+  const padding = Math.max(width, height) * paddingRatio;
 
   return (
     <svg
