@@ -15,6 +15,16 @@ Use concise entries:
 
 Keep reusable lessons in `docs/experience/`, not in this log.
 
+## 2026-08-12 - Editor chrome shell redesign
+
+- Target: restructure the editor shell for clearer operation (menubar, tool
+  rail, library panel, properties dock, status bar) and a consistent visual
+  scale without changing formal schematic export styling.
+- Changed areas: editor App shell, styles tokens, tool icons, library
+  quick-place panel, help dialog, interaction contract, e2e/unit coverage.
+- Validation: App/shapes unit tests and editor Playwright suites passed.
+- Commit status: committed as reorganized history from origin/main.
+
 ## 2026-08-12 - Bound transient canvas state and runtime caches
 
 - Target: remove stale Smart Snap guide remnants and bound audit-identified
