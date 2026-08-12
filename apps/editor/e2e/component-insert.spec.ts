@@ -128,8 +128,30 @@ test("keeps the workspace inside the viewport and exposes low-interference zoom 
 
   const canvasBefore = await page.getByTestId("schematic-canvas").boundingBox();
   await page.getByTestId("selection-shelf").click();
-  const canvasAfter = await page.getByTestId("schematic-canvas").boundingBox();
-  expect(canvasAfter?.width).toBe(canvasBefore?.width);
+  await expect(page.getByTestId("selection-shelf")).toHaveAttribute(
+    "aria-expanded",
+    "true",
+  );
+  // Properties is an in-flow right dock; opening it may reflow the canvas width
+  // but must not push the page into scroll overflow.
+  await expect
+    .poll(
+      async () =>
+        (await page.getByTestId("schematic-canvas").boundingBox())?.width ??
+        canvasBefore?.width ??
+        0,
+    )
+    .toBeLessThan(canvasBefore?.width ?? 0);
+  expect(
+    await page.evaluate(() => ({
+      horizontal:
+        document.documentElement.scrollWidth >
+        document.documentElement.clientWidth,
+      vertical:
+        document.documentElement.scrollHeight >
+        document.documentElement.clientHeight,
+    })),
+  ).toEqual({ horizontal: false, vertical: false });
 });
 
 test("keeps preview fixed while the compact catalog expands and collapses", async ({
@@ -258,4 +280,63 @@ test("commits a pending component from a semantic canvas click", async ({
 
   await expect(page.getByTestId("hit-R1")).toBeVisible();
   await expect(page.getByTestId("component-input-plane")).toHaveCount(0);
+});
+
+test("double-clicking a placed device opens Properties for editing", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.keyboard.press("i");
+  const dialog = page.getByRole("dialog", { name: "Insert Component" });
+  await dialog.getByLabel("Component search").fill("resistor");
+  await dialog.getByLabel("Component value").fill("4.7k");
+  await dialog.getByRole("button", { name: "Apply" }).click();
+
+  const canvas = page.getByTestId("schematic-canvas");
+  await canvas.click({ position: { x: 360, y: 230 } });
+  await expect(page.getByTestId("hit-R1")).toBeVisible();
+  await expect(page.getByTestId("selection-shelf")).toHaveAttribute(
+    "aria-expanded",
+    "false",
+  );
+
+  await page.getByTestId("hit-R1").dblclick();
+  await expect(page.getByTestId("selection-shelf")).toHaveAttribute(
+    "aria-expanded",
+    "true",
+  );
+  const propertyValue = page.getByLabel("Component value");
+  await expect(propertyValue).toBeVisible();
+  await expect(propertyValue).toHaveValue("4.7k");
+  await expect(propertyValue).toBeFocused();
+});
+
+test("Library rail folds the sidebar; Insert and title open the catalog", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const panel = page.getByTestId("shapes-library-panel");
+  await expect(panel).toHaveAttribute("data-open", "true");
+
+  await page.getByTestId("library-toggle").click();
+  await expect(panel).toHaveAttribute("data-open", "false");
+  await page.getByTestId("library-toggle").click();
+  await expect(panel).toHaveAttribute("data-open", "true");
+
+  await page.getByTestId("shapes-insert").click();
+  await expect(
+    page.getByRole("dialog", { name: "Insert Component" }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(
+    page.getByRole("dialog", { name: "Insert Component" }),
+  ).toHaveCount(0);
+
+  await page
+    .getByRole("button", { name: /Library/ })
+    .filter({ hasText: "Quick place" })
+    .click();
+  await expect(
+    page.getByRole("dialog", { name: "Insert Component" }),
+  ).toBeVisible();
 });
