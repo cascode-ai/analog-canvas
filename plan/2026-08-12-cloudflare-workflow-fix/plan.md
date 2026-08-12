@@ -1,5 +1,5 @@
 ---
-status: active
+status: completed
 experience: none
 ---
 
@@ -61,4 +61,9 @@ fix(ci): invoke Wrangler directly
 
 ## Outcome
 
-To be recorded after production verification.
+Replaced the incompatible Action wrapper with a pinned direct Wrangler CLI
+invocation and excluded documentation-only changes from production deploys.
+Pull request #6 passed all five CI jobs, merged as `b7a4424`, and its subsequent
+`main` Cloudflare workflow completed successfully. The production root and SPA
+fallback both return HTTP 200, and the manifest identifies Interactive Circuit
+Maker as an installable standalone application.

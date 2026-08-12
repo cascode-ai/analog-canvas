@@ -4608,3 +4608,25 @@ diff --check` passed. The full Playwright baseline completed 30/49, with the
   Prettier check, and `git diff --check` passed.
 - Commit status: ready to commit on `main` as
   `docs(roadmap): plan connectivity and routing unification`.
+
+## 2026-08-12 - Cloudflare Deployment
+
+- Target: publish the existing editor at `analog-canvas.tokenzhang.com` and
+  automate subsequent production deployments from `main`.
+- Changed areas: Workers Static Assets configuration, SPA fallback, custom
+  domain binding, GitHub Actions deployment, and repository secrets.
+- Validation: frozen dependency install, production build, Wrangler dry-run,
+  pull request CI matrix, successful production deployment, HTTP 200 root/SPA
+  requests, and PWA manifest inspection.
+- Commit status: merged through pull request #5 as `99914d8`; production is
+  live and the Action-wrapper follow-up is recorded separately.
+
+## 2026-08-12 - Cloudflare Workflow Fix
+
+- Target: repair the first automatic deployment's Wrangler installation
+  failure in the pnpm workspace.
+- Changed areas: direct pinned Wrangler invocation and documentation-only path
+  exclusions.
+- Validation: direct production deploy, Wrangler dry-run, all five pull request
+  CI jobs, successful `main` Cloudflare workflow, and live URL checks passed.
+- Commit status: merged through pull request #6 as `b7a4424`.

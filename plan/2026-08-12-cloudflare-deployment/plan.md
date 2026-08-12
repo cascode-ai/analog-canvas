@@ -1,5 +1,5 @@
 ---
-status: active
+status: completed
 experience: none
 ---
 
@@ -72,4 +72,9 @@ ci: deploy editor to Cloudflare Workers
 
 ## Outcome
 
-To be recorded after deployment verification.
+The existing editor is deployed as the `interactive-circuit-maker` Worker at
+`https://analog-canvas.tokenzhang.com`, with SPA fallback and the Worker's
+`workers.dev` address retained. Cloudflare credentials are stored only as
+GitHub Actions secrets. Pull request #5 passed the required CI matrix and was
+merged; the initial Action-wrapper deployment exposed a pnpm-workspace issue
+that was repaired and verified by the follow-up workflow target.
