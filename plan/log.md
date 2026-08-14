@@ -7053,7 +7053,7 @@ ci:check` (651 unit tests, 104 browser tests, builds and release smoke) all
   orientation and shortcut routing; rotated copy preview/commit behavior;
   editor interaction specification and focused unit/browser regressions.
 - Validation: 30 focused tests, `pnpm typecheck`, `pnpm format:check`, `git
-diff --check`, and two focused Playwright regressions passed.
+  diff --check`, and two focused Playwright regressions passed.
 - Commit status: ready to commit on `codex/label-gap-copy-rotate` as
   `fix(editor): align labels and rotate copy previews`.
 
@@ -7070,3 +7070,18 @@ diff --check`, and two focused Playwright regressions passed.
   both remote delivery-gate runs then passed every required check, including
   both browser shards.
 - Commit status: merged through PR #64 as squash commit `ad604fb`.
+
+## 2026-08-15 - Show the complete compact component Library
+
+- Target: replace the eight-item starter subset with the complete quick-place
+  palette while keeping the left Library compact and immediately usable.
+- Changed areas: Library catalog projection and priority ordering; compact
+  three-column device tiles with concise visual labels and full accessible
+  names; focused static and browser regressions for all 18 palette items and
+  default-viewport fit.
+- Validation: focused unit tests (2 files / 16 tests), focused Playwright
+  Library flow (1 test), `pnpm typecheck`, Prettier checks, desktop screenshot
+  inspection at 1280x720, and `git diff --check` passed.
+- Commit status: committed and pushed on
+  `agent/compact-complete-library` as
+  `feat(editor): show complete compact component library`.

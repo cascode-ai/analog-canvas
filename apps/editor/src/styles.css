@@ -891,25 +891,25 @@ body {
 
 .shapes-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--icm-space-2);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
 }
 
 .shapes-chip {
   display: grid;
   justify-items: center;
   align-content: center;
-  gap: var(--icm-space-2);
-  min-height: 104px;
-  padding: var(--icm-space-3) var(--icm-space-2) var(--icm-space-2);
+  gap: 3px;
+  min-height: 70px;
+  padding: 5px 3px;
   border: 1px solid var(--icm-border);
-  border-radius: var(--icm-radius-md);
+  border-radius: var(--icm-radius-sm);
   background: var(--icm-surface-muted);
   box-shadow: none;
   color: var(--icm-text);
-  font-size: var(--icm-font-xs);
+  font-size: 10px;
   font-weight: 600;
-  line-height: var(--icm-line-tight);
+  line-height: 1.15;
   text-align: center;
 }
 
@@ -920,18 +920,19 @@ body {
 }
 
 .shapes-chip-art {
-  /* Keep the tile size; paddingRatio on SymbolArtwork crops empty margin. */
-  width: 64px;
-  height: 48px;
+  width: 40px;
+  height: 30px;
   overflow: visible;
   color: var(--icm-text);
 }
 
 .shapes-chip span {
+  display: -webkit-box;
   max-width: 100%;
+  min-height: 2.3em;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .shapes-hint {

@@ -1,10 +1,13 @@
 import type { ComponentInsertRequest } from "../component-insert/component-insert-request";
 import { SymbolArtwork } from "../component-insert/symbol-artwork";
 import { initialComponentParameterValues } from "../component-insert/component-parameters";
-import { findPaletteSymbol } from "../component-insert/symbol-catalog";
+import {
+  findPaletteSymbol,
+  paletteSymbols,
+} from "../component-insert/symbol-catalog";
 
-/** Starter chips always offered in the left shapes panel. */
-export const STARTER_SYMBOL_IDS = [
+/** Keep the most common quick-place devices first without hiding the rest. */
+const LIBRARY_PRIORITY_SYMBOL_IDS = [
   "resistor",
   "capacitor",
   "nmos",
@@ -14,6 +17,36 @@ export const STARTER_SYMBOL_IDS = [
   "vdd",
   "opamp",
 ] as const;
+
+const COMPACT_LIBRARY_LABELS: Readonly<Record<string, string>> = {
+  "current-source": "Current Source",
+  npn: "NPN",
+  opamp: "Op Amp",
+  pnp: "PNP",
+  "voltage-amplifier": "Voltage Amp",
+  "voltage-source": "Voltage Source",
+};
+
+function libraryLabel(symbolId: string, symbolName: string): string {
+  return COMPACT_LIBRARY_LABELS[symbolId] ?? symbolName;
+}
+
+function orderedPaletteSymbols(styleProfileId: string) {
+  const priority = new Map<string, number>(
+    LIBRARY_PRIORITY_SYMBOL_IDS.map((symbolId, index) => [symbolId, index]),
+  );
+  return paletteSymbols(styleProfileId).sort((left, right) => {
+    const leftRank = priority.get(left.id);
+    const rightRank = priority.get(right.id);
+    if (leftRank !== undefined || rightRank !== undefined) {
+      return (
+        (leftRank ?? Number.POSITIVE_INFINITY) -
+        (rightRank ?? Number.POSITIVE_INFINITY)
+      );
+    }
+    return left.name.localeCompare(right.name);
+  });
+}
 
 export function quickPlaceRequest(
   styleProfileId: string,
@@ -57,9 +90,7 @@ export function ShapesPanel({
   onOpenInsert,
   onQuickPlace,
 }: ShapesPanelProps) {
-  const starters = STARTER_SYMBOL_IDS.map((symbolId) =>
-    findPaletteSymbol(styleProfileId, symbolId),
-  ).filter((symbol): symbol is NonNullable<typeof symbol> => Boolean(symbol));
+  const librarySymbols = orderedPaletteSymbols(styleProfileId);
 
   const recents = recentSymbolIds
     .map((symbolId) => findPaletteSymbol(styleProfileId, symbolId))
@@ -94,24 +125,21 @@ export function ShapesPanel({
       </header>
 
       <div className="shapes-panel-body">
-        <details
-          className="shapes-fold"
-          open
-          data-testid="shapes-fold-starters"
-        >
+        <details className="shapes-fold" open data-testid="shapes-fold-library">
           <summary className="shapes-fold-summary">
-            <span className="shapes-fold-label">Starters</span>
-            <span className="shapes-fold-count">{starters.length}</span>
+            <span className="shapes-fold-label">All devices</span>
+            <span className="shapes-fold-count">{librarySymbols.length}</span>
           </summary>
           <div className="shapes-fold-body">
             <div className="shapes-grid">
-              {starters.map((symbol) => (
+              {librarySymbols.map((symbol) => (
                 <button
                   key={symbol.id}
                   type="button"
                   className="shapes-chip"
                   data-testid={`shapes-chip-${symbol.id}`}
                   data-vdd-rail={symbol.id === "vdd" ? "true" : undefined}
+                  aria-label={`Place ${symbol.name}`}
                   title={`Place ${symbol.name}`}
                   onClick={() => placeSymbol(symbol.id)}
                 >
@@ -120,7 +148,7 @@ export function ShapesPanel({
                     className="shapes-chip-art"
                     paddingRatio={0.04}
                   />
-                  <span>{symbol.name}</span>
+                  <span>{libraryLabel(symbol.id, symbol.name)}</span>
                 </button>
               ))}
             </div>
@@ -145,6 +173,7 @@ export function ShapesPanel({
                     type="button"
                     className="shapes-chip"
                     data-testid={`shapes-recent-${symbol.id}`}
+                    aria-label={`Place ${symbol.name}`}
                     title={`Place ${symbol.name}`}
                     onClick={() => placeSymbol(symbol.id)}
                   >
@@ -153,7 +182,7 @@ export function ShapesPanel({
                       className="shapes-chip-art"
                       paddingRatio={0.04}
                     />
-                    <span>{symbol.name}</span>
+                    <span>{libraryLabel(symbol.id, symbol.name)}</span>
                   </button>
                 ))}
               </div>
