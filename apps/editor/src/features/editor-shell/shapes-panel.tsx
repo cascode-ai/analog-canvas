@@ -2,21 +2,9 @@ import type { ComponentInsertRequest } from "../component-insert/component-inser
 import { SymbolArtwork } from "../component-insert/symbol-artwork";
 import { initialComponentParameterValues } from "../component-insert/component-parameters";
 import {
+  componentCatalog,
   findPaletteSymbol,
-  paletteSymbols,
 } from "../component-insert/symbol-catalog";
-
-/** Keep the most common quick-place devices first without hiding the rest. */
-const LIBRARY_PRIORITY_SYMBOL_IDS = [
-  "resistor",
-  "capacitor",
-  "nmos",
-  "pmos",
-  "voltage-source",
-  "ground",
-  "vdd",
-  "opamp",
-] as const;
 
 const COMPACT_LIBRARY_LABELS: Readonly<Record<string, string>> = {
   "current-source": "Current Source",
@@ -31,21 +19,8 @@ function libraryLabel(symbolId: string, symbolName: string): string {
   return COMPACT_LIBRARY_LABELS[symbolId] ?? symbolName;
 }
 
-function orderedPaletteSymbols(styleProfileId: string) {
-  const priority = new Map<string, number>(
-    LIBRARY_PRIORITY_SYMBOL_IDS.map((symbolId, index) => [symbolId, index]),
-  );
-  return paletteSymbols(styleProfileId).sort((left, right) => {
-    const leftRank = priority.get(left.id);
-    const rightRank = priority.get(right.id);
-    if (leftRank !== undefined || rightRank !== undefined) {
-      return (
-        (leftRank ?? Number.POSITIVE_INFINITY) -
-        (rightRank ?? Number.POSITIVE_INFINITY)
-      );
-    }
-    return left.name.localeCompare(right.name);
-  });
+function categorySlug(category: string): string {
+  return category.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 }
 
 export function quickPlaceRequest(
@@ -90,7 +65,11 @@ export function ShapesPanel({
   onOpenInsert,
   onQuickPlace,
 }: ShapesPanelProps) {
-  const librarySymbols = orderedPaletteSymbols(styleProfileId);
+  const libraryGroups = componentCatalog(styleProfileId, "");
+  const librarySymbolCount = libraryGroups.reduce(
+    (count, group) => count + group.symbols.length,
+    0,
+  );
 
   const recents = recentSymbolIds
     .map((symbolId) => findPaletteSymbol(styleProfileId, symbolId))
@@ -128,28 +107,47 @@ export function ShapesPanel({
         <details className="shapes-fold" open data-testid="shapes-fold-library">
           <summary className="shapes-fold-summary">
             <span className="shapes-fold-label">All devices</span>
-            <span className="shapes-fold-count">{librarySymbols.length}</span>
+            <span className="shapes-fold-count">{librarySymbolCount}</span>
           </summary>
           <div className="shapes-fold-body">
-            <div className="shapes-grid">
-              {librarySymbols.map((symbol) => (
-                <button
-                  key={symbol.id}
-                  type="button"
-                  className="shapes-chip"
-                  data-testid={`shapes-chip-${symbol.id}`}
-                  data-vdd-rail={symbol.id === "vdd" ? "true" : undefined}
-                  aria-label={`Place ${symbol.name}`}
-                  title={`Place ${symbol.name}`}
-                  onClick={() => placeSymbol(symbol.id)}
+            <div className="shapes-category-list">
+              {libraryGroups.map((group) => (
+                <section
+                  key={group.category}
+                  className="shapes-category"
+                  aria-labelledby={`shapes-category-${categorySlug(group.category)}`}
+                  data-testid={`shapes-category-${categorySlug(group.category)}`}
                 >
-                  <SymbolArtwork
-                    symbol={symbol}
-                    className="shapes-chip-art"
-                    paddingRatio={0.04}
-                  />
-                  <span>{libraryLabel(symbol.id, symbol.name)}</span>
-                </button>
+                  <header className="shapes-category-header">
+                    <h3 id={`shapes-category-${categorySlug(group.category)}`}>
+                      {group.category}
+                    </h3>
+                    <span className="shapes-category-count">
+                      {group.symbols.length}
+                    </span>
+                  </header>
+                  <div className="shapes-grid">
+                    {group.symbols.map((symbol) => (
+                      <button
+                        key={symbol.id}
+                        type="button"
+                        className="shapes-chip"
+                        data-testid={`shapes-chip-${symbol.id}`}
+                        data-vdd-rail={symbol.id === "vdd" ? "true" : undefined}
+                        aria-label={`Place ${symbol.name}`}
+                        title={`Place ${symbol.name}`}
+                        onClick={() => placeSymbol(symbol.id)}
+                      >
+                        <SymbolArtwork
+                          symbol={symbol}
+                          className="shapes-chip-art"
+                          paddingRatio={0.04}
+                        />
+                        <span>{libraryLabel(symbol.id, symbol.name)}</span>
+                      </button>
+                    ))}
+                  </div>
+                </section>
               ))}
             </div>
           </div>

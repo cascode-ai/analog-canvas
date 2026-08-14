@@ -2,12 +2,16 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { paletteSymbols } from "../component-insert/symbol-catalog";
+import {
+  componentCatalog,
+  paletteSymbols,
+} from "../component-insert/symbol-catalog";
 import { quickPlaceRequest, ShapesPanel } from "./shapes-panel";
 
 describe("shapes quick-place", () => {
   it("exposes every palette device in the left Library", () => {
     const symbols = paletteSymbols("razavi");
+    const groups = componentCatalog("razavi", "");
     const markup = renderToStaticMarkup(
       createElement(ShapesPanel, {
         styleProfileId: "razavi",
@@ -27,22 +31,34 @@ describe("shapes quick-place", () => {
       expect(markup).toContain(`data-testid="shapes-chip-${symbol.id}"`);
     }
 
-    const priorityIds = [
-      "resistor",
-      "capacitor",
-      "nmos",
-      "pmos",
-      "voltage-source",
-      "ground",
-      "vdd",
-      "opamp",
+    expect(
+      groups.map((group) => [group.category, group.symbols.length]),
+    ).toEqual([
+      ["Transistors", 4],
+      ["Analog Blocks", 2],
+      ["Passives", 4],
+      ["Sources", 2],
+      ["Switches", 2],
+      ["Power and Ports", 4],
+    ]);
+    const categoryTestIds = [
+      "transistors",
+      "analog-blocks",
+      "passives",
+      "sources",
+      "switches",
+      "power-and-ports",
     ];
-    for (let index = 1; index < priorityIds.length; index += 1) {
-      expect(
-        markup.indexOf(`data-testid="shapes-chip-${priorityIds[index]}"`),
-      ).toBeGreaterThan(
-        markup.indexOf(`data-testid="shapes-chip-${priorityIds[index - 1]}"`),
-      );
+    for (let index = 0; index < categoryTestIds.length; index += 1) {
+      const testId = `data-testid="shapes-category-${categoryTestIds[index]}"`;
+      expect(markup).toContain(testId);
+      if (index > 0) {
+        expect(markup.indexOf(testId)).toBeGreaterThan(
+          markup.indexOf(
+            `data-testid="shapes-category-${categoryTestIds[index - 1]}"`,
+          ),
+        );
+      }
     }
     expect(markup).toContain('aria-label="Place Independent Voltage Source"');
     expect(markup).toContain(">Voltage Source</span>");

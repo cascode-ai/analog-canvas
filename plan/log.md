@@ -7085,3 +7085,18 @@ ci:check` (651 unit tests, 104 browser tests, builds and release smoke) all
 - Commit status: committed and pushed on
   `agent/compact-complete-library` as
   `feat(editor): show complete compact component library`.
+
+## 2026-08-15 - Group Library devices by category
+
+- Target: replace the flat 18-device Library grid with the same six category
+  groups used by the Insert dialog.
+- Changed areas: sidebar catalog projection, compact category headings/counts,
+  category-aware unit coverage, and a browser regression for all six groups and
+  all 18 quick-place buttons.
+- Validation: focused unit tests (2 files / 16 tests), focused Playwright
+  categorized-Library flow (1 test), `pnpm typecheck`, Prettier checks,
+  reviewer approval, desktop screenshot inspection at 1280x720 and 1440x900,
+  and `git diff --check` passed.
+- Commit status: committed and pushed on
+  `agent/compact-complete-library` as
+  `feat(editor): group library devices by category`.

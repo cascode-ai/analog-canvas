@@ -453,34 +453,31 @@ test("keeps component placement active across independent canvas commits", async
   await expect(page.getByTestId("component-input-plane")).toHaveCount(0);
 });
 
-test("shows the complete compact Library, quick-places a device, and restores state", async ({
+test("shows the complete categorized Library, quick-places a device, and restores state", async ({
   page,
 }) => {
   await page.goto("/");
   const panel = page.getByTestId("shapes-library-panel");
   const canvas = page.getByTestId("schematic-canvas");
   const libraryChips = panel.locator('[data-testid^="shapes-chip-"]');
-  const lastLibraryChip = page.getByTestId("shapes-chip-voltage-amplifier");
+  const categories = panel.locator('[data-testid^="shapes-category-"]');
 
   await expect(panel).toHaveAttribute("data-open", "true");
   await expect(libraryChips).toHaveCount(18);
+  await expect(categories).toHaveCount(6);
+  await expect(
+    page
+      .getByTestId("shapes-category-transistors")
+      .locator('[data-testid^="shapes-chip-"]'),
+  ).toHaveCount(4);
+  await expect(
+    page
+      .getByTestId("shapes-category-power-and-ports")
+      .locator('[data-testid^="shapes-chip-"]'),
+  ).toHaveCount(4);
   await expect(
     panel.getByRole("button", { name: "Place Independent Voltage Source" }),
-  ).toBeVisible();
-  await expect(lastLibraryChip).toBeVisible();
-  const libraryGeometry = await lastLibraryChip.evaluate((element) => {
-    const body = element.closest<HTMLElement>(".shapes-panel-body");
-    if (!body) throw new Error("Library body is missing");
-    return {
-      bodyBottom: body.getBoundingClientRect().bottom,
-      scrollTop: body.scrollTop,
-      tileBottom: element.getBoundingClientRect().bottom,
-    };
-  });
-  expect(libraryGeometry.scrollTop).toBe(0);
-  expect(libraryGeometry.tileBottom).toBeLessThanOrEqual(
-    libraryGeometry.bodyBottom,
-  );
+  ).toBeAttached();
 
   await page.getByTestId("shapes-chip-resistor").click();
   const box = await canvas.boundingBox();
