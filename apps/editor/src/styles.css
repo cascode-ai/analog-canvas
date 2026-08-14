@@ -975,11 +975,12 @@ body {
 
 .shapes-chip {
   display: grid;
+  grid-template-rows: 30px minmax(2.3em, auto);
   justify-items: center;
   align-content: center;
   gap: 2px;
-  min-height: 58px;
-  padding: 4px 0;
+  min-height: 64px;
+  padding: 3px 0;
   border: 1px solid var(--icm-border);
   border-radius: var(--icm-radius-sm);
   background: var(--icm-surface-muted);
@@ -998,8 +999,10 @@ body {
 }
 
 .shapes-chip-art {
-  width: 32px;
-  height: 24px;
+  width: 38px;
+  height: 30px;
+  align-self: center;
+  justify-self: center;
   overflow: visible;
   color: var(--icm-text);
 }
@@ -2735,15 +2738,16 @@ body {
   }
 
   .shapes-chip {
+    grid-template-rows: 34px minmax(2.3em, auto);
     gap: 3px;
-    min-height: 70px;
-    padding: 5px 3px;
+    min-height: 74px;
+    padding: 4px 3px;
     font-size: 10px;
   }
 
   .shapes-chip-art {
-    width: 40px;
-    height: 30px;
+    width: 44px;
+    height: 34px;
   }
 
   .selection-dock,

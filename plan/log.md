@@ -7131,3 +7131,22 @@ ci:check` (651 unit tests, 104 browser tests, builds and release smoke) all
 - Commit status: committed and pushed on
   `agent/compact-complete-library` as
   `style(editor): fit four library icons per row`.
+
+## 2026-08-15 - Center/enlarge Library devices and rebase
+
+- Target: enlarge four-column device artwork, keep icon rows vertically
+  consistent across mixed label lengths, and rebase the complete Library branch
+  onto latest main.
+- Changed areas: fixed desktop/narrow artwork rows and symbol dimensions;
+  browser checks for exact size, four-edge containment, mixed-label alignment,
+  and responsive behavior; rebase conflict resolution in the factual log.
+- Validation: post-rebase focused unit tests (2 files / 16 tests), two focused
+  Playwright flows, `pnpm typecheck`, Prettier checks, reviewer approval after
+  geometry coverage was expanded, screenshot inspection at 1280x720,
+  1024x720, and 720x720, `git diff --check`, and ancestry verification passed.
+- Rebase: branch rebased onto `origin/main` at `330ba43`; the `plan/log.md`
+  conflict preserved both imported-flightline mainline records and Library
+  records.
+- Commit status: committed, rebased, and force-pushed on
+  `agent/compact-complete-library` as
+  `style(editor): center and enlarge library devices`.
