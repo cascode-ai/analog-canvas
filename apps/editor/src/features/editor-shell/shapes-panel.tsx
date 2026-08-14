@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 import type { ComponentInsertRequest } from "../component-insert/component-insert-request";
 import { SymbolArtwork } from "../component-insert/symbol-artwork";
 import { initialComponentParameterValues } from "../component-insert/component-parameters";
@@ -70,6 +72,9 @@ export function ShapesPanel({
     (count, group) => count + group.symbols.length,
     0,
   );
+  const [openCategories, setOpenCategories] = useState<ReadonlySet<string>>(
+    () => new Set(libraryGroups.map((group) => group.category)),
+  );
 
   const recents = recentSymbolIds
     .map((symbolId) => findPaletteSymbol(styleProfileId, symbolId))
@@ -79,6 +84,16 @@ export function ShapesPanel({
   function placeSymbol(symbolId: string): void {
     const request = quickPlaceRequest(styleProfileId, symbolId);
     if (request) onQuickPlace(request);
+  }
+
+  function setCategoryOpen(category: string, open: boolean): void {
+    setOpenCategories((current) => {
+      if (current.has(category) === open) return current;
+      const next = new Set(current);
+      if (open) next.add(category);
+      else next.delete(category);
+      return next;
+    });
   }
 
   return (
@@ -112,20 +127,23 @@ export function ShapesPanel({
           <div className="shapes-fold-body">
             <div className="shapes-category-list">
               {libraryGroups.map((group) => (
-                <section
+                <details
                   key={group.category}
                   className="shapes-category"
-                  aria-labelledby={`shapes-category-${categorySlug(group.category)}`}
+                  open={openCategories.has(group.category)}
                   data-testid={`shapes-category-${categorySlug(group.category)}`}
+                  onToggle={(event) =>
+                    setCategoryOpen(group.category, event.currentTarget.open)
+                  }
                 >
-                  <header className="shapes-category-header">
-                    <h3 id={`shapes-category-${categorySlug(group.category)}`}>
+                  <summary className="shapes-category-header">
+                    <span className="shapes-category-label">
                       {group.category}
-                    </h3>
+                    </span>
                     <span className="shapes-category-count">
                       {group.symbols.length}
                     </span>
-                  </header>
+                  </summary>
                   <div className="shapes-grid">
                     {group.symbols.map((symbol) => (
                       <button
@@ -147,7 +165,7 @@ export function ShapesPanel({
                       </button>
                     ))}
                   </div>
-                </section>
+                </details>
               ))}
             </div>
           </div>

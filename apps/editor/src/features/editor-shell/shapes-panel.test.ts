@@ -60,6 +60,8 @@ describe("shapes quick-place", () => {
         );
       }
     }
+    expect(markup.match(/class="shapes-category" open=""/g)).toHaveLength(6);
+    expect(markup.match(/class="shapes-category-header"/g)).toHaveLength(6);
     expect(markup).toContain('aria-label="Place Independent Voltage Source"');
     expect(markup).toContain(">Voltage Source</span>");
   });

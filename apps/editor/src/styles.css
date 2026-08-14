@@ -271,13 +271,20 @@ body {
   overflow: visible;
 }
 
+.app-chrome-actions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--icm-space-2);
+  margin-left: auto;
+}
+
 /* Visitor analytics entry (compact, does not crowd menubar commands). */
 .analytics-link {
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
   gap: 0.3rem;
-  margin-left: auto;
   color: var(--icm-text-muted);
   font-size: var(--icm-font-xs);
   font-variant-numeric: tabular-nums;
@@ -901,16 +908,43 @@ body {
 }
 
 .shapes-category-header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--icm-space-2);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  min-height: 18px;
   padding: 0 2px;
   color: var(--icm-text-muted);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
 }
 
-.shapes-category-header h3 {
-  margin: 0;
+.shapes-category-header::-webkit-details-marker {
+  display: none;
+}
+
+.shapes-category-header::before {
+  content: "";
+  width: 0;
+  height: 0;
+  border-top: 3px solid transparent;
+  border-bottom: 3px solid transparent;
+  border-left: 4px solid currentColor;
+  opacity: 0.5;
+  transition: transform 120ms ease;
+}
+
+.shapes-category[open] > .shapes-category-header::before {
+  transform: rotate(90deg);
+}
+
+.shapes-category-header:hover {
+  color: var(--icm-text);
+}
+
+.shapes-category-label {
+  min-width: 0;
   overflow: hidden;
   font-size: 10px;
   font-weight: 650;
@@ -919,6 +953,10 @@ body {
   text-overflow: ellipsis;
   text-transform: uppercase;
   white-space: nowrap;
+}
+
+.shapes-category:not([open]) > .shapes-grid {
+  display: none;
 }
 
 .shapes-category-count {

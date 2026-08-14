@@ -453,7 +453,7 @@ test("keeps component placement active across independent canvas commits", async
   await expect(page.getByTestId("component-input-plane")).toHaveCount(0);
 });
 
-test("shows the complete categorized Library, quick-places a device, and restores state", async ({
+test("shows the complete foldable categorized Library, quick-places a device, and restores state", async ({
   page,
 }) => {
   await page.goto("/");
@@ -465,11 +465,16 @@ test("shows the complete categorized Library, quick-places a device, and restore
   await expect(panel).toHaveAttribute("data-open", "true");
   await expect(libraryChips).toHaveCount(18);
   await expect(categories).toHaveCount(6);
+  const transistorCategory = page.getByTestId("shapes-category-transistors");
   await expect(
-    page
-      .getByTestId("shapes-category-transistors")
-      .locator('[data-testid^="shapes-chip-"]'),
+    transistorCategory.locator('[data-testid^="shapes-chip-"]'),
   ).toHaveCount(4);
+  await expect(transistorCategory).toHaveJSProperty("open", true);
+  await transistorCategory.locator("summary").click();
+  await expect(transistorCategory).toHaveJSProperty("open", false);
+  await expect(page.getByTestId("shapes-chip-nmos")).not.toBeVisible();
+  const analogCategory = page.getByTestId("shapes-category-analog-blocks");
+  await expect(analogCategory).toHaveJSProperty("open", true);
   await expect(
     page
       .getByTestId("shapes-category-power-and-ports")
@@ -488,6 +493,12 @@ test("shows the complete categorized Library, quick-places a device, and restore
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("hit-R1")).toBeVisible();
   await expect(page.getByTestId("shapes-recent-resistor")).toBeVisible();
+  await expect(transistorCategory).toHaveJSProperty("open", false);
+  await expect(page.getByTestId("shapes-chip-nmos")).not.toBeVisible();
+  await expect(analogCategory).toHaveJSProperty("open", true);
+  await transistorCategory.locator("summary").click();
+  await expect(transistorCategory).toHaveJSProperty("open", true);
+  await expect(page.getByTestId("shapes-chip-nmos")).toBeVisible();
 
   await page.keyboard.press("q");
   await expect(page.getByLabel("Component value")).toHaveValue("");
@@ -516,6 +527,22 @@ test("keeps a usable canvas while toggling Library at the narrow breakpoint", as
 }) => {
   await page.setViewportSize({ width: 720, height: 720 });
   await page.goto("/");
+
+  const chrome = page.locator(".app-chrome-main");
+  const analytics = page.getByRole("link", { name: "Open visitor analytics" });
+  const help = page.getByRole("button", { name: "Help" });
+  await expect(analytics).toBeVisible();
+  await expect(help).toBeVisible();
+  const chromeBox = await chrome.boundingBox();
+  const analyticsBox = await analytics.boundingBox();
+  const helpBox = await help.boundingBox();
+  if (!chromeBox || !analyticsBox || !helpBox) {
+    throw new Error("Top navigation is not measurable");
+  }
+  expect(helpBox.x).toBeGreaterThan(analyticsBox.x);
+  expect(helpBox.x + helpBox.width).toBeLessThanOrEqual(
+    chromeBox.x + chromeBox.width,
+  );
 
   const canvas = page.getByTestId("schematic-canvas");
   const openWidth = (await canvas.boundingBox())?.width ?? 0;

@@ -6420,34 +6420,36 @@ export function App({ project: initialProject, visitStats }: AppProps) {
               >
                 Search
               </button>
-              <button
-                type="button"
-                className="menubar-help"
-                ref={helpButtonRef}
-                aria-haspopup="dialog"
-                aria-expanded={helpOpen}
-                aria-controls="editor-help-dialog"
-                onClick={() => setHelpOpen(true)}
-              >
-                Help
-              </button>
             </div>
           </nav>
-          <a
-            className="analytics-link"
-            href="/analytics"
-            aria-label="Open visitor analytics"
-          >
-            {visitStats ? (
-              <>
-                <span>{visitStats.uv.toLocaleString()} visitors</span>
-                <span aria-hidden="true">·</span>
-                <span>{visitStats.pv.toLocaleString()} views</span>
-              </>
-            ) : (
-              "Analytics"
-            )}
-          </a>
+          <div className="app-chrome-actions">
+            <a
+              className="analytics-link"
+              href="/analytics"
+              aria-label="Open visitor analytics"
+            >
+              {visitStats ? (
+                <>
+                  <span>{visitStats.uv.toLocaleString()} visitors</span>
+                  <span aria-hidden="true">·</span>
+                  <span>{visitStats.pv.toLocaleString()} views</span>
+                </>
+              ) : (
+                "Analytics"
+              )}
+            </a>
+            <button
+              type="button"
+              className="menubar-help"
+              ref={helpButtonRef}
+              aria-haspopup="dialog"
+              aria-expanded={helpOpen}
+              aria-controls="editor-help-dialog"
+              onClick={() => setHelpOpen(true)}
+            >
+              Help
+            </button>
+          </div>
         </div>
         {hasImportedHierarchy ? (
           <div className="toolbar-row" aria-label="Document hierarchy">

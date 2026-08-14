@@ -7100,3 +7100,18 @@ ci:check` (651 unit tests, 104 browser tests, builds and release smoke) all
 - Commit status: committed and pushed on
   `agent/compact-complete-library` as
   `feat(editor): group library devices by category`.
+
+## 2026-08-15 - Right-align Help and fold Library categories
+
+- Target: move Help to the right edge of the top bar and make every device
+  category independently collapsible without losing Library state.
+- Changed areas: top-bar action grouping; controlled native category folds and
+  disclosure styling; static and browser regressions for right alignment,
+  narrow bounds, independent folding, and fold persistence across rerenders.
+- Validation: focused unit tests (2 files / 16 tests), two focused Playwright
+  flows, `pnpm typecheck`, Prettier checks, reviewer approval with its coverage
+  suggestion addressed, desktop/narrow screenshot inspection, and
+  `git diff --check` passed.
+- Commit status: committed and pushed on
+  `agent/compact-complete-library` as
+  `feat(editor): right-align help and fold library categories`.
