@@ -506,9 +506,21 @@ test("shows the complete foldable categorized Library, quick-places a device, an
       const artwork = tile.querySelector<SVGElement>(".shapes-chip-art");
       if (!artwork) throw new Error("Library artwork is missing");
       const artworkBounds = artwork.getBoundingClientRect();
+      const label = tile.querySelector<HTMLElement>("span");
+      if (!label) throw new Error("Library label is missing");
+      const labelBounds = label.getBoundingClientRect();
       return {
+        centerDeltaX:
+          artworkBounds.left +
+          artworkBounds.width / 2 -
+          (tileBounds.left + tileBounds.width / 2),
+        centerDeltaY:
+          artworkBounds.top +
+          artworkBounds.height / 2 -
+          (tileBounds.top + tileBounds.height / 2),
         height: artworkBounds.height,
-        offsetY: artworkBounds.top + artworkBounds.height / 2 - tileBounds.top,
+        separatedFromLabel: artworkBounds.bottom <= labelBounds.top + 0.5,
+        tileHeight: tileBounds.height,
         withinTile:
           artworkBounds.left >= tileBounds.left - 0.5 &&
           artworkBounds.right <= tileBounds.right + 0.5 &&
@@ -520,15 +532,25 @@ test("shows the complete foldable categorized Library, quick-places a device, an
   );
   expect(artworkGeometry.every((artwork) => artwork.withinTile)).toBe(true);
   expect(
-    artworkGeometry.every((artwork) => Math.abs(artwork.width - 38) <= 0.5),
+    artworkGeometry.every((artwork) => Math.abs(artwork.width - 40) <= 0.5),
   ).toBe(true);
   expect(
-    artworkGeometry.every((artwork) => Math.abs(artwork.height - 30) <= 0.5),
+    artworkGeometry.every((artwork) => Math.abs(artwork.height - 32) <= 0.5),
   ).toBe(true);
   expect(
-    Math.max(...artworkGeometry.map((artwork) => artwork.offsetY)) -
-      Math.min(...artworkGeometry.map((artwork) => artwork.offsetY)),
-  ).toBeLessThanOrEqual(1);
+    artworkGeometry.every((artwork) => Math.abs(artwork.centerDeltaX) <= 0.5),
+  ).toBe(true);
+  expect(
+    artworkGeometry.every((artwork) => Math.abs(artwork.centerDeltaY) <= 0.5),
+  ).toBe(true);
+  expect(
+    artworkGeometry.every(
+      (artwork) => Math.abs(artwork.tileHeight - 86) <= 0.5,
+    ),
+  ).toBe(true);
+  expect(artworkGeometry.every((artwork) => artwork.separatedFromLabel)).toBe(
+    true,
+  );
   expect(
     await libraryChips
       .locator("span")
@@ -625,25 +647,56 @@ test("keeps a usable canvas while toggling Library at the narrow breakpoint", as
   );
 
   const narrowArtwork = await page
-    .getByTestId("shapes-chip-nmos")
-    .evaluate((tile) => {
-      const tileBounds = tile.getBoundingClientRect();
-      const artwork = tile.querySelector<SVGElement>(".shapes-chip-art");
-      if (!artwork) throw new Error("Narrow Library artwork is missing");
-      const artworkBounds = artwork.getBoundingClientRect();
-      return {
-        height: artworkBounds.height,
-        withinTile:
-          artworkBounds.left >= tileBounds.left - 0.5 &&
-          artworkBounds.right <= tileBounds.right + 0.5 &&
-          artworkBounds.top >= tileBounds.top - 0.5 &&
-          artworkBounds.bottom <= tileBounds.bottom + 0.5,
-        width: artworkBounds.width,
-      };
-    });
-  expect(Math.abs(narrowArtwork.width - 44)).toBeLessThanOrEqual(0.5);
-  expect(Math.abs(narrowArtwork.height - 34)).toBeLessThanOrEqual(0.5);
-  expect(narrowArtwork.withinTile).toBe(true);
+    .locator('[data-testid^="shapes-chip-"]')
+    .evaluateAll((tiles) =>
+      tiles.map((tile) => {
+        const tileBounds = tile.getBoundingClientRect();
+        const artwork = tile.querySelector<SVGElement>(".shapes-chip-art");
+        if (!artwork) throw new Error("Narrow Library artwork is missing");
+        const artworkBounds = artwork.getBoundingClientRect();
+        const label = tile.querySelector<HTMLElement>("span");
+        if (!label) throw new Error("Narrow Library label is missing");
+        const labelBounds = label.getBoundingClientRect();
+        return {
+          centerDeltaX:
+            artworkBounds.left +
+            artworkBounds.width / 2 -
+            (tileBounds.left + tileBounds.width / 2),
+          centerDeltaY:
+            artworkBounds.top +
+            artworkBounds.height / 2 -
+            (tileBounds.top + tileBounds.height / 2),
+          height: artworkBounds.height,
+          separatedFromLabel: artworkBounds.bottom <= labelBounds.top + 0.5,
+          tileHeight: tileBounds.height,
+          withinTile:
+            artworkBounds.left >= tileBounds.left - 0.5 &&
+            artworkBounds.right <= tileBounds.right + 0.5 &&
+            artworkBounds.top >= tileBounds.top - 0.5 &&
+            artworkBounds.bottom <= tileBounds.bottom + 0.5,
+          width: artworkBounds.width,
+        };
+      }),
+    );
+  expect(
+    narrowArtwork.every((artwork) => Math.abs(artwork.width - 46) <= 0.5),
+  ).toBe(true);
+  expect(
+    narrowArtwork.every((artwork) => Math.abs(artwork.height - 36) <= 0.5),
+  ).toBe(true);
+  expect(
+    narrowArtwork.every((artwork) => Math.abs(artwork.centerDeltaX) <= 0.5),
+  ).toBe(true);
+  expect(
+    narrowArtwork.every((artwork) => Math.abs(artwork.centerDeltaY) <= 0.5),
+  ).toBe(true);
+  expect(
+    narrowArtwork.every((artwork) => Math.abs(artwork.tileHeight - 94) <= 0.5),
+  ).toBe(true);
+  expect(narrowArtwork.every((artwork) => artwork.separatedFromLabel)).toBe(
+    true,
+  );
+  expect(narrowArtwork.every((artwork) => artwork.withinTile)).toBe(true);
 
   const canvas = page.getByTestId("schematic-canvas");
   const openWidth = (await canvas.boundingBox())?.width ?? 0;

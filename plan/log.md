@@ -7150,3 +7150,19 @@ ci:check` (651 unit tests, 104 browser tests, builds and release smoke) all
 - Commit status: committed, rebased, and force-pushed on
   `agent/compact-complete-library` as
   `style(editor): center and enlarge library devices`.
+
+## 2026-08-15 - Truly center Library device artwork
+
+- Target: correct the remaining visual offset by centering each SVG on the full
+  tile rather than inside an upper artwork row.
+- Changed areas: absolute full-tile artwork centering; independently anchored
+  bottom labels; larger desktop/narrow tile and artwork dimensions; exhaustive
+  browser geometry checks for both axes, tile heights, containment, and label
+  separation.
+- Validation: focused unit tests (2 files / 16 tests), two focused Playwright
+  flows, `pnpm typecheck`, Prettier checks, reviewer feedback addressed,
+  screenshot inspection at 1280x720, 1024x720, and 720x720, direct zero-pixel
+  center-delta measurement, and `git diff --check` passed.
+- Commit status: committed and pushed on
+  `agent/compact-complete-library` as
+  `fix(editor): vertically center library device artwork`.
