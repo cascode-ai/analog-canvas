@@ -969,17 +969,17 @@ body {
 
 .shapes-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 6px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
 }
 
 .shapes-chip {
   display: grid;
   justify-items: center;
   align-content: center;
-  gap: 3px;
-  min-height: 70px;
-  padding: 5px 3px;
+  gap: 2px;
+  min-height: 58px;
+  padding: 4px 0;
   border: 1px solid var(--icm-border);
   border-radius: var(--icm-radius-sm);
   background: var(--icm-surface-muted);
@@ -998,8 +998,8 @@ body {
 }
 
 .shapes-chip-art {
-  width: 40px;
-  height: 30px;
+  width: 32px;
+  height: 24px;
   overflow: visible;
   color: var(--icm-text);
 }
@@ -2732,6 +2732,18 @@ body {
     max-height: 30dvh;
     border-right: 0;
     border-top: 1px solid var(--icm-border);
+  }
+
+  .shapes-chip {
+    gap: 3px;
+    min-height: 70px;
+    padding: 5px 3px;
+    font-size: 10px;
+  }
+
+  .shapes-chip-art {
+    width: 40px;
+    height: 30px;
   }
 
   .selection-dock,

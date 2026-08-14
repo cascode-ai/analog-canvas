@@ -7115,3 +7115,19 @@ ci:check` (651 unit tests, 104 browser tests, builds and release smoke) all
 - Commit status: committed and pushed on
   `agent/compact-complete-library` as
   `feat(editor): right-align help and fold library categories`.
+
+## 2026-08-15 - Fit four Library icons per row
+
+- Target: increase Library density to four quick-place tiles per category row
+  while preserving readable labels and responsive behavior.
+- Changed areas: four-column category/Recent grids; smaller desktop artwork and
+  tiles; concise visual labels with full accessible names; restored larger
+  narrow-layout tiles; browser geometry, containment, overflow, and Recent-grid
+  checks at the 220px Library boundary.
+- Validation: focused unit tests (2 files / 16 tests), two focused Playwright
+  flows, `pnpm typecheck`, Prettier checks, reviewer approval after readability
+  fixes, screenshot inspection at 1280x720, 1024x720, and 720x720, and
+  `git diff --check` passed.
+- Commit status: committed and pushed on
+  `agent/compact-complete-library` as
+  `style(editor): fit four library icons per row`.

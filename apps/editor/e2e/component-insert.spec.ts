@@ -456,6 +456,7 @@ test("keeps component placement active across independent canvas commits", async
 test("shows the complete foldable categorized Library, quick-places a device, and restores state", async ({
   page,
 }) => {
+  await page.setViewportSize({ width: 1024, height: 720 });
   await page.goto("/");
   const panel = page.getByTestId("shapes-library-panel");
   const canvas = page.getByTestId("schematic-canvas");
@@ -466,9 +467,50 @@ test("shows the complete foldable categorized Library, quick-places a device, an
   await expect(libraryChips).toHaveCount(18);
   await expect(categories).toHaveCount(6);
   const transistorCategory = page.getByTestId("shapes-category-transistors");
-  await expect(
-    transistorCategory.locator('[data-testid^="shapes-chip-"]'),
-  ).toHaveCount(4);
+  const transistorChips = transistorCategory.locator(
+    '[data-testid^="shapes-chip-"]',
+  );
+  await expect(transistorChips).toHaveCount(4);
+  const transistorGrid = transistorCategory.locator(".shapes-grid");
+  expect(
+    await transistorGrid.evaluate(
+      (element) =>
+        getComputedStyle(element).gridTemplateColumns.split(" ").length,
+    ),
+  ).toBe(4);
+  expect(
+    await transistorChips.evaluateAll(
+      (elements) =>
+        new Set(
+          elements.map((element) =>
+            Math.round(element.getBoundingClientRect().top),
+          ),
+        ).size,
+    ),
+  ).toBe(1);
+  expect(
+    await transistorGrid.evaluate((element) => {
+      const gridBounds = element.getBoundingClientRect();
+      return [...element.children].every((child) => {
+        const tileBounds = child.getBoundingClientRect();
+        return (
+          tileBounds.left >= gridBounds.left - 0.5 &&
+          tileBounds.right <= gridBounds.right + 0.5
+        );
+      });
+    }),
+  ).toBe(true);
+  expect(
+    await libraryChips
+      .locator("span")
+      .evaluateAll((labels) =>
+        labels.every(
+          (label) =>
+            label.scrollWidth <= label.clientWidth + 1 &&
+            label.scrollHeight <= label.clientHeight + 1,
+        ),
+      ),
+  ).toBe(true);
   await expect(transistorCategory).toHaveJSProperty("open", true);
   await transistorCategory.locator("summary").click();
   await expect(transistorCategory).toHaveJSProperty("open", false);
@@ -493,6 +535,15 @@ test("shows the complete foldable categorized Library, quick-places a device, an
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("hit-R1")).toBeVisible();
   await expect(page.getByTestId("shapes-recent-resistor")).toBeVisible();
+  expect(
+    await page
+      .getByTestId("shapes-fold-recent")
+      .locator(".shapes-grid")
+      .evaluate(
+        (element) =>
+          getComputedStyle(element).gridTemplateColumns.split(" ").length,
+      ),
+  ).toBe(4);
   await expect(transistorCategory).toHaveJSProperty("open", false);
   await expect(page.getByTestId("shapes-chip-nmos")).not.toBeVisible();
   await expect(analogCategory).toHaveJSProperty("open", true);

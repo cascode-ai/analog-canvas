@@ -9,12 +9,17 @@ import {
 } from "../component-insert/symbol-catalog";
 
 const COMPACT_LIBRARY_LABELS: Readonly<Record<string, string>> = {
-  "current-source": "Current Source",
+  capacitor: "Cap",
+  "closed-switch": "Closed",
+  "current-source": "I Source",
+  "ideal-switch": "Open",
+  inductor: "Ind",
   npn: "NPN",
   opamp: "Op Amp",
   pnp: "PNP",
-  "voltage-amplifier": "Voltage Amp",
-  "voltage-source": "Voltage Source",
+  resistor: "Res",
+  "voltage-amplifier": "V Amp",
+  "voltage-source": "V Source",
 };
 
 function libraryLabel(symbolId: string, symbolName: string): string {
