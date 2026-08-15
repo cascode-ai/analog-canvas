@@ -153,6 +153,7 @@ describe("editor interaction state", () => {
         referenceText: "MIN",
       },
       rotation: 90,
+      mirror: "none",
       previewPoint: null,
     });
     expect(interactionReducer(state, { type: "cancel" })).toEqual({
@@ -178,20 +179,30 @@ describe("editor interaction state", () => {
       type: "rotate-copy",
       deltaDegrees: 90,
     });
-    expect(rotated).toMatchObject({
+    const mirrored = interactionReducer(rotated, {
+      type: "mirror-copy",
+      direction: "left-right",
+    });
+    expect(mirrored).toMatchObject({
       kind: "copy-placement",
-      copy: { previewPoint: { x: 40, y: 50 }, rotation: 90 },
+      copy: {
+        previewPoint: { x: 40, y: 50 },
+        orientationOperations: [
+          { kind: "rotate", deltaDegrees: 90 },
+          { kind: "reflect", direction: "left-right" },
+        ],
+      },
     });
 
     expect(
-      interactionReducer(rotated, {
+      interactionReducer(mirrored, {
         type: "begin-copy-placement",
         clipboard: { ids: ["M2"] },
         anchor: { x: 0, y: 0 },
       }),
-    ).toBe(rotated);
+    ).toBe(mirrored);
     expect(
-      interactionReducer(rotated, {
+      interactionReducer(mirrored, {
         type: "activate-tool",
         tool: "wire",
       }),

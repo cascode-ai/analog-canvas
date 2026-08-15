@@ -30,11 +30,13 @@ export function ComponentPlacementPreview({
   symbolId,
   position,
   rotation,
+  mirror = "none",
 }: {
   styleProfileId: string;
   symbolId: string;
   position: { x: number; y: number };
   rotation: 0 | 90 | 180 | 270;
+  mirror?: "none" | "x";
 }) {
   const symbol = findPaletteSymbol(styleProfileId, symbolId);
   if (!symbol) return null;
@@ -47,7 +49,9 @@ export function ComponentPlacementPreview({
     <g
       data-testid="component-placement-preview"
       className="component-placement-preview"
-      transform={`translate(${position.x} ${position.y}) rotate(${rotation})`}
+      transform={`translate(${position.x} ${position.y}) rotate(${rotation})${
+        mirror === "x" ? " scale(-1 1)" : ""
+      }`}
       fill="none"
       stroke="currentColor"
       strokeWidth="1"

@@ -7310,3 +7310,18 @@ diff --check`, and two focused Playwright regressions passed.
 - Commit status: committed locally as
   `fix(editor): compact narrow library and overlay properties` on
   `codex/compact-library-overlay-properties`; not pushed.
+
+# 2026-08-15 - Mirror transient placement and toggle grid dots
+
+- Target: add minimal orientation controls during C/I placement and one local
+  canvas-grid visibility control without expanding persisted/editor-Agent
+  contracts.
+- Changed areas: interaction reducer and shortcut arbitration; clipboard
+  preview/commit orientation projection; component preview; canvas view
+  control; focused unit and browser coverage; interaction specification.
+- Validation: focused unit tests (4 files / 30 tests), focused Playwright
+  coverage (2 tests), `pnpm typecheck`, targeted Prettier check, and
+  `git diff --check` passed.
+- Commit status: committed and pushed as
+  `fix(editor): mirror transient placements and toggle grid dots` on
+  `codex/placement-mirror-grid-toggle`.

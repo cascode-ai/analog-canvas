@@ -10,6 +10,12 @@ import type {
   RouteEndpoint,
   SchematicDocument,
 } from "@icm/model";
+import { transformPoint } from "@icm/model";
+
+import {
+  applyOrientationOperations,
+  type PlacementOrientationOperation,
+} from "../../interaction/shortcut-orientation";
 
 export interface SchematicClipboard {
   instances: Instance[];
@@ -70,7 +76,7 @@ export function clipboardPreviewDocument(
   base: SchematicDocument,
   clipboard: SchematicClipboard,
   offset: Point,
-  rotation: 0 | 90 | 180 | 270 = 0,
+  orientationOperations: readonly PlacementOrientationOperation[] = [],
 ): SchematicDocument {
   const copiedInstanceIds = new Set(clipboard.instances.map(({ id }) => id));
   const annotations = clipboard.annotations.map((annotation) => {
@@ -86,9 +92,13 @@ export function clipboardPreviewDocument(
         preview.anchor.kind === "object" &&
         copiedInstanceIds.has(preview.anchor.objectId)
       ) {
-        preview.anchor.localOffset = rotateVector(
+        preview.anchor.localOffset = transformPoint(
           preview.anchor.localOffset,
-          rotation,
+          { x: 0, y: 0 },
+          applyOrientationOperations(
+            { rotation: 0, mirror: "none" },
+            orientationOperations,
+          ),
         );
       }
     }
@@ -101,9 +111,11 @@ export function clipboardPreviewDocument(
       placement: instance.placement
         ? {
             ...instance.placement,
+            ...applyOrientationOperations(
+              instance.placement,
+              orientationOperations,
+            ),
             position: movePoint(instance.placement.position, offset),
-            rotation: ((instance.placement.rotation + rotation) % 360) as
-              0 | 90 | 180 | 270,
           }
         : null,
     })),
@@ -211,19 +223,6 @@ function uniqueCopyReference(
 
 function movePoint(point: Point, offset: Point): Point {
   return { x: point.x + offset.x, y: point.y + offset.y };
-}
-
-function rotateVector(point: Point, rotation: 0 | 90 | 180 | 270): Point {
-  switch (rotation) {
-    case 0:
-      return { ...point };
-    case 90:
-      return { x: -point.y, y: point.x };
-    case 180:
-      return { x: -point.x, y: -point.y };
-    case 270:
-      return { x: point.y, y: -point.x };
-  }
 }
 
 function mapEndpoint(

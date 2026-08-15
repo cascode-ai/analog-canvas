@@ -62,9 +62,11 @@ observe the first transition even when React batches the next render.
 Activating the same tool is idempotent: repeated C, W, A, K, or selection of the
 same Library item preserves the active session. Activating a different creation
 tool replaces the current interaction atomically after drag and snap cleanup.
-During Copy Placement, `R` quarter-turns the transient preview and every
-subsequent committed copy; it does not mutate the source selection. Instance
-reference labels use the first active Document grid line one interval beyond
+During component or Copy Placement, `R` quarter-turns the transient preview;
+`Shift+R` mirrors it left/right and `Shift+V` mirrors it top/bottom. Every
+subsequent committed copy receives the same transient orientation, while the
+source selection remains unchanged. The background grid-dot button changes
+only the editor-local canvas paint. Instance reference labels use the first active Document grid line one interval beyond
 the drawn symbol ink. The padded interaction envelope never contributes to
 that clearance, and placement uses nearest-grid normalization for calibrated
 finite-decimal ink edges rather than directional outward snapping. A quarter

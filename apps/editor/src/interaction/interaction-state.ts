@@ -1,8 +1,14 @@
 import { useReducer, useRef } from "react";
 import type { SetStateAction } from "react";
 
-import type { Point } from "@icm/model";
+import type { Mirror, Point } from "@icm/model";
 import type { WireSource } from "@icm/edit-engine";
+
+import {
+  reflectOrientation,
+  type PlacementOrientationOperation,
+  type ScreenFlip,
+} from "./shortcut-orientation";
 
 export type { WireSource } from "@icm/edit-engine";
 
@@ -28,7 +34,7 @@ export interface CopyPlacement<TClipboard> {
   clipboard: TClipboard;
   anchor: Point;
   previewPoint: Point | null;
-  rotation: 0 | 90 | 180 | 270;
+  orientationOperations: PlacementOrientationOperation[];
 }
 
 export type InteractionState<TClipboard = never> =
@@ -37,6 +43,7 @@ export type InteractionState<TClipboard = never> =
       kind: "placing-component";
       placement: PendingComponentPlacement;
       rotation: 0 | 90 | 180 | 270;
+      mirror: Mirror;
       previewPoint: Point | null;
     }
   | {
@@ -69,6 +76,7 @@ export type InteractionAction<TClipboard = never> =
   | { type: "place-component"; placement: PendingComponentPlacement }
   | { type: "set-component-preview"; point: Point | null }
   | { type: "rotate-component"; deltaDegrees: 90 | -90 }
+  | { type: "mirror-component"; direction: ScreenFlip }
   | { type: "begin-vdd-rail" }
   | { type: "set-vdd-rail-start"; point: Point | null }
   | { type: "set-vdd-rail-preview"; point: Point | null }
@@ -80,6 +88,7 @@ export type InteractionAction<TClipboard = never> =
     }
   | { type: "set-copy-preview"; point: Point | null }
   | { type: "rotate-copy"; deltaDegrees: 90 | -90 }
+  | { type: "mirror-copy"; direction: ScreenFlip }
   | {
       type: "set-wire-source";
       source: WireSource | null;
@@ -177,6 +186,7 @@ export function interactionReducer<TClipboard>(
         kind: "placing-component",
         placement: action.placement,
         rotation: action.placement.initialRotation,
+        mirror: "none",
         previewPoint: null,
       };
     case "set-component-preview":
@@ -191,6 +201,15 @@ export function interactionReducer<TClipboard>(
               0 | 90 | 180 | 270,
           }
         : state;
+    case "mirror-component":
+      if (state.kind !== "placing-component") return state;
+      return {
+        ...state,
+        ...reflectOrientation(
+          { rotation: state.rotation, mirror: state.mirror },
+          action.direction,
+        ),
+      };
     case "begin-vdd-rail":
       return state.kind === "placing-vdd-rail"
         ? state
@@ -215,7 +234,7 @@ export function interactionReducer<TClipboard>(
           clipboard: action.clipboard,
           anchor: action.anchor,
           previewPoint: null,
-          rotation: 0,
+          orientationOperations: [],
         },
       };
     case "set-copy-preview":
@@ -228,8 +247,23 @@ export function interactionReducer<TClipboard>(
             ...state,
             copy: {
               ...state.copy,
-              rotation: ((state.copy.rotation + action.deltaDegrees + 360) %
-                360) as 0 | 90 | 180 | 270,
+              orientationOperations: [
+                ...state.copy.orientationOperations,
+                { kind: "rotate", deltaDegrees: action.deltaDegrees },
+              ],
+            },
+          }
+        : state;
+    case "mirror-copy":
+      return state.kind === "copy-placement"
+        ? {
+            ...state,
+            copy: {
+              ...state.copy,
+              orientationOperations: [
+                ...state.copy.orientationOperations,
+                { kind: "reflect", direction: action.direction },
+              ],
             },
           }
         : state;
@@ -326,6 +360,7 @@ export function useInteractionState<TClipboard>() {
     pendingSymbolId: componentPlacement?.placement.symbolId ?? null,
     pendingComponentPlacement: componentPlacement?.placement ?? null,
     componentPlacementRotation: componentPlacement?.rotation ?? 0,
+    componentPlacementMirror: componentPlacement?.mirror ?? "none",
     componentPreviewPoint:
       componentPlacement?.previewPoint ??
       vddRailPlacement?.previewPoint ??
@@ -348,6 +383,8 @@ export function useInteractionState<TClipboard>() {
       dispatch({ type: "set-component-preview", point }),
     rotateComponentPlacement: (deltaDegrees: 90 | -90) =>
       dispatch({ type: "rotate-component", deltaDegrees }),
+    mirrorComponentPlacement: (direction: ScreenFlip) =>
+      dispatch({ type: "mirror-component", direction }),
     beginVddRailPlacement: () => dispatch({ type: "begin-vdd-rail" }),
     setVddRailStart: (point: Point | null) =>
       dispatch({ type: "set-vdd-rail-start", point }),
@@ -360,6 +397,8 @@ export function useInteractionState<TClipboard>() {
       dispatch({ type: "set-copy-preview", point }),
     rotateCopyPlacement: (deltaDegrees: 90 | -90) =>
       dispatch({ type: "rotate-copy", deltaDegrees }),
+    mirrorCopyPlacement: (direction: ScreenFlip) =>
+      dispatch({ type: "mirror-copy", direction }),
     setWireSource: (source: WireSource | null, sourceRevision: number | null) =>
       dispatch({ type: "set-wire-source", source, sourceRevision }),
     setWirePreviewPoint: (point: Point | null) =>

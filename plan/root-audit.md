@@ -8,7 +8,7 @@ an archive. Completed plans with resolved experience are stored under
 
 | State                     | Count | Required disposition                                                              |
 | ------------------------- | ----: | --------------------------------------------------------------------------------- |
-| `active`                  |     0 | No active targets.                                                                |
+| `active`                  |     1 | Await the remote mainline gate for `2026-08-15-placement-mirror-grid-toggle`.     |
 | `completed` + `none`      |    34 | Verify commit/log evidence, then archive according to routine retention policy.   |
 | `completed` + `candidate` |    17 | Human decides whether to extract, reject, or defer the experience signal.         |
 | missing metadata          |    71 | Audit against outcome text and Git evidence; never archive merely because of age. |
@@ -49,6 +49,12 @@ superseded VDD plan's drawn-rail replacement is already archived.
 `2026-08-15-fix-label-gap-rotation` is completed with resolved experience.
 Its delivered commit, factual log entry, and remote merge evidence are present;
 it is eligible for normal completed-plan retention handling.
+
+## 2026-08-15 Placement-mirror and grid-toggle closure
+
+`2026-08-15-placement-mirror-grid-toggle` has focused validation and a pushed
+review branch, but stays active until its remote mainline gate is green and the
+branch is merged.
 
 ## Legacy Metadata Sweep
 

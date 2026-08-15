@@ -230,7 +230,10 @@ import {
   isRoutedMarker,
   looseRouteAnchorIds,
 } from "../features/wiring/route-interaction-geometry";
-import { reflectOrientation } from "../interaction/shortcut-orientation";
+import {
+  applyOrientationOperations,
+  reflectOrientation,
+} from "../interaction/shortcut-orientation";
 import type { ScreenFlip } from "../interaction/shortcut-orientation";
 import { resolveRouteTap, type RouteTap } from "../features/wiring/route-tap";
 import {
@@ -640,6 +643,7 @@ export function App({ project: initialProject, visitStats }: AppProps) {
   } = useSelectionController();
   const uniqueSuffixCounter = useRef(0);
   const [viewBox, setRawViewBox] = useState<GridRect>(DEFAULT_VIEWBOX);
+  const [gridDotsVisible, setGridDotsVisible] = useState(true);
   const setViewBox = (
     next: GridRect | CameraRectInput | ((current: GridRect) => CameraRectInput),
     grid = document.presentation.grid,
@@ -701,6 +705,7 @@ export function App({ project: initialProject, visitStats }: AppProps) {
     draftingWaypoints,
     draftingSnapPoint,
     componentPlacementRotation,
+    componentPlacementMirror,
     componentPreviewPoint,
     vddRailMode,
     vddRailStart,
@@ -709,6 +714,7 @@ export function App({ project: initialProject, visitStats }: AppProps) {
     beginComponentPlacement,
     setComponentPreviewPoint,
     rotateComponentPlacement,
+    mirrorComponentPlacement,
     beginVddRailPlacement: beginVddRailInteraction,
     setVddRailStart,
     setVddRailPreviewPoint,
@@ -716,6 +722,7 @@ export function App({ project: initialProject, visitStats }: AppProps) {
     beginCopyPlacement: beginCopyPlacementInteraction,
     setCopyPreviewPoint,
     rotateCopyPlacement,
+    mirrorCopyPlacement,
     setWireSource,
     setWirePreviewPoint,
     setWireWaypoints,
@@ -840,7 +847,7 @@ export function App({ project: initialProject, visitStats }: AppProps) {
           document,
           copyPlacement.clipboard,
           offset,
-          copyPlacement.rotation,
+          copyPlacement.orientationOperations,
         ),
         resolver,
         { bounds: viewBox },
@@ -2082,7 +2089,9 @@ export function App({ project: initialProject, visitStats }: AppProps) {
       return;
     }
     beginComponentPlacement(request);
-    setStatus(`Place ${symbolName} on the canvas · R rotates · Esc cancels`);
+    setStatus(
+      `Place ${symbolName} on the canvas · R rotates · Shift+R/V mirrors · Esc cancels`,
+    );
   }
 
   function cancelComponentInsert(): void {
@@ -2096,10 +2105,25 @@ export function App({ project: initialProject, visitStats }: AppProps) {
     setStatus(`Component rotation ${delta > 0 ? "+90°" : "−90°"}`);
   }
 
+  function mirrorPendingComponent(direction: ScreenFlip): void {
+    mirrorComponentPlacement(direction);
+    setStatus(
+      `Place component mirrored ${direction === "left-right" ? "left/right" : "top/bottom"} · R rotates · Esc cancels`,
+    );
+  }
+
   function rotatePendingCopy(delta: 90 | -90): void {
     if (!copyPlacement) return;
     rotateCopyPlacement(delta);
     setStatus("Place rotated copy · R rotates · Esc cancels");
+  }
+
+  function mirrorPendingCopy(direction: ScreenFlip): void {
+    if (!copyPlacement) return;
+    mirrorCopyPlacement(direction);
+    setStatus(
+      `Place copy mirrored ${direction === "left-right" ? "left/right" : "top/bottom"} · R rotates · Esc cancels`,
+    );
   }
 
   function loadRoutingDemo(): void {
@@ -3281,7 +3305,7 @@ export function App({ project: initialProject, visitStats }: AppProps) {
       placement: {
         position,
         rotation: componentPlacementRotation,
-        mirror: "none" as const,
+        mirror: componentPlacementMirror,
       },
       properties: placementRequest.properties,
       netlist: initialInstanceNetlist(
@@ -5923,7 +5947,7 @@ export function App({ project: initialProject, visitStats }: AppProps) {
     paintSnapGuides([]);
     beginCopyPlacementInteraction(copied, anchor);
     setStatus(
-      `Place copy of ${copied.instances.length} components · R rotates · Esc cancels`,
+      `Place copy of ${copied.instances.length} components · R rotates · Shift+R/V mirrors · Esc cancels`,
     );
   }
 
@@ -5945,18 +5969,37 @@ export function App({ project: initialProject, visitStats }: AppProps) {
       cancelAllTransientInteraction();
       return;
     }
-    const rotationEdits: SchematicEdit[] =
-      copyPlacement.rotation === 0
-        ? []
-        : proposal.instanceIds.map((instanceId, index) => ({
-            kind: "rotate_instance" as const,
-            instanceId,
-            rotation: (((copyPlacement.clipboard.instances[index]?.placement
-              ?.rotation ?? 0) +
-              copyPlacement.rotation) %
-              360) as 0 | 90 | 180 | 270,
-          }));
-    const result = transact([...proposal.edits, ...rotationEdits], {
+    const orientationEdits = proposal.instanceIds.flatMap(
+      (instanceId, index): SchematicEdit[] => {
+        const source = copyPlacement.clipboard.instances[index]?.placement;
+        if (!source) return [];
+        const orientation = applyOrientationOperations(
+          source,
+          copyPlacement.orientationOperations,
+        );
+        return [
+          ...(orientation.mirror === source.mirror
+            ? []
+            : [
+                {
+                  kind: "mirror_instance" as const,
+                  instanceId,
+                  mirror: orientation.mirror,
+                },
+              ]),
+          ...(orientation.rotation === source.rotation
+            ? []
+            : [
+                {
+                  kind: "rotate_instance" as const,
+                  instanceId,
+                  rotation: orientation.rotation,
+                },
+              ]),
+        ];
+      },
+    );
+    const result = transact([...proposal.edits, ...orientationEdits], {
       preserveInteraction: true,
     });
     if (result.ok) {
@@ -6113,6 +6156,12 @@ export function App({ project: initialProject, visitStats }: AppProps) {
           return;
         case "rotate-copy-placement":
           rotatePendingCopy(shortcut.deltaDegrees);
+          return;
+        case "mirror-placement":
+          mirrorPendingComponent(shortcut.direction);
+          return;
+        case "mirror-copy-placement":
+          mirrorPendingCopy(shortcut.direction);
           return;
         case "rotate":
           rotateSelected(shortcut.deltaDegrees);
@@ -7812,23 +7861,28 @@ export function App({ project: initialProject, visitStats }: AppProps) {
             onDragOver={(event) => event.preventDefault()}
             onDrop={handleDrop}
           >
-            <defs>
-              <pattern
-                id="grid"
-                width="10"
-                height="10"
-                patternUnits="userSpaceOnUse"
-              >
-                <circle className="canvas-grid-dot" cx="0" cy="0" r="0.7" />
-              </pattern>
-            </defs>
-            <rect
-              x={viewBox.x}
-              y={viewBox.y}
-              width={viewBox.width}
-              height={viewBox.height}
-              fill="url(#grid)"
-            />
+            {gridDotsVisible ? (
+              <>
+                <defs>
+                  <pattern
+                    id="grid"
+                    width="10"
+                    height="10"
+                    patternUnits="userSpaceOnUse"
+                  >
+                    <circle className="canvas-grid-dot" cx="0" cy="0" r="0.7" />
+                  </pattern>
+                </defs>
+                <rect
+                  data-testid="canvas-grid-dots"
+                  x={viewBox.x}
+                  y={viewBox.y}
+                  width={viewBox.width}
+                  height={viewBox.height}
+                  fill="url(#grid)"
+                />
+              </>
+            ) : null}
             <g dangerouslySetInnerHTML={sceneInnerHtml} />
             {highlightedNet ? (
               <g
@@ -7947,6 +8001,7 @@ export function App({ project: initialProject, visitStats }: AppProps) {
                   symbolId={pendingSymbolId}
                   position={componentPreviewPoint}
                   rotation={componentPlacementRotation}
+                  mirror={componentPlacementMirror}
                 />
               ) : null}
               {netLabelEditorOpen && selectedRoute
@@ -8814,7 +8869,20 @@ export function App({ project: initialProject, visitStats }: AppProps) {
             </output>
           )}
         </div>
-        <div className="canvas-controls" aria-label="Canvas zoom controls">
+        <div className="canvas-controls" aria-label="Canvas view controls">
+          <button
+            type="button"
+            aria-label={
+              gridDotsVisible ? "Hide background dots" : "Show background dots"
+            }
+            aria-pressed={gridDotsVisible}
+            title={
+              gridDotsVisible ? "Hide background dots" : "Show background dots"
+            }
+            onClick={() => setGridDotsVisible((visible) => !visible)}
+          >
+            <ToolIcon name="grid" />
+          </button>
           <button
             type="button"
             aria-label="Zoom out"

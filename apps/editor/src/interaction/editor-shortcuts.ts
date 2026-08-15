@@ -34,6 +34,8 @@ export type EditorShortcutIntent =
   | { kind: "open-component-insert" }
   | { kind: "rotate-placement"; deltaDegrees: 90 | -90 }
   | { kind: "rotate-copy-placement"; deltaDegrees: 90 | -90 }
+  | { kind: "mirror-placement"; direction: ScreenFlip }
+  | { kind: "mirror-copy-placement"; direction: ScreenFlip }
   | { kind: "rotate"; deltaDegrees: 90 | -90 }
   | { kind: "activate-tool"; tool: EditorTool }
   | { kind: "add-text" }
@@ -122,6 +124,18 @@ export function resolveEditorShortcut(
     }
     if (plain && key === "k") {
       return { kind: "activate-tool", tool: "construction-line" };
+    }
+    if (
+      plain &&
+      event.shiftKey &&
+      (key === "r" || key === "v") &&
+      (context.interactionMode === "placing-component" ||
+        context.interactionMode === "copy-placement")
+    ) {
+      const direction: ScreenFlip = key === "r" ? "left-right" : "top-bottom";
+      return context.interactionMode === "placing-component"
+        ? { kind: "mirror-placement", direction }
+        : { kind: "mirror-copy-placement", direction };
     }
     if (plain && key === "r") {
       if (context.interactionMode === "placing-component") {

@@ -11,6 +11,7 @@ export type ToolIconName =
   | "zoom-in"
   | "zoom-out"
   | "fit"
+  | "grid"
   | "inspect"
   | "undo"
   | "redo"
@@ -85,6 +86,19 @@ export function ToolIcon({ name }: { name: ToolIconName }) {
         <>
           <path d="M7 3H3v4M13 3h4v4M17 13v4h-4M7 17H3v-4" {...common} />
           <rect x="6" y="6" width="8" height="8" {...common} />
+        </>
+      ) : null}
+      {name === "grid" ? (
+        <>
+          <circle cx="5" cy="5" r="0.9" fill="currentColor" />
+          <circle cx="10" cy="5" r="0.9" fill="currentColor" />
+          <circle cx="15" cy="5" r="0.9" fill="currentColor" />
+          <circle cx="5" cy="10" r="0.9" fill="currentColor" />
+          <circle cx="10" cy="10" r="0.9" fill="currentColor" />
+          <circle cx="15" cy="10" r="0.9" fill="currentColor" />
+          <circle cx="5" cy="15" r="0.9" fill="currentColor" />
+          <circle cx="10" cy="15" r="0.9" fill="currentColor" />
+          <circle cx="15" cy="15" r="0.9" fill="currentColor" />
         </>
       ) : null}
       {name === "inspect" ? (

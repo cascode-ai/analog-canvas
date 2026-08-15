@@ -3,7 +3,10 @@ import { describe, expect, it } from "vitest";
 import { transformPoint } from "@icm/model";
 import type { Mirror, Orientation, Rotation } from "@icm/model";
 
-import { reflectOrientation } from "./shortcut-orientation";
+import {
+  applyOrientationOperations,
+  reflectOrientation,
+} from "./shortcut-orientation";
 import type { ScreenFlip } from "./shortcut-orientation";
 
 const rotations: Rotation[] = [0, 90, 180, 270];
@@ -54,5 +57,19 @@ describe("reflectOrientation", () => {
         }
       }
     }
+  });
+
+  it("applies transient placement commands in their input order", () => {
+    const start: Orientation = { rotation: 90, mirror: "none" };
+    const expected = reflectOrientation(
+      { rotation: 180, mirror: "none" },
+      "top-bottom",
+    );
+    expect(
+      applyOrientationOperations(start, [
+        { kind: "rotate", deltaDegrees: 90 },
+        { kind: "reflect", direction: "top-bottom" },
+      ]),
+    ).toEqual(expected);
   });
 });

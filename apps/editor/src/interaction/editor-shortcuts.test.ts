@@ -118,7 +118,20 @@ describe("editor shortcut contract", () => {
         { interactionMode: "placing-component" },
         { shiftKey: true },
       ),
-    ).toEqual({ kind: "rotate-placement", deltaDegrees: 90 });
+    ).toEqual({ kind: "mirror-placement", direction: "left-right" });
+    expect(
+      resolve(
+        "v",
+        { interactionMode: "placing-component" },
+        { shiftKey: true },
+      ),
+    ).toEqual({ kind: "mirror-placement", direction: "top-bottom" });
+    expect(
+      resolve("r", { interactionMode: "copy-placement" }, { shiftKey: true }),
+    ).toEqual({ kind: "mirror-copy-placement", direction: "left-right" });
+    expect(
+      resolve("v", { interactionMode: "copy-placement" }, { shiftKey: true }),
+    ).toEqual({ kind: "mirror-copy-placement", direction: "top-bottom" });
   });
 
   it("maps creation, fit, and marker commands", () => {

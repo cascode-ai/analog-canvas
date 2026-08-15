@@ -23,6 +23,11 @@ test("blocks destructive browser refresh shortcuts and uses the stronger grid", 
     "alive",
   );
 
+  await page.getByRole("button", { name: "Hide background dots" }).click();
+  await expect(page.getByTestId("canvas-grid-dots")).toHaveCount(0);
+  await page.getByRole("button", { name: "Show background dots" }).click();
+  await expect(page.getByTestId("canvas-grid-dots")).toBeVisible();
+
   await page.keyboard.press("i");
   const dialog = page.getByRole("dialog", { name: "Insert Component" });
   await dialog.getByLabel("Component search").focus();
@@ -32,6 +37,41 @@ test("blocks destructive browser refresh shortcuts and uses the stronger grid", 
     "data-refresh-guard",
     "alive",
   );
+});
+
+test("mirrors component and copy placement previews before their commits", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await chooseComponent(page, "resistor");
+
+  const canvas = page.getByTestId("schematic-canvas");
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("Canvas is not measurable");
+  await page.mouse.move(box.x + 320, box.y + 220);
+  const componentPreview = page.getByTestId("component-placement-preview");
+  await page.keyboard.press("Shift+R");
+  await expect(componentPreview).toHaveAttribute("transform", /scale\(-1 1\)/u);
+  await canvas.click({ position: { x: 320, y: 220 } });
+  await page.keyboard.press("Escape");
+
+  const placedSymbol = canvas.locator('[data-object-id="R1"] > g').first();
+  await expect(placedSymbol).toHaveAttribute("transform", /scale\(-1 1\)/u);
+
+  await page.getByTestId("hit-R1").click();
+  await page.keyboard.press("c");
+  await page.mouse.move(box.x + 520, box.y + 220);
+  const copyPreview = page
+    .getByTestId("copy-placement-preview")
+    .locator('[data-object-id="R1"] > g')
+    .first();
+  await page.keyboard.press("Shift+V");
+  await expect(copyPreview).toHaveAttribute("transform", /rotate\(180\)/u);
+  await canvas.click({ position: { x: 520, y: 220 } });
+  await expect(
+    canvas.locator('[data-object-id="R1-copy-1"] > g').first(),
+  ).toHaveAttribute("transform", /rotate\(180\)/u);
+  await page.keyboard.press("Escape");
 });
 
 test("refreshes explicitly only after flushing and automatically restoring recovery", async ({

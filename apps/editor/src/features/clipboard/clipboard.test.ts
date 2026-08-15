@@ -130,11 +130,23 @@ describe("schematic clipboard", () => {
       document,
       clipboard!,
       { x: 40, y: -20 },
-      90,
+      [{ kind: "rotate", deltaDegrees: 90 }],
     );
     expect(rotatedPreview.instances[0]?.placement).toMatchObject({
       position: { x: 140, y: 80 },
       rotation: 90,
+    });
+
+    const mirroredPreview = clipboardPreviewDocument(
+      document,
+      clipboard!,
+      { x: 40, y: -20 },
+      [{ kind: "reflect", direction: "left-right" }],
+    );
+    expect(mirroredPreview.instances[0]?.placement).toMatchObject({
+      position: { x: 140, y: 80 },
+      rotation: 0,
+      mirror: "x",
     });
   });
 
