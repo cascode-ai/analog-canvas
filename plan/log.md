@@ -7008,5 +7008,5 @@ ci:check` (651 unit tests, 104 browser tests, builds and release smoke) all
   contract regression, and clean-tree `pnpm ci:check` all passed (static,
   726 unit/integration tests, workspace build/release smoke, 121 browser
   tests).
-- Commit status: committed on `codex/default-text-razavi-style`; remote CI and
-  merge remain pending.
+- Commit status: all six PR #60 GitHub Actions checks passed; squash-merged to
+  `main` as `0f45ba5`.

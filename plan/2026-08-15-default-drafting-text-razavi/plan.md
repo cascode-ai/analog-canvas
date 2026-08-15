@@ -82,4 +82,5 @@ fix(editor): default drafting text to Razavi typography
   full gate correctly found one stale power-label contract expectation, which
   was repaired and retested. The clean-tree `pnpm install --frozen-lockfile &&
 pnpm ci:check` gate then passed: static checks, 726 unit/integration tests,
-  workspace build, release smoke, and 121 browser tests.
+  workspace build, release smoke, and 121 browser tests. PR #60 passed all
+  six GitHub Actions checks and was squash-merged to `main` as `0f45ba5`.
