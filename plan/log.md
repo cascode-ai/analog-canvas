@@ -7441,3 +7441,15 @@ diff --check`, and two focused Playwright regressions passed.
 - Validation: 44 focused unit tests, focused Playwright BJT base-wire test,
   workspace typecheck, and `git diff --check` passed.
 - Commit status: pending commit on `codex/bjt-base-solid-wire`.
+
+## 2026-08-15 - Remove annotation text-outline feedback
+
+- Target: remove blue hover/selected outlines from text annotation hit surfaces
+  while preserving the existing annotation selection, movement, and editing
+  behavior.
+- Changed areas: editor-only CSS cascade and targeted browser coverage.
+- Validation: isolated focused visual-feedback test plus three existing
+  annotation selection/move/edit browser tests passed; Prettier and
+  `git diff --check` passed.
+- Commit status: committed delivery pending on
+  `codex/remove-annotation-text-outline`.

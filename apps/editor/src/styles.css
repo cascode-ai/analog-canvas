@@ -2560,6 +2560,17 @@ body {
   stroke-dasharray: 3 5;
 }
 
+/* Annotation text remains selectable and draggable, but its invisible hit box
+   must not turn into a second blue text-outline cue. The canvas marquee and
+   selection shelf already communicate selection without competing with the
+   formal Razavi typography. Keep this after the generic hit-target hover rule
+   so it wins at equal selector specificity. */
+.annotation-text-hit.selected,
+.annotation-text-hit:hover:not(.selected) {
+  stroke: transparent;
+  stroke-dasharray: none;
+}
+
 .canvas-empty-state {
   position: absolute;
   z-index: 3;

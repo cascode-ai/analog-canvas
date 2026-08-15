@@ -1317,6 +1317,23 @@ test("selects an attached label without selecting its host", async ({
   );
 });
 
+test("keeps selected annotation text free of accent outline feedback", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await placeComponent(page, "resistor", { x: 320, y: 220 });
+
+  const label = page.getByTestId("annotation-hit-instance-label-R1");
+  await label.hover();
+  await expect(label).toHaveCSS("stroke", "rgba(0, 0, 0, 0)");
+  await expect(label).toHaveCSS("stroke-dasharray", "none");
+
+  await label.click({ modifiers: ["Alt"] });
+  await expect(label).toHaveClass(/selected/u);
+  await expect(label).toHaveCSS("stroke", "rgba(0, 0, 0, 0)");
+  await expect(label).toHaveCSS("stroke-dasharray", "none");
+});
+
 test("moves an explicitly selected attached label", async ({ page }) => {
   await page.goto("/");
   await placeComponent(page, "resistor", { x: 320, y: 220 });

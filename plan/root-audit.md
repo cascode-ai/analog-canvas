@@ -9,7 +9,7 @@ an archive. Completed plans with resolved experience are stored under
 | State                     | Count | Required disposition                                                              |
 | ------------------------- | ----: | --------------------------------------------------------------------------------- |
 | `active`                  |     0 | No active targets.                                                                |
-| `completed` + `none`      |    34 | Verify commit/log evidence, then archive according to routine retention policy.   |
+| `completed` + `none`      |    35 | Verify commit/log evidence, then archive according to routine retention policy.   |
 | `completed` + `candidate` |    17 | Human decides whether to extract, reject, or defer the experience signal.         |
 | missing metadata          |    71 | Audit against outcome text and Git evidence; never archive merely because of age. |
 
@@ -54,6 +54,12 @@ it is eligible for normal completed-plan retention handling.
 
 `2026-08-15-placement-mirror-grid-toggle` passed its remote gate and merged as
 PR #72; its completed delivery record is present.
+
+## 2026-08-15 Annotation text-outline closure
+
+`2026-08-15-remove-annotation-text-outline` is completed with resolved
+experience. Its CSS-only visual feedback change retains the existing annotation
+selection and editing contract.
 
 ## Legacy Metadata Sweep
 
