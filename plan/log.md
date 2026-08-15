@@ -7403,3 +7403,17 @@ diff --check`, and two focused Playwright regressions passed.
   typecheck, 754/754 unit tests, and focused Playwright coverage, all six
   required GitHub Actions checks re-ran green, and PR #75 squash-merged to
   `main` as `449f752`.
+
+## 2026-08-15 - Calibrate Razavi BJT proportions
+
+- Target: adjust only the visible NPN/PNP BJT proportions to the reviewed
+  textbook BJT/MOS coordinate ratios while retaining electrical anchors,
+  strokes, and arrow topology.
+- Changed areas: BJT vector normalization and regenerated assets/catalog;
+  BJT/MOS ratio regression contract; authority manifest hashes, including two
+  pre-existing stale pins for untouched inductor/op-amp evidence that blocked
+  all Razavi generation.
+- Validation: common/full Razavi generation and stale checks, 24 focused
+  authority/catalog tests, Symbols TypeScript build, editor production build,
+  coordinate assertions, and `git diff --check` passed.
+- Commit status: pending mainline delivery.

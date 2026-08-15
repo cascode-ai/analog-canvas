@@ -32,7 +32,7 @@
         "figure": "15.21"
       },
       "extractPath": "inductor-vector-source.json",
-      "extractSha256": "ee09b0e94c9e539cea13fa10f5986776ce9a16e18689d0d0fd61f99e5dc2a903",
+      "extractSha256": "daaf4bfcee6f2ea39c6c389c10e67c52b4fba84c6ee3ba6118b825d2f0ef7464",
       "rasterPath": "inductor-reference.png",
       "rasterSha256": "f3327aecd75ddc7231a0e90117904d2815ba07c30e1761eccfdb7f27bb471070",
       "scope": ["inductor geometry", "inductor stroke treatment"]
@@ -48,7 +48,7 @@
         "figure": "8.26"
       },
       "extractPath": "opamp-vector-source.json",
-      "extractSha256": "e89450feb7a2f5eb351d6b6415e07f19e851673e14d8847554cbe2e8ae7742cb",
+      "extractSha256": "43f14106f9606b2c19539d8a4cd2b9cf14e0d56f8be76fe93cba7c2d45c4361e",
       "rasterPath": "opamp-reference.png",
       "rasterSha256": "77af2fb4d00f62f1e83580d21ac04a95dc41a7d7072d738dc70248373178083f",
       "scope": [
@@ -118,7 +118,7 @@
         "figure": "12.6"
       },
       "extractPath": "npn-vector-source.json",
-      "extractSha256": "97f8b5cd5140fd5aa27c84f083dc3473e0789f1b19db22296a9e931460627b60",
+      "extractSha256": "b5499df1678ac7d630f48bd6c0c0cba299e44056d45729a86337198901dddb68",
       "rasterPath": "npn-reference.png",
       "rasterSha256": "9d8cde835580aefdf0bb7f1b2f3d06b751ef2c986897507bfe31fffff5c275e0",
       "scope": ["direct NPN body and outward emitter arrow"]
@@ -134,7 +134,7 @@
         "figure": "12.11"
       },
       "extractPath": "pnp-vector-source.json",
-      "extractSha256": "581f93c074737fcb2c78d80d86ab3852bcc6083dc8bbaa1289749068da68b7eb",
+      "extractSha256": "72b5e92f82af98bb09e25b67c20ee7a328d4907eea3dd4d281be0988174bef91",
       "rasterPath": "pnp-reference.png",
       "rasterSha256": "c0b3a2efb8ecddf8db9020c7f8734408fbc02e6010dba6cc17802efe839ff19d",
       "scope": ["direct PNP body and inward upper-emitter arrow"]

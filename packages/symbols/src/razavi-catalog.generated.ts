@@ -260,7 +260,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: ["spice:Q:npn", "pdk:model-type:npn"],
     assetPath: "npn.symbol.json",
     assetHash:
-      "f69f4959593133c3be35d4a1517ceca4ab82f7c78678a9807ffcd1de9280099e",
+      "2f16db20b1a6766f55d5f66e493e2e9c6230dd99052a34b65ebf254b9be57978",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -348,7 +348,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: ["spice:Q:pnp", "pdk:model-type:pnp"],
     assetPath: "pnp.symbol.json",
     assetHash:
-      "df46a5c79a677de1e536cb0f612c9f9fb51e98acc2683357125d7f321da15818",
+      "831c12896ded98badf9e75be73d1965e760044c46dcfb03dd7a0cfb598abf4fc",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1600,7 +1600,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 0,
         },
         to: {
-          x: -19.96318,
+          x: -16.868887,
           y: 0,
         },
         style: {
@@ -1612,12 +1612,12 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -19.96318,
-          y: -14.828452,
+          x: -16.868887,
+          y: -13.345607,
         },
         to: {
-          x: -19.96318,
-          y: 14.8106,
+          x: -16.868887,
+          y: 13.32954,
         },
         style: {
           strokeRole: "emphasis",
@@ -1629,12 +1629,12 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "polyline",
         points: [
           {
-            x: -19.96318,
-            y: -6.654393,
+            x: -16.868887,
+            y: -6.401526,
           },
           {
             x: 0,
-            y: -14.973501,
+            y: -13.379732,
           },
           {
             x: 0,
@@ -1650,12 +1650,12 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -19.96318,
-          y: 6.656625,
+          x: -16.868887,
+          y: 6.403673,
         },
         to: {
-          x: -8.639893,
-          y: 11.372762,
+          x: -7.30071,
+          y: 10.358712,
         },
         style: {
           strokeRole: "normal",
@@ -1667,12 +1667,12 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "polyline",
         points: [
           {
-            x: -1.107758,
-            y: 14.509889,
+            x: -0.936056,
+            y: 12.990761,
           },
           {
             x: 0,
-            y: 14.971269,
+            y: 13.377859,
           },
           {
             x: 0,
@@ -1689,16 +1689,16 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "polygon",
         points: [
           {
-            x: -7.852184,
-            y: 7.121718,
+            x: -6.635095,
+            y: 6.792086,
           },
           {
-            x: -11.778276,
-            y: 14.971269,
+            x: -9.952643,
+            y: 13.377859,
           },
           {
             x: 0,
-            y: 14.971269,
+            y: 13.377859,
           },
         ],
         fill: "foreground",
@@ -2203,7 +2203,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 0,
         },
         to: {
-          x: -19.96318,
+          x: -16.868887,
           y: 0,
         },
         style: {
@@ -2215,12 +2215,12 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -19.96318,
-          y: -14.815063,
+          x: -16.868887,
+          y: -13.333557,
         },
         to: {
-          x: -19.96318,
-          y: 14.823989,
+          x: -16.868887,
+          y: 13.34159,
         },
         style: {
           strokeRole: "emphasis",
@@ -2232,12 +2232,12 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "polyline",
         points: [
           {
-            x: -10.14795,
-            y: -10.579168,
+            x: -8.575018,
+            y: -9.694413,
           },
           {
             x: 0,
-            y: -14.973501,
+            y: -13.379732,
           },
           {
             x: 0,
@@ -2254,12 +2254,12 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "polyline",
         points: [
           {
-            x: -19.96318,
-            y: 6.654393,
+            x: -16.868887,
+            y: 6.401526,
           },
           {
             x: 0,
-            y: 14.971269,
+            y: 13.377859,
           },
           {
             x: 0,
@@ -2276,16 +2276,16 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "polygon",
         points: [
           {
-            x: -12.110996,
-            y: -14.503944,
+            x: -10.233792,
+            y: -12.987299,
           },
           {
-            x: -8.184904,
-            y: -6.654393,
+            x: -6.916244,
+            y: -6.401526,
           },
           {
-            x: -19.96318,
-            y: -6.654393,
+            x: -16.868887,
+            y: -6.401526,
           },
         ],
         fill: "foreground",

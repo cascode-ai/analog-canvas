@@ -148,6 +148,21 @@
         "targetRole": "emphasis"
       }
     },
+    "relativeProportionCalibration": {
+      "basis": "user-reviewed textbook BJT/MOS coordinate comparison",
+      "referencePixels": {
+        "mosGateBars": [44, 33],
+        "bjtBaseBar": 46,
+        "bjtBranch": { "horizontal": 29, "vertical": 12 }
+      },
+      "visualOnly": true,
+      "pinAnchorsPreserved": true,
+      "scales": {
+        "bodyX": 0.845,
+        "baseBarY": 0.9,
+        "branchY": 0.839
+      }
+    },
     "symbolDefinition": {
       "schemaVersion": 1,
       "id": "npn",
@@ -207,7 +222,7 @@
             "y": 0
           },
           "to": {
-            "x": -19.96318,
+            "x": -16.868887,
             "y": 0
           },
           "style": {
@@ -219,12 +234,12 @@
         {
           "kind": "line",
           "from": {
-            "x": -19.96318,
-            "y": -14.828452
+            "x": -16.868887,
+            "y": -13.345607
           },
           "to": {
-            "x": -19.96318,
-            "y": 14.8106
+            "x": -16.868887,
+            "y": 13.32954
           },
           "style": {
             "strokeRole": "emphasis",
@@ -236,12 +251,12 @@
           "kind": "polyline",
           "points": [
             {
-              "x": -19.96318,
-              "y": -6.654393
+              "x": -16.868887,
+              "y": -6.401526
             },
             {
               "x": 0.0,
-              "y": -14.973501
+              "y": -13.379732
             },
             {
               "x": 0,
@@ -257,12 +272,12 @@
         {
           "kind": "line",
           "from": {
-            "x": -19.96318,
-            "y": 6.656625
+            "x": -16.868887,
+            "y": 6.403673
           },
           "to": {
-            "x": -8.639893,
-            "y": 11.372762
+            "x": -7.30071,
+            "y": 10.358712
           },
           "style": {
             "strokeRole": "normal",
@@ -274,12 +289,12 @@
           "kind": "polyline",
           "points": [
             {
-              "x": -1.107758,
-              "y": 14.509889
+              "x": -0.936056,
+              "y": 12.990761
             },
             {
               "x": 0.0,
-              "y": 14.971269
+              "y": 13.377859
             },
             {
               "x": 0,
@@ -296,16 +311,16 @@
           "kind": "polygon",
           "points": [
             {
-              "x": -7.852184,
-              "y": 7.121718
+              "x": -6.635095,
+              "y": 6.792086
             },
             {
-              "x": -11.778276,
-              "y": 14.971269
+              "x": -9.952643,
+              "y": 13.377859
             },
             {
               "x": 0.0,
-              "y": 14.971269
+              "y": 13.377859
             }
           ],
           "fill": "foreground",
@@ -346,7 +361,7 @@
     "threshold": 160
   },
   "derivation": {
-    "geometry": "uniformly scaled from Figure 12.6 Q1 native vectors",
+    "geometry": "Figure 12.6 Q1 native vectors with a visual-only BJT/MOS relative-proportion calibration; C/B/E anchors remain unchanged",
     "junctionCleanup": "collector/emitter diagonal and vertical leads are emitted as joined polylines",
     "arrowCleanup": "the emitter centerline is clipped at the native arrow polygon, overlapped 1.2 logical units inside its fill to suppress raster seams, and the arrow is rendered last",
     "arrowCalibration": "shared Figure 12.6 triangle template enlarged 1.18x from direct-PDF arrow ink measurement"

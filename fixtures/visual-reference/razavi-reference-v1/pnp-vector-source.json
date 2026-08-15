@@ -148,6 +148,21 @@
         "targetRole": "emphasis"
       }
     },
+    "relativeProportionCalibration": {
+      "basis": "user-reviewed textbook BJT/MOS coordinate comparison",
+      "referencePixels": {
+        "mosGateBars": [44, 33],
+        "bjtBaseBar": 46,
+        "bjtBranch": { "horizontal": 29, "vertical": 12 }
+      },
+      "visualOnly": true,
+      "pinAnchorsPreserved": true,
+      "scales": {
+        "bodyX": 0.845,
+        "baseBarY": 0.9,
+        "branchY": 0.839
+      }
+    },
     "symbolDefinition": {
       "schemaVersion": 1,
       "id": "pnp",
@@ -207,7 +222,7 @@
             "y": 0
           },
           "to": {
-            "x": -19.96318,
+            "x": -16.868887,
             "y": 0
           },
           "style": {
@@ -219,12 +234,12 @@
         {
           "kind": "line",
           "from": {
-            "x": -19.96318,
-            "y": -14.815063
+            "x": -16.868887,
+            "y": -13.333557
           },
           "to": {
-            "x": -19.96318,
-            "y": 14.823989
+            "x": -16.868887,
+            "y": 13.34159
           },
           "style": {
             "strokeRole": "emphasis",
@@ -236,12 +251,12 @@
           "kind": "polyline",
           "points": [
             {
-              "x": -10.14795,
-              "y": -10.579168
+              "x": -8.575018,
+              "y": -9.694413
             },
             {
               "x": 0.0,
-              "y": -14.973501
+              "y": -13.379732
             },
             {
               "x": 0,
@@ -258,12 +273,12 @@
           "kind": "polyline",
           "points": [
             {
-              "x": -19.96318,
-              "y": 6.654393
+              "x": -16.868887,
+              "y": 6.401526
             },
             {
               "x": 0.0,
-              "y": 14.971269
+              "y": 13.377859
             },
             {
               "x": 0,
@@ -280,16 +295,16 @@
           "kind": "polygon",
           "points": [
             {
-              "x": -12.110996,
-              "y": -14.503944
+              "x": -10.233792,
+              "y": -12.987299
             },
             {
-              "x": -8.184904,
-              "y": -6.654393
+              "x": -6.916244,
+              "y": -6.401526
             },
             {
-              "x": -19.96318,
-              "y": -6.654393
+              "x": -16.868887,
+              "y": -6.401526
             }
           ],
           "fill": "foreground",
@@ -330,7 +345,7 @@
     "threshold": 160
   },
   "derivation": {
-    "geometry": "uniformly scaled from Figure 12.11 Q1 native vectors",
+    "geometry": "Figure 12.11 Q1 native vectors with a visual-only BJT/MOS relative-proportion calibration; C/B/E anchors remain unchanged",
     "junctionCleanup": "collector/emitter diagonal and vertical leads are emitted as joined polylines",
     "arrowCleanup": "PMOS-style support topology: the PNP triangle's true left-pointing tip meets the base bar, with no tip-side centerline and one rear support from the opposite edge to the emitter lead",
     "arrowCalibration": "horizontal mirror of the shared Figure 12.6 triangle template, enlarged 1.18x from direct-PDF arrow ink measurement"

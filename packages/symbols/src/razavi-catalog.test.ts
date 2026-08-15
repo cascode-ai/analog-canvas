@@ -529,19 +529,58 @@ describe("Razavi symbol catalog", () => {
     expect(squaredDistancesFromTip(pnpArrow)).toEqual(
       squaredDistancesFromTip(npnArrow),
     );
-    expect(npnArrow.at(-1)).toEqual({ x: 0, y: 14.971269 });
-    expect(pnpArrow.at(-1)).toEqual({ x: -19.96318, y: -6.654393 });
+    expect(npnArrow.at(-1)).toEqual({ x: 0, y: 13.377859 });
+    expect(pnpArrow.at(-1)).toEqual({ x: -16.868887, y: -6.401526 });
     expect(
       pnp.primitives.some(
         (primitive) =>
           (primitive.kind === "line" &&
-            primitive.from.x === -19.96318 &&
-            primitive.from.y === -6.654393) ||
+            primitive.from.x === -16.868887 &&
+            primitive.from.y === -6.401526) ||
           (primitive.kind === "polyline" &&
-            primitive.points[0]?.x === -19.96318 &&
-            primitive.points[0]?.y === -6.654393),
+            primitive.points[0]?.x === -16.868887 &&
+            primitive.points[0]?.y === -6.401526),
       ),
     ).toBe(false);
+
+    const nmos = requireRazaviCatalogSymbol("nmos");
+    const baseBar = pnp.primitives.find(
+      (primitive) =>
+        primitive.kind === "line" && primitive.style?.strokeRole === "emphasis",
+    );
+    const lowerBranch = pnp.primitives.find(
+      (primitive) =>
+        primitive.kind === "polyline" &&
+        primitive.points[0]?.x === -16.868887 &&
+        primitive.points[0]?.y > 0,
+    );
+    const mosGateBars = nmos.primitives.flatMap((primitive) =>
+      primitive.kind === "polygon" && primitive.part === "gate-bar"
+        ? [primitive]
+        : [],
+    );
+    if (
+      baseBar?.kind !== "line" ||
+      lowerBranch?.kind !== "polyline" ||
+      mosGateBars.length !== 2
+    ) {
+      throw new Error("missing calibrated BJT/MOS geometry");
+    }
+    const mosLongGateBar = Math.max(
+      ...mosGateBars.map((bar) =>
+        Math.abs(bar.points[1]!.y - bar.points[0]!.y),
+      ),
+    );
+    const baseBarLength = Math.abs(baseBar.to.y - baseBar.from.y);
+    const branchHorizontal = Math.abs(
+      lowerBranch.points[1]!.x - lowerBranch.points[0]!.x,
+    );
+    const branchVertical = Math.abs(
+      lowerBranch.points[1]!.y - lowerBranch.points[0]!.y,
+    );
+    expect(baseBarLength / mosLongGateBar).toBeCloseTo(1.067006, 5);
+    expect(branchHorizontal / baseBarLength).toBeCloseTo(0.632382, 5);
+    expect(branchVertical / baseBarLength).toBeCloseTo(0.261529, 5);
 
     const diode = requireRazaviCatalogSymbol("diode");
     expect(diode.primitives).toEqual(
