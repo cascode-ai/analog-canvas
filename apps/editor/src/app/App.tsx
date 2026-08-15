@@ -663,6 +663,7 @@ export function App({ project: initialProject, visitStats }: AppProps) {
     completeVddRailPlacement,
     beginCopyPlacement: beginCopyPlacementInteraction,
     setCopyPreviewPoint,
+    rotateCopyPlacement,
     setWireSource,
     setWirePreviewPoint,
     setWireWaypoints,
@@ -776,7 +777,12 @@ export function App({ project: initialProject, visitStats }: AppProps) {
       y: copyPlacement.previewPoint.y - copyPlacement.anchor.y,
     };
     return buildSvgScene(
-      clipboardPreviewDocument(document, copyPlacement.clipboard, offset),
+      clipboardPreviewDocument(
+        document,
+        copyPlacement.clipboard,
+        offset,
+        copyPlacement.rotation,
+      ),
       resolver,
       { bounds: viewBox },
     );
@@ -1983,6 +1989,12 @@ export function App({ project: initialProject, visitStats }: AppProps) {
   function rotatePendingComponent(delta: 90 | -90): void {
     rotateComponentPlacement(delta);
     setStatus(`Component rotation ${delta > 0 ? "+90°" : "−90°"}`);
+  }
+
+  function rotatePendingCopy(delta: 90 | -90): void {
+    if (!copyPlacement) return;
+    rotateCopyPlacement(delta);
+    setStatus("Place rotated copy · R rotates · Esc cancels");
   }
 
   function loadRoutingDemo(): void {
@@ -5734,7 +5746,7 @@ export function App({ project: initialProject, visitStats }: AppProps) {
     paintSnapGuides([]);
     beginCopyPlacementInteraction(copied, anchor);
     setStatus(
-      `Place copy of ${copied.instances.length} components · Esc cancels`,
+      `Place copy of ${copied.instances.length} components · R rotates · Esc cancels`,
     );
   }
 
@@ -5756,7 +5768,20 @@ export function App({ project: initialProject, visitStats }: AppProps) {
       cancelAllTransientInteraction();
       return;
     }
-    const result = transact(proposal.edits, { preserveInteraction: true });
+    const rotationEdits: SchematicEdit[] =
+      copyPlacement.rotation === 0
+        ? []
+        : proposal.instanceIds.map((instanceId, index) => ({
+            kind: "rotate_instance" as const,
+            instanceId,
+            rotation: (((copyPlacement.clipboard.instances[index]?.placement
+              ?.rotation ?? 0) +
+              copyPlacement.rotation) %
+              360) as 0 | 90 | 180 | 270,
+          }));
+    const result = transact([...proposal.edits, ...rotationEdits], {
+      preserveInteraction: true,
+    });
     if (result.ok) {
       selectOnly("instance", proposal.instanceIds);
       setCopyPreviewPoint(point);
@@ -5908,6 +5933,9 @@ export function App({ project: initialProject, visitStats }: AppProps) {
           return;
         case "rotate-placement":
           rotatePendingComponent(shortcut.deltaDegrees);
+          return;
+        case "rotate-copy-placement":
+          rotatePendingCopy(shortcut.deltaDegrees);
           return;
         case "rotate":
           rotateSelected(shortcut.deltaDegrees);

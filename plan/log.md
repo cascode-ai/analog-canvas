@@ -7010,3 +7010,15 @@ ci:check` (651 unit tests, 104 browser tests, builds and release smoke) all
   tests).
 - Commit status: all six PR #60 GitHub Actions checks passed; squash-merged to
   `main` as `0f45ba5`.
+
+## 2026-08-15 - Align instance labels and rotate copy previews
+
+- Target: make initial and transformed instance labels retain one full grid
+  interval from the visible symbol, and permit `R` before copy placement.
+- Changed areas: derived label clearance/snap policy; transient Copy Placement
+  orientation and shortcut routing; rotated copy preview/commit behavior;
+  editor interaction specification and focused unit/browser regressions.
+- Validation: 30 focused tests, `pnpm typecheck`, `pnpm format:check`, `git
+  diff --check`, and two focused Playwright regressions passed.
+- Commit status: ready to commit on `codex/label-gap-copy-rotate` as
+  `fix(editor): align labels and rotate copy previews`.

@@ -174,16 +174,24 @@ describe("editor interaction state", () => {
       type: "set-copy-preview",
       point: { x: 40, y: 50 },
     });
+    const rotated = interactionReducer(previewing, {
+      type: "rotate-copy",
+      deltaDegrees: 90,
+    });
+    expect(rotated).toMatchObject({
+      kind: "copy-placement",
+      copy: { previewPoint: { x: 40, y: 50 }, rotation: 90 },
+    });
 
     expect(
-      interactionReducer(previewing, {
+      interactionReducer(rotated, {
         type: "begin-copy-placement",
         clipboard: { ids: ["M2"] },
         anchor: { x: 0, y: 0 },
       }),
-    ).toBe(previewing);
+    ).toBe(rotated);
     expect(
-      interactionReducer(previewing, {
+      interactionReducer(rotated, {
         type: "activate-tool",
         tool: "wire",
       }),

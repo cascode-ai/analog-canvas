@@ -168,7 +168,7 @@ export function placeUprightInstanceLabel(
   localSide: InstanceLabelSide,
   grid: number,
   sizeScale = 1,
-  minimumClearance = 1.5,
+  minimumClearance = grid,
 ): InstanceLabelPlacement | null {
   if (!instance.placement) return null;
   const localBounds = visibleSymbolLocalBounds(resolved);
@@ -186,11 +186,13 @@ export function placeUprightInstanceLabel(
   );
   const fontSize = profile.typography.instanceFontSize * sizeScale;
   const snap = (value: number) => Math.round(value / grid) * grid;
+  const snapOutward = (value: number, direction: -1 | 1) =>
+    (direction < 0 ? Math.floor(value / grid) : Math.ceil(value / grid)) * grid;
   switch (worldSide) {
     case "right":
       return {
         position: {
-          x: snap(worldBounds.x + worldBounds.width + clearance),
+          x: snapOutward(worldBounds.x + worldBounds.width + clearance, 1),
           y: snap(semanticPosition.y),
         },
         alignment: "start",
@@ -198,7 +200,7 @@ export function placeUprightInstanceLabel(
     case "left":
       return {
         position: {
-          x: snap(worldBounds.x - clearance),
+          x: snapOutward(worldBounds.x - clearance, -1),
           y: snap(semanticPosition.y),
         },
         alignment: "end",
@@ -207,8 +209,9 @@ export function placeUprightInstanceLabel(
       return {
         position: {
           x: snap(semanticPosition.x),
-          y: snap(
+          y: snapOutward(
             worldBounds.y + worldBounds.height + clearance + fontSize * 1.05,
+            1,
           ),
         },
         alignment: "middle",
@@ -217,7 +220,7 @@ export function placeUprightInstanceLabel(
       return {
         position: {
           x: snap(semanticPosition.x),
-          y: snap(worldBounds.y - clearance - fontSize * 0.3),
+          y: snapOutward(worldBounds.y - clearance - fontSize * 0.3, -1),
         },
         alignment: "middle",
       };
@@ -235,7 +238,10 @@ export function defaultInstanceLabelPlacement(
   const localBounds = visibleSymbolLocalBounds(resolved);
   const middleY = localBounds.y + localBounds.height / 2;
   const middleX = localBounds.x + localBounds.width / 2;
-  const compactSideGap = 1.5;
+  // A label gap is a grid-space rule, not a raw-coordinate optical tweak.
+  // The outward-only snap in placeUprightInstanceLabel preserves this full
+  // grid unit even when a symbol edge is itself not grid-aligned.
+  const compactSideGap = grid;
   const baselineOffset = profile.typography.instanceFontSize * 0.35;
 
   if (instance.symbolId === "port" || instance.symbolId === "port-filled") {

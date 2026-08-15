@@ -125,6 +125,17 @@ describe("schematic clipboard", () => {
       x: 100,
       y: 100,
     });
+
+    const rotatedPreview = clipboardPreviewDocument(
+      document,
+      clipboard!,
+      { x: 40, y: -20 },
+      90,
+    );
+    expect(rotatedPreview.instances[0]?.placement).toMatchObject({
+      position: { x: 140, y: 80 },
+      rotation: 90,
+    });
   });
 
   it("remaps an internal NoConnect to the copied instance", () => {

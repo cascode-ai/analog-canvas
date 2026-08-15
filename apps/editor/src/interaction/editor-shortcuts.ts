@@ -33,6 +33,7 @@ export type EditorShortcutIntent =
   | { kind: "reverse-current-marker" }
   | { kind: "open-component-insert" }
   | { kind: "rotate-placement"; deltaDegrees: 90 | -90 }
+  | { kind: "rotate-copy-placement"; deltaDegrees: 90 | -90 }
   | { kind: "rotate"; deltaDegrees: 90 | -90 }
   | { kind: "activate-tool"; tool: EditorTool }
   | { kind: "add-text" }
@@ -125,6 +126,9 @@ export function resolveEditorShortcut(
     if (plain && key === "r") {
       if (context.interactionMode === "placing-component") {
         return { kind: "rotate-placement", deltaDegrees: 90 };
+      }
+      if (context.interactionMode === "copy-placement") {
+        return { kind: "rotate-copy-placement", deltaDegrees: 90 };
       }
       if (!event.shiftKey) return { kind: "activate-tool", tool: "rectangle" };
     }

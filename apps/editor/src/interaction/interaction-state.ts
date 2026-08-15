@@ -28,6 +28,7 @@ export interface CopyPlacement<TClipboard> {
   clipboard: TClipboard;
   anchor: Point;
   previewPoint: Point | null;
+  rotation: 0 | 90 | 180 | 270;
 }
 
 export type InteractionState<TClipboard = never> =
@@ -78,6 +79,7 @@ export type InteractionAction<TClipboard = never> =
       anchor: Point;
     }
   | { type: "set-copy-preview"; point: Point | null }
+  | { type: "rotate-copy"; deltaDegrees: 90 | -90 }
   | {
       type: "set-wire-source";
       source: WireSource | null;
@@ -213,11 +215,23 @@ export function interactionReducer<TClipboard>(
           clipboard: action.clipboard,
           anchor: action.anchor,
           previewPoint: null,
+          rotation: 0,
         },
       };
     case "set-copy-preview":
       return state.kind === "copy-placement"
         ? { ...state, copy: { ...state.copy, previewPoint: action.point } }
+        : state;
+    case "rotate-copy":
+      return state.kind === "copy-placement"
+        ? {
+            ...state,
+            copy: {
+              ...state.copy,
+              rotation: ((state.copy.rotation + action.deltaDegrees + 360) %
+                360) as 0 | 90 | 180 | 270,
+            },
+          }
         : state;
     case "set-wire-source":
       return state.kind === "wire"
@@ -344,6 +358,8 @@ export function useInteractionState<TClipboard>() {
       dispatch({ type: "begin-copy-placement", clipboard, anchor }),
     setCopyPreviewPoint: (point: Point | null) =>
       dispatch({ type: "set-copy-preview", point }),
+    rotateCopyPlacement: (deltaDegrees: 90 | -90) =>
+      dispatch({ type: "rotate-copy", deltaDegrees }),
     setWireSource: (source: WireSource | null, sourceRevision: number | null) =>
       dispatch({ type: "set-wire-source", source, sourceRevision }),
     setWirePreviewPoint: (point: Point | null) =>

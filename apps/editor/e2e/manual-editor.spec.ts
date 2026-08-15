@@ -1510,6 +1510,33 @@ test("C previews one copy and Escape cancels without a revision", async ({
   );
 });
 
+test("R rotates a copy preview before committing the copied component", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await placeComponent(page, "resistor", { x: 360, y: 220 });
+  await page.getByTestId("hit-R1").click();
+  const canvas = page.getByTestId("schematic-canvas");
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("Canvas is not measurable");
+
+  await page.keyboard.press("c");
+  await page.mouse.move(box.x + 560, box.y + 340);
+  const previewSymbol = page
+    .getByTestId("copy-placement-preview")
+    .locator('[data-object-id="R1"] > g')
+    .first();
+  await expect(previewSymbol).toHaveAttribute("transform", /rotate\(0\)/);
+
+  await page.keyboard.press("r");
+  await expect(previewSymbol).toHaveAttribute("transform", /rotate\(90\)/);
+  await canvas.click({ position: { x: 560, y: 340 } });
+  await expect(
+    canvas.locator('[data-object-id="R1-copy-1"] > g').first(),
+  ).toHaveAttribute("transform", /rotate\(90\)/);
+  await page.keyboard.press("Escape");
+});
+
 test("keeps copy placement active for repeated commits until Escape", async ({
   page,
 }) => {

@@ -16,6 +16,7 @@ an archive. Completed plans with resolved experience are stored under
 ### Completed plans awaiting an experience decision
 
 
+
 - `2026-08-14-current-contract-clean-break`
 - `2026-08-11-correct-closed-switch-pdf-crop`
 - `2026-08-11-correct-common-razavi-assets`

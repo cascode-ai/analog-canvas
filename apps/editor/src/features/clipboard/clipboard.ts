@@ -70,7 +70,9 @@ export function clipboardPreviewDocument(
   base: SchematicDocument,
   clipboard: SchematicClipboard,
   offset: Point,
+  rotation: 0 | 90 | 180 | 270 = 0,
 ): SchematicDocument {
+  const copiedInstanceIds = new Set(clipboard.instances.map(({ id }) => id));
   const annotations = clipboard.annotations.map((annotation) => {
     const preview = structuredClone(annotation);
     if (preview.anchor.kind === "free") {
@@ -80,6 +82,15 @@ export function clipboardPreviewDocument(
         preview.anchor.fallbackPosition,
         offset,
       );
+      if (
+        preview.anchor.kind === "object" &&
+        copiedInstanceIds.has(preview.anchor.objectId)
+      ) {
+        preview.anchor.localOffset = rotateVector(
+          preview.anchor.localOffset,
+          rotation,
+        );
+      }
     }
     return preview;
   });
@@ -91,6 +102,8 @@ export function clipboardPreviewDocument(
         ? {
             ...instance.placement,
             position: movePoint(instance.placement.position, offset),
+            rotation: ((instance.placement.rotation + rotation) % 360) as
+              0 | 90 | 180 | 270,
           }
         : null,
     })),
@@ -198,6 +211,19 @@ function uniqueCopyReference(
 
 function movePoint(point: Point, offset: Point): Point {
   return { x: point.x + offset.x, y: point.y + offset.y };
+}
+
+function rotateVector(point: Point, rotation: 0 | 90 | 180 | 270): Point {
+  switch (rotation) {
+    case 0:
+      return { ...point };
+    case 90:
+      return { x: -point.y, y: point.x };
+    case 180:
+      return { x: -point.x, y: -point.y };
+    case 270:
+      return { x: point.y, y: -point.x };
+  }
 }
 
 function mapEndpoint(

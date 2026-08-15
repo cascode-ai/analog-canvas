@@ -108,6 +108,10 @@ describe("editor shortcut contract", () => {
         hasRotatableSelection: true,
       }),
     ).toEqual({ kind: "rotate-placement", deltaDegrees: 90 });
+    expect(resolve("r", { interactionMode: "copy-placement" })).toEqual({
+      kind: "rotate-copy-placement",
+      deltaDegrees: 90,
+    });
     expect(
       resolve(
         "r",

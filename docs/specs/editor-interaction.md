@@ -62,7 +62,12 @@ observe the first transition even when React batches the next render.
 Activating the same tool is idempotent: repeated C, W, A, K, or selection of the
 same Library item preserves the active session. Activating a different creation
 tool replaces the current interaction atomically after drag and snap cleanup.
-Opening I cancels the current canvas interaction before showing the dialog.
+During Copy Placement, `R` quarter-turns the transient preview and every
+subsequent committed copy; it does not mutate the source selection. Instance
+reference labels occupy at least one full active Document grid interval outside
+the visible symbol edge, with directional outward snapping rather than nearest
+grid rounding. Opening I cancels the current canvas interaction before showing
+the dialog.
 Escape, Document switch, Project replacement, Clear Canvas, restore, and Agent
 focus reset all use the same transient-cancellation boundary.
 
