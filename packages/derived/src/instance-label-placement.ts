@@ -3,7 +3,7 @@ import type { Point, Rect, SchematicDocument } from "@icm/model";
 import type { ResolvedSymbol } from "@icm/symbols";
 
 import type { SchematicStyleProfile } from "./style-profile.js";
-import { visibleSymbolLocalBounds } from "./visual.js";
+import { visibleSymbolInkBounds } from "./visual.js";
 
 export interface InstanceLabelPlacement {
   readonly position: Point;
@@ -119,23 +119,6 @@ export function inferInstanceLabelSide(
   return displacement.y > 0 ? "bottom" : "top";
 }
 
-function sideClearance(
-  localAnchor: Point,
-  localBounds: Rect,
-  side: InstanceLabelSide,
-): number {
-  switch (side) {
-    case "left":
-      return localBounds.x - localAnchor.x;
-    case "right":
-      return localAnchor.x - (localBounds.x + localBounds.width);
-    case "top":
-      return localBounds.y - localAnchor.y;
-    case "bottom":
-      return localAnchor.y - (localBounds.y + localBounds.height);
-  }
-}
-
 function transformedSide(
   side: InstanceLabelSide,
   instance: SchematicDocument["instances"][number],
@@ -157,8 +140,12 @@ function transformedSide(
 
 /**
  * Places horizontal SVG text around the active symbol variant. Vertical sides
- * convert the internal clearance point to the upright glyph baseline before
- * returning it, so persisted object anchors have one visible position.
+ * convert one grid interval from the drawn edge to the upright glyph baseline
+ * before returning it. Coordinates are then snapped once to the active grid.
+ * Critically, this is nearest-grid snapping rather than outward snapping:
+ * the 1-unit padded interaction envelope is excluded from the calculation, so
+ * a label never gains a second grid cell merely because a symbol edge uses
+ * finite calibrated coordinates.
  */
 export function placeUprightInstanceLabel(
   instance: SchematicDocument["instances"][number],
@@ -168,10 +155,9 @@ export function placeUprightInstanceLabel(
   localSide: InstanceLabelSide,
   grid: number,
   sizeScale = 1,
-  minimumClearance = grid,
 ): InstanceLabelPlacement | null {
   if (!instance.placement) return null;
-  const localBounds = visibleSymbolLocalBounds(resolved);
+  const localBounds = visibleSymbolInkBounds(resolved);
   const worldBounds = transformedBounds(localBounds, instance);
   const worldSide = transformedSide(localSide, instance);
   if (!worldBounds || !worldSide) return null;
@@ -180,19 +166,18 @@ export function placeUprightInstanceLabel(
     instance.placement.position,
     instance.placement,
   );
-  const clearance = Math.max(
-    minimumClearance,
-    sideClearance(localAnchor, localBounds, localSide),
-  );
+  // `localAnchor` carries the preferred cross-axis position and semantic
+  // side. Its previous distance from the edge is not a visual constraint:
+  // retaining a reconstructed, snapped distance was the source of one-grid
+  // outward drift on each repeated quarter turn.
+  const clearance = grid;
   const fontSize = profile.typography.instanceFontSize * sizeScale;
   const snap = (value: number) => Math.round(value / grid) * grid;
-  const snapOutward = (value: number, direction: -1 | 1) =>
-    (direction < 0 ? Math.floor(value / grid) : Math.ceil(value / grid)) * grid;
   switch (worldSide) {
     case "right":
       return {
         position: {
-          x: snapOutward(worldBounds.x + worldBounds.width + clearance, 1),
+          x: snap(worldBounds.x + worldBounds.width + clearance),
           y: snap(semanticPosition.y),
         },
         alignment: "start",
@@ -200,7 +185,7 @@ export function placeUprightInstanceLabel(
     case "left":
       return {
         position: {
-          x: snapOutward(worldBounds.x - clearance, -1),
+          x: snap(worldBounds.x - clearance),
           y: snap(semanticPosition.y),
         },
         alignment: "end",
@@ -209,9 +194,8 @@ export function placeUprightInstanceLabel(
       return {
         position: {
           x: snap(semanticPosition.x),
-          y: snapOutward(
+          y: snap(
             worldBounds.y + worldBounds.height + clearance + fontSize * 1.05,
-            1,
           ),
         },
         alignment: "middle",
@@ -220,7 +204,7 @@ export function placeUprightInstanceLabel(
       return {
         position: {
           x: snap(semanticPosition.x),
-          y: snapOutward(worldBounds.y - clearance - fontSize * 0.3, -1),
+          y: snap(worldBounds.y - clearance - fontSize * 0.3),
         },
         alignment: "middle",
       };
@@ -235,12 +219,11 @@ export function defaultInstanceLabelPlacement(
   grid: number,
 ): InstanceLabelPlacement | null {
   if (!instance.placement) return null;
-  const localBounds = visibleSymbolLocalBounds(resolved);
+  const localBounds = visibleSymbolInkBounds(resolved);
   const middleY = localBounds.y + localBounds.height / 2;
   const middleX = localBounds.x + localBounds.width / 2;
-  // A label gap is a grid-space rule, not a raw-coordinate optical tweak.
-  // The outward-only snap in placeUprightInstanceLabel preserves this full
-  // grid unit even when a symbol edge is itself not grid-aligned.
+  // A label gap is a grid-space visual rule, measured from drawn ink rather
+  // than the padded hit envelope.
   const compactSideGap = grid;
   const baselineOffset = profile.typography.instanceFontSize * 0.35;
 

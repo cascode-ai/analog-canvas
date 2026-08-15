@@ -9,7 +9,7 @@ an archive. Completed plans with resolved experience are stored under
 | State                     | Count | Required disposition                                                              |
 | ------------------------- | ----: | --------------------------------------------------------------------------------- |
 | `active`                  |     0 | No active targets.                                                                |
-| `completed` + `none`      |    33 | Verify commit/log evidence, then archive according to routine retention policy.   |
+| `completed` + `none`      |    34 | Verify commit/log evidence, then archive according to routine retention policy.   |
 | `completed` + `candidate` |    17 | Human decides whether to extract, reject, or defer the experience signal.         |
 | missing metadata          |    71 | Audit against outcome text and Git evidence; never archive merely because of age. |
 
@@ -43,6 +43,12 @@ entries reconstruct the full record. The formerly active plans had completed
 Outcomes and corresponding implementation commits; the legacy WP-A1 proposal
 was confirmed as completed from its A1a/A1b/schema-gate log evidence; and the
 superseded VDD plan's drawn-rail replacement is already archived.
+
+## 2026-08-15 Label-placement closure
+
+`2026-08-15-fix-label-gap-rotation` is completed with resolved experience.
+It remains in the root queue until its delivered commit, factual log entry, and
+remote merge evidence are all present.
 
 ## Legacy Metadata Sweep
 

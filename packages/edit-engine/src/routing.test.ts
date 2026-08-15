@@ -901,7 +901,7 @@ describe("routing Edit Engine", () => {
         localOffset: { x: 20, y: -40 },
         fallbackPosition: { x: 180, y: 280 },
       },
-      alignment: "start",
+      alignment: "middle",
       rotation: 0,
     });
 
@@ -934,7 +934,7 @@ describe("routing Edit Engine", () => {
         localOffset: { x: 20, y: 40 },
         fallbackPosition: { x: 180, y: 360 },
       },
-      alignment: "start",
+      alignment: "middle",
       rotation: 0,
     });
     expect(mirrored.diff.changedObjectIds).toEqual(
@@ -943,7 +943,7 @@ describe("routing Edit Engine", () => {
   });
 
   it.each(["nmos", "pmos"])(
-    "preserves a materialized %s label side through a full rotation",
+    "preserves a manually positioned %s label vector through a full rotation",
     (symbolId) => {
       const document = documentFixture();
       document.instances.push({
@@ -959,8 +959,9 @@ describe("routing Edit Engine", () => {
         },
         properties: {},
       });
-      // This is the canonical Razavi MOS label materialized by the editor when
-      // the user edits or explicitly moves the otherwise renderer-owned label.
+      // This deliberately differs from the canonical default and represents a
+      // label explicitly moved by the user. Its coordinates are still on the
+      // Document grid, as all persisted anchors must be.
       document.annotations.push({
         id: "instance-label-M1",
         kind: "instance-label",
@@ -968,8 +969,8 @@ describe("routing Edit Engine", () => {
         anchor: {
           kind: "object",
           objectId: "M1",
-          localOffset: { x: 16, y: 8 },
-          fallbackPosition: { x: 116, y: 108 },
+          localOffset: { x: 40, y: 20 },
+          fallbackPosition: { x: 140, y: 120 },
         },
         alignment: "start",
         rotation: 0,
@@ -979,26 +980,26 @@ describe("routing Edit Engine", () => {
       const expected = [
         {
           rotation: 90 as const,
-          position: { x: 90, y: 140 },
-          offset: { x: -10, y: 40 },
-          alignment: "middle" as const,
+          position: { x: 80, y: 140 },
+          offset: { x: -20, y: 40 },
+          alignment: "start" as const,
         },
         {
           rotation: 180 as const,
-          position: { x: 70, y: 90 },
-          offset: { x: -30, y: -10 },
-          alignment: "end" as const,
+          position: { x: 60, y: 80 },
+          offset: { x: -40, y: -20 },
+          alignment: "start" as const,
         },
         {
           rotation: 270 as const,
-          position: { x: 110, y: 60 },
-          offset: { x: 10, y: -40 },
-          alignment: "middle" as const,
+          position: { x: 120, y: 60 },
+          offset: { x: 20, y: -40 },
+          alignment: "start" as const,
         },
         {
           rotation: 0 as const,
-          position: { x: 140, y: 110 },
-          offset: { x: 40, y: 10 },
+          position: { x: 140, y: 120 },
+          offset: { x: 40, y: 20 },
           alignment: "start" as const,
         },
       ];

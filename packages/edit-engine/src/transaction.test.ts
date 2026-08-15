@@ -699,6 +699,72 @@ describe("Edit Transaction envelope", () => {
     );
   });
 
+  it("returns a canonical instance label to its initial position after four quarter turns", () => {
+    let document = createEmptyDocument("document-main", "Stable label");
+    const instance = {
+      id: "M1",
+      symbolId: "nmos",
+      placement: {
+        position: { x: 100, y: 100 },
+        rotation: 0 as const,
+        mirror: "none" as const,
+      },
+      properties: {},
+    };
+    document.instances.push(instance);
+    const resolved = resolver.resolve("nmos", "textbook-3terminal");
+    if (!resolved) throw new Error("missing nmos");
+    const initial = defaultInstanceLabelPlacement(
+      instance,
+      resolved,
+      resolveSchematicStyleProfile(document.presentation.styleProfileId),
+      document.presentation.grid,
+    );
+    if (!initial) throw new Error("missing default label placement");
+    document.annotations.push({
+      id: "instance-label-M1",
+      kind: "instance-label",
+      content: { runs: [{ kind: "text", value: "M1" }] },
+      anchor: {
+        kind: "object",
+        objectId: "M1",
+        localOffset: {
+          x: initial.position.x - instance.placement.position.x,
+          y: initial.position.y - instance.placement.position.y,
+        },
+        fallbackPosition: initial.position,
+      },
+      alignment: initial.alignment,
+      rotation: 0,
+      locked: false,
+    });
+
+    for (const rotation of [90, 180, 270, 0] as const) {
+      const result = executeTransaction(
+        document,
+        {
+          ...transaction(document.revision),
+          edits: [{ kind: "rotate_instance", instanceId: "M1", rotation }],
+        },
+        { symbolResolver: resolver },
+      );
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      document = result.document;
+    }
+
+    const label = document.annotations[0]!;
+    if (label.anchor.kind !== "object") {
+      throw new Error("Canonical instance label must keep an object anchor");
+    }
+    expect(label.anchor.localOffset).toEqual({
+      x: initial.position.x - instance.placement.position.x,
+      y: initial.position.y - instance.placement.position.y,
+    });
+    expect(label.anchor.fallbackPosition).toEqual(initial.position);
+    expect(label.alignment).toBe(initial.alignment);
+  });
+
   it("rejects a multi-edit transaction atomically after a later precondition failure", () => {
     const document = documentWithInstance();
     const before = JSON.stringify(document);

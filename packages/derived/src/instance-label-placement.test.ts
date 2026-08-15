@@ -8,7 +8,7 @@ import {
   isMosSymbol,
 } from "./instance-label-placement.js";
 import { resolveSchematicStyleProfile } from "./style-profile.js";
-import { visibleSymbolLocalBounds } from "./visual.js";
+import { visibleSymbolInkBounds } from "./visual.js";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 const profile = resolveSchematicStyleProfile("razavi-textbook-v1");
@@ -74,9 +74,9 @@ describe("instance label placement", () => {
           y: expect.any(Number),
         },
       });
-      const localBounds = visibleSymbolLocalBounds(resolved);
+      const localBounds = visibleSymbolInkBounds(resolved);
       expect(label!.position.x).toBe(
-        Math.ceil(
+        Math.round(
           (instance.placement.position.x +
             localBounds.x +
             localBounds.width +
@@ -112,27 +112,27 @@ describe("instance label placement", () => {
       alignment: "start",
     });
     expect(placedDefaultLabel("voltage-source")).toMatchObject({
-      position: { x: 130, y: 110 },
+      position: { x: 120, y: 110 },
       alignment: "start",
     });
     expect(placedDefaultLabel("capacitor", 90)).toMatchObject({
-      position: { x: 90, y: 140 },
+      position: { x: 90, y: 130 },
       alignment: "middle",
     });
     expect(placedDefaultLabel("port")).toMatchObject({
-      position: { x: 70, y: 110 },
+      position: { x: 80, y: 110 },
       alignment: "end",
     });
   });
 
   it("uses visible MOS edges through variants, rotations, and mirrors", () => {
     expect(placedDefaultLabel("nmos")).toMatchObject({
-      position: { x: 130, y: 110 },
+      position: { x: 120, y: 110 },
       alignment: "start",
     });
     expect(
       placedDefaultLabel("nmos", 0, "none", "textbook-3terminal"),
-    ).toMatchObject({ position: { x: 130, y: 110 }, alignment: "start" });
+    ).toMatchObject({ position: { x: 120, y: 110 }, alignment: "start" });
     expect(
       placedDefaultLabel("nmos", 90, "none", "textbook-3terminal"),
     ).toMatchObject({
@@ -146,7 +146,7 @@ describe("instance label placement", () => {
       alignment: "middle",
     });
     expect(placedDefaultLabel("nmos", 0, "x")).toMatchObject({
-      position: { x: 70, y: 110 },
+      position: { x: 80, y: 110 },
       alignment: "end",
     });
   });

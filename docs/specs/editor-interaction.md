@@ -64,10 +64,13 @@ same Library item preserves the active session. Activating a different creation
 tool replaces the current interaction atomically after drag and snap cleanup.
 During Copy Placement, `R` quarter-turns the transient preview and every
 subsequent committed copy; it does not mutate the source selection. Instance
-reference labels occupy at least one full active Document grid interval outside
-the visible symbol edge, with directional outward snapping rather than nearest
-grid rounding. Opening I cancels the current canvas interaction before showing
-the dialog.
+reference labels use the first active Document grid line one interval beyond
+the drawn symbol ink. The padded interaction envelope never contributes to
+that clearance, and placement uses nearest-grid normalization for calibrated
+finite-decimal ink edges rather than directional outward snapping. A quarter
+turn reflows a canonical label from its local side at that fixed spacing; four
+quarter turns return its position and alignment to the initial values. Opening
+I cancels the current canvas interaction before showing the dialog.
 Escape, Document switch, Project replacement, Clear Canvas, restore, and Agent
 focus reset all use the same transient-cancellation boundary.
 

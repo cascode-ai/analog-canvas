@@ -36,6 +36,7 @@ import type {
 } from "@icm/model";
 import {
   buildOrthogonalEscapeRoute,
+  defaultInstanceLabelPlacement,
   endpointKey,
   endpointBelongsToNet,
   inferInstanceLabelSide,
@@ -48,7 +49,7 @@ import {
   resolveMosBulkConnection,
   resolveSchematicStyleProfile,
   routePolyline,
-  visibleSymbolLocalBounds,
+  visibleSymbolInkBounds,
 } from "@icm/derived";
 import type { SymbolResolver } from "@icm/symbols";
 import { z } from "zod";
@@ -1555,90 +1556,44 @@ function translateObjectAnchoredAnnotation(
 }
 
 /**
- * Object anchors persist the *visible* upright-label baseline. Before a later
- * rotation we recover the side-clearance point used by the label placer.
- * That keeps the baseline correction from being treated as authored geometry
- * on the next 90-degree turn.
+ * A reference label is renderer-managed only while it exactly agrees with the
+ * current canonical default. A user-moved label remains an authored
+ * object-relative vector and must not be pulled back onto the automatic side
+ * when its instance is rotated or mirrored.
  */
-function instanceLabelSemanticAnchor(
+function isCanonicalInstanceLabel(
+  annotation: Annotation,
   instance: SchematicDocument["instances"][number],
   resolved: NonNullable<ReturnType<SymbolResolver["resolve"]>>,
-  profile: ReturnType<typeof resolveSchematicStyleProfile>,
-  visiblePosition: Point,
-): Point {
-  const placement = instance.placement;
-  if (!placement) return visiblePosition;
-  const localBounds = visibleSymbolLocalBounds(resolved);
-  const corners = [
-    { x: localBounds.x, y: localBounds.y },
-    { x: localBounds.x + localBounds.width, y: localBounds.y },
-    {
-      x: localBounds.x + localBounds.width,
-      y: localBounds.y + localBounds.height,
-    },
-    { x: localBounds.x, y: localBounds.y + localBounds.height },
-  ].map((point) => transformPoint(point, placement.position, placement));
-  const left = Math.min(...corners.map((point) => point.x));
-  const right = Math.max(...corners.map((point) => point.x));
-  const top = Math.min(...corners.map((point) => point.y));
-  const bottom = Math.max(...corners.map((point) => point.y));
-  const candidates = [
-    { side: "left" as const, distance: left - visiblePosition.x },
-    { side: "right" as const, distance: visiblePosition.x - right },
-    { side: "top" as const, distance: top - visiblePosition.y },
-    { side: "bottom" as const, distance: visiblePosition.y - bottom },
-  ].filter((candidate) => candidate.distance > 0);
-  const side = candidates.sort(
-    (first, second) => second.distance - first.distance,
-  )[0]?.side;
-  if (!side) return visiblePosition;
-  const clearance =
-    side === "left"
-      ? left - visiblePosition.x
-      : side === "right"
-        ? visiblePosition.x - right
-        : side === "top"
-          ? top -
-            visiblePosition.y -
-            Math.round(profile.typography.instanceFontSize * 0.3)
-          : visiblePosition.y -
-            bottom -
-            Math.round(profile.typography.instanceFontSize * 1.05);
-  const baselineCorrected = {
-    x: visiblePosition.x,
-    y:
-      side === "bottom"
-        ? visiblePosition.y -
-          Math.round(profile.typography.instanceFontSize * 1.05)
-        : side === "top"
-          ? visiblePosition.y +
-            Math.round(profile.typography.instanceFontSize * 0.3)
-          : visiblePosition.y,
+  document: SchematicDocument,
+  oldPosition: Point,
+  oldOrientation: Orientation,
+): boolean {
+  if (
+    annotation.kind !== "instance-label" ||
+    annotation.anchor.kind !== "object"
+  ) {
+    return false;
+  }
+  const placement = { position: oldPosition, ...oldOrientation };
+  const expected = defaultInstanceLabelPlacement(
+    { ...instance, placement },
+    resolved,
+    resolveSchematicStyleProfile(document.presentation.styleProfileId),
+    document.presentation.grid,
+  );
+  if (!expected) return false;
+  const visiblePosition = {
+    x: oldPosition.x + annotation.anchor.localOffset.x,
+    y: oldPosition.y + annotation.anchor.localOffset.y,
   };
-  const local = inverseTransformPoint(
-    baselineCorrected,
-    placement.position,
-    placement,
+  return (
+    annotation.alignment === expected.alignment &&
+    visiblePosition.x === expected.position.x &&
+    visiblePosition.y === expected.position.y &&
+    annotation.anchor.fallbackPosition.x === expected.position.x &&
+    annotation.anchor.fallbackPosition.y === expected.position.y
   );
-  const worldDirection =
-    side === "left"
-      ? { x: -1, y: 0 }
-      : side === "right"
-        ? { x: 1, y: 0 }
-        : side === "top"
-          ? { x: 0, y: -1 }
-          : { x: 0, y: 1 };
-  const localDirection = inverseTransformPoint(
-    worldDirection,
-    { x: 0, y: 0 },
-    placement,
-  );
-  if (localDirection.x < 0) local.x = localBounds.x - clearance;
-  else if (localDirection.x > 0)
-    local.x = localBounds.x + localBounds.width + clearance;
-  else if (localDirection.y < 0) local.y = localBounds.y - clearance;
-  else local.y = localBounds.y + localBounds.height + clearance;
-  return transformPoint(local, placement.position, placement);
 }
 
 function followAttachedAnnotations(
@@ -1708,23 +1663,8 @@ function followAttachedAnnotations(
       x: oldPosition.x + annotation.anchor.localOffset.x,
       y: oldPosition.y + annotation.anchor.localOffset.y,
     };
-    const hasCanonicalVisibleOffset =
-      annotation.anchor.fallbackPosition.x === visiblePosition.x &&
-      annotation.anchor.fallbackPosition.y === visiblePosition.y;
-    const semanticAnchor =
-      annotation.kind === "instance-label" &&
-      instance &&
-      resolved &&
-      hasCanonicalVisibleOffset
-        ? instanceLabelSemanticAnchor(
-            instance,
-            resolved,
-            resolveSchematicStyleProfile(draft.presentation.styleProfileId),
-            visiblePosition,
-          )
-        : visiblePosition;
     const local = inverseTransformPoint(
-      semanticAnchor,
+      visiblePosition,
       oldPosition,
       oldOrientation,
     );
@@ -1735,10 +1675,22 @@ function followAttachedAnnotations(
     );
     let position = transformedAnchor;
     let transformedAlignment: "start" | "middle" | "end" | null = null;
-    if (annotation.kind === "instance-label" && instance && resolved) {
+    if (
+      annotation.kind === "instance-label" &&
+      instance &&
+      resolved &&
+      isCanonicalInstanceLabel(
+        annotation,
+        instance,
+        resolved,
+        draft,
+        oldPosition,
+        oldOrientation,
+      )
+    ) {
       const localSide = inferInstanceLabelSide(
         local,
-        visibleSymbolLocalBounds(resolved),
+        visibleSymbolInkBounds(resolved),
       );
       if (localSide) {
         try {
@@ -1763,23 +1715,19 @@ function followAttachedAnnotations(
     }
     annotation.anchor = {
       ...annotation.anchor,
-      localOffset: snapPointToDocumentGrid(
-        {
-          // Object anchors resolve localOffset directly in world space. Persist
-          // the upright glyph baseline, not its pre-baseline semantic point.
-          x: position.x - newPosition.x,
-          y: position.y - newPosition.y,
-        },
-        draft.presentation.grid,
-      ),
-      fallbackPosition: snapPointToDocumentGrid(
-        position,
-        draft.presentation.grid,
-      ),
+      // Object anchors resolve localOffset directly in world space. Persist
+      // the reflowed upright glyph baseline without a second grid snap. The
+      // label placer already performed the one authoritative grid snap;
+      // re-snapping a recovered anchor is what previously accumulated drift.
+      localOffset: {
+        x: position.x - newPosition.x,
+        y: position.y - newPosition.y,
+      },
+      fallbackPosition: position,
     };
     if (annotation.kind === "instance-label") {
       annotation.rotation = 0;
-      annotation.alignment = transformedAlignment ?? "middle";
+      annotation.alignment = transformedAlignment ?? annotation.alignment;
     } else {
       const oldDirection = directionForRotation(annotation.rotation);
       const localDirection = inverseTransformPoint(

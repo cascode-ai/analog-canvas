@@ -203,7 +203,14 @@ function primitivePoints(primitive: SymbolPrimitive): Point[] | null {
   }
 }
 
-export function visibleSymbolLocalBounds(resolved: ResolvedSymbol): Rect {
+/**
+ * Tight bounds of the symbol geometry actually drawn on the canvas.
+ *
+ * This deliberately excludes interaction tolerance. Use it for visual
+ * relationships such as label clearance; callers that need a forgiving hit or
+ * diagnostic envelope must use `visibleSymbolLocalBounds` below.
+ */
+export function visibleSymbolInkBounds(resolved: ResolvedSymbol): Rect {
   const hiddenParts = new Set(resolved.variant?.hiddenPrimitiveParts ?? []);
   const hiddenPins = new Set(resolved.variant?.hiddenPinNames ?? []);
   const primitives = [
@@ -221,12 +228,27 @@ export function visibleSymbolLocalBounds(resolved: ResolvedSymbol): Rect {
       .map((pin) => pin.at),
   ];
   if (points.length === 0) return resolved.definition.viewBox;
-  const padding = 1;
-  const x = Math.min(...points.map((point) => point.x)) - padding;
-  const y = Math.min(...points.map((point) => point.y)) - padding;
-  const right = Math.max(...points.map((point) => point.x)) + padding;
-  const bottom = Math.max(...points.map((point) => point.y)) + padding;
+  const x = Math.min(...points.map((point) => point.x));
+  const y = Math.min(...points.map((point) => point.y));
+  const right = Math.max(...points.map((point) => point.x));
+  const bottom = Math.max(...points.map((point) => point.y));
   return { x, y, width: right - x, height: bottom - y };
+}
+
+/**
+ * Forgiving envelope used for pointer interaction and visual diagnostics.
+ * It must not be used to position visible text: doing so turns its padding
+ * into an unintended extra label gap when the result is snapped to the grid.
+ */
+export function visibleSymbolLocalBounds(resolved: ResolvedSymbol): Rect {
+  const ink = visibleSymbolInkBounds(resolved);
+  const padding = 1;
+  return {
+    x: ink.x - padding,
+    y: ink.y - padding,
+    width: ink.width + padding * 2,
+    height: ink.height + padding * 2,
+  };
 }
 
 function pointOnSegment(point: Point, from: Point, to: Point): boolean {
