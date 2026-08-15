@@ -7354,3 +7354,13 @@ diff --check`, and two focused Playwright regressions passed.
   `git diff --check` passed.
 - Commit status: committed on `codex/unified-move-plan` as
   `refactor(editor): unify topology-aware movement`.
+
+# 2026-08-15 - Protect Junction route geometry
+
+- Target: reject a raw Junction move before it can leave an incident Route's
+  waypoint geometry stale.
+- Changed areas: transaction precondition and routing regression coverage.
+- Validation: 40 focused Edit Engine tests, workspace typecheck, Prettier, and
+  `git diff --check` passed.
+- Commit status: committed on `codex/unified-move-plan` as
+  `fix(edit-engine): require geometry with junction moves`.

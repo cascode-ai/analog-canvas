@@ -2762,6 +2762,24 @@ export function executeTransaction(
             `Junction does not exist: ${edit.junctionId}`,
           );
         }
+        const incidentRoutes = draft.routes.filter(
+          (route) =>
+            (route.from.kind === "junction" &&
+              route.from.junctionId === junction.id) ||
+            (route.to.kind === "junction" &&
+              route.to.junctionId === junction.id),
+        );
+        const routeWithoutGeometry = incidentRoutes.find(
+          (route) => !explicitlyAuthoredRouteIds.has(route.id),
+        );
+        if (routeWithoutGeometry) {
+          return rejectAt(
+            "EDIT_PRECONDITION",
+            `Moving Junction ${junction.id} requires explicit geometry for incident Route ${routeWithoutGeometry.id}`,
+            [],
+            [junction.id, routeWithoutGeometry.id],
+          );
+        }
         const protectedRoute = draft.routes.find(
           (route) =>
             ((route.from.kind === "junction" &&
