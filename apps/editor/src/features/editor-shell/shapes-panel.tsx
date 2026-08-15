@@ -11,15 +11,17 @@ import {
 const COMPACT_LIBRARY_LABELS: Readonly<Record<string, string>> = {
   capacitor: "Cap",
   "closed-switch": "Closed",
-  "current-source": "I Source",
+  "current-source": "I Src",
   "ideal-switch": "Open",
   inductor: "Ind",
   npn: "NPN",
-  opamp: "Op Amp",
+  opamp: "OpAmp",
   pnp: "PNP",
+  "port-filled": "Filled",
   resistor: "Res",
+  vdd: "VDD",
   "voltage-amplifier": "V Amp",
-  "voltage-source": "V Source",
+  "voltage-source": "V Src",
 };
 
 function libraryLabel(symbolId: string, symbolName: string): string {

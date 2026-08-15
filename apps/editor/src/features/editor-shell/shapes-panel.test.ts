@@ -63,7 +63,7 @@ describe("shapes quick-place", () => {
     expect(markup.match(/class="shapes-category" open=""/g)).toHaveLength(6);
     expect(markup.match(/class="shapes-category-header"/g)).toHaveLength(6);
     expect(markup).toContain('aria-label="Place Independent Voltage Source"');
-    expect(markup).toContain(">V Source</span>");
+    expect(markup).toContain(">V Src</span>");
     expect(markup).toContain(">Cap</span>");
   });
 

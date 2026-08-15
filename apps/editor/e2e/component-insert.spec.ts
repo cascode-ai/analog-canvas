@@ -519,6 +519,7 @@ test("shows the complete foldable categorized Library, quick-places a device, an
           artworkBounds.height / 2 -
           (tileBounds.top + tileBounds.height / 2),
         height: artworkBounds.height,
+        labelHeight: labelBounds.height,
         separatedFromLabel: artworkBounds.bottom <= labelBounds.top + 0.5,
         tileHeight: tileBounds.height,
         withinTile:
@@ -545,9 +546,12 @@ test("shows the complete foldable categorized Library, quick-places a device, an
   ).toBe(true);
   expect(
     artworkGeometry.every(
-      (artwork) => Math.abs(artwork.tileHeight - 86) <= 0.5,
+      (artwork) => Math.abs(artwork.tileHeight - 66) <= 0.5,
     ),
   ).toBe(true);
+  expect(artworkGeometry.every((artwork) => artwork.labelHeight <= 12.5)).toBe(
+    true,
+  );
   expect(artworkGeometry.every((artwork) => artwork.separatedFromLabel)).toBe(
     true,
   );
@@ -667,6 +671,10 @@ test("keeps a usable canvas while toggling Library at the narrow breakpoint", as
             artworkBounds.height / 2 -
             (tileBounds.top + tileBounds.height / 2),
           height: artworkBounds.height,
+          labelFits:
+            label.scrollWidth <= label.clientWidth + 1 &&
+            label.scrollHeight <= label.clientHeight + 1,
+          labelHeight: labelBounds.height,
           separatedFromLabel: artworkBounds.bottom <= labelBounds.top + 0.5,
           tileHeight: tileBounds.height,
           withinTile:
@@ -691,8 +699,12 @@ test("keeps a usable canvas while toggling Library at the narrow breakpoint", as
     narrowArtwork.every((artwork) => Math.abs(artwork.centerDeltaY) <= 0.5),
   ).toBe(true);
   expect(
-    narrowArtwork.every((artwork) => Math.abs(artwork.tileHeight - 94) <= 0.5),
+    narrowArtwork.every((artwork) => Math.abs(artwork.tileHeight - 74) <= 0.5),
   ).toBe(true);
+  expect(narrowArtwork.every((artwork) => artwork.labelFits)).toBe(true);
+  expect(narrowArtwork.every((artwork) => artwork.labelHeight <= 12.5)).toBe(
+    true,
+  );
   expect(narrowArtwork.every((artwork) => artwork.separatedFromLabel)).toBe(
     true,
   );
