@@ -87,6 +87,37 @@ describe("renderRichTextDocument", () => {
     expect(svg).toContain('dx="0.046em"');
   });
 
+  it("keeps a script upright when it occurs inside bold italic text", () => {
+    const svg = renderRichTextDocument(
+      {
+        runs: [
+          {
+            kind: "span",
+            style: "italic",
+            children: [
+              {
+                kind: "span",
+                style: "bold",
+                children: [
+                  { kind: "text", value: "V" },
+                  {
+                    kind: "span",
+                    style: "subscript",
+                    children: [{ kind: "text", value: "out" }],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+      razaviTextbookProfile,
+    );
+    expect(svg).toContain(
+      'data-text-run="subscript" dx="0.046em" font-size="76%" baseline-shift="-0.28em" style="font-style:normal;font-weight:700">out</tspan>',
+    );
+  });
+
   it("renders a line break", () => {
     const svg = renderRichTextDocument(
       {

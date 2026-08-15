@@ -59,6 +59,7 @@ import type {
 } from "@icm/derived";
 import {
   createEmptyProject,
+  defaultDraftTextDocument,
   flattenRichText,
   powerNetNormalizations,
   snapGridPoint,
@@ -4397,7 +4398,7 @@ export function App({ project: initialProject, visitStats }: AppProps) {
       locked: false,
       zIndex: 0,
       anchor: { kind: "free", position },
-      content: { runs: [{ kind: "text", value: "Design note" }] },
+      content: defaultDraftTextDocument("Design note"),
       alignment: "middle",
       rotation: 0,
       typographyToken: "label",

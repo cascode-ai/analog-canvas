@@ -85,5 +85,9 @@ function renderSpan(
       : typography.subscriptBaselineShiftEm;
   const dx =
     node.style === "subscript" ? typography.subscriptHorizontalGapEm : 0;
-  return `<tspan data-text-run="${node.style}" dx="${dx}em" font-size="${percent}%" baseline-shift="${shift}em" style="${styleAttribute(ctx)}">${renderRuns(node.children, ctx)}</tspan>`;
+  // Scripts in the Razavi profile are upright by default. They retain the
+  // surrounding weight so a bold math base has a bold upright subscript; an
+  // explicit nested italic span remains an intentional user override.
+  const scriptCtx: RenderContext = { ...ctx, italic: false };
+  return `<tspan data-text-run="${node.style}" dx="${dx}em" font-size="${percent}%" baseline-shift="${shift}em" style="${styleAttribute(scriptCtx)}">${renderRuns(node.children, scriptCtx)}</tspan>`;
 }

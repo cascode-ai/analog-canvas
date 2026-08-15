@@ -6997,3 +6997,16 @@ ci:check` (651 unit tests, 104 browser tests, builds and release smoke) all
   Prettier, and `git diff --check` passed.
 - Commit status: PR #57 merged to `main` as `16ad036` after all required
   GitHub Actions checks passed.
+
+## 2026-08-15 - Default drafting text to Razavi typography
+
+- Target: make `T`-created free text begin with the same bold-italic main and
+  bold-upright subscript composition as existing Razavi annotations.
+- Changed areas: semantic text factory, drafting-text creation, and RichText
+  script rendering with focused regression tests.
+- Validation: 20 focused model/renderer/editor tests, stale power-label
+  contract regression, and clean-tree `pnpm ci:check` all passed (static,
+  726 unit/integration tests, workspace build/release smoke, 121 browser
+  tests).
+- Commit status: committed on `codex/default-text-razavi-style`; remote CI and
+  merge remain pending.

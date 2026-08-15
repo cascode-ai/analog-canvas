@@ -28,6 +28,24 @@ function mathSubscript(value: string): RichTextRun {
   return span([span([{ kind: "text", value }], "bold")], "subscript");
 }
 
+/** Construct the initial Razavi-style RichText for a free drafting label. */
+export function defaultDraftTextDocument(value: string): RichTextDocument {
+  if (value.length === 0) return { runs: [{ kind: "line-break" }] };
+  if (/[\\{}^]/u.test(value)) return { runs: [{ kind: "text", value }] };
+
+  const underscore = value.indexOf("_");
+  if (underscore > 0 && underscore < value.length - 1) {
+    return {
+      runs: [
+        mathBase(value.slice(0, underscore)),
+        mathSubscript(value.slice(underscore + 1)),
+      ],
+    };
+  }
+
+  return { runs: [mathBase(value)] };
+}
+
 /** Construct current-authoring RichText for a conventional semantic label. */
 export function semanticTextDocument(
   value: string,

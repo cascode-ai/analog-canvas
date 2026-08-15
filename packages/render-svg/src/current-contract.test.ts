@@ -137,7 +137,7 @@ describe("current rendering contract", () => {
       'style="font-style:italic;font-weight:700">V<tspan data-text-run="subscript"',
     );
     expect(svg).toContain(
-      'data-text-run="subscript" dx="0.046em" font-size="76%" baseline-shift="-0.28em" style="font-style:italic;font-weight:700">DD',
+      'data-text-run="subscript" dx="0.046em" font-size="76%" baseline-shift="-0.28em" style="font-style:normal;font-weight:700">DD',
     );
   });
 });
