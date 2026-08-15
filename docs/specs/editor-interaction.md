@@ -95,6 +95,15 @@ all pass through the same camera normalizer. The viewport remains transient,
 but it cannot carry derived float bounds into the renderer's integer grid
 camera contract.
 
+Frame-zoom is one camera gesture with two entry buttons: right-drag from
+empty canvas, or Alt+left-drag for environments where system software
+(screenshot tools, mouse-driver gestures) hooks the right button before the
+browser receives the drag. A webpage cannot block system-level mouse hooks,
+so the Alt alias is the portable entry. Both draw the same transient frame
+preview and fit the camera to the framed region without touching the
+Document revision; a press that never exceeded one grid cell stays an
+ordinary click.
+
 Escape cancels the active preview without mutation. A committed gesture is one
 atomic transaction. Hover, geometric crossing, selection, and preview never
 change connectivity. A wire endpoint or explicit segment tap is required to

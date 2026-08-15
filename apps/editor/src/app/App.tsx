@@ -285,7 +285,10 @@ interface BoxPreview {
   start: DerivedPoint;
   end: DerivedPoint;
   pointerId: number;
-  /** Left-drag selects what the box touches; right-drag zooms to fit it. */
+  /**
+   * Left-drag selects what the box touches; right-drag (or Alt+left-drag)
+   * zooms to fit it.
+   */
   intent: "select" | "zoom";
 }
 
@@ -5226,10 +5229,14 @@ export function App({
       });
       return;
     }
-    if (event.button === 2) {
-      // Right-drag from empty canvas frames a region and fits the camera to
-      // it. Modes that commit on the next left click, and the drafting/wire
-      // tools whose right click cancels them, stay outside this gesture.
+    // Frame-zoom entry: right-drag, or Alt+left-drag for environments whose
+    // system software (screenshot tools, mouse-driver gestures) hooks the
+    // right button before the browser can see the drag. Modes that commit on
+    // the next left click, and the drafting/wire tools whose right click
+    // cancels them, stay outside this gesture.
+    const frameZoomDrag =
+      event.button === 2 || (event.button === 0 && event.altKey);
+    if (frameZoomDrag) {
       if (
         (pendingSymbolId && pendingComponentPlacement) ||
         vddRailMode ||

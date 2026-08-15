@@ -7441,3 +7441,15 @@ diff --check`, and two focused Playwright regressions passed.
 - Validation: 44 focused unit tests, focused Playwright BJT base-wire test,
   workspace typecheck, and `git diff --check` passed.
 - Commit status: pending commit on `codex/bjt-base-solid-wire`.
+
+# 2026-08-15 - Alt+drag frame-zoom alias
+
+- Target: keep frame-zoom usable when system software hooks the right mouse
+  button before the browser receives the drag; a webpage cannot block
+  system-level mouse hooks, so add Alt+left-drag as an equivalent entry.
+- Changed areas: canvas gesture entry (`frameZoomDrag`), frame-zoom e2e
+  coverage, editor interaction contract note.
+- Validation: typecheck, Prettier, frame-zoom Playwright test (right-drag +
+  Alt-drag), full manual-editor 66/66 and component-insert 17/17 passed.
+- Commit status: committed on `agent/alt-frame-zoom` as
+  `feat(editor): alt-drag frame-zoom alias for blocked right buttons`.
