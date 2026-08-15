@@ -7213,3 +7213,19 @@ ci:check` (651 unit tests, 104 browser tests, builds and release smoke) all
 - Commit status: committed and pushed on
   `agent/compact-complete-library` as
   `fix(editor): restore names on centered library tiles`.
+
+## 2026-08-15 - Center the Library icon-label visual weight
+
+- Target: center the combined `重心` of each device picture and visible name,
+  rather than centering the picture independently.
+- Changed areas: artwork and name returned to one fixed grid group; the union
+  is vertically centered with both elements horizontally centered; tile heights
+  reduced to 56px desktop and 64px narrow.
+- Validation: focused unit tests (2 files / 16 tests), two focused Playwright
+  flows measuring union-center geometry, element X centers, separation, fit,
+  dimensions, folds, and Recent behavior, `pnpm typecheck`, Prettier checks,
+  reviewer approval, screenshot inspection at 1280x720, 1024x720, and
+  720x720, and `git diff --check` passed.
+- Commit status: committed and pushed on
+  `agent/compact-complete-library` as
+  `fix(editor): center library icon-label groups`.

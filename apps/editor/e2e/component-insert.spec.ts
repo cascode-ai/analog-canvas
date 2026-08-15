@@ -514,14 +514,19 @@ test("shows the complete foldable categorized Library, quick-places a device, an
           artworkBounds.left +
           artworkBounds.width / 2 -
           (tileBounds.left + tileBounds.width / 2),
-        centerDeltaY:
-          artworkBounds.top +
-          artworkBounds.height / 2 -
+        groupCenterDeltaY:
+          (Math.min(artworkBounds.top, labelBounds.top) +
+            Math.max(artworkBounds.bottom, labelBounds.bottom)) /
+            2 -
           (tileBounds.top + tileBounds.height / 2),
         height: artworkBounds.height,
         labelFits:
           label.scrollWidth <= label.clientWidth + 1 &&
           label.scrollHeight <= label.clientHeight + 1,
+        labelCenterDeltaX:
+          labelBounds.left +
+          labelBounds.width / 2 -
+          (tileBounds.left + tileBounds.width / 2),
         labelHeight: labelBounds.height,
         separatedFromLabel: artworkBounds.bottom <= labelBounds.top + 0.5,
         tileHeight: tileBounds.height,
@@ -545,11 +550,18 @@ test("shows the complete foldable categorized Library, quick-places a device, an
     artworkGeometry.every((artwork) => Math.abs(artwork.centerDeltaX) <= 0.5),
   ).toBe(true);
   expect(
-    artworkGeometry.every((artwork) => Math.abs(artwork.centerDeltaY) <= 0.5),
+    artworkGeometry.every(
+      (artwork) => Math.abs(artwork.groupCenterDeltaY) <= 0.5,
+    ),
   ).toBe(true);
   expect(
     artworkGeometry.every(
-      (artwork) => Math.abs(artwork.tileHeight - 64) <= 0.5,
+      (artwork) => Math.abs(artwork.labelCenterDeltaX) <= 0.5,
+    ),
+  ).toBe(true);
+  expect(
+    artworkGeometry.every(
+      (artwork) => Math.abs(artwork.tileHeight - 56) <= 0.5,
     ),
   ).toBe(true);
   expect(artworkGeometry.every((artwork) => artwork.labelFits)).toBe(true);
@@ -664,14 +676,19 @@ test("keeps a usable canvas while toggling Library at the narrow breakpoint", as
             artworkBounds.left +
             artworkBounds.width / 2 -
             (tileBounds.left + tileBounds.width / 2),
-          centerDeltaY:
-            artworkBounds.top +
-            artworkBounds.height / 2 -
+          groupCenterDeltaY:
+            (Math.min(artworkBounds.top, labelBounds.top) +
+              Math.max(artworkBounds.bottom, labelBounds.bottom)) /
+              2 -
             (tileBounds.top + tileBounds.height / 2),
           height: artworkBounds.height,
           labelFits:
             label.scrollWidth <= label.clientWidth + 1 &&
             label.scrollHeight <= label.clientHeight + 1,
+          labelCenterDeltaX:
+            labelBounds.left +
+            labelBounds.width / 2 -
+            (tileBounds.left + tileBounds.width / 2),
           labelHeight: labelBounds.height,
           separatedFromLabel: artworkBounds.bottom <= labelBounds.top + 0.5,
           tileHeight: tileBounds.height,
@@ -694,10 +711,17 @@ test("keeps a usable canvas while toggling Library at the narrow breakpoint", as
     narrowArtwork.every((artwork) => Math.abs(artwork.centerDeltaX) <= 0.5),
   ).toBe(true);
   expect(
-    narrowArtwork.every((artwork) => Math.abs(artwork.centerDeltaY) <= 0.5),
+    narrowArtwork.every(
+      (artwork) => Math.abs(artwork.groupCenterDeltaY) <= 0.5,
+    ),
   ).toBe(true);
   expect(
-    narrowArtwork.every((artwork) => Math.abs(artwork.tileHeight - 68) <= 0.5),
+    narrowArtwork.every(
+      (artwork) => Math.abs(artwork.labelCenterDeltaX) <= 0.5,
+    ),
+  ).toBe(true);
+  expect(
+    narrowArtwork.every((artwork) => Math.abs(artwork.tileHeight - 64) <= 0.5),
   ).toBe(true);
   expect(narrowArtwork.every((artwork) => artwork.labelFits)).toBe(true);
   expect(narrowArtwork.every((artwork) => artwork.labelHeight <= 12.5)).toBe(
