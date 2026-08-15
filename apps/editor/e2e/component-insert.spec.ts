@@ -453,14 +453,140 @@ test("keeps component placement active across independent canvas commits", async
   await expect(page.getByTestId("component-input-plane")).toHaveCount(0);
 });
 
-test("quick-places a starter, records it as recent, and restores Library state", async ({
+test("shows the complete foldable categorized Library, quick-places a device, and restores state", async ({
   page,
 }) => {
+  await page.setViewportSize({ width: 1024, height: 720 });
   await page.goto("/");
   const panel = page.getByTestId("shapes-library-panel");
   const canvas = page.getByTestId("schematic-canvas");
+  const libraryChips = panel.locator('[data-testid^="shapes-chip-"]');
+  const categories = panel.locator('[data-testid^="shapes-category-"]');
 
   await expect(panel).toHaveAttribute("data-open", "true");
+  await expect(libraryChips).toHaveCount(18);
+  await expect(categories).toHaveCount(6);
+  const transistorCategory = page.getByTestId("shapes-category-transistors");
+  const transistorChips = transistorCategory.locator(
+    '[data-testid^="shapes-chip-"]',
+  );
+  await expect(transistorChips).toHaveCount(4);
+  const transistorGrid = transistorCategory.locator(".shapes-grid");
+  expect(
+    await transistorGrid.evaluate(
+      (element) =>
+        getComputedStyle(element).gridTemplateColumns.split(" ").length,
+    ),
+  ).toBe(4);
+  expect(
+    await transistorChips.evaluateAll(
+      (elements) =>
+        new Set(
+          elements.map((element) =>
+            Math.round(element.getBoundingClientRect().top),
+          ),
+        ).size,
+    ),
+  ).toBe(1);
+  expect(
+    await transistorGrid.evaluate((element) => {
+      const gridBounds = element.getBoundingClientRect();
+      return [...element.children].every((child) => {
+        const tileBounds = child.getBoundingClientRect();
+        return (
+          tileBounds.left >= gridBounds.left - 0.5 &&
+          tileBounds.right <= gridBounds.right + 0.5
+        );
+      });
+    }),
+  ).toBe(true);
+  const artworkGeometry = await libraryChips.evaluateAll((tiles) =>
+    tiles.map((tile) => {
+      const tileBounds = tile.getBoundingClientRect();
+      const artwork = tile.querySelector<SVGElement>(".shapes-chip-art");
+      if (!artwork) throw new Error("Library artwork is missing");
+      const artworkBounds = artwork.getBoundingClientRect();
+      const label = tile.querySelector<HTMLElement>("span");
+      if (!label) throw new Error("Library label is missing");
+      const labelBounds = label.getBoundingClientRect();
+      return {
+        centerDeltaX:
+          artworkBounds.left +
+          artworkBounds.width / 2 -
+          (tileBounds.left + tileBounds.width / 2),
+        groupCenterDeltaY:
+          (Math.min(artworkBounds.top, labelBounds.top) +
+            Math.max(artworkBounds.bottom, labelBounds.bottom)) /
+            2 -
+          (tileBounds.top + tileBounds.height / 2),
+        height: artworkBounds.height,
+        labelFits:
+          label.scrollWidth <= label.clientWidth + 1 &&
+          label.scrollHeight <= label.clientHeight + 1,
+        labelCenterDeltaX:
+          labelBounds.left +
+          labelBounds.width / 2 -
+          (tileBounds.left + tileBounds.width / 2),
+        labelHeight: labelBounds.height,
+        separatedFromLabel: artworkBounds.bottom <= labelBounds.top + 0.5,
+        tileHeight: tileBounds.height,
+        withinTile:
+          artworkBounds.left >= tileBounds.left - 0.5 &&
+          artworkBounds.right <= tileBounds.right + 0.5 &&
+          artworkBounds.top >= tileBounds.top - 0.5 &&
+          artworkBounds.bottom <= tileBounds.bottom + 0.5,
+        width: artworkBounds.width,
+      };
+    }),
+  );
+  expect(artworkGeometry.every((artwork) => artwork.withinTile)).toBe(true);
+  expect(
+    artworkGeometry.every((artwork) => Math.abs(artwork.width - 40) <= 0.5),
+  ).toBe(true);
+  expect(
+    artworkGeometry.every((artwork) => Math.abs(artwork.height - 32) <= 0.5),
+  ).toBe(true);
+  expect(
+    artworkGeometry.every((artwork) => Math.abs(artwork.centerDeltaX) <= 0.5),
+  ).toBe(true);
+  expect(
+    artworkGeometry.every(
+      (artwork) => Math.abs(artwork.groupCenterDeltaY) <= 0.5,
+    ),
+  ).toBe(true);
+  expect(
+    artworkGeometry.every(
+      (artwork) => Math.abs(artwork.labelCenterDeltaX) <= 0.5,
+    ),
+  ).toBe(true);
+  expect(
+    artworkGeometry.every(
+      (artwork) => Math.abs(artwork.tileHeight - 56) <= 0.5,
+    ),
+  ).toBe(true);
+  expect(artworkGeometry.every((artwork) => artwork.labelFits)).toBe(true);
+  expect(artworkGeometry.every((artwork) => artwork.labelHeight <= 12.5)).toBe(
+    true,
+  );
+  expect(artworkGeometry.every((artwork) => artwork.separatedFromLabel)).toBe(
+    true,
+  );
+  await expect(libraryChips.locator("span")).toHaveCount(18);
+  await expect(transistorCategory).toHaveJSProperty("open", true);
+  await transistorCategory.locator("summary").click();
+  await expect(transistorCategory).toHaveJSProperty("open", false);
+  await expect(page.getByTestId("shapes-chip-nmos")).not.toBeVisible();
+  const analogCategory = page.getByTestId("shapes-category-analog-blocks");
+  await expect(analogCategory).toHaveJSProperty("open", true);
+  await expect(
+    page
+      .getByTestId("shapes-category-power-and-ports")
+      .locator('[data-testid^="shapes-chip-"]'),
+  ).toHaveCount(4);
+  await expect(
+    panel.getByRole("button", { name: "Place Independent Voltage Source" }),
+  ).toBeAttached();
+
   await page.getByTestId("shapes-chip-resistor").click();
   const box = await canvas.boundingBox();
   if (!box) throw new Error("Canvas is not measurable");
@@ -469,7 +595,26 @@ test("quick-places a starter, records it as recent, and restores Library state",
   await canvas.click({ position: { x: 280, y: 220 } });
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("hit-R1")).toBeVisible();
-  await expect(page.getByTestId("shapes-recent-resistor")).toBeVisible();
+  const recentResistor = page.getByTestId("shapes-recent-resistor");
+  await expect(recentResistor).toBeVisible();
+  await expect(recentResistor).toHaveAttribute("aria-label", "Place Resistor");
+  await expect(recentResistor).toHaveAttribute("title", "Place Resistor");
+  await expect(recentResistor.locator("span")).toHaveText("Res");
+  expect(
+    await page
+      .getByTestId("shapes-fold-recent")
+      .locator(".shapes-grid")
+      .evaluate(
+        (element) =>
+          getComputedStyle(element).gridTemplateColumns.split(" ").length,
+      ),
+  ).toBe(4);
+  await expect(transistorCategory).toHaveJSProperty("open", false);
+  await expect(page.getByTestId("shapes-chip-nmos")).not.toBeVisible();
+  await expect(analogCategory).toHaveJSProperty("open", true);
+  await transistorCategory.locator("summary").click();
+  await expect(transistorCategory).toHaveJSProperty("open", true);
+  await expect(page.getByTestId("shapes-chip-nmos")).toBeVisible();
 
   await page.keyboard.press("q");
   await expect(page.getByLabel("Component value")).toHaveValue("");
@@ -498,6 +643,97 @@ test("keeps a usable canvas while toggling Library at the narrow breakpoint", as
 }) => {
   await page.setViewportSize({ width: 720, height: 720 });
   await page.goto("/");
+
+  const chrome = page.locator(".app-chrome-main");
+  const analytics = page.getByRole("link", { name: "Open visitor analytics" });
+  const help = page.getByRole("button", { name: "Help" });
+  await expect(analytics).toBeVisible();
+  await expect(help).toBeVisible();
+  const chromeBox = await chrome.boundingBox();
+  const analyticsBox = await analytics.boundingBox();
+  const helpBox = await help.boundingBox();
+  if (!chromeBox || !analyticsBox || !helpBox) {
+    throw new Error("Top navigation is not measurable");
+  }
+  expect(helpBox.x).toBeGreaterThan(analyticsBox.x);
+  expect(helpBox.x + helpBox.width).toBeLessThanOrEqual(
+    chromeBox.x + chromeBox.width,
+  );
+
+  const narrowArtwork = await page
+    .locator('[data-testid^="shapes-chip-"]')
+    .evaluateAll((tiles) =>
+      tiles.map((tile) => {
+        const tileBounds = tile.getBoundingClientRect();
+        const artwork = tile.querySelector<SVGElement>(".shapes-chip-art");
+        if (!artwork) throw new Error("Narrow Library artwork is missing");
+        const artworkBounds = artwork.getBoundingClientRect();
+        const label = tile.querySelector<HTMLElement>("span");
+        if (!label) throw new Error("Narrow Library label is missing");
+        const labelBounds = label.getBoundingClientRect();
+        return {
+          centerDeltaX:
+            artworkBounds.left +
+            artworkBounds.width / 2 -
+            (tileBounds.left + tileBounds.width / 2),
+          groupCenterDeltaY:
+            (Math.min(artworkBounds.top, labelBounds.top) +
+              Math.max(artworkBounds.bottom, labelBounds.bottom)) /
+              2 -
+            (tileBounds.top + tileBounds.height / 2),
+          height: artworkBounds.height,
+          labelFits:
+            label.scrollWidth <= label.clientWidth + 1 &&
+            label.scrollHeight <= label.clientHeight + 1,
+          labelCenterDeltaX:
+            labelBounds.left +
+            labelBounds.width / 2 -
+            (tileBounds.left + tileBounds.width / 2),
+          labelHeight: labelBounds.height,
+          separatedFromLabel: artworkBounds.bottom <= labelBounds.top + 0.5,
+          tileHeight: tileBounds.height,
+          withinTile:
+            artworkBounds.left >= tileBounds.left - 0.5 &&
+            artworkBounds.right <= tileBounds.right + 0.5 &&
+            artworkBounds.top >= tileBounds.top - 0.5 &&
+            artworkBounds.bottom <= tileBounds.bottom + 0.5,
+          width: artworkBounds.width,
+        };
+      }),
+    );
+  expect(
+    narrowArtwork.every((artwork) => Math.abs(artwork.width - 46) <= 0.5),
+  ).toBe(true);
+  expect(
+    narrowArtwork.every((artwork) => Math.abs(artwork.height - 36) <= 0.5),
+  ).toBe(true);
+  expect(
+    narrowArtwork.every((artwork) => Math.abs(artwork.centerDeltaX) <= 0.5),
+  ).toBe(true);
+  expect(
+    narrowArtwork.every(
+      (artwork) => Math.abs(artwork.groupCenterDeltaY) <= 0.5,
+    ),
+  ).toBe(true);
+  expect(
+    narrowArtwork.every(
+      (artwork) => Math.abs(artwork.labelCenterDeltaX) <= 0.5,
+    ),
+  ).toBe(true);
+  expect(
+    narrowArtwork.every((artwork) => Math.abs(artwork.tileHeight - 64) <= 0.5),
+  ).toBe(true);
+  expect(narrowArtwork.every((artwork) => artwork.labelFits)).toBe(true);
+  expect(narrowArtwork.every((artwork) => artwork.labelHeight <= 12.5)).toBe(
+    true,
+  );
+  expect(narrowArtwork.every((artwork) => artwork.separatedFromLabel)).toBe(
+    true,
+  );
+  expect(narrowArtwork.every((artwork) => artwork.withinTile)).toBe(true);
+  await expect(page.locator('[data-testid^="shapes-chip-"] span')).toHaveCount(
+    18,
+  );
 
   const canvas = page.getByTestId("schematic-canvas");
   const openWidth = (await canvas.boundingBox())?.width ?? 0;

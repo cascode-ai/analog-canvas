@@ -7053,7 +7053,7 @@ ci:check` (651 unit tests, 104 browser tests, builds and release smoke) all
   orientation and shortcut routing; rotated copy preview/commit behavior;
   editor interaction specification and focused unit/browser regressions.
 - Validation: 30 focused tests, `pnpm typecheck`, `pnpm format:check`, `git
-diff --check`, and two focused Playwright regressions passed.
+  diff --check`, and two focused Playwright regressions passed.
 - Commit status: ready to commit on `codex/label-gap-copy-rotate` as
   `fix(editor): align labels and rotate copy previews`.
 
@@ -7084,3 +7084,180 @@ diff --check`, and two focused Playwright regressions passed.
   (728 unit/integration tests, build/release verification, 124 browser tests).
 - Commit status: committed as `3a7719e` on
   `codex/close-label-gap-delivery`; push and remote review checks pending.
+
+## 2026-08-15 - Show the complete compact component Library
+
+- Target: replace the eight-item starter subset with the complete quick-place
+  palette while keeping the left Library compact and immediately usable.
+- Changed areas: Library catalog projection and priority ordering; compact
+  three-column device tiles with concise visual labels and full accessible
+  names; focused static and browser regressions for all 18 palette items and
+  default-viewport fit.
+- Validation: focused unit tests (2 files / 16 tests), focused Playwright
+  Library flow (1 test), `pnpm typecheck`, Prettier checks, desktop screenshot
+  inspection at 1280x720, and `git diff --check` passed.
+- Commit status: committed and pushed on
+  `agent/compact-complete-library` as
+  `feat(editor): show complete compact component library`.
+
+## 2026-08-15 - Group Library devices by category
+
+- Target: replace the flat 18-device Library grid with the same six category
+  groups used by the Insert dialog.
+- Changed areas: sidebar catalog projection, compact category headings/counts,
+  category-aware unit coverage, and a browser regression for all six groups and
+  all 18 quick-place buttons.
+- Validation: focused unit tests (2 files / 16 tests), focused Playwright
+  categorized-Library flow (1 test), `pnpm typecheck`, Prettier checks,
+  reviewer approval, desktop screenshot inspection at 1280x720 and 1440x900,
+  and `git diff --check` passed.
+- Commit status: committed and pushed on
+  `agent/compact-complete-library` as
+  `feat(editor): group library devices by category`.
+
+## 2026-08-15 - Right-align Help and fold Library categories
+
+- Target: move Help to the right edge of the top bar and make every device
+  category independently collapsible without losing Library state.
+- Changed areas: top-bar action grouping; controlled native category folds and
+  disclosure styling; static and browser regressions for right alignment,
+  narrow bounds, independent folding, and fold persistence across rerenders.
+- Validation: focused unit tests (2 files / 16 tests), two focused Playwright
+  flows, `pnpm typecheck`, Prettier checks, reviewer approval with its coverage
+  suggestion addressed, desktop/narrow screenshot inspection, and
+  `git diff --check` passed.
+- Commit status: committed and pushed on
+  `agent/compact-complete-library` as
+  `feat(editor): right-align help and fold library categories`.
+
+## 2026-08-15 - Fit four Library icons per row
+
+- Target: increase Library density to four quick-place tiles per category row
+  while preserving readable labels and responsive behavior.
+- Changed areas: four-column category/Recent grids; smaller desktop artwork and
+  tiles; concise visual labels with full accessible names; restored larger
+  narrow-layout tiles; browser geometry, containment, overflow, and Recent-grid
+  checks at the 220px Library boundary.
+- Validation: focused unit tests (2 files / 16 tests), two focused Playwright
+  flows, `pnpm typecheck`, Prettier checks, reviewer approval after readability
+  fixes, screenshot inspection at 1280x720, 1024x720, and 720x720, and
+  `git diff --check` passed.
+- Commit status: committed and pushed on
+  `agent/compact-complete-library` as
+  `style(editor): fit four library icons per row`.
+
+## 2026-08-15 - Center/enlarge Library devices and rebase
+
+- Target: enlarge four-column device artwork, keep icon rows vertically
+  consistent across mixed label lengths, and rebase the complete Library branch
+  onto latest main.
+- Changed areas: fixed desktop/narrow artwork rows and symbol dimensions;
+  browser checks for exact size, four-edge containment, mixed-label alignment,
+  and responsive behavior; rebase conflict resolution in the factual log.
+- Validation: post-rebase focused unit tests (2 files / 16 tests), two focused
+  Playwright flows, `pnpm typecheck`, Prettier checks, reviewer approval after
+  geometry coverage was expanded, screenshot inspection at 1280x720,
+  1024x720, and 720x720, `git diff --check`, and ancestry verification passed.
+- Rebase: branch rebased onto `origin/main` at `330ba43`; the `plan/log.md`
+  conflict preserved both imported-flightline mainline records and Library
+  records.
+- Commit status: committed, rebased, and force-pushed on
+  `agent/compact-complete-library` as
+  `style(editor): center and enlarge library devices`.
+
+## 2026-08-15 - Truly center Library device artwork
+
+- Target: correct the remaining visual offset by centering each SVG on the full
+  tile rather than inside an upper artwork row.
+- Changed areas: absolute full-tile artwork centering; independently anchored
+  bottom labels; larger desktop/narrow tile and artwork dimensions; exhaustive
+  browser geometry checks for both axes, tile heights, containment, and label
+  separation.
+- Validation: focused unit tests (2 files / 16 tests), two focused Playwright
+  flows, `pnpm typecheck`, Prettier checks, reviewer feedback addressed,
+  screenshot inspection at 1280x720, 1024x720, and 720x720, direct zero-pixel
+  center-delta measurement, and `git diff --check` passed.
+- Commit status: committed and pushed on
+  `agent/compact-complete-library` as
+  `fix(editor): vertically center library device artwork`.
+
+## 2026-08-15 - Compact the truly centered Library tiles
+
+- Target: reduce tile height without moving artwork away from the exact tile
+  center or allowing labels to overlap.
+- Changed areas: single-line compact electrical labels; desktop tile height
+  reduced from 86px to 66px; narrow tile height reduced from 94px to 74px;
+  exhaustive desktop/narrow centering, fit, separation, and overflow checks.
+- Validation: focused unit tests (2 files / 16 tests), two focused Playwright
+  flows, `pnpm typecheck`, Prettier checks, reviewer suggestion addressed,
+  screenshot inspection at 1280x720, 1024x720, and 720x720, and
+  `git diff --check` passed.
+- Commit status: committed and pushed on
+  `agent/compact-complete-library` as
+  `style(editor): compact centered library tiles`.
+
+## 2026-08-15 - Use icon-only centered Library tiles
+
+- Target: make the Library still more compact while keeping the device artwork
+  visually centered in each box.
+- Changed areas: removed visible in-tile labels from Library and Recent buttons;
+  retained complete accessible names/tooltips; reduced desktop tiles to 52px
+  and narrow tiles to 60px around unchanged centered artwork.
+- Validation: focused unit tests (2 files / 16 tests), two focused Playwright
+  flows covering icon-only primary/Recent tiles, accessible names, exact
+  centering, dimensions, and containment, `pnpm typecheck`, Prettier checks,
+  reviewer suggestion addressed, screenshot inspection at 1280x720,
+  1024x720, and 720x720, and `git diff --check` passed.
+- Commit status: committed and pushed on
+  `agent/compact-complete-library` as
+  `style(editor): use compact centered library icons`.
+
+## 2026-08-15 - Restore names below centered Library devices
+
+- Target: bring visible device names back without losing full-tile artwork
+  centering or returning to oversized boxes.
+- Changed areas: concise one-line labels restored for Library and Recent tiles;
+  labels anchored at the bottom; desktop/narrow heights set to 64px/68px with
+  measured artwork-label separation and unchanged centered artwork sizes.
+- Validation: focused unit tests (2 files / 16 tests), two focused Playwright
+  flows covering label fit, centering, separation, dimensions, Recent labels,
+  and accessibility, `pnpm typecheck`, Prettier checks, reviewer approval,
+  screenshot inspection at 1280x720, 1024x720, and 720x720, and
+  `git diff --check` passed.
+- Commit status: committed and pushed on
+  `agent/compact-complete-library` as
+  `fix(editor): restore names on centered library tiles`.
+
+## 2026-08-15 - Center the Library icon-label visual weight
+
+- Target: center the combined `重心` of each device picture and visible name,
+  rather than centering the picture independently.
+- Changed areas: artwork and name returned to one fixed grid group; the union
+  is vertically centered with both elements horizontally centered; tile heights
+  reduced to 56px desktop and 64px narrow.
+- Validation: focused unit tests (2 files / 16 tests), two focused Playwright
+  flows measuring union-center geometry, element X centers, separation, fit,
+  dimensions, folds, and Recent behavior, `pnpm typecheck`, Prettier checks,
+  reviewer approval, screenshot inspection at 1280x720, 1024x720, and
+  720x720, and `git diff --check` passed.
+- Commit status: committed and pushed on
+  `agent/compact-complete-library` as
+  `fix(editor): center library icon-label groups`.
+
+## 2026-08-15 - Deliver compact Library PR
+
+- Target: rebase the complete Library/navigation branch onto latest main, run
+  branch/remote gates, push, and open the review PR.
+- Rebase: main advanced repeatedly during delivery; final branch rebased onto
+  `origin/main` at `ea60c96`. The `plan/log.md` conflicts preserved mainline
+  junction, drafting-text, VDD-rail, label-spacing, and closeout records plus
+  all Library records.
+- Validation: final targeted Library/narrow browser flows (2 tests),
+  `pnpm verify:branch` (119 files / 728 tests, static checks, workspace builds,
+  production smoke), ancestry/diff checks, and the final docs link check
+  passed; the final tip was submitted to all six required PR checks.
+- Pull request: [#63](https://github.com/chenzc24/Analog-Canvas/pull/63),
+  `feat(editor): complete compact categorized component library`, targeting
+  `main`.
+- Commit status: rebased branch force-pushed with lease; PR is open with all
+  required checks enforced on the final tip.

@@ -145,6 +145,12 @@ describe("editor shell", () => {
 
     expect(markup).toContain('aria-haspopup="dialog"');
     expect(markup).toContain(">Help</button>");
+    expect(markup).toContain('class="app-chrome-actions"');
+    const navigationEnd = markup.indexOf("</nav>");
+    const analyticsLink = markup.indexOf('href="/analytics"');
+    const helpButton = markup.indexOf('class="menubar-help"');
+    expect(analyticsLink).toBeGreaterThan(navigationEnd);
+    expect(helpButton).toBeGreaterThan(analyticsLink);
     expect(markup).not.toContain('role="dialog"');
     // The Connect Agent command is available (WP-WA5), but the authorization
     // panel itself must not render until the user opens it.

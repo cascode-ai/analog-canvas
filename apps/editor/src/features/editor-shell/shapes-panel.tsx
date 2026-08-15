@@ -1,19 +1,36 @@
+import { useState } from "react";
+
 import type { ComponentInsertRequest } from "../component-insert/component-insert-request";
 import { SymbolArtwork } from "../component-insert/symbol-artwork";
 import { initialComponentParameterValues } from "../component-insert/component-parameters";
-import { findPaletteSymbol } from "../component-insert/symbol-catalog";
+import {
+  componentCatalog,
+  findPaletteSymbol,
+} from "../component-insert/symbol-catalog";
 
-/** Starter chips always offered in the left shapes panel. */
-export const STARTER_SYMBOL_IDS = [
-  "resistor",
-  "capacitor",
-  "nmos",
-  "pmos",
-  "voltage-source",
-  "ground",
-  "vdd",
-  "opamp",
-] as const;
+const COMPACT_LIBRARY_LABELS: Readonly<Record<string, string>> = {
+  capacitor: "Cap",
+  "closed-switch": "Closed",
+  "current-source": "I Src",
+  "ideal-switch": "Open",
+  inductor: "Ind",
+  npn: "NPN",
+  opamp: "OpAmp",
+  pnp: "PNP",
+  "port-filled": "Filled",
+  resistor: "Res",
+  vdd: "VDD",
+  "voltage-amplifier": "V Amp",
+  "voltage-source": "V Src",
+};
+
+function libraryLabel(symbolId: string, symbolName: string): string {
+  return COMPACT_LIBRARY_LABELS[symbolId] ?? symbolName;
+}
+
+function categorySlug(category: string): string {
+  return category.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+}
 
 export function quickPlaceRequest(
   styleProfileId: string,
@@ -57,9 +74,14 @@ export function ShapesPanel({
   onOpenInsert,
   onQuickPlace,
 }: ShapesPanelProps) {
-  const starters = STARTER_SYMBOL_IDS.map((symbolId) =>
-    findPaletteSymbol(styleProfileId, symbolId),
-  ).filter((symbol): symbol is NonNullable<typeof symbol> => Boolean(symbol));
+  const libraryGroups = componentCatalog(styleProfileId, "");
+  const librarySymbolCount = libraryGroups.reduce(
+    (count, group) => count + group.symbols.length,
+    0,
+  );
+  const [openCategories, setOpenCategories] = useState<ReadonlySet<string>>(
+    () => new Set(libraryGroups.map((group) => group.category)),
+  );
 
   const recents = recentSymbolIds
     .map((symbolId) => findPaletteSymbol(styleProfileId, symbolId))
@@ -69,6 +91,16 @@ export function ShapesPanel({
   function placeSymbol(symbolId: string): void {
     const request = quickPlaceRequest(styleProfileId, symbolId);
     if (request) onQuickPlace(request);
+  }
+
+  function setCategoryOpen(category: string, open: boolean): void {
+    setOpenCategories((current) => {
+      if (current.has(category) === open) return current;
+      const next = new Set(current);
+      if (open) next.add(category);
+      else next.delete(category);
+      return next;
+    });
   }
 
   return (
@@ -94,34 +126,53 @@ export function ShapesPanel({
       </header>
 
       <div className="shapes-panel-body">
-        <details
-          className="shapes-fold"
-          open
-          data-testid="shapes-fold-starters"
-        >
+        <details className="shapes-fold" open data-testid="shapes-fold-library">
           <summary className="shapes-fold-summary">
-            <span className="shapes-fold-label">Starters</span>
-            <span className="shapes-fold-count">{starters.length}</span>
+            <span className="shapes-fold-label">All devices</span>
+            <span className="shapes-fold-count">{librarySymbolCount}</span>
           </summary>
           <div className="shapes-fold-body">
-            <div className="shapes-grid">
-              {starters.map((symbol) => (
-                <button
-                  key={symbol.id}
-                  type="button"
-                  className="shapes-chip"
-                  data-testid={`shapes-chip-${symbol.id}`}
-                  data-vdd-rail={symbol.id === "vdd" ? "true" : undefined}
-                  title={`Place ${symbol.name}`}
-                  onClick={() => placeSymbol(symbol.id)}
+            <div className="shapes-category-list">
+              {libraryGroups.map((group) => (
+                <details
+                  key={group.category}
+                  className="shapes-category"
+                  open={openCategories.has(group.category)}
+                  data-testid={`shapes-category-${categorySlug(group.category)}`}
+                  onToggle={(event) =>
+                    setCategoryOpen(group.category, event.currentTarget.open)
+                  }
                 >
-                  <SymbolArtwork
-                    symbol={symbol}
-                    className="shapes-chip-art"
-                    paddingRatio={0.04}
-                  />
-                  <span>{symbol.name}</span>
-                </button>
+                  <summary className="shapes-category-header">
+                    <span className="shapes-category-label">
+                      {group.category}
+                    </span>
+                    <span className="shapes-category-count">
+                      {group.symbols.length}
+                    </span>
+                  </summary>
+                  <div className="shapes-grid">
+                    {group.symbols.map((symbol) => (
+                      <button
+                        key={symbol.id}
+                        type="button"
+                        className="shapes-chip"
+                        data-testid={`shapes-chip-${symbol.id}`}
+                        data-vdd-rail={symbol.id === "vdd" ? "true" : undefined}
+                        aria-label={`Place ${symbol.name}`}
+                        title={`Place ${symbol.name}`}
+                        onClick={() => placeSymbol(symbol.id)}
+                      >
+                        <SymbolArtwork
+                          symbol={symbol}
+                          className="shapes-chip-art"
+                          paddingRatio={0.04}
+                        />
+                        <span>{libraryLabel(symbol.id, symbol.name)}</span>
+                      </button>
+                    ))}
+                  </div>
+                </details>
               ))}
             </div>
           </div>
@@ -145,6 +196,7 @@ export function ShapesPanel({
                     type="button"
                     className="shapes-chip"
                     data-testid={`shapes-recent-${symbol.id}`}
+                    aria-label={`Place ${symbol.name}`}
                     title={`Place ${symbol.name}`}
                     onClick={() => placeSymbol(symbol.id)}
                   >
@@ -153,7 +205,7 @@ export function ShapesPanel({
                       className="shapes-chip-art"
                       paddingRatio={0.04}
                     />
-                    <span>{symbol.name}</span>
+                    <span>{libraryLabel(symbol.id, symbol.name)}</span>
                   </button>
                 ))}
               </div>
