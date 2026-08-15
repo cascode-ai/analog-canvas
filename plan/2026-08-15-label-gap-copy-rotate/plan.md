@@ -1,5 +1,5 @@
 ---
-status: active
+status: completed
 experience: none
 ---
 
@@ -96,3 +96,11 @@ contracts.  This target is re-opened solely to replace those old optical-gap
 constants with the intended full-grid visible-glyph-clearance contract, then
 repeat the delivery gate before merge.  No model, routing, or interaction
 behavior is being expanded.
+
+## Final outcome
+
+The downstream assertions now verify the intended one-grid visible-glyph
+clearance through all MOS rotations and a BJT rotation.  The complete remote
+delivery gate passed after integrating the latest `main`: change scope, static
+contracts, unit and integration tests, release contracts, and both browser
+test shards.  PR #64 was squash-merged to `main` as `ad604fb`.

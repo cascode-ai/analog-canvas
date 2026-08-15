@@ -7067,6 +7067,6 @@ diff --check`, and two focused Playwright regressions passed.
 - Validation: 51 focused derived/Edit Engine/editor geometry tests, typecheck,
   Prettier, and `git diff --check` passed. Two overlapping local full-gate
   E2E runs were stopped because they contended for the same preview port;
-  remote required CI remains the delivery gate.
-- Commit status: active on `codex/label-gap-copy-rotate`; pending commit,
-  push, review, and required GitHub Actions checks.
+  both remote delivery-gate runs then passed every required check, including
+  both browser shards.
+- Commit status: merged through PR #64 as squash commit `ad604fb`.
