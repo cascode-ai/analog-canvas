@@ -16,6 +16,8 @@ import {
   proposeGroupMoveEdits,
   proposeEndpointRouteAttachment,
   proposeLooseRouteTranslation,
+  proposePowerRailEndpointResize,
+  proposePowerRailTranslation,
   proposeVisualRouteDeletion,
   proposeWireSegmentMove,
 } from "./routing-planner.js";
@@ -52,6 +54,138 @@ function transaction(documentId: string, revision: number, edits: unknown[]) {
 }
 
 describe("routing Edit Engine", () => {
+  it("keeps a tapped VDD rail contiguous when it is resized or moved", () => {
+    const document = createEmptyDocument("vdd-manipulation", "VDD edit");
+    document.nets.push({
+      id: "VDD",
+      scope: "global",
+      powerDomain: "vdd",
+      terminals: [],
+    });
+    document.junctions.push(
+      {
+        id: "vdd-start",
+        netId: "VDD",
+        position: { x: 0, y: 0 },
+        role: "route-anchor",
+      },
+      {
+        id: "vdd-tap",
+        netId: "VDD",
+        position: { x: 50, y: 0 },
+        role: "branch",
+      },
+      {
+        id: "vdd-end",
+        netId: "VDD",
+        position: { x: 100, y: 0 },
+        role: "route-anchor",
+      },
+      {
+        id: "branch-end",
+        netId: "VDD",
+        position: { x: 50, y: 100 },
+        role: "branch",
+      },
+    );
+    document.routes.push(
+      {
+        id: "rail-left",
+        netId: "VDD",
+        from: { kind: "junction", junctionId: "vdd-start" },
+        to: { kind: "junction", junctionId: "vdd-tap" },
+        waypoints: [],
+        segmentModes: ["manual"],
+        presentation: "power-rail",
+      },
+      {
+        id: "rail-right",
+        netId: "VDD",
+        from: { kind: "junction", junctionId: "vdd-tap" },
+        to: { kind: "junction", junctionId: "vdd-end" },
+        waypoints: [],
+        segmentModes: ["manual"],
+        presentation: "power-rail",
+      },
+      {
+        id: "branch",
+        netId: "VDD",
+        from: { kind: "junction", junctionId: "vdd-tap" },
+        to: { kind: "junction", junctionId: "branch-end" },
+        waypoints: [],
+        segmentModes: ["manual"],
+      },
+    );
+
+    const resizedProposal = proposePowerRailEndpointResize(
+      document,
+      resolver,
+      "rail-left",
+      "end",
+      160,
+    );
+    const resized = executeTransaction(
+      document,
+      transaction(document.id, 0, resizedProposal.edits),
+      context,
+    );
+    expect(resized.ok).toBe(true);
+    if (!resized.ok) return;
+    expect(
+      resized.document.junctions.find((junction) => junction.id === "vdd-end"),
+    ).toMatchObject({ position: { x: 160, y: 0 } });
+    expect(
+      routePolyline(
+        resized.document,
+        resolver,
+        resized.document.routes.find((route) => route.id === "rail-right")!,
+      )?.points,
+    ).toEqual([
+      { x: 50, y: 0 },
+      { x: 160, y: 0 },
+    ]);
+
+    const movedProposal = proposePowerRailTranslation(
+      resized.document,
+      resolver,
+      "rail-right",
+      { x: 20, y: 20 },
+    );
+    const moved = executeTransaction(
+      resized.document,
+      transaction(resized.document.id, 1, movedProposal.edits),
+      context,
+    );
+    expect(moved.ok).toBe(true);
+    if (!moved.ok) return;
+    expect(
+      moved.document.junctions.find((junction) => junction.id === "vdd-tap"),
+    ).toMatchObject({ position: { x: 70, y: 20 } });
+    expect(
+      moved.document.junctions.find((junction) => junction.id === "branch-end"),
+    ).toMatchObject({ position: { x: 50, y: 100 } });
+    const railFragments = moved.document.routes.filter(
+      (route) => route.presentation === "power-rail",
+    );
+    expect(railFragments).toHaveLength(2);
+    for (const route of railFragments) {
+      expect(routePolyline(moved.document, resolver, route)?.points).toSatisfy(
+        (points: Array<{ x: number; y: number }>) => isOrthogonal(points),
+      );
+    }
+    expect(
+      routePolyline(
+        moved.document,
+        resolver,
+        moved.document.routes.find((route) => route.id === "branch")!,
+      )?.points,
+    ).toEqual([
+      { x: 70, y: 20 },
+      { x: 50, y: 20 },
+      { x: 50, y: 100 },
+    ]);
+  });
+
   it("plans a power rail and its label as one visual deletion", () => {
     const document = createEmptyDocument("vdd-delete", "VDD delete");
     document.nets.push({

@@ -16,6 +16,8 @@ import {
   proposeEndpointRouteAttachment,
   proposeGroupMoveEdits,
   proposeLooseRouteTranslation,
+  proposePowerRailEndpointResize,
+  proposePowerRailTranslation,
   proposeWireCommitThroughContacts,
   proposeWireSegmentMove,
   proposeVisualRouteDeletion,
@@ -33,6 +35,7 @@ import {
   buildProjectSearchIndex,
   deriveCrossings,
   deriveInternalGroupSelection,
+  derivePowerRailComponent,
   diagnoseVisualQuality,
   endpointKey,
   findHierarchyPath,
@@ -271,7 +274,12 @@ interface PanPreview {
 interface RouteStretchPreview {
   routeId: string;
   segmentIndex: number;
-  kind: "segment" | "translate";
+  kind:
+    | "segment"
+    | "translate"
+    | "power-rail-translate"
+    | "power-rail-resize-start"
+    | "power-rail-resize-end";
   start: DerivedPoint;
   point: DerivedPoint;
 }
@@ -2267,9 +2275,11 @@ export function App({ project: initialProject, visitStats }: AppProps) {
         event,
         routeId,
         segmentIndex,
-        looseRouteAnchorIds(document, routeRecord.route) !== null
-          ? "translate"
-          : "segment",
+        routeRecord.route.presentation === "power-rail"
+          ? "power-rail-translate"
+          : looseRouteAnchorIds(document, routeRecord.route) !== null
+            ? "translate"
+            : "segment",
         hitTarget,
       );
       return;
@@ -2347,7 +2357,7 @@ export function App({ project: initialProject, visitStats }: AppProps) {
     event: ReactPointerEvent<SVGElement>,
     routeId: string,
     segmentIndex: number,
-    kind: "segment" | "translate" = "segment",
+    kind: RouteStretchPreview["kind"] = "segment",
     hitTarget: SVGElement = event.currentTarget,
   ): void {
     if (event.button !== 0) return;
@@ -2359,13 +2369,26 @@ export function App({ project: initialProject, visitStats }: AppProps) {
       (candidate) => candidate.route.id === routeId,
     );
     if (!record) return;
+    const powerRail =
+      kind === "power-rail-translate" ||
+      kind === "power-rail-resize-start" ||
+      kind === "power-rail-resize-end"
+        ? derivePowerRailComponent(document, routeId)
+        : null;
     const anchorIds =
       kind === "translate"
         ? (looseRouteAnchorIds(document, record.route) ?? [])
-        : [];
+        : (powerRail?.junctionIds ?? []);
+    const translatedRouteIds =
+      kind === "power-rail-translate"
+        ? (powerRail?.routeIds ?? [routeId])
+        : [routeId];
     let visual: ReturnType<typeof startCanvasDragVisual> | null = null;
     const dragVisual = () =>
-      (visual ??= startCanvasDragVisual(svg, [routeId, ...anchorIds]));
+      (visual ??= startCanvasDragVisual(svg, [
+        ...translatedRouteIds,
+        ...anchorIds,
+      ]));
     const preview: RouteStretchPreview = {
       routeId,
       segmentIndex,
@@ -2381,11 +2404,20 @@ export function App({ project: initialProject, visitStats }: AppProps) {
       thresholdPx: DRAG_START_DISTANCE_PX,
       onPreview: (client) => {
         const point = pointFromClient(client.x, client.y, svg, false);
-        if (kind === "translate") {
+        if (kind === "translate" || kind === "power-rail-translate") {
           dragVisual().translate({
             x: point.x - start.x,
             y: point.y - start.y,
           });
+          return;
+        }
+        if (
+          kind === "power-rail-resize-start" ||
+          kind === "power-rail-resize-end"
+        ) {
+          // The persisted proposal resizes the outer rail fragment, which may
+          // differ from the selected fragment after a tap. Avoid previewing a
+          // misleading single-segment drag; the end handle remains the cue.
           return;
         }
         try {
@@ -2455,6 +2487,42 @@ export function App({ project: initialProject, visitStats }: AppProps) {
           );
           if (result.ok) setStatus(`Moved loose route ${record.route.id}`);
         }
+      } else if (preview.kind === "power-rail-translate") {
+        const delta = {
+          x: snapCoordinate(
+            point.x - preview.start.x,
+            document.presentation.grid,
+          ),
+          y: snapCoordinate(
+            point.y - preview.start.y,
+            document.presentation.grid,
+          ),
+        };
+        if (delta.x !== 0 || delta.y !== 0) {
+          const result = transact(
+            proposePowerRailTranslation(
+              document,
+              resolver,
+              record.route.id,
+              delta,
+            ).edits,
+          );
+          if (result.ok) setStatus(`Moved VDD rail ${record.route.id}`);
+        }
+      } else if (
+        preview.kind === "power-rail-resize-start" ||
+        preview.kind === "power-rail-resize-end"
+      ) {
+        const result = transact(
+          proposePowerRailEndpointResize(
+            document,
+            resolver,
+            record.route.id,
+            preview.kind === "power-rail-resize-start" ? "start" : "end",
+            snapCoordinate(point.x, document.presentation.grid),
+          ).edits,
+        );
+        if (result.ok) setStatus(`Resized VDD rail ${record.route.id}`);
       } else {
         const proposal = proposeWireSegmentMove(
           document,
@@ -7873,6 +7941,21 @@ export function App({ project: initialProject, visitStats }: AppProps) {
                   const to = polyline.points[segmentIndex + 1]!;
                   const translatesWholeRoute =
                     looseRouteAnchorIds(document, route) !== null;
+                  const powerRail =
+                    route.presentation === "power-rail"
+                      ? derivePowerRailComponent(document, route.id)
+                      : null;
+                  const powerRailEnds = powerRail?.endpointJunctionIds
+                    .map((junctionId) =>
+                      document.junctions.find(
+                        (junction) => junction.id === junctionId,
+                      ),
+                    )
+                    .filter(
+                      (junction): junction is NonNullable<typeof junction> =>
+                        Boolean(junction),
+                    )
+                    .sort((left, right) => left.position.x - right.position.x);
                   const routeCenter = centerOfBounds(
                     polylineBounds(polyline.points),
                   );
@@ -7880,46 +7963,80 @@ export function App({ project: initialProject, visitStats }: AppProps) {
                     routeStretchPreview?.routeId === route.id
                       ? routeStretchPreview.point
                       : null;
+                  const handlePointerDown = (
+                    event: ReactPointerEvent<SVGElement>,
+                    kind: RouteStretchPreview["kind"],
+                  ) => {
+                    const primaryInstanceId = selectedIds.at(-1);
+                    if (
+                      primaryInstanceId &&
+                      compositeSelectionOwnsHit("route", route.id)
+                    ) {
+                      beginMove(event, primaryInstanceId);
+                      return;
+                    }
+                    beginRouteStretch(event, route.id, segmentIndex, kind);
+                  };
                   return (
-                    <circle
-                      key={`handle-${route.id}`}
-                      data-testid={`route-handle-${route.id}`}
-                      data-canvas-hit-kind="handle"
-                      data-canvas-hit-id={`route-handle-${route.id}`}
-                      className="route-handle"
-                      cx={
-                        translatesWholeRoute
-                          ? (preview?.x ?? routeCenter.x)
-                          : from.y === to.y
-                            ? (from.x + to.x) / 2
-                            : (preview?.x ?? (from.x + to.x) / 2)
-                      }
-                      cy={
-                        translatesWholeRoute
-                          ? (preview?.y ?? routeCenter.y)
-                          : from.x === to.x
-                            ? (from.y + to.y) / 2
-                            : (preview?.y ?? (from.y + to.y) / 2)
-                      }
-                      r="6"
-                      onPointerDown={(event) => {
-                        const primaryInstanceId = selectedIds.at(-1);
-                        if (
-                          primaryInstanceId &&
-                          compositeSelectionOwnsHit("route", route.id)
-                        ) {
-                          beginMove(event, primaryInstanceId);
-                          return;
+                    <g key={`handle-${route.id}`}>
+                      <circle
+                        data-testid={`route-handle-${route.id}`}
+                        data-canvas-hit-kind="handle"
+                        data-canvas-hit-id={`route-handle-${route.id}`}
+                        className="route-handle"
+                        cx={
+                          powerRail
+                            ? routeCenter.x
+                            : translatesWholeRoute
+                              ? (preview?.x ?? routeCenter.x)
+                              : from.y === to.y
+                                ? (from.x + to.x) / 2
+                                : (preview?.x ?? (from.x + to.x) / 2)
                         }
-                        beginRouteStretch(
-                          event,
-                          route.id,
-                          segmentIndex,
-                          translatesWholeRoute ? "translate" : "segment",
-                        );
-                      }}
-                      pointerEvents={tool === "wire" ? "none" : undefined}
-                    />
+                        cy={
+                          powerRail
+                            ? routeCenter.y
+                            : translatesWholeRoute
+                              ? (preview?.y ?? routeCenter.y)
+                              : from.x === to.x
+                                ? (from.y + to.y) / 2
+                                : (preview?.y ?? (from.y + to.y) / 2)
+                        }
+                        r="6"
+                        onPointerDown={(event) =>
+                          handlePointerDown(
+                            event,
+                            powerRail
+                              ? "power-rail-translate"
+                              : translatesWholeRoute
+                                ? "translate"
+                                : "segment",
+                          )
+                        }
+                        pointerEvents={tool === "wire" ? "none" : undefined}
+                      />
+                      {powerRailEnds?.map((junction, index) => (
+                        <circle
+                          key={`power-rail-handle-${route.id}-${index}`}
+                          data-testid={`power-rail-handle-${route.id}-${index === 0 ? "start" : "end"}`}
+                          data-canvas-hit-kind="handle"
+                          data-canvas-hit-id={`power-rail-handle-${route.id}-${index === 0 ? "start" : "end"}`}
+                          className="route-handle"
+                          cx={junction.position.x}
+                          cy={junction.position.y}
+                          r="6"
+                          onPointerDown={(event) =>
+                            handlePointerDown(
+                              event,
+                              index === 0
+                                ? "power-rail-resize-start"
+                                : "power-rail-resize-end",
+                            )
+                          }
+                          pointerEvents={tool === "wire" ? "none" : undefined}
+                        />
+                      ))}
+                    </g>
                   );
                 })}
               {document.instances
@@ -7989,66 +8106,111 @@ export function App({ project: initialProject, visitStats }: AppProps) {
                   onClick={(event) => event.stopPropagation()}
                 />
               ))}
-              {wiringEndpoints.map((candidate) => (
-                <circle
-                  key={`${candidate.netId}:${endpointTestId(candidate.endpoint)}`}
-                  data-testid={endpointTestId(candidate.endpoint)}
-                  data-canvas-hit-kind={
-                    candidate.endpoint.kind === "junction"
-                      ? "junction"
-                      : undefined
-                  }
-                  data-canvas-hit-id={
-                    candidate.endpoint.kind === "junction"
-                      ? candidate.endpoint.junctionId
-                      : undefined
-                  }
-                  data-drag-object-id={
-                    candidate.endpoint.kind === "junction"
-                      ? candidate.endpoint.junctionId
-                      : undefined
-                  }
-                  className={
-                    tool === "wire" ||
-                    (candidate.endpoint.kind === "junction" &&
-                      supplementalSelection.junctionIds.includes(
-                        candidate.endpoint.junctionId,
-                      )) ||
-                    (selectedEndpoint?.endpoint.kind === "junction" &&
-                      candidate.endpoint.kind === "junction" &&
-                      selectedEndpoint.endpoint.junctionId ===
-                        candidate.endpoint.junctionId)
-                      ? "endpoint-hit active"
-                      : "endpoint-hit"
-                  }
-                  cx={candidate.point.x}
-                  cy={candidate.point.y}
-                  r={4}
-                  onClick={(event) => event.stopPropagation()}
-                  onContextMenu={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    selectEndpoint(candidate);
-                    setStatus(
-                      `Endpoint actions: ${endpointTestId(candidate.endpoint)}`,
-                    );
-                  }}
-                  onPointerDown={(event) => {
-                    if (
-                      tool === "pointer" &&
+              {wiringEndpoints.map((candidate) => {
+                const powerRailEnds =
+                  selectedRoute?.presentation === "power-rail"
+                    ? (derivePowerRailComponent(document, selectedRoute.id)
+                        ?.endpointJunctionIds.map((junctionId) =>
+                          document.junctions.find(
+                            (junction) => junction.id === junctionId,
+                          ),
+                        )
+                        .filter(
+                          (
+                            junction,
+                          ): junction is NonNullable<typeof junction> =>
+                            Boolean(junction),
+                        )
+                        .sort(
+                          (left, right) => left.position.x - right.position.x,
+                        ) ?? [])
+                    : [];
+                const candidateJunctionId =
+                  candidate.endpoint.kind === "junction"
+                    ? candidate.endpoint.junctionId
+                    : null;
+                const powerRailEndIndex =
+                  candidateJunctionId !== null
+                    ? powerRailEnds.findIndex(
+                        (junction) => junction.id === candidateJunctionId,
+                      )
+                    : -1;
+                return (
+                  <circle
+                    key={`${candidate.netId}:${endpointTestId(candidate.endpoint)}`}
+                    data-testid={endpointTestId(candidate.endpoint)}
+                    data-canvas-hit-kind={
                       candidate.endpoint.kind === "junction"
-                    ) {
+                        ? "junction"
+                        : undefined
+                    }
+                    data-canvas-hit-id={
+                      candidate.endpoint.kind === "junction"
+                        ? candidate.endpoint.junctionId
+                        : undefined
+                    }
+                    data-drag-object-id={
+                      candidate.endpoint.kind === "junction"
+                        ? candidate.endpoint.junctionId
+                        : undefined
+                    }
+                    className={
+                      tool === "wire" ||
+                      (candidate.endpoint.kind === "junction" &&
+                        supplementalSelection.junctionIds.includes(
+                          candidate.endpoint.junctionId,
+                        )) ||
+                      (selectedEndpoint?.endpoint.kind === "junction" &&
+                        candidate.endpoint.kind === "junction" &&
+                        selectedEndpoint.endpoint.junctionId ===
+                          candidate.endpoint.junctionId)
+                        ? "endpoint-hit active"
+                        : "endpoint-hit"
+                    }
+                    cx={candidate.point.x}
+                    cy={candidate.point.y}
+                    r={4}
+                    onClick={(event) => event.stopPropagation()}
+                    onContextMenu={(event) => {
+                      event.preventDefault();
                       event.stopPropagation();
                       selectEndpoint(candidate);
                       setStatus(
-                        `Selected ${endpointTestId(candidate.endpoint)}`,
+                        `Endpoint actions: ${endpointTestId(candidate.endpoint)}`,
                       );
-                      return;
-                    }
-                    handleWireEndpoint(event, candidate);
-                  }}
-                />
-              ))}
+                    }}
+                    onPointerDown={(event) => {
+                      if (
+                        tool === "pointer" &&
+                        selectedRoute &&
+                        powerRailEndIndex >= 0
+                      ) {
+                        beginRouteStretch(
+                          event,
+                          selectedRoute.id,
+                          selectedRouteSegmentIndex ?? 0,
+                          powerRailEndIndex === 0
+                            ? "power-rail-resize-start"
+                            : "power-rail-resize-end",
+                        );
+                        return;
+                      }
+                      if (
+                        tool === "pointer" &&
+                        candidate.endpoint.kind === "junction"
+                      ) {
+                        event.stopPropagation();
+                        selectEndpoint(candidate);
+                        setStatus(
+                          `Selected ${endpointTestId(candidate.endpoint)}`,
+                        );
+                        return;
+                      }
+                      handleWireEndpoint(event, candidate);
+                    }}
+                  />
+                );
+              })}
               {document.annotations.map((annotation) => {
                 const anchor = annotationAnchor(
                   document,

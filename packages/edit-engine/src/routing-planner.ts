@@ -1,6 +1,8 @@
 import {
+  derivePowerRailComponent,
   normalizeRouteGeometry,
   proposeGroupMove,
+  proposeJunctionGroupTranslation,
   proposeWireSegmentDrag,
   resolveEndpointPoint,
   type SegmentMode,
@@ -298,6 +300,95 @@ export function proposeLooseRouteTranslation(
         segmentModes: [...route.segmentModes],
         ...(route.presentation ? { presentation: route.presentation } : {}),
       },
+    ],
+  };
+}
+
+/**
+ * Translate every fragment and Junction belonging to one visually continuous
+ * VDD rail. Ordinary branch wires are not translated wholesale: they are
+ * reshaped around the moved rail Junction instead.
+ */
+export function proposePowerRailTranslation(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  routeId: string,
+  delta: Point,
+): WireManipulationProposal {
+  const component = derivePowerRailComponent(document, routeId);
+  if (!component) {
+    throw new Error(`Route ${routeId} is not a power rail`);
+  }
+  if (delta.x === 0 && delta.y === 0) return { routeId, edits: [] };
+  const proposal = proposeJunctionGroupTranslation(
+    document,
+    resolver,
+    component.junctionIds.map((junctionId) => {
+      const junction = document.junctions.find(
+        (candidate) => candidate.id === junctionId,
+      )!;
+      return {
+        junctionId,
+        position: {
+          x: junction.position.x + delta.x,
+          y: junction.position.y + delta.y,
+        },
+      };
+    }),
+  );
+  return {
+    routeId,
+    edits: [
+      ...proposal.junctions.map((move): SchematicEdit => ({
+        kind: "move_junction",
+        ...move,
+      })),
+      ...routeEdits(document, proposal.routes),
+    ],
+  };
+}
+
+/** Resize the left or right visual end of a continuous horizontal VDD rail. */
+export function proposePowerRailEndpointResize(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  routeId: string,
+  side: "start" | "end",
+  x: number,
+): WireManipulationProposal {
+  const component = derivePowerRailComponent(document, routeId);
+  if (!component || component.endpointJunctionIds.length !== 2) {
+    throw new Error("VDD rail must have exactly two editable ends");
+  }
+  const endpoints = component.endpointJunctionIds
+    .map((junctionId) =>
+      document.junctions.find((junction) => junction.id === junctionId)!,
+    )
+    .sort((left, right) => left.position.x - right.position.x);
+  const start = endpoints[0]!;
+  const end = endpoints[1]!;
+  const target = side === "start" ? start : end;
+  const fixed = side === "start" ? end : start;
+  if (
+    (side === "start" && x >= fixed.position.x) ||
+    (side === "end" && x <= fixed.position.x)
+  ) {
+    throw new Error("VDD rail must retain a non-zero horizontal length");
+  }
+  const proposal = proposeJunctionGroupTranslation(document, resolver, [
+    {
+      junctionId: target.id,
+      position: { x, y: target.position.y },
+    },
+  ]);
+  return {
+    routeId,
+    edits: [
+      ...proposal.junctions.map((move): SchematicEdit => ({
+        kind: "move_junction",
+        ...move,
+      })),
+      ...routeEdits(document, proposal.routes),
     ],
   };
 }

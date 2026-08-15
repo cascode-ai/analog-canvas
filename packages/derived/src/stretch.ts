@@ -58,6 +58,81 @@ export interface WireSegmentDragProposal {
 }
 
 /**
+ * The visually continuous subset of a VDD rail. A wire tap splits one stored
+ * Route in two, but it must not turn the two resulting supply segments into
+ * independent editor objects.
+ */
+export interface PowerRailComponent {
+  routeIds: string[];
+  junctionIds: string[];
+  endpointJunctionIds: string[];
+}
+
+/**
+ * Find the connected `power-rail` component containing `routeId`.
+ *
+ * Connectivity deliberately traverses only other power-rail fragments on the
+ * same Net. Normal wires meeting a rail at a branch Junction remain branches,
+ * rather than making every VDD conductor in the document one draggable rail.
+ */
+export function derivePowerRailComponent(
+  document: SchematicDocument,
+  routeId: string,
+): PowerRailComponent | null {
+  const seed = document.routes.find((route) => route.id === routeId);
+  if (!seed || seed.presentation !== "power-rail") return null;
+  const candidates = document.routes.filter(
+    (route) =>
+      route.netId === seed.netId && route.presentation === "power-rail",
+  );
+  const byJunction = new Map<string, typeof candidates>();
+  for (const route of candidates) {
+    for (const endpoint of [route.from, route.to]) {
+      if (endpoint.kind !== "junction") continue;
+      const incident = byJunction.get(endpoint.junctionId) ?? [];
+      incident.push(route);
+      byJunction.set(endpoint.junctionId, incident);
+    }
+  }
+
+  const visited = new Set<string>([seed.id]);
+  const queue = [seed];
+  while (queue.length > 0) {
+    const route = queue.shift()!;
+    for (const endpoint of [route.from, route.to]) {
+      if (endpoint.kind !== "junction") continue;
+      for (const incident of byJunction.get(endpoint.junctionId) ?? []) {
+        if (visited.has(incident.id)) continue;
+        visited.add(incident.id);
+        queue.push(incident);
+      }
+    }
+  }
+
+  const railRoutes = candidates.filter((route) => visited.has(route.id));
+  const degreeByJunction = new Map<string, number>();
+  for (const route of railRoutes) {
+    for (const endpoint of [route.from, route.to]) {
+      if (endpoint.kind !== "junction") continue;
+      degreeByJunction.set(
+        endpoint.junctionId,
+        (degreeByJunction.get(endpoint.junctionId) ?? 0) + 1,
+      );
+    }
+  }
+  const order = (left: string, right: string) =>
+    left.localeCompare(right, "en");
+  const junctionIds = [...degreeByJunction.keys()].sort(order);
+  return {
+    routeIds: railRoutes.map((route) => route.id).sort(order),
+    junctionIds,
+    endpointJunctionIds: junctionIds
+      .filter((junctionId) => degreeByJunction.get(junctionId) === 1)
+      .sort(order),
+  };
+}
+
+/**
  * A persisted Junction is a topological vertex, not an absolute geometric
  * anchor. Dragging a segment that terminates at one therefore moves the vertex
  * and lets every incident Route stretch around it. Terminals remain hard
@@ -148,10 +223,118 @@ function stretchRouteEndpoint(
   if (stillAligned) return;
 
   const insertIndex = side === "from" ? 1 : points.length - 1;
-  points.splice(insertIndex, 0, { ...originalPoint });
+  // A direct Route needs an orthogonal elbow when its Junction moves in both
+  // axes. Re-inserting the old endpoint would create a diagonal segment.
+  points.splice(
+    insertIndex,
+    0,
+    originallyVertical
+      ? { x: neighbor.x, y: movedPoint.y }
+      : { x: movedPoint.x, y: neighbor.y },
+  );
   const modeIndex = side === "from" ? 0 : modes.length - 1;
   const mode = modes[modeIndex]!;
   modes.splice(modeIndex, 1, mode, mode);
+}
+
+/**
+ * Move an explicit set of Junctions and reshape every incident Route in one
+ * topology-preserving proposal. Routes wholly inside the moved set translate;
+ * routes leaving it grow a local orthogonal dogleg at their moved end.
+ */
+export function proposeJunctionGroupTranslation(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  moves: readonly JunctionMoveProposal[],
+): WireSegmentDragProposal {
+  const movedJunctions = new Map(
+    moves.map((move) => [move.junctionId, move.position] as const),
+  );
+  for (const junctionId of movedJunctions.keys()) {
+    if (!document.junctions.some((junction) => junction.id === junctionId)) {
+      throw new Error(`Junction not found: ${junctionId}`);
+    }
+  }
+  const routingGeometry = resolveDocumentRoutingGeometry(document, resolver);
+  const proposals = new Map<string, RouteStretchProposal>();
+  for (const route of document.routes) {
+    const movedFrom =
+      route.from.kind === "junction"
+        ? movedJunctions.get(route.from.junctionId)
+        : undefined;
+    const movedTo =
+      route.to.kind === "junction"
+        ? movedJunctions.get(route.to.junctionId)
+        : undefined;
+    if (!movedFrom && !movedTo) continue;
+
+    const polyline = routePolylineFromGeometry(routingGeometry, route.id);
+    if (!polyline) throw new Error(`Route ${route.id} has unresolved geometry`);
+    const points = polyline.points.map((point) => ({ ...point }));
+    const modes = [...polyline.segmentModes];
+    const fromDelta = movedFrom
+      ? {
+          x: movedFrom.x - polyline.points[0]!.x,
+          y: movedFrom.y - polyline.points[0]!.y,
+        }
+      : null;
+    const toDelta = movedTo
+      ? {
+          x: movedTo.x - polyline.points.at(-1)!.x,
+          y: movedTo.y - polyline.points.at(-1)!.y,
+        }
+      : null;
+    if (
+      fromDelta &&
+      toDelta &&
+      fromDelta.x === toDelta.x &&
+      fromDelta.y === toDelta.y
+    ) {
+      if (modes.some(protectedMode)) {
+        throw new Error(`Route ${route.id} contains a protected segment`);
+      }
+      proposals.set(route.id, {
+        routeId: route.id,
+        waypoints: route.waypoints.map((point) => ({
+          x: point.x + fromDelta.x,
+          y: point.y + fromDelta.y,
+        })),
+        segmentModes: modes,
+      });
+      continue;
+    }
+    if (movedFrom) {
+      stretchRouteEndpoint(
+        route.id,
+        points,
+        modes,
+        "from",
+        polyline.points[0]!,
+        movedFrom,
+      );
+    }
+    if (movedTo) {
+      stretchRouteEndpoint(
+        route.id,
+        points,
+        modes,
+        "to",
+        polyline.points.at(-1)!,
+        movedTo,
+      );
+    }
+    proposals.set(route.id, normalizeProposal(route.id, points, modes));
+  }
+  return {
+    routes: [...proposals.values()].sort((left, right) =>
+      left.routeId.localeCompare(right.routeId, "en"),
+    ),
+    junctions: [...movedJunctions.entries()]
+      .map(([junctionId, position]) => ({ junctionId, position }))
+      .sort((left, right) =>
+        left.junctionId.localeCompare(right.junctionId, "en"),
+      ),
+  };
 }
 
 /**

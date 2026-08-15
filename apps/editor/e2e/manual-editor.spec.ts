@@ -277,6 +277,64 @@ test("constructs VDD as a drawn dotless power rail", async ({ page }) => {
   await expect(canvas.getByText("VDD", { exact: true })).toHaveCount(0);
 });
 
+test("keeps a tapped VDD rail movable and stretchable as one supply bar", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const canvas = page.getByTestId("schematic-canvas");
+  await page.getByTestId("shapes-chip-vdd").click();
+  await canvas.click({ position: { x: 180, y: 120 } });
+  await canvas.click({ position: { x: 520, y: 120 } });
+  await placeComponent(page, "resistor", { x: 360, y: 300 });
+
+  await clickCommand(page, "Draw", "Wire (W)");
+  await clickRoute(page, "route-vdd1-rail");
+  await page.locator('[data-testid^="terminal-R"][data-testid$="-1"]').click();
+  await page.keyboard.press("Escape");
+
+  const railHits = page.locator('[data-testid^="route-hit-route-vdd1-rail"]');
+  await expect(railHits).toHaveCount(2);
+  const selectedTestId = await railHits.first().getAttribute("data-testid");
+  if (!selectedTestId) throw new Error("Tapped VDD rail is not selectable");
+  const selectedRailId = selectedTestId.replace(/^route-hit-/u, "");
+  const railIds = await railHits.evaluateAll((elements) =>
+    elements.map((element) =>
+      element.getAttribute("data-testid")!.replace(/^route-hit-/u, ""),
+    ),
+  );
+  const beforeMove = await Promise.all(
+    railIds.map((id) => readRoutePoints(page, id)),
+  );
+
+  await clickRoute(page, selectedRailId);
+  await dragBy(page.getByTestId(`route-handle-${selectedRailId}`), {
+    x: 30,
+    y: 40,
+  });
+  await expect(page.getByTestId("status")).toContainText("Moved VDD rail");
+  const afterMove = await Promise.all(
+    railIds.map((id) => readRoutePoints(page, id)),
+  );
+  expect(Math.min(...afterMove.flat().map((point) => point.y))).toBeGreaterThan(
+    Math.min(...beforeMove.flat().map((point) => point.y)),
+  );
+
+  const beforeResizeRight = Math.max(
+    ...afterMove.flat().map((point) => point.x),
+  );
+  await dragBy(page.getByTestId("junction-junction-vdd1-end"), {
+    x: 80,
+    y: 0,
+  });
+  await expect(page.getByTestId("status")).toContainText("Resized VDD rail");
+  const afterResize = await Promise.all(
+    railIds.map((id) => readRoutePoints(page, id)),
+  );
+  expect(
+    Math.max(...afterResize.flat().map((point) => point.x)),
+  ).toBeGreaterThan(beforeResizeRight);
+});
+
 test("reuses the PMOS bulk supply Net when drawing a VDD rail", async ({
   page,
 }) => {
