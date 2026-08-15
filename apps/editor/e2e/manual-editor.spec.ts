@@ -409,25 +409,25 @@ test("treats hollow and filled Ports as ordinary wired components", async ({
   await placeComponent(page, "port-filled", { x: 260, y: 300 });
 
   await clickCommand(page, "Draw", "Wire (W)");
-  await page.getByTestId("terminal-P2-P").click();
+  await page.getByTestId("terminal-P1-P").click();
   await page.getByTestId("terminal-R1-1").click();
   await page.keyboard.press("Escape");
   await clickCommand(page, "Draw", "Wire (W)");
-  await page.getByTestId("terminal-P3-P").click();
+  await page.getByTestId("terminal-P2-P").click();
   await page.getByTestId("terminal-R1-2").click();
   await page.keyboard.press("Escape");
 
   await expect(page.locator('[data-testid^="route-hit-"]')).toHaveCount(2);
-  await dragBy(page.getByTestId("hit-P2"), { x: 40, y: 0 });
-  await dragBy(page.getByTestId("hit-P3"), { x: 40, y: 20 });
+  await dragBy(page.getByTestId("hit-P1"), { x: 40, y: 0 });
+  await dragBy(page.getByTestId("hit-P2"), { x: 40, y: 20 });
   await expect(page.locator('[data-testid^="route-hit-"]')).toHaveCount(2);
 
+  await page.getByTestId("hit-P1").click();
+  await page.keyboard.press("Delete");
+  await expect(page.getByTestId("hit-P1")).toHaveCount(0);
   await page.getByTestId("hit-P2").click();
   await page.keyboard.press("Delete");
   await expect(page.getByTestId("hit-P2")).toHaveCount(0);
-  await page.getByTestId("hit-P3").click();
-  await page.keyboard.press("Delete");
-  await expect(page.getByTestId("hit-P3")).toHaveCount(0);
   const saved = JSON.parse(
     (await downloadBytes(page, "File", "Save Project")).toString("utf8"),
   ) as {
@@ -444,13 +444,13 @@ test("treats hollow and filled Ports as ordinary wired components", async ({
     document.nets
       .flatMap((net) => net.terminals)
       .map((item) => item.instanceId),
-  ).not.toEqual(expect.arrayContaining(["P2", "P3"]));
+  ).not.toEqual(expect.arrayContaining(["P1", "P2"]));
   expect(
     document.routes.flatMap((route) => [route.from, route.to]),
   ).not.toEqual(
     expect.arrayContaining([
+      expect.objectContaining({ instanceId: "P1" }),
       expect.objectContaining({ instanceId: "P2" }),
-      expect.objectContaining({ instanceId: "P3" }),
     ]),
   );
 });
@@ -465,8 +465,8 @@ test("authors components and connectivity manually from an empty canvas", async 
   await placeComponent(page, "resistor", { x: 340, y: 220 });
   await placeComponent(page, "nmos", { x: 560, y: 220 });
   await expect(page.getByTestId("hit-R1")).toBeVisible();
-  await expect(page.getByTestId("hit-M2")).toBeVisible();
-  await expect(page.getByTestId("terminal-M2-B")).toHaveCount(0);
+  await expect(page.getByTestId("hit-M1")).toBeVisible();
+  await expect(page.getByTestId("terminal-M1-B")).toHaveCount(0);
   await expect(page.getByTestId("revision")).toHaveText("2");
   await expect(page.getByTestId("source-status")).toHaveText(
     "connectivity-modified",
@@ -474,7 +474,7 @@ test("authors components and connectivity manually from an empty canvas", async 
 
   await clickCommand(page, "Draw", "Wire (W)");
   await page.getByTestId("terminal-R1-2").click();
-  await page.getByTestId("terminal-M2-G").click();
+  await page.getByTestId("terminal-M1-G").click();
   await expect(page.getByTestId("revision")).toHaveText("3");
   await expect(page.locator('[data-layer="routes"] polyline')).toHaveCount(1);
   await page.keyboard.press("Escape");
@@ -745,12 +745,12 @@ test("turns an off-axis tap near a route bend into an exact junction", async ({
   await placeComponent(page, "resistor", { x: 680, y: 360 });
   await clickCommand(page, "Draw", "Wire (W)");
   await page.getByTestId("terminal-M1-D").click();
-  await page.getByTestId("terminal-R2-1").click();
+  await page.getByTestId("terminal-R1-1").click();
   const points = await readRoutePoints(page, "route-ui-1");
   expect(points.length).toBeGreaterThanOrEqual(3);
 
   await clickCommand(page, "Draw", "Wire (W)");
-  await page.getByTestId("terminal-R3-1").click();
+  await page.getByTestId("terminal-R2-1").click();
   await clickRouteVertexWithScreenOffset(page, "route-ui-1", 1, {
     x: 3,
     y: 3,
@@ -784,7 +784,7 @@ test("materializes a MOS supply default and lets a dashed bulk route override it
     "supply-default",
   );
   await page.getByRole("button", { name: "Draw bulk connection" }).click();
-  await page.getByTestId("terminal-GND2-0").click();
+  await page.getByTestId("terminal-GND1-0").click();
   await page.keyboard.press("Escape");
 
   const saved = JSON.parse(
@@ -814,7 +814,7 @@ test("materializes a MOS supply default and lets a dashed bulk route override it
   ).toEqual(
     expect.arrayContaining([
       { instanceId: "M1", pinName: "B" },
-      { instanceId: "GND2", pinName: "0" },
+      { instanceId: "GND1", pinName: "0" },
     ]),
   );
 });
@@ -927,7 +927,7 @@ test("keeps direct device pin corners on-grid and deletes a selected junction", 
   await placeComponent(page, "resistor", { x: 540, y: 160 });
   await clickCommand(page, "Draw", "Wire (W)");
   await page.getByTestId("terminal-M1-D").click();
-  await page.getByTestId("terminal-R2-1").click();
+  await page.getByTestId("terminal-R1-1").click();
 
   const terminalRoute = await readRoutePoints(page, "route-ui-1");
   expect(terminalRoute).toHaveLength(3);
@@ -1000,7 +1000,7 @@ test("connects copied multi-pin groups through a manually bent wire", async ({
   await page
     .getByTestId("schematic-canvas")
     .click({ position: { x: 460, y: 500 } });
-  await page.getByTestId("terminal-M2-copy-1-S").click();
+  await page.getByTestId("terminal-M4-S").click();
 
   await expect(page.getByTestId("status")).toContainText("Committed route");
   await expect(page.locator('[data-layer="routes"] polyline')).toHaveCount(3);
@@ -1594,12 +1594,63 @@ test("R rotates a copy preview before committing the copied component", async ({
   await expect(previewSymbol).toHaveAttribute("transform", /rotate\(0\)/);
 
   await page.keyboard.press("r");
-  await expect(previewSymbol).toHaveAttribute("transform", /rotate\(90\)/);
+  await expect(previewSymbol).toHaveAttribute("transform", /rotate\(90\)/u);
   await canvas.click({ position: { x: 560, y: 340 } });
   await expect(
-    canvas.locator('[data-object-id="R1-copy-1"] > g').first(),
-  ).toHaveAttribute("transform", /rotate\(90\)/);
+    canvas.locator('[data-object-id="R2"] > g').first(),
+  ).toHaveAttribute("transform", /rotate\(90\)/u);
+  // The pasted designator and its visible label both read R2.
+  await expect(canvas.getByText("R2", { exact: true })).toBeVisible();
   await page.keyboard.press("Escape");
+});
+
+test("numbers placed components per device type instead of globally", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await placeComponent(page, "nmos", { x: 320, y: 200 });
+  await placeComponent(page, "nmos", { x: 520, y: 200 });
+  await placeComponent(page, "resistor", { x: 720, y: 200 });
+  await placeComponent(page, "capacitor", { x: 320, y: 400 });
+
+  await expect(page.getByTestId("hit-M1")).toBeVisible();
+  await expect(page.getByTestId("hit-M2")).toBeVisible();
+  await expect(page.getByTestId("hit-R1")).toBeVisible();
+  await expect(page.getByTestId("hit-C1")).toBeVisible();
+  await expect(page.getByTestId("instance-count")).toHaveText("4");
+});
+
+test("right-drag frames a region and fits the camera to it transiently", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await placeComponent(page, "resistor", { x: 320, y: 200 });
+
+  const canvas = page.getByTestId("schematic-canvas");
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("Canvas is not measurable");
+  const before = await canvas.getAttribute("viewBox");
+
+  await page.mouse.move(box.x + 220, box.y + 160);
+  await page.mouse.down({ button: "right" });
+  await page.mouse.move(box.x + 420, box.y + 320, { steps: 4 });
+  await expect(page.getByTestId("zoom-box")).toBeVisible();
+  await page.mouse.up({ button: "right" });
+
+  await expect(page.getByTestId("zoom-box")).toHaveCount(0);
+  await expect(canvas).not.toHaveAttribute("viewBox", before!);
+  await expect(page.getByTestId("status")).toHaveText(
+    "Zoomed to framed region",
+  );
+  // Framing is a camera gesture: the document revision must not move.
+  await expect(page.getByTestId("revision")).toHaveText("1");
+
+  // A right click that never framed must not change the camera either.
+  const framed = await canvas.getAttribute("viewBox");
+  await page.mouse.move(box.x + 300, box.y + 240);
+  await page.mouse.down({ button: "right" });
+  await page.mouse.up({ button: "right" });
+  await expect(canvas).toHaveAttribute("viewBox", framed!);
 });
 
 test("keeps copy placement active for repeated commits until Escape", async ({

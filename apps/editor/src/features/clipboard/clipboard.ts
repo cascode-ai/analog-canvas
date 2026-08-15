@@ -10,7 +10,11 @@ import type {
   RouteEndpoint,
   SchematicDocument,
 } from "@icm/model";
-import { transformPoint } from "@icm/model";
+import {
+  flattenRichText,
+  semanticTextDocument,
+  transformPoint,
+} from "@icm/model";
 
 import {
   applyOrientationOperations,
@@ -221,6 +225,63 @@ function uniqueCopyReference(
   return candidate;
 }
 
+/**
+ * A pasted instance whose source id equals its source reference keeps the
+ * designator convention: it adopts the freshly allocated reference (copy R1
+ * becomes R2) so the visible label, the id, and the netlist reference stay a
+ * single fact. Anything else (custom ids, reference-less instances) falls
+ * back to the opaque `-copy-N` id.
+ */
+function pastedInstanceId(
+  source: Instance,
+  nextReference: string | undefined,
+  sequence: number,
+  occupied: Set<string>,
+): string {
+  if (
+    nextReference !== undefined &&
+    source.id === source.netlist?.reference &&
+    !occupied.has(nextReference)
+  ) {
+    occupied.add(nextReference);
+    return nextReference;
+  }
+  return uniqueCopyId(source.id, sequence, occupied);
+}
+
+/**
+ * Rewrites a pasted instance-label whose text is still the copied reference
+ * (or copied id) to the new reference, so a pasted R1 reads R2 on canvas.
+ * The replacement content is rebuilt exactly like a freshly placed label
+ * (semantic base + subscript runs). Hand-edited label text is preserved
+ * verbatim.
+ */
+function rewriteInstanceLabelText(
+  annotation: Annotation,
+  source: Instance | undefined,
+  nextId: string,
+  nextReference: string | undefined,
+): void {
+  if (
+    source === undefined ||
+    annotation.kind !== "instance-label" ||
+    annotation.anchor.kind !== "object"
+  ) {
+    return;
+  }
+  const plain = flattenRichText(annotation.content);
+  if (
+    plain !== source.id &&
+    (source.netlist === undefined || plain !== source.netlist.reference)
+  ) {
+    return;
+  }
+  annotation.content = semanticTextDocument(
+    nextReference ?? nextId,
+    "instance-label",
+  );
+}
+
 function movePoint(point: Point, offset: Point): Point {
   return { x: point.x + offset.x, y: point.y + offset.y };
 }
@@ -268,12 +329,6 @@ export function proposePaste(
       ...document.constraints,
     ].map((object) => object.id),
   );
-  const instanceIds = new Map(
-    clipboard.instances.map((instance) => [
-      instance.id,
-      uniqueCopyId(instance.id, sequence, occupied),
-    ]),
-  );
   const occupiedReferences = new Set(
     document.instances.flatMap((instance) =>
       instance.netlist ? [instance.netlist.reference.toLowerCase()] : [],
@@ -293,6 +348,17 @@ export function proposePaste(
           ]
         : [],
     ),
+  );
+  const instanceIds = new Map(
+    clipboard.instances.map((instance) => [
+      instance.id,
+      pastedInstanceId(
+        instance,
+        instanceReferences.get(instance.id),
+        sequence,
+        occupied,
+      ),
+    ]),
   );
   const routeIds = new Map(
     clipboard.routes.map((route) => [
@@ -459,44 +525,58 @@ export function proposePaste(
       ...(route.presentation ? { presentation: route.presentation } : {}),
     })),
   );
+  const sourceInstancesById = new Map(
+    clipboard.instances.map((instance) => [instance.id, instance]),
+  );
   edits.push(
-    ...clipboard.annotations.map((annotation): SchematicEdit => ({
-      kind: "upsert_schematic_annotation",
-      annotation: {
-        ...structuredClone(annotation),
-        id: uniqueCopyId(annotation.id, sequence, occupied),
-        ...(annotation.netId
-          ? { netId: netIds.get(annotation.netId) ?? annotation.netId }
-          : {}),
-        anchor:
-          annotation.anchor.kind === "free"
-            ? {
-                kind: "free",
-                position: movePoint(annotation.anchor.position, offset),
-              }
-            : annotation.anchor.kind === "object"
+    ...clipboard.annotations.map((annotation): SchematicEdit => {
+      const clone = structuredClone(annotation);
+      if (clone.anchor.kind === "object") {
+        rewriteInstanceLabelText(
+          clone,
+          sourceInstancesById.get(clone.anchor.objectId),
+          objectIds.get(clone.anchor.objectId) ?? clone.anchor.objectId,
+          instanceReferences.get(clone.anchor.objectId),
+        );
+      }
+      return {
+        kind: "upsert_schematic_annotation",
+        annotation: {
+          ...clone,
+          id: uniqueCopyId(annotation.id, sequence, occupied),
+          ...(annotation.netId
+            ? { netId: netIds.get(annotation.netId) ?? annotation.netId }
+            : {}),
+          anchor:
+            annotation.anchor.kind === "free"
               ? {
-                  ...annotation.anchor,
-                  objectId:
-                    objectIds.get(annotation.anchor.objectId) ??
-                    annotation.anchor.objectId,
-                  fallbackPosition: movePoint(
-                    annotation.anchor.fallbackPosition,
-                    offset,
-                  ),
+                  kind: "free",
+                  position: movePoint(annotation.anchor.position, offset),
                 }
-              : {
-                  ...annotation.anchor,
-                  routeId:
-                    routeIds.get(annotation.anchor.routeId) ??
-                    annotation.anchor.routeId,
-                  fallbackPosition: movePoint(
-                    annotation.anchor.fallbackPosition,
-                    offset,
-                  ),
-                },
-      },
-    })),
+              : annotation.anchor.kind === "object"
+                ? {
+                    ...annotation.anchor,
+                    objectId:
+                      objectIds.get(annotation.anchor.objectId) ??
+                      annotation.anchor.objectId,
+                    fallbackPosition: movePoint(
+                      annotation.anchor.fallbackPosition,
+                      offset,
+                    ),
+                  }
+                : {
+                    ...annotation.anchor,
+                    routeId:
+                      routeIds.get(annotation.anchor.routeId) ??
+                      annotation.anchor.routeId,
+                    fallbackPosition: movePoint(
+                      annotation.anchor.fallbackPosition,
+                      offset,
+                    ),
+                  },
+        },
+      };
+    }),
   );
   return { edits, instanceIds: [...instanceIds.values()], errors };
 }

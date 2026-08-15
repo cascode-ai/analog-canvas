@@ -97,6 +97,7 @@ import { startCanvasDragSession } from "../canvas/canvas-drag-session";
 import {
   fitCameraToBounds,
   normalizeCameraRect,
+  zoomCameraAtAnchor,
   type CameraRectInput,
 } from "../canvas/fit-view";
 import type { CanvasDragSession } from "../canvas/canvas-drag-session";
@@ -125,7 +126,11 @@ import {
   componentParameters,
   effectiveComponentParameterValue,
 } from "../features/component-insert/component-parameters";
-import { initialInstanceNetlist } from "../features/netlist-export/netlist-authoring";
+import {
+  initialInstanceNetlist,
+  netlistReferenceMatchesPlacement,
+  nextInstanceDesignator,
+} from "../features/netlist-export/netlist-authoring";
 import { ToolIcon } from "../features/editor-shell/tool-icon";
 import { ShapesPanel } from "../features/editor-shell/shapes-panel";
 import { useDocumentController } from "../document/document-controller";
@@ -270,6 +275,8 @@ interface BoxPreview {
   start: DerivedPoint;
   end: DerivedPoint;
   pointerId: number;
+  /** Left-drag selects what the box touches; right-drag zooms to fit it. */
+  intent: "select" | "zoom";
 }
 
 interface PanPreview {
@@ -792,7 +799,6 @@ export function App({
   } | null>(null);
   const routeCounter = useRef(0);
   const canvasDragSessionRef = useRef<CanvasDragSession | null>(null);
-  const instanceCounter = useRef(0);
   const copyCounter = useRef(0);
   const suppressInstanceClick = useRef(false);
   const projectInputRef = useRef<HTMLInputElement>(null);
@@ -3289,23 +3295,7 @@ export function App({
     position: Point,
     placementRequest: NonNullable<typeof pendingComponentPlacement>,
   ): void {
-    instanceCounter.current += 1;
-    const prefix: Record<string, string> = {
-      resistor: "R",
-      capacitor: "C",
-      nmos: "M",
-      pmos: "M",
-      "voltage-source": "V",
-      "current-source": "I",
-      ground: "GND",
-      port: "P",
-      "port-filled": "P",
-    };
-    let id = `${prefix[symbolId] ?? "X"}${instanceCounter.current}`;
-    while (document.instances.some((instance) => instance.id === id)) {
-      instanceCounter.current += 1;
-      id = `${prefix[symbolId] ?? "X"}${instanceCounter.current}`;
-    }
+    const id = nextInstanceDesignator(document, symbolId);
     const symbolVariantId = defaultRazaviSymbolVariantId(symbolId);
     const instance = {
       id,
@@ -3321,6 +3311,7 @@ export function App({
         document,
         symbolId,
         placementRequest.properties,
+        netlistReferenceMatchesPlacement(symbolId) ? id : undefined,
       ),
     };
     // The persisted annotation is the only visible instance-label authority.
@@ -3416,8 +3407,6 @@ export function App({
   }
 
   function placeVddRail(start: Point, end: Point): void {
-    instanceCounter.current += 1;
-    let instanceId = `VDD${instanceCounter.current}`;
     const vddRailIdsExist = (candidate: string): boolean => {
       const key = candidate.toLowerCase();
       return (
@@ -3433,10 +3422,9 @@ export function App({
         )
       );
     };
-    while (vddRailIdsExist(instanceId)) {
-      instanceCounter.current += 1;
-      instanceId = `VDD${instanceCounter.current}`;
-    }
+    let sequence = 1;
+    while (vddRailIdsExist(`VDD${sequence}`)) sequence += 1;
+    const instanceId = `VDD${sequence}`;
     const routeId = `route-${instanceId.toLowerCase()}-rail`;
     const existingVddNet =
       document.nets.find(
@@ -5177,26 +5165,9 @@ export function App({
   }
 
   function zoomViewAtCenter(factor: number): void {
-    setViewBox((current) => {
-      const center = {
-        x: current.x + current.width / 2,
-        y: current.y + current.height / 2,
-      };
-      const width = Math.max(
-        120,
-        Math.min(5000, Math.round(current.width * factor)),
-      );
-      const height = Math.max(
-        80,
-        Math.min(3500, Math.round(current.height * factor)),
-      );
-      return {
-        x: Math.round(center.x - width / 2),
-        y: Math.round(center.y - height / 2),
-        width,
-        height,
-      };
-    });
+    setViewBox((current) =>
+      zoomCameraAtAnchor(current, factor, { x: 0.5, y: 0.5 }),
+    );
   }
 
   function handleWheel(event: React.WheelEvent<SVGSVGElement>): void {
@@ -5206,27 +5177,12 @@ export function App({
     if (event.ctrlKey || event.metaKey) return;
     event.preventDefault();
     const bounds = event.currentTarget.getBoundingClientRect();
-    const ratioX = (event.clientX - bounds.left) / bounds.width;
-    const ratioY = (event.clientY - bounds.top) / bounds.height;
+    const anchor = {
+      x: (event.clientX - bounds.left) / bounds.width,
+      y: (event.clientY - bounds.top) / bounds.height,
+    };
     const factor = event.deltaY < 0 ? 0.88 : 1.14;
-    setViewBox((current) => {
-      const width = Math.max(
-        120,
-        Math.min(5000, Math.round(current.width * factor)),
-      );
-      const height = Math.max(
-        80,
-        Math.min(3500, Math.round(current.height * factor)),
-      );
-      const cursorX = current.x + ratioX * current.width;
-      const cursorY = current.y + ratioY * current.height;
-      return {
-        x: Math.round(cursorX - ratioX * width),
-        y: Math.round(cursorY - ratioY * height),
-        width,
-        height,
-      };
-    });
+    setViewBox((current) => zoomCameraAtAnchor(current, factor, anchor));
   }
 
   function beginCanvasGesture(event: ReactPointerEvent<SVGSVGElement>): void {
@@ -5237,6 +5193,41 @@ export function App({
         clientStart: { x: event.clientX, y: event.clientY },
         viewBoxStart: viewBox,
         pointerId: event.pointerId,
+      });
+      return;
+    }
+    if (event.button === 2) {
+      // Right-drag from empty canvas frames a region and fits the camera to
+      // it. Modes that commit on the next left click, and the drafting/wire
+      // tools whose right click cancels them, stay outside this gesture.
+      if (
+        (pendingSymbolId && pendingComponentPlacement) ||
+        vddRailMode ||
+        copyPlacement !== null ||
+        tool === "wire" ||
+        tool === "construction-line" ||
+        tool === "arrow" ||
+        tool === "rectangle"
+      ) {
+        return;
+      }
+      if (
+        event.target !== event.currentTarget &&
+        (event.target as Element).tagName !== "rect"
+      ) {
+        return;
+      }
+      const zoomStart = pointFromClient(
+        event.clientX,
+        event.clientY,
+        event.currentTarget,
+      );
+      event.currentTarget.setPointerCapture(event.pointerId);
+      setBoxPreview({
+        start: zoomStart,
+        end: zoomStart,
+        pointerId: event.pointerId,
+        intent: "zoom",
       });
       return;
     }
@@ -5272,7 +5263,12 @@ export function App({
     )
       return;
     event.currentTarget.setPointerCapture(event.pointerId);
-    setBoxPreview({ start: point, end: point, pointerId: event.pointerId });
+    setBoxPreview({
+      start: point,
+      end: point,
+      pointerId: event.pointerId,
+      intent: "select",
+    });
   }
 
   function continueCanvasGesture(
@@ -5366,6 +5362,19 @@ export function App({
     }
     if (boxPreview?.pointerId !== event.pointerId) return;
     event.currentTarget.releasePointerCapture(event.pointerId);
+    if (boxPreview.intent === "zoom") {
+      const rect = normalizedRect(boxPreview.start, boxPreview.end);
+      setBoxPreview(null);
+      // A right press barely moved is an ordinary right click, not a frame.
+      if (
+        rect.width > document.presentation.grid &&
+        rect.height > document.presentation.grid
+      ) {
+        setViewBox(fitCameraToBounds(rect, document.presentation.grid));
+        setStatus("Zoomed to framed region");
+      }
+      return;
+    }
     const rect = normalizedRect(boxPreview.start, boxPreview.end);
     const clicked =
       rect.width <= document.presentation.grid &&
@@ -8816,8 +8825,12 @@ export function App({
                 : null}
               {boxPreview ? (
                 <rect
-                  data-testid="selection-box"
-                  className="selection-box"
+                  data-testid={
+                    boxPreview.intent === "zoom" ? "zoom-box" : "selection-box"
+                  }
+                  className={
+                    boxPreview.intent === "zoom" ? "zoom-box" : "selection-box"
+                  }
                   {...normalizedRect(boxPreview.start, boxPreview.end)}
                 />
               ) : null}

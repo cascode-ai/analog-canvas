@@ -1,5 +1,10 @@
 import { executeTransaction } from "@icm/edit-engine";
-import { createEmptyDocument } from "@icm/model";
+import type { Annotation, Instance } from "@icm/model";
+import {
+  createEmptyDocument,
+  flattenRichText,
+  semanticTextDocument,
+} from "@icm/model";
 import { buildSvgScene } from "@icm/render-svg";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
@@ -91,8 +96,8 @@ describe("schematic clipboard", () => {
     expect(result.document.nets[0]?.terminals).toHaveLength(4);
     expect(result.document.routes[1]).toMatchObject({
       netId: "net-signal",
-      from: { instanceId: "R1-copy-1" },
-      to: { instanceId: "R2-copy-1" },
+      from: { instanceId: "R3" },
+      to: { instanceId: "R4" },
     });
     expect(result.document.routes[1]?.waypoints).toEqual([{ x: 120, y: 100 }]);
   });
@@ -148,6 +153,168 @@ describe("schematic clipboard", () => {
       rotation: 0,
       mirror: "x",
     });
+  });
+
+  function resistorInstance(
+    id: string,
+    reference: string | undefined,
+  ): Instance {
+    return {
+      id,
+      symbolId: "resistor",
+      placement: {
+        position: { x: 100, y: 100 },
+        rotation: 0,
+        mirror: "none",
+      },
+      properties: {},
+      ...(reference ? { netlist: { reference, parameters: {} } } : {}),
+    };
+  }
+
+  function instanceLabel(instanceId: string, text: string): Annotation {
+    return {
+      id: `instance-label-${instanceId}`,
+      kind: "instance-label",
+      // Match production labels: semantic base + subscript runs, not one
+      // flat text leaf.
+      content: semanticTextDocument(text, "instance-label"),
+      anchor: {
+        kind: "object",
+        objectId: instanceId,
+        localOffset: { x: 0, y: -20 },
+        fallbackPosition: { x: 100, y: 80 },
+      },
+      alignment: "middle",
+      rotation: 0,
+      locked: false,
+    };
+  }
+
+  it("adopts the incremented reference as the pasted id and label text", () => {
+    const document = createEmptyDocument("document-main", "Designator paste");
+    document.instances.push(resistorInstance("R1", "R1"));
+    document.annotations.push(instanceLabel("R1", "R1"));
+
+    const copied = copySelection(document, ["R1"]);
+    const proposal = proposePaste(document, copied!, { x: 20, y: 0 }, 1);
+    expect(proposal.instanceIds).toEqual(["R2"]);
+    // Executing the paste proves the rewritten label stays schema-valid.
+    const result = executeTransaction(
+      document,
+      {
+        transactionId: "paste-designator",
+        documentId: document.id,
+        expectedRevision: 0,
+        actor: { kind: "human", id: "test" },
+        edits: proposal.edits,
+      },
+      { symbolResolver: resolver },
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.document.instances).toHaveLength(2);
+    expect(result.document.instances[1]).toMatchObject({
+      id: "R2",
+      netlist: { reference: "R2" },
+    });
+    expect(
+      result.document.annotations
+        .filter((annotation) => annotation.kind === "instance-label")
+        .map((annotation) => flattenRichText(annotation.content)),
+    ).toEqual(["R1", "R2"]);
+  });
+
+  it("increments batch-copied designators without collisions", () => {
+    const document = createEmptyDocument("document-main", "Batch paste");
+    document.instances.push(resistorInstance("R1", "R1"));
+    document.annotations.push(instanceLabel("R1", "R1"));
+
+    let pasted = proposePaste(
+      document,
+      copySelection(document, ["R1"])!,
+      {
+        x: 20,
+        y: 0,
+      },
+      1,
+    );
+    expect(pasted.instanceIds).toEqual(["R2"]);
+    const once = executeTransaction(
+      document,
+      {
+        transactionId: "paste-first",
+        documentId: document.id,
+        expectedRevision: 0,
+        actor: { kind: "human", id: "test" },
+        edits: pasted.edits,
+      },
+      { symbolResolver: resolver },
+    );
+    if (!once.ok) throw new Error("first paste failed");
+
+    pasted = proposePaste(
+      once.document,
+      copySelection(document, ["R1"])!,
+      {
+        x: 40,
+        y: 0,
+      },
+      2,
+    );
+    expect(pasted.instanceIds).toEqual(["R3"]);
+  });
+
+  it("preserves hand-edited label text on paste", () => {
+    const document = createEmptyDocument("document-main", "Custom label");
+    document.instances.push(resistorInstance("R1", "R1"));
+    document.annotations.push(instanceLabel("R1", "R_load"));
+
+    const proposal = proposePaste(
+      document,
+      copySelection(document, ["R1"])!,
+      { x: 20, y: 0 },
+      1,
+    );
+    // "R" + subscript "load" is not the copied reference R1, so it survives.
+    const pastedLabel = proposal.edits.find(
+      (
+        edit,
+      ): edit is Extract<
+        typeof edit,
+        { kind: "upsert_schematic_annotation" }
+      > => edit.kind === "upsert_schematic_annotation",
+    );
+    expect(flattenRichText(pastedLabel!.annotation.content)).toBe("Rload");
+    expect(proposal.instanceIds).toEqual(["R2"]);
+  });
+
+  it("falls back to an opaque copy id when the source id diverges", () => {
+    const document = createEmptyDocument("document-main", "Diverged id");
+    document.instances.push(resistorInstance("custom-1", "R1"));
+    document.annotations.push(instanceLabel("custom-1", "R1"));
+
+    const proposal = proposePaste(
+      document,
+      copySelection(document, ["custom-1"])!,
+      { x: 20, y: 0 },
+      1,
+    );
+    expect(proposal.instanceIds).toEqual(["custom-1-copy-1"]);
+    const pastedInstance = proposal.edits.find(
+      (edit): edit is Extract<typeof edit, { kind: "add_instance" }> =>
+        edit.kind === "add_instance",
+    );
+    expect(pastedInstance?.instance.netlist?.reference).toBe("R2");
+    const pastedLabel = proposal.edits.find(
+      (
+        edit,
+      ): edit is Extract<
+        typeof edit,
+        { kind: "upsert_schematic_annotation" }
+      > => edit.kind === "upsert_schematic_annotation",
+    );
+    expect(flattenRichText(pastedLabel!.annotation.content)).toBe("R2");
   });
 
   it("remaps an internal NoConnect to the copied instance", () => {

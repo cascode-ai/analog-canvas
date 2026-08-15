@@ -10,6 +10,57 @@ function referencePrefix(symbolId: string): string {
   return deviceNetlistDefinition(symbolId)?.referencePrefix ?? "X";
 }
 
+/**
+ * Prefixes used for on-canvas placement labels. Schematic-only markers keep
+ * their label prefixes here; real devices inherit the reviewed netlist
+ * reference prefix so a placed label and its netlist reference agree.
+ */
+const placementPrefixOverrides: Record<string, string> = {
+  ground: "GND",
+  port: "P",
+  "port-filled": "P",
+};
+
+export function placementReferencePrefix(symbolId: string): string {
+  return placementPrefixOverrides[symbolId] ?? referencePrefix(symbolId);
+}
+
+/**
+ * Lowest unused per-prefix designator across the union of instance ids and
+ * netlist references, so the visible label, the instance id, and the netlist
+ * reference never collide with either domain (undo, reload, and deletion all
+ * re-scan the live document, and freed numbers are reused).
+ */
+export function nextInstanceDesignator(
+  document: SchematicDocument,
+  symbolId: string,
+): string {
+  const prefix = placementReferencePrefix(symbolId);
+  const used = new Set<string>();
+  for (const instance of document.instances) {
+    used.add(instance.id.toLowerCase());
+    if (instance.netlist?.reference) {
+      used.add(instance.netlist.reference.toLowerCase());
+    }
+  }
+  let index = 1;
+  while (used.has(`${prefix}${index}`.toLowerCase())) index += 1;
+  return `${prefix}${index}`;
+}
+
+/**
+ * Whether the placement label prefix equals the netlist reference prefix, so
+ * one designator can serve as both the instance id and its netlist reference.
+ */
+export function netlistReferenceMatchesPlacement(symbolId: string): boolean {
+  const netlistPrefix = deviceNetlistDefinition(symbolId)?.referencePrefix;
+  if (!netlistPrefix) return false;
+  return (
+    netlistPrefix.toLowerCase() ===
+    placementReferencePrefix(symbolId).toLowerCase()
+  );
+}
+
 export function nextInstanceReference(
   document: SchematicDocument,
   symbolId: string,
@@ -65,10 +116,11 @@ export function initialInstanceNetlist(
   document: SchematicDocument,
   symbolId: string,
   properties: Readonly<Instance["properties"]>,
+  reference?: string,
 ): InstanceNetlistData {
   const binding = defaultBinding(symbolId);
   return {
-    reference: nextInstanceReference(document, symbolId),
+    reference: reference ?? nextInstanceReference(document, symbolId),
     ...(binding ? { binding } : {}),
     parameters: rawParameters(properties),
   };

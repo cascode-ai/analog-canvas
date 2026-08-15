@@ -69,7 +69,7 @@ test("mirrors component and copy placement previews before their commits", async
   await expect(copyPreview).toHaveAttribute("transform", /rotate\(180\)/u);
   await canvas.click({ position: { x: 520, y: 220 } });
   await expect(
-    canvas.locator('[data-object-id="R1-copy-1"] > g').first(),
+    canvas.locator('[data-object-id="R2"] > g').first(),
   ).toHaveAttribute("transform", /rotate\(180\)/u);
   await page.keyboard.press("Escape");
 });
@@ -270,7 +270,7 @@ test("copies a MOS whose bulk belongs to a shared supply Net", async ({
   await canvas.hover({ position: { x: 620, y: 340 } });
   await expect(page.getByTestId("copy-placement-preview")).toBeVisible();
   await canvas.click({ position: { x: 620, y: 340 } });
-  await expect(page.getByTestId("hit-M1-copy-1")).toBeVisible();
+  await expect(page.getByTestId("hit-M3")).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "Circuit Maker" }),
   ).toBeVisible();

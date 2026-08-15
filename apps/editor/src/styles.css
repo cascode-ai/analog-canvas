@@ -1816,6 +1816,16 @@ body {
   vector-effect: non-scaling-stroke;
 }
 
+/* Right-drag camera frame: hints navigation, not selection. */
+.zoom-box {
+  fill: var(--icm-accent-soft);
+  stroke: var(--icm-accent);
+  stroke-width: 1.5;
+  stroke-dasharray: 2 3;
+  pointer-events: none;
+  vector-effect: non-scaling-stroke;
+}
+
 .drafting-create-preview {
   stroke: var(--icm-accent);
   stroke-width: 1.5;

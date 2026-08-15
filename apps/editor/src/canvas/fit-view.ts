@@ -74,3 +74,46 @@ export function fitCameraToBounds(bounds: DerivedRect, grid: number): GridRect {
     height: Math.max(grid, bottom - y),
   };
 }
+
+export interface CameraZoomLimits {
+  minWidth: number;
+  maxWidth: number;
+  minHeight: number;
+  maxHeight: number;
+}
+
+export const CAMERA_ZOOM_LIMITS: CameraZoomLimits = {
+  minWidth: 120,
+  maxWidth: 5000,
+  minHeight: 80,
+  maxHeight: 3500,
+};
+
+/**
+ * Scales the camera rect around a viewport-relative anchor (0..1 in each
+ * axis), the shared core of cursor-anchored wheel zoom and center-anchored
+ * button zoom. The anchor point stays fixed in world space.
+ */
+export function zoomCameraAtAnchor(
+  current: GridRect,
+  factor: number,
+  anchor: { x: number; y: number },
+  limits: CameraZoomLimits = CAMERA_ZOOM_LIMITS,
+): GridRect {
+  const width = Math.max(
+    limits.minWidth,
+    Math.min(limits.maxWidth, Math.round(current.width * factor)),
+  );
+  const height = Math.max(
+    limits.minHeight,
+    Math.min(limits.maxHeight, Math.round(current.height * factor)),
+  );
+  const anchorX = current.x + anchor.x * current.width;
+  const anchorY = current.y + anchor.y * current.height;
+  return {
+    x: Math.round(anchorX - anchor.x * width),
+    y: Math.round(anchorY - anchor.y * height),
+    width,
+    height,
+  };
+}

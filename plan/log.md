@@ -7341,3 +7341,22 @@ diff --check`, and two focused Playwright regressions passed.
   `codex/placement-mirror-grid-toggle`.
 - Mainline delivery: PR #72 passed all six required GitHub Actions checks and
   squash-merged to `main` as `7db4a06`.
+
+# 2026-08-15 - Per-type instance designators and right-drag camera framing
+
+- Target: per-type placement numbering, unified camera zoom protocol with a
+  right-drag zoom box, and copy-paste label increment (including batch).
+- Changed areas: netlist-authoring designator allocation; App placement and
+  VDD rail ids; clipboard paste ids and instance-label rewrite; fit-view
+  camera math unification; canvas right-drag gesture and zoom-box style;
+  focused unit and Playwright coverage (two new browser tests).
+- Validation: 20/20 focused unit tests; Playwright 17/17 component-insert,
+  65/65 manual-editor, 6/6 crash-safety+recovery, 25/25 drafting;
+  `git diff --cached --check`; typecheck clean for this target (two
+  remaining errors belong to a concurrent worker's untracked WIP file,
+  recorded in the plan).
+- Commit status: committed on `agent/per-type-designators-zoom-box` as
+  `feat(editor): per-type designators, copy label increment, right-drag zoom
+  box`; branch pushed for review. A concurrent worker's overlapping App.tsx
+  hunks were excluded from the commit via selective staging and left dirty
+  in the working tree.
