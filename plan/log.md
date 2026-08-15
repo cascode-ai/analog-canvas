@@ -7416,4 +7416,16 @@ diff --check`, and two focused Playwright regressions passed.
 - Validation: common/full Razavi generation and stale checks, 24 focused
   authority/catalog tests, Symbols TypeScript build, editor production build,
   coordinate assertions, and `git diff --check` passed.
-- Commit status: pending mainline delivery.
+- Commit status: rebased as `91ca914`; PR #78 passed all five required remote
+  checks and is queued for merge.
+
+## 2026-08-15 - Deliver Razavi BJT proportion calibration
+
+- Target: rebase, clean-gate, review, and merge the BJT proportion calibration.
+- Rebase: rebased onto `origin/main` at `f25833f`; only `plan/log.md`
+  conflicted, resolved by retaining both mainline and BJT records.
+- Validation: clean `pnpm install --frozen-lockfile` plus `pnpm ci:check`
+  passed (754 unit and 129 browser tests, workspace build, release contracts,
+  and production smoke). PR #78 passed Static contracts, Unit and integration
+  tests, Release contracts, and both Browser test shards.
+- Commit status: delivery record pending final remote check, then merge.
