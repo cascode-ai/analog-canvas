@@ -7417,7 +7417,7 @@ diff --check`, and two focused Playwright regressions passed.
   authority/catalog tests, Symbols TypeScript build, editor production build,
   coordinate assertions, and `git diff --check` passed.
 - Commit status: rebased as `91ca914`; PR #78 passed all five required remote
-  checks and is queued for merge.
+  checks and squash-merged to `main` as `89dd461`.
 
 ## 2026-08-15 - Deliver Razavi BJT proportion calibration
 
@@ -7428,4 +7428,5 @@ diff --check`, and two focused Playwright regressions passed.
   passed (754 unit and 129 browser tests, workspace build, release contracts,
   and production smoke). PR #78 passed Static contracts, Unit and integration
   tests, Release contracts, and both Browser test shards.
-- Commit status: delivery record pending final remote check, then merge.
+- Commit status: PR #78 squash-merged to `main` as `89dd461` after all five
+  required remote checks passed.

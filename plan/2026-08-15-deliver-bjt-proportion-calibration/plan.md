@@ -69,5 +69,6 @@ conflict was `plan/log.md`, resolved by preserving the newer mainline entries
 and retaining the BJT record. The full clean gate passed after the minimal
 test-only narrowing repair: 754 unit tests, 129 browser tests, workspace
 build, release checks, and production smoke. PR #78 then passed all five
-required remote CI checks. This delivery record is the only subsequent change;
-it does not alter BJT assets or production code.
+required remote CI checks and squash-merged to `main` as `89dd461`. This
+delivery record is the only subsequent change; it does not alter BJT assets or
+production code.
