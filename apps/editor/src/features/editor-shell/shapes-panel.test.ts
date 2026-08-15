@@ -64,8 +64,8 @@ describe("shapes quick-place", () => {
     expect(markup.match(/class="shapes-category-header"/g)).toHaveLength(6);
     expect(markup).toContain('aria-label="Place Independent Voltage Source"');
     expect(markup).toContain('title="Place Capacitor"');
-    expect(markup).not.toContain(">V Src</span>");
-    expect(markup).not.toContain(">Cap</span>");
+    expect(markup).toContain(">V Src</span>");
+    expect(markup).toContain(">Cap</span>");
   });
 
   it("quick-places without persisting parameter placeholders", () => {

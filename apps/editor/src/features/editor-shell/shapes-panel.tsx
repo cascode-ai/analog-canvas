@@ -8,6 +8,26 @@ import {
   findPaletteSymbol,
 } from "../component-insert/symbol-catalog";
 
+const COMPACT_LIBRARY_LABELS: Readonly<Record<string, string>> = {
+  capacitor: "Cap",
+  "closed-switch": "Closed",
+  "current-source": "I Src",
+  "ideal-switch": "Open",
+  inductor: "Ind",
+  npn: "NPN",
+  opamp: "OpAmp",
+  pnp: "PNP",
+  "port-filled": "Filled",
+  resistor: "Res",
+  vdd: "VDD",
+  "voltage-amplifier": "V Amp",
+  "voltage-source": "V Src",
+};
+
+function libraryLabel(symbolId: string, symbolName: string): string {
+  return COMPACT_LIBRARY_LABELS[symbolId] ?? symbolName;
+}
+
 function categorySlug(category: string): string {
   return category.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 }
@@ -148,6 +168,7 @@ export function ShapesPanel({
                           className="shapes-chip-art"
                           paddingRatio={0.04}
                         />
+                        <span>{libraryLabel(symbol.id, symbol.name)}</span>
                       </button>
                     ))}
                   </div>
@@ -184,6 +205,7 @@ export function ShapesPanel({
                       className="shapes-chip-art"
                       paddingRatio={0.04}
                     />
+                    <span>{libraryLabel(symbol.id, symbol.name)}</span>
                   </button>
                 ))}
               </div>

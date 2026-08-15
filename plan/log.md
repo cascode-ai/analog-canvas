@@ -7197,3 +7197,19 @@ ci:check` (651 unit tests, 104 browser tests, builds and release smoke) all
 - Commit status: committed and pushed on
   `agent/compact-complete-library` as
   `style(editor): use compact centered library icons`.
+
+## 2026-08-15 - Restore names below centered Library devices
+
+- Target: bring visible device names back without losing full-tile artwork
+  centering or returning to oversized boxes.
+- Changed areas: concise one-line labels restored for Library and Recent tiles;
+  labels anchored at the bottom; desktop/narrow heights set to 64px/68px with
+  measured artwork-label separation and unchanged centered artwork sizes.
+- Validation: focused unit tests (2 files / 16 tests), two focused Playwright
+  flows covering label fit, centering, separation, dimensions, Recent labels,
+  and accessibility, `pnpm typecheck`, Prettier checks, reviewer approval,
+  screenshot inspection at 1280x720, 1024x720, and 720x720, and
+  `git diff --check` passed.
+- Commit status: committed and pushed on
+  `agent/compact-complete-library` as
+  `fix(editor): restore names on centered library tiles`.

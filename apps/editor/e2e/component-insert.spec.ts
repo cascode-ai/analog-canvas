@@ -506,6 +506,9 @@ test("shows the complete foldable categorized Library, quick-places a device, an
       const artwork = tile.querySelector<SVGElement>(".shapes-chip-art");
       if (!artwork) throw new Error("Library artwork is missing");
       const artworkBounds = artwork.getBoundingClientRect();
+      const label = tile.querySelector<HTMLElement>("span");
+      if (!label) throw new Error("Library label is missing");
+      const labelBounds = label.getBoundingClientRect();
       return {
         centerDeltaX:
           artworkBounds.left +
@@ -516,6 +519,11 @@ test("shows the complete foldable categorized Library, quick-places a device, an
           artworkBounds.height / 2 -
           (tileBounds.top + tileBounds.height / 2),
         height: artworkBounds.height,
+        labelFits:
+          label.scrollWidth <= label.clientWidth + 1 &&
+          label.scrollHeight <= label.clientHeight + 1,
+        labelHeight: labelBounds.height,
+        separatedFromLabel: artworkBounds.bottom <= labelBounds.top + 0.5,
         tileHeight: tileBounds.height,
         withinTile:
           artworkBounds.left >= tileBounds.left - 0.5 &&
@@ -541,10 +549,17 @@ test("shows the complete foldable categorized Library, quick-places a device, an
   ).toBe(true);
   expect(
     artworkGeometry.every(
-      (artwork) => Math.abs(artwork.tileHeight - 52) <= 0.5,
+      (artwork) => Math.abs(artwork.tileHeight - 64) <= 0.5,
     ),
   ).toBe(true);
-  await expect(libraryChips.locator("span")).toHaveCount(0);
+  expect(artworkGeometry.every((artwork) => artwork.labelFits)).toBe(true);
+  expect(artworkGeometry.every((artwork) => artwork.labelHeight <= 12.5)).toBe(
+    true,
+  );
+  expect(artworkGeometry.every((artwork) => artwork.separatedFromLabel)).toBe(
+    true,
+  );
+  await expect(libraryChips.locator("span")).toHaveCount(18);
   await expect(transistorCategory).toHaveJSProperty("open", true);
   await transistorCategory.locator("summary").click();
   await expect(transistorCategory).toHaveJSProperty("open", false);
@@ -572,7 +587,7 @@ test("shows the complete foldable categorized Library, quick-places a device, an
   await expect(recentResistor).toBeVisible();
   await expect(recentResistor).toHaveAttribute("aria-label", "Place Resistor");
   await expect(recentResistor).toHaveAttribute("title", "Place Resistor");
-  await expect(recentResistor.locator("span")).toHaveCount(0);
+  await expect(recentResistor.locator("span")).toHaveText("Res");
   expect(
     await page
       .getByTestId("shapes-fold-recent")
@@ -641,6 +656,9 @@ test("keeps a usable canvas while toggling Library at the narrow breakpoint", as
         const artwork = tile.querySelector<SVGElement>(".shapes-chip-art");
         if (!artwork) throw new Error("Narrow Library artwork is missing");
         const artworkBounds = artwork.getBoundingClientRect();
+        const label = tile.querySelector<HTMLElement>("span");
+        if (!label) throw new Error("Narrow Library label is missing");
+        const labelBounds = label.getBoundingClientRect();
         return {
           centerDeltaX:
             artworkBounds.left +
@@ -651,6 +669,11 @@ test("keeps a usable canvas while toggling Library at the narrow breakpoint", as
             artworkBounds.height / 2 -
             (tileBounds.top + tileBounds.height / 2),
           height: artworkBounds.height,
+          labelFits:
+            label.scrollWidth <= label.clientWidth + 1 &&
+            label.scrollHeight <= label.clientHeight + 1,
+          labelHeight: labelBounds.height,
+          separatedFromLabel: artworkBounds.bottom <= labelBounds.top + 0.5,
           tileHeight: tileBounds.height,
           withinTile:
             artworkBounds.left >= tileBounds.left - 0.5 &&
@@ -674,11 +697,18 @@ test("keeps a usable canvas while toggling Library at the narrow breakpoint", as
     narrowArtwork.every((artwork) => Math.abs(artwork.centerDeltaY) <= 0.5),
   ).toBe(true);
   expect(
-    narrowArtwork.every((artwork) => Math.abs(artwork.tileHeight - 60) <= 0.5),
+    narrowArtwork.every((artwork) => Math.abs(artwork.tileHeight - 68) <= 0.5),
   ).toBe(true);
+  expect(narrowArtwork.every((artwork) => artwork.labelFits)).toBe(true);
+  expect(narrowArtwork.every((artwork) => artwork.labelHeight <= 12.5)).toBe(
+    true,
+  );
+  expect(narrowArtwork.every((artwork) => artwork.separatedFromLabel)).toBe(
+    true,
+  );
   expect(narrowArtwork.every((artwork) => artwork.withinTile)).toBe(true);
   await expect(page.locator('[data-testid^="shapes-chip-"] span')).toHaveCount(
-    0,
+    18,
   );
 
   const canvas = page.getByTestId("schematic-canvas");
