@@ -221,6 +221,7 @@ import {
 import type { VisualSelection } from "../features/selection/visual-selection";
 import {
   planSelectionMove,
+  type SchematicMoveIntent,
   type SelectionMovePlan,
 } from "../features/selection/selection-move-plan";
 import {
@@ -286,12 +287,7 @@ interface PanPreview {
 interface RouteStretchPreview {
   routeId: string;
   segmentIndex: number;
-  kind:
-    | "segment"
-    | "translate"
-    | "power-rail-translate"
-    | "power-rail-resize-start"
-    | "power-rail-resize-end";
+  intent: Exclude<SchematicMoveIntent, "move-selection">;
   start: DerivedPoint;
   point: DerivedPoint;
 }
@@ -2411,10 +2407,10 @@ export function App({
         routeId,
         segmentIndex,
         routeRecord.route.presentation === "power-rail"
-          ? "power-rail-translate"
+          ? "move-power-rail"
           : looseRouteAnchorIds(document, routeRecord.route) !== null
-            ? "translate"
-            : "segment",
+            ? "move-loose-route"
+            : "stretch-segment",
         hitTarget,
       );
       return;
@@ -2492,7 +2488,7 @@ export function App({
     event: ReactPointerEvent<SVGElement>,
     routeId: string,
     segmentIndex: number,
-    kind: RouteStretchPreview["kind"] = "segment",
+    intent: RouteStretchPreview["intent"] = "stretch-segment",
     hitTarget: SVGElement = event.currentTarget,
   ): void {
     if (event.button !== 0) return;
@@ -2505,17 +2501,17 @@ export function App({
     );
     if (!record) return;
     const powerRail =
-      kind === "power-rail-translate" ||
-      kind === "power-rail-resize-start" ||
-      kind === "power-rail-resize-end"
+      intent === "move-power-rail" ||
+      intent === "resize-power-rail-start" ||
+      intent === "resize-power-rail-end"
         ? derivePowerRailComponent(document, routeId)
         : null;
     const anchorIds =
-      kind === "translate"
+      intent === "move-loose-route"
         ? (looseRouteAnchorIds(document, record.route) ?? [])
         : (powerRail?.junctionIds ?? []);
     const translatedRouteIds =
-      kind === "power-rail-translate"
+      intent === "move-power-rail"
         ? (powerRail?.routeIds ?? [routeId])
         : [routeId];
     let visual: ReturnType<typeof startCanvasDragVisual> | null = null;
@@ -2527,7 +2523,7 @@ export function App({
     const preview: RouteStretchPreview = {
       routeId,
       segmentIndex,
-      kind,
+      intent,
       start,
       point: start,
     };
@@ -2539,7 +2535,7 @@ export function App({
       thresholdPx: DRAG_START_DISTANCE_PX,
       onPreview: (client) => {
         const point = pointFromClient(client.x, client.y, svg, false);
-        if (kind === "translate" || kind === "power-rail-translate") {
+        if (intent === "move-loose-route" || intent === "move-power-rail") {
           dragVisual().translate({
             x: point.x - start.x,
             y: point.y - start.y,
@@ -2547,8 +2543,8 @@ export function App({
           return;
         }
         if (
-          kind === "power-rail-resize-start" ||
-          kind === "power-rail-resize-end"
+          intent === "resize-power-rail-start" ||
+          intent === "resize-power-rail-end"
         ) {
           // The persisted proposal resizes the outer rail fragment, which may
           // differ from the selected fragment after a tap. Avoid previewing a
@@ -2598,7 +2594,7 @@ export function App({
     );
     if (!record) return;
     try {
-      if (preview.kind === "translate") {
+      if (preview.intent === "move-loose-route") {
         const anchorIds = looseRouteAnchorIds(document, record.route);
         if (!anchorIds) {
           throw new Error(
@@ -2622,7 +2618,7 @@ export function App({
           );
           if (result.ok) setStatus(`Moved loose route ${record.route.id}`);
         }
-      } else if (preview.kind === "power-rail-translate") {
+      } else if (preview.intent === "move-power-rail") {
         const delta = {
           x: snapCoordinate(
             point.x - preview.start.x,
@@ -2645,15 +2641,15 @@ export function App({
           if (result.ok) setStatus(`Moved VDD rail ${record.route.id}`);
         }
       } else if (
-        preview.kind === "power-rail-resize-start" ||
-        preview.kind === "power-rail-resize-end"
+        preview.intent === "resize-power-rail-start" ||
+        preview.intent === "resize-power-rail-end"
       ) {
         const result = transact(
           proposePowerRailEndpointResize(
             document,
             resolver,
             record.route.id,
-            preview.kind === "power-rail-resize-start" ? "start" : "end",
+            preview.intent === "resize-power-rail-start" ? "start" : "end",
             snapCoordinate(point.x, document.presentation.grid),
           ).edits,
         );
@@ -8177,7 +8173,7 @@ export function App({
                       : null;
                   const handlePointerDown = (
                     event: ReactPointerEvent<SVGElement>,
-                    kind: RouteStretchPreview["kind"],
+                    intent: RouteStretchPreview["intent"],
                   ) => {
                     const primaryInstanceId = selectedIds.at(-1);
                     if (
@@ -8187,7 +8183,7 @@ export function App({
                       beginMove(event, primaryInstanceId);
                       return;
                     }
-                    beginRouteStretch(event, route.id, segmentIndex, kind);
+                    beginRouteStretch(event, route.id, segmentIndex, intent);
                   };
                   return (
                     <g key={`handle-${route.id}`}>
@@ -8219,10 +8215,10 @@ export function App({
                           handlePointerDown(
                             event,
                             powerRail
-                              ? "power-rail-translate"
+                              ? "move-power-rail"
                               : translatesWholeRoute
-                                ? "translate"
-                                : "segment",
+                                ? "move-loose-route"
+                                : "stretch-segment",
                           )
                         }
                         pointerEvents={tool === "wire" ? "none" : undefined}
@@ -8241,8 +8237,8 @@ export function App({
                             handlePointerDown(
                               event,
                               index === 0
-                                ? "power-rail-resize-start"
-                                : "power-rail-resize-end",
+                                ? "resize-power-rail-start"
+                                : "resize-power-rail-end",
                             )
                           }
                           pointerEvents={tool === "wire" ? "none" : undefined}
@@ -8402,8 +8398,8 @@ export function App({
                           selectedRoute.id,
                           selectedRouteSegmentIndex ?? 0,
                           powerRailEndIndex === 0
-                            ? "power-rail-resize-start"
-                            : "power-rail-resize-end",
+                            ? "resize-power-rail-start"
+                            : "resize-power-rail-end",
                         );
                         return;
                       }

@@ -15,10 +15,14 @@ function element(kind: string, id: string, selected = false): Element {
 }
 
 describe("resolveCanvasHit", () => {
-  it("uses semantic priority instead of SVG paint order", () => {
+  it("prefers electrical geometry over incidental text in ordinary selection", () => {
     const route = element("route", "wire-1");
     const annotation = element("annotation", "label-1");
     expect(resolveCanvasHit([route, annotation])).toMatchObject({
+      kind: "route",
+      id: "wire-1",
+    });
+    expect(resolveCanvasHit([route, annotation], 1)).toMatchObject({
       kind: "annotation",
       id: "label-1",
     });

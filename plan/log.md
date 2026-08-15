@@ -7364,3 +7364,15 @@ diff --check`, and two focused Playwright regressions passed.
   `git diff --check` passed.
 - Commit status: committed on `codex/unified-move-plan` as
   `fix(edit-engine): require geometry with junction moves`.
+
+# 2026-08-15 - Make movement intent explicit without rerouting
+
+- Target: make direct-manipulation routes explicit while keeping the Project,
+  Agent API, and typed-edit protocols flat.
+- Changed areas: transient `SchematicMoveIntent`, route gesture wiring,
+  electrical-first canvas hit ranking with Alt label cycling, local-stretch
+  regression coverage, and editor interaction contract.
+- Validation: 12 focused unit tests, workspace typecheck, Prettier,
+  Markdown-link validation, and `git diff --check` passed.
+- Commit status: committed on `codex/unified-move-plan` as
+  `refactor(editor): make movement intent explicit`.

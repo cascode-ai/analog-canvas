@@ -131,6 +131,26 @@ fallback, not a second progressive planner for a group gesture. Marquee Route
 selection tests actual polyline segments against the rectangle, rather than
 selecting a distant bend solely because its bounding box overlaps the gesture.
 
+## No-reroute movement boundary
+
+The editor's finite direct-manipulation vocabulary is transient only:
+`move-selection`, `stretch-segment`, `move-loose-route`, `move-power-rail`,
+and the two explicit power-rail endpoint resizes. It is not Project data, an
+Edit Engine command, or an Agent API extension; each intent compiles to the
+existing typed edits.
+
+No movement intent searches for a new path. An internal Route translates every
+point by one common delta. A boundary stretch may alter only geometry adjacent
+to the moved endpoint (or add one local orthogonal elbow); remote waypoints
+remain untouched. A protected adjacent `locked` or `trunk` segment rejects the
+gesture rather than being rerouted. Power rails use their explicit translate
+and endpoint-resize intents, never an inferred route search.
+
+Normal canvas hit ranking prefers a symbol, Route, or Junction over an
+overlapping label so routine moves do not accidentally drag text. Text remains
+individually selectable when it is the only hit, and Alt cycling deliberately
+selects an overlapping label.
+
 ## Text and presentation
 
 Every visible editable label is one persisted RichText annotation. Component

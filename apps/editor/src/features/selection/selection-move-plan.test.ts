@@ -84,6 +84,7 @@ describe("selection move plan", () => {
       draftingIds: [],
     });
 
+    expect(plan.intent).toBe("move-selection");
     expect(plan.translatedRouteIds).toEqual(["wire-left", "wire-right"]);
     expect(plan.translatedJunctionIds).toEqual(["J1"]);
     expect(plan.previewObjectIds).toEqual(
@@ -112,6 +113,7 @@ describe("selection move plan", () => {
       annotationIds: [],
       draftingIds: [],
     });
+    expect(plan.intent).toBe("move-selection");
     expect(plan.translatedJunctionIds).toEqual([]);
     expect(plan.fixedObjectIds).toEqual(["J1"]);
   });
