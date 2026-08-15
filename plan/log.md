@@ -7011,6 +7011,17 @@ ci:check` (651 unit tests, 104 browser tests, builds and release smoke) all
 - Commit status: all six PR #60 GitHub Actions checks passed; squash-merged to
   `main` as `0f45ba5`.
 
+## 2026-08-15 - Snap quick drafting creation to grid
+
+- Target: prevent transient viewport coordinates from causing `T` and drafting
+  creation commits to violate the persisted Document-grid contract.
+- Changed areas: quick drafting creation and final drafting commit boundaries,
+  with a zoomed-viewport Text browser regression.
+- Validation: targeted browser regression, complete drafting suite (25/25),
+  App unit test (12/12), typecheck, formatting, and `git diff --check` passed.
+- Commit status: committed on `codex/label-gap-copy-rotate`; push and review
+  remain pending.
+
 ## 2026-08-15 - Align instance labels and rotate copy previews
 
 - Target: make initial and transformed instance labels retain one full grid
@@ -7019,6 +7030,6 @@ ci:check` (651 unit tests, 104 browser tests, builds and release smoke) all
   orientation and shortcut routing; rotated copy preview/commit behavior;
   editor interaction specification and focused unit/browser regressions.
 - Validation: 30 focused tests, `pnpm typecheck`, `pnpm format:check`, `git
-  diff --check`, and two focused Playwright regressions passed.
+diff --check`, and two focused Playwright regressions passed.
 - Commit status: ready to commit on `codex/label-gap-copy-rotate` as
   `fix(editor): align labels and rotate copy previews`.

@@ -181,6 +181,40 @@ test("adds formatted drafting text and undo/redo restores it", async ({
   await expect(page.getByTestId("revision")).toHaveText("6");
 });
 
+test("snaps quick Text creation after a non-grid viewport zoom", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const canvas = page.getByTestId("schematic-canvas");
+  await canvas.hover({ position: { x: 317, y: 243 } });
+  await page.mouse.wheel(0, -120);
+  await page.mouse.wheel(0, -120);
+
+  const zoomedViewBox = (await canvas.getAttribute("viewBox"))!
+    .split(" ")
+    .map(Number);
+  const [x, y, width, height] = zoomedViewBox;
+  const unsnappedTextPosition = {
+    x: Math.round(x! + width! / 2),
+    y: Math.round(y! + height! - 20),
+  };
+  expect(
+    Object.values(unsnappedTextPosition).some((value) => value % 10 !== 0),
+  ).toBe(true);
+
+  await clickCommand(page, "Draw", "Text");
+  await expect(page.getByTestId("revision")).toHaveText("1");
+  await expect(page.getByTestId("status")).toContainText("Added drafting text");
+
+  const projectBytes = await downloadBytes(page, "File", "Save Project");
+  const project = JSON.parse(projectBytes.toString("utf8"));
+  const textObject = project.documents[0].drafting.objects.find(
+    (object: { kind: string }) => object.kind === "text",
+  );
+  expect(textObject.anchor.position.x % 10).toBe(0);
+  expect(textObject.anchor.position.y % 10).toBe(0);
+});
+
 test("fits drafting text with F using an integer grid camera", async ({
   page,
 }) => {

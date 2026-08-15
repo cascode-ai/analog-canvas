@@ -4400,10 +4400,13 @@ export function App({ project: initialProject, visitStats }: AppProps) {
   function addPlainText(): void {
     uniqueSuffixCounter.current += 1;
     const id = `note-${uniqueSuffixCounter.current}`;
-    const position = {
-      x: Math.round(viewBox.x + viewBox.width / 2),
-      y: Math.round(viewBox.y + viewBox.height - 20),
-    };
+    const position = snapGridPoint(
+      {
+        x: Math.round(viewBox.x + viewBox.width / 2),
+        y: Math.round(viewBox.y + viewBox.height - 20),
+      },
+      document.presentation.grid,
+    );
     const textObject: Extract<DraftingObject, { kind: "text" }> = {
       id,
       kind: "text",
@@ -4430,10 +4433,13 @@ export function App({ project: initialProject, visitStats }: AppProps) {
   function addConstructionLine(): void {
     uniqueSuffixCounter.current += 1;
     const id = `construction-${uniqueSuffixCounter.current}`;
-    const center = {
-      x: Math.round(viewBox.x + viewBox.width / 2),
-      y: Math.round(viewBox.y + viewBox.height / 2),
-    };
+    const center = snapGridPoint(
+      {
+        x: Math.round(viewBox.x + viewBox.width / 2),
+        y: Math.round(viewBox.y + viewBox.height / 2),
+      },
+      document.presentation.grid,
+    );
     const result = transact([
       {
         kind: "upsert_drafting_object",
@@ -4457,10 +4463,13 @@ export function App({ project: initialProject, visitStats }: AppProps) {
   function addFreeArrow(): void {
     uniqueSuffixCounter.current += 1;
     const id = `arrow-${uniqueSuffixCounter.current}`;
-    const center = {
-      x: Math.round(viewBox.x + viewBox.width / 2),
-      y: Math.round(viewBox.y + viewBox.height / 2),
-    };
+    const center = snapGridPoint(
+      {
+        x: Math.round(viewBox.x + viewBox.width / 2),
+        y: Math.round(viewBox.y + viewBox.height / 2),
+      },
+      document.presentation.grid,
+    );
     const result = transact([
       {
         kind: "upsert_drafting_object",
@@ -5398,6 +5407,8 @@ export function App({ project: initialProject, visitStats }: AppProps) {
     end: Point,
   ): void {
     uniqueSuffixCounter.current += 1;
+    const snappedStart = snapGridPoint(start, document.presentation.grid);
+    const snappedEnd = snapGridPoint(end, document.presentation.grid);
     if (activeTool === "construction-line") {
       const id = `construction-${uniqueSuffixCounter.current}`;
       const result = transact([
@@ -5408,11 +5419,8 @@ export function App({ project: initialProject, visitStats }: AppProps) {
             kind: "construction-line",
             locked: false,
             zIndex: 0,
-            anchor: { kind: "free", position: start },
-            points: [
-              { x: Math.round(start.x), y: Math.round(start.y) },
-              { x: Math.round(end.x), y: Math.round(end.y) },
-            ],
+            anchor: { kind: "free", position: snappedStart },
+            points: [snappedStart, snappedEnd],
             lineStyle: "dashed",
           },
         },
@@ -5428,31 +5436,34 @@ export function App({ project: initialProject, visitStats }: AppProps) {
             kind: "arrow",
             locked: false,
             zIndex: 0,
-            anchor: { kind: "free", position: start },
+            anchor: { kind: "free", position: snappedStart },
             from: {
               kind: "free",
-              position: { x: Math.round(start.x), y: Math.round(start.y) },
+              position: snappedStart,
             },
             to: {
               kind: "free",
-              position: { x: Math.round(end.x), y: Math.round(end.y) },
+              position: snappedEnd,
             },
           },
         },
       ]);
       if (result.ok) setStatus(`Added free arrow ${id}`);
     } else if (activeTool === "rectangle") {
-      const width = Math.round(Math.abs(end.x - start.x));
-      const height = Math.round(Math.abs(end.y - start.y));
+      const width = Math.round(Math.abs(snappedEnd.x - snappedStart.x));
+      const height = Math.round(Math.abs(snappedEnd.y - snappedStart.y));
       if (width < 1 || height < 1) {
         setStatus("Rectangle needs non-zero width and height");
         return;
       }
       const id = `rectangle-${uniqueSuffixCounter.current}`;
-      const center = {
-        x: Math.round((start.x + end.x) / 2),
-        y: Math.round((start.y + end.y) / 2),
-      };
+      const center = snapGridPoint(
+        {
+          x: Math.round((snappedStart.x + snappedEnd.x) / 2),
+          y: Math.round((snappedStart.y + snappedEnd.y) / 2),
+        },
+        document.presentation.grid,
+      );
       const result = transact([
         {
           kind: "upsert_drafting_object",
@@ -5480,6 +5491,9 @@ export function App({ project: initialProject, visitStats }: AppProps) {
     if (points.length < 2) return;
     uniqueSuffixCounter.current += 1;
     const id = `construction-${uniqueSuffixCounter.current}`;
+    const snappedPoints = points.map((point) =>
+      snapGridPoint(point, document.presentation.grid),
+    );
     const result = transact([
       {
         kind: "upsert_drafting_object",
@@ -5488,11 +5502,8 @@ export function App({ project: initialProject, visitStats }: AppProps) {
           kind: "construction-line",
           locked: false,
           zIndex: 0,
-          anchor: { kind: "free", position: points[0]! },
-          points: points.map((point) => ({
-            x: Math.round(point.x),
-            y: Math.round(point.y),
-          })),
+          anchor: { kind: "free", position: snappedPoints[0]! },
+          points: snappedPoints,
           lineStyle: "dashed",
         },
       },
