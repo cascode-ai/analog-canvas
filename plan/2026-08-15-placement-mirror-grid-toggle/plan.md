@@ -1,5 +1,5 @@
 ---
-status: active
+status: completed
 experience: none
 ---
 
@@ -94,4 +94,5 @@ local shared-server failure rather than evidence of this target's change.
 
 Committed and pushed on `codex/placement-mirror-grid-toggle` as
 `fix(editor): mirror transient placements and toggle grid dots`.
-Remote required checks remain the mainline merge gate.
+PR #72 passed Change scope, static, unit/integration, release, and both browser
+test shards, then squash-merged to `main` as `7db4a06`.

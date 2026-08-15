@@ -7325,3 +7325,5 @@ diff --check`, and two focused Playwright regressions passed.
 - Commit status: committed and pushed as
   `fix(editor): mirror transient placements and toggle grid dots` on
   `codex/placement-mirror-grid-toggle`.
+- Mainline delivery: PR #72 passed all six required GitHub Actions checks and
+  squash-merged to `main` as `7db4a06`.
