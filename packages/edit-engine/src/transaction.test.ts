@@ -686,17 +686,16 @@ describe("Edit Transaction envelope", () => {
     const bottom = Math.max(...worldCorners.map((point) => point.y));
     const label = rotated.document.annotations[0]!;
     expect(label).toMatchObject({ alignment: "middle", rotation: 0 });
-    // The persisted semantic anchor is integer-rounded, so permit the one
-    // pixel rounding difference while requiring the glyph edge to stay clear.
+    // The persisted semantic anchor is grid-snapped.  Assert the visible glyph
+    // edge, not the raw baseline: the label must retain at least one whole
+    // Document-grid interval outside the rotated symbol.
     if (label.anchor.kind === "free") {
       throw new Error("Rotated instance label must retain an object anchor");
     }
     const fallback = label.anchor.fallbackPosition;
-    expect(fallback.y).toBeGreaterThanOrEqual(
-      Math.floor(bottom + profile.typography.instanceFontSize * 1.05 + 1.5),
-    );
-    expect(fallback.y).toBeLessThanOrEqual(
-      Math.ceil(bottom + profile.typography.instanceFontSize * 1.05 + 2.5),
+    const glyphTop = fallback.y - profile.typography.instanceFontSize * 1.05;
+    expect(glyphTop).toBeGreaterThanOrEqual(
+      bottom + document.presentation.grid,
     );
   });
 

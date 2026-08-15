@@ -1,5 +1,5 @@
 ---
-status: completed
+status: active
 experience: none
 ---
 
@@ -28,6 +28,9 @@ placement.
 - `packages/derived/src/instance-label-placement.ts`
 - `packages/derived/src/instance-label-placement.test.ts`
 - `apps/editor/src/features/wiring/route-interaction-geometry.ts`
+- `apps/editor/src/features/wiring/route-interaction-geometry.test.ts`
+- `packages/edit-engine/src/routing.test.ts`
+- `packages/edit-engine/src/transaction.test.ts`
 - `apps/editor/src/features/clipboard/clipboard.ts`
 - `apps/editor/src/features/clipboard/clipboard.test.ts`
 - `apps/editor/src/interaction/interaction-state.ts`
@@ -50,6 +53,10 @@ annotation follow semantics, and the canonical grid coordinate contract.
    make `R` rotate its preview and make committed copies use the same rotation.
 3. Cover initial versus rotated label clearance and preview/commit copy
    rotation with unit and browser regressions; document both interaction rules.
+4. Align downstream edit-engine and editor geometry contracts with the
+   completed full-grid outward-clearance policy.  The integration gate exposed
+   stale raw-coordinate expectations (old 30-unit baseline placement) rather
+   than a behavioral regression.
 
 ## Validation
 
@@ -80,3 +87,12 @@ Validation passed: 30 focused derived/clipboard/interaction tests,
 `pnpm typecheck`, `pnpm format:check`, `git diff --check`, and two focused
 Playwright regressions covering label-distance stability and copy-preview
 rotation.
+
+## Integration follow-up
+
+The first full `pnpm ci:check` after the later grid-safe drafting target found
+four stale label-placement assertions in the owned edit-engine/editor
+contracts.  This target is re-opened solely to replace those old optical-gap
+constants with the intended full-grid visible-glyph-clearance contract, then
+repeat the delivery gate before merge.  No model, routing, or interaction
+behavior is being expanded.

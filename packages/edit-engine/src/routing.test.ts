@@ -845,26 +845,26 @@ describe("routing Edit Engine", () => {
       const expected = [
         {
           rotation: 90 as const,
-          position: { x: 90, y: 130 },
-          offset: { x: -10, y: 30 },
+          position: { x: 90, y: 140 },
+          offset: { x: -10, y: 40 },
           alignment: "middle" as const,
         },
         {
           rotation: 180 as const,
-          position: { x: 90, y: 90 },
-          offset: { x: -10, y: -10 },
+          position: { x: 70, y: 90 },
+          offset: { x: -30, y: -10 },
           alignment: "end" as const,
         },
         {
           rotation: 270 as const,
-          position: { x: 110, y: 80 },
-          offset: { x: 10, y: -20 },
+          position: { x: 110, y: 60 },
+          offset: { x: 10, y: -40 },
           alignment: "middle" as const,
         },
         {
           rotation: 0 as const,
-          position: { x: 120, y: 110 },
-          offset: { x: 20, y: 10 },
+          position: { x: 140, y: 110 },
+          offset: { x: 40, y: 10 },
           alignment: "start" as const,
         },
       ];
