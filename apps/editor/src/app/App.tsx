@@ -220,6 +220,10 @@ import {
 } from "../features/selection/visual-selection";
 import type { VisualSelection } from "../features/selection/visual-selection";
 import {
+  planSelectionMove,
+  type SelectionMovePlan,
+} from "../features/selection/selection-move-plan";
+import {
   annotationAnchor,
   annotationHitBox,
   attachmentAtPoint,
@@ -265,6 +269,7 @@ interface DragPreview {
   primaryInstanceId: string;
   originalPositions: Record<string, Point>;
   pointerStart: DerivedPoint;
+  movePlan: SelectionMovePlan;
 }
 interface BoxPreview {
   start: DerivedPoint;
@@ -3507,10 +3512,19 @@ export function App({
       setStatus(`Selected ${instanceId}`);
       return;
     }
-    const movingIds = selectedIds.includes(instanceId)
-      ? selectedIds
-      : [instanceId];
+    const movingSelection: VisualSelection = selectedIds.includes(instanceId)
+      ? visualSelection
+      : {
+          instanceIds: [instanceId],
+          routeIds: [],
+          junctionIds: [],
+          annotationIds: [],
+          draftingIds: [],
+        };
+    const movePlan = planSelectionMove(document, movingSelection);
+    const movingIds = movePlan.instanceIds;
     if (!selectedIds.includes(instanceId)) selectInstance(instanceId, false);
+    if (movingIds.length === 0) return;
     canvasDragSessionRef.current?.cancel();
     const svg = hitTarget.ownerSVGElement!;
     const pointerStart = pointFromClient(
@@ -3529,45 +3543,11 @@ export function App({
         }),
       ),
       pointerStart,
+      movePlan,
     };
-    const attachedAnnotationIds = document.annotations
-      .filter(
-        (annotation) =>
-          annotation.anchor.kind === "object" &&
-          movingIds.includes(annotation.anchor.objectId),
-      )
-      .map((annotation) => annotation.id);
-    const movingInternalSelection = deriveInternalGroupSelection(
-      document,
-      movingIds,
-    );
-    const movingInternalObjectIds = new Set([
-      ...movingInternalSelection.netIds,
-      ...movingInternalSelection.routeIds,
-      ...movingInternalSelection.junctionIds,
-    ]);
-    const movingInternalAnnotationIds = document.annotations
-      .filter((annotation) => {
-        const routeAttachment = effectiveRouteAttachment(annotation);
-        return (
-          (annotation.anchor.kind === "object" &&
-            movingInternalObjectIds.has(annotation.anchor.objectId)) ||
-          (routeAttachment !== null &&
-            movingInternalSelection.routeIds.includes(routeAttachment.routeId))
-        );
-      })
-      .map((annotation) => annotation.id);
     let visual: ReturnType<typeof startCanvasDragVisual> | null = null;
     const dragVisual = () =>
-      (visual ??= startCanvasDragVisual(svg, [
-        ...new Set([
-          ...movingIds,
-          ...movingInternalSelection.routeIds,
-          ...movingInternalSelection.junctionIds,
-          ...attachedAnnotationIds,
-          ...movingInternalAnnotationIds,
-        ]),
-      ]));
+      (visual ??= startCanvasDragVisual(svg, movePlan.previewObjectIds));
     const tolerance = logicalRadiusForPixels(svg, SNAP_CAPTURE_RADIUS_PX);
     let lastSnap: SnapResult | undefined;
     canvasDragSessionRef.current = startCanvasDragSession({
@@ -3785,6 +3765,50 @@ export function App({
     if (delta.x !== 0 || delta.y !== 0) {
       try {
         const groupMove = proposeGroupMoveEdits(document, resolver, moves);
+        const looseRouteEdits = preview.movePlan.looseRouteIds.flatMap(
+          (routeId) =>
+            proposeLooseRouteTranslation(document, routeId, delta).edits,
+        );
+        const visualEdits: SchematicEdit[] = [
+          ...preview.movePlan.freeAnnotationIds.flatMap((annotationId) => {
+            const annotation = document.annotations.find(
+              (candidate) => candidate.id === annotationId,
+            );
+            if (!annotation || annotation.anchor.kind !== "free") return [];
+            return [
+              {
+                kind: "upsert_schematic_annotation" as const,
+                annotation: {
+                  ...annotation,
+                  anchor: {
+                    kind: "free" as const,
+                    position: {
+                      x: annotation.anchor.position.x + delta.x,
+                      y: annotation.anchor.position.y + delta.y,
+                    },
+                  },
+                },
+              },
+            ];
+          }),
+          ...preview.movePlan.draftingIds.flatMap((draftingId) => {
+            const object = document.drafting?.objects.find(
+              (candidate) => candidate.id === draftingId,
+            );
+            return object
+              ? [
+                  {
+                    kind: "upsert_drafting_object" as const,
+                    object: translateDraftingObject(
+                      object,
+                      delta,
+                      document.presentation.grid,
+                    ),
+                  },
+                ]
+              : [];
+          }),
+        ];
         const movingElectrical = electricalMatch?.moving.electrical;
         const targetElectrical = electricalMatch?.target.electrical;
         const projected = structuredClone(document);
@@ -3819,7 +3843,12 @@ export function App({
                   },
                 ]
               : [];
-        const result = transact([...groupMove.edits, ...contactEdits]);
+        const result = transact([
+          ...groupMove.edits,
+          ...looseRouteEdits,
+          ...visualEdits,
+          ...contactEdits,
+        ]);
         if (result.ok && electricalMatch) {
           setStatus("Snapped pin endpoints and connected them without a wire");
         }
@@ -5387,7 +5416,15 @@ export function App({
       : {
           routeIds: routePolylines
             .filter(({ polyline }) =>
-              rectsIntersect(polylineBounds(polyline.points), rect),
+              polyline.points
+                .slice(0, -1)
+                .some((from, index) =>
+                  segmentIntersectsRect(
+                    from,
+                    polyline.points[index + 1]!,
+                    rect,
+                  ),
+                ),
             )
             .map(({ route }) => route.id),
           junctionIds: document.junctions

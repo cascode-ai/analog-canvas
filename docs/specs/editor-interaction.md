@@ -100,6 +100,37 @@ atomic transaction. Hover, geometric crossing, selection, and preview never
 change connectivity. A wire endpoint or explicit segment tap is required to
 create contact.
 
+## Movement closure
+
+Every direct-manipulation selection move first derives one transient,
+editor-only `SelectionMovePlan`. It is neither Project data nor an Edit Engine
+or Agent API payload. The plan is the shared authority for the live preview and
+the typed edits committed on pointer release; no pointer handler may invent an
+independent follow set.
+
+The visual marquee is the user's explicit intent. Electrical closure then
+classifies that intent without changing connectivity:
+
+- selected Instances translate together;
+- a Route/Junction component whose terminal endpoints are all selected is
+  internal and translates intact;
+- a Route with exactly one selected Instance endpoint is a boundary Route and
+  is stretched while preserving its external endpoint;
+- an explicitly selected loose Route may translate only together with both of
+  its loose Junction anchors;
+- an ordinary connected Route or Junction that does not meet one of those
+  conditions is fixed for a group move. It is edited through the explicit
+  segment/branch tools, never silently detached or reconnected;
+- object- and route-anchored annotations follow their resolved target; free
+  annotations and free drafting objects translate only when explicitly
+  selected.
+
+The planner authors the resulting geometry for every planned Route in the
+same transaction. Engine instance-follow remains the safe single-instance
+fallback, not a second progressive planner for a group gesture. Marquee Route
+selection tests actual polyline segments against the rectangle, rather than
+selecting a distant bend solely because its bounding box overlaps the gesture.
+
 ## Text and presentation
 
 Every visible editable label is one persisted RichText annotation. Component

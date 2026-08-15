@@ -22,14 +22,14 @@ describe("selectionReducer", () => {
     ).toEqual({ ...EMPTY_VISUAL_SELECTION, routeIds: ["route-2"] });
   });
 
-  it("toggles additive instance selection while clearing other kinds", () => {
+  it("toggles additive instance selection while preserving mixed marquee kinds", () => {
     const added = selectionReducer(mixedSelection, {
       type: "select-instance",
       id: "M2",
       additive: true,
     });
     expect(added).toEqual({
-      ...EMPTY_VISUAL_SELECTION,
+      ...mixedSelection,
       instanceIds: ["M1", "M2"],
     });
     expect(

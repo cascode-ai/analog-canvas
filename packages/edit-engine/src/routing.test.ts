@@ -450,7 +450,7 @@ describe("routing Edit Engine", () => {
     ]);
   });
 
-  it("plans internal group route follow as one engine edit proposal", () => {
+  it("authors every planned internal Route so group geometry is order-independent", () => {
     const document = documentFixture();
     const routed = executeTransaction(
       document,
@@ -477,9 +477,11 @@ describe("routing Edit Engine", () => {
     expect(
       plan.edits.filter((edit) => edit.kind === "move_instance"),
     ).toHaveLength(3);
-    expect(plan.edits.some((edit) => edit.kind === "set_route_points")).toBe(
-      false,
-    );
+    expect(
+      plan.edits
+        .filter((edit) => edit.kind === "set_route_points")
+        .map((edit) => edit.routeId),
+    ).toEqual(["route-h"]);
     const moved = executeTransaction(
       routed.document,
       transaction(document.id, 1, plan.edits),
@@ -488,7 +490,7 @@ describe("routing Edit Engine", () => {
     expect(moved.ok).toBe(true);
   });
 
-  it("authors route geometry only where a group move also moves a Junction", () => {
+  it("authors group Route geometry when a group move also moves a Junction", () => {
     const document = documentFixture();
     document.junctions.push({
       id: "junction-h",

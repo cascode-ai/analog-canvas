@@ -49,10 +49,7 @@ export function selectionReducer(
       const instanceIds = selection.instanceIds.includes(action.id)
         ? selection.instanceIds.filter((id) => id !== action.id)
         : [...selection.instanceIds, action.id];
-      return {
-        ...EMPTY_VISUAL_SELECTION,
-        instanceIds,
-      };
+      return normalizeVisualSelection({ ...selection, instanceIds });
     }
     case "clear-kinds":
       return clearVisualSelectionKinds(selection, action.kinds);

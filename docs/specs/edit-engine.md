@@ -133,9 +133,10 @@ Phase 8 topology operations have these preconditions:
   unowned, or attaches an unowned endpoint to the other endpoint's Net.
 - `set_net_name` requires a non-empty trimmed name. A name already owned by a
   different Net is rejected; the caller must explicitly `merge_nets`.
-- `move_junction` preserves topology and must be paired with any required
-  `set_route_points` edits in the same transaction. Routes protected by locked
-  geometry reject the move.
+- `move_junction` preserves topology and must be paired with `set_route_points`
+  edits for every incident Route whose geometry changes in the same
+  transaction. GUI movement planners always author those Route edits; Routes
+  protected by locked geometry reject the move.
 - `move_instance` stretches unprotected connected Routes to keep them
   orthogonal (ADR 0009). A Route with a locked/trunk adjacent segment is
   skipped; if the caller does not re-point it in the same transaction, the

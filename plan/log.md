@@ -7341,3 +7341,16 @@ diff --check`, and two focused Playwright regressions passed.
   `codex/placement-mirror-grid-toggle`.
 - Mainline delivery: PR #72 passed all six required GitHub Actions checks and
   squash-merged to `main` as `7db4a06`.
+
+# 2026-08-15 - Unify topology-aware schematic movement
+
+- Target: give mixed marquee movement one transient editor-local closure and
+  eliminate progressive internal-wire geometry changes during group moves.
+- Changed areas: `SelectionMovePlan`, mixed selection preservation, precise
+  polyline marquee selection, authoritative group Route edits, movement
+  interaction and contracts.
+- Validation: workspace build, typecheck, 36 focused unit tests, 2 focused
+  Playwright group-move tests, Prettier, Markdown-link validation, and
+  `git diff --check` passed.
+- Commit status: committed on `codex/unified-move-plan` as
+  `refactor(editor): unify topology-aware movement`.
