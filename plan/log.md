@@ -7371,8 +7371,11 @@ diff --check`, and two focused Playwright regressions passed.
   Agent API, and typed-edit protocols flat.
 - Changed areas: transient `SchematicMoveIntent`, route gesture wiring,
   electrical-first canvas hit ranking with Alt label cycling, local-stretch
-  regression coverage, and editor interaction contract.
-- Validation: 12 focused unit tests, workspace typecheck, Prettier,
-  Markdown-link validation, and `git diff --check` passed.
+  regression coverage, and editor interaction contract. Follow-up repair keeps
+  a deliberate double-click on an overlapping label as direct text editing.
+- Validation: 12 focused unit tests, focused overlapping-label browser test,
+  and the full mainline gate (744 unit tests, 127 browser tests, build and
+  release smoke), plus static checks and `git diff --check`, passed.
 - Commit status: committed on `codex/unified-move-plan` as
-  `refactor(editor): make movement intent explicit`.
+  `refactor(editor): make movement intent explicit`, followed by
+  `fix(editor): preserve direct label editing`.

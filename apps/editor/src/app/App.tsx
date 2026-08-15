@@ -101,7 +101,10 @@ import {
 } from "../canvas/fit-view";
 import type { CanvasDragSession } from "../canvas/canvas-drag-session";
 import { startCanvasDragVisual } from "../canvas/canvas-drag-visual";
-import { resolveCanvasHitAtPoint } from "../canvas/canvas-hit-resolver";
+import {
+  rankCanvasHits,
+  resolveCanvasHitAtPoint,
+} from "../canvas/canvas-hit-resolver";
 import {
   centerOfBounds,
   clamp,
@@ -7842,6 +7845,30 @@ export function App({
             }}
             onDoubleClick={(event) => {
               const target = event.target as Element;
+              if (tool === "pointer") {
+                // Movement ranks electrical geometry before labels, but a
+                // deliberate double-click is an editing request. Look through
+                // the same point candidates for text instead of forcing users
+                // to Alt-cycle a route-attached label before editing it.
+                const annotationHit = rankCanvasHits(
+                  event.currentTarget.ownerDocument.elementsFromPoint(
+                    event.clientX,
+                    event.clientY,
+                  ),
+                ).find((hit) => hit.kind === "annotation");
+                const annotation = annotationHit
+                  ? document.annotations.find(
+                      (candidate) => candidate.id === annotationHit.id,
+                    )
+                  : undefined;
+                if (annotation) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  canvasDragSessionRef.current?.cancel();
+                  beginAnnotationTextEditing(annotation);
+                  return;
+                }
+              }
               if (
                 tool === "arrow" ||
                 tool === "construction-line" ||

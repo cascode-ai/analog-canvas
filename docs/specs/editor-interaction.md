@@ -149,7 +149,9 @@ and endpoint-resize intents, never an inferred route search.
 Normal canvas hit ranking prefers a symbol, Route, or Junction over an
 overlapping label so routine moves do not accidentally drag text. Text remains
 individually selectable when it is the only hit, and Alt cycling deliberately
-selects an overlapping label.
+selects an overlapping label. A deliberate double-click is an editing intent,
+not a movement intent: it resolves an overlapping editable annotation directly
+without requiring an Alt cycle.
 
 ## Text and presentation
 
