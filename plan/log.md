@@ -7342,6 +7342,44 @@ diff --check`, and two focused Playwright regressions passed.
 - Mainline delivery: PR #72 passed all six required GitHub Actions checks and
   squash-merged to `main` as `7db4a06`.
 
+# 2026-08-15 - Unify topology-aware schematic movement
+
+- Target: give mixed marquee movement one transient editor-local closure and
+  eliminate progressive internal-wire geometry changes during group moves.
+- Changed areas: `SelectionMovePlan`, mixed selection preservation, precise
+  polyline marquee selection, authoritative group Route edits, movement
+  interaction and contracts.
+- Validation: workspace build, typecheck, 36 focused unit tests, 2 focused
+  Playwright group-move tests, Prettier, Markdown-link validation, and
+  `git diff --check` passed.
+- Commit status: committed on `codex/unified-move-plan` as
+  `refactor(editor): unify topology-aware movement`.
+
+# 2026-08-15 - Protect Junction route geometry
+
+- Target: reject a raw Junction move before it can leave an incident Route's
+  waypoint geometry stale.
+- Changed areas: transaction precondition and routing regression coverage.
+- Validation: 40 focused Edit Engine tests, workspace typecheck, Prettier, and
+  `git diff --check` passed.
+- Commit status: committed on `codex/unified-move-plan` as
+  `fix(edit-engine): require geometry with junction moves`.
+
+# 2026-08-15 - Make movement intent explicit without rerouting
+
+- Target: make direct-manipulation routes explicit while keeping the Project,
+  Agent API, and typed-edit protocols flat.
+- Changed areas: transient `SchematicMoveIntent`, route gesture wiring,
+  electrical-first canvas hit ranking with Alt label cycling, local-stretch
+  regression coverage, and editor interaction contract. Follow-up repair keeps
+  a deliberate double-click on an overlapping label as direct text editing.
+- Validation: 12 focused unit tests, focused overlapping-label browser test,
+  and the full mainline gate (744 unit tests, 127 browser tests, build and
+  release smoke), plus static checks and `git diff --check`, passed.
+- Commit status: committed on `codex/unified-move-plan` as
+  `refactor(editor): make movement intent explicit`, followed by
+  `fix(editor): preserve direct label editing`.
+
 # 2026-08-15 - Per-type instance designators and right-drag camera framing
 
 - Target: per-type placement numbering, unified camera zoom protocol with a

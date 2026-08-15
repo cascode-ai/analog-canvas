@@ -102,7 +102,10 @@ import {
 } from "../canvas/fit-view";
 import type { CanvasDragSession } from "../canvas/canvas-drag-session";
 import { startCanvasDragVisual } from "../canvas/canvas-drag-visual";
-import { resolveCanvasHitAtPoint } from "../canvas/canvas-hit-resolver";
+import {
+  rankCanvasHits,
+  resolveCanvasHitAtPoint,
+} from "../canvas/canvas-hit-resolver";
 import {
   centerOfBounds,
   clamp,
@@ -225,6 +228,11 @@ import {
 } from "../features/selection/visual-selection";
 import type { VisualSelection } from "../features/selection/visual-selection";
 import {
+  planSelectionMove,
+  type SchematicMoveIntent,
+  type SelectionMovePlan,
+} from "../features/selection/selection-move-plan";
+import {
   annotationAnchor,
   annotationHitBox,
   attachmentAtPoint,
@@ -270,6 +278,7 @@ interface DragPreview {
   primaryInstanceId: string;
   originalPositions: Record<string, Point>;
   pointerStart: DerivedPoint;
+  movePlan: SelectionMovePlan;
 }
 interface BoxPreview {
   start: DerivedPoint;
@@ -288,12 +297,7 @@ interface PanPreview {
 interface RouteStretchPreview {
   routeId: string;
   segmentIndex: number;
-  kind:
-    | "segment"
-    | "translate"
-    | "power-rail-translate"
-    | "power-rail-resize-start"
-    | "power-rail-resize-end";
+  intent: Exclude<SchematicMoveIntent, "move-selection">;
   start: DerivedPoint;
   point: DerivedPoint;
 }
@@ -2412,10 +2416,10 @@ export function App({
         routeId,
         segmentIndex,
         routeRecord.route.presentation === "power-rail"
-          ? "power-rail-translate"
+          ? "move-power-rail"
           : looseRouteAnchorIds(document, routeRecord.route) !== null
-            ? "translate"
-            : "segment",
+            ? "move-loose-route"
+            : "stretch-segment",
         hitTarget,
       );
       return;
@@ -2493,7 +2497,7 @@ export function App({
     event: ReactPointerEvent<SVGElement>,
     routeId: string,
     segmentIndex: number,
-    kind: RouteStretchPreview["kind"] = "segment",
+    intent: RouteStretchPreview["intent"] = "stretch-segment",
     hitTarget: SVGElement = event.currentTarget,
   ): void {
     if (event.button !== 0) return;
@@ -2506,17 +2510,17 @@ export function App({
     );
     if (!record) return;
     const powerRail =
-      kind === "power-rail-translate" ||
-      kind === "power-rail-resize-start" ||
-      kind === "power-rail-resize-end"
+      intent === "move-power-rail" ||
+      intent === "resize-power-rail-start" ||
+      intent === "resize-power-rail-end"
         ? derivePowerRailComponent(document, routeId)
         : null;
     const anchorIds =
-      kind === "translate"
+      intent === "move-loose-route"
         ? (looseRouteAnchorIds(document, record.route) ?? [])
         : (powerRail?.junctionIds ?? []);
     const translatedRouteIds =
-      kind === "power-rail-translate"
+      intent === "move-power-rail"
         ? (powerRail?.routeIds ?? [routeId])
         : [routeId];
     let visual: ReturnType<typeof startCanvasDragVisual> | null = null;
@@ -2528,7 +2532,7 @@ export function App({
     const preview: RouteStretchPreview = {
       routeId,
       segmentIndex,
-      kind,
+      intent,
       start,
       point: start,
     };
@@ -2540,7 +2544,7 @@ export function App({
       thresholdPx: DRAG_START_DISTANCE_PX,
       onPreview: (client) => {
         const point = pointFromClient(client.x, client.y, svg, false);
-        if (kind === "translate" || kind === "power-rail-translate") {
+        if (intent === "move-loose-route" || intent === "move-power-rail") {
           dragVisual().translate({
             x: point.x - start.x,
             y: point.y - start.y,
@@ -2548,8 +2552,8 @@ export function App({
           return;
         }
         if (
-          kind === "power-rail-resize-start" ||
-          kind === "power-rail-resize-end"
+          intent === "resize-power-rail-start" ||
+          intent === "resize-power-rail-end"
         ) {
           // The persisted proposal resizes the outer rail fragment, which may
           // differ from the selected fragment after a tap. Avoid previewing a
@@ -2599,7 +2603,7 @@ export function App({
     );
     if (!record) return;
     try {
-      if (preview.kind === "translate") {
+      if (preview.intent === "move-loose-route") {
         const anchorIds = looseRouteAnchorIds(document, record.route);
         if (!anchorIds) {
           throw new Error(
@@ -2623,7 +2627,7 @@ export function App({
           );
           if (result.ok) setStatus(`Moved loose route ${record.route.id}`);
         }
-      } else if (preview.kind === "power-rail-translate") {
+      } else if (preview.intent === "move-power-rail") {
         const delta = {
           x: snapCoordinate(
             point.x - preview.start.x,
@@ -2646,15 +2650,15 @@ export function App({
           if (result.ok) setStatus(`Moved VDD rail ${record.route.id}`);
         }
       } else if (
-        preview.kind === "power-rail-resize-start" ||
-        preview.kind === "power-rail-resize-end"
+        preview.intent === "resize-power-rail-start" ||
+        preview.intent === "resize-power-rail-end"
       ) {
         const result = transact(
           proposePowerRailEndpointResize(
             document,
             resolver,
             record.route.id,
-            preview.kind === "power-rail-resize-start" ? "start" : "end",
+            preview.intent === "resize-power-rail-start" ? "start" : "end",
             snapCoordinate(point.x, document.presentation.grid),
           ).edits,
         );
@@ -3495,10 +3499,19 @@ export function App({
       setStatus(`Selected ${instanceId}`);
       return;
     }
-    const movingIds = selectedIds.includes(instanceId)
-      ? selectedIds
-      : [instanceId];
+    const movingSelection: VisualSelection = selectedIds.includes(instanceId)
+      ? visualSelection
+      : {
+          instanceIds: [instanceId],
+          routeIds: [],
+          junctionIds: [],
+          annotationIds: [],
+          draftingIds: [],
+        };
+    const movePlan = planSelectionMove(document, movingSelection);
+    const movingIds = movePlan.instanceIds;
     if (!selectedIds.includes(instanceId)) selectInstance(instanceId, false);
+    if (movingIds.length === 0) return;
     canvasDragSessionRef.current?.cancel();
     const svg = hitTarget.ownerSVGElement!;
     const pointerStart = pointFromClient(
@@ -3517,45 +3530,11 @@ export function App({
         }),
       ),
       pointerStart,
+      movePlan,
     };
-    const attachedAnnotationIds = document.annotations
-      .filter(
-        (annotation) =>
-          annotation.anchor.kind === "object" &&
-          movingIds.includes(annotation.anchor.objectId),
-      )
-      .map((annotation) => annotation.id);
-    const movingInternalSelection = deriveInternalGroupSelection(
-      document,
-      movingIds,
-    );
-    const movingInternalObjectIds = new Set([
-      ...movingInternalSelection.netIds,
-      ...movingInternalSelection.routeIds,
-      ...movingInternalSelection.junctionIds,
-    ]);
-    const movingInternalAnnotationIds = document.annotations
-      .filter((annotation) => {
-        const routeAttachment = effectiveRouteAttachment(annotation);
-        return (
-          (annotation.anchor.kind === "object" &&
-            movingInternalObjectIds.has(annotation.anchor.objectId)) ||
-          (routeAttachment !== null &&
-            movingInternalSelection.routeIds.includes(routeAttachment.routeId))
-        );
-      })
-      .map((annotation) => annotation.id);
     let visual: ReturnType<typeof startCanvasDragVisual> | null = null;
     const dragVisual = () =>
-      (visual ??= startCanvasDragVisual(svg, [
-        ...new Set([
-          ...movingIds,
-          ...movingInternalSelection.routeIds,
-          ...movingInternalSelection.junctionIds,
-          ...attachedAnnotationIds,
-          ...movingInternalAnnotationIds,
-        ]),
-      ]));
+      (visual ??= startCanvasDragVisual(svg, movePlan.previewObjectIds));
     const tolerance = logicalRadiusForPixels(svg, SNAP_CAPTURE_RADIUS_PX);
     let lastSnap: SnapResult | undefined;
     canvasDragSessionRef.current = startCanvasDragSession({
@@ -3773,6 +3752,50 @@ export function App({
     if (delta.x !== 0 || delta.y !== 0) {
       try {
         const groupMove = proposeGroupMoveEdits(document, resolver, moves);
+        const looseRouteEdits = preview.movePlan.looseRouteIds.flatMap(
+          (routeId) =>
+            proposeLooseRouteTranslation(document, routeId, delta).edits,
+        );
+        const visualEdits: SchematicEdit[] = [
+          ...preview.movePlan.freeAnnotationIds.flatMap((annotationId) => {
+            const annotation = document.annotations.find(
+              (candidate) => candidate.id === annotationId,
+            );
+            if (!annotation || annotation.anchor.kind !== "free") return [];
+            return [
+              {
+                kind: "upsert_schematic_annotation" as const,
+                annotation: {
+                  ...annotation,
+                  anchor: {
+                    kind: "free" as const,
+                    position: {
+                      x: annotation.anchor.position.x + delta.x,
+                      y: annotation.anchor.position.y + delta.y,
+                    },
+                  },
+                },
+              },
+            ];
+          }),
+          ...preview.movePlan.draftingIds.flatMap((draftingId) => {
+            const object = document.drafting?.objects.find(
+              (candidate) => candidate.id === draftingId,
+            );
+            return object
+              ? [
+                  {
+                    kind: "upsert_drafting_object" as const,
+                    object: translateDraftingObject(
+                      object,
+                      delta,
+                      document.presentation.grid,
+                    ),
+                  },
+                ]
+              : [];
+          }),
+        ];
         const movingElectrical = electricalMatch?.moving.electrical;
         const targetElectrical = electricalMatch?.target.electrical;
         const projected = structuredClone(document);
@@ -3807,7 +3830,12 @@ export function App({
                   },
                 ]
               : [];
-        const result = transact([...groupMove.edits, ...contactEdits]);
+        const result = transact([
+          ...groupMove.edits,
+          ...looseRouteEdits,
+          ...visualEdits,
+          ...contactEdits,
+        ]);
         if (result.ok && electricalMatch) {
           setStatus("Snapped pin endpoints and connected them without a wire");
         }
@@ -5396,7 +5424,15 @@ export function App({
       : {
           routeIds: routePolylines
             .filter(({ polyline }) =>
-              rectsIntersect(polylineBounds(polyline.points), rect),
+              polyline.points
+                .slice(0, -1)
+                .some((from, index) =>
+                  segmentIntersectsRect(
+                    from,
+                    polyline.points[index + 1]!,
+                    rect,
+                  ),
+                ),
             )
             .map(({ route }) => route.id),
           junctionIds: document.junctions
@@ -7818,6 +7854,30 @@ export function App({
             }}
             onDoubleClick={(event) => {
               const target = event.target as Element;
+              if (tool === "pointer") {
+                // Movement ranks electrical geometry before labels, but a
+                // deliberate double-click is an editing request. Look through
+                // the same point candidates for text instead of forcing users
+                // to Alt-cycle a route-attached label before editing it.
+                const annotationHit = rankCanvasHits(
+                  event.currentTarget.ownerDocument.elementsFromPoint(
+                    event.clientX,
+                    event.clientY,
+                  ),
+                ).find((hit) => hit.kind === "annotation");
+                const annotation = annotationHit
+                  ? document.annotations.find(
+                      (candidate) => candidate.id === annotationHit.id,
+                    )
+                  : undefined;
+                if (annotation) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  canvasDragSessionRef.current?.cancel();
+                  beginAnnotationTextEditing(annotation);
+                  return;
+                }
+              }
               if (
                 tool === "arrow" ||
                 tool === "construction-line" ||
@@ -8149,7 +8209,7 @@ export function App({
                       : null;
                   const handlePointerDown = (
                     event: ReactPointerEvent<SVGElement>,
-                    kind: RouteStretchPreview["kind"],
+                    intent: RouteStretchPreview["intent"],
                   ) => {
                     const primaryInstanceId = selectedIds.at(-1);
                     if (
@@ -8159,7 +8219,7 @@ export function App({
                       beginMove(event, primaryInstanceId);
                       return;
                     }
-                    beginRouteStretch(event, route.id, segmentIndex, kind);
+                    beginRouteStretch(event, route.id, segmentIndex, intent);
                   };
                   return (
                     <g key={`handle-${route.id}`}>
@@ -8191,10 +8251,10 @@ export function App({
                           handlePointerDown(
                             event,
                             powerRail
-                              ? "power-rail-translate"
+                              ? "move-power-rail"
                               : translatesWholeRoute
-                                ? "translate"
-                                : "segment",
+                                ? "move-loose-route"
+                                : "stretch-segment",
                           )
                         }
                         pointerEvents={tool === "wire" ? "none" : undefined}
@@ -8213,8 +8273,8 @@ export function App({
                             handlePointerDown(
                               event,
                               index === 0
-                                ? "power-rail-resize-start"
-                                : "power-rail-resize-end",
+                                ? "resize-power-rail-start"
+                                : "resize-power-rail-end",
                             )
                           }
                           pointerEvents={tool === "wire" ? "none" : undefined}
@@ -8374,8 +8434,8 @@ export function App({
                           selectedRoute.id,
                           selectedRouteSegmentIndex ?? 0,
                           powerRailEndIndex === 0
-                            ? "power-rail-resize-start"
-                            : "power-rail-resize-end",
+                            ? "resize-power-rail-start"
+                            : "resize-power-rail-end",
                         );
                         return;
                       }

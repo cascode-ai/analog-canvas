@@ -16,12 +16,12 @@ export interface CanvasHit {
 
 const KIND_PRIORITY: Record<CanvasHitKind, number> = {
   handle: 70,
-  annotation: 60,
-  "instance-label": 55,
-  instance: 50,
+  instance: 60,
+  route: 55,
+  junction: 50,
+  annotation: 45,
+  "instance-label": 44,
   drafting: 40,
-  route: 40,
-  junction: 30,
 };
 const SELECTED_BONUS = 25;
 

@@ -54,6 +54,63 @@ function transaction(documentId: string, revision: number, edits: unknown[]) {
 }
 
 describe("routing Edit Engine", () => {
+  it("rejects a Junction move that would leave an incident Route geometry stale", () => {
+    const document = createEmptyDocument("junction-integrity", "Junction");
+    document.nets.push({ id: "n1", scope: "local", terminals: [] });
+    document.junctions.push(
+      {
+        id: "J1",
+        netId: "n1",
+        position: { x: 100, y: 100 },
+        role: "route-anchor",
+      },
+      {
+        id: "J2",
+        netId: "n1",
+        position: { x: 200, y: 100 },
+        role: "route-anchor",
+      },
+    );
+    document.routes.push({
+      id: "wire-1",
+      netId: "n1",
+      from: { kind: "junction", junctionId: "J1" },
+      to: { kind: "junction", junctionId: "J2" },
+      waypoints: [],
+      segmentModes: ["manual"],
+    });
+
+    const rejected = executeTransaction(
+      document,
+      transaction(document.id, 0, [
+        {
+          kind: "move_junction",
+          junctionId: "J1",
+          position: { x: 120, y: 100 },
+        },
+      ]),
+      context,
+    );
+    expect(rejected).toMatchObject({
+      ok: false,
+      error: {
+        code: "EDIT_PRECONDITION",
+      },
+      diagnostics: [{ objectIds: ["J1", "wire-1"] }],
+    });
+
+    const proposal = proposeLooseRouteTranslation(document, "wire-1", {
+      x: 20,
+      y: 0,
+    });
+    const moved = executeTransaction(
+      document,
+      transaction(document.id, 0, proposal.edits),
+      context,
+    );
+    expect(moved.ok).toBe(true);
+  });
+
   it("keeps a tapped VDD rail contiguous when it is resized or moved", () => {
     const document = createEmptyDocument("vdd-manipulation", "VDD edit");
     document.nets.push({
@@ -450,7 +507,7 @@ describe("routing Edit Engine", () => {
     ]);
   });
 
-  it("plans internal group route follow as one engine edit proposal", () => {
+  it("authors every planned internal Route so group geometry is order-independent", () => {
     const document = documentFixture();
     const routed = executeTransaction(
       document,
@@ -477,9 +534,11 @@ describe("routing Edit Engine", () => {
     expect(
       plan.edits.filter((edit) => edit.kind === "move_instance"),
     ).toHaveLength(3);
-    expect(plan.edits.some((edit) => edit.kind === "set_route_points")).toBe(
-      false,
-    );
+    expect(
+      plan.edits
+        .filter((edit) => edit.kind === "set_route_points")
+        .map((edit) => edit.routeId),
+    ).toEqual(["route-h"]);
     const moved = executeTransaction(
       routed.document,
       transaction(document.id, 1, plan.edits),
@@ -488,7 +547,7 @@ describe("routing Edit Engine", () => {
     expect(moved.ok).toBe(true);
   });
 
-  it("authors route geometry only where a group move also moves a Junction", () => {
+  it("authors group Route geometry when a group move also moves a Junction", () => {
     const document = documentFixture();
     document.junctions.push({
       id: "junction-h",

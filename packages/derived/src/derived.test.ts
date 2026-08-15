@@ -228,4 +228,38 @@ describe("derived connectivity and route geometry", () => {
       proposeLocalStretch(document, resolver, "A", { x: 140, y: 360 }),
     ).toThrow(/protected adjacent segment/u);
   });
+
+  it("changes only endpoint-adjacent geometry during a local stretch", () => {
+    const document = documentFixture();
+    document.routes = [
+      {
+        id: "route-h",
+        netId: "net-h",
+        from: terminal("A"),
+        to: terminal("B"),
+        waypoints: [
+          { x: 180, y: 300 },
+          { x: 180, y: 260 },
+          { x: 420, y: 260 },
+          { x: 420, y: 300 },
+        ],
+        segmentModes: ["manual", "manual", "manual", "manual", "manual"],
+      },
+    ];
+
+    expect(
+      proposeLocalStretch(document, resolver, "A", { x: 140, y: 360 }),
+    ).toEqual([
+      {
+        routeId: "route-h",
+        waypoints: [
+          { x: 180, y: 360 },
+          { x: 180, y: 260 },
+          { x: 420, y: 260 },
+          { x: 420, y: 300 },
+        ],
+        segmentModes: ["manual", "manual", "manual", "manual", "manual"],
+      },
+    ]);
+  });
 });
