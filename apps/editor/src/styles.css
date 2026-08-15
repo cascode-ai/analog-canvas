@@ -976,7 +976,7 @@ body {
 .shapes-chip {
   position: relative;
   display: block;
-  min-height: 66px;
+  min-height: 52px;
   padding: 0;
   border: 1px solid var(--icm-border);
   border-radius: var(--icm-radius-sm);
@@ -1004,18 +1004,6 @@ body {
   overflow: visible;
   color: var(--icm-text);
   transform: translate(-50%, -50%);
-}
-
-.shapes-chip span {
-  position: absolute;
-  right: 1px;
-  bottom: 3px;
-  left: 1px;
-  display: block;
-  min-height: 1.15em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .shapes-hint {
@@ -2740,7 +2728,7 @@ body {
   }
 
   .shapes-chip {
-    min-height: 74px;
+    min-height: 60px;
     padding: 0;
     font-size: 10px;
   }

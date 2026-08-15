@@ -7181,3 +7181,19 @@ ci:check` (651 unit tests, 104 browser tests, builds and release smoke) all
 - Commit status: committed and pushed on
   `agent/compact-complete-library` as
   `style(editor): compact centered library tiles`.
+
+## 2026-08-15 - Use icon-only centered Library tiles
+
+- Target: make the Library still more compact while keeping the device artwork
+  visually centered in each box.
+- Changed areas: removed visible in-tile labels from Library and Recent buttons;
+  retained complete accessible names/tooltips; reduced desktop tiles to 52px
+  and narrow tiles to 60px around unchanged centered artwork.
+- Validation: focused unit tests (2 files / 16 tests), two focused Playwright
+  flows covering icon-only primary/Recent tiles, accessible names, exact
+  centering, dimensions, and containment, `pnpm typecheck`, Prettier checks,
+  reviewer suggestion addressed, screenshot inspection at 1280x720,
+  1024x720, and 720x720, and `git diff --check` passed.
+- Commit status: committed and pushed on
+  `agent/compact-complete-library` as
+  `style(editor): use compact centered library icons`.
