@@ -90,4 +90,5 @@ isolated-port `pnpm ci:check` gate (728 unit/integration tests, build and
 release verification, and 124 browser tests). The first complete browser run
 lost its shared port-4173 preview process after test 59; the same full suite
 passed on isolated port 4174, confirming a local port-host conflict rather
-than a product regression.
+than a product regression. PR [#67](https://github.com/chenzc24/Analog-Canvas/pull/67)
+passed all remote checks and squash-merged to `main` as `a896fb5`.

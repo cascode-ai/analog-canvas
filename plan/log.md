@@ -7082,8 +7082,8 @@ ci:check` (651 unit tests, 104 browser tests, builds and release smoke) all
 - Validation: focused 52-test derived/Edit Engine suite, typecheck, Prettier,
   `git diff --check`, frozen install, and isolated-port `pnpm ci:check`
   (728 unit/integration tests, build/release verification, 124 browser tests).
-- Commit status: committed as `3a7719e` on
-  `codex/close-label-gap-delivery`; push and remote review checks pending.
+- Commit status: squash-merged through PR #67 as `a896fb5` after all remote
+  required checks passed.
 
 ## 2026-08-15 - Show the complete compact component Library
 

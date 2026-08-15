@@ -47,8 +47,8 @@ superseded VDD plan's drawn-rail replacement is already archived.
 ## 2026-08-15 Label-placement closure
 
 `2026-08-15-fix-label-gap-rotation` is completed with resolved experience.
-It remains in the root queue until its delivered commit, factual log entry, and
-remote merge evidence are all present.
+Its delivered commit, factual log entry, and remote merge evidence are present;
+it is eligible for normal completed-plan retention handling.
 
 ## Legacy Metadata Sweep
 
