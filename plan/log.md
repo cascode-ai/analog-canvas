@@ -7311,6 +7311,20 @@ diff --check`, and two focused Playwright regressions passed.
   `fix(editor): compact narrow library and overlay properties` on
   `codex/compact-library-overlay-properties`; not pushed.
 
+# 2026-08-15 - Make public Agent UI dormant
+
+- Target: keep the deployed editor human-only without disabling internal
+  API/MCP/local Agent integrations.
+- Changed areas: production-default UI mode resolver; App-level removal of the
+  Agent menu, connection and file-approval dialogs, Properties status/details;
+  inert disabled browser session lifecycle; focused tests; public-facing README
+  and troubleshooting wording.
+- Validation: focused resolver/App tests (15/15), typecheck, docs/format,
+  production smoke, `git diff --check`, and `pnpm verify:branch` (123 files /
+  740 tests, workspace build, production smoke) passed.
+- Commit status: committed on `agent/public-agent-ui-dormant` as
+  `feat(editor): hide public Agent controls`.
+
 # 2026-08-15 - Mirror transient placement and toggle grid dots
 
 - Target: add minimal orientation controls during C/I placement and one local

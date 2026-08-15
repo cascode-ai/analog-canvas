@@ -30,6 +30,13 @@ For an MCP session: start the adapter, call `connect` with a Claim Code, read
 declared by [`resource-manifest.json`](resource-manifest.json); the same
 manifest projects the shared sources into the HTTP Kit.
 
+## Browser-host availability
+
+The public production editor is human-only by default and does not expose a
+claim UI or reconnect a prior browser session. Trusted development or staging
+builds can enable that browser surface with `VITE_ICM_AGENT_UI=enabled`; the
+API and MCP contracts themselves are unchanged.
+
 ## External Agent bootstrap (no MCP)
 
 An Agent without this repository receives a connection setup from the editor.

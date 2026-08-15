@@ -43,6 +43,6 @@ does not accept a LAN address. Use `pnpm dev` for a different development port.
 
 The static host does not enable the optional loopback Agent adapter. Start that
 adapter explicitly, use a token of at least 32 characters, and send requests
-only to its loopback JSON endpoint. For the published browser editor, use
-**Connect Agent** and the [browser-session instructions](../agent/api-usage.md)
-instead.
+only to its loopback JSON endpoint. The published editor currently exposes no
+Agent connection controls; its browser relay is reserved for explicitly enabled
+development and staging deployments.

@@ -165,6 +165,7 @@ import {
 } from "../agent/connect-agent-panel";
 import { BrowserAgentHost } from "../agent/browser-agent-host";
 import { BrowserAgentFileHost } from "../agent/browser-agent-file-host";
+import { PUBLIC_AGENT_UI_ENABLED } from "../agent/public-agent-ui";
 import { useAgentSession } from "../agent/use-agent-session";
 import type { AgentFileCandidateSummary } from "@icm/agent-adapter";
 import { referencedDocumentId } from "../document/editor-session";
@@ -321,6 +322,8 @@ interface ReplaceGuardState {
 export interface AppProps {
   project?: CircuitProject;
   visitStats?: { pv: number; uv: number } | null;
+  /** Test/staging seam; production defaults to a human-only editor. */
+  publicAgentUiEnabled?: boolean;
 }
 
 function dismissOpenCommandMenus(): boolean {
@@ -502,7 +505,11 @@ function compactLayoutMatches(): boolean {
   );
 }
 
-export function App({ project: initialProject, visitStats }: AppProps) {
+export function App({
+  project: initialProject,
+  visitStats,
+  publicAgentUiEnabled = PUBLIC_AGENT_UI_ENABLED,
+}: AppProps) {
   const [preparedInitialProject] = useState(
     () =>
       materializeRazaviProjectBulkConnections(
@@ -676,14 +683,16 @@ export function App({ project: initialProject, visitStats }: AppProps) {
     [editorDocumentController, projectSessionId],
   );
   const agentSession = useAgentSession({
+    enabled: publicAgentUiEnabled,
     project,
     projectSessionId,
     host: browserAgentHost,
     fileHost: browserAgentFileHost,
   });
   useEffect(() => {
+    if (!publicAgentUiEnabled) return;
     setAgentStatusDismissed(false);
-  }, [agentSession.status]);
+  }, [agentSession.status, publicAgentUiEnabled]);
   const [boxPreview, setBoxPreview] = useState<BoxPreview | null>(null);
   const [panPreview, setPanPreview] = useState<PanPreview | null>(null);
   const [routeStretchPreview, setRouteStretchPreview] =
@@ -6490,26 +6499,28 @@ export function App({ project: initialProject, visitStats }: AppProps) {
                   ) : null}
                 </div>
               </details>
-              <details className="command-menu" name="editor-command-menu">
-                <summary>Agent</summary>
-                <div className="command-popover">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (agentSession.status === "idle") {
-                        setAgentPanelOpen(true);
-                        return;
-                      }
-                      setSelectionOpen(true);
-                      setAgentDetailsOpen(true);
-                    }}
-                  >
-                    {agentSession.status === "idle"
-                      ? "Connect Agent"
-                      : "Manage Agent"}
-                  </button>
-                </div>
-              </details>
+              {publicAgentUiEnabled ? (
+                <details className="command-menu" name="editor-command-menu">
+                  <summary>Agent</summary>
+                  <div className="command-popover">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (agentSession.status === "idle") {
+                          setAgentPanelOpen(true);
+                          return;
+                        }
+                        setSelectionOpen(true);
+                        setAgentDetailsOpen(true);
+                      }}
+                    >
+                      {agentSession.status === "idle"
+                        ? "Connect Agent"
+                        : "Manage Agent"}
+                    </button>
+                  </div>
+                </details>
+              ) : null}
               <details className="command-menu" name="editor-command-menu">
                 <summary>Draw</summary>
                 <div className="command-popover">
@@ -6748,26 +6759,28 @@ export function App({ project: initialProject, visitStats }: AppProps) {
         onApply={beginInsertedComponentPlacement}
         onCancel={cancelComponentInsert}
       />
-      <ConnectAgentPanel
-        open={agentPanelOpen}
-        status={agentSession.status}
-        claimCode={agentSession.claimCode}
-        claimExpiresAt={agentSession.claimExpiresAt}
-        scopes={agentSession.scopes}
-        expiresAt={agentSession.expiresAt}
-        error={agentSession.error}
-        now={Date.now()}
-        onGrant={agentSession.grant}
-        onPause={agentSession.pause}
-        onResume={agentSession.resume}
-        onReconnect={agentSession.reconnect}
-        onNewConnection={agentSession.newConnection}
-        onRevoke={agentSession.revoke}
-        onClose={() => {
-          setAgentPanelOpen(false);
-        }}
-      />
-      {agentFileCandidate ? (
+      {publicAgentUiEnabled ? (
+        <ConnectAgentPanel
+          open={agentPanelOpen}
+          status={agentSession.status}
+          claimCode={agentSession.claimCode}
+          claimExpiresAt={agentSession.claimExpiresAt}
+          scopes={agentSession.scopes}
+          expiresAt={agentSession.expiresAt}
+          error={agentSession.error}
+          now={Date.now()}
+          onGrant={agentSession.grant}
+          onPause={agentSession.pause}
+          onResume={agentSession.resume}
+          onReconnect={agentSession.reconnect}
+          onNewConnection={agentSession.newConnection}
+          onRevoke={agentSession.revoke}
+          onClose={() => {
+            setAgentPanelOpen(false);
+          }}
+        />
+      ) : null}
+      {publicAgentUiEnabled && agentFileCandidate ? (
         <div className="agent-panel" data-testid="agent-file-approval">
           <section
             className="agent-dialog"
@@ -6928,7 +6941,9 @@ export function App({ project: initialProject, visitStats }: AppProps) {
               <span className="selection-shelf-title">
                 <ToolIcon name="inspect" />
                 <span>Properties</span>
-                {agentSession.status !== "idle" && !agentStatusDismissed ? (
+                {publicAgentUiEnabled &&
+                agentSession.status !== "idle" &&
+                !agentStatusDismissed ? (
                   <span
                     className={`agent-shelf-indicator ${
                       agentSession.status === "revoked" ||
@@ -7637,7 +7652,9 @@ export function App({ project: initialProject, visitStats }: AppProps) {
                   />
                 </section>
               ) : null}
-              {agentSession.status !== "idle" && !agentStatusDismissed ? (
+              {publicAgentUiEnabled &&
+              agentSession.status !== "idle" &&
+              !agentStatusDismissed ? (
                 <AgentPropertiesSection
                   status={agentSession.status}
                   claimCode={agentSession.claimCode}

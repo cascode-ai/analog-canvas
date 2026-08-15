@@ -1,9 +1,8 @@
 # Analog Canvas
 
-Analog Canvas is a local-first, connectivity-aware schematic editor for human
-and Agent collaboration. Import structural SPICE, edit a typed circuit model in
-the browser, save one portable Project file, export formal drawings, or grant a
-bounded external Agent access to the same revisioned edit engine.
+Analog Canvas is a local-first, connectivity-aware schematic editor. Import
+structural SPICE, edit a typed circuit model in the browser, save one portable
+Project file, and export formal drawings.
 
 ## Start here
 
@@ -15,8 +14,6 @@ bounded external Agent access to the same revisioned edit engine.
 - **Develop or contribute:** [working rules](AGENTS.md),
   [current development reading set](docs/current/README.md), and
   [validation commands](#validation).
-- **Connect an Agent:** [Agent workflow](docs/agent/workflow.md) and
-  [public API usage](docs/agent/api-usage.md).
 
 ## Run locally
 
@@ -32,10 +29,10 @@ files. Use **File / Save Project** to download the authoritative
 
 ## What the repository contains
 
-- `apps/editor/`: React/SVG editor and browser-authoritative Agent host.
+- `apps/editor/`: React/SVG editor.
 - `apps/local-host/`: loopback-only production host for the installable PWA.
 - `packages/model/` and `packages/edit-engine/`: persisted circuit model and
-  atomic human/Agent mutation boundary.
+  atomic mutation boundary.
 - `packages/spice/`, `packages/symbols/`, and `packages/netlist/`: structural
   SPICE import, symbol semantics, and deterministic design-netlist export.
 - `packages/exporters/` and `packages/render-svg/`: formal SVG, PNG, and PDF

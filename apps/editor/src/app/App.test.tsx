@@ -158,6 +158,20 @@ describe("editor shell", () => {
     expect(markup).not.toContain('data-testid="connect-agent-panel"');
   });
 
+  it("removes all public Agent controls and accessibility affordances when dormant", () => {
+    const project = createEmptyProject("agent-ui-dormant", "Dormant");
+    const markup = renderToStaticMarkup(
+      <App project={project} publicAgentUiEnabled={false} />,
+    );
+
+    expect(markup).not.toContain("<summary>Agent</summary>");
+    expect(markup).not.toContain("Connect Agent");
+    expect(markup).not.toContain("Manage Agent");
+    expect(markup).not.toContain("agent-shelf-indicator");
+    expect(markup).not.toContain("Agent:");
+    expect(markup).not.toContain("Approve Agent file import");
+  });
+
   it("links to first-party visitor analytics without crowding editor commands", () => {
     const project = createEmptyProject("analytics-entry", "Analytics Entry");
     const markup = renderToStaticMarkup(

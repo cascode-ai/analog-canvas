@@ -128,6 +128,12 @@ export interface AgentSessionViewModel {
 }
 
 export interface UseAgentSessionOptions {
+  /**
+   * Disables all browser-side Agent lifecycle work.  This is deliberately a
+   * UI/host switch, not an API gate: MCP and loopback deployments remain
+   * independently available.
+   */
+  enabled: boolean;
   project: CircuitProject;
   projectSessionId: string;
   host: AgentOperationHost;
@@ -211,6 +217,7 @@ export function useAgentSession(
 
   const control = useCallback(
     async (action: "pause" | "resume" | "revoke" | "replace-project") => {
+      if (!options.enabled) return;
       const live = liveRef.current;
       if (!live) return;
       const response = await fetch(
@@ -227,10 +234,11 @@ export function useAgentSession(
       if (!response.ok)
         throw new Error(`Session control failed (${response.status})`);
     },
-    [],
+    [options.enabled],
   );
 
   const revoke = useCallback(async () => {
+    if (!options.enabled) return;
     const live = liveRef.current;
     if (!live) {
       clearAgentSessionRecovery(window.localStorage);
@@ -253,13 +261,14 @@ export function useAgentSession(
       claimExpiresAt: null,
       error: null,
     });
-  }, [control, options.fileHost, update]);
+  }, [control, options.enabled, options.fileHost, update]);
 
   const grant = useCallback(
     async (
       scopes: readonly AgentSessionScope[],
       recovery?: AgentSessionRecoveryRecord,
     ) => {
+      if (!options.enabled) return;
       if (liveRef.current) await revoke();
       lastScopesRef.current = [...scopes];
       update({
@@ -663,6 +672,7 @@ export function useAgentSession(
     },
     [
       options.fileHost,
+      options.enabled,
       options.host,
       options.project,
       options.projectSessionId,
@@ -672,6 +682,7 @@ export function useAgentSession(
   );
 
   useEffect(() => {
+    if (!options.enabled) return;
     if (recoveryAttemptedForProjectRef.current === options.projectSessionId) {
       return;
     }
@@ -682,9 +693,10 @@ export function useAgentSession(
       now: Date.now(),
     });
     if (recovery) void grant(recovery.scopes, recovery);
-  }, [grant, options.project.id, options.projectSessionId]);
+  }, [grant, options.enabled, options.project.id, options.projectSessionId]);
 
   const pause = useCallback(async () => {
+    if (!options.enabled) return;
     try {
       await control("pause");
       update({ status: "paused", error: null });
@@ -693,9 +705,10 @@ export function useAgentSession(
         error: error instanceof Error ? error.message : String(error),
       });
     }
-  }, [control, update]);
+  }, [control, options.enabled, update]);
 
   const resume = useCallback(async () => {
+    if (!options.enabled) return;
     try {
       await control("resume");
       update({
@@ -707,9 +720,10 @@ export function useAgentSession(
         error: error instanceof Error ? error.message : String(error),
       });
     }
-  }, [control, update]);
+  }, [control, options.enabled, update]);
 
   const reconnect = useCallback(() => {
+    if (!options.enabled) return;
     const live = liveRef.current;
     if (!live || Date.now() >= live.expiresAt) return;
     if (live.reconnectTimer !== null) {
@@ -720,9 +734,10 @@ export function useAgentSession(
     live.reconnectAttempt = 0;
     update({ status: "reconnecting", error: null });
     live.reconnect();
-  }, [update]);
+  }, [options.enabled, update]);
 
   useEffect(() => {
+    if (!options.enabled) return;
     const wakeTransport = () => {
       const live = liveRef.current;
       if (!live || !live.allowReconnect || Date.now() >= live.expiresAt) {
@@ -760,15 +775,17 @@ export function useAgentSession(
       window.removeEventListener("online", wakeTransport);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [update]);
+  }, [options.enabled, update]);
 
   const newConnection = useCallback(async () => {
+    if (!options.enabled) return;
     const scopes = liveRef.current?.scopes ?? lastScopesRef.current;
     if (scopes.length === 0) return;
     await grant(scopes);
-  }, [grant]);
+  }, [grant, options.enabled]);
 
   useEffect(() => {
+    if (!options.enabled) return;
     if (projectSessionRef.current !== options.projectSessionId) return;
     const live = liveRef.current;
     for (const document of options.project.documents) {
@@ -805,9 +822,10 @@ export function useAgentSession(
         }),
       );
     }
-  }, [options.project, options.projectSessionId]);
+  }, [options.enabled, options.project, options.projectSessionId]);
 
   useEffect(() => {
+    if (!options.enabled) return;
     if (projectSessionRef.current === options.projectSessionId) return;
     projectSessionRef.current = options.projectSessionId;
     recoveryAttemptedForProjectRef.current = options.projectSessionId;
@@ -830,6 +848,7 @@ export function useAgentSession(
     });
   }, [
     control,
+    options.enabled,
     options.fileHost,
     options.project,
     options.projectSessionId,
@@ -837,6 +856,7 @@ export function useAgentSession(
   ]);
 
   useEffect(() => {
+    if (!options.enabled) return;
     const timer = window.setInterval(() => {
       const live = liveRef.current;
       if (
@@ -860,10 +880,11 @@ export function useAgentSession(
       }
     }, 1_000);
     return () => window.clearInterval(timer);
-  }, [options.fileHost, update]);
+  }, [options.enabled, options.fileHost, update]);
 
   useEffect(
     () => () => {
+      if (!options.enabled) return;
       const live = liveRef.current;
       options.fileHost?.clear?.();
       if (live) {
@@ -879,7 +900,7 @@ export function useAgentSession(
         live.socket?.close(1000, "tab closed");
       }
     },
-    [options.fileHost],
+    [options.enabled, options.fileHost],
   );
 
   return { ...view, grant, pause, resume, reconnect, newConnection, revoke };
