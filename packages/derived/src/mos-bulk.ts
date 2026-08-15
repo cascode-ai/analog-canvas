@@ -1,4 +1,10 @@
-import type { Instance, Net, SchematicDocument } from "@icm/model";
+import type {
+  Instance,
+  Net,
+  RouteBranch,
+  RouteEndpoint,
+  SchematicDocument,
+} from "@icm/model";
 
 export type MosBulkKind = "nmos" | "pmos";
 export type MosBulkResolution =
@@ -26,6 +32,35 @@ export function mosBulkKind(instance: Instance): MosBulkKind | undefined {
   return instance.symbolId === "nmos" || instance.symbolId === "pmos"
     ? instance.symbolId
     : undefined;
+}
+
+/**
+ * The letter `B` is overloaded by SPICE symbols: it is MOS bulk but BJT base.
+ * Keep that distinction at the semantic boundary so presentation and editing
+ * code never turn an ordinary BJT base wire into a MOS bulk route.
+ */
+export function isMosBulkTerminal(
+  document: SchematicDocument,
+  endpoint: RouteEndpoint,
+): boolean {
+  if (endpoint.kind !== "terminal" || endpoint.pinName !== "B") return false;
+  const instance = document.instances.find(
+    (candidate) => candidate.id === endpoint.instanceId,
+  );
+  return Boolean(instance && mosBulkKind(instance));
+}
+
+/** A dashed Route is meaningful only when it visibly represents MOS bulk. */
+export function isMosBulkRoute(
+  document: SchematicDocument,
+  route: RouteBranch,
+): boolean {
+  return (
+    route.presentation === "bulk-dashed" &&
+    [route.from, route.to].some((endpoint) =>
+      isMosBulkTerminal(document, endpoint),
+    )
+  );
 }
 
 function supplyDefaultNet(

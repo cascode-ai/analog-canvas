@@ -919,6 +919,28 @@ test("stretches the pointed segment of a selected attached wire", async ({
   ).toBe(true);
 });
 
+test("keeps a BJT base connection as an ordinary solid wire", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await placeComponent(page, "npn", { x: 300, y: 220 });
+  await placeComponent(page, "resistor", { x: 540, y: 220 });
+  await clickCommand(page, "Draw", "Wire (W)");
+  await page.getByTestId("terminal-Q1-B").click();
+  await page.getByTestId("terminal-R1-1").click();
+  await page.keyboard.press("Escape");
+
+  const formalRoute = page.locator(
+    '[data-layer="routes"] [data-object-id="route-ui-1"]',
+  );
+  await expect(formalRoute).toBeVisible();
+  await expect(formalRoute).not.toHaveAttribute(
+    "data-route-presentation",
+    "bulk-dashed",
+  );
+  await expect(formalRoute).not.toHaveAttribute("stroke-dasharray", "3 3");
+});
+
 test("keeps direct device pin corners on-grid and deletes a selected junction", async ({
   page,
 }) => {

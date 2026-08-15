@@ -7430,3 +7430,14 @@ diff --check`, and two focused Playwright regressions passed.
   tests, Release contracts, and both Browser test shards.
 - Commit status: PR #78 squash-merged to `main` as `89dd461` after all five
   required remote checks passed.
+
+## 2026-08-15 - Keep BJT base wires solid
+
+- Target: prevent BJT Base (`B`) terminals from inheriting MOS bulk dashed-wire
+  behavior solely because they use the same pin name.
+- Changed areas: shared MOS-bulk semantic predicates; editor wire/flightline
+  sources; route rendering, tap propagation, deletion, and bulk-default
+  handling; derived, renderer, Edit Engine, and browser regression coverage.
+- Validation: 44 focused unit tests, focused Playwright BJT base-wire test,
+  workspace typecheck, and `git diff --check` passed.
+- Commit status: pending commit on `codex/bjt-base-solid-wire`.

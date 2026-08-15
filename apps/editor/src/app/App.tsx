@@ -39,6 +39,7 @@ import {
   diagnoseVisualQuality,
   endpointKey,
   findHierarchyPath,
+  isMosBulkTerminal,
   isVisibleEndpoint,
   moveRouteSegment,
   diagnoseProject,
@@ -1108,7 +1109,7 @@ export function App({
                   instance.placement!,
                 ),
               preludeEdits: [],
-              ...(pin.name === "B"
+              ...(isMosBulkTerminal(document, endpoint)
                 ? { routePresentation: "bulk-dashed" as const }
                 : {}),
             };
@@ -2185,7 +2186,7 @@ export function App({
       netId: flightline.netId,
       point: flightline.fromPoint,
       preludeEdits: [],
-      ...(flightline.from.kind === "terminal" && flightline.from.pinName === "B"
+      ...(isMosBulkTerminal(document, flightline.from)
         ? { routePresentation: "bulk-dashed" }
         : {}),
     };
@@ -2194,7 +2195,7 @@ export function App({
       netId: flightline.netId,
       point: flightline.toPoint,
       preludeEdits: [],
-      ...(flightline.to.kind === "terminal" && flightline.to.pinName === "B"
+      ...(isMosBulkTerminal(document, flightline.to)
         ? { routePresentation: "bulk-dashed" }
         : {}),
     };
@@ -2378,6 +2379,7 @@ export function App({
     // the document grid before splitRoute validates it, avoiding sub-pixel SVG
     // transform residue at an otherwise exact corner.
     return createRouteWireAnchor(
+      document,
       route,
       point,
       segmentIndex,

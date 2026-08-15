@@ -140,4 +140,45 @@ describe("current rendering contract", () => {
       'data-text-run="subscript" dx="0.046em" font-size="76%" baseline-shift="-0.28em" style="font-style:normal;font-weight:700">DD',
     );
   });
+
+  it("does not interpret a BJT base route as a MOS bulk connection", () => {
+    const document = createEmptyDocument("doc", "BJT base route");
+    document.instances.push({
+      id: "Q1",
+      symbolId: "npn",
+      properties: {},
+      placement: {
+        position: { x: 100, y: 100 },
+        rotation: 0,
+        mirror: "none",
+      },
+    });
+    document.nets.push({
+      id: "base-net",
+      scope: "local",
+      terminals: [{ instanceId: "Q1", pinName: "B" }],
+    });
+    document.junctions.push({
+      id: "base-anchor",
+      netId: "base-net",
+      position: { x: 40, y: 100 },
+      role: "route-anchor",
+    });
+    // Older editor builds could persist this presentation solely because the
+    // pin happened to be named B. It must now render as an ordinary wire.
+    document.routes.push({
+      id: "base-route",
+      netId: "base-net",
+      from: { kind: "terminal", instanceId: "Q1", pinName: "B" },
+      to: { kind: "junction", junctionId: "base-anchor" },
+      waypoints: [],
+      segmentModes: ["manual"],
+      presentation: "bulk-dashed",
+    });
+
+    const svg = renderDocumentSvg(document, resolver);
+    expect(svg).toContain('data-object-id="base-route"');
+    expect(svg).not.toContain('data-route-presentation="bulk-dashed"');
+    expect(svg).not.toContain('stroke-dasharray="3 3"');
+  });
 });

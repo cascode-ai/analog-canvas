@@ -40,6 +40,7 @@ import {
   endpointKey,
   endpointBelongsToNet,
   inferInstanceLabelSide,
+  isMosBulkRoute,
   isOrthogonal,
   netEndpoints,
   normalizeRouteGeometry,
@@ -3434,7 +3435,7 @@ export function executeTransaction(
         if (
           draft.routes.some(
             (route) =>
-              route.presentation === "bulk-dashed" &&
+              isMosBulkRoute(draft, route) &&
               [route.from, route.to].some(
                 (endpoint) =>
                   endpoint.kind === "terminal" &&

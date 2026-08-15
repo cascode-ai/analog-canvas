@@ -1,5 +1,7 @@
 import {
   derivePowerRailComponent,
+  isMosBulkRoute,
+  isMosBulkTerminal,
   normalizeRouteGeometry,
   proposeGroupMove,
   proposeJunctionGroupTranslation,
@@ -403,8 +405,7 @@ export function proposeVisualRouteDeletion(
       document.routes
         .filter(
           (route) =>
-            routesToRemove.has(route.id) &&
-            route.presentation === "bulk-dashed",
+            routesToRemove.has(route.id) && isMosBulkRoute(document, route),
         )
         .flatMap((route) => [route.from, route.to])
         .filter(
@@ -417,7 +418,7 @@ export function proposeVisualRouteDeletion(
     );
     for (const route of document.routes) {
       if (
-        route.presentation === "bulk-dashed" &&
+        isMosBulkRoute(document, route) &&
         !routesToRemove.has(route.id) &&
         [route.from, route.to].some(
           (endpoint) =>
@@ -495,15 +496,14 @@ export function proposeVisualRouteDeletion(
       document.routes
         .filter(
           (route) =>
-            routesToRemove.has(route.id) &&
-            route.presentation === "bulk-dashed",
+            routesToRemove.has(route.id) && isMosBulkRoute(document, route),
         )
         .flatMap((route) => [route.from, route.to])
         .filter(
           (
             endpoint,
           ): endpoint is Extract<RouteEndpoint, { kind: "terminal" }> =>
-            endpoint.kind === "terminal" && endpoint.pinName === "B",
+            isMosBulkTerminal(document, endpoint),
         )
         .filter(
           (endpoint) =>
@@ -893,6 +893,7 @@ export function createFreeWireAnchor(
 }
 
 export function createRouteWireAnchor(
+  document: SchematicDocument,
   route: SchematicDocument["routes"][number],
   point: Point,
   segmentIndex: number,
@@ -922,8 +923,8 @@ export function createRouteWireAnchor(
     endpoint: { kind: "junction", junctionId },
     netId: route.netId,
     point: splitPoint,
-    ...(route.presentation && route.presentation !== "power-rail"
-      ? { routePresentation: route.presentation }
+    ...(isMosBulkRoute(document, route)
+      ? { routePresentation: "bulk-dashed" as const }
       : {}),
     preludeEdits: [
       {
@@ -1016,6 +1017,7 @@ export function proposeWireIntent(
       const route = routeFor(anchor);
       if (!route) return `Wire route does not exist: ${anchor.routeId}`;
       return createRouteWireAnchor(
+        document,
         route,
         anchor.point,
         anchor.segmentIndex,

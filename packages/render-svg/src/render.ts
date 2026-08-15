@@ -6,6 +6,7 @@ import {
 import {
   contactRequiresJunctionDot,
   deriveDocumentContactEvidence,
+  isMosBulkRoute,
   resolvePrimitiveStrokeWidth,
   resolveDraftingObjectGeometry,
   resolveEndpointPoint,
@@ -488,7 +489,11 @@ export function buildSvgScene(
         geometry.endpointJoins,
         profile,
       );
-      const presentation = route.presentation ?? "wire";
+      const presentation = isMosBulkRoute(document, route)
+        ? "bulk-dashed"
+        : route.presentation === "bulk-dashed"
+          ? "wire"
+          : (route.presentation ?? "wire");
       const isPowerRail =
         presentation === "power-rail" && powerRailNetIds.has(route.netId);
       const dash =

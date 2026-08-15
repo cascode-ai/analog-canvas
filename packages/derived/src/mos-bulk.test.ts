@@ -2,6 +2,7 @@ import { createEmptyDocument } from "@icm/model";
 import { describe, expect, it } from "vitest";
 
 import {
+  isMosBulkTerminal,
   mosBulkShouldBeVisible,
   resolveMosBulkConnection,
 } from "./mos-bulk.js";
@@ -17,6 +18,31 @@ function mos(id: string, symbolId: "nmos" | "pmos") {
 }
 
 describe("MOS bulk resolution", () => {
+  it("distinguishes MOS bulk B from BJT base B", () => {
+    const document = createEmptyDocument("main", "Main");
+    document.instances.push(mos("M1", "nmos"), {
+      id: "Q1",
+      symbolId: "npn",
+      placement: null,
+      properties: {},
+    });
+
+    expect(
+      isMosBulkTerminal(document, {
+        kind: "terminal",
+        instanceId: "M1",
+        pinName: "B",
+      }),
+    ).toBe(true);
+    expect(
+      isMosBulkTerminal(document, {
+        kind: "terminal",
+        instanceId: "Q1",
+        pinName: "B",
+      }),
+    ).toBe(false);
+  });
+
   it("prefers explicit membership over defaults and exposes body bias", () => {
     const document = createEmptyDocument("main", "Main");
     document.instances.push(mos("M1", "nmos"));
