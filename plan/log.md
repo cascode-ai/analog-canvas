@@ -7398,3 +7398,8 @@ diff --check`, and two focused Playwright regressions passed.
   box`; branch pushed for review. A concurrent worker's overlapping App.tsx
   hunks were excluded from the commit via selective staging and left dirty
   in the working tree.
+- Mainline delivery: after PR #76 landed, the branch merged `origin/main`
+  (App.tsx auto-merged; log.md entries combined), the merged tree passed
+  typecheck, 754/754 unit tests, and focused Playwright coverage, all six
+  required GitHub Actions checks re-ran green, and PR #75 squash-merged to
+  `main` as `449f752`.
