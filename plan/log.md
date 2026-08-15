@@ -7453,3 +7453,5 @@ diff --check`, and two focused Playwright regressions passed.
   Alt-drag), full manual-editor 66/66 and component-insert 17/17 passed.
 - Commit status: committed on `agent/alt-frame-zoom` as
   `feat(editor): alt-drag frame-zoom alias for blocked right buttons`.
+- Mainline delivery: PR #82 passed all six required GitHub Actions checks and
+  squash-merged to `main` as `45f5820`.
