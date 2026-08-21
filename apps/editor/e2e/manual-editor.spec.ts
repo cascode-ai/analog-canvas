@@ -2883,6 +2883,54 @@ test("exports structural SPICE and Spectre netlists while exposing instance auth
   await expect(properties.getByText(/^Model:/u)).toHaveCount(0);
 });
 
+test("selects a reviewed SKY130 MOS through the existing Model field", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await placeComponent(page, "nmos", { x: 360, y: 220 });
+  await openSelectionShelf(page);
+  const properties = page.getByRole("complementary", { name: "Properties" });
+  const model = properties.getByLabel("Component model target");
+
+  await expect(
+    properties.locator('datalist option[value="sky130_fd_pr__nfet_01v8"]'),
+  ).toHaveCount(1);
+  await model.fill("sky130_fd_pr__nfet_01v8");
+  await model.press("Tab");
+
+  await expect(properties).toContainText("External subcircuit · X reference");
+  await expect(
+    properties.getByLabel("Component netlist reference"),
+  ).toHaveValue("X1");
+  await expect(properties.getByLabel("Component nf")).toBeVisible();
+  await expect(
+    properties.getByLabel("Component m", { exact: true }),
+  ).toHaveCount(0);
+
+  const saved = JSON.parse(
+    (await downloadBytes(page, "File", "Save Project")).toString("utf8"),
+  );
+  expect(saved.externalSubcircuitDefinitions).toEqual([
+    expect.objectContaining({
+      name: "sky130_fd_pr__nfet_01v8",
+      terminals: [
+        expect.objectContaining({ name: "D" }),
+        expect.objectContaining({ name: "G" }),
+        expect.objectContaining({ name: "S" }),
+        expect.objectContaining({ name: "B" }),
+      ],
+    }),
+  ]);
+  expect(saved.documents[0].instances[0]).toMatchObject({
+    id: "M1",
+    schematicReference: "M1",
+    netlist: {
+      reference: "X1",
+      binding: { kind: "external-subcircuit" },
+    },
+  });
+});
+
 test("uses automatic recovery and guards shortcuts while typing", async ({
   page,
 }) => {

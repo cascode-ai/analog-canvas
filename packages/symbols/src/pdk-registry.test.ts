@@ -1,8 +1,21 @@
 import { describe, expect, it } from "vitest";
 
-import { resolvePdkSymbolMapping } from "./pdk-registry.js";
+import {
+  resolvePdkSymbolMapping,
+  reviewedSky130MosModelSuggestions,
+} from "./pdk-registry.js";
 
 describe("PDK symbol mapping registry", () => {
+  it("offers one bounded reviewed target per MOS polarity", () => {
+    expect(reviewedSky130MosModelSuggestions("nmos")).toEqual([
+      "sky130_fd_pr__nfet_01v8",
+    ]);
+    expect(reviewedSky130MosModelSuggestions("pmos")).toEqual([
+      "sky130_fd_pr__pfet_01v8",
+    ]);
+    expect(reviewedSky130MosModelSuggestions("resistor")).toEqual([]);
+  });
+
   it("maps reviewed SKY130 MOS namespaces with explicit pin order", () => {
     expect(resolvePdkSymbolMapping("sky130_fd_pr__nfet_01v8", 4)).toEqual({
       symbolId: "nmos",

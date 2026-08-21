@@ -46,7 +46,7 @@ export function createProjectSymbolResolver(
 ): InMemorySymbolResolver {
   return new InMemorySymbolResolver([
     ...baseDefinitions,
-    ...createProjectHierarchicalSymbols(project),
+    ...createProjectHierarchicalSymbols(project, baseDefinitions),
   ]);
 }
 

@@ -24,18 +24,25 @@ export type AdditionalParameterPlan =
       >;
     };
 
-function knownParameterNames(symbolId: string): ReadonlySet<string> {
+function knownParameterNames(
+  symbolId: string,
+  additionalKnownNames: readonly string[] = [],
+): ReadonlySet<string> {
   return new Set(
-    (deviceDescriptor(symbolId)?.parameters ?? []).map((parameter) =>
-      parameter.name.toLowerCase(),
-    ),
+    [
+      ...(deviceDescriptor(symbolId)?.parameters ?? []).map(
+        (parameter) => parameter.name,
+      ),
+      ...additionalKnownNames,
+    ].map((name) => name.toLowerCase()),
   );
 }
 
 export function additionalParameterDrafts(
   instance: Instance,
+  additionalKnownNames: readonly string[] = [],
 ): readonly AdditionalParameterDraft[] {
-  const known = knownParameterNames(instance.symbolId);
+  const known = knownParameterNames(instance.symbolId, additionalKnownNames);
   return Object.entries(instance.netlist?.parameters ?? {})
     .filter(([name]) => !known.has(name.toLowerCase()))
     .map(([name, value], index) => ({
@@ -53,6 +60,7 @@ export function additionalParameterDrafts(
 export function planAdditionalParameterPatch(
   instance: Instance,
   drafts: readonly AdditionalParameterDraft[],
+  additionalKnownNames: readonly string[] = [],
 ): AdditionalParameterPlan {
   if (!instance.netlist) {
     return {
@@ -60,7 +68,7 @@ export function planAdditionalParameterPatch(
       message: "This component has no netlist record to receive parameters",
     };
   }
-  const known = knownParameterNames(instance.symbolId);
+  const known = knownParameterNames(instance.symbolId, additionalKnownNames);
   const desired = new Map<string, { name: string; value: string }>();
   for (const draft of drafts) {
     const name = draft.name.trim();

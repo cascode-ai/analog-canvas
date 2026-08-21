@@ -20,6 +20,12 @@ SKY130 `sky130_fd_pr__nfet_*` and `sky130_fd_pr__pfet_*` four-terminal devices
 map to product NMOS/PMOS pins `D,G,S,B`. That rule does not apply to another
 namespace or terminal count.
 
+The mapped external definition keeps its immutable external Symbol ID and `X`
+binding; only its presentation borrows the base MOS artwork. Omit the base
+symbol's default three-terminal variant so the external contract exposes the
+fourth bulk terminal. An explicit external block presentation overrides this
+automatic artwork choice.
+
 ## Safe symbol replacement
 
 Use `set_instance_symbol` with an explicit source-pin to target-pin map whenever

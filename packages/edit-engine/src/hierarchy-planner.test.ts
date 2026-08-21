@@ -7,6 +7,7 @@ import {
   planCreateCellPort,
   planPlaceCellInstance,
   planReorderCellTerminal,
+  planSetMosModelTarget,
 } from "./hierarchy-planner.js";
 import { executeProjectTransaction } from "./project-transaction.js";
 
@@ -142,5 +143,151 @@ describe("hierarchy domain planners", () => {
         -1,
       ),
     ).toEqual([]);
+  });
+});
+
+describe("reviewed external MOS model targets", () => {
+  function projectWithNmos() {
+    const project = createEmptyProject("project", "Project");
+    const document = project.documents[0]!;
+    document.instances.push({
+      id: "M1",
+      symbolId: "nmos",
+      schematicReference: "M1",
+      placement: {
+        position: { x: 0, y: 0 },
+        rotation: 0,
+        mirror: "none",
+      },
+      netlist: {
+        reference: "M1",
+        binding: { kind: "model", deviceClass: "mos", name: "generic_nmos" },
+        parameters: { w: "2u", l: "150n", m: "2" },
+      },
+    });
+    document.nets.push({
+      id: "net-drain",
+      scope: "local",
+      terminals: [{ instanceId: "M1", pinName: "D" }],
+    });
+    document.junctions.push({
+      id: "junction-drain",
+      netId: "net-drain",
+      position: { x: 0, y: -40 },
+    });
+    document.routes.push({
+      id: "route-drain",
+      netId: "net-drain",
+      from: { kind: "terminal", instanceId: "M1", pinName: "D" },
+      to: { kind: "junction", junctionId: "junction-drain" },
+      waypoints: [],
+      segmentModes: ["auto"],
+    });
+    document.noConnects.push({
+      id: "open-bulk",
+      endpoint: { kind: "terminal", instanceId: "M1", pinName: "B" },
+    });
+    return project;
+  }
+
+  it("atomically creates a SKY130 interface and changes M to an external X call", () => {
+    const project = projectWithNmos();
+    const edits = planSetMosModelTarget(
+      project,
+      project.topDocumentId,
+      "M1",
+      "sky130_fd_pr__nfet_01v8",
+    );
+    const result = executeProjectTransaction(project, {
+      transactionId: "set-sky130-model",
+      projectId: project.id,
+      expectedStructureRevision: project.structureRevision,
+      actor: { kind: "human", id: "test" },
+      edits,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const instance = result.project.documents[0]!.instances[0]!;
+    expect(result.project.externalSubcircuitDefinitions[0]).toMatchObject({
+      name: "sky130_fd_pr__nfet_01v8",
+      terminals: [{ name: "D" }, { name: "G" }, { name: "S" }, { name: "B" }],
+    });
+    expect(instance).toMatchObject({
+      schematicReference: "M1",
+      netlist: {
+        reference: "X1",
+        parameters: { w: "2u", l: "150n", m: "2" },
+        binding: { kind: "external-subcircuit" },
+      },
+    });
+    expect(result.project.documents[0]!.nets[0]!.terminals).toEqual([
+      { instanceId: "M1", pinName: "D" },
+    ]);
+    expect(result.project.documents[0]!.routes[0]!.from).toEqual({
+      kind: "terminal",
+      instanceId: "M1",
+      pinName: "D",
+    });
+    expect(result.project.documents[0]!.noConnects[0]!.endpoint).toEqual({
+      kind: "terminal",
+      instanceId: "M1",
+      pinName: "B",
+    });
+  });
+
+  it("returns a reviewed SKY130 X call to an ordinary MOS model without deleting its interface", () => {
+    const source = projectWithNmos();
+    const externalResult = executeProjectTransaction(source, {
+      transactionId: "set-sky130-model",
+      projectId: source.id,
+      expectedStructureRevision: source.structureRevision,
+      actor: { kind: "human", id: "test" },
+      edits: planSetMosModelTarget(
+        source,
+        source.topDocumentId,
+        "M1",
+        "sky130_fd_pr__nfet_01v8",
+      ),
+    });
+    expect(externalResult.ok).toBe(true);
+    if (!externalResult.ok) return;
+    const project = externalResult.project;
+    const result = executeProjectTransaction(project, {
+      transactionId: "set-generic-model",
+      projectId: project.id,
+      expectedStructureRevision: project.structureRevision,
+      actor: { kind: "human", id: "test" },
+      edits: planSetMosModelTarget(
+        project,
+        project.topDocumentId,
+        "M1",
+        "generic_nmos",
+      ),
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.project.documents[0]!.instances[0]).toMatchObject({
+      symbolId: "nmos",
+      schematicReference: "M1",
+      netlist: {
+        reference: "M1",
+        binding: { kind: "model", deviceClass: "mos", name: "generic_nmos" },
+      },
+    });
+    expect(result.project.externalSubcircuitDefinitions).toHaveLength(1);
+  });
+
+  it("rejects a PFET master on an NMOS symbol", () => {
+    const project = projectWithNmos();
+    expect(() =>
+      planSetMosModelTarget(
+        project,
+        project.topDocumentId,
+        "M1",
+        "sky130_fd_pr__pfet_01v8",
+      ),
+    ).toThrow(/not compatible/u);
   });
 });

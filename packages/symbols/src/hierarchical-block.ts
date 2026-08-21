@@ -2,6 +2,7 @@ import { deriveStableId } from "@icm/model";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
 
 import { createHierarchicalBlockGeometry } from "./hierarchical-block-geometry.js";
+import { resolvePdkSymbolMapping } from "./pdk-registry.js";
 import { SymbolDefinitionSchema } from "./schema.js";
 import type { SymbolDefinition } from "./schema.js";
 
@@ -39,6 +40,7 @@ export function createHierarchicalBlockSymbol(
 export function createProjectHierarchicalSymbols(
   project: Pick<CircuitProject, "documents" | "topDocumentId"> &
     Partial<Pick<CircuitProject, "externalSubcircuitDefinitions">>,
+  baseDefinitions: readonly SymbolDefinition[] = [],
 ): SymbolDefinition[] {
   const referencedChildIds = new Set(
     project.documents.flatMap((document) =>
@@ -61,6 +63,43 @@ export function createProjectHierarchicalSymbols(
   });
   const external = (project.externalSubcircuitDefinitions ?? []).flatMap(
     (definition) => {
+      const mapping = definition.presentation
+        ? undefined
+        : resolvePdkSymbolMapping(definition.name, definition.terminals.length);
+      const mappedDefinition = mapping
+        ? baseDefinitions.find((candidate) => candidate.id === mapping.symbolId)
+        : undefined;
+      const orderedTerminalNames = definition.terminals.map((terminal) =>
+        terminal.name.toLowerCase(),
+      );
+      const orderedMappedPins = mapping?.pinNames.map((name) =>
+        name.toLowerCase(),
+      );
+      if (
+        mappedDefinition &&
+        orderedMappedPins &&
+        orderedTerminalNames.every(
+          (name, index) => name === orderedMappedPins[index],
+        )
+      ) {
+        const {
+          id: _baseId,
+          name: _baseName,
+          defaultVariantId: _defaultVariantId,
+          variants: _variants,
+          decorative: _decorative,
+          ...artwork
+        } = mappedDefinition;
+        return [
+          SymbolDefinitionSchema.parse({
+            ...artwork,
+            id: externalSubcircuitSymbolId(definition.id),
+            name: definition.name,
+            hierarchicalBlock: true,
+            variants: [],
+          }),
+        ];
+      }
       const positional = createHierarchicalBlockGeometry(
         definition.terminals.map((terminal) => ({
           id: terminal.id,

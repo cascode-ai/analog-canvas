@@ -23,6 +23,21 @@ export interface PdkSymbolMappingOverride {
   registryId: string;
 }
 
+export const reviewedSky130MosModels = {
+  nmos: "sky130_fd_pr__nfet_01v8",
+  pmos: "sky130_fd_pr__pfet_01v8",
+} as const;
+
+export function reviewedSky130MosModelSuggestions(
+  symbolId: string,
+): readonly string[] {
+  return symbolId === "nmos"
+    ? [reviewedSky130MosModels.nmos]
+    : symbolId === "pmos"
+      ? [reviewedSky130MosModels.pmos]
+      : [];
+}
+
 const pdkRules: readonly PdkMappingRule[] = [
   {
     id: "sky130-nfet-four-terminal",

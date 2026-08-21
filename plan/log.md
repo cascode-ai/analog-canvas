@@ -4004,3 +4004,16 @@ Keep reusable lessons in `docs/experience/`, not in this log.
   files / 995 tests, all builds and release checks, 169 browser tests) passed.
 - Commit status: completed on `codex/variable-resistor` across the feature,
   subcircuit, and final gate-closure commits.
+
+## 2026-08-22 - SKY130 external MOS presentation
+
+- Changed areas: reused explicit four-terminal Razavi NMOS/PMOS artwork for
+  reviewed SKY130 external definitions; added an atomic Model-field transition
+  between ordinary `M` model binding and external `X` binding; exposed `nf`
+  without converting retained `m`; and preserved generic-block fallback.
+- Validation: focused symbol/planner/import/editor tests, `gate:preflight`,
+  `gate:affected` (167 files / 1018 unit tests plus all selected browser
+  suites), frozen install, and canonical `pnpm ci:check` with builds, release
+  checks, production smoke, and 171 browser tests passed.
+- Commit status: ready to commit on
+  `codex/sky130-external-mos-presentation`.

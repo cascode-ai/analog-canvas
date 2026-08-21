@@ -23,6 +23,23 @@ export function componentParameters(
   }));
 }
 
+export function externalMosComponentParameters(
+  symbolId: "nmos" | "pmos",
+): readonly ComponentParameter[] {
+  return [
+    ...componentParameters(symbolId).filter(
+      (parameter) => parameter.key !== "m",
+    ),
+    {
+      key: "nf",
+      label: "NF",
+      placeholder: "1",
+      help: "External subcircuit finger count",
+      inputMode: "decimal",
+    },
+  ];
+}
+
 export function initialComponentParameterValues(
   symbolId: string,
 ): Record<string, string> {

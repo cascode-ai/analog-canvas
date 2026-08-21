@@ -1,5 +1,6 @@
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 
 import { compileSourceBundle, compileSpiceSources } from "./compiler.js";
 import { importCompileResult } from "./importer.js";
@@ -247,6 +248,19 @@ Q2 collector base emitter QPREF
       reference: "XM1",
       binding: expect.objectContaining({ kind: "external-subcircuit" }),
       parameters: { l: "1.0", w: "96", nf: "12" },
+    });
+    const resolved = createProjectSymbolResolver(
+      imported.project!,
+      builtInSymbols,
+    ).resolve(document.instances[0]!.symbolId);
+    const nmos = builtInSymbols.find((symbol) => symbol.id === "nmos");
+    expect(resolved).toMatchObject({
+      definition: {
+        pins: nmos?.pins,
+        primitives: nmos?.primitives,
+        variants: [],
+        hierarchicalBlock: true,
+      },
     });
     expect(
       document.nets

@@ -10,6 +10,21 @@ omit includes, PDK model paths, simulator decks, corners and analyses. Unknown
 imported `X` calls remain external subcircuit calls; a display mapping never
 turns them into a primitive model call.
 
+For the reviewed four-terminal SKY130 NFET/PFET family, the editor uses the
+existing NMOS/PMOS artwork with explicit `D`, `G`, `S`, and `B` terminals while
+retaining the external definition and `X` reference. A user may place the
+ordinary NMOS/PMOS with the unchanged Insert flow, then choose
+`sky130_fd_pr__nfet_01v8` or `sky130_fd_pr__pfet_01v8` from the existing Model
+field. The edit creates or reuses the project-local external definition,
+preserves connectivity and raw values, and exposes `w`, `l`, and `nf`. It does
+not convert `m` into `nf`.
+
+This convenience is structural only. It does not install SKY130, resolve a
+local `.include`, supply foundry models or corners, or make the exported
+netlist simulatable by itself. Unreviewed masters, incompatible terminal order,
+and external definitions with explicit block presentation continue to render
+as generic blocks.
+
 Imported `.subckt` parameter defaults become editable Cell formal parameters
 and are emitted again. Required-only Cell parameters remain an authoring
 concept but cannot be exported by the released portable dialects until they

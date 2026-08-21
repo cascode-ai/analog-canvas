@@ -6,7 +6,18 @@ import type {
   ExternalSubcircuitDefinition,
   SchematicDocument,
 } from "@icm/model";
-import { externalSubcircuitSymbolId, hierarchicalSymbolId } from "@icm/symbols";
+import { deriveStableId } from "@icm/model";
+import {
+  createReferenceIndex,
+  hierarchyReferencePolicy,
+  nextReference,
+  referencePolicyForSymbol,
+} from "@icm/devices";
+import {
+  externalSubcircuitSymbolId,
+  hierarchicalSymbolId,
+  resolvePdkSymbolMapping,
+} from "@icm/symbols";
 
 import type { ProjectStructureEdit } from "./project-transaction.js";
 
@@ -85,6 +96,186 @@ function transactDocument(
     expectedRevision: document.revision,
     edits,
   };
+}
+
+function externalDefinitionId(masterName: string): string {
+  return deriveStableId("external-subcircuit", masterName.toLowerCase());
+}
+
+function externalTerminalId(masterName: string, index: number): string {
+  return deriveStableId(
+    "external-subcircuit-terminal",
+    masterName.toLowerCase(),
+    String(index),
+  );
+}
+
+function matchingExternalMosDefinition(
+  project: CircuitProject,
+  definitionId: string,
+) {
+  const definition = project.externalSubcircuitDefinitions.find(
+    (candidate) => candidate.id === definitionId,
+  );
+  if (!definition) return undefined;
+  const mapping = resolvePdkSymbolMapping(
+    definition.name,
+    definition.terminals.length,
+  );
+  if (
+    !mapping ||
+    !definition.terminals.every(
+      (terminal, index) =>
+        terminal.name.toLowerCase() === mapping.pinNames[index]?.toLowerCase(),
+    )
+  ) {
+    return undefined;
+  }
+  return { definition, mapping };
+}
+
+/**
+ * Switches a reviewed four-terminal MOS between an ordinary model binding and
+ * a SKY130 external X-call without changing the existing D/G/S/B connectivity.
+ */
+export function planSetMosModelTarget(
+  project: CircuitProject,
+  documentId: string,
+  instanceId: string,
+  modelName: string,
+): ProjectStructureEdit[] {
+  const document = requireDocument(project, documentId);
+  const instance = document.instances.find(
+    (candidate) => candidate.id === instanceId,
+  );
+  if (!instance?.netlist) {
+    throw new Error(`Netlisted Instance does not exist: ${instanceId}`);
+  }
+  const normalizedName = modelName.trim();
+  const targetMapping = normalizedName
+    ? resolvePdkSymbolMapping(normalizedName, 4)
+    : undefined;
+  const currentExternal =
+    instance.netlist.binding?.kind === "external-subcircuit"
+      ? matchingExternalMosDefinition(
+          project,
+          instance.netlist.binding.definitionId,
+        )
+      : undefined;
+  const sourceMosSymbolId =
+    currentExternal?.mapping.symbolId ?? instance.symbolId;
+  if (sourceMosSymbolId !== "nmos" && sourceMosSymbolId !== "pmos") {
+    throw new Error(
+      "Only reviewed NMOS and PMOS targets can use the Model field",
+    );
+  }
+
+  if (targetMapping) {
+    if (targetMapping.symbolId !== sourceMosSymbolId) {
+      throw new Error(
+        `${normalizedName} is not compatible with the selected ${sourceMosSymbolId.toUpperCase()}`,
+      );
+    }
+    const sameNameDefinition = project.externalSubcircuitDefinitions.find(
+      (definition) =>
+        definition.name.toLowerCase() === normalizedName.toLowerCase(),
+    );
+    const definition =
+      sameNameDefinition ??
+      ({
+        id: externalDefinitionId(normalizedName),
+        name: normalizedName,
+        terminals: targetMapping.pinNames.map((name, index) => ({
+          id: externalTerminalId(normalizedName, index),
+          name,
+          direction: "passive" as const,
+        })),
+        formalParameters: [],
+        interfaceStatus: "declared" as const,
+      } satisfies ExternalSubcircuitDefinition);
+    const verified = resolvePdkSymbolMapping(
+      definition.name,
+      definition.terminals.length,
+    );
+    if (
+      !verified ||
+      verified.symbolId !== sourceMosSymbolId ||
+      !definition.terminals.every(
+        (terminal, index) =>
+          terminal.name.toLowerCase() ===
+          verified.pinNames[index]?.toLowerCase(),
+      )
+    ) {
+      throw new Error(
+        `Existing external definition ${definition.name} does not declare D, G, S, B in reviewed order`,
+      );
+    }
+    const symbolId = externalSubcircuitSymbolId(definition.id);
+    const reference =
+      instance.netlist.binding?.kind === "external-subcircuit"
+        ? instance.netlist.reference
+        : nextReference(
+            createReferenceIndex(document),
+            hierarchyReferencePolicy,
+          )!;
+    const documentEdits: DocumentEdits = [];
+    if (instance.symbolId !== symbolId) {
+      documentEdits.push({
+        kind: "set_instance_symbol",
+        instanceId,
+        symbolId,
+      });
+    }
+    const netlist = {
+      ...instance.netlist,
+      reference,
+      binding: {
+        kind: "external-subcircuit" as const,
+        definitionId: definition.id,
+      },
+    };
+    if (JSON.stringify(instance.netlist) !== JSON.stringify(netlist)) {
+      documentEdits.push({ kind: "set_instance_netlist", instanceId, netlist });
+    }
+    if (documentEdits.length === 0) return [];
+    return [
+      ...(sameNameDefinition
+        ? []
+        : [
+            {
+              kind: "upsert_external_subcircuit_definition" as const,
+              definition,
+            },
+          ]),
+      transactDocument(project, documentId, documentEdits),
+    ];
+  }
+
+  const symbolId = sourceMosSymbolId;
+  const reference = currentExternal
+    ? nextReference(
+        createReferenceIndex(document),
+        referencePolicyForSymbol(symbolId),
+      )!
+    : instance.netlist.reference;
+  const binding = normalizedName
+    ? ({ kind: "model", deviceClass: "mos", name: normalizedName } as const)
+    : undefined;
+  const netlist = {
+    reference,
+    parameters: { ...instance.netlist.parameters },
+    ...(binding ? { binding } : {}),
+  };
+  const documentEdits: DocumentEdits = [];
+  if (instance.symbolId !== symbolId) {
+    documentEdits.push({ kind: "set_instance_symbol", instanceId, symbolId });
+  }
+  if (JSON.stringify(instance.netlist) !== JSON.stringify(netlist)) {
+    documentEdits.push({ kind: "set_instance_netlist", instanceId, netlist });
+  }
+  return documentEdits.length > 0
+    ? [transactDocument(project, documentId, documentEdits)]
+    : [];
 }
 
 /** Build the one canonical subcircuit Instance projection of a child Cell. */

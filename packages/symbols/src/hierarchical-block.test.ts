@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { createHierarchicalBlockSymbol } from "./hierarchical-block.js";
+import { createEmptyProject } from "@icm/model";
+
+import { builtInSymbols } from "./builtins.js";
+import {
+  createHierarchicalBlockSymbol,
+  createProjectHierarchicalSymbols,
+  externalSubcircuitSymbolId,
+} from "./hierarchical-block.js";
 
 describe("hierarchical block formal terminals", () => {
   it("derives pins only from the private formal cell interface", () => {
@@ -162,5 +169,78 @@ describe("hierarchical block formal terminals", () => {
     expect(
       symbol?.pins.every((pin) => pin.at.x % 10 === 0 && pin.at.y % 10 === 0),
     ).toBe(true);
+  });
+});
+
+describe("external PDK symbol presentation", () => {
+  function projectWithExternal(
+    name: string,
+    terminalNames: readonly string[] = ["D", "G", "S", "B"],
+    presentation?: { minimumBodySize: { width: number; height: number } },
+  ) {
+    const project = createEmptyProject("project", "Project");
+    project.externalSubcircuitDefinitions.push({
+      id: "external-device",
+      name,
+      terminals: terminalNames.map((terminalName, index) => ({
+        id: `external-terminal-${index}`,
+        name: terminalName,
+        direction: "passive",
+      })),
+      formalParameters: [],
+      interfaceStatus: "declared",
+      ...(presentation ? { presentation } : {}),
+    });
+    return project;
+  }
+
+  it.each([
+    ["sky130_fd_pr__nfet_01v8", "nmos"],
+    ["sky130_fd_pr__pfet_01v8", "pmos"],
+  ])(
+    "uses four-terminal %s MOS artwork without changing external identity",
+    (name, baseId) => {
+      const symbol = createProjectHierarchicalSymbols(
+        projectWithExternal(name),
+        builtInSymbols,
+      ).find(
+        (candidate) =>
+          candidate.id === externalSubcircuitSymbolId("external-device"),
+      );
+      const base = builtInSymbols.find((candidate) => candidate.id === baseId);
+
+      expect(symbol).toMatchObject({
+        id: externalSubcircuitSymbolId("external-device"),
+        name,
+        hierarchicalBlock: true,
+        pins: base?.pins,
+        primitives: base?.primitives,
+        variants: [],
+      });
+      expect(symbol).not.toHaveProperty("defaultVariantId");
+      expect(symbol?.pins.map((pin) => pin.name)).toEqual(["D", "G", "S", "B"]);
+    },
+  );
+
+  it("keeps the generic block when terminal order is incompatible", () => {
+    const symbol = createProjectHierarchicalSymbols(
+      projectWithExternal("sky130_fd_pr__nfet_01v8", ["G", "D", "S", "B"]),
+      builtInSymbols,
+    ).at(-1);
+
+    expect(symbol?.pins.map((pin) => pin.name)).toEqual(["G", "D", "S", "B"]);
+    expect(symbol?.primitives[0]).toMatchObject({ kind: "polygon" });
+  });
+
+  it("keeps an explicit block presentation authoritative", () => {
+    const symbol = createProjectHierarchicalSymbols(
+      projectWithExternal("sky130_fd_pr__nfet_01v8", ["D", "G", "S", "B"], {
+        minimumBodySize: { width: 160, height: 100 },
+      }),
+      builtInSymbols,
+    ).at(-1);
+
+    expect(symbol?.viewBox.width).toBeGreaterThanOrEqual(160);
+    expect(symbol?.primitives[0]).toMatchObject({ kind: "polygon" });
   });
 });

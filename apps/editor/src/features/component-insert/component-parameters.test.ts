@@ -4,6 +4,7 @@ import type { Instance } from "@icm/model";
 import {
   componentParameters,
   effectiveComponentParameterValue,
+  externalMosComponentParameters,
   initialComponentParameterValues,
 } from "./component-parameters";
 import { deviceDescriptor } from "@icm/devices";
@@ -33,6 +34,15 @@ describe("component parameter catalogue", () => {
       l: "",
       m: "",
     });
+  });
+
+  it("uses W, L, and NF for a reviewed external MOS call", () => {
+    expect(
+      externalMosComponentParameters("nmos").map(({ key }) => key),
+    ).toEqual(["w", "l", "nf"]);
+    expect(externalMosComponentParameters("pmos")).toEqual(
+      externalMosComponentParameters("nmos"),
+    );
   });
 
   it("projects the descriptor's ordered field metadata without local defaults", () => {

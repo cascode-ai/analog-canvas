@@ -19,6 +19,7 @@ import {
   componentParameters,
   effectiveComponentParameterValue,
 } from "../component-insert/component-parameters";
+import type { ComponentParameter } from "../component-insert/component-parameters";
 import {
   additionalParameterDrafts,
   planAdditionalParameterPatch,
@@ -94,6 +95,9 @@ export interface UsePropertiesEditorOptions {
   selectedRouteNetLabel: Annotation | null;
   selectedRouteNetLabels: readonly Annotation[];
   selectedInstance: Instance | undefined;
+  componentParametersForInstance?: (
+    instance: Instance,
+  ) => readonly ComponentParameter[];
   wireSourceActive: boolean;
   netLabelEditorInputRef: MutableRefObject<HTMLInputElement | null>;
   transact: (edits: SchematicEdit[]) => TransactionResult;
@@ -142,7 +146,7 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     null,
   );
   const netLabelDraftRouteRef = useRef<string | null>(null);
-  const lastSelectedInstanceIdRef = useRef<string | null>(null);
+  const lastSelectedInstanceKeyRef = useRef<string | null>(null);
   const instancePropertyDraftRef = useRef<InstancePropertyDraft>(
     EMPTY_INSTANCE_PROPERTY_DRAFT,
   );
@@ -170,10 +174,14 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     return options.transact([...gate.edits]).ok;
   };
 
+  const parametersForInstance = (instance: Instance) =>
+    options.componentParametersForInstance?.(instance) ??
+    componentParameters(instance.symbolId);
+
   const draftForInstance = (instance: Instance): InstancePropertyDraft => ({
     instanceId: instance.id,
     parameters: Object.fromEntries(
-      componentParameters(instance.symbolId).map((parameter) => [
+      parametersForInstance(instance).map((parameter) => [
         parameter.key,
         effectiveComponentParameterValue(instance, parameter),
       ]),
@@ -231,8 +239,11 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
 
   useEffect(() => {
     const instanceId = options.selectedInstance?.id ?? null;
-    if (instanceId === lastSelectedInstanceIdRef.current) return;
-    lastSelectedInstanceIdRef.current = instanceId;
+    const instanceKey = options.selectedInstance
+      ? `${options.selectedInstance.id}:${options.selectedInstance.symbolId}`
+      : null;
+    if (instanceKey === lastSelectedInstanceKeyRef.current) return;
+    lastSelectedInstanceKeyRef.current = instanceKey;
     const nextDraft = options.selectedInstance
       ? draftForInstance(options.selectedInstance)
       : EMPTY_INSTANCE_PROPERTY_DRAFT;
@@ -240,7 +251,12 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     instancePropertyBaselineRef.current = nextDraft;
     setInstancePropertyDraft(nextDraft);
     const nextAdditionalDraft = options.selectedInstance
-      ? additionalParameterDrafts(options.selectedInstance)
+      ? additionalParameterDrafts(
+          options.selectedInstance,
+          parametersForInstance(options.selectedInstance).map(
+            (parameter) => parameter.key,
+          ),
+        )
       : [];
     additionalParameterBaselineRef.current = nextAdditionalDraft;
     setAdditionalParameterDraft(nextAdditionalDraft);
@@ -303,6 +319,7 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     const plan = planAdditionalParameterPatch(
       instance,
       additionalParameterDraft,
+      parametersForInstance(instance).map((parameter) => parameter.key),
     );
     if (plan.kind === "invalid") {
       options.setStatus(plan.message);

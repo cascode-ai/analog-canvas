@@ -34,6 +34,7 @@ import {
   planEditCellTerminalAnnotation,
   planSetCellTerminalPlacement,
   planUpdateCellTerminalDirection,
+  planSetMosModelTarget,
   planInstanceUnplacement,
   proposeSetCellFormalParameters,
   proposeUpsertExternalSubcircuitDefinition,
@@ -119,6 +120,8 @@ import {
   externalSubcircuitSymbolId,
   findUnsupportedProjectSymbolIds,
   hierarchicalSymbolId,
+  resolvePdkSymbolMapping,
+  reviewedSky130MosModelSuggestions,
 } from "@icm/symbols";
 import { clipboardPreviewDocument } from "../features/clipboard/clipboard";
 import type { SchematicClipboard } from "../features/clipboard/clipboard";
@@ -174,7 +177,10 @@ import {
   proposePlacementContact,
   proposedStandalonePowerConnection,
 } from "../features/component-insert/placement-connectivity";
-import { componentParameters } from "../features/component-insert/component-parameters";
+import {
+  componentParameters,
+  externalMosComponentParameters,
+} from "../features/component-insert/component-parameters";
 import {
   endpointTestId,
   instanceLabelAnnotationFor,
@@ -870,6 +876,27 @@ export function App({
           (definition) => definition.id === selectedBinding.definitionId,
         )
       : undefined;
+  const selectedExternalMosMapping = selectedExternalSubcircuit
+    ? (() => {
+        const mapping = resolvePdkSymbolMapping(
+          selectedExternalSubcircuit.name,
+          selectedExternalSubcircuit.terminals.length,
+        );
+        return mapping &&
+          selectedExternalSubcircuit.terminals.every(
+            (terminal, index) =>
+              terminal.name.toLowerCase() ===
+              mapping.pinNames[index]?.toLowerCase(),
+          )
+          ? mapping
+          : undefined;
+      })()
+    : undefined;
+  const selectedPropertyDevice =
+    selectedDevice ??
+    (selectedExternalMosMapping
+      ? deviceDescriptor(selectedExternalMosMapping.symbolId)
+      : undefined);
   const selectedCellSymbolLayout = useMemo(() => {
     if (
       !cellSymbolLayoutEnabled ||
@@ -985,6 +1012,7 @@ export function App({
     selectedRouteNetLabel: selectedRouteNetLabel ?? null,
     selectedRouteNetLabels,
     selectedInstance,
+    componentParametersForInstance: propertyParametersForInstance,
     wireSourceActive: wireSource !== null,
     netLabelEditorInputRef,
     transact,
@@ -5355,7 +5383,7 @@ export function App({
       const netlistParameters = { ...baseNetlist.parameters };
       const set: Record<string, string> = {};
       const unset: string[] = [];
-      for (const parameter of componentParameters(instance.symbolId)) {
+      for (const parameter of propertyParametersForInstance(instance)) {
         const value = (draft.parameters[parameter.key] ?? "").trim();
         const current = netlistParameters[parameter.key];
         if (value === "") {
@@ -5423,6 +5451,40 @@ export function App({
 
   function updateSelectedModelTarget(value: string): void {
     if (!selectedInstance?.netlist) return;
+    if (
+      selectedPropertyDevice?.symbolId === "nmos" ||
+      selectedPropertyDevice?.symbolId === "pmos"
+    ) {
+      try {
+        const edits = planSetMosModelTarget(
+          project,
+          document.id,
+          selectedInstance.id,
+          value,
+        );
+        if (edits.length === 0) return;
+        if (commitStructure("set-mos-model-target", edits)) {
+          const target = value.trim();
+          const mapping = target
+            ? resolvePdkSymbolMapping(target, 4)
+            : undefined;
+          setStatus(
+            mapping
+              ? `Set external X target ${target}`
+              : target
+                ? `Set model target ${target}`
+                : `Cleared model target for ${selectedInstance.id}`,
+          );
+        }
+      } catch (error) {
+        setStatus(
+          error instanceof Error
+            ? error.message
+            : "Could not set MOS model target",
+        );
+      }
+      return;
+    }
     const binding = bindingForEditedModel(selectedInstance.symbolId, value);
     const nextBinding = binding ?? null;
     const currentBinding = selectedInstance.netlist.binding ?? null;
@@ -5442,6 +5504,32 @@ export function App({
           : `Cleared model target for ${selectedInstance.id}`,
       );
     }
+  }
+
+  function propertyParametersForInstance(
+    instance: SchematicDocument["instances"][number],
+  ) {
+    const binding = instance.netlist?.binding;
+    if (binding?.kind === "external-subcircuit") {
+      const definition = project.externalSubcircuitDefinitions.find(
+        (candidate) => candidate.id === binding.definitionId,
+      );
+      const mapping = definition
+        ? resolvePdkSymbolMapping(definition.name, definition.terminals.length)
+        : undefined;
+      if (
+        definition &&
+        (mapping?.symbolId === "nmos" || mapping?.symbolId === "pmos") &&
+        definition.terminals.every(
+          (terminal, index) =>
+            terminal.name.toLowerCase() ===
+            mapping.pinNames[index]?.toLowerCase(),
+        )
+      ) {
+        return externalMosComponentParameters(mapping.symbolId);
+      }
+    }
+    return componentParameters(instance.symbolId);
   }
 
   function updateSelectedSchematicName(value: string): void {
@@ -7823,7 +7911,7 @@ export function App({
                       </div>
                       <div>
                         <dt>Device class</dt>
-                        <dd>{selectedDevice?.deviceClass ?? "none"}</dd>
+                        <dd>{selectedPropertyDevice?.deviceClass ?? "none"}</dd>
                       </div>
                       <div>
                         <dt>Cell</dt>
@@ -7839,26 +7927,27 @@ export function App({
                       <div className="property-section-heading">
                         Netlist target
                       </div>
-                      {selectedInstance.netlist.binding?.kind === "model" ? (
+                      {selectedInstance.netlist.binding?.kind === "model" ||
+                      selectedDevice?.targetPolicy === "required-model" ||
+                      selectedExternalMosMapping ? (
                         <label>
                           Model
                           <input
                             key={`${selectedInstance.id}-${document.revision}-model-target`}
                             aria-label="Component model target"
-                            defaultValue={selectedInstance.netlist.binding.name}
-                            onBlur={(event) =>
-                              updateSelectedModelTarget(
-                                event.currentTarget.value,
-                              )
+                            list={
+                              selectedPropertyDevice?.symbolId === "nmos" ||
+                              selectedPropertyDevice?.symbolId === "pmos"
+                                ? `mos-model-options-${selectedPropertyDevice.symbolId}`
+                                : undefined
                             }
-                          />
-                        </label>
-                      ) : selectedDevice?.targetPolicy === "required-model" ? (
-                        <label>
-                          Model
-                          <input
-                            key={`${selectedInstance.id}-${document.revision}-model-target`}
-                            aria-label="Component model target"
+                            defaultValue={
+                              selectedInstance.netlist.binding?.kind === "model"
+                                ? selectedInstance.netlist.binding.name
+                                : selectedExternalMosMapping
+                                  ? selectedExternalSubcircuit?.name
+                                  : ""
+                            }
                             placeholder="Model name"
                             onBlur={(event) =>
                               updateSelectedModelTarget(
@@ -7866,6 +7955,21 @@ export function App({
                               )
                             }
                           />
+                          {selectedPropertyDevice?.symbolId === "nmos" ||
+                          selectedPropertyDevice?.symbolId === "pmos" ? (
+                            <datalist
+                              id={`mos-model-options-${selectedPropertyDevice.symbolId}`}
+                            >
+                              {reviewedSky130MosModelSuggestions(
+                                selectedPropertyDevice.symbolId,
+                              ).map((model) => (
+                                <option value={model} key={model} />
+                              ))}
+                            </datalist>
+                          ) : null}
+                          {selectedExternalMosMapping ? (
+                            <small>External subcircuit · X reference</small>
+                          ) : null}
                         </label>
                       ) : selectedInstance.netlist.binding?.kind ===
                         "primitive" ? (
@@ -7899,7 +8003,7 @@ export function App({
                   <div className="property-card property-parameters-card">
                     <div className="property-section-heading">Parameters</div>
                     <div className="component-parameter-grid">
-                      {componentParameters(selectedInstance.symbolId).map(
+                      {propertyParametersForInstance(selectedInstance).map(
                         (parameter, index) => (
                           <label key={parameter.key} title={parameter.help}>
                             <span className="property-parameter-name">
