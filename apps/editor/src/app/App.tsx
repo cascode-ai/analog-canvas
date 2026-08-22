@@ -653,6 +653,9 @@ export function App({
   const [galleryEntryContext, setGalleryEntryContext] = useState<{
     id: string;
     ownerUserId: string | null;
+    author: string;
+    description: string;
+    tags: readonly string[];
   } | null>(null);
   const [publishGates, setPublishGates] = useState<SubmissionGateReport | null>(
     null,
@@ -1898,7 +1901,12 @@ export function App({
             return;
           }
           const payload = (await response.json()) as {
-            entry?: { name?: string };
+            entry?: {
+              name?: string;
+              author?: string;
+              description?: string;
+              tags?: string[];
+            };
             ownerUserId?: string | null;
             projectText?: string;
           };
@@ -1911,6 +1919,9 @@ export function App({
           setGalleryEntryContext({
             id: initialGalleryEntryId,
             ownerUserId: payload.ownerUserId ?? null,
+            author: payload.entry?.author ?? "",
+            description: payload.entry?.description ?? "",
+            tags: payload.entry?.tags ?? [],
           });
           setStatus(
             `Opened gallery circuit: ${payload.entry?.name ?? galleryProject.name}`,
@@ -7693,6 +7704,15 @@ export function App({
               (galleryEntryContext.ownerUserId !== null &&
                 publishSession.id === galleryEntryContext.ownerUserId))
               ? { id: galleryEntryContext.id }
+              : null
+          }
+          updateDefaults={
+            galleryEntryContext
+              ? {
+                  author: galleryEntryContext.author,
+                  description: galleryEntryContext.description,
+                  tags: galleryEntryContext.tags,
+                }
               : null
           }
           publish={(fields) => publishProjectToGallery(project, fields)}

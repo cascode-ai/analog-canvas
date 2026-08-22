@@ -5575,6 +5575,115 @@ html.light .analytics-map-land path {
   background: var(--icm-surface-hover);
 }
 
+.gallery-tag-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 22px 0;
+}
+
+.gallery-tag-option {
+  padding: 5px 12px;
+  border: 1px solid var(--icm-border);
+  border-radius: 999px;
+  color: var(--icm-text);
+  background: var(--icm-surface);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.gallery-tag-option span {
+  color: var(--icm-text-muted);
+  font-size: 11px;
+}
+
+.gallery-tag-option:hover {
+  background: var(--icm-surface-hover);
+}
+
+.gallery-tag-selected {
+  border-color: var(--icm-accent);
+  color: var(--icm-accent);
+  background: var(--icm-accent-soft);
+  font-weight: 600;
+}
+
+.gallery-tag-clear {
+  color: var(--icm-text-muted);
+}
+
+.gallery-tile-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 6px;
+}
+
+.gallery-tile-tag {
+  padding: 2px 8px;
+  border: 1px solid var(--icm-border);
+  border-radius: 999px;
+  color: var(--icm-text-muted);
+  background: var(--icm-surface-muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.gallery-tile-tag:hover {
+  border-color: var(--icm-accent);
+  color: var(--icm-accent);
+}
+
+.publish-gallery-tags {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.publish-gallery-tags input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--icm-border);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.9rem;
+}
+
+.publish-gallery-tag-chips,
+.publish-gallery-tag-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.publish-gallery-tag {
+  padding: 3px 10px;
+  border: 1px solid var(--icm-accent);
+  border-radius: 999px;
+  color: var(--icm-accent);
+  background: var(--icm-accent-soft);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.publish-gallery-tag-presets button {
+  padding: 3px 10px;
+  border: 1px solid var(--icm-border);
+  border-radius: 999px;
+  color: var(--icm-text-muted);
+  background: var(--icm-surface);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.publish-gallery-tag-presets button:hover {
+  color: var(--icm-accent);
+  border-color: var(--icm-accent);
+}
+
 .gallery-tile-author {
   padding: 0;
   border: none;

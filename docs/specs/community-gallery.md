@@ -24,8 +24,11 @@ restrictive content-security-policy.
 
 - `GET /api/gallery` — newest-first `public` entries
   (`{entries, nextCursor}`; keyset cursor; limit clamps at 60; optional
-  `author` filters to that exact byline before pagination). Recycled
+  `author` filters to that exact byline and optional `tags=a,b` to
+  entries carrying ANY listed tag, both ahead of pagination). Recycled
   entries never appear.
+- `GET /api/gallery/tags` — distinct public tags with counts, most
+  frequent first (feeds the multi-select menu).
 - `GET /api/gallery/<id>` — one public entry with its canonical
   `projectText`.
 - `GET /api/gallery/<id>/preview.svg` — the server-rendered preview.
@@ -38,8 +41,10 @@ restrictive content-security-policy.
 ## Publishing
 
 `POST /api/gallery/submissions` (same-origin) publishes immediately with:
-trimmed `name` (required, ≤120), optional `author` (≤40) and `description`
-(≤300), `projectText` ≤2 MiB. The Worker validates, stamps the canonical
+trimmed `name` (required, ≤120), optional `author` (≤40), `description`
+(≤300), and `tags` (array; normalized lowercase `[a-z0-9 +/-]`, ≤24
+chars each, at most 5, deduplicated — `sanitizeGalleryTags` is the one
+normalization for writes and filters), `projectText` ≤2 MiB. The Worker validates, stamps the canonical
 serialization, renders the preview, and stores the entry as `public`.
 Submissions count against a per-submitter (hashed IP) limit of 10 per UTC
 day.
@@ -97,7 +102,8 @@ Every gallery page state wears the shared site chrome.
 ## Owner editing (Phase G3 completion)
 
 `PUT /api/gallery/<id>` (same-origin) updates an entry's content and
-metadata with the submission field rules. Authority: the bearer and
+metadata (tags included — they stay editable any time) with the
+submission field rules. Authority: the bearer and
 admin/moderator sessions may update any entry, keeping its current
 status; an ordinary session must own the entry (403 otherwise) and
 passes the quality gates (422), after which the entry re-enters review

@@ -47,6 +47,7 @@ describe("publishProjectToGallery", () => {
         name: "  Ring Oscillator  ",
         author: "Vivian",
         description: "Five stages",
+        tags: ["Amplifier", "OTA"],
         token: "secret-token",
       },
       fetchReturning(201, { id: "entry-1" }, seen),
@@ -80,7 +81,7 @@ describe("publishProjectToGallery", () => {
     for (const [status, payload, expected] of cases) {
       const outcome = await publishProjectToGallery(
         project,
-        { name: "N", author: "", description: "", token: "t" },
+        { name: "N", author: "", description: "", tags: [], token: "t" },
         fetchReturning(status, payload),
       );
       expect(outcome.status).toBe(expected);
@@ -92,7 +93,7 @@ describe("publishProjectToGallery", () => {
     const seen: { url?: string; init?: RequestInit | undefined } = {};
     const outcome = await publishProjectToGallery(
       project,
-      { name: "N", author: "", description: "", token: "" },
+      { name: "N", author: "", description: "", tags: [], token: "" },
       fetchReturning(201, { id: "entry-2" }, seen),
     );
     expect(outcome.status).toBe("published");
@@ -104,7 +105,7 @@ describe("publishProjectToGallery", () => {
   it("reports a thrown fetch as unreachable", async () => {
     const outcome = await publishProjectToGallery(
       project,
-      { name: "N", author: "", description: "", token: "t" },
+      { name: "N", author: "", description: "", tags: [], token: "t" },
       (() => Promise.reject(new Error("offline"))) as typeof fetch,
     );
     expect(outcome).toEqual({ status: "unreachable", message: "offline" });

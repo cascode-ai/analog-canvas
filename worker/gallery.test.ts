@@ -526,6 +526,88 @@ function wiredProjectText(name = "Wired"): string {
   return serializeProject(project);
 }
 
+describe("gallery circuit tags", () => {
+  it("normalizes tags on write, filters as an OR-union, and aggregates", async () => {
+    const env = environment(ADMIN_TOKEN);
+    const submitTagged = (name: string, tags: unknown) =>
+      route(
+        env,
+        submissionRequest({ name, tags, projectText: projectText(name) }),
+      );
+    await submitTagged("Amp A", ["  Amplifier ", "OTA", "amplifier"]);
+    await submitTagged("Comp B", ["comparator"]);
+    await submitTagged("Mixed C", ["ADC", "amplifier "]);
+    await submitTagged("Plain D", "not-an-array");
+
+    const list = await route(env, new Request(`${ORIGIN}/api/gallery`));
+    const all = (await list.json()) as {
+      entries: { name: string; tags: string[] }[];
+    };
+    expect(all.entries.find((entry) => entry.name === "Amp A")?.tags).toEqual([
+      "amplifier",
+      "ota",
+    ]);
+    expect(all.entries.find((entry) => entry.name === "Plain D")?.tags).toEqual(
+      [],
+    );
+
+    const union = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery?tags=comparator,adc`),
+    );
+    const filtered = (await union.json()) as { entries: { name: string }[] };
+    expect(filtered.entries.map((entry) => entry.name).sort()).toEqual([
+      "Comp B",
+      "Mixed C",
+    ]);
+
+    const aggregate = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/tags`),
+    );
+    const counts = (await aggregate.json()) as {
+      tags: { tag: string; count: number }[];
+    };
+    expect(counts.tags[0]).toEqual({ tag: "amplifier", count: 2 });
+
+    // The bearer update path rewrites tags ("editable any time").
+    const target = all.entries.find((entry) => entry.name === "Comp B")!;
+    const detail = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery?limit=60`),
+    );
+    void detail;
+    const id = (
+      (await (
+        await route(env, new Request(`${ORIGIN}/api/gallery`))
+      ).json()) as {
+        entries: { id: string; name: string }[];
+      }
+    ).entries.find((entry) => entry.name === "Comp B")!.id;
+    const updated = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/${id}`, {
+        method: "PUT",
+        headers: {
+          Origin: ORIGIN,
+          Authorization: `Bearer ${ADMIN_TOKEN}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          name: target.name,
+          tags: ["latch", "comparator"],
+          projectText: projectText(target.name),
+        }),
+      }),
+    );
+    expect(updated.status).toBe(200);
+    const after = (await (
+      await route(env, new Request(`${ORIGIN}/api/gallery/${id}`))
+    ).json()) as { entry: { tags: string[] } };
+    expect(after.entry.tags).toEqual(["latch", "comparator"]);
+  });
+});
+
 describe("gallery list author filter and paging (phase G4)", () => {
   it("filters by exact byline and pages the filtered set", async () => {
     const env = environment(ADMIN_TOKEN);
