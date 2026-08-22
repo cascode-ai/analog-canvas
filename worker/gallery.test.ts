@@ -526,6 +526,53 @@ function wiredProjectText(name = "Wired"): string {
   return serializeProject(project);
 }
 
+describe("gallery list author filter and paging (phase G4)", () => {
+  it("filters by exact byline and pages the filtered set", async () => {
+    const env = environment(ADMIN_TOKEN);
+    for (const [name, author] of [
+      ["A1", "alice"],
+      ["B1", "bob"],
+      ["A2", "alice"],
+      ["A3", "alice"],
+    ] as const) {
+      await route(
+        env,
+        submissionRequest({ name, author, projectText: projectText(name) }),
+      );
+    }
+
+    const filtered = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery?author=alice&limit=2`),
+    );
+    const first = (await filtered.json()) as {
+      entries: { name: string; author: string }[];
+      nextCursor: string | null;
+    };
+    expect(first.entries.every((entry) => entry.author === "alice")).toBe(true);
+    expect(first.entries).toHaveLength(2);
+    expect(first.nextCursor).not.toBeNull();
+
+    const second = await route(
+      env,
+      new Request(
+        `${ORIGIN}/api/gallery?author=alice&limit=2&cursor=${encodeURIComponent(first.nextCursor!)}`,
+      ),
+    );
+    const rest = (await second.json()) as {
+      entries: { name: string }[];
+      nextCursor: string | null;
+    };
+    expect(rest.entries).toHaveLength(1);
+    expect(rest.nextCursor).toBeNull();
+
+    const unfiltered = await route(env, new Request(`${ORIGIN}/api/gallery`));
+    expect(
+      ((await unfiltered.json()) as { entries: unknown[] }).entries,
+    ).toHaveLength(4);
+  });
+});
+
 describe("gallery owner editing (phase G3 completion)", () => {
   it("owner updates re-enter review and clear the previous rejection", async () => {
     const { authDurable, env } = reviewHarness();

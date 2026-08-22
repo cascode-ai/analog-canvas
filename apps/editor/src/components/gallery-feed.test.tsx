@@ -13,8 +13,8 @@ function fetchReturning(payload: unknown, ok = true): typeof fetch {
 }
 
 describe("loadGalleryFeed", () => {
-  it("returns ready entries from the worker", async () => {
-    const state = await loadGalleryFeed(
+  it("returns a page of entries with its cursor", async () => {
+    const page = await loadGalleryFeed(
       fetchReturning({
         entries: [
           {
@@ -26,24 +26,35 @@ describe("loadGalleryFeed", () => {
             schemaVersion: 21,
           },
         ],
+        nextCursor: "2026-08-21T00:00:00.000Z|g1",
       }),
     );
-    expect(state).toMatchObject({ status: "ready" });
-    if (state.status === "ready") {
-      expect(state.entries.map((entry) => entry.id)).toEqual(["g1"]);
-    }
+    expect(page?.entries.map((entry) => entry.id)).toEqual(["g1"]);
+    expect(page?.nextCursor).toBe("2026-08-21T00:00:00.000Z|g1");
   });
 
-  it("degrades to unavailable on errors and non-OK responses", async () => {
-    expect(await loadGalleryFeed(fetchReturning({}, false))).toEqual({
-      status: "unavailable",
-    });
+  it("builds the query only from the options that are set", async () => {
+    const urls: string[] = [];
+    const capturing = (async (input: RequestInfo | URL) => {
+      urls.push(String(input));
+      return new Response(JSON.stringify({ entries: [] }), { status: 200 });
+    }) as typeof fetch;
+    await loadGalleryFeed(capturing);
+    await loadGalleryFeed(capturing, { author: "alice" });
+    await loadGalleryFeed(capturing, { author: "alice", cursor: "c|1" });
+    expect(urls).toEqual([
+      "/api/gallery",
+      "/api/gallery?author=alice",
+      "/api/gallery?author=alice&cursor=c%7C1",
+    ]);
+  });
+
+  it("degrades to null on errors and non-OK responses", async () => {
+    expect(await loadGalleryFeed(fetchReturning({}, false))).toBeNull();
     const throwing = (async () => {
       throw new Error("offline");
     }) as unknown as typeof fetch;
-    expect(await loadGalleryFeed(throwing)).toEqual({
-      status: "unavailable",
-    });
+    expect(await loadGalleryFeed(throwing)).toBeNull();
   });
 });
 

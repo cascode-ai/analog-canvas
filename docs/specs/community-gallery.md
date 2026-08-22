@@ -23,7 +23,8 @@ restrictive content-security-policy.
 ## Public surface
 
 - `GET /api/gallery` — newest-first `public` entries
-  (`{entries, nextCursor}`; keyset cursor; limit clamps at 60). Recycled
+  (`{entries, nextCursor}`; keyset cursor; limit clamps at 60; optional
+  `author` filters to that exact byline before pagination). Recycled
   entries never appear.
 - `GET /api/gallery/<id>` — one public entry with its canonical
   `projectText`.

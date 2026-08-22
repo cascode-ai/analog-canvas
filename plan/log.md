@@ -4639,6 +4639,18 @@ Keep reusable lessons in `docs/experience/`, not in this log.
   13/13, typecheck, prettier, test-impact, diff checks.
 - Commit status: completed on `claude/gallery-owner-editing`.
 
+## 2026-08-22 — Gallery feed G4 remainder
+
+- Target: `plan/2026-08-22-gallery-feed-g4/plan.md` (completed).
+- Change: list gains an `author` filter before keyset paging; the feed
+  pages via an IntersectionObserver sentinel and filters by clickable
+  bylines (URL-carried, clearable); `/review` gains the admin recycle
+  bin (restore, confirm-guarded delete-forever).
+- Validation: worker gallery 14, component units 28, gallery Playwright
+  16/16, typecheck, prettier, test-impact, diff checks.
+- Commit status: completed on `claude/gallery-feed-g4` (stacked on
+  `claude/gallery-owner-editing`).
+
 ## 2026-08-22 - Library category order and Bulk action reach
 
 - Changed areas: `CATEGORY_ORDER` now runs Transistors, Passives, Power and

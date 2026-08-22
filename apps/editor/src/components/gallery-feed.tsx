@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { renderDocumentSvg } from "@icm/render-svg";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
@@ -16,10 +16,16 @@ export interface GalleryFeedEntry {
   schemaVersion: number;
 }
 
-export type GalleryFeedState =
-  | { status: "loading" }
-  | { status: "ready"; entries: GalleryFeedEntry[] }
-  | { status: "unavailable" };
+export interface GalleryFeedPage {
+  entries: GalleryFeedEntry[];
+  nextCursor: string | null;
+}
+
+export interface GalleryFeedState {
+  status: "loading" | "ready" | "unavailable";
+  entries: GalleryFeedEntry[];
+  nextCursor: string | null;
+}
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 
@@ -49,20 +55,32 @@ function bundledTiles() {
   });
 }
 
+/** One feed page; the plain first request stays exactly `/api/gallery`. */
 export async function loadGalleryFeed(
   fetchLike: typeof fetch = fetch,
-): Promise<GalleryFeedState> {
+  options: { cursor?: string | null; author?: string | null } = {},
+): Promise<GalleryFeedPage | null> {
+  const params = new URLSearchParams();
+  if (options.author) params.set("author", options.author);
+  if (options.cursor) params.set("cursor", options.cursor);
+  const query = params.toString();
   try {
-    const response = await fetchLike("/api/gallery", {
-      credentials: "same-origin",
-    });
-    if (!response.ok) return { status: "unavailable" };
+    const response = await fetchLike(
+      `/api/gallery${query ? `?${query}` : ""}`,
+      { credentials: "same-origin" },
+    );
+    if (!response.ok) return null;
     const payload = (await response.json()) as {
       entries?: GalleryFeedEntry[];
+      nextCursor?: unknown;
     };
-    return { status: "ready", entries: payload.entries ?? [] };
+    return {
+      entries: payload.entries ?? [],
+      nextCursor:
+        typeof payload.nextCursor === "string" ? payload.nextCursor : null,
+    };
   } catch {
-    return { status: "unavailable" };
+    return null;
   }
 }
 
@@ -73,24 +91,92 @@ export async function loadGalleryFeed(
  * worker), so the landing page is never blank.
  */
 export function GalleryFeed() {
-  const [state, setState] = useState<GalleryFeedState>({ status: "loading" });
+  const [author, setAuthor] = useState<string | null>(() =>
+    typeof window === "undefined"
+      ? null
+      : new URLSearchParams(window.location.search).get("author"),
+  );
+  const [state, setState] = useState<GalleryFeedState>({
+    status: "loading",
+    entries: [],
+    nextCursor: null,
+  });
+  const loadingMoreRef = useRef(false);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    void loadGalleryFeed().then((next) => {
-      if (!cancelled) setState(next);
+    setState({ status: "loading", entries: [], nextCursor: null });
+    void loadGalleryFeed(fetch, { author }).then((page) => {
+      if (cancelled) return;
+      setState(
+        page
+          ? { status: "ready", ...page }
+          : { status: "unavailable", entries: [], nextCursor: null },
+      );
     });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [author]);
 
-  const entries = state.status === "ready" ? state.entries : [];
+  // Infinite scroll: while a cursor remains, the sentinel below the wall
+  // appends the next page whenever it scrolls into view.
+  const nextCursor = state.nextCursor;
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel || nextCursor === null) return;
+    if (typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver((observed) => {
+      if (!observed.some((entry) => entry.isIntersecting)) return;
+      if (loadingMoreRef.current) return;
+      loadingMoreRef.current = true;
+      void loadGalleryFeed(fetch, { author, cursor: nextCursor }).then(
+        (page) => {
+          loadingMoreRef.current = false;
+          if (!page) return;
+          setState((previous) =>
+            previous.status === "ready"
+              ? {
+                  status: "ready",
+                  entries: [...previous.entries, ...page.entries],
+                  nextCursor: page.nextCursor,
+                }
+              : previous,
+          );
+        },
+      );
+    });
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [nextCursor, author]);
+
+  function selectAuthor(next: string | null): void {
+    setAuthor(next);
+    const url = new URL(window.location.href);
+    if (next) url.searchParams.set("author", next);
+    else url.searchParams.delete("author");
+    window.history.replaceState(null, "", url.pathname + url.search);
+  }
+
+  const entries = state.entries;
 
   return (
     <main className="gallery-shell" data-testid="gallery-feed">
       <GalleryChrome subtitle="Community gallery" />
 
+      {author ? (
+        <div className="gallery-filter" data-testid="gallery-filter">
+          <span>Circuits by {author}</span>
+          <button
+            type="button"
+            data-testid="gallery-filter-clear"
+            onClick={() => selectAuthor(null)}
+          >
+            Show everyone
+          </button>
+        </div>
+      ) : null}
       {state.status === "loading" ? (
         <p className="gallery-status" data-testid="gallery-loading">
           Loading gallery…
@@ -118,7 +204,24 @@ export function GalleryFeed() {
                     <span className="gallery-tile-copy">
                       <span className="gallery-tile-name">{entry.name}</span>
                       <span className="gallery-tile-meta">
-                        {entry.author ? `${entry.author} · ` : ""}
+                        {entry.author ? (
+                          <>
+                            <button
+                              type="button"
+                              className="gallery-tile-author"
+                              data-testid={`gallery-author-${entry.id}`}
+                              title={`Show circuits by ${entry.author}`}
+                              onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                selectAuthor(entry.author);
+                              }}
+                            >
+                              {entry.author}
+                            </button>
+                            {" · "}
+                          </>
+                        ) : null}
                         {savedAtLabel(entry.createdAt)}
                       </span>
                       {entry.description ? (
@@ -130,7 +233,7 @@ export function GalleryFeed() {
                   </a>
                 ),
               })),
-              ...(entries.length === 0
+              ...(entries.length === 0 && author === null
                 ? bundledTiles().map((tile) => ({
                     key: `bundled-${tile.id}`,
                     node: (
@@ -159,8 +262,19 @@ export function GalleryFeed() {
                 : []),
             ]}
           />
+          {entries.length === 0 && author !== null ? (
+            <p className="gallery-status" data-testid="gallery-filter-empty">
+              No public circuits by {author} yet.
+            </p>
+          ) : null}
         </section>
       )}
+      <div
+        ref={sentinelRef}
+        className="gallery-sentinel"
+        data-testid="gallery-sentinel"
+        aria-hidden="true"
+      />
       <footer className="gallery-footnote">
         Browse freely; open any circuit and edit your own copy. Publishing joins
         in a later release with sign-in.

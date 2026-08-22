@@ -156,6 +156,115 @@ function ReviewCard({
   );
 }
 
+interface RecycledEntry {
+  id: string;
+  name: string;
+  recycledAt?: string | null;
+}
+
+/**
+ * In-feed admin recycle bin (G4): the post-approval takedown surface.
+ * Restore returns an entry to the public wall; Delete forever is the
+ * only hard deletion and asks for confirmation first.
+ */
+function RecycleBin() {
+  const [entries, setEntries] = useState<RecycledEntry[] | null>(null);
+
+  async function refresh(): Promise<void> {
+    try {
+      const response = await fetch("/api/gallery/recycled", {
+        credentials: "same-origin",
+      });
+      if (!response.ok) {
+        setEntries([]);
+        return;
+      }
+      const payload = (await response.json()) as {
+        entries?: RecycledEntry[];
+      };
+      setEntries(payload.entries ?? []);
+    } catch {
+      setEntries([]);
+    }
+  }
+
+  useEffect(() => {
+    void refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- load once
+  }, []);
+
+  async function act(id: string, kind: "restore" | "delete"): Promise<void> {
+    if (
+      kind === "delete" &&
+      !window.confirm("Delete this entry forever? This cannot be undone.")
+    ) {
+      return;
+    }
+    try {
+      await fetch(
+        kind === "restore"
+          ? `/api/gallery/${id}/restore`
+          : `/api/gallery/${id}`,
+        {
+          method: kind === "restore" ? "POST" : "DELETE",
+          credentials: "same-origin",
+        },
+      );
+    } catch {
+      // The refresh below shows the true state either way.
+    }
+    void refresh();
+  }
+
+  if (entries === null) return null;
+  return (
+    <section className="review-bin" data-testid="review-bin">
+      <h2>Recycle bin</h2>
+      {entries.length === 0 ? (
+        <p className="gallery-status" data-testid="bin-empty">
+          The bin is empty.
+        </p>
+      ) : (
+        <div className="mine-list">
+          {entries.map((entry) => (
+            <article
+              key={entry.id}
+              className="mine-card"
+              data-testid={`bin-card-${entry.id}`}
+            >
+              <div className="mine-card-copy">
+                <h2>{entry.name}</h2>
+                {entry.recycledAt ? (
+                  <p className="review-card-meta">
+                    Recycled {new Date(entry.recycledAt).toLocaleString()}
+                  </p>
+                ) : null}
+              </div>
+              <div className="review-card-actions">
+                <button
+                  type="button"
+                  data-testid={`bin-delete-${entry.id}`}
+                  onClick={() => void act(entry.id, "delete")}
+                >
+                  Delete forever
+                </button>
+                <button
+                  type="button"
+                  className="review-approve"
+                  data-testid={`bin-restore-${entry.id}`}
+                  onClick={() => void act(entry.id, "restore")}
+                >
+                  Restore
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 export function ReviewQueue() {
   const [state, setState] = useState<QueueState>({ status: "loading" });
   const [email, setEmail] = useState("");
@@ -242,6 +351,7 @@ export function ReviewQueue() {
             ))}
           </section>
         )}
+        {state.user.isAdmin ? <RecycleBin /> : null}
       </div>
     </main>
   );
