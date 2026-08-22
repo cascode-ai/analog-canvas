@@ -3760,3 +3760,55 @@ test("keeps a long right-aligned Port label readable while editing", async ({
   expect(overflow.hidden).toBeLessThanOrEqual(0);
   expect(overflow.scrollable).toBe("auto");
 });
+
+test("drags a marquee selection that holds no instance", async ({ page }) => {
+  await page.goto("/editor");
+  const canvas = page.getByTestId("schematic-canvas");
+
+  await clickDrawTool(page, "wire");
+  await canvas.click({ position: { x: 200, y: 200 } });
+  await canvas.dblclick({ position: { x: 340, y: 200 } });
+  await canvas.click({ position: { x: 200, y: 260 } });
+  await canvas.dblclick({ position: { x: 340, y: 260 } });
+  await page.keyboard.press("Escape");
+
+  const readAll = () =>
+    page
+      .locator('[data-testid^="route-hit-"]')
+      .evaluateAll((elements) =>
+        elements.map((element) =>
+          Array.from((element as unknown as SVGPolylineElement).points).map(
+            (point) => ({ x: point.x, y: point.y }),
+          ),
+        ),
+      );
+  const before = await readAll();
+  expect(before).toHaveLength(2);
+
+  const bounds = (await canvas.boundingBox())!;
+  await page.mouse.move(bounds.x + 150, bounds.y + 150);
+  await page.mouse.down();
+  await page.mouse.move(bounds.x + 500, bounds.y + 330, { steps: 12 });
+  await page.mouse.up();
+  await expect(page.getByTestId("status")).toContainText("Selected");
+
+  // A marquee can hold only Routes and Junctions. Grabbing one of them used
+  // to drag it out of its own selection and leave the rest behind.
+  const grab = (await page
+    .locator('[data-testid^="route-hit-"]')
+    .first()
+    .boundingBox())!;
+  const x = grab.x + grab.width / 2;
+  const y = grab.y + grab.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x, y + 60, { steps: 10 });
+  await page.mouse.up();
+
+  const after = await readAll();
+  const shifts = after.map(
+    (points, index) => points[0]!.y - before[index]![0]!.y,
+  );
+  expect(shifts[0]).toBeGreaterThan(0);
+  expect(shifts[1]).toBe(shifts[0]);
+});

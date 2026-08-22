@@ -1819,13 +1819,17 @@ export function App({
     kind: "instance" | "instance-label" | "annotation" | "route" | "junction",
     id: string,
   ): boolean {
+    // Any multi-object selection is composite, counted across every kind. The
+    // previous rule also required at least one Instance, so a marquee holding
+    // only Routes, Junctions, or Annotations was never treated as a group and
+    // dragging it moved just the grabbed object.
     const hasCompositeSelection =
-      selectedIds.length > 0 &&
-      (selectedIds.length > 1 ||
-        visualSelection.routeIds.length > 0 ||
-        visualSelection.junctionIds.length > 0 ||
-        visualSelection.annotationIds.length > 0 ||
-        visualSelection.draftingIds.length > 0);
+      selectedIds.length +
+        visualSelection.routeIds.length +
+        visualSelection.junctionIds.length +
+        visualSelection.annotationIds.length +
+        visualSelection.draftingIds.length >
+      1;
     if (!hasCompositeSelection) return false;
     if (kind === "instance" || kind === "instance-label") {
       return selectedIds.includes(id);
@@ -4145,6 +4149,19 @@ export function App({
       const primaryInstanceId = selectedIds.at(-1);
       if (primaryInstanceId) {
         beginMoveFromSelection(event, primaryInstanceId, hitTarget);
+        return;
+      }
+      // A marquee can hold only Routes, Junctions, and Annotations. Without an
+      // Instance to anchor the move, the press used to fall through to the
+      // single-object branches below and drag just the grabbed object out of
+      // its own selection.
+      const movePlan = planSelectionMove(document, visualSelection);
+      if (movePlan.previewObjectIds.length > 0) {
+        beginVisualSelectionMoveFromSelection(
+          event,
+          visualSelection,
+          hitTarget,
+        );
         return;
       }
     }

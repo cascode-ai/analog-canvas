@@ -4781,3 +4781,25 @@ Keep reusable lessons in `docs/experience/`, not in this log.
   diff checks.
 - Commit status: completed on `claude/text-editor-clipping`; mainline merge
   gated on the remote required checks.
+
+## 2026-08-22 - Dragging a marquee selection that holds no Instance
+
+- Reproduced the reported intermittent "marquee then drag does nothing": two
+  standalone wires, marquee across both (status "Selected 6 objects", both
+  Routes marked `selected`), drag one — only the grabbed Route moved (dy 70
+  against dy 0) and the status read "Moved loose route", a single-object move.
+- Cause: `compositeSelectionOwnsHit` required `selectedIds.length > 0`, and
+  `selectedIds` holds only Instances, so a marquee with no Instance never
+  counted as composite and the press fell through to the single-object
+  branches. A Junction hit only re-selected itself, which reads as the drag
+  doing nothing. That is what made it intermittent — it worked whenever the
+  selection happened to include an Instance.
+- Fix: count a composite selection across every kind, and when it owns the hit
+  without an Instance to anchor the move, fall back to
+  `beginVisualSelectionMoveFromSelection` guarded by `planSelectionMove`, the
+  same pattern the existing route-tap path uses.
+- Validation: full unit suite (1172), full Playwright suite (204 passed), the
+  new e2e case re-run against a stashed fix to prove it fails without it
+  (Expected 70, Received 0); typecheck, prettier, diff checks.
+- Commit status: completed on `claude/marquee-drag`; mainline merge gated on
+  the remote required checks.
