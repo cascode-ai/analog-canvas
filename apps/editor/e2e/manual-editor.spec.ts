@@ -3705,3 +3705,33 @@ test("middle-click steers which way the wire corner turns", async ({
   expect(vertical).toHaveLength(3);
   expect(vertical[1]!.x).toBe(vertical[0]!.x);
 });
+
+test("resizes a plain Power Rail from its end handle", async ({ page }) => {
+  await page.goto("/editor");
+  const canvas = page.getByTestId("schematic-canvas");
+  await page.getByTestId("shapes-chip-vdd").click();
+  await canvas.click({ position: { x: 180, y: 120 } });
+  await canvas.click({ position: { x: 520, y: 120 } });
+  await page.keyboard.press("Escape");
+
+  const before = await readRoutePoints(page, "route-vdd1-rail");
+  await clickRoute(page, "route-vdd1-rail");
+
+  // The end handle sits under the Junction's endpoint circle. The canvas
+  // capture layer used to claim the press there and translate the whole rail,
+  // which left a rail's length uneditable.
+  await dragBy(page.getByTestId("junction-junction-vdd1-end"), {
+    x: 100,
+    y: 0,
+  });
+  await expect(page.getByTestId("status")).toContainText("Resized Power Rail");
+
+  const after = await readRoutePoints(page, "route-vdd1-rail");
+  const leftOf = (points: typeof before) =>
+    Math.min(...points.map((point) => point.x));
+  const rightOf = (points: typeof before) =>
+    Math.max(...points.map((point) => point.x));
+  expect(leftOf(after)).toBe(leftOf(before));
+  expect(rightOf(after)).toBeGreaterThan(rightOf(before));
+  expect(new Set(after.map((point) => point.y)).size).toBe(1);
+});

@@ -4712,3 +4712,28 @@ Keep reusable lessons in `docs/experience/`, not in this log.
   including a new corner-geometry spec, typecheck, prettier, diff checks.
 - Commit status: completed on `claude/wire-drafting-iteration`; mainline merge
   gated on the remote required checks.
+
+## 2026-08-22 - A Power Rail stays straight and resizes from its ends
+
+- Fixed the reported "rail length cannot be changed": the rail's end handle is
+  drawn under the Junction's `endpoint-hit` circle, and the capture-phase
+  `handleCanvasHitPointerDown` skipped handles by testing only `event.target`
+  — the topmost element — so it claimed the press and translated the rail.
+  It now ranks the whole element stack at the point. Reproduced first (both
+  ends moved +100, status "Moved Power Rail"), fixed, re-verified.
+- The existing rail-resize e2e passed throughout because it connects a wire
+  first, which removes the covering endpoint circle; real usage never starts
+  from that state.
+- Added the missing invariant: `validateRoute` now requires a whole connected
+  rail run to be collinear, not just each stored Route. A wire drawn from a
+  rail endpoint inherits `presentation: "power-rail"`, so a perpendicular
+  branch previously produced a bent rail from two straight halves. Collinear
+  extension still succeeds.
+- Historical data is not silently straightened: the transaction layer
+  grandfathers pre-existing route errors on unchanged geometry, so a bent
+  Project still opens but any edit touching that rail must leave it straight.
+- Validation: full unit suite (1170) with the new case re-run against a
+  stashed invariant to prove it fails without it, full Playwright suite (200
+  passed), typecheck, prettier, diff checks.
+- Commit status: completed on `claude/power-rail-straight`; mainline merge
+  gated on the remote required checks.

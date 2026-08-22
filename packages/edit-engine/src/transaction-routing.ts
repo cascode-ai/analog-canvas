@@ -6,6 +6,7 @@ import type {
   SchematicDocument,
 } from "@icm/model";
 import {
+  derivePowerRailComponent,
   endpointBelongsToNet,
   endpointKey,
   netEndpoints,
@@ -238,6 +239,26 @@ export function validateRoute(
     )
   ) {
     return `Power rail ${route.id} must be straight and axis-aligned`;
+  }
+  if (route.presentation === "power-rail") {
+    // A rail is one straight conductor, so the whole connected run has to be
+    // collinear — not merely each stored Route. Without this, extending a
+    // rail perpendicular to itself produced a bent rail out of two
+    // individually straight halves.
+    const component = derivePowerRailComponent(document, route.id);
+    const positions = (component?.junctionIds ?? []).flatMap((junctionId) => {
+      const junction = document.junctions.find(
+        (candidate) => candidate.id === junctionId,
+      );
+      return junction ? [junction.position] : [];
+    });
+    if (
+      positions.length > 2 &&
+      !positions.every((position) => position.y === positions[0]!.y) &&
+      !positions.every((position) => position.x === positions[0]!.x)
+    ) {
+      return `Power rail ${route.id} must stay one straight run without a bend`;
+    }
   }
   for (const [endpoint, point, adjacent, mode] of [
     [

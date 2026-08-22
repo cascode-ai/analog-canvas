@@ -422,6 +422,97 @@ describe("Edit Transaction envelope", () => {
     expect(JSON.stringify(document)).toBe(before);
   });
 
+  it("rejects a second rail Route that would bend the run", () => {
+    const empty = createEmptyDocument("document-main", "Main");
+    const railed = executeTransaction(
+      empty,
+      {
+        ...transaction(),
+        edits: [
+          {
+            kind: "add_power_rail",
+            netId: "net-vdd",
+            routeId: "rail-vdd",
+            startJunctionId: "junction-start",
+            endJunctionId: "junction-end",
+            labelId: "label-vdd",
+            netName: "VDD",
+            scope: "local",
+            powerDomain: "vdd",
+            start: { x: 10, y: 10 },
+            end: { x: 100, y: 10 },
+          },
+        ],
+      },
+      { symbolResolver: resolver },
+    );
+    expect(railed.ok).toBe(true);
+    const straight = railed.document;
+
+    const bendEdits = [
+      {
+        kind: "add_junction" as const,
+        junctionId: "junction-bend",
+        netId: "net-vdd",
+        position: { x: 100, y: 90 },
+        role: "route-anchor" as const,
+      },
+      {
+        kind: "set_route_points" as const,
+        routeId: "rail-vdd-branch",
+        netId: "net-vdd",
+        from: { kind: "junction" as const, junctionId: "junction-end" },
+        to: { kind: "junction" as const, junctionId: "junction-bend" },
+        waypoints: [],
+        segmentModes: ["manual" as const],
+        presentation: "power-rail" as const,
+      },
+    ];
+
+    // A rail is one straight conductor. Hanging a perpendicular rail Route off
+    // its end would leave two individually straight halves with a bend.
+    const bent = executeTransaction(
+      straight,
+      {
+        ...transaction(),
+        expectedRevision: straight.revision,
+        edits: bendEdits,
+      },
+      { symbolResolver: resolver },
+    );
+    console.log(
+      "BENT",
+      JSON.stringify({ ok: bent.ok, rejection: (bent as any).rejection }).slice(
+        0,
+        300,
+      ),
+    );
+    expect(bent).toMatchObject({ ok: false, applied: false });
+
+    // The same branch drawn collinearly extends the rail instead.
+    const extended = executeTransaction(
+      straight,
+      {
+        ...transaction(),
+        expectedRevision: straight.revision,
+        edits: [
+          { ...bendEdits[0]!, position: { x: 200, y: 10 } },
+          bendEdits[1]!,
+        ],
+      },
+      { symbolResolver: resolver },
+    );
+    console.log(
+      "EXT",
+      JSON.stringify(
+        Object.fromEntries(
+          Object.entries(extended).filter(([k]) => k !== "document"),
+        ),
+      ).slice(0, 600),
+    );
+    expect(extended.ok).toBe(true);
+  });
+
   it("rejects a power rail whose generated IDs collide with an existing object", () => {
     const document = createEmptyDocument("document-main", "Main");
     document.instances.push({

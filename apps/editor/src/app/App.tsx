@@ -4069,9 +4069,15 @@ export function App({
       // a selected hierarchy instance cannot start an ordinary move first.
       return;
     }
-    if ((event.target as Element).closest(".draft-handle, .route-handle")) {
-      return;
-    }
+    // Handles outrank the scene they sit on, the same way layout grips do.
+    // Testing only event.target missed a handle drawn under another hit
+    // surface — a Power Rail end handle sits beneath its Junction's endpoint
+    // circle — so this capture layer claimed the press and the rail moved
+    // instead of resizing. Rank the whole stack at the point instead.
+    const handleAtPoint = event.currentTarget.ownerDocument
+      .elementsFromPoint(event.clientX, event.clientY)
+      .some((element) => element.closest(".draft-handle, .route-handle"));
+    if (handleAtPoint) return;
     const hit = resolveCanvasHitAtPoint(
       event.currentTarget.ownerDocument,
       { x: event.clientX, y: event.clientY },
