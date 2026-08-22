@@ -288,7 +288,7 @@ export function ReviewQueue() {
           state.status === "denied" ? "review-denied" : "review-page"
         }
       >
-        <GalleryChrome subtitle="Review queue" showGalleryLink />
+        <GalleryChrome subtitle="Review queue" />
         <div className="page-body">
           <p className="gallery-status">
             {state.status === "loading"
@@ -302,7 +302,7 @@ export function ReviewQueue() {
 
   return (
     <main className="review-shell" data-testid="review-queue">
-      <GalleryChrome subtitle="Review queue" showGalleryLink />
+      <GalleryChrome subtitle="Review queue" />
       <div className="page-body">
         {state.user.isAdmin ? (
           <form

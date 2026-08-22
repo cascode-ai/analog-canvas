@@ -1056,7 +1056,9 @@ test("opens named full-width Project examples from the toolbar", async ({
   await expect(page.getByTestId("status")).toContainText(
     "Place Two-Stage Op Amp on the canvas",
   );
-  await canvas.click({ position: { x: 640, y: 180 } });
+  // Land clear of the first example so the press commits the placement rather
+  // than selecting something already drawn there.
+  await canvas.click({ position: { x: 700, y: 460 } });
   await expect(page.getByTestId("status")).toContainText("Copied 7 components");
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("hit-R1")).toBeVisible();

@@ -6134,3 +6134,75 @@ html.light .analytics-map-land path {
   color: var(--icm-text-muted);
   font-size: var(--icm-font-xs);
 }
+
+/* The gallery panel shows circuits, not just their names, and the reader
+   chooses how many fit per row. */
+.gallery-column-control {
+  display: flex;
+  gap: var(--icm-space-2);
+  align-items: center;
+  padding: var(--icm-space-2);
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+}
+
+.gallery-column-control input[type="range"] {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.shapes-example-list[data-columns] {
+  display: grid;
+  grid-template-columns: repeat(var(--icm-gallery-columns, 1), minmax(0, 1fr));
+  gap: var(--icm-space-2);
+  padding: 0 var(--icm-space-2) var(--icm-space-2);
+}
+
+.shapes-example-preview {
+  display: block;
+  overflow: hidden;
+  aspect-ratio: 1;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  background: var(--icm-surface);
+}
+
+.shapes-example-preview svg,
+.shapes-example-preview img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* Account actions collapse behind one disclosure: at half-screen width a row
+   of links wrapped onto two lines each and the header stopped being readable. */
+.account-more {
+  position: relative;
+}
+
+.account-more > summary {
+  display: inline-flex;
+  gap: var(--icm-space-1);
+  align-items: center;
+  height: var(--icm-control-h);
+  padding: 0 var(--icm-space-2);
+  border-radius: var(--icm-radius-sm);
+  cursor: pointer;
+  list-style: none;
+}
+
+.account-more > summary::-webkit-details-marker {
+  display: none;
+}
+
+.account-more > summary:hover {
+  background: var(--icm-surface-hover, rgb(0 0 0 / 4%));
+}
+
+.account-popover {
+  position: absolute;
+  right: 0;
+  z-index: 20;
+  min-width: 11rem;
+}

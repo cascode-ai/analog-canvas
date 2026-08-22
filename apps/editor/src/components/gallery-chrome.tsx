@@ -6,13 +6,7 @@ import { AccountMenu } from "./account";
  * as a bare paragraph without navigation. Markup mirrors the feed's
  * original header exactly (test ids included).
  */
-export function GalleryChrome({
-  subtitle,
-  showGalleryLink = false,
-}: {
-  subtitle: string;
-  showGalleryLink?: boolean;
-}) {
+export function GalleryChrome({ subtitle }: { subtitle: string }) {
   return (
     <header className="gallery-chrome">
       <div className="app-brand">
@@ -31,11 +25,6 @@ export function GalleryChrome({
         </div>
       </div>
       <nav className="gallery-actions">
-        {showGalleryLink ? (
-          <a className="account-link" href="/" data-testid="chrome-gallery">
-            Gallery
-          </a>
-        ) : null}
         <AccountMenu />
         <a
           className="gallery-open-editor"

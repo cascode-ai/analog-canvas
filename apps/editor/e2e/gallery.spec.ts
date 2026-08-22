@@ -451,6 +451,7 @@ test("a signed-in owner renames the display name and signs out", async ({
   await expect(page.getByTestId("account-name")).toHaveText("Token Zhang");
   expect(renames).toEqual(["Token Zhang"]);
 
+  await page.locator(".account-more > summary").click();
   await page.getByTestId("account-signout").click();
   await expect(page.getByTestId("account-signin")).toBeVisible();
   expect(loggedOut).toBe(1);

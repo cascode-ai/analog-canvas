@@ -15,6 +15,15 @@ async function runCellCommand(
   page: import("@playwright/test").Page,
   name: "Manage Cells…" | "Place Cell",
 ): Promise<void> {
+  // The hierarchy row only appears once there is a hierarchy to navigate, so
+  // the first Cell is created from Edit.
+  if (name === "Manage Cells…") {
+    const row = page.getByTestId("cell-command-menu");
+    if ((await row.count()) === 0) {
+      await clickCommand(page, "Edit", "Manage Cells…");
+      return;
+    }
+  }
   await page
     .getByTestId("cell-command-menu")
     .getByRole("button", { name, exact: true })
@@ -70,13 +79,20 @@ async function placePort(
   if (!wasExpanded) await shelf.click();
 }
 
-test("keeps direct Cell commands in one hierarchy row", async ({ page }) => {
+test("shows the hierarchy row only once there is a hierarchy", async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 420, height: 700 });
   await page.goto("/editor");
+
+  // A flat Project has nothing to navigate, so the row stays out of the way
+  // and the first Cell is created from Edit.
   const toolbar = page.locator('.toolbar-row[aria-label="Document hierarchy"]');
-  await expect(
-    page.getByRole("button", { name: "Manage Cells…" }),
-  ).toBeVisible();
+  await expect(toolbar).toHaveCount(0);
+  await expect(page.getByTestId("edit-manage-cells")).toHaveCount(1);
+
+  await createCell(page, "FirstStage");
+  await expect(toolbar).toHaveCount(1);
   await expect(page.getByRole("button", { name: "Place Cell" })).toBeVisible();
   await expect(
     toolbar.getByRole("button", { name: "Edit Cell Interface…" }),
@@ -84,7 +100,6 @@ test("keeps direct Cell commands in one hierarchy row", async ({ page }) => {
   await expect(toolbar.getByRole("button", { name: /Preflight/u })).toHaveCount(
     0,
   );
-  await expect(page.locator("summary", { hasText: "Netlist" })).toBeVisible();
   expect(
     await toolbar.evaluate((element) => element.getBoundingClientRect().height),
   ).toBeLessThan(90);

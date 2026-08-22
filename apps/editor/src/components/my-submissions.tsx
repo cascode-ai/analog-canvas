@@ -113,7 +113,7 @@ export function MySubmissions() {
 
   return (
     <main className="review-shell" data-testid="mine-page">
-      <GalleryChrome subtitle="My submissions" showGalleryLink />
+      <GalleryChrome subtitle="My submissions" />
       <div className="page-body">
         {notice ? (
           <p className="gallery-status" data-testid="mine-notice">

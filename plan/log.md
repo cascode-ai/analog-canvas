@@ -4994,3 +4994,26 @@ Keep reusable lessons in `docs/experience/`, not in this log.
   that was the reported defect, so both now assert the opposite.
 - Commit status: completed on `claude/port-behavior`; mainline merge gated on
   the remote required checks.
+
+## 2026-08-22 - One gallery, previewed, and menus that earn their space
+
+- Gallery panel cards now carry a rendering of the circuit rather than only a
+  name and a sentence, with a 1-4 column slider persisted per browser.
+- "My examples" and "Save as Example" are gone with their browser store: the
+  gallery is the single place circuits are stored.
+- Panel cards insert into the current canvas instead of replacing it, so part
+  of a circuit can be borrowed. `beginProjectImportPlacement` is shared by
+  bundled examples and gallery entries; a hierarchical Project cannot be pasted
+  as one fragment, so it falls back to opening the circuit.
+- Search moved into Edit, Manage Cells… joined it, and the hierarchy row now
+  appears only once there is a hierarchy to navigate.
+- Gallery header: account actions collapse behind one disclosure, since at
+  half-screen width the badge, Review, My submissions, and Sign out each
+  wrapped onto two lines. The redundant Gallery link left the subpages.
+- Fixed both panel toggles lighting at once: the Library toggle was pressed
+  whenever either panel was open rather than when Library was the active mode.
+- Validation: full unit suite (1188), full Playwright suite (208 passed),
+  typecheck, prettier, diff checks; thumbnails, the three-column slider, and
+  the toggle states verified live.
+- Commit status: completed on `claude/gallery-consolidation`; mainline merge
+  gated on the remote required checks.

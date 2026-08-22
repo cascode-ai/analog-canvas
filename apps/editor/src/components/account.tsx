@@ -176,35 +176,45 @@ export function AccountMenuView({
             {user.displayName}
           </button>
         )}
-        {user.isAdmin ? (
-          <span className="account-owner-badge" data-testid="account-owner">
-            Owner
-          </span>
-        ) : user.role === "moderator" ? (
-          <span className="account-owner-badge" data-testid="account-mod">
-            Reviewer
-          </span>
-        ) : null}
-        {user.isAdmin || user.role === "moderator" ? (
-          <a
-            className="account-link"
-            href="/review"
-            data-testid="account-review-link"
-          >
-            Review
-          </a>
-        ) : null}
-        <a className="account-link" href="/mine" data-testid="account-mine">
-          My submissions
-        </a>
-        <button
-          type="button"
-          className="account-signout"
-          data-testid="account-signout"
-          onClick={onSignOut}
-        >
-          Sign out
-        </button>
+        {/* One disclosure instead of a row of links: at half-screen width the
+            badge, Review, My submissions, and Sign out each wrapped onto two
+            lines and the header became unreadable. */}
+        <details className="account-more">
+          <summary aria-label="Account menu">
+            {user.isAdmin ? (
+              <span className="account-owner-badge" data-testid="account-owner">
+                Owner
+              </span>
+            ) : user.role === "moderator" ? (
+              <span className="account-owner-badge" data-testid="account-mod">
+                Reviewer
+              </span>
+            ) : null}
+            <span aria-hidden="true">⋯</span>
+          </summary>
+          <div className="command-popover account-popover">
+            {user.isAdmin || user.role === "moderator" ? (
+              <a
+                className="account-link"
+                href="/review"
+                data-testid="account-review-link"
+              >
+                Review
+              </a>
+            ) : null}
+            <a className="account-link" href="/mine" data-testid="account-mine">
+              My submissions
+            </a>
+            <button
+              type="button"
+              className="account-signout"
+              data-testid="account-signout"
+              onClick={onSignOut}
+            >
+              Sign out
+            </button>
+          </div>
+        </details>
       </div>
     );
   }

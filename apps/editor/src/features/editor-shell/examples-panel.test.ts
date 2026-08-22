@@ -61,37 +61,31 @@ describe("gallery-backed library", () => {
 });
 
 describe("user examples section", () => {
-  it("renders saved snapshots with open, export, and delete actions", () => {
+  it("previews each circuit and lets the reader choose the column count", () => {
     const markup = renderToStaticMarkup(
       createElement(ExamplesPanel, {
         open: true,
         onOpenExample: () => undefined,
-        userExamples: [
-          {
-            id: "ex-1",
-            name: "My Inverter",
-            savedAt: "2026-08-21T10:00:00.000Z",
-            schemaVersion: 21,
-          },
-        ],
       }),
     );
-    expect(markup).toContain('data-testid="user-examples-section"');
-    expect(markup).toContain("My examples");
-    expect(markup).toContain('data-testid="user-example-ex-1"');
-    expect(markup).toContain('aria-label="Open my example My Inverter"');
-    expect(markup).toContain('aria-label="Export my example My Inverter"');
-    expect(markup).toContain('aria-label="Delete my example My Inverter"');
+
+    // A name and a sentence do not tell you whether a circuit is the one you
+    // want to borrow from, so every card carries the circuit itself.
+    expect(markup).toContain('class="shapes-example-preview"');
+    expect(markup).toContain("<svg");
+    expect(markup).toContain('data-testid="gallery-column-slider"');
+    expect(markup).toContain('aria-label="Gallery columns"');
   });
 
-  it("hides the section entirely without saved snapshots", () => {
+  it("keeps the gallery as the only place circuits are stored", () => {
     const markup = renderToStaticMarkup(
       createElement(ExamplesPanel, {
         open: true,
         onOpenExample: () => undefined,
-        userExamples: [],
       }),
     );
-    expect(markup).not.toContain('data-testid="user-examples-section"');
+
+    expect(markup).not.toContain("My example");
+    expect(markup).not.toContain("user-examples-section");
   });
 });

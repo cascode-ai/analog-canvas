@@ -232,10 +232,6 @@ import {
   type SubmissionGateReport,
 } from "@icm/derived";
 import {
-  createUserExamplesStore,
-  type UserExampleSummary,
-} from "../document/user-examples-store";
-import {
   proposeConnectedInstanceDeletion,
   proposeVisualSelectionDeletion,
 } from "../features/selection/delete-selection";
@@ -726,8 +722,6 @@ export function App({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- evaluated once per dialog open
   }, [publishGalleryOpen]);
-  const userExamplesStore = useRef(createUserExamplesStore());
-  const [userExamples, setUserExamples] = useState<UserExampleSummary[]>([]);
   const [instanceTableOpen, setInstanceTableOpen] = useState(false);
   const [agentFileCandidate, setAgentFileCandidate] =
     useState<AgentFileCandidateSummary | null>(null);
@@ -1921,12 +1915,10 @@ export function App({
 
   function showExamplesPanel(): void {
     showLeftPanel("examples");
-    void refreshUserExamples();
   }
 
   function toggleExamplesPanel(): void {
     toggleExamplesPanelFromShell();
-    void refreshUserExamples();
   }
 
   // Landing-page deep links: `/g/<id>` opens a published gallery entry and
@@ -1999,74 +1991,6 @@ export function App({
       }
     }
   }, [initialGalleryEntryId]);
-
-  async function refreshUserExamples(): Promise<void> {
-    const outcome = await userExamplesStore.current.list();
-    if (outcome.status === "ready") setUserExamples(outcome.examples);
-  }
-
-  async function saveCurrentProjectAsExample(): Promise<void> {
-    const outcome = await userExamplesStore.current.save(project, {
-      id: crypto.randomUUID(),
-      name: project.name,
-      savedAt: new Date().toISOString(),
-    });
-    if (outcome.status === "stored") {
-      await refreshUserExamples();
-      setStatus(`Saved "${outcome.record.name}" to My examples`);
-      showExamplesPanel();
-      return;
-    }
-    setStatus(
-      outcome.status === "rejected-too-large"
-        ? "Cannot save example: the Project snapshot is too large"
-        : `Cannot save example: ${outcome.message}`,
-    );
-  }
-
-  async function openUserExample(id: string): Promise<void> {
-    const outcome = await userExamplesStore.current.read(id);
-    if (outcome.status !== "ready") {
-      setStatus(
-        outcome.status === "missing"
-          ? "This saved example no longer exists"
-          : `Cannot open saved example: ${
-              outcome.status === "invalid" ? outcome.message : outcome.message
-            }`,
-      );
-      void refreshUserExamples();
-      return;
-    }
-    void guardDirtyReplacement(`Open ${outcome.record.name} example`, () => {
-      replaceActiveProject(outcome.project);
-      setStatus(`Opened my example: ${outcome.record.name}`);
-    });
-  }
-
-  async function exportUserExample(id: string): Promise<void> {
-    const outcome = await userExamplesStore.current.read(id);
-    if (outcome.status !== "ready") {
-      setStatus("Cannot export: this saved example is unavailable");
-      return;
-    }
-    download(
-      outcome.record.projectText,
-      "application/json",
-      "icproj.json",
-      outcome.record.name,
-    );
-    setStatus(`Exported my example: ${outcome.record.name}`);
-  }
-
-  async function deleteUserExample(id: string): Promise<void> {
-    const outcome = await userExamplesStore.current.remove(id);
-    setStatus(
-      outcome.status === "deleted"
-        ? "Deleted saved example"
-        : `Cannot delete saved example: ${outcome.message}`,
-    );
-    await refreshUserExamples();
-  }
 
   function resetInteractionState(): void {
     exitCellSymbolLayout();
@@ -3366,36 +3290,73 @@ export function App({
    * onto one Document, so it still opens as its own Project behind the
    * ordinary dirty guard.
    */
+  /**
+   * Start placing another Project's single document on the current canvas.
+   * Borrowing part of a circuit is the common reason to open one from the
+   * panel, and replacing the canvas throws away whatever is already drawn.
+   * A hierarchical Project cannot be pasted as one fragment, so it reports
+   * false and the caller falls back to opening it.
+   */
+  function beginProjectImportPlacement(
+    imported: CircuitProject,
+    label: string,
+  ): boolean {
+    const importedDocument = imported.documents.find(
+      (candidate) => candidate.id === imported.topDocumentId,
+    );
+    if (!importedDocument || imported.documents.length > 1) return false;
+    const clipboard = copySelection(
+      importedDocument,
+      importedDocument.instances.map((instance) => instance.id),
+    );
+    const anchor = clipboard ? clipboardPlacementAnchor(clipboard) : null;
+    if (!clipboard || !anchor) return false;
+    cancelAllTransientInteraction();
+    beginCopyPlacementInteraction(clipboard, anchor);
+    setStatus(
+      `Place ${label} on the canvas · R rotates · Shift+R / Ctrl+R mirrors · Esc cancels`,
+    );
+    return true;
+  }
+
   function openLibraryExample(example: LibraryProjectExample): void {
     const exampleProject = createLibraryExampleProject(example.id);
     if (!exampleProject) {
       setStatus(`Example is unavailable: ${example.name}`);
       return;
     }
-    const exampleDocument = exampleProject.documents.find(
-      (candidate) => candidate.id === exampleProject.topDocumentId,
-    );
-    if (!exampleDocument || exampleProject.documents.length > 1) {
-      void guardDirtyReplacement(`Open ${example.name} example`, () => {
-        replaceActiveProject(exampleProject);
-        setStatus(`Opened example: ${example.name}`);
+    if (beginProjectImportPlacement(exampleProject, example.name)) return;
+    void guardDirtyReplacement(`Open ${example.name} example`, () => {
+      replaceActiveProject(exampleProject);
+      setStatus(`Opened example: ${example.name}`);
+    });
+  }
+
+  /** Panel cards insert; the `/g/<id>` deep link still opens the circuit. */
+  async function insertGalleryEntryById(entryId: string): Promise<void> {
+    try {
+      const response = await fetch(`/api/gallery/${entryId}`, {
+        credentials: "same-origin",
       });
-      return;
+      const payload = response.ok
+        ? ((await response.json()) as {
+            entry?: { name?: string };
+            projectText?: string;
+          })
+        : null;
+      if (!payload?.projectText) {
+        setStatus("This gallery entry is unavailable");
+        return;
+      }
+      const imported = parseProject(payload.projectText);
+      const label = payload.entry?.name ?? imported.name;
+      if (beginProjectImportPlacement(imported, label)) return;
+      // A hierarchical circuit cannot be pasted as one fragment, so opening it
+      // is the useful answer rather than refusing with a message.
+      await openGalleryEntryById(entryId);
+    } catch {
+      setStatus("This gallery entry is unavailable");
     }
-    const clipboard = copySelection(
-      exampleDocument,
-      exampleDocument.instances.map((instance) => instance.id),
-    );
-    const anchor = clipboard ? clipboardPlacementAnchor(clipboard) : null;
-    if (!clipboard || !anchor) {
-      setStatus(`Example has nothing to place: ${example.name}`);
-      return;
-    }
-    cancelAllTransientInteraction();
-    beginCopyPlacementInteraction(clipboard, anchor);
-    setStatus(
-      `Place ${example.name} on the canvas · R rotates · Shift+R / Ctrl+R mirrors · Esc cancels`,
-    );
   }
 
   function rotatePendingCopy(delta: 90 | -90): void {
@@ -7229,12 +7190,6 @@ export function App({
                       }
                     />
                   </label>
-                  <button
-                    type="button"
-                    onClick={() => void saveCurrentProjectAsExample()}
-                  >
-                    Save as Example
-                  </button>
                   <span className="command-group-label">Export</span>
                   <button
                     type="button"
@@ -7281,6 +7236,13 @@ export function App({
               <details className="command-menu" name="editor-command-menu">
                 <summary>Edit</summary>
                 <div className="command-popover">
+                  <button
+                    type="button"
+                    data-testid="edit-manage-cells"
+                    onClick={() => setCellManagerOpen(true)}
+                  >
+                    Manage Cells…
+                  </button>
                   <button
                     type="button"
                     data-testid="project-search-button"
@@ -7565,78 +7527,82 @@ export function App({
             <span>Style</span>
           </button>
         </div>
-        <div className="toolbar-row" aria-label="Document hierarchy">
-          <div
-            className="document-nav"
-            aria-label="Cell navigation"
-            data-testid="cell-navigation"
-          >
-            <button
-              type="button"
-              onClick={returnToParentDocument}
-              disabled={documentStack.length === 0}
-              title="Return to the parent Cell (Shift+E)"
+        {project.documents.length > 1 ||
+        documentStack.length > 0 ||
+        hasHierarchyEnterSelection ? (
+          <div className="toolbar-row" aria-label="Document hierarchy">
+            <div
+              className="document-nav"
+              aria-label="Cell navigation"
+              data-testid="cell-navigation"
             >
-              Up
-            </button>
-            <button
-              type="button"
-              onClick={returnToTopDocument}
-              disabled={document.id === project.topDocumentId}
-              title="Return to the top Cell"
-            >
-              Top
-            </button>
-            <select
-              aria-label="Cells"
-              data-testid="document-selector"
-              value={document.id}
-              onChange={(event) => {
-                const nextDocumentId = event.currentTarget.value;
-                const paths = findHierarchyPaths(
-                  projectConnectivityIndex,
-                  project.topDocumentId,
-                  nextDocumentId,
-                );
-                setDocumentStack(paths?.length === 1 ? [...paths[0]!] : []);
-                switchDocument(nextDocumentId);
-                if (paths && paths.length > 1) {
-                  setStatus(
-                    `Opened shared Cell without caller context (${paths.length} instance paths)`,
-                  );
-                }
-              }}
-            >
-              {project.documents.map((candidate) => (
-                <option key={candidate.id} value={candidate.id}>
-                  {candidate.id === project.topDocumentId
-                    ? `${candidate.name} (top)`
-                    : candidate.name}
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              onClick={enterSelectedHierarchy}
-              disabled={!hasHierarchyEnterSelection}
-              title="Enter the selected Cell, or create one from a rectangle (E)"
-            >
-              Enter Cell
-            </button>
-            <div className="cell-command-row" data-testid="cell-command-menu">
-              <button type="button" onClick={() => setCellManagerOpen(true)}>
-                Manage Cells…
+              <button
+                type="button"
+                onClick={returnToParentDocument}
+                disabled={documentStack.length === 0}
+                title="Return to the parent Cell (Shift+E)"
+              >
+                Up
               </button>
               <button
                 type="button"
-                onClick={placeCellInstance}
-                disabled={project.documents.length < 2}
+                onClick={returnToTopDocument}
+                disabled={document.id === project.topDocumentId}
+                title="Return to the top Cell"
               >
-                Place Cell
+                Top
               </button>
+              <select
+                aria-label="Cells"
+                data-testid="document-selector"
+                value={document.id}
+                onChange={(event) => {
+                  const nextDocumentId = event.currentTarget.value;
+                  const paths = findHierarchyPaths(
+                    projectConnectivityIndex,
+                    project.topDocumentId,
+                    nextDocumentId,
+                  );
+                  setDocumentStack(paths?.length === 1 ? [...paths[0]!] : []);
+                  switchDocument(nextDocumentId);
+                  if (paths && paths.length > 1) {
+                    setStatus(
+                      `Opened shared Cell without caller context (${paths.length} instance paths)`,
+                    );
+                  }
+                }}
+              >
+                {project.documents.map((candidate) => (
+                  <option key={candidate.id} value={candidate.id}>
+                    {candidate.id === project.topDocumentId
+                      ? `${candidate.name} (top)`
+                      : candidate.name}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={enterSelectedHierarchy}
+                disabled={!hasHierarchyEnterSelection}
+                title="Enter the selected Cell, or create one from a rectangle (E)"
+              >
+                Enter Cell
+              </button>
+              <div className="cell-command-row" data-testid="cell-command-menu">
+                <button type="button" onClick={() => setCellManagerOpen(true)}>
+                  Manage Cells…
+                </button>
+                <button
+                  type="button"
+                  onClick={placeCellInstance}
+                  disabled={project.documents.length < 2}
+                >
+                  Place Cell
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        ) : null}
         <div data-testid="editor-test-telemetry" hidden>
           <output data-testid="selected-internal-route-count">
             {internalSelection.routeIds.length}
@@ -7962,12 +7928,8 @@ export function App({
           <ExamplesPanel
             open={visibleLibraryPanelOpen}
             galleryExamples={galleryExamples}
-            onOpenGalleryExample={(id) => void openGalleryEntryById(id)}
+            onOpenGalleryExample={(id) => void insertGalleryEntryById(id)}
             onOpenExample={openLibraryExample}
-            userExamples={userExamples}
-            onOpenUserExample={(id) => void openUserExample(id)}
-            onExportUserExample={(id) => void exportUserExample(id)}
-            onDeleteUserExample={(id) => void deleteUserExample(id)}
           />
         )}
         {visibleLibraryPanelOpen ? (
