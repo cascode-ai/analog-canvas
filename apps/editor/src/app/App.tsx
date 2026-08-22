@@ -94,6 +94,7 @@ import {
   createEmptyDocument,
   createId,
   defaultDraftTextDocument,
+  foldNetName,
   flattenRichText,
   inverseTransformPoint,
   snapGridPoint,
@@ -2427,9 +2428,89 @@ export function App({
         )
       : undefined;
   function renameSelectedNetPort(name: string): void {
-    if (!selectedPortNet || selectedFormalTerminal) return;
+    if (!selectedPortNet || !selectedInstance || selectedFormalTerminal) return;
     name = name.trim();
     if (!name || name === selectedPortNet.name) return;
+
+    // Several Net Ports naming the same node share one Net, so renaming that
+    // Net would rename all of them. Renaming one Port is a statement about
+    // that Port, so it leaves the shared node and takes the new name with it.
+    const portInstanceIds = new Set(
+      document.instances
+        .filter(
+          (instance) =>
+            instance.symbolId === "port" || instance.symbolId === "port-filled",
+        )
+        .map((instance) => instance.id),
+    );
+    const sharedWithAnotherPort =
+      selectedPortNet.terminals.filter((terminal) =>
+        portInstanceIds.has(terminal.instanceId),
+      ).length > 1;
+
+    if (sharedWithAnotherPort) {
+      const port = {
+        kind: "terminal" as const,
+        instanceId: selectedInstance.id,
+        pinName: "P",
+      };
+      const existing = document.nets.find(
+        (net) =>
+          net.id !== selectedPortNet.id &&
+          net.name !== undefined &&
+          foldNetName(net.name) === foldNetName(name),
+      );
+      const host = existing?.terminals.find(
+        (terminal) => terminal.instanceId !== selectedInstance.id,
+      );
+      const nextNetId =
+        existing?.id ??
+        `net-port-${selectedInstance.id.toLowerCase()}-${document.revision}`;
+      // The Port's label is bound to the Net it names, so it has to follow the
+      // Port to its new node or it would keep reading the old name.
+      const boundLabel = document.annotations.find(
+        (annotation) =>
+          annotation.binding?.kind === "net-name" &&
+          annotation.binding.netId === selectedPortNet.id &&
+          annotation.anchor.kind === "object" &&
+          annotation.anchor.objectId === selectedInstance.id,
+      );
+      const detached: SchematicEdit[] = [
+        { kind: "disconnect_endpoint", endpoint: port },
+        host
+          ? {
+              kind: "connect_endpoints",
+              from: port,
+              to: {
+                kind: "terminal",
+                instanceId: host.instanceId,
+                pinName: host.pinName,
+              },
+            }
+          : {
+              kind: "connect_endpoints",
+              from: port,
+              to: port,
+              newNetId: nextNetId,
+              newNetName: name,
+            },
+        ...(boundLabel
+          ? [
+              {
+                kind: "upsert_schematic_annotation" as const,
+                annotation: {
+                  ...boundLabel,
+                  netId: nextNetId,
+                  binding: { kind: "net-name" as const, netId: nextNetId },
+                },
+              },
+            ]
+          : []),
+      ];
+      if (transact(detached).ok) setStatus(`Renamed Net Port to ${name}`);
+      return;
+    }
+
     // Naming a Free Net Port joins an existing Net of that name instead of
     // leaving two same-name Nets behind, exactly as placing a named Port does.
     const plan = planEnsureNamedNet(document, {

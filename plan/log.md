@@ -5043,3 +5043,20 @@ Keep reusable lessons in `docs/experience/`, not in this log.
   typecheck, prettier, diff checks.
 - Commit status: completed on `claude/instance-behavior`; mainline merge gated
   on the remote required checks.
+
+## 2026-08-22 - Renaming one Net Port leaves its same-named twin alone
+
+- Several Net Ports naming the same node share one Net, so renaming through
+  `planEnsureNamedNet` renamed the shared Net and both Ports changed at once.
+- When the Port's Net carries another Net Port, the renamed Port now leaves
+  that node: its pin is disconnected and reconnected to a Net of the new name,
+  joining an existing one when the name is taken. Its bound label is
+  re-pointed at the new Net in the same transaction — without that the label
+  kept reading the old name, which is what the first attempt did.
+- A Port that is alone on its Net still renames the Net in place, the ordinary
+  net-label behavior.
+- Validation: full unit suite (1189), full Playwright suite (209 passed) with
+  a new case that places two `Vshared` Ports, renames one, and asserts the
+  canvas carries both `Vshared` and `Vbias`.
+- Commit status: completed on `claude/port-rename-and-labels`; mainline merge
+  gated on the remote required checks.

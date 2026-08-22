@@ -633,3 +633,41 @@ test("places a second Port for a Cell terminal that already exists", async ({
   expect(terminals[0]!.name).toBe("P1");
   expect(terminals[0]!.interfaceInstanceIds).toHaveLength(2);
 });
+
+test("renaming one Net Port leaves its same-named twin alone", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placePort(page, {
+    role: "net-port",
+    name: "Vshared",
+    position: { x: 260, y: 180 },
+  });
+  await placePort(page, {
+    role: "net-port",
+    name: "Vshared",
+    position: { x: 260, y: 320 },
+  });
+
+  const labels = page.locator(
+    '[data-testid^="annotation-hit-instance-label-"]',
+  );
+  await expect(labels).toHaveCount(2);
+
+  // Two Ports naming one node share a Net, so renaming that Net used to
+  // rename both. Renaming one Port is a statement about that Port.
+  await page.getByTestId("hit-P2").click();
+  const shelf = page.getByTestId("selection-shelf");
+  if ((await shelf.getAttribute("aria-expanded")) === "false")
+    await shelf.click();
+  const nameField = page.getByLabel("Net Port name");
+  await nameField.fill("Vbias");
+  await nameField.blur();
+
+  await expect(page.getByTestId("status")).toContainText("Renamed Net Port");
+  const texts = await page
+    .locator('[data-testid="schematic-canvas"] text')
+    .allTextContents();
+  expect(texts).toContain("Vshared");
+  expect(texts).toContain("Vbias");
+});
