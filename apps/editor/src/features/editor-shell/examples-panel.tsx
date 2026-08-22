@@ -4,8 +4,21 @@ import {
 } from "../../examples/library-examples";
 import type { UserExampleSummary } from "../../document/user-examples-store";
 
+export interface GalleryExampleSummary {
+  id: string;
+  name: string;
+  author: string;
+  description: string;
+}
+
 export interface ExamplesPanelProps {
   open: boolean;
+  /**
+   * The community gallery — the same source as the landing feed. Null or
+   * empty falls back to the bundled starter examples (offline dev).
+   */
+  galleryExamples?: readonly GalleryExampleSummary[] | null;
+  onOpenGalleryExample?(id: string): void;
   onOpenExample(example: LibraryProjectExample): void;
   /** User-saved snapshots, newest first; empty hides the section body. */
   userExamples?: readonly UserExampleSummary[];
@@ -28,12 +41,15 @@ function savedAtLabel(savedAt: string): string {
 
 export function ExamplesPanel({
   open,
+  galleryExamples = null,
+  onOpenGalleryExample,
   onOpenExample,
   userExamples = [],
   onOpenUserExample,
   onExportUserExample,
   onDeleteUserExample,
 }: ExamplesPanelProps) {
+  const showGallery = galleryExamples !== null && galleryExamples.length > 0;
   return (
     <aside
       id="examples-panel"
@@ -48,25 +64,49 @@ export function ExamplesPanel({
     >
       <div className="shapes-panel-body">
         <div className="shapes-example-list">
-          {libraryProjectExamples.map((example) => (
-            <button
-              key={example.id}
-              type="button"
-              className="shapes-example-card"
-              data-testid={`shapes-example-${example.id}`}
-              aria-label={`Open example ${example.name}`}
-              title={`Open ${example.name}`}
-              onClick={() => onOpenExample(example)}
-            >
-              <span className="shapes-example-copy">
-                <span className="shapes-example-kicker">Example</span>
-                <span className="shapes-example-name">{example.name}</span>
-                <span className="shapes-example-description">
-                  {example.description}
-                </span>
-              </span>
-            </button>
-          ))}
+          {showGallery
+            ? galleryExamples.map((example) => (
+                <button
+                  key={example.id}
+                  type="button"
+                  className="shapes-example-card"
+                  data-testid={`gallery-example-${example.id}`}
+                  aria-label={`Open gallery circuit ${example.name}`}
+                  title={`Open ${example.name}`}
+                  onClick={() => onOpenGalleryExample?.(example.id)}
+                >
+                  <span className="shapes-example-copy">
+                    <span className="shapes-example-kicker">
+                      {example.author || "Gallery"}
+                    </span>
+                    <span className="shapes-example-name">{example.name}</span>
+                    {example.description ? (
+                      <span className="shapes-example-description">
+                        {example.description}
+                      </span>
+                    ) : null}
+                  </span>
+                </button>
+              ))
+            : libraryProjectExamples.map((example) => (
+                <button
+                  key={example.id}
+                  type="button"
+                  className="shapes-example-card"
+                  data-testid={`shapes-example-${example.id}`}
+                  aria-label={`Open example ${example.name}`}
+                  title={`Open ${example.name}`}
+                  onClick={() => onOpenExample(example)}
+                >
+                  <span className="shapes-example-copy">
+                    <span className="shapes-example-kicker">Example</span>
+                    <span className="shapes-example-name">{example.name}</span>
+                    <span className="shapes-example-description">
+                      {example.description}
+                    </span>
+                  </span>
+                </button>
+              ))}
         </div>
         {userExamples.length > 0 ? (
           <div

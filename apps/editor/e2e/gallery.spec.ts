@@ -726,6 +726,33 @@ test("an opened gallery entry offers updating in place", async ({ page }) => {
   expect(updates[0]!.body.name).toBe(ENTRY.name);
 });
 
+test("the Examples panel lists the gallery and opens an entry", async ({
+  page,
+}) => {
+  await mockGallery(page, [ENTRY]);
+  await page.route("**/api/gallery?limit=60", (route) =>
+    route.fulfill({ json: { entries: [ENTRY], nextCursor: null } }),
+  );
+
+  await page.goto("/editor");
+  await page.getByTestId("examples-toggle").click();
+  const panel = page.getByTestId("examples-panel");
+  await expect(panel).toHaveAttribute("data-open", "true");
+  const card = panel.getByTestId(`gallery-example-${ENTRY.id}`);
+  await expect(card).toBeVisible();
+  await expect(card).toContainText(ENTRY.name);
+  await expect(card).toContainText(ENTRY.author);
+  // The panel replaced the bundled list with the shared gallery source.
+  await expect(
+    panel.getByTestId("shapes-example-common-source-amplifier"),
+  ).toHaveCount(0);
+
+  await card.click();
+  await expect(page.getByTestId("status")).toContainText(
+    `Opened gallery circuit: ${ENTRY.name}`,
+  );
+});
+
 test("bundled starter tiles open their example in the editor", async ({
   page,
 }) => {

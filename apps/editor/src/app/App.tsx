@@ -554,6 +554,34 @@ export function App({
   const visibleLibraryPanelOpen = compactLayout
     ? compactLibraryPanelOpen
     : libraryPanelOpen;
+  useEffect(() => {
+    if (!visibleLibraryPanelOpen) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await fetch("/api/gallery?limit=60", {
+          credentials: "same-origin",
+        });
+        if (!response.ok) return;
+        const payload = (await response.json()) as {
+          entries?: {
+            id: string;
+            name: string;
+            author: string;
+            description: string;
+          }[];
+        };
+        if (!cancelled && payload.entries && payload.entries.length > 0) {
+          setGalleryExamples(payload.entries);
+        }
+      } catch {
+        // Unreachable worker (offline dev): the bundled list stands in.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [visibleLibraryPanelOpen]);
 
   const refreshRestoreAttemptedRef = useRef(false);
   // Formal-file lifecycle of the current working copy, orthogonal to recovery
@@ -657,6 +685,17 @@ export function App({
     description: string;
     tags: readonly string[];
   } | null>(null);
+  // The Examples panel reads the same community gallery as the landing
+  // feed; null means unreachable, so the bundled list stands in.
+  const [galleryExamples, setGalleryExamples] = useState<
+    | readonly {
+        id: string;
+        name: string;
+        author: string;
+        description: string;
+      }[]
+    | null
+  >(null);
   const [publishGates, setPublishGates] = useState<SubmissionGateReport | null>(
     null,
   );
@@ -1881,6 +1920,49 @@ export function App({
 
   // Landing-page deep links: `/g/<id>` opens a published gallery entry and
   // `/editor?example=<id>` opens a bundled example. Both replace the fresh
+  // Open one gallery entry into the live editor: the same path serves the
+  // `/g/<id>` boot and the Examples panel, and it remembers the entry so
+  // the publish dialog can offer updating it.
+  async function openGalleryEntryById(entryId: string): Promise<void> {
+    try {
+      const response = await fetch(`/api/gallery/${entryId}`, {
+        credentials: "same-origin",
+      });
+      if (!response.ok) {
+        setStatus("This gallery entry is unavailable");
+        return;
+      }
+      const payload = (await response.json()) as {
+        entry?: {
+          name?: string;
+          author?: string;
+          description?: string;
+          tags?: string[];
+        };
+        ownerUserId?: string | null;
+        projectText?: string;
+      };
+      if (!payload.projectText) {
+        setStatus("This gallery entry is unavailable");
+        return;
+      }
+      const galleryProject = parseProject(payload.projectText);
+      replaceActiveProject(galleryProject);
+      setGalleryEntryContext({
+        id: entryId,
+        ownerUserId: payload.ownerUserId ?? null,
+        author: payload.entry?.author ?? "",
+        description: payload.entry?.description ?? "",
+        tags: payload.entry?.tags ?? [],
+      });
+      setStatus(
+        `Opened gallery circuit: ${payload.entry?.name ?? galleryProject.name}`,
+      );
+    } catch {
+      setStatus("This gallery entry is unavailable");
+    }
+  }
+
   // boot Project only; ordinary sessions never re-run these.
   const bootTargetHandled = useRef(false);
   useEffect(() => {
@@ -1890,46 +1972,7 @@ export function App({
       "example",
     );
     if (initialGalleryEntryId) {
-      void (async () => {
-        try {
-          const response = await fetch(
-            `/api/gallery/${initialGalleryEntryId}`,
-            { credentials: "same-origin" },
-          );
-          if (!response.ok) {
-            setStatus("This gallery entry is unavailable");
-            return;
-          }
-          const payload = (await response.json()) as {
-            entry?: {
-              name?: string;
-              author?: string;
-              description?: string;
-              tags?: string[];
-            };
-            ownerUserId?: string | null;
-            projectText?: string;
-          };
-          if (!payload.projectText) {
-            setStatus("This gallery entry is unavailable");
-            return;
-          }
-          const galleryProject = parseProject(payload.projectText);
-          replaceActiveProject(galleryProject);
-          setGalleryEntryContext({
-            id: initialGalleryEntryId,
-            ownerUserId: payload.ownerUserId ?? null,
-            author: payload.entry?.author ?? "",
-            description: payload.entry?.description ?? "",
-            tags: payload.entry?.tags ?? [],
-          });
-          setStatus(
-            `Opened gallery circuit: ${payload.entry?.name ?? galleryProject.name}`,
-          );
-        } catch {
-          setStatus("This gallery entry is unavailable");
-        }
-      })();
+      void openGalleryEntryById(initialGalleryEntryId);
       return;
     }
     if (exampleId) {
@@ -7911,6 +7954,8 @@ export function App({
         ) : (
           <ExamplesPanel
             open={visibleLibraryPanelOpen}
+            galleryExamples={galleryExamples}
+            onOpenGalleryExample={(id) => void openGalleryEntryById(id)}
             onOpenExample={openLibraryExample}
             userExamples={userExamples}
             onOpenUserExample={(id) => void openUserExample(id)}

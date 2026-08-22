@@ -26,6 +26,40 @@ describe("ExamplesPanel", () => {
   });
 });
 
+describe("gallery-backed library", () => {
+  it("lists the community gallery when available and falls back bundled", () => {
+    const gallery = renderToStaticMarkup(
+      createElement(ExamplesPanel, {
+        open: true,
+        galleryExamples: [
+          {
+            id: "g-1",
+            name: "StrongArm Comparator",
+            author: "Zhishuai Zhang",
+            description: "Clocked comparator",
+          },
+        ],
+        onOpenGalleryExample: () => undefined,
+        onOpenExample: () => undefined,
+      }),
+    );
+    expect(gallery).toContain('data-testid="gallery-example-g-1"');
+    expect(gallery).toContain("StrongArm Comparator");
+    expect(gallery).toContain("Zhishuai Zhang");
+    expect(gallery).not.toContain('data-testid="shapes-example-');
+
+    const fallback = renderToStaticMarkup(
+      createElement(ExamplesPanel, {
+        open: true,
+        galleryExamples: null,
+        onOpenExample: () => undefined,
+      }),
+    );
+    expect(fallback).toContain('data-testid="shapes-example-');
+    expect(fallback).not.toContain('data-testid="gallery-example-');
+  });
+});
+
 describe("user examples section", () => {
   it("renders saved snapshots with open, export, and delete actions", () => {
     const markup = renderToStaticMarkup(

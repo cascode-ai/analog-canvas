@@ -4713,6 +4713,18 @@ Keep reusable lessons in `docs/experience/`, not in this log.
 - Commit status: completed on `claude/wire-drafting-iteration`; mainline merge
   gated on the remote required checks.
 
+## 2026-08-22 — Examples panel reads the community gallery
+
+- Target: `plan/2026-08-22-examples-from-gallery/plan.md` (completed).
+- Change: the Examples panel lists the same gallery as the landing feed
+  and opens entries through the shared `/g/<id>` path (arming publish
+  update mode); bundled starters remain the offline/empty fallback.
+  Production data: the two missing bundled examples seeded with tags and
+  the two original seeds retagged — all four starters now in the gallery.
+- Validation: editor-shell units 26, gallery Playwright 18/18, existing
+  examples e2e 2/2, typecheck, prettier, test-impact, diff checks.
+- Commit status: completed on `claude/examples-from-gallery`.
+
 ## 2026-08-22 - A Power Rail stays straight and resizes from its ends
 
 - Fixed the reported "rail length cannot be changed": the rail's end handle is

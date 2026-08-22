@@ -34,9 +34,11 @@ restrictive content-security-policy.
 - `GET /api/gallery/<id>/preview.svg` — the server-rendered preview.
 - `/` serves the full-screen feed; each tile links to `/g/<id>`, which the
   editor opens through the ordinary protocol boundary. `/editor` is the
-  plain editor; `/editor?example=<id>` opens a bundled example. While the
-  gallery is empty or unreachable the feed shows the bundled Library
-  examples, so the landing page is never blank.
+  plain editor; `/editor?example=<id>` opens a bundled example. The
+  editor's Examples panel reads the same gallery list and opens entries
+  through the same path as `/g/<id>`. While the gallery is empty or
+  unreachable, the feed and the panel both fall back to the bundled
+  Library examples, so neither surface is ever blank.
 
 ## Publishing
 
