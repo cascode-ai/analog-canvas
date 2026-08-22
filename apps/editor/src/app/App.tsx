@@ -4070,6 +4070,11 @@ export function App({
         cornerOrder: "diagonal-first" as const,
         label: "45° diagonal",
       },
+      {
+        routingMode: "free" as const,
+        cornerOrder: "auto" as const,
+        label: "any angle",
+      },
     ];
     const index = shapes.findIndex(
       (shape) =>
@@ -4077,7 +4082,8 @@ export function App({
         shape.cornerOrder === wireCornerOrder,
     );
     const next = shapes[(index + 1) % shapes.length]!;
-    if (next.routingMode !== wireRoutingMode) toggleWireRoutingMode();
+    if (next.routingMode !== wireRoutingMode)
+      setWireRoutingMode(next.routingMode);
     setWireCornerOrder(next.cornerOrder);
     setStatus(`Wire corner: ${next.label}`);
   }
@@ -10939,6 +10945,7 @@ export function App({
                 >
                   <option value="orthogonal">Orthogonal</option>
                   <option value="octilinear">45° octilinear</option>
+                  <option value="free">Any angle</option>
                 </select>
               </label>
               <label>

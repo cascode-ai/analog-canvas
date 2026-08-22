@@ -1,6 +1,6 @@
 # 0028 - One Route Geometry Protocol with Octilinear Authoring
 
-Status: `accepted`
+Status: `accepted` (authoring clause superseded by [ADR 0039](0039-any-angle-route-authoring.md))
 
 Date: `2026-08-20`
 
@@ -42,7 +42,8 @@ horizontal-only. Crossings remain disconnected absent an explicit Junction.
 
 ### Negative or limiting
 
-- Arbitrary-angle authoring is intentionally not exposed yet.
+- Arbitrary-angle authoring is intentionally not exposed yet. ADR 0039 later
+  granted the explicitly approved arbitrary-angle policy this anticipated.
 - Existing route editing must infer its allowed geometry from the Route rather
   than silently rerouting a diagonal path as orthogonal.
 

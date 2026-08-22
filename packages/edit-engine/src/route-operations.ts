@@ -5,13 +5,13 @@ import {
   deriveInternalGroupSelection as deriveRoutingInternalGroupSelection,
   derivePowerRailComponent,
   isSegmentAllowed,
+  polylineSatisfiesConstraint,
   resolveDocumentRoutingGeometry,
   resolveEndpointPoint,
   resolveRouteGeometry,
   type ResolvedDocumentRoutingGeometry,
 } from "@icm/derived";
 import {
-  isOctilinear,
   moveRouteSegment,
   normalizeRouteGeometry,
   type RouteEditPath,
@@ -110,15 +110,22 @@ function routeEditPathFromGeometry(
   };
 }
 
+/** Every stored step must advance; heading itself is unconstrained. */
+function isSegmentGeometryUsable(points: readonly Point[]): boolean {
+  return polylineSatisfiesConstraint(points, "any-angle");
+}
+
 function normalizeProposal(
   routeId: string,
   points: readonly Point[],
   modes: readonly SegmentMode[],
 ): RouteStretchProposal {
   const normalized = normalizeRouteGeometry(points, modes);
-  if (!isOctilinear(normalized.points)) {
+  // Any heading is legal geometry (ADR 0039); only a degenerate segment is
+  // not, and normalizeRouteGeometry already removes zero-length steps.
+  if (!isSegmentGeometryUsable(normalized.points)) {
     throw new Error(
-      `Wire segment drag would make route ${routeId} non-octilinear`,
+      `Wire segment drag would leave route ${routeId} degenerate`,
     );
   }
   return {
@@ -175,6 +182,8 @@ function stretchRouteEndpoint(
     return;
   }
 
+  // A leg that was already free-angle keeps its heading; the tidying elbow is
+  // for orthogonal drawings and would otherwise put a corner into a diagonal.
   if (isSegmentAllowed(movedPoint, neighbor, "octilinear")) return;
 
   const dx = neighbor.x - movedPoint.x;
@@ -333,12 +342,9 @@ export function proposeWireSegmentDrag(
   const toPoint = selectedPolyline.points[segmentIndex + 1]!;
   const horizontal = fromPoint.y === toPoint.y;
   const vertical = fromPoint.x === toPoint.x;
-  const diagonal =
-    !horizontal &&
-    !vertical &&
-    Math.abs(toPoint.x - fromPoint.x) === Math.abs(toPoint.y - fromPoint.y);
-  if (!horizontal && !vertical && !diagonal) {
-    throw new Error(`Route ${routeId} segment is not octilinear`);
+  const diagonal = !horizontal && !vertical;
+  if (horizontal && vertical) {
+    throw new Error(`Route ${routeId} segment is degenerate`);
   }
 
   const lastPointIndex = selectedPolyline.points.length - 1;

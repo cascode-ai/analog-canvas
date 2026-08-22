@@ -38,7 +38,7 @@ export interface ManualWirePath {
 }
 
 /** A transient command constraint, never a second persisted Route type. */
-export type WireRoutingMode = "orthogonal" | "octilinear";
+export type WireRoutingMode = "orthogonal" | "octilinear" | "free";
 /**
  * Which leg of a corner is drawn first. `diagonal-first`/`orthogonal-first`
  * order an octilinear corner; `horizontal-first`/`vertical-first` order an
@@ -722,6 +722,12 @@ export function compileWireDraft(
   const points: Point[] = [{ ...from.point }];
   const modes: SegmentMode[] = [];
   const appendStep = (step: WireDraftStep) => {
+    // A free leg is the straight line to the click: no elbow is inserted, so
+    // the wire lands at whatever angle reaches the endpoint.
+    if (step.routingMode === "free") {
+      append(points, modes, step.point, "manual");
+      return;
+    }
     if (step.routingMode === "orthogonal") {
       appendOrthogonal(
         points,

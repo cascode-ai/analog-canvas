@@ -1765,7 +1765,7 @@ describe("routing Edit Engine", () => {
     ).toEqual(document.routes[1]);
   });
 
-  it("rejects diagonal, context-free, and locked route mutations atomically", () => {
+  it("accepts an arbitrary-angle route and still needs its context", () => {
     const document = documentFixture();
     const diagonal = transaction(document.id, 0, [
       {
@@ -1778,10 +1778,9 @@ describe("routing Edit Engine", () => {
         segmentModes: ["manual"],
       },
     ]);
+    // ADR 0039: segment heading is geometry, not a rule about legal Routes.
     expect(executeTransaction(document, diagonal, context)).toMatchObject({
-      ok: false,
-      error: { code: "EDIT_PRECONDITION" },
-      document,
+      ok: true,
     });
     expect(executeTransaction(document, diagonal)).toMatchObject({
       ok: false,

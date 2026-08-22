@@ -76,7 +76,8 @@ The wire API itself remains raw and strict: a directly submitted ambiguous
 `set_net_name` edit is rejected by the Edit Engine.
 
 `wireIntent` has the same Route planner as interactive Wire. Its optional
-`routingMode` is `orthogonal` (default) or `octilinear`; an optional
+`routingMode` is `orthogonal` (default), `octilinear`, or `free` (ADR 0039);
+an optional
 `cornerOrder` selects the deterministic diagonal/orthogonal pair used when an
 exact 45-degree leg cannot reach the target. It never creates a diagonal-only
 edit or a second Route model.

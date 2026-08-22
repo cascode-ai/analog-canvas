@@ -8,6 +8,7 @@ import type {
 import {
   derivePowerRailComponent,
   endpointBelongsToNet,
+  polylineSatisfiesConstraint,
   endpointKey,
   netEndpoints,
   pointOnSegment as pointOnGenericSegment,
@@ -16,7 +17,6 @@ import {
 import type { SymbolResolver } from "@icm/symbols";
 
 import type { SchematicEdit } from "./edit-schema.js";
-import { isOctilinear } from "./route-geometry-edit.js";
 import { resolveRouteEditPath } from "./route-operations.js";
 
 export function pointOnSegment(point: Point, from: Point, to: Point): boolean {
@@ -216,8 +216,12 @@ export function validateRoute(
   }
   const polyline = resolveRouteEditPath(document, resolver, route);
   if (!polyline) return `Route ${route.id} has an unresolved endpoint`;
-  if (!isOctilinear(polyline.points)) {
-    return `Route ${route.id} must contain only non-zero octilinear segments`;
+  // Segment heading is geometry, not topology (ADR 0028), and ADR 0039 grants
+  // the arbitrary-angle policy that ADR 0028 anticipated. Validation therefore
+  // rejects only degenerate geometry; which headings a command may author is
+  // the edit engine's transient policy, not a rule about legal Routes.
+  if (!polylineSatisfiesConstraint(polyline.points, "any-angle")) {
+    return `Route ${route.id} must contain only non-zero segments`;
   }
   if (
     route.presentation === "power-rail" &&

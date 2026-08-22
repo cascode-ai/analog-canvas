@@ -3843,3 +3843,28 @@ test("double-click ends the wire even when it lands on another wire", async ({
   await page.mouse.move(500, 500);
   await expect(page.getByTestId("status")).toContainText("Wire finished");
 });
+
+test("draws a wire at an angle the 45-degree grid cannot reach", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  const canvas = page.getByTestId("schematic-canvas");
+  await clickDrawTool(page, "wire");
+
+  await canvas.click({ position: { x: 200, y: 200 } });
+  // Middle-click cycles the corner shape and ends on any angle.
+  for (let step = 0; step < 4; step += 1) {
+    await canvas.click({ button: "middle", position: { x: 260, y: 240 } });
+  }
+  await expect(page.getByTestId("status")).toContainText("any angle");
+  await canvas.dblclick({ position: { x: 430, y: 260 } });
+
+  const points = await readRoutePoints(page, await onlyRouteId(page));
+  expect(points).toHaveLength(2);
+  const dx = Math.abs(points[1]!.x - points[0]!.x);
+  const dy = Math.abs(points[1]!.y - points[0]!.y);
+  // Neither axis-aligned nor 45 degrees: the leg reaches the endpoint direct.
+  expect(dx).toBeGreaterThan(0);
+  expect(dy).toBeGreaterThan(0);
+  expect(dx).not.toBe(dy);
+});

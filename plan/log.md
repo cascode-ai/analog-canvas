@@ -5060,3 +5060,28 @@ Keep reusable lessons in `docs/experience/`, not in this log.
   canvas carries both `Vshared` and `Vbias`.
 - Commit status: completed on `claude/port-rename-and-labels`; mainline merge
   gated on the remote required checks.
+
+## 2026-08-22 - Any-angle Route authoring
+
+- The owner asked for arbitrary-angle wires and said the octilinear check
+  should not exist. ADR 0028 had anticipated exactly this: it records that the
+  geometry kernel "is generic enough for a future explicitly approved
+  arbitrary-angle policy" and that such authoring was "intentionally not
+  exposed yet". ADR 0039 is that approval; ADR 0028's authoring clause is
+  marked superseded and the three specs plus the ADR index follow.
+- Write validation now rejects only degenerate geometry. `free` joins the wire
+  routing modes, compiling an authored click to the straight line that reaches
+  it, and ends the middle-click corner cycle.
+- Direct manipulation follows: segment drag and endpoint move reject only
+  degenerate geometry, and the tidying elbow stays limited to legs that were
+  already octilinear so a diagonal is stretched rather than given a corner.
+- Unchanged by design: `power-rail` stays one straight axis-aligned run, and
+  `@icm/agent-routing` keeps the stricter octilinear contract ADR 0008 gives
+  that Agent-side helper.
+- The geometry kernel needed no change — projection, containment,
+  intersection, collinearity, and unit direction were already angle-agnostic.
+- Validation: full unit suite (1189), full Playwright suite (209 passed) with a
+  new case drawing a leg that is neither axis-aligned nor 45 degrees, visual
+  golden check clean, markdown link check clean.
+- Commit status: completed on `claude/any-angle-routes`; mainline merge gated
+  on the remote required checks.

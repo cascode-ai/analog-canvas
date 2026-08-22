@@ -22,6 +22,7 @@ import {
   type ConnectivityProposal,
   type WireSource,
   type WireCornerOrder,
+  type WireRoutingMode,
 } from "@icm/edit-engine";
 import {
   derivePowerRailComponent,
@@ -96,7 +97,7 @@ export interface UseWireInteractionOptions {
   wireSourceRevision: number | null;
   wireWaypoints: readonly Point[];
   wireDraftSteps: readonly WireDraftStep[];
-  wireRoutingMode: "orthogonal" | "octilinear";
+  wireRoutingMode: WireRoutingMode;
   wireCornerOrder: WireCornerOrder;
   nextRoutingSuffix: () => number;
   transact: (
