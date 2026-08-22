@@ -48,8 +48,10 @@ trimmed `name` (required, ≤120), optional `author` (≤40), `description`
 chars each, at most 5, deduplicated — `sanitizeGalleryTags` is the one
 normalization for writes and filters), `projectText` ≤2 MiB. The Worker validates, stamps the canonical
 serialization, renders the preview, and stores the entry as `public`.
-Submissions count against a per-submitter (hashed IP) limit of 10 per UTC
-day.
+Ordinary and anonymous submissions count against a per-submitter (hashed
+IP) limit of 10 per UTC day; privileged submitters (the bearer and
+admin/moderator sessions) are exempt — the quota is anti-garbage
+protection, and curators are the ones cleaning up.
 
 Publishing authority (since G3): the bearer and admin/moderator sessions
 publish directly as `public`; an ordinary signed-in session submits into
@@ -117,6 +119,24 @@ exactly to owners and reviewers.
 
 Entries persist a nullable owner column stamped from the submitting
 session.
+
+## Version history
+
+Every content-replacing update (`PUT`, and Restore itself) first
+snapshots the entry's previous state — name, author, description, tags,
+canonical project text, preview — into `gallery_entry_versions`,
+numbered per entry and capped at the newest 20 (older pruned).
+Maintenance re-serialization does not snapshot (content-equivalent).
+Reviewer authority (bearer, admin, or moderator):
+
+- `GET /api/gallery/<id>/versions` — versions, newest first.
+- `GET /api/gallery/<id>/versions/<versionId>/preview.svg`.
+- `POST /api/gallery/<id>/versions/<versionId>/restore` — snapshots the
+  current state, then adopts the version's content and metadata (entry
+  status unchanged), so restores are themselves reversible.
+
+The editor surfaces this as "Version history…" inside the publish
+dialog's update mode for reviewer sessions.
 
 ## Accounts and sessions (Phase G2, dark-shipped)
 

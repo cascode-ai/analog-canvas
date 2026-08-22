@@ -26,6 +26,7 @@ export const GALLERY_MAX_DESCRIPTION_LENGTH = 300;
 export const GALLERY_DAILY_SUBMISSION_LIMIT = 10;
 export const GALLERY_MAX_TAGS = 5;
 export const GALLERY_MAX_TAG_LENGTH = 24;
+export const GALLERY_MAX_VERSIONS_PER_ENTRY = 20;
 export const GALLERY_DEFAULT_LIST_LIMIT = 30;
 export const GALLERY_MAX_LIST_LIMIT = 60;
 
@@ -168,6 +169,25 @@ export class GalleryDO {
         PRIMARY KEY (day, submitter_hash)
       ) WITHOUT ROWID
     `);
+    this.sql.exec(`
+      CREATE TABLE IF NOT EXISTS gallery_entry_versions (
+        id TEXT PRIMARY KEY,
+        entry_id TEXT NOT NULL,
+        version_no INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        author TEXT NOT NULL,
+        description TEXT NOT NULL,
+        tags TEXT NOT NULL DEFAULT '',
+        schema_version INTEGER NOT NULL,
+        project_text TEXT NOT NULL,
+        svg_text TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      ) WITHOUT ROWID
+    `);
+    this.sql.exec(`
+      CREATE INDEX IF NOT EXISTS idx_gallery_entry_versions_entry
+      ON gallery_entry_versions(entry_id, version_no)
+    `);
     // Additive review-queue columns (phase G3) for pre-existing databases.
     for (const alteration of [
       "ALTER TABLE gallery_entries ADD COLUMN reject_reason TEXT",
@@ -222,6 +242,12 @@ export class GalleryDO {
         return this.updateEntry(body);
       case "replace-entry":
         return this.replaceEntry(body);
+      case "versions":
+        return this.versions(String(body.entryId));
+      case "version":
+        return this.version(String(body.entryId), String(body.versionId));
+      case "restore-version":
+        return this.restoreVersion(body);
       default:
         return Response.json({ error: "Unknown operation" }, { status: 404 });
     }
@@ -231,26 +257,31 @@ export class GalleryDO {
     const entry = body.entry as EntryRow;
     const day = String(body.day);
     const submitterHash = String(body.submitterHash);
+    // The daily quota is anti-garbage protection for ordinary submitters;
+    // the bearer and admin/moderator sessions are exempt (they curate).
+    const enforceLimit = body.enforceLimit !== false;
     const outcome = this.state.storage.transactionSync(() => {
-      const used =
-        this.sql
-          .exec<{
-            count: number;
-          }>(
-            "SELECT count FROM gallery_submissions WHERE day = ? AND submitter_hash = ?",
-            day,
-            submitterHash,
-          )
-          .toArray()[0]?.count ?? 0;
-      if (used >= GALLERY_DAILY_SUBMISSION_LIMIT) {
-        return { status: "rate-limited" as const };
+      if (enforceLimit) {
+        const used =
+          this.sql
+            .exec<{
+              count: number;
+            }>(
+              "SELECT count FROM gallery_submissions WHERE day = ? AND submitter_hash = ?",
+              day,
+              submitterHash,
+            )
+            .toArray()[0]?.count ?? 0;
+        if (used >= GALLERY_DAILY_SUBMISSION_LIMIT) {
+          return { status: "rate-limited" as const };
+        }
+        this.sql.exec(
+          `INSERT INTO gallery_submissions(day, submitter_hash, count) VALUES (?, ?, 1)
+           ON CONFLICT(day, submitter_hash) DO UPDATE SET count = count + 1`,
+          day,
+          submitterHash,
+        );
       }
-      this.sql.exec(
-        `INSERT INTO gallery_submissions(day, submitter_hash, count) VALUES (?, ?, 1)
-         ON CONFLICT(day, submitter_hash) DO UPDATE SET count = count + 1`,
-        day,
-        submitterHash,
-      );
       this.sql.exec(
         `INSERT INTO gallery_entries(
           id, name, author, description, created_at, schema_version,
@@ -377,6 +408,40 @@ export class GalleryDO {
   }
 
   /** Owner/reviewer edit (phase G3): new content, possibly new status. */
+  /** Version-history snapshot of the entry's current state (pre-write). */
+  private snapshotEntry(row: EntryRow, at: string): void {
+    const lastVersion =
+      this.sql
+        .exec<{ v: number | null }>(
+          "SELECT MAX(version_no) AS v FROM gallery_entry_versions WHERE entry_id = ?",
+          row.id,
+        )
+        .toArray()[0]?.v ?? 0;
+    this.sql.exec(
+      `INSERT INTO gallery_entry_versions(
+        id, entry_id, version_no, name, author, description, tags,
+        schema_version, project_text, svg_text, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      crypto.randomUUID(),
+      row.id,
+      lastVersion + 1,
+      row.name,
+      row.author,
+      row.description,
+      row.tags ?? "",
+      row.schema_version,
+      row.project_text,
+      row.svg_text,
+      at,
+    );
+    this.sql.exec(
+      `DELETE FROM gallery_entry_versions
+       WHERE entry_id = ? AND version_no <= ?`,
+      row.id,
+      lastVersion + 1 - GALLERY_MAX_VERSIONS_PER_ENTRY,
+    );
+  }
+
   private replaceEntry(body: Record<string, unknown>): Response {
     const row = this.sql
       .exec<EntryRow>(
@@ -385,23 +450,130 @@ export class GalleryDO {
       )
       .toArray()[0];
     if (!row) return Response.json({ error: "not-found" }, { status: 404 });
-    this.sql.exec(
-      `UPDATE gallery_entries
-       SET name = ?, author = ?, description = ?, project_text = ?,
-           svg_text = ?, schema_version = ?, status = ?, tags = ?,
-           reject_reason = NULL, reviewed_at = NULL, reviewed_by = NULL
-       WHERE id = ?`,
-      String(body.name),
-      String(body.author),
-      String(body.description),
-      String(body.projectText),
-      String(body.svgText),
-      Number(body.schemaVersion),
-      String(body.status),
-      typeof body.tags === "string" ? body.tags : "",
-      row.id,
-    );
+    this.state.storage.transactionSync(() => {
+      this.snapshotEntry(row, String(body.at ?? row.created_at));
+      this.sql.exec(
+        `UPDATE gallery_entries
+         SET name = ?, author = ?, description = ?, project_text = ?,
+             svg_text = ?, schema_version = ?, status = ?, tags = ?,
+             reject_reason = NULL, reviewed_at = NULL, reviewed_by = NULL
+         WHERE id = ?`,
+        String(body.name),
+        String(body.author),
+        String(body.description),
+        String(body.projectText),
+        String(body.svgText),
+        Number(body.schemaVersion),
+        String(body.status),
+        typeof body.tags === "string" ? body.tags : "",
+        row.id,
+      );
+    });
     return Response.json({ id: row.id, status: String(body.status) });
+  }
+
+  private versions(entryId: string): Response {
+    const rows = this.sql
+      .exec<{
+        id: string;
+        version_no: number;
+        name: string;
+        author: string;
+        tags: string | null;
+        created_at: string;
+      }>(
+        `SELECT id, version_no, name, author, tags, created_at
+         FROM gallery_entry_versions WHERE entry_id = ?
+         ORDER BY version_no DESC`,
+        entryId,
+      )
+      .toArray();
+    return Response.json({
+      versions: rows.map((row) => ({
+        versionId: row.id,
+        versionNo: row.version_no,
+        name: row.name,
+        author: row.author,
+        tags: unwrapTags(row.tags),
+        createdAt: row.created_at,
+      })),
+    });
+  }
+
+  private version(entryId: string, versionId: string): Response {
+    const row = this.sql
+      .exec<{
+        id: string;
+        name: string;
+        author: string;
+        description: string;
+        tags: string | null;
+        schema_version: number;
+        project_text: string;
+        svg_text: string;
+      }>(
+        `SELECT * FROM gallery_entry_versions
+         WHERE entry_id = ? AND id = ?`,
+        entryId,
+        versionId,
+      )
+      .toArray()[0];
+    if (!row) return Response.json({ error: "not-found" }, { status: 404 });
+    return Response.json({
+      name: row.name,
+      author: row.author,
+      description: row.description,
+      tags: unwrapTags(row.tags),
+      schemaVersion: row.schema_version,
+      projectText: row.project_text,
+      svgText: row.svg_text,
+    });
+  }
+
+  /** Restore = snapshot the current state, then adopt the version. */
+  private restoreVersion(body: Record<string, unknown>): Response {
+    const entry = this.sql
+      .exec<EntryRow>(
+        "SELECT * FROM gallery_entries WHERE id = ?",
+        String(body.entryId),
+      )
+      .toArray()[0];
+    const version = this.sql
+      .exec<{
+        name: string;
+        author: string;
+        description: string;
+        tags: string | null;
+        schema_version: number;
+        project_text: string;
+        svg_text: string;
+      }>(
+        "SELECT * FROM gallery_entry_versions WHERE entry_id = ? AND id = ?",
+        String(body.entryId),
+        String(body.versionId),
+      )
+      .toArray()[0];
+    if (!entry || !version) {
+      return Response.json({ error: "not-found" }, { status: 404 });
+    }
+    this.state.storage.transactionSync(() => {
+      this.snapshotEntry(entry, String(body.at));
+      this.sql.exec(
+        `UPDATE gallery_entries
+         SET name = ?, author = ?, description = ?, project_text = ?,
+             svg_text = ?, schema_version = ?, tags = ?
+         WHERE id = ?`,
+        version.name,
+        version.author,
+        version.description,
+        version.project_text,
+        version.svg_text,
+        version.schema_version,
+        version.tags ?? "",
+        entry.id,
+      );
+    });
+    return Response.json({ id: entry.id, restored: true });
   }
 
   private mine(ownerUserId: string): Response {
@@ -654,6 +826,7 @@ async function handleSubmission(
     {
       day: now.toISOString().slice(0, 10),
       submitterHash: await submitterHash(request),
+      enforceLimit: !privileged,
       entry: {
         id: crypto.randomUUID(),
         name,
@@ -761,6 +934,7 @@ async function handleEntryUpdate(
     : "pending";
   const { status, payload } = await callGallery(env, "replace-entry", {
     id,
+    at: new Date().toISOString(),
     name,
     author,
     description,
@@ -891,6 +1065,67 @@ export async function routeGalleryRequest(
       ownerUserId: user.id,
     });
     return Response.json(payload, { headers: { "cache-control": "no-store" } });
+  }
+  if (
+    segments.length === 2 &&
+    segments[1] === "versions" &&
+    request.method === "GET"
+  ) {
+    if (!(await canReview(request, env))) {
+      return Response.json({ error: "unauthorized" }, { status: 401 });
+    }
+    const { status, payload } = await callGallery(env, "versions", {
+      entryId: segments[0],
+    });
+    return Response.json(payload, {
+      status,
+      headers: { "cache-control": "no-store" },
+    });
+  }
+  if (
+    segments.length === 4 &&
+    segments[1] === "versions" &&
+    segments[3] === "preview.svg" &&
+    request.method === "GET"
+  ) {
+    if (!(await canReview(request, env))) {
+      return Response.json({ error: "not-found" }, { status: 404 });
+    }
+    const { status, payload } = await callGallery<{ svgText?: string }>(
+      env,
+      "version",
+      { entryId: segments[0], versionId: segments[2] },
+    );
+    if (status !== 200 || !payload.svgText) {
+      return Response.json({ error: "not-found" }, { status: 404 });
+    }
+    return new Response(payload.svgText, {
+      headers: {
+        "content-type": "image/svg+xml",
+        "cache-control": "no-store",
+        "content-security-policy":
+          "default-src 'none'; style-src 'unsafe-inline'",
+      },
+    });
+  }
+  if (
+    segments.length === 4 &&
+    segments[1] === "versions" &&
+    segments[3] === "restore" &&
+    request.method === "POST"
+  ) {
+    if (!sameOrigin(request)) {
+      return Response.json({ error: "forbidden" }, { status: 403 });
+    }
+    if (!(await canReview(request, env))) {
+      return Response.json({ error: "unauthorized" }, { status: 401 });
+    }
+    const { status, payload } = await callGallery(env, "restore-version", {
+      entryId: segments[0],
+      versionId: segments[2],
+      at: new Date().toISOString(),
+    });
+    return Response.json(payload, { status });
   }
   if (segments.length === 2 && segments[1] === "preview.svg") {
     const { status, payload } = await callGallery<{

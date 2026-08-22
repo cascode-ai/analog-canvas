@@ -765,6 +765,76 @@ test("an opened gallery entry offers updating in place", async ({ page }) => {
   expect(updates[0]!.body.name).toBe(ENTRY.name);
 });
 
+test("a reviewer browses version history and restores a version", async ({
+  page,
+}) => {
+  await mockGallery(page, [ENTRY]);
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      json: {
+        user: {
+          id: "u1",
+          displayName: "Token Zhang",
+          email: "owner@example.com",
+          provider: "github",
+          role: "user",
+          isAdmin: true,
+        },
+      },
+    }),
+  );
+  await page.route(`**/api/gallery/${ENTRY.id}/versions`, (route) =>
+    route.fulfill({
+      json: {
+        versions: [
+          {
+            versionId: "v-2",
+            versionNo: 2,
+            name: "Ring Oscillator (older)",
+            author: "tz",
+            tags: ["oscillator"],
+            createdAt: "2026-08-22T10:00:00.000Z",
+          },
+        ],
+      },
+    }),
+  );
+  await page.route(
+    `**/api/gallery/${ENTRY.id}/versions/v-2/preview.svg`,
+    (route) =>
+      route.fulfill({
+        contentType: "image/svg+xml",
+        body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 6"><rect width="10" height="6" fill="#fff"/></svg>',
+      }),
+  );
+  let restores = 0;
+  await page.route(
+    `**/api/gallery/${ENTRY.id}/versions/v-2/restore`,
+    (route) => {
+      restores += 1;
+      return route.fulfill({ json: { id: ENTRY.id, restored: true } });
+    },
+  );
+
+  await page.goto(`/g/${ENTRY.id}`);
+  await expect(page.getByTestId("status")).toContainText(
+    `Opened gallery circuit: ${ENTRY.name}`,
+  );
+  await page.getByTestId("publish-gallery-button").click();
+  await page.getByTestId("publish-history").click();
+
+  const history = page.getByTestId("version-history-dialog");
+  await expect(history).toBeVisible();
+  await expect(page.getByTestId("version-2")).toContainText(
+    "Ring Oscillator (older)",
+  );
+  await page.getByTestId("version-restore-2").click();
+  await expect(page.getByTestId("status")).toContainText(
+    `Opened gallery circuit: ${ENTRY.name}`,
+  );
+  expect(restores).toBe(1);
+});
+
 test("replacing the project retires the stale update offer", async ({
   page,
 }) => {

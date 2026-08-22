@@ -39,6 +39,8 @@ export interface PublishGalleryDialogProps {
     pending: boolean;
     updated: boolean;
   }) => void;
+  /** Reviewer-only: open the entry's version history instead. */
+  onShowHistory?: (() => void) | undefined;
   onClose: () => void;
 }
 
@@ -59,6 +61,7 @@ export function PublishGalleryDialog({
   publish,
   publishUpdate,
   onPublished,
+  onShowHistory,
   onClose,
 }: PublishGalleryDialogProps) {
   const privileged = session?.isAdmin === true || session?.role === "moderator";
@@ -192,6 +195,16 @@ export function PublishGalleryDialog({
               />
               Publish as a new entry
             </label>
+            {privileged && onShowHistory ? (
+              <button
+                type="button"
+                className="publish-gallery-history-link"
+                data-testid="publish-history"
+                onClick={onShowHistory}
+              >
+                Version history…
+              </button>
+            ) : null}
           </div>
         ) : null}
         <div className="publish-gallery-fields">

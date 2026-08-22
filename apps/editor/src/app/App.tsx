@@ -224,6 +224,7 @@ import {
   publishProjectToGallery,
   updateGalleryEntry,
 } from "../features/editor-shell/gallery-publish";
+import { VersionHistoryDialog } from "../features/editor-shell/version-history-dialog";
 import { fetchSessionUser, type SessionUser } from "../components/account";
 import {
   evaluateSubmissionGates,
@@ -676,6 +677,7 @@ export function App({
   const [netlistPreflightOpen, setNetlistPreflightOpen] = useState(false);
   const [styleDialogOpen, setStyleDialogOpen] = useState(false);
   const [publishGalleryOpen, setPublishGalleryOpen] = useState(false);
+  const [versionHistoryOpen, setVersionHistoryOpen] = useState(false);
   const [publishSession, setPublishSession] = useState<SessionUser | null>(
     null,
   );
@@ -7851,7 +7853,27 @@ export function App({
                   : `Published "${name}" to the gallery`,
             );
           }}
+          onShowHistory={
+            galleryEntryContext
+              ? () => {
+                  setPublishGalleryOpen(false);
+                  setVersionHistoryOpen(true);
+                }
+              : undefined
+          }
           onClose={() => setPublishGalleryOpen(false)}
+        />
+      ) : null}
+      {versionHistoryOpen && galleryEntryContext ? (
+        <VersionHistoryDialog
+          entryId={galleryEntryContext.id}
+          entryName={galleryEntryContext.name}
+          onRestored={() => {
+            setVersionHistoryOpen(false);
+            setStatus("Version restored — reloading the entry");
+            void openGalleryEntryById(galleryEntryContext.id);
+          }}
+          onClose={() => setVersionHistoryOpen(false)}
         />
       ) : null}
       {publicAgentUiEnabled ? (

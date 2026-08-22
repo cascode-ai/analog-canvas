@@ -5645,6 +5645,73 @@ html.light .analytics-map-land path {
   color: var(--icm-accent);
 }
 
+.publish-gallery-history-link {
+  align-self: flex-start;
+  padding: 0;
+  border: none;
+  color: var(--icm-accent);
+  background: none;
+  font-size: 0.78rem;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.version-history-dialog {
+  width: min(36rem, 100%);
+}
+
+.version-list {
+  display: flex;
+  max-height: 22rem;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+}
+
+.version-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px;
+  border: 1px solid var(--icm-border);
+  border-radius: 10px;
+}
+
+.version-row img {
+  width: 110px;
+  height: 74px;
+  object-fit: contain;
+  border: 1px solid var(--icm-border);
+  border-radius: 6px;
+  background: #fff;
+}
+
+.version-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.version-copy b {
+  font-size: 0.9rem;
+}
+
+.version-copy small {
+  color: var(--icm-text-muted);
+}
+
+.version-row .publish-gallery-primary {
+  padding: 0.4rem 0.9rem;
+  border: 1px solid var(--icm-accent);
+  border-radius: 8px;
+  color: #fff;
+  background: var(--icm-accent);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
 .publish-gallery-tags {
   display: flex;
   flex-direction: column;
