@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 
 /**
- * Version history of one gallery entry (reviewer surface): every update
- * snapshotted the previous state; Restore adopts a version after
- * snapshotting the current one, so restores are themselves reversible.
+ * Version history of one gallery entry, for reviewers and the entry's
+ * owner: every update snapshotted the previous state; Restore adopts a
+ * version after snapshotting the current one, so restores are themselves
+ * reversible. An ordinary owner's restore re-enters review server-side.
  */
 
 export interface GalleryEntryVersion {

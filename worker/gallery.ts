@@ -572,6 +572,14 @@ export class GalleryDO {
         version.tags ?? "",
         entry.id,
       );
+      // An owner-initiated restore re-enters review like any owner edit.
+      if (body.pending === true) {
+        this.sql.exec(
+          `UPDATE gallery_entries
+           SET status = 'pending', reject_reason = NULL WHERE id = ?`,
+          entry.id,
+        );
+      }
     });
     return Response.json({ id: entry.id, restored: true });
   }
@@ -729,6 +737,32 @@ async function canReview(request: Request, env: GalleryEnv): Promise<boolean> {
   if (bearerIsAdmin(request, env)) return true;
   const user = await sessionUserOf(request, env);
   return user?.isAdmin === true || user?.role === "moderator";
+}
+
+/**
+ * Who may manage one entry's lifecycle surfaces (withdrawal, version
+ * history): a reviewer, or the signed-in owner of that entry.
+ */
+async function entryManager(
+  request: Request,
+  env: GalleryEnv,
+  id: string,
+): Promise<{ found: boolean; reviewer: boolean; owner: boolean }> {
+  const existing = await callGallery<{ ownerUserId?: string | null }>(
+    env,
+    "any-entry",
+    { id },
+  );
+  if (existing.status !== 200) {
+    return { found: false, reviewer: false, owner: false };
+  }
+  const reviewer = await canReview(request, env);
+  const user = await sessionUserOf(request, env);
+  const owner =
+    user !== null &&
+    existing.payload.ownerUserId != null &&
+    existing.payload.ownerUserId === user.id;
+  return { found: true, reviewer, owner };
 }
 
 async function submitterHash(request: Request): Promise<string> {
@@ -1071,7 +1105,11 @@ export async function routeGalleryRequest(
     segments[1] === "versions" &&
     request.method === "GET"
   ) {
-    if (!(await canReview(request, env))) {
+    const access = await entryManager(request, env, segments[0]!);
+    if (!access.found) {
+      return Response.json({ error: "not-found" }, { status: 404 });
+    }
+    if (!access.reviewer && !access.owner) {
       return Response.json({ error: "unauthorized" }, { status: 401 });
     }
     const { status, payload } = await callGallery(env, "versions", {
@@ -1088,7 +1126,8 @@ export async function routeGalleryRequest(
     segments[3] === "preview.svg" &&
     request.method === "GET"
   ) {
-    if (!(await canReview(request, env))) {
+    const access = await entryManager(request, env, segments[0]!);
+    if (!access.found || (!access.reviewer && !access.owner)) {
       return Response.json({ error: "not-found" }, { status: 404 });
     }
     const { status, payload } = await callGallery<{ svgText?: string }>(
@@ -1117,13 +1156,19 @@ export async function routeGalleryRequest(
     if (!sameOrigin(request)) {
       return Response.json({ error: "forbidden" }, { status: 403 });
     }
-    if (!(await canReview(request, env))) {
+    const access = await entryManager(request, env, segments[0]!);
+    if (!access.found) {
+      return Response.json({ error: "not-found" }, { status: 404 });
+    }
+    if (!access.reviewer && !access.owner) {
       return Response.json({ error: "unauthorized" }, { status: 401 });
     }
     const { status, payload } = await callGallery(env, "restore-version", {
       entryId: segments[0],
       versionId: segments[2],
       at: new Date().toISOString(),
+      // An ordinary owner's restore is an owner edit: back through review.
+      pending: !access.reviewer,
     });
     return Response.json(payload, { status });
   }
@@ -1220,12 +1265,26 @@ export async function routeGalleryRequest(
     if (action !== "recycle" && action !== "restore") {
       return Response.json({ error: "not-found" }, { status: 404 });
     }
-    if (!(await isAdmin(request, env))) {
-      return Response.json({ error: "unauthorized" }, { status: 401 });
+    if (!sameOrigin(request)) {
+      return Response.json({ error: "forbidden" }, { status: 403 });
+    }
+    // Admins curate anything; an owner may withdraw their own entry and
+    // bring it back — but an ordinary owner's restore re-enters review
+    // (the pre-withdrawal status is not recorded, and it may have been
+    // pending).
+    const admin = await isAdmin(request, env);
+    if (!admin) {
+      const access = await entryManager(request, env, id!);
+      if (!access.found) {
+        return Response.json({ error: "not-found" }, { status: 404 });
+      }
+      if (!access.owner) {
+        return Response.json({ error: "unauthorized" }, { status: 401 });
+      }
     }
     const { status, payload } = await callGallery(env, "set-status", {
       id,
-      status: action === "recycle" ? "recycled" : "public",
+      status: action === "recycle" ? "recycled" : admin ? "public" : "pending",
       at: new Date().toISOString(),
     });
     return Response.json(payload, { status });

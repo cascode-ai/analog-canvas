@@ -5572,6 +5572,46 @@ html.light .analytics-map-land path {
   margin-top: 4px;
 }
 
+.mine-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.mine-card-actions .account-link {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+.mine-withdraw {
+  padding: 3px 10px;
+  border: 1px solid color-mix(in srgb, #c0392b 45%, var(--icm-border));
+  border-radius: 999px;
+  color: #c0392b;
+  background: var(--icm-surface);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.mine-withdraw:hover {
+  background: color-mix(in srgb, #c0392b 8%, var(--icm-surface));
+}
+
+.mine-withdraw-confirm {
+  color: #fff;
+  background: #c0392b;
+  border-color: #c0392b;
+}
+
+.mine-withdraw-confirm:hover {
+  background: #a93226;
+}
+
 .gallery-filter {
   display: flex;
   align-items: center;

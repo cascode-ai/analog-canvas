@@ -716,6 +716,90 @@ test("/mine wears the site chrome and links every entry back to the editor", asy
   await expect(page.getByTestId("mine-status-mine-2")).toHaveText("Published");
 });
 
+test("/mine offers owner withdrawal, restore, and version history", async ({
+  page,
+}) => {
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      json: {
+        user: {
+          id: "u7",
+          displayName: "Maker",
+          email: "maker@example.com",
+          provider: "email",
+          role: "user",
+          isAdmin: false,
+        },
+      },
+    }),
+  );
+  let withdrawn = false;
+  await page.route("**/api/gallery/mine", (route) =>
+    route.fulfill({
+      json: {
+        entries: [
+          {
+            id: "mine-2",
+            name: "Live Amp",
+            createdAt: "2026-08-22T08:00:00.000Z",
+            status: withdrawn ? "recycled" : "public",
+            rejectReason: null,
+          },
+        ],
+      },
+    }),
+  );
+  await page.route("**/api/gallery/mine-2/recycle", (route) => {
+    withdrawn = true;
+    return route.fulfill({ json: { id: "mine-2" } });
+  });
+  await page.route("**/api/gallery/mine-2/restore", (route) => {
+    withdrawn = false;
+    return route.fulfill({ json: { id: "mine-2" } });
+  });
+  await page.route("**/api/gallery/mine-2/versions", (route) =>
+    route.fulfill({
+      json: {
+        versions: [
+          {
+            versionId: "v-1",
+            versionNo: 1,
+            name: "Live Amp v1",
+            author: "Maker",
+            tags: [],
+            createdAt: "2026-08-21T08:00:00.000Z",
+          },
+        ],
+      },
+    }),
+  );
+  const svg = {
+    contentType: "image/svg+xml",
+    body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 6"><rect width="10" height="6" fill="#fff"/></svg>',
+  };
+  await page.route("**/api/gallery/*/preview.svg", (route) =>
+    route.fulfill(svg),
+  );
+  await page.route("**/api/gallery/*/versions/*/preview.svg", (route) =>
+    route.fulfill(svg),
+  );
+
+  await page.goto("/mine");
+  // Withdrawal asks for a second, explicit click.
+  await page.getByTestId("mine-withdraw-mine-2").click();
+  await page.getByTestId("mine-withdraw-confirm-mine-2").click();
+  await expect(page.getByTestId("mine-status-mine-2")).toHaveText("Withdrawn");
+  await expect(page.getByTestId("mine-notice")).toContainText("Withdrew");
+  // Restore (the worker re-enters review for ordinary owners; the mock
+  // simply flips the entry back).
+  await page.getByTestId("mine-restore-mine-2").click();
+  await expect(page.getByTestId("mine-status-mine-2")).toHaveText("Published");
+  // The version history dialog lists the snapshot with its preview.
+  await page.getByTestId("mine-history-mine-2").click();
+  await expect(page.getByTestId("version-history-dialog")).toBeVisible();
+  await expect(page.getByTestId("version-1")).toContainText("Live Amp v1");
+});
+
 test("an opened gallery entry offers updating in place", async ({ page }) => {
   await mockGallery(page, [ENTRY]);
   await page.route("**/api/auth/me", (route) =>

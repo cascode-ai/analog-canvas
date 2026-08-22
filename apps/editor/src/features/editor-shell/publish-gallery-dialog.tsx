@@ -39,7 +39,8 @@ export interface PublishGalleryDialogProps {
     pending: boolean;
     updated: boolean;
   }) => void;
-  /** Reviewer-only: open the entry's version history instead. */
+  /** Reviewers and the entry's owner: open the version history instead.
+   * Rendered only alongside an update target. */
   onShowHistory?: (() => void) | undefined;
   onClose: () => void;
 }
@@ -195,7 +196,7 @@ export function PublishGalleryDialog({
               />
               Publish as a new entry
             </label>
-            {privileged && onShowHistory ? (
+            {onShowHistory ? (
               <button
                 type="button"
                 className="publish-gallery-history-link"

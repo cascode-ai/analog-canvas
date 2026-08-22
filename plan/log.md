@@ -4914,6 +4914,19 @@ Keep reusable lessons in `docs/experience/`, not in this log.
 - Commit status: completed on `claude/port-defaults`; mainline merge gated on
   the remote required checks.
 
+## 2026-08-22 — Owner withdrawal and owner-visible version history
+
+- Plan: `plan/2026-08-22-owner-withdraw-history/plan.md` (complete)
+- The owning session can now withdraw its entry (`POST /:id/recycle`),
+  bring it back through review (`/restore` → `pending` for ordinary
+  owners, `public` for admins), and read/restore its version history
+  (restore re-enters review via the new `pending` flag on the
+  `restore-version` op). `/mine` gained two-step Withdraw, Restore, and
+  a Version history dialog (moved to `components/` for reuse); the
+  publish dialog's history link now shows for owners too. Spec updated.
+  Worker vitest 19 passed; e2e mine/history specs 3 passed; typecheck
+  clean.
+
 ## 2026-08-22 - A usable editor on a half-screen window
 
 - Three defects, each reproduced at 760px before fixing: File/Edit would not

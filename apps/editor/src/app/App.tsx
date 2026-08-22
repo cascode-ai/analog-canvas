@@ -224,7 +224,7 @@ import {
   publishProjectToGallery,
   updateGalleryEntry,
 } from "../features/editor-shell/gallery-publish";
-import { VersionHistoryDialog } from "../features/editor-shell/version-history-dialog";
+import { VersionHistoryDialog } from "../components/version-history-dialog";
 import { fetchSessionUser, type SessionUser } from "../components/account";
 import {
   evaluateSubmissionGates,

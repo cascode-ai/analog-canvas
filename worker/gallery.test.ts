@@ -1007,6 +1007,8 @@ describe("gallery administration", () => {
     );
     expect(anonymous.status).toBe(401);
 
+    // Without a configured bearer the caller is an ordinary visitor; the
+    // ownership check runs first, so an unknown entry reads as not-found.
     const noTokenConfigured = environment();
     const impossible = await route(
       noTokenConfigured,
@@ -1015,7 +1017,7 @@ describe("gallery administration", () => {
         headers: adminHeaders("anything"),
       }),
     );
-    expect(impossible.status).toBe(401);
+    expect(impossible.status).toBe(404);
   });
 
   it("recycles, hides, restores, and only hard-deletes from the bin", async () => {
@@ -1140,5 +1142,186 @@ describe("gallery administration", () => {
       new Request(`${ORIGIN}/api/gallery/${id}/preview.svg`),
     );
     expect(await preview.text()).toContain("<svg");
+  });
+});
+
+describe("gallery owner lifecycle (withdrawal and history)", () => {
+  async function submitApproved(
+    env: GalleryEnv,
+    ownerCookie: string,
+    adminCookie: string,
+    name: string,
+  ): Promise<string> {
+    const submitted = await route(
+      env,
+      submissionRequest(
+        { name, projectText: wiredProjectText(name) },
+        { token: null, cookie: ownerCookie },
+      ),
+    );
+    expect(submitted.status).toBe(201);
+    const { id } = (await submitted.json()) as { id: string };
+    const approved = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/${id}/approve`, {
+        method: "POST",
+        headers: { Origin: ORIGIN, Cookie: adminCookie },
+      }),
+    );
+    expect(approved.status).toBe(200);
+    return id;
+  }
+
+  function lifecycle(
+    id: string,
+    action: "recycle" | "restore",
+    cookie: string | null,
+  ): Request {
+    const headers = new Headers({ Origin: ORIGIN });
+    if (cookie) headers.set("Cookie", cookie);
+    return new Request(`${ORIGIN}/api/gallery/${id}/${action}`, {
+      method: "POST",
+      headers,
+    });
+  }
+
+  async function mineStatus(
+    env: GalleryEnv,
+    cookie: string,
+    id: string,
+  ): Promise<string | undefined> {
+    const mine = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/mine`, {
+        headers: { Cookie: cookie },
+      }),
+    );
+    const payload = (await mine.json()) as {
+      entries: { id: string; status: string }[];
+    };
+    return payload.entries.find((entry) => entry.id === id)?.status;
+  }
+
+  it("owners withdraw and restore their own entries; strangers cannot", async () => {
+    const { authDurable, env } = reviewHarness();
+    const ownerCookie = await signIn(authDurable, "maker@example.com");
+    const adminCookie = await signIn(authDurable, "owner@example.com");
+    const strangerCookie = await signIn(authDurable, "other@example.com");
+    const id = await submitApproved(env, ownerCookie, adminCookie, "Mine");
+
+    expect(
+      (await route(env, lifecycle(id, "recycle", strangerCookie))).status,
+    ).toBe(401);
+    expect((await route(env, lifecycle(id, "recycle", null))).status).toBe(401);
+
+    // Owner withdraws: gone from the public wall, "recycled" in /mine.
+    expect(
+      (await route(env, lifecycle(id, "recycle", ownerCookie))).status,
+    ).toBe(200);
+    const list = await route(env, new Request(`${ORIGIN}/api/gallery`));
+    const wall = (await list.json()) as { entries: { id: string }[] };
+    expect(wall.entries.some((entry) => entry.id === id)).toBe(false);
+    expect(await mineStatus(env, ownerCookie, id)).toBe("recycled");
+
+    // The owner's restore re-enters review; the admin's goes straight back.
+    expect(
+      (await route(env, lifecycle(id, "restore", ownerCookie))).status,
+    ).toBe(200);
+    expect(await mineStatus(env, ownerCookie, id)).toBe("pending");
+    expect(
+      (await route(env, lifecycle(id, "recycle", adminCookie))).status,
+    ).toBe(200);
+    expect(
+      (await route(env, lifecycle(id, "restore", adminCookie))).status,
+    ).toBe(200);
+    expect(await mineStatus(env, ownerCookie, id)).toBe("public");
+
+    const missing = await route(
+      env,
+      lifecycle("does-not-exist", "recycle", ownerCookie),
+    );
+    expect(missing.status).toBe(404);
+  });
+
+  it("owners browse their version history; restores re-enter review", async () => {
+    const { authDurable, env } = reviewHarness();
+    const ownerCookie = await signIn(authDurable, "maker@example.com");
+    const adminCookie = await signIn(authDurable, "owner@example.com");
+    const strangerCookie = await signIn(authDurable, "other@example.com");
+    const id = await submitApproved(env, ownerCookie, adminCookie, "Hist v1");
+
+    // Owner update snapshots v1 and re-enters review.
+    const updated = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/${id}`, {
+        method: "PUT",
+        headers: {
+          Origin: ORIGIN,
+          Cookie: ownerCookie,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          name: "Hist v2",
+          author: "maker",
+          projectText: wiredProjectText("Hist v2"),
+        }),
+      }),
+    );
+    expect(updated.status).toBe(200);
+
+    function versionsRequest(cookie: string | null): Request {
+      const headers = new Headers();
+      if (cookie) headers.set("Cookie", cookie);
+      return new Request(`${ORIGIN}/api/gallery/${id}/versions`, { headers });
+    }
+    expect((await route(env, versionsRequest(strangerCookie))).status).toBe(
+      401,
+    );
+    expect((await route(env, versionsRequest(null))).status).toBe(401);
+    const listed = await route(env, versionsRequest(ownerCookie));
+    expect(listed.status).toBe(200);
+    const { versions } = (await listed.json()) as {
+      versions: { versionId: string; name: string }[];
+    };
+    expect(versions).toHaveLength(1);
+    expect(versions[0]!.name).toBe("Hist v1");
+
+    const previewPath = `${ORIGIN}/api/gallery/${id}/versions/${versions[0]!.versionId}/preview.svg`;
+    const strangerPreview = await route(
+      env,
+      new Request(previewPath, { headers: { Cookie: strangerCookie } }),
+    );
+    expect(strangerPreview.status).toBe(404);
+    const ownerPreview = await route(
+      env,
+      new Request(previewPath, { headers: { Cookie: ownerCookie } }),
+    );
+    expect(await ownerPreview.text()).toContain("<svg");
+
+    // Approve v2, then the owner's restore of v1 demotes it to pending.
+    await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/${id}/approve`, {
+        method: "POST",
+        headers: { Origin: ORIGIN, Cookie: adminCookie },
+      }),
+    );
+    const restore = await route(
+      env,
+      new Request(
+        `${ORIGIN}/api/gallery/${id}/versions/${versions[0]!.versionId}/restore`,
+        { method: "POST", headers: { Origin: ORIGIN, Cookie: ownerCookie } },
+      ),
+    );
+    expect(restore.status).toBe(200);
+    expect(await mineStatus(env, ownerCookie, id)).toBe("pending");
+    const detail = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/${id}`, {
+        headers: { Cookie: ownerCookie },
+      }),
+    );
+    const payload = (await detail.json()) as { entry: { name: string } };
+    expect(payload.entry.name).toBe("Hist v1");
   });
 });

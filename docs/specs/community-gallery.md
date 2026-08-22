@@ -120,6 +120,15 @@ exactly to owners and reviewers.
 Entries persist a nullable owner column stamped from the submitting
 session.
 
+Owner withdrawal: `POST /api/gallery/<id>/recycle` (same-origin) also
+accepts the owning session — the entry moves to `recycled` and leaves
+every public surface, exactly like an admin recycle. The owner brings it
+back with `POST /api/gallery/<id>/restore`; because the pre-withdrawal
+status is not recorded (and may have been `pending`), an ordinary
+owner's restore re-enters review as `pending`, while an admin restore
+still goes straight to `public`. `/mine` surfaces both actions (a
+two-step Withdraw and a Restore on withdrawn entries).
+
 ## Version history
 
 Every content-replacing update (`PUT`, and Restore itself) first
@@ -127,16 +136,20 @@ snapshots the entry's previous state — name, author, description, tags,
 canonical project text, preview — into `gallery_entry_versions`,
 numbered per entry and capped at the newest 20 (older pruned).
 Maintenance re-serialization does not snapshot (content-equivalent).
-Reviewer authority (bearer, admin, or moderator):
+Authority: reviewers (bearer, admin, or moderator) and the entry's
+owning session:
 
 - `GET /api/gallery/<id>/versions` — versions, newest first.
 - `GET /api/gallery/<id>/versions/<versionId>/preview.svg`.
 - `POST /api/gallery/<id>/versions/<versionId>/restore` — snapshots the
-  current state, then adopts the version's content and metadata (entry
-  status unchanged), so restores are themselves reversible.
+  current state, then adopts the version's content and metadata, so
+  restores are themselves reversible. A reviewer's restore keeps the
+  entry status; an ordinary owner's restore is an owner edit and
+  re-enters review as `pending`.
 
 The editor surfaces this as "Version history…" inside the publish
-dialog's update mode for reviewer sessions.
+dialog's update mode (reviewers and owners) and as a per-entry
+"Version history" action on `/mine`.
 
 ## Accounts and sessions (Phase G2, dark-shipped)
 
@@ -185,8 +198,10 @@ signed-in super-admin session. With neither configured every admin route
 answers 401:
 
 - `POST /api/gallery/<id>/recycle` — soft delete into the restorable bin;
-  the entry disappears from every public surface.
-- `POST /api/gallery/<id>/restore` — back to `public`.
+  the entry disappears from every public surface. (Also open to the
+  owning session as withdrawal — see Owner editing.)
+- `POST /api/gallery/<id>/restore` — back to `public` (an ordinary
+  owner's restore re-enters review instead).
 - `DELETE /api/gallery/<id>` — permanent, and only for entries already in
   the bin (`409` otherwise).
 - `GET /api/gallery/recycled` — the bin.
