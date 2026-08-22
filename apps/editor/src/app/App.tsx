@@ -219,7 +219,10 @@ import { NetlistPreflightDialog } from "../features/netlist-export/netlist-prefl
 import { parseProject } from "@icm/project-protocol";
 import { StyleDialog } from "../features/editor-shell/style-dialog";
 import { PublishGalleryDialog } from "../features/editor-shell/publish-gallery-dialog";
-import { publishProjectToGallery } from "../features/editor-shell/gallery-publish";
+import {
+  publishProjectToGallery,
+  updateGalleryEntry,
+} from "../features/editor-shell/gallery-publish";
 import { fetchSessionUser, type SessionUser } from "../components/account";
 import {
   evaluateSubmissionGates,
@@ -647,6 +650,10 @@ export function App({
   const [publishSession, setPublishSession] = useState<SessionUser | null>(
     null,
   );
+  const [galleryEntryContext, setGalleryEntryContext] = useState<{
+    id: string;
+    ownerUserId: string | null;
+  } | null>(null);
   const [publishGates, setPublishGates] = useState<SubmissionGateReport | null>(
     null,
   );
@@ -1892,6 +1899,7 @@ export function App({
           }
           const payload = (await response.json()) as {
             entry?: { name?: string };
+            ownerUserId?: string | null;
             projectText?: string;
           };
           if (!payload.projectText) {
@@ -1900,6 +1908,10 @@ export function App({
           }
           const galleryProject = parseProject(payload.projectText);
           replaceActiveProject(galleryProject);
+          setGalleryEntryContext({
+            id: initialGalleryEntryId,
+            ownerUserId: payload.ownerUserId ?? null,
+          });
           setStatus(
             `Opened gallery circuit: ${payload.entry?.name ?? galleryProject.name}`,
           );
@@ -7673,13 +7685,33 @@ export function App({
           defaultName={project.name}
           session={publishSession}
           gateReport={publishGates}
+          updateTarget={
+            galleryEntryContext &&
+            publishSession &&
+            (publishSession.isAdmin ||
+              publishSession.role === "moderator" ||
+              (galleryEntryContext.ownerUserId !== null &&
+                publishSession.id === galleryEntryContext.ownerUserId))
+              ? { id: galleryEntryContext.id }
+              : null
+          }
           publish={(fields) => publishProjectToGallery(project, fields)}
-          onPublished={({ name, pending }) => {
+          publishUpdate={
+            galleryEntryContext
+              ? (fields) =>
+                  updateGalleryEntry(galleryEntryContext.id, project, fields)
+              : undefined
+          }
+          onPublished={({ name, pending, updated }) => {
             setPublishGalleryOpen(false);
             setStatus(
-              pending
-                ? `Submitted "${name}" for review`
-                : `Published "${name}" to the gallery`,
+              updated
+                ? pending
+                  ? `Submitted the update to "${name}" for review`
+                  : `Updated "${name}" in the gallery`
+                : pending
+                  ? `Submitted "${name}" for review`
+                  : `Published "${name}" to the gallery`,
             );
           }}
           onClose={() => setPublishGalleryOpen(false)}

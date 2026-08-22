@@ -20,11 +20,18 @@ export interface PublishGalleryDialogProps {
   session?: PublishSessionUser | null;
   /** Quality-gate evaluation of the live Project (phase G3). */
   gateReport?: SubmissionGateReport | null;
+  /** Present when the open circuit came from a gallery entry the signed-in
+   * user may update (owner, admin, or moderator). */
+  updateTarget?: { id: string } | null;
   publish: (fields: GalleryPublishFields) => Promise<GalleryPublishOutcome>;
+  publishUpdate?:
+    | ((fields: GalleryPublishFields) => Promise<GalleryPublishOutcome>)
+    | undefined;
   onPublished: (outcome: {
     id: string;
     name: string;
     pending: boolean;
+    updated: boolean;
   }) => void;
   onClose: () => void;
 }
@@ -41,7 +48,9 @@ export function PublishGalleryDialog({
   defaultName,
   session = null,
   gateReport = null,
+  updateTarget = null,
   publish,
+  publishUpdate,
   onPublished,
   onClose,
 }: PublishGalleryDialogProps) {
@@ -49,6 +58,11 @@ export function PublishGalleryDialog({
   const ordinary = session !== null && !privileged;
   const anonymous = session === null;
   const gatesBlock = ordinary && gateReport !== null && !gateReport.ok;
+  const canUpdate = updateTarget !== null && publishUpdate !== undefined;
+  const [mode, setMode] = useState<"update" | "new">(
+    canUpdate ? "update" : "new",
+  );
+  const updating = canUpdate && mode === "update";
   const [name, setName] = useState(defaultName);
   const [author, setAuthor] = useState(
     () => rememberedPublishAuthor() || session?.displayName || "",
@@ -67,10 +81,18 @@ export function PublishGalleryDialog({
     }
   }, [sessionDisplayName]);
 
+  // The update permission also arrives with the session; default to
+  // updating the opened entry unless the user already chose a mode.
+  const [modeTouched, setModeTouched] = useState(false);
+  useEffect(() => {
+    if (canUpdate && !modeTouched) setMode("update");
+  }, [canUpdate, modeTouched]);
+
   async function submit(): Promise<void> {
     setBusy(true);
     setError(null);
-    const outcome = await publish({
+    const send = updating ? (publishUpdate ?? publish) : publish;
+    const outcome = await send({
       name,
       author,
       description,
@@ -83,6 +105,7 @@ export function PublishGalleryDialog({
         id: outcome.id,
         name: name.trim(),
         pending: outcome.status === "pending-review",
+        updated: updating,
       });
       return;
     }
@@ -109,6 +132,34 @@ export function PublishGalleryDialog({
           <p>Share this circuit on the public wall</p>
           <h2 id="publish-gallery-title">Publish to Gallery</h2>
         </header>
+        {canUpdate ? (
+          <div className="publish-gallery-mode" data-testid="publish-mode">
+            <label>
+              <input
+                type="radio"
+                name="publish-mode"
+                checked={mode === "update"}
+                onChange={() => {
+                  setMode("update");
+                  setModeTouched(true);
+                }}
+              />
+              Update the opened gallery entry
+            </label>
+            <label>
+              <input
+                type="radio"
+                name="publish-mode"
+                checked={mode === "new"}
+                onChange={() => {
+                  setMode("new");
+                  setModeTouched(true);
+                }}
+              />
+              Publish as a new entry
+            </label>
+          </div>
+        ) : null}
         <div className="publish-gallery-fields">
           <label>
             Circuit name
@@ -186,9 +237,13 @@ export function PublishGalleryDialog({
         ) : null}
         <p className="publish-gallery-note">
           {privileged
-            ? `Signed in as ${session?.displayName} — this publishes directly.`
+            ? updating
+              ? `Signed in as ${session?.displayName} — this updates the entry in place.`
+              : `Signed in as ${session?.displayName} — this publishes directly.`
             : ordinary
-              ? `Signed in as ${session?.displayName} — your circuit enters the review queue and appears once a reviewer approves it.`
+              ? updating
+                ? `Signed in as ${session?.displayName} — your update replaces the entry and re-enters review.`
+                : `Signed in as ${session?.displayName} — your circuit enters the review queue and appears once a reviewer approves it.`
               : "Publishing is owner-approved for now: it needs the gallery owner's passphrase, or sign in on the gallery page to submit for review."}
         </p>
         {error ? (
@@ -211,7 +266,15 @@ export function PublishGalleryDialog({
             }
             onClick={() => void submit()}
           >
-            {busy ? "Publishing…" : ordinary ? "Submit for review" : "Publish"}
+            {busy
+              ? "Publishing…"
+              : updating
+                ? ordinary
+                  ? "Submit update for review"
+                  : "Update entry"
+                : ordinary
+                  ? "Submit for review"
+                  : "Publish"}
           </button>
         </div>
       </section>

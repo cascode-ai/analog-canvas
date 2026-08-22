@@ -35,20 +35,22 @@ export type GalleryPublishOutcome =
   | { status: "rejected"; message: string }
   | { status: "unreachable"; message: string };
 
-export async function publishProjectToGallery(
+async function sendGalleryProject(
+  url: string,
+  method: "POST" | "PUT",
   project: CircuitProject,
   fields: GalleryPublishFields,
-  fetchLike: typeof fetch = fetch,
+  fetchLike: typeof fetch,
 ): Promise<GalleryPublishOutcome> {
   const headers: Record<string, string> = {
     "content-type": "application/json",
   };
-  // Without a passphrase the admin session cookie authenticates instead.
+  // Without a passphrase the session cookie authenticates instead.
   if (fields.token) headers.authorization = `Bearer ${fields.token}`;
   let response: Response;
   try {
-    response = await fetchLike("/api/gallery/submissions", {
-      method: "POST",
+    response = await fetchLike(url, {
+      method,
       credentials: "same-origin",
       headers,
       body: JSON.stringify({
@@ -64,7 +66,7 @@ export async function publishProjectToGallery(
       message: error instanceof Error ? error.message : String(error),
     };
   }
-  if (response.status === 201) {
+  if (response.status === 201 || response.status === 200) {
     const payload = (await response.json().catch(() => null)) as {
       id?: unknown;
       status?: unknown;
@@ -95,6 +97,36 @@ export async function publishProjectToGallery(
   };
 }
 
+export function publishProjectToGallery(
+  project: CircuitProject,
+  fields: GalleryPublishFields,
+  fetchLike: typeof fetch = fetch,
+): Promise<GalleryPublishOutcome> {
+  return sendGalleryProject(
+    "/api/gallery/submissions",
+    "POST",
+    project,
+    fields,
+    fetchLike,
+  );
+}
+
+/** Owner/reviewer update of an existing entry (phase G3 completion). */
+export function updateGalleryEntry(
+  entryId: string,
+  project: CircuitProject,
+  fields: GalleryPublishFields,
+  fetchLike: typeof fetch = fetch,
+): Promise<GalleryPublishOutcome> {
+  return sendGalleryProject(
+    `/api/gallery/${entryId}`,
+    "PUT",
+    project,
+    fields,
+    fetchLike,
+  );
+}
+
 /** One human-readable line per outcome, shown in the dialog or status bar. */
 export function describePublishOutcome(outcome: GalleryPublishOutcome): string {
   switch (outcome.status) {
@@ -115,7 +147,9 @@ export function describePublishOutcome(outcome: GalleryPublishOutcome): string {
         ? "Check the fields: a name is required; author and description have length caps"
         : outcome.message === "invalid-project"
           ? "The Project failed strict validation on the server"
-          : `The gallery rejected the submission (${outcome.message})`;
+          : outcome.message === "forbidden"
+            ? "Only the entry's owner or a reviewer can update it"
+            : `The gallery rejected the submission (${outcome.message})`;
     case "unreachable":
       return `Could not reach the gallery: ${outcome.message}`;
   }
