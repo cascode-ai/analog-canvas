@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { createEmptyDocument, createEmptyProject } from "@icm/model";
 
 import {
+  createExternalSubcircuitInstance,
   createHierarchyInstance,
   planAttachCellPortMarker,
   planCreateCellPort,
@@ -294,6 +295,7 @@ describe("reviewed external MOS model targets", () => {
       terminals: [{ name: "D" }, { name: "G" }, { name: "S" }, { name: "B" }],
     });
     expect(instance).toMatchObject({
+      symbolId: "nmos",
       schematicReference: "M1",
       netlist: {
         reference: "X1",
@@ -313,6 +315,41 @@ describe("reviewed external MOS model targets", () => {
       kind: "terminal",
       instanceId: "M1",
       pinName: "B",
+    });
+  });
+
+  it("places a reviewed external master with canonical MOS artwork", () => {
+    const project = projectWithNmos();
+    const result = executeProjectTransaction(project, {
+      transactionId: "create-sky130-definition",
+      projectId: project.id,
+      expectedStructureRevision: project.structureRevision,
+      actor: { kind: "human", id: "test" },
+      edits: planSetMosModelTarget(
+        project,
+        project.topDocumentId,
+        "M1",
+        "sky130_fd_pr__nfet_01v8",
+      ),
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(
+      createExternalSubcircuitInstance(
+        "X2",
+        result.project.externalSubcircuitDefinitions[0]!,
+        {
+          position: { x: 100, y: 100 },
+          rotation: 0,
+          mirror: "none",
+        },
+      ),
+    ).toMatchObject({
+      symbolId: "nmos",
+      netlist: {
+        binding: { kind: "external-subcircuit" },
+      },
     });
   });
 

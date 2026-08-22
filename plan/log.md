@@ -4803,3 +4803,14 @@ Keep reusable lessons in `docs/experience/`, not in this log.
   (Expected 70, Received 0); typecheck, prettier, diff checks.
 - Commit status: completed on `claude/marquee-drag`; mainline merge gated on
   the remote required checks.
+## 2026-08-22 - Canonical MOS presentation for SKY130 calls
+
+- Target: `plan/2026-08-22-sky130-canonical-mos-mapping/plan.md` (completed).
+- Changed areas: reviewed SKY130 external calls now reuse canonical
+  `nmos`/`pmos` symbols through import, Model-field switching, definition
+  synchronization, and Insert, while preserving external X binding and ordered
+  D/G/S/B export; incompatible external definitions keep the generic block.
+- Validation: focused contracts (64), preflight, affected units (1171),
+  hierarchy Playwright (12), manual-editor Playwright (93), branch verification,
+  workspace build, production smoke, test-impact, and diff checks.
+- Commit status: completed on `codex/sky130-canonical-mos-mapping`.

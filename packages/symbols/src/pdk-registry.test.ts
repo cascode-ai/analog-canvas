@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   resolvePdkSymbolMapping,
+  resolvePdkSymbolMappingForTerminalOrder,
   reviewedSky130MosModelSuggestions,
 } from "./pdk-registry.js";
 
@@ -37,6 +38,25 @@ describe("PDK symbol mapping registry", () => {
     ).toBeUndefined();
     expect(
       resolvePdkSymbolMapping("sky130_fd_pr__nfet_01v8", 3),
+    ).toBeUndefined();
+  });
+
+  it("accepts only the reviewed ordered external terminal interface", () => {
+    expect(
+      resolvePdkSymbolMappingForTerminalOrder("sky130_fd_pr__nfet_01v8", [
+        "D",
+        "G",
+        "S",
+        "B",
+      ]),
+    ).toMatchObject({ symbolId: "nmos" });
+    expect(
+      resolvePdkSymbolMappingForTerminalOrder("sky130_fd_pr__nfet_01v8", [
+        "G",
+        "D",
+        "S",
+        "B",
+      ]),
     ).toBeUndefined();
   });
 

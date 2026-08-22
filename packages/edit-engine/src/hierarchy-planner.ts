@@ -17,6 +17,7 @@ import {
   externalSubcircuitSymbolId,
   hierarchicalSymbolId,
   resolvePdkSymbolMapping,
+  resolvePdkSymbolMappingForTerminalOrder,
 } from "@icm/symbols";
 
 import type { ProjectStructureEdit } from "./project-transaction.js";
@@ -117,20 +118,12 @@ function matchingExternalMosDefinition(
   const definition = project.externalSubcircuitDefinitions.find(
     (candidate) => candidate.id === definitionId,
   );
-  if (!definition) return undefined;
-  const mapping = resolvePdkSymbolMapping(
+  if (!definition || definition.presentation) return undefined;
+  const mapping = resolvePdkSymbolMappingForTerminalOrder(
     definition.name,
-    definition.terminals.length,
+    definition.terminals.map((terminal) => terminal.name),
   );
-  if (
-    !mapping ||
-    !definition.terminals.every(
-      (terminal, index) =>
-        terminal.name.toLowerCase() === mapping.pinNames[index]?.toLowerCase(),
-    )
-  ) {
-    return undefined;
-  }
+  if (!mapping) return undefined;
   return { definition, mapping };
 }
 
@@ -193,24 +186,18 @@ export function planSetMosModelTarget(
         formalParameters: [],
         interfaceStatus: "declared" as const,
       } satisfies ExternalSubcircuitDefinition);
-    const verified = resolvePdkSymbolMapping(
-      definition.name,
-      definition.terminals.length,
-    );
-    if (
-      !verified ||
-      verified.symbolId !== sourceMosSymbolId ||
-      !definition.terminals.every(
-        (terminal, index) =>
-          terminal.name.toLowerCase() ===
-          verified.pinNames[index]?.toLowerCase(),
-      )
-    ) {
+    const verified = definition.presentation
+      ? undefined
+      : resolvePdkSymbolMappingForTerminalOrder(
+          definition.name,
+          definition.terminals.map((terminal) => terminal.name),
+        );
+    if (!verified || verified.symbolId !== sourceMosSymbolId) {
       throw new Error(
         `Existing external definition ${definition.name} does not declare D, G, S, B in reviewed order`,
       );
     }
-    const symbolId = externalSubcircuitSymbolId(definition.id);
+    const symbolId = verified.symbolId;
     const reference =
       instance.netlist.binding?.kind === "external-subcircuit"
         ? instance.netlist.reference
@@ -311,9 +298,15 @@ export function createExternalSubcircuitInstance(
   placement: NonNullable<SchematicDocument["instances"][number]["placement"]>,
   reference = id,
 ): SchematicDocument["instances"][number] {
+  const mapping = definition.presentation
+    ? undefined
+    : resolvePdkSymbolMappingForTerminalOrder(
+        definition.name,
+        definition.terminals.map((terminal) => terminal.name),
+      );
   return {
     id,
-    symbolId: externalSubcircuitSymbolId(definition.id),
+    symbolId: mapping?.symbolId ?? externalSubcircuitSymbolId(definition.id),
     schematicReference: reference,
     placement,
     netlist: {

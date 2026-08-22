@@ -198,7 +198,7 @@ describe("external PDK symbol presentation", () => {
     ["sky130_fd_pr__nfet_01v8", "nmos"],
     ["sky130_fd_pr__pfet_01v8", "pmos"],
   ])(
-    "uses four-terminal %s MOS artwork without changing external identity",
+    "retains canonical %s MOS presentation for existing external identity",
     (name, baseId) => {
       const symbol = createProjectHierarchicalSymbols(
         projectWithExternal(name),
@@ -215,9 +215,9 @@ describe("external PDK symbol presentation", () => {
         hierarchicalBlock: true,
         pins: base?.pins,
         primitives: base?.primitives,
-        variants: [],
+        defaultVariantId: "textbook-3terminal",
+        variants: base?.variants,
       });
-      expect(symbol).not.toHaveProperty("defaultVariantId");
       expect(symbol?.pins.map((pin) => pin.name)).toEqual(["D", "G", "S", "B"]);
     },
   );

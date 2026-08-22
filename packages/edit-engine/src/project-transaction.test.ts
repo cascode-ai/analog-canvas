@@ -5,7 +5,7 @@ import {
   createEmptyProject,
   flattenRichText,
 } from "@icm/model";
-import { hierarchicalSymbolId } from "@icm/symbols";
+import { externalSubcircuitSymbolId, hierarchicalSymbolId } from "@icm/symbols";
 
 import {
   planRenameCell,
@@ -688,5 +688,71 @@ describe("Project structural transaction", () => {
         ],
       },
     });
+  });
+
+  it("preserves a canonical MOS caller while its reviewed external definition stays compatible", () => {
+    const project = createEmptyProject("project", "Project");
+    const definition = {
+      id: "sky130-nfet",
+      name: "sky130_fd_pr__nfet_01v8",
+      terminals: ["D", "G", "S", "B"].map((name, index) => ({
+        id: `terminal-${index}`,
+        name,
+        direction: "passive" as const,
+      })),
+      formalParameters: [],
+      interfaceStatus: "declared" as const,
+    };
+    project.externalSubcircuitDefinitions.push(definition);
+    project.documents[0]!.instances.push({
+      id: "X1",
+      symbolId: "nmos",
+      placement: null,
+      netlist: {
+        reference: "X1",
+        binding: {
+          kind: "external-subcircuit",
+          definitionId: definition.id,
+        },
+        parameters: {},
+      },
+    });
+
+    const compatible = executeProjectTransaction(project, {
+      transactionId: "refresh-reviewed-external",
+      projectId: project.id,
+      expectedStructureRevision: project.structureRevision,
+      actor: { kind: "human", id: "test" },
+      edits: [{ kind: "upsert_external_subcircuit_definition", definition }],
+    });
+    expect(compatible.ok).toBe(true);
+    if (!compatible.ok) return;
+    expect(compatible.project.documents[0]!.instances[0]!.symbolId).toBe(
+      "nmos",
+    );
+
+    const incompatibleDefinition = {
+      ...definition,
+      terminals: definition.terminals.map((terminal, index) =>
+        index === 0 ? { ...terminal, name: "DRAIN" } : terminal,
+      ),
+    };
+    const incompatible = executeProjectTransaction(compatible.project, {
+      transactionId: "break-reviewed-external-order",
+      projectId: project.id,
+      expectedStructureRevision: compatible.project.structureRevision,
+      actor: { kind: "human", id: "test" },
+      edits: [
+        {
+          kind: "upsert_external_subcircuit_definition",
+          definition: incompatibleDefinition,
+        },
+      ],
+    });
+    expect(incompatible.ok).toBe(true);
+    if (!incompatible.ok) return;
+    expect(incompatible.project.documents[0]!.instances[0]!.symbolId).toBe(
+      externalSubcircuitSymbolId(definition.id),
+    );
   });
 });

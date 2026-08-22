@@ -89,3 +89,22 @@ export function resolvePdkSymbolMapping(
       }
     : undefined;
 }
+
+export function resolvePdkSymbolMappingForTerminalOrder(
+  modelName: string,
+  terminalNames: readonly string[],
+  exactOverrides: readonly PdkSymbolMappingOverride[] = [],
+): PdkSymbolMapping | undefined {
+  const mapping = resolvePdkSymbolMapping(
+    modelName,
+    terminalNames.length,
+    exactOverrides,
+  );
+  return mapping &&
+    terminalNames.every(
+      (name, index) =>
+        name.toLowerCase() === mapping.pinNames[index]?.toLowerCase(),
+    )
+    ? mapping
+    : undefined;
+}

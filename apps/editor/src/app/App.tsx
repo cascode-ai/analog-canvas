@@ -124,6 +124,7 @@ import {
   hierarchicalSymbolId,
   InMemorySymbolResolver,
   resolvePdkSymbolMapping,
+  resolvePdkSymbolMappingForTerminalOrder,
   reviewedSky130MosModelSuggestions,
 } from "@icm/symbols";
 import {
@@ -1031,20 +1032,12 @@ export function App({
         )
       : undefined;
   const selectedExternalMosMapping = selectedExternalSubcircuit
-    ? (() => {
-        const mapping = resolvePdkSymbolMapping(
+    ? selectedExternalSubcircuit.presentation
+      ? undefined
+      : resolvePdkSymbolMappingForTerminalOrder(
           selectedExternalSubcircuit.name,
-          selectedExternalSubcircuit.terminals.length,
-        );
-        return mapping &&
-          selectedExternalSubcircuit.terminals.every(
-            (terminal, index) =>
-              terminal.name.toLowerCase() ===
-              mapping.pinNames[index]?.toLowerCase(),
-          )
-          ? mapping
-          : undefined;
-      })()
+          selectedExternalSubcircuit.terminals.map((terminal) => terminal.name),
+        )
     : undefined;
   const selectedPropertyDevice =
     selectedDevice ??
@@ -1590,8 +1583,14 @@ export function App({
   const externalSubcircuitInsertCandidates = useMemo(
     () =>
       project.externalSubcircuitDefinitions.flatMap((definition) => {
+        const mapping = definition.presentation
+          ? undefined
+          : resolvePdkSymbolMappingForTerminalOrder(
+              definition.name,
+              definition.terminals.map((terminal) => terminal.name),
+            );
         const symbol = resolver.resolve(
-          externalSubcircuitSymbolId(definition.id),
+          mapping?.symbolId ?? externalSubcircuitSymbolId(definition.id),
         )?.definition;
         return symbol
           ? [

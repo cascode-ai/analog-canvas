@@ -112,9 +112,11 @@ function symbolFor(
       symbolMappings,
     );
     return {
-      symbolId: externalSubcircuitSymbolId(
-        externalDefinitionId(instance.target.masterName),
-      ),
+      symbolId:
+        mapping?.symbolId ??
+        externalSubcircuitSymbolId(
+          externalDefinitionId(instance.target.masterName),
+        ),
       ...(mapping?.pinNames ? { pinNames: mapping.pinNames } : {}),
       ...(mapping?.registryId ? { registryId: mapping.registryId } : {}),
     };
@@ -480,9 +482,6 @@ function bindImportedChildDocuments(documents: readonly SchematicDocument[]): {
         : undefined;
       return {
         ...referencedInstance,
-        ...(externalDefinition
-          ? { symbolId: externalSubcircuitSymbolId(externalDefinition.id) }
-          : {}),
         importProvenance: {
           ...instance.importProvenance,
           status: childDocumentId

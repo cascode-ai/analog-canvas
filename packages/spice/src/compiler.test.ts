@@ -255,6 +255,15 @@ Q2 collector base emitter QPREF
             instance.netlist?.binding?.kind === "external-subcircuit",
         ),
     ).toBe(true);
+    expect(
+      document.instances
+        .filter((instance) => !interfaceInstanceIds.has(instance.id))
+        .map((instance) => instance.symbolId)
+        .filter(
+          (symbolId, index, symbols) => symbols.indexOf(symbolId) === index,
+        )
+        .sort(),
+    ).toEqual(["nmos", "pmos"]);
     expect(document.instances[0]!.importProvenance).toMatchObject({
       kind: "opaque",
       name: "sky130_fd_pr__nfet_01v8",
@@ -273,6 +282,9 @@ Q2 collector base emitter QPREF
       binding: expect.objectContaining({ kind: "external-subcircuit" }),
       parameters: { l: "1.0", w: "96", nf: "12" },
     });
+    expect(document.instances[0]).toMatchObject({
+      symbolId: "nmos",
+    });
     const resolved = createProjectSymbolResolver(
       imported.project!,
       builtInSymbols,
@@ -282,9 +294,13 @@ Q2 collector base emitter QPREF
       definition: {
         pins: nmos?.pins,
         primitives: nmos?.primitives,
-        variants: [],
-        hierarchicalBlock: true,
+        defaultVariantId: "textbook-3terminal",
+        variants: nmos?.variants,
       },
+      variant: expect.objectContaining({
+        id: "textbook-3terminal",
+        hiddenPinNames: ["B"],
+      }),
     });
     expect(
       document.nets

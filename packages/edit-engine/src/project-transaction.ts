@@ -10,6 +10,7 @@ import {
   createProjectSymbolResolver,
   externalSubcircuitSymbolId,
   hierarchicalSymbolId,
+  resolvePdkSymbolMappingForTerminalOrder,
 } from "@icm/symbols";
 import { z } from "zod";
 
@@ -308,18 +309,29 @@ export function executeProjectTransaction(
           edit.definition,
         );
       }
+      const reviewedMapping = edit.definition.presentation
+        ? undefined
+        : resolvePdkSymbolMappingForTerminalOrder(
+            edit.definition.name,
+            edit.definition.terminals.map((terminal) => terminal.name),
+          );
+      const externalSymbolId = externalSubcircuitSymbolId(edit.definition.id);
       for (const document of candidate.documents) {
         let changed = false;
         for (const instance of document.instances) {
           const binding = instance.netlist?.binding;
           if (
             binding?.kind !== "external-subcircuit" ||
-            binding.definitionId !== edit.definition.id ||
-            instance.symbolId === externalSubcircuitSymbolId(edit.definition.id)
+            binding.definitionId !== edit.definition.id
           ) {
             continue;
           }
-          instance.symbolId = externalSubcircuitSymbolId(edit.definition.id);
+          const symbolId =
+            reviewedMapping?.symbolId === instance.symbolId
+              ? instance.symbolId
+              : externalSymbolId;
+          if (instance.symbolId === symbolId) continue;
+          instance.symbolId = symbolId;
           changed = true;
         }
         if (changed) {

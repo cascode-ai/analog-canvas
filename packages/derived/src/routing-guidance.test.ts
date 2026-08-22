@@ -130,4 +130,49 @@ describe("routing guidance", () => {
       ).map((guide) => guide.netId),
     ).toEqual(["net-imported"]);
   });
+
+  it("routes an imported explicit MOS body through the canonical auxiliary B anchor", () => {
+    const document = createEmptyDocument("main", "Main");
+    document.instances.push(
+      {
+        id: "XM1",
+        symbolId: "nmos",
+        placement: {
+          position: { x: 0, y: 0 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+      {
+        id: "P1",
+        symbolId: "port",
+        placement: {
+          position: { x: 100, y: 0 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+    );
+    document.nets.push({
+      id: "net-imported-body",
+      scope: "local",
+      terminals: [
+        { instanceId: "XM1", pinName: "B" },
+        { instanceId: "P1", pinName: "P" },
+      ],
+      origin: { kind: "spice-import", sourceNetIds: ["source-body"] },
+    });
+
+    const guides = deriveImportedRoutingGuidance(
+      document,
+      new InMemorySymbolResolver(builtInSymbols),
+    );
+
+    expect(guides).toHaveLength(1);
+    expect([guides[0]!.from, guides[0]!.to]).toContainEqual({
+      kind: "terminal",
+      instanceId: "XM1",
+      pinName: "B",
+    });
+  });
 });

@@ -2977,6 +2977,7 @@ test("selects a reviewed SKY130 MOS through the existing Model field", async ({
   ]);
   expect(saved.documents[0].instances[0]).toMatchObject({
     id: "M1",
+    symbolId: "nmos",
     schematicReference: "M1",
     netlist: {
       reference: "X1",
