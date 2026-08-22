@@ -472,7 +472,7 @@ test("Port shortcut starts ordinary component placement", async ({ page }) => {
   await expect(page.getByTestId("component-placement-preview")).toBeVisible();
   await canvas.click({ position: { x: 320, y: 180 } });
   await expect(page.getByTestId("status")).toContainText(
-    "Added Free Net Port NET1",
+    "Added Free Net Port Vin",
   );
   await expect(page.getByTestId("hit-P1")).toBeVisible();
   await expect(
@@ -3835,4 +3835,26 @@ test("drags a marquee selection that holds no instance", async ({ page }) => {
   );
   expect(shifts[0]).toBeGreaterThan(0);
   expect(shifts[1]).toBe(shifts[0]);
+});
+
+test("double-click ends the wire even when it lands on another wire", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  const canvas = page.getByTestId("schematic-canvas");
+  await clickDrawTool(page, "wire");
+
+  await canvas.click({ position: { x: 200, y: 160 } });
+  await canvas.dblclick({ position: { x: 420, y: 160 } });
+  await expect(page.getByTestId("status")).toContainText("Committed route");
+
+  // Finishing onto an existing wire commits on the first press; the second
+  // press used to open a fresh wire at that spot, so drafting continued.
+  await canvas.click({ position: { x: 260, y: 300 } });
+  await canvas.dblclick({ position: { x: 320, y: 160 } });
+  await expect(page.getByTestId("status")).toContainText("Wire finished");
+
+  // Nothing is in progress, so a plain move draws no preview leg.
+  await page.mouse.move(500, 500);
+  await expect(page.getByTestId("status")).toContainText("Wire finished");
 });

@@ -61,15 +61,21 @@ import type { PendingComponentPlacement } from "../../interaction/interaction-st
 
 type TransactionResult = { ok: boolean; revision: number };
 
+/**
+ * A Net Port names a signal, so it starts from the conventional input name
+ * rather than a bare ordinal. The first one is plain `Vin`; later ones take
+ * the next free ordinal.
+ */
 function nextFreePortNetName(document: SchematicDocument): string {
   const occupiedNames = new Set(
     document.nets.flatMap((net) =>
       net.name?.trim() ? [net.name.trim().toLowerCase()] : [],
     ),
   );
-  let ordinal = 1;
-  while (occupiedNames.has(`net${ordinal}`)) ordinal += 1;
-  return `NET${ordinal}`;
+  if (!occupiedNames.has("vin")) return "Vin";
+  let ordinal = 2;
+  while (occupiedNames.has(`vin${ordinal}`)) ordinal += 1;
+  return `Vin${ordinal}`;
 }
 
 function nextFreeCellTerminalName(document: SchematicDocument): string {

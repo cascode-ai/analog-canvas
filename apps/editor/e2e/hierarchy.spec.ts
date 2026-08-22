@@ -401,7 +401,7 @@ test("places a free Net Port whose rich label edits the Net name", async ({
   await page.goto("/editor");
   await placePort(page, {
     role: "net-port",
-    name: "VIN",
+    name: "VBIAS",
     position: { x: 300, y: 180 },
   });
   await expect(
@@ -413,14 +413,14 @@ test("places a free Net Port whose rich label edits the Net name", async ({
     await shelf.click();
   }
   const netName = page.getByLabel("Net Port name");
-  await expect(netName).toHaveValue("VIN");
+  await expect(netName).toHaveValue("VBIAS");
   await expect(page.getByLabel("Cell Port properties")).toHaveCount(0);
 
   await page.getByTestId("annotation-hit-instance-label-P1").dblclick();
   await page.getByRole("button", { name: "Bold" }).click();
   await page.getByRole("button", { name: "Apply text changes" }).click();
   await page.getByTestId("hit-P1").click();
-  await expect(netName).toHaveValue("VIN");
+  await expect(netName).toHaveValue("VBIAS");
 
   await page.getByTestId("annotation-hit-instance-label-P1").dblclick();
   await page.getByRole("textbox", { name: "Canvas text editor" }).fill("VINP");

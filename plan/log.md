@@ -4871,3 +4871,24 @@ Keep reusable lessons in `docs/experience/`, not in this log.
 - Validation: gallery Playwright 20/20, dialog units 26, typecheck,
   prettier, test-impact, diff checks.
 - Commit status: completed on `claude/update-mode-guard`.
+
+## 2026-08-22 - Double-click finishes a wire anywhere; Net Port defaults to Vin
+
+- Reported: finishing a wire onto another wire kept drafting. Two causes:
+  the canvas `onDoubleClick` only handled background targets, so a press
+  landing on a Junction or Route never reached the finishing path; and landing
+  on an endpoint or Route commits on the first press, after which the second
+  press opened a fresh wire at that spot. Diagnosed by logging the handler's
+  actual target and state rather than reasoning from the source.
+- Fix: handle the wire tool before the background-only guard, and end the
+  session when the wire source has no authored step — the discriminator
+  between a stray re-start and a real wire being finished there.
+- A new Net Port is now named `Vin` (then `Vin2`, ...), which the house text
+  style renders as a capital V with a lowercase `in` subscript.
+- One hierarchy case renamed a Port to `VIN`, a case variant of the new
+  default; Net names fold case-insensitively, so it kept `Vin`. The case moved
+  to `VBIAS` to test the same behavior without colliding with the default.
+- Validation: full unit suite (1185), full Playwright suite (207 → 2 intended
+  failures updated, then green), typecheck, prettier, diff checks.
+- Commit status: completed on `claude/port-defaults`; mainline merge gated on
+  the remote required checks.

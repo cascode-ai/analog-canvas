@@ -4055,6 +4055,11 @@ export function App({
   ): void {
     const resolved = resolveWireCanvasSnap(rawPoint, svg, suppressSnap);
     paintSnapGuides([]);
+    // A double-click ends the wire and never begins one. Landing on an
+    // endpoint or an existing Route already commits on the first click, so
+    // without this the finishing gesture started a fresh wire at that point
+    // and drawing appeared to continue.
+    if (finish && !wireSource) return;
     if (resolved.ambiguous) {
       setStatus(
         "Ambiguous connection: choose one endpoint or conductor away from the overlap",
@@ -9693,10 +9698,32 @@ export function App({
                 finishDraftingCreate();
                 return;
               }
-              if (
-                tool !== "wire" ||
-                (target !== event.currentTarget && target.tagName !== "rect")
-              )
+              if (tool === "wire") {
+                console.log(
+                  "DBLWIRE",
+                  JSON.stringify({
+                    target: target.tagName,
+                    testid: (target as HTMLElement).dataset?.testid,
+                    isCanvas: target === event.currentTarget,
+                    hasSource: Boolean(wireSource),
+                    steps: wireDraftSteps.length,
+                  }),
+                );
+              }
+              if (tool !== "wire") return;
+              // A double-click ends the wire wherever it lands. The guard
+              // below only lets background presses through, so finishing on a
+              // Junction or an existing Route never reached this handler and
+              // drafting appeared to continue.
+              if (wireSource && wireDraftSteps.length === 0) {
+                // Landing on an endpoint or Route commits on the first press;
+                // the second press then opens a fresh wire at that same spot.
+                // No authored step is what separates it from a real wire.
+                completeWire();
+                setStatus("Wire finished · Esc exits");
+                return;
+              }
+              if (target !== event.currentTarget && target.tagName !== "rect")
                 return;
               const point = pointFromClient(
                 event.clientX,
@@ -9709,6 +9736,22 @@ export function App({
                 event.currentTarget,
                 event.altKey,
               );
+              // Landing on an endpoint or an existing Route commits on the
+              // first press of the double-click, and the second press then
+              // opens a fresh wire at that same spot. Such a source has no
+              // authored step yet, which is what separates it from a real
+              // wire being finished here — so end the session instead of
+              // drawing on from it.
+              if (
+                wireSource &&
+                wireDraftSteps.length === 0 &&
+                wireSource.point.x === resolved.point.x &&
+                wireSource.point.y === resolved.point.y
+              ) {
+                completeWire();
+                setStatus("Wire finished · Esc exits");
+                return;
+              }
               if (
                 wireSource?.endpoint.kind === "junction" &&
                 wireSource.preludeEdits.some(
@@ -9717,7 +9760,8 @@ export function App({
                 wireSource.point.x === resolved.point.x &&
                 wireSource.point.y === resolved.point.y
               ) {
-                setStatus("Choose a different point to finish the wire");
+                setStatus("Wire finished · Esc exits");
+                completeWire();
                 return;
               }
               applyWireCanvasPoint(
