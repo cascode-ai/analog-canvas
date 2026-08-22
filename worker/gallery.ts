@@ -24,6 +24,8 @@ export const GALLERY_MAX_NAME_LENGTH = 120;
 export const GALLERY_MAX_AUTHOR_LENGTH = 40;
 export const GALLERY_MAX_DESCRIPTION_LENGTH = 300;
 export const GALLERY_DAILY_SUBMISSION_LIMIT = 10;
+export const GALLERY_MAX_TAGS = 5;
+export const GALLERY_MAX_TAG_LENGTH = 24;
 export const GALLERY_DEFAULT_LIST_LIMIT = 30;
 export const GALLERY_MAX_LIST_LIMIT = 60;
 
@@ -64,6 +66,41 @@ export interface GalleryEntrySummary {
   description: string;
   createdAt: string;
   schemaVersion: number;
+  tags: string[];
+}
+
+/**
+ * One tag normalization for every write and filter: trimmed, lowercased,
+ * inner whitespace collapsed, `[a-z0-9 +/-]` only, capped in length and
+ * count, deduplicated.
+ */
+export function sanitizeGalleryTags(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const tags: string[] = [];
+  for (const raw of value) {
+    if (typeof raw !== "string") continue;
+    const tag = raw
+      .toLowerCase()
+      .replace(/\s+/gu, " ")
+      .trim()
+      .replace(/[^a-z0-9 +/-]/gu, "")
+      .slice(0, GALLERY_MAX_TAG_LENGTH)
+      .trim();
+    if (tag.length === 0 || tags.includes(tag)) continue;
+    tags.push(tag);
+    if (tags.length === GALLERY_MAX_TAGS) break;
+  }
+  return tags;
+}
+
+/** Storage form: `,a,b,` so `LIKE '%,a,%'` matches exactly one tag. */
+function wrapTags(tags: string[]): string {
+  return tags.length === 0 ? "" : `,${tags.join(",")},`;
+}
+
+function unwrapTags(stored: string | null): string[] {
+  if (!stored) return [];
+  return stored.split(",").filter((tag) => tag.length > 0);
 }
 
 interface EntryRow {
@@ -76,6 +113,7 @@ interface EntryRow {
   status: string;
   recycled_at: string | null;
   owner_user_id: string | null;
+  tags: string | null;
   reject_reason: string | null;
   reviewed_at: string | null;
   reviewed_by: string | null;
@@ -93,6 +131,7 @@ function summaryOf(row: EntryRow): GalleryEntrySummary {
     description: row.description,
     createdAt: row.created_at,
     schemaVersion: row.schema_version,
+    tags: unwrapTags(row.tags),
   };
 }
 
@@ -134,6 +173,7 @@ export class GalleryDO {
       "ALTER TABLE gallery_entries ADD COLUMN reject_reason TEXT",
       "ALTER TABLE gallery_entries ADD COLUMN reviewed_at TEXT",
       "ALTER TABLE gallery_entries ADD COLUMN reviewed_by TEXT",
+      "ALTER TABLE gallery_entries ADD COLUMN tags TEXT NOT NULL DEFAULT ''",
     ]) {
       try {
         this.sql.exec(alteration);
@@ -176,6 +216,8 @@ export class GalleryDO {
         return this.mine(String(body.ownerUserId));
       case "all-ids":
         return this.allIds();
+      case "tags":
+        return this.tagCounts();
       case "update-entry":
         return this.updateEntry(body);
       case "replace-entry":
@@ -212,8 +254,8 @@ export class GalleryDO {
       this.sql.exec(
         `INSERT INTO gallery_entries(
           id, name, author, description, created_at, schema_version,
-          status, recycled_at, owner_user_id, project_text, svg_text
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?)`,
+          status, recycled_at, owner_user_id, tags, project_text, svg_text
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?)`,
         entry.id,
         entry.name,
         entry.author,
@@ -222,6 +264,7 @@ export class GalleryDO {
         entry.schema_version,
         entry.status === "pending" ? "pending" : "public",
         entry.owner_user_id ?? null,
+        entry.tags ?? "",
         entry.project_text,
         entry.svg_text,
       );
@@ -248,6 +291,11 @@ export class GalleryDO {
     if (author) {
       conditions.push("author = ?");
       bindings.push(author);
+    }
+    const tags = sanitizeGalleryTags(body.tags);
+    if (tags.length > 0) {
+      conditions.push(`(${tags.map(() => "tags LIKE ?").join(" OR ")})`);
+      for (const tag of tags) bindings.push(`%,${tag},%`);
     }
     if (cursor) {
       conditions.push("(created_at || '|' || id) < ?");
@@ -340,7 +388,7 @@ export class GalleryDO {
     this.sql.exec(
       `UPDATE gallery_entries
        SET name = ?, author = ?, description = ?, project_text = ?,
-           svg_text = ?, schema_version = ?, status = ?,
+           svg_text = ?, schema_version = ?, status = ?, tags = ?,
            reject_reason = NULL, reviewed_at = NULL, reviewed_by = NULL
        WHERE id = ?`,
       String(body.name),
@@ -350,6 +398,7 @@ export class GalleryDO {
       String(body.svgText),
       Number(body.schemaVersion),
       String(body.status),
+      typeof body.tags === "string" ? body.tags : "",
       row.id,
     );
     return Response.json({ id: row.id, status: String(body.status) });
@@ -411,6 +460,25 @@ export class GalleryDO {
         recycledAt: row.recycled_at,
       })),
     });
+  }
+
+  /** Distinct public tags with counts, most frequent first (G4 menu). */
+  private tagCounts(): Response {
+    const rows = this.sql
+      .exec<{ tags: string | null }>(
+        "SELECT tags FROM gallery_entries WHERE status = 'public'",
+      )
+      .toArray();
+    const counts = new Map<string, number>();
+    for (const row of rows) {
+      for (const tag of unwrapTags(row.tags)) {
+        counts.set(tag, (counts.get(tag) ?? 0) + 1);
+      }
+    }
+    const tags = [...counts.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "en"))
+      .map(([tag, count]) => ({ tag, count }));
+    return Response.json({ tags });
   }
 
   private allIds(): Response {
@@ -541,6 +609,7 @@ async function handleSubmission(
     name?: unknown;
     author?: unknown;
     description?: unknown;
+    tags?: unknown;
     projectText?: unknown;
   } | null;
   const name = fieldText(body?.name, GALLERY_MAX_NAME_LENGTH);
@@ -594,6 +663,7 @@ async function handleSubmission(
         schema_version: project.schemaVersion,
         status: entryStatus,
         owner_user_id: user?.id ?? null,
+        tags: wrapTags(sanitizeGalleryTags(body.tags)),
         project_text: serializeProject(project),
         svg_text: renderPreview(project),
       },
@@ -649,6 +719,7 @@ async function handleEntryUpdate(
     name?: unknown;
     author?: unknown;
     description?: unknown;
+    tags?: unknown;
     projectText?: unknown;
   } | null;
   const name = fieldText(body?.name, GALLERY_MAX_NAME_LENGTH);
@@ -697,6 +768,7 @@ async function handleEntryUpdate(
     svgText: renderPreview(project),
     schemaVersion: project.schemaVersion,
     status: nextStatus,
+    tags: wrapTags(sanitizeGalleryTags(body.tags)),
   });
   return Response.json(payload, { status });
 }
@@ -748,6 +820,9 @@ export async function routeGalleryRequest(
       limit: url.searchParams.get("limit"),
       cursor: url.searchParams.get("cursor"),
       author: url.searchParams.get("author"),
+      tags: (url.searchParams.get("tags") ?? "")
+        .split(",")
+        .filter((tag) => tag.length > 0),
     });
     return Response.json(payload, {
       headers: { "cache-control": "no-store" },
@@ -783,6 +858,14 @@ export async function routeGalleryRequest(
       return Response.json({ error: "unauthorized" }, { status: 401 });
     }
     return handleReserialize(env);
+  }
+  if (
+    segments.length === 1 &&
+    segments[0] === "tags" &&
+    request.method === "GET"
+  ) {
+    const { payload } = await callGallery(env, "tags", {});
+    return Response.json(payload, { headers: { "cache-control": "no-store" } });
   }
   if (
     segments.length === 1 &&

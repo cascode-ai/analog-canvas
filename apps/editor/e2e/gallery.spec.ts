@@ -193,6 +193,79 @@ test("clicking a byline filters the wall to that author, clearable", async ({
   await expect(page).not.toHaveURL(/author=/);
 });
 
+test("the tag menu multi-selects and tile tags join the selection", async ({
+  page,
+}) => {
+  const listQueries: string[] = [];
+  await page.route("**/api/gallery**", (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/gallery/tags") {
+      return route.fulfill({
+        json: {
+          tags: [
+            { tag: "amplifier", count: 3 },
+            { tag: "adc", count: 2 },
+            { tag: "pll", count: 1 },
+          ],
+        },
+      });
+    }
+    if (url.pathname !== "/api/gallery") return route.fallback();
+    listQueries.push(url.searchParams.get("tags") ?? "");
+    const selected = (url.searchParams.get("tags") ?? "")
+      .split(",")
+      .filter(Boolean);
+    const all = [
+      { id: "t-amp", tags: ["amplifier"] },
+      { id: "t-adc", tags: ["adc", "amplifier"] },
+      { id: "t-pll", tags: ["pll"] },
+    ];
+    const entries = all
+      .filter(
+        (entry) =>
+          selected.length === 0 ||
+          entry.tags.some((tag) => selected.includes(tag)),
+      )
+      .map((entry) => ({
+        id: entry.id,
+        name: `Circuit ${entry.id}`,
+        author: "tz",
+        description: "",
+        createdAt: "2026-08-22T10:00:00.000Z",
+        schemaVersion: 21,
+        tags: entry.tags,
+      }));
+    return route.fulfill({ json: { entries, nextCursor: null } });
+  });
+  await page.route("**/api/gallery/*/preview.svg", (route) =>
+    route.fulfill({
+      contentType: "image/svg+xml",
+      body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 6"><rect width="10" height="6" fill="#fff"/></svg>',
+    }),
+  );
+
+  await page.goto("/");
+  await expect(page.getByTestId("gallery-tile-t-pll")).toBeVisible();
+
+  // Multi-select two tags: OR union, URL carried.
+  await page.getByTestId("gallery-tag-option-amplifier").click();
+  await expect(page.getByTestId("gallery-tile-t-pll")).toHaveCount(0);
+  await page.getByTestId("gallery-tag-option-adc").click();
+  await expect(page).toHaveURL(/tags=amplifier%2Cadc|tags=amplifier,adc/);
+  await expect(page.getByTestId("gallery-tile-t-amp")).toBeVisible();
+  expect(listQueries).toContain("amplifier,adc");
+
+  // Clearing restores the full wall; a tile tag chip re-enters selection.
+  await page.getByTestId("gallery-tags-clear").click();
+  await expect(page.getByTestId("gallery-tile-t-pll")).toBeVisible();
+  await page.getByTestId("gallery-tile-tag-t-pll-pll").click();
+  await expect(page.getByTestId("gallery-tile-t-amp")).toHaveCount(0);
+  await expect(page.getByTestId("gallery-tag-option-pll")).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+});
+
 test("the admin recycle bin restores a recycled entry", async ({ page }) => {
   await page.route("**/api/auth/me", (route) =>
     route.fulfill({
@@ -417,12 +490,20 @@ test("an admin session publishes without the passphrase row", async ({
       },
     }),
   );
-  const posted: { authorization: string | null; author: string }[] = [];
+  const posted: {
+    authorization: string | null;
+    author: string;
+    tags: string[];
+  }[] = [];
   await page.route("**/api/gallery/submissions", (route) => {
-    const body = route.request().postDataJSON() as { author: string };
+    const body = route.request().postDataJSON() as {
+      author: string;
+      tags: string[];
+    };
     posted.push({
       authorization: route.request().headers()["authorization"] ?? null,
       author: body.author,
+      tags: body.tags,
     });
     return route.fulfill({ status: 201, json: { id: "entry-77" } });
   });
@@ -437,11 +518,21 @@ test("an admin session publishes without the passphrase row", async ({
   await expect(dialog.getByLabel("Author")).toHaveValue("Token Zhang");
 
   await dialog.getByLabel("Circuit name").fill("Session Publish");
+  await dialog.getByTestId("publish-preset-amplifier").click();
+  await dialog.getByLabel("Add tag").fill("Latch");
+  await dialog.getByLabel("Add tag").press("Enter");
+  await expect(dialog.getByTestId("publish-tag-latch")).toBeVisible();
   await dialog.getByRole("button", { name: "Publish" }).click();
   await expect(page.getByTestId("status")).toHaveText(
     'Published "Session Publish" to the gallery',
   );
-  expect(posted).toEqual([{ authorization: null, author: "Token Zhang" }]);
+  expect(posted).toEqual([
+    {
+      authorization: null,
+      author: "Token Zhang",
+      tags: ["amplifier", "latch"],
+    },
+  ]);
 });
 
 test("an ordinary user sees blocking quality gates on an empty project", async ({

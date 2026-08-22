@@ -33,21 +33,21 @@ describe("shapes quick-place", () => {
       groups.map((group) => [group.category, group.symbols.length]),
     ).toEqual([
       ["Transistors", 4],
-      ["Analog Blocks", 5],
-      ["Logic Gates", 7],
       ["Passives", 8],
+      ["Power and Ports", 6],
       ["Sources", 2],
       ["Switches", 2],
-      ["Power and Ports", 6],
+      ["Analog Blocks", 5],
+      ["Logic Gates", 7],
     ]);
     const categoryTestIds = [
       "transistors",
-      "analog-blocks",
-      "logic-gates",
       "passives",
+      "power-and-ports",
       "sources",
       "switches",
-      "power-and-ports",
+      "analog-blocks",
+      "logic-gates",
     ];
     for (let index = 0; index < categoryTestIds.length; index += 1) {
       const testId = `data-testid="shapes-category-${categoryTestIds[index]}"`;

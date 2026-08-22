@@ -653,6 +653,9 @@ export function App({
   const [galleryEntryContext, setGalleryEntryContext] = useState<{
     id: string;
     ownerUserId: string | null;
+    author: string;
+    description: string;
+    tags: readonly string[];
   } | null>(null);
   const [publishGates, setPublishGates] = useState<SubmissionGateReport | null>(
     null,
@@ -1898,7 +1901,12 @@ export function App({
             return;
           }
           const payload = (await response.json()) as {
-            entry?: { name?: string };
+            entry?: {
+              name?: string;
+              author?: string;
+              description?: string;
+              tags?: string[];
+            };
             ownerUserId?: string | null;
             projectText?: string;
           };
@@ -1911,6 +1919,9 @@ export function App({
           setGalleryEntryContext({
             id: initialGalleryEntryId,
             ownerUserId: payload.ownerUserId ?? null,
+            author: payload.entry?.author ?? "",
+            description: payload.entry?.description ?? "",
+            tags: payload.entry?.tags ?? [],
           });
           setStatus(
             `Opened gallery circuit: ${payload.entry?.name ?? galleryProject.name}`,
@@ -7695,6 +7706,15 @@ export function App({
               ? { id: galleryEntryContext.id }
               : null
           }
+          updateDefaults={
+            galleryEntryContext
+              ? {
+                  author: galleryEntryContext.author,
+                  description: galleryEntryContext.description,
+                  tags: galleryEntryContext.tags,
+                }
+              : null
+          }
           publish={(fields) => publishProjectToGallery(project, fields)}
           publishUpdate={
             galleryEntryContext
@@ -7947,6 +7967,74 @@ export function App({
               </span>
             </button>
             <div className="selection-panel" hidden={!selectionOpen}>
+              {selectedInstance && selectedBulkResolution ? (
+                <section
+                  className="context-actions"
+                  aria-label="MOS bulk connection"
+                >
+                  <h2>Bulk</h2>
+                  <button
+                    type="button"
+                    className="bulk-draw-action"
+                    data-testid="draw-bulk-connection"
+                    onClick={drawSelectedMosBulk}
+                  >
+                    Draw bulk connection
+                  </button>
+                  <p>
+                    {selectedInstance.id}.B →{" "}
+                    {selectedBulkResolution.net
+                      ? (selectedBulkResolution.net.name ??
+                        selectedBulkResolution.net.id)
+                      : "unresolved"}
+                    {" · "}
+                    {selectedBulkResolution.status}
+                  </p>
+                  {selectedHiddenBulkNet ? (
+                    <p>Explicit bulk is shown with a Razavi dashed route.</p>
+                  ) : null}
+                  <label>
+                    Default NMOS bulk Net
+                    <select
+                      aria-label="Default NMOS bulk Net"
+                      value={document.mosBulkDefaults?.nmosNetId ?? ""}
+                      onChange={(event) =>
+                        updateMosBulkDefault(
+                          "nmos",
+                          event.currentTarget.value || null,
+                        )
+                      }
+                    >
+                      <option value="">None</option>
+                      {document.nets.map((net) => (
+                        <option key={net.id} value={net.id}>
+                          {net.name ?? net.id}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Default PMOS bulk Net
+                    <select
+                      aria-label="Default PMOS bulk Net"
+                      value={document.mosBulkDefaults?.pmosNetId ?? ""}
+                      onChange={(event) =>
+                        updateMosBulkDefault(
+                          "pmos",
+                          event.currentTarget.value || null,
+                        )
+                      }
+                    >
+                      <option value="">None</option>
+                      {document.nets.map((net) => (
+                        <option key={net.id} value={net.id}>
+                          {net.name ?? net.id}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </section>
+              ) : null}
               {flightlines.length > 0 ? (
                 <section
                   className="context-actions"
@@ -9046,69 +9134,6 @@ export function App({
                   </div>
                 )}
               </section>
-              {selectedInstance && selectedBulkResolution ? (
-                <section
-                  className="context-actions"
-                  aria-label="MOS bulk connection"
-                >
-                  <h2>Bulk</h2>
-                  <p>
-                    {selectedInstance.id}.B →{" "}
-                    {selectedBulkResolution.net
-                      ? (selectedBulkResolution.net.name ??
-                        selectedBulkResolution.net.id)
-                      : "unresolved"}
-                    {" · "}
-                    {selectedBulkResolution.status}
-                  </p>
-                  {selectedHiddenBulkNet ? (
-                    <p>Explicit bulk is shown with a Razavi dashed route.</p>
-                  ) : null}
-                  <label>
-                    Default NMOS bulk Net
-                    <select
-                      aria-label="Default NMOS bulk Net"
-                      value={document.mosBulkDefaults?.nmosNetId ?? ""}
-                      onChange={(event) =>
-                        updateMosBulkDefault(
-                          "nmos",
-                          event.currentTarget.value || null,
-                        )
-                      }
-                    >
-                      <option value="">None</option>
-                      {document.nets.map((net) => (
-                        <option key={net.id} value={net.id}>
-                          {net.name ?? net.id}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    Default PMOS bulk Net
-                    <select
-                      aria-label="Default PMOS bulk Net"
-                      value={document.mosBulkDefaults?.pmosNetId ?? ""}
-                      onChange={(event) =>
-                        updateMosBulkDefault(
-                          "pmos",
-                          event.currentTarget.value || null,
-                        )
-                      }
-                    >
-                      <option value="">None</option>
-                      {document.nets.map((net) => (
-                        <option key={net.id} value={net.id}>
-                          {net.name ?? net.id}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <button type="button" onClick={drawSelectedMosBulk}>
-                    Draw bulk connection
-                  </button>
-                </section>
-              ) : null}
               {selectedRouteId ? (
                 <section className="context-actions" aria-label="Route actions">
                   <h2>Electrical route</h2>

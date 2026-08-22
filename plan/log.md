@@ -4651,6 +4651,31 @@ Keep reusable lessons in `docs/experience/`, not in this log.
 - Commit status: completed on `claude/gallery-feed-g4` (stacked on
   `claude/gallery-owner-editing`).
 
+## 2026-08-22 — Gallery circuit tags
+
+- Target: `plan/2026-08-22-gallery-tags/plan.md` (completed).
+- Change: one tag normalization through submit/update/list/aggregate;
+  `?tags=a,b` OR-union filter; `GET /api/gallery/tags` counts; publish
+  dialog chip editor with presets and update-mode prefill (tags editable
+  any time via the owner-update path); feed multi-select tag menu with
+  clickable tile chips.
+- Validation: worker gallery 15, editor units 54, gallery Playwright
+  17/17, typecheck, prettier, test-impact, diff checks.
+- Commit status: completed on `claude/gallery-tags` (stacked on
+  `claude/gallery-feed-g4`).
+
+## 2026-08-22 - Library category order and Bulk action reach
+
+- Changed areas: `CATEGORY_ORDER` now runs Transistors, Passives, Power and
+  Ports, Sources, Switches, Analog Blocks, Logic Gates — display order only,
+  no category membership change. The MOS bulk section moved to the head of the
+  selection panel and now leads with an accented "Draw bulk connection" button
+  instead of trailing its two default-Net selects.
+- Validation: component-insert unit tests (47), Playwright component-insert +
+  manual-editor specs (117 passed), typecheck, prettier, diff checks; both
+  changes confirmed in a running editor.
+- Commit status: completed on `claude/library-order-and-bulk`; mainline merge
+
 ## 2026-08-22 - Repeating a Cell Pin name places another marker
 
 - Changed areas: new `planAttachCellPortMarker` appends a Port Instance to an

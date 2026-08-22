@@ -23,6 +23,12 @@ export interface PublishGalleryDialogProps {
   /** Present when the open circuit came from a gallery entry the signed-in
    * user may update (owner, admin, or moderator). */
   updateTarget?: { id: string } | null;
+  /** The opened entry's stored fields, prefilled once in update mode. */
+  updateDefaults?: {
+    author: string;
+    description: string;
+    tags: readonly string[];
+  } | null;
   publish: (fields: GalleryPublishFields) => Promise<GalleryPublishOutcome>;
   publishUpdate?:
     | ((fields: GalleryPublishFields) => Promise<GalleryPublishOutcome>)
@@ -49,6 +55,7 @@ export function PublishGalleryDialog({
   session = null,
   gateReport = null,
   updateTarget = null,
+  updateDefaults = null,
   publish,
   publishUpdate,
   onPublished,
@@ -68,6 +75,8 @@ export function PublishGalleryDialog({
     () => rememberedPublishAuthor() || session?.displayName || "",
   );
   const [description, setDescription] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagDraft, setTagDraft] = useState("");
   const [token, setToken] = useState(() => rememberedPublishToken());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -88,6 +97,30 @@ export function PublishGalleryDialog({
     if (canUpdate && !modeTouched) setMode("update");
   }, [canUpdate, modeTouched]);
 
+  // In update mode, prefill the entry's stored fields exactly once so
+  // "edit the tags any time" is open → adjust → save.
+  const [defaultsApplied, setDefaultsApplied] = useState(false);
+  useEffect(() => {
+    if (!canUpdate || !updateDefaults || defaultsApplied) return;
+    setDefaultsApplied(true);
+    setAuthor((previous) => previous || updateDefaults.author);
+    setDescription((previous) => previous || updateDefaults.description);
+    setTags((previous) =>
+      previous.length > 0 ? previous : [...updateDefaults.tags],
+    );
+  }, [canUpdate, updateDefaults, defaultsApplied]);
+
+  function addTag(raw: string): void {
+    const tag = raw.replace(/\s+/gu, " ").trim().toLowerCase();
+    if (!tag) return;
+    setTags((previous) =>
+      previous.includes(tag) || previous.length >= 5
+        ? previous
+        : [...previous, tag],
+    );
+    setTagDraft("");
+  }
+
   async function submit(): Promise<void> {
     setBusy(true);
     setError(null);
@@ -96,6 +129,7 @@ export function PublishGalleryDialog({
       name,
       author,
       description,
+      tags,
       token: anonymous ? token : "",
     });
     if (outcome.status === "published" || outcome.status === "pending-review") {
@@ -196,6 +230,68 @@ export function PublishGalleryDialog({
               onChange={(event) => setDescription(event.currentTarget.value)}
             />
           </label>
+          <div className="publish-gallery-tags" data-testid="publish-tags">
+            <span className="publish-gallery-tags-label">
+              Tags <span className="publish-gallery-optional">up to 5</span>
+            </span>
+            {tags.length > 0 ? (
+              <div className="publish-gallery-tag-chips">
+                {tags.map((tag) => (
+                  <button
+                    key={tag}
+                    type="button"
+                    className="publish-gallery-tag"
+                    data-testid={`publish-tag-${tag}`}
+                    title="Remove tag"
+                    onClick={() =>
+                      setTags((previous) =>
+                        previous.filter((candidate) => candidate !== tag),
+                      )
+                    }
+                  >
+                    {tag} ×
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            <input
+              aria-label="Add tag"
+              placeholder="Type a tag and press Enter"
+              value={tagDraft}
+              maxLength={24}
+              onChange={(event) => setTagDraft(event.currentTarget.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === ",") {
+                  event.preventDefault();
+                  addTag(tagDraft);
+                }
+              }}
+              onBlur={() => addTag(tagDraft)}
+            />
+            <div className="publish-gallery-tag-presets">
+              {[
+                "amplifier",
+                "comparator",
+                "adc",
+                "dac",
+                "pll",
+                "oscillator",
+                "filter",
+                "current mirror",
+              ]
+                .filter((preset) => !tags.includes(preset))
+                .map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    data-testid={`publish-preset-${preset.replace(/\s/gu, "-")}`}
+                    onClick={() => addTag(preset)}
+                  >
+                    + {preset}
+                  </button>
+                ))}
+            </div>
+          </div>
           {anonymous ? (
             <label>
               Owner passphrase

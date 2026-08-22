@@ -14,6 +14,7 @@ export interface GalleryFeedEntry {
   description: string;
   createdAt: string;
   schemaVersion: number;
+  tags?: string[];
 }
 
 export interface GalleryFeedPage {
@@ -58,10 +59,17 @@ function bundledTiles() {
 /** One feed page; the plain first request stays exactly `/api/gallery`. */
 export async function loadGalleryFeed(
   fetchLike: typeof fetch = fetch,
-  options: { cursor?: string | null; author?: string | null } = {},
+  options: {
+    cursor?: string | null;
+    author?: string | null;
+    tags?: readonly string[];
+  } = {},
 ): Promise<GalleryFeedPage | null> {
   const params = new URLSearchParams();
   if (options.author) params.set("author", options.author);
+  if (options.tags && options.tags.length > 0) {
+    params.set("tags", options.tags.join(","));
+  }
   if (options.cursor) params.set("cursor", options.cursor);
   const query = params.toString();
   try {
@@ -96,6 +104,37 @@ export function GalleryFeed() {
       ? null
       : new URLSearchParams(window.location.search).get("author"),
   );
+  const [selectedTags, setSelectedTags] = useState<string[]>(() =>
+    typeof window === "undefined"
+      ? []
+      : (new URLSearchParams(window.location.search).get("tags") ?? "")
+          .split(",")
+          .filter((tag) => tag.length > 0),
+  );
+  const [tagOptions, setTagOptions] = useState<
+    { tag: string; count: number }[]
+  >([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await fetch("/api/gallery/tags", {
+          credentials: "same-origin",
+        });
+        if (!response.ok) return;
+        const payload = (await response.json()) as {
+          tags?: { tag: string; count: number }[];
+        };
+        if (!cancelled) setTagOptions(payload.tags ?? []);
+      } catch {
+        // No menu without the worker; the wall itself still works.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const [state, setState] = useState<GalleryFeedState>({
     status: "loading",
     entries: [],
@@ -107,7 +146,7 @@ export function GalleryFeed() {
   useEffect(() => {
     let cancelled = false;
     setState({ status: "loading", entries: [], nextCursor: null });
-    void loadGalleryFeed(fetch, { author }).then((page) => {
+    void loadGalleryFeed(fetch, { author, tags: selectedTags }).then((page) => {
       if (cancelled) return;
       setState(
         page
@@ -118,7 +157,7 @@ export function GalleryFeed() {
     return () => {
       cancelled = true;
     };
-  }, [author]);
+  }, [author, selectedTags]);
 
   // Infinite scroll: while a cursor remains, the sentinel below the wall
   // appends the next page whenever it scrolls into view.
@@ -131,32 +170,50 @@ export function GalleryFeed() {
       if (!observed.some((entry) => entry.isIntersecting)) return;
       if (loadingMoreRef.current) return;
       loadingMoreRef.current = true;
-      void loadGalleryFeed(fetch, { author, cursor: nextCursor }).then(
-        (page) => {
-          loadingMoreRef.current = false;
-          if (!page) return;
-          setState((previous) =>
-            previous.status === "ready"
-              ? {
-                  status: "ready",
-                  entries: [...previous.entries, ...page.entries],
-                  nextCursor: page.nextCursor,
-                }
-              : previous,
-          );
-        },
-      );
+      void loadGalleryFeed(fetch, {
+        author,
+        tags: selectedTags,
+        cursor: nextCursor,
+      }).then((page) => {
+        loadingMoreRef.current = false;
+        if (!page) return;
+        setState((previous) =>
+          previous.status === "ready"
+            ? {
+                status: "ready",
+                entries: [...previous.entries, ...page.entries],
+                nextCursor: page.nextCursor,
+              }
+            : previous,
+        );
+      });
     });
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [nextCursor, author]);
+  }, [nextCursor, author, selectedTags]);
+
+  function syncQuery(nextAuthor: string | null, nextTags: string[]): void {
+    const url = new URL(window.location.href);
+    if (nextAuthor) url.searchParams.set("author", nextAuthor);
+    else url.searchParams.delete("author");
+    if (nextTags.length > 0) url.searchParams.set("tags", nextTags.join(","));
+    else url.searchParams.delete("tags");
+    window.history.replaceState(null, "", url.pathname + url.search);
+  }
 
   function selectAuthor(next: string | null): void {
     setAuthor(next);
-    const url = new URL(window.location.href);
-    if (next) url.searchParams.set("author", next);
-    else url.searchParams.delete("author");
-    window.history.replaceState(null, "", url.pathname + url.search);
+    syncQuery(next, selectedTags);
+  }
+
+  function toggleTag(tag: string): void {
+    setSelectedTags((previous) => {
+      const next = previous.includes(tag)
+        ? previous.filter((candidate) => candidate !== tag)
+        : [...previous, tag];
+      syncQuery(author, next);
+      return next;
+    });
   }
 
   const entries = state.entries;
@@ -165,6 +222,39 @@ export function GalleryFeed() {
     <main className="gallery-shell" data-testid="gallery-feed">
       <GalleryChrome subtitle="Community gallery" />
 
+      {tagOptions.length > 0 ? (
+        <div className="gallery-tag-bar" data-testid="gallery-tag-bar">
+          {tagOptions.map(({ tag, count }) => (
+            <button
+              key={tag}
+              type="button"
+              className={
+                selectedTags.includes(tag)
+                  ? "gallery-tag-option gallery-tag-selected"
+                  : "gallery-tag-option"
+              }
+              data-testid={`gallery-tag-option-${tag.replace(/\s/gu, "-")}`}
+              aria-pressed={selectedTags.includes(tag)}
+              onClick={() => toggleTag(tag)}
+            >
+              {tag} <span>{count}</span>
+            </button>
+          ))}
+          {selectedTags.length > 0 ? (
+            <button
+              type="button"
+              className="gallery-tag-option gallery-tag-clear"
+              data-testid="gallery-tags-clear"
+              onClick={() => {
+                setSelectedTags([]);
+                syncQuery(author, []);
+              }}
+            >
+              Clear tags
+            </button>
+          ) : null}
+        </div>
+      ) : null}
       {author ? (
         <div className="gallery-filter" data-testid="gallery-filter">
           <span>Circuits by {author}</span>
@@ -227,6 +317,26 @@ export function GalleryFeed() {
                       {entry.description ? (
                         <span className="gallery-tile-description">
                           {entry.description}
+                        </span>
+                      ) : null}
+                      {entry.tags && entry.tags.length > 0 ? (
+                        <span className="gallery-tile-tags">
+                          {entry.tags.map((tag) => (
+                            <button
+                              key={tag}
+                              type="button"
+                              className="gallery-tile-tag"
+                              data-testid={`gallery-tile-tag-${entry.id}-${tag.replace(/\s/gu, "-")}`}
+                              title={`Filter by ${tag}`}
+                              onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                if (!selectedTags.includes(tag)) toggleTag(tag);
+                              }}
+                            >
+                              {tag}
+                            </button>
+                          ))}
                         </span>
                       ) : null}
                     </span>

@@ -13,6 +13,8 @@ export interface GalleryPublishFields {
   name: string;
   author: string;
   description: string;
+  /** Category tags ("amplifier", "adc", …); the server normalizes. */
+  tags: readonly string[];
   /** Owner passphrase; empty when an admin session authenticates instead. */
   token: string;
 }
@@ -57,6 +59,7 @@ async function sendGalleryProject(
         name: fields.name.trim(),
         author: fields.author.trim(),
         description: fields.description.trim(),
+        tags: fields.tags,
         projectText: serializeProject(project),
       }),
     });
