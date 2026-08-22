@@ -4594,6 +4594,18 @@ Keep reusable lessons in `docs/experience/`, not in this log.
 - Commit status: completed on `claude/seed-placement-preview`; mainline merge
   gated on the remote required checks.
 
+## 2026-08-22 — Gallery masonry feed (G4 first slice)
+
+- Target: `plan/2026-08-22-gallery-masonry/plan.md` (completed).
+- Change: replaced the CSS multi-column wall with a true masonry
+  component (equal-width columns, natural tile heights, greedy
+  shortest-column placement with left-to-right reading order, one
+  ResizeObserver relayout on resize/image load); owner picked it from
+  side-by-side renderings of the live entries.
+- Validation: component suite 13, gallery Playwright 11/11 (new
+  placement scenario), typecheck, prettier, test-impact, diff checks.
+- Commit status: completed on `claude/gallery-masonry`.
+
 ## 2026-08-22 - One annotation text house style
 
 - Changed areas: `semanticTextDocument` and `defaultDraftTextDocument` now

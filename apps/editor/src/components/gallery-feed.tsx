@@ -5,6 +5,7 @@ import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 
 import { libraryProjectExamples } from "../examples/library-examples";
 import { AccountMenu } from "./account";
+import { Masonry } from "./masonry";
 
 export interface GalleryFeedEntry {
   id: string;
@@ -121,60 +122,69 @@ export function GalleryFeed() {
           Loading gallery…
         </p>
       ) : (
-        <section className="gallery-wall" aria-label="Published circuits">
-          {entries.map((entry) => (
-            <a
-              key={entry.id}
-              className="gallery-tile"
-              href={`/g/${entry.id}`}
-              data-testid={`gallery-tile-${entry.id}`}
-            >
-              <span className="gallery-tile-preview">
-                <img
-                  src={`/api/gallery/${entry.id}/preview.svg`}
-                  alt={`Preview of ${entry.name}`}
-                  loading="lazy"
-                />
-              </span>
-              <span className="gallery-tile-copy">
-                <span className="gallery-tile-name">{entry.name}</span>
-                <span className="gallery-tile-meta">
-                  {entry.author ? `${entry.author} · ` : ""}
-                  {savedAtLabel(entry.createdAt)}
-                </span>
-                {entry.description ? (
-                  <span className="gallery-tile-description">
-                    {entry.description}
-                  </span>
-                ) : null}
-              </span>
-            </a>
-          ))}
-          {entries.length === 0
-            ? bundledTiles().map((tile) => (
-                <a
-                  key={tile.id}
-                  className="gallery-tile gallery-tile-bundled"
-                  href={`/editor?example=${tile.id}`}
-                  data-testid={`gallery-bundled-${tile.id}`}
-                >
-                  <span
-                    className="gallery-tile-preview"
-                    // Server-free preview: our own renderer's escaped SVG output.
-                    dangerouslySetInnerHTML={{ __html: tile.svg }}
-                  />
-                  <span className="gallery-tile-copy">
-                    <span className="gallery-tile-kicker">
-                      Built-in example
+        <section className="gallery-wall">
+          <Masonry
+            aria-label="Published circuits"
+            items={[
+              ...entries.map((entry) => ({
+                key: entry.id,
+                node: (
+                  <a
+                    className="gallery-tile"
+                    href={`/g/${entry.id}`}
+                    data-testid={`gallery-tile-${entry.id}`}
+                  >
+                    <span className="gallery-tile-preview">
+                      <img
+                        src={`/api/gallery/${entry.id}/preview.svg`}
+                        alt={`Preview of ${entry.name}`}
+                        loading="lazy"
+                      />
                     </span>
-                    <span className="gallery-tile-name">{tile.name}</span>
-                    <span className="gallery-tile-description">
-                      {tile.description}
+                    <span className="gallery-tile-copy">
+                      <span className="gallery-tile-name">{entry.name}</span>
+                      <span className="gallery-tile-meta">
+                        {entry.author ? `${entry.author} · ` : ""}
+                        {savedAtLabel(entry.createdAt)}
+                      </span>
+                      {entry.description ? (
+                        <span className="gallery-tile-description">
+                          {entry.description}
+                        </span>
+                      ) : null}
                     </span>
-                  </span>
-                </a>
-              ))
-            : null}
+                  </a>
+                ),
+              })),
+              ...(entries.length === 0
+                ? bundledTiles().map((tile) => ({
+                    key: `bundled-${tile.id}`,
+                    node: (
+                      <a
+                        className="gallery-tile gallery-tile-bundled"
+                        href={`/editor?example=${tile.id}`}
+                        data-testid={`gallery-bundled-${tile.id}`}
+                      >
+                        <span
+                          className="gallery-tile-preview"
+                          // Server-free preview: our own renderer's escaped SVG output.
+                          dangerouslySetInnerHTML={{ __html: tile.svg }}
+                        />
+                        <span className="gallery-tile-copy">
+                          <span className="gallery-tile-kicker">
+                            Built-in example
+                          </span>
+                          <span className="gallery-tile-name">{tile.name}</span>
+                          <span className="gallery-tile-description">
+                            {tile.description}
+                          </span>
+                        </span>
+                      </a>
+                    ),
+                  }))
+                : []),
+            ]}
+          />
         </section>
       )}
       <footer className="gallery-footnote">

@@ -53,6 +53,49 @@ test("the site lands on the full-screen gallery feed", async ({ page }) => {
   );
 });
 
+test("masonry places the top row left-to-right in distinct columns", async ({
+  page,
+}) => {
+  const entries = ["m-a", "m-b", "m-c"].map((id, index) => ({
+    id,
+    name: `Circuit ${id}`,
+    author: "tz",
+    description: index === 0 ? "taller card" : "",
+    createdAt: "2026-08-22T10:00:00.000Z",
+    schemaVersion: 21,
+  }));
+  await page.route("**/api/gallery", (route) =>
+    route.fulfill({ json: { entries, nextCursor: null } }),
+  );
+  await page.route("**/api/gallery/*/preview.svg", (route) =>
+    route.fulfill({
+      contentType: "image/svg+xml",
+      body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 6"><rect width="10" height="6" fill="#fff"/></svg>',
+    }),
+  );
+
+  await page.goto("/");
+  await expect(page.getByTestId("gallery-tile-m-c")).toBeVisible();
+  const positions = await page.locator(".masonry-item").evaluateAll((items) =>
+    items.map((item) => {
+      const match = /translate\(([-\d.]+)px, ([-\d.]+)px\)/u.exec(
+        (item as HTMLElement).style.transform,
+      );
+      return { x: Number(match?.[1]), y: Number(match?.[2]) };
+    }),
+  );
+  expect(positions).toHaveLength(3);
+  // All three fit the top row: same y, strictly increasing x (reading
+  // order), and the container has a measured height.
+  expect(positions.every((position) => position.y === 0)).toBe(true);
+  expect(positions[1]!.x).toBeGreaterThan(positions[0]!.x);
+  expect(positions[2]!.x).toBeGreaterThan(positions[1]!.x);
+  const wallHeight = await page
+    .locator(".masonry")
+    .evaluate((wall) => Number.parseFloat((wall as HTMLElement).style.height));
+  expect(wallHeight).toBeGreaterThan(100);
+});
+
 test("falls back to bundled tiles when the gallery is empty or unreachable", async ({
   page,
 }) => {

@@ -112,9 +112,11 @@ rejection stores and surfaces its optional reason; two ordinary accounts
 cannot touch each other's tiles while moderators and the admin can;
 anonymous writes are impossible at the API, not just the UI.
 
-## Phase G4 — Feed experience
+## Phase G4 — Feed experience (masonry live)
 
-- Masonry/infinite scroll, per-author filtering, in-feed admin recycle-bin
-  view, and seeded starter content curation.
+- Masonry (shipped 2026-08-22: JS greedy shortest-column layout keeping
+  each circuit's natural aspect ratio, left-to-right reading order,
+  balanced bottoms); still open: infinite scroll, per-author filtering,
+  in-feed admin recycle-bin view, and seeded starter content curation.
 
 Each phase closes by updating this file's status line for that phase.

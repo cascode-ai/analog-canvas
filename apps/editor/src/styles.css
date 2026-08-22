@@ -5682,17 +5682,27 @@ html.light .analytics-map-land path {
 
 /* Pinterest-style wall: CSS columns give a dependency-free masonry. */
 .gallery-wall {
-  columns: 5 240px;
-  column-gap: 14px;
   padding: 18px 22px;
   width: 100%;
   box-sizing: border-box;
 }
 
+/* True masonry: the component measures tiles and writes width/transform;
+   items are absolutely positioned inside a relative container whose
+   height is set to the tallest column. */
+.masonry {
+  position: relative;
+  width: 100%;
+}
+
+.masonry-item {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
 .gallery-tile {
   display: block;
-  break-inside: avoid;
-  margin: 0 0 14px;
   border: 1px solid var(--icm-border);
   border-radius: var(--icm-radius-md, 10px);
   background: var(--icm-surface);
@@ -5721,7 +5731,7 @@ html.light .analytics-map-land path {
   display: block;
   width: 100%;
   height: auto;
-  max-height: 320px;
+  max-height: 380px;
   object-fit: contain;
 }
 
