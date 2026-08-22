@@ -16,7 +16,20 @@ describe("Razavi schematic typography", () => {
     expect(rendered).toContain('baseline-shift="-0.28em"');
     expect(rendered).toContain('dx="0.046em"');
     expect(rendered).toContain("font-style:italic;font-weight:700");
-    expect(rendered).toContain("font-style:normal;font-weight:700");
+    // Supply designators are the one italic subscript in the house style.
+    expect(rendered).toContain(
+      '<tspan data-text-run="span" style="font-style:italic;font-weight:700">DD</tspan>',
+    );
+  });
+
+  it("draws an ordinary subscript upright", () => {
+    const rendered = renderRichTextDocument(
+      semanticTextDocument("Vin", "net-label"),
+      razaviTextbookProfile,
+    );
+    expect(rendered).toContain(
+      '<tspan data-text-run="span" style="font-style:normal;font-weight:700">in</tspan>',
+    );
   });
 
   it("uses semantic profile sizes", () => {

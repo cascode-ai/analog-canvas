@@ -25,8 +25,43 @@ function mathBase(value: string): RichTextRun {
   return span([span([{ kind: "text", value }], "bold")], "italic");
 }
 
+/**
+ * Supply designators keep an italic subscript; every other subscript is
+ * upright. The renderer draws scripts upright by default and treats a nested
+ * italic span as a deliberate override, so this is expressed in the document
+ * rather than in the renderer.
+ */
+const POWER_RAIL_SUBSCRIPTS = new Set(["dd", "ss", "cc", "ee", "bb"]);
+
+function isPowerRailSubscript(value: string): boolean {
+  return POWER_RAIL_SUBSCRIPTS.has(value.trim().toLowerCase());
+}
+
 function mathSubscript(value: string): RichTextRun {
-  return span([span([{ kind: "text", value }], "bold")], "subscript");
+  const bold = span([{ kind: "text", value }], "bold");
+  return span(
+    [isPowerRailSubscript(value) ? span([bold], "italic") : bold],
+    "subscript",
+  );
+}
+
+/**
+ * House style for an authored identifier: the leading character is the
+ * capitalized symbol and everything after it defaults to its subscript. Both
+ * halves stay editable afterwards.
+ *
+ * Whitespace marks prose rather than an identifier — a drafting note must not
+ * be swallowed into one long subscript — so a multi-word value keeps its
+ * capitalized first letter and stays a single upright-size run.
+ */
+function symbolRuns(value: string): RichTextRun[] {
+  const capitalized = value.slice(0, 1).toUpperCase() + value.slice(1);
+  if (/\s/u.test(capitalized)) return [mathBase(capitalized)];
+  const head = capitalized.slice(0, 1);
+  const tail = capitalized.slice(1);
+  return tail.length > 0
+    ? [mathBase(head), mathSubscript(tail)]
+    : [mathBase(head)];
 }
 
 /** Construct the initial Razavi-style RichText for a free drafting label. */
@@ -44,7 +79,7 @@ export function defaultDraftTextDocument(value: string): RichTextDocument {
     };
   }
 
-  return { runs: [mathBase(value)] };
+  return { runs: symbolRuns(value) };
 }
 
 /** Construct current-authoring RichText for a conventional semantic label. */
@@ -67,29 +102,15 @@ export function semanticTextDocument(
   }
   if (/[\\{}^]/u.test(value)) return { runs: [{ kind: "text", value }] };
 
-  if (kind === "default-instance" || kind === "instance-label") {
-    const match = /^([A-Za-z]+)(.+)$/u.exec(value);
-    return match
-      ? { runs: [mathBase(match[1]!), mathSubscript(match[2]!)] }
-      : { runs: [mathBase(value)] };
-  }
-
-  const conventional = /^([VI])(.+?)([+-])?$/u.exec(value);
-  if (!conventional) {
-    // Net and Cell-Port names are the principal signal identifiers in a
-    // Razavi schematic. They remain mathematical labels even when their
-    // electrical spelling is not V*/I* (for example CLK or generated NET1).
-    return kind === "net-label" || kind === "formal-port"
-      ? { runs: [mathBase(value)] }
-      : { runs: [{ kind: "text", value }] };
-  }
+  // Every authored label follows one rule: capitalized leading symbol, the
+  // rest as its subscript. A trailing polarity sign stays outside the
+  // subscript because it qualifies the whole identifier.
+  const signed = /^(.+?)([+-])$/u.exec(value);
+  if (!signed) return { runs: symbolRuns(value) };
   return {
     runs: [
-      mathBase(conventional[1]!),
-      mathSubscript(conventional[2]!),
-      ...(conventional[3]
-        ? [{ kind: "text" as const, value: conventional[3] }]
-        : []),
+      ...symbolRuns(signed[1]!),
+      { kind: "text" as const, value: signed[2]! },
     ],
   };
 }

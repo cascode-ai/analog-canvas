@@ -4475,6 +4475,7 @@ Keep reusable lessons in `docs/experience/`, not in this log.
   verified in the running editor.
 - Commit status: completed on `claude/differential-output-opamp`; mainline
   merge gated on the remote required checks.
+
 ## 2026-08-22 - Unified copy placement transforms
 
 - Target: `plan/2026-08-22-unified-copy-transform/plan.md` (completed).
@@ -4535,7 +4536,6 @@ Keep reusable lessons in `docs/experience/`, not in this log.
 - Commit status: committed locally as `bd5bc67e`; mainline delivery proceeds
   through the canonical local and remote gates.
 
-
 ## 2026-08-22 - Publish button spells out its destination
 
 - Changed areas: the menubar publish control reads "Publish to Gallery"
@@ -4593,3 +4593,23 @@ Keep reusable lessons in `docs/experience/`, not in this log.
   it, prettier, diff checks; reproduced and re-verified in a running editor.
 - Commit status: completed on `claude/seed-placement-preview`; mainline merge
   gated on the remote required checks.
+
+## 2026-08-22 - One annotation text house style
+
+- Changed areas: `semanticTextDocument` and `defaultDraftTextDocument` now
+  share one rule — capitalized italic leading symbol, remainder as its
+  subscript — replacing the `V*`/`I*` shorthand and the role-specific
+  instance-label regex. Subscripts stay upright except supply designators
+  (DD/SS/CC/EE/BB), carried as a nested italic span because the renderer
+  already honors that as a deliberate override. A trailing polarity sign stays
+  outside the subscript, and a value containing whitespace stays prose so a
+  drafting note is not swallowed into one long subscript.
+- Historical documents need no migration: bound annotations are pure
+  projections re-derived on read by `resolveAnnotationText`.
+- Validation: full unit suite (1155), full Playwright suite (189 passed),
+  visual and export golden `--check` both clean (goldens carry `Vin+`/`Vout`,
+  which the superseded rule split identically), typecheck, prettier, diff
+  checks; rendered output inspected per glyph for VDD/VSS/VCC/Vin/Vout/Iout/
+  CLK/A and both drafting cases.
+- Commit status: completed on `claude/semantic-text-subscripts`; mainline
+  merge gated on the remote required checks.
