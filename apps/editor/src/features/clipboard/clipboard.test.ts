@@ -14,6 +14,7 @@ import {
   clipboardPreviewDocument,
   copyPlacementOrientationEdits,
   copySelection,
+  copyWholeDocument,
   proposePaste,
 } from "./clipboard";
 
@@ -602,5 +603,52 @@ describe("schematic clipboard", () => {
       origin: "supply-default",
       netId: "net-global-0",
     });
+  });
+});
+
+describe("copyWholeDocument", () => {
+  it("keeps a Power Rail that no device is wired to yet", () => {
+    const document = createEmptyDocument("document-main", "Main");
+    document.nets.push({
+      id: "net-vdd",
+      name: "VDD",
+      scope: "local",
+      powerDomain: "vdd",
+      terminals: [],
+      origin: { kind: "authored" },
+    });
+    document.junctions.push(
+      {
+        id: "junction-vdd-start",
+        netId: "net-vdd",
+        position: { x: 10, y: 10 },
+        role: "route-anchor",
+      },
+      {
+        id: "junction-vdd-end",
+        netId: "net-vdd",
+        position: { x: 110, y: 10 },
+        role: "route-anchor",
+      },
+    );
+    document.routes.push({
+      id: "rail-vdd",
+      netId: "net-vdd",
+      from: { kind: "junction", junctionId: "junction-vdd-start" },
+      to: { kind: "junction", junctionId: "junction-vdd-end" },
+      waypoints: [],
+      segmentModes: ["manual"],
+      presentation: "power-rail",
+    });
+
+    // A selection copy keeps only Nets whose every terminal is selected, so a
+    // rail with no device on it yet is not part of any selection.
+    expect(copySelection(document, [])).toBeNull();
+
+    const whole = copyWholeDocument(document);
+    expect(whole?.routes).toHaveLength(1);
+    expect(whole?.routes[0]?.presentation).toBe("power-rail");
+    expect(whole?.junctions).toHaveLength(2);
+    expect(whole?.nets.map((net) => net.name)).toEqual(["VDD"]);
   });
 });

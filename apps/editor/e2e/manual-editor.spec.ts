@@ -1757,7 +1757,8 @@ test("keeps literal text line breaks and overbars visible while editing", async 
   await editor.press("ControlOrMeta+A");
   await page.getByRole("button", { name: "Overbar" }).click();
   await editor.press("End");
-  await editor.press("Enter");
+  // Enter finishes the text everywhere; a deliberate modifier asks for a line.
+  await editor.press("Shift+Enter");
   await editor.type("bias");
   await page.getByRole("button", { name: "Apply text changes" }).click();
   await expect(

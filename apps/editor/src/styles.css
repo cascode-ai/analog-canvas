@@ -6137,25 +6137,11 @@ html.light .analytics-map-land path {
 
 /* The gallery panel shows circuits, not just their names, and the reader
    chooses how many fit per row. */
-.gallery-column-control {
-  display: flex;
-  gap: var(--icm-space-2);
-  align-items: center;
-  padding: var(--icm-space-2);
-  color: var(--icm-text-muted);
-  font-size: var(--icm-font-xs);
-}
-
-.gallery-column-control input[type="range"] {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.shapes-example-list[data-columns] {
+.shapes-example-list {
   display: grid;
-  grid-template-columns: repeat(var(--icm-gallery-columns, 1), minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   gap: var(--icm-space-2);
-  padding: 0 var(--icm-space-2) var(--icm-space-2);
+  padding: var(--icm-space-2);
 }
 
 .shapes-example-preview {

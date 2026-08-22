@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 
 import { renderDocumentSvg } from "@icm/render-svg";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
@@ -26,21 +26,7 @@ export interface ExamplesPanelProps {
   onOpenExample(example: LibraryProjectExample): void;
 }
 
-const COLUMN_STORAGE_KEY = "icm.gallery-panel-columns.v1";
-const MIN_COLUMNS = 1;
-const MAX_COLUMNS = 4;
-
 const resolver = new InMemorySymbolResolver(builtInSymbols);
-
-function initialColumns(): number {
-  if (typeof window === "undefined") return 1;
-  const stored = Number(window.localStorage.getItem(COLUMN_STORAGE_KEY));
-  return Number.isFinite(stored) &&
-    stored >= MIN_COLUMNS &&
-    stored <= MAX_COLUMNS
-    ? stored
-    : 1;
-}
 
 /**
  * The circuit gallery, docked beside the canvas. Every card carries a preview
@@ -53,7 +39,6 @@ export function ExamplesPanel({
   onOpenGalleryExample,
   onOpenExample,
 }: ExamplesPanelProps) {
-  const [columns, setColumns] = useState(initialColumns);
   const showGallery = galleryExamples !== null && galleryExamples.length > 0;
 
   // Bundled circuits render from the same renderer the feed uses; the work is
@@ -71,15 +56,6 @@ export function ExamplesPanel({
     [],
   );
 
-  const changeColumns = (next: number): void => {
-    setColumns(next);
-    try {
-      window.localStorage.setItem(COLUMN_STORAGE_KEY, String(next));
-    } catch {
-      // Column count stays usable when browser storage is unavailable.
-    }
-  };
-
   return (
     <aside
       id="examples-panel"
@@ -93,27 +69,10 @@ export function ExamplesPanel({
       data-open={open ? "true" : "false"}
     >
       <div className="shapes-panel-body">
-        <label className="gallery-column-control">
-          <span>Columns</span>
-          <input
-            type="range"
-            min={MIN_COLUMNS}
-            max={MAX_COLUMNS}
-            step={1}
-            value={columns}
-            aria-label="Gallery columns"
-            data-testid="gallery-column-slider"
-            onChange={(event) =>
-              changeColumns(Number(event.currentTarget.value))
-            }
-          />
-          <output>{columns}</output>
-        </label>
-        <div
-          className="shapes-example-list"
-          data-columns={columns}
-          style={{ "--icm-gallery-columns": columns } as React.CSSProperties}
-        >
+        {/* Columns follow the panel's dragged width, the same way the Library
+            tiles do; a separate control for the same thing is one knob too
+            many. */}
+        <div className="shapes-example-list">
           {showGallery
             ? galleryExamples.map((example) => (
                 <button

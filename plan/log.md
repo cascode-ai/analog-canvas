@@ -5017,3 +5017,29 @@ Keep reusable lessons in `docs/experience/`, not in this log.
   the toggle states verified live.
 - Commit status: completed on `claude/gallery-consolidation`; mainline merge
   gated on the remote required checks.
+
+## 2026-08-22 - Imports keep their Power Rails, and Enter finishes text
+
+- Reported: inserting a circuit from the gallery lost its VDD line. Traced by
+  probing the copy rather than the UI. `copySelection` is instance-driven, so
+  it keeps only Nets whose every terminal is inside the selection and requires
+  at least one terminal; a Net with no instance terminals — a Power Rail drawn
+  but not yet wired to a device — never qualified, and its routes, junctions,
+  and label were dropped. Bundled examples hid this because their rails are
+  wired to transistors.
+- `copyWholeDocument` is the honest primitive for importing a circuit, and the
+  import path now uses it. A new clipboard case proves both halves: the rail is
+  absent from `copySelection` and present in `copyWholeDocument`.
+- A Port's label is now constrained to a horizontal side, so it swaps between
+  left and right and never sits above or below a rotated Port.
+- Enter finishes text in every canvas editor; Shift+Enter starts a line.
+- The gallery column slider is gone: columns follow the panel's dragged width,
+  the same way the Library tiles do.
+- Measured rather than changed: a rectangle label is already centred (text box
+  centre and rectangle centre both 400), and schematic and drafting text already
+  share one family at one size — the visual difference is weight and slope,
+  which is the intended split.
+- Validation: full unit suite (1189), full Playwright suite (208 passed),
+  typecheck, prettier, diff checks.
+- Commit status: completed on `claude/instance-behavior`; mainline merge gated
+  on the remote required checks.

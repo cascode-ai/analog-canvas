@@ -61,7 +61,7 @@ describe("gallery-backed library", () => {
 });
 
 describe("user examples section", () => {
-  it("previews each circuit and lets the reader choose the column count", () => {
+  it("previews each circuit rather than only naming it", () => {
     const markup = renderToStaticMarkup(
       createElement(ExamplesPanel, {
         open: true,
@@ -73,8 +73,9 @@ describe("user examples section", () => {
     // want to borrow from, so every card carries the circuit itself.
     expect(markup).toContain('class="shapes-example-preview"');
     expect(markup).toContain("<svg");
-    expect(markup).toContain('data-testid="gallery-column-slider"');
-    expect(markup).toContain('aria-label="Gallery columns"');
+    // Columns follow the panel's dragged width rather than a second control
+    // for the same thing.
+    expect(markup).not.toContain('data-testid="gallery-column-slider"');
   });
 
   it("keeps the gallery as the only place circuits are stored", () => {

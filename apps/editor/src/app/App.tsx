@@ -131,6 +131,7 @@ import {
   clipboardPlacementAnchor,
   clipboardPreviewDocument,
   copySelection,
+  copyWholeDocument,
 } from "../features/clipboard/clipboard";
 import type { SchematicClipboard } from "../features/clipboard/clipboard";
 import { startCanvasDragSession } from "../canvas/canvas-drag-session";
@@ -3305,10 +3306,7 @@ export function App({
       (candidate) => candidate.id === imported.topDocumentId,
     );
     if (!importedDocument || imported.documents.length > 1) return false;
-    const clipboard = copySelection(
-      importedDocument,
-      importedDocument.instances.map((instance) => instance.id),
-    );
+    const clipboard = copyWholeDocument(importedDocument);
     const anchor = clipboard ? clipboardPlacementAnchor(clipboard) : null;
     if (!clipboard || !anchor) return false;
     cancelAllTransientInteraction();

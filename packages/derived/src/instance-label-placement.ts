@@ -174,6 +174,34 @@ export function inferInstanceLabelSide(
   return displacement.y > 0 ? "bottom" : "top";
 }
 
+/**
+ * Side opposite the Symbol's own connection point, so a label constrained to
+ * a horizontal side never lands on top of the wire leaving the Port.
+ */
+function horizontalSideAwayFromPin(
+  instance: SchematicDocument["instances"][number],
+  resolved: ResolvedSymbol,
+): InstanceLabelSide {
+  const pin = resolved.definition.pins[0];
+  if (!pin || !instance.placement) return "left";
+  const localBounds = visibleSymbolInkBounds(resolved);
+  const localCenter = {
+    x: localBounds.x + localBounds.width / 2,
+    y: localBounds.y + localBounds.height / 2,
+  };
+  const pinWorld = transformPoint(
+    pin.at,
+    instance.placement.position,
+    instance.placement,
+  );
+  const centerWorld = transformPoint(
+    localCenter,
+    instance.placement.position,
+    instance.placement,
+  );
+  return pinWorld.x > centerWorld.x ? "left" : "right";
+}
+
 function transformedSide(
   side: InstanceLabelSide,
   instance: SchematicDocument["instances"][number],
@@ -211,11 +239,21 @@ export function placeUprightInstanceLabel(
   grid: number,
   sizeScale = 1,
   rowOffset = 0,
+  /**
+   * Keep the label beside the symbol through every quarter turn. Upright text
+   * above or below a rotated Port reads as the label having flipped over, so
+   * such a Symbol swaps between left and right instead.
+   */
+  horizontalSidesOnly = false,
 ): InstanceLabelPlacement | null {
   if (!instance.placement) return null;
   const localBounds = visibleSymbolInkBounds(resolved);
   const worldBounds = transformedBounds(localBounds, instance);
-  const worldSide = transformedSide(localSide, instance);
+  const rotatedSide = transformedSide(localSide, instance);
+  const worldSide =
+    horizontalSidesOnly && (rotatedSide === "top" || rotatedSide === "bottom")
+      ? horizontalSideAwayFromPin(instance, resolved)
+      : rotatedSide;
   if (!worldBounds || !worldSide) return null;
   const semanticPosition = transformPoint(
     localAnchor,
@@ -306,6 +344,7 @@ export function defaultInstanceLabelPlacement(
       grid,
       1,
       rowOffset,
+      true,
     );
   }
 

@@ -271,6 +271,33 @@ export function clipboardPreviewDocument(
   );
 }
 
+/**
+ * Copy a whole Document as one fragment.
+ *
+ * `copySelection` is driven by the instances a user picked, so it keeps only
+ * Nets every terminal of which is inside that selection. Importing a circuit
+ * is a different question — everything drawn belongs — and a Net with no
+ * instance terminals at all, such as a Power Rail that has been drawn but not
+ * yet wired to a device, would otherwise be dropped along with its rail
+ * geometry and label.
+ */
+export function copyWholeDocument(
+  document: SchematicDocument,
+): SchematicClipboard | null {
+  if (document.instances.length === 0 && document.routes.length === 0) {
+    return null;
+  }
+  return structuredClone({
+    instances: document.instances,
+    nets: document.nets,
+    boundaryNets: [],
+    routes: document.routes,
+    junctions: document.junctions,
+    annotations: document.annotations,
+    noConnects: document.noConnects,
+  });
+}
+
 export function copySelection(
   document: SchematicDocument,
   instanceIds: readonly string[],
