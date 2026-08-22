@@ -4626,6 +4626,19 @@ Keep reusable lessons in `docs/experience/`, not in this log.
 - Commit status: completed on `claude/semantic-text-subscripts`; mainline
   merge gated on the remote required checks.
 
+## 2026-08-22 — Gallery chrome everywhere and owner editing
+
+- Target: `plan/2026-08-22-gallery-owner-editing/plan.md` (completed).
+- Change: shared `GalleryChrome` on every state of the feed, `/mine`,
+  and `/review` (no more bare edge-touching paragraphs); `PUT
+/api/gallery/<id>` — reviewers update any entry in place, ordinary
+  owners update through the gates and re-enter review with the previous
+  decision cleared; publish dialog gains an update-vs-new mode; `/mine`
+  cards show previews, open-in-editor links, and resubmission guidance.
+- Validation: worker gallery 13, unit sweep 472, gallery Playwright
+  13/13, typecheck, prettier, test-impact, diff checks.
+- Commit status: completed on `claude/gallery-owner-editing`.
+
 ## 2026-08-22 - Library category order and Bulk action reach
 
 - Changed areas: `CATEGORY_ORDER` now runs Transistors, Passives, Power and

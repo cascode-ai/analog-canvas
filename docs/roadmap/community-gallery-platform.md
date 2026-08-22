@@ -104,8 +104,10 @@ one shared evaluator in the worker and previewed live in the publish
 dialog, then wait in `pending` (publicly invisible) until the
 super-admin or an appointed moderator (`/review`, in-app appointment by
 email) approves or rejects with an optional reason surfaced at `/mine`.
-Remaining in this phase: owner editing/withdrawal of published entries
-re-entering review.
+Owner editing shipped 2026-08-22: every entry stays editable by its
+owner (updates re-enter review; a rejection becomes an informed
+resubmission) and by reviewers in place; withdrawal remains a recorded
+refinement.
 
 Acceptance: an ordinary submission is invisible publicly until approved;
 rejection stores and surfaces its optional reason; two ordinary accounts

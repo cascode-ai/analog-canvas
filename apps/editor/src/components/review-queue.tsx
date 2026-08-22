@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { fetchSessionUser, type SessionUser } from "./account";
+import { GalleryChrome } from "./gallery-chrome";
 
 /**
  * Review queue (roadmap phase G3): the super-admin and appointed
@@ -170,83 +171,78 @@ export function ReviewQueue() {
     };
   }, []);
 
-  if (state.status === "loading") {
-    return <p className="gallery-status">Loading review queue…</p>;
-  }
-  if (state.status === "denied") {
+  if (state.status !== "ready") {
     return (
-      <main className="review-shell" data-testid="review-denied">
-        <p className="gallery-status">
-          The review queue is for the gallery owner and appointed moderators.{" "}
-          <a href="/">Back to the gallery</a>
-        </p>
+      <main
+        className="review-shell"
+        data-testid={
+          state.status === "denied" ? "review-denied" : "review-page"
+        }
+      >
+        <GalleryChrome subtitle="Review queue" showGalleryLink />
+        <div className="page-body">
+          <p className="gallery-status">
+            {state.status === "loading"
+              ? "Loading review queue…"
+              : "The review queue is for the gallery owner and appointed moderators."}
+          </p>
+        </div>
       </main>
     );
   }
 
   return (
     <main className="review-shell" data-testid="review-queue">
-      <header className="gallery-chrome">
-        <div className="gallery-brand">
-          <span className="app-brand-mark" aria-hidden="true" />
-          <div>
-            <h1>Review queue</h1>
-            <p>Pending community submissions</p>
-          </div>
-        </div>
-        <nav className="gallery-actions">
-          <a className="gallery-open-editor" href="/">
-            Back to the gallery
-          </a>
-        </nav>
-      </header>
-      {state.user.isAdmin ? (
-        <form
-          className="review-appoint"
-          data-testid="review-appoint"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (!email.trim()) return;
-            void appointModerator(email.trim(), "moderator").then(setNotice);
-          }}
-        >
-          <input
-            type="email"
-            aria-label="Moderator email"
-            placeholder="Appoint a moderator by email"
-            value={email}
-            onChange={(event) => setEmail(event.currentTarget.value)}
-          />
-          <button type="submit">Appoint</button>
-          {notice ? <span className="account-notice">{notice}</span> : null}
-        </form>
-      ) : null}
-      {state.entries.length === 0 ? (
-        <p className="gallery-status" data-testid="review-empty">
-          Nothing waiting for review.
-        </p>
-      ) : (
-        <section className="review-list">
-          {state.entries.map((entry) => (
-            <ReviewCard
-              key={entry.id}
-              entry={entry}
-              onDecided={(id) =>
-                setState((previous) =>
-                  previous.status === "ready"
-                    ? {
-                        ...previous,
-                        entries: previous.entries.filter(
-                          (candidate) => candidate.id !== id,
-                        ),
-                      }
-                    : previous,
-                )
-              }
+      <GalleryChrome subtitle="Review queue" showGalleryLink />
+      <div className="page-body">
+        {state.user.isAdmin ? (
+          <form
+            className="review-appoint"
+            data-testid="review-appoint"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!email.trim()) return;
+              void appointModerator(email.trim(), "moderator").then(setNotice);
+            }}
+          >
+            <input
+              type="email"
+              aria-label="Moderator email"
+              placeholder="Appoint a moderator by email"
+              value={email}
+              onChange={(event) => setEmail(event.currentTarget.value)}
             />
-          ))}
-        </section>
-      )}
+            <button type="submit">Appoint</button>
+            {notice ? <span className="account-notice">{notice}</span> : null}
+          </form>
+        ) : null}
+        {state.entries.length === 0 ? (
+          <p className="gallery-status" data-testid="review-empty">
+            Nothing waiting for review.
+          </p>
+        ) : (
+          <section className="review-list">
+            {state.entries.map((entry) => (
+              <ReviewCard
+                key={entry.id}
+                entry={entry}
+                onDecided={(id) =>
+                  setState((previous) =>
+                    previous.status === "ready"
+                      ? {
+                          ...previous,
+                          entries: previous.entries.filter(
+                            (candidate) => candidate.id !== id,
+                          ),
+                        }
+                      : previous,
+                  )
+                }
+              />
+            ))}
+          </section>
+        )}
+      </div>
     </main>
   );
 }

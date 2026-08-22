@@ -90,8 +90,21 @@ their detail and preview answer only to reviewers or the owning session.
 
 The editor surfaces the queue at `/review` (approve, reject with reason,
 admin-only moderator appointment) and the submitter's view at `/mine`
-(status chips plus the rejection reason). Owner editing and withdrawal
-of published entries (re-entering review) is a recorded follow-up.
+(status chips, rejection reason, owner-visible preview, open-in-editor).
+Every gallery page state wears the shared site chrome.
+
+## Owner editing (Phase G3 completion)
+
+`PUT /api/gallery/<id>` (same-origin) updates an entry's content and
+metadata with the submission field rules. Authority: the bearer and
+admin/moderator sessions may update any entry, keeping its current
+status; an ordinary session must own the entry (403 otherwise) and
+passes the quality gates (422), after which the entry re-enters review
+as `pending` with the previous decision cleared — a rejection becomes an
+informed resubmission. The Project is re-serialized canonically and the
+preview re-rendered; 200 answers `{id, status}`. The detail response
+carries `ownerUserId` so the editor offers "update the opened entry"
+exactly to owners and reviewers.
 
 Entries persist a nullable owner column stamped from the submitting
 session.

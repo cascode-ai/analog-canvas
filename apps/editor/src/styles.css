@@ -5521,13 +5521,53 @@ html.light .analytics-map-land path {
   cursor: pointer;
 }
 
+.page-body {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 6px 22px 40px;
+}
+
 .review-list,
 .mine-list {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  max-width: 56rem;
-  padding: 18px 22px 40px;
+  padding: 12px 0 0;
+}
+
+.mine-card-preview img {
+  display: block;
+  width: 150px;
+  height: 100px;
+  object-fit: contain;
+  border: 1px solid var(--icm-border);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.mine-card-edit {
+  align-self: flex-start;
+  margin-top: 4px;
+}
+
+.publish-gallery-mode {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--icm-accent);
+  border-radius: 8px;
+  background: var(--icm-accent-soft);
+  font-size: 0.85rem;
+}
+
+.publish-gallery-mode label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
 }
 
 .review-card,
@@ -5606,6 +5646,14 @@ html.light .analytics-map-land path {
 .mine-card {
   align-items: center;
   justify-content: space-between;
+}
+
+.mine-card .mine-card-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .mine-card-status {

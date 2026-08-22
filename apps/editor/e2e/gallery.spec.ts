@@ -388,6 +388,110 @@ test("a reviewer approves a pending submission from the review queue", async ({
   expect(decisions).toEqual(["approve"]);
 });
 
+test("/mine wears the site chrome and links every entry back to the editor", async ({
+  page,
+}) => {
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      json: {
+        user: {
+          id: "u7",
+          displayName: "Maker",
+          email: "maker@example.com",
+          provider: "email",
+          role: "user",
+          isAdmin: false,
+        },
+      },
+    }),
+  );
+  await page.route("**/api/gallery/mine", (route) =>
+    route.fulfill({
+      json: {
+        entries: [
+          {
+            id: "mine-1",
+            name: "Rejected Filter",
+            createdAt: "2026-08-22T09:00:00.000Z",
+            status: "rejected",
+            rejectReason: "Label the ports",
+          },
+          {
+            id: "mine-2",
+            name: "Live Amp",
+            createdAt: "2026-08-22T08:00:00.000Z",
+            status: "public",
+            rejectReason: null,
+          },
+        ],
+      },
+    }),
+  );
+  await page.route("**/api/gallery/*/preview.svg", (route) =>
+    route.fulfill({
+      contentType: "image/svg+xml",
+      body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 6"><rect width="10" height="6" fill="#fff"/></svg>',
+    }),
+  );
+
+  await page.goto("/mine");
+  // The standard chrome is present, not a bare paragraph.
+  await expect(page.getByTestId("gallery-editor-link")).toBeVisible();
+  await expect(page.getByTestId("gallery-new-circuit")).toBeVisible();
+  await expect(page.getByTestId("mine-reason-mine-1")).toContainText(
+    "Label the ports",
+  );
+  await expect(page.getByTestId("mine-edit-mine-2")).toHaveAttribute(
+    "href",
+    "/g/mine-2",
+  );
+  await expect(page.getByTestId("mine-status-mine-2")).toHaveText("Published");
+});
+
+test("an opened gallery entry offers updating in place", async ({ page }) => {
+  await mockGallery(page, [ENTRY]);
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      json: {
+        user: {
+          id: "u1",
+          displayName: "Token Zhang",
+          email: "owner@example.com",
+          provider: "github",
+          role: "user",
+          isAdmin: true,
+        },
+      },
+    }),
+  );
+  const updates: { method: string; body: { name: string } }[] = [];
+  await page.route(`**/api/gallery/${ENTRY.id}`, (route) => {
+    if (route.request().method() !== "PUT") return route.fallback();
+    updates.push({
+      method: route.request().method(),
+      body: route.request().postDataJSON() as { name: string },
+    });
+    return route.fulfill({ json: { id: ENTRY.id, status: "public" } });
+  });
+
+  await page.goto(`/g/${ENTRY.id}`);
+  await expect(page.getByTestId("status")).toContainText(
+    `Opened gallery circuit: ${ENTRY.name}`,
+  );
+  await page.getByTestId("publish-gallery-button").click();
+  const dialog = page.getByTestId("publish-gallery-dialog");
+  await expect(dialog).toBeVisible();
+  await expect(page.getByTestId("publish-mode")).toBeVisible();
+  await expect(dialog.getByText("updates the entry in place")).toBeVisible();
+
+  await dialog.getByRole("button", { name: "Update entry" }).click();
+  await expect(page.getByTestId("status")).toContainText(
+    `Updated "${ENTRY.name}" in the gallery`,
+  );
+  expect(updates).toHaveLength(1);
+  expect(updates[0]!.body.name).toBe(ENTRY.name);
+});
+
 test("bundled starter tiles open their example in the editor", async ({
   page,
 }) => {

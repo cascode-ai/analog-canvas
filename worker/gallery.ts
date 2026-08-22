@@ -178,6 +178,8 @@ export class GalleryDO {
         return this.allIds();
       case "update-entry":
         return this.updateEntry(body);
+      case "replace-entry":
+        return this.replaceEntry(body);
       default:
         return Response.json({ error: "Unknown operation" }, { status: 404 });
     }
@@ -319,6 +321,33 @@ export class GalleryDO {
       id: row.id,
       status: approve ? "public" : "rejected",
     });
+  }
+
+  /** Owner/reviewer edit (phase G3): new content, possibly new status. */
+  private replaceEntry(body: Record<string, unknown>): Response {
+    const row = this.sql
+      .exec<EntryRow>(
+        "SELECT * FROM gallery_entries WHERE id = ?",
+        String(body.id),
+      )
+      .toArray()[0];
+    if (!row) return Response.json({ error: "not-found" }, { status: 404 });
+    this.sql.exec(
+      `UPDATE gallery_entries
+       SET name = ?, author = ?, description = ?, project_text = ?,
+           svg_text = ?, schema_version = ?, status = ?,
+           reject_reason = NULL, reviewed_at = NULL, reviewed_by = NULL
+       WHERE id = ?`,
+      String(body.name),
+      String(body.author),
+      String(body.description),
+      String(body.projectText),
+      String(body.svgText),
+      Number(body.schemaVersion),
+      String(body.status),
+      row.id,
+    );
+    return Response.json({ id: row.id, status: String(body.status) });
   }
 
   private mine(ownerUserId: string): Response {
@@ -574,6 +603,99 @@ async function handleSubmission(
   );
 }
 
+/**
+ * Owner/reviewer entry update (phase G3 completion). The bearer and
+ * admin/moderator sessions may update any entry, keeping its current
+ * status; an ordinary session must own the entry and passes the quality
+ * gates, after which the entry re-enters review as `pending` with the
+ * previous decision cleared — a rejection therefore becomes an informed
+ * resubmission.
+ */
+async function handleEntryUpdate(
+  request: Request,
+  env: GalleryEnv,
+  id: string,
+): Promise<Response> {
+  if (!sameOrigin(request)) {
+    return Response.json({ error: "forbidden" }, { status: 403 });
+  }
+  const existing = await callGallery<{
+    status?: string;
+    ownerUserId?: string | null;
+  }>(env, "any-entry", { id });
+  if (existing.status !== 200) {
+    return Response.json({ error: "not-found" }, { status: 404 });
+  }
+  const bearer = bearerIsAdmin(request, env);
+  const user = await sessionUserOf(request, env);
+  const privileged =
+    bearer || user?.isAdmin === true || user?.role === "moderator";
+  if (!bearer && !user) {
+    return Response.json({ error: "unauthorized" }, { status: 401 });
+  }
+  const owner =
+    user !== null &&
+    existing.payload.ownerUserId != null &&
+    existing.payload.ownerUserId === user.id;
+  if (!privileged && !owner) {
+    return Response.json({ error: "forbidden" }, { status: 403 });
+  }
+  const body = (await request.json().catch(() => null)) as {
+    name?: unknown;
+    author?: unknown;
+    description?: unknown;
+    projectText?: unknown;
+  } | null;
+  const name = fieldText(body?.name, GALLERY_MAX_NAME_LENGTH);
+  const author = fieldText(body?.author, GALLERY_MAX_AUTHOR_LENGTH);
+  const description = fieldText(
+    body?.description,
+    GALLERY_MAX_DESCRIPTION_LENGTH,
+  );
+  if (!body || !name || author === null || description === null) {
+    return Response.json({ error: "invalid-fields" }, { status: 400 });
+  }
+  if (typeof body.projectText !== "string") {
+    return Response.json({ error: "invalid-project" }, { status: 400 });
+  }
+  if (
+    new TextEncoder().encode(body.projectText).length >
+    GALLERY_MAX_PROJECT_BYTES
+  ) {
+    return Response.json({ error: "too-large" }, { status: 413 });
+  }
+  let project: CircuitProject;
+  try {
+    project = parseProject(body.projectText);
+  } catch {
+    return Response.json({ error: "invalid-project" }, { status: 400 });
+  }
+  if (!privileged) {
+    const report = evaluateSubmissionGates(project, resolver);
+    if (!report.ok) {
+      return Response.json(
+        { error: "quality-gate", failures: report.failures },
+        { status: 422 },
+      );
+    }
+  }
+  project.name = name;
+  const nextStatus = privileged
+    ? (existing.payload.status ?? "public")
+    : "pending";
+  const { status, payload } = await callGallery(env, "replace-entry", {
+    id,
+    name,
+    author,
+    description,
+    projectText: serializeProject(project),
+    svgText: renderPreview(project),
+    schemaVersion: project.schemaVersion,
+    status: nextStatus,
+  });
+  return Response.json(payload, { status });
+}
+
 async function handleReserialize(env: GalleryEnv): Promise<Response> {
   const { payload } = await callGallery<{ ids: string[] }>(env, "all-ids", {});
   let upgraded = 0;
@@ -739,10 +861,14 @@ export async function routeGalleryRequest(
       {
         entry: payload.entry,
         status: payload.status,
+        ownerUserId: payload.ownerUserId ?? null,
         projectText: payload.projectText,
       },
       { headers: { "cache-control": "no-store" } },
     );
+  }
+  if (segments.length === 1 && request.method === "PUT") {
+    return handleEntryUpdate(request, env, segments[0]!);
   }
   if (segments.length === 2 && request.method === "POST") {
     const [id, action] = segments;

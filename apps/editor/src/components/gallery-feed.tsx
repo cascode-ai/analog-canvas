@@ -4,7 +4,7 @@ import { renderDocumentSvg } from "@icm/render-svg";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 
 import { libraryProjectExamples } from "../examples/library-examples";
-import { AccountMenu } from "./account";
+import { GalleryChrome } from "./gallery-chrome";
 import { Masonry } from "./masonry";
 
 export interface GalleryFeedEntry {
@@ -89,33 +89,7 @@ export function GalleryFeed() {
 
   return (
     <main className="gallery-shell" data-testid="gallery-feed">
-      <header className="gallery-chrome">
-        <div className="app-brand">
-          <a
-            className="gallery-home-link"
-            href="/editor"
-            aria-label="Open the editor"
-            title="Open the editor"
-            data-testid="gallery-editor-link"
-          >
-            <span className="app-brand-mark" aria-hidden="true" />
-            <h1>Analog Canvas</h1>
-          </a>
-          <div className="app-brand-copy">
-            <p>Community gallery</p>
-          </div>
-        </div>
-        <nav className="gallery-actions">
-          <AccountMenu />
-          <a
-            className="gallery-open-editor"
-            href="/editor"
-            data-testid="gallery-new-circuit"
-          >
-            New Circuit
-          </a>
-        </nav>
-      </header>
+      <GalleryChrome subtitle="Community gallery" />
 
       {state.status === "loading" ? (
         <p className="gallery-status" data-testid="gallery-loading">
