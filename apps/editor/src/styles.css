@@ -5539,6 +5539,54 @@ html.light .analytics-map-land path {
   margin-top: 4px;
 }
 
+.gallery-filter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 22px 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.gallery-filter button {
+  padding: 4px 10px;
+  border: 1px solid var(--icm-border);
+  border-radius: 999px;
+  color: var(--icm-text-muted);
+  background: var(--icm-surface);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.gallery-filter button:hover {
+  background: var(--icm-surface-hover);
+}
+
+.gallery-tile-author {
+  padding: 0;
+  border: none;
+  color: inherit;
+  background: none;
+  font: inherit;
+  text-decoration: underline dotted;
+  cursor: pointer;
+}
+
+.gallery-sentinel {
+  height: 1px;
+}
+
+.review-bin {
+  margin-top: 30px;
+  border-top: 1px solid var(--icm-border);
+  padding-top: 10px;
+}
+
+.review-bin h2 {
+  margin: 8px 0 0;
+  font-size: 17px;
+}
+
 .publish-gallery-mode {
   display: flex;
   flex-direction: column;

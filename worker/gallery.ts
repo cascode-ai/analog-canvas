@@ -239,23 +239,28 @@ export class GalleryDO {
       GALLERY_MAX_LIST_LIMIT,
     );
     const cursor = typeof body.cursor === "string" ? body.cursor : null;
-    const rows = cursor
-      ? this.sql
-          .exec<EntryRow>(
-            `SELECT * FROM gallery_entries WHERE status = 'public'
-             AND (created_at || '|' || id) < ?
-             ORDER BY created_at DESC, id DESC LIMIT ?`,
-            cursor,
-            limit + 1,
-          )
-          .toArray()
-      : this.sql
-          .exec<EntryRow>(
-            `SELECT * FROM gallery_entries WHERE status = 'public'
-             ORDER BY created_at DESC, id DESC LIMIT ?`,
-            limit + 1,
-          )
-          .toArray();
+    const author =
+      typeof body.author === "string" && body.author.length > 0
+        ? body.author
+        : null;
+    const conditions = ["status = 'public'"];
+    const bindings: (string | number)[] = [];
+    if (author) {
+      conditions.push("author = ?");
+      bindings.push(author);
+    }
+    if (cursor) {
+      conditions.push("(created_at || '|' || id) < ?");
+      bindings.push(cursor);
+    }
+    const rows = this.sql
+      .exec<EntryRow>(
+        `SELECT * FROM gallery_entries WHERE ${conditions.join(" AND ")}
+         ORDER BY created_at DESC, id DESC LIMIT ?`,
+        ...bindings,
+        limit + 1,
+      )
+      .toArray();
     const page = rows.slice(0, limit);
     const nextCursor =
       rows.length > limit && page.length > 0
@@ -742,6 +747,7 @@ export async function routeGalleryRequest(
     const { payload } = await callGallery(env, "list", {
       limit: url.searchParams.get("limit"),
       cursor: url.searchParams.get("cursor"),
+      author: url.searchParams.get("author"),
     });
     return Response.json(payload, {
       headers: { "cache-control": "no-store" },

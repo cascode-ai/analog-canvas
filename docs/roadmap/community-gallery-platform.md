@@ -118,7 +118,10 @@ anonymous writes are impossible at the API, not just the UI.
 
 - Masonry (shipped 2026-08-22: JS greedy shortest-column layout keeping
   each circuit's natural aspect ratio, left-to-right reading order,
-  balanced bottoms); still open: infinite scroll, per-author filtering,
-  in-feed admin recycle-bin view, and seeded starter content curation.
+  balanced bottoms). Infinite scroll (sentinel over the keyset cursor),
+  per-author filtering (clickable bylines, URL-carried, clearable chip),
+  and the in-feed admin recycle bin (restore / delete-forever on
+  /review) shipped 2026-08-22; still open: seeded starter content
+  curation.
 
 Each phase closes by updating this file's status line for that phase.

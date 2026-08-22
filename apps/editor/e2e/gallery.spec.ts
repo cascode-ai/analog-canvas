@@ -96,6 +96,149 @@ test("masonry places the top row left-to-right in distinct columns", async ({
   expect(wallHeight).toBeGreaterThan(100);
 });
 
+test("the feed pages through the cursor as the sentinel comes into view", async ({
+  page,
+}) => {
+  const listRequests: string[] = [];
+  await page.route("**/api/gallery**", (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname !== "/api/gallery") return route.fallback();
+    listRequests.push(url.search);
+    const second = url.searchParams.get("cursor") === "c1";
+    const ids = second ? ["p2-a", "p2-b"] : ["p1-a", "p1-b", "p1-c"];
+    return route.fulfill({
+      json: {
+        entries: ids.map((id) => ({
+          id,
+          name: `Circuit ${id}`,
+          author: "tz",
+          description: "",
+          createdAt: "2026-08-22T10:00:00.000Z",
+          schemaVersion: 21,
+        })),
+        nextCursor: second ? null : "c1",
+      },
+    });
+  });
+  await page.route("**/api/gallery/*/preview.svg", (route) =>
+    route.fulfill({
+      contentType: "image/svg+xml",
+      body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 6"><rect width="10" height="6" fill="#fff"/></svg>',
+    }),
+  );
+
+  await page.goto("/");
+  await expect(page.getByTestId("gallery-tile-p1-a")).toBeVisible();
+  // The short first page leaves the sentinel visible, so page two loads
+  // without any user scrolling and the cursor chain ends. (StrictMode
+  // double-mounts the initial effect in dev, so the plain request may
+  // fire twice; the cursor page must load exactly once.)
+  await expect(page.getByTestId("gallery-tile-p2-b")).toBeVisible();
+  expect(listRequests.filter((query) => query === "?cursor=c1")).toHaveLength(
+    1,
+  );
+  expect(
+    listRequests.every((query) => query === "" || query === "?cursor=c1"),
+  ).toBe(true);
+});
+
+test("clicking a byline filters the wall to that author, clearable", async ({
+  page,
+}) => {
+  await page.route("**/api/gallery**", (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname !== "/api/gallery") return route.fallback();
+    const alice = url.searchParams.get("author") === "alice";
+    const entries = [
+      {
+        id: "f-alice",
+        name: "Alice's OTA",
+        author: "alice",
+        description: "",
+        createdAt: "2026-08-22T10:00:00.000Z",
+        schemaVersion: 21,
+      },
+      ...(alice
+        ? []
+        : [
+            {
+              id: "f-bob",
+              name: "Bob's Mixer",
+              author: "bob",
+              description: "",
+              createdAt: "2026-08-22T09:00:00.000Z",
+              schemaVersion: 21,
+            },
+          ]),
+    ];
+    return route.fulfill({ json: { entries, nextCursor: null } });
+  });
+  await page.route("**/api/gallery/*/preview.svg", (route) =>
+    route.fulfill({
+      contentType: "image/svg+xml",
+      body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 6"><rect width="10" height="6" fill="#fff"/></svg>',
+    }),
+  );
+
+  await page.goto("/");
+  await expect(page.getByTestId("gallery-tile-f-bob")).toBeVisible();
+  await page.getByTestId("gallery-author-f-alice").click();
+  await expect(page.getByTestId("gallery-filter")).toContainText(
+    "Circuits by alice",
+  );
+  await expect(page.getByTestId("gallery-tile-f-bob")).toHaveCount(0);
+  await expect(page).toHaveURL(/\?author=alice$/);
+  await page.getByTestId("gallery-filter-clear").click();
+  await expect(page.getByTestId("gallery-tile-f-bob")).toBeVisible();
+  await expect(page).not.toHaveURL(/author=/);
+});
+
+test("the admin recycle bin restores a recycled entry", async ({ page }) => {
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      json: {
+        user: {
+          id: "u1",
+          displayName: "Token Zhang",
+          email: "owner@example.com",
+          provider: "github",
+          role: "user",
+          isAdmin: true,
+        },
+      },
+    }),
+  );
+  await page.route("**/api/gallery/review", (route) =>
+    route.fulfill({ json: { entries: [] } }),
+  );
+  let restored = 0;
+  await page.route("**/api/gallery/recycled", (route) =>
+    route.fulfill({
+      json: {
+        entries: restored
+          ? []
+          : [
+              {
+                id: "bin-1",
+                name: "Old Sketch",
+                recycledAt: "2026-08-22T08:00:00.000Z",
+              },
+            ],
+      },
+    }),
+  );
+  await page.route("**/api/gallery/bin-1/restore", (route) => {
+    restored += 1;
+    return route.fulfill({ json: { id: "bin-1", status: "public" } });
+  });
+
+  await page.goto("/review");
+  await expect(page.getByTestId("bin-card-bin-1")).toBeVisible();
+  await page.getByTestId("bin-restore-bin-1").click();
+  await expect(page.getByTestId("bin-empty")).toBeVisible();
+  expect(restored).toBe(1);
+});
+
 test("falls back to bundled tiles when the gallery is empty or unreachable", async ({
   page,
 }) => {
