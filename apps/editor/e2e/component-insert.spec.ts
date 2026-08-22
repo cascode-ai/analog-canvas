@@ -730,7 +730,7 @@ test("places MOS parameters and orientation without a hidden-label suppressor", 
     .getByRole("checkbox", { name: "Reference", exact: true })
     .uncheck();
   await expect(dialog.locator(".insert-parameter-name").first()).toHaveText(
-    "W / m(Channel width)",
+    "W / m(Total channel width)",
   );
   await dialog.getByRole("button", { name: "Apply" }).click();
 

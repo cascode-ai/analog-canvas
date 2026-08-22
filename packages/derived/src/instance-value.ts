@@ -85,6 +85,17 @@ export function displayableInstanceValue(
             : `${definition.deviceClass} value needs both width and length`,
       };
     }
+    // A parallel multiplier changes the device the drawing stands for, so it
+    // is part of the value rather than a hidden parameter. One is the
+    // implicit default and stays unwritten.
+    const multiplier = definition.parameters.find(
+      (parameter) => parameter.displayRole === "multiplier",
+    );
+    const multiplierValue = multiplier
+      ? effectiveParameterValue(instance, multiplier)
+      : "";
+    const showsMultiplier =
+      multiplierValue !== "" && Number(multiplierValue) !== 1;
     return {
       kind: "displayable",
       content: {
@@ -96,6 +107,17 @@ export function displayableInstanceValue(
               withUnit(lengthValue, displayUnit(length)),
             ),
           },
+          ...(showsMultiplier
+            ? [
+                {
+                  kind: "span" as const,
+                  style: "bold" as const,
+                  children: [
+                    { kind: "text" as const, value: ` ×${multiplierValue}` },
+                  ],
+                },
+              ]
+            : []),
         ],
       },
     };

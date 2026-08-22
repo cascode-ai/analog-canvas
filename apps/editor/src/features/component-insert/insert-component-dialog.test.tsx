@@ -34,7 +34,8 @@ describe("InsertComponentDialog", () => {
     expect(markup).toContain('aria-label="Initial rotation"');
     expect(markup).toContain('aria-label="Reference name"');
     expect(markup).toContain("W / m");
-    expect(markup).toContain("(Channel width)");
+    expect(markup).toContain("(Total channel width)");
+    expect(markup).toContain("(Finger count, so finger width is W / NF)");
     // The default is Reference on, Value off and disabled until the device
     // parameters carry a displayable projection.
     expect(markup).toContain(">Reference</span>");

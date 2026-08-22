@@ -219,6 +219,7 @@ import { CellManagerDialog } from "../features/hierarchy/cell-manager-dialog";
 import { NetlistPreflightDialog } from "../features/netlist-export/netlist-preflight-dialog";
 import { parseProject } from "@icm/project-protocol";
 import { DocumentSettingsSection } from "../features/editor-shell/document-settings-section";
+import { derivedFingerWidth } from "../features/properties/finger-width";
 import { PublishGalleryDialog } from "../features/editor-shell/publish-gallery-dialog";
 import {
   publishProjectToGallery,
@@ -7282,6 +7283,15 @@ export function App({
                 <div className="command-popover">
                   <button
                     type="button"
+                    data-testid="project-search-button"
+                    aria-haspopup="dialog"
+                    aria-expanded={searchOpen}
+                    onClick={() => setSearchOpen(true)}
+                  >
+                    Search…
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => transact([{ kind: "undo" }])}
                     disabled={!canUndo}
                   >
@@ -7386,15 +7396,6 @@ export function App({
               ) : null}
               <button
                 type="button"
-                data-testid="project-search-button"
-                aria-haspopup="dialog"
-                aria-expanded={searchOpen}
-                onClick={() => setSearchOpen(true)}
-              >
-                Search
-              </button>
-              <button
-                type="button"
                 data-testid="publish-gallery-button"
                 aria-haspopup="dialog"
                 aria-expanded={publishGalleryOpen}
@@ -7444,8 +7445,8 @@ export function App({
             className="draw-tool examples-toggle"
             title={
               leftPanelMode === "examples" && visibleLibraryPanelOpen
-                ? "Hide circuit examples"
-                : "Show circuit examples"
+                ? "Hide the circuit gallery"
+                : "Show the circuit gallery"
             }
             aria-pressed={
               leftPanelMode === "examples" && visibleLibraryPanelOpen
@@ -7458,7 +7459,7 @@ export function App({
             onClick={toggleExamplesPanel}
           >
             <ToolIcon name="examples" />
-            <span>Examples</span>
+            <span>Gallery</span>
           </button>
           <button
             type="button"
@@ -7468,9 +7469,13 @@ export function App({
                 ? "Hide component library"
                 : "Show component library"
             }
-            aria-pressed={visibleLibraryPanelOpen}
+            aria-pressed={
+              leftPanelMode === "library" && visibleLibraryPanelOpen
+            }
             aria-controls="shapes-library-panel"
-            aria-expanded={visibleLibraryPanelOpen}
+            aria-expanded={
+              leftPanelMode === "library" && visibleLibraryPanelOpen
+            }
             data-testid="library-toggle"
             onClick={toggleLibraryPanel}
           >
@@ -8573,6 +8578,23 @@ export function App({
                         ),
                       )}
                     </div>
+                    {(() => {
+                      // Finger width is shown, never stored: deriving it from
+                      // the authored W and NF keeps W = FW x NF true by
+                      // construction instead of by keeping two values agreed.
+                      const fingerWidth = derivedFingerWidth(
+                        instancePropertyDraft.parameters.w,
+                        instancePropertyDraft.parameters.nf,
+                      );
+                      return fingerWidth ? (
+                        <p
+                          className="property-derived-note"
+                          data-testid="derived-finger-width"
+                        >
+                          Finger width {fingerWidth} · W = FW × NF
+                        </p>
+                      ) : null;
+                    })()}
                   </div>
                   <div className="property-card property-display-card">
                     <div className="property-section-heading">Display</div>

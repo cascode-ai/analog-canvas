@@ -1943,12 +1943,13 @@ test("value display projects MOS W/L and passive values beside the reference", a
   await page.keyboard.press("i");
   const dialog = page.getByRole("dialog", { name: "Insert Component" });
   await dialog.getByLabel("Component search").fill("nmos");
-  // The Value toggle is disabled until both W and L carry a projection.
+  // A MOS arrives with its device defaults, so the Value toggle is usable
+  // without typing geometry first.
   const valueToggle = dialog.getByRole("checkbox", {
     name: "Value",
     exact: true,
   });
-  await expect(valueToggle).toBeDisabled();
+  await expect(valueToggle).toBeEnabled();
   await dialog.getByLabel("Component w", { exact: true }).fill("2u");
   await dialog.getByLabel("Component l", { exact: true }).fill("180n");
   await expect(valueToggle).toBeEnabled();

@@ -21,9 +21,27 @@ describe("built-in device registry", () => {
       pinOrder: ["D", "G", "S", "B"],
       targetPolicy: "required-model",
       parameters: [
-        { name: "w", required: true, displayRole: "width" },
-        { name: "l", required: true, displayRole: "length" },
-        { name: "m", required: false, displayRole: "multiplier" },
+        // W is the total width; NF divides it into fingers, so the panel can
+        // derive FW and keep W = FW * NF without storing FW.
+        { name: "w", required: true, displayRole: "width", defaultValue: "1u" },
+        {
+          name: "l",
+          required: true,
+          displayRole: "length",
+          defaultValue: "150n",
+        },
+        {
+          name: "nf",
+          required: false,
+          displayRole: "finger-count",
+          defaultValue: "1",
+        },
+        {
+          name: "m",
+          required: false,
+          displayRole: "multiplier",
+          defaultValue: "1",
+        },
       ],
       capabilities: { supportsBulkBinding: true },
     });

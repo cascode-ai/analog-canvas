@@ -17,7 +17,15 @@ export interface DeviceParameterDefinition {
   readonly unitHint?: string;
   readonly placeholder: string;
   readonly help: string;
-  readonly displayRole: "value" | "width" | "length" | "multiplier" | "none";
+  /**
+   * Value a newly placed instance starts with. It is written into the typed
+   * netlist like any authored value — the schematic and the exported netlist
+   * must never disagree — so a device that needs geometry to be meaningful
+   * arrives complete instead of blocking its own value display.
+   */
+  readonly defaultValue?: string;
+  readonly displayRole:
+    "value" | "width" | "length" | "multiplier" | "finger-count" | "none";
 }
 
 /**

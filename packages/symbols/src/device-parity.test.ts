@@ -23,6 +23,7 @@ describe("built-in device/Symbol parity", () => {
       parameters: [
         { name: "w", required: true },
         { name: "l", required: true },
+        { name: "nf", required: false },
         { name: "m", required: false },
       ],
     });

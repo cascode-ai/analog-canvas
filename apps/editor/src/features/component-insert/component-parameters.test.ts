@@ -22,21 +22,25 @@ describe("component parameter catalogue", () => {
     ]);
   });
 
-  it("uses W, L, and M for manual MOS authoring", () => {
+  it("uses W, L, NF, and M for manual MOS authoring", () => {
     expect(componentParameters("nmos").map(({ key }) => key)).toEqual([
       "w",
       "l",
+      "nf",
       "m",
     ]);
     expect(componentParameters("pmos")).toEqual(componentParameters("nmos"));
+    // A MOS placed with no geometry could not display a value at all, so
+    // placement seeds each device default instead of leaving them blank.
     expect(initialComponentParameterValues("nmos")).toEqual({
-      w: "",
-      l: "",
-      m: "",
+      w: "1u",
+      l: "150n",
+      nf: "1",
+      m: "1",
     });
   });
 
-  it("uses W, L, and NF for a reviewed external MOS call", () => {
+  it("drops only the multiplier for a reviewed external MOS call", () => {
     expect(
       externalMosComponentParameters("nmos").map(({ key }) => key),
     ).toEqual(["w", "l", "nf"]);

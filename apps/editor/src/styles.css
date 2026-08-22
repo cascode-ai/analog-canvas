@@ -6126,3 +6126,11 @@ html.light .analytics-map-land path {
   margin: 0 var(--icm-space-1);
   background: var(--icm-border);
 }
+
+/* Derived, never stored: the panel states the identity it was computed from
+   so the number cannot be mistaken for a second editable field. */
+.property-derived-note {
+  margin: var(--icm-space-1) 0 0;
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+}

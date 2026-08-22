@@ -4971,3 +4971,26 @@ Keep reusable lessons in `docs/experience/`, not in this log.
   30.232 with the canvas visible throughout.
 - Commit status: completed on `claude/properties-cleanup`; mainline merge gated
   on the remote required checks.
+
+## 2026-08-22 - MOS geometry: total width, fingers, and usable defaults
+
+- Owner decision: W is the total width, finger width is per finger, and
+  `W = FW x NF` must hold. Finger width is therefore derived in the panel as
+  `W / NF` and never stored, so a second value cannot drift out of agreement.
+- Added `defaultValue` to the device parameter contract and seeded it at
+  placement: a MOS with no geometry could not display a value at all, so its
+  Value toggle stayed disabled until every field was typed. Defaults are
+  written into the typed netlist like any authored value, so the schematic and
+  the exported netlist still agree.
+- `nf` became an ordinary MOS parameter, which also removed a latent duplicate:
+  `externalMosComponentParameters` appended a synthetic NF and would now have
+  produced two.
+- The parallel multiplier now shows in the MOS value when it is not 1.
+- Finger width is derived in `apps/editor`, not `@icm/derived`, because the
+  SPICE number parser lives in `@icm/spice`, which sits above `derived`.
+- Validation: full unit suite (1193), full Playwright suite (209 passed),
+  visual golden check clean, typecheck, prettier, diff checks. Two Playwright
+  cases asserted the Value toggle stays disabled until W and L are typed —
+  that was the reported defect, so both now assert the opposite.
+- Commit status: completed on `claude/port-behavior`; mainline merge gated on
+  the remote required checks.
