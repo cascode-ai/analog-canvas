@@ -10,6 +10,7 @@ import {
   planEnsureNamedNet,
   createHierarchyInstance,
   createExternalSubcircuitInstance,
+  planAttachCellPortMarker,
   planCreateCellPort,
   planPlaceExternalSubcircuitInstance,
   planPlaceCellInstance,
@@ -505,14 +506,12 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
       placementRequest.portName?.trim() ||
       connectedNet?.name?.trim() ||
       nextFreeCellTerminalName(options.document);
-    if (
-      options.document.netlist?.terminals.some(
-        (terminal) => terminal.name === formalName,
-      )
-    ) {
-      options.setStatus(`Cell port ${formalName} already exists`);
-      return;
-    }
+    // Repeating an interface name places another marker for the terminal that
+    // already owns it rather than a second terminal, so the same pin can be
+    // drawn wherever it is needed on the sheet.
+    const existingTerminal = options.document.netlist?.terminals.find(
+      (terminal) => terminal.name.toLowerCase() === formalName.toLowerCase(),
+    );
     const baseNetId = `net-cell-port-${id.toLowerCase()}`;
     let netId = contact.netId ?? baseNetId;
     let netSuffix = 2;
@@ -541,10 +540,12 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
                 pinName: "P",
               },
               newNetId: netId,
-              newNetName: formalName,
+              // An additional marker carries no name of its own: it is merged
+              // into the terminal's Net, which already holds the name.
+              ...(existingTerminal ? {} : { newNetName: formalName }),
             },
           ]),
-      ...(contact.netId && !connectedNet?.name
+      ...(contact.netId && !connectedNet?.name && !existingTerminal
         ? [
             {
               kind: "set_net_name" as const,
@@ -554,32 +555,37 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
           ]
         : []),
     ];
+    const annotation = annotations[0] ? { ...annotations[0] } : undefined;
     const committed = options.transactProject(
       "place-cell-port",
-      planCreateCellPort(options.project, options.document.id, {
-        instance,
-        connectionEdits,
-        terminal: {
-          id: `terminal-${id.toLowerCase()}`,
-          name: formalName,
-          netId,
-          direction: placementRequest.direction,
-          interfaceInstanceIds: [id],
-        },
-        ...(annotations[0]
-          ? {
-              annotation: {
-                ...annotations[0],
-              },
-            }
-          : {}),
-      }),
+      existingTerminal
+        ? planAttachCellPortMarker(options.project, options.document.id, {
+            instance,
+            connectionEdits,
+            terminalId: existingTerminal.id,
+            markerNetId: netId,
+            ...(annotation ? { annotation } : {}),
+          })
+        : planCreateCellPort(options.project, options.document.id, {
+            instance,
+            connectionEdits,
+            terminal: {
+              id: `terminal-${id.toLowerCase()}`,
+              name: formalName,
+              netId,
+              direction: placementRequest.direction,
+              interfaceInstanceIds: [id],
+            },
+            ...(annotation ? { annotation } : {}),
+          }),
     );
     if (!committed) return;
     options.selectOnly("instance", [id]);
     options.setComponentPreviewPoint(position);
     options.setStatus(
-      `Added Cell port ${formalName} · click to place another · Esc exits`,
+      existingTerminal
+        ? `Added another marker for Cell port ${formalName} · click to place another · Esc exits`
+        : `Added Cell port ${formalName} · click to place another · Esc exits`,
     );
   };
 

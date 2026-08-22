@@ -1,6 +1,11 @@
 import { expect, test } from "@playwright/test";
 
-import { clickCommand, emulateDownloadOnlyBrowser } from "./editor-fixtures.js";
+import {
+  clickCommand,
+  clickDrawTool,
+  downloadBytes,
+  emulateDownloadOnlyBrowser,
+} from "./editor-fixtures.js";
 
 test.beforeEach(async ({ page }) => {
   await emulateDownloadOnlyBrowser(page);
@@ -575,4 +580,41 @@ test("places an existing Cell and blocks deleting its shared definition", async 
     manager.getByRole("button", { name: "Delete" }).last(),
   ).toBeDisabled();
   await expect(page.getByTestId("document-count")).toHaveText("2");
+});
+
+test("places a second Port for a Cell terminal that already exists", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  const canvas = page.getByTestId("schematic-canvas");
+
+  // First Cell Pin takes the free ordinal name and names its Net with it.
+  await page.getByTestId("shapes-chip-cell-pin").click();
+  await canvas.click({ position: { x: 240, y: 200 } });
+  await page.keyboard.press("Escape");
+
+  // A second Cell Pin whose pin lands on that same named Net resolves its own
+  // formal name to P1, which previously aborted placement outright.
+  await page.getByTestId("shapes-chip-cell-pin").click();
+  await canvas.click({ position: { x: 240, y: 200 } });
+  await expect(page.getByTestId("status")).toContainText(
+    "marker for Cell port P1",
+  );
+  await page.keyboard.press("Escape");
+
+  const saved = JSON.parse(
+    (await downloadBytes(page, "File", "Save Project")).toString("utf8"),
+  ) as {
+    documents: Array<{
+      netlist?: {
+        terminals: Array<{ name: string; interfaceInstanceIds: string[] }>;
+      };
+    }>;
+  };
+  const terminals = saved.documents[0]!.netlist!.terminals;
+  // One formal terminal, two markers: the Cell interface a parent resolves
+  // against stays single-valued.
+  expect(terminals).toHaveLength(1);
+  expect(terminals[0]!.name).toBe("P1");
+  expect(terminals[0]!.interfaceInstanceIds).toHaveLength(2);
 });

@@ -431,6 +431,77 @@ export function planPlaceExternalSubcircuitInstance(
   ];
 }
 
+/**
+ * Place a second Port marker for a Cell terminal that already exists.
+ *
+ * Repeating an interface name is ordinary schematic practice — the same pin
+ * drawn at both ends of a large sheet — so it adds a marker to the existing
+ * terminal rather than a second terminal. The formal interface keeps one
+ * entry per name, which the parent Instance's pin-to-terminal lookup relies
+ * on, and the new marker joins that terminal's Net.
+ */
+export function planAttachCellPortMarker(
+  project: CircuitProject,
+  documentId: string,
+  input: {
+    instance: SchematicDocument["instances"][number];
+    connectionEdits: DocumentEdits;
+    terminalId: string;
+    /** Net the placed marker currently owns; merged into the terminal's Net. */
+    markerNetId: string;
+    annotation?: Annotation;
+  },
+): ProjectStructureEdit[] {
+  const document = requireDocument(project, documentId);
+  if (!document.netlist)
+    throw new Error(`Cell has no interface: ${documentId}`);
+  if (
+    input.instance.symbolId !== "port" &&
+    input.instance.symbolId !== "port-filled"
+  ) {
+    throw new Error(
+      `Cell interface marker must be a Port: ${input.instance.symbolId}`,
+    );
+  }
+  const terminal = document.netlist.terminals.find(
+    (candidate) => candidate.id === input.terminalId,
+  );
+  if (!terminal) {
+    throw new Error(`Cell terminal does not exist: ${input.terminalId}`);
+  }
+  return [
+    transactDocument(project, documentId, [
+      { kind: "add_instance", instance: input.instance },
+      ...input.connectionEdits,
+      ...(input.markerNetId === terminal.netId
+        ? []
+        : [
+            {
+              kind: "merge_nets" as const,
+              targetNetId: terminal.netId,
+              sourceNetId: input.markerNetId,
+            },
+          ]),
+      {
+        kind: "update_cell_terminal",
+        terminalId: terminal.id,
+        interfaceInstanceIds: [
+          ...terminal.interfaceInstanceIds,
+          input.instance.id,
+        ],
+      },
+      ...(input.annotation
+        ? [
+            {
+              kind: "upsert_schematic_annotation" as const,
+              annotation: input.annotation,
+            },
+          ]
+        : []),
+    ]),
+  ];
+}
+
 export function planCreateCellPort(
   project: CircuitProject,
   documentId: string,
@@ -785,7 +856,14 @@ export function planRenameCellTerminal(
       (candidate) => candidate.id !== terminalId && candidate.name === newName,
     )
   ) {
-    throw new Error(`Cell terminal name already exists: ${newName}`);
+    // Renaming onto an existing interface name is ambiguous — it reads as
+    // either "these are one pin" or a typo — and folding two formal terminals
+    // together would silently rewrite the Cell interface every parent
+    // Instance resolves against. Placing another Port named ${newName} is the
+    // unambiguous way to draw the same pin twice.
+    throw new Error(
+      `Cell terminal name already exists: ${newName}. Place another Port named ${newName} to draw the same pin again.`,
+    );
   }
 
   const terminalRename = terminal.name !== newName;
