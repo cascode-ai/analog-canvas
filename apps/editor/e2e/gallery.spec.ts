@@ -142,6 +142,43 @@ test("the feed pages through the cursor as the sentinel comes into view", async 
   ).toBe(true);
 });
 
+test("the feed scrolls inside its shell despite the locked app root", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 520, height: 420 });
+  const entries = Array.from({ length: 8 }, (_, index) => ({
+    id: `s-${index}`,
+    name: `Circuit ${index}`,
+    author: "tz",
+    description: "",
+    createdAt: "2026-08-22T10:00:00.000Z",
+    schemaVersion: 21,
+  }));
+  await page.route("**/api/gallery", (route) =>
+    route.fulfill({ json: { entries, nextCursor: null } }),
+  );
+  await page.route("**/api/gallery/*/preview.svg", (route) =>
+    route.fulfill({
+      contentType: "image/svg+xml",
+      body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 8"><rect width="10" height="8" fill="#fff"/></svg>',
+    }),
+  );
+
+  await page.goto("/");
+  await expect(page.getByTestId("gallery-tile-s-0")).toBeVisible();
+  const scrolled = await page.locator(".gallery-shell").evaluate((shell) => {
+    shell.scrollTop = 9999;
+    return {
+      overflowY: getComputedStyle(shell).overflowY,
+      scrollable: shell.scrollHeight > shell.clientHeight,
+      scrollTop: shell.scrollTop,
+    };
+  });
+  expect(scrolled.overflowY).toBe("auto");
+  expect(scrolled.scrollable).toBe(true);
+  expect(scrolled.scrollTop).toBeGreaterThan(0);
+});
+
 test("clicking a byline filters the wall to that author, clearable", async ({
   page,
 }) => {

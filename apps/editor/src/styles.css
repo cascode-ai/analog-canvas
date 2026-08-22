@@ -5291,7 +5291,11 @@ html.light .analytics-map-land path {
 /* ---------- Community gallery landing feed ---------- */
 
 .gallery-shell {
-  min-height: 100vh;
+  /* The editor locks #root/body with overflow: hidden for the canvas;
+     the gallery pages therefore scroll INSIDE their own shell — without
+     this, anything below the first viewport is unreachable. */
+  height: 100%;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   background: var(--icm-chrome-bg);
@@ -5489,7 +5493,10 @@ html.light .analytics-map-land path {
 }
 
 .review-shell {
-  min-height: 100vh;
+  /* Same scroll-inside-the-shell rule as .gallery-shell: the app root is
+     overflow: hidden, so these pages own their scrolling. */
+  height: 100%;
+  overflow-y: auto;
   background: var(--icm-surface);
 }
 
