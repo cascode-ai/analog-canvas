@@ -4254,10 +4254,9 @@ body {
   }
 
   .app-workspace {
-    grid-template-columns: min(220px, var(--icm-shapes-width)) minmax(
-        0,
-        1fr
-      ) auto;
+    grid-template-columns:
+      min(220px, var(--icm-shapes-width)) minmax(0, 1fr)
+      auto;
   }
 
   .app-brand {
