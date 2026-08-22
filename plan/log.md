@@ -4803,6 +4803,7 @@ Keep reusable lessons in `docs/experience/`, not in this log.
   (Expected 70, Received 0); typecheck, prettier, diff checks.
 - Commit status: completed on `claude/marquee-drag`; mainline merge gated on
   the remote required checks.
+
 ## 2026-08-22 - Canonical MOS presentation for SKY130 calls
 
 - Target: `plan/2026-08-22-sky130-canonical-mos-mapping/plan.md` (completed).
@@ -4826,3 +4827,20 @@ Keep reusable lessons in `docs/experience/`, not in this log.
   test-impact checks, affected workspace units (1173), and diff checks.
 - Commit status: completed on `codex/sky130-canonical-mos-mapping` as a stacked
   fix after the canonical SKY130 MOS commit.
+
+## 2026-08-22 - Junction dots follow visible conductor directions
+
+- Changed areas: contact evidence now classifies a visible Junction dot from
+  distinct Route-arm and terminal-stem directions instead of adding terminal
+  objects to Route direction counts; three-or-more coincident terminals remain
+  an explicit dot rule. Removed the unused raw Route-arm count and aligned the
+  connectivity specification and Junction-role comment.
+- Protected cases: three collinear MOS Gates stay electrically connected but
+  dotless at the middle Gate; true perpendicular taps, three-way and 45-degree
+  branches remain dotted; right-angle terminal exits, rotation, and mirroring
+  use the same direction protocol.
+- Validation: focused derived tests (12), focused Playwright regression (1),
+  preflight/static/typecheck, full affected unit suite (1177), hierarchy
+  Playwright (12), project-file Playwright (8), and workspace build passed.
+- Commit status: completed on `codex/junction-visible-directions`; mainline
+  delivery remains gated on the canonical local and remote checks.

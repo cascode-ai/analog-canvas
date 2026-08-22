@@ -51,6 +51,7 @@ export const JunctionSchema = z.strictObject({
   id: StableIdSchema,
   netId: StableIdSchema,
   position: PointSchema,
-  // Omitted role preserves older Project behavior as a branch dot.
+  // Omitted role preserves the legacy branch-anchor topology. Visible dots are
+  // derived from contact directions rather than guaranteed by this role.
   role: JunctionRoleSchema.optional(),
 });

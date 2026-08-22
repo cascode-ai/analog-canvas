@@ -683,6 +683,29 @@ test("connects one MOS Gate to Drain without false contact ambiguity", async ({
   ).toHaveCount(0);
 });
 
+test("keeps three collinear MOS Gates connected without a junction dot", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "nmos", { x: 420, y: 260 });
+  await placeComponent(page, "nmos", { x: 560, y: 260 });
+  await placeComponent(page, "nmos", { x: 700, y: 260 });
+
+  await clickDrawTool(page, "wire");
+  await page.getByTestId("terminal-M1-G").click();
+  await page.getByTestId("terminal-M2-G").click();
+  await expect(page.getByTestId("status")).toContainText("Committed route");
+
+  await clickDrawTool(page, "wire");
+  await page.getByTestId("terminal-M2-G").click();
+  await page.getByTestId("terminal-M3-G").click();
+  await expect(page.getByTestId("status")).toContainText("Committed route");
+  await expect(page.locator('[data-layer="routes"] polyline')).toHaveCount(2);
+  await expect(
+    page.locator('[data-layer="junctions"] [data-node-kind="contact"]'),
+  ).toHaveCount(0);
+});
+
 test("keeps Wire input above labels and resolves a screen-tolerant route tap", async ({
   page,
 }) => {

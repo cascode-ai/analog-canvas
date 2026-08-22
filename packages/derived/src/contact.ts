@@ -35,8 +35,7 @@ export interface CoincidentContact {
   point: Point;
   endpoints: readonly RouteEndpoint[];
   incidents: readonly ContactIncident[];
-  /** Number of independently authored Route ends incident on this node. */
-  routeArmCount: number;
+  /** Distinct visible directions across both Route arms and terminal stems. */
   branchDirections: readonly Point[];
 }
 
@@ -176,8 +175,6 @@ function netContacts(
         point: { ...point },
         endpoints,
         incidents,
-        routeArmCount: incidents.filter((incident) => incident.kind === "route")
-          .length,
         branchDirections: [...directions.values()],
       };
     })
@@ -193,16 +190,12 @@ function netContacts(
 /**
  * Whether a confirmed same-Net contact needs a visible junction dot.
  *
- * A dot communicates a branch, not mere electrical continuity. Two incident
- * arms form either a straight join or a corner and remain dotless. A terminal
- * on a Route middle/bend contributes the Route arms on both sides and therefore
- * becomes a three-way branch. Three coincident pins also require a dot even if
- * two symbol stems happen to share the same geometric direction.
- *
- * Route arms count by DISTINCT direction: two same-Net arms arriving from the
- * same side lie on top of each other and paint as one conductor, so they can
- * never justify a dot the visible drawing cannot explain (the spec's "a
- * visible dot represents authored branch topology").
+ * A dot communicates a visible branch, not the number of model objects at a
+ * contact. Route arms and terminal stems that leave in the same direction
+ * paint as one conductor. A straight join, a corner, and a terminal stem that
+ * is collinear with a through-wire therefore remain dotless. Three distinct
+ * visible directions require a dot. Three coincident terminals also require a
+ * dot even when some symbol stems overlap geometrically.
  */
 export function contactRequiresJunctionDot(
   contact: CoincidentContact,
@@ -210,12 +203,7 @@ export function contactRequiresJunctionDot(
   const terminalCount = contact.endpoints.filter(
     (endpoint) => endpoint.kind === "terminal",
   ).length;
-  const distinctRouteDirections = new Set(
-    contact.incidents
-      .filter((incident) => incident.kind === "route")
-      .map((incident) => directionKey(incident.direction)),
-  ).size;
-  return terminalCount + distinctRouteDirections >= 3;
+  return terminalCount >= 3 || contact.branchDirections.length >= 3;
 }
 
 export function deriveDocumentContactEvidence(

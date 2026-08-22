@@ -24,6 +24,7 @@ function documentWith(
     symbolId: string;
     position: { x: number; y: number };
     rotation?: 0 | 90 | 180 | 270;
+    mirror?: "none" | "x";
     pins: string[];
   }> = [],
 ): SchematicDocument {
@@ -45,7 +46,7 @@ function documentWith(
       placement: {
         position: instance.position,
         rotation: instance.rotation ?? 0,
-        mirror: "none",
+        mirror: instance.mirror ?? "none",
       },
     });
     for (const pinName of instance.pins) {
@@ -117,7 +118,7 @@ describe("contactRequiresJunctionDot", () => {
     expect(dotAt(document, { x: 0, y: 0 })).toBe(true);
   });
 
-  it("dots a pin tapped by a straight-through conductor", () => {
+  it("dots a perpendicular pin tapped by a straight-through conductor", () => {
     // Resistor pin 1 sits at (0,0): body at (0,20), pin 1 local (0,-20).
     const document = documentWith(
       [
@@ -142,6 +143,157 @@ describe("contactRequiresJunctionDot", () => {
       ],
     );
     expect(dotAt(document, { x: 0, y: 0 })).toBe(true);
+  });
+
+  it("keeps three collinear MOS Gates dotless at the middle terminal", () => {
+    const document = documentWith(
+      [
+        {
+          id: "left",
+          from: { instanceId: "M3", pinName: "G" },
+          to: { instanceId: "M2", pinName: "G" },
+        },
+        {
+          id: "right",
+          from: { instanceId: "M2", pinName: "G" },
+          to: { instanceId: "M1", pinName: "G" },
+        },
+      ],
+      [
+        { id: "M3", symbolId: "nmos", position: { x: 0, y: 0 }, pins: ["G"] },
+        { id: "M2", symbolId: "nmos", position: { x: 60, y: 0 }, pins: ["G"] },
+        { id: "M1", symbolId: "nmos", position: { x: 120, y: 0 }, pins: ["G"] },
+      ],
+    );
+    // Gate pins resolve at x = instance.x - 20. The M2 stem and right-hand
+    // Route share one direction, leaving only the two visible line directions.
+    expect(dotAt(document, { x: 40, y: 0 })).toBe(false);
+  });
+
+  it("keeps a single right-angle Route from a terminal dotless", () => {
+    const document = documentWith(
+      [
+        {
+          id: "turn",
+          from: { x: -20, y: 60 },
+          to: { instanceId: "M1", pinName: "G" },
+        },
+      ],
+      [{ id: "M1", symbolId: "pmos", position: { x: 0, y: 0 }, pins: ["G"] }],
+    );
+    expect(dotAt(document, { x: -20, y: 0 })).toBe(false);
+  });
+
+  it("uses rotated terminal directions when classifying collinear Gates", () => {
+    const document = documentWith(
+      [
+        {
+          id: "top",
+          from: { instanceId: "M3", pinName: "G" },
+          to: { instanceId: "M2", pinName: "G" },
+        },
+        {
+          id: "bottom",
+          from: { instanceId: "M2", pinName: "G" },
+          to: { instanceId: "M1", pinName: "G" },
+        },
+      ],
+      [
+        {
+          id: "M3",
+          symbolId: "nmos",
+          position: { x: 0, y: 0 },
+          rotation: 90,
+          pins: ["G"],
+        },
+        {
+          id: "M2",
+          symbolId: "nmos",
+          position: { x: 0, y: 60 },
+          rotation: 90,
+          pins: ["G"],
+        },
+        {
+          id: "M1",
+          symbolId: "nmos",
+          position: { x: 0, y: 120 },
+          rotation: 90,
+          pins: ["G"],
+        },
+      ],
+    );
+    expect(dotAt(document, { x: 0, y: 40 })).toBe(false);
+  });
+
+  it("uses mirrored terminal directions when classifying collinear Gates", () => {
+    const document = documentWith(
+      [
+        {
+          id: "left",
+          from: { instanceId: "M3", pinName: "G" },
+          to: { instanceId: "M2", pinName: "G" },
+        },
+        {
+          id: "right",
+          from: { instanceId: "M2", pinName: "G" },
+          to: { instanceId: "M1", pinName: "G" },
+        },
+      ],
+      [
+        {
+          id: "M3",
+          symbolId: "nmos",
+          position: { x: 0, y: 0 },
+          mirror: "x",
+          pins: ["G"],
+        },
+        {
+          id: "M2",
+          symbolId: "nmos",
+          position: { x: 60, y: 0 },
+          mirror: "x",
+          pins: ["G"],
+        },
+        {
+          id: "M1",
+          symbolId: "nmos",
+          position: { x: 120, y: 0 },
+          mirror: "x",
+          pins: ["G"],
+        },
+      ],
+    );
+    expect(dotAt(document, { x: 80, y: 0 })).toBe(false);
+  });
+
+  it("dots a true three-direction branch containing 45-degree arms", () => {
+    const document = documentWith([
+      { id: "northwest", from: { x: -40, y: -40 }, to: { x: 0, y: 0 } },
+      { id: "southeast", from: { x: 0, y: 0 }, to: { x: 40, y: 40 } },
+      { id: "east", from: { x: 0, y: 0 }, to: { x: 60, y: 0 } },
+    ]);
+    expect(dotAt(document, { x: 0, y: 0 })).toBe(true);
+  });
+
+  it("keeps two coincident pins dotless but dots three coincident pins", () => {
+    const twoPins = documentWith(
+      [],
+      [
+        { id: "M1", symbolId: "nmos", position: { x: 0, y: 0 }, pins: ["G"] },
+        { id: "M2", symbolId: "nmos", position: { x: 0, y: 0 }, pins: ["G"] },
+      ],
+    );
+    expect(dotAt(twoPins, { x: -20, y: 0 })).toBe(false);
+
+    const threePins = documentWith(
+      [],
+      [
+        { id: "M1", symbolId: "nmos", position: { x: 0, y: 0 }, pins: ["G"] },
+        { id: "M2", symbolId: "nmos", position: { x: 0, y: 0 }, pins: ["G"] },
+        { id: "M3", symbolId: "nmos", position: { x: 0, y: 0 }, pins: ["G"] },
+      ],
+    );
+    expect(dotAt(threePins, { x: -20, y: 0 })).toBe(true);
   });
 
   it("never dots collinear overlapping arms ending on one pin", () => {
@@ -197,7 +349,7 @@ describe("contactRequiresJunctionDot", () => {
     expect(dotAt(document, { x: 0, y: 0 })).toBe(true);
   });
 
-  it("keeps a corner-into-pin tap dotted", () => {
+  it("dots a pin contact with three distinct visible directions", () => {
     const document = documentWith(
       [
         {

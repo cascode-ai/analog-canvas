@@ -96,10 +96,11 @@ movement, stretch, and the `RouteEditPlan` preview/commit boundary belong to
 For explicit same-Net endpoints at the same page coordinate, contact evidence
 records terminals/Junctions, independently authored Route arms, and incident
 directions. Route waypoints are not implicit contacts. A visible dot represents
-authored branch topology, not line intersection: Route arms count by distinct
-incident direction, so same-Net arms that overlap collinearly paint as one
-conductor and never justify a dot, while coincident terminals keep per-pin
-counting.
+authored branch topology, not line intersection: Route arms and terminal stems
+count by distinct visible direction, so collinear incidents paint as one
+conductor and do not justify a dot. Three distinct visible directions require a
+dot; three or more coincident terminals also require one even when some stems
+overlap.
 
 ## Transaction invariants
 
