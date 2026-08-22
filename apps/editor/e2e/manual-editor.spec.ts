@@ -3668,3 +3668,40 @@ test("saves, reopens, and deletes a user Library example", async ({ page }) => {
   );
   await expect(section).toHaveCount(0);
 });
+
+test("middle-click steers which way the wire corner turns", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  const canvas = page.getByTestId("schematic-canvas");
+  await clickDrawTool(page, "wire");
+
+  const drawCorner = async (
+    start: { x: number; y: number },
+    end: typeof start,
+  ) => {
+    await canvas.click({ position: start });
+    await canvas.dblclick({ position: end });
+  };
+
+  // Default corner carries the horizontal leg first.
+  await drawCorner({ x: 200, y: 200 }, { x: 360, y: 300 });
+  const horizontal = await readRoutePoints(page, await onlyRouteId(page));
+  expect(horizontal).toHaveLength(3);
+  expect(horizontal[1]!.y).toBe(horizontal[0]!.y);
+
+  await clickCommand(page, "Edit", "Undo");
+  await expect(page.locator('[data-testid^="route-hit-"]')).toHaveCount(0);
+
+  // One middle-click flips the corner onto the other axis.
+  await clickDrawTool(page, "wire");
+  await canvas.click({ position: { x: 200, y: 200 } });
+  await canvas.click({ button: "middle", position: { x: 260, y: 240 } });
+  await canvas.click({ button: "middle", position: { x: 260, y: 240 } });
+  await expect(page.getByTestId("status")).toContainText("vertical first");
+  await canvas.dblclick({ position: { x: 360, y: 300 } });
+
+  const vertical = await readRoutePoints(page, await onlyRouteId(page));
+  expect(vertical).toHaveLength(3);
+  expect(vertical[1]!.x).toBe(vertical[0]!.x);
+});

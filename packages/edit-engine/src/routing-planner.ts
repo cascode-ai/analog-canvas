@@ -39,7 +39,18 @@ export interface ManualWirePath {
 
 /** A transient command constraint, never a second persisted Route type. */
 export type WireRoutingMode = "orthogonal" | "octilinear";
-export type WireCornerOrder = "auto" | "diagonal-first" | "orthogonal-first";
+/**
+ * Which leg of a corner is drawn first. `diagonal-first`/`orthogonal-first`
+ * order an octilinear corner; `horizontal-first`/`vertical-first` order an
+ * orthogonal one. `auto` keeps the incoming segment's direction, which is the
+ * behavior every existing draft relies on.
+ */
+export type WireCornerOrder =
+  | "auto"
+  | "diagonal-first"
+  | "orthogonal-first"
+  | "horizontal-first"
+  | "vertical-first";
 
 /** One authored click. The compiler may insert an unpersisted elbow. */
 export interface WireDraftStep {
@@ -630,19 +641,26 @@ function appendOrthogonal(
   modes: SegmentMode[],
   target: Point,
   mode: SegmentMode,
+  cornerOrder: WireCornerOrder = "auto",
 ): void {
   const last = points.at(-1)!;
   if (samePoint(last, target)) return;
   if (last.x !== target.x && last.y !== target.y) {
     const previous = points.at(-2);
+    // An explicit axis wins; otherwise the corner carries the incoming
+    // segment's direction through before it turns.
+    const horizontalFirst =
+      cornerOrder === "horizontal-first"
+        ? true
+        : cornerOrder === "vertical-first"
+          ? false
+          : previous
+            ? previous.y === last.y
+            : true;
     append(
       points,
       modes,
-      previous
-        ? previous.y === last.y
-          ? { x: target.x, y: last.y }
-          : { x: last.x, y: target.y }
-        : { x: target.x, y: last.y },
+      horizontalFirst ? { x: target.x, y: last.y } : { x: last.x, y: target.y },
       mode,
     );
   }
@@ -705,7 +723,13 @@ export function compileWireDraft(
   const modes: SegmentMode[] = [];
   const appendStep = (step: WireDraftStep) => {
     if (step.routingMode === "orthogonal") {
-      appendOrthogonal(points, modes, step.point, "manual");
+      appendOrthogonal(
+        points,
+        modes,
+        step.point,
+        "manual",
+        step.cornerOrder ?? "auto",
+      );
     } else {
       appendOctilinear(
         points,

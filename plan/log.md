@@ -4693,3 +4693,22 @@ Keep reusable lessons in `docs/experience/`, not in this log.
   typecheck, prettier, diff checks.
 - Commit status: completed on `claude/duplicate-pin-names`; mainline merge
   gated on the remote required checks.
+
+## 2026-08-22 - Steering the wire corner from the drafting gesture
+
+- Changed areas: `WireCornerOrder` gained `horizontal-first`/`vertical-first`,
+  `appendOrthogonal` honors them over the inherited incoming direction, and
+  `compileWireDraft` now threads a step's corner order through its orthogonal
+  branch (it was previously dropped). Middle-click while drafting cycles the
+  corner shape — horizontal-first, vertical-first, 45° diagonal — replacing a
+  binding that only reached the diagonal.
+- Already worked, now covered: double-click finishes a wire while single click
+  continues it (`onDoubleClick` → `applyWireCanvasPoint(finish=true)`;
+  pointer-down ignores `detail !== 1`). Confirmed in a running editor.
+- Deliberately not done: free-angle segments. `validateRoute` rejects any
+  non-octilinear Route, so arbitrary angles change an enforced geometry
+  invariant rather than a drafting option and need a spec/ADR decision.
+- Validation: full unit suite (1169), full Playwright suite (199 passed)
+  including a new corner-geometry spec, typecheck, prettier, diff checks.
+- Commit status: completed on `claude/wire-drafting-iteration`; mainline merge
+  gated on the remote required checks.

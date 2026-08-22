@@ -3951,6 +3951,41 @@ export function App({
     };
   }
 
+  /**
+   * One middle-click steps the corner through the shapes a wire actually
+   * turns with: horizontal-first, vertical-first, then the 45° diagonal. The
+   * click used to reach only the diagonal, so the two orthogonal elbows were
+   * unreachable without the Corner menu.
+   */
+  function cycleWireCornerShape(): void {
+    const shapes = [
+      {
+        routingMode: "orthogonal" as const,
+        cornerOrder: "horizontal-first" as const,
+        label: "horizontal first",
+      },
+      {
+        routingMode: "orthogonal" as const,
+        cornerOrder: "vertical-first" as const,
+        label: "vertical first",
+      },
+      {
+        routingMode: "octilinear" as const,
+        cornerOrder: "diagonal-first" as const,
+        label: "45° diagonal",
+      },
+    ];
+    const index = shapes.findIndex(
+      (shape) =>
+        shape.routingMode === wireRoutingMode &&
+        shape.cornerOrder === wireCornerOrder,
+    );
+    const next = shapes[(index + 1) % shapes.length]!;
+    if (next.routingMode !== wireRoutingMode) toggleWireRoutingMode();
+    setWireCornerOrder(next.cornerOrder);
+    setStatus(`Wire corner: ${next.label}`);
+  }
+
   function applyWireCanvasPoint(
     rawPoint: Point,
     svg: SVGSVGElement,
@@ -6283,10 +6318,7 @@ export function App({
     if (panPreview?.pointerId === event.pointerId) {
       event.currentTarget.releasePointerCapture(event.pointerId);
       if (!panPreview.dragged && getCurrentInteractionState().kind === "wire") {
-        toggleWireRoutingMode();
-        setStatus(
-          `Wire mode: ${wireRoutingMode === "orthogonal" ? "45° octilinear" : "orthogonal"}`,
-        );
+        cycleWireCornerShape();
       }
       setPanPreview(null);
       return;
@@ -10779,6 +10811,8 @@ export function App({
                   }
                 >
                   <option value="auto">Auto</option>
+                  <option value="horizontal-first">Horizontal first</option>
+                  <option value="vertical-first">Vertical first</option>
                   <option value="diagonal-first">Diagonal first</option>
                   <option value="orthogonal-first">Orthogonal first</option>
                 </select>

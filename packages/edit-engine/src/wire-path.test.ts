@@ -86,3 +86,43 @@ describe("buildManualWirePath", () => {
     ]);
   });
 });
+
+describe("orthogonal corner order", () => {
+  const from = { point: { x: 0, y: 0 } };
+  const to = { point: { x: 100, y: 60 } };
+
+  it("turns horizontally first by default", () => {
+    expect(compileWireDraft(from, to).points).toEqual([
+      { x: 0, y: 0 },
+      { x: 100, y: 0 },
+      { x: 100, y: 60 },
+    ]);
+  });
+
+  it("turns vertically first when the corner is flipped", () => {
+    expect(
+      compileWireDraft(from, to, [], "orthogonal", "vertical-first").points,
+    ).toEqual([
+      { x: 0, y: 0 },
+      { x: 0, y: 60 },
+      { x: 100, y: 60 },
+    ]);
+  });
+
+  it("keeps the flip explicit against the incoming direction", () => {
+    // Auto would carry the incoming vertical leg through; horizontal-first
+    // must win over that inherited direction.
+    const steps = [
+      { point: { x: 0, y: 40 }, routingMode: "orthogonal" as const },
+    ];
+    expect(
+      compileWireDraft(from, to, steps, "orthogonal", "horizontal-first")
+        .points,
+    ).toEqual([
+      { x: 0, y: 0 },
+      { x: 0, y: 40 },
+      { x: 100, y: 40 },
+      { x: 100, y: 60 },
+    ]);
+  });
+});
