@@ -279,3 +279,21 @@ test("offers a download from the replacement guard", async ({ page }) => {
   await expect(dialog).toBeHidden();
   await expect(page.getByTestId("revision")).toHaveText("1");
 });
+
+test("the circuit name drives publish and the saved file name", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  const name = page.getByTestId("project-name-input");
+  await expect(name).toHaveValue("New Circuit");
+
+  await name.fill("Bandgap Reference");
+  await name.press("Enter");
+  await expect(page.getByTestId("status")).toContainText("Renamed circuit");
+
+  // One name: the header, the publish dialog, and the saved file all read it.
+  await expect(name).toHaveValue("Bandgap Reference");
+  const bytes = await downloadBytes(page, "File", "Save Project");
+  const saved = JSON.parse(bytes.toString("utf8")) as { name?: string };
+  expect(saved.name).toBe("Bandgap Reference");
+});

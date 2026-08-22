@@ -369,7 +369,8 @@ test("a gallery tile opens its circuit in the editor", async ({ page }) => {
   await expect(page.getByTestId("status")).toContainText(
     `Opened gallery circuit: ${ENTRY.name}`,
   );
-  await expect(page.locator(".app-brand-copy p")).toContainText(ENTRY.name);
+  // The circuit name is an editable field now, so it is read as a value.
+  await expect(page.getByTestId("project-name-input")).toHaveValue(ENTRY.name);
 
   // The brand mark is the single way back; a second toolbar link said the
   // same thing twice.

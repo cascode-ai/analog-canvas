@@ -32,6 +32,10 @@ export const ProjectStructureEditSchema = z.discriminatedUnion("kind", [
     documentId: z.string().min(1),
   }),
   z.strictObject({
+    kind: z.literal("rename_project"),
+    name: z.string().min(1).max(128),
+  }),
+  z.strictObject({
     kind: z.literal("rename_document"),
     documentId: z.string().min(1),
     name: z.string().min(1).max(128),
@@ -246,6 +250,15 @@ export function executeProjectTransaction(
       continue;
     }
 
+    if (edit.kind === "rename_project") {
+      // The Project's name is what a published circuit and a saved file are
+      // called, so it is renamed through the same transaction path as
+      // everything else rather than by rewriting the Project object.
+      if (candidate.name === edit.name) continue;
+      candidate.name = edit.name;
+      structuralChange = true;
+      continue;
+    }
     if (edit.kind === "rename_document") {
       const document = candidate.documents.find(
         (item) => item.id === edit.documentId,

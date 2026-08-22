@@ -5085,3 +5085,24 @@ Keep reusable lessons in `docs/experience/`, not in this log.
   golden check clean, markdown link check clean.
 - Commit status: completed on `claude/any-angle-routes`; mainline merge gated
   on the remote required checks.
+
+## 2026-08-22 - The circuit name is editable where it is read
+
+- Publishing, export, and the saved file already derived from the Project's
+  name; the missing half was being able to change it, since the header
+  rendered it as static text.
+- Added a `rename_project` structure edit so the name changes through the same
+  transaction path as everything else rather than by rewriting the Project
+  object and discarding its history. It has to count as a structural change,
+  or the transaction reports that it made none.
+- The header now carries a borderless field: Enter commits, Escape reverts,
+  blur commits.
+- Verified rather than changed: a deleted label can be restored from its
+  Display checkbox for both an instance reference and a Port label —
+  `referenceLabelVisibilityEdits` already recreates a missing label. Probed
+  both cases from delete through restore.
+- Validation: full unit suite (1191), full Playwright suite (211 passed) with
+  a new case that renames the circuit and asserts the saved Project file
+  carries the new name, visual golden check clean.
+- Commit status: completed on `claude/label-restore-and-name`; mainline merge
+  gated on the remote required checks.

@@ -667,6 +667,7 @@ export function App({
   const [cellManagerOpen, setCellManagerOpen] = useState(false);
   const [netlistPreflightOpen, setNetlistPreflightOpen] = useState(false);
   const [documentSettingsOpen, setDocumentSettingsOpen] = useState(false);
+  const [projectNameDraft, setProjectNameDraft] = useState<string | null>(null);
   const [publishGalleryOpen, setPublishGalleryOpen] = useState(false);
   const [versionHistoryOpen, setVersionHistoryOpen] = useState(false);
   const [publishSession, setPublishSession] = useState<SessionUser | null>(
@@ -2427,6 +2428,19 @@ export function App({
           ),
         )
       : undefined;
+  function commitProjectName(): void {
+    const next = (projectNameDraft ?? "").trim();
+    setProjectNameDraft(null);
+    if (!next || next === project.name) return;
+    if (
+      commitStructure("rename-project", [
+        { kind: "rename_project", name: next },
+      ])
+    ) {
+      setStatus(`Renamed circuit to ${next}`);
+    }
+  }
+
   function renameSelectedNetPort(name: string): void {
     if (!selectedPortNet || !selectedInstance || selectedFormalTerminal) return;
     name = name.trim();
@@ -7221,7 +7235,24 @@ export function App({
             </a>
             <div className="app-brand-copy">
               <p title={`${project.name} / ${document.name}`}>
-                {project.name} /{" "}
+                {/* The circuit's name is what a published entry and a saved
+                    file are called, so it is edited where it is read. */}
+                <input
+                  className="app-project-name"
+                  aria-label="Circuit name"
+                  data-testid="project-name-input"
+                  value={projectNameDraft ?? project.name}
+                  size={Math.max((projectNameDraft ?? project.name).length, 6)}
+                  onChange={(event) =>
+                    setProjectNameDraft(event.currentTarget.value)
+                  }
+                  onBlur={() => commitProjectName()}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") event.currentTarget.blur();
+                    if (event.key === "Escape") setProjectNameDraft(null);
+                  }}
+                />{" "}
+                /{" "}
                 <span data-testid="active-document-name">{document.name}</span>
               </p>
             </div>

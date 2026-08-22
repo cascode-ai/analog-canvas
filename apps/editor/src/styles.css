@@ -6192,3 +6192,25 @@ html.light .analytics-map-land path {
   z-index: 20;
   min-width: 11rem;
 }
+
+/* The circuit name is edited where it is read, so the field carries no chrome
+   until it is hovered or focused. */
+.app-project-name {
+  min-width: 4rem;
+  max-width: 14rem;
+  padding: 0 0.15rem;
+  border: 1px solid transparent;
+  border-radius: var(--icm-radius-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.app-project-name:hover {
+  border-color: var(--icm-border);
+}
+
+.app-project-name:focus {
+  border-color: var(--icm-accent);
+  outline: 0;
+}
