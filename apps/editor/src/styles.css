@@ -2512,6 +2512,19 @@ body {
   box-shadow: none;
 }
 
+/* Drawing the bulk connection is the reason this section is open, so it
+   leads the section as an accented action instead of trailing its defaults. */
+.context-actions button.bulk-draw-action {
+  margin-top: 0.5rem;
+  border-color: var(--icm-accent);
+  color: var(--icm-accent);
+  font-weight: 600;
+}
+
+.context-actions button.bulk-draw-action:hover {
+  background: color-mix(in srgb, var(--icm-accent) 12%, transparent);
+}
+
 .placement-tray {
   display: grid;
   gap: 0.5rem;

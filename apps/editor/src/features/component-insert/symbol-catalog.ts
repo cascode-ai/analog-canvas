@@ -4,14 +4,19 @@ import type { SymbolDefinition } from "@icm/symbols";
 import { cellPinPreviewSymbol } from "./cell-pin-preview-symbol";
 import { vddRailPreviewSymbol } from "./vdd-rail-preview-symbol";
 
+/**
+ * Reach order rather than taxonomy order: the devices placed most often in a
+ * Razavi-style schematic come first, and the composite blocks and logic gates
+ * that are reached for least often sit at the end.
+ */
 const CATEGORY_ORDER = [
   "Transistors",
-  "Analog Blocks",
-  "Logic Gates",
   "Passives",
+  "Power and Ports",
   "Sources",
   "Switches",
-  "Power and Ports",
+  "Analog Blocks",
+  "Logic Gates",
 ] as const;
 
 export interface ComponentCatalogGroup {

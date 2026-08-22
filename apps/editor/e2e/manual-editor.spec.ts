@@ -978,6 +978,31 @@ test("keeps a selected MOS in its fixed Razavi three-terminal view", async ({
   ).toHaveCount(0);
 });
 
+test("leads the Bulk section with its draw action", async ({ page }) => {
+  await page.goto("/editor");
+  await placeComponent(page, "nmos", { x: 360, y: 220 });
+  await page.getByTestId("hit-M1").click();
+  await openSelectionShelf(page);
+
+  const bulk = page.getByLabel("MOS bulk connection");
+  await expect(bulk.getByTestId("draw-bulk-connection")).toBeVisible();
+  // The action is the reason the section is open, so it must precede the
+  // default-Net selects rather than trail them.
+  const order = await bulk.evaluate((section) =>
+    [...section.querySelectorAll("button, select")].map(
+      (element) => element.getAttribute("data-testid") ?? element.tagName,
+    ),
+  );
+  expect(order[0]).toBe("draw-bulk-connection");
+
+  // Bulk is the first section in the panel, not buried under the tray.
+  const firstSection = await page
+    .locator(".selection-panel section")
+    .first()
+    .getAttribute("aria-label");
+  expect(firstSection).toBe("MOS bulk connection");
+});
+
 test("initializes NMOS bulk from the first explicitly placed Ground", async ({
   page,
 }) => {

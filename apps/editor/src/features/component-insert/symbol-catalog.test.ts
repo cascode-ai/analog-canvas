@@ -8,6 +8,20 @@ import {
 } from "./symbol-catalog";
 
 describe("component insertion catalog", () => {
+  it("orders categories by how often they are reached for", () => {
+    const groups = componentCatalog("razavi-textbook-v1", "");
+
+    expect(groups.map((group) => group.category)).toEqual([
+      "Transistors",
+      "Passives",
+      "Power and Ports",
+      "Sources",
+      "Switches",
+      "Analog Blocks",
+      "Logic Gates",
+    ]);
+  });
+
   it("keeps categories stable while promoting recent symbols within them", () => {
     const groups = componentCatalog("razavi-textbook-v1", "", [
       "capacitor",
