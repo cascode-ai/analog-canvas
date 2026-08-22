@@ -162,3 +162,18 @@ describe("free-angle authoring", () => {
     ]);
   });
 });
+
+describe("free-angle routes follow their instances", () => {
+  it("does not skip a leg that is neither axis-aligned nor 45 degrees", () => {
+    // The follow-stretch used to require octilinear geometry, so a free-angle
+    // Route silently stopped following the instance it was drawn from.
+    expect(
+      compileWireDraft(
+        { point: { x: 0, y: 0 } },
+        { point: { x: 90, y: 25 } },
+        [],
+        "free",
+      ).segmentModes,
+    ).toEqual(["manual"]);
+  });
+});

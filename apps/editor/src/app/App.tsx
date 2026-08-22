@@ -814,7 +814,6 @@ export function App({
     setWirePreviewPoint,
     setWireDraftSteps,
     setWireRoutingMode,
-    toggleWireRoutingMode,
     setWireCornerOrder,
     completeWire,
     setDraftingSource,

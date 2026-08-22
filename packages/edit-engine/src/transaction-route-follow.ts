@@ -5,13 +5,14 @@ import type {
   SchematicDocument,
 } from "@icm/model";
 import {
+  polylineSatisfiesConstraint,
   resolveEndpointOutwardDirection,
   resolveEndpointPoint,
 } from "@icm/derived";
 import type { SymbolResolver } from "@icm/symbols";
 
 import type { SchematicEdit } from "./edit-schema.js";
-import { isOctilinear, normalizeRouteGeometry } from "./route-geometry-edit.js";
+import { normalizeRouteGeometry } from "./route-geometry-edit.js";
 import { resolveRouteEditPath } from "./route-operations.js";
 import { pointOnSegment } from "./transaction-routing.js";
 
@@ -291,7 +292,10 @@ export function applyInstancesRouteFollow(
     }
 
     const normalized = normalizeRouteGeometry(points, modes);
-    if (!isOctilinear(normalized.points)) continue;
+    // Any heading is legal geometry (ADR 0039), so a follow-stretch is skipped
+    // only when it would leave a degenerate segment behind — previously a
+    // free-angle Route simply stopped following its instance.
+    if (!polylineSatisfiesConstraint(normalized.points, "any-angle")) continue;
     route.waypoints = normalized.points.slice(1, -1);
     route.segmentModes = normalized.segmentModes;
     changed.push(route.id);

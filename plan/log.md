@@ -5106,3 +5106,17 @@ Keep reusable lessons in `docs/experience/`, not in this log.
   carries the new name, visual golden check clean.
 - Commit status: completed on `claude/label-restore-and-name`; mainline merge
   gated on the remote required checks.
+
+## 2026-08-22 - Any-angle follow-ups and dead code from the corner cycle
+
+- `transaction-route-follow` skipped any Route that was not octilinear, so a
+  free-angle Route silently stopped following the instance it was drawn from
+  when that instance moved. It now skips only geometry that would be
+  degenerate.
+- Removed `toggle-wire-routing-mode`: the corner cycle names the mode it wants,
+  because a two-way toggle cannot reach the third shape, which left the action
+  reachable from nothing.
+- Validation: full unit suite (1191), full Playwright suite (211 passed),
+  typecheck, prettier, diff checks.
+- Commit status: completed on `claude/cleanup`; mainline merge gated on the
+  remote required checks.

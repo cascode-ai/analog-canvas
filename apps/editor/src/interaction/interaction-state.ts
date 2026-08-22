@@ -126,7 +126,6 @@ export type InteractionAction<TClipboard = never> =
   /** Compatibility adapter for existing callers; new code owns authored steps. */
   | { type: "set-wire-waypoints"; update: SetStateAction<Point[]> }
   | { type: "set-wire-routing-mode"; mode: WireRoutingMode }
-  | { type: "toggle-wire-routing-mode" }
   | { type: "set-wire-corner-order"; cornerOrder: WireCornerOrder }
   | { type: "complete-wire" }
   | { type: "set-drawing-source"; point: Point | null }
@@ -354,14 +353,6 @@ export function interactionReducer<TClipboard>(
       return state.kind === "wire"
         ? { ...state, routingMode: action.mode }
         : state;
-    case "toggle-wire-routing-mode":
-      return state.kind === "wire"
-        ? {
-            ...state,
-            routingMode:
-              state.routingMode === "orthogonal" ? "octilinear" : "orthogonal",
-          }
-        : state;
     case "set-wire-corner-order":
       return state.kind === "wire"
         ? { ...state, cornerOrder: action.cornerOrder }
@@ -502,7 +493,6 @@ export function useInteractionState<TClipboard>() {
       dispatch({ type: "set-wire-waypoints", update }),
     setWireRoutingMode: (mode: WireRoutingMode) =>
       dispatch({ type: "set-wire-routing-mode", mode }),
-    toggleWireRoutingMode: () => dispatch({ type: "toggle-wire-routing-mode" }),
     setWireCornerOrder: (cornerOrder: WireCornerOrder) =>
       dispatch({ type: "set-wire-corner-order", cornerOrder }),
     completeWire: () => dispatch({ type: "complete-wire" }),

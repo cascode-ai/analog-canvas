@@ -62,7 +62,12 @@ describe("editor interaction state", () => {
         },
       ],
     });
-    state = interactionReducer(state, { type: "toggle-wire-routing-mode" });
+    // The corner cycle now names the mode it wants; a two-way toggle could
+    // not reach the third shape.
+    state = interactionReducer(state, {
+      type: "set-wire-routing-mode",
+      mode: "octilinear",
+    });
     expect(state).toMatchObject({
       kind: "wire",
       routingMode: "octilinear",
