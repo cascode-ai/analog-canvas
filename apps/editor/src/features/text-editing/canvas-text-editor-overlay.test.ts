@@ -10,7 +10,7 @@ describe("canvas text editor frame", () => {
         { x: 0, y: 0, width: 960, height: 640 },
         1,
       ),
-    ).toEqual({ x: 94, y: 116, width: 420, height: 76 });
+    ).toEqual({ x: 94, y: 83.5824, width: 420, height: 108.4176 });
   });
 
   it("grows with text scale before reaching the viewport boundary", () => {
@@ -21,9 +21,9 @@ describe("canvas text editor frame", () => {
     );
 
     expect(frame.x).toBe(94);
-    expect(frame.y).toBeCloseTo(83.5824);
+    expect(frame.y).toBeCloseTo(238);
     expect(frame.width).toBe(420);
-    expect(frame.height).toBeCloseTo(108.4176);
+    expect(frame.height).toBeCloseTo(217.2528);
   });
 
   it("clamps the frame to all four viewport edges", () => {
@@ -33,7 +33,7 @@ describe("canvas text editor frame", () => {
         { x: 0, y: 0, width: 960, height: 640 },
         1,
       ),
-    ).toEqual({ x: 8, y: 18, width: 420, height: 76 });
+    ).toEqual({ x: 8, y: 18, width: 420, height: 108.4176 });
 
     expect(
       resolveCanvasTextEditorFrame(
@@ -41,7 +41,7 @@ describe("canvas text editor frame", () => {
         { x: 0, y: 0, width: 960, height: 640 },
         1,
       ),
-    ).toEqual({ x: 532, y: 536, width: 420, height: 86 });
+    ).toEqual({ x: 532, y: 513.5824, width: 420, height: 108.4176 });
   });
 
   it("fits oversized content inside a translated viewport", () => {
@@ -52,5 +52,19 @@ describe("canvas text editor frame", () => {
         1,
       ),
     ).toEqual({ x: 28, y: 38, width: 944, height: 624 });
+  });
+
+  it("budgets several wrapped lines so a long name is not clipped away", () => {
+    // The frame is sized from the committed bounds, before any longer name is
+    // typed, and the overlay is a foreignObject that clips silently. One
+    // line's worth of height left a wrapped name unreadable.
+    const oneLine = 15.116 * 1.2;
+    const frame = resolveCanvasTextEditorFrame(
+      { x: 100, y: 200, width: 200, height: 30 },
+      { x: 0, y: 0, width: 960, height: 640 },
+      1,
+    );
+
+    expect(frame.height).toBeGreaterThan(54 + oneLine * 2);
   });
 });

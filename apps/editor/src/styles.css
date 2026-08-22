@@ -2445,6 +2445,10 @@ body {
 .rich-text-editable {
   box-sizing: border-box;
   max-width: 100%;
+  /* The overlay is a foreignObject, which clips silently. Text that still
+     overflows the frame must stay reachable by scrolling. */
+  max-height: 100%;
+  overflow-y: auto;
   min-height: 1.35rem;
   padding: 0.1rem 0.25rem;
   border: 1px solid var(--icm-accent);

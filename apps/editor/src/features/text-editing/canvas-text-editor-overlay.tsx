@@ -24,8 +24,13 @@ export function resolveCanvasTextEditorFrame(
   sizeScale: number,
 ): DerivedRect {
   const width = Math.min(Math.max(420, bounds.width + 12), viewBox.width - 16);
+  // A name longer than the box wraps, and the frame is sized before any of it
+  // is typed, so budget for a few wrapped lines instead of the one the
+  // committed bounds imply. Anything past that scrolls rather than being
+  // clipped away by the foreignObject.
+  const lineHeight = 15.116 * sizeScale * 1.2;
   const height = Math.min(
-    Math.max(76, bounds.height + 36, 54 + 15.116 * sizeScale * 1.2),
+    Math.max(76, bounds.height + 36, 54 + lineHeight * 3),
     viewBox.height - 16,
   );
   const viewportInset = 8;

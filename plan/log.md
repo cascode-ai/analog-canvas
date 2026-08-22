@@ -4761,3 +4761,23 @@ Keep reusable lessons in `docs/experience/`, not in this log.
   passed), typecheck, prettier, diff checks.
 - Commit status: completed on `claude/power-rail-straight`; mainline merge
   gated on the remote required checks.
+
+## 2026-08-22 - The canvas text editor stops clipping long labels
+
+- Reproduced the reported "text box cannot show everything" on a Port's
+  right-aligned label: typing a longer name gave `scrollHeight 40` against
+  `clientHeight 36` with `overflow: visible`. The overlay is a
+  `foreignObject`, which clips silently, so the wrapped line was neither
+  visible nor scrollable.
+- Cause: `resolveCanvasTextEditorFrame` sizes the frame from the committed
+  bounds — before the longer name exists — and its height floor budgeted one
+  line. It now budgets three, and `.rich-text-editable` gained
+  `max-height: 100%` with `overflow-y: auto` so anything past the frame
+  scrolls instead of vanishing.
+- Validation: measured `scrollHeight === clientHeight` afterwards for 3-, 26-
+  and 33-character names, with a 400-character extreme scrolling; full unit
+  suite (1172), full Playwright suite (203 passed), the new e2e case re-run
+  against a stashed fix to prove it fails without it; typecheck, prettier,
+  diff checks.
+- Commit status: completed on `claude/text-editor-clipping`; mainline merge
+  gated on the remote required checks.

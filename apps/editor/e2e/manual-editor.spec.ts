@@ -3735,3 +3735,28 @@ test("resizes a plain Power Rail from its end handle", async ({ page }) => {
   expect(rightOf(after)).toBeGreaterThan(rightOf(before));
   expect(new Set(after.map((point) => point.y)).size).toBe(1);
 });
+
+test("keeps a long right-aligned Port label readable while editing", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  const canvas = page.getByTestId("schematic-canvas");
+  await page.getByTestId("shapes-chip-port").click();
+  await canvas.click({ position: { x: 400, y: 250 } });
+  await page.keyboard.press("Escape");
+
+  await page.getByTestId("annotation-hit-instance-label-P1").dblclick();
+  const editable = page.locator(".rich-text-editable");
+  await expect(editable).toBeVisible();
+  await editable.click();
+  await page.keyboard.type("VinputDifferentialPositive");
+
+  // The overlay is a foreignObject, so anything past its frame is clipped
+  // away silently rather than scrolled to.
+  const overflow = await editable.evaluate((element) => ({
+    hidden: element.scrollHeight - element.clientHeight,
+    scrollable: getComputedStyle(element).overflowY,
+  }));
+  expect(overflow.hidden).toBeLessThanOrEqual(0);
+  expect(overflow.scrollable).toBe("auto");
+});
