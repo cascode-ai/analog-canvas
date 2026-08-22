@@ -269,6 +269,60 @@ describe("current formal cell interface", () => {
     expect(result.ir?.globals).toEqual(["0"]);
   });
 
+  it("exports a local named VDD Port Net without inventing a marker record", () => {
+    const project = createEmptyProject("project", "Project");
+    const document = project.documents[0]!;
+    document.instances.push({
+      id: "VDD1",
+      symbolId: "vdd-port",
+      placement: null,
+    });
+    document.nets.push({
+      id: "net-vdd",
+      name: "VDD",
+      scope: "local",
+      powerDomain: "vdd",
+      terminals: [{ instanceId: "VDD1", pinName: "P" }],
+    });
+
+    const result = analyzeDesignNetlist(project);
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.ir?.cells[0]?.instances).toEqual([]);
+    expect(result.ir?.cells[0]?.nets).toContainEqual({
+      id: "net-vdd",
+      name: "VDD",
+      scope: "local",
+    });
+    expect(result.ir?.globals).toEqual([]);
+  });
+
+  it("rejects a VDD Port attached to a named non-VDD Net", () => {
+    const project = createEmptyProject("project", "Project");
+    const document = project.documents[0]!;
+    document.instances.push({
+      id: "VDD1",
+      symbolId: "vdd-port",
+      placement: null,
+    });
+    document.nets.push({
+      id: "net-signal",
+      name: "SIGNAL",
+      scope: "local",
+      terminals: [{ instanceId: "VDD1", pinName: "P" }],
+    });
+
+    const result = analyzeDesignNetlist(project);
+
+    expect(result.ir).toBeNull();
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "INVALID_NET_MARKER",
+        objectIds: ["VDD1", "net-signal"],
+      }),
+    );
+  });
+
   it("emits a resolved shared external interface without inventing an empty Cell", () => {
     const project = createEmptyProject("project", "Project");
     const document = project.documents[0]!;

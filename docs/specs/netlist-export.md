@@ -160,12 +160,13 @@ hint/example/help, and display role). Required export fields are derived from
 `parameters`; there is no separate `requiredParameters` registry.
 
 Pin order names canonical Symbol pins. Hidden or implicit pins remain present.
-Canonical MOS ordering is D/G/S/B. Ground is a Net marker that verifies an
-explicit global Net and emits no instance line. A VDD Port or named power Rail
-is ordinary Net presentation, never a VDD symbol instance; only an explicitly
-global Net is emitted through the dialect's global declaration. Decorative
-symbols never have a device definition. An unsupported electrical Symbol blocks
-export.
+Canonical MOS ordering is D/G/S/B. Ground is a Net marker that verifies the
+explicit global Net `0` and emits no instance line. A VDD Port is a non-emitting
+marker for an explicitly named `powerDomain: vdd` Net, which may be local or
+global under the named-power policy. A named power Rail has no Instance. Only
+an explicitly global Net is emitted through the dialect's global declaration.
+Decorative symbols never have a device definition. An unsupported electrical
+Symbol blocks export.
 
 Independent source syntax is accepted only after its source specification is
 represented structurally. A display string is not a source specification.

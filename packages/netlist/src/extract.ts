@@ -599,20 +599,34 @@ function extractDeviceInstance(
     const markerNet = context.netByTerminal.get(
       `${instance.id}\u0000${definition.pinOrder[0]}`,
     );
-    if (!markerNet || markerNet.scope !== "global" || !markerNet.name) {
+    if (!markerNet || !markerNet.name) {
       diagnostic(
         diagnostics,
         document.id,
         "INVALID_NET_MARKER",
-        `Net marker ${instance.id} must connect to an explicitly named global Net`,
+        `Net marker ${instance.id} must connect to an explicitly named Net`,
         [instance.id],
       );
-    } else if (instance.symbolId === "ground" && markerNet.name !== "0") {
+    } else if (
+      instance.symbolId === "ground" &&
+      (markerNet.scope !== "global" || markerNet.name !== "0")
+    ) {
       diagnostic(
         diagnostics,
         document.id,
         "GROUND_NAME_MISMATCH",
-        `Ground marker must connect to global Net 0, not ${markerNet.name}`,
+        `Ground marker must connect to global Net 0, not ${markerNet.scope} Net ${markerNet.name}`,
+        [instance.id, markerNet.id],
+      );
+    } else if (
+      instance.symbolId === "vdd-port" &&
+      markerNet.powerDomain !== "vdd"
+    ) {
+      diagnostic(
+        diagnostics,
+        document.id,
+        "INVALID_NET_MARKER",
+        `VDD Port ${instance.id} must connect to an explicitly classified VDD Net`,
         [instance.id, markerNet.id],
       );
     }

@@ -4814,3 +4814,15 @@ Keep reusable lessons in `docs/experience/`, not in this log.
   hierarchy Playwright (12), manual-editor Playwright (93), branch verification,
   workspace build, production smoke, test-impact, and diff checks.
 - Commit status: completed on `codex/sky130-canonical-mos-mapping`.
+
+## 2026-08-22 - Local named VDD Port netlist export
+
+- Target: `plan/2026-08-22-vdd-port-local-net-export/plan.md` (completed).
+- Changed areas: net-marker extraction now applies the global-Net requirement
+  only to Ground; a VDD Port accepts an explicitly named local or global
+  `powerDomain: vdd` Net, emits no marker record, and rejects named non-VDD
+  Nets. The deterministic export specification now records the same policy.
+- Validation: focused netlist contract (17), preflight static/type/docs and
+  test-impact checks, affected workspace units (1173), and diff checks.
+- Commit status: completed on `codex/sky130-canonical-mos-mapping` as a stacked
+  fix after the canonical SKY130 MOS commit.
