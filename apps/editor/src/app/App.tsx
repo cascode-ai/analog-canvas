@@ -218,7 +218,7 @@ import { convertRectangleToHierarchy } from "../features/hierarchy/rectangle-to-
 import { CellManagerDialog } from "../features/hierarchy/cell-manager-dialog";
 import { NetlistPreflightDialog } from "../features/netlist-export/netlist-preflight-dialog";
 import { parseProject } from "@icm/project-protocol";
-import { StyleDialog } from "../features/editor-shell/style-dialog";
+import { DocumentSettingsSection } from "../features/editor-shell/document-settings-section";
 import { PublishGalleryDialog } from "../features/editor-shell/publish-gallery-dialog";
 import {
   publishProjectToGallery,
@@ -667,7 +667,7 @@ export function App({
   const [importReviewOpen, setImportReviewOpen] = useState(false);
   const [cellManagerOpen, setCellManagerOpen] = useState(false);
   const [netlistPreflightOpen, setNetlistPreflightOpen] = useState(false);
-  const [styleDialogOpen, setStyleDialogOpen] = useState(false);
+  const [documentSettingsOpen, setDocumentSettingsOpen] = useState(false);
   const [publishGalleryOpen, setPublishGalleryOpen] = useState(false);
   const [versionHistoryOpen, setVersionHistoryOpen] = useState(false);
   const [publishSession, setPublishSession] = useState<SessionUser | null>(
@@ -7549,10 +7549,12 @@ export function App({
             type="button"
             className="draw-tool"
             data-testid="draw-tool-document-style"
-            aria-haspopup="dialog"
-            aria-expanded={styleDialogOpen}
-            title="Document style"
-            onClick={() => setStyleDialogOpen(true)}
+            aria-pressed={documentSettingsOpen}
+            title="Document settings"
+            onClick={() => {
+              setDocumentSettingsOpen((open) => !open);
+              setSelectionOpen(true);
+            }}
           >
             <ToolIcon name="style" />
             <span>Style</span>
@@ -7792,28 +7794,6 @@ export function App({
         onNavigate={navigateToNetlistDiagnostic}
         onExport={(format) => exportDesignNetlist(format, true)}
       />
-      {styleDialogOpen ? (
-        <StyleDialog
-          overrides={document.presentation.styleOverrides}
-          onApply={(styleOverrides) => {
-            const result = transact([
-              {
-                kind: "set_presentation_style",
-                styleProfileId: document.presentation.styleProfileId,
-                styleOverrides,
-              },
-            ]);
-            if (result.ok) {
-              setStatus(
-                styleOverrides
-                  ? "Updated document style"
-                  : "Reset document style to profile defaults",
-              );
-            }
-          }}
-          onClose={() => setStyleDialogOpen(false)}
-        />
-      ) : null}
       {publishGalleryOpen ? (
         <PublishGalleryDialog
           defaultName={project.name}
@@ -8076,6 +8056,28 @@ export function App({
               </span>
             </button>
             <div className="selection-panel" hidden={!selectionOpen}>
+              {documentSettingsOpen ? (
+                <DocumentSettingsSection
+                  document={document}
+                  onApplyStyle={(styleOverrides) => {
+                    const result = transact([
+                      {
+                        kind: "set_presentation_style",
+                        styleProfileId: document.presentation.styleProfileId,
+                        styleOverrides,
+                      },
+                    ]);
+                    if (result.ok) {
+                      setStatus(
+                        styleOverrides
+                          ? "Updated document style"
+                          : "Reset document style to profile defaults",
+                      );
+                    }
+                  }}
+                  onChangeBulkDefault={updateMosBulkDefault}
+                />
+              ) : null}
               {selectedInstance && selectedBulkResolution ? (
                 <section
                   className="context-actions"
@@ -8102,46 +8104,6 @@ export function App({
                   {selectedHiddenBulkNet ? (
                     <p>Explicit bulk is shown with a Razavi dashed route.</p>
                   ) : null}
-                  <label>
-                    Default NMOS bulk Net
-                    <select
-                      aria-label="Default NMOS bulk Net"
-                      value={document.mosBulkDefaults?.nmosNetId ?? ""}
-                      onChange={(event) =>
-                        updateMosBulkDefault(
-                          "nmos",
-                          event.currentTarget.value || null,
-                        )
-                      }
-                    >
-                      <option value="">None</option>
-                      {document.nets.map((net) => (
-                        <option key={net.id} value={net.id}>
-                          {net.name ?? net.id}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    Default PMOS bulk Net
-                    <select
-                      aria-label="Default PMOS bulk Net"
-                      value={document.mosBulkDefaults?.pmosNetId ?? ""}
-                      onChange={(event) =>
-                        updateMosBulkDefault(
-                          "pmos",
-                          event.currentTarget.value || null,
-                        )
-                      }
-                    >
-                      <option value="">None</option>
-                      {document.nets.map((net) => (
-                        <option key={net.id} value={net.id}>
-                          {net.name ?? net.id}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
                 </section>
               ) : null}
               {flightlines.length > 0 ? (
@@ -10955,7 +10917,16 @@ export function App({
             title={
               gridDotsVisible ? "Hide background dots" : "Show background dots"
             }
-            onClick={() => setGridDotsVisible((visible) => !visible)}
+            onClick={() =>
+              setGridDotsVisible((visible) => {
+                // Every other canvas control reports what it did; this one
+                // changed the canvas silently.
+                setStatus(
+                  visible ? "Background dots hidden" : "Background dots shown",
+                );
+                return !visible;
+              })
+            }
           >
             <ToolIcon name="grid" />
           </button>

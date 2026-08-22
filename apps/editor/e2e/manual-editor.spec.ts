@@ -3638,7 +3638,7 @@ test("directional marquee: window needs full coverage, crossing selects on touch
   ).toBe("");
 });
 
-test("Document style dialog scales fonts document-wide and resets", async ({
+test("docked Document settings scale fonts document-wide and reset", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -3646,27 +3646,33 @@ test("Document style dialog scales fonts document-wide and resets", async ({
   const label = page.locator('[data-kind="instance-label"]').first();
   await expect(label).toHaveAttribute("font-size", "15.116");
 
+  // The knobs rescale what the canvas is drawing, so they dock beside it
+  // instead of covering it with a modal.
   await clickDrawTool(page, "document-style");
-  const dialog = page.getByTestId("document-style-dialog");
-  await expect(dialog).toBeVisible();
-  const reset = dialog.getByRole("button", {
-    name: "Reset all to profile defaults",
-  });
+  const settings = page.getByLabel("Document settings");
+  await expect(settings).toBeVisible();
+  await expect(page.getByTestId("canvas-empty-state")).toHaveCount(0);
+  await expect(page.getByTestId("hit-R1")).toBeVisible();
+  const reset = page.getByTestId("document-style-reset");
   await expect(reset).toBeDisabled();
 
-  await dialog.getByLabel("Font size").selectOption("1.5");
+  await settings.getByLabel("Font size").selectOption("1.5");
   await expect(label).toHaveAttribute("font-size", "22.674");
   await expect(page.getByTestId("status")).toContainText(
     "Updated document style",
   );
   await expect(reset).toBeEnabled();
 
-  // The override persists as ordinary undoable document state.
+  // Document-wide MOS bulk defaults belong to the Document, not to whichever
+  // transistor happens to be selected.
+  await expect(settings.getByLabel("Default NMOS bulk Net")).toBeVisible();
+  await expect(settings.getByLabel("Default PMOS bulk Net")).toBeVisible();
+
   await reset.click();
   await expect(label).toHaveAttribute("font-size", "15.116");
   await expect(reset).toBeDisabled();
-  await dialog.getByRole("button", { name: "Done", exact: true }).click();
-  await expect(dialog).toHaveCount(0);
+  await clickDrawTool(page, "document-style");
+  await expect(settings).toHaveCount(0);
 });
 
 test("saves, reopens, and deletes a user Library example", async ({ page }) => {

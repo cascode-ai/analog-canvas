@@ -4951,3 +4951,23 @@ Keep reusable lessons in `docs/experience/`, not in this log.
   typecheck, prettier, diff checks.
 - Commit status: completed on `claude/chrome-half-screen`; mainline merge gated
   on the remote required checks.
+
+## 2026-08-22 - Document settings dock beside the canvas
+
+- The style knobs rescale what the canvas draws but lived in a modal covering
+  it, so a change could not be judged while it was made. They now dock as a
+  "Document" section in the Properties sidebar, toggled by the Style button.
+- The Default NMOS/PMOS bulk Net selects moved out of a transistor's own Bulk
+  section into that same Document section: one Net answers for every NMOS or
+  PMOS in the Document, so they were never per-instance settings.
+- Removed the now unrendered modal, kept its pure knob helpers, and renamed the
+  module to `style-knobs.ts`. Its four component tests were replaced rather
+  than dropped — direct helper coverage, a rendering test for the new section,
+  and a Playwright case that asserts the canvas stays visible while a knob moves.
+- The background-dot toggle now reports in the status bar; it was the one
+  canvas control that changed the view silently.
+- Validation: full unit suite (1189), full Playwright suite (209 passed);
+  verified live that Font size 1× → 2× moved the rendered label from 15.116 to
+  30.232 with the canvas visible throughout.
+- Commit status: completed on `claude/properties-cleanup`; mainline merge gated
+  on the remote required checks.
