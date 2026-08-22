@@ -4844,3 +4844,19 @@ Keep reusable lessons in `docs/experience/`, not in this log.
   Playwright (12), project-file Playwright (8), and workspace build passed.
 - Commit status: completed on `codex/junction-visible-directions`; mainline
   delivery remains gated on the canonical local and remote checks.
+
+## 2026-08-22 - Stacked SKY130, VDD export, and Junction mainline delivery
+
+- Target: `plan/2026-08-22-stack-sky130-vdd-junction-mainline/plan.md`
+  (completed).
+- Changed areas: rebased the canonical SKY130 MOS and local named VDD export
+  commits onto `origin/main@dff17f82`, then stacked the Junction
+  visible-direction commit. Only additive plan-log conflicts required manual
+  resolution; no new model, binding, routing, or persistence protocol was
+  introduced during integration.
+- Validation: focused union units (78) and Junction browser case (1), preflight,
+  affected units (1185), hierarchy (12), project-file (8), manual-editor (98),
+  frozen dependency install, and canonical `ci:check` including build, release
+  smoke, and all 205 browser tests.
+- Commit status: stacked review branch prepared for required remote checks and
+  one PR merge to `main`.
