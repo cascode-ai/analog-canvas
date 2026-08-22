@@ -371,18 +371,15 @@ test("a gallery tile opens its circuit in the editor", async ({ page }) => {
   );
   await expect(page.locator(".app-brand-copy p")).toContainText(ENTRY.name);
 
-  // The brand mark and the explicit toolbar button both lead back to the
-  // gallery, and the product name is one name everywhere.
-  await expect(
-    page.getByRole("link", { name: "Back to the gallery", exact: true }),
-  ).toHaveAttribute("href", "/");
-  // The wordmark is part of the gallery link now, so the switch works both ways.
+  // The brand mark is the single way back; a second toolbar link said the
+  // same thing twice.
+  await expect(page.getByTestId("toolbar-gallery-link")).toHaveCount(0);
   await expect(page.locator(".gallery-home-link h1")).toHaveText(
     "Analog Canvas",
   );
-  const backLink = page.getByTestId("toolbar-gallery-link");
-  await expect(backLink).toBeVisible();
-  await backLink.click();
+  const brandLink = page.locator(".gallery-home-link");
+  await expect(brandLink).toHaveAttribute("href", "/");
+  await brandLink.click();
   await expect(page.getByTestId("gallery-feed")).toBeVisible();
 });
 

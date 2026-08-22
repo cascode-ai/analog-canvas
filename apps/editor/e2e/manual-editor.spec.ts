@@ -1418,7 +1418,9 @@ test("keeps an internal junction with the live group preview", async ({
   await page.goto("/editor");
   await placeComponent(page, "resistor", { x: 320, y: 220 });
   await placeComponent(page, "resistor", { x: 520, y: 220 });
-  await placeComponent(page, "resistor", { x: 420, y: 420 });
+  // R3 sits under the tap so the branch leaves it as a clean tee; a jogged
+  // branch would leave two arms on one side and draw no Junction dot.
+  await placeComponent(page, "resistor", { x: 425, y: 420 });
   await clickDrawTool(page, "wire");
   await page.getByTestId("terminal-R1-2").click();
   await page.getByTestId("terminal-R2-1").click();
@@ -2053,9 +2055,9 @@ test("reference and value toggles refresh content after parameter edits", async 
   const canvas = page.getByTestId("schematic-canvas");
   const box = await canvas.boundingBox();
   if (!box) throw new Error("Canvas is not measurable");
-  await page.mouse.move(box.x + 200, box.y + 80);
+  await page.mouse.move(box.x + 180, box.y + 80);
   await page.mouse.down();
-  await page.mouse.move(box.x + 620, box.y + 320, { steps: 6 });
+  await page.mouse.move(box.x + 700, box.y + 340, { steps: 6 });
   await page.mouse.up();
   await page
     .getByRole("checkbox", { name: "Value", exact: true })

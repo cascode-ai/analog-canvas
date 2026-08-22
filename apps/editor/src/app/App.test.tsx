@@ -140,21 +140,20 @@ describe("editor shell", () => {
     expect(markup).toContain("Main (top)");
   });
 
-  it("provides Help and About entries without rendering either dialog by default", () => {
+  it("provides one Help entry without rendering its dialog by default", () => {
     const project = createEmptyProject("help-tutorial", "Help Tutorial");
     const markup = renderToStaticMarkup(<App project={project} />);
 
     expect(markup).toContain('aria-haspopup="dialog"');
-    expect(markup).toContain(">About</button>");
+    // About folded into Help: one entry, not two saying the same thing.
+    expect(markup).not.toContain(">About</button>");
     expect(markup).toContain(">Help</button>");
     expect(markup).toContain('class="app-chrome-actions"');
     const navigationEnd = markup.indexOf("</nav>");
     const analyticsLink = markup.indexOf('href="/analytics"');
-    const aboutButton = markup.indexOf(">About</button>");
     const helpButton = markup.indexOf(">Help</button>");
     expect(analyticsLink).toBeGreaterThan(navigationEnd);
-    expect(aboutButton).toBeGreaterThan(analyticsLink);
-    expect(helpButton).toBeGreaterThan(aboutButton);
+    expect(helpButton).toBeGreaterThan(analyticsLink);
     expect(markup).not.toContain('role="dialog"');
     // The Connect Agent command is available (WP-WA5), but the authorization
     // panel itself must not render until the user opens it.
@@ -197,7 +196,8 @@ describe("editor shell", () => {
     );
     expect(markup).toContain('data-testid="selection-shelf"');
     expect(markup).toContain('aria-label="Properties"');
-    expect(markup).toContain('aria-label="Tool rail"');
+    // The panel toggles live in the horizontal toolbar; there is no rail.
+    expect(markup).not.toContain('aria-label="Tool rail"');
     expect(markup).toContain('aria-label="Shapes"');
     expect(markup).toContain('data-testid="shapes-chip-resistor"');
     expect(markup).toContain('data-testid="shapes-insert"');

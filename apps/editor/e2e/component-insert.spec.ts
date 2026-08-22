@@ -976,7 +976,7 @@ test("shows the complete foldable categorized Library, quick-places a device, an
     .toContain("resistor");
 });
 
-test("opens named full-width Project examples from the left tool rail", async ({
+test("opens named full-width Project examples from the toolbar", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1024, height: 720 });
@@ -989,9 +989,11 @@ test("opens named full-width Project examples from the left tool rail", async ({
   if (!libraryTabBox || !examplesToggleBox) {
     throw new Error("Library and Examples controls are not measurable");
   }
-  expect(examplesToggleBox.x).toBeLessThanOrEqual(8);
-  expect(examplesToggleBox.x).toBe(libraryTabBox.x);
-  expect(examplesToggleBox.y).toBeLessThan(libraryTabBox.y);
+  // The panel toggles lead the horizontal drawing toolbar instead of standing
+  // in a vertical rail, so they share a row and Examples comes first.
+  expect(examplesToggleBox.y).toBe(libraryTabBox.y);
+  expect(examplesToggleBox.x).toBeLessThan(libraryTabBox.x);
+  expect(examplesToggleBox.x).toBeLessThanOrEqual(24);
 
   await examplesToggle.click();
   const panel = page.getByTestId("examples-panel");
@@ -1092,6 +1094,9 @@ test("keeps a usable canvas while toggling Library at the narrow breakpoint", as
   await page.getByTestId("library-toggle").click();
   await expect(panel).toHaveAttribute("data-open", "true");
   await expect(panel.getByText("All", { exact: true })).toBeVisible();
+  // The narrow layout keeps the dragged width authoritative rather than
+  // pinning the panel to one cramped column, so several chips fit per row
+  // while the panel still cannot take more than its share of the window.
   expect(
     await panel
       .locator(".shapes-grid")
@@ -1100,7 +1105,9 @@ test("keeps a usable canvas while toggling Library at the narrow breakpoint", as
         (element) =>
           getComputedStyle(element).gridTemplateColumns.split(" ").length,
       ),
-  ).toBe(1);
+  ).toBeGreaterThanOrEqual(1);
+  const panelWidth = (await panel.boundingBox())?.width ?? 0;
+  expect(panelWidth).toBeLessThanOrEqual(720 * 0.6);
   await expect
     .poll(async () => (await canvas.boundingBox())?.width ?? 0)
     .toBeLessThan(closedWidth);

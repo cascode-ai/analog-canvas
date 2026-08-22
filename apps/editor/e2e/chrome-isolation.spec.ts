@@ -40,12 +40,17 @@ test("dismisses Help with Escape or a backdrop pointer", async ({ page }) => {
   await expect(help).toHaveCount(0);
 });
 
-test("opens About with the version and repository link", async ({ page }) => {
+test("carries the version and repository link inside Help", async ({
+  page,
+}) => {
   await page.goto("/editor");
-  await page.getByRole("button", { name: "About" }).click();
+  // About and Help said the same thing from two entries; About now lives as a
+  // section of Help.
+  await expect(page.getByRole("button", { name: "About" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Help" }).click();
 
-  const about = page.getByRole("dialog", { name: "About" });
-  await expect(about).toContainText("Analog Canvas");
+  const about = page.getByRole("dialog");
+  await expect(about).toContainText("About Analog Canvas");
   await expect(about).toContainText("Version 0.1.0");
   const repositoryLink = about.getByRole("link", {
     name: "https://github.com/chenzc24/Analog-Canvas",

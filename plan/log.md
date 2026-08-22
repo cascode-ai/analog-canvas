@@ -4913,3 +4913,28 @@ Keep reusable lessons in `docs/experience/`, not in this log.
   failures updated, then green), typecheck, prettier, diff checks.
 - Commit status: completed on `claude/port-defaults`; mainline merge gated on
   the remote required checks.
+
+## 2026-08-22 - A usable editor on a half-screen window
+
+- Three defects, each reproduced at 760px before fixing: File/Edit would not
+  open because `.app-command-surface` scrolls below 900px and clipped its own
+  414px dropdown; the Library could not be opened because a compact-layout
+  effect closed it whenever Properties was open; and it could not be widened
+  because the compact grid pinned the column to `min(8rem, 34vw)`, overriding
+  the dragged width.
+- Fixes: stop clipping while a menu is open (the pattern a toolbar row already
+  uses), let whichever panel the user just opened win, and keep
+  `--icm-shapes-width` authoritative under a `60vw` ceiling. Drag verified
+  248px → 328px with a real pointer.
+- Structure: Examples and Library moved from the vertical rail into the head of
+  the horizontal toolbar and the rail was deleted, returning its column to the
+  canvas. About folded into Help as a section. The toolbar's "← Gallery" link
+  removed, since the brand mark already goes there.
+- Two manual-editor cases needed re-aiming, not relaxing: widening the canvas
+  shifts pixel-to-logical mapping, and in one case the branch wire landed 10
+  units off, leaving two arms pointing the same way so no Junction dot was
+  drawn — the assertion was right and the geometry had moved.
+- Validation: full unit suite (1187), full Playwright suite (208 passed),
+  typecheck, prettier, diff checks.
+- Commit status: completed on `claude/chrome-half-screen`; mainline merge gated
+  on the remote required checks.

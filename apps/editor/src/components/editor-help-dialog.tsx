@@ -1,5 +1,9 @@
 import type { RefObject } from "react";
 
+import editorPackage from "../../package.json";
+
+const REPOSITORY_URL = "https://github.com/chenzc24/Analog-Canvas";
+
 export interface EditorHelpDialogProps {
   closeButtonRef: RefObject<HTMLButtonElement | null>;
   onClose(): void;
@@ -170,6 +174,21 @@ export function EditorHelpDialog({
               downloading a Project never deletes the safety copies; export a
               Project file whenever you need a durable backup or want to move
               work to another device.
+            </p>
+          </section>
+          <section>
+            <h3>About Analog Canvas</h3>
+            <p>
+              <strong>Analog Canvas</strong> is a local-first schematic editor
+              for editable circuit design.
+            </p>
+            <p>
+              Version <strong>{editorPackage.version}</strong>
+            </p>
+            <p>
+              <a href={REPOSITORY_URL} target="_blank" rel="noreferrer">
+                {REPOSITORY_URL}
+              </a>
             </p>
           </section>
         </div>

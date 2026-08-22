@@ -20,8 +20,6 @@ export interface UseEditorPanelsOptions {
   libraryWidthStorageKey: string;
   helpButtonRef: MutableRefObject<HTMLButtonElement | null>;
   helpCloseRef: MutableRefObject<HTMLButtonElement | null>;
-  aboutButtonRef: MutableRefObject<HTMLButtonElement | null>;
-  aboutCloseRef: MutableRefObject<HTMLButtonElement | null>;
 }
 
 /** Flat owner of responsive shell-panel state and Library persistence. */
@@ -54,7 +52,6 @@ export function useEditorPanels(options: UseEditorPanelsOptions) {
   );
   const [selectionOpen, setSelectionOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
-  const [aboutOpen, setAboutOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [agentPanelOpen, setAgentPanelOpen] = useState(false);
@@ -79,16 +76,8 @@ export function useEditorPanels(options: UseEditorPanelsOptions) {
   }, [options.compactMediaQuery]);
 
   useEffect(() => {
-    if (compactLayout && selectionOpen) setCompactLibraryPanelOpen(false);
-  }, [compactLayout, selectionOpen]);
-
-  useEffect(() => {
     if (helpOpen) options.helpCloseRef.current?.focus();
   }, [helpOpen]);
-
-  useEffect(() => {
-    if (aboutOpen) options.aboutCloseRef.current?.focus();
-  }, [aboutOpen]);
 
   const persistLibraryOpen = (open: boolean): void => {
     try {
@@ -165,22 +154,15 @@ export function useEditorPanels(options: UseEditorPanelsOptions) {
     requestAnimationFrame(() => options.helpButtonRef.current?.focus());
   };
 
-  const closeAbout = (): void => {
-    setAboutOpen(false);
-    requestAnimationFrame(() => options.aboutButtonRef.current?.focus());
-  };
-
   const closeSearch = (): void => {
     setSearchOpen(false);
     setSearchQuery("");
   };
 
   return {
-    aboutOpen,
     agentDetailsOpen,
     agentPanelOpen,
     agentStatusDismissed,
-    closeAbout,
     closeHelp,
     closeSearch,
     compactLayout,
@@ -192,7 +174,6 @@ export function useEditorPanels(options: UseEditorPanelsOptions) {
     searchOpen,
     searchQuery,
     selectionOpen,
-    setAboutOpen,
     setAgentDetailsOpen,
     setAgentPanelOpen,
     setAgentStatusDismissed,

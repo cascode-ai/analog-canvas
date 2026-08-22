@@ -287,6 +287,13 @@ body {
     scrollbar-width: none;
   }
 
+  /* Scrolling the menubar clips its own dropdowns, which left File and Edit
+     unopenable on a half-screen window. Stop clipping while a menu is open,
+     the same way a toolbar row does. */
+  .app-command-surface:has(.command-menu[open]) {
+    overflow: visible;
+  }
+
   .app-command-surface::-webkit-scrollbar {
     display: none;
   }
@@ -839,10 +846,8 @@ body {
 
 .app-workspace {
   display: grid;
-  grid-template-columns:
-    var(--icm-rail-width) var(--icm-shapes-width) minmax(0, 1fr)
-    auto;
-  grid-template-areas: "tools shapes canvas props";
+  grid-template-columns: var(--icm-shapes-width) minmax(0, 1fr) auto;
+  grid-template-areas: "shapes canvas props";
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -850,7 +855,7 @@ body {
 }
 
 .app-workspace.library-collapsed {
-  grid-template-columns: var(--icm-rail-width) 0 minmax(0, 1fr) auto;
+  grid-template-columns: 0 minmax(0, 1fr) auto;
 }
 
 /* Sits on the Library's right edge, overlapping the canvas by a few pixels so
@@ -4249,9 +4254,10 @@ body {
   }
 
   .app-workspace {
-    grid-template-columns:
-      var(--icm-rail-width) min(220px, var(--icm-shapes-width))
-      minmax(0, 1fr) auto;
+    grid-template-columns: min(220px, var(--icm-shapes-width)) minmax(
+        0,
+        1fr
+      ) auto;
   }
 
   .app-brand {
@@ -4269,12 +4275,15 @@ body {
   .app-workspace.library-collapsed {
     position: relative;
     grid-template-rows: minmax(0, 1fr);
-    grid-template-columns: var(--icm-rail-width) min(8rem, 34vw) minmax(0, 1fr);
-    grid-template-areas: "tools shapes canvas";
+    /* The dragged width stays authoritative here too; only the ceiling
+       narrows, so the Library can still be pulled open on a half-screen
+       window. */
+    grid-template-columns: min(var(--icm-shapes-width), 60vw) minmax(0, 1fr);
+    grid-template-areas: "shapes canvas";
   }
 
   .app-workspace.library-collapsed {
-    grid-template-columns: var(--icm-rail-width) 0 minmax(0, 1fr);
+    grid-template-columns: 0 minmax(0, 1fr);
   }
 
   .app-workspace.library-collapsed .shapes-panel {
@@ -6068,4 +6077,13 @@ html.light .analytics-map-land path {
 
 .gallery-home-link:hover h1 {
   color: var(--icm-accent);
+}
+
+/* The panel toggles lead the drawing toolbar; a hairline separates them from
+   the drawing tools so the row still reads as two groups. */
+.draw-toolbar-divider {
+  width: 1px;
+  height: 1.1rem;
+  margin: 0 var(--icm-space-1);
+  background: var(--icm-border);
 }

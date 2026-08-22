@@ -280,7 +280,6 @@ import {
   stepBoundedScale,
 } from "../interaction/editor-shortcuts";
 import { EditorHelpDialog } from "../components/editor-help-dialog";
-import { EditorAboutDialog } from "../components/editor-about-dialog";
 import { ReplaceGuardDialog } from "../components/replace-guard-dialog";
 import { RecentRecoveryDialog } from "../components/recent-recovery-dialog";
 import {
@@ -494,8 +493,6 @@ export function App({
   const [status, setStatus] = useState("Ready");
   const helpButtonRef = useRef<HTMLButtonElement>(null);
   const helpCloseRef = useRef<HTMLButtonElement>(null);
-  const aboutButtonRef = useRef<HTMLButtonElement>(null);
-  const aboutCloseRef = useRef<HTMLButtonElement>(null);
   const libraryResizeOriginRef = useRef<{
     pointerX: number;
     width: number;
@@ -515,8 +512,6 @@ export function App({
     setSelectionOpen,
     helpOpen,
     setHelpOpen,
-    aboutOpen,
-    setAboutOpen,
     searchOpen,
     setSearchOpen,
     searchQuery,
@@ -528,7 +523,6 @@ export function App({
     agentStatusDismissed,
     setAgentStatusDismissed,
     closeHelp,
-    closeAbout,
     closeSearch,
     showLeftPanel,
     toggleExamplesPanel: toggleExamplesPanelFromShell,
@@ -540,8 +534,6 @@ export function App({
     libraryWidthStorageKey: LIBRARY_WIDTH_STORAGE_KEY,
     helpButtonRef,
     helpCloseRef,
-    aboutButtonRef,
-    aboutCloseRef,
   });
   const [restoreAfterRefresh] = useState(() => {
     if (typeof window === "undefined") return false;
@@ -6887,7 +6879,7 @@ export function App({
             tool === "construction-line" ||
             tool === "rectangle") &&
           draftingSource !== null,
-        helpOpen: helpOpen || aboutOpen,
+        helpOpen,
         canvasDragActive: canvasDragSessionRef.current !== null,
         hasClearableDraftingSelection:
           selectedDrafting?.kind === "arrow" ||
@@ -7063,8 +7055,7 @@ export function App({
           finishDraftingCreate();
           return;
         case "close-help":
-          if (helpOpen) closeHelp();
-          else closeAbout();
+          closeHelp();
           return;
         case "cancel-canvas-drag":
           canvasDragSessionRef.current?.cancel();
@@ -7433,17 +7424,6 @@ export function App({
             <button
               type="button"
               className="menubar-help"
-              ref={aboutButtonRef}
-              aria-haspopup="dialog"
-              aria-expanded={aboutOpen}
-              aria-controls="editor-about-dialog"
-              onClick={() => setAboutOpen(true)}
-            >
-              About
-            </button>
-            <button
-              type="button"
-              className="menubar-help"
               ref={helpButtonRef}
               aria-haspopup="dialog"
               aria-expanded={helpOpen}
@@ -7459,6 +7439,45 @@ export function App({
           aria-label="Drawing tools"
           data-testid="draw-toolbar"
         >
+          <button
+            type="button"
+            className="draw-tool examples-toggle"
+            title={
+              leftPanelMode === "examples" && visibleLibraryPanelOpen
+                ? "Hide circuit examples"
+                : "Show circuit examples"
+            }
+            aria-pressed={
+              leftPanelMode === "examples" && visibleLibraryPanelOpen
+            }
+            aria-controls="examples-panel"
+            aria-expanded={
+              leftPanelMode === "examples" && visibleLibraryPanelOpen
+            }
+            data-testid="examples-toggle"
+            onClick={toggleExamplesPanel}
+          >
+            <ToolIcon name="examples" />
+            <span>Examples</span>
+          </button>
+          <button
+            type="button"
+            className="draw-tool"
+            title={
+              visibleLibraryPanelOpen
+                ? "Hide component library"
+                : "Show component library"
+            }
+            aria-pressed={visibleLibraryPanelOpen}
+            aria-controls="shapes-library-panel"
+            aria-expanded={visibleLibraryPanelOpen}
+            data-testid="library-toggle"
+            onClick={toggleLibraryPanel}
+          >
+            <ToolIcon name="library" />
+            <span>Library</span>
+          </button>
+          <span className="draw-toolbar-divider" aria-hidden="true" />
           <button
             type="button"
             className="draw-tool"
@@ -7545,15 +7564,6 @@ export function App({
             aria-label="Cell navigation"
             data-testid="cell-navigation"
           >
-            <a
-              className="toolbar-gallery-link"
-              href="/"
-              title="Back to the gallery"
-              aria-label="Back to the gallery feed"
-              data-testid="toolbar-gallery-link"
-            >
-              ← Gallery
-            </a>
             <button
               type="button"
               onClick={returnToParentDocument}
@@ -7657,12 +7667,6 @@ export function App({
       </header>
       {helpOpen ? (
         <EditorHelpDialog closeButtonRef={helpCloseRef} onClose={closeHelp} />
-      ) : null}
-      {aboutOpen ? (
-        <EditorAboutDialog
-          closeButtonRef={aboutCloseRef}
-          onClose={closeAbout}
-        />
       ) : null}
       {(recoveryState === "quota-exceeded" ||
         recoveryState === "unavailable" ||
@@ -7963,46 +7967,6 @@ export function App({
         }
         style={{ "--icm-shapes-width": `${libraryWidth}px` } as CSSProperties}
       >
-        <aside className="tool-rail" aria-label="Tool rail">
-          <button
-            type="button"
-            className="tool-rail-button examples-toggle"
-            title={
-              leftPanelMode === "examples" && visibleLibraryPanelOpen
-                ? "Hide circuit examples"
-                : "Show circuit examples"
-            }
-            aria-pressed={
-              leftPanelMode === "examples" && visibleLibraryPanelOpen
-            }
-            aria-controls="examples-panel"
-            aria-expanded={
-              leftPanelMode === "examples" && visibleLibraryPanelOpen
-            }
-            data-testid="examples-toggle"
-            onClick={toggleExamplesPanel}
-          >
-            <ToolIcon name="examples" />
-            <span>Examples</span>
-          </button>
-          <button
-            type="button"
-            className="tool-rail-button"
-            title={
-              visibleLibraryPanelOpen
-                ? "Hide component library"
-                : "Show component library"
-            }
-            aria-pressed={visibleLibraryPanelOpen}
-            aria-controls="shapes-library-panel"
-            aria-expanded={visibleLibraryPanelOpen}
-            data-testid="library-toggle"
-            onClick={toggleLibraryPanel}
-          >
-            <ToolIcon name="library" />
-            <span>Library</span>
-          </button>
-        </aside>
         {leftPanelMode === "library" ? (
           <ShapesPanel
             styleProfileId={document.presentation.styleProfileId}
@@ -8075,6 +8039,10 @@ export function App({
               aria-expanded={selectionOpen}
               onClick={() => {
                 if (selectionOpen) exitCellSymbolLayout();
+                // Narrow layouts have room for one side panel. Whichever the
+                // user just asked for wins, rather than one of them always
+                // outranking the other and appearing not to open at all.
+                else if (compactLayout) setCompactLibraryPanelOpen(false);
                 setSelectionOpen((current) => !current);
                 if (selectionOpen) setImportReviewOpen(false);
               }}
