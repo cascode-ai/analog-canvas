@@ -517,6 +517,10 @@ test("drafting content and anchor survive save and reopen", async ({
     mimeType: "application/json",
     buffer: projectBytes,
   });
+  await page
+    .getByRole("dialog", { name: "Protect the current Project" })
+    .getByRole("button", { name: "Discard and continue" })
+    .click();
   await expect(page.getByTestId("status")).toContainText(
     "Opened saved-drafting.icproj.json",
   );

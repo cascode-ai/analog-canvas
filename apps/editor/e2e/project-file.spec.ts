@@ -359,7 +359,7 @@ test("protects dirty work before opening a replacement", async ({ page }) => {
       ),
     );
   await expect(dialog).toBeVisible();
-  await dialog.getByRole("button", { name: "Replace anyway" }).click();
+  await dialog.getByRole("button", { name: "Discard and continue" }).click();
   await expect(page.getByTestId("active-document-name")).toHaveText(
     "Manual Editor Demo",
   );
@@ -407,6 +407,74 @@ test("offers a download from the replacement guard", async ({ page }) => {
   await dialog.getByRole("button", { name: "Cancel (keep editing)" }).click();
   await expect(dialog).toBeHidden();
   await expect(page.getByTestId("revision")).toHaveText("1");
+});
+
+test("creates a fresh Project and returns to the previous Project", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await chooseComponent(page, "resistor");
+  await page
+    .getByTestId("schematic-canvas")
+    .click({ position: { x: 360, y: 230 } });
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("hit-R1")).toHaveCount(1);
+
+  let fileMenu = await openMenu(page, "File");
+  await fileMenu.getByRole("button", { name: "New Project" }).click();
+  const dialog = page.getByRole("dialog", {
+    name: "Protect the current Project",
+  });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "Cancel (keep editing)" }).click();
+  await expect(page.getByTestId("hit-R1")).toHaveCount(1);
+
+  fileMenu = await openMenu(page, "File");
+  await fileMenu.getByRole("button", { name: "New Project" }).click();
+  await dialog.getByRole("button", { name: "Discard and continue" }).click();
+  await expect(page.getByTestId("canvas-empty-state")).toBeVisible();
+  await expect(page.getByTestId("status")).toContainText(
+    "Created a new Project",
+  );
+
+  fileMenu = await openMenu(page, "File");
+  const previous = fileMenu.getByRole("button", { name: "Previous Project" });
+  await expect(previous).toBeEnabled();
+  await previous.click();
+  await expect(page.getByTestId("hit-R1")).toHaveCount(1);
+  await expect(page.getByTestId("status")).toContainText(
+    "Returned to Previous Project",
+  );
+});
+
+test("reverts to the last formal Project snapshot", async ({ page }) => {
+  await page.goto("/editor");
+  await chooseComponent(page, "resistor");
+  await page
+    .getByTestId("schematic-canvas")
+    .click({ position: { x: 320, y: 230 } });
+  await page.keyboard.press("Escape");
+  await downloadBytes(page, "File", "Save Project");
+
+  await chooseComponent(page, "resistor");
+  await page
+    .getByTestId("schematic-canvas")
+    .click({ position: { x: 500, y: 230 } });
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("hit-R2")).toHaveCount(1);
+
+  const fileMenu = await openMenu(page, "File");
+  await fileMenu.getByRole("button", { name: "Revert to Last Saved" }).click();
+  await page
+    .getByRole("dialog", { name: "Protect the current Project" })
+    .getByRole("button", { name: "Discard and continue" })
+    .click();
+
+  await expect(page.getByTestId("hit-R1")).toHaveCount(1);
+  await expect(page.getByTestId("hit-R2")).toHaveCount(0);
+  await expect(page.getByTestId("status")).toContainText(
+    "Reverted to saved Project",
+  );
 });
 
 test("the circuit name drives publish and the saved file name", async ({

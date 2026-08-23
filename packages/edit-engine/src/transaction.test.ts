@@ -8,6 +8,7 @@ import type { RichTextDocument } from "@icm/model";
 import {
   defaultInstanceLabelPlacement,
   displayableInstanceValue,
+  resolveDocumentLogicalNets,
   resolveSchematicStyleProfile,
   visibleSymbolLocalBounds,
 } from "@icm/derived";
@@ -60,7 +61,7 @@ function transaction(expectedRevision = 0, dryRun = false) {
 }
 
 describe("Edit Transaction envelope", () => {
-  it("marks a Net created by manual connection as authored", () => {
+  it("creates a manual Base Net without adding naming semantics", () => {
     const document = createEmptyDocument("document-main", "Main");
     document.instances.push(
       { id: "A", symbolId: "port", placement: null },
@@ -83,12 +84,19 @@ describe("Edit Transaction envelope", () => {
       { symbolResolver: resolver },
     );
 
-    expect(result).toMatchObject({
-      ok: true,
-      document: {
-        nets: [expect.objectContaining({ origin: { kind: "authored" } })],
-      },
-    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.document.nets).toEqual([
+      expect.objectContaining({ id: "net-authored" }),
+    ]);
+    expect(result.document.nets[0]?.origin).toBeUndefined();
+    expect(resolveDocumentLogicalNets(result.document).groups).toEqual([
+      expect.objectContaining({
+        id: "net-authored",
+        powerDomain: "none",
+        sourceNetIds: [],
+      }),
+    ]);
   });
 
   it("updates a Port schematic reference without creating a netlist record", () => {
@@ -274,7 +282,19 @@ describe("Edit Transaction envelope", () => {
 
     const result = executeTransaction(document, {
       ...transaction(),
-      edits: [{ kind: "set_net_name", netId: "net-vin", name: "VINP" }],
+      edits: [
+        {
+          kind: "upsert_connectivity_evidence",
+          evidence: {
+            id: "claim-vin",
+            kind: "name-claim",
+            netId: "net-vin",
+            name: "VINP",
+            scope: "local",
+            owner: { kind: "net-label", annotationId: "label-vin" },
+          },
+        },
+      ],
     });
 
     expect(result).toMatchObject({ ok: true });
@@ -557,15 +577,31 @@ describe("Edit Transaction envelope", () => {
       powerDomain: "vdd",
       terminals: [],
     });
+    document.connectivityEvidence.push({
+      id: "claim-vdd",
+      kind: "name-claim",
+      netId: "net-vdd",
+      name: "VDD",
+      scope: "global",
+      powerDomain: "vdd",
+      owner: { kind: "explicit-net-property" },
+    });
     const result = executeTransaction(
       document,
       {
         ...transaction(),
         edits: [
           {
-            kind: "set_net_power_domain",
-            netId: "net-vdd",
-            powerDomain: "ground",
+            kind: "upsert_connectivity_evidence",
+            evidence: {
+              id: "claim-ground-conflict",
+              kind: "name-claim",
+              netId: "net-vdd",
+              name: "0",
+              scope: "global",
+              powerDomain: "ground",
+              owner: { kind: "explicit-net-property" },
+            },
           },
         ],
       },
@@ -574,7 +610,7 @@ describe("Edit Transaction envelope", () => {
 
     expect(result).toMatchObject({
       ok: false,
-      error: { code: "EDIT_PRECONDITION" },
+      error: { code: "INVALID_RESULT" },
       document,
     });
   });
@@ -898,6 +934,357 @@ describe("Edit Transaction envelope", () => {
     });
   });
 
+  it("retargets every connectivity evidence reference when Nets merge", () => {
+    const document = createEmptyDocument("document-main", "Main");
+    document.nets.push(
+      { id: "net-target", scope: "local", terminals: [] },
+      { id: "net-source", scope: "local", terminals: [] },
+      { id: "net-peer", scope: "local", terminals: [] },
+    );
+    document.connectivityEvidence.push(
+      {
+        id: "claim-source",
+        kind: "name-claim",
+        netId: "net-source",
+        name: "SOURCE",
+        owner: { kind: "explicit-net-property" },
+        scope: "local",
+      },
+      {
+        id: "source-origin",
+        kind: "spice-source",
+        netId: "net-source",
+        sourceNetId: "spice-source",
+      },
+      {
+        id: "equivalence-retained",
+        kind: "explicit-equivalence",
+        memberNetIds: ["net-source", "net-peer"],
+      },
+      {
+        id: "equivalence-collapsed",
+        kind: "explicit-equivalence",
+        memberNetIds: ["net-target", "net-source"],
+      },
+    );
+
+    const result = executeTransaction(document, {
+      ...transaction(),
+      edits: [
+        {
+          kind: "merge_nets",
+          targetNetId: "net-target",
+          sourceNetId: "net-source",
+        },
+      ],
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      document: {
+        connectivityEvidence: [
+          { id: "claim-source", netId: "net-target" },
+          { id: "source-origin", netId: "net-target" },
+          {
+            id: "equivalence-retained",
+            memberNetIds: ["net-target", "net-peer"],
+          },
+        ],
+      },
+    });
+  });
+
+  it("upserts and removes explicit Connectivity Evidence with final-Net GC", () => {
+    const document = createEmptyDocument("document-main", "Main");
+    document.nets.push({
+      id: "net-evidence",
+      scope: "local",
+      terminals: [],
+    });
+
+    const added = executeTransaction(document, {
+      ...transaction(),
+      edits: [
+        {
+          kind: "upsert_connectivity_evidence",
+          evidence: {
+            id: "claim-evidence",
+            kind: "name-claim",
+            netId: "net-evidence",
+            name: "BIAS",
+            owner: { kind: "explicit-net-property" },
+            scope: "local",
+          },
+        },
+      ],
+    });
+    expect(added).toMatchObject({
+      ok: true,
+      document: {
+        connectivityEvidence: [{ id: "claim-evidence", netId: "net-evidence" }],
+      },
+      diff: { changedObjectIds: ["claim-evidence"] },
+    });
+    if (!added.ok) return;
+
+    const removed = executeTransaction(added.document, {
+      ...transaction(1),
+      edits: [
+        {
+          kind: "remove_connectivity_evidence",
+          evidenceId: "claim-evidence",
+        },
+      ],
+    });
+    expect(removed).toMatchObject({
+      ok: true,
+      document: { nets: [], connectivityEvidence: [] },
+      diff: { changedObjectIds: ["claim-evidence", "net-evidence"] },
+    });
+  });
+
+  it("rejects evidence ID collisions and missing owners atomically", () => {
+    const document = createEmptyDocument("document-main", "Main");
+    document.nets.push({ id: "net-a", scope: "local", terminals: [] });
+    const collision = executeTransaction(document, {
+      ...transaction(),
+      edits: [
+        {
+          kind: "upsert_connectivity_evidence",
+          evidence: {
+            id: "net-a",
+            kind: "spice-source",
+            netId: "net-a",
+            sourceNetId: "source-a",
+          },
+        },
+      ],
+    });
+    expect(collision).toMatchObject({
+      ok: false,
+      applied: false,
+      error: { code: "EDIT_PRECONDITION" },
+    });
+    expect(document.connectivityEvidence).toEqual([]);
+
+    const missingOwner = executeTransaction(document, {
+      ...transaction(),
+      edits: [
+        {
+          kind: "upsert_connectivity_evidence",
+          evidence: {
+            id: "claim-a",
+            kind: "name-claim",
+            netId: "net-a",
+            name: "A",
+            owner: { kind: "net-label", annotationId: "missing" },
+            scope: "local",
+          },
+        },
+      ],
+    });
+    expect(missingOwner).toMatchObject({
+      ok: false,
+      applied: false,
+      error: { code: "INVALID_RESULT" },
+    });
+    expect(document.connectivityEvidence).toEqual([]);
+
+    const missingEvidence = executeTransaction(document, {
+      ...transaction(),
+      edits: [
+        {
+          kind: "remove_connectivity_evidence",
+          evidenceId: "missing-evidence",
+        },
+      ],
+    });
+    expect(missingEvidence).toMatchObject({
+      ok: false,
+      applied: false,
+      error: { code: "OBJECT_NOT_FOUND" },
+    });
+  });
+
+  it("removes free-Port evidence and its unreachable Net with the owner", () => {
+    const document = createEmptyDocument("document-main", "Main");
+    document.instances.push({ id: "P1", symbolId: "port", placement: null });
+    document.nets.push({
+      id: "net-port",
+      scope: "local",
+      terminals: [{ instanceId: "P1", pinName: "P" }],
+    });
+    document.connectivityEvidence.push({
+      id: "claim-port",
+      kind: "name-claim",
+      netId: "net-port",
+      name: "PORT",
+      owner: { kind: "free-port", instanceId: "P1" },
+      scope: "local",
+    });
+
+    const result = executeTransaction(
+      document,
+      {
+        ...transaction(),
+        edits: [
+          {
+            kind: "disconnect_endpoint",
+            endpoint: { kind: "terminal", instanceId: "P1", pinName: "P" },
+          },
+          { kind: "remove_instance", instanceId: "P1" },
+        ],
+      },
+      { symbolResolver: resolver },
+    );
+    expect(result).toMatchObject({
+      ok: true,
+      document: { instances: [], nets: [], connectivityEvidence: [] },
+      diff: {
+        changedObjectIds: expect.arrayContaining([
+          "P1",
+          "claim-port",
+          "net-port",
+        ]),
+      },
+    });
+  });
+
+  it("reclaims a deleted standalone Ground Net held only by the bulk default", () => {
+    const document = createEmptyDocument("document-main", "Main");
+    document.instances.push({
+      id: "GND1",
+      symbolId: "ground",
+      placement: null,
+    });
+    document.nets.push({
+      id: "net-power-gnd1",
+      scope: "local",
+      terminals: [{ instanceId: "GND1", pinName: "0" }],
+    });
+    document.connectivityEvidence.push({
+      id: "claim-ground-1",
+      kind: "name-claim",
+      netId: "net-power-gnd1",
+      name: "0",
+      owner: { kind: "power-marker", objectId: "GND1" },
+      scope: "global",
+      powerDomain: "ground",
+    });
+    document.mosBulkDefaults = { nmosNetId: "net-power-gnd1" };
+
+    const removed = executeTransaction(
+      document,
+      {
+        ...transaction(),
+        edits: [
+          {
+            kind: "disconnect_endpoint",
+            endpoint: { kind: "terminal", instanceId: "GND1", pinName: "0" },
+          },
+          { kind: "remove_instance", instanceId: "GND1" },
+        ],
+      },
+      { symbolResolver: resolver },
+    );
+    expect(removed).toMatchObject({
+      ok: true,
+      document: {
+        instances: [],
+        nets: [],
+        connectivityEvidence: [],
+      },
+    });
+    if (!removed.ok) return;
+    expect(removed.document.mosBulkDefaults).toBeUndefined();
+
+    const replaced = executeTransaction(
+      removed.document,
+      {
+        ...transaction(removed.document.revision),
+        edits: [
+          {
+            kind: "add_instance",
+            instance: { id: "GND1", symbolId: "ground", placement: null },
+          },
+          {
+            kind: "connect_endpoints",
+            from: { kind: "terminal", instanceId: "GND1", pinName: "0" },
+            to: { kind: "terminal", instanceId: "GND1", pinName: "0" },
+            newNetId: "net-power-gnd1",
+          },
+          {
+            kind: "upsert_connectivity_evidence",
+            evidence: {
+              id: "claim-ground-1",
+              kind: "name-claim",
+              netId: "net-power-gnd1",
+              name: "0",
+              owner: { kind: "power-marker", objectId: "GND1" },
+              scope: "global",
+              powerDomain: "ground",
+            },
+          },
+          { kind: "set_mos_bulk_defaults", nmosNetId: "net-power-gnd1" },
+        ],
+      },
+      { symbolResolver: resolver },
+    );
+    expect(replaced).toMatchObject({
+      ok: true,
+      document: {
+        instances: [{ id: "GND1" }],
+        nets: [{ id: "net-power-gnd1" }],
+        mosBulkDefaults: { nmosNetId: "net-power-gnd1" },
+      },
+    });
+  });
+
+  it("removes only evidence owned by a deleted Net Label", () => {
+    const document = createEmptyDocument("document-main", "Main");
+    document.nets.push({ id: "net-a", scope: "local", terminals: [] });
+    document.annotations.push({
+      id: "label-a",
+      kind: "net-label",
+      binding: { kind: "net-name", netId: "net-a" },
+      netId: "net-a",
+      anchor: { kind: "free", position: { x: 0, y: 0 } },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    });
+    document.connectivityEvidence.push(
+      {
+        id: "claim-label",
+        kind: "name-claim",
+        netId: "net-a",
+        name: "A",
+        owner: { kind: "net-label", annotationId: "label-a" },
+        scope: "local",
+      },
+      {
+        id: "claim-property",
+        kind: "name-claim",
+        netId: "net-a",
+        name: "A",
+        owner: { kind: "explicit-net-property" },
+        scope: "local",
+      },
+    );
+
+    const result = executeTransaction(document, {
+      ...transaction(),
+      edits: [{ kind: "remove_schematic_annotation", annotationId: "label-a" }],
+    });
+    expect(result).toMatchObject({
+      ok: true,
+      document: {
+        nets: [{ id: "net-a" }],
+        connectivityEvidence: [{ id: "claim-property" }],
+      },
+    });
+  });
+
   it("rejects a stale revision without changing the Document", () => {
     const document = createEmptyDocument("document-main", "Main");
     const before = JSON.stringify(document);
@@ -943,9 +1330,16 @@ describe("Edit Transaction envelope", () => {
             createNet: true,
           },
           {
-            kind: "set_net_power_domain",
-            netId: "net-ui-2",
-            powerDomain: "vdd",
+            kind: "upsert_connectivity_evidence",
+            evidence: {
+              id: "claim-net-ui-2-vdd",
+              kind: "name-claim",
+              netId: "net-ui-2",
+              name: "VDD",
+              scope: "local",
+              powerDomain: "vdd",
+              owner: { kind: "explicit-net-property" },
+            },
           },
         ],
       },
@@ -959,12 +1353,16 @@ describe("Edit Transaction envelope", () => {
           {
             id: "net-ui-2",
             scope: "local",
-            powerDomain: "vdd",
+            powerDomain: "none",
             terminals: [],
           },
         ],
       },
     });
+    if (!result.ok) return;
+    expect(
+      resolveDocumentLogicalNets(result.document).byBaseNetId.get("net-ui-2"),
+    ).toMatchObject({ name: "VDD", powerDomain: "vdd" });
   });
 
   it("dry-runs without mutating or advancing the current revision", () => {

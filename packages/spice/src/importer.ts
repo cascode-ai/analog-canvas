@@ -336,9 +336,7 @@ function importDocument(
   );
   const nets: Net[] = cell.nets.map((net) => ({
     id: net.id,
-    name: net.name,
     scope: net.scope,
-    origin: { kind: "spice-import", sourceNetIds: [net.id] },
     terminals: visibleInstances
       .filter((instance) => importedInstanceById.has(instance.id))
       .flatMap((instance) =>
@@ -394,6 +392,38 @@ function importDocument(
     },
     instances,
     nets,
+    connectivityEvidence: cell.nets.flatMap((net) => [
+      ...(net.name
+        ? [
+            {
+              id: deriveStableId(
+                "connectivity-evidence",
+                documentId,
+                "explicit-net-property",
+                net.id,
+                net.name,
+              ),
+              kind: "name-claim" as const,
+              netId: net.id,
+              name: net.name,
+              owner: { kind: "explicit-net-property" as const },
+              scope: net.scope,
+            },
+          ]
+        : []),
+      ...[net.id].map((sourceNetId) => ({
+        id: deriveStableId(
+          "connectivity-evidence",
+          documentId,
+          "spice-source",
+          net.id,
+          sourceNetId,
+        ),
+        kind: "spice-source" as const,
+        netId: net.id,
+        sourceNetId,
+      })),
+    ]),
     routes: [],
     junctions: [],
     annotations: [],

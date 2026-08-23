@@ -37,6 +37,7 @@ import {
   planSetCellTerminalPlacement,
   planUpdateCellTerminalDirection,
   planSetMosModelTarget,
+  planCellReset,
   planInstanceUnplacement,
   proposeSetCellFormalParameters,
   proposeUpsertExternalSubcircuitDefinition,
@@ -45,6 +46,7 @@ import {
   type EditTransactionResult,
   type ConnectivityIntent,
   type SchematicEdit,
+  type CellResetPlan,
   type WireSource,
   type WireRoutingMode,
   type WireCornerOrder,
@@ -78,6 +80,7 @@ import {
   resolveNetLabelBinding,
   resolveMosBulkConnection,
   resolveDocumentStyleProfile,
+  resolveDocumentLogicalNets,
   resolveRouteAttachment,
   resolveRouteTap,
   summarizeProjectCells,
@@ -96,6 +99,7 @@ import {
   createEmptyProject,
   createEmptyDocument,
   createId,
+  deriveStableId,
   defaultDraftTextDocument,
   foldNetName,
   flattenRichText,
@@ -107,6 +111,7 @@ import {
 import type {
   Annotation,
   CircuitProject,
+  ConnectivityEvidence,
   DerivedPoint,
   ExternalSubcircuitDefinition,
   DraftingObject,
@@ -226,7 +231,7 @@ import { ExamplesPanel } from "../features/editor-shell/examples-panel";
 import { convertRectangleToHierarchy } from "../features/hierarchy/rectangle-to-cell";
 import { CellManagerDialog } from "../features/hierarchy/cell-manager-dialog";
 import { NetlistPreflightDialog } from "../features/netlist-export/netlist-preflight-dialog";
-import { parseProject } from "@icm/project-protocol";
+import { parseProject, serializeProject } from "@icm/project-protocol";
 import { DocumentSettingsSection } from "../features/editor-shell/document-settings-section";
 import { derivedFingerWidth } from "../features/properties/finger-width";
 import {
@@ -253,6 +258,7 @@ import {
   type LibraryProjectExample,
 } from "../examples/library-examples";
 import { useDocumentController } from "../document/document-controller";
+import { projectChangeToken } from "../document/project-session-lifecycle";
 import {
   applyDraftingHandle,
   applyDraftingStylePatch,
@@ -324,8 +330,6 @@ import {
   razaviManualBulkConnectionEdits,
   razaviMosPresentationEdits,
 } from "../presentation/razavi-presentation";
-import { createRoutingDemoProject } from "../demos/routing-demo";
-import { createVisualDemoProject } from "../demos/visual-demo";
 import { useRecoveryCoordinator } from "../document/recovery-coordinator";
 import type {
   BrowserRecoveryFormalFileHint,
@@ -494,6 +498,16 @@ interface ReplaceGuardState {
   perform: () => void | Promise<void>;
 }
 
+interface FormalProjectBaseline {
+  project: CircuitProject;
+  viewBox: GridRect;
+}
+
+interface PreviousProjectSnapshot extends FormalProjectBaseline {
+  fileState: ProjectFileState;
+  formalBaseline: FormalProjectBaseline | null;
+}
+
 export interface AppProps {
   project?: CircuitProject;
   visitStats?: { pv: number; uv: number } | null;
@@ -611,10 +625,14 @@ export function App({
   // asking again. A runtime capability, never persisted: it is dropped
   // whenever the whole project is replaced, and it dies with the tab.
   const saveTargetRef = useRef<ProjectSaveTarget | null>(null);
+  const [formalProjectBaseline, setFormalProjectBaseline] =
+    useState<FormalProjectBaseline | null>(null);
   const fileStateBaselineRef = useRef<{
     session: string;
-    revision: number;
+    token: string;
   } | null>(null);
+  const [previousProject, setPreviousProject] =
+    useState<PreviousProjectSnapshot | null>(null);
   const [replaceGuard, setReplaceGuard] = useState<ReplaceGuardState | null>(
     null,
   );
@@ -695,7 +713,10 @@ export function App({
   );
   const [importReviewOpen, setImportReviewOpen] = useState(false);
   const [cellManagerOpen, setCellManagerOpen] = useState(false);
-  const [clearCanvasConfirmOpen, setClearCanvasConfirmOpen] = useState(false);
+  const [pendingCellReset, setPendingCellReset] = useState<{
+    plan: CellResetPlan;
+    command: string;
+  } | null>(null);
   const [netlistPreflightOpen, setNetlistPreflightOpen] = useState(false);
   const [documentSettingsOpen, setDocumentSettingsOpen] = useState(false);
   const [projectNameDraft, setProjectNameDraft] = useState<string | null>(null);
@@ -1238,6 +1259,7 @@ export function App({
     clearSelectionKinds,
     netLabelForRoute,
     netLabelEditsForRoute,
+    netNameEditsForAnnotation,
     instancePropertyEdits,
     referenceLabelVisibilityEdits,
     valueVisibilityEdits,
@@ -1336,8 +1358,9 @@ export function App({
       ? `${selectedIds.length} components`
       : selectedRoute
         ? `Route · ${
-            document.nets.find((net) => net.id === selectedRoute.netId)?.name ??
-            selectedRoute.netId
+            resolveDocumentLogicalNets(document).byBaseNetId.get(
+              selectedRoute.netId,
+            )?.name ?? selectedRoute.netId
           }`
         : selectedAnnotation
           ? `Annotation · ${selectedAnnotation.kind}`
@@ -1412,11 +1435,11 @@ export function App({
   );
   const flightlines = useMemo(
     () =>
-      document.nets.flatMap(
-        (net) =>
-          projectConnectivityIndex.documents.get(document.id)?.nets.get(net.id)
-            ?.routingGuidance ?? [],
-      ),
+      [
+        ...(projectConnectivityIndex.documents
+          .get(document.id)
+          ?.logicalNets.values() ?? []),
+      ].flatMap((net) => net.routingGuidance),
     [document.id, document.nets, projectConnectivityIndex],
   );
   const displayedFlightlines = useMemo(() => {
@@ -1576,7 +1599,7 @@ export function App({
       [
         ...(projectConnectivityIndex.documents
           .get(document.id)
-          ?.nets.values() ?? []),
+          ?.logicalNets.values() ?? []),
       ].flatMap((net) => net.routedComponents),
     [document.id, projectConnectivityIndex],
   );
@@ -1986,12 +2009,13 @@ export function App({
     toggleExamplesPanelFromShell();
   }
 
-  // Landing-page deep links: `/g/<id>` opens a published gallery entry and
-  // `/editor?example=<id>` opens a bundled example. Both replace the fresh
-  // Open one gallery entry into the live editor: the same path serves the
-  // `/g/<id>` boot and the Examples panel, and it remembers the entry so
-  // the publish dialog can offer updating it.
-  async function openGalleryEntryById(entryId: string): Promise<void> {
+  // The same loader serves a fresh `/g/<id>` boot and the live Examples panel.
+  // Only the live path crosses an existing Project session and needs the
+  // replacement guard and Previous Project snapshot.
+  async function openGalleryEntryById(
+    entryId: string,
+    protectCurrentProject = true,
+  ): Promise<void> {
     try {
       const response = await fetch(`/api/gallery/${entryId}`, {
         credentials: "same-origin",
@@ -2015,19 +2039,31 @@ export function App({
         return;
       }
       const galleryProject = parseProject(payload.projectText);
-      replaceActiveProject(galleryProject);
-      setGalleryEntryContext({
-        id: entryId,
-        name: payload.entry?.name ?? galleryProject.name,
-        projectId: galleryProject.id,
-        ownerUserId: payload.ownerUserId ?? null,
-        author: payload.entry?.author ?? "",
-        description: payload.entry?.description ?? "",
-        tags: payload.entry?.tags ?? [],
-      });
-      setStatus(
-        `Opened gallery circuit: ${payload.entry?.name ?? galleryProject.name}`,
-      );
+      const install = () => {
+        replaceActiveProject(galleryProject, DEFAULT_VIEWBOX, {
+          rememberPrevious: protectCurrentProject,
+        });
+        setGalleryEntryContext({
+          id: entryId,
+          name: payload.entry?.name ?? galleryProject.name,
+          projectId: galleryProject.id,
+          ownerUserId: payload.ownerUserId ?? null,
+          author: payload.entry?.author ?? "",
+          description: payload.entry?.description ?? "",
+          tags: payload.entry?.tags ?? [],
+        });
+        setStatus(
+          `Opened gallery circuit: ${payload.entry?.name ?? galleryProject.name}`,
+        );
+      };
+      if (protectCurrentProject) {
+        await guardDirtyReplacement(
+          `Open gallery circuit ${payload.entry?.name ?? galleryProject.name}`,
+          install,
+        );
+      } else {
+        install();
+      }
     } catch {
       setStatus("This gallery entry is unavailable");
     }
@@ -2042,7 +2078,7 @@ export function App({
       "example",
     );
     if (initialGalleryEntryId) {
-      void openGalleryEntryById(initialGalleryEntryId);
+      void openGalleryEntryById(initialGalleryEntryId, false);
       return;
     }
     if (exampleId) {
@@ -2051,7 +2087,9 @@ export function App({
         (candidate) => candidate.id === exampleId,
       );
       if (exampleProject && example) {
-        replaceActiveProject(exampleProject);
+        replaceActiveProject(exampleProject, DEFAULT_VIEWBOX, {
+          rememberPrevious: false,
+        });
         setStatus(`Opened example: ${example.name}`);
       }
     }
@@ -2490,6 +2528,11 @@ export function App({
           ),
         )
       : undefined;
+  const selectedPortLogicalName = selectedPortNet
+    ? resolveDocumentLogicalNets(document).byBaseNetId.get(selectedPortNet.id)
+        ?.name
+    : undefined;
+
   function commitProjectName(): void {
     const next = (projectNameDraft ?? "").trim();
     setProjectNameDraft(null);
@@ -2506,92 +2549,25 @@ export function App({
   function renameSelectedNetPort(name: string): void {
     if (!selectedPortNet || !selectedInstance || selectedFormalTerminal) return;
     name = name.trim();
-    if (!name || name === selectedPortNet.name) return;
-
-    // Several Net Ports naming the same node share one Net, so renaming that
-    // Net would rename all of them. Renaming one Port is a statement about
-    // that Port, so it leaves the shared node and takes the new name with it.
-    const portInstanceIds = new Set(
-      document.instances
-        .filter(
-          (instance) =>
-            instance.symbolId === "port" || instance.symbolId === "port-filled",
-        )
-        .map((instance) => instance.id),
-    );
-    const sharedWithAnotherPort =
-      selectedPortNet.terminals.filter((terminal) =>
-        portInstanceIds.has(terminal.instanceId),
-      ).length > 1;
-
-    if (sharedWithAnotherPort) {
-      const port = {
-        kind: "terminal" as const,
-        instanceId: selectedInstance.id,
-        pinName: "P",
-      };
-      const existing = document.nets.find(
-        (net) =>
-          net.id !== selectedPortNet.id &&
-          net.name !== undefined &&
-          foldNetName(net.name) === foldNetName(name),
-      );
-      const host = existing?.terminals.find(
-        (terminal) => terminal.instanceId !== selectedInstance.id,
-      );
-      const nextNetId =
-        existing?.id ??
-        `net-port-${selectedInstance.id.toLowerCase()}-${document.revision}`;
-      // The Port's label is bound to the Net it names, so it has to follow the
-      // Port to its new node or it would keep reading the old name.
-      const boundLabel = document.annotations.find(
-        (annotation) =>
-          annotation.binding?.kind === "net-name" &&
-          annotation.binding.netId === selectedPortNet.id &&
-          annotation.anchor.kind === "object" &&
-          annotation.anchor.objectId === selectedInstance.id,
-      );
-      const detached: SchematicEdit[] = [
-        { kind: "disconnect_endpoint", endpoint: port },
-        host
-          ? {
-              kind: "connect_endpoints",
-              from: port,
-              to: {
-                kind: "terminal",
-                instanceId: host.instanceId,
-                pinName: host.pinName,
-              },
-            }
-          : {
-              kind: "connect_endpoints",
-              from: port,
-              to: port,
-              newNetId: nextNetId,
-              newNetName: name,
-            },
-        ...(boundLabel
-          ? [
-              {
-                kind: "upsert_schematic_annotation" as const,
-                annotation: {
-                  ...boundLabel,
-                  netId: nextNetId,
-                  binding: { kind: "net-name" as const, netId: nextNetId },
-                },
-              },
-            ]
-          : []),
-      ];
-      if (transact(detached).ok) setStatus(`Renamed Net Port to ${name}`);
-      return;
-    }
-
-    // Naming a Free Net Port joins an existing Net of that name instead of
-    // leaving two same-name Nets behind, exactly as placing a named Port does.
+    if (!name || name === selectedPortLogicalName) return;
     const plan = planEnsureNamedNet(document, {
       candidateNetId: selectedPortNet.id,
       name,
+      evidenceId:
+        document.connectivityEvidence.find(
+          (evidence) =>
+            evidence.kind === "name-claim" &&
+            evidence.owner.kind === "free-port" &&
+            evidence.owner.instanceId === selectedInstance!.id,
+        )?.id ??
+        deriveStableId(
+          "connectivity-evidence",
+          document.id,
+          "free-port",
+          selectedPortNet.id,
+          selectedInstance!.id,
+        ),
+      owner: { kind: "free-port", instanceId: selectedInstance!.id },
     });
     if (!plan.ok) {
       setStatus(plan.message);
@@ -3005,7 +2981,9 @@ export function App({
             `Net ${intent.netId} is not present in Document ${targetDocument.id}`,
           );
         }
-        activateDocument(`Agent highlighted Net ${net.name ?? net.id}`);
+        activateDocument(
+          `Agent highlighted Net ${resolveDocumentLogicalNets(targetDocument).byBaseNetId.get(net.id)?.name ?? net.id}`,
+        );
         highlightNet(net.id, targetDocument.id, intent.endpoint);
         return {
           ok: true,
@@ -3197,8 +3175,24 @@ export function App({
       source?: BrowserRecoverySource;
       keepWorkingCopy?: boolean;
       formalFileHint?: BrowserRecoveryFormalFileHint;
+      rememberPrevious?: boolean;
+      fileState?: ProjectFileState;
+      formalBaseline?: FormalProjectBaseline | null;
     } = {},
   ): SchematicDocument {
+    if (options.rememberPrevious !== false) {
+      setPreviousProject({
+        project: structuredClone(project),
+        viewBox: { ...viewBox },
+        fileState,
+        formalBaseline: formalProjectBaseline
+          ? {
+              project: structuredClone(formalProjectBaseline.project),
+              viewBox: { ...formalProjectBaseline.viewBox },
+            }
+          : null,
+      });
+    }
     // Drop any pending recovery write for the outgoing project so it cannot
     // revive after Save/Discard/Open/Import/Restore/demo-load swaps the
     // project, then give the incoming project its own working-copy identity
@@ -3214,6 +3208,7 @@ export function App({
     setAgentFileCandidate(null);
     setImportReport(null);
     setImportReviewOpen(false);
+    setGalleryEntryContext(null);
     const prepared = materializeRazaviProjectBulkConnections(nextProject);
     const nextDocument = replaceProject(prepared.project);
     documentViewBoxes.current = new Map();
@@ -3224,7 +3219,11 @@ export function App({
     // one's location would let a later Save quietly overwrite a different
     // circuit's file.
     saveTargetRef.current = null;
-    setFileState(options.source === "opened-file" ? "opened" : "new");
+    setFileState(
+      options.fileState ??
+        (options.source === "opened-file" ? "opened" : "new"),
+    );
+    setFormalProjectBaseline(options.formalBaseline ?? null);
     // Seed the incoming working copy immediately; the outgoing project's
     // stored records are retained under its own session.
     stageRecovery(prepared.project);
@@ -3363,37 +3362,38 @@ export function App({
     return transact([...gate.edits], options);
   }
 
-  const clearableObjectCount =
-    document.instances.length +
-    document.nets.length +
-    document.routes.length +
-    document.junctions.length +
-    document.noConnects.length +
-    document.annotations.length +
-    document.layoutGroups.length +
-    document.constraints.length +
-    (document.mosBulkDefaults ? 1 : 0) +
-    (document.drafting?.objects.length ?? 0);
+  const clearDrawingPlan = planCellReset(project, document.id, "clear-drawing");
+  const resetPlacementPlan = planCellReset(
+    project,
+    document.id,
+    "reset-placement",
+  );
+  const resetBodyPlan = planCellReset(project, document.id, "reset-body");
 
-  function clearCanvas(): void {
-    if (clearableObjectCount === 0) {
-      setStatus(`Cell ${document.name} is already clear`);
+  function commitCellReset(plan: CellResetPlan, command: string): void {
+    if (plan.edits.length === 0) {
+      setStatus(command + " has nothing to change in Cell " + document.name);
       return;
     }
-    setClearCanvasConfirmOpen(true);
+    setPendingCellReset({ plan, command });
   }
 
   function confirmClearCanvas(): void {
-    const result = transact([{ kind: "clear_document" }]);
+    if (!pendingCellReset) return;
+    const { plan, command } = pendingCellReset;
+    const result = transact([...plan.edits]);
     if (!result.ok) return;
-    setClearCanvasConfirmOpen(false);
+    setPendingCellReset(null);
     resetInteractionState();
-    setStatus(`Cleared Cell ${document.name} · Undo restores it`);
+    setStatus(
+      command + " completed in Cell " + document.name + " · Undo restores it",
+    );
   }
 
   function cancelClearCanvas(): void {
-    setClearCanvasConfirmOpen(false);
-    setStatus("Clear canvas cancelled");
+    const command = pendingCellReset?.command ?? "Cell reset";
+    setPendingCellReset(null);
+    setStatus(command + " cancelled");
   }
 
   function updateMosBulkDefault(
@@ -3533,12 +3533,6 @@ export function App({
     setStatus(
       `Place copy mirrored ${direction === "left-right" ? "left/right" : "top/bottom"} · R rotates · Esc cancels`,
     );
-  }
-
-  function loadRoutingDemo(): void {
-    const demo = createRoutingDemoProject();
-    replaceActiveProject(demo);
-    setStatus("Loaded Phase 3 routing demo");
   }
 
   function routeAnchor(
@@ -4486,11 +4480,17 @@ export function App({
     )?.name;
     const netPortName =
       instance.symbolId === "port" || instance.symbolId === "port-filled"
-        ? document.nets.find((net) =>
-            net.terminals.some(
-              (terminal) => terminal.instanceId === instance.id,
-            ),
-          )?.name
+        ? (() => {
+            const net = document.nets.find((candidate) =>
+              candidate.terminals.some(
+                (terminal) => terminal.instanceId === instance.id,
+              ),
+            );
+            return net
+              ? resolveDocumentLogicalNets(document).byBaseNetId.get(net.id)
+                  ?.name
+              : undefined;
+          })()
         : undefined;
     const schematicName = flattenRichText(
       instance.schematicName ?? { runs: [] },
@@ -4945,6 +4945,10 @@ export function App({
     );
     if (outcome.status === "write-confirmed") {
       saveTargetRef.current = outcome.target ?? null;
+      setFormalProjectBaseline({
+        project: structuredClone(project),
+        viewBox: { ...viewBox },
+      });
       noteRecoveryFormalFileHint({
         name: outcome.fileName,
         lastConfirmedWriteAt: outcome.at,
@@ -4954,6 +4958,13 @@ export function App({
       return;
     }
     if (outcome.status === "download-requested") {
+      // The browser cannot confirm durable download completion, but this is
+      // still the exact formal snapshot the user requested and may revert to
+      // during the current session.
+      setFormalProjectBaseline({
+        project: structuredClone(project),
+        viewBox: { ...viewBox },
+      });
       noteRecoveryFormalFileHint({
         name: outcome.fileName,
         lastDownloadRequestedAt: new Date().toISOString(),
@@ -5019,11 +5030,7 @@ export function App({
     return fileState === "dirty" || fileState === "write-failed";
   }
 
-  /**
-   * Protect outgoing dirty work before Open/Import/Replace: first confirm the
-   * newest revision is stored in recovery; if recovery cannot confirm, let
-   * the human choose between downloading, replacing anyway, and cancelling.
-   */
+  /** Protect outgoing dirty work before every live Project replacement. */
   async function guardDirtyReplacement(
     intent: string,
     perform: () => void | Promise<void>,
@@ -5033,11 +5040,9 @@ export function App({
       return;
     }
     stageRecovery(project);
-    const recoveryAfterFlush = await flushRecovery();
-    if (recoveryAfterFlush === "stored") {
-      await perform();
-      return;
-    }
+    // Recovery is best-effort safety, never authorization to discard the
+    // foreground Project. Even a confirmed write still requires a choice.
+    await flushRecovery();
     setReplaceGuard({ intent, perform });
   }
 
@@ -5060,6 +5065,54 @@ export function App({
     } else {
       setStatus(`Download failed: ${outcome.message}`);
     }
+  }
+
+  function createNewProject(): void {
+    void guardDirtyReplacement("Create a new Project", () => {
+      const next = createEmptyProject(
+        createId("project"),
+        "New Circuit",
+        createId("document"),
+      );
+      replaceActiveProject(next, DEFAULT_VIEWBOX, { source: "new" });
+      setStatus("Created a new Project · Previous Project is available");
+    });
+  }
+
+  function restorePreviousProject(): void {
+    const previous = previousProject;
+    if (!previous) return;
+    void guardDirtyReplacement(`Return to ${previous.project.name}`, () => {
+      const restored = replaceActiveProject(
+        previous.project,
+        previous.viewBox,
+        {
+          source: "recovered",
+          fileState: previous.fileState,
+          formalBaseline: previous.formalBaseline,
+        },
+      );
+      setStatus(
+        `Returned to Previous Project ${previous.project.name} at revision ${restored.revision}`,
+      );
+    });
+  }
+
+  function revertToFormalProjectBaseline(): void {
+    const baseline = formalProjectBaseline;
+    if (!baseline || !isDirtyWork()) return;
+    void guardDirtyReplacement("Revert to the last saved Project", () => {
+      const restored = replaceActiveProject(
+        baseline.project,
+        baseline.viewBox,
+        {
+          source: "opened-file",
+          fileState: "opened",
+          formalBaseline: baseline,
+        },
+      );
+      setStatus(`Reverted to saved Project revision ${restored.revision}`);
+    });
   }
 
   function openRecoveryDialog(): void {
@@ -5097,16 +5150,21 @@ export function App({
         );
         return;
       }
-      // Restoring forks a fresh working copy instead of overwriting the
-      // stored record another tab may still be writing.
-      const recoveredDocument = replaceActiveProject(
-        read.project,
-        DEFAULT_VIEWBOX,
-        { source: "recovered" },
+      await guardDirtyReplacement(
+        `Restore recovered Project ${read.project.name}`,
+        async () => {
+          // Restoring forks a fresh working copy instead of overwriting the
+          // stored record another tab may still be writing.
+          const recoveredDocument = replaceActiveProject(
+            read.project,
+            DEFAULT_VIEWBOX,
+            { source: "recovered" },
+          );
+          setRecoveryDialogOpen(false);
+          await discoverRecovery();
+          setStatus(`Restored recovery revision ${recoveredDocument.revision}`);
+        },
       );
-      setRecoveryDialogOpen(false);
-      await discoverRecovery();
-      setStatus(`Restored recovery revision ${recoveredDocument.revision}`);
     })();
   }
 
@@ -5177,32 +5235,38 @@ export function App({
       const restoredDocument = replaceActiveProject(
         read.project,
         DEFAULT_VIEWBOX,
-        { source: "recovered", keepWorkingCopy: true },
+        {
+          source: "recovered",
+          keepWorkingCopy: true,
+          rememberPrevious: false,
+        },
       );
       setStatus(`Restored recovery revision ${restoredDocument.revision}`);
     })();
   }, [restoreAfterRefresh, recoveryReady, recoveryWorkingCopyId]);
 
-  // Any committed revision inside one Project session makes the working copy
-  // dirty relative to its formal file again. A replacement re-baselines via
-  // its own projectSessionId and sets the state explicitly.
+  const currentProjectChangeToken = projectChangeToken(project);
+
+  // Any Document or Project-structure revision inside one session makes the
+  // working copy dirty. A replacement changes projectSessionId and establishes
+  // a new observation baseline without confusing it with Document Undo.
   useEffect(() => {
     const baseline = fileStateBaselineRef.current;
     if (baseline === null || baseline.session !== projectSessionId) {
       fileStateBaselineRef.current = {
         session: projectSessionId,
-        revision: document.revision,
+        token: currentProjectChangeToken,
       };
       return;
     }
-    if (baseline.revision !== document.revision) {
+    if (baseline.token !== currentProjectChangeToken) {
       fileStateBaselineRef.current = {
         session: projectSessionId,
-        revision: document.revision,
+        token: currentProjectChangeToken,
       };
       setFileState("dirty");
     }
-  }, [document.revision, projectSessionId]);
+  }, [currentProjectChangeToken, projectSessionId]);
 
   function refreshApp(): void {
     void (async () => {
@@ -5215,25 +5279,32 @@ export function App({
     })();
   }
 
-  async function openProjectFile(file: File | null): Promise<void> {
+  async function openProjectFile(
+    file: File | null,
+    options: { allowExactCurrentReplacement?: boolean } = {},
+  ): Promise<void> {
     if (!file) return;
-    await guardDirtyReplacement(`Open ${file.name}`, async () => {
-      const staged = await stageProjectFile(file, (candidate) =>
-        findUnsupportedProjectSymbolIds(candidate, builtInSymbols),
+    const staged = await stageProjectFile(file, (candidate) =>
+      findUnsupportedProjectSymbolIds(candidate, builtInSymbols),
+    );
+    if (staged.status === "rejected") {
+      // Validate a candidate before asking permission to replace the current
+      // Project. Invalid input never creates a destructive-choice dialog.
+      setStatus(
+        `Project not opened — ${formatProjectOpenDiagnostics(staged.diagnostics)}`,
       );
-      if (staged.status === "rejected") {
-        // A rejected user file keeps a code and path in the status line so
-        // the reason survives later status updates.
-        setStatus(
-          `Project not opened — ${formatProjectOpenDiagnostics(staged.diagnostics)}`,
-        );
-        return;
-      }
+      return;
+    }
+    const performOpen = () => {
       // A successful open retains the outgoing Project's recovery records
       // and immediately seeds the incoming Project's own working copy.
       replaceActiveProject(staged.project, DEFAULT_VIEWBOX, {
         source: "opened-file",
         formalFileHint: { name: staged.fileName },
+        formalBaseline: {
+          project: structuredClone(staged.project),
+          viewBox: { ...DEFAULT_VIEWBOX },
+        },
       });
       if (staged.migrated) setFileState("dirty");
       setStatus(
@@ -5241,7 +5312,15 @@ export function App({
           ? `Opened and upgraded ${staged.fileName} from schema ${staged.sourceSchemaVersion} to schema ${staged.project.schemaVersion} — save the Project to keep the upgrade`
           : `Opened ${staged.fileName} at revision ${staged.topDocumentRevision}`,
       );
-    });
+    };
+    if (
+      options.allowExactCurrentReplacement &&
+      serializeProject(staged.project) === serializeProject(project)
+    ) {
+      performOpen();
+      return;
+    }
+    await guardDirtyReplacement(`Open ${file.name}`, performOpen);
   }
 
   /** Open a shelved circuit through the same staging path a file uses. */
@@ -5257,16 +5336,13 @@ export function App({
       );
       return;
     }
-    await openProjectFile({
-      name: `${fetched.name}.icproj.json`,
-      text: () => Promise.resolve(fetched.projectText),
-    } as unknown as File);
-  }
-
-  function loadVisualDemo(): void {
-    const next = createVisualDemoProject();
-    replaceActiveProject(next, { x: 20, y: -10, width: 430, height: 350 });
-    setStatus("Loaded Phase 5 visual demo");
+    await openProjectFile(
+      {
+        name: `${fetched.name}.icproj.json`,
+        text: () => Promise.resolve(fetched.projectText),
+      } as unknown as File,
+      { allowExactCurrentReplacement: true },
+    );
   }
 
   // Single entry point for selecting a drafting object. Editing is opened
@@ -5871,9 +5947,25 @@ export function App({
           ]
         : null;
     }
+    const labelId = existingLabel?.id ?? `net-label-${route.id}`;
     const namedNetPlan = planEnsureNamedNet(document, {
       candidateNetId: net.id,
       name,
+      evidenceId:
+        document.connectivityEvidence.find(
+          (evidence) =>
+            evidence.kind === "name-claim" &&
+            evidence.owner.kind === "net-label" &&
+            evidence.owner.annotationId === labelId,
+        )?.id ??
+        deriveStableId(
+          "connectivity-evidence",
+          document.id,
+          "net-label",
+          net.id,
+          labelId,
+        ),
+      owner: { kind: "net-label", annotationId: labelId },
     });
     if (!namedNetPlan.ok) return null;
     const targetNetId = namedNetPlan.netId;
@@ -5907,7 +5999,7 @@ export function App({
     edits.push({
       kind: "upsert_schematic_annotation",
       annotation: {
-        id: existingLabel?.id ?? `net-label-${route.id}`,
+        id: labelId,
         kind: "net-label",
         binding: { kind: "net-name", netId: targetNetId },
         netId: targetNetId,
@@ -5940,6 +6032,104 @@ export function App({
       },
     });
     return edits;
+  }
+
+  function netNameEditsForAnnotation(
+    annotation: Annotation,
+    rawName: string,
+    presentationAnnotation?: Annotation,
+  ): SchematicEdit[] | null | undefined {
+    const binding = annotation.binding;
+    if (binding?.kind !== "net-name" || annotation.anchor.kind !== "object") {
+      return undefined;
+    }
+    const ownerObjectId = annotation.anchor.objectId;
+    const instance = document.instances.find(
+      (candidate) => candidate.id === ownerObjectId,
+    );
+    const isFreePort = Boolean(
+      instance &&
+      (instance.symbolId === "port" || instance.symbolId === "port-filled") &&
+      !document.netlist?.terminals.some((terminal) =>
+        terminal.interfaceInstanceIds.includes(instance.id),
+      ),
+    );
+    const powerClaim = document.connectivityEvidence.find(
+      (
+        evidence,
+      ): evidence is Extract<ConnectivityEvidence, { kind: "name-claim" }> =>
+        evidence.kind === "name-claim" &&
+        evidence.owner.kind === "power-marker" &&
+        (evidence.owner.objectId === ownerObjectId ||
+          evidence.owner.objectId === annotation.id),
+    );
+    if (!isFreePort && annotation.kind !== "power-label") return undefined;
+    const net = document.nets.find(
+      (candidate) => candidate.id === binding.netId,
+    );
+    if (!net) {
+      setStatus(`Net Label references missing Net ${binding.netId}`);
+      return null;
+    }
+    const name = rawName.trim();
+    const namedNetPlan = planEnsureNamedNet(document, {
+      candidateNetId: net.id,
+      name,
+      evidenceId: isFreePort
+        ? (document.connectivityEvidence.find(
+            (evidence) =>
+              evidence.kind === "name-claim" &&
+              evidence.owner.kind === "free-port" &&
+              evidence.owner.instanceId === instance!.id,
+          )?.id ??
+          deriveStableId(
+            "connectivity-evidence",
+            document.id,
+            "free-port",
+            net.id,
+            instance!.id,
+          ))
+        : (powerClaim?.id ??
+          deriveStableId(
+            "connectivity-evidence",
+            document.id,
+            "power-marker",
+            net.id,
+            annotation.id,
+          )),
+      owner: isFreePort
+        ? { kind: "free-port", instanceId: instance!.id }
+        : {
+            kind: "power-marker",
+            objectId:
+              powerClaim?.owner.kind === "power-marker"
+                ? powerClaim.owner.objectId
+                : annotation.id,
+          },
+      ...(powerClaim
+        ? {
+            scope: powerClaim.scope,
+            ...(powerClaim.powerDomain
+              ? { powerDomain: powerClaim.powerDomain }
+              : {}),
+          }
+        : {}),
+    });
+    if (!namedNetPlan.ok) {
+      setStatus(namedNetPlan.message);
+      return null;
+    }
+    return [
+      ...namedNetPlan.edits,
+      ...(presentationAnnotation
+        ? [
+            {
+              kind: "upsert_schematic_annotation" as const,
+              annotation: presentationAnnotation,
+            },
+          ]
+        : []),
+    ];
   }
 
   function referenceLabelVisibilityEdits(
@@ -7507,6 +7697,9 @@ export function App({
               <details className="command-menu" name="editor-command-menu">
                 <summary>File</summary>
                 <div className="command-popover">
+                  <button type="button" onClick={createNewProject}>
+                    New Project
+                  </button>
                   <button type="button" onClick={() => void saveProjectFile()}>
                     Save Project
                   </button>
@@ -7600,6 +7793,25 @@ export function App({
                   >
                     Spectre netlist
                   </button>
+                  <button
+                    type="button"
+                    onClick={restorePreviousProject}
+                    disabled={previousProject === null}
+                    title={
+                      previousProject
+                        ? `Return to ${previousProject.project.name}`
+                        : "No previous Project in this editor session"
+                    }
+                  >
+                    Previous Project
+                  </button>
+                  <button
+                    type="button"
+                    onClick={revertToFormalProjectBaseline}
+                    disabled={formalProjectBaseline === null || !isDirtyWork()}
+                  >
+                    Revert to Last Saved
+                  </button>
                   {recoverySessions.length > 0 ? (
                     <button type="button" onClick={openRecoveryDialog}>
                       Recover recent work…
@@ -7651,10 +7863,33 @@ export function App({
                   </button>
                   <button
                     type="button"
-                    onClick={clearCanvas}
-                    disabled={clearableObjectCount === 0}
+                    onClick={() =>
+                      commitCellReset(clearDrawingPlan, "Clear Drawing")
+                    }
+                    disabled={clearDrawingPlan.edits.length === 0}
                   >
-                    Clear canvas
+                    Clear Drawing
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      commitCellReset(
+                        resetPlacementPlan,
+                        "Reset Cell Placement",
+                      )
+                    }
+                    disabled={resetPlacementPlan.edits.length === 0}
+                  >
+                    Reset Cell Placement
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      commitCellReset(resetBodyPlan, "Reset Cell Body")
+                    }
+                    disabled={resetBodyPlan.edits.length === 0}
+                  >
+                    Reset Cell Body
                   </button>
                   <button
                     type="button"
@@ -8095,7 +8330,7 @@ export function App({
         onApply={(request) => startInsertFromHook({ kind: "quick", request })}
         onCancel={cancelComponentInsertFromHook}
       />
-      {clearCanvasConfirmOpen ? (
+      {pendingCellReset ? (
         <div
           className="insert-dialog-backdrop"
           onPointerDown={(event) =>
@@ -8112,13 +8347,16 @@ export function App({
             }}
           >
             <header className="editor-action-dialog-header">
-              <p>Canvas contents</p>
-              <h2 id="clear-canvas-dialog-title">Clear {document.name}?</h2>
+              <p>Cell contents</p>
+              <h2 id="clear-canvas-dialog-title">
+                {pendingCellReset.command} in {document.name}?
+              </h2>
             </header>
             <div className="editor-action-dialog-body">
               <p>
-                Remove every component, wire, annotation, and drawing from this
-                Cell. You can restore them with Undo.
+                {pendingCellReset.plan.summary}. Affected objects:{" "}
+                {pendingCellReset.plan.affectedObjectIds.length}. You can
+                restore them with Undo.
               </p>
             </div>
             <footer className="editor-action-dialog-actions">
@@ -8130,7 +8368,7 @@ export function App({
                 className="danger"
                 onClick={confirmClearCanvas}
               >
-                Clear canvas
+                {pendingCellReset.command}
               </button>
             </footer>
           </section>
@@ -8485,8 +8723,9 @@ export function App({
                   <p>
                     {selectedInstance.id}.B →{" "}
                     {selectedBulkResolution.net
-                      ? (selectedBulkResolution.net.name ??
-                        selectedBulkResolution.net.id)
+                      ? (resolveDocumentLogicalNets(document).byBaseNetId.get(
+                          selectedBulkResolution.net.id,
+                        )?.name ?? selectedBulkResolution.net.id)
                       : "unresolved"}
                     {" · "}
                     {selectedBulkResolution.status}
@@ -8754,7 +8993,7 @@ export function App({
                             <input
                               key={`${selectedPortNet.id}-${document.revision}-net-port-name`}
                               aria-label="Net Port name"
-                              defaultValue={selectedPortNet.name ?? ""}
+                              defaultValue={selectedPortLogicalName ?? ""}
                               onBlur={(event) =>
                                 renameSelectedNetPort(event.currentTarget.value)
                               }

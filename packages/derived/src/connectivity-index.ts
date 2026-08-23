@@ -21,6 +21,7 @@ import {
   resolveDocumentRoutingGeometry,
   type ResolvedDocumentRoutingGeometry,
 } from "./resolved-route-geometry.js";
+import { resolveDocumentLogicalNets } from "./logical-net.js";
 
 /**
  * Unified read-only connectivity index (ADR 0013). Single source of
@@ -46,6 +47,7 @@ export interface VirtualConnectivityEdge {
 
 export interface NetConnectivityRecord {
   netId: string;
+  baseNetIds: readonly string[];
   /** Instance terminals — electrical truth, independent of geometry. */
   logicalEndpoints: readonly EndpointRef[];
   /** Visible graph participants (visible terminals + the Net's Junctions). */
@@ -60,8 +62,12 @@ export interface NetConnectivityRecord {
 
 export interface DocumentConnectivityIndex {
   documentId: string;
-  endpointToNet: ReadonlyMap<string, string>;
-  nets: ReadonlyMap<string, NetConnectivityRecord>;
+  /** Physical membership: endpoint key -> Base Net id. */
+  endpointToBaseNetId: ReadonlyMap<string, string>;
+  /** One canonical record per resolved Logical Net. */
+  logicalNets: ReadonlyMap<string, NetConnectivityRecord>;
+  /** Total lookup from every Base Net id to its Logical Net record. */
+  logicalNetByBaseNetId: ReadonlyMap<string, NetConnectivityRecord>;
   routingGeometry: ResolvedDocumentRoutingGeometry;
 }
 
@@ -164,10 +170,10 @@ function buildDocumentIndex(
   if (cached?.revision === document.revision && cached.resolver === resolver) {
     return cached.index;
   }
-  const endpointToNet = new Map<string, string>();
+  const endpointToBaseNetId = new Map<string, string>();
   for (const net of document.nets) {
     for (const endpoint of netEndpoints(document, net)) {
-      endpointToNet.set(endpointKey(endpoint), net.id);
+      endpointToBaseNetId.set(endpointKey(endpoint), net.id);
     }
   }
 
@@ -178,11 +184,9 @@ function buildDocumentIndex(
     routingGuidanceByNet.set(line.netId, lines);
   }
 
-  const nets = new Map<string, NetConnectivityRecord>();
-  for (const net of [...document.nets].sort((a, b) =>
-    a.id.localeCompare(b.id, "en"),
-  )) {
-    nets.set(
+  const baseRecords = new Map<string, NetConnectivityRecord>();
+  for (const net of document.nets) {
+    baseRecords.set(
       net.id,
       buildNetRecord(
         document,
@@ -192,12 +196,37 @@ function buildDocumentIndex(
       ),
     );
   }
+  const logicalNets = new Map<string, NetConnectivityRecord>();
+  const logicalNetByBaseNetId = new Map<string, NetConnectivityRecord>();
+  for (const group of resolveDocumentLogicalNets(document).groups) {
+    const records = group.baseNetIds.map((netId) => baseRecords.get(netId)!);
+    const aggregate: NetConnectivityRecord = {
+      netId: group.id,
+      baseNetIds: group.baseNetIds,
+      logicalEndpoints: uniqueEndpoints(
+        records.flatMap((record) => record.logicalEndpoints),
+      ),
+      visibleEndpoints: uniqueEndpoints(
+        records.flatMap((record) => record.visibleEndpoints),
+      ),
+      routedComponents: records.flatMap((record) => record.routedComponents),
+      routes: uniqueStrings(records.flatMap((record) => record.routes)),
+      junctions: uniqueStrings(records.flatMap((record) => record.junctions)),
+      virtualEdges: records.flatMap((record) => record.virtualEdges),
+      routingGuidance: routingGuidanceByNet.get(group.id) ?? [],
+    };
+    logicalNets.set(group.id, aggregate);
+    for (const baseNetId of group.baseNetIds) {
+      logicalNetByBaseNetId.set(baseNetId, aggregate);
+    }
+  }
 
   const routingGeometry = resolveDocumentRoutingGeometry(document, resolver);
   const index = {
     documentId: document.id,
-    endpointToNet,
-    nets,
+    endpointToBaseNetId,
+    logicalNets,
+    logicalNetByBaseNetId,
     routingGeometry,
   };
   documentIndexCache.set(document, {
@@ -206,6 +235,22 @@ function buildDocumentIndex(
     index,
   });
   return index;
+}
+
+function uniqueStrings(values: readonly string[]): string[] {
+  return [...new Set(values)].sort((left, right) =>
+    left.localeCompare(right, "en"),
+  );
+}
+
+function uniqueEndpoints(values: readonly EndpointRef[]): EndpointRef[] {
+  return [
+    ...new Map(
+      values.map((endpoint) => [endpointKey(endpoint), endpoint]),
+    ).values(),
+  ].sort((left, right) =>
+    endpointKey(left).localeCompare(endpointKey(right), "en"),
+  );
 }
 
 function buildNetRecord(
@@ -244,6 +289,7 @@ function buildNetRecord(
 
   return {
     netId: net.id,
+    baseNetIds: [net.id],
     logicalEndpoints,
     visibleEndpoints,
     routedComponents,
@@ -372,11 +418,11 @@ function buildGlobalNetIndex(
 ): ReadonlyMap<string, GlobalNetGroup> {
   const groups = new Map<string, NetObjectRef[]>();
   for (const document of project.documents) {
-    for (const net of document.nets) {
-      if (net.scope !== "global" || !net.name) continue;
-      const foldedName = foldNetName(net.name);
+    for (const logicalNet of resolveDocumentLogicalNets(document).groups) {
+      if (logicalNet.scope !== "global" || !logicalNet.name) continue;
+      const foldedName = foldNetName(logicalNet.name);
       const refs = groups.get(foldedName) ?? [];
-      refs.push({ documentId: document.id, netId: net.id });
+      refs.push({ documentId: document.id, netId: logicalNet.id });
       groups.set(foldedName, refs);
     }
   }

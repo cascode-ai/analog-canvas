@@ -116,6 +116,11 @@ export interface UsePropertiesEditorOptions {
       formatOverride?: RichTextDocument;
     },
   ) => SchematicEdit[] | null;
+  netNameEditsForAnnotation?: (
+    annotation: Annotation,
+    name: string,
+    presentationAnnotation?: Annotation,
+  ) => SchematicEdit[] | null | undefined;
   instancePropertyEdits: (draft: InstancePropertyDraft) => {
     edits: SchematicEdit[];
     invalidPosition: boolean;
@@ -678,6 +683,15 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
                   (route) => route.id === routeAnchor.routeId,
                 )
               : undefined;
+          const annotationNetEdits = boundRoute
+            ? undefined
+            : options.netNameEditsForAnnotation?.(
+                boundAnnotation,
+                name,
+                presentationChanged || formatOverrideChanged
+                  ? presentationEdit.annotation
+                  : undefined,
+              );
           const netLabelEdits = boundRoute
             ? options.netLabelEditsForRoute(
                 boundRoute,
@@ -692,20 +706,13 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
                     }
                   : undefined,
               )
-            : [
-                ...(name !== currentName
-                  ? [
-                      {
-                        kind: "set_net_name" as const,
-                        netId: boundAnnotation.binding.netId,
-                        name,
-                      },
-                    ]
-                  : []),
-                ...(presentationChanged || formatOverrideChanged
+            : annotationNetEdits !== undefined
+              ? annotationNetEdits
+              : name !== currentName
+                ? null
+                : presentationChanged || formatOverrideChanged
                   ? [presentationEdit]
-                  : []),
-              ];
+                  : [];
           if (netLabelEdits && transactNamedNet(netLabelEdits)) {
             setTextEditing(null);
           }

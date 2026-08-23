@@ -1,10 +1,13 @@
-import { foldNetName, validateNetContract } from "@icm/model";
-import { directObjectLocator } from "@icm/derived";
+import { foldNetName } from "@icm/model";
+import {
+  directObjectLocator,
+  resolveDocumentLogicalNets,
+  type ResolvedLogicalNet,
+} from "@icm/derived";
 import type {
   CircuitProject,
   ExternalSubcircuitDefinition,
   Instance,
-  Net,
   SchematicDocument,
   StableId,
 } from "@icm/model";
@@ -147,7 +150,7 @@ function reachableDocuments(
 
 interface CellNetContext {
   nameByNetId: Map<string, string>;
-  netByTerminal: Map<string, Net>;
+  netByTerminal: Map<string, ResolvedLogicalNet>;
   noConnectNameByTerminal: Map<string, string>;
   nets: DesignNetlistCell["nets"];
 }
@@ -167,101 +170,107 @@ function buildNetContext(
   }
   const explicitNames = new Map<string, string>();
   const occupiedNames = new Set<string>();
-  for (const issue of validateNetContract(document)) {
-    if (issue.code === "DUPLICATE_NET_NAME") {
+  const logicalNets = resolveDocumentLogicalNets(document);
+  for (const logicalNet of logicalNets.groups) {
+    if (logicalNet.conflicts.includes("name-conflict")) {
       diagnostic(
         diagnostics,
         document.id,
-        issue.code,
-        `Net name ${issue.foldedName} is shared under case folding`,
-        [...issue.netIds],
-      );
-    } else {
-      diagnostic(
-        diagnostics,
-        document.id,
-        issue.code,
-        "A global Net requires an explicit name",
-        [...issue.netIds],
+        "CONFLICTING_LOGICAL_NET_NAME",
+        `Logical Net ${logicalNet.id} has conflicting name claims`,
+        [...logicalNet.baseNetIds, ...logicalNet.evidenceIds],
       );
     }
-  }
-  for (const net of document.nets) {
-    if (!net.name) continue;
-    const folded = foldNetName(net.name);
-    if (!explicitNames.has(folded)) explicitNames.set(folded, net.id);
+    if (logicalNet.conflicts.includes("scope-conflict")) {
+      diagnostic(
+        diagnostics,
+        document.id,
+        "CONFLICTING_LOGICAL_NET_SCOPE",
+        `Logical Net ${logicalNet.id} has conflicting scope claims`,
+        [...logicalNet.baseNetIds, ...logicalNet.evidenceIds],
+      );
+    }
+    if (logicalNet.conflicts.includes("power-domain-conflict")) {
+      diagnostic(
+        diagnostics,
+        document.id,
+        "CONFLICTING_LOGICAL_NET_POWER_DOMAIN",
+        `Logical Net ${logicalNet.id} connects incompatible power markers`,
+        [...logicalNet.baseNetIds, ...logicalNet.evidenceIds],
+      );
+    }
+    if (!logicalNet.name) continue;
+    const folded = foldNetName(logicalNet.name);
+    if (!explicitNames.has(folded)) {
+      explicitNames.set(folded, logicalNet.id);
+    }
     occupiedNames.add(folded);
-    if (!isIdentifier(net.name, true)) {
+    if (!isIdentifier(logicalNet.name, true)) {
       diagnostic(
         diagnostics,
         document.id,
         "INVALID_NET_NAME",
-        `Net name is outside the portable identifier subset: ${net.name}`,
-        [net.id],
+        `Net name is outside the portable identifier subset: ${logicalNet.name}`,
+        [...logicalNet.baseNetIds],
       );
     }
   }
 
-  const formalTerminalByNetId = new Map<string, string>();
+  const formalTerminalByLogicalId = new Map<string, string>();
   for (const terminal of document.netlist?.terminals ?? []) {
-    const prior = formalTerminalByNetId.get(terminal.netId);
+    const logicalNet = logicalNets.byBaseNetId.get(terminal.netId);
+    const logicalId = logicalNet?.id ?? terminal.netId;
+    const prior = formalTerminalByLogicalId.get(logicalId);
     if (prior && prior.toLowerCase() !== terminal.name.toLowerCase()) {
       diagnostic(
         diagnostics,
         document.id,
         "MULTIPLE_PORTS_SHARE_NET",
-        `Formal terminals ${prior} and ${terminal.name} map to the same Net ${terminal.netId}`,
-        [terminal.netId],
+        `Formal terminals ${prior} and ${terminal.name} map to the same logical Net ${logicalId}`,
+        [...(logicalNet?.baseNetIds ?? [terminal.netId])],
       );
       continue;
     }
     const folded = foldNetName(terminal.name);
     const explicitOwner = explicitNames.get(folded);
-    if (explicitOwner && explicitOwner !== terminal.netId) {
+    if (explicitOwner && explicitOwner !== logicalId) {
       diagnostic(
         diagnostics,
         document.id,
         "PORT_NET_NAME_COLLISION",
         `Formal terminal ${terminal.name} collides with a different explicit Net`,
-        [terminal.netId, explicitOwner],
+        [logicalId, explicitOwner],
       );
     }
-    formalTerminalByNetId.set(terminal.netId, terminal.name);
+    formalTerminalByLogicalId.set(logicalId, terminal.name);
     occupiedNames.add(folded);
   }
 
   const nameByNetId = new Map<string, string>();
   let generatedIndex = 1;
-  for (const net of [...document.nets].sort((a, b) =>
-    a.id.localeCompare(b.id),
-  )) {
-    const formalTerminalName = formalTerminalByNetId.get(net.id);
-    if (formalTerminalName) {
-      nameByNetId.set(net.id, formalTerminalName);
-      continue;
+  for (const logicalNet of logicalNets.groups) {
+    let name = formalTerminalByLogicalId.get(logicalNet.id) ?? logicalNet.name;
+    if (!name && logicalNet.scope !== "global") {
+      do {
+        name = `N${String(generatedIndex).padStart(4, "0")}`;
+        generatedIndex += 1;
+      } while (occupiedNames.has(foldNetName(name)));
+      occupiedNames.add(foldNetName(name));
+      diagnostic(
+        diagnostics,
+        document.id,
+        "GENERATED_NET_NAME",
+        `Unnamed logical Net ${logicalNet.id} exports as ${name}`,
+        [...logicalNet.baseNetIds],
+        "warning",
+      );
     }
-    if (net.name) {
-      nameByNetId.set(net.id, net.name);
-      continue;
+    if (!name) continue;
+    for (const netId of logicalNet.baseNetIds) {
+      nameByNetId.set(netId, name);
     }
-    if (net.scope === "global") continue;
-    let generated = "";
-    do {
-      generated = `N${String(generatedIndex).padStart(4, "0")}`;
-      generatedIndex += 1;
-    } while (occupiedNames.has(foldNetName(generated)));
-    occupiedNames.add(foldNetName(generated));
-    nameByNetId.set(net.id, generated);
-    diagnostic(
-      diagnostics,
-      document.id,
-      "GENERATED_NET_NAME",
-      `Unnamed local Net ${net.id} exports as ${generated}`,
-      [net.id],
-      "warning",
-    );
   }
-  const netByTerminal = new Map<string, Net>();
+  const netByTerminal = new Map<string, ResolvedLogicalNet>();
   const instanceById = new Map(
     document.instances.map((instance) => [instance.id, instance]),
   );
@@ -306,7 +315,7 @@ function buildNetContext(
           [prior.id, net.id, terminal.instanceId],
         );
       } else {
-        netByTerminal.set(key, net);
+        netByTerminal.set(key, logicalNets.byBaseNetId.get(net.id)!);
       }
     }
   }
@@ -341,12 +350,18 @@ function buildNetContext(
     netByTerminal,
     noConnectNameByTerminal,
     nets: [
-      ...[...document.nets]
-        .sort((a, b) => a.id.localeCompare(b.id))
-        .flatMap((net) => {
-          const name = nameByNetId.get(net.id);
-          return name ? [{ id: net.id, name, scope: net.scope }] : [];
-        }),
+      ...logicalNets.groups.flatMap((logicalNet) => {
+        const name = nameByNetId.get(logicalNet.baseNetIds[0]!);
+        return name
+          ? [
+              {
+                id: logicalNet.id,
+                name,
+                scope: logicalNet.scope ?? "local",
+              },
+            ]
+          : [];
+      }),
       ...noConnectNets,
     ],
   };

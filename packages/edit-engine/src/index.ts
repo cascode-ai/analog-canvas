@@ -12,3 +12,4 @@ export * from "./instance-lifecycle.js";
 export * from "./transaction.js";
 export * from "./project-transaction.js";
 export * from "./hierarchy-planner.js";
+export * from "./cell-reset-planner.js";

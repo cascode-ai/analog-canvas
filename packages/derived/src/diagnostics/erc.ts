@@ -1,7 +1,14 @@
-import { validateNetContract, type CircuitProject } from "@icm/model";
+import type { CircuitProject } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
-import type { ProjectConnectivityIndex } from "../connectivity-index.js";
+import type {
+  DocumentConnectivityIndex,
+  ProjectConnectivityIndex,
+} from "../connectivity-index.js";
+import {
+  resolveDocumentLogicalNets,
+  validateLogicalNetContract,
+} from "../logical-net.js";
 import { resolveMosBulkConnection } from "../mos-bulk.js";
 import { directObjectLocator, type ObjectLocator } from "../object-locator.js";
 import type { Diagnostic, DiagnosticSeverity } from "./diagnostic.js";
@@ -42,17 +49,18 @@ function terminalLocator(
 }
 
 function endpointHasOnlyInternalMembership(
-  document: CircuitProject["documents"][number],
+  index: DocumentConnectivityIndex | undefined,
   netId: string,
   instanceId: string,
   pinName: string,
 ): boolean {
-  const net = document.nets.find((candidate) => candidate.id === netId);
+  const net = index?.logicalNetByBaseNetId.get(netId);
   return Boolean(
     net &&
-    net.terminals.length === 1 &&
-    net.terminals[0]?.instanceId === instanceId &&
-    net.terminals[0]?.pinName === pinName,
+    net.logicalEndpoints.length === 1 &&
+    net.logicalEndpoints[0]?.kind === "terminal" &&
+    net.logicalEndpoints[0]?.instanceId === instanceId &&
+    net.logicalEndpoints[0]?.pinName === pinName,
   );
 }
 
@@ -68,13 +76,15 @@ export function runErcChecks(
 
   for (const document of documents) {
     const docIndex = index.documents.get(document.id);
-    const endpointToNet = docIndex?.endpointToNet ?? new Map<string, string>();
+    const endpointToNet =
+      docIndex?.endpointToBaseNetId ?? new Map<string, string>();
     const noConnectEndpoints = new Set(
       document.noConnects.map((noConnect) => noConnectKey(noConnect.endpoint)),
     );
 
-    for (const net of document.nets) {
-      if ((net.powerDomain ?? "none") !== "conflict") continue;
+    const logicalNets = resolveDocumentLogicalNets(document);
+    for (const net of logicalNets.groups) {
+      if (net.powerDomain !== "conflict") continue;
       diagnostics.push({
         id: `erc:power-domain-conflict:${document.id}:${net.id}`,
         domain: "erc",
@@ -82,7 +92,7 @@ export function runErcChecks(
         severity: "error",
         confidence: "high",
         gateEligible: true,
-        message: `Net ${net.name ?? net.id} contains both VDD and ground power symbols`,
+        message: `Logical Net ${net.name ?? net.id} contains incompatible power markers`,
         primary: directObjectLocator(document.id, "net", net.id),
         related: [],
         parameters: { netId: net.id },
@@ -286,37 +296,42 @@ export function runErcChecks(
       });
     }
 
-    for (const issue of validateNetContract(document)) {
+    for (const issue of validateLogicalNetContract(document)) {
       const [primaryId, ...relatedIds] = issue.netIds;
-      if (issue.code === "DUPLICATE_NET_NAME") {
+      if (issue.code === "CONFLICTING_LOGICAL_NET_NAME") {
         diagnostics.push({
-          id: `erc:dup-net:${document.id}:${issue.foldedName}`,
+          id: `erc:net-name-conflict:${document.id}:${primaryId}`,
           domain: "erc",
-          code: "ERC_DUPLICATE_NET_NAME",
+          code: "ERC_NET_NAME_CONFLICT",
           severity: "error",
           confidence: "high",
           gateEligible: true,
-          message: `Net name "${issue.foldedName}" is shared by ${issue.netIds.length} Nets in document ${document.id} without an explicit merge`,
+          message: `One physical or explicitly equivalent Net has conflicting name markers`,
           primary: directObjectLocator(document.id, "net", primaryId!),
           related: relatedIds.map((netId) =>
             directObjectLocator(document.id, "net", netId),
           ),
-          parameters: { name: issue.foldedName, count: issue.netIds.length },
+          parameters: { count: issue.netIds.length },
         });
-      } else {
+      } else if (issue.code === "CONFLICTING_LOGICAL_NET_SCOPE") {
         diagnostics.push({
-          id: `erc:unnamed-global-net:${document.id}:${primaryId}`,
+          id: `erc:net-scope-conflict:${document.id}:${primaryId}`,
           domain: "erc",
-          code: "ERC_UNNAMED_GLOBAL_NET",
+          code: "ERC_NET_SCOPE_CONFLICT",
           severity: "error",
           confidence: "high",
           gateEligible: true,
-          message: `Global Net ${primaryId} requires an explicit name`,
+          message: "One Logical Net has conflicting local/global markers",
           primary: directObjectLocator(document.id, "net", primaryId!),
-          related: [],
-          parameters: { netId: primaryId! },
+          related: relatedIds.map((netId) =>
+            directObjectLocator(document.id, "net", netId),
+          ),
+          parameters: { count: issue.netIds.length },
         });
       }
+      // Power-domain conflicts are emitted above with the established
+      // ERC_POWER_DOMAIN_CONFLICT code so existing diagnostic navigation and
+      // filters keep their public behavior.
     }
 
     // ERC_NO_CONNECT_CONFLICT
@@ -366,7 +381,7 @@ export function runErcChecks(
             !explicitlyNoConnect &&
             (!netId ||
               endpointHasOnlyInternalMembership(
-                document,
+                docIndex,
                 netId,
                 instance.id,
                 pin.name,

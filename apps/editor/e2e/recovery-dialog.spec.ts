@@ -239,6 +239,10 @@ test("deleting one session keeps the other project's copy", async ({
         "fixtures/projects/phase-1-manual/project.icproj.json",
       ),
     );
+  await page
+    .getByRole("dialog", { name: "Protect the current Project" })
+    .getByRole("button", { name: "Discard and continue" })
+    .click();
   await expect(page.getByTestId("active-document-name")).toHaveText(
     "Manual Editor Demo",
   );

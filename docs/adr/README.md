@@ -79,6 +79,9 @@ The repeated formal-Port marker and schema-20 decision is
 [`0037-repeated-formal-port-markers.md`](0037-repeated-formal-port-markers.md).
 The document style-overrides and schema-21 decision is
 [`0038-document-style-overrides.md`](0038-document-style-overrides.md).
+The owner-addressable Connectivity Evidence layer and schema-22 rolling
+migration decision is
+[`0040-connectivity-evidence.md`](0040-connectivity-evidence.md).
 The arbitrary-angle Route authoring decision is
 [`0039-any-angle-route-authoring.md`](0039-any-angle-route-authoring.md).
 

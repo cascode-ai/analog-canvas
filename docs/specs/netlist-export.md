@@ -55,7 +55,7 @@ Every emitted token has exactly one authority:
 | Cell name                  | `Document.netlist.name`                       | Document title or filename                    |
 | Cell interface order       | `Document.netlist.terminals`                  | coordinates or alphabetical order             |
 | Connectivity               | `Net.terminals`                               | Routes, Junction geometry, labels, or overlap |
-| Explicit Net name/scope    | `Net.name` and `Net.scope`                    | artwork or text appearance                    |
+| Logical Net name/scope     | resolved owner-addressed marker claims        | legacy Base fields or text appearance         |
 | Instance reference         | `Instance.netlist.reference`                  | instance-label annotation                     |
 | Device class and pin order | reviewed device definition or child interface | `symbolId` string conventions or orientation  |
 | Model/subcircuit target    | typed instance binding                        | symbol name or PDK search                     |
@@ -103,7 +103,7 @@ interface terminal regardless of marker count. Both roles are available in top a
 and neither emits an instance line. A hierarchy instance uses its bound child
 Document and that child's explicit private interface. Ports receive no visible
 schematic Reference or `Instance.netlist.reference`. A free Net Port displays
-and edits its bound `Net.name`. A formal Cell Pin uses its ordered
+and edits its owner-addressed Logical-Net name claim. A formal Cell Pin uses its ordered
 `CellTerminal.name`, such as `Vout`, for interface and export identity. Either
 bound Annotation may retain same-text RichText formatting, which never changes
 emitted names.
@@ -161,9 +161,9 @@ hint/example/help, and display role). Required export fields are derived from
 
 Pin order names canonical Symbol pins. Hidden or implicit pins remain present.
 Canonical MOS ordering is D/G/S/B. Ground is a Net marker that verifies the
-explicit global Net `0` and emits no instance line. A VDD Port is a non-emitting
-marker for an explicitly named `powerDomain: vdd` Net, which may be local or
-global under the named-power policy. A named power Rail has no Instance. Only
+explicit global Logical Net `0` and emits no instance line. A VDD Port is a
+non-emitting global marker claim with `powerDomain: vdd`. A named Power Rail
+uses the same claim and has no Instance. Only
 an explicitly global Net is emitted through the dialect's global declaration.
 Decorative symbols never have a device definition. An unsupported electrical
 Symbol blocks export.

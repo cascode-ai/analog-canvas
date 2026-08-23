@@ -326,6 +326,12 @@ describe("Instance lifecycle planning", () => {
       terminals: [{ instanceId: "P1", pinName: "P" }],
       origin: { kind: "spice-import", sourceNetIds: ["source-bus"] },
     });
+    document.connectivityEvidence.push({
+      id: "source-bus-evidence",
+      kind: "spice-source",
+      netId: "net-port-p1",
+      sourceNetId: "source-bus",
+    });
     document.annotations.push({
       id: "instance-label-P1",
       kind: "net-label",
@@ -356,12 +362,13 @@ describe("Instance lifecycle planning", () => {
       document: {
         instances: [],
         annotations: [],
-        nets: [
-          {
-            id: "net-port-p1",
-            terminals: [],
-            origin: { kind: "spice-import", sourceNetIds: ["source-bus"] },
-          },
+        nets: [{ id: "net-port-p1", terminals: [] }],
+        connectivityEvidence: [
+          expect.objectContaining({
+            kind: "spice-source",
+            netId: "net-port-p1",
+            sourceNetId: "source-bus",
+          }),
         ],
       },
     });

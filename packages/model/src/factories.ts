@@ -25,6 +25,7 @@ export function createEmptyDocument(
     },
     instances: [],
     nets: [],
+    connectivityEvidence: [],
     routes: [],
     junctions: [],
     annotations: [],

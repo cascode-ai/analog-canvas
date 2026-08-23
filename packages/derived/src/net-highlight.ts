@@ -69,14 +69,18 @@ export function computeNetHighlight(
   netId: string,
   origin?: EndpointRef,
 ): NetHighlight | undefined {
-  const record = index.documents.get(documentId)?.nets.get(netId);
+  const documentIndex = index.documents.get(documentId);
+  const record =
+    documentIndex?.logicalNets.get(netId) ??
+    documentIndex?.logicalNetByBaseNetId.get(netId);
   if (!record) return undefined;
-  const component = origin
-    ? record.routedComponents.find((candidate) =>
-        candidate.nodes.some((node) => node.key === endpointKey(origin)),
-      )
-    : undefined;
-  if (origin && !component) return undefined;
+  const component =
+    origin && record.baseNetIds.length === 1
+      ? record.routedComponents.find((candidate) =>
+          candidate.nodes.some((node) => node.key === endpointKey(origin)),
+        )
+      : undefined;
+  if (origin && record.baseNetIds.length === 1 && !component) return undefined;
   const visibleEndpoints = component
     ? component.nodes.map((node) => node.endpoint)
     : record.visibleEndpoints;
@@ -110,7 +114,11 @@ export function traceNet(
   const primary = computeNetHighlight(index, documentId, netId);
   if (!primary) return undefined;
 
-  const parentEndpointToNet = index.documents.get(documentId)?.endpointToNet;
+  const parentEndpointToNet =
+    index.documents.get(documentId)?.endpointToBaseNetId;
+  const logicalRecord = index.documents
+    .get(documentId)
+    ?.logicalNetByBaseNetId.get(netId);
   const crossCell: CrossCellTraceFrame[] = [];
   for (const edge of index.hierarchy.edges) {
     if (edge.parentDocumentId !== documentId) continue;
@@ -119,7 +127,10 @@ export function traceNet(
       instanceId: edge.instanceId,
       pinName: edge.parentPinName,
     });
-    if (parentEndpointToNet?.get(parentPinKey) !== netId) continue;
+    const parentNetId = parentEndpointToNet?.get(parentPinKey);
+    if (!parentNetId || !logicalRecord?.baseNetIds.includes(parentNetId)) {
+      continue;
+    }
     crossCell.push({
       parentDocumentId: edge.parentDocumentId,
       instanceId: edge.instanceId,
@@ -153,7 +164,13 @@ export function traceHierarchyNet(
 ): HierarchyNetTrace | undefined {
   const primary = computeNetHighlight(index, documentId, netId, origin);
   if (!primary) return undefined;
-  const queue: HierarchyNetRef[] = [{ documentId, netId }];
+  const canonicalRef = (ref: HierarchyNetRef): HierarchyNetRef => ({
+    documentId: ref.documentId,
+    netId:
+      index.documents.get(ref.documentId)?.logicalNetByBaseNetId.get(ref.netId)
+        ?.netId ?? ref.netId,
+  });
+  const queue: HierarchyNetRef[] = [canonicalRef({ documentId, netId })];
   const visited = new Set<string>();
   const highlights: NetHighlight[] = [];
   const hops: Array<HierarchyNetTraceHop | GlobalNetTraceHop> = [];
@@ -169,9 +186,11 @@ export function traceHierarchyNet(
     if (!highlight) continue;
     visited.add(key);
     highlights.push(highlight);
-    const endpointToNet = index.documents.get(
-      current.documentId,
-    )?.endpointToNet;
+    const currentDocumentIndex = index.documents.get(current.documentId);
+    const endpointToNet = currentDocumentIndex?.endpointToBaseNetId;
+    const currentRecord =
+      currentDocumentIndex?.logicalNets.get(current.netId) ??
+      currentDocumentIndex?.logicalNetByBaseNetId.get(current.netId);
 
     for (const edge of index.hierarchy.edges) {
       if (edge.parentDocumentId === current.documentId) {
@@ -182,20 +201,22 @@ export function traceHierarchyNet(
             pinName: edge.parentPinName,
           }),
         );
-        if (parentNetId !== current.netId) continue;
+        if (!parentNetId || !currentRecord?.baseNetIds.includes(parentNetId)) {
+          continue;
+        }
         const frame: CrossCellTraceFrame = { ...edge };
-        const to = {
+        const to = canonicalRef({
           documentId: edge.childDocumentId,
           netId: edge.childNetId,
-        };
+        });
         hops.push({ direction: "down", from: current, to, frame });
         queue.push(to);
       }
       if (edge.childDocumentId === current.documentId) {
-        if (edge.childNetId !== current.netId) continue;
+        if (!currentRecord?.baseNetIds.includes(edge.childNetId)) continue;
         const parentNetId = index.documents
           .get(edge.parentDocumentId)
-          ?.endpointToNet.get(
+          ?.endpointToBaseNetId.get(
             endpointKey({
               kind: "terminal",
               instanceId: edge.instanceId,
@@ -204,15 +225,16 @@ export function traceHierarchyNet(
           );
         if (!parentNetId) continue;
         const frame: CrossCellTraceFrame = { ...edge };
-        const to = { documentId: edge.parentDocumentId, netId: parentNetId };
+        const to = canonicalRef({
+          documentId: edge.parentDocumentId,
+          netId: parentNetId,
+        });
         hops.push({ direction: "up", from: current, to, frame });
         queue.push(to);
       }
     }
 
-    const globalRecord = index.documents
-      .get(current.documentId)
-      ?.nets.get(current.netId);
+    const globalRecord = currentRecord;
     // The index record intentionally contains no persisted name. Resolve the
     // group through the global map by matching the stable local Net reference.
     const group = [...index.globalNets.values()].find((candidate) =>
@@ -235,7 +257,7 @@ export function traceHierarchyNet(
           to,
           foldedName: group.foldedName,
         });
-        queue.push(to);
+        queue.push(canonicalRef(to));
       }
     }
   }

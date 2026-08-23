@@ -1,4 +1,8 @@
-import { buildProjectConnectivityIndex, runErcChecks } from "@icm/derived";
+import {
+  buildProjectConnectivityIndex,
+  resolveDocumentLogicalNets,
+  runErcChecks,
+} from "@icm/derived";
 import { CURRENT_PROJECT_SCHEMA_VERSION } from "@icm/model";
 import { serializeProject } from "@icm/project-protocol";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
@@ -53,6 +57,28 @@ describe("bundled Library Project examples", () => {
         ),
         example.id,
       ).toEqual([]);
+    }
+  });
+
+  it("upgrades stored VDD rails into current Logical-Net power semantics", () => {
+    for (const example of libraryProjectExamples) {
+      for (const document of example.project.documents) {
+        const railNetIds = new Set(
+          document.routes.flatMap((route) =>
+            route.presentation === "power-rail" ? [route.netId] : [],
+          ),
+        );
+        const logicalNets = resolveDocumentLogicalNets(document);
+        for (const netId of railNetIds) {
+          expect(
+            logicalNets.byBaseNetId.get(netId),
+            `${example.id}:${document.id}:${netId}`,
+          ).toMatchObject({
+            name: "VDD",
+            powerDomain: "vdd",
+          });
+        }
+      }
     }
   });
 

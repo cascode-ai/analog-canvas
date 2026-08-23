@@ -2,6 +2,28 @@
   "documents": [
     {
       "annotations": [],
+      "connectivityEvidence": [
+        {
+          "id": "connectivity-evidence-3703b9a2dbe36217",
+          "kind": "name-claim",
+          "name": "HORIZONTAL",
+          "netId": "net-h",
+          "owner": {
+            "kind": "explicit-net-property"
+          },
+          "scope": "local"
+        },
+        {
+          "id": "connectivity-evidence-7b6a78c69adece24",
+          "kind": "name-claim",
+          "name": "VERTICAL",
+          "netId": "net-v",
+          "owner": {
+            "kind": "explicit-net-property"
+          },
+          "scope": "local"
+        }
+      ],
       "constraints": [],
       "drafting": {
         "objects": []
@@ -86,9 +108,6 @@
         {
           "id": "net-h",
           "name": "HORIZONTAL",
-          "origin": {
-            "kind": "authored"
-          },
           "scope": "local",
           "terminals": [
             {
@@ -108,9 +127,6 @@
         {
           "id": "net-v",
           "name": "VERTICAL",
-          "origin": {
-            "kind": "authored"
-          },
           "scope": "local",
           "terminals": [
             {
@@ -138,7 +154,7 @@
   "externalSubcircuitDefinitions": [],
   "id": "project-routing",
   "name": "Phase 3 Routing Demo",
-  "schemaVersion": 21,
+  "schemaVersion": 22,
   "source": {
     "dialect": "none",
     "entry": null,

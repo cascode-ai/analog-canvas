@@ -1,77 +1,55 @@
-import {
-  foldNetName,
-  type PowerDomain,
-  type SchematicDocument,
-} from "@icm/model";
+import { resolveDocumentLogicalNets } from "@icm/derived";
+import type { ConnectivityEvidence, SchematicDocument } from "@icm/model";
 
 import type { SchematicEdit } from "./edit-schema.js";
+import { planEnsureNamedNet } from "./named-net-planner.js";
+
+type PowerDomain = "vdd" | "ground";
+
+type PowerMarkerOwner = Extract<
+  ConnectivityEvidence,
+  { kind: "name-claim" }
+>["owner"];
 
 export type PowerNetCandidateState =
   "existing" | "pending-connection" | "created-power";
 
 export interface EnsurePowerNetRequest {
-  /** The caller-owned Net ID, existing now or created earlier in this transaction. */
+  /** Caller-owned Base Net, existing now or created earlier in the transaction. */
   candidateNetId: string;
   candidateState: PowerNetCandidateState;
   domain: PowerDomain;
+  evidenceId: string;
+  owner: PowerMarkerOwner;
+  /** Supply markers may use AVDD/DVDD; Ground defaults to SPICE node 0. */
+  name?: string;
+  scope?: "local" | "global";
 }
 
 export type EnsurePowerNetPlan =
-  | {
-      ok: true;
-      netId: string;
-      edits: readonly SchematicEdit[];
-    }
-  | {
-      ok: false;
-      message: string;
-      relatedNetIds: readonly string[];
-    };
+  | { ok: true; netId: string; edits: readonly SchematicEdit[] }
+  | { ok: false; message: string; relatedNetIds: readonly string[] };
 
 export function canonicalPowerName(domain: PowerDomain): "0" | "VDD" {
   return domain === "ground" ? "0" : "VDD";
 }
 
-/**
- * Preferred legacy IDs make repaired documents stable, but name + scope remain
- * the electrical identity. Callers must never select a supply by role alone.
- */
+/** Stable IDs remain useful for import/migration, never for electrical lookup. */
 export function preferredPowerNetId(domain: PowerDomain): string {
   return domain === "ground" ? "net-global-0" : "net-global-vdd";
 }
 
-function powerDomainConflict(
-  domain: PowerDomain,
-  current: "none" | "vdd" | "ground" | "conflict",
-): boolean {
-  return current !== "none" && current !== domain;
-}
-
-function sortedCanonicalCandidates(
-  document: SchematicDocument,
-  domain: PowerDomain,
-): readonly SchematicDocument["nets"][number][] {
-  const name = canonicalPowerName(domain);
-  const preferredId = preferredPowerNetId(domain);
-  return document.nets
-    .filter((net) => net.name && foldNetName(net.name) === foldNetName(name))
-    .sort(
-      (left, right) =>
-        Number(right.id === preferredId) - Number(left.id === preferredId) ||
-        Number(right.scope === "global") - Number(left.scope === "global") ||
-        left.id.localeCompare(right.id, "en"),
-    );
-}
-
 /**
- * Plans canonical supply reuse/merge without introducing a second mutation
- * protocol. A caller first creates or contacts `candidateNetId` with the
- * existing typed edits, then appends this plan's edits to the same transaction.
+ * Power, Ground, VDD and named supplies use the ordinary named-Net marker
+ * protocol. The planner never merges Base Nets and never writes Net.name.
  */
 export function planEnsurePowerNet(
   document: SchematicDocument,
   request: EnsurePowerNetRequest,
 ): EnsurePowerNetPlan {
+  const requestedName =
+    request.name?.trim() || canonicalPowerName(request.domain);
+  const requestedScope = request.scope ?? "global";
   const candidate = document.nets.find(
     (net) => net.id === request.candidateNetId,
   );
@@ -83,98 +61,49 @@ export function planEnsurePowerNet(
     };
   }
 
-  const desiredName = canonicalPowerName(request.domain);
-  const nameMatches = sortedCanonicalCandidates(document, request.domain);
-  const conflictingNameNet = nameMatches.find((net) =>
-    powerDomainConflict(request.domain, net.powerDomain ?? "none"),
-  );
-  if (conflictingNameNet) {
-    return {
-      ok: false,
-      message: `Named supply ${desiredName} has incompatible power role ${conflictingNameNet.powerDomain ?? "none"}`,
-      relatedNetIds: [conflictingNameNet.id],
-    };
-  }
-  const groundingOrdinaryNet =
-    request.domain === "ground" &&
-    candidate !== undefined &&
-    (candidate.powerDomain ?? "none") === "none";
-  if (
-    candidate?.name &&
-    foldNetName(candidate.name) !== foldNetName(desiredName) &&
-    !groundingOrdinaryNet
-  ) {
-    return {
-      ok: false,
-      message: `Cannot attach ${desiredName} to differently named Net ${candidate.name}`,
-      relatedNetIds: [candidate.id],
-    };
-  }
-  if (
-    candidate &&
-    powerDomainConflict(request.domain, candidate.powerDomain ?? "none")
-  ) {
-    return {
-      ok: false,
-      message: `Cannot attach ${desiredName} to Net with incompatible power role ${candidate.powerDomain ?? "none"}`,
-      relatedNetIds: [candidate.id],
-    };
-  }
-
-  const target = nameMatches[0];
-  if (target) {
-    const edits: SchematicEdit[] = [];
+  if (candidate) {
+    const logical = resolveDocumentLogicalNets(document).byBaseNetId.get(
+      candidate.id,
+    );
     if (
-      request.candidateState !== "created-power" &&
-      request.candidateNetId !== target.id
+      logical?.name &&
+      logical.name.toLowerCase() !== requestedName.toLowerCase()
     ) {
-      edits.push({
-        kind: "merge_nets",
-        targetNetId: target.id,
-        sourceNetId: request.candidateNetId,
-      });
+      return {
+        ok: false,
+        message: `Cannot attach ${requestedName} to differently named Net ${logical.name}`,
+        relatedNetIds: [...logical.baseNetIds],
+      };
     }
-    if ((target.powerDomain ?? "none") === "none") {
-      edits.push({
-        kind: "set_net_power_domain",
-        netId: target.id,
-        powerDomain: request.domain,
-      });
+    if (
+      logical &&
+      logical.powerDomain !== "none" &&
+      logical.powerDomain !== request.domain
+    ) {
+      return {
+        ok: false,
+        message: `Cannot attach ${requestedName} to Net with incompatible power role ${logical.powerDomain}`,
+        relatedNetIds: [...logical.baseNetIds],
+      };
     }
-    return { ok: true, netId: target.id, edits };
   }
 
-  if (request.candidateState === "existing") {
-    const edits: SchematicEdit[] = [];
-    if (!candidate!.name || groundingOrdinaryNet) {
-      edits.push({
-        kind: "set_net_name",
-        netId: candidate!.id,
-        name: desiredName,
-      });
-    }
-    if ((candidate!.powerDomain ?? "none") === "none") {
-      edits.push({
-        kind: "set_net_power_domain",
-        netId: candidate!.id,
-        powerDomain: request.domain,
-      });
-    }
-    return { ok: true, netId: candidate!.id, edits };
+  const planningDocument = structuredClone(document);
+  if (!candidate) {
+    planningDocument.nets.push({
+      id: request.candidateNetId,
+      scope: "local",
+      powerDomain: "none",
+      terminals: [],
+    });
   }
-
-  return {
-    ok: true,
-    netId: request.candidateNetId,
-    edits:
-      request.candidateState === "pending-connection"
-        ? [
-            {
-              kind: "set_net_power_domain",
-              netId: request.candidateNetId,
-              powerDomain: request.domain,
-            },
-          ]
-        : [],
-  };
+  const plan = planEnsureNamedNet(planningDocument, {
+    candidateNetId: request.candidateNetId,
+    name: requestedName,
+    evidenceId: request.evidenceId,
+    owner: request.owner,
+    scope: requestedScope,
+    powerDomain: request.domain,
+  });
+  return plan.ok ? { ok: true, netId: plan.netId, edits: plan.edits } : plan;
 }

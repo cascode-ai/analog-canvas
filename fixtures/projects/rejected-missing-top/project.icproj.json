@@ -2,6 +2,7 @@
   "documents": [
     {
       "annotations": [],
+      "connectivityEvidence": [],
       "constraints": [],
       "drafting": {
         "objects": []
@@ -30,7 +31,7 @@
   ],
   "id": "project-rejected",
   "name": "Rejected",
-  "schemaVersion": 20,
+  "schemaVersion": 22,
   "source": {
     "dialect": "none",
     "entry": null,

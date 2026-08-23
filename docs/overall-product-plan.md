@@ -58,9 +58,16 @@ revision, lock, or transaction invariants.
   electrical facts; drawing geometry never silently creates a connection.
 - A Crossing is not a Junction. Ambiguous intersections are rejected rather
   than guessed.
+- A Base Net owns physical membership only. Net Label, Free Port, VDD, Ground,
+  and Power Rail naming all enter one owner-addressed marker system and resolve
+  to one derived Logical-Net view used by ERC, export, search, highlight, and
+  Agent snapshots. Power Rail is a drawing gesture, not another power object.
+- VDD, AVDD, DVDD, and Ground node `0` are ordinary global marker names;
+  different names remain electrically distinct. Formal Cell Ports remain the
+  ordered hierarchy interface rather than another Net-label mechanism.
 - Routes describe visible geometry; they may stretch locally during movement
   without changing logical connectivity.
-- A Project is a canonical schema-21 JSON file. Browser recovery is an
+- A Project is a canonical schema-22 JSON file. Browser recovery is an
   origin-local, non-authoritative copy.
 - Visual variants may change presentation but never remove electrical terminal
   semantics. The Razavi raster manifest is the sole visual authority; Visio/VSS

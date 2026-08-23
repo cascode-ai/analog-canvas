@@ -21,7 +21,7 @@ describe("Project protocol documentation", () => {
       ["docs/specs/persistence-and-recovery.md", `schema-${version}`],
       ["docs/specs/project-file-format.md", `Project schema: \`${version}\``],
       ["docs/specs/editor-interaction.md", `schema-${version}`],
-      ["docs/adr/0038-document-style-overrides.md", `Schema ${version}`],
+      ["docs/adr/0040-connectivity-evidence.md", `schema ${version}`],
       [
         "docs/user/project-compatibility.md",
         `schema version is \`${version}\``,

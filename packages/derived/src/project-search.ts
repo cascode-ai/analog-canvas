@@ -3,6 +3,7 @@ import type { CircuitProject } from "@icm/model";
 import type { ProjectConnectivityIndex } from "./connectivity-index.js";
 import { findHierarchyPaths } from "./hierarchy-navigation.js";
 import { directObjectLocator, type ObjectLocator } from "./object-locator.js";
+import { resolveDocumentLogicalNets } from "./logical-net.js";
 
 /**
  * Deterministic project-wide search index (ADR 0015 / roadmap WP-R5 core).
@@ -136,7 +137,7 @@ function collectCandidates(
         });
       }
     }
-    for (const net of document.nets) {
+    for (const net of resolveDocumentLogicalNets(document).groups) {
       const locator = searchLocator(document.id, "net", net.id, objectIndex);
       const label = net.name ?? net.id;
       candidates.push({

@@ -20,7 +20,12 @@ function markRoutingDemoNetsImported(
   project: ReturnType<typeof createRoutingDemoProject>,
 ): void {
   for (const net of project.documents[0]!.nets) {
-    net.origin = { kind: "spice-import", sourceNetIds: [net.id] };
+    project.documents[0]!.connectivityEvidence.push({
+      id: `evidence-spice-${net.id}`,
+      kind: "spice-source",
+      netId: net.id,
+      sourceNetId: net.id,
+    });
   }
 }
 
@@ -396,16 +401,28 @@ test("initializes PMOS bulk from the first explicitly drawn VDD rail", async ({
   ) as {
     documents: Array<{
       mosBulkDefaults?: { pmosNetId?: string };
+      connectivityEvidence: Array<{
+        kind: string;
+        netId?: string;
+        powerDomain?: string;
+      }>;
       nets: Array<{
         id: string;
-        powerDomain?: string;
         terminals: Array<{ instanceId: string; pinName: string }>;
       }>;
       routes: Array<{ netId: string; presentation?: string }>;
     }>;
   };
   const document = saved.documents[0]!;
-  const vddNets = document.nets.filter((net) => net.powerDomain === "vdd");
+  const vddNetIds = new Set(
+    document.connectivityEvidence
+      .filter(
+        (evidence) =>
+          evidence.kind === "name-claim" && evidence.powerDomain === "vdd",
+      )
+      .map((evidence) => evidence.netId),
+  );
+  const vddNets = document.nets.filter((net) => vddNetIds.has(net.id));
   expect(vddNets).toEqual([
     expect.objectContaining({
       id: "net-power-vdd1",
@@ -494,7 +511,7 @@ test("Port shortcut starts ordinary component placement", async ({ page }) => {
   ).toHaveCount(0);
 });
 
-test("Free Net Ports merge by name and release their final Net lifecycle", async ({
+test("Free Net Ports share logical identity and release their Base Net lifecycle", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -521,20 +538,44 @@ test("Free Net Ports merge by name and release their final Net lifecycle", async
   ) as {
     documents: Array<{
       nets: Array<{
+        id: string;
         name?: string;
         terminals: Array<{ instanceId: string; pinName: string }>;
+      }>;
+      connectivityEvidence: Array<{
+        kind: string;
+        netId?: string;
+        name?: string;
+        owner?: { kind: string; instanceId?: string };
       }>;
     }>;
   };
   expect(saved.documents[0]!.nets).toEqual([
     expect.objectContaining({
-      name: "BUS",
-      terminals: expect.arrayContaining([
-        { instanceId: "P1", pinName: "P" },
-        { instanceId: "P2", pinName: "P" },
-      ]),
+      id: "net-port-p1",
+      terminals: [{ instanceId: "P1", pinName: "P" }],
+    }),
+    expect.objectContaining({
+      id: "net-port-p2",
+      terminals: [{ instanceId: "P2", pinName: "P" }],
     }),
   ]);
+  expect(saved.documents[0]!.connectivityEvidence).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        kind: "name-claim",
+        netId: "net-port-p1",
+        name: "BUS",
+        owner: expect.objectContaining({ kind: "free-port", instanceId: "P1" }),
+      }),
+      expect.objectContaining({
+        kind: "name-claim",
+        netId: "net-port-p2",
+        name: "bus",
+        owner: expect.objectContaining({ kind: "free-port", instanceId: "P2" }),
+      }),
+    ]),
+  );
 
   await page.getByTestId("hit-P1").click();
   await page.keyboard.press("Delete");
@@ -545,6 +586,7 @@ test("Free Net Ports merge by name and release their final Net lifecycle", async
     (await downloadBytes(page, "File", "Save Project")).toString("utf8"),
   ) as typeof saved;
   expect(saved.documents[0]!.nets).toEqual([]);
+  expect(saved.documents[0]!.connectivityEvidence).toEqual([]);
 
   await placeNamedPort("BUS", { x: 360, y: 260 });
   await expect(page.getByTestId("hit-P1")).toBeVisible();
@@ -1027,9 +1069,13 @@ test("initializes NMOS bulk from the first explicitly placed Ground", async ({
         mosBulkBinding?: { origin: string; netId: string };
       }>;
       routes: Array<{ presentation?: string }>;
+      connectivityEvidence: Array<{
+        kind: string;
+        netId?: string;
+        name?: string;
+      }>;
       nets: Array<{
         id: string;
-        name?: string;
         terminals: Array<{ instanceId: string; pinName: string }>;
       }>;
     }>;
@@ -1042,7 +1088,12 @@ test("initializes NMOS bulk from the first explicitly placed Ground", async ({
   expect(document.routes).not.toContainEqual(
     expect.objectContaining({ presentation: "bulk-dashed" }),
   );
-  expect(document.nets.find((net) => net.name === "0")?.terminals).toEqual(
+  const groundNetId = document.connectivityEvidence.find(
+    (evidence) => evidence.kind === "name-claim" && evidence.name === "0",
+  )?.netId;
+  expect(
+    document.nets.find((net) => net.id === groundNetId)?.terminals,
+  ).toEqual(
     expect.arrayContaining([
       { instanceId: "M1", pinName: "B" },
       { instanceId: "GND1", pinName: "0" },
@@ -1691,7 +1742,7 @@ test("edits instance, electrical Net, and free text with bounded label handles",
   await page
     .getByRole("textbox", { name: "Electrical Net label" })
     .fill("Vref");
-  await expect(page.getByTestId("net-count")).toHaveText("1");
+  await expect(page.getByTestId("net-count")).toHaveText("2");
   await expect(page.getByTestId("status")).toHaveText("Saved Net Label Vref");
 
   await clickDrawTool(page, "text");
@@ -2542,10 +2593,16 @@ test("derives crossings and creates junctions only when a wire ends on a route",
   page,
 }) => {
   await page.goto("/editor");
+  const project = createRoutingDemoProject();
+  // This case isolates geometric crossing/Junction behavior. The final branch
+  // deliberately captures D.P, so named HORIZONTAL/VERTICAL claims would
+  // correctly turn it into an electrical name conflict instead.
+  project.documents[0]!.connectivityEvidence = [];
+  for (const net of project.documents[0]!.nets) delete net.name;
   await page.getByTestId("project-file").setInputFiles({
     name: "routing-example.icproj.json",
     mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify(createRoutingDemoProject())),
+    buffer: Buffer.from(JSON.stringify(project)),
   });
 
   await clickDrawTool(page, "wire");
@@ -2606,6 +2663,12 @@ test("places a Ground pin onto a canonical Route and keeps real split topology",
     scope: "global" as const,
     powerDomain: "ground" as const,
   });
+  for (const evidence of document.connectivityEvidence) {
+    if (evidence.kind === "name-claim" && evidence.netId === horizontalNet.id) {
+      evidence.name = "0";
+      evidence.scope = "global";
+    }
+  }
   document.routes.push({
     id: "route-base",
     netId: "net-h",
@@ -2879,9 +2942,16 @@ test("requires warning review before exporting generated NoConnect nodes", async
   });
   document.nets.push({
     id: "net-in",
-    name: "IN",
     scope: "local",
     terminals: [{ instanceId: "R1", pinName: "1" }],
+  });
+  document.connectivityEvidence.push({
+    id: "claim-net-in",
+    kind: "name-claim",
+    netId: "net-in",
+    name: "IN",
+    owner: { kind: "explicit-net-property" },
+    scope: "local",
   });
   document.noConnects.push({
     id: "r1-open",
@@ -3096,6 +3166,10 @@ test("retains recovery across save and project replacement", async ({
         "fixtures/projects/phase-1-manual/project.icproj.json",
       ),
     );
+  await page
+    .getByRole("dialog", { name: "Protect the current Project" })
+    .getByRole("button", { name: "Discard and continue" })
+    .click();
   await expect(page.getByTestId("active-document-name")).toHaveText(
     "Manual Editor Demo",
   );
@@ -3174,7 +3248,7 @@ test("keeps the production command surface compact and publishes PWA metadata", 
   });
 });
 
-test("clears the active canvas atomically after confirmation and restores it with Undo", async ({
+test("separates drawing, placement, and Cell body resets with impact preview and Undo", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -3186,25 +3260,29 @@ test("clears the active canvas atomically after confirmation and restores it wit
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("revision")).toHaveText("3");
 
-  await clickCommand(page, "Edit", "Clear canvas");
-  const clearDialog = page.getByRole("dialog", { name: "Clear Main?" });
+  await clickCommand(page, "Edit", "Clear Drawing");
+  const clearDialog = page.getByRole("dialog", {
+    name: "Clear Drawing in Main?",
+  });
   await expect(clearDialog).toContainText("You can restore them with Undo");
+  await expect(clearDialog).toContainText("Affected objects: 1");
   await clearDialog.getByRole("button", { name: "Cancel" }).click();
   await expect(page.getByTestId("revision")).toHaveText("3");
-  await expect(page.getByTestId("status")).toHaveText("Clear canvas cancelled");
+  await expect(page.getByTestId("status")).toHaveText(
+    "Clear Drawing cancelled",
+  );
 
-  await clickCommand(page, "Edit", "Clear canvas");
+  await clickCommand(page, "Edit", "Clear Drawing");
   await page
-    .getByRole("dialog", { name: "Clear Main?" })
-    .getByRole("button", { name: "Clear canvas" })
+    .getByRole("dialog", { name: "Clear Drawing in Main?" })
+    .getByRole("button", { name: "Clear Drawing" })
     .click();
-  await expect(page.getByTestId("instance-count")).toHaveText("0");
-  await expect(page.getByTestId("net-count")).toHaveText("0");
+  await expect(page.getByTestId("instance-count")).toHaveText("2");
+  await expect(page.getByTestId("net-count")).toHaveText("1");
   await expect(page.locator('[data-layer="routes"] polyline')).toHaveCount(0);
-  await expect(page.getByTestId("canvas-empty-state")).toBeVisible();
   await expect(page.getByTestId("revision")).toHaveText("4");
   await expect(page.getByTestId("status")).toHaveText(
-    "Cleared Cell Main · Undo restores it",
+    "Clear Drawing completed in Cell Main · Undo restores it",
   );
 
   await page.keyboard.press("Control+z");
@@ -3212,6 +3290,41 @@ test("clears the active canvas atomically after confirmation and restores it wit
   await expect(page.getByTestId("net-count")).toHaveText("1");
   await expect(page.locator('[data-layer="routes"] polyline')).toHaveCount(1);
   await expect(page.getByTestId("revision")).toHaveText("5");
+
+  await clickCommand(page, "Edit", "Reset Cell Placement");
+  const placementDialog = page.getByRole("dialog", {
+    name: "Reset Cell Placement in Main?",
+  });
+  await expect(placementDialog).toContainText("Affected objects: 3");
+  await placementDialog
+    .getByRole("button", { name: "Reset Cell Placement" })
+    .click();
+  await expect(page.getByTestId("instance-count")).toHaveText("2");
+  await expect(page.getByTestId("net-count")).toHaveText("1");
+  await expect(page.locator('[data-layer="routes"] polyline')).toHaveCount(0);
+  await expect(page.getByTestId("hit-R1")).toHaveCount(0);
+  await expect(page.getByTestId("revision")).toHaveText("6");
+
+  await page.keyboard.press("Control+z");
+  await expect(page.getByTestId("hit-R1")).toHaveCount(1);
+  await expect(page.locator('[data-layer="routes"] polyline')).toHaveCount(1);
+  await expect(page.getByTestId("revision")).toHaveText("7");
+
+  await clickCommand(page, "Edit", "Reset Cell Body");
+  await page
+    .getByRole("dialog", { name: "Reset Cell Body in Main?" })
+    .getByRole("button", { name: "Reset Cell Body" })
+    .click();
+  await expect(page.getByTestId("instance-count")).toHaveText("0");
+  await expect(page.getByTestId("net-count")).toHaveText("0");
+  await expect(page.getByTestId("canvas-empty-state")).toBeVisible();
+  await expect(page.getByTestId("revision")).toHaveText("8");
+
+  await page.keyboard.press("Control+z");
+  await expect(page.getByTestId("instance-count")).toHaveText("2");
+  await expect(page.getByTestId("net-count")).toHaveText("1");
+  await expect(page.locator('[data-layer="routes"] polyline')).toHaveCount(1);
+  await expect(page.getByTestId("revision")).toHaveText("9");
 });
 
 test("shows first-party visitor analytics without tracking the dashboard itself", async ({

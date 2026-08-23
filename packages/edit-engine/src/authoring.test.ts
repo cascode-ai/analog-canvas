@@ -1,4 +1,5 @@
 import { createEmptyDocument } from "@icm/model";
+import { resolveDocumentLogicalNets } from "@icm/derived";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
@@ -388,33 +389,41 @@ describe("semantic authoring", () => {
     expect(document).toEqual(before);
   });
 
-  it("names Nets uniquely under case folding and requires an explicit merge", () => {
+  it("joins equal name claims logically without a physical merge", () => {
     const document = createEmptyDocument("document-main", "Main");
     document.nets.push(
       { id: "net-a", name: "SIGNAL", scope: "local", terminals: [] },
       { id: "net-b", scope: "local", terminals: [] },
     );
-    const rejected = executeTransaction(
-      document,
-      transaction([{ kind: "set_net_name", netId: "net-b", name: "signal" }]),
-      { symbolResolver: resolver },
-    );
-    expect(rejected).toMatchObject({
-      ok: false,
-      error: { message: expect.stringContaining("merge explicitly") },
+    document.connectivityEvidence.push({
+      id: "claim-net-a",
+      kind: "name-claim",
+      netId: "net-a",
+      name: "SIGNAL",
+      scope: "local",
+      owner: { kind: "explicit-net-property" },
     });
-
-    const merged = executeTransaction(
+    const named = executeTransaction(
       document,
       transaction([
-        { kind: "merge_nets", targetNetId: "net-a", sourceNetId: "net-b" },
+        {
+          kind: "upsert_connectivity_evidence",
+          evidence: {
+            id: "claim-net-b",
+            kind: "name-claim",
+            netId: "net-b",
+            name: "signal",
+            scope: "local",
+            owner: { kind: "explicit-net-property" },
+          },
+        },
       ]),
       { symbolResolver: resolver },
     );
-    expect(merged).toMatchObject({
-      ok: true,
-      document: { nets: [{ id: "net-a", name: "SIGNAL" }] },
-    });
+    expect(named).toMatchObject({ ok: true });
+    if (!named.ok) return;
+    expect(named.document.nets).toHaveLength(2);
+    expect(resolveDocumentLogicalNets(named.document).groups).toHaveLength(1);
   });
 
   it("moves an unlocked Junction as a typed geometry edit", () => {

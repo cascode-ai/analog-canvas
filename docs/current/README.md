@@ -22,7 +22,7 @@ repository search, completed roadmaps, target plans, or `docs/archive/`.
    [`../adr/0036-named-power-and-mos-bulk-semantics.md`](../adr/0036-named-power-and-mos-bulk-semantics.md),
    and [`../adr/0037-repeated-formal-port-markers.md`](../adr/0037-repeated-formal-port-markers.md)
    — current Project shape, rolling previous-version read policy, independent
-   device and compatibility boundaries, Port-symbol, edit-union, schema-21
+   device and compatibility boundaries, Port-symbol, edit-union, schema-22
    identity and placement lifecycle, schematic references, Port semantic names
    and RichText display, top-Cell formal interfaces, Free Net Port export,
    imported routing guidance, named-power/MOS-bulk semantics, repeated formal

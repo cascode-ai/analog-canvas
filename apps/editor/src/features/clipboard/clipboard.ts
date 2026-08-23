@@ -9,6 +9,7 @@ import { executeTransaction } from "@icm/edit-engine";
 import type { SchematicEdit } from "@icm/edit-engine";
 import type {
   Annotation,
+  ConnectivityEvidence,
   Instance,
   Net,
   NoConnect,
@@ -48,6 +49,7 @@ export interface SchematicClipboard {
   junctions: SchematicDocument["junctions"];
   annotations: Annotation[];
   noConnects: NoConnect[];
+  connectivityEvidence: ConnectivityEvidence[];
 }
 
 export interface PasteProposal {
@@ -287,14 +289,61 @@ export function copyWholeDocument(
   if (document.instances.length === 0 && document.routes.length === 0) {
     return null;
   }
+  const netIds = new Set<string>([
+    ...document.nets.flatMap((net) =>
+      net.terminals.length > 0 ? [net.id] : [],
+    ),
+    ...document.routes.map((route) => route.netId),
+    ...document.junctions.map((junction) => junction.netId),
+    ...document.annotations.flatMap((annotation) => [
+      ...(annotation.netId ? [annotation.netId] : []),
+      ...(annotation.binding?.kind === "net-name"
+        ? [annotation.binding.netId]
+        : []),
+    ]),
+    ...(document.netlist?.terminals.map((terminal) => terminal.netId) ?? []),
+    ...document.instances.flatMap((instance) =>
+      instance.mosBulkBinding ? [instance.mosBulkBinding.netId] : [],
+    ),
+    ...(document.mosBulkDefaults?.nmosNetId
+      ? [document.mosBulkDefaults.nmosNetId]
+      : []),
+    ...(document.mosBulkDefaults?.pmosNetId
+      ? [document.mosBulkDefaults.pmosNetId]
+      : []),
+  ]);
+  // Explicit equivalence is an intentional connectivity edge, so retain its
+  // complete member set when any member is otherwise reachable.
+  let expanded = true;
+  while (expanded) {
+    expanded = false;
+    for (const evidence of document.connectivityEvidence) {
+      if (
+        evidence.kind !== "explicit-equivalence" ||
+        !evidence.memberNetIds.some((netId) => netIds.has(netId))
+      ) {
+        continue;
+      }
+      for (const netId of evidence.memberNetIds) {
+        if (netIds.has(netId)) continue;
+        netIds.add(netId);
+        expanded = true;
+      }
+    }
+  }
   return structuredClone({
     instances: document.instances,
-    nets: document.nets,
+    nets: document.nets.filter((net) => netIds.has(net.id)),
     boundaryNets: [],
     routes: document.routes,
     junctions: document.junctions,
     annotations: document.annotations,
     noConnects: document.noConnects,
+    connectivityEvidence: document.connectivityEvidence.filter((evidence) =>
+      evidence.kind === "explicit-equivalence"
+        ? evidence.memberNetIds.every((netId) => netIds.has(netId))
+        : netIds.has(evidence.netId),
+    ),
   });
 }
 
@@ -317,6 +366,15 @@ export function copySelection(
     ...routeIds,
     ...junctionIds,
   ]);
+  const annotations = document.annotations.filter(
+    (annotation) =>
+      (annotation.netId !== undefined && attachedIds.has(annotation.netId)) ||
+      (annotation.anchor.kind === "object" &&
+        attachedIds.has(annotation.anchor.objectId)) ||
+      (annotation.anchor.kind === "route" &&
+        routeIds.has(annotation.anchor.routeId)),
+  );
+  const annotationIds = new Set(annotations.map((annotation) => annotation.id));
   return structuredClone({
     instances,
     nets: document.nets.filter((net) => netIds.has(net.id)),
@@ -338,19 +396,32 @@ export function copySelection(
     junctions: document.junctions.filter((junction) =>
       junctionIds.has(junction.id),
     ),
-    annotations: document.annotations.filter(
-      (annotation) =>
-        (annotation.netId !== undefined && attachedIds.has(annotation.netId)) ||
-        (annotation.anchor.kind === "object" &&
-          attachedIds.has(annotation.anchor.objectId)) ||
-        (annotation.anchor.kind === "route" &&
-          routeIds.has(annotation.anchor.routeId)),
-    ),
+    annotations,
     noConnects: document.noConnects.filter(
       (noConnect) =>
         noConnect.endpoint.kind === "terminal" &&
         selectedIds.has(noConnect.endpoint.instanceId),
     ),
+    connectivityEvidence: document.connectivityEvidence.filter((evidence) => {
+      if (evidence.kind === "explicit-equivalence") {
+        return evidence.memberNetIds.every((netId) => netIds.has(netId));
+      }
+      if (!netIds.has(evidence.netId)) return false;
+      if (evidence.kind !== "name-claim") return true;
+      switch (evidence.owner.kind) {
+        case "explicit-net-property":
+          return true;
+        case "net-label":
+          return annotationIds.has(evidence.owner.annotationId);
+        case "free-port":
+          return selectedIds.has(evidence.owner.instanceId);
+        case "power-marker":
+          return (
+            attachedIds.has(evidence.owner.objectId) ||
+            annotationIds.has(evidence.owner.objectId)
+          );
+      }
+    }),
   });
 }
 
@@ -516,6 +587,7 @@ export function proposePaste(
       ...document.annotations,
       ...document.layoutGroups,
       ...document.constraints,
+      ...document.connectivityEvidence,
     ].map((object) => object.id),
   );
   const referenceIndex = createReferenceIndex(document);
@@ -624,6 +696,18 @@ export function proposePaste(
       uniqueCopyId(noConnect.id, sequence, occupied),
     ]),
   );
+  const annotationIds = new Map(
+    clipboard.annotations.map((annotation) => [
+      annotation.id,
+      uniqueCopyId(annotation.id, sequence, occupied),
+    ]),
+  );
+  const evidenceIds = new Map(
+    clipboard.connectivityEvidence.map((evidence) => [
+      evidence.id,
+      uniqueCopyId(evidence.id, sequence, occupied),
+    ]),
+  );
   const existingAnchors = new Map<string, RouteEndpoint>();
   const errors: string[] = [];
   for (const net of clipboard.nets) {
@@ -636,9 +720,7 @@ export function proposePaste(
     );
     const existing = formalTerminal
       ? document.nets.find((candidate) => candidate.id === formalTerminal.netId)
-      : net.name
-        ? document.nets.find((candidate) => candidate.name === net.name)
-        : undefined;
+      : undefined;
     if (existing) {
       netIds.set(net.id, existing.id);
       const anchor = firstNetEndpoint(existing);
@@ -732,7 +814,6 @@ export function proposePaste(
         from: mappedTerminals[0],
         to: mappedTerminals[1] ?? mappedTerminals[0],
         newNetId: netId,
-        ...(net.name ? { newNetName: net.name } : {}),
       });
       for (const terminal of mappedTerminals.slice(2)) {
         edits.push({
@@ -750,7 +831,7 @@ export function proposePaste(
     const anchor = target ? firstNetEndpoint(target) : null;
     if (!anchor) {
       errors.push(
-        `Cannot paste: external Net ${boundaryNet.name ?? boundaryNet.id} is no longer available`,
+        `Cannot paste: external Base Net ${boundaryNet.id} is no longer available`,
       );
       continue;
     }
@@ -782,13 +863,64 @@ export function proposePaste(
       };
     }),
   );
+  const availableNetIds = new Set([
+    ...document.nets.map((net) => net.id),
+    ...clipboard.nets
+      .filter((net) => net.terminals.length > 0)
+      .map((net) => netIds.get(net.id)!),
+  ]);
   edits.push(
-    ...clipboard.junctions.map((junction): SchematicEdit => ({
-      kind: "add_junction",
-      junctionId: junctionIds.get(junction.id)!,
-      netId: netIds.get(junction.netId)!,
-      position: movePoint(junction.position, offset),
-    })),
+    ...clipboard.junctions.map((junction): SchematicEdit => {
+      const netId = netIds.get(junction.netId)!;
+      const createNet = !availableNetIds.has(netId);
+      availableNetIds.add(netId);
+      return {
+        kind: "add_junction",
+        junctionId: junctionIds.get(junction.id)!,
+        netId,
+        position: movePoint(junction.position, offset),
+        ...(createNet ? { createNet: true } : {}),
+      };
+    }),
+  );
+  // Name/source evidence must exist before a copied power-rail Route is
+  // validated. Owners may be added later in the same atomic transaction; the
+  // final Document validator checks their complete lifecycle closure.
+  edits.push(
+    ...clipboard.connectivityEvidence.map((evidence): SchematicEdit => {
+      const clone = structuredClone(evidence);
+      clone.id = evidenceIds.get(evidence.id)!;
+      if (clone.kind === "explicit-equivalence") {
+        clone.memberNetIds = clone.memberNetIds.map(
+          (netId) => netIds.get(netId) ?? netId,
+        );
+      } else {
+        clone.netId = netIds.get(clone.netId) ?? clone.netId;
+        if (clone.kind === "name-claim") {
+          switch (clone.owner.kind) {
+            case "net-label":
+              clone.owner.annotationId =
+                annotationIds.get(clone.owner.annotationId) ??
+                clone.owner.annotationId;
+              break;
+            case "free-port":
+              clone.owner.instanceId =
+                instanceIds.get(clone.owner.instanceId) ??
+                clone.owner.instanceId;
+              break;
+            case "power-marker":
+              clone.owner.objectId =
+                objectIds.get(clone.owner.objectId) ??
+                annotationIds.get(clone.owner.objectId) ??
+                clone.owner.objectId;
+              break;
+            case "explicit-net-property":
+              break;
+          }
+        }
+      }
+      return { kind: "upsert_connectivity_evidence", evidence: clone };
+    }),
   );
   edits.push(
     ...clipboard.routes.map((route): SchematicEdit => ({
@@ -820,7 +952,7 @@ export function proposePaste(
         kind: "upsert_schematic_annotation",
         annotation: {
           ...clone,
-          id: uniqueCopyId(annotation.id, sequence, occupied),
+          id: annotationIds.get(annotation.id)!,
           ...(clone.binding?.kind === "net-name"
             ? {
                 binding: {

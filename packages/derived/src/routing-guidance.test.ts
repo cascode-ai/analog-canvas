@@ -110,7 +110,6 @@ describe("routing guidance", () => {
           { instanceId: "A", pinName: "P" },
           { instanceId: "B", pinName: "P" },
         ],
-        origin: { kind: "spice-import", sourceNetIds: ["source-imported"] },
       },
       {
         id: "net-authored",
@@ -119,9 +118,14 @@ describe("routing guidance", () => {
           { instanceId: "C", pinName: "P" },
           { instanceId: "D", pinName: "P" },
         ],
-        origin: { kind: "authored" },
       },
     );
+    document.connectivityEvidence.push({
+      id: "source-imported-evidence",
+      kind: "spice-source",
+      netId: "net-imported",
+      sourceNetId: "source-imported",
+    });
 
     expect(
       deriveImportedRoutingGuidance(
@@ -160,7 +164,12 @@ describe("routing guidance", () => {
         { instanceId: "XM1", pinName: "B" },
         { instanceId: "P1", pinName: "P" },
       ],
-      origin: { kind: "spice-import", sourceNetIds: ["source-body"] },
+    });
+    document.connectivityEvidence.push({
+      id: "source-body-evidence",
+      kind: "spice-source",
+      netId: "net-imported-body",
+      sourceNetId: "source-body",
     });
 
     const guides = deriveImportedRoutingGuidance(
@@ -174,5 +183,59 @@ describe("routing guidance", () => {
       instanceId: "XM1",
       pinName: "B",
     });
+  });
+
+  it("bridges disconnected Base Nets that share one imported source", () => {
+    const document = createEmptyDocument("main", "Main");
+    document.instances.push(
+      {
+        id: "A",
+        symbolId: "port",
+        placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+      },
+      {
+        id: "B",
+        symbolId: "port",
+        placement: {
+          position: { x: 100, y: 0 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+    );
+    document.nets.push(
+      {
+        id: "base-a",
+        scope: "local",
+        terminals: [{ instanceId: "A", pinName: "P" }],
+      },
+      {
+        id: "base-b",
+        scope: "local",
+        terminals: [{ instanceId: "B", pinName: "P" }],
+      },
+    );
+    document.connectivityEvidence.push(
+      {
+        id: "source-a",
+        kind: "spice-source",
+        netId: "base-a",
+        sourceNetId: "VIN",
+      },
+      {
+        id: "source-b",
+        kind: "spice-source",
+        netId: "base-b",
+        sourceNetId: "VIN",
+      },
+    );
+
+    const guides = deriveImportedRoutingGuidance(
+      document,
+      new InMemorySymbolResolver(builtInSymbols),
+    );
+
+    expect(guides).toHaveLength(1);
+    expect(guides[0]).toMatchObject({ netId: "base-a" });
   });
 });
