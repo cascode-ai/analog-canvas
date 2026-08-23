@@ -44,6 +44,7 @@ import { closestPointOnSegment } from "../../canvas/canvas-geometry";
 import {
   endpointNetId,
   looseRouteAnchorIds,
+  routeTapPoint,
   type RouteGeometryRecord,
 } from "./route-interaction-geometry";
 
@@ -64,24 +65,6 @@ type TransactionResult = {
   ok: boolean;
   revision: number;
 };
-
-function snapRouteTapPoint(
-  point: Point,
-  from: Point,
-  to: Point,
-  grid: number,
-): Point {
-  const projected = closestPointOnSegment(point, from, to);
-  if (from.y === to.y)
-    return { x: snapCoordinate(projected.x, grid), y: from.y };
-  if (from.x === to.x)
-    return { x: from.x, y: snapCoordinate(projected.y, grid) };
-  const slope = Math.sign(to.y - from.y) * Math.sign(to.x - from.x);
-  const minX = Math.min(from.x, to.x);
-  const maxX = Math.max(from.x, to.x);
-  const x = Math.min(maxX, Math.max(minX, snapCoordinate(projected.x, grid)));
-  return { x, y: from.y + slope * (x - from.x) };
-}
 
 export interface UseWireInteractionOptions {
   document: SchematicDocument;
@@ -689,11 +672,14 @@ export function useWireInteraction(options: UseWireInteractionOptions) {
     }
     const segment = record.geometry.segments[tap.address.segmentIndex];
     if (!segment) return;
-    const tapPoint = snapRouteTapPoint(
+    const tapPoint = routeTapPoint(
       tap.point,
       segment.from,
       segment.to,
       options.document.presentation.grid,
+      options.wireSource
+        ? (options.wireWaypoints.at(-1) ?? options.wireSource.point)
+        : null,
     );
     const overlappingTargets = options.routeGeometryRecords.flatMap(
       (candidate) => {

@@ -392,6 +392,7 @@ import {
   isRoutedMarker,
   looseRouteAnchorIds,
   NET_LABEL_MAX_NORMAL_OFFSET,
+  routeTapPoint,
 } from "../features/wiring/route-interaction-geometry";
 import { reflectOrientation } from "../interaction/shortcut-orientation";
 import type { ScreenFlip } from "../interaction/shortcut-orientation";
@@ -427,28 +428,6 @@ const PAN_START_DISTANCE_PX = 10;
 const SNAP_CAPTURE_RADIUS_PX = 7;
 
 /** Persisted Junctions are grid points, including on ±45° Route segments. */
-function snapPointOnRouteGrid(
-  pointer: Point,
-  from: Point,
-  to: Point,
-  grid: number,
-): Point {
-  const projected = closestPointOnSegment(pointer, from, to);
-  if (from.y === to.y) {
-    return { x: snapCoordinate(projected.x, grid), y: from.y };
-  }
-  if (from.x === to.x) {
-    return { x: from.x, y: snapCoordinate(projected.y, grid) };
-  }
-  // Octilinear diagonal: choosing one grid coordinate determines the other.
-  // Endpoints already satisfy the grid invariant, so the paired coordinate
-  // remains integral and on-grid too.
-  const slope = Math.sign(to.y - from.y) * Math.sign(to.x - from.x);
-  const minX = Math.min(from.x, to.x);
-  const maxX = Math.max(from.x, to.x);
-  const x = clamp(snapCoordinate(projected.x, grid), minX, maxX);
-  return { x, y: from.y + slope * (x - from.x) };
-}
 
 type DragPreview = InstanceMovePreview;
 
@@ -4024,15 +4003,21 @@ export function App({
     guides: SnapGuideLine[];
   } {
     if (suppressSnap) return { point, guides: [] };
+    // A wire already under way arrives from its last authored point, so a tap
+    // on a conductor can land exactly where that run reaches it.
+    const arrival = wireSource
+      ? (wireWaypoints.at(-1) ?? wireSource.point)
+      : null;
     const routeTargets = routeGeometryRecords.flatMap(({ route, geometry }) =>
       geometry.centerline.slice(0, -1).map((from, segmentIndex) => ({
         anchor: {
           id: `wire-route:${route.id}:${segmentIndex}`,
-          point: snapPointOnRouteGrid(
+          point: routeTapPoint(
             point,
             from,
             geometry.centerline[segmentIndex + 1]!,
             document.presentation.grid,
+            arrival,
           ),
           kind: "route" as const,
         },
@@ -10290,18 +10275,6 @@ export function App({
                   return;
                 finishDraftingCreate();
                 return;
-              }
-              if (tool === "wire") {
-                console.log(
-                  "DBLWIRE",
-                  JSON.stringify({
-                    target: target.tagName,
-                    testid: (target as HTMLElement).dataset?.testid,
-                    isCanvas: target === event.currentTarget,
-                    hasSource: Boolean(wireSource),
-                    steps: wireDraftSteps.length,
-                  }),
-                );
               }
               if (tool !== "wire") return;
               // A double-click ends the wire wherever it lands. The guard
