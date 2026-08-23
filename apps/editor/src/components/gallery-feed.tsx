@@ -15,6 +15,14 @@ export interface GalleryFeedEntry {
   createdAt: string;
   schemaVersion: number;
   tags?: string[];
+  /**
+   * Whether the circuit extracts to a design netlist. A mark of extra
+   * completeness, never a gate — a schematic is allowed to be abbreviated,
+   * and one without this is listed exactly like one with it.
+   */
+  netlistable?: boolean;
+  likes?: number;
+  likedByViewer?: boolean;
 }
 
 export interface GalleryFeedPage {
@@ -141,6 +149,46 @@ export function GalleryFeed() {
     nextCursor: null,
   });
   const loadingMoreRef = useRef(false);
+
+  /**
+   * One thumb per account, taken back by pressing again. The server owns the
+   * count; this applies what it returns rather than guessing, so two tabs
+   * cannot drift apart.
+   */
+  async function toggleLike(entryId: string): Promise<void> {
+    let response: Response;
+    try {
+      response = await fetch(`/api/gallery/${entryId}/like`, {
+        method: "POST",
+        credentials: "same-origin",
+      });
+    } catch {
+      return;
+    }
+    if (response.status === 401) {
+      window.location.href = "/api/auth/github/start";
+      return;
+    }
+    if (!response.ok) return;
+    const result = (await response.json().catch(() => null)) as {
+      likes?: number;
+      likedByViewer?: boolean;
+    } | null;
+    if (!result) return;
+    setState((previous) => ({
+      ...previous,
+      entries: previous.entries.map((entry): GalleryFeedEntry =>
+        entry.id === entryId
+          ? {
+              ...entry,
+              likes: result.likes ?? entry.likes ?? 0,
+              likedByViewer: result.likedByViewer === true,
+            }
+          : entry,
+      ),
+    }));
+  }
+
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -292,7 +340,19 @@ export function GalleryFeed() {
                       />
                     </span>
                     <span className="gallery-tile-copy">
-                      <span className="gallery-tile-name">{entry.name}</span>
+                      <span className="gallery-tile-name">
+                        {entry.name}
+                        {entry.netlistable ? (
+                          <span
+                            className="gallery-tile-star"
+                            data-testid={`gallery-star-${entry.id}`}
+                            title="Extracts to a SPICE netlist"
+                            aria-label="Extracts to a SPICE netlist"
+                          >
+                            ★
+                          </span>
+                        ) : null}
+                      </span>
                       <span className="gallery-tile-meta">
                         {entry.author ? (
                           <>
@@ -313,6 +373,26 @@ export function GalleryFeed() {
                           </>
                         ) : null}
                         {savedAtLabel(entry.createdAt)}
+                        {" · "}
+                        <button
+                          type="button"
+                          className="gallery-tile-like"
+                          data-testid={`gallery-like-${entry.id}`}
+                          aria-pressed={entry.likedByViewer === true}
+                          title={
+                            entry.likedByViewer
+                              ? "Take back your thumbs up"
+                              : "Thumbs up this circuit"
+                          }
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            void toggleLike(entry.id);
+                          }}
+                        >
+                          <span aria-hidden="true">👍</span>
+                          {entry.likes ?? 0}
+                        </button>
                       </span>
                       {entry.description ? (
                         <span className="gallery-tile-description">
