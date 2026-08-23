@@ -465,16 +465,29 @@ export function useWireInteraction(options: UseWireInteractionOptions) {
         if (result.ok)
           options.setStatus(`Resized Power Rail ${record.route.id}`);
       } else {
-        const proposal = proposeWireSegmentMove(
-          options.document,
-          options.resolver,
-          record.route.id,
-          preview.segmentIndex,
-          {
-            x: snapCoordinate(point.x, options.document.presentation.grid),
-            y: snapCoordinate(point.y, options.document.presentation.grid),
-          },
-        );
+        const grid = options.document.presentation.grid;
+        const planAt = (at: Point) =>
+          proposeWireSegmentMove(
+            options.document,
+            options.resolver,
+            record.route.id,
+            preview.segmentIndex,
+            {
+              x: snapCoordinate(at.x, grid),
+              y: snapCoordinate(at.y, grid),
+            },
+          );
+        const proposal = (() => {
+          try {
+            return planAt(point);
+          } catch (error) {
+            // Land on the furthest position the drag actually planned, which
+            // is the geometry the preview was showing when the pointer went
+            // past what the wire could do.
+            if (preview.point === preview.start) throw error;
+            return planAt(preview.point);
+          }
+        })();
         const result = transactProposal(
           proposalFor("edit_route_geometry", proposal.edits, proposal.preview),
         );
@@ -612,13 +625,17 @@ export function useWireInteraction(options: UseWireInteractionOptions) {
             (candidate) => candidate.routeId === routeId,
           );
           if (!proposal) return;
+          // Remember how far the drag actually planned. Releasing past that
+          // point used to plan once more, fail, and snap the wire back to
+          // where it started, discarding everything the preview had shown.
+          preview.point = point;
           dragVisual().setPolyline([
             record.geometry.centerline[0]!,
             ...proposal.waypoints,
             record.geometry.centerline.at(-1)!,
           ]);
         } catch {
-          // Keep the last valid preview; commit reports the geometry error.
+          // Keep the last valid preview; commit lands on it instead.
         }
       },
       onFinish: ({ client, dragged }) => {

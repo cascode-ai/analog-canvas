@@ -3811,6 +3811,74 @@ test("turns a marquee selection as one body, not three parts in place", async ({
   expect(afterSpreadY).toBeGreaterThan(100);
 });
 
+test("keeps the junction dot while a wire at a tap is dragged", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  const canvas = page.getByTestId("schematic-canvas");
+  const dots = page.locator('[data-layer="junctions"] circle');
+
+  // A horizontal run with a tap rising from its middle: three branches at one
+  // contact, so the contact carries a dot.
+  await clickDrawTool(page, "wire");
+  await canvas.click({ position: { x: 200, y: 300 } });
+  await canvas.dblclick({ position: { x: 400, y: 300 } });
+  await canvas.click({ position: { x: 300, y: 300 } });
+  await canvas.dblclick({ position: { x: 300, y: 200 } });
+  await page.keyboard.press("Escape");
+  await expect(dots).toHaveCount(1);
+
+  const box = (await canvas.boundingBox())!;
+  const dragSegment = async (from: number, to: number) => {
+    await page.mouse.move(box.x + 250, box.y + from);
+    await page.mouse.down();
+    await page.mouse.move(box.x + 250, box.y + to, { steps: 12 });
+    await page.mouse.up();
+  };
+
+  const allRoutePoints = () =>
+    page
+      .locator('[data-layer="routes"] polyline')
+      .evaluateAll((elements) =>
+        elements.map((element) =>
+          Array.from((element as unknown as SVGPolylineElement).points).map(
+            (point) => ({ x: point.x, y: point.y }),
+          ),
+        ),
+      );
+  const tapBefore = (await allRoutePoints()).find(
+    (points) => points.length === 2 && points[0]!.x === points[1]!.x,
+  )!;
+
+  // Down: the tap cannot follow, so the junction stays put and the dragged run
+  // doglegs to reach it. The wire still follows the pointer.
+  await dragSegment(300, 380);
+  await expect(dots).toHaveCount(1);
+  const lowered = await allRoutePoints();
+  expect(lowered.some((points) => points.some((point) => point.y > 380))).toBe(
+    true,
+  );
+  // The tap is untouched, so the contact it makes is still the same contact.
+  expect(
+    lowered.some(
+      (points) =>
+        points.length === 2 &&
+        points[0]!.x === tapBefore[0]!.x &&
+        points[0]!.y === tapBefore[0]!.y &&
+        points[1]!.y === tapBefore[1]!.y,
+    ),
+  ).toBe(true);
+
+  await clickCommand(page, "Edit", "Undo");
+  await expect(dots).toHaveCount(1);
+
+  // Up past the tap's far end: carrying the junction there would turn the tap
+  // around and bury it inside the wire, so the drag holds at the last
+  // position where every branch is still its own line.
+  await dragSegment(300, 160);
+  await expect(dots).toHaveCount(1);
+});
+
 test("drags a marquee selection that holds no instance", async ({ page }) => {
   await page.goto("/editor");
   const canvas = page.getByTestId("schematic-canvas");

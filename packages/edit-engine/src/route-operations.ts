@@ -94,6 +94,91 @@ function movableSegmentJunctionId(
   return junction.id;
 }
 
+/**
+ * Reject a Junction move that would leave two of its branches overlapping.
+ *
+ * A dragged segment carries its Junction anchor along, and the branches that
+ * stay behind stretch to follow. Carried far enough, one of those branches
+ * comes to leave the Junction in the direction another one already leaves in:
+ * the two draw on top of each other, the shorter disappears inside the
+ * longer, and the contact stops reading as a branch at all — which is exactly
+ * when the junction dot goes out.
+ *
+ * Throwing is the drag's stop. Both the preview and the commit already keep
+ * the last geometry that planned, so the wire simply stops following the
+ * pointer at the last position where every branch is still its own line.
+ */
+function assertJunctionBranchesStayVisible(
+  document: SchematicDocument,
+  routingGeometry: ResolvedDocumentRoutingGeometry,
+  proposal: WireSegmentDragProposal,
+  junctionIds: readonly string[],
+): void {
+  if (junctionIds.length === 0) return;
+  const movedById = new Map(
+    proposal.junctions.map((move) => [move.junctionId, move.position]),
+  );
+  const proposedById = new Map(
+    proposal.routes.map((route) => [route.routeId, route.waypoints]),
+  );
+
+  const resultingPoints = (
+    route: SchematicDocument["routes"][number],
+  ): Point[] | null => {
+    const original = routingGeometry.routes.get(route.id)?.centerline;
+    if (!original || original.length < 2) return null;
+    const endpoint = (
+      side: "from" | "to",
+      fallback: Point,
+    ): Point | undefined => {
+      const value = route[side];
+      return value.kind === "junction"
+        ? (movedById.get(value.junctionId) ?? fallback)
+        : fallback;
+    };
+    const waypoints = proposedById.get(route.id) ?? original.slice(1, -1);
+    const from = endpoint("from", original[0]!);
+    const to = endpoint("to", original[original.length - 1]!);
+    if (!from || !to) return null;
+    return [from, ...waypoints, to];
+  };
+
+  const headingKey = (from: Point, to: Point): string | null => {
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const length = Math.hypot(dx, dy);
+    if (length === 0) return null;
+    const round = (value: number) => Math.round((value / length) * 1e6) / 1e6;
+    return `${round(dx)}:${round(dy)}`;
+  };
+
+  for (const junctionId of junctionIds) {
+    const headings = new Map<string, string>();
+    for (const route of document.routes) {
+      const points = resultingPoints(route);
+      if (!points) continue;
+      for (const side of ["from", "to"] as const) {
+        const value = route[side];
+        if (value.kind !== "junction" || value.junctionId !== junctionId) {
+          continue;
+        }
+        const at = side === "from" ? points[0]! : points[points.length - 1]!;
+        const neighbor =
+          side === "from" ? points[1]! : points[points.length - 2]!;
+        const key = headingKey(at, neighbor);
+        if (!key) continue;
+        const existing = headings.get(key);
+        if (existing && existing !== route.id) {
+          throw new Error(
+            `Routes ${existing} and ${route.id} would overlap leaving junction ${junctionId}`,
+          );
+        }
+        headings.set(key, route.id);
+      }
+    }
+  }
+}
+
 function protectedMode(mode: SegmentMode | undefined): boolean {
   return mode === "locked" || mode === "trunk";
 }
@@ -381,7 +466,7 @@ export function proposeWireSegmentDrag(
       });
     }
     if (movedJunctions.size > 0) {
-      return proposeJunctionGroupTranslation(
+      const planned = proposeJunctionGroupTranslation(
         document,
         resolver,
         [...movedJunctions.entries()].map(([junctionId, position]) => ({
@@ -389,6 +474,35 @@ export function proposeWireSegmentDrag(
           position,
         })),
       );
+      const anchorIds = [leftAnchorId, rightAnchorId].filter(
+        (value): value is string => value !== null,
+      );
+      try {
+        assertJunctionBranchesStayVisible(
+          document,
+          routingGeometry,
+          planned,
+          anchorIds,
+        );
+        return planned;
+      } catch {
+        const doglegged: WireSegmentDragProposal = {
+          routes: [
+            {
+              routeId,
+              ...moveRouteSegment(selectedPolyline, segmentIndex, target),
+            },
+          ],
+          junctions: [],
+        };
+        assertJunctionBranchesStayVisible(
+          document,
+          routingGeometry,
+          doglegged,
+          anchorIds,
+        );
+        return doglegged;
+      }
     }
     return {
       routes: [
@@ -498,7 +612,7 @@ export function proposeWireSegmentDrag(
     proposals.set(route.id, normalizeProposal(route.id, points, modes));
   }
 
-  return {
+  const planned: WireSegmentDragProposal = {
     routes: [...proposals.values()].sort((leftProposal, rightProposal) =>
       leftProposal.routeId.localeCompare(rightProposal.routeId, "en"),
     ),
@@ -508,6 +622,43 @@ export function proposeWireSegmentDrag(
         leftMove.junctionId.localeCompare(rightMove.junctionId, "en"),
       ),
   };
+  // Carrying the Junction is the nicer result while it works — the tap slides
+  // and nothing bends. Once it would bury a branch, the Junction stays put and
+  // the dragged Route doglegs to reach it instead, so the pointer is still
+  // followed and the contact still reads as a branch.
+  const anchorIds = [leftAnchorId, rightAnchorId].filter(
+    (value): value is string => value !== null,
+  );
+  try {
+    assertJunctionBranchesStayVisible(
+      document,
+      routingGeometry,
+      planned,
+      anchorIds,
+    );
+    return planned;
+  } catch {
+    // The dogleg is checked too: dragged far enough past a branch, its own
+    // leg comes down that branch's line and buries it just as moving the
+    // Junction would. When neither plan keeps every branch visible the error
+    // stands, and the drag holds at the last position that did.
+    const doglegged: WireSegmentDragProposal = {
+      routes: [
+        {
+          routeId,
+          ...moveRouteSegment(selectedPolyline, segmentIndex, target),
+        },
+      ],
+      junctions: [],
+    };
+    assertJunctionBranchesStayVisible(
+      document,
+      routingGeometry,
+      doglegged,
+      anchorIds,
+    );
+    return doglegged;
+  }
 }
 
 export function proposeLocalStretch(

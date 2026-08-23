@@ -13,6 +13,7 @@ import { describe, expect, it } from "vitest";
 
 import { executeTransaction } from "./transaction.js";
 import { isOrthogonal } from "./route-geometry-edit.js";
+import { proposeWireSegmentDrag } from "./route-operations.js";
 import {
   proposeGroupMoveEdits,
   proposeGroupRotationEdits,
@@ -690,6 +691,99 @@ describe("routing Edit Engine", () => {
       context,
     );
     expect(moved.ok).toBe(true);
+  });
+
+  it("never drags a Junction so far that a branch hides inside a wire", () => {
+    // A T: two arms on y=300 meeting a tap that rises to y=200.
+    const document = createEmptyDocument("tap", "Tap");
+    document.nets.push({ id: "n1", scope: "local", terminals: [] });
+    document.junctions.push({
+      id: "J",
+      netId: "n1",
+      position: { x: 300, y: 300 },
+      role: "route-anchor",
+    });
+    document.junctions.push(
+      {
+        id: "L",
+        netId: "n1",
+        position: { x: 200, y: 300 },
+        role: "route-anchor",
+      },
+      {
+        id: "R",
+        netId: "n1",
+        position: { x: 400, y: 300 },
+        role: "route-anchor",
+      },
+      {
+        id: "T",
+        netId: "n1",
+        position: { x: 300, y: 200 },
+        role: "route-anchor",
+      },
+    );
+    const wire = (id: string, from: string, to: string) => ({
+      kind: "set_route_points" as const,
+      routeId: id,
+      netId: "n1",
+      from: { kind: "junction" as const, junctionId: from },
+      to: { kind: "junction" as const, junctionId: to },
+      waypoints: [],
+      segmentModes: ["manual"],
+    });
+    const built = executeTransaction(
+      document,
+      transaction(document.id, 0, [
+        wire("left", "L", "J"),
+        wire("right", "J", "R"),
+        wire("tap", "J", "T"),
+      ]),
+      context,
+    );
+    expect(built.ok).toBe(true);
+    if (!built.ok) return;
+
+    // Carrying J up to y=250 only shortens the tap: every branch stays visible.
+    const shortened = proposeWireSegmentDrag(
+      built.document,
+      resolver,
+      "left",
+      0,
+      { x: 250, y: 250 },
+    );
+    expect(
+      shortened.junctions.find((move) => move.junctionId === "J")?.position,
+    ).toEqual({ x: 300, y: 250 });
+
+    // Downwards the tap cannot follow at all — carrying J to y=400 would leave
+    // "right" rising back out of it along the tap's own line. J holds instead
+    // and "left" doglegs down to reach it.
+    const doglegged = proposeWireSegmentDrag(
+      built.document,
+      resolver,
+      "left",
+      0,
+      { x: 250, y: 400 },
+    );
+    expect(doglegged.junctions).toEqual([]);
+    expect(
+      doglegged.routes.find((route) => route.routeId === "left")?.waypoints,
+    ).toEqual([
+      { x: 200, y: 400 },
+      { x: 300, y: 400 },
+    ]);
+
+    // Past the tap's far end neither plan keeps every branch visible: carrying
+    // J turns the tap around, and the dogleg comes down the tap's line. The
+    // drag has nowhere left to go, so it stops rather than drawing the
+    // ambiguity.
+    expect(() =>
+      proposeWireSegmentDrag(built.document, resolver, "left", 0, {
+        x: 250,
+        y: 150,
+      }),
+    ).toThrow(/overlap/u);
   });
 
   it("turns a multi-part selection as one body about a shared pivot", () => {
