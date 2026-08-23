@@ -287,6 +287,13 @@ test("places a named vertical Power Rail from I", async ({ page }) => {
   ) as {
     documents: Array<{
       nets: Array<{ id: string; name?: string; scope: string }>;
+      connectivityEvidence: Array<{
+        kind: string;
+        netId: string;
+        name?: string;
+        scope?: string;
+        powerDomain?: string;
+      }>;
       routes: Array<{ netId: string; presentation?: string }>;
       annotations: Array<{
         kind: string;
@@ -296,8 +303,12 @@ test("places a named vertical Power Rail from I", async ({ page }) => {
     }>;
   };
   const document = saved.documents[0]!;
-  const avdd = document.nets.find((net) => net.name === "AVDD");
-  expect(avdd).toMatchObject({ scope: "local" });
+  const avddClaim = document.connectivityEvidence.find(
+    (evidence) => evidence.kind === "name-claim" && evidence.name === "AVDD",
+  );
+  expect(avddClaim).toMatchObject({ scope: "global", powerDomain: "vdd" });
+  const avdd = document.nets.find((net) => net.id === avddClaim!.netId);
+  expect(avdd).toBeDefined();
   expect(document.routes).toContainEqual(
     expect.objectContaining({ netId: avdd!.id, presentation: "power-rail" }),
   );
@@ -358,6 +369,13 @@ test("places the VDD power-port device as the default VDD entry", async ({
         powerDomain?: string;
         terminals: Array<{ instanceId: string; pinName: string }>;
       }>;
+      connectivityEvidence: Array<{
+        kind: string;
+        netId: string;
+        name?: string;
+        scope?: string;
+        powerDomain?: string;
+      }>;
       annotations: Array<{ id: string; kind: string; netId: string }>;
     }>;
   };
@@ -366,10 +384,26 @@ test("places the VDD power-port device as the default VDD entry", async ({
     "vdd-port",
     "vdd-port",
   ]);
-  const vddNets = document.nets.filter((net) => net.powerDomain === "vdd");
-  expect(vddNets).toHaveLength(1);
-  expect(vddNets[0]).toMatchObject({ name: "VDD", scope: "local" });
-  expect(vddNets[0]!.terminals).toEqual([
+  const vddClaims = document.connectivityEvidence.filter(
+    (evidence) =>
+      evidence.kind === "name-claim" &&
+      evidence.name === "VDD" &&
+      evidence.powerDomain === "vdd",
+  );
+  expect(vddClaims).toHaveLength(2);
+  expect(vddClaims).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ scope: "global" }),
+      expect.objectContaining({ scope: "global" }),
+    ]),
+  );
+  const vddTerminals = vddClaims
+    .flatMap(
+      (claim) =>
+        document.nets.find((net) => net.id === claim.netId)?.terminals ?? [],
+    )
+    .sort((left, right) => left.instanceId.localeCompare(right.instanceId));
+  expect(vddTerminals).toEqual([
     { instanceId: "VDD1", pinName: "P" },
     { instanceId: "VDD2", pinName: "P" },
   ]);

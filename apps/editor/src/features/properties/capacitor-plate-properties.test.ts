@@ -29,6 +29,14 @@ describe("capacitor plate Properties projection", () => {
         terminals: [{ instanceId: "C1", pinName: "2" }],
       },
     );
+    document.connectivityEvidence.push({
+      id: "claim-out",
+      kind: "name-claim",
+      netId: "net-out",
+      name: "OUT",
+      owner: { kind: "explicit-net-property" },
+      scope: "local",
+    });
 
     expect(capacitorPlatePropertyRows(document, instance)).toEqual([
       {

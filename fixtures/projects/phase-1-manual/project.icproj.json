@@ -2,6 +2,7 @@
   "documents": [
     {
       "annotations": [],
+      "connectivityEvidence": [],
       "constraints": [],
       "drafting": {
         "objects": []
@@ -58,7 +59,7 @@
   "externalSubcircuitDefinitions": [],
   "id": "project-phase-1-manual",
   "name": "Phase 1 Manual Editor",
-  "schemaVersion": 21,
+  "schemaVersion": 22,
   "source": {
     "dialect": "none",
     "entry": null,

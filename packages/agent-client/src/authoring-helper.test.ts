@@ -355,17 +355,18 @@ describe("authoring helper compilation", () => {
       instanceId: "instance-1",
       reference: "MN0",
     });
-    const [netTransaction] = compile([
-      { kind: "rename", target: { kind: "net", name: "Vout" }, name: "Vfb" },
-    ]);
-    expect(netTransaction?.edits?.[0]).toEqual({
-      kind: "set_net_name",
-      netId: "net-vout",
-      name: "Vfb",
-    });
+    expect(() =>
+      compile([
+        {
+          kind: "rename",
+          target: { kind: "net", name: "Vout" },
+          name: "Vfb",
+        },
+      ]),
+    ).toThrow(/marker-owned/);
   });
 
-  it("compiles semantic same-folded Net rename into the shared explicit merge", () => {
+  it("rejects Agent Net rename instead of exposing marker evidence", () => {
     const snapshot = testSnapshot();
     snapshot.document.nets.push({
       id: "net-bias",
@@ -377,24 +378,18 @@ describe("authoring helper compilation", () => {
       junctionIds: [],
     });
 
-    const [transaction] = compile(
-      [
-        {
-          kind: "rename",
-          target: { kind: "net", name: "Vout" },
-          name: "bias",
-        },
-      ],
-      snapshot,
-    );
-
-    expect(transaction?.edits).toEqual([
-      {
-        kind: "merge_nets",
-        targetNetId: "net-bias",
-        sourceNetId: "net-vout",
-      },
-    ]);
+    expect(() =>
+      compile(
+        [
+          {
+            kind: "rename",
+            target: { kind: "net", name: "Vout" },
+            name: "bias",
+          },
+        ],
+        snapshot,
+      ),
+    ).toThrow(/marker-owned/);
   });
 
   it("compiles set-property and rejects spice.* keys", () => {

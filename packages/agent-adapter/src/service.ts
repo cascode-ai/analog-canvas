@@ -177,9 +177,6 @@ export function agentEditCategory(
     case "connect_endpoints":
     case "add_power_rail":
     case "merge_nets":
-    case "set_net_name":
-    case "set_net_power_domain":
-    case "clear_document":
     case "set_mos_bulk_defaults":
     case "reconcile_mos_bulk":
     case "clear_mos_bulk_default":
@@ -204,6 +201,11 @@ export function agentEditCategory(
     // kept out of the retired Agent product even though the shared typed edit
     // union must parse it for Project protocol completeness.
     case "unplace_instance":
+    case "clear_cell_drawing":
+    case "reset_cell_placement":
+    case "reset_cell_body":
+    case "upsert_connectivity_evidence":
+    case "remove_connectivity_evidence":
       return "unsupported";
   }
 }

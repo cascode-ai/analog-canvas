@@ -5,7 +5,7 @@ Status: `accepted`
 Primary owner: `packages/model`
 
 The Project contains Documents; each Document owns revisioned electrical,
-geometric, and presentation facts. The current model is strict schema 21 and has
+geometric, and presentation facts. The current model is strict schema 22 and has
 no compatibility shape.
 
 ## Coordinate domains
@@ -31,14 +31,15 @@ migration. Invalid coordinates are rejected with their data path.
 - `Instance` selects one exact canonical symbol and optional visual variant.
   `Instance.schematicReference` is its canvas-facing Reference when the
   Instance has one, independent of the optional emitted
-  `Instance.netlist.reference`. A free Net Port instead projects `Net.name`; a
-  formal Cell Pin projects `CellTerminal.name`. Neither Port role has a visible
-  schematic reference.
-- `Net.terminals` is complete logical membership. A terminal is
-  `{instanceId, pinName}` and belongs to at most one Net.
-- `Net.origin` records `authored` or `spice-import` membership provenance. It
-  is eligibility for derived import routing guidance, not a second electrical
-  or visible-connectivity protocol.
+  `Instance.netlist.reference`. A free Net Port projects its owner-addressed
+  name claim; a formal Cell Pin projects `CellTerminal.name`. Neither Port role
+  has a visible schematic reference.
+- A Base Net owns physical terminal membership only. A terminal is
+  `{instanceId, pinName}` and belongs to at most one Base Net.
+- `ConnectivityEvidence` records owner-addressed names, SPICE source identity,
+  and explicit equivalence. The pure Logical-Net resolver is the only place
+  these facts are folded. Conflicting name, scope, or power claims remain
+  explicit errors; no claim type silently wins.
 - `Route` owns editable geometry for one Net and connects terminal or Junction
   endpoints only.
 - `Junction` owns explicit branch/anchor geometry.
@@ -46,41 +47,30 @@ migration. Invalid coordinates are rejected with their data path.
 - `Document.netlist.terminals` is the ordered formal Cell interface. Each
   terminal has a stable ID, name, direction, Net ID, and a non-empty
   `interfaceInstanceIds` array pointing to its ordinary canvas Port marker
-  Instances. Repeated markers are views of one terminal, not duplicate formal
-  pins.
+  Instances. Its interface name may differ from its internal Logical-Net name.
+  Repeated markers are views of one terminal, not duplicate formal pins.
 
 Canvas interface markers `port` and `port-filled` are ordinary single-pin
 Instances with pin `P`; their electrical membership and Route endpoints are
 represented exactly like every other component terminal. The model has no
 separate canvas Port collection or Port-specific Net membership.
 
-`Net.powerDomain` is persisted explicitly. A named power rail consists of an
-ordinary Net, editable Route/Junction rail geometry, and a net-name-bound
-power-label annotation. Ground is
-an ordinary `ground` Instance attached through pin `0`. Supply role is never
-inferred from a marker, label, or fixed ID; authoring selects an explicit Net
-by normalized name in the current Document and then verifies its persisted role.
+VDD, Ground, Free Port, route Net Label, and Power Rail all author the same
+`name-claim`. Power Rail is editable Route/Junction presentation rather than a
+separate electrical object. A marker claim owns its scope and optional supply
+role. Power markers default global; ordinary Net Labels and Free Ports default
+local. `AVDD` and `DVDD` are separate Logical Nets because their names differ,
+even though both may carry the `vdd` role. Ground uses global SPICE node `0`.
 
-`powerDomain` is role metadata, not Net identity: `AVDD` and `DVDD` may both
-have role `vdd` while remaining distinct Nets. Net names are unique within one
-Document under trimmed case-folding; all Port/Rail projections with the same
-name therefore share one Net. A named global Net is an explicit semantic
-connection even when its marker geometry is separate. Ground authoring retains
-the explicit global node `0` policy; VDD Port/Rail authoring creates a local
-named Net unless it reuses an existing Net of that name. Neither chooses the
-first Net with a matching role.
-Changing between non-`none` power roles is rejected atomically. The authored
-Net spelling remains persisted; normalized comparison is derived only.
+High-level GUI naming starts from an existing candidate Base Net plus a stable
+Label or Free-Port owner. It writes or updates that owner's `name-claim`; it
+never emits `merge_nets` or creates a new `Net.name` projection. Matching
+claims join only in the derived Logical-Net view. Physical contact alone uses
+the internal Base-Net merge primitive.
 
-High-level naming starts from an existing candidate Net. An unused name changes
-that Net's authored name; a matching folded name emits an explicit compatible
-Net merge through the Edit Engine, choosing the stable lowest Net ID. Raw
-`set_net_name` remains deliberately strict and rejects an ambiguous rename.
-
-The editor does not silently normalize a loaded Document from `powerDomain`
-metadata or coalesce duplicate canonical supply Nets. A duplicate folded name
-is invalid input and remains a shared diagnostic for the author to resolve with
-an explicit rename or merge.
+The editor does not normalize from inert legacy Base-Net metadata or coalesce
+Base Nets by text. Compatible same-name claims are ordinary logical identity;
+conflicting claims block electrical export and the introducing transaction.
 
 Canonical MOS Instances use `nmos`/`pmos` with D/G/S/B electrical pins. The
 default `textbook-3terminal` variant is presentation-only. B membership is
@@ -160,6 +150,6 @@ ordinary Schematic edits inside one Project structural transaction. The
 Project's `structureRevision` protects this cross-Document boundary and the
 editor records it as one undoable structural commit.
 
-Persistence writes only schema 21. `packages/project-protocol` accepts schema
-20 through the bounded direct upgrade defined by ADR 0038, then supplies the
+Persistence writes only schema 22. `packages/project-protocol` accepts schema
+21 through the bounded direct upgrade defined by ADR 0039, then supplies the
 current model only; no compatibility shape enters `packages/model`.

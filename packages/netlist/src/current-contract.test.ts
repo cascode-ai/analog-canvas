@@ -1,7 +1,39 @@
 import { describe, expect, it } from "vitest";
-import { createEmptyProject } from "@icm/model";
+import {
+  createEmptyProject,
+  deriveStableId,
+  type CircuitProject,
+} from "@icm/model";
 
-import { analyzeDesignNetlist } from "./index.js";
+import { analyzeDesignNetlist as analyzeCurrentDesignNetlist } from "./index.js";
+
+function analyzeDesignNetlist(project: CircuitProject) {
+  for (const document of project.documents) {
+    for (const net of document.nets) {
+      if (
+        !net.name ||
+        document.connectivityEvidence.some(
+          (evidence) =>
+            evidence.kind === "name-claim" && evidence.netId === net.id,
+        )
+      ) {
+        continue;
+      }
+      document.connectivityEvidence.push({
+        id: deriveStableId("fixture-net-name", document.id, net.id),
+        kind: "name-claim",
+        netId: net.id,
+        name: net.name,
+        owner: { kind: "explicit-net-property" },
+        scope: net.scope,
+        ...(net.powerDomain === "vdd" || net.powerDomain === "ground"
+          ? { powerDomain: net.powerDomain }
+          : {}),
+      });
+    }
+  }
+  return analyzeCurrentDesignNetlist(project);
+}
 
 function resistorProject(parameters: Record<string, string>) {
   const project = createEmptyProject("project", "Project");
@@ -110,6 +142,61 @@ describe("current formal cell interface", () => {
       name: "VIN",
       scope: "local",
     });
+  });
+
+  it("exports evidence-equivalent Base Nets as one logical node", () => {
+    const project = createEmptyProject("project", "Project");
+    const document = project.documents[0]!;
+    document.instances.push({
+      id: "R1",
+      symbolId: "resistor",
+      placement: null,
+      netlist: {
+        reference: "R1",
+        binding: { kind: "primitive", deviceClass: "resistor" },
+        parameters: { value: "10k" },
+      },
+    });
+    document.nets.push(
+      {
+        id: "net-a",
+        scope: "local",
+        terminals: [{ instanceId: "R1", pinName: "1" }],
+      },
+      {
+        id: "net-b",
+        scope: "local",
+        terminals: [{ instanceId: "R1", pinName: "2" }],
+      },
+    );
+    document.connectivityEvidence.push(
+      {
+        id: "claim-a",
+        kind: "name-claim",
+        netId: "net-a",
+        name: "BIAS",
+        owner: { kind: "explicit-net-property" },
+        scope: "local",
+      },
+      {
+        id: "claim-b",
+        kind: "name-claim",
+        netId: "net-b",
+        name: "bias",
+        owner: { kind: "explicit-net-property" },
+        scope: "local",
+      },
+    );
+
+    const result = analyzeDesignNetlist(project);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.ir?.cells[0]?.nets).toEqual([
+      { id: "net-a", name: "BIAS", scope: "local" },
+    ]);
+    expect(result.ir?.cells[0]?.instances[0]?.nodes).toEqual([
+      { pinName: "1", netName: "BIAS" },
+      { pinName: "2", netName: "BIAS" },
+    ]);
   });
 
   it("blocks an unconnected Free Net Port", () => {
@@ -228,21 +315,40 @@ describe("current formal cell interface", () => {
     });
   });
 
-  it("reports the shared global-name contract violation", () => {
+  it("reports conflicting local/global claims on one Logical Net", () => {
     const project = createEmptyProject("project", "Project");
-    project.documents[0]!.nets.push({
+    const document = project.documents[0]!;
+    document.nets.push({
       id: "net-global",
-      scope: "global",
+      scope: "local",
       terminals: [],
     });
+    document.connectivityEvidence.push(
+      {
+        id: "claim-local",
+        kind: "name-claim",
+        netId: "net-global",
+        name: "BIAS",
+        owner: { kind: "explicit-net-property" },
+        scope: "local",
+      },
+      {
+        id: "claim-global",
+        kind: "name-claim",
+        netId: "net-global",
+        name: "BIAS",
+        owner: { kind: "explicit-net-property" },
+        scope: "global",
+      },
+    );
 
     const result = analyzeDesignNetlist(project);
 
     expect(result.ir).toBeNull();
     expect(result.diagnostics).toContainEqual(
       expect.objectContaining({
-        code: "UNNAMED_GLOBAL_NET",
-        objectIds: ["net-global"],
+        code: "CONFLICTING_LOGICAL_NET_SCOPE",
+        objectIds: expect.arrayContaining(["net-global"]),
       }),
     );
   });
@@ -269,7 +375,7 @@ describe("current formal cell interface", () => {
     expect(result.ir?.globals).toEqual(["0"]);
   });
 
-  it("exports a local named VDD Port Net without inventing a marker record", () => {
+  it("exports a global named VDD Port Net without inventing a marker record", () => {
     const project = createEmptyProject("project", "Project");
     const document = project.documents[0]!;
     document.instances.push({
@@ -280,7 +386,7 @@ describe("current formal cell interface", () => {
     document.nets.push({
       id: "net-vdd",
       name: "VDD",
-      scope: "local",
+      scope: "global",
       powerDomain: "vdd",
       terminals: [{ instanceId: "VDD1", pinName: "P" }],
     });
@@ -292,9 +398,9 @@ describe("current formal cell interface", () => {
     expect(result.ir?.cells[0]?.nets).toContainEqual({
       id: "net-vdd",
       name: "VDD",
-      scope: "local",
+      scope: "global",
     });
-    expect(result.ir?.globals).toEqual([]);
+    expect(result.ir?.globals).toEqual(["VDD"]);
   });
 
   it("rejects a VDD Port attached to a named non-VDD Net", () => {

@@ -76,11 +76,13 @@ Q2 collector base emitter QPREF
       name: "__flat__",
       terminals: [],
     });
-    expect(imported.project?.documents[0]?.nets).toEqual(
+    expect(imported.project?.documents[0]?.connectivityEvidence).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          origin: expect.objectContaining({ kind: "spice-import" }),
+          kind: "name-claim",
+          owner: { kind: "explicit-net-property" },
         }),
+        expect.objectContaining({ kind: "spice-source" }),
       ]),
     );
     expect(

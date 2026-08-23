@@ -95,14 +95,59 @@ Its editor-local VDD artwork is preview-only and is not registered with the
 product Symbol Resolver. Before the first click the artwork follows the
 pointer; after the first click the preview becomes a straight horizontal or
 vertical rail, selected by the pointer's dominant axis. The second click
-creates/reuses the selected named Net in this Document, creates two route-anchor
+  creates a Base Net with the selected global supply claim, creates two route-anchor
 Junctions and one `power-rail` Route, and persists one net-name-bound RichText
-power-label annotation. A new Net is local; a matching explicitly global Net
-keeps its scope. The Route is the only rail geometry: the annotation adds no
+  power-label annotation. Same-name supply claims resolve to one Logical Net
+  without a physical merge. The Route is the only rail geometry: the annotation adds no
 supply bar or terminal stub, and the semantic name uses the shared Razavi
 schematic-math style. It creates no VDD Instance and exits placement after the
 commit. Deleting the rail also deletes its power label and rail-only Junctions;
 an otherwise-unused local Net follows the ordinary orphan lifecycle.
+
+## Project sessions
+
+New, Open, SPICE import, Gallery/My Example open, and recovery restore are
+Project-session transitions rather than Document edits. A dirty current Project
+always requires an explicit discard or cancel decision before one of these
+transitions commits; a successful browser-recovery write is safety evidence,
+not authorization to replace the foreground Project. Candidate files and
+gallery/recovery payloads are parsed and validated before that decision.
+
+The editor retains one in-memory Previous Project snapshot when a live session
+is replaced. **Previous Project** swaps it with the current session through the
+same dirty-work guard. This bounded session rollback is deliberately separate
+from Document Undo/Redo. Boot-time deep links and an explicit Refresh restore do
+not create a Previous Project entry because no live foreground session is being
+replaced.
+
+Project dirty detection covers `structureRevision` and every Document revision,
+not only the active Cell. **New Project** creates a new canonical Project with
+one empty Main Cell, no SPICE source manifest entries, and no external
+subcircuit definitions; it does not mutate the previous Project into an empty
+shell. After a Project has been opened or explicitly saved/downloaded,
+**Revert to Last Saved** restores that exact formal snapshot through the same
+guard and makes the outgoing working copy the Previous Project.
+
+## Cell reset lifecycle
+
+Cell reset commands are Document transactions and therefore use Document Undo,
+not Previous Project. Each command previews an exact affected-object count
+before commit:
+
+- **Clear Drawing** removes authored Route geometry and drafting objects while
+  retaining Instances, Nets, Junction topology, ports, and semantic
+  annotations.
+- **Reset Cell Placement** returns every placed Instance to the Placement Tray,
+  removes Route geometry and placement constraints/groups, and retains the
+  devices, Nets, Junction topology, and formal interface.
+- **Reset Cell Body** removes non-interface electrical and drawing content but
+  retains formal terminals, their interface Port markers, their Nets, and
+  terminal annotations. Existing parent callers therefore keep the same pin
+  contract.
+
+**Delete Cell** remains a Project-structure transaction and is legal only for
+a non-top Cell with no callers. That precondition is checked by the hierarchy
+planner before the transaction is submitted.
 
 ## Interaction states
 
@@ -295,8 +340,8 @@ no electrical meaning.
 Open, demo load, restore, and human-approved staged import replace the entire
 Project through one replacement boundary; they are not Edit Engine
 transactions. Replacement cancels pending recovery for the outgoing Project
-and terminates its Agent session. A complete schema-20 Project may be upgraded
-at the read boundary and then enters the editor only as schema-21; migrated
+and terminates its Agent session. A complete schema-21 Project may be upgraded
+at the read boundary and then enters the editor only as schema-22; migrated
 files are marked as needing save.
 
 Selection, viewport, active tool, previews, Agent tokens, and approval UI are

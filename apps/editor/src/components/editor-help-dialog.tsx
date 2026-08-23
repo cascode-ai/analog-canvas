@@ -84,9 +84,14 @@ export function EditorHelpDialog({
               wire bend while drawing.
             </p>
             <p>
-              <strong>Edit / Clear canvas</strong> removes all content from the
-              active Cell in one operation. It asks for confirmation and can be
-              restored with Undo.
+              The Edit menu separates three reversible Cell operations.{" "}
+              <strong>Clear Drawing</strong> removes Route and drafting geometry
+              but retains logical objects. <strong>Reset Cell Placement</strong>{" "}
+              returns Instances to the tray and removes Route geometry while
+              retaining devices, Nets, and ports.{" "}
+              <strong>Reset Cell Body</strong> removes non-interface electrical
+              content while preserving the formal Cell interface. Each command
+              previews its impact and can be restored with Undo.
             </p>
             <h3>Hierarchical Cells</h3>
             <p>

@@ -7,7 +7,11 @@ import {
   NetlistIdentifierSchema,
   NetlistParameterValueSchema,
 } from "./instance.js";
-import { NetSchema, NoConnectSchema } from "./connectivity.js";
+import {
+  ConnectivityEvidenceSchema,
+  NetSchema,
+  NoConnectSchema,
+} from "./connectivity.js";
 import { JunctionSchema, RouteBranchSchema } from "./routing.js";
 import { AnnotationSchema, VisualAnchorSchema } from "./annotations.js";
 import { DraftingLayerSchema } from "./drafting.js";
@@ -58,6 +62,7 @@ const SchematicDocumentBaseSchema = z.strictObject({
   netlist: CellNetlistInterfaceSchema.optional(),
   instances: z.array(InstanceSchema),
   nets: z.array(NetSchema),
+  connectivityEvidence: z.array(ConnectivityEvidenceSchema),
   routes: z.array(RouteBranchSchema),
   junctions: z.array(JunctionSchema),
   annotations: z.array(AnnotationSchema),
@@ -207,11 +212,13 @@ export const SchematicDocumentSchema = SchematicDocumentBaseSchema.superRefine(
     const objectCollections = [
       ...document.instances,
       ...document.nets,
+      ...document.connectivityEvidence,
       ...document.routes,
       ...document.junctions,
       ...document.annotations,
       ...document.layoutGroups,
       ...document.constraints,
+      ...document.noConnects,
       ...(document.drafting?.objects ?? []),
     ];
     for (const [key, netId] of Object.entries(document.mosBulkDefaults ?? {})) {
@@ -454,6 +461,19 @@ export const SchematicDocumentSchema = SchematicDocumentBaseSchema.superRefine(
         });
       }
       if (!annotation.formatOverride || !binding) continue;
+      const annotationNameClaim = document.connectivityEvidence.find(
+        (evidence) =>
+          evidence.kind === "name-claim" &&
+          evidence.netId ===
+            (binding.kind === "net-name" ? binding.netId : undefined) &&
+          ((evidence.owner.kind === "net-label" &&
+            evidence.owner.annotationId === annotation.id) ||
+            (annotation.anchor.kind === "object" &&
+              ((evidence.owner.kind === "free-port" &&
+                evidence.owner.instanceId === annotation.anchor.objectId) ||
+                (evidence.owner.kind === "power-marker" &&
+                  evidence.owner.objectId === annotation.anchor.objectId)))),
+      );
       const semanticContent =
         binding.kind === "cell-terminal-name"
           ? semanticTextDocument(
@@ -464,8 +484,9 @@ export const SchematicDocumentSchema = SchematicDocumentBaseSchema.superRefine(
             )
           : binding.kind === "net-name"
             ? semanticTextDocument(
-                document.nets.find((net) => net.id === binding.netId)?.name ??
-                  "",
+                (annotationNameClaim?.kind === "name-claim"
+                  ? annotationNameClaim.name
+                  : undefined) ?? "",
                 annotation.kind === "power-label" ? "power-label" : "net-label",
               )
             : null;
@@ -570,6 +591,111 @@ export const SchematicDocumentSchema = SchematicDocumentBaseSchema.superRefine(
       ...document.annotations.map((item) => item.id),
     ]);
     const terminalNetByKey = new Map<string, string>();
+
+    for (const [evidenceIndex, evidence] of (
+      document.connectivityEvidence ?? []
+    ).entries()) {
+      const evidencePath = ["connectivityEvidence", evidenceIndex] as const;
+      if (evidence.kind === "explicit-equivalence") {
+        const seenMembers = new Set<string>();
+        for (const [memberIndex, netId] of evidence.memberNetIds.entries()) {
+          if (!netIds.has(netId)) {
+            context.addIssue({
+              code: "custom",
+              message: `Connectivity evidence references an unknown Net: ${netId}`,
+              path: [...evidencePath, "memberNetIds", memberIndex],
+            });
+          }
+          if (seenMembers.has(netId)) {
+            context.addIssue({
+              code: "custom",
+              message: `Duplicate explicit-equivalence member: ${netId}`,
+              path: [...evidencePath, "memberNetIds", memberIndex],
+            });
+          }
+          seenMembers.add(netId);
+        }
+        continue;
+      }
+      if (!netIds.has(evidence.netId)) {
+        context.addIssue({
+          code: "custom",
+          message: `Connectivity evidence references an unknown Net: ${evidence.netId}`,
+          path: [...evidencePath, "netId"],
+        });
+      }
+      if (evidence.kind !== "name-claim") continue;
+      const claimedNet = netById.get(evidence.netId);
+      const owner = evidence.owner;
+      if (owner.kind === "net-label") {
+        const annotation = document.annotations.find(
+          (candidate) => candidate.id === owner.annotationId,
+        );
+        if (
+          !annotation ||
+          (annotation.kind !== "net-label" &&
+            annotation.kind !== "power-label") ||
+          annotation.netId !== evidence.netId
+        ) {
+          context.addIssue({
+            code: "custom",
+            message: `Name-claim owner is not a matching Net Label: ${owner.annotationId}`,
+            path: [...evidencePath, "owner", "annotationId"],
+          });
+        }
+      } else if (owner.kind === "free-port") {
+        const instance = document.instances.find(
+          (candidate) => candidate.id === owner.instanceId,
+        );
+        const net = netById.get(evidence.netId);
+        if (
+          !instance ||
+          (instance.symbolId !== "port" &&
+            instance.symbolId !== "port-filled") ||
+          !net?.terminals.some(
+            (terminal) =>
+              terminal.instanceId === instance.id && terminal.pinName === "P",
+          )
+        ) {
+          context.addIssue({
+            code: "custom",
+            message: `Name-claim owner is not a matching free Port: ${owner.instanceId}`,
+            path: [...evidencePath, "owner", "instanceId"],
+          });
+        }
+      } else if (owner.kind === "power-marker") {
+        const markerMatchesNet =
+          document.instances.some(
+            (candidate) =>
+              candidate.id === owner.objectId &&
+              claimedNet?.terminals.some(
+                (terminal) => terminal.instanceId === candidate.id,
+              ),
+          ) ||
+          document.annotations.some(
+            (candidate) =>
+              candidate.id === owner.objectId &&
+              candidate.netId === evidence.netId,
+          ) ||
+          document.junctions.some(
+            (candidate) =>
+              candidate.id === owner.objectId &&
+              candidate.netId === evidence.netId,
+          ) ||
+          document.routes.some(
+            (candidate) =>
+              candidate.id === owner.objectId &&
+              candidate.netId === evidence.netId,
+          );
+        if (!markerMatchesNet) {
+          context.addIssue({
+            code: "custom",
+            message: `Name-claim power owner does not match Net: ${owner.objectId}`,
+            path: [...evidencePath, "owner", "objectId"],
+          });
+        }
+      }
+    }
 
     for (const [
       annotationIndex,

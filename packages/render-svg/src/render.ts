@@ -18,6 +18,7 @@ import {
   isSchematicAnnotationVisible,
   resolveAnnotationText,
   resolveDocumentStyleProfile,
+  resolveDocumentLogicalNets,
   resolveRouteAttachment,
   textbookMonochromeProfile,
 } from "@icm/derived";
@@ -515,13 +516,13 @@ export function buildSvgScene(
     throw new Error("SVG margin must be a non-negative integer");
   }
   const routingGeometry = resolveDocumentRoutingGeometry(document, resolver);
+  const logicalNets = resolveDocumentLogicalNets(document);
   const powerRailNetIds = new Set(
     document.routes.flatMap((route) => {
       if (route.presentation !== "power-rail") return [];
-      const net = document.nets.find(
-        (candidate) => candidate.id === route.netId,
-      );
-      return net && (net.powerDomain ?? "none") === "vdd" ? [route.netId] : [];
+      return logicalNets.byBaseNetId.get(route.netId)?.powerDomain === "vdd"
+        ? [route.netId]
+        : [];
     }),
   );
   const powerRailRouteIds = new Set(

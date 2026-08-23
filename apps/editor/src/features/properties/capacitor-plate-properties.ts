@@ -1,6 +1,7 @@
 import { deviceDescriptor } from "@icm/devices";
 import type { DevicePinSemanticRole } from "@icm/devices";
 import type { SchematicDocument } from "@icm/model";
+import { resolveDocumentLogicalNets } from "@icm/derived";
 
 type Instance = SchematicDocument["instances"][number];
 
@@ -49,7 +50,10 @@ export function capacitorPlatePropertyRows(
         pinName: semantic.pinName,
         sourceNodePosition: descriptor.pinOrder.indexOf(semantic.pinName) + 1,
         netId: net?.id ?? null,
-        netName: net?.name?.trim() || null,
+        netName: net
+          ? (resolveDocumentLogicalNets(document).byBaseNetId.get(net.id)
+              ?.name ?? null)
+          : null,
       },
     ];
   });

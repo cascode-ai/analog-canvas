@@ -333,11 +333,6 @@ describe("Agent operating Kit", () => {
         expectedRevision: document.revision,
         edits: [
           {
-            kind: "set_net_power_domain",
-            netId: groundNetId!,
-            powerDomain: "ground",
-          },
-          {
             kind: "set_mos_bulk_defaults",
             nmosNetId: groundNetId!,
             pmosNetId: "net-vdd",

@@ -4,7 +4,12 @@ import { describe, expect, it } from "vitest";
 import { planEnsurePowerNet } from "./power-net-planner.js";
 
 describe("power Net planner", () => {
-  it("selects canonical VDD by name rather than the first VDD-role Net", () => {
+  const marker = {
+    evidenceId: "claim-marker",
+    owner: { kind: "power-marker" as const, objectId: "VDD1" },
+  };
+
+  it("names a new VDD Base Net without merging an existing supply", () => {
     const document = createEmptyDocument("main", "Main");
     document.nets.push(
       {
@@ -28,15 +33,23 @@ describe("power Net planner", () => {
         candidateNetId: "net-new-ground-marker",
         candidateState: "pending-connection",
         domain: "vdd",
+        ...marker,
       }),
     ).toEqual({
       ok: true,
-      netId: "net-vdd",
+      netId: "net-new-ground-marker",
       edits: [
         {
-          kind: "merge_nets",
-          targetNetId: "net-vdd",
-          sourceNetId: "net-new-ground-marker",
+          kind: "upsert_connectivity_evidence",
+          evidence: {
+            id: "claim-marker",
+            kind: "name-claim",
+            netId: "net-new-ground-marker",
+            name: "VDD",
+            owner: marker.owner,
+            scope: "global",
+            powerDomain: "vdd",
+          },
         },
       ],
     });
@@ -51,22 +64,29 @@ describe("power Net planner", () => {
         candidateNetId: "net-contact",
         candidateState: "existing",
         domain: "ground",
+        ...marker,
       }),
     ).toEqual({
       ok: true,
       netId: "net-contact",
       edits: [
-        { kind: "set_net_name", netId: "net-contact", name: "0" },
         {
-          kind: "set_net_power_domain",
-          netId: "net-contact",
-          powerDomain: "ground",
+          kind: "upsert_connectivity_evidence",
+          evidence: {
+            id: "claim-marker",
+            kind: "name-claim",
+            netId: "net-contact",
+            name: "0",
+            owner: marker.owner,
+            scope: "global",
+            powerDomain: "ground",
+          },
         },
       ],
     });
   });
 
-  it("treats Ground on an ordinary named Net as an explicit grounding action", () => {
+  it("rejects Ground on an independently named signal Net", () => {
     const document = createEmptyDocument("main", "Main");
     document.nets.push(
       {
@@ -83,50 +103,50 @@ describe("power Net planner", () => {
         terminals: [],
       },
     );
+    document.connectivityEvidence.push({
+      id: "claim-tail",
+      kind: "name-claim",
+      netId: "net-tail",
+      name: "TAIL",
+      owner: { kind: "explicit-net-property" },
+      scope: "local",
+    });
 
     expect(
       planEnsurePowerNet(document, {
         candidateNetId: "net-tail",
         candidateState: "existing",
         domain: "ground",
+        ...marker,
       }),
-    ).toEqual({
-      ok: true,
-      netId: "net-global-0",
-      edits: [
-        {
-          kind: "merge_nets",
-          targetNetId: "net-global-0",
-          sourceNetId: "net-tail",
-        },
-      ],
-    });
+    ).toMatchObject({ ok: false, relatedNetIds: ["net-tail"] });
   });
 
-  it("renames and classifies an ordinary named Net when it is the first Ground", () => {
+  it("adds a Ground marker claim to an unnamed Base Net", () => {
     const document = createEmptyDocument("main", "Main");
     document.nets.push({
       id: "net-tail",
-      name: "TAIL",
       scope: "local",
       terminals: [],
     });
-
     expect(
       planEnsurePowerNet(document, {
         candidateNetId: "net-tail",
         candidateState: "existing",
         domain: "ground",
+        ...marker,
       }),
     ).toEqual({
       ok: true,
       netId: "net-tail",
       edits: [
-        { kind: "set_net_name", netId: "net-tail", name: "0" },
         {
-          kind: "set_net_power_domain",
-          netId: "net-tail",
-          powerDomain: "ground",
+          kind: "upsert_connectivity_evidence",
+          evidence: expect.objectContaining({
+            netId: "net-tail",
+            name: "0",
+            powerDomain: "ground",
+          }),
         },
       ],
     });
@@ -141,12 +161,22 @@ describe("power Net planner", () => {
       powerDomain: "vdd",
       terminals: [],
     });
+    document.connectivityEvidence.push({
+      id: "claim-avdd",
+      kind: "name-claim",
+      netId: "net-avdd",
+      name: "AVDD",
+      owner: { kind: "explicit-net-property" },
+      scope: "global",
+      powerDomain: "vdd",
+    });
 
     expect(
       planEnsurePowerNet(document, {
         candidateNetId: "net-avdd",
         candidateState: "existing",
         domain: "ground",
+        ...marker,
       }),
     ).toMatchObject({ ok: false, relatedNetIds: ["net-avdd"] });
   });

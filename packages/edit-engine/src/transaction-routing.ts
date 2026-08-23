@@ -12,6 +12,7 @@ import {
   endpointKey,
   netEndpoints,
   pointOnSegment as pointOnGenericSegment,
+  resolveDocumentLogicalNets,
   resolveEndpointOutwardDirection,
 } from "@icm/derived";
 import type { SymbolResolver } from "@icm/symbols";
@@ -205,7 +206,10 @@ export function validateRoute(
   }
   const net = document.nets.find((candidate) => candidate.id === route.netId);
   if (!net) return `Route net does not exist: ${route.netId}`;
-  if (route.presentation === "power-rail" && !net.name) {
+  if (
+    route.presentation === "power-rail" &&
+    !resolveDocumentLogicalNets(document).byBaseNetId.get(net.id)?.name
+  ) {
     return `Power rail ${route.id} must belong to a named Net`;
   }
   if (!endpointBelongsToNet(document, net, route.from)) {

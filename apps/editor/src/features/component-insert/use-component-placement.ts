@@ -16,6 +16,7 @@ import {
   planPlaceCellInstance,
 } from "@icm/edit-engine";
 import type { SchematicStyleProfile } from "@icm/derived";
+import { resolveDocumentLogicalNets } from "@icm/derived";
 import {
   createReferenceIndex,
   hierarchyReferencePolicy,
@@ -27,6 +28,7 @@ import type {
   RouteEndpoint,
   SchematicDocument,
 } from "@icm/model";
+import { deriveStableId } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
 import type { ComponentInsertRequest } from "./component-insert-request";
@@ -67,9 +69,12 @@ type TransactionResult = { ok: boolean; revision: number };
  * the next free ordinal.
  */
 function nextFreePortNetName(document: SchematicDocument): string {
+  const logicalNets = resolveDocumentLogicalNets(document);
   const occupiedNames = new Set(
     document.nets.flatMap((net) =>
-      net.name?.trim() ? [net.name.trim().toLowerCase()] : [],
+      logicalNets.byBaseNetId.get(net.id)?.name?.trim()
+        ? [logicalNets.byBaseNetId.get(net.id)!.name!.trim().toLowerCase()]
+        : [],
     ),
   );
   if (!occupiedNames.has("vin")) return "Vin";
@@ -237,8 +242,7 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
       if (edit.kind !== "connect_endpoints" || !edit.newNetId) continue;
       projectedDocument.nets.push({
         id: edit.newNetId,
-        ...(edit.newNetName ? { name: edit.newNetName } : {}),
-        scope: edit.newNetScope ?? "local",
+        scope: "local",
         terminals: [edit.from, edit.to]
           .filter(
             (
@@ -505,12 +509,23 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
     const connectedNet = contact.netId
       ? options.document.nets.find((net) => net.id === contact.netId)
       : undefined;
+    const connectedLogicalNet = connectedNet
+      ? resolveDocumentLogicalNets(options.document).byBaseNetId.get(
+          connectedNet.id,
+        )
+      : undefined;
+    const terminalOnConnectedNet = connectedLogicalNet
+      ? options.document.netlist?.terminals.find((terminal) =>
+          connectedLogicalNet.baseNetIds.includes(terminal.netId),
+        )
+      : undefined;
     // Placement never blocks on naming: an unnamed Cell Pin takes the first
     // free ordinal terminal name and is renamed on the canvas like any other
     // bound display.
     const formalName =
       placementRequest.portName?.trim() ||
-      connectedNet?.name?.trim() ||
+      terminalOnConnectedNet?.name ||
+      connectedLogicalNet?.name?.trim() ||
       nextFreeCellTerminalName(options.document);
     // Repeating an interface name places another marker for the terminal that
     // already owns it rather than a second terminal, so the same pin can be
@@ -546,20 +561,8 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
                 pinName: "P",
               },
               newNetId: netId,
-              // An additional marker carries no name of its own: it is merged
-              // into the terminal's Net, which already holds the name.
-              ...(existingTerminal ? {} : { newNetName: formalName }),
             },
           ]),
-      ...(contact.netId && !connectedNet?.name && !existingTerminal
-        ? [
-            {
-              kind: "set_net_name" as const,
-              netId: contact.netId,
-              name: formalName,
-            },
-          ]
-        : []),
     ];
     const annotation = annotations[0] ? { ...annotations[0] } : undefined;
     const committed = options.transactProject(
@@ -628,7 +631,11 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
       : undefined;
     const name =
       placementRequest.portName?.trim() ||
-      connectedNet?.name?.trim() ||
+      (connectedNet
+        ? resolveDocumentLogicalNets(options.document)
+            .byBaseNetId.get(connectedNet.id)
+            ?.name?.trim()
+        : undefined) ||
       nextFreePortNetName(options.document);
     const baseNetId = `net-port-${id.toLowerCase()}`;
     let candidateNetId = contact.netId ?? baseNetId;
@@ -657,6 +664,14 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
     const namedNetPlan = planEnsureNamedNet(namedNetDocument, {
       candidateNetId,
       name,
+      evidenceId: deriveStableId(
+        "connectivity-evidence",
+        options.document.id,
+        "free-port",
+        candidateNetId,
+        id,
+      ),
+      owner: { kind: "free-port", instanceId: id },
     });
     if (!namedNetPlan.ok) {
       options.setStatus(namedNetPlan.message);
@@ -692,7 +707,6 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
                 pinName: "P",
               },
               newNetId: candidateNetId,
-              newNetName: name,
             },
           ]),
       ...namedNetPlan.edits,

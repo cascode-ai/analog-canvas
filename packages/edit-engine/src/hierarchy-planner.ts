@@ -367,6 +367,21 @@ export function planDeleteCell(
   documentId: string,
 ): ProjectStructureEdit[] {
   requireDocument(project, documentId);
+  const caller = project.documents
+    .flatMap((parent) =>
+      parent.instances.map((instance) => ({ parent, instance })),
+    )
+    .find(({ instance }) => {
+      const binding = instance.netlist?.binding;
+      return (
+        binding?.kind === "subcircuit" && binding.childDocumentId === documentId
+      );
+    });
+  if (caller) {
+    throw new Error(
+      `Cell ${documentId} is still referenced by ${caller.parent.id}.${caller.instance.id}`,
+    );
+  }
   return [{ kind: "remove_document", documentId }];
 }
 

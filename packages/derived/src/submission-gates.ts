@@ -3,6 +3,7 @@ import type { SymbolResolver } from "@icm/symbols";
 
 import { buildProjectConnectivityIndex } from "./connectivity-index.js";
 import { runErcChecks } from "./diagnostics/erc.js";
+import { resolveDocumentLogicalNets } from "./logical-net.js";
 
 /**
  * Gallery submission quality gates (roadmap phase G3). One deterministic
@@ -52,7 +53,9 @@ function netIsNamed(
   const document = project.documents.find(
     (candidate) => candidate.id === documentId,
   );
-  const net = document?.nets.find((candidate) => candidate.id === netId);
+  const net = document
+    ? resolveDocumentLogicalNets(document).byBaseNetId.get(netId)
+    : undefined;
   return typeof net?.name === "string" && net.name.length > 0;
 }
 

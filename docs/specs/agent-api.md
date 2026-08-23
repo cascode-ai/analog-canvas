@@ -69,11 +69,12 @@ After commit, render and then request a fresh Snapshot for final verification.
 On a stale revision or uncertain transport result, refresh state and reconcile;
 do not replay a changed or obsolete transaction.
 
-The reviewed Agent client may compile a semantic Net rename through the same
-pure named-Net planner used by GUI label authoring. An unused name becomes a
-typed rename; a compatible same-folded-name Net becomes an explicit typed merge.
-The wire API itself remains raw and strict: a directly submitted ambiguous
-`set_net_name` edit is rejected by the Edit Engine.
+Agent Snapshots expose resolved Logical Nets, so lookup and inspection use the
+same names, scopes, power roles, and conflicts as the GUI, ERC, and export
+paths. Naming remains marker-owned: the Agent API does not expose raw Base-Net
+name, scope, power-role, or Evidence mutation. A future reviewed marker action
+may author the same owner-addressed Net Marker operation as the GUI without
+adding a second Net-renaming protocol.
 
 `wireIntent` has the same Route planner as interactive Wire. Its optional
 `routingMode` is `orthogonal` (default), `octilinear`, or `free` (ADR 0039);

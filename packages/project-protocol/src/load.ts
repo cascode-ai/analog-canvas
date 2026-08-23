@@ -14,6 +14,7 @@ import {
   ProjectMigrationError,
   upgradePreviousProject,
 } from "./previous-to-current.js";
+import { repairCurrentProjectEvidence } from "./transforms/project.js";
 import { PREVIOUS_PROJECT_SCHEMA_VERSION } from "./version.js";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -102,7 +103,9 @@ export function tryParseProjectWithMetadata(
 
   let current: Record<string, unknown>;
   try {
-    current = migrated ? upgradePreviousProject(parsed) : parsed;
+    current = repairCurrentProjectEvidence(
+      migrated ? upgradePreviousProject(parsed) : parsed,
+    );
   } catch (error) {
     if (error instanceof ProjectMigrationError) {
       return {

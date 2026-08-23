@@ -77,6 +77,28 @@
           "rotation": 0
         }
       ],
+      "connectivityEvidence": [
+        {
+          "id": "connectivity-evidence-cb18afb946bb14c9",
+          "kind": "name-claim",
+          "name": "VINP",
+          "netId": "net-vinp",
+          "owner": {
+            "kind": "explicit-net-property"
+          },
+          "scope": "local"
+        },
+        {
+          "id": "connectivity-evidence-3081eb85ad004ff7",
+          "kind": "name-claim",
+          "name": "VOUT",
+          "netId": "net-vout",
+          "owner": {
+            "kind": "explicit-net-property"
+          },
+          "scope": "local"
+        }
+      ],
       "constraints": [],
       "drafting": {
         "objects": []
@@ -354,7 +376,7 @@
   "externalSubcircuitDefinitions": [],
   "id": "project-phase-5-dense-analog",
   "name": "Current Differential Stage",
-  "schemaVersion": 21,
+  "schemaVersion": 22,
   "source": {
     "dialect": "none",
     "entry": null,

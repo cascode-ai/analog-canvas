@@ -75,7 +75,6 @@ describe("bound annotation text", () => {
       rotation: 0 as const,
       locked: false,
     };
-
     expect(resolveAnnotationText(document, annotation)).toEqual(
       semanticTextDocument("R7", "instance-label"),
     );
@@ -173,12 +172,25 @@ describe("bound annotation text", () => {
       rotation: 0 as const,
       locked: false,
     };
+    document.connectivityEvidence.push({
+      id: "claim-vin",
+      kind: "name-claim",
+      netId: "net-vin",
+      name: "V_{in,cm}",
+      owner: { kind: "net-label", annotationId: annotation.id },
+      scope: "local",
+    });
 
     const before = structuredClone(annotation.anchor);
     expect(flattenRichText(resolveAnnotationText(document, annotation))).toBe(
       "Vin,cm",
     );
     document.nets[0]!.name = "V_{refp}";
+    expect(flattenRichText(resolveAnnotationText(document, annotation))).toBe(
+      "Vin,cm",
+    );
+    const claim = document.connectivityEvidence[0];
+    if (claim?.kind === "name-claim") claim.name = "V_{refp}";
     expect(flattenRichText(resolveAnnotationText(document, annotation))).toBe(
       "Vrefp",
     );

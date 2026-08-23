@@ -1,4 +1,5 @@
 import type { CircuitProject, SchematicDocument } from "@icm/model";
+import { resolveDocumentLogicalNets } from "./logical-net.js";
 
 const SHA256_CONSTANTS = new Uint32Array([
   0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1,
@@ -116,23 +117,29 @@ function electricalProjection(document: SchematicDocument): unknown {
     .sort((left, right) => left.id.localeCompare(right.id))
     .map((net) => ({
       id: net.id,
-      scope: net.scope,
-      // Missing is only accepted for pre-v5 in-memory callers. Persisted v5
-      // projects and all edits write this electrical fact explicitly.
-      powerDomain: net.powerDomain ?? "none",
       terminals: [...net.terminals].sort((left, right) =>
         `${left.instanceId}:${left.pinName}`.localeCompare(
           `${right.instanceId}:${right.pinName}`,
         ),
       ),
     }));
+  const logicalNets = resolveDocumentLogicalNets(document).groups.map(
+    (net) => ({
+      id: net.id,
+      baseNetIds: net.baseNetIds,
+      name: net.name ?? null,
+      scope: net.scope ?? "local",
+      powerDomain: net.powerDomain,
+      sourceNetIds: net.sourceNetIds,
+    }),
+  );
   const noConnects = [...document.noConnects]
     .sort((left, right) => left.id.localeCompare(right.id))
     .map((noConnect) => ({
       id: noConnect.id,
       endpoint: noConnect.endpoint,
     }));
-  return { instances, nets, noConnects };
+  return { instances, nets, logicalNets, noConnects };
 }
 
 /**

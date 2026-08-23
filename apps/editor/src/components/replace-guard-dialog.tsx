@@ -9,10 +9,10 @@ export interface ReplaceGuardDialogProps {
 }
 
 /**
- * Outgoing dirty-work protection. Shown only when a replacement was requested
- * while the current Project has unsaved changes AND a confirmed recovery
- * write could not be obtained. Defaults to Cancel; Escape cancels; the
- * download action keeps the dialog open so the user can still decide.
+ * Outgoing dirty-work protection. Recovery is a safety copy, not permission to
+ * discard the foreground Project, so every dirty replacement pauses here.
+ * Defaults to Cancel; Escape cancels; the download action keeps the dialog open
+ * so the user can still decide.
  */
 export function ReplaceGuardDialog({
   intent,
@@ -52,9 +52,9 @@ export function ReplaceGuardDialog({
         </header>
         <div className="help-dialog-content">
           <p>
-            The current Project has unsaved changes and a confirmed browser
-            recovery copy could not be written. Choose what happens before{" "}
-            <strong>{intent}</strong> continues.
+            The current Project has unsaved changes. Browser recovery is only a
+            safety copy. Choose what happens before <strong>{intent}</strong>{" "}
+            continues.
           </p>
           <div className="replace-guard-actions">
             <button type="button" ref={cancelRef} onClick={onCancel}>
@@ -64,7 +64,7 @@ export function ReplaceGuardDialog({
               Download current Project
             </button>
             <button type="button" onClick={onConfirm}>
-              Replace anyway
+              Discard and continue
             </button>
           </div>
           <p>

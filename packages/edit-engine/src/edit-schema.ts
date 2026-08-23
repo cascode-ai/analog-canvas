@@ -3,6 +3,7 @@ import {
   CellSymbolPresentationSchema,
   CellNetlistTerminalSchema,
   DraftingObjectSchema,
+  ConnectivityEvidenceSchema,
   InstanceNetlistDataSchema,
   InstanceNetlistBindingSchema,
   InstanceSchema,
@@ -36,8 +37,17 @@ export const NoopEditSchema = z.strictObject({
   kind: z.literal("noop"),
   reason: z.string().min(1).optional(),
 });
-export const ClearDocumentEditSchema = z.strictObject({
-  kind: z.literal("clear_document"),
+/** Remove non-semantic drawing and Route geometry while retaining topology. */
+export const ClearCellDrawingEditSchema = z.strictObject({
+  kind: z.literal("clear_cell_drawing"),
+});
+/** Return every retained Instance to the tray and remove placement geometry. */
+export const ResetCellPlacementEditSchema = z.strictObject({
+  kind: z.literal("reset_cell_placement"),
+});
+/** Remove a Cell body while retaining its formal interface projection. */
+export const ResetCellBodyEditSchema = z.strictObject({
+  kind: z.literal("reset_cell_body"),
 });
 export const AddInstanceEditSchema = z.strictObject({
   kind: z.literal("add_instance"),
@@ -235,8 +245,6 @@ export const ConnectEndpointsEditSchema = z.strictObject({
   from: RouteEndpointSchema,
   to: RouteEndpointSchema,
   newNetId: StableIdSchema.optional(),
-  newNetName: z.string().min(1).optional(),
-  newNetScope: z.enum(["local", "global"]).optional(),
 });
 
 /** A power rail edit creates/reuses one explicit named Net and its geometry. */
@@ -253,20 +261,18 @@ export const AddPowerRailEditSchema = z.strictObject({
   start: PointSchema,
   end: PointSchema,
 });
-export const SetNetPowerDomainEditSchema = z.strictObject({
-  kind: z.literal("set_net_power_domain"),
-  netId: StableIdSchema,
-  powerDomain: z.enum(["none", "vdd", "ground"]),
-});
 export const MergeNetsEditSchema = z.strictObject({
   kind: z.literal("merge_nets"),
   targetNetId: StableIdSchema,
   sourceNetId: StableIdSchema,
 });
-export const SetNetNameEditSchema = z.strictObject({
-  kind: z.literal("set_net_name"),
-  netId: StableIdSchema,
-  name: z.string().trim().min(1).max(256),
+export const UpsertConnectivityEvidenceEditSchema = z.strictObject({
+  kind: z.literal("upsert_connectivity_evidence"),
+  evidence: ConnectivityEvidenceSchema,
+});
+export const RemoveConnectivityEvidenceEditSchema = z.strictObject({
+  kind: z.literal("remove_connectivity_evidence"),
+  evidenceId: StableIdSchema,
 });
 export const SetMosBulkDefaultsEditSchema = z.strictObject({
   kind: z.literal("set_mos_bulk_defaults"),
@@ -355,7 +361,9 @@ export const RedoEditSchema = z.strictObject({ kind: z.literal("redo") });
 
 export const SchematicEditSchema = z.discriminatedUnion("kind", [
   NoopEditSchema,
-  ClearDocumentEditSchema,
+  ClearCellDrawingEditSchema,
+  ResetCellPlacementEditSchema,
+  ResetCellBodyEditSchema,
   AddInstanceEditSchema,
   RemoveInstanceEditSchema,
   SetInstanceSymbolEditSchema,
@@ -387,8 +395,8 @@ export const SchematicEditSchema = z.discriminatedUnion("kind", [
   ConnectEndpointsEditSchema,
   AddPowerRailEditSchema,
   MergeNetsEditSchema,
-  SetNetNameEditSchema,
-  SetNetPowerDomainEditSchema,
+  UpsertConnectivityEvidenceEditSchema,
+  RemoveConnectivityEvidenceEditSchema,
   SetMosBulkDefaultsEditSchema,
   ReconcileMosBulkEditSchema,
   ClearMosBulkDefaultEditSchema,

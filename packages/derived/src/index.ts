@@ -13,6 +13,7 @@ export * from "./endpoint.js";
 export * from "./hierarchy-navigation.js";
 export * from "./instance-label-placement.js";
 export * from "./instance-value.js";
+export * from "./logical-net.js";
 export * from "./net-highlight.js";
 export * from "./net-label.js";
 export * from "./mos-bulk.js";

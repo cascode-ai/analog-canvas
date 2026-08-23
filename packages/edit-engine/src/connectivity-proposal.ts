@@ -85,9 +85,16 @@ export function createConnectivityProposal(
       case "merge_nets":
         netIds.push(edit.targetNetId, edit.sourceNetId);
         break;
-      case "set_net_name":
-      case "set_net_power_domain":
-        netIds.push(edit.netId);
+      case "upsert_connectivity_evidence":
+        affectedObjectIds.push(edit.evidence.id);
+        if (edit.evidence.kind === "explicit-equivalence") {
+          netIds.push(...edit.evidence.memberNetIds);
+        } else {
+          netIds.push(edit.evidence.netId);
+        }
+        break;
+      case "remove_connectivity_evidence":
+        affectedObjectIds.push(edit.evidenceId);
         break;
       case "set_route_points":
       case "cut_connection":

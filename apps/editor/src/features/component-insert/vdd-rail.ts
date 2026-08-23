@@ -1,4 +1,5 @@
 import type { SchematicEdit } from "@icm/edit-engine";
+import { resolveDocumentLogicalNets } from "@icm/derived";
 import { foldNetName, type Point, type SchematicDocument } from "@icm/model";
 
 import { planInitialMosBulkDefault } from "./mos-bulk-defaults";
@@ -43,7 +44,7 @@ export function constructVddRailEdits({
   end,
   netId,
   netName = "VDD",
-  scope = "local",
+  scope = "global",
 }: VddRailConstruction): SchematicEdit[] {
   const key = instanceId.toLowerCase();
   const targetNetId = netId ?? `net-power-${key}`;
@@ -75,30 +76,27 @@ export function planVddRailEdits(
   const requested = construction.netId
     ? document.nets.find((net) => net.id === construction.netId)
     : undefined;
-  if (requested?.name && foldNetName(requested.name) !== foldNetName(netName)) {
-    return {
-      ok: false,
-      message: `Power rail target ${requested.name} does not match ${netName}`,
-    };
-  }
-  const named = document.nets.find(
-    (net) => net.name && foldNetName(net.name) === foldNetName(netName),
-  );
-  if (requested && named && requested.id !== named.id) {
-    return {
-      ok: false,
-      message: `Power rail target ${requested.id} conflicts with existing named Net ${named.id}`,
-    };
-  }
-  const target = requested ?? named;
+  const requestedLogical = requested
+    ? resolveDocumentLogicalNets(document).byBaseNetId.get(requested.id)
+    : undefined;
   if (
-    target &&
-    (target.powerDomain ?? "none") !== "none" &&
-    (target.powerDomain ?? "none") !== "vdd"
+    requestedLogical?.name &&
+    foldNetName(requestedLogical.name) !== foldNetName(netName)
   ) {
     return {
       ok: false,
-      message: `Power rail target ${netName} has incompatible role ${target.powerDomain}`,
+      message: `Power rail target ${requestedLogical.name} does not match ${netName}`,
+    };
+  }
+  const target = requested;
+  if (
+    target &&
+    requestedLogical?.powerDomain !== "none" &&
+    requestedLogical?.powerDomain !== "vdd"
+  ) {
+    return {
+      ok: false,
+      message: `Power rail target ${netName} has incompatible role ${requestedLogical?.powerDomain}`,
     };
   }
   const netId =
@@ -107,29 +105,11 @@ export function planVddRailEdits(
     ok: true,
     netId,
     edits: [
-      ...(target && !target.name
-        ? [
-            {
-              kind: "set_net_name" as const,
-              netId: target.id,
-              name: netName,
-            },
-          ]
-        : []),
-      ...(target && (target.powerDomain ?? "none") === "none"
-        ? [
-            {
-              kind: "set_net_power_domain" as const,
-              netId: target.id,
-              powerDomain: "vdd" as const,
-            },
-          ]
-        : []),
       ...constructVddRailEdits({
         ...construction,
         netId,
-        netName: target?.name ?? netName,
-        scope: target?.scope ?? construction.scope ?? "local",
+        netName,
+        scope: requestedLogical?.scope ?? construction.scope ?? "global",
       }),
       ...planInitialMosBulkDefault(document, "vdd", netId),
     ],

@@ -1,5 +1,6 @@
 import {
   electricalTopologyHash,
+  resolveDocumentLogicalNets,
   resolveMosBulkConnection,
   resolveDraftingObjectGeometry,
   resolveDocumentRoutingGeometry,
@@ -161,7 +162,7 @@ function projectIndex(options: BuildAgentSessionSnapshotOptions) {
         id: document.id,
         name: document.name,
         instanceCount: document.instances.length,
-        netCount: document.nets.length,
+        netCount: resolveDocumentLogicalNets(document).groups.length,
         references: document.instances
           .flatMap((instance) => {
             const targetName = subcircuitTargetName(instanceTarget(instance));
@@ -197,12 +198,13 @@ function documentSnapshot(
   options: BuildAgentSessionSnapshotOptions,
 ): AgentSnapshotDocument {
   const { document, resolver } = options;
+  const logicalNets = resolveDocumentLogicalNets(document);
   const terminalNetByKey = new Map<string, string>();
   for (const net of document.nets) {
     for (const terminal of net.terminals) {
       terminalNetByKey.set(
         `${terminal.instanceId}\u0000${terminal.pinName}`,
-        net.id,
+        logicalNets.byBaseNetId.get(net.id)?.id ?? net.id,
       );
     }
   }
@@ -319,7 +321,7 @@ function documentSnapshot(
       const geometry = routingGeometry.routes.get(route.id);
       return {
         id: route.id,
-        netId: route.netId,
+        netId: logicalNets.byBaseNetId.get(route.netId)?.id ?? route.netId,
         from: structuredClone(route.from),
         to: structuredClone(route.to),
         waypoints: structuredClone(route.waypoints),
@@ -372,31 +374,36 @@ function documentSnapshot(
         }
       : null,
     instances,
-    nets: [...document.nets]
-      .sort((left, right) => left.id.localeCompare(right.id, "en"))
-      .map((net) => ({
-        id: net.id,
-        name: net.name ?? null,
-        scope: net.scope,
-        powerDomain: net.powerDomain ?? "none",
-        terminals: [...net.terminals].sort(
+    nets: [...logicalNets.groups].map((net) => ({
+      id: net.id,
+      name: net.name ?? null,
+      scope: net.scope ?? "local",
+      powerDomain: net.powerDomain,
+      terminals: document.nets
+        .filter((baseNet) => net.baseNetIds.includes(baseNet.id))
+        .flatMap((baseNet) => baseNet.terminals)
+        .sort(
           (left, right) =>
             left.instanceId.localeCompare(right.instanceId, "en") ||
             left.pinName.localeCompare(right.pinName, "en"),
         ),
-        routeIds: document.routes
-          .filter((route) => route.netId === net.id)
-          .map((route) => route.id)
-          .sort((left, right) => left.localeCompare(right, "en")),
-        junctionIds: document.junctions
-          .filter((junction) => junction.netId === net.id)
-          .map((junction) => junction.id)
-          .sort((left, right) => left.localeCompare(right, "en")),
-      })),
+      routeIds: document.routes
+        .filter((route) => net.baseNetIds.includes(route.netId))
+        .map((route) => route.id)
+        .sort((left, right) => left.localeCompare(right, "en")),
+      junctionIds: document.junctions
+        .filter((junction) => net.baseNetIds.includes(junction.netId))
+        .map((junction) => junction.id)
+        .sort((left, right) => left.localeCompare(right, "en")),
+    })),
     routes,
     junctions: [...document.junctions]
       .sort((left, right) => left.id.localeCompare(right.id, "en"))
-      .map((junction) => structuredClone(junction)),
+      .map((junction) => ({
+        ...structuredClone(junction),
+        netId:
+          logicalNets.byBaseNetId.get(junction.netId)?.id ?? junction.netId,
+      })),
     noConnects: [...document.noConnects]
       .sort((left, right) => left.id.localeCompare(right.id, "en"))
       .map((noConnect) => structuredClone(noConnect)),

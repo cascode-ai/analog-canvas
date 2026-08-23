@@ -7,6 +7,7 @@ import {
   createHierarchyInstance,
   planAttachCellPortMarker,
   planCreateCellPort,
+  planDeleteCell,
   planPlaceCellInstance,
   planReorderCellTerminal,
   planSetMosModelTarget,
@@ -14,6 +15,23 @@ import {
 import { executeProjectTransaction } from "./project-transaction.js";
 
 describe("hierarchy domain planners", () => {
+  it("rejects deleting a referenced Cell before Project commit", () => {
+    const project = createEmptyProject("project", "Project", "top");
+    const child = createEmptyDocument("child", "Child");
+    project.documents.push(child);
+    project.documents[0]!.instances.push(
+      createHierarchyInstance("X1", child, {
+        position: { x: 0, y: 0 },
+        rotation: 0,
+        mirror: "none",
+      }),
+    );
+
+    expect(() => planDeleteCell(project, child.id)).toThrow(
+      "Cell child is still referenced by top.X1",
+    );
+  });
+
   it("constructs one canonical caller from the child interface", () => {
     const child = createEmptyDocument("child", "Stage");
     child.netlist!.terminals.push({
@@ -152,7 +170,6 @@ describe("hierarchy domain planners", () => {
             from: { kind: "terminal", instanceId: "P1", pinName: "P" },
             to: { kind: "terminal", instanceId: "P1", pinName: "P" },
             newNetId: "net-in",
-            newNetName: "IN",
           },
         ],
         terminal: {
@@ -199,7 +216,7 @@ describe("hierarchy domain planners", () => {
       interfaceInstanceIds: ["P1", "P2"],
     });
     // Both markers share the terminal's Net.
-    expect(document.nets.filter((net) => net.name === "IN")).toHaveLength(1);
+    expect(document.nets.filter((net) => net.id === "net-in")).toHaveLength(1);
     const net = document.nets.find((candidate) => candidate.id === "net-in")!;
     expect(net.terminals.map((terminal) => terminal.instanceId).sort()).toEqual(
       ["P1", "P2"],

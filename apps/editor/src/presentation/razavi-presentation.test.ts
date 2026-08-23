@@ -1,8 +1,5 @@
-import {
-  createEmptyDocument,
-  createEmptyProject,
-  validateNetContract,
-} from "@icm/model";
+import { createEmptyDocument, createEmptyProject } from "@icm/model";
+import { validateLogicalNetContract } from "@icm/derived";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -129,16 +126,32 @@ describe("Razavi hidden bulk policy", () => {
         terminals: [],
       },
     );
+    project.documents[0]!.connectivityEvidence.push(
+      {
+        id: "ground-a-claim",
+        kind: "name-claim",
+        netId: "net-ground-a",
+        name: "0",
+        scope: "global",
+        powerDomain: "ground",
+        owner: { kind: "explicit-net-property" },
+      },
+      {
+        id: "ground-b-claim",
+        kind: "name-claim",
+        netId: "net-ground-b",
+        name: "0",
+        scope: "global",
+        powerDomain: "ground",
+        owner: { kind: "explicit-net-property" },
+      },
+    );
 
     const prepared = materializeRazaviProjectBulkConnections(project);
 
     expect(prepared.project.documents[0]!.nets).toHaveLength(2);
-    expect(validateNetContract(prepared.project.documents[0]!)).toEqual([
-      {
-        code: "DUPLICATE_NET_NAME",
-        foldedName: "0",
-        netIds: ["net-ground-a", "net-ground-b"],
-      },
-    ]);
+    expect(validateLogicalNetContract(prepared.project.documents[0]!)).toEqual(
+      [],
+    );
   });
 });

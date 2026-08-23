@@ -44,6 +44,9 @@ export type MosBulkBinding = z.infer<typeof Schema.MosBulkBindingSchema>;
 export type TerminalRef = z.infer<typeof Schema.TerminalRefSchema>;
 export type Instance = z.infer<typeof Schema.InstanceSchema>;
 export type Net = z.infer<typeof Schema.NetSchema>;
+export type ConnectivityEvidence = z.infer<
+  typeof Schema.ConnectivityEvidenceSchema
+>;
 export type NetPowerDomain = z.infer<typeof Schema.NetPowerDomainSchema>;
 export type RouteEndpoint = z.infer<typeof Schema.RouteEndpointSchema>;
 export type RouteBranch = z.infer<typeof Schema.RouteBranchSchema>;

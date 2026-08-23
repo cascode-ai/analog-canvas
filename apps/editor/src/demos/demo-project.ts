@@ -55,6 +55,7 @@ const demoProject = CircuitProjectSchema.parse({
         },
       ],
       nets: [],
+      connectivityEvidence: [],
       routes: [],
       junctions: [],
       annotations: [],

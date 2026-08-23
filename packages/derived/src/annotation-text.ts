@@ -6,6 +6,7 @@ import type {
 } from "@icm/model";
 
 import { displayableInstanceValue } from "./instance-value.js";
+import { resolveDocumentLogicalNets } from "./logical-net.js";
 
 const EMPTY_TEXT: RichTextDocument = { runs: [{ kind: "line-break" }] };
 
@@ -69,11 +70,25 @@ export function resolveAnnotationText(
       return display.kind === "displayable" ? display.content : EMPTY_TEXT;
     }
     case "net-name": {
-      const net = document.nets.find(
-        (candidate) => candidate.id === binding.netId,
+      const ownerClaim = document.connectivityEvidence.find(
+        (evidence) =>
+          evidence.kind === "name-claim" &&
+          evidence.netId === binding.netId &&
+          ((evidence.owner.kind === "net-label" &&
+            evidence.owner.annotationId === annotation.id) ||
+            (annotation.anchor.kind === "object" &&
+              ((evidence.owner.kind === "free-port" &&
+                evidence.owner.instanceId === annotation.anchor.objectId) ||
+                (evidence.owner.kind === "power-marker" &&
+                  evidence.owner.objectId === annotation.anchor.objectId)))),
       );
+      const logicalName = resolveDocumentLogicalNets(document).byBaseNetId.get(
+        binding.netId,
+      )?.name;
+      const ownerClaimName =
+        ownerClaim?.kind === "name-claim" ? ownerClaim.name : undefined;
       return semanticTextDocument(
-        net?.name ?? "",
+        ownerClaimName ?? logicalName ?? "",
         annotation.kind === "power-label" ? "power-label" : "net-label",
       );
     }

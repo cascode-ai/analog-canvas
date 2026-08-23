@@ -547,7 +547,7 @@ test("a signed-in member publishes directly, bylined by the account", async ({
       hasAuthor: false,
       name: "Session Publish",
       tags: ["amplifier", "latch"],
-      schemaVersion: ENTRY.schemaVersion,
+      schemaVersion: createEmptyProject("current", "Current").schemaVersion,
     },
   ]);
 });
@@ -1052,7 +1052,7 @@ test("replacing the project retires the stale update offer", async ({
   await expect(dialog.getByRole("button", { name: "Publish" })).toBeVisible();
 });
 
-test("the Examples panel lists the gallery and opens an entry", async ({
+test("the Examples panel guards dirty work before opening an entry", async ({
   page,
 }) => {
   await mockGallery(page, [ENTRY]);
@@ -1061,6 +1061,12 @@ test("the Examples panel lists the gallery and opens an entry", async ({
   );
 
   await page.goto("/editor");
+  await chooseComponent(page, "resistor");
+  await page
+    .getByTestId("schematic-canvas")
+    .click({ position: { x: 360, y: 230 } });
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("hit-R1")).toHaveCount(1);
   await page.getByTestId("examples-toggle").click();
   const panel = page.getByTestId("examples-panel");
   await expect(panel).toHaveAttribute("data-open", "true");
@@ -1074,9 +1080,19 @@ test("the Examples panel lists the gallery and opens an entry", async ({
   ).toHaveCount(0);
 
   await card.click();
+  const dialog = page.getByRole("dialog", {
+    name: "Protect the current Project",
+  });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "Cancel (keep editing)" }).click();
+  await expect(page.getByTestId("hit-R1")).toHaveCount(1);
+
+  await card.click();
+  await dialog.getByRole("button", { name: "Discard and continue" }).click();
   await expect(page.getByTestId("status")).toContainText(
     `Opened gallery circuit: ${ENTRY.name}`,
   );
+  await expect(page.getByTestId("hit-R1")).toHaveCount(0);
 });
 
 test("bundled starter tiles open their example in the editor", async ({
@@ -1089,4 +1105,41 @@ test("bundled starter tiles open their example in the editor", async ({
   await expect(page.getByTestId("status")).toContainText(
     "Opened example: Common-Source Amplifier",
   );
+});
+
+test("bundled VDD rails keep their current presentation in the Gallery and editor", async ({
+  page,
+}) => {
+  await mockGallery(page, []);
+  await page.goto("/");
+  const tile = page.getByTestId(
+    "gallery-bundled-current-mirror-loaded-differential-pair",
+  );
+  const tileRails = tile.locator('[data-route-presentation="power-rail"]');
+  await expect(tileRails).toHaveCount(3);
+  for (const rail of await tileRails.all()) {
+    await expect(rail).toHaveAttribute("stroke-width", "3.24");
+  }
+  await expect(
+    tile.locator(
+      '[data-layer="junctions"] circle[cx="380"][cy="160"], [data-layer="junctions"] circle[cx="500"][cy="160"]',
+    ),
+  ).toHaveCount(0);
+
+  await tile.click();
+  await expect(page).toHaveURL(
+    /\/editor\?example=current-mirror-loaded-differential-pair$/,
+  );
+  const canvasRails = page.locator(
+    '[data-testid="schematic-canvas"] [data-route-presentation="power-rail"]',
+  );
+  await expect(canvasRails).toHaveCount(3);
+  for (const rail of await canvasRails.all()) {
+    await expect(rail).toHaveAttribute("stroke-width", "3.24");
+  }
+  await expect(
+    page.locator(
+      '[data-testid="schematic-canvas"] [data-layer="junctions"] circle[cx="380"][cy="160"], [data-testid="schematic-canvas"] [data-layer="junctions"] circle[cx="500"][cy="160"]',
+    ),
+  ).toHaveCount(0);
 });

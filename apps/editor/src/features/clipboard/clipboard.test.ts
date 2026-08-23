@@ -1,4 +1,5 @@
 import { executeTransaction } from "@icm/edit-engine";
+import { resolveDocumentLogicalNets } from "@icm/derived";
 import type { Annotation, Instance } from "@icm/model";
 import {
   createEmptyDocument,
@@ -8,6 +9,7 @@ import {
 import { buildSvgScene } from "@icm/render-svg";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
+import { createLibraryExampleProject } from "../../examples/library-examples";
 
 import {
   clipboardPlacementAnchor,
@@ -66,8 +68,7 @@ describe("schematic clipboard", () => {
       { symbolResolver: resolver },
     );
 
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
+    if (!result.ok) throw new Error(JSON.stringify(result, null, 2));
     expect(result.document.netlist?.terminals[0]?.interfaceInstanceIds).toEqual(
       ["P1", "P1-copy-1"],
     );
@@ -128,6 +129,14 @@ describe("schematic clipboard", () => {
         { instanceId: "R2", pinName: "1" },
       ],
     });
+    document.connectivityEvidence.push({
+      id: "claim-signal",
+      kind: "name-claim",
+      netId: "net-signal",
+      name: "SIGNAL",
+      scope: "local",
+      owner: { kind: "explicit-net-property" },
+    });
     document.routes.push({
       id: "route-signal",
       netId: "net-signal",
@@ -151,17 +160,17 @@ describe("schematic clipboard", () => {
       },
       { symbolResolver: resolver },
     );
-    expect(result.ok).toBe(true);
+    expect(result).toMatchObject({ ok: true });
     if (!result.ok) return;
     expect(result.document.instances).toHaveLength(4);
     expect(
       result.document.instances.map((instance) => instance.netlist?.reference),
     ).toEqual(["R1", "R2", "R3", "R4"]);
     expect(result.document.routes).toHaveLength(2);
-    expect(result.document.nets).toHaveLength(1);
-    expect(result.document.nets[0]?.terminals).toHaveLength(4);
+    expect(result.document.nets).toHaveLength(2);
+    expect(resolveDocumentLogicalNets(result.document).groups).toHaveLength(1);
     expect(result.document.routes[1]).toMatchObject({
-      netId: "net-signal",
+      netId: "net-signal-copy-1",
       from: { instanceId: "R3" },
       to: { instanceId: "R4" },
     });
@@ -650,5 +659,32 @@ describe("copyWholeDocument", () => {
     expect(whole?.routes[0]?.presentation).toBe("power-rail");
     expect(whole?.junctions).toHaveLength(2);
     expect(whole?.nets.map((net) => net.name)).toEqual(["VDD"]);
+  });
+
+  it("retains migrated Power Rail name claims when inserting an example", () => {
+    const example = createLibraryExampleProject("common-source-amplifier");
+    expect(example).not.toBeNull();
+    const clipboard = copyWholeDocument(example!.documents[0]!);
+    expect(clipboard).not.toBeNull();
+    const target = createEmptyDocument("target", "Target");
+    const proposal = proposePaste(target, clipboard!, { x: 20, y: 20 }, 1);
+    expect(proposal.errors).toEqual([]);
+    const result = executeTransaction(
+      target,
+      {
+        transactionId: "paste-example",
+        documentId: target.id,
+        expectedRevision: target.revision,
+        actor: { kind: "human", id: "test" },
+        edits: proposal.edits,
+      },
+      { symbolResolver: resolver },
+    );
+    if (!result.ok) throw new Error(JSON.stringify(result, null, 2));
+    expect(
+      [...resolveDocumentLogicalNets(result.document).groups].some(
+        (logicalNet) => logicalNet.name === "VDD",
+      ),
+    ).toBe(true);
   });
 });

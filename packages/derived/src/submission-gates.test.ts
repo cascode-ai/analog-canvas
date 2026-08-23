@@ -176,7 +176,14 @@ describe("evaluateSubmissionGates", () => {
     ];
     expect(failureCodes(target)).toEqual(["floating-endpoints"]);
 
-    document.nets[1]!.name = "CLK";
+    document.connectivityEvidence.push({
+      id: "claim-clk",
+      kind: "name-claim",
+      netId: "gate-net",
+      name: "CLK",
+      scope: "local",
+      owner: { kind: "explicit-net-property" },
+    });
     expect(gates(target).ok).toBe(true);
   });
 

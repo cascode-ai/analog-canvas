@@ -114,7 +114,7 @@ describe("Agent Document Snapshot", () => {
     expect(snapshot.electricalTopologyHash).toMatch(/^[a-f0-9]{64}$/u);
   });
 
-  it("exposes the persisted power-domain fact rather than legacy marker inference", () => {
+  it("exposes the resolved marker-owned power-domain fact", () => {
     const document = createEmptyDocument("power-snapshot", "Power Snapshot");
     document.nets.push({
       id: "net-vdd",
@@ -122,6 +122,15 @@ describe("Agent Document Snapshot", () => {
       scope: "global",
       powerDomain: "vdd",
       terminals: [],
+    });
+    document.connectivityEvidence.push({
+      id: "claim-vdd",
+      kind: "name-claim",
+      netId: "net-vdd",
+      name: "VDD",
+      scope: "global",
+      powerDomain: "vdd",
+      owner: { kind: "explicit-net-property" },
     });
     const snapshot = buildAgentSessionSnapshot({ document, resolver });
     expect(snapshot.document.nets).toContainEqual(

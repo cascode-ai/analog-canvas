@@ -53,7 +53,9 @@ for readability; these groups do not create separate mutation endpoints:
 
 <!-- schematic-edit-kinds:start -->
 
-- control/history: `noop`, `clear_document`, `undo`, `redo`;
+- control/history: `noop`, `undo`, `redo`;
+- Cell lifecycle: `clear_cell_drawing`, `reset_cell_placement`,
+  `reset_cell_body`;
 - Instance: `add_instance`, `remove_instance`, `set_instance_symbol`,
   `place_instance`, `unplace_instance`, `move_instance`, `rotate_instance`,
   `mirror_instance`,
@@ -68,8 +70,9 @@ for readability; these groups do not create separate mutation endpoints:
   `add_junction`, `attach_endpoint_to_route`, `remove_junction`,
   `move_junction`, `remove_route_geometry`, `cut_connection`, `connect_endpoints`,
   `disconnect_endpoint`;
-- Net/power/MOS: `add_power_rail`, `merge_nets`, `set_net_name`,
-  `set_net_power_domain`, `set_mos_bulk_defaults`,
+- Net/power/MOS: `add_power_rail`, `merge_nets`,
+  `upsert_connectivity_evidence`, `remove_connectivity_evidence`,
+  `set_mos_bulk_defaults`,
   `reconcile_mos_bulk`, `clear_mos_bulk_default`;
 - explicit open terminal: `add_no_connect`, `remove_no_connect`;
 - presentation/layout: `set_presentation_style`, `set_cell_symbol_presentation`,
@@ -94,8 +97,9 @@ existing netlist record. `set_instance_schematic_reference` changes the visible
 Reference for any non-formal Instance, including a non-emitting Port, without
 changing netlist output; formal Cell Ports use their terminal name and reject
 this edit. `set_instance_schematic_name` instead changes the user-owned
-RichText label shown on an ordinary schematic instance. Port character edits
-rename their bound `Net.name` or `CellTerminal.name`; a formatting-only edit
+RichText label shown on an ordinary schematic instance. Free Net Port and Net
+Label character edits update their owner-addressed name claim; formal Port
+character edits rename `CellTerminal.name`. A formatting-only edit
 upserts the same-text `Annotation.formatOverride`. A Cell-terminal character
 edit uses the structural hierarchy planner so caller pins and the netlist
 interface reconcile atomically. `bulk_patch_instance_netlist` is the bounded,
@@ -129,12 +133,28 @@ terminal, mirroring `add_instance` Symbol validation. Locked drafting objects
 reject user replacement or removal, matching the existing lock
 discipline.
 
-`clear_document` is one atomic human/Agent edit. It removes all authored
-electrical, annotation, layout-intent, and drafting records from the targeted
-Document while preserving Document identity, presentation, source binding,
-and transaction history. Because it crosses topology and presentation, it
-advances revision once, marks connectivity modified, and is restored by one
-Undo.
+The old unscoped `clear_document` edit is retired. Cell removal now uses three
+atomic, browser-editor lifecycle edits planned by `cell-reset-planner.ts`:
+`clear_cell_drawing` removes only Route/drafting geometry,
+`reset_cell_placement` returns Instances to the tray and removes placement
+geometry/intent, and `reset_cell_body` removes non-interface content while
+retaining formal terminals and their marker/Net projection. Each advances the
+Document revision once and is restored by one Undo. The retired Agent product
+categorizes these guarded UI lifecycle edits as unsupported.
+
+`upsert_connectivity_evidence` and `remove_connectivity_evidence` are the only
+atomic writers for the schema-22 evidence list. Upsert replaces evidence with
+the same ID or inserts a new record after checking the shared Document object
+namespace; final Document validation checks every Net and owner reference.
+Removing an Instance, Net Label, Junction, or Route also removes only
+`name-claim` evidence that names that object as its owner. Explicit Net-property
+claims, SPICE-source assertions, and explicit equivalence remain until an
+explicit evidence edit removes them. Evidence is Net reachability: local-Net
+cleanup cannot remove a referenced Base Net, but re-runs after owner/evidence
+deletion so an actually unreachable final Net disappears in the same Undoable
+transaction. Reset Cell Body previews and removes non-interface evidence while
+retaining assertions whose complete Net and owner closure survives. The
+retired Agent surface classifies both evidence edits as unsupported.
 
 `hierarchy-planner.ts` is the shared pure orchestration boundary above these
 edits. It constructs canonical subcircuit Instances and plans Cell
@@ -184,28 +204,25 @@ Phase 8 topology operations have these preconditions:
   transaction so caller Symbol geometry and route following reconcile together;
   it creates no endpoint or drawing-object kind.
 - `remove_instance` requires no Net, annotation, group, or constraint
-  reference.
+  reference. Owner-addressed Connectivity Evidence is cleaned atomically and
+  does not make an otherwise removable Instance permanent.
 - `place_instance` and `unplace_instance` require an unlocked Instance.
   `unplace_instance` returns a placed Instance to the Placement
   Tray. It preserves Net membership, NoConnects, bindings, parameters, and
   annotations, but rejects while a Route still terminates at the Instance.
 - `connect_endpoints` creates a caller-named local Net when both endpoints are
   unowned, or attaches an unowned endpoint to the other endpoint's Net.
-- `set_net_name` requires a non-empty trimmed name. A name already owned by a
-  different Net after case-folded comparison is rejected; the caller must
-  explicitly `merge_nets`.
 - `planEnsureNamedNet` is the pure high-level companion for an existing
-  candidate Net. It returns only `set_net_name` or `merge_nets` edits: an
-  unused name renames the candidate, while an existing same-folded name selects
-  a deterministic target and explicitly merges compatible Nets. It does not
-  weaken the raw edit's rejection rule or create another mutation endpoint.
-- `set_net_power_domain` may classify an unclassified Net or clear a role, but
-  cannot change directly between non-`none` roles. Canonical power authoring
-  selects by Net name before applying this edit; a power role alone never
-  selects a Net.
-- `add_power_rail` requires an explicit trimmed `netName` and scope, creates or
-  reuses exactly that named compatible Net, and binds its RichText annotation
-  to the Net name. It does not infer identity from `powerDomain`.
+  candidate Base Net, stable evidence ID, and addressable owner. It emits
+  `upsert_connectivity_evidence` only: matching scoped claims remain separate
+  physically and resolve to one Logical Net. It never emits `merge_nets` or a
+  new `Net.name` projection. If the candidate has an imported name claim, the
+  edit updates that owned fact deliberately; it does not create another
+  mutation endpoint.
+- `add_power_rail` requires an explicit trimmed `netName` and scope, creates a
+  physical Base Net when needed, and authors the same marker claim used by VDD
+  symbols. Its RichText annotation is bound to that claim. It does not infer
+  identity from `powerDomain` or physically merge by name.
 - Power-Net normalization is not an edit operation. Normal production
   authoring uses the name-first power and named-Net planners; a transaction
   cannot silently add a canonical name, change scope, or repair a duplicate

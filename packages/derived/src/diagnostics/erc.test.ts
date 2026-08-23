@@ -248,7 +248,7 @@ describe("ERC engine", () => {
     const project = emptyProject();
     const document = project.documents[0]!;
     document.instances = [
-      { id: "VDD1", symbolId: "vdd", placement: null },
+      { id: "VDD1", symbolId: "vdd-port", placement: null },
       { id: "GND1", symbolId: "ground", placement: null },
     ];
     document.nets = [
@@ -260,6 +260,26 @@ describe("ERC engine", () => {
           { instanceId: "VDD1", pinName: "P" },
           { instanceId: "GND1", pinName: "0" },
         ],
+      },
+    ];
+    document.connectivityEvidence = [
+      {
+        id: "claim-vdd-short",
+        kind: "name-claim",
+        netId: "net-short",
+        name: "VDD",
+        scope: "local",
+        powerDomain: "vdd",
+        owner: { kind: "explicit-net-property" },
+      },
+      {
+        id: "claim-ground-short",
+        kind: "name-claim",
+        netId: "net-short",
+        name: "0",
+        scope: "local",
+        powerDomain: "ground",
+        owner: { kind: "explicit-net-property" },
       },
     ];
 
@@ -318,7 +338,7 @@ describe("ERC engine", () => {
     expect(diagnostic!.related).toHaveLength(1);
   });
 
-  it("flags two nets sharing a normalized name without an explicit merge", () => {
+  it("treats equal local names as one logical Net without physically merging", () => {
     const project = emptyProject();
     project.documents[0]!.instances = [instance("I1")];
     project.documents[0]!.nets = [
@@ -335,14 +355,12 @@ describe("ERC engine", () => {
         terminals: [{ instanceId: "I1", pinName: "R" }],
       },
     ];
-    const diagnostic = run(project).find(
-      (item) => item.code === "ERC_DUPLICATE_NET_NAME",
+    expect(run(project).map((item) => item.code)).not.toContain(
+      "ERC_NET_NAME_CONFLICT",
     );
-    expect(diagnostic).toBeDefined();
-    expect(diagnostic!.severity).toBe("error");
   });
 
-  it("reports repeated global ground Nets until the deterministic repair merges them", () => {
+  it("accepts repeated global ground markers as one logical Net", () => {
     const project = emptyProject();
     project.documents[0]!.instances = [
       {
@@ -385,7 +403,8 @@ describe("ERC engine", () => {
       },
     ];
 
-    expect(codes(project)).toContain("ERC_DUPLICATE_NET_NAME");
+    expect(codes(project)).not.toContain("ERC_NET_NAME_CONFLICT");
+    expect(codes(project)).not.toContain("ERC_POWER_DOMAIN_CONFLICT");
   });
 
   it("defensively reports a NoConnect endpoint that is also on a Net", () => {

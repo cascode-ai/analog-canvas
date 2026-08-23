@@ -1,4 +1,8 @@
-import { createEmptyDocument, createEmptyProject } from "@icm/model";
+import {
+  createEmptyDocument,
+  createEmptyProject,
+  deriveStableId,
+} from "@icm/model";
 import type { CircuitProject } from "@icm/model";
 import { importSpiceSources } from "@icm/spice";
 import { describe, expect, it } from "vitest";
@@ -184,6 +188,19 @@ function structuralProject(): CircuitProject {
     formalParameters: [],
     interfaceStatus: "declared",
   });
+  for (const document of project.documents) {
+    for (const net of document.nets) {
+      if (!net.name) continue;
+      document.connectivityEvidence.push({
+        id: deriveStableId("fixture-net-name", document.id, net.id),
+        kind: "name-claim",
+        netId: net.id,
+        name: net.name,
+        owner: { kind: "explicit-net-property" },
+        scope: net.scope,
+      });
+    }
+  }
   return project;
 }
 

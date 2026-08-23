@@ -120,6 +120,79 @@ function previousVersionText(): string {
   return JSON.stringify(raw);
 }
 
+function previousPowerRailVersionText(): string {
+  const raw = JSON.parse(projectText("Legacy VDD")) as any;
+  raw.schemaVersion = CURRENT_PROJECT_SCHEMA_VERSION - 1;
+  const document = raw.documents[0];
+  delete document.connectivityEvidence;
+  document.nets.push({
+    id: "net-vdd",
+    name: "VDD",
+    scope: "global",
+    powerDomain: "vdd",
+    origin: { kind: "authored" },
+    terminals: [],
+  });
+  document.junctions.push(
+    {
+      id: "junction-vdd-left",
+      netId: "net-vdd",
+      position: { x: 20, y: 20 },
+      role: "route-anchor",
+    },
+    {
+      id: "junction-vdd-right",
+      netId: "net-vdd",
+      position: { x: 80, y: 20 },
+      role: "route-anchor",
+    },
+  );
+  document.routes.push({
+    id: "route-vdd",
+    netId: "net-vdd",
+    from: { kind: "junction", junctionId: "junction-vdd-left" },
+    to: { kind: "junction", junctionId: "junction-vdd-right" },
+    waypoints: [],
+    segmentModes: ["manual"],
+    presentation: "power-rail",
+  });
+  document.annotations.push({
+    id: "label-vdd",
+    kind: "power-label",
+    binding: { kind: "net-name", netId: "net-vdd" },
+    netId: "net-vdd",
+    anchor: { kind: "free", position: { x: 90, y: 20 } },
+    alignment: "start",
+    rotation: 0,
+    locked: false,
+  });
+  return JSON.stringify(raw);
+}
+
+function brokenCurrentPowerRailText(): string {
+  const raw = JSON.parse(previousPowerRailVersionText()) as any;
+  raw.schemaVersion = CURRENT_PROJECT_SCHEMA_VERSION;
+  raw.documents[0].connectivityEvidence = [
+    {
+      id: "legacy-explicit-vdd",
+      kind: "name-claim",
+      netId: "net-vdd",
+      name: "VDD",
+      owner: { kind: "explicit-net-property" },
+      scope: "global",
+    },
+    {
+      id: "legacy-label-vdd",
+      kind: "name-claim",
+      netId: "net-vdd",
+      name: "VDD",
+      owner: { kind: "net-label", annotationId: "label-vdd" },
+      scope: "global",
+    },
+  ];
+  return JSON.stringify(raw);
+}
+
 async function route(env: GalleryEnv, request: Request) {
   const response = await routeGalleryRequest(request, env);
   if (!response) throw new Error("gallery route did not match");
@@ -380,6 +453,35 @@ describe("gallery submissions", () => {
     expect(JSON.parse(payload.projectText).schemaVersion).toBe(
       CURRENT_PROJECT_SCHEMA_VERSION,
     );
+  });
+
+  it("preserves previous-schema VDD rail semantics in stored text and preview", async () => {
+    const env = environment();
+    const id = await submitOne(env, "Legacy VDD", {
+      text: previousPowerRailVersionText(),
+    });
+    const detail = await route(env, new Request(`${ORIGIN}/api/gallery/${id}`));
+    const payload = (await detail.json()) as { projectText: string };
+    const stored = JSON.parse(payload.projectText) as any;
+    expect(stored.documents[0].connectivityEvidence).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "name-claim",
+          netId: "net-vdd",
+          name: "VDD",
+          powerDomain: "vdd",
+          owner: { kind: "power-marker", objectId: "label-vdd" },
+        }),
+      ]),
+    );
+
+    const preview = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/${id}/preview.svg`),
+    );
+    const svg = await preview.text();
+    expect(svg).toContain('data-route-presentation="power-rail"');
+    expect(svg).toContain('stroke-width="3.24"');
   });
 
   it("refuses an anonymous submission: a session is the whole gate", async () => {
@@ -1309,6 +1411,52 @@ describe("gallery administration", () => {
       new Request(`${ORIGIN}/api/gallery/${id}/preview.svg`),
     );
     expect(await preview.text()).toContain("<svg");
+  });
+
+  it("repairs already-stored schema-22 power evidence during maintenance", async () => {
+    const env = environment();
+    const adminCookie = await adminOf(env);
+    const id = await submitOne(env, "Broken VDD", { cookie: adminCookie });
+    await env.GALLERY.getByName("gallery").fetch(
+      "https://gallery/update-entry",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          id,
+          projectText: brokenCurrentPowerRailText(),
+          schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
+          svgText: "<svg/>",
+        }),
+      },
+    );
+
+    const maintenance = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/maintenance/reserialize`, {
+        method: "POST",
+        headers: cookieHeaders(adminCookie),
+      }),
+    );
+    expect(await maintenance.json()).toMatchObject({ upgraded: 1, failed: [] });
+
+    const detail = await route(env, new Request(`${ORIGIN}/api/gallery/${id}`));
+    const payload = (await detail.json()) as { projectText: string };
+    const stored = JSON.parse(payload.projectText) as any;
+    expect(stored.documents[0].connectivityEvidence).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "legacy-label-vdd",
+          powerDomain: "vdd",
+          owner: { kind: "power-marker", objectId: "label-vdd" },
+        }),
+      ]),
+    );
+    const preview = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/${id}/preview.svg`),
+    );
+    expect(await preview.text()).toContain('stroke-width="3.24"');
   });
 });
 

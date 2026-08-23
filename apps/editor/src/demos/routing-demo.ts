@@ -1,6 +1,7 @@
 import {
   CURRENT_PROJECT_SCHEMA_VERSION,
   CircuitProjectSchema,
+  deriveStableId,
 } from "@icm/model";
 import type { CircuitProject, Instance } from "@icm/model";
 
@@ -52,7 +53,6 @@ export function createRoutingDemoProject(): CircuitProject {
             id: "net-h",
             name: "HORIZONTAL",
             scope: "local",
-            origin: { kind: "authored" },
             terminals: ["A", "B", "E"].map((instanceId) => ({
               instanceId,
               pinName: "P",
@@ -62,13 +62,29 @@ export function createRoutingDemoProject(): CircuitProject {
             id: "net-v",
             name: "VERTICAL",
             scope: "local",
-            origin: { kind: "authored" },
             terminals: ["C", "D"].map((instanceId) => ({
               instanceId,
               pinName: "P",
             })),
           },
         ],
+        connectivityEvidence: ["HORIZONTAL", "VERTICAL"].map((name, index) => {
+          const netId = index === 0 ? "net-h" : "net-v";
+          return {
+            id: deriveStableId(
+              "connectivity-evidence",
+              "document-routing",
+              "explicit-net-property",
+              netId,
+              name,
+            ),
+            kind: "name-claim",
+            netId,
+            name,
+            owner: { kind: "explicit-net-property" },
+            scope: "local",
+          };
+        }),
         routes: [],
         junctions: [],
         annotations: [],

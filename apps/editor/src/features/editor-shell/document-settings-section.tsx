@@ -1,4 +1,5 @@
 import type { SchematicDocument, StyleOverrides } from "@icm/model";
+import { resolveDocumentLogicalNets } from "@icm/derived";
 
 import {
   STYLE_KNOBS,
@@ -28,6 +29,7 @@ export function DocumentSettingsSection({
 }: DocumentSettingsSectionProps) {
   const draft = styleOverrideDraft(document.presentation.styleOverrides);
   const untouched = normalizedStyleOverrides(draft) === null;
+  const logicalNets = resolveDocumentLogicalNets(document);
 
   return (
     <section className="context-actions" aria-label="Document settings">
@@ -77,7 +79,7 @@ export function DocumentSettingsSection({
           <option value="">None</option>
           {document.nets.map((net) => (
             <option key={net.id} value={net.id}>
-              {net.name ?? net.id}
+              {logicalNets.byBaseNetId.get(net.id)?.name ?? net.id}
             </option>
           ))}
         </select>
@@ -94,7 +96,7 @@ export function DocumentSettingsSection({
           <option value="">None</option>
           {document.nets.map((net) => (
             <option key={net.id} value={net.id}>
-              {net.name ?? net.id}
+              {logicalNets.byBaseNetId.get(net.id)?.name ?? net.id}
             </option>
           ))}
         </select>
