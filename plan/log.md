@@ -5178,3 +5178,8 @@ Keep reusable lessons in `docs/experience/`, not in this log.
 - Commit status: committed and pushed on
   `codex/properties-identity-placement-polish`; mainline merge remains gated on
   canonical CI and remote required checks.
+- Follow-up: collapsed Display from a heading-plus-two-tiles stack into one
+  32px inline row, preserving both checkboxes while removing their nested
+  backgrounds and excess padding. Added a browser layout contract; preflight,
+  1192 unit tests, and 25 component-insert browser tests passed. The follow-up
+  is committed and pushed on the same branch.

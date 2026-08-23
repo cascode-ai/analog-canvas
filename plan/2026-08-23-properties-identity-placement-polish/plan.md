@@ -10,7 +10,8 @@ experience: none
 Simplify the component Properties presentation on current `origin/main` while
 preserving the Identity card, compacting placement controls, retaining
 amplifier-specific swap actions, and removing two identified explanatory
-paragraphs.
+paragraphs. Follow up by reducing the Display card to one quiet inline control
+row without changing Reference or Value behavior.
 
 ## State and Ownership
 
@@ -50,6 +51,8 @@ Read-only and shared boundaries:
    Tray introduction with compact retained-count state.
 5. Update the focused browser contract for the revised visible and accessible
    UI.
+6. Compact the Display heading and its two required checkboxes into one row,
+   removing the nested tile treatment and surplus vertical padding.
 
 ## Validation
 
@@ -74,23 +77,28 @@ Read-only and shared boundaries:
   or pushing a non-document change to `main`
 - Platform risks: responsive layout and icon rendering require Chromium visual
   inspection; no generated artifacts or release-specific files are expected
+- Follow-up review: the Display-only revision uses `HEAD` as its base because
+  the preceding target commit is already pushed and fully validated; its
+  affected selection is static checks, workspace units, and component-insert
+  browser tests.
 
 ## Test Impact
 
 - Decision: tests-updated
 - Contracts: Identity remains present without Device class; placement exposes
   X/Y plus accessible rotate and mirror actions; Return to tray remains
-  reachable; retained count remains visible without the verbose instruction.
+  reachable; retained count remains visible without the verbose instruction;
+  Display keeps Reference and Value on one compact row.
 - Primary checks: `apps/editor/e2e/component-insert.spec.ts` and the existing
   capacitor terminal case in `apps/editor/e2e/manual-editor.spec.ts` through
   focused `pnpm test:e2e:local` runs
 
 ## Commit Intent
 
-Commit as:
+Follow-up commit as:
 
 ```text
-refactor(editor): polish identity and placement properties
+refactor(editor): compact component display controls
 ```
 
 ## Outcome
@@ -114,3 +122,17 @@ Validation completed:
 
 The branch is ready for review; canonical `pnpm ci:check` and remote required
 checks remain the mainline merge gate.
+
+Display-card follow-up completed: the heading and both required checkboxes now
+share one 32px-high row, while the nested toggle tiles, fill colors, and surplus
+vertical padding are removed. Reference and Value behavior is unchanged.
+
+Follow-up validation completed relative to the preceding pushed commit:
+
+- `pnpm gate:preflight -- --base HEAD`
+- `pnpm gate:affected -- --base HEAD` (183 unit files / 1192 tests and
+  component-insert 25/25)
+- focused Display test 1/1
+- in-app Chromium inspection at the live localhost, including measured card
+  height and grid columns
+- `git diff --check`

@@ -570,9 +570,25 @@ test("carries a manual Value through placement and Q property editing", async ({
   await expect(page.getByTestId("selection-shelf")).toContainText(
     "R1 · resistor",
   );
-  await expect(page.getByLabel("Component display toggles")).toContainText(
-    "ReferenceValue",
-  );
+  const displayCard = page.locator(".property-display-card");
+  await expect(
+    displayCard.getByLabel("Component display toggles"),
+  ).toContainText("ReferenceValue");
+  expect(
+    await displayCard.evaluate((element) => ({
+      columns: getComputedStyle(element).gridTemplateColumns.split(" ").length,
+      height: element.getBoundingClientRect().height,
+      toggleBackgrounds: Array.from(
+        element.querySelectorAll<HTMLElement>(".display-toggle"),
+        (toggle) => getComputedStyle(toggle).backgroundColor,
+      ),
+    })),
+  ).toEqual({
+    columns: 2,
+    height: expect.any(Number),
+    toggleBackgrounds: ["rgba(0, 0, 0, 0)", "rgba(0, 0, 0, 0)"],
+  });
+  expect((await displayCard.boundingBox())?.height).toBeLessThan(48);
   await expect(page.getByText("Placement", { exact: true })).toBeVisible();
   const propertyValue = page.getByLabel("Component value");
   // Opening focuses the shelf header, never the first field: Q stays a pure

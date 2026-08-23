@@ -2654,9 +2654,33 @@ body {
   gap: 0.45rem;
 }
 
+.property-display-card {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.55rem;
+  padding-block: 0.45rem;
+}
+
 .property-display-card .display-toggle-row {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(2, max-content);
+  justify-content: end;
+  gap: 0.7rem;
+}
+
+.selection-panel .property-display-card .display-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.selection-panel .property-display-card .display-toggle:has(input:checked) {
+  border-color: transparent;
+  background: transparent;
 }
 
 .property-details summary {
