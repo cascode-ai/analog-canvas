@@ -9,13 +9,11 @@ import {
   createConnectivityProposal,
   createFreeWireAnchor,
   gateConnectivityProposal,
-  insertRouteSegmentJog,
   proposeVisualRouteDeletion,
   proposeLooseRouteTranslation,
   proposePowerRailEndpointResize,
   proposePowerRailTranslation,
   proposeWireSegmentMove,
-  removeRouteSegmentJog,
   proposeWireCommitThroughContacts,
   type SchematicEdit,
   type ConnectivityIntent,
@@ -376,69 +374,6 @@ export function useWireInteraction(options: UseWireInteractionOptions) {
     if (result.ok) {
       options.replaceRouteSelection([]);
       options.setStatus(`Deleted wire ${route.id}`);
-    }
-  };
-
-  const editSelectedRouteJog = (action: "insert" | "remove"): void => {
-    if (!options.selectedRouteId) return;
-    const route = options.document.routes.find(
-      (candidate) => candidate.id === options.selectedRouteId,
-    );
-    const record = options.routeGeometryRecords.find(
-      (candidate) => candidate.route.id === options.selectedRouteId,
-    );
-    if (!route || !record) return;
-    const segmentIndex = Math.min(
-      options.selectedRouteSegmentIndex ?? 0,
-      route.segmentModes.length - 1,
-    );
-    try {
-      const geometry = {
-        points: record.geometry.centerline,
-        segmentModes: route.segmentModes,
-      };
-      const next =
-        action === "insert"
-          ? insertRouteSegmentJog(
-              geometry,
-              segmentIndex,
-              options.document.presentation.grid,
-            )
-          : removeRouteSegmentJog(geometry, segmentIndex);
-      const result = transactProposal(
-        proposalFor(
-          "edit_route_geometry",
-          [
-            {
-              kind: "set_route_points",
-              routeId: route.id,
-              netId: route.netId,
-              from: route.from,
-              to: route.to,
-              waypoints: next.waypoints,
-              segmentModes: next.segmentModes,
-              ...(route.presentation
-                ? { presentation: route.presentation }
-                : {}),
-            },
-          ],
-          { action, routeId: route.id, segmentIndex },
-        ),
-      );
-      if (result.ok) {
-        options.setSelectedRouteSegmentIndex(
-          action === "insert" ? segmentIndex + 1 : segmentIndex - 1,
-        );
-        options.setStatus(
-          action === "insert"
-            ? "Added orthogonal wire jog"
-            : "Straightened orthogonal wire jog",
-        );
-      }
-    } catch (error) {
-      options.setStatus(
-        error instanceof Error ? error.message : "Route geometry edit failed",
-      );
     }
   };
 
@@ -832,7 +767,6 @@ export function useWireInteraction(options: UseWireInteractionOptions) {
     commitWire,
     completeRouteStretch,
     deleteSelectedRouteConnection,
-    editSelectedRouteJog,
     drawSelectedMosBulk,
     fixWirePoint,
     finishWireAtPoint,

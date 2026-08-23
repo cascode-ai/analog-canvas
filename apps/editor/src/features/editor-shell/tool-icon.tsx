@@ -9,6 +9,8 @@ export type ToolIconName =
   | "rectangle"
   | "style"
   | "rotate"
+  | "mirror-horizontal"
+  | "mirror-vertical"
   | "lock"
   | "zoom-in"
   | "zoom-out"
@@ -84,6 +86,20 @@ export function ToolIcon({ name }: { name: ToolIconName }) {
         <>
           <path d="M15.5 7A6 6 0 1 0 16 12" {...common} />
           <path d="M12.5 3.5H16v3.5" {...common} />
+        </>
+      ) : null}
+      {name === "mirror-horizontal" ? (
+        <>
+          <path d="M10 3v14" strokeDasharray="1.6 2" {...common} />
+          <path d="M3.5 6.5L8 4.5v11l-4.5-2z" {...common} />
+          <path d="M16.5 6.5L12 4.5v11l4.5-2z" {...common} />
+        </>
+      ) : null}
+      {name === "mirror-vertical" ? (
+        <>
+          <path d="M3 10h14" strokeDasharray="1.6 2" {...common} />
+          <path d="M6.5 3.5L4.5 8h11l-2-4.5z" {...common} />
+          <path d="M6.5 16.5L4.5 12h11l-2 4.5z" {...common} />
         </>
       ) : null}
       {name === "lock" ? (

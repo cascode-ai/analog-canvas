@@ -70,7 +70,14 @@ export function CellManagerDialog({
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (open) setSelectedId(activeDocumentId);
+    if (open) {
+      setSelectedId(activeDocumentId);
+      return;
+    }
+    setDraftName("");
+    setCreating(false);
+    setRenameId(null);
+    setDeleteId(null);
   }, [activeDocumentId, open]);
 
   const selectedEntry =
@@ -80,6 +87,21 @@ export function CellManagerDialog({
   );
   const renameTarget = cells.find((cell) => cell.id === renameId);
   const deleteTarget = cells.find((cell) => cell.id === deleteId);
+
+  function dismissActionDialog(): void {
+    setDraftName("");
+    setCreating(false);
+    setRenameId(null);
+    setDeleteId(null);
+  }
+
+  function submitCellName(): void {
+    const name = draftName.trim();
+    if (!name) return;
+    if (renameTarget) onRename(renameTarget.id, name);
+    else onCreate(name);
+    dismissActionDialog();
+  }
 
   if (!open) return null;
 
@@ -246,65 +268,104 @@ export function CellManagerDialog({
           </div>
         </div>
 
-        {deleteTarget ? (
-          <section
-            className="cell-inline-dialog"
-            role="dialog"
-            aria-label="Delete Cell"
+        {deleteTarget || creating || renameTarget ? (
+          <div
+            className="cell-manager-dialog-layer"
+            onPointerDown={(event) =>
+              event.target === event.currentTarget && dismissActionDialog()
+            }
           >
-            <h3>Delete {deleteTarget.name}?</h3>
-            <p>This unreferenced Cell definition can be restored with Undo.</p>
-            <button
-              type="button"
-              onClick={() => {
-                onDelete(deleteTarget.id);
-                setDeleteId(null);
-              }}
-            >
-              Delete Cell
-            </button>
-            <button type="button" onClick={() => setDeleteId(null)}>
-              Cancel
-            </button>
-          </section>
-        ) : creating || renameTarget ? (
-          <section
-            className="cell-inline-dialog"
-            role="dialog"
-            aria-label={renameTarget ? "Rename Cell" : "New Cell"}
-          >
-            <h3>{renameTarget ? "Rename Cell" : "New Cell"}</h3>
-            <input
-              id="cell-name-input"
-              aria-label="Cell name"
-              value={draftName}
-              onChange={(event) => setDraftName(event.currentTarget.value)}
-            />
-            <button
-              type="button"
-              onClick={() => {
-                const name = draftName.trim();
-                if (!name) return;
-                if (renameTarget) onRename(renameTarget.id, name);
-                else onCreate(name);
-                setRenameId(null);
-                setCreating(false);
-                setDraftName("");
-              }}
-            >
-              {renameTarget ? "Rename" : "Create"}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setRenameId(null);
-                setCreating(false);
-                setDraftName("");
-              }}
-            >
-              Cancel
-            </button>
-          </section>
+            {deleteTarget ? (
+              <section
+                className="editor-action-dialog"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Delete Cell"
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") dismissActionDialog();
+                }}
+              >
+                <header className="editor-action-dialog-header">
+                  <p>Project hierarchy</p>
+                  <h2 id="delete-cell-dialog-title">
+                    Delete {deleteTarget.name}?
+                  </h2>
+                </header>
+                <div className="editor-action-dialog-body">
+                  <p>
+                    Remove this unreferenced Cell definition. You can restore it
+                    with Undo.
+                  </p>
+                </div>
+                <footer className="editor-action-dialog-actions">
+                  <button type="button" autoFocus onClick={dismissActionDialog}>
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="danger"
+                    onClick={() => {
+                      onDelete(deleteTarget.id);
+                      dismissActionDialog();
+                    }}
+                  >
+                    Delete Cell
+                  </button>
+                </footer>
+              </section>
+            ) : (
+              <form
+                className="editor-action-dialog"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="cell-name-dialog-title"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  submitCellName();
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") dismissActionDialog();
+                }}
+              >
+                <header className="editor-action-dialog-header">
+                  <p>Project hierarchy</p>
+                  <h2 id="cell-name-dialog-title">
+                    {renameTarget ? "Rename Cell" : "New Cell"}
+                  </h2>
+                </header>
+                <div className="editor-action-dialog-body">
+                  <p>
+                    {renameTarget
+                      ? "Update the name used throughout this project."
+                      : "Create a reusable schematic definition in this project."}
+                  </p>
+                  <label className="editor-action-dialog-field">
+                    <span>Cell name</span>
+                    <input
+                      id="cell-name-input"
+                      autoFocus
+                      value={draftName}
+                      onChange={(event) =>
+                        setDraftName(event.currentTarget.value)
+                      }
+                    />
+                  </label>
+                </div>
+                <footer className="editor-action-dialog-actions">
+                  <button type="button" onClick={dismissActionDialog}>
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="primary"
+                    disabled={draftName.trim().length === 0}
+                  >
+                    {renameTarget ? "Rename" : "Create"}
+                  </button>
+                </footer>
+              </form>
+            )}
+          </div>
         ) : null}
       </section>
     </div>

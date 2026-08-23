@@ -115,8 +115,13 @@ test("returns a component to the Placement Tray and places the retained Instance
     .getByRole("button", { name: "Return component to Placement Tray" })
     .click();
   await expect(
+    page
+      .getByRole("region", { name: "Placement Tray" })
+      .getByLabel("1 retained Instance"),
+  ).toBeVisible();
+  await expect(
     page.getByRole("region", { name: "Placement Tray" }),
-  ).toContainText("1 retained");
+  ).not.toContainText("drag to the canvas");
   await expect(page.getByTestId("unplaced-R1")).toContainText("R1 · resistor");
   await expect(page.getByTestId("hit-R1")).toHaveCount(0);
   await expect(
@@ -135,8 +140,10 @@ test("returns a component to the Placement Tray and places the retained Instance
     page.getByTestId("annotation-hit-instance-label-R1"),
   ).toBeVisible();
   await expect(
-    page.getByRole("region", { name: "Placement Tray" }),
-  ).toContainText("0 retained");
+    page
+      .getByRole("region", { name: "Placement Tray" })
+      .getByLabel("0 retained Instances"),
+  ).toBeVisible();
   await expect(page.getByTestId("revision")).toHaveText("3");
 
   await page.getByTestId("hit-R1").click();
@@ -536,14 +543,52 @@ test("carries a manual Value through placement and Q property editing", async ({
     "aria-expanded",
     "true",
   );
-  await expect(page.getByLabel("Component geometry")).toContainText("XYRotate");
+  const placementControls = page.getByLabel("Component geometry");
+  await expect(placementControls).toContainText("XY");
+  await expect(
+    placementControls.getByRole("button", {
+      name: /Rotate component clockwise 90 degrees/,
+    }),
+  ).toBeVisible();
+  await expect(
+    placementControls.getByRole("button", {
+      name: "Mirror component left to right, Shift+R",
+    }),
+  ).toBeVisible();
+  await expect(
+    placementControls.getByRole("button", {
+      name: "Mirror component top to bottom, Ctrl+R",
+    }),
+  ).toBeVisible();
+  expect(
+    await placementControls.evaluate(
+      (element) =>
+        getComputedStyle(element).gridTemplateColumns.split(" ").length,
+    ),
+  ).toBe(5);
   await expect(page.locator(".selection-overview")).toHaveCount(0);
   await expect(page.getByTestId("selection-shelf")).toContainText(
     "R1 · resistor",
   );
-  await expect(page.getByLabel("Component display toggles")).toContainText(
-    "ReferenceValue",
-  );
+  const displayCard = page.locator(".property-display-card");
+  await expect(
+    displayCard.getByLabel("Component display toggles"),
+  ).toContainText("ReferenceValue");
+  expect(
+    await displayCard.evaluate((element) => ({
+      columns: getComputedStyle(element).gridTemplateColumns.split(" ").length,
+      height: element.getBoundingClientRect().height,
+      toggleBackgrounds: Array.from(
+        element.querySelectorAll<HTMLElement>(".display-toggle"),
+        (toggle) => getComputedStyle(toggle).backgroundColor,
+      ),
+    })),
+  ).toEqual({
+    columns: 2,
+    height: expect.any(Number),
+    toggleBackgrounds: ["rgba(0, 0, 0, 0)", "rgba(0, 0, 0, 0)"],
+  });
+  expect((await displayCard.boundingBox())?.height).toBeLessThan(48);
   await expect(page.getByText("Placement", { exact: true })).toBeVisible();
   const propertyValue = page.getByLabel("Component value");
   // Opening focuses the shelf header, never the first field: Q stays a pure
@@ -578,7 +623,10 @@ test("carries a manual Value through placement and Q property editing", async ({
     page.getByRole("button", { name: "Discard changes" }),
   ).toHaveCount(0);
   await expect(page.getByLabel("Component identity")).toContainText(
-    "Schematic labelNetlist referenceSymbolresistorDevice classresistor",
+    "Schematic labelNetlist referenceSymbolresistorCell",
+  );
+  await expect(page.getByLabel("Component identity")).not.toContainText(
+    "Device class",
   );
   const netlistReference = page.getByLabel("Component netlist reference");
   await expect(netlistReference).toHaveValue("R1");
@@ -606,6 +654,30 @@ test("carries a manual Value through placement and Q property editing", async ({
   await expect(page.getByLabel("Additional parameter value 1")).toHaveValue(
     "0.1",
   );
+});
+
+test("keeps differential amplifier swaps in a dedicated placement row", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await chooseComponent(page, "opamp-differential");
+  await page
+    .getByTestId("schematic-canvas")
+    .click({ position: { x: 360, y: 230 } });
+  await page.keyboard.press("Escape");
+  await page.getByTestId("hit-X1").click();
+  await page.getByTestId("selection-shelf").click();
+
+  const amplifierActions = page.getByLabel("Amplifier placement actions");
+  await expect(
+    amplifierActions.getByRole("button", { name: "Swap the + and - outputs" }),
+  ).toBeVisible();
+  await expect(
+    amplifierActions.getByRole("button", { name: "Swap the + and - inputs" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Return component to Placement Tray" }),
+  ).toBeVisible();
 });
 
 test("keeps the workspace inside the viewport and exposes low-interference zoom controls", async ({
@@ -758,7 +830,11 @@ test("places MOS parameters and orientation without a hidden-label suppressor", 
   await expect(page.getByLabel("Component m", { exact: true })).toHaveValue(
     "4",
   );
-  await expect(page.getByLabel("Component rotation")).toHaveValue("90");
+  await expect(
+    page.getByRole("button", {
+      name: /Rotate component clockwise 90 degrees; current rotation 90 degrees/,
+    }),
+  ).toBeVisible();
 });
 
 test("keeps component placement active across independent canvas commits", async ({
