@@ -15,8 +15,17 @@
 //   approved-symbol validation) before the caller may replace the live
 //   Project, and rejected input leaves everything unchanged.
 //
+// A confirmed save hands back a `ProjectSaveTarget` so later saves can write
+// straight to the location already chosen: asking for a location on every
+// save is what left so many projects saved exactly once. Two entry points
+// keep that honest — `saveProjectArtifact` is the explicit save and may
+// prompt or open the picker, while `resaveProjectArtifact` is silent and
+// reports `target-unavailable` rather than raising a dialog nobody asked
+// for.
+//
 // File handles are transient runtime capabilities: nothing here serializes a
-// handle into Project JSON or a recovery record.
+// handle into Project JSON or a recovery record, and a target dies with the
+// tab.
 
 import {
   serializeProject,
@@ -57,15 +66,30 @@ export type ProjectFileOpenOutcome =
     }
   | { status: "rejected"; diagnostics: ProjectFileOpenDiagnostic[] };
 
+/**
+ * A location the person already chose, so a later save can write straight
+ * back to it instead of asking again. Transient by the module contract
+ * above: it is never serialized into Project JSON or a recovery record, and
+ * it dies with the tab.
+ */
+export interface ProjectSaveTarget {
+  readonly handle: ProjectFileHandleLike;
+  readonly fileName: string;
+}
+
 export type ProjectSaveOutcome =
   | {
       status: "write-confirmed";
       fileName: string;
       bytes: number;
       at: string;
+      /** Present when the platform gave us a reusable location. */
+      target?: ProjectSaveTarget;
     }
   | { status: "download-requested"; fileName: string; bytes: number }
   | { status: "picker-cancelled" }
+  /** A silent re-save found no usable grant and declined to interrupt. */
+  | { status: "target-unavailable" }
   | { status: "permission-denied"; message: string }
   | {
       status: "write-failed";
@@ -88,11 +112,19 @@ interface ProjectWritableStreamLike {
   abort?(reason?: unknown): Promise<void>;
 }
 
-interface ProjectFileHandleLike {
+type ProjectFilePermissionState = "granted" | "denied" | "prompt";
+
+export interface ProjectFileHandleLike {
   name?: string;
   createWritable(options?: {
     keepExistingData?: boolean;
   }): Promise<ProjectWritableStreamLike>;
+  queryPermission?(descriptor?: {
+    mode?: "read" | "readwrite";
+  }): Promise<ProjectFilePermissionState>;
+  requestPermission?(descriptor?: {
+    mode?: "read" | "readwrite";
+  }): Promise<ProjectFilePermissionState>;
 }
 
 interface ProjectFileAnchorLike {
@@ -217,6 +249,7 @@ export function downloadTextArtifact(
 export async function saveProjectArtifact(
   project: CircuitProject,
   seams: ProjectFileServiceSeams = {},
+  target: ProjectSaveTarget | null = null,
 ): Promise<ProjectSaveOutcome> {
   let text: string;
   try {
@@ -226,6 +259,21 @@ export async function saveProjectArtifact(
   }
   const bytes = new TextEncoder().encode(text).length;
   const suggestedName = `${projectFileBaseName(project.name)}.icproj.json`;
+
+  // Write straight back to the location this person already chose. Asking
+  // again on every save is what left so many projects saved exactly once.
+  if (target) {
+    if (await hasWritePermission(target.handle, { mayPrompt: true })) {
+      const outcome = await writeThrough(target, text, bytes, seams);
+      // A stale target — file moved, renamed, or deleted — must not wedge
+      // saving, so only a failure to *open* the stream falls through to the
+      // picker. A failure mid-write is reported, never silently retried.
+      if (!(outcome.status === "write-failed" && outcome.stage === "open")) {
+        return outcome;
+      }
+    }
+  }
+
   const pickerWindow = seams.getWindow?.() ?? defaultWindow();
   const picker = pickerWindow?.showSaveFilePicker;
   if (typeof picker !== "function") {
@@ -264,9 +312,51 @@ export async function saveProjectArtifact(
     return { status: "permission-denied", message: errorMessage(error) };
   }
 
+  return writeThrough(
+    { handle, fileName: handle.name ?? suggestedName },
+    text,
+    bytes,
+    seams,
+  );
+}
+
+/**
+ * Write back to a location the person already chose, without interrupting
+ * them. Silent by contract: a lapsed grant reports `target-unavailable`
+ * rather than raising a permission prompt, so an automatic save triggered by
+ * some other action can never steal focus or pop a dialog nobody asked for.
+ */
+export async function resaveProjectArtifact(
+  project: CircuitProject,
+  target: ProjectSaveTarget,
+  seams: ProjectFileServiceSeams = {},
+): Promise<ProjectSaveOutcome> {
+  let text: string;
+  try {
+    text = serializeProject(project);
+  } catch (error) {
+    return { status: "serialization-failed", message: errorMessage(error) };
+  }
+  if (!(await hasWritePermission(target.handle, { mayPrompt: false }))) {
+    return { status: "target-unavailable" };
+  }
+  const bytes = new TextEncoder().encode(text).length;
+  return writeThrough(target, text, bytes, seams);
+}
+
+/**
+ * The one place a handle is turned into bytes on disk, so both the explicit
+ * save and the silent re-save report outcomes by the same rules.
+ */
+async function writeThrough(
+  target: ProjectSaveTarget,
+  text: string,
+  bytes: number,
+  seams: ProjectFileServiceSeams,
+): Promise<ProjectSaveOutcome> {
   let writable: ProjectWritableStreamLike;
   try {
-    writable = await handle.createWritable();
+    writable = await target.handle.createWritable();
   } catch (error) {
     return {
       status: "write-failed",
@@ -296,10 +386,36 @@ export async function saveProjectArtifact(
   }
   return {
     status: "write-confirmed",
-    fileName: handle.name ?? suggestedName,
+    fileName: target.fileName,
     bytes,
     at: seams.now?.() ?? new Date().toISOString(),
+    target,
   };
+}
+
+/**
+ * Whether the handle may be written right now. A browser that exposes no
+ * permission API predates the query — there the write itself is the check,
+ * so this reports true and lets `createWritable` speak.
+ */
+async function hasWritePermission(
+  handle: ProjectFileHandleLike,
+  options: { mayPrompt: boolean },
+): Promise<boolean> {
+  if (typeof handle.queryPermission !== "function") return true;
+  try {
+    if ((await handle.queryPermission({ mode: "readwrite" })) === "granted") {
+      return true;
+    }
+    if (!options.mayPrompt || typeof handle.requestPermission !== "function") {
+      return false;
+    }
+    return (
+      (await handle.requestPermission({ mode: "readwrite" })) === "granted"
+    );
+  } catch {
+    return false;
+  }
 }
 
 async function abortQuietly(

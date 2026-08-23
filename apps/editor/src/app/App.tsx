@@ -339,9 +339,11 @@ import {
   downloadTextArtifact,
   formatProjectOpenDiagnostics,
   requestProjectDownload,
+  resaveProjectArtifact,
   saveProjectArtifact,
   stageProjectFile,
   type ProjectFileState,
+  type ProjectSaveTarget,
 } from "../document/project-file-service";
 import type { BrowserRecoveryGeneration } from "../document/browser-recovery-contract";
 import { projectFileBaseName } from "../document/project-file-service";
@@ -619,6 +621,10 @@ export function App({
   // state: a commit makes it dirty again, only a confirmed File System
   // Access close or an explicit download transitions it out of dirty.
   const [fileState, setFileState] = useState<ProjectFileState>("new");
+  // Where this working copy was last written, so Save writes back instead of
+  // asking again. A runtime capability, never persisted: it is dropped
+  // whenever the whole project is replaced, and it dies with the tab.
+  const saveTargetRef = useRef<ProjectSaveTarget | null>(null);
   const [formalProjectBaseline, setFormalProjectBaseline] =
     useState<FormalProjectBaseline | null>(null);
   const fileStateBaselineRef = useRef<{
@@ -3209,6 +3215,10 @@ export function App({
     setDocumentStack([]);
     setViewBox(nextViewBox, nextDocument.presentation.grid);
     resetInteractionState();
+    // The incoming project has no file of its own yet; keeping the outgoing
+    // one's location would let a later Save quietly overwrite a different
+    // circuit's file.
+    saveTargetRef.current = null;
     setFileState(
       options.fileState ??
         (options.source === "opened-file" ? "opened" : "new"),
@@ -4924,12 +4934,17 @@ export function App({
     window.setTimeout(() => URL.revokeObjectURL(url), 0);
   }
 
-  async function saveProjectFile(): Promise<void> {
+  async function saveProjectFile(options: { pickLocation?: boolean } = {}) {
     // Saving or downloading never clears the browser recovery copies. Only a
     // confirmed File System Access close reports a confirmed write; the
     // fallback download is reported as requested, not saved.
-    const outcome = await saveProjectArtifact(project);
+    const outcome = await saveProjectArtifact(
+      project,
+      {},
+      options.pickLocation ? null : saveTargetRef.current,
+    );
     if (outcome.status === "write-confirmed") {
+      saveTargetRef.current = outcome.target ?? null;
       setFormalProjectBaseline({
         project: structuredClone(project),
         viewBox: { ...viewBox },
@@ -4975,7 +4990,40 @@ export function App({
       );
       return;
     }
+    if (outcome.status === "target-unavailable") {
+      // Only the silent path reports this; an explicit save falls back to
+      // the picker rather than reaching here.
+      setStatus("Save location is no longer available — choose one again");
+      return;
+    }
     setStatus(`Project could not be serialized: ${outcome.message}`);
+  }
+
+  /**
+   * Exporting is the strongest signal we get that a circuit matters, so it is
+   * the right moment to make sure the project file is not left behind. When a
+   * location is already granted the write happens silently; otherwise this
+   * says so rather than opening a picker nobody asked for.
+   */
+  async function reportExport(message: string): Promise<void> {
+    if (!isDirtyWork()) {
+      setStatus(message);
+      return;
+    }
+    const target = saveTargetRef.current;
+    if (target) {
+      const outcome = await resaveProjectArtifact(project, target);
+      if (outcome.status === "write-confirmed") {
+        noteRecoveryFormalFileHint({
+          name: outcome.fileName,
+          lastConfirmedWriteAt: outcome.at,
+        });
+        setFileState("write-confirmed");
+        setStatus(`${message} — also saved ${outcome.fileName}`);
+        return;
+      }
+    }
+    setStatus(`${message} — the Project file still has unsaved changes`);
   }
 
   function isDirtyWork(): boolean {
@@ -6431,7 +6479,7 @@ export function App({
       title: project.name,
     });
     download(source.svg, "image/svg+xml", "svg");
-    setStatus(`Exported revision ${document.revision}`);
+    void reportExport(`Exported revision ${document.revision}`);
   }
 
   /**
@@ -6506,7 +6554,7 @@ export function App({
     }
     const artifact = printDesignNetlist(format, netlistAnalysis.ir);
     download(artifact.text, artifact.mediaType, artifact.extension.slice(1));
-    setStatus(
+    void reportExport(
       `Download requested: ${safeExportBaseName(project.name)}${artifact.extension}`,
     );
   }
@@ -6524,7 +6572,7 @@ export function App({
         const { pdf } = await exportFormalArtifactsInBrowser(source);
         download(pdf as BlobPart, "application/pdf", "pdf");
       }
-      setStatus(
+      await reportExport(
         `Exported ${format.toUpperCase()} revision ${document.revision}`,
       );
     } catch (error) {
@@ -7364,7 +7412,7 @@ export function App({
           setStatus("Select objects before moving them");
           return;
         case "save":
-          saveProjectFile();
+          void saveProjectFile();
           return;
         case "open":
           projectInputRef.current?.click();
@@ -7657,8 +7705,17 @@ export function App({
                   <button type="button" onClick={createNewProject}>
                     New Project
                   </button>
-                  <button type="button" onClick={saveProjectFile}>
+                  <button type="button" onClick={() => void saveProjectFile()}>
                     Save Project
+                  </button>
+                  {/* Save writes back to the chosen file without asking
+                      again, so choosing a different one needs its own way in. */}
+                  <button
+                    type="button"
+                    data-testid="save-project-as"
+                    onClick={() => void saveProjectFile({ pickLocation: true })}
+                  >
+                    Save Project As…
                   </button>
                   {workspaceSlots.length > 0 ? (
                     <>

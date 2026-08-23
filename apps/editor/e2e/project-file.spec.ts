@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { CURRENT_PROJECT_SCHEMA_VERSION } from "@icm/model";
@@ -87,7 +87,9 @@ test("reports a confirmed File System Access save", async ({ page }) => {
   });
   await page.goto("/editor");
   const fileMenu = await openMenu(page, "File");
-  await fileMenu.getByRole("button", { name: "Save Project" }).click();
+  await fileMenu
+    .getByRole("button", { name: "Save Project", exact: true })
+    .click();
   await expect(page.getByTestId("status")).toContainText(
     "Saved chosen.icproj.json (write confirmed)",
   );
@@ -99,6 +101,131 @@ test("reports a confirmed File System Access save", async ({ page }) => {
   expect(write).not.toBeNull();
   expect(JSON.parse(write!.text).schemaVersion).toBe(
     CURRENT_PROJECT_SCHEMA_VERSION,
+  );
+});
+
+/** A picker that records how often it was opened and what was written. */
+async function installCountingPicker(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const state = { opened: 0, writes: [] as string[] };
+    (window as unknown as { __fsa: typeof state }).__fsa = state;
+    (window as unknown as { showSaveFilePicker?: unknown }).showSaveFilePicker =
+      async () => {
+        state.opened += 1;
+        return {
+          name: "chosen.icproj.json",
+          createWritable: async () => ({
+            write: async (data: string) => {
+              state.writes.push(data);
+            },
+            close: async () => undefined,
+            abort: async () => undefined,
+          }),
+        };
+      };
+  });
+}
+
+function pickerState(page: Page) {
+  return page.evaluate(
+    () =>
+      (window as unknown as { __fsa: { opened: number; writes: string[] } })
+        .__fsa,
+  );
+}
+
+test("a second save writes back to the chosen file without asking again", async ({
+  page,
+}) => {
+  await installCountingPicker(page);
+  await page.goto("/editor");
+
+  const fileMenu = await openMenu(page, "File");
+  await fileMenu
+    .getByRole("button", { name: "Save Project", exact: true })
+    .click();
+  await expect(page.getByTestId("status")).toContainText("write confirmed");
+  expect((await pickerState(page)).opened).toBe(1);
+
+  await chooseComponent(page, "resistor");
+  await page
+    .getByTestId("schematic-canvas")
+    .click({ position: { x: 360, y: 230 } });
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("revision")).toHaveText("1");
+
+  const again = await openMenu(page, "File");
+  await again
+    .getByRole("button", { name: "Save Project", exact: true })
+    .click();
+  await expect(page.getByTestId("status")).toContainText("write confirmed");
+
+  // The point of remembering the location: no second dialog, a second write.
+  const state = await pickerState(page);
+  expect(state.opened).toBe(1);
+  expect(state.writes).toHaveLength(2);
+});
+
+test("Save Project As… asks for a location even after one is remembered", async ({
+  page,
+}) => {
+  await installCountingPicker(page);
+  await page.goto("/editor");
+
+  const fileMenu = await openMenu(page, "File");
+  await fileMenu
+    .getByRole("button", { name: "Save Project", exact: true })
+    .click();
+  await expect(page.getByTestId("status")).toContainText("write confirmed");
+
+  const again = await openMenu(page, "File");
+  await again.getByTestId("save-project-as").click();
+  await expect(page.getByTestId("status")).toContainText("write confirmed");
+  expect((await pickerState(page)).opened).toBe(2);
+});
+
+test("exporting writes the remembered Project file back too", async ({
+  page,
+}) => {
+  await installCountingPicker(page);
+  await page.goto("/editor");
+
+  const fileMenu = await openMenu(page, "File");
+  await fileMenu
+    .getByRole("button", { name: "Save Project", exact: true })
+    .click();
+  await expect(page.getByTestId("status")).toContainText("write confirmed");
+
+  await chooseComponent(page, "resistor");
+  await page
+    .getByTestId("schematic-canvas")
+    .click({ position: { x: 360, y: 230 } });
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("revision")).toHaveText("1");
+
+  await downloadBytes(page, "File", "Export SVG");
+  await expect(page.getByTestId("status")).toContainText(
+    "also saved chosen.icproj.json",
+  );
+  expect((await pickerState(page)).writes).toHaveLength(2);
+});
+
+test("exporting says so when the Project file is behind and cannot be written", async ({
+  page,
+}) => {
+  // Download-only browser: there is no location to write back to, so the
+  // export must say what is stale rather than open a picker nobody asked for.
+  await page.goto("/editor");
+  await chooseComponent(page, "resistor");
+  await page
+    .getByTestId("schematic-canvas")
+    .click({ position: { x: 360, y: 230 } });
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("revision")).toHaveText("1");
+
+  await downloadBytes(page, "File", "Export SVG");
+  await expect(page.getByTestId("status")).toContainText(
+    "the Project file still has unsaved changes",
   );
 });
 
@@ -144,7 +271,9 @@ test("keeps the Project and recovery intact when the save stream fails", async (
   await expect(page.getByTestId("revision")).toHaveText("1");
 
   const fileMenu = await openMenu(page, "File");
-  await fileMenu.getByRole("button", { name: "Save Project" }).click();
+  await fileMenu
+    .getByRole("button", { name: "Save Project", exact: true })
+    .click();
   await expect(page.getByTestId("status")).toContainText(
     "Save failed at write",
   );

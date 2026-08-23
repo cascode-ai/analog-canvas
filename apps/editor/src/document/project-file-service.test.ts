@@ -7,9 +7,11 @@ import {
   formatProjectOpenDiagnostics,
   projectFileBaseName,
   requestProjectDownload,
+  resaveProjectArtifact,
   saveProjectArtifact,
   stageProjectFile,
   type ProjectFileServiceSeams,
+  type ProjectSaveTarget,
 } from "./project-file-service";
 
 const project = createEmptyProject("project-alpha", 'Alpha/Amp "One"');
@@ -44,10 +46,13 @@ function memoryPicker(
       if (session) session.aborted = true;
     },
   };
+  const counters = { pickerCalls: 0 };
   return {
     calls,
+    counters,
     window: {
       showSaveFilePicker: async () => {
+        counters.pickerCalls += 1;
         if (options.pickerError) throw options.pickerError;
         return {
           name: options.handleName ?? "picker-name.icproj.json",
@@ -60,6 +65,43 @@ function memoryPicker(
       },
     },
   };
+}
+
+/** A location already granted (or not), standing in for a stored handle. */
+function memoryTarget(
+  options: {
+    permission?: "granted" | "denied" | "prompt";
+    grantOnRequest?: boolean;
+    createWritableError?: Error;
+  } = {},
+) {
+  const writes: string[] = [];
+  const counters = { queried: 0, requested: 0 };
+  const target: ProjectSaveTarget = {
+    fileName: "remembered.icproj.json",
+    handle: {
+      name: "remembered.icproj.json",
+      queryPermission: async () => {
+        counters.queried += 1;
+        return options.permission ?? "granted";
+      },
+      requestPermission: async () => {
+        counters.requested += 1;
+        return options.grantOnRequest ? "granted" : "denied";
+      },
+      createWritable: async () => {
+        if (options.createWritableError) throw options.createWritableError;
+        return {
+          write: async (data: string | BufferSource | Blob) => {
+            writes.push(String(data));
+          },
+          close: async () => {},
+          abort: async () => {},
+        };
+      },
+    },
+  };
+  return { target, writes, counters };
 }
 
 function downloadSeams() {
@@ -121,7 +163,7 @@ describe("saveProjectArtifact", () => {
       getWindow: () => picker.window,
       now: () => "2026-08-14T12:00:00.000Z",
     });
-    expect(outcome).toEqual({
+    expect(outcome).toMatchObject({
       status: "write-confirmed",
       fileName: "picker-name.icproj.json",
       bytes: new TextEncoder().encode(serializeProject(project)).length,
@@ -203,6 +245,109 @@ describe("saveProjectArtifact", () => {
     expect(anchors[0]?.download).toBe("Alpha-Amp -One-.icproj.json");
     expect(anchors[0]?.clicked).toBe(true);
     expect(urls).toHaveLength(0);
+  });
+});
+
+describe("saving back to a location already chosen", () => {
+  it("hands back a reusable target and writes through it without asking again", async () => {
+    const picker = memoryPicker();
+    const seams = { getWindow: () => picker.window };
+
+    const first = await saveProjectArtifact(project, seams);
+    expect(first.status).toBe("write-confirmed");
+    const target = first.status === "write-confirmed" ? first.target : null;
+    expect(target).toBeTruthy();
+    expect(picker.counters.pickerCalls).toBe(1);
+
+    const second = await saveProjectArtifact(project, seams, target);
+    expect(second).toMatchObject({
+      status: "write-confirmed",
+      fileName: "picker-name.icproj.json",
+    });
+    // The whole point: the second save wrote the file without a dialog.
+    expect(picker.counters.pickerCalls).toBe(1);
+    expect(picker.calls).toHaveLength(2);
+  });
+
+  it("re-saves silently while the grant stands", async () => {
+    const { target, writes, counters } = memoryTarget();
+    const outcome = await resaveProjectArtifact(project, target);
+    expect(outcome).toMatchObject({
+      status: "write-confirmed",
+      fileName: "remembered.icproj.json",
+    });
+    expect(writes).toEqual([serializeProject(project)]);
+    expect(counters.queried).toBe(1);
+  });
+
+  it("declines a silent re-save rather than raising a permission prompt", async () => {
+    const { target, writes, counters } = memoryTarget({
+      permission: "prompt",
+      grantOnRequest: true,
+    });
+    const outcome = await resaveProjectArtifact(project, target);
+    // Granting would have succeeded, which is exactly why the silent path
+    // must not ask: the person did not press Save.
+    expect(outcome).toEqual({ status: "target-unavailable" });
+    expect(counters.requested).toBe(0);
+    expect(writes).toEqual([]);
+  });
+
+  it("an explicit save may prompt, and writes once granted", async () => {
+    const picker = memoryPicker();
+    const { target, writes } = memoryTarget({
+      permission: "prompt",
+      grantOnRequest: true,
+    });
+    const outcome = await saveProjectArtifact(
+      project,
+      { getWindow: () => picker.window },
+      target,
+    );
+    expect(outcome.status).toBe("write-confirmed");
+    expect(writes).toHaveLength(1);
+    expect(picker.counters.pickerCalls).toBe(0);
+  });
+
+  it("falls back to the picker when the remembered location has gone", async () => {
+    const picker = memoryPicker();
+    const { target } = memoryTarget({
+      createWritableError: new Error("file removed"),
+    });
+    const outcome = await saveProjectArtifact(
+      project,
+      { getWindow: () => picker.window },
+      target,
+    );
+    // A stale target must not wedge saving.
+    expect(outcome).toMatchObject({
+      status: "write-confirmed",
+      fileName: "picker-name.icproj.json",
+    });
+    expect(picker.counters.pickerCalls).toBe(1);
+  });
+
+  it("reports a mid-write failure instead of silently retrying elsewhere", async () => {
+    const picker = memoryPicker();
+    const target: ProjectSaveTarget = {
+      fileName: "remembered.icproj.json",
+      handle: {
+        createWritable: async () => ({
+          write: async () => {
+            throw new Error("disk full");
+          },
+          close: async () => {},
+          abort: async () => {},
+        }),
+      },
+    };
+    const outcome = await saveProjectArtifact(
+      project,
+      { getWindow: () => picker.window },
+      target,
+    );
+    expect(outcome).toMatchObject({ status: "write-failed", stage: "write" });
+    expect(picker.counters.pickerCalls).toBe(0);
   });
 });
 
