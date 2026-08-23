@@ -45,6 +45,8 @@ import {
   type ConnectivityIntent,
   type SchematicEdit,
   type WireSource,
+  type WireRoutingMode,
+  type WireCornerOrder,
 } from "@icm/edit-engine";
 import { createFormalExportSource, safeExportBaseName } from "@icm/exporters";
 import {
@@ -394,6 +396,13 @@ const LIBRARY_WIDTH_STORAGE_KEY = "icm.library-panel-width.v1";
 const REFRESH_RESTORE_STORAGE_KEY = "icm.restore-after-refresh.v1";
 const COMPACT_LAYOUT_MEDIA_QUERY = "(max-width: 860px)";
 const DRAG_START_DISTANCE_PX = 4;
+/**
+ * Middle-press slop before a pan begins. A scroll wheel is stiff enough that
+ * clicking it drags the hand several pixels, and the ordinary 4px threshold
+ * turned those clicks into pans — so the corner cycle they were meant to
+ * trigger did nothing and the middle button felt unresponsive.
+ */
+const PAN_START_DISTANCE_PX = 10;
 const SNAP_CAPTURE_RADIUS_PX = 7;
 
 /** Persisted Junctions are grid points, including on ±45° Route segments. */
@@ -840,6 +849,15 @@ export function App({
   const [selectedRouteSegmentIndex, setSelectedRouteSegmentIndex] = useState<
     number | null
   >(null);
+  /**
+   * The corner shape is a standing authoring preference, not per-wire state:
+   * picking the wire tool again reset it, so a chosen diagonal had to be
+   * re-selected for every single wire.
+   */
+  const lastWireShapeRef = useRef<{
+    routingMode: WireRoutingMode;
+    cornerOrder: WireCornerOrder;
+  }>({ routingMode: "orthogonal", cornerOrder: "auto" });
   const [selectedEndpoint, setSelectedEndpoint] = useState<WireSource | null>(
     null,
   );
@@ -4069,17 +4087,48 @@ export function App({
    * click used to reach only the diagonal, so the two orthogonal elbows were
    * unreachable without the Corner menu.
    */
+  // Re-arm the remembered corner shape on a fresh wire. Activating the wire
+  // tool builds a clean state, which dropped the choice; this restores it
+  // without touching a wire already in progress.
+  useEffect(() => {
+    if (tool !== "wire" || wireSource !== null || wireDraftSteps.length > 0)
+      return;
+    const remembered = lastWireShapeRef.current;
+    if (remembered.routingMode !== wireRoutingMode)
+      setWireRoutingMode(remembered.routingMode);
+    if (remembered.cornerOrder !== wireCornerOrder)
+      setWireCornerOrder(remembered.cornerOrder);
+  }, [
+    tool,
+    wireSource,
+    wireDraftSteps.length,
+    wireRoutingMode,
+    wireCornerOrder,
+    setWireRoutingMode,
+    setWireCornerOrder,
+  ]);
+
   function cycleWireCornerShape(): void {
+    // "auto" is where every wire starts, so it has to be a named stop on the
+    // cycle: leaving it out made findIndex return -1 and the first press land
+    // on entry 0. That press was also invisible, because a first leg drawn by
+    // "auto" already runs horizontal — hence vertical first comes next, so
+    // every press visibly redraws the preview.
     const shapes = [
       {
         routingMode: "orthogonal" as const,
-        cornerOrder: "horizontal-first" as const,
-        label: "horizontal first",
+        cornerOrder: "auto" as const,
+        label: "auto",
       },
       {
         routingMode: "orthogonal" as const,
         cornerOrder: "vertical-first" as const,
         label: "vertical first",
+      },
+      {
+        routingMode: "orthogonal" as const,
+        cornerOrder: "horizontal-first" as const,
+        label: "horizontal first",
       },
       {
         routingMode: "octilinear" as const,
@@ -4098,6 +4147,7 @@ export function App({
         shape.cornerOrder === wireCornerOrder,
     );
     const next = shapes[(index + 1) % shapes.length]!;
+    lastWireShapeRef.current = next;
     if (next.routingMode !== wireRoutingMode)
       setWireRoutingMode(next.routingMode);
     setWireCornerOrder(next.cornerOrder);
@@ -6371,7 +6421,11 @@ export function App({
         Math.hypot(
           event.clientX - panPreview.clientStart.x,
           event.clientY - panPreview.clientStart.y,
-        ) >= DRAG_START_DISTANCE_PX;
+        ) >= PAN_START_DISTANCE_PX;
+      // A middle press stays a click until it travels far enough to be a pan.
+      // Panning on sub-threshold jitter nudged the canvas under an ordinary
+      // click, so the press is ignored until the gesture commits to a drag.
+      if (!moved && !panPreview.dragged) return;
       if (moved && !panPreview.dragged)
         setPanPreview({ ...panPreview, dragged: true });
       setViewBox({

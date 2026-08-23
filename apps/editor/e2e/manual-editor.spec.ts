@@ -215,6 +215,13 @@ async function onlyRouteId(page: Page): Promise<string> {
   return testId.replace(/^route-hit-/u, "");
 }
 
+async function lastRouteId(page: Page): Promise<string> {
+  const routes = page.locator('[data-testid^="route-hit-"]');
+  const testId = await routes.last().getAttribute("data-testid");
+  if (!testId) throw new Error("Route has no test id");
+  return testId.replace(/^route-hit-/u, "");
+}
+
 async function instanceLabelVector(
   page: Page,
   instanceId: string,
@@ -3692,7 +3699,6 @@ test("middle-click steers which way the wire corner turns", async ({
   await clickDrawTool(page, "wire");
   await canvas.click({ position: { x: 200, y: 200 } });
   await canvas.click({ button: "middle", position: { x: 260, y: 240 } });
-  await canvas.click({ button: "middle", position: { x: 260, y: 240 } });
   await expect(page.getByTestId("status")).toContainText("vertical first");
   await canvas.dblclick({ position: { x: 360, y: 300 } });
 
@@ -3850,6 +3856,56 @@ test("draws a wire at an angle the 45-degree grid cannot reach", async ({
   const dx = Math.abs(points[1]!.x - points[0]!.x);
   const dy = Math.abs(points[1]!.y - points[0]!.y);
   // Neither axis-aligned nor 45 degrees: the leg reaches the endpoint direct.
+  expect(dx).toBeGreaterThan(0);
+  expect(dy).toBeGreaterThan(0);
+  expect(dx).not.toBe(dy);
+});
+
+test("cycles the corner from a middle press that drifts under the hand", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  const canvas = page.getByTestId("schematic-canvas");
+  await clickDrawTool(page, "wire");
+  await canvas.click({ position: { x: 200, y: 200 } });
+
+  // Clicking a scroll wheel drags the hand a few pixels. That is a click, not
+  // a pan, so the cycle still has to advance.
+  const box = (await canvas.boundingBox())!;
+  await page.mouse.move(box.x + 260, box.y + 240);
+  await page.mouse.down({ button: "middle" });
+  await page.mouse.move(box.x + 266, box.y + 245);
+  await page.mouse.up({ button: "middle" });
+
+  await expect(page.getByTestId("status")).toContainText("vertical first");
+});
+
+test("keeps the chosen corner shape when the wire tool is picked again", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  const canvas = page.getByTestId("schematic-canvas");
+  await clickDrawTool(page, "wire");
+  await canvas.click({ position: { x: 200, y: 200 } });
+  for (let step = 0; step < 4; step += 1) {
+    await canvas.click({ button: "middle", position: { x: 260, y: 240 } });
+  }
+  await expect(page.getByTestId("status")).toContainText("any angle");
+  await canvas.dblclick({ position: { x: 430, y: 260 } });
+
+  // Leaving the tool and coming back used to silently drop the choice, so a
+  // diagonal had to be re-selected for every wire.
+  await page.keyboard.press("Escape");
+  await clickDrawTool(page, "wire");
+  await canvas.click({ position: { x: 200, y: 340 } });
+  await canvas.dblclick({ position: { x: 430, y: 400 } });
+
+  const ids = await page.locator('[data-testid^="route-hit-"]').count();
+  expect(ids).toBe(2);
+  const points = await readRoutePoints(page, await lastRouteId(page));
+  expect(points).toHaveLength(2);
+  const dx = Math.abs(points[1]!.x - points[0]!.x);
+  const dy = Math.abs(points[1]!.y - points[0]!.y);
   expect(dx).toBeGreaterThan(0);
   expect(dy).toBeGreaterThan(0);
   expect(dx).not.toBe(dy);
