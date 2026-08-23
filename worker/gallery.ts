@@ -175,6 +175,26 @@ interface EntryRow {
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 
+/**
+ * A stable shuffle key for one circuit in one round of the feed.
+ *
+ * The wall is browsed, not read newest-first, so a visit gets its own order
+ * rather than everyone seeing the same column of the most recent uploads.
+ * The order has to be stable across pages of that visit — otherwise scrolling
+ * would repeat and skip entries — so it is a hash of the round's seed and the
+ * entry id rather than anything random per query. FNV-1a is enough: this
+ * spreads a list, it does not defend anything.
+ */
+function shuffleRank(seed: string, id: string): number {
+  let hash = 0x811c9dc5;
+  const input = `${seed}:${id}`;
+  for (let index = 0; index < input.length; index += 1) {
+    hash ^= input.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash;
+}
+
 function summaryOf(
   row: EntryRow & { likes?: number; liked_by_viewer?: number },
 ): GalleryEntrySummary {
@@ -480,6 +500,74 @@ export class GalleryDO {
     return Response.json({ id: entry.id });
   }
 
+  /**
+   * One page of a shuffled round.
+   *
+   * The matching ids are ranked by the round's shuffle key and the page is
+   * the slice at `offset`, so paging is an index into a fixed order rather
+   * than a comparison against a moving column. The whole id list is
+   * materialized, which is right while the wall is a wall: it is a list of
+   * ids, and the alternative is a hash function SQLite does not have.
+   *
+   * `total` travels with the page so the caller can tell an exhausted round
+   * from an empty wall — one is a reason to start the next round, the other
+   * is a reason to stop.
+   */
+  private shuffledList(options: {
+    seed: string;
+    offset: number;
+    limit: number;
+    viewerId: string;
+    where: string;
+    bindings: (string | number)[];
+  }): Response {
+    const ranked = this.sql
+      .exec<{
+        id: string;
+      }>(
+        `SELECT id FROM gallery_entries e WHERE ${options.where}`,
+        ...options.bindings,
+      )
+      .toArray()
+      .map((row) => ({ id: row.id, rank: shuffleRank(options.seed, row.id) }))
+      .sort(
+        (left, right) =>
+          left.rank - right.rank || left.id.localeCompare(right.id, "en"),
+      );
+
+    const page = ranked.slice(options.offset, options.offset + options.limit);
+    if (page.length === 0) {
+      return Response.json({
+        entries: [],
+        nextCursor: null,
+        total: ranked.length,
+      });
+    }
+    const placeholders = page.map(() => "?").join(", ");
+    const rows = this.sql
+      .exec<EntryRow & { likes: number; liked_by_viewer: number }>(
+        `SELECT e.*,
+           (SELECT COUNT(*) FROM gallery_likes WHERE entry_id = e.id) AS likes,
+           (SELECT COUNT(*) FROM gallery_likes
+             WHERE entry_id = e.id AND user_id = ?) AS liked_by_viewer
+         FROM gallery_entries e WHERE e.id IN (${placeholders})`,
+        options.viewerId,
+        ...page.map((item) => item.id),
+      )
+      .toArray();
+    const byId = new Map(rows.map((row) => [row.id, row]));
+    const entries = page
+      .map((item) => byId.get(item.id))
+      .filter((row): row is (typeof rows)[number] => row !== undefined)
+      .map(summaryOf);
+    const nextOffset = options.offset + page.length;
+    return Response.json({
+      entries,
+      nextCursor: nextOffset < ranked.length ? String(nextOffset) : null,
+      total: ranked.length,
+    });
+  }
+
   private list(body: Record<string, unknown>): Response {
     const limit = Math.min(
       Math.max(Number(body.limit) || GALLERY_DEFAULT_LIST_LIMIT, 1),
@@ -501,12 +589,23 @@ export class GalleryDO {
       conditions.push(`(${tags.map(() => "tags LIKE ?").join(" OR ")})`);
       for (const tag of tags) bindings.push(`%,${tag},%`);
     }
+    // The viewer id leads the bindings because its sub-select comes first.
+    const viewerId = typeof body.viewerId === "string" ? body.viewerId : "";
+    const seed = typeof body.seed === "string" ? body.seed.slice(0, 64) : "";
+    if (seed) {
+      return this.shuffledList({
+        seed,
+        offset: Math.max(0, Number(cursor) || 0),
+        limit,
+        viewerId,
+        where: conditions.join(" AND "),
+        bindings,
+      });
+    }
     if (cursor) {
       conditions.push("(created_at || '|' || id) < ?");
       bindings.push(cursor);
     }
-    // The viewer id leads the bindings because its sub-select comes first.
-    const viewerId = typeof body.viewerId === "string" ? body.viewerId : "";
     const rows = this.sql
       .exec<EntryRow & { likes: number; liked_by_viewer: number }>(
         `SELECT e.*,
@@ -1324,6 +1423,10 @@ export async function routeGalleryRequest(
     const viewer = await sessionUserOf(request, env);
     const { payload } = await callGallery(env, "list", {
       viewerId: viewer?.id ?? "",
+      // A seed asks for a shuffled round instead of newest-first. The caller
+      // owns it, so a visit keeps one order while it scrolls and a new visit
+      // gets a different one.
+      seed: url.searchParams.get("seed") ?? "",
       limit: url.searchParams.get("limit"),
       cursor: url.searchParams.get("cursor"),
       author: url.searchParams.get("author"),

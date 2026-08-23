@@ -237,6 +237,98 @@ async function submitOne(
   return payload.id;
 }
 
+describe("endless shuffled feed", () => {
+  async function seededPage(
+    env: Harness,
+    seed: string,
+    cursor?: string,
+  ): Promise<{ ids: string[]; nextCursor: string | null; total: number }> {
+    const params = new URLSearchParams({ seed, limit: "3" });
+    if (cursor) params.set("cursor", cursor);
+    const response = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery?${params.toString()}`),
+    );
+    const payload = (await response.json()) as {
+      entries: { id: string }[];
+      nextCursor: string | null;
+      total: number;
+    };
+    return {
+      ids: payload.entries.map((entry) => entry.id),
+      nextCursor: payload.nextCursor,
+      total: payload.total,
+    };
+  }
+
+  async function wallOf(env: Harness, count: number): Promise<string[]> {
+    const cookie = await adminOf(env);
+    const ids: string[] = [];
+    for (let index = 0; index < count; index += 1) {
+      ids.push(await submitOne(env, `Circuit ${index}`, { cookie }));
+    }
+    return ids;
+  }
+
+  it("pages one shuffle without repeating or skipping a circuit", async () => {
+    const env = environment();
+    const wall = await wallOf(env, 7);
+
+    const first = await seededPage(env, "seed-a");
+    expect(first.total).toBe(7);
+    const second = await seededPage(env, "seed-a", first.nextCursor!);
+    const third = await seededPage(env, "seed-a", second.nextCursor!);
+    expect(third.nextCursor).toBeNull();
+
+    const seen = [...first.ids, ...second.ids, ...third.ids];
+    expect(seen).toHaveLength(7);
+    expect(new Set(seen).size).toBe(7);
+    expect([...seen].sort()).toEqual([...wall].sort());
+  });
+
+  it("gives the same order to the same seed and a different one to another", async () => {
+    const env = environment();
+    await wallOf(env, 7);
+    const again = await seededPage(env, "seed-a");
+    const same = await seededPage(env, "seed-a");
+    expect(same.ids).toEqual(again.ids);
+
+    // Some seed orders the wall differently; the feed would be pointless if
+    // every visit saw the same column.
+    const orders = await Promise.all(
+      ["s1", "s2", "s3", "s4", "s5"].map((seed) => seededPage(env, seed)),
+    );
+    expect(orders.some((order) => order.ids.join() !== again.ids.join())).toBe(
+      true,
+    );
+  });
+
+  it("reports an exhausted round apart from an empty wall", async () => {
+    const env = environment();
+    // Nothing published: no next page and nothing to come back to, which is
+    // what tells the feed to stop rather than loop forever.
+    const empty = await seededPage(env, "seed-a");
+    expect(empty).toMatchObject({ ids: [], nextCursor: null, total: 0 });
+
+    await wallOf(env, 2);
+    const full = await seededPage(env, "seed-a");
+    expect(full.nextCursor).toBeNull();
+    expect(full.total).toBe(2);
+  });
+
+  it("keeps newest-first when no seed is asked for", async () => {
+    const env = environment();
+    await wallOf(env, 3);
+    const plain = await route(env, new Request(`${ORIGIN}/api/gallery`));
+    const payload = (await plain.json()) as { entries: { name: string }[] };
+    expect(payload.entries.map((entry) => entry.name)).toEqual([
+      "Circuit 2",
+      "Circuit 1",
+      "Circuit 0",
+    ]);
+  });
+});
+
 describe("stars and thumbs", () => {
   function likeRequest(id: string, cookie?: string): Request {
     const headers = new Headers({ Origin: ORIGIN });
