@@ -658,15 +658,17 @@ test("Check and Save shelves the circuit and the shelf reopens it", async ({
   await page.keyboard.press("Escape");
   await page.getByTestId("check-and-save-button").click();
 
-  // A lone transistor is not a netlistable circuit, so the check reports it —
-  // and shelves it anyway. Unfinished work is the work worth keeping.
-  await expect(page.getByTestId("status")).toContainText("problems to resolve");
-  await expect(page.getByTestId("status")).toContainText("saved to your shelf");
+  // A lone transistor is not a netlistable circuit, and that is not an error:
+  // a schematic is allowed to be abbreviated. Saving neither judges it nor
+  // interrupts with a report.
+  await expect(page.getByTestId("status")).toContainText("to your shelf");
+  await expect(page.getByRole("dialog", { name: "Check Report" })).toHaveCount(
+    0,
+  );
   expect(shelf).toHaveLength(1);
   expect(shelf[0]!.projectText).toContain("nmos");
 
   // And it comes back: the shelved circuit is listed under File and reopens.
-  await page.getByTestId("check-report-close").click();
   await clickCommand(page, "File", shelf[0]!.name);
   await expect(page.getByTestId("status")).toContainText("Opened");
 });

@@ -115,7 +115,7 @@ describe("shapes quick-place", () => {
     expect(quickPlaceRequest("razavi", "cell-pin")).toMatchObject({
       kind: "symbol",
       symbolId: "port",
-      symbolName: "Cell Pin",
+      symbolName: "Interface Pin",
       portRole: "cell-terminal",
       portDirection: "passive",
     });

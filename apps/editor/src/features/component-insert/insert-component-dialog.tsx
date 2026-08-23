@@ -9,7 +9,12 @@ import {
   componentParameters,
   initialComponentParameterValues,
 } from "./component-parameters";
-import { componentCatalog, findPaletteSymbol } from "./symbol-catalog";
+import {
+  componentCatalog,
+  findPaletteSymbol,
+  libraryDescription,
+  libraryDisplayName,
+} from "./symbol-catalog";
 import type { ComponentInsertRequest } from "./component-insert-request";
 import type { InsertScope } from "./insert-launch";
 import { DisplayToggle } from "./display-toggle";
@@ -505,7 +510,13 @@ export function InsertComponentDialog({
                             apply();
                           }}
                         >
-                          <span>{choice.cellName ?? choice.symbol.name}</span>
+                          <span>
+                            {choice.cellName ??
+                              libraryDisplayName(
+                                choice.symbol.id,
+                                choice.symbol.name,
+                              )}
+                          </span>
                           <small>
                             {choice.kind === "cell" ? "Cell" : choice.symbol.id}
                           </small>
@@ -562,7 +573,9 @@ export function InsertComponentDialog({
                 </label>
                 {selectedIsPort ? (
                   <p className="insert-cell-label-note">
-                    Places a Free Net Port; rename it on the canvas.
+                    {libraryDescription(selected.symbol.id) ??
+                      "Names a net on this sheet."}{" "}
+                    Rename it on the canvas.
                   </p>
                 ) : (
                   <div className="insert-label-control">

@@ -478,6 +478,41 @@ body {
   background: var(--icm-surface-hover);
 }
 
+/* The check report had no styles at all, so each finding rendered its code
+   and its sentence as one unbroken run: "GROUND_NAME_MISMATCHGround marker
+   must connect to…". The code is a label for the sentence, so it sits above
+   it. */
+.preflight-findings {
+  display: grid;
+  gap: var(--icm-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.preflight-findings button {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  padding: var(--icm-space-1) var(--icm-space-2);
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  background: var(--icm-surface);
+  color: var(--icm-text);
+  text-align: left;
+}
+
+.preflight-findings strong {
+  font-size: var(--icm-font-sm);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--icm-text-muted);
+}
+
+.preflight-findings button[data-severity="error"] strong {
+  color: var(--icm-danger, #b4232a);
+}
+
 .toolbar-check-glyph {
   width: 0;
   height: 0;

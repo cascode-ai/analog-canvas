@@ -75,6 +75,39 @@ export function symbolCategory(symbolId: string): string {
   return "Power and Ports";
 }
 
+/**
+ * Library display names, where the catalog's own name does not say what the
+ * entry is *for*.
+ *
+ * "Cell Pin" and "Port" are the same drawing with different meanings, and the
+ * names did not say which was which — the difference is whether the terminal
+ * appears on the cell's interface, so the names say that now. The model keeps
+ * its terms (ADR 0034's Formal Cell Pin and Free Net Port); this is what the
+ * Library calls them.
+ */
+const LIBRARY_DISPLAY_NAMES: Readonly<Record<string, string>> = {
+  "cell-pin": "Interface Pin",
+  port: "Net Label",
+  "port-filled": "Net Label (filled)",
+};
+
+/** One line saying what an entry does, where the name alone leaves a doubt. */
+const LIBRARY_DESCRIPTIONS: Readonly<Record<string, string>> = {
+  "cell-pin":
+    "A terminal on this cell's interface — the parent circuit connects to it",
+  port: "Names a net on this sheet; not part of the cell's interface",
+  "port-filled":
+    "Names a net on this sheet, drawn solid; not part of the cell's interface",
+};
+
+export function libraryDisplayName(symbolId: string, fallback: string): string {
+  return LIBRARY_DISPLAY_NAMES[symbolId] ?? fallback;
+}
+
+export function libraryDescription(symbolId: string): string | undefined {
+  return LIBRARY_DESCRIPTIONS[symbolId];
+}
+
 export function paletteSymbols(_styleProfileId: string): SymbolDefinition[] {
   return [vddRailPreviewSymbol, cellPinPreviewSymbol, ...razaviProductSymbols];
 }

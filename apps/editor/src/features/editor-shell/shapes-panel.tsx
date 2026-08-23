@@ -10,11 +10,13 @@ import { initialComponentParameterValues } from "../component-insert/component-p
 import {
   componentCatalog,
   findPaletteSymbol,
+  libraryDescription,
+  libraryDisplayName,
 } from "../component-insert/symbol-catalog";
 
 const COMPACT_LIBRARY_LABELS: Readonly<Record<string, string>> = {
   capacitor: "Cap",
-  "cell-pin": "Cell Pin",
+  "cell-pin": "Interface Pin",
   "closed-switch": "Closed",
   "current-source": "I Src",
   "ideal-switch": "Open",
@@ -45,7 +47,9 @@ const COMPACT_LIBRARY_LABELS: Readonly<Record<string, string>> = {
 };
 
 function libraryLabel(symbolId: string, symbolName: string): string {
-  return COMPACT_LIBRARY_LABELS[symbolId] ?? symbolName;
+  return (
+    COMPACT_LIBRARY_LABELS[symbolId] ?? libraryDisplayName(symbolId, symbolName)
+  );
 }
 
 function categorySlug(category: string): string {
@@ -193,8 +197,14 @@ export function ShapesPanel({
                         className="shapes-chip"
                         data-testid={`shapes-chip-${symbol.id}`}
                         data-vdd-rail={symbol.id === "vdd" ? "true" : undefined}
-                        aria-label={`Place ${symbol.name}`}
-                        title={`Place ${symbol.name}`}
+                        aria-label={`Place ${libraryDisplayName(
+                          symbol.id,
+                          symbol.name,
+                        )}`}
+                        title={
+                          libraryDescription(symbol.id) ??
+                          `Place ${libraryDisplayName(symbol.id, symbol.name)}`
+                        }
                         onClick={() => placeSymbol(symbol.id)}
                       >
                         <SymbolArtwork

@@ -21,6 +21,33 @@ export function NetlistPreflightDialog({
   onExport(format: NetlistFormat): void;
 }) {
   const [format, setFormat] = useState<NetlistFormat>("spice");
+  // The same finding repeated once per object says nothing many times over;
+  // count it instead. Seven identical lines was most of what the report said.
+  const groupedFindings = useMemo(() => {
+    const groups = new Map<
+      string,
+      {
+        code: string;
+        message: string;
+        count: number;
+        sample: NetlistDiagnostic;
+      }
+    >();
+    for (const diagnostic of result.diagnostics) {
+      const key = `${diagnostic.code}\u0000${diagnostic.message}`;
+      const existing = groups.get(key);
+      if (existing) existing.count += 1;
+      else {
+        groups.set(key, {
+          code: diagnostic.code,
+          message: diagnostic.message,
+          count: 1,
+          sample: diagnostic,
+        });
+      }
+    }
+    return [...groups.values()];
+  }, [result.diagnostics]);
   const preview = useMemo(
     () => (result.ir ? printDesignNetlist(format, result.ir).text : null),
     [format, result.ir],
@@ -99,17 +126,18 @@ export function NetlistPreflightDialog({
             >
               <h3>Findings</h3>
               <ul className="preflight-findings">
-                {result.diagnostics.map((diagnostic, index) => (
-                  <li
-                    key={`${diagnostic.code}-${diagnostic.documentId}-${index}`}
-                  >
+                {groupedFindings.map((group) => (
+                  <li key={`${group.code}-${group.message}`}>
                     <button
                       type="button"
-                      data-severity={diagnostic.severity}
-                      onClick={() => onNavigate(diagnostic)}
+                      data-severity={group.sample.severity}
+                      onClick={() => onNavigate(group.sample)}
                     >
-                      <strong>{diagnostic.code}</strong>
-                      <span>{diagnostic.message}</span>
+                      <strong>{group.code}</strong>
+                      <span>
+                        {group.message}
+                        {group.count > 1 ? ` (×${group.count})` : ""}
+                      </span>
                     </button>
                   </li>
                 ))}

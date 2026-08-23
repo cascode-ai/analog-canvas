@@ -6245,37 +6245,40 @@ export function App({
   }
 
   /**
-   * Check the circuit and shelve it. One button for the question people
-   * actually ask — "is this finished, and is it somewhere safe?" — instead of
-   * a menu entry named after a stage of a netlist pipeline.
+   * Settle the loose ends and shelve the circuit.
    *
-   * A failed check never withholds the save. Unfinished work is exactly the
-   * work worth keeping, and refusing to shelve it would make the button
-   * useless at the moment it matters most; the findings are reported and the
-   * copy is kept.
+   * This deliberately does not run the design-netlist analysis. That analysis
+   * answers "can this be emitted as SPICE?", which is a question about an
+   * export, not about a drawing — a schematic is allowed to be abbreviated
+   * and idealised. An ideal switch, an amplifier drawn as a triangle, a
+   * resistor with no value yet: none of those is a mistake, and calling them
+   * blocking issues on the way to saving would be the tool telling the author
+   * their drawing is wrong when it is not. The Check Report is still one
+   * click away under Netlist, and export still gates on it, which is where
+   * that question belongs.
+   *
+   * What it does settle is MOS bodies, because an unstated body is a loose
+   * end rather than a legitimate abbreviation, and the author asked for it.
    */
   async function checkAndSave(): Promise<void> {
     const bulkPlan = planCheckBulkDefaults(document);
-    if (bulkPlan.edits.length > 0) transact([...bulkPlan.edits]);
+    const settledBodies = bulkPlan.edits.length > 0;
+    if (settledBodies) transact([...bulkPlan.edits]);
     const ambiguousSides = [
       bulkPlan.ambiguous.nmos ? "NMOS" : null,
       bulkPlan.ambiguous.pmos ? "PMOS" : null,
     ].filter((side): side is string => side !== null);
 
-    // Read the analysis from a fresh run: the Project has just been edited.
-    const checked = analyzeDesignNetlist(editorDocumentController.project);
-    const findings = !checked.ir
-      ? "problems to resolve"
-      : checked.diagnostics.length > 0
-        ? `${checked.diagnostics.length} warning(s)`
-        : ambiguousSides.length > 0
-          ? `${ambiguousSides.join(" and ")} bodies still need a supply chosen`
-          : null;
-    if (!checked.ir) setNetlistPreflightOpen(true);
+    const notes = [
+      settledBodies ? "bound the unwired MOS bodies" : null,
+      ambiguousSides.length > 0
+        ? `${ambiguousSides.join(" and ")} bodies need a supply chosen`
+        : null,
+    ].filter((note): note is string => note !== null);
+    const prefix = notes.length > 0 ? `${notes.join("; ")} — ` : "";
 
-    const checkedNote = findings ? `Checked, ${findings}` : "Checked";
     if (!publishSession) {
-      setStatus(`${checkedNote}; sign in to keep a copy on your shelf`);
+      setStatus(`${prefix}sign in to keep a copy on your shelf`);
       return;
     }
     const outcome = await saveToWorkspaceShelf(
@@ -6283,15 +6286,17 @@ export function App({
     );
     if (outcome.status === "saved") {
       setWorkspaceSlots(outcome.slots);
-      setStatus(`${checkedNote} — saved to your shelf`);
+      setStatus(
+        `${prefix}saved "${editorDocumentController.project.name}" to your shelf`,
+      );
       return;
     }
     setStatus(
       outcome.status === "signed-out"
-        ? `${checkedNote}; sign in again to keep a copy on your shelf`
+        ? `${prefix}sign in again to keep a copy on your shelf`
         : outcome.status === "too-large"
-          ? `${checkedNote}; the circuit is too large for the shelf`
-          : `${checkedNote}; the shelf could not be reached (${outcome.message})`,
+          ? `${prefix}the circuit is too large for the shelf`
+          : `${prefix}the shelf could not be reached (${outcome.message})`,
     );
   }
 
