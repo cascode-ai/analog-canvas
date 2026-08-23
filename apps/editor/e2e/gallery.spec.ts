@@ -784,6 +784,10 @@ test("stars the circuits that extract and counts thumbs on every card", async ({
   await expect(page.getByTestId(`gallery-tile-${sketch.id}`)).toBeVisible();
 
   const thumb = page.getByTestId(`gallery-like-${extractable.id}`);
+  // The mark is drawn, not typed: an emoji is a different picture on every
+  // platform and brings its own colour onto a wall of circuit drawings.
+  await expect(thumb.locator("svg")).toHaveCount(1);
+  await expect(thumb).not.toContainText("👍");
   await expect(thumb).toContainText("2");
   await expect(thumb).toHaveAttribute("aria-pressed", "false");
 

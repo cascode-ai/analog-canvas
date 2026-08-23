@@ -69,6 +69,33 @@ function newFeedSeed(): string {
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 
+/**
+ * The like mark, drawn rather than typed.
+ *
+ * An emoji is a different picture on every platform and carries its own
+ * colour, which on a wall of circuit drawings reads as a sticker. This is one
+ * path that inherits the button's colour: outlined until the circuit is
+ * liked, filled once it is, so the state is legible without reading a count.
+ */
+function HeartIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="14"
+      height="14"
+      aria-hidden="true"
+      focusable="false"
+      fill={filled ? "currentColor" : "none"}
+      stroke="currentColor"
+      strokeWidth={filled ? 0 : 2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M12 20.5 4.2 13a4.8 4.8 0 0 1 6.8-6.8l1 1 1-1A4.8 4.8 0 0 1 19.8 13Z" />
+    </svg>
+  );
+}
+
 function savedAtLabel(createdAt: string): string {
   const parsed = new Date(createdAt);
   return Number.isNaN(parsed.getTime())
@@ -461,8 +488,13 @@ export function GalleryFeed() {
                           aria-pressed={entry.likedByViewer === true}
                           title={
                             entry.likedByViewer
-                              ? "Take back your thumbs up"
-                              : "Thumbs up this circuit"
+                              ? "Remove your like"
+                              : "Like this circuit"
+                          }
+                          aria-label={
+                            entry.likedByViewer
+                              ? `Remove your like from ${entry.name}`
+                              : `Like ${entry.name}`
                           }
                           onClick={(event) => {
                             event.preventDefault();
@@ -470,7 +502,7 @@ export function GalleryFeed() {
                             void toggleLike(entry.id);
                           }}
                         >
-                          <span aria-hidden="true">👍</span>
+                          <HeartIcon filled={entry.likedByViewer === true} />
                           {entry.likes ?? 0}
                         </button>
                       </span>
