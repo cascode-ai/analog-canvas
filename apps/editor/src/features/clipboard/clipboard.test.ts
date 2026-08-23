@@ -688,3 +688,84 @@ describe("copyWholeDocument", () => {
     ).toBe(true);
   });
 });
+
+describe("a copy stands on its own", () => {
+  it("gives a device without a netlist block a fresh designator", () => {
+    const document = createEmptyDocument("document-main", "Copy");
+    // An ideal switch carries a schematic reference but no netlist block, so
+    // the reference sequence never allocated it a fresh designator and the
+    // internal copy id leaked onto the canvas as "X1-copy-3".
+    document.instances.push({
+      id: "X1",
+      symbolId: "ideal-switch",
+      schematicReference: "X1",
+      placement: { position: { x: 100, y: 100 }, rotation: 0, mirror: "none" },
+    });
+
+    const clipboard = copySelection(document, ["X1"]);
+    expect(clipboard).not.toBeNull();
+    const proposal = proposePaste(document, clipboard!, { x: 80, y: 0 }, 3);
+    const result = executeTransaction(
+      document,
+      {
+        transactionId: "paste-switch",
+        documentId: document.id,
+        expectedRevision: document.revision,
+        actor: { kind: "human", id: "test" },
+        edits: proposal.edits,
+      },
+      { symbolResolver: resolver },
+    );
+    if (!result.ok) throw new Error(JSON.stringify(result.diagnostics));
+
+    const copy = result.document.instances.find(
+      (instance) => instance.id === proposal.instanceIds[0],
+    )!;
+    expect(copy.schematicReference).toBe("X2");
+    expect(copy.schematicReference).not.toMatch(/copy/u);
+  });
+
+  it("does not carry a copied Port back onto the original's Net", () => {
+    const document = createEmptyDocument("document-main", "Copy");
+    document.instances.push({
+      id: "P1",
+      symbolId: "port",
+      placement: { position: { x: 100, y: 100 }, rotation: 0, mirror: "none" },
+    });
+    document.nets.push({
+      id: "net-p12",
+      scope: "local",
+      name: "P12",
+      terminals: [{ instanceId: "P1", pinName: "P" }],
+    });
+
+    const clipboard = copySelection(document, ["P1"]);
+    expect(clipboard).not.toBeNull();
+    const proposal = proposePaste(document, clipboard!, { x: 120, y: 0 }, 1);
+    const result = executeTransaction(
+      document,
+      {
+        transactionId: "paste-port",
+        documentId: document.id,
+        expectedRevision: document.revision,
+        actor: { kind: "human", id: "test" },
+        edits: proposal.edits,
+      },
+      { symbolResolver: resolver },
+    );
+    if (!result.ok) throw new Error(JSON.stringify(result.diagnostics));
+
+    const copyId = proposal.instanceIds[0]!;
+    const netOf = (instanceId: string) =>
+      result.document.nets.find((net) =>
+        net.terminals.some((terminal) => terminal.instanceId === instanceId),
+      );
+    // Sharing the Net is what made renaming one Port rename its twin: the
+    // name belongs to the Net, so a copy has to bring its own.
+    expect(netOf("P1")?.id).not.toBe(netOf(copyId)?.id);
+    // The copy brings its own, unnamed Net rather than joining the source's,
+    // so naming one of them cannot rename the other.
+    expect(netOf(copyId)?.name).toBeUndefined();
+    expect(netOf("P1")?.name).toBe("P12");
+  });
+});

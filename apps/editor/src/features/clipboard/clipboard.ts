@@ -470,19 +470,21 @@ function pastedInstanceId(
 function pastedSchematicReference(
   source: Instance,
   nextNetlistReference: string | undefined,
-  nextId: string,
   sequence: number,
   reserved: Set<string>,
 ): string | undefined {
   const current = source.schematicReference;
   if (!current) return undefined;
+  // Only a freshly allocated netlist reference may be adopted verbatim.
+  // Falling back to the pasted object id was wrong for a device with no
+  // netlist block — an ideal switch, say — because that id is a copy id, so
+  // "X1" came back onto the canvas reading "X1-copy-3". Those instances now
+  // fall through to the sequence below and get an ordinary next designator.
   const synchronized =
     nextNetlistReference &&
     (current === source.netlist?.reference || current === source.id)
       ? nextNetlistReference
-      : current === source.id
-        ? nextId
-        : undefined;
+      : undefined;
   if (synchronized) {
     reserved.add(synchronized.toLowerCase());
     return synchronized;
@@ -670,7 +672,6 @@ export function proposePaste(
       const reference = pastedSchematicReference(
         instance,
         instanceReferences.get(instance.id),
-        instanceIds.get(instance.id)!,
         sequence,
         reservedSchematicReferences,
       );

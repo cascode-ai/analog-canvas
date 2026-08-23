@@ -15,8 +15,14 @@ const ENTRY = {
   schemaVersion: 21,
 };
 
+/**
+ * The feed asks for `/api/gallery?seed=…`, so a mock has to match on the path
+ * rather than on a glob that assumes no query.
+ */
+const galleryListUrl = (url: URL): boolean => url.pathname === "/api/gallery";
+
 async function mockGallery(page: Page, entries: object[]): Promise<void> {
-  await page.route("**/api/gallery", (route) =>
+  await page.route(galleryListUrl, (route) =>
     route.fulfill({ json: { entries, nextCursor: null } }),
   );
   await page.route(`**/api/gallery/${ENTRY.id}/preview.svg`, (route) =>
@@ -66,7 +72,7 @@ test("masonry places the top row left-to-right in distinct columns", async ({
     createdAt: "2026-08-22T10:00:00.000Z",
     schemaVersion: 21,
   }));
-  await page.route("**/api/gallery", (route) =>
+  await page.route(galleryListUrl, (route) =>
     route.fulfill({ json: { entries, nextCursor: null } }),
   );
   await page.route("**/api/gallery/*/preview.svg", (route) =>
@@ -119,6 +125,7 @@ test("the feed pages through the cursor as the sentinel comes into view", async 
           schemaVersion: 21,
         })),
         nextCursor: second ? null : "c1",
+        total: 5,
       },
     });
   });
@@ -136,12 +143,19 @@ test("the feed pages through the cursor as the sentinel comes into view", async 
   // double-mounts the initial effect in dev, so the plain request may
   // fire twice; the cursor page must load exactly once.)
   await expect(page.getByTestId("gallery-tile-p2-b")).toBeVisible();
-  expect(listRequests.filter((query) => query === "?cursor=c1")).toHaveLength(
-    1,
+  const cursors = listRequests.map((query) =>
+    new URLSearchParams(query).get("cursor"),
   );
-  expect(
-    listRequests.every((query) => query === "" || query === "?cursor=c1"),
-  ).toBe(true);
+  expect(cursors.filter((cursor) => cursor === "c1")).toHaveLength(1);
+  expect(cursors.every((cursor) => cursor === null || cursor === "c1")).toBe(
+    true,
+  );
+  // Every request carries this visit's shuffle, so its pages are one order.
+  const seeds = new Set(
+    listRequests.map((query) => new URLSearchParams(query).get("seed")),
+  );
+  expect(seeds.size).toBe(1);
+  expect([...seeds][0]).toMatch(/^[0-9a-f]{16}$/u);
 });
 
 test("the feed scrolls inside its shell despite the locked app root", async ({
@@ -156,7 +170,7 @@ test("the feed scrolls inside its shell despite the locked app root", async ({
     createdAt: "2026-08-22T10:00:00.000Z",
     schemaVersion: 21,
   }));
-  await page.route("**/api/gallery", (route) =>
+  await page.route(galleryListUrl, (route) =>
     route.fulfill({ json: { entries, nextCursor: null } }),
   );
   await page.route("**/api/gallery/*/preview.svg", (route) =>
@@ -351,7 +365,7 @@ test("the admin recycle bin restores a recycled entry", async ({ page }) => {
 test("falls back to bundled tiles when the gallery is empty or unreachable", async ({
   page,
 }) => {
-  await page.route("**/api/gallery", (route) =>
+  await page.route(galleryListUrl, (route) =>
     route.fulfill({ status: 502, json: { error: "unavailable" } }),
   );
   await page.goto("/");
@@ -460,7 +474,7 @@ test("a signed-in owner renames the display name and signs out", async ({
 test("a signed-out visitor is asked to sign in, not for a passphrase", async ({
   page,
 }) => {
-  await page.route("**/api/gallery", (route) =>
+  await page.route(galleryListUrl, (route) =>
     route.fulfill({ json: { entries: [], nextCursor: null } }),
   );
 
@@ -673,6 +687,59 @@ test("Check and Save shelves the circuit and the shelf reopens it", async ({
   await expect(page.getByTestId("status")).toContainText("Opened");
 });
 
+test("keeps the wall scrolling past its last circuit, in a new order", async ({
+  page,
+}) => {
+  // Big enough that coming back around lands the repeat off-screen.
+  const wall = Array.from({ length: 10 }, (_, index) => ({
+    ...ENTRY,
+    id: `g-${index}`,
+    name: `Circuit ${index}`,
+  }));
+  const seeds: string[] = [];
+  await page.route("**/api/gallery?*", (route) => {
+    const url = new URL(route.request().url());
+    const seed = url.searchParams.get("seed") ?? "";
+    const offset = Number(url.searchParams.get("cursor") ?? "0");
+    if (!seeds.includes(seed)) seeds.push(seed);
+    // Each seed orders the wall its own way; three at a time.
+    const ordered = [...wall].sort((left, right) =>
+      `${seed}${left.id}`.localeCompare(`${seed}${right.id}`),
+    );
+    const slice = ordered.slice(offset, offset + 3);
+    return route.fulfill({
+      json: {
+        entries: slice,
+        nextCursor:
+          offset + slice.length < ordered.length
+            ? String(offset + slice.length)
+            : null,
+        total: ordered.length,
+      },
+    });
+  });
+  await page.route("**/preview.svg", (route) =>
+    route.fulfill({
+      contentType: "image/svg+xml",
+      body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"></svg>',
+    }),
+  );
+
+  await page.goto("/");
+  const tiles = page.locator('[data-testid^="gallery-tile-"]');
+  await expect(tiles.first()).toBeVisible();
+
+  // The wall keeps filling as long as the bottom stays in view, and past the
+  // sixth circuit it comes back around under a different shuffle rather than
+  // stopping — which is the whole point of a wall smaller than the scroll.
+  for (let scroll = 0; scroll < 6; scroll += 1) {
+    await page.mouse.wheel(0, 4000);
+    await page.waitForTimeout(250);
+  }
+  expect(await tiles.count()).toBeGreaterThan(wall.length);
+  expect(seeds.length).toBeGreaterThan(1);
+});
+
 test("stars the circuits that extract and counts thumbs on every card", async ({
   page,
 }) => {
@@ -690,7 +757,7 @@ test("stars the circuits that extract and counts thumbs on every card", async ({
     likes: 0,
     likedByViewer: false,
   };
-  await page.route("**/api/gallery", (route) =>
+  await page.route(galleryListUrl, (route) =>
     route.fulfill({
       json: { entries: [extractable, sketch], nextCursor: null },
     }),
@@ -717,6 +784,10 @@ test("stars the circuits that extract and counts thumbs on every card", async ({
   await expect(page.getByTestId(`gallery-tile-${sketch.id}`)).toBeVisible();
 
   const thumb = page.getByTestId(`gallery-like-${extractable.id}`);
+  // The mark is drawn, not typed: an emoji is a different picture on every
+  // platform and brings its own colour onto a wall of circuit drawings.
+  await expect(thumb.locator("svg")).toHaveCount(1);
+  await expect(thumb).not.toContainText("👍");
   await expect(thumb).toContainText("2");
   await expect(thumb).toHaveAttribute("aria-pressed", "false");
 

@@ -6390,8 +6390,27 @@ html.light .analytics-map-land path {
 }
 
 .gallery-tile-like[aria-pressed="true"] {
-  color: var(--icm-accent);
+  color: #e0245e;
   font-weight: 600;
+}
+
+.gallery-tile-like svg {
+  display: block;
+  transition: transform 120ms ease;
+}
+
+.gallery-tile-like:active svg {
+  transform: scale(1.25);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gallery-tile-like svg {
+    transition: none;
+  }
+
+  .gallery-tile-like:active svg {
+    transform: none;
+  }
 }
 
 /* The wordmark is the editor's half of the two-way gallery/editor switch, so
