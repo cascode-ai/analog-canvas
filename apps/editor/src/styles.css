@@ -6363,6 +6363,37 @@ html.light .analytics-map-land path {
   color: var(--icm-text-muted);
 }
 
+/* A star says this circuit extracts to a netlist. It marks extra
+   completeness and gates nothing, so it is a quiet accent beside the name
+   rather than a badge competing with it. */
+.gallery-tile-star {
+  margin-left: 4px;
+  color: #c98a12;
+  font-size: 12px;
+}
+
+.gallery-tile-like {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: var(--icm-radius-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.gallery-tile-like:hover {
+  background: var(--icm-surface-hover);
+}
+
+.gallery-tile-like[aria-pressed="true"] {
+  color: var(--icm-accent);
+  font-weight: 600;
+}
+
 /* The wordmark is the editor's half of the two-way gallery/editor switch, so
    the whole brand is one link that still reads as plain chrome. */
 .gallery-home-link {
