@@ -14,9 +14,15 @@ import {
   libraryDisplayName,
 } from "../component-insert/symbol-catalog";
 
+/**
+ * A tile is 40px wide, so its label is an abbreviation — "Cap", "Res", "NPN".
+ * Interface Pin and Net Label shorten to "Pin" and "Net"; the full name and
+ * the line explaining the difference travel in the tooltip and the Insert
+ * dialog, where there is room to read them.
+ */
 const COMPACT_LIBRARY_LABELS: Readonly<Record<string, string>> = {
   capacitor: "Cap",
-  "cell-pin": "Interface Pin",
+  "cell-pin": "Pin",
   "closed-switch": "Closed",
   "current-source": "I Src",
   "ideal-switch": "Open",
@@ -35,7 +41,8 @@ const COMPACT_LIBRARY_LABELS: Readonly<Record<string, string>> = {
   "xnor-gate": "XNOR",
   "xor-gate": "XOR",
   pnp: "PNP",
-  "port-filled": "Filled",
+  port: "Net",
+  "port-filled": "Net \u2022",
   resistor: "Res",
   "variable-capacitor": "Var Cap",
   "variable-inductor": "Var Ind",
