@@ -43,11 +43,30 @@ const PRODUCT_IDS = [
 
 describe("Razavi-only product Symbol Library", () => {
   it("contains exactly the reviewed Razavi product symbols", () => {
-    expect(builtInSymbols).toBe(razaviProductSymbols);
-    expect(builtInSymbols.map((symbol) => symbol.id)).toEqual(PRODUCT_IDS);
+    expect(razaviProductSymbols.map((symbol) => symbol.id)).toEqual(
+      PRODUCT_IDS,
+    );
     for (const symbol of builtInSymbols) {
       expect(SymbolDefinitionSchema.parse(symbol)).toEqual(symbol);
     }
+  });
+
+  it("resolves the reviewed Symbols an action reaches but nobody browses", () => {
+    // Swapping an amplifier's inputs or outputs exchanges the Instance's
+    // Symbol for a sibling. Those siblings stay out of the Library, so the
+    // runtime library has to be wider than the Library's own list.
+    const resolvable = new Set(builtInSymbols.map((symbol) => symbol.id));
+    const browsable = new Set(razaviProductSymbols.map((symbol) => symbol.id));
+    for (const id of [
+      "comparator-inputs-swapped",
+      "opamp-inputs-swapped",
+      "opamp-differential-inputs-swapped",
+      "opamp-differential-crossed-inputs-swapped",
+    ]) {
+      expect(resolvable.has(id)).toBe(true);
+      expect(browsable.has(id)).toBe(false);
+    }
+    for (const id of browsable) expect(resolvable.has(id)).toBe(true);
   });
 
   it("does not resolve removed compatibility or generic symbols", () => {

@@ -218,6 +218,10 @@ import {
   differentialOutputSibling,
   planDifferentialOutputSwap,
 } from "../features/editor-shell/differential-output-swap";
+import {
+  differentialInputSibling,
+  planDifferentialInputSwap,
+} from "../features/editor-shell/differential-input-swap";
 import { ExamplesPanel } from "../features/editor-shell/examples-panel";
 import { convertRectangleToHierarchy } from "../features/hierarchy/rectangle-to-cell";
 import { CellManagerDialog } from "../features/hierarchy/cell-manager-dialog";
@@ -9022,13 +9026,23 @@ export function App({
                               Swap + / − outputs
                             </button>
                           ) : null}
-                          {selectedInstanceHasDifferentialInputs ? (
+                          {selectedInstanceHasDifferentialInputs &&
+                          differentialInputSibling(
+                            selectedInstance.symbolId,
+                          ) ? (
                             <button
                               type="button"
                               data-testid="swap-differential-inputs"
                               aria-label="Swap the + and - inputs"
                               title="Swap + / - inputs (Ctrl+R)"
-                              onClick={() => mirrorSelected("top-bottom")}
+                              onClick={() =>
+                                transact(
+                                  planDifferentialInputSwap(
+                                    selectedInstance.id,
+                                    selectedInstance.symbolId,
+                                  ),
+                                )
+                              }
                             >
                               Swap + / − inputs
                             </button>

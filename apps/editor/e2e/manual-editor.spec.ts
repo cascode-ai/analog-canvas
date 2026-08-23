@@ -3879,6 +3879,45 @@ test("keeps the junction dot while a wire at a tap is dragged", async ({
   await expect(dots).toHaveCount(1);
 });
 
+test("swaps a comparator's + and - without turning the body over", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  const canvas = page.getByTestId("schematic-canvas");
+  await placeComponent(page, "comparator", { x: 400, y: 300 });
+  await canvas.click({ position: { x: 400, y: 300 } });
+  await openSelectionShelf(page);
+
+  const body = page.locator('[data-layer="symbols"] [data-object-id]').first();
+  const readBody = () =>
+    body.evaluate((element) => ({
+      transform: element.getAttribute("transform") ?? "",
+      paths: Array.from(element.querySelectorAll("path")).map(
+        (path) => path.getAttribute("d") ?? "",
+      ),
+      // The + is the only vertical stroke among the polarity marks.
+      plusMarkY: Array.from(element.querySelectorAll("line"))
+        .filter((line) => line.getAttribute("x1") === line.getAttribute("x2"))
+        .map((line) => Number(line.getAttribute("y1"))),
+    }));
+
+  const before = await readBody();
+  expect(before.plusMarkY).toHaveLength(1);
+  expect(before.plusMarkY[0]!).toBeGreaterThan(0);
+
+  await page.getByTestId("swap-differential-inputs").click();
+
+  const after = await readBody();
+  // The + crossed to the other input.
+  expect(after.plusMarkY[0]!).toBe(-before.plusMarkY[0]!);
+  // Everything that is not a polarity mark held still. A reflection would
+  // have turned the triangle and the transfer-characteristic glyph over with
+  // the marks, and hung a scale() on the body.
+  expect(after.paths).toEqual(before.paths);
+  expect(after.transform).toBe(before.transform);
+  expect(after.transform).not.toContain("scale");
+});
+
 test("drags a marquee selection that holds no instance", async ({ page }) => {
   await page.goto("/editor");
   const canvas = page.getByTestId("schematic-canvas");

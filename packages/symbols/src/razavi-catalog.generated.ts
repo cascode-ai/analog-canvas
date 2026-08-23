@@ -128,6 +128,37 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     },
   },
   {
+    symbolId: "comparator-inputs-swapped",
+    name: "Comparator (swapped inputs)",
+    category: "analog-block",
+    reviewStatus: "reviewed",
+    pinOrder: ["IN+", "IN-", "OUT"],
+    palette: false,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Textbook comparator block; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
+    assetPath: "comparator-inputs-swapped.symbol.json",
+    assetHash:
+      "2347fb5e02a6b024ec9b758d51a80766e8665ad269616200575777a5fec9fce8",
+    visualAuthority: {
+      kind: "razavi-reference-v1",
+      referenceManifestPath:
+        "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      referencePaths: [
+        "fixtures/visual-reference/razavi-reference-v1/opamp-vector-source.json",
+        "fixtures/visual-reference/razavi-reference-v1/opamp-reference.png",
+      ],
+      calibrationPath:
+        "fixtures/visual-reference/razavi-reference-v1/opamp-geometry.json",
+    },
+    generation: {
+      kind: "derived-input-swap",
+      sourceSymbolId: "comparator",
+      converterPath: "scripts/generate-input-swapped-amplifiers.mjs",
+      converterVersion: 1,
+    },
+  },
+  {
     symbolId: "current-source",
     name: "Independent Current Source",
     category: "source",
@@ -513,6 +544,37 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     },
   },
   {
+    symbolId: "opamp-inputs-swapped",
+    name: "Operational Amplifier (swapped inputs)",
+    category: "analog-block",
+    reviewStatus: "reviewed",
+    pinOrder: ["IN+", "IN-", "OUT"],
+    palette: false,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Three-terminal textbook op-amp; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
+    assetPath: "opamp-inputs-swapped.symbol.json",
+    assetHash:
+      "7bfb9eea39ed6469f7927043577b262b2e177684b02c284d8f0e8ba9ddebbad3",
+    visualAuthority: {
+      kind: "razavi-reference-v1",
+      referenceManifestPath:
+        "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      referencePaths: [
+        "fixtures/visual-reference/razavi-reference-v1/opamp-vector-source.json",
+        "fixtures/visual-reference/razavi-reference-v1/opamp-reference.png",
+      ],
+      calibrationPath:
+        "fixtures/visual-reference/razavi-reference-v1/opamp-geometry.json",
+    },
+    generation: {
+      kind: "derived-input-swap",
+      sourceSymbolId: "opamp",
+      converterPath: "scripts/generate-input-swapped-amplifiers.mjs",
+      converterVersion: 1,
+    },
+  },
+  {
     symbolId: "opamp-differential",
     name: "Differential Op Amp",
     category: "analog-block",
@@ -547,6 +609,37 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     },
   },
   {
+    symbolId: "opamp-differential-inputs-swapped",
+    name: "Differential Op Amp (swapped inputs)",
+    category: "analog-block",
+    reviewStatus: "reviewed",
+    pinOrder: ["IN+", "IN-", "OUT+", "OUT-"],
+    palette: false,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Fully differential textbook body; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
+    assetPath: "opamp-differential-inputs-swapped.symbol.json",
+    assetHash:
+      "f4cbb7f66dd9fea2ae61e1b65a871744b096113a28614aa077bfe223c0cb6a57",
+    visualAuthority: {
+      kind: "razavi-reference-v1",
+      referenceManifestPath:
+        "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      referencePaths: [
+        "fixtures/visual-reference/razavi-reference-v1/opamp-vector-source.json",
+        "fixtures/visual-reference/razavi-reference-v1/opamp-reference.png",
+      ],
+      calibrationPath:
+        "fixtures/visual-reference/razavi-reference-v1/opamp-geometry.json",
+    },
+    generation: {
+      kind: "derived-input-swap",
+      sourceSymbolId: "opamp-differential",
+      converterPath: "scripts/generate-input-swapped-amplifiers.mjs",
+      converterVersion: 1,
+    },
+  },
+  {
     symbolId: "opamp-differential-crossed",
     name: "Differential Op Amp (crossed outputs)",
     category: "analog-block",
@@ -578,6 +671,37 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
         "fixtures/visual-reference/razavi-reference-v1/opamp-vector-source.json",
       converterPath: "scripts/generate-razavi-opamp-asset.mjs",
       converterVersion: 2,
+    },
+  },
+  {
+    symbolId: "opamp-differential-crossed-inputs-swapped",
+    name: "Differential Op Amp (crossed outputs) (swapped inputs)",
+    category: "analog-block",
+    reviewStatus: "reviewed",
+    pinOrder: ["IN+", "IN-", "OUT+", "OUT-"],
+    palette: false,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Output-polarity sibling of opamp-differential; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
+    assetPath: "opamp-differential-crossed-inputs-swapped.symbol.json",
+    assetHash:
+      "088e85038212ae9d8dfd29f8a4f91447c0d5ec52f4e510364a1f3e1da41c5d7b",
+    visualAuthority: {
+      kind: "razavi-reference-v1",
+      referenceManifestPath:
+        "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      referencePaths: [
+        "fixtures/visual-reference/razavi-reference-v1/opamp-vector-source.json",
+        "fixtures/visual-reference/razavi-reference-v1/opamp-reference.png",
+      ],
+      calibrationPath:
+        "fixtures/visual-reference/razavi-reference-v1/opamp-geometry.json",
+    },
+    generation: {
+      kind: "derived-input-swap",
+      sourceSymbolId: "opamp-differential-crossed",
+      converterPath: "scripts/generate-input-swapped-amplifiers.mjs",
+      converterVersion: 1,
     },
   },
   {
@@ -1483,6 +1607,177 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         to: {
           x: -14.296167,
           y: -12.5,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M -8 7 L 0 7 L 0 -7 L 8 -7",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "hysteresis-step",
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "comparator-inputs-swapped",
+    name: "Comparator (swapped inputs)",
+    viewBox: {
+      x: -54,
+      y: -28,
+      width: 98,
+      height: 56,
+    },
+    pins: [
+      {
+        name: "IN+",
+        role: "non-inverting-input",
+        at: {
+          x: -50,
+          y: -10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 20,
+        },
+      },
+      {
+        name: "IN-",
+        role: "inverting-input",
+        at: {
+          x: -50,
+          y: 10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 20,
+        },
+      },
+      {
+        name: "OUT",
+        role: "output",
+        at: {
+          x: 40,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 20,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -50,
+          y: -10,
+        },
+        to: {
+          x: -26.952962,
+          y: -10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -50,
+          y: 10,
+        },
+        to: {
+          x: -26.797909,
+          y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 23.202091,
+          y: 0,
+        },
+        to: {
+          x: 40,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M -26.7979 -24.9983 L -26.7979 25 L 23.2021 0 Z",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -18.047038,
+          y: -8.749129,
+        },
+        to: {
+          x: -18.047038,
+          y: -16.249129,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -21.796167,
+          y: -12.5,
+        },
+        to: {
+          x: -14.296167,
+          y: -12.5,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -21.796167,
+          y: 12.5,
+        },
+        to: {
+          x: -14.296167,
+          y: 12.5,
         },
         style: {
           strokeRole: "normal",
@@ -3042,6 +3337,167 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
   },
   {
     schemaVersion: 1,
+    id: "opamp-inputs-swapped",
+    name: "Operational Amplifier (swapped inputs)",
+    viewBox: {
+      x: -54,
+      y: -28,
+      width: 98,
+      height: 56,
+    },
+    pins: [
+      {
+        name: "IN+",
+        role: "non-inverting-input",
+        at: {
+          x: -50,
+          y: -10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 20,
+        },
+      },
+      {
+        name: "IN-",
+        role: "inverting-input",
+        at: {
+          x: -50,
+          y: 10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 20,
+        },
+      },
+      {
+        name: "OUT",
+        role: "output",
+        at: {
+          x: 40,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 20,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -50,
+          y: -10,
+        },
+        to: {
+          x: -26.952962,
+          y: -10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -50,
+          y: 10,
+        },
+        to: {
+          x: -26.797909,
+          y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 23.202091,
+          y: 0,
+        },
+        to: {
+          x: 40,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M -26.7979 -24.9983 L -26.7979 25 L 23.2021 0 Z",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -18.047038,
+          y: -8.749129,
+        },
+        to: {
+          x: -18.047038,
+          y: -16.249129,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -21.796167,
+          y: -12.5,
+        },
+        to: {
+          x: -14.296167,
+          y: -12.5,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -21.796167,
+          y: 12.5,
+        },
+        to: {
+          x: -14.296167,
+          y: 12.5,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
     id: "opamp-differential",
     name: "Differential Op Amp",
     viewBox: {
@@ -3280,6 +3736,244 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
   },
   {
     schemaVersion: 1,
+    id: "opamp-differential-inputs-swapped",
+    name: "Differential Op Amp (swapped inputs)",
+    viewBox: {
+      x: -54,
+      y: -28,
+      width: 98,
+      height: 56,
+    },
+    pins: [
+      {
+        name: "IN+",
+        role: "non-inverting-input",
+        at: {
+          x: -50,
+          y: -10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 20,
+        },
+      },
+      {
+        name: "IN-",
+        role: "inverting-input",
+        at: {
+          x: -50,
+          y: 10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 20,
+        },
+      },
+      {
+        name: "OUT+",
+        role: "output",
+        at: {
+          x: 40,
+          y: 10,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 20,
+        },
+      },
+      {
+        name: "OUT-",
+        role: "output",
+        at: {
+          x: 40,
+          y: -10,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 20,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -50,
+          y: -10,
+        },
+        to: {
+          x: -26.952962,
+          y: -10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -50,
+          y: 10,
+        },
+        to: {
+          x: -26.797909,
+          y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 3.2014,
+          y: -10,
+        },
+        to: {
+          x: 40,
+          y: -10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 3.2014,
+          y: 10,
+        },
+        to: {
+          x: 40,
+          y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M -26.7979 -24.9983 L -26.7979 25 L 3.2014 10 L 3.2014 -10 Z",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -18.047038,
+          y: -8.749129,
+        },
+        to: {
+          x: -18.047038,
+          y: -16.249129,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -21.796167,
+          y: -12.5,
+        },
+        to: {
+          x: -14.296167,
+          y: -12.5,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -21.796167,
+          y: 12.5,
+        },
+        to: {
+          x: -14.296167,
+          y: 12.5,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 14.4512,
+          y: 8.749129,
+        },
+        to: {
+          x: 14.4512,
+          y: 16.249129,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 18.2004,
+          y: 12.5,
+        },
+        to: {
+          x: 10.7004,
+          y: 12.5,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 18.2004,
+          y: -12.5,
+        },
+        to: {
+          x: 10.7004,
+          y: -12.5,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
     id: "opamp-differential-crossed",
     name: "Differential Op Amp (crossed outputs)",
     viewBox: {
@@ -3458,6 +4152,244 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         to: {
           x: -14.296167,
           y: -12.5,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 14.4512,
+          y: -8.749129,
+        },
+        to: {
+          x: 14.4512,
+          y: -16.249129,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 18.2004,
+          y: -12.5,
+        },
+        to: {
+          x: 10.7004,
+          y: -12.5,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 18.2004,
+          y: 12.5,
+        },
+        to: {
+          x: 10.7004,
+          y: 12.5,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "opamp-differential-crossed-inputs-swapped",
+    name: "Differential Op Amp (crossed outputs) (swapped inputs)",
+    viewBox: {
+      x: -54,
+      y: -28,
+      width: 98,
+      height: 56,
+    },
+    pins: [
+      {
+        name: "IN+",
+        role: "non-inverting-input",
+        at: {
+          x: -50,
+          y: -10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 20,
+        },
+      },
+      {
+        name: "IN-",
+        role: "inverting-input",
+        at: {
+          x: -50,
+          y: 10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 20,
+        },
+      },
+      {
+        name: "OUT+",
+        role: "output",
+        at: {
+          x: 40,
+          y: -10,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 20,
+        },
+      },
+      {
+        name: "OUT-",
+        role: "output",
+        at: {
+          x: 40,
+          y: 10,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 20,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -50,
+          y: -10,
+        },
+        to: {
+          x: -26.952962,
+          y: -10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -50,
+          y: 10,
+        },
+        to: {
+          x: -26.797909,
+          y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 3.2014,
+          y: -10,
+        },
+        to: {
+          x: 40,
+          y: -10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 3.2014,
+          y: 10,
+        },
+        to: {
+          x: 40,
+          y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M -26.7979 -24.9983 L -26.7979 25 L 3.2014 10 L 3.2014 -10 Z",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -18.047038,
+          y: -8.749129,
+        },
+        to: {
+          x: -18.047038,
+          y: -16.249129,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -21.796167,
+          y: -12.5,
+        },
+        to: {
+          x: -14.296167,
+          y: -12.5,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -21.796167,
+          y: 12.5,
+        },
+        to: {
+          x: -14.296167,
+          y: 12.5,
         },
         style: {
           strokeRole: "normal",

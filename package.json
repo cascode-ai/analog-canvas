@@ -62,6 +62,8 @@
     "symbols:razavi-inductor:check": "node scripts/generate-razavi-inductor-asset.mjs --check",
     "symbols:razavi-opamp": "node scripts/generate-razavi-opamp-asset.mjs",
     "symbols:razavi-opamp:check": "node scripts/generate-razavi-opamp-asset.mjs --check",
+    "symbols:swap-inputs": "node scripts/generate-input-swapped-amplifiers.mjs",
+    "symbols:swap-inputs:check": "node scripts/generate-input-swapped-amplifiers.mjs --check",
     "symbols:razavi-logic": "node scripts/generate-razavi-logic-gate-assets.mjs",
     "symbols:razavi-logic:check": "node scripts/generate-razavi-logic-gate-assets.mjs --check",
     "symbols:razavi-common": "node scripts/generate-razavi-common-assets.mjs",

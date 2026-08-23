@@ -1,0 +1,238 @@
+{
+  "schemaVersion": 1,
+  "id": "opamp-differential-inputs-swapped",
+  "name": "Differential Op Amp (swapped inputs)",
+  "viewBox": {
+    "x": -54,
+    "y": -28,
+    "width": 98,
+    "height": 56
+  },
+  "pins": [
+    {
+      "name": "IN+",
+      "role": "non-inverting-input",
+      "at": {
+        "x": -50,
+        "y": -10
+      },
+      "direction": "west",
+      "presentation": {
+        "visibility": "visible",
+        "leadLength": 20
+      }
+    },
+    {
+      "name": "IN-",
+      "role": "inverting-input",
+      "at": {
+        "x": -50,
+        "y": 10
+      },
+      "direction": "west",
+      "presentation": {
+        "visibility": "visible",
+        "leadLength": 20
+      }
+    },
+    {
+      "name": "OUT+",
+      "role": "output",
+      "at": {
+        "x": 40,
+        "y": 10
+      },
+      "direction": "east",
+      "presentation": {
+        "visibility": "visible",
+        "leadLength": 20
+      }
+    },
+    {
+      "name": "OUT-",
+      "role": "output",
+      "at": {
+        "x": 40,
+        "y": -10
+      },
+      "direction": "east",
+      "presentation": {
+        "visibility": "visible",
+        "leadLength": 20
+      }
+    }
+  ],
+  "primitives": [
+    {
+      "kind": "line",
+      "from": {
+        "x": -50,
+        "y": -10
+      },
+      "to": {
+        "x": -26.952962,
+        "y": -10
+      },
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "butt",
+        "lineJoin": "miter"
+      }
+    },
+    {
+      "kind": "line",
+      "from": {
+        "x": -50,
+        "y": 10
+      },
+      "to": {
+        "x": -26.797909,
+        "y": 10
+      },
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "butt",
+        "lineJoin": "miter"
+      }
+    },
+    {
+      "kind": "line",
+      "from": {
+        "x": 3.2014,
+        "y": -10
+      },
+      "to": {
+        "x": 40,
+        "y": -10
+      },
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "butt",
+        "lineJoin": "miter"
+      }
+    },
+    {
+      "kind": "line",
+      "from": {
+        "x": 3.2014,
+        "y": 10
+      },
+      "to": {
+        "x": 40,
+        "y": 10
+      },
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "butt",
+        "lineJoin": "miter"
+      }
+    },
+    {
+      "kind": "path",
+      "data": "M -26.7979 -24.9983 L -26.7979 25 L 3.2014 10 L 3.2014 -10 Z",
+      "style": {
+        "strokeRole": "emphasis",
+        "lineCap": "butt",
+        "lineJoin": "miter",
+        "miterLimit": 4
+      }
+    },
+    {
+      "kind": "line",
+      "from": {
+        "x": -18.047038,
+        "y": -8.749129
+      },
+      "to": {
+        "x": -18.047038,
+        "y": -16.249129
+      },
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "butt",
+        "lineJoin": "miter"
+      }
+    },
+    {
+      "kind": "line",
+      "from": {
+        "x": -21.796167,
+        "y": -12.5
+      },
+      "to": {
+        "x": -14.296167,
+        "y": -12.5
+      },
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "butt",
+        "lineJoin": "miter"
+      }
+    },
+    {
+      "kind": "line",
+      "from": {
+        "x": -21.796167,
+        "y": 12.5
+      },
+      "to": {
+        "x": -14.296167,
+        "y": 12.5
+      },
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "butt",
+        "lineJoin": "miter"
+      }
+    },
+    {
+      "kind": "line",
+      "from": {
+        "x": 14.4512,
+        "y": 8.749129
+      },
+      "to": {
+        "x": 14.4512,
+        "y": 16.249129
+      },
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "butt",
+        "lineJoin": "miter"
+      }
+    },
+    {
+      "kind": "line",
+      "from": {
+        "x": 18.2004,
+        "y": 12.5
+      },
+      "to": {
+        "x": 10.7004,
+        "y": 12.5
+      },
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "butt",
+        "lineJoin": "miter"
+      }
+    },
+    {
+      "kind": "line",
+      "from": {
+        "x": 18.2004,
+        "y": -12.5
+      },
+      "to": {
+        "x": 10.7004,
+        "y": -12.5
+      },
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "butt",
+        "lineJoin": "miter"
+      }
+    }
+  ],
+  "variants": []
+}

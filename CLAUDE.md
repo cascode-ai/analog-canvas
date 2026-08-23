@@ -38,7 +38,7 @@ Unit tests are co-located `*.test.ts(x)` beside implementations under one root `
 
 ### Generated artifacts
 
-Never hand-edit `*.generated.ts` files, `packages/symbols/assets/razavi-v1/*`, `fixtures/agent-api/*`, golden fixtures, or PWA icons — each generator has a paired `:check` drift gate enforced in `ci:static` / release verification. Regeneration order when symbol data changes: `symbols:razavi-{mos,peripherals,inductor,opamp,common}` (assets) → `symbols:razavi` (TS catalog) → `agent-kit:catalog` → `pnpm build` → `mcp:resources` / `agent-api:artifacts` / `pwa:icons`. Golden outputs: `visual:golden`, `export:golden`.
+Never hand-edit `*.generated.ts` files, `packages/symbols/assets/razavi-v1/*`, `fixtures/agent-api/*`, golden fixtures, or PWA icons — each generator has a paired `:check` drift gate enforced in `ci:static` / release verification. Regeneration order when symbol data changes: `symbols:razavi-{mos,peripherals,inductor,opamp,common}` (assets) → `symbols:swap-inputs` (siblings derived from those assets) → `symbols:razavi` (TS catalog) → `agent-kit:catalog` → `pnpm build` → `mcp:resources` / `agent-api:artifacts` / `pwa:icons`. Golden outputs: `visual:golden`, `export:golden`.
 
 ## Required workflow (AGENTS.md)
 
