@@ -76,6 +76,15 @@ name, scope, power-role, or Evidence mutation. A future reviewed marker action
 may author the same owner-addressed Net Marker operation as the GUI without
 adding a second Net-renaming protocol.
 
+Every Snapshot `net.id` and every `netId` reference to it is a deterministic
+Logical-Net representative scoped to that Snapshot Document revision. It is
+not a persistent identity: split, merge, pruning, or Evidence edits may change
+the representative even when some circuit intent remains recognizable. After
+any commit, stale-revision result, or uncertain transport outcome, discard all
+previous Snapshot Net IDs and request a fresh Snapshot. Persisted Base-Net IDs
+remain valid only while their objects survive the edit lifecycle and are not
+exposed as an alternate Agent naming protocol.
+
 `wireIntent` has the same Route planner as interactive Wire. Its optional
 `routingMode` is `orthogonal` (default), `octilinear`, or `free` (ADR 0039);
 an optional

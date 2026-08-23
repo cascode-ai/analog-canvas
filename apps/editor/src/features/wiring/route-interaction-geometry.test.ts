@@ -10,6 +10,7 @@ import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 import {
   annotationAnchor,
   attachmentAtPoint,
+  routeTapPoint,
   defaultInstanceLabel,
   dragNetLabelAttachmentAtPoint,
   dragRouteAttachmentAtPoint,
@@ -238,6 +239,68 @@ describe("route interaction geometry", () => {
         fallbackPosition: { x: 90, y: 140 },
       },
       alignment: "middle",
+    });
+  });
+});
+
+describe("routeTapPoint", () => {
+  const grid = 10;
+  const vertical = { from: { x: 370, y: 120 }, to: { x: 370, y: 460 } };
+  const horizontal = { from: { x: 200, y: 290 }, to: { x: 600, y: 290 } };
+
+  it("quantizes a tap that is merely aimed at a conductor", () => {
+    expect(
+      routeTapPoint({ x: 372, y: 263 }, vertical.from, vertical.to, grid),
+    ).toEqual({ x: 370, y: 260 });
+    expect(
+      routeTapPoint({ x: 417, y: 288 }, horizontal.from, horizontal.to, grid),
+    ).toEqual({ x: 420, y: 290 });
+  });
+
+  it("lands where the run arrives, so the grid cannot bend it", () => {
+    // A run arriving at y = 265 must reach the wire at 265, not be dragged to
+    // 260 and turned into an elbow. Any point along a conductor is tappable.
+    expect(
+      routeTapPoint({ x: 372, y: 264 }, vertical.from, vertical.to, grid, {
+        x: 620,
+        y: 265,
+      }),
+    ).toEqual({ x: 370, y: 265 });
+    expect(
+      routeTapPoint({ x: 417, y: 288 }, horizontal.from, horizontal.to, grid, {
+        x: 415,
+        y: 100,
+      }),
+    ).toEqual({ x: 415, y: 290 });
+  });
+
+  it("keeps the grid when the run arrives somewhere else entirely", () => {
+    // Aiming at one end of a wire while the run comes from far away is not a
+    // straight connection to preserve; the tidy grid tap is the better answer.
+    expect(
+      routeTapPoint({ x: 372, y: 263 }, vertical.from, vertical.to, grid, {
+        x: 620,
+        y: 440,
+      }),
+    ).toEqual({ x: 370, y: 260 });
+  });
+
+  it("never lands off the end of the segment it taps", () => {
+    // An arrival beyond the wire's own extent is not on that wire.
+    expect(
+      routeTapPoint({ x: 372, y: 130 }, vertical.from, vertical.to, grid, {
+        x: 620,
+        y: 90,
+      }),
+    ).toEqual({ x: 370, y: 130 });
+  });
+
+  it("keeps a diagonal tap on the segment", () => {
+    const from = { x: 0, y: 0 };
+    const to = { x: 100, y: 100 };
+    expect(routeTapPoint({ x: 44, y: 46 }, from, to, grid)).toEqual({
+      x: 50,
+      y: 50,
     });
   });
 });

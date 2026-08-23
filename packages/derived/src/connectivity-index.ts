@@ -105,6 +105,7 @@ export interface ProjectObjectIndex {
 
 export interface ProjectConnectivityIndex {
   projectId: string;
+  topDocumentId: string;
   documents: ReadonlyMap<string, DocumentConnectivityIndex>;
   hierarchy: HierarchyConnectivityIndex;
   globalNets: ReadonlyMap<string, GlobalNetGroup>;
@@ -500,6 +501,7 @@ export function buildProjectConnectivityIndex(
   }
   return {
     projectId: project.id,
+    topDocumentId: project.topDocumentId,
     documents,
     hierarchy: buildHierarchyIndex(project, resolver),
     globalNets: buildGlobalNetIndex(project),

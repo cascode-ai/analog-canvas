@@ -862,7 +862,7 @@ test("keeps Wire active for consecutive independent routes until Escape", async 
   await expect(page.getByTestId("active-tool")).toHaveText("pointer");
 });
 
-test("re-derives guidance after manually deleting an imported Route", async ({
+test("physically cuts an imported Route and retires detached source guidance", async ({
   page,
 }) => {
   const project = createRoutingDemoProject();
@@ -902,9 +902,9 @@ test("re-derives guidance after manually deleting an imported Route", async ({
   );
 
   await expect(page.getByTestId("source-status")).toHaveText(
-    "geometry-only-changed",
+    "connectivity-modified",
   );
-  await expect(page.getByTestId("flightline")).toHaveCount(3);
+  await expect(page.getByTestId("flightline")).toHaveCount(1);
 });
 
 test("keeps remaining imported flightlines after routing one guided connection", async ({
@@ -2875,9 +2875,15 @@ X2 OUT IN EXT_MASTER l=1u nf=4
   await expect(page.getByTestId("status")).toContainText(
     "Imported 2 Documents",
   );
-  const spice = (
-    await downloadBytes(page, "File", "Export SPICE netlist")
-  ).toString("utf8");
+  await clickCommand(page, "File", "Export SPICE netlist");
+  const report = page.getByRole("dialog", { name: "Check Report" });
+  await expect(report.getByLabel("Electrical findings")).toBeVisible();
+  const downloadPromise = page.waitForEvent("download");
+  await report.getByRole("button", { name: "Download SPICE netlist" }).click();
+  const stream = await (await downloadPromise).createReadStream();
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream) chunks.push(Buffer.from(chunk));
+  const spice = Buffer.concat(chunks).toString("utf8");
   expect(spice).toContain(".subckt leaf A B params: scale=1");
   expect(spice).toContain("X1 IN OUT leaf scale=2");
   expect(spice).toContain("X2 OUT IN EXT_MASTER l=1u nf=4");

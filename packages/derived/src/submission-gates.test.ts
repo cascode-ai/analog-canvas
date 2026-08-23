@@ -149,7 +149,7 @@ describe("evaluateSubmissionGates", () => {
     expect(gates(target).ok).toBe(true);
   });
 
-  it("blocks an unnamed single-ended gate but accepts a named one", () => {
+  it("keeps a named singleton gate floating until it has a sanctioned boundary", () => {
     const target = project();
     const document = target.documents[0]!;
     document.instances = [
@@ -184,7 +184,7 @@ describe("evaluateSubmissionGates", () => {
       scope: "local",
       owner: { kind: "explicit-net-property" },
     });
-    expect(gates(target).ok).toBe(true);
+    expect(failureCodes(target)).toEqual(["floating-endpoints"]);
   });
 
   it("reports ERC errors such as duplicate instance names", () => {

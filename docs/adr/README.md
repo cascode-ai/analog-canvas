@@ -82,6 +82,10 @@ The document style-overrides and schema-21 decision is
 The owner-addressable Connectivity Evidence layer and schema-22 rolling
 migration decision is
 [`0040-connectivity-evidence.md`](0040-connectivity-evidence.md).
+The physical Wire-cut, derived endpoint-readiness, occurrence-aware trace, and
+revision-scoped Logical-Net representative decision—partially superseding ADR
+0035—is
+[`0041-physical-cut-and-endpoint-readiness.md`](0041-physical-cut-and-endpoint-readiness.md).
 The arbitrary-angle Route authoring decision is
 [`0039-any-angle-route-authoring.md`](0039-any-angle-route-authoring.md).
 

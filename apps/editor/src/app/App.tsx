@@ -392,6 +392,7 @@ import {
   isRoutedMarker,
   looseRouteAnchorIds,
   NET_LABEL_MAX_NORMAL_OFFSET,
+  routeTapPoint,
 } from "../features/wiring/route-interaction-geometry";
 import { reflectOrientation } from "../interaction/shortcut-orientation";
 import type { ScreenFlip } from "../interaction/shortcut-orientation";
@@ -427,28 +428,6 @@ const PAN_START_DISTANCE_PX = 10;
 const SNAP_CAPTURE_RADIUS_PX = 7;
 
 /** Persisted Junctions are grid points, including on ±45° Route segments. */
-function snapPointOnRouteGrid(
-  pointer: Point,
-  from: Point,
-  to: Point,
-  grid: number,
-): Point {
-  const projected = closestPointOnSegment(pointer, from, to);
-  if (from.y === to.y) {
-    return { x: snapCoordinate(projected.x, grid), y: from.y };
-  }
-  if (from.x === to.x) {
-    return { x: from.x, y: snapCoordinate(projected.y, grid) };
-  }
-  // Octilinear diagonal: choosing one grid coordinate determines the other.
-  // Endpoints already satisfy the grid invariant, so the paired coordinate
-  // remains integral and on-grid too.
-  const slope = Math.sign(to.y - from.y) * Math.sign(to.x - from.x);
-  const minX = Math.min(from.x, to.x);
-  const maxX = Math.max(from.x, to.x);
-  const x = clamp(snapCoordinate(projected.x, grid), minX, maxX);
-  return { x, y: from.y + slope * (x - from.x) };
-}
 
 type DragPreview = InstanceMovePreview;
 
@@ -933,6 +912,7 @@ export function App({
   const [highlightedNetOrigin, setHighlightedNetOrigin] = useState<{
     documentId: string;
     netId: string;
+    hierarchyPath: readonly HierarchyFrame[];
     endpoint?: RouteEndpoint;
   } | null>(null);
   const routeCounter = useRef(0);
@@ -1059,6 +1039,7 @@ export function App({
             highlightedNetOrigin.documentId,
             highlightedNetOrigin.netId,
             highlightedNetOrigin.endpoint,
+            highlightedNetOrigin.hierarchyPath,
           )
         : undefined,
     [highlightedNetOrigin, projectConnectivityIndex],
@@ -1066,14 +1047,30 @@ export function App({
   const highlightedNet = useMemo(
     () =>
       highlightedTrace?.highlights.find(
-        (highlight) => highlight.documentId === document.id,
+        (highlight) =>
+          highlight.documentId === document.id &&
+          highlight.hierarchyPath.length === documentStack.length &&
+          highlight.hierarchyPath.every(
+            (frame, index) =>
+              frame.parentDocumentId ===
+                documentStack[index]?.parentDocumentId &&
+              frame.instanceId === documentStack[index]?.instanceId &&
+              frame.childDocumentId === documentStack[index]?.childDocumentId,
+          ),
       ),
-    [document.id, highlightedTrace],
+    [document.id, documentStack, highlightedTrace],
   );
   const highlightedNetId = highlightedNet?.netId ?? null;
   const liveDiagnosticSnapshot = useMemo(
     () => diagnoseProjectSnapshot(project, resolver, projectConnectivityIndex),
     [project, projectConnectivityIndex, resolver],
+  );
+  const electricalDiagnostics = useMemo(
+    () =>
+      liveDiagnosticSnapshot.diagnostics.filter(
+        (diagnostic) => diagnostic.domain === "erc",
+      ),
+    [liveDiagnosticSnapshot],
   );
   const searchResults = useMemo(
     () =>
@@ -1427,6 +1424,13 @@ export function App({
   const selectedHighlightIsActive = Boolean(
     selectedHighlightNetId &&
     highlightedNetOrigin?.documentId === document.id &&
+    highlightedNetOrigin.hierarchyPath.length === documentStack.length &&
+    highlightedNetOrigin.hierarchyPath.every(
+      (frame, index) =>
+        frame.parentDocumentId === documentStack[index]?.parentDocumentId &&
+        frame.instanceId === documentStack[index]?.instanceId &&
+        frame.childDocumentId === documentStack[index]?.childDocumentId,
+    ) &&
     highlightedNetOrigin.netId === selectedHighlightNetId &&
     (!highlightedNetOrigin.endpoint ||
       (selectedHighlightEndpoint &&
@@ -2864,6 +2868,7 @@ export function App({
       setHighlightedNetOrigin({
         documentId: opened.id,
         netId: locator.objectId,
+        hierarchyPath: locator.hierarchyPath,
       });
       const route = opened.routes.find(
         (item) => item.netId === locator.objectId,
@@ -4024,15 +4029,21 @@ export function App({
     guides: SnapGuideLine[];
   } {
     if (suppressSnap) return { point, guides: [] };
+    // A wire already under way arrives from its last authored point, so a tap
+    // on a conductor can land exactly where that run reaches it.
+    const arrival = wireSource
+      ? (wireWaypoints.at(-1) ?? wireSource.point)
+      : null;
     const routeTargets = routeGeometryRecords.flatMap(({ route, geometry }) =>
       geometry.centerline.slice(0, -1).map((from, segmentIndex) => ({
         anchor: {
           id: `wire-route:${route.id}:${segmentIndex}`,
-          point: snapPointOnRouteGrid(
+          point: routeTapPoint(
             point,
             from,
             geometry.centerline[segmentIndex + 1]!,
             document.presentation.grid,
+            arrival,
           ),
           kind: "route" as const,
         },
@@ -6547,7 +6558,11 @@ export function App({
       setStatus("Resolve the Check Report findings before export");
       return;
     }
-    if (netlistAnalysis.diagnostics.length > 0 && !warningsReviewed) {
+    if (
+      (netlistAnalysis.diagnostics.length > 0 ||
+        electricalDiagnostics.length > 0) &&
+      !warningsReviewed
+    ) {
       setNetlistPreflightOpen(true);
       setStatus("Review the Check Report warnings before export");
       return;
@@ -7605,10 +7620,18 @@ export function App({
     netId: string,
     documentId = document.id,
     endpoint?: RouteEndpoint,
+    hierarchyPath: readonly HierarchyFrame[] = documentId === document.id
+      ? documentStack
+      : (findHierarchyPath(
+          projectConnectivityIndex,
+          project.topDocumentId,
+          documentId,
+        ) ?? []),
   ): void {
     setHighlightedNetOrigin({
       documentId,
       netId,
+      hierarchyPath,
       ...(endpoint ? { endpoint } : {}),
     });
     setStatus(`Highlighted Net ${netId}`);
@@ -7636,7 +7659,7 @@ export function App({
     navigateToLocator(
       {
         documentId: hop.to.documentId,
-        hierarchyPath: [],
+        hierarchyPath: hop.to.hierarchyPath,
         kind: "net",
         objectId: hop.to.netId,
       },
@@ -8429,8 +8452,10 @@ export function App({
       <NetlistPreflightDialog
         open={netlistPreflightOpen}
         result={netlistAnalysis}
+        electricalDiagnostics={electricalDiagnostics}
         onClose={() => setNetlistPreflightOpen(false)}
         onNavigate={navigateToNetlistDiagnostic}
+        onNavigateElectrical={jumpToProjectDiagnostic}
         onExport={(format) => exportDesignNetlist(format, true)}
       />
       {publishGalleryOpen ? (
@@ -10290,18 +10315,6 @@ export function App({
                   return;
                 finishDraftingCreate();
                 return;
-              }
-              if (tool === "wire") {
-                console.log(
-                  "DBLWIRE",
-                  JSON.stringify({
-                    target: target.tagName,
-                    testid: (target as HTMLElement).dataset?.testid,
-                    isCanvas: target === event.currentTarget,
-                    hasSource: Boolean(wireSource),
-                    steps: wireDraftSteps.length,
-                  }),
-                );
               }
               if (tool !== "wire") return;
               // A double-click ends the wire wherever it lands. The guard
