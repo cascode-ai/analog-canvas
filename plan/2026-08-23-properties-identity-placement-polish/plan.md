@@ -12,6 +12,8 @@ preserving the Identity card, compacting placement controls, retaining
 amplifier-specific swap actions, and removing two identified explanatory
 paragraphs. Follow up by reducing the Display card to one quiet inline control
 row without changing Reference or Value behavior.
+Reduce the remaining component card stack by preserving Identity as the sole
+emphasized card and expressing the other domains as continuous flat sections.
 
 ## State and Ownership
 
@@ -28,8 +30,12 @@ worktree are included.
 - `apps/editor/src/app/App.tsx`
 - `apps/editor/src/styles.css`
 - `apps/editor/src/features/editor-shell/tool-icon.tsx`
+- `apps/editor/src/features/hierarchy/cell-manager-dialog.tsx`
+- `apps/editor/src/features/wiring/use-wire-interaction.ts`
 - `apps/editor/e2e/component-insert.spec.ts`
 - `apps/editor/e2e/manual-editor.spec.ts`
+- `packages/edit-engine/src/route-geometry-edit.ts`
+- `packages/edit-engine/src/route-geometry-edit.test.ts`
 - `plan/2026-08-23-properties-identity-placement-polish/plan.md`
 - `plan/log.md`
 
@@ -39,6 +45,8 @@ Read-only and shared boundaries:
   Placement, capacitor terminal help, and Placement Tray introductory text.
 - Shared: component rotation and mirror commands, transaction semantics,
   amplifier differential swap behavior, and editor-wide button/theme tokens.
+- Shared: canonical route geometry normalization and direct segment dragging;
+  those remain supported while the standalone Jog command is retired.
 
 ## Work
 
@@ -53,6 +61,17 @@ Read-only and shared boundaries:
    UI.
 6. Compact the Display heading and its two required checkboxes into one row,
    removing the nested tile treatment and surplus vertical padding.
+7. Merge read-only target identity into Identity and combine Parameters,
+   Display, and Advanced inside one card. Keep card boundaries for Identity,
+   the combined electrical group, Placement, and conditional Model, terminal,
+   or provenance groups without restoring the former one-card-per-row stack.
+8. Remove the standalone Wire Jog command end to end—UI actions, interaction
+   adapter, edit-engine helpers, and their command-specific tests—while keeping
+   direct segment dragging and general route normalization intact.
+9. Replace the browser-owned Clear canvas confirmation with an editor-native,
+   undo-aware confirmation dialog. Rework the Cell Manager create, rename, and
+   delete prompts into the same compact header/body/footer visual hierarchy so
+   New Cell matches the global dialog language.
 
 ## Validation
 
@@ -81,6 +100,19 @@ Read-only and shared boundaries:
   the preceding target commit is already pushed and fully validated; its
   affected selection is static checks, workspace units, and component-insert
   browser tests.
+- Card-stack review: use the latest pushed `HEAD` as the follow-up base; App,
+  styles, component-insert, and manual-editor select workspace units plus both
+  editor browser contracts. Human review rejected removing every card boundary,
+  so the implementation must reduce card count by grouping related content,
+  not by flattening all domains. MOS Bulk, Tray, Issues, and data semantics
+  remain read-only.
+- Jog removal review: the expanded route-edit surface selects workspace unit,
+  hierarchy browser, and manual-editor browser gates. Validation is deliberately
+  deferred until the human finishes the current UI review.
+- Native-dialog review: App, Cell Manager, shared editor styles, manual-editor,
+  and hierarchy browser contracts are the owned surface. Clear remains an
+  undoable destructive transaction; Cell creation/rename/delete semantics are
+  unchanged. Validation remains deferred during the active human review.
 
 ## Test Impact
 
@@ -89,6 +121,14 @@ Read-only and shared boundaries:
   X/Y plus accessible rotate and mirror actions; Return to tray remains
   reachable; retained count remains visible without the verbose instruction;
   Display keeps Reference and Value on one compact row.
+- Added contract: a normal resistor keeps exactly three purposeful cards—
+  Identity, combined Parameters/Display/Advanced, and Placement—with its
+  read-only target inside Identity.
+- Retired contract: explicit Add/Straighten Jog commands. Existing direct route
+  segment movement remains the primary protected geometry-edit behavior.
+- Replaced contract: Clear canvas confirmation is now an accessible app dialog
+  rather than a browser dialog; Cell Manager prompts retain their existing
+  accessible names and actions inside a consistent structured surface.
 - Primary checks: `apps/editor/e2e/component-insert.spec.ts` and the existing
   capacitor terminal case in `apps/editor/e2e/manual-editor.spec.ts` through
   focused `pnpm test:e2e:local` runs
@@ -98,7 +138,7 @@ Read-only and shared boundaries:
 Follow-up commit as:
 
 ```text
-refactor(editor): compact component display controls
+refactor(editor): simplify properties and dialogs
 ```
 
 ## Outcome
@@ -135,4 +175,30 @@ Follow-up validation completed relative to the preceding pushed commit:
 - focused Display test 1/1
 - in-app Chromium inspection at the live localhost, including measured card
   height and grid columns
+- `git diff --check`
+
+Card-stack, Wire action, and dialog follow-ups completed. A normal primitive
+component now has three purposeful cards: Identity, a combined
+Parameters/Display/Advanced card, and Placement. Read-only primitive target
+information moved into Identity; conditional editable Model, terminal, and
+provenance cards remain separate. The standalone Jog UI and its otherwise
+unreachable edit-engine helpers were removed while direct route dragging and
+normalization remain intact.
+
+Clear canvas now uses an editor-native, undo-aware confirmation dialog instead
+of `window.confirm`. Cell Manager create, rename, and delete prompts share the
+same compact header/body/footer surface, accessible names, focus behavior, and
+primary/danger action hierarchy. Browser inspection caught an undefined danger
+token and the first hierarchy run caught an unstable delete-dialog accessible
+name; both were corrected before the complete gate rerun.
+
+Final validation completed against `origin/main`:
+
+- `pnpm gate:preflight -- --base origin/main`
+- `pnpm gate:affected -- --base origin/main` (183 unit files / 1191 tests,
+  component-insert 25/25, hierarchy 13/13, manual-editor 98/98)
+- `pnpm install --frozen-lockfile`
+- `pnpm ci:check` (183 unit files / 1191 tests, production build, release and
+  golden checks, full browser suite 211/211)
+- in-app Chromium inspection of Clear canvas and New Cell dialogs
 - `git diff --check`

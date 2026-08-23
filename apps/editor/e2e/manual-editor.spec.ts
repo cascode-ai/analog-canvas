@@ -791,36 +791,6 @@ test("deletes a wire without exposing Unroute", async ({ page }) => {
   ).toHaveCount(0);
 });
 
-test("adds and straightens an explicit jog on the selected wire segment", async ({
-  page,
-}) => {
-  await page.goto("/editor");
-  await clickDrawTool(page, "wire");
-  const canvas = page.getByTestId("schematic-canvas");
-  await canvas.click({ position: { x: 300, y: 240 } });
-  await canvas.dblclick({ position: { x: 600, y: 240 } });
-  await expect(page.locator('[data-layer="routes"] polyline')).toHaveCount(1);
-  await page.keyboard.press("Escape");
-
-  const routeHit = page.locator('[data-testid^="route-hit-"]').first();
-  const routeTestId = await routeHit.getAttribute("data-testid");
-  if (!routeTestId) throw new Error("Drawn route has no hit target");
-  const routeId = routeTestId.slice("route-hit-".length);
-  await clickRoute(page, routeId);
-  const before = await readRoutePoints(page, routeId);
-  await openSelectionShelf(page);
-  await page.getByRole("button", { name: "Add wire jog" }).click();
-  await expect(page.getByTestId("status")).toContainText(
-    "Added orthogonal wire jog",
-  );
-  expect((await readRoutePoints(page, routeId)).length).toBe(before.length + 2);
-  await page.getByRole("button", { name: "Straighten selected jog" }).click();
-  await expect(page.getByTestId("status")).toContainText(
-    "Straightened orthogonal wire jog",
-  );
-  expect(await readRoutePoints(page, routeId)).toEqual(before);
-});
-
 test("keeps Wire active for consecutive independent routes until Escape", async ({
   page,
 }) => {
@@ -1840,7 +1810,6 @@ test("Properties toggles reference label visibility for one or many components",
   const properties = page.getByRole("complementary", { name: "Properties" });
   for (const sectionName of [
     "Identity",
-    "Netlist target",
     "Parameters",
     "Display",
     "Advanced parameters",
@@ -1850,6 +1819,18 @@ test("Properties toggles reference label visibility for one or many components",
       properties.getByText(sectionName, { exact: true }),
     ).toBeVisible();
   }
+  const componentProperties = properties.getByRole("region", {
+    name: "Component properties",
+  });
+  await expect(
+    componentProperties.locator(":scope > .property-card"),
+  ).toHaveCount(3);
+  await expect(
+    componentProperties.getByLabel("Component identity"),
+  ).toContainText("TargetBuilt-in primitive: resistor");
+  await expect(
+    componentProperties.getByText("Netlist target", { exact: true }),
+  ).toHaveCount(0);
   const singleToggle = page.getByRole("checkbox", {
     name: "Reference",
     exact: true,
@@ -3198,16 +3179,18 @@ test("clears the active canvas atomically after confirmation and restores it wit
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("revision")).toHaveText("3");
 
-  page.once("dialog", async (dialog) => {
-    expect(dialog.message()).toContain('Clear all content from Cell "Main"');
-    await dialog.dismiss();
-  });
   await clickCommand(page, "Edit", "Clear canvas");
+  const clearDialog = page.getByRole("dialog", { name: "Clear Main?" });
+  await expect(clearDialog).toContainText("You can restore them with Undo");
+  await clearDialog.getByRole("button", { name: "Cancel" }).click();
   await expect(page.getByTestId("revision")).toHaveText("3");
   await expect(page.getByTestId("status")).toHaveText("Clear canvas cancelled");
 
-  page.once("dialog", (dialog) => dialog.accept());
   await clickCommand(page, "Edit", "Clear canvas");
+  await page
+    .getByRole("dialog", { name: "Clear Main?" })
+    .getByRole("button", { name: "Clear canvas" })
+    .click();
   await expect(page.getByTestId("instance-count")).toHaveText("0");
   await expect(page.getByTestId("net-count")).toHaveText("0");
   await expect(page.locator('[data-layer="routes"] polyline')).toHaveCount(0);

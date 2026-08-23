@@ -5183,3 +5183,17 @@ Keep reusable lessons in `docs/experience/`, not in this log.
   backgrounds and excess padding. Added a browser layout contract; preflight,
   1192 unit tests, and 25 component-insert browser tests passed. The follow-up
   is committed and pushed on the same branch.
+- Final follow-up: combined Parameters, Display, and Advanced into one card and
+  moved the primitive target fact into Identity, leaving three primary cards
+  for an ordinary component. Removed the standalone Wire Jog commands and
+  their command-specific engine helpers while preserving direct segment drag.
+- Replaced browser-owned Clear canvas confirmation with an undo-aware native
+  dialog. Reworked Cell Manager create, rename, and delete prompts into the
+  same compact native dialog hierarchy with stable accessible names.
+- Validation: preflight and affected gates passed (1191 unit tests;
+  component-insert 25/25, hierarchy 13/13, manual-editor 98/98). Frozen install
+  and canonical `pnpm ci:check` passed, including production/release checks and
+  the full 211-test browser suite.
+- Commit status: final follow-up ready to commit and push on
+  `codex/properties-identity-placement-polish`; PR and remote required checks
+  remain before mainline merge.

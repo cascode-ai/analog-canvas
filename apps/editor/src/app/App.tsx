@@ -665,6 +665,7 @@ export function App({
   );
   const [importReviewOpen, setImportReviewOpen] = useState(false);
   const [cellManagerOpen, setCellManagerOpen] = useState(false);
+  const [clearCanvasConfirmOpen, setClearCanvasConfirmOpen] = useState(false);
   const [netlistPreflightOpen, setNetlistPreflightOpen] = useState(false);
   const [documentSettingsOpen, setDocumentSettingsOpen] = useState(false);
   const [projectNameDraft, setProjectNameDraft] = useState<string | null>(null);
@@ -1520,7 +1521,6 @@ export function App({
     beginRouteStretch,
     drawSelectedMosBulk,
     deleteSelectedRouteConnection,
-    editSelectedRouteJog,
     fixWirePoint,
     finishWireAtPoint,
     handleFlightline,
@@ -3313,17 +3313,20 @@ export function App({
       setStatus(`Cell ${document.name} is already clear`);
       return;
     }
-    const confirmed = window.confirm(
-      `Clear all content from Cell "${document.name}"? You can undo this action.`,
-    );
-    if (!confirmed) {
-      setStatus("Clear canvas cancelled");
-      return;
-    }
+    setClearCanvasConfirmOpen(true);
+  }
+
+  function confirmClearCanvas(): void {
     const result = transact([{ kind: "clear_document" }]);
     if (!result.ok) return;
+    setClearCanvasConfirmOpen(false);
     resetInteractionState();
     setStatus(`Cleared Cell ${document.name} · Undo restores it`);
+  }
+
+  function cancelClearCanvas(): void {
+    setClearCanvasConfirmOpen(false);
+    setStatus("Clear canvas cancelled");
   }
 
   function updateMosBulkDefault(
@@ -7826,6 +7829,47 @@ export function App({
         onApply={(request) => startInsertFromHook({ kind: "quick", request })}
         onCancel={cancelComponentInsertFromHook}
       />
+      {clearCanvasConfirmOpen ? (
+        <div
+          className="insert-dialog-backdrop"
+          onPointerDown={(event) =>
+            event.target === event.currentTarget && cancelClearCanvas()
+          }
+        >
+          <section
+            className="editor-action-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="clear-canvas-dialog-title"
+            onKeyDown={(event) => {
+              if (event.key === "Escape") cancelClearCanvas();
+            }}
+          >
+            <header className="editor-action-dialog-header">
+              <p>Canvas contents</p>
+              <h2 id="clear-canvas-dialog-title">Clear {document.name}?</h2>
+            </header>
+            <div className="editor-action-dialog-body">
+              <p>
+                Remove every component, wire, annotation, and drawing from this
+                Cell. You can restore them with Undo.
+              </p>
+            </div>
+            <footer className="editor-action-dialog-actions">
+              <button type="button" autoFocus onClick={cancelClearCanvas}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="danger"
+                onClick={confirmClearCanvas}
+              >
+                Clear canvas
+              </button>
+            </footer>
+          </section>
+        </div>
+      ) : null}
       <CellManagerDialog
         open={cellManagerOpen}
         cells={cellManagerEntries}
@@ -8503,6 +8547,31 @@ export function App({
                         <dt>Cell</dt>
                         <dd>{document.netlist?.name ?? document.name}</dd>
                       </div>
+                      {selectedInstance.netlist &&
+                      !(
+                        selectedInstance.netlist.binding?.kind === "model" ||
+                        selectedDevice?.targetPolicy === "required-model" ||
+                        selectedExternalMosMapping
+                      ) ? (
+                        <div className="property-identity-target">
+                          <dt>Target</dt>
+                          <dd>
+                            {selectedInstance.netlist.binding?.kind ===
+                            "primitive"
+                              ? `Built-in primitive: ${selectedInstance.netlist.binding.deviceClass}`
+                              : selectedInstance.netlist.binding?.kind ===
+                                  "subcircuit"
+                                ? `Internal Cell: ${selectedHierarchyCell?.netlist?.name ?? "unresolved"}`
+                                : selectedInstance.netlist.binding?.kind ===
+                                    "external-subcircuit"
+                                  ? `External subcircuit: ${selectedExternalSubcircuit?.name ?? "unresolved"}`
+                                  : selectedInstance.netlist.binding?.kind ===
+                                      "unresolved-subcircuit"
+                                    ? `Unresolved subcircuit: ${selectedInstance.netlist.binding.name}`
+                                    : "No target is bound yet."}
+                          </dd>
+                        </div>
+                      ) : null}
                     </dl>
                   </div>
                   {selectedCapacitorPlateRows ? (
@@ -8527,7 +8596,10 @@ export function App({
                       </dl>
                     </div>
                   ) : null}
-                  {selectedInstance.netlist ? (
+                  {selectedInstance.netlist &&
+                  (selectedInstance.netlist.binding?.kind === "model" ||
+                    selectedDevice?.targetPolicy === "required-model" ||
+                    selectedExternalMosMapping) ? (
                     <div
                       className="property-card property-target-card"
                       aria-label="Netlist target"
@@ -8535,80 +8607,51 @@ export function App({
                       <div className="property-section-heading">
                         Netlist target
                       </div>
-                      {selectedInstance.netlist.binding?.kind === "model" ||
-                      selectedDevice?.targetPolicy === "required-model" ||
-                      selectedExternalMosMapping ? (
-                        <label>
-                          Model
-                          <input
-                            key={`${selectedInstance.id}-${document.revision}-model-target`}
-                            aria-label="Component model target"
-                            list={
-                              selectedPropertyDevice?.symbolId === "nmos" ||
-                              selectedPropertyDevice?.symbolId === "pmos"
-                                ? `mos-model-options-${selectedPropertyDevice.symbolId}`
-                                : undefined
-                            }
-                            defaultValue={
-                              selectedInstance.netlist.binding?.kind === "model"
-                                ? selectedInstance.netlist.binding.name
-                                : selectedExternalMosMapping
-                                  ? selectedExternalSubcircuit?.name
-                                  : ""
-                            }
-                            placeholder="Model name"
-                            onBlur={(event) =>
-                              updateSelectedModelTarget(
-                                event.currentTarget.value,
-                              )
-                            }
-                          />
-                          {selectedPropertyDevice?.symbolId === "nmos" ||
-                          selectedPropertyDevice?.symbolId === "pmos" ? (
-                            <datalist
-                              id={`mos-model-options-${selectedPropertyDevice.symbolId}`}
-                            >
-                              {reviewedSky130MosModelSuggestions(
-                                selectedPropertyDevice.symbolId,
-                              ).map((model) => (
-                                <option value={model} key={model} />
-                              ))}
-                            </datalist>
-                          ) : null}
-                          {selectedExternalMosMapping ? (
-                            <small>External subcircuit · X reference</small>
-                          ) : null}
-                        </label>
-                      ) : selectedInstance.netlist.binding?.kind ===
-                        "primitive" ? (
-                        <small>
-                          Built-in primitive:{" "}
-                          {selectedInstance.netlist.binding.deviceClass}
-                        </small>
-                      ) : selectedInstance.netlist.binding?.kind ===
-                        "subcircuit" ? (
-                        <small>
-                          Internal Cell:{" "}
-                          {selectedHierarchyCell?.netlist?.name ?? "unresolved"}
-                        </small>
-                      ) : selectedInstance.netlist.binding?.kind ===
-                        "external-subcircuit" ? (
-                        <small>
-                          External subcircuit:{" "}
-                          {selectedExternalSubcircuit?.name ?? "unresolved"}
-                        </small>
-                      ) : selectedInstance.netlist.binding?.kind ===
-                        "unresolved-subcircuit" ? (
-                        <small>
-                          Unresolved subcircuit:{" "}
-                          {selectedInstance.netlist.binding.name}
-                        </small>
-                      ) : (
-                        <small>No target is bound yet.</small>
-                      )}
+                      <label>
+                        Model
+                        <input
+                          key={`${selectedInstance.id}-${document.revision}-model-target`}
+                          aria-label="Component model target"
+                          list={
+                            selectedPropertyDevice?.symbolId === "nmos" ||
+                            selectedPropertyDevice?.symbolId === "pmos"
+                              ? `mos-model-options-${selectedPropertyDevice.symbolId}`
+                              : undefined
+                          }
+                          defaultValue={
+                            selectedInstance.netlist.binding?.kind === "model"
+                              ? selectedInstance.netlist.binding.name
+                              : selectedExternalMosMapping
+                                ? selectedExternalSubcircuit?.name
+                                : ""
+                          }
+                          placeholder="Model name"
+                          onBlur={(event) =>
+                            updateSelectedModelTarget(event.currentTarget.value)
+                          }
+                        />
+                        {selectedPropertyDevice?.symbolId === "nmos" ||
+                        selectedPropertyDevice?.symbolId === "pmos" ? (
+                          <datalist
+                            id={`mos-model-options-${selectedPropertyDevice.symbolId}`}
+                          >
+                            {reviewedSky130MosModelSuggestions(
+                              selectedPropertyDevice.symbolId,
+                            ).map((model) => (
+                              <option value={model} key={model} />
+                            ))}
+                          </datalist>
+                        ) : null}
+                        {selectedExternalMosMapping ? (
+                          <small>External subcircuit · X reference</small>
+                        ) : null}
+                      </label>
                     </div>
                   ) : null}
-                  <div className="property-card property-parameters-card">
+                  <div
+                    className="property-card property-electrical-section"
+                    aria-label="Component parameters and display"
+                  >
                     <div className="property-section-heading">Parameters</div>
                     <div className="component-parameter-grid">
                       {propertyParametersForInstance(selectedInstance).map(
@@ -8663,134 +8706,137 @@ export function App({
                         </p>
                       ) : null;
                     })()}
-                  </div>
-                  <div className="property-card property-display-card">
-                    <div className="property-section-heading">Display</div>
-                    <div
-                      className="display-toggle-row"
-                      aria-label="Component display toggles"
-                    >
-                      <DisplayToggle
-                        label={
-                          selectedInstance.symbolId === "port" ||
-                          selectedInstance.symbolId === "port-filled"
-                            ? "Port label"
-                            : "Reference"
-                        }
-                        checked={
-                          selectedInstanceLabel !== undefined &&
-                          selectedInstanceLabel.visible !== false
-                        }
-                        onChange={(checked) =>
-                          setReferenceLabelsVisible(
-                            [selectedInstance.id],
-                            checked,
-                          )
-                        }
-                      />
-                      <DisplayToggle
-                        label="Value"
-                        checked={
-                          selectedInstanceValue !== null &&
-                          selectedInstanceValue.visible !== false
-                        }
-                        disabled={!selectedInstanceValueAvailable}
-                        help={
-                          selectedInstanceValueAvailable
-                            ? undefined
-                            : "Set the device parameters first"
-                        }
-                        onChange={(checked) => {
-                          if (checked) {
-                            showSelectedInstanceValue();
-                          } else {
-                            setValueLabelsVisible([selectedInstance.id], false);
-                          }
-                        }}
-                      />
-                    </div>
-                  </div>
-                  {selectedInstance.netlist ? (
-                    <details className="property-details">
-                      <summary>
-                        <span>Advanced parameters</span>
-                        <small>{additionalParameterDraft.length}</small>
-                      </summary>
+                    <div className="property-display-card">
+                      <div className="property-section-heading">Display</div>
                       <div
-                        className="additional-parameters"
-                        aria-label="Additional parameters"
+                        className="display-toggle-row"
+                        aria-label="Component display toggles"
                       >
-                        <small>
-                          Model- or dialect-specific raw values. Apply commits
-                          all rows as one undoable edit.
-                        </small>
-                        {additionalParameterDraft.map((parameter, index) => (
-                          <div
-                            className="component-geometry-row"
-                            key={parameter.id}
-                          >
-                            <label>
-                              Name
-                              <input
-                                aria-label={`Additional parameter name ${index + 1}`}
-                                value={parameter.name}
-                                onChange={(event) =>
-                                  updateAdditionalParameter(parameter.id, {
-                                    name: event.currentTarget.value,
-                                  })
+                        <DisplayToggle
+                          label={
+                            selectedInstance.symbolId === "port" ||
+                            selectedInstance.symbolId === "port-filled"
+                              ? "Port label"
+                              : "Reference"
+                          }
+                          checked={
+                            selectedInstanceLabel !== undefined &&
+                            selectedInstanceLabel.visible !== false
+                          }
+                          onChange={(checked) =>
+                            setReferenceLabelsVisible(
+                              [selectedInstance.id],
+                              checked,
+                            )
+                          }
+                        />
+                        <DisplayToggle
+                          label="Value"
+                          checked={
+                            selectedInstanceValue !== null &&
+                            selectedInstanceValue.visible !== false
+                          }
+                          disabled={!selectedInstanceValueAvailable}
+                          help={
+                            selectedInstanceValueAvailable
+                              ? undefined
+                              : "Set the device parameters first"
+                          }
+                          onChange={(checked) => {
+                            if (checked) {
+                              showSelectedInstanceValue();
+                            } else {
+                              setValueLabelsVisible(
+                                [selectedInstance.id],
+                                false,
+                              );
+                            }
+                          }}
+                        />
+                      </div>
+                    </div>
+                    {selectedInstance.netlist ? (
+                      <details className="property-details property-details-inline">
+                        <summary>
+                          <span>Advanced parameters</span>
+                          <small>{additionalParameterDraft.length}</small>
+                        </summary>
+                        <div
+                          className="additional-parameters"
+                          aria-label="Additional parameters"
+                        >
+                          <small>
+                            Model- or dialect-specific raw values. Apply commits
+                            all rows as one undoable edit.
+                          </small>
+                          {additionalParameterDraft.map((parameter, index) => (
+                            <div
+                              className="component-geometry-row"
+                              key={parameter.id}
+                            >
+                              <label>
+                                Name
+                                <input
+                                  aria-label={`Additional parameter name ${index + 1}`}
+                                  value={parameter.name}
+                                  onChange={(event) =>
+                                    updateAdditionalParameter(parameter.id, {
+                                      name: event.currentTarget.value,
+                                    })
+                                  }
+                                />
+                              </label>
+                              <label>
+                                Value
+                                <input
+                                  aria-label={`Additional parameter value ${index + 1}`}
+                                  value={parameter.value}
+                                  onChange={(event) =>
+                                    updateAdditionalParameter(parameter.id, {
+                                      value: event.currentTarget.value,
+                                    })
+                                  }
+                                />
+                              </label>
+                              <button
+                                type="button"
+                                aria-label={`Remove additional parameter ${index + 1}`}
+                                onClick={() =>
+                                  removeAdditionalParameter(parameter.id)
                                 }
-                              />
-                            </label>
-                            <label>
-                              Value
-                              <input
-                                aria-label={`Additional parameter value ${index + 1}`}
-                                value={parameter.value}
-                                onChange={(event) =>
-                                  updateAdditionalParameter(parameter.id, {
-                                    value: event.currentTarget.value,
-                                  })
-                                }
-                              />
-                            </label>
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          ))}
+                          <div className="component-mirror-row">
                             <button
                               type="button"
-                              aria-label={`Remove additional parameter ${index + 1}`}
-                              onClick={() =>
-                                removeAdditionalParameter(parameter.id)
-                              }
+                              onClick={addAdditionalParameter}
                             >
-                              Remove
+                              Add parameter
                             </button>
+                            {additionalParameterDraftChanges ? (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={applyAdditionalParameters}
+                                >
+                                  Apply parameters
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={cancelAdditionalParameters}
+                                >
+                                  Cancel parameter edits
+                                </button>
+                              </>
+                            ) : null}
                           </div>
-                        ))}
-                        <div className="component-mirror-row">
-                          <button
-                            type="button"
-                            onClick={addAdditionalParameter}
-                          >
-                            Add parameter
-                          </button>
-                          {additionalParameterDraftChanges ? (
-                            <>
-                              <button
-                                type="button"
-                                onClick={applyAdditionalParameters}
-                              >
-                                Apply parameters
-                              </button>
-                              <button
-                                type="button"
-                                onClick={cancelAdditionalParameters}
-                              >
-                                Cancel parameter edits
-                              </button>
-                            </>
-                          ) : null}
                         </div>
-                      </div>
-                    </details>
-                  ) : null}
+                      </details>
+                    ) : null}
+                  </div>
                   {selectedInstance.importProvenance ? (
                     <div
                       className="property-card"
@@ -9313,18 +9359,6 @@ export function App({
                   </button>
                   <button type="button" onClick={addCurrentArrow}>
                     Add current arrow
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => editSelectedRouteJog("insert")}
-                  >
-                    Add wire jog
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => editSelectedRouteJog("remove")}
-                  >
-                    Straighten selected jog
                   </button>
                   <button type="button" onClick={toggleHighlightedNet}>
                     {selectedHighlightIsActive
