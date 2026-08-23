@@ -79,6 +79,24 @@ export function paletteSymbols(_styleProfileId: string): SymbolDefinition[] {
   return [vddRailPreviewSymbol, cellPinPreviewSymbol, ...razaviProductSymbols];
 }
 
+/**
+ * Reach order inside a category. Alphabetical order separated devices that are
+ * used together — NMOS from PMOS, the supply Port from its Rail — so the
+ * frequently placed pair leads and the rest keep alphabetical order after it.
+ */
+const SYMBOL_ORDER: readonly string[] = [
+  "nmos",
+  "pmos",
+  "vdd-port",
+  "vdd",
+  "ground",
+];
+
+function symbolRank(symbolId: string): number {
+  const index = SYMBOL_ORDER.indexOf(symbolId);
+  return index < 0 ? Number.POSITIVE_INFINITY : index;
+}
+
 function searchableText(symbol: SymbolDefinition): string {
   return `${symbol.name} ${symbol.id}`.toLowerCase();
 }
@@ -102,6 +120,9 @@ export function componentCatalog(
       const leftRank = recentRank.get(left.id) ?? Number.POSITIVE_INFINITY;
       const rightRank = recentRank.get(right.id) ?? Number.POSITIVE_INFINITY;
       if (leftRank !== rightRank) return leftRank - rightRank;
+      const leftOrder = symbolRank(left.id);
+      const rightOrder = symbolRank(right.id);
+      if (leftOrder !== rightOrder) return leftOrder - rightOrder;
       return left.name.localeCompare(right.name);
     });
 

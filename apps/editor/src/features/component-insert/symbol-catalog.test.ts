@@ -91,3 +91,19 @@ describe("component insertion catalog", () => {
     ).toEqual([]);
   });
 });
+
+describe("reach order inside a category", () => {
+  it("keeps the devices used together adjacent", () => {
+    const groups = componentCatalog("razavi-textbook-v1", "");
+    const ids = (category: string) =>
+      groups
+        .find((group) => group.category === category)!
+        .symbols.map((symbol) => symbol.id);
+
+    // Alphabetical order separated NMOS from PMOS with a bipolar between them,
+    // and the supply Port from its Rail.
+    expect(ids("Transistors").slice(0, 2)).toEqual(["nmos", "pmos"]);
+    const power = ids("Power and Ports");
+    expect(power.indexOf("vdd-port")).toBeLessThan(power.indexOf("vdd"));
+  });
+});

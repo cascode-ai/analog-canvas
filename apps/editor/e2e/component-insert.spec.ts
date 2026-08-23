@@ -325,11 +325,11 @@ test("places the VDD power-port device as the default VDD entry", async ({
     .evaluateAll((elements) =>
       elements.map((element) => element.getAttribute("data-testid")),
     );
-  // Both VDD entries stay reachable from one search; the rail now reads
-  // "Power Rail", so it sorts first by name.
+  // Both VDD entries stay reachable from one search, and the supply Port
+  // leads its Rail rather than being separated from it by alphabetical order.
   expect(vddEntries).toEqual([
-    "insert-component-vdd",
     "insert-component-vdd-port",
+    "insert-component-vdd",
   ]);
   await dialog.getByTestId("insert-component-vdd-port").click();
   await expect(dialog.locator("svg.insert-symbol-artwork")).toBeVisible();
