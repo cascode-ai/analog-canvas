@@ -13,7 +13,7 @@ owner appoints, approve or reject (rejection carries an optional reason);
 anonymous visitors browse and use everything read-only.
 
 This roadmap frames the cross-module outcome; each phase lands as its own
-bounded target under `plan/` with the normal delivery gate. The normative
+bounded target with the normal delivery gate. The normative
 server contract lives in
 [`../specs/community-gallery.md`](../specs/community-gallery.md).
 

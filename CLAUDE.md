@@ -26,7 +26,7 @@ pnpm test:e2e:local <spec-paths> --grep <pattern>   # Playwright, 1 worker
 pnpm test                         # all unit tests
 pnpm test:e2e                     # all Playwright specs
 
-pnpm test:impact -- --base <base-ref>   # validates the plan's Test Impact declaration
+pnpm test:impact -- --base <base-ref>   # validates the commits' Test-Impact trailer
 
 # Gates
 pnpm ci:static      # format, markdown links, references, generated-catalog drift, typecheck
@@ -42,14 +42,14 @@ Never hand-edit `*.generated.ts` files, `packages/symbols/assets/razavi-v1/*`, `
 
 ## Required workflow (AGENTS.md)
 
-[AGENTS.md](AGENTS.md) defines the mandatory plan-log discipline; read it before working. Summary:
+[AGENTS.md](AGENTS.md) defines the mandatory working discipline; read it before working. Summary:
 
-- **Before editing tracked files**: run `git status --short --branch`, audit dirty paths by ownership (unrelated dirty files don't block, overlapping ones do), and create a target plan at `plan/<date-goal-slug>/plan.md` from `plan/target-plan.template.md` with its `status:`/`experience:` frontmatter.
-- **Test impact**: every implementation target's plan records `## Test Impact` — `tests-updated`, or `no-test-change` with evidence. `pnpm test:impact -- --base <ref>` enforces it and CI checks it.
-- **Validation is risk-proportional**: run the smallest deterministic checks that cover changed behavior; full suites only when breadth or policy justifies them. Every target closes with `git diff --check` and `git status --short --branch`, plus a factual entry in `plan/log.md`.
+- **Before editing tracked files**: run `git status --short --branch` and audit dirty paths by ownership (unrelated dirty files don't block, overlapping ones do). Know the target's goal, owned paths, and shared contracts; `plan/` is an untracked scratch area if you want notes.
+- **Test impact**: every commit that changes implementation code carries a `Test-Impact:` trailer — `tests-updated`, or `no-test-change — <evidence>`. `pnpm test:impact -- --base <ref>` cross-checks the claim against the diff and CI runs the same check.
+- **Validation is risk-proportional**: run the smallest deterministic checks that cover changed behavior; full suites only when breadth or policy justifies them. Every target closes with `git diff --check` and `git status --short --branch`, and a commit message that stands alone.
 - **Mainline delivery gate**: non-document changes reach `main` only after a clean `pnpm install --frozen-lockfile && pnpm ci:check` and green remote GitHub Actions checks. Never weaken, skip, or delete a failing check to pass the gate.
 - **Circuit assets**: one circuit per `netlists/<name>/` directory; `.subckt` interfaces and instance pin order are shared contracts (check every caller before changing); never claim electrical correctness from syntax inspection alone; never silently replace vendor/foundry model data with illustrative values.
-- Commits are conventional with scope: `feat(editor):`, `fix(connectivity):`, `docs(plan):`, `test(editor):`.
+- Commits are conventional with scope: `feat(editor):`, `fix(connectivity):`, `docs(specs):`, `test(editor):`.
 
 ## Architecture
 
@@ -96,9 +96,9 @@ Dependencies flow strictly downward; `@icm/model` is the root everything shares.
 
 ## Documentation authority
 
-When documents disagree: accepted ADR / normative spec (`docs/adr/`, `docs/specs/`) → `docs/overall-product-plan.md` → `docs/roadmap/` → target plan → implementation and tests. Implementation never silently redefines an approved contract — update the spec or ADR when behavior intentionally changes.
+When documents disagree: accepted ADR / normative spec (`docs/adr/`, `docs/specs/`) → `docs/overall-product-plan.md` → `docs/roadmap/` → implementation and tests. Implementation never silently redefines an approved contract — update the spec or ADR when behavior intentionally changes.
 
 - Default reading set for product work: `docs/current/README.md` (ordered list of the ADRs and specs defining the current Project shape).
 - Test layers and contract ownership: `docs/testing/README.md` and its contract matrix.
 - Agent schematic-layout workflow: `docs/agent/workflow.md` and the repo-local `skills/circuit-layout/SKILL.md`.
-- `docs/archive/` and `plan/archived/` are historical, non-authoritative, and excluded from default task context.
+- `docs/archive/` is historical, non-authoritative, and excluded from default task context.

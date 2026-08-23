@@ -1,4 +1,6 @@
-node_modules/
+# No trailing slash: a bare `node_modules/` matches a directory but not a
+# symlink of the same name, which is how one reached the index once.
+node_modules
 dist/
 coverage/
 playwright-report/
@@ -26,3 +28,6 @@ netlists/*/agent-*-layout.mjs
 netlists/*/agent-*-layout.pdf
 netlists/*/agent-*-layout.png
 netlists/*/agent-*-layout.svg
+
+# Target plans are a local working area, not a published artifact.
+plan/

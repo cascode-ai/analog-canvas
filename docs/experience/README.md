@@ -14,7 +14,7 @@ A note explains a transferable judgment: the tested assumption, observed
 outcome, supporting evidence, resulting rule or habit, and its limits.
 
 Raw file lists, copied commit messages, daily status, and uninterpreted
-validation transcripts belong in `plan/log.md`, plans, or Git history.
+validation transcripts belong in Git history.
 
 ## Human and Agent Responsibilities
 
@@ -25,7 +25,7 @@ edits, or rejects it.
 
 ## Suggested Workflow
 
-1. Let plans and `plan/log.md` record facts first.
+1. Let commits record the facts first.
 2. A human reviews recent work and requests extraction when warranted.
 3. The Agent drafts a candidate citing plans, logs, commits, or reports.
 4. The human accepts, edits, or rejects it.

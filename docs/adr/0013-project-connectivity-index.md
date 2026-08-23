@@ -215,4 +215,3 @@ No schema change, no fixture change, no Project-file change.
 - [`../specs/schematic-model.md`](../specs/schematic-model.md)
 - [`0014-resolved-route-geometry.md`](0014-resolved-route-geometry.md)
 - [`0015-object-locator-and-diagnostic-envelope.md`](0015-object-locator-and-diagnostic-envelope.md)
-- [`../../plan/2026-08-12-wp-r0-behavior-baseline/plan.md`](../../plan/2026-08-12-wp-r0-behavior-baseline/plan.md) (partition-sensitivity finding)

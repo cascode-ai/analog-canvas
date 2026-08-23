@@ -1,9 +1,13 @@
 # Agent Working Rules
 
-This repository uses a plan-log-experience workflow for Agent-assisted work.
 Treat the repository as an engineering project: bounded targets, explicit
-ownership, risk-proportional validation, and durable factual logs. Reusable
-experience is extracted separately only when a human requests it.
+ownership, risk-proportional validation, and decisions recorded where the work
+is. What a change did and why is stated in its commit message, which travels
+with the diff through `git log`, `git blame`, and the pull request.
+
+Notes you keep while working — scratch plans, checklists, drafts — belong in
+the untracked `plan/` directory. They are a local working area and are not
+published.
 
 ## Operating Discipline
 
@@ -17,36 +21,27 @@ Before starting a target:
    - Unrelated dirty paths do not automatically block work.
    - Stop before editing when dirty paths overlap the target's owned files,
      ownership is unclear, or a dirty shared contract affects the target.
-   - Record the decision in the target plan when proceeding with unrelated
-     dirty files present.
+   - Say so in the commit message when proceeding with unrelated dirty files
+     present.
 3. Identify the target owner, goal, expected files, shared dependencies, and
    validation surface.
-4. Read `README.md`, `plan/README.md`, and any closer domain instructions.
+4. Read `README.md` and any closer domain instructions.
 5. Review validation intent before editing:
    - Run `pnpm gate:plan -- --path <expected-path>` for the expected owned
      paths when practical.
    - Expand the selected commands and identify platform, release, generated-
      artifact, and golden-state assumptions.
-   - Record the decision under `## Gate Review` in the target plan.
+   - State which gates you chose, and why, in the commit message.
 
 ## Before Editing
 
-Create or update a target plan before editing tracked files:
+Know the boundary of the target before editing tracked files: the goal, which
+paths it owns, what the dirty state means for it, and which shared contracts
+it touches. Hold that in a local note if it helps; the repository does not
+require a file for it.
 
-```text
-plan/<date-goal-slug>/plan.md
-```
-
-Start it with the machine-readable state block from
-`plan/target-plan.template.md`. `status` is one of `active`, `blocked`,
-`completed`, or `superseded`; `experience` is one of `none`, `candidate`,
-`extracted`, `rejected`, or `deferred`. These fields are the only current-state
-authority. Do not add an empty `Experience Signal` section.
-
-The plan must state the goal, dirty-state decision, ownership boundary,
-expected work, validation, and commit intent. Name shared dependencies and
-read-only paths when they create a credible overlap risk. Do not edit outside
-the owned set without updating the plan first.
+Do not edit outside the target's boundary without deciding, deliberately, that
+the boundary has moved.
 
 ## During Work
 
@@ -55,12 +50,13 @@ the owned set without updating the plan first.
   visible symptom. Closely related micro-fixes that share files, contracts,
   and validation belong in one target; independent changes do not.
 - Protect shared contracts, generated artifacts, binary assets, and user-owned
-  work unless the plan explicitly claims them.
-- Update the plan before expanding scope or taking on a new dependency.
-- Regenerate the advisory plan from the real diff with
+  work unless the target explicitly claims them.
+- Decide deliberately before expanding scope or taking on a new dependency, and
+  say so in the commit.
+- Regenerate the advisory gate plan from the real diff with
   `pnpm gate:plan -- --base <base-ref>` before expensive validation. If the
-  actual selection differs materially from the recorded Gate Review, update
-  the plan before proceeding.
+  actual selection differs materially from the gates you chose, revisit the
+  choice before proceeding.
 - Run `pnpm gate:preflight -- --base <base-ref>` before affected browser,
   build, release, or complete gates. Use
   `pnpm gate:affected -- --base <base-ref>` as the normal automated development
@@ -70,10 +66,17 @@ the owned set without updating the plan first.
 - Add tests when behavior changes, a regression needs protection, or a
   contract is best demonstrated automatically. Do not add tests that merely
   restate an implementation.
-- Record `## Test Impact` in every implementation target plan: name changed
-  tests and protected contracts, or use `Decision: no-test-change` with
-  evidence that behavior is unchanged or protected elsewhere. Run
-  `pnpm test:impact -- --base <base-ref>` before delivery; see
+- Declare test impact in the commit that changes implementation code, using a
+  trailer:
+
+  ```text
+  Test-Impact: tests-updated
+  Test-Impact: no-test-change — <evidence behavior is unchanged or protected>
+  ```
+
+  `pnpm test:impact -- --base <base-ref>` cross-checks the claim against the
+  diff: `tests-updated` requires a changed test file, and `no-test-change`
+  requires that none changed plus its evidence. CI runs the same check. See
   `docs/testing/README.md` and its contract matrix.
 - Keep one primary test layer per behavior. A test mentioning retired input is
   not automatically dead: retain reachable rejection, migration, history, and
@@ -90,14 +93,15 @@ the owned set without updating the plan first.
 - Gate planning is advisory in this phase. It does not authorize skipping the
   canonical mainline gate or any required GitHub check. Gate-policy changes and
   unclassified non-documentation paths require the full fallback.
-- Record unresolved questions in the plan or a review note.
+- Report unresolved questions in the commit message or a review note; do not
+  leave them only in an untracked working note.
 
 ## Circuit Asset Rules
 
 - Keep each circuit fixture in its own `netlists/<circuit-name>/` directory.
 - Preserve explicit `.subckt` interfaces and instance pin order. Interface
   changes are shared-contract changes and require checking every caller.
-- Keep local model files beside the netlist that includes them unless a plan
+- Keep local model files beside the netlist that includes them unless a target
   intentionally introduces a shared model library.
 - Do not claim electrical correctness from syntax inspection alone. If the
   target changes electrical behavior, name the simulator, models, analyses,
@@ -109,16 +113,16 @@ the owned set without updating the plan first.
 
 Before considering a target complete:
 
-1. Run the validation listed in the target plan. A full suite is required only
-   when justified by breadth, risk, or project policy.
+1. Run the validation the target's risk calls for. A full suite is required
+   only when justified by breadth, risk, or project policy.
 2. At minimum, run `git diff --check` and `git status --short --branch`.
-3. Update `plan/log.md` with target, changed areas, validation, and commit
-   status.
-4. Record a concise outcome, set `status: completed`, and set `experience` to
-   `none` or `candidate`. Never use a blank signal as a placeholder.
-5. Review the diff, stage only intended files, then commit and push according
+3. Review the diff, stage only intended files, then commit and push according
    to branch policy.
-6. Do not automatically extract a reusable lesson. When a human asks, draft a
+4. Write the commit message so it stands alone: what changed, why, the
+   validation that backs it, and the `Test-Impact:` trailer. State anything a
+   reader would otherwise have to reconstruct — a defect's root cause, a
+   contract that moved, or work deliberately left out.
+5. Do not automatically extract a reusable lesson. When a human asks, draft a
    candidate under `docs/experience/` with supporting evidence for the human
    to accept, edit, or reject.
 
@@ -142,43 +146,38 @@ When a test or golden is obsolete, demonstrate that the accepted behavior is
 preserved and update the contract deliberately. If the check cannot run in the
 local environment, record the limitation and require the remote green result.
 
-## Plan-Log-Experience Mainline
+## Where the Record Lives
 
 The automatic per-target loop is:
 
 ```text
-target plan -> bounded implementation -> validation -> factual log -> commit
+bounded target -> implementation -> validation -> commit that explains itself
 ```
 
 The cross-target experience layer is human-triggered:
 
 ```text
-human reviews plans, logs, failures, or commits
+human reviews commits, failures, or review notes
 -> human requests extraction
 -> Agent drafts an evidence-backed candidate lesson
 -> human accepts, edits, or rejects it
 ```
 
-A plan owns intent, boundaries, current state, and its concise outcome. Git
-owns the exact change and commit evidence. The log owns a short cross-target
-factual index and must not reproduce the plan. An experience note owns only a
-transferable judgment supported by evidence. An Agent may set
-`experience: candidate` for a repeated failure, contradicted
-rule, unsafe shortcut, or validation gap, but the human decides whether it is a
-lesson.
+Git owns the record. A commit message owns the intent, the reasoning, the
+validation, and the test-impact declaration for exactly the change it carries,
+so the two can never drift apart. An experience note under `docs/experience/`
+owns only a transferable judgment supported by evidence, and a human decides
+whether something is a lesson.
+
+Working notes under `plan/` are untracked. They are yours while a target is in
+flight; anything that matters afterwards belongs in the commit.
 
 ## Boundary and Hygiene Rules
 
-- Do not mix unrelated targets in one plan, log entry, or commit.
-- Do not mix reusable workflow changes with project artifacts unless the plan
+- Do not mix unrelated targets in one commit.
+- Do not mix reusable workflow changes with project artifacts unless the commit
   explains why they must land together.
 - Do not use model confidence as the only quality gate when deterministic
   validation or human review is available.
-- Do not delete unresolved plans or review notes to make the repository appear
-  clean.
-- A tracked plan with `status: completed` may be archived according to project
-  policy after its work is committed. Keep active, blocked, unresolved, and
-  superseded-before-implementation plans visible.
-- Before archiving a completed plan with `experience: candidate`, ask a human
-  whether to extract, reject, or defer the lesson. `none`, `extracted`,
-  `rejected`, and explicitly `deferred` are resolved dispositions.
+- Do not delete review notes or open questions to make the repository appear
+  clean. Unresolved work is reported, not tidied away.

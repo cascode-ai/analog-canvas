@@ -213,4 +213,3 @@ current, preserving the rolling N-1 policy.
 - [`../specs/schematic-model.md`](../specs/schematic-model.md)
 - [`../specs/edit-engine.md`](../specs/edit-engine.md)
 - [`../specs/netlist-export.md`](../specs/netlist-export.md)
-- [`../../plan/2026-08-18-schematic-hierarchy-v12/plan.md`](../../plan/2026-08-18-schematic-hierarchy-v12/plan.md)

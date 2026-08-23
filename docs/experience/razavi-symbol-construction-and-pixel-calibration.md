@@ -64,13 +64,10 @@ render before retaining a change.
 
 This judgment is supported by the capacitor dual-orientation calibration, MOS
 and arrow overlaps, the continuous resistor path, and terminal/route-anchor
-render-only bridges. Detailed chronology and measurements remain in
-[`plan/2026-08-09-razavi-capacitor-calibration`](../../plan/2026-08-09-razavi-capacitor-calibration/plan.md),
-[`plan/2026-08-09-razavi-mos-route-arrow-continuity`](../../plan/2026-08-09-razavi-mos-route-arrow-continuity/plan.md),
-[`plan/2026-08-09-razavi-resistor-continuity`](../../plan/2026-08-09-razavi-resistor-continuity/plan.md),
-[`plan/2026-08-09-direct-miter-terminal-joins`](../../plan/archived/2026-08/2026-08-09-direct-miter-terminal-joins/plan.md),
-and
-[`plan/2026-08-10-reusable-wire-endpoints`](../../plan/archived/2026-08/2026-08-10-reusable-wire-endpoints/plan.md).
+render-only bridges. The detailed chronology and measurements were kept in
+target plans that are no longer tracked; the committed evidence is in the
+history of `packages/symbols/assets/razavi-v1/` and
+`fixtures/visual-golden/` for August 2026.
 
 ## 2. Code and Paths
 

@@ -18,7 +18,6 @@ contracts, delivery planning, and explicitly non-authoritative history.
 | [`experience/`](experience/README.md)                | Human-requested, evidence-backed reusable lessons                           |
 | [`testing/`](testing/README.md)                       | Test layers, change-impact discipline, and contract ownership matrix        |
 | [`archive/`](archive/README.md)                      | Historical records; excluded from default task context                      |
-| [`../plan/`](../plan/README.md)                      | Bounded execution plans and factual maintenance log                         |
 
 ## Authority order
 
@@ -29,7 +28,6 @@ choosing one:
 accepted ADR or approved normative spec
 → current overall product plan
 → current roadmap phase
-→ bounded target plan
 → implementation and tests
 ```
 
@@ -53,10 +51,9 @@ current product plan.
 overall architecture
 → roadmap phase
 → normative specs / ADRs
-→ plan/YYYY-MM-DD-target/plan.md
 → implementation and focused validation
-→ plan/log.md
+→ a commit that states its intent, validation, and test impact
 ```
 
-Roadmap files describe product delivery. Files under `plan/` describe one
-specific execution target and its owned paths.
+Roadmap files describe product delivery. A commit describes one specific
+execution target and the paths it owned.

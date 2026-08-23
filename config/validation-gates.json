@@ -9,7 +9,7 @@
     "playwright-report/**"
   ],
   "pathGroups": {
-    "documentation": ["**/*.md", "docs/**", "plan/**"],
+    "documentation": ["**/*.md", "docs/**"],
     "source": ["apps/**", "packages/**", "worker/**", "scripts/**"],
     "editorInteraction": [
       "apps/editor/src/app/**",
@@ -64,7 +64,6 @@
       "pnpm-lock.yaml",
       "config/validation-gates.json",
       "docs/testing/**",
-      "plan/target-plan.template.md",
       "scripts/gate-*.mjs",
       "scripts/check-gate-review.mjs",
       "scripts/check-test-impact.mjs",

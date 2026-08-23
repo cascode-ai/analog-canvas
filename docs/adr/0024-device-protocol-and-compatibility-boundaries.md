@@ -155,5 +155,3 @@ do not constitute a historic fixture collection.
 - [`../specs/schematic-model.md`](../specs/schematic-model.md)
 - [`../specs/project-file-format.md`](../specs/project-file-format.md)
 - [`../specs/persistence-and-recovery.md`](../specs/persistence-and-recovery.md)
-- [`2026-08-17-device-protocol-compatibility-architecture`](../../plan/archived/2026-08/2026-08-17-device-protocol-compatibility-architecture/architecture.md)
-- [`2026-08-17-device-protocol-foundation`](../../plan/archived/2026-08/2026-08-17-device-protocol-foundation/plan.md)

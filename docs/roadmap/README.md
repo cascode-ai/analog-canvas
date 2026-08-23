@@ -20,7 +20,7 @@ implementation context.
 
 - A roadmap frames a cross-module outcome and its acceptance boundary; it does
   not own a working-tree change.
-- A target under `plan/` owns implementation, dirty-state handling, validation,
+- A bounded target owns implementation, dirty-state handling, validation,
   and delivery evidence.
 - An accepted spec or ADR overrides stale roadmap wording.
 - Completed work moves to archive rather than remaining alongside open work.

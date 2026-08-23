@@ -122,4 +122,3 @@ non-current schema versions are rejected before export.
 - [`../specs/schematic-model.md`](../specs/schematic-model.md)
 - [`../specs/symbol-dsl.md`](../specs/symbol-dsl.md)
 - [`../specs/circuit-ir.md`](../specs/circuit-ir.md)
-- [`../../plan/archived/2026-08/2026-08-13-netlist-export-system/plan.md`](../../plan/archived/2026-08/2026-08-13-netlist-export-system/plan.md)

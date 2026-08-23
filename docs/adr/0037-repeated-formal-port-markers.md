@@ -72,4 +72,3 @@ endpoint kind, or mutation protocol is introduced.
 - [ADR 0036](0036-named-power-and-mos-bulk-semantics.md)
 - [Schematic model](../specs/schematic-model.md)
 - [Edit engine](../specs/edit-engine.md)
-- [Target plan](../../plan/2026-08-21-named-power-bulk-port-unification/plan.md)

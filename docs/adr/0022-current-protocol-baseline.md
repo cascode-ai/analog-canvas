@@ -172,4 +172,3 @@ not become compatibility inputs.
 - [`../specs/schematic-model.md`](../specs/schematic-model.md)
 - [`../specs/edit-engine.md`](../specs/edit-engine.md)
 - [`../specs/web-agent-session.md`](../specs/web-agent-session.md)
-- [`2026-08-17-current-protocol-baseline`](../../plan/archived/2026-08/2026-08-17-current-protocol-baseline/plan.md)

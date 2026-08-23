@@ -68,4 +68,3 @@ per-Net highlight suppression, and the clickable guide-to-Wire flow.
 - [Connectivity and routing](../specs/connectivity-and-routing.md)
 - [Edit engine](../specs/edit-engine.md)
 - [Project file format](../specs/project-file-format.md)
-- [Target plan](../../plan/2026-08-21-spice-import-routing-guidance/plan.md)

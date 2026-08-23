@@ -38,7 +38,6 @@
     "mcp:smoke": "node scripts/mcp-release-smoke.mjs",
     "dev": "pnpm --filter @icm/editor dev",
     "gate:plan": "node scripts/gate-plan.mjs",
-    "gate:review:check": "node scripts/check-gate-review.mjs",
     "gate:preflight": "node scripts/gate-run.mjs --stage preflight",
     "gate:affected": "node scripts/gate-run.mjs --stage affected",
     "gate:branch": "pnpm verify:branch",

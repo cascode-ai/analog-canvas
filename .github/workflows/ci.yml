@@ -8,7 +8,6 @@ on:
     paths-ignore:
       - "**/*.md"
       - "docs/**"
-      - "plan/**"
 
 permissions:
   contents: read
@@ -40,7 +39,7 @@ jobs:
             heavy=false
             while IFS= read -r path; do
               case "$path" in
-                docs/*|plan/*|*.md) ;;
+                docs/*|*.md) ;;
                 *) heavy=true; break ;;
               esac
             done < <(git diff --name-only "$BASE_SHA" HEAD)

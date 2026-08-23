@@ -42,4 +42,4 @@ State what evidence will demonstrate that the decision works as intended.
 
 ## Related documents
 
-- Link roadmap phases, specs, prior ADRs, and target plans.
+- Link roadmap phases, specs, and prior ADRs.

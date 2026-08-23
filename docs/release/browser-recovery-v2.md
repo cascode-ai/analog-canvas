@@ -4,7 +4,7 @@ Status: `delivered-on-branch`
 
 This note records the robust page persistence and recovery delivery for the
 browser editor. The coordination plan lives in
-`plan/2026-08-14-robust-page-persistence-recovery/`; the normative contract
+an August 2026 recovery-hardening target; the normative contract
 lives in [`docs/specs/persistence-and-recovery.md`](../specs/persistence-and-recovery.md).
 
 ## What changed for users

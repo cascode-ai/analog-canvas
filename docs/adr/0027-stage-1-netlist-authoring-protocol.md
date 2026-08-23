@@ -243,4 +243,3 @@ the adapter.
 - [`../specs/schematic-model.md`](../specs/schematic-model.md)
 - [`../specs/edit-engine.md`](../specs/edit-engine.md)
 - [`../specs/netlist-export.md`](../specs/netlist-export.md)
-- [`../../plan/2026-08-19-s0-schema14-netlist-protocol-decision/plan.md`](../../plan/2026-08-19-s0-schema14-netlist-protocol-decision/plan.md)

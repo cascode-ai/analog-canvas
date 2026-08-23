@@ -143,4 +143,3 @@ MCP is not a fifth Circuit operation.
 - ADR 0016 (browser-authoritative Agent session)
 - ADR 0019 (four-operation golden contract)
 - `docs/agent/resource-manifest.json`, `docs/agent/README.md`
-- Plan: `plan/2026-08-14-agent-mcp-adapter/plan.md`

@@ -106,4 +106,3 @@ reconciliation, and Placement Tray lifecycle.
 - [Edit engine](../specs/edit-engine.md)
 - [Editor interaction](../specs/editor-interaction.md)
 - [Netlist export](../specs/netlist-export.md)
-- [Target plan](../../plan/2026-08-21-formal-port-richtext-label/plan.md)

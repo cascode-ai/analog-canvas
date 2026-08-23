@@ -1,112 +1,90 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  assessGateReview,
   assessTestImpact,
-  readGateReview,
-  readTestImpact,
+  readTestImpactTrailers,
   testPathKind,
 } from "./test-impact.mjs";
 
-const gateReview = `## Gate Review
-
-- Decision: affected
-- Early gates: typecheck and focused unit contracts
-- Affected gates: package unit and browser contracts
-- Final gates: complete delivery gate
-`;
-
-const updatedPlan = `${gateReview}
-
-## Test Impact
-
-- Decision: tests-updated
-- Contracts: example
-`;
-
-const noTestPlan = `${gateReview}
-
-## Test Impact
-
-- Decision: no-test-change
-- Reason: formatting only; existing contract tests exercise unchanged behavior
-`;
+const updated = ["feat: something\n\nTest-Impact: tests-updated"];
+const noChange = [
+  "style: reflow a comment\n\nTest-Impact: no-test-change — comment only",
+];
 
 describe("test-impact governance", () => {
-  it("classifies co-located, browser, script, and plan paths", () => {
+  it("classifies co-located, browser, and script paths", () => {
     expect(testPathKind("packages/model/src/schema.ts")).toBe("implementation");
     expect(testPathKind("apps/editor/e2e/project-file.spec.ts")).toBe("test");
+    expect(testPathKind("packages/model/src/schema.test.ts")).toBe("test");
     expect(testPathKind("scripts/check-test-impact.mjs")).toBe(
       "implementation",
     );
-    expect(testPathKind("plan/2026-08-17-example/plan.md")).toBe("plan");
+    expect(testPathKind("docs/specs/edit-engine.md")).toBe("other");
   });
 
-  it("requires evidence when production code changes without a test file", () => {
+  it("reads the decision from a commit trailer", () => {
+    expect(readTestImpactTrailers(updated)).toEqual([
+      { valid: true, decision: "tests-updated" },
+    ]);
+    expect(readTestImpactTrailers(noChange)).toEqual([
+      { valid: true, decision: "no-test-change" },
+    ]);
+    expect(readTestImpactTrailers(["chore: nothing declared"])).toEqual([]);
+  });
+
+  it("rejects a bare no-test-change, which asserts without evidence", () => {
     expect(
-      assessTestImpact(
-        ["packages/model/src/schema.ts"],
-        [{ path: "plan/x/plan.md", text: noTestPlan }],
-      ),
+      readTestImpactTrailers(["fix: x\n\nTest-Impact: no-test-change"]),
+    ).toEqual([
+      {
+        valid: false,
+        reason: "no-test-change requires evidence on the same line",
+      },
+    ]);
+  });
+
+  it("ignores changes that touch no implementation path", () => {
+    expect(
+      assessTestImpact(["docs/user/getting-started.md"], []),
     ).toMatchObject({ ok: true });
-    expect(
-      assessTestImpact(
-        ["packages/model/src/schema.ts"],
-        [{ path: "plan/x/plan.md", text: updatedPlan }],
-      ),
-    ).toMatchObject({ ok: false });
   });
 
-  it("requires a tests-updated decision when test files changed", () => {
-    const paths = [
+  it("requires a declaration when production code changes", () => {
+    const paths = ["packages/model/src/schema.ts"];
+    expect(assessTestImpact(paths, [])).toMatchObject({ ok: false });
+    expect(
+      assessTestImpact(paths, readTestImpactTrailers(noChange)),
+    ).toMatchObject({ ok: true });
+  });
+
+  it("cross-checks the declaration against the diff", () => {
+    const withTests = [
       "packages/model/src/schema.ts",
       "packages/model/src/schema.test.ts",
     ];
+    // Claiming tests-updated is only true when a test actually changed, and
+    // claiming no-test-change is only honest when none did.
     expect(
-      assessTestImpact(paths, [{ path: "plan/x/plan.md", text: updatedPlan }]),
+      assessTestImpact(withTests, readTestImpactTrailers(updated)),
     ).toMatchObject({ ok: true });
     expect(
-      assessTestImpact(paths, [{ path: "plan/x/plan.md", text: noTestPlan }]),
+      assessTestImpact(withTests, readTestImpactTrailers(noChange)),
+    ).toMatchObject({ ok: false });
+    expect(
+      assessTestImpact(
+        ["packages/model/src/schema.ts"],
+        readTestImpactTrailers(updated),
+      ),
     ).toMatchObject({ ok: false });
   });
 
-  it("rejects incomplete no-test declarations", () => {
+  it("accepts a declaration from any commit in the range", () => {
+    const messages = ["chore: follow-up", ...updated];
     expect(
-      readTestImpact("## Test Impact\n\n- Decision: no-test-change\n"),
-    ).toEqual({
-      valid: false,
-      reason: "no-test-change requires Reason or Existing protection",
-    });
-  });
-
-  it("requires an explicit gate decision with early and final gates", () => {
-    expect(readGateReview(gateReview)).toEqual({
-      valid: true,
-      decision: "affected",
-    });
-    expect(
-      readGateReview(
-        "## Gate Review\n\n- Decision: affected\n- Affected gates: unit\n- Final gates: full\n",
+      assessTestImpact(
+        ["packages/model/src/schema.ts", "packages/model/src/schema.test.ts"],
+        readTestImpactTrailers(messages),
       ),
-    ).toEqual({ valid: false, reason: "missing Early gates" });
-    expect(
-      readGateReview(
-        "## Gate Review\n\n- Decision: affected\n- Early gates: static\n- Final gates: full\n",
-      ),
-    ).toEqual({ valid: false, reason: "missing Affected gates" });
-    expect(
-      assessGateReview([
-        {
-          path: "plan/x/plan.md",
-          text: "## Test Impact\n\n- Decision: no-test-change\n- Reason: formatting only\n",
-        },
-      ]),
-    ).toMatchObject({
-      ok: false,
-      message: expect.stringContaining("Gate Review"),
-    });
-    expect(
-      assessGateReview([{ path: "plan/x/plan.md", text: updatedPlan }]),
     ).toMatchObject({ ok: true });
   });
 });
