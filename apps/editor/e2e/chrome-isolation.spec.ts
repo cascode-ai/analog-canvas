@@ -53,11 +53,11 @@ test("carries the version and repository link inside Help", async ({
   await expect(about).toContainText("About Analog Canvas");
   await expect(about).toContainText("Version 0.1.0");
   const repositoryLink = about.getByRole("link", {
-    name: "https://github.com/chenzc24/Analog-Canvas",
+    name: "https://github.com/cascode-ai/analog-canvas",
   });
   await expect(repositoryLink).toHaveAttribute(
     "href",
-    "https://github.com/chenzc24/Analog-Canvas",
+    "https://github.com/cascode-ai/analog-canvas",
   );
   await expect(repositoryLink).toHaveAttribute("target", "_blank");
   await page.keyboard.press("Escape");

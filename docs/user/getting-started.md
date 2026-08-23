@@ -115,7 +115,7 @@ Source: GitHub Actions** once. The included `Deploy GitHub Pages` workflow
 then publishes every push to `main` at:
 
 ```text
-https://chenzc24.github.io/Analog-Canvas/
+https://cascode-ai.github.io/analog-canvas/
 ```
 
 It also supports a manual run from the Actions tab. The workflow builds with

@@ -2,7 +2,7 @@ import type { RefObject } from "react";
 
 import editorPackage from "../../package.json";
 
-const REPOSITORY_URL = "https://github.com/chenzc24/Analog-Canvas";
+const REPOSITORY_URL = "https://github.com/cascode-ai/analog-canvas";
 
 export interface EditorHelpDialogProps {
   closeButtonRef: RefObject<HTMLButtonElement | null>;

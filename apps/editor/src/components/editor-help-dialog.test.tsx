@@ -15,7 +15,7 @@ describe("EditorHelpDialog", () => {
     expect(markup).toContain("About Analog Canvas");
     expect(markup).toContain("Version <strong>0.1.0</strong>");
     expect(markup).toContain(
-      'href="https://github.com/chenzc24/Analog-Canvas"',
+      'href="https://github.com/cascode-ai/analog-canvas"',
     );
     expect(markup).toContain('target="_blank"');
     expect(markup).toContain('rel="noreferrer"');

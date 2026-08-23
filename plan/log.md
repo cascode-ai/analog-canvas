@@ -5120,3 +5120,20 @@ Keep reusable lessons in `docs/experience/`, not in this log.
   typecheck, prettier, diff checks.
 - Commit status: completed on `claude/cleanup`; mainline merge gated on the
   remote required checks.
+
+## 2026-08-23 - Follow the repository move to cascode-ai/analog-canvas
+
+- The repository moved to `cascode-ai/analog-canvas`. No re-clone was needed:
+  GitHub redirects the old path, which is why pushes kept working while
+  printing "This repository moved". Updating the remote URL is enough, and a
+  worktree shares its git directory, so one update covered the primary
+  checkout too.
+- What did need changing is every place the old URL was written down — a
+  redirect is a courtesy, not an address to publish: the repository link the
+  editor shows in Help, its two tests, and the GitHub Pages URL in the
+  getting-started guide.
+- Validation: `git fetch` with no redirect notice, `gh repo view` resolving to
+  the new path, push access confirmed with `--dry-run`, typecheck, prettier,
+  markdown links, component tests (14) and `chrome-isolation.spec.ts` (3).
+- Commit status: completed on `claude/repo-move`; mainline merge gated on the
+  remote required checks.
