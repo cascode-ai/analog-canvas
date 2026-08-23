@@ -4037,6 +4037,49 @@ test("swaps a comparator's + and - without turning the body over", async ({
   expect(after.transform).not.toContain("scale");
 });
 
+test("flips a marquee selection as one body, not three parts in place", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  const canvas = page.getByTestId("schematic-canvas");
+
+  await placeComponent(page, "resistor", { x: 220, y: 240 });
+  await placeComponent(page, "capacitor", { x: 340, y: 240 });
+  await placeComponent(page, "diode", { x: 460, y: 240 });
+
+  const order = async () =>
+    page
+      .locator('[data-layer="symbols"] [data-object-id]')
+      .evaluateAll((elements) =>
+        elements
+          .map((element) => {
+            const box = (element as SVGGraphicsElement).getBBox();
+            return {
+              id: element.getAttribute("data-object-id") ?? "",
+              x: box.x + box.width / 2,
+            };
+          })
+          .sort((left, right) => left.x - right.x)
+          .map((item) => item.id),
+      );
+
+  const before = await order();
+  expect(before).toHaveLength(3);
+
+  const bounds = (await canvas.boundingBox())!;
+  await page.mouse.move(bounds.x + 160, bounds.y + 180);
+  await page.mouse.down();
+  await page.mouse.move(bounds.x + 540, bounds.y + 310, { steps: 12 });
+  await page.mouse.up();
+  await expect(page.getByTestId("status")).toContainText("Selected");
+
+  await page.keyboard.press("Shift+R");
+  // Flipping left to right reverses the row. Flipping each part about its own
+  // centre would have left the order exactly as it was.
+  await expect(page.getByTestId("status")).toContainText("as one group");
+  expect(await order()).toEqual([...before].reverse());
+});
+
 test("drags a marquee selection that holds no instance", async ({ page }) => {
   await page.goto("/editor");
   const canvas = page.getByTestId("schematic-canvas");

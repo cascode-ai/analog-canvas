@@ -319,13 +319,22 @@ describe("endless shuffled feed", () => {
   it("keeps newest-first when no seed is asked for", async () => {
     const env = environment();
     await wallOf(env, 3);
-    const plain = await route(env, new Request(`${ORIGIN}/api/gallery`));
-    const payload = (await plain.json()) as { entries: { name: string }[] };
-    expect(payload.entries.map((entry) => entry.name)).toEqual([
-      "Circuit 2",
-      "Circuit 1",
-      "Circuit 0",
-    ]);
+    const read = async () => {
+      const plain = await route(env, new Request(`${ORIGIN}/api/gallery`));
+      return (await plain.json()) as {
+        entries: { id: string; createdAt: string }[];
+      };
+    };
+    const payload = await read();
+    expect(payload.entries).toHaveLength(3);
+    // Newest-first, and the same every time. Entries submitted inside one
+    // millisecond share a timestamp and fall back to comparing ids, so the
+    // contract is the ordering and its stability, not a fixed sequence.
+    const stamps = payload.entries.map((entry) => entry.createdAt);
+    expect([...stamps].sort().reverse()).toEqual(stamps);
+    expect((await read()).entries.map((entry) => entry.id)).toEqual(
+      payload.entries.map((entry) => entry.id),
+    );
   });
 });
 

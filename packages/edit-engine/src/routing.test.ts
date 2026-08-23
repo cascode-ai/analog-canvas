@@ -16,6 +16,7 @@ import { isOrthogonal } from "./route-geometry-edit.js";
 import { proposeWireSegmentDrag } from "./route-operations.js";
 import {
   proposeGroupMoveEdits,
+  proposeGroupReflectionEdits,
   proposeGroupRotationEdits,
   proposeEndpointRouteAttachment,
   proposeLooseRouteTranslation,
@@ -872,6 +873,65 @@ describe("routing Edit Engine", () => {
     expect(placement("B").position).toEqual({ x: 300, y: 460 });
     expect(placement("A").rotation).toBe(90);
     expect(placement("B").rotation).toBe(90);
+  });
+
+  it("flips a multi-part selection as one body about its own axis", () => {
+    const document = documentFixture();
+    // A and B sit side by side on y=300. Flipping left to right has to
+    // exchange them, not leave each where it was wearing a mirror bit.
+    const plan = proposeGroupReflectionEdits(
+      document,
+      resolver,
+      ["A", "B"],
+      "left-right",
+    );
+    const applied = executeTransaction(
+      document,
+      transaction(document.id, document.revision, plan.edits),
+      context,
+    );
+    expect(applied.ok).toBe(true);
+    if (!applied.ok) return;
+    const placement = (id: string) =>
+      applied.document.instances.find((instance) => instance.id === id)!
+        .placement!;
+    expect(placement("A").position).toEqual({ x: 460, y: 300 });
+    expect(placement("B").position).toEqual({ x: 140, y: 300 });
+    // Across the other axis they do not move: the flip is about one axis.
+    expect(placement("A").position.y).toBe(300);
+  });
+
+  it("flips a quarter each way back to where it started", () => {
+    const document = documentFixture();
+    const ids = ["A", "B", "C"];
+    let current = document;
+    for (const pass of [0, 1]) {
+      const applied = executeTransaction(
+        current,
+        transaction(
+          current.id,
+          current.revision,
+          proposeGroupReflectionEdits(current, resolver, ids, "top-bottom")
+            .edits,
+        ),
+        context,
+      );
+      expect(applied.ok).toBe(true);
+      if (!applied.ok) return;
+      current = applied.document;
+      expect(pass).toBeLessThan(2);
+    }
+    for (const id of ids) {
+      const original = document.instances.find(
+        (instance) => instance.id === id,
+      )!.placement!;
+      const restored = current.instances.find(
+        (instance) => instance.id === id,
+      )!.placement!;
+      expect(restored.position).toEqual(original.position);
+      expect(restored.rotation).toBe(original.rotation);
+      expect(restored.mirror).toBe(original.mirror);
+    }
   });
 
   it("leaves a lone part turning in place", () => {

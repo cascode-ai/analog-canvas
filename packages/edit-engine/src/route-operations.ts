@@ -1,4 +1,10 @@
-import type { Point, SchematicDocument } from "@icm/model";
+import {
+  reflectOrientation,
+  type Orientation,
+  type Point,
+  type SchematicDocument,
+  type ScreenFlip,
+} from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
 import {
@@ -888,6 +894,7 @@ export interface InstanceRotationProposal {
   instanceId: string;
   position: Point;
   rotation: 0 | 90 | 180 | 270;
+  mirror: "none" | "x";
 }
 
 export interface GroupRotationProposal {
@@ -930,6 +937,49 @@ export function proposeGroupRotation(
   instanceIds: readonly string[],
   deltaDegrees: 90 | -90,
 ): GroupRotationProposal {
+  return proposeRigidBodyMove(document, resolver, instanceIds, (pivot) => ({
+    point: (point) => turn(point, pivot, deltaDegrees),
+    placement: (placement) => ({
+      rotation: ((((placement.rotation + deltaDegrees) % 360) + 360) % 360) as
+        0 | 90 | 180 | 270,
+      mirror: placement.mirror,
+    }),
+  }));
+}
+
+/**
+ * Reflect a selection as one rigid body.
+ *
+ * Reflecting each part about its own centre leaves the arrangement exactly
+ * where it was, the same way rotating each part in place did — a row of three
+ * flipped one at a time is still the same row. Here the arrangement reflects
+ * about the selection's own axis and every part reflects with it, so a signal
+ * path that ran left to right runs right to left.
+ */
+export function proposeGroupReflection(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  instanceIds: readonly string[],
+  direction: ScreenFlip,
+): GroupRotationProposal {
+  const axis = direction === "left-right" ? "x" : "y";
+  return proposeRigidBodyMove(document, resolver, instanceIds, (pivot) => ({
+    point: (point) => ({ ...point, [axis]: 2 * pivot[axis] - point[axis] }),
+    placement: (placement) => reflectOrientation(placement, direction),
+  }));
+}
+
+interface RigidBodyTransform {
+  point: (point: Point) => Point;
+  placement: (placement: Orientation) => Orientation;
+}
+
+function proposeRigidBodyMove(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  instanceIds: readonly string[],
+  transformFor: (pivot: Point) => RigidBodyTransform,
+): GroupRotationProposal {
   const selected = new Set(instanceIds);
   const placed = document.instances.filter(
     (instance) => selected.has(instance.id) && instance.placement,
@@ -954,14 +1004,16 @@ export function proposeGroupRotation(
     y: snap((Math.min(...ys) + Math.max(...ys)) / 2),
   };
 
+  const transform = transformFor(pivot);
   const instances = placed
     .map((instance): InstanceRotationProposal => {
       const placement = instance.placement!;
+      const oriented = transform.placement(placement);
       return {
         instanceId: instance.id,
-        position: turn(placement.position, pivot, deltaDegrees),
-        rotation: ((((placement.rotation + deltaDegrees) % 360) + 360) %
-          360) as 0 | 90 | 180 | 270,
+        position: transform.point(placement.position),
+        rotation: oriented.rotation,
+        mirror: oriented.mirror,
       };
     })
     .sort((left, right) =>
@@ -996,9 +1048,7 @@ export function proposeGroupRotation(
       // turns rather than being stretched between two moved ends.
       proposals.set(route.id, {
         routeId: route.id,
-        waypoints: route.waypoints.map((point) =>
-          turn(point, pivot, deltaDegrees),
-        ),
+        waypoints: route.waypoints.map((point) => transform.point(point)),
         segmentModes: [...route.segmentModes],
       });
       continue;
@@ -1016,7 +1066,7 @@ export function proposeGroupRotation(
         modes,
         "from",
         from,
-        turn(from, pivot, deltaDegrees),
+        transform.point(from),
       );
     }
     if (toTurns) {
@@ -1027,7 +1077,7 @@ export function proposeGroupRotation(
         modes,
         "to",
         to,
-        turn(to, pivot, deltaDegrees),
+        transform.point(to),
       );
     }
     proposals.set(route.id, normalizeProposal(route.id, points, modes));
@@ -1048,7 +1098,7 @@ export function proposeGroupRotation(
       .filter((junction) => turningJunctionIds.has(junction.id))
       .map((junction) => ({
         junctionId: junction.id,
-        position: turn(junction.position, pivot, deltaDegrees),
+        position: transform.point(junction.position),
       }))
       .sort((left, right) =>
         left.junctionId.localeCompare(right.junctionId, "en"),
@@ -1068,7 +1118,7 @@ export function proposeGroupRotation(
           annotationId: annotation.id,
           anchor: {
             kind: "free" as const,
-            position: turn(anchor.position, pivot, deltaDegrees),
+            position: transform.point(anchor.position),
           },
         };
       })

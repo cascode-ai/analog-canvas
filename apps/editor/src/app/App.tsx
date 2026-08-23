@@ -19,6 +19,7 @@ import {
   createRouteWireAnchor,
   proposeEndpointRouteAttachment,
   proposeGroupMoveEdits,
+  proposeGroupReflectionEdits,
   proposeGroupRotationEdits,
   proposeLooseRouteTranslation,
   proposePowerRailEndpointResize,
@@ -4868,12 +4869,17 @@ export function App({
     }
   }
 
-  function rotateSelected(deltaDegrees: 90 | -90 = 90): void {
-    const placedSelection = selectedIds.filter((id) =>
+  /** Selected Instances that are actually on the sheet, in selection order. */
+  function placedSelectionIds(): string[] {
+    return selectedIds.filter((id) =>
       document.instances.some(
         (candidate) => candidate.id === id && candidate.placement,
       ),
     );
+  }
+
+  function rotateSelected(deltaDegrees: 90 | -90 = 90): void {
+    const placedSelection = placedSelectionIds();
     // Several parts turn as one body about a shared pivot. Spinning each one
     // about its own origin leaves the arrangement exactly where it was, which
     // is not what turning a selection means. A lone part has no arrangement to
@@ -4923,10 +4929,38 @@ export function App({
       },
     );
     const edits = [...instanceEdits, ...draftingEdits];
-    if (edits.length > 0) transact(edits);
+    if (edits.length === 0 || !transact(edits).ok) return;
+    // Name which turn happened. "Committed revision 5" cannot tell someone
+    // whether the arrangement turned or only the symbols did.
+    setStatus(
+      groupRotation
+        ? `Turned ${placedSelection.length} parts as one group`
+        : "Turned the selection in place",
+    );
   }
 
   function mirrorSelected(direction: ScreenFlip = "left-right"): void {
+    // Several parts flip as one body about the selection's own axis. Flipping
+    // each about its own centre leaves the arrangement exactly where it was —
+    // a row of three flipped one at a time is still the same row — which is
+    // the same fault rotation had.
+    const placedSelection = placedSelectionIds();
+    if (placedSelection.length > 1) {
+      const plan = proposeGroupReflectionEdits(
+        document,
+        resolver,
+        placedSelection,
+        direction,
+      );
+      if (plan.edits.length > 0 && transact(plan.edits).ok) {
+        setStatus(
+          `Flipped ${placedSelection.length} parts as one group, ${
+            direction === "left-right" ? "left to right" : "top to bottom"
+          }`,
+        );
+      }
+      return;
+    }
     const edits = selectedIds.flatMap((id): SchematicEdit[] => {
       const instance = document.instances.find(
         (candidate) => candidate.id === id,
@@ -4950,7 +4984,13 @@ export function App({
             ]),
       ];
     });
-    if (edits.length > 0) transact(edits);
+    if (edits.length > 0 && transact(edits).ok) {
+      setStatus(
+        `Flipped the selection ${
+          direction === "left-right" ? "left to right" : "top to bottom"
+        }`,
+      );
+    }
   }
 
   function download(

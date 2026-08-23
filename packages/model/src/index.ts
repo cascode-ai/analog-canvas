@@ -4,6 +4,7 @@ export * from "./factories.js";
 export * from "./geometry.js";
 export * from "./ids.js";
 export * from "./net-name.js";
+export * from "./orientation-reflect.js";
 export * from "./rich-text.js";
 export * from "./semantic-text.js";
 export * from "./schema.js";

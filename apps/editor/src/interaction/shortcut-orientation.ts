@@ -1,7 +1,12 @@
-import type { Orientation, Rotation } from "@icm/model";
+import {
+  reflectOrientation,
+  type Orientation,
+  type Rotation,
+  type ScreenFlip,
+} from "@icm/model";
 
-/** The visible direction of a reflection in document coordinates. */
-export type ScreenFlip = "left-right" | "top-bottom";
+export { reflectOrientation };
+export type { ScreenFlip };
 
 /**
  * A canvas-local orientation command. It is deliberately not a model edit:
@@ -11,23 +16,6 @@ export type ScreenFlip = "left-right" | "top-bottom";
 export type PlacementOrientationOperation =
   | { kind: "rotate"; deltaDegrees: 90 | -90 }
   | { kind: "reflect"; direction: ScreenFlip };
-
-/**
- * Compose a screen-space reflection with the canonical orientation transform
- * (`rotate(mirror(local))`). The persisted representation deliberately has one
- * mirror bit: its four rotations form the other reflection direction without
- * needing another schema or edit kind.
- */
-export function reflectOrientation(
-  orientation: Orientation,
-  direction: ScreenFlip,
-): Orientation {
-  const baseRotation = direction === "left-right" ? 0 : 180;
-  return {
-    rotation: ((baseRotation - orientation.rotation + 360) % 360) as Rotation,
-    mirror: orientation.mirror === "none" ? "x" : "none",
-  };
-}
 
 export function applyOrientationOperations(
   orientation: Orientation,

@@ -12,7 +12,9 @@ import {
 } from "./route-geometry-edit.js";
 import {
   proposeGroupMove,
+  proposeGroupReflection,
   proposeGroupRotation,
+  type GroupRotationProposal,
   proposeJunctionGroupTranslation,
   proposeWireSegmentDrag,
   type JunctionMoveProposal,
@@ -23,6 +25,7 @@ import type {
   RouteEndpoint,
   RoutePresentation,
   SchematicDocument,
+  ScreenFlip,
 } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
@@ -220,34 +223,63 @@ export function proposeGroupMoveEdits(
  * place and orbits the shared pivot, and the plan supplies every affected
  * Route so geometry does not depend on transaction edit order.
  */
+/** Typed edits that reflect a selection as one rigid body. */
+export function proposeGroupReflectionEdits(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  instanceIds: readonly string[],
+  direction: ScreenFlip,
+): GroupMoveEditProposal {
+  return rigidBodyEdits(
+    document,
+    proposeGroupReflection(document, resolver, instanceIds, direction),
+  );
+}
+
 export function proposeGroupRotationEdits(
   document: SchematicDocument,
   resolver: SymbolResolver,
   instanceIds: readonly string[],
   deltaDegrees: 90 | -90,
 ): GroupMoveEditProposal {
-  const proposal = proposeGroupRotation(
+  return rigidBodyEdits(
     document,
-    resolver,
-    instanceIds,
-    deltaDegrees,
+    proposeGroupRotation(document, resolver, instanceIds, deltaDegrees),
   );
+}
+
+/**
+ * Typed edits for a rigid-body move of a selection.
+ *
+ * Orientation and position travel together — a part both turns or flips and
+ * carries to its new place — and the plan supplies every affected Route so
+ * geometry does not depend on transaction edit order.
+ */
+function rigidBodyEdits(
+  document: SchematicDocument,
+  proposal: GroupRotationProposal,
+): GroupMoveEditProposal {
   return {
     preview: {
       routes: proposal.routes,
       junctions: proposal.junctions,
     },
     edits: [
-      ...proposal.instances.flatMap((turn): SchematicEdit[] => [
+      ...proposal.instances.flatMap((moved): SchematicEdit[] => [
+        {
+          kind: "mirror_instance",
+          instanceId: moved.instanceId,
+          mirror: moved.mirror,
+        },
         {
           kind: "rotate_instance",
-          instanceId: turn.instanceId,
-          rotation: turn.rotation,
+          instanceId: moved.instanceId,
+          rotation: moved.rotation,
         },
         {
           kind: "move_instance",
-          instanceId: turn.instanceId,
-          position: turn.position,
+          instanceId: moved.instanceId,
+          position: moved.position,
         },
       ]),
       ...proposal.junctions.map((move): SchematicEdit => ({
