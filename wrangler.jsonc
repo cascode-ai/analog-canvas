@@ -1,5 +1,9 @@
 {
   "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
+  // Deliberately not renamed to match the product. A Worker's Durable Object
+  // namespaces are keyed to this script name, so renaming it would create
+  // empty ones and strand the published gallery, accounts, and analytics in
+  // the old script. The public identity is the custom domain below.
   "name": "interactive-circuit-maker",
   "main": "./worker/index.ts",
   "compatibility_date": "2026-08-11",
