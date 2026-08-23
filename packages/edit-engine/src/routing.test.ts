@@ -15,6 +15,7 @@ import { executeTransaction } from "./transaction.js";
 import { isOrthogonal } from "./route-geometry-edit.js";
 import {
   proposeGroupMoveEdits,
+  proposeGroupRotationEdits,
   proposeEndpointRouteAttachment,
   proposeLooseRouteTranslation,
   proposePowerRailEndpointResize,
@@ -689,6 +690,89 @@ describe("routing Edit Engine", () => {
       context,
     );
     expect(moved.ok).toBe(true);
+  });
+
+  it("turns a multi-part selection as one body about a shared pivot", () => {
+    const document = documentFixture();
+    // A and B sit side by side on y=300; a quarter turn about their shared
+    // centre has to stand them up, not merely spin each symbol where it is.
+    const plan = proposeGroupRotationEdits(document, resolver, ["A", "B"], 90);
+    const applied = executeTransaction(
+      document,
+      transaction(document.id, document.revision, plan.edits),
+      context,
+    );
+    expect(applied.ok).toBe(true);
+    if (!applied.ok) return;
+
+    const placement = (id: string) =>
+      applied.document.instances.find((instance) => instance.id === id)!
+        .placement!;
+    expect(placement("A").position).toEqual({ x: 300, y: 140 });
+    expect(placement("B").position).toEqual({ x: 300, y: 460 });
+    expect(placement("A").rotation).toBe(90);
+    expect(placement("B").rotation).toBe(90);
+  });
+
+  it("leaves a lone part turning in place", () => {
+    const document = documentFixture();
+    const before = document.instances.find((instance) => instance.id === "A")!
+      .placement!.position;
+    const plan = proposeGroupRotationEdits(document, resolver, ["A"], 90);
+    const applied = executeTransaction(
+      document,
+      transaction(document.id, document.revision, plan.edits),
+      context,
+    );
+    expect(applied.ok).toBe(true);
+    if (!applied.ok) return;
+    const after = applied.document.instances.find(
+      (instance) => instance.id === "A",
+    )!.placement!;
+    expect(after.position).toEqual(before);
+    expect(after.rotation).toBe(90);
+  });
+
+  it("turns a quarter each way back to where it started", () => {
+    const document = documentFixture();
+    const forward = executeTransaction(
+      document,
+      transaction(
+        document.id,
+        document.revision,
+        proposeGroupRotationEdits(document, resolver, ["A", "B", "C"], 90)
+          .edits,
+      ),
+      context,
+    );
+    expect(forward.ok).toBe(true);
+    if (!forward.ok) return;
+    const back = executeTransaction(
+      forward.document,
+      transaction(
+        forward.document.id,
+        forward.document.revision,
+        proposeGroupRotationEdits(
+          forward.document,
+          resolver,
+          ["A", "B", "C"],
+          -90,
+        ).edits,
+      ),
+      context,
+    );
+    expect(back.ok).toBe(true);
+    if (!back.ok) return;
+    for (const id of ["A", "B", "C"]) {
+      const original = document.instances.find(
+        (instance) => instance.id === id,
+      )!.placement!;
+      const restored = back.document.instances.find(
+        (instance) => instance.id === id,
+      )!.placement!;
+      expect(restored.position).toEqual(original.position);
+      expect(restored.rotation).toBe(original.rotation);
+    }
   });
 
   it("authors group Route geometry when a group move also moves a Junction", () => {

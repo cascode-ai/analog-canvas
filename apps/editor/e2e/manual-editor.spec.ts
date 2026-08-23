@@ -3762,6 +3762,55 @@ test("keeps a long right-aligned Port label readable while editing", async ({
   expect(overflow.scrollable).toBe("auto");
 });
 
+test("turns a marquee selection as one body, not three parts in place", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  const canvas = page.getByTestId("schematic-canvas");
+
+  await placeComponent(page, "resistor", { x: 220, y: 240 });
+  await placeComponent(page, "capacitor", { x: 340, y: 240 });
+  await placeComponent(page, "resistor", { x: 460, y: 240 });
+
+  const centres = async () =>
+    page
+      .locator('[data-layer="symbols"] [data-object-id]')
+      .evaluateAll((elements) =>
+        elements
+          .map((element) => {
+            const box = (element as SVGGraphicsElement).getBBox();
+            return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+          })
+          .sort((left, right) => left.x - right.x || left.y - right.y),
+      );
+
+  const before = await centres();
+  expect(before).toHaveLength(3);
+  // The three sit in a row, so the row's width dwarfs its height.
+  const spreadX = before[2]!.x - before[0]!.x;
+  expect(spreadX).toBeGreaterThan(100);
+
+  const bounds = (await canvas.boundingBox())!;
+  await page.mouse.move(bounds.x + 160, bounds.y + 180);
+  await page.mouse.down();
+  await page.mouse.move(bounds.x + 540, bounds.y + 310, { steps: 12 });
+  await page.mouse.up();
+  await expect(page.getByTestId("status")).toContainText("Selected");
+
+  await page.keyboard.press("r");
+
+  // A quarter turn stands the row up: the arrangement itself rotates rather
+  // than each symbol spinning where it stands.
+  const after = await centres();
+  expect(after).toHaveLength(3);
+  const afterSpreadX = after[2]!.x - after[0]!.x;
+  const afterSpreadY =
+    Math.max(...after.map((point) => point.y)) -
+    Math.min(...after.map((point) => point.y));
+  expect(afterSpreadX).toBeLessThan(20);
+  expect(afterSpreadY).toBeGreaterThan(100);
+});
+
 test("drags a marquee selection that holds no instance", async ({ page }) => {
   await page.goto("/editor");
   const canvas = page.getByTestId("schematic-canvas");

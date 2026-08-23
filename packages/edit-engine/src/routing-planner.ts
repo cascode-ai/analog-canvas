@@ -12,6 +12,7 @@ import {
 } from "./route-geometry-edit.js";
 import {
   proposeGroupMove,
+  proposeGroupRotation,
   proposeJunctionGroupTranslation,
   proposeWireSegmentDrag,
   type JunctionMoveProposal,
@@ -194,6 +195,65 @@ export function proposeGroupMoveEdits(
       // Route prevents move_instance from progressively re-stretching an
       // internal wire once per selected Instance, which otherwise makes a
       // group translation depend on transaction edit order.
+      ...routeEdits(document, proposal.routes),
+      ...proposal.annotations.flatMap((move): SchematicEdit[] => {
+        const annotation = document.annotations.find(
+          (candidate) => candidate.id === move.annotationId,
+        );
+        return annotation
+          ? [
+              {
+                kind: "upsert_schematic_annotation",
+                annotation: { ...annotation, anchor: move.anchor },
+              },
+            ]
+          : [];
+      }),
+    ],
+  };
+}
+
+/**
+ * Typed edits that turn a selection as one rigid body.
+ *
+ * Instance rotation and translation travel together: a member both spins in
+ * place and orbits the shared pivot, and the plan supplies every affected
+ * Route so geometry does not depend on transaction edit order.
+ */
+export function proposeGroupRotationEdits(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  instanceIds: readonly string[],
+  deltaDegrees: 90 | -90,
+): GroupMoveEditProposal {
+  const proposal = proposeGroupRotation(
+    document,
+    resolver,
+    instanceIds,
+    deltaDegrees,
+  );
+  return {
+    preview: {
+      routes: proposal.routes,
+      junctions: proposal.junctions,
+    },
+    edits: [
+      ...proposal.instances.flatMap((turn): SchematicEdit[] => [
+        {
+          kind: "rotate_instance",
+          instanceId: turn.instanceId,
+          rotation: turn.rotation,
+        },
+        {
+          kind: "move_instance",
+          instanceId: turn.instanceId,
+          position: turn.position,
+        },
+      ]),
+      ...proposal.junctions.map((move): SchematicEdit => ({
+        kind: "move_junction",
+        ...move,
+      })),
       ...routeEdits(document, proposal.routes),
       ...proposal.annotations.flatMap((move): SchematicEdit[] => {
         const annotation = document.annotations.find(

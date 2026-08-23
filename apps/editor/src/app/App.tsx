@@ -19,6 +19,7 @@ import {
   createRouteWireAnchor,
   proposeEndpointRouteAttachment,
   proposeGroupMoveEdits,
+  proposeGroupRotationEdits,
   proposeLooseRouteTranslation,
   proposePowerRailEndpointResize,
   proposePowerRailTranslation,
@@ -4787,21 +4788,41 @@ export function App({
   }
 
   function rotateSelected(deltaDegrees: 90 | -90 = 90): void {
-    const instanceEdits = selectedIds.flatMap((id): SchematicEdit[] => {
-      const instance = document.instances.find(
-        (candidate) => candidate.id === id,
-      );
-      if (!instance?.placement) return [];
-      const next =
-        (((instance.placement.rotation + deltaDegrees) % 360) + 360) % 360;
-      return [
-        {
-          kind: "rotate_instance",
-          instanceId: instance.id,
-          rotation: next as 0 | 90 | 180 | 270,
-        },
-      ];
-    });
+    const placedSelection = selectedIds.filter((id) =>
+      document.instances.some(
+        (candidate) => candidate.id === id && candidate.placement,
+      ),
+    );
+    // Several parts turn as one body about a shared pivot. Spinning each one
+    // about its own origin leaves the arrangement exactly where it was, which
+    // is not what turning a selection means. A lone part has no arrangement to
+    // preserve, so it keeps the simpler in-place turn.
+    const groupRotation =
+      placedSelection.length > 1
+        ? proposeGroupRotationEdits(
+            document,
+            resolver,
+            placedSelection,
+            deltaDegrees,
+          )
+        : null;
+    const instanceEdits = groupRotation
+      ? groupRotation.edits
+      : selectedIds.flatMap((id): SchematicEdit[] => {
+          const instance = document.instances.find(
+            (candidate) => candidate.id === id,
+          );
+          if (!instance?.placement) return [];
+          const next =
+            (((instance.placement.rotation + deltaDegrees) % 360) + 360) % 360;
+          return [
+            {
+              kind: "rotate_instance",
+              instanceId: instance.id,
+              rotation: next as 0 | 90 | 180 | 270,
+            },
+          ];
+        });
     // Drafting rotation: R now also rotates a selected drafting object. An arrow
     // pivots about its resolved center; a construction line pivots about the
     // center of its bounds. Purely geometric — never changes electrical Nets.

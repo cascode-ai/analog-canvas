@@ -732,3 +732,197 @@ export function proposeGroupMove(
     internalRouteIds,
   };
 }
+
+export interface InstanceRotationProposal {
+  instanceId: string;
+  position: Point;
+  rotation: 0 | 90 | 180 | 270;
+}
+
+export interface GroupRotationProposal {
+  instances: InstanceRotationProposal[];
+  routes: RouteStretchProposal[];
+  junctions: JunctionMoveProposal[];
+  annotations: AnnotationMoveProposal[];
+  pivot: Point;
+}
+
+/** Screen-space quarter turn: +90 turns clockwise, as SVG rotate() does. */
+function turn(point: Point, pivot: Point, deltaDegrees: 90 | -90): Point {
+  const dx = point.x - pivot.x;
+  const dy = point.y - pivot.y;
+  return deltaDegrees === 90
+    ? { x: pivot.x - dy, y: pivot.y + dx }
+    : { x: pivot.x + dy, y: pivot.y - dx };
+}
+
+/**
+ * Turn a selection as one rigid body.
+ *
+ * Rotating each Instance about its own origin leaves the group's layout
+ * untouched, which is not what selecting several parts and turning them
+ * means. Here every member orbits one shared pivot and turns by the same
+ * angle, so the arrangement itself rotates.
+ *
+ * The pivot is the centre of the selected Instances' bounding box snapped to
+ * the grid, which keeps on-grid geometry exactly on-grid through the turn.
+ *
+ * A rigid turn also fixes where each pin lands: an Instance and its pins
+ * rotate together, so a terminal endpoint's new position is simply its old
+ * position orbited about the pivot. Routes wholly inside the selection turn
+ * with it; a Route that leaves the selection keeps its outside endpoint and
+ * stretches, exactly as a group translation does.
+ */
+export function proposeGroupRotation(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  instanceIds: readonly string[],
+  deltaDegrees: 90 | -90,
+): GroupRotationProposal {
+  const selected = new Set(instanceIds);
+  const placed = document.instances.filter(
+    (instance) => selected.has(instance.id) && instance.placement,
+  );
+  if (placed.length === 0) {
+    return {
+      instances: [],
+      routes: [],
+      junctions: [],
+      annotations: [],
+      pivot: { x: 0, y: 0 },
+    };
+  }
+
+  const grid = document.presentation.grid;
+  const xs = placed.map((instance) => instance.placement!.position.x);
+  const ys = placed.map((instance) => instance.placement!.position.y);
+  const snap = (value: number): number =>
+    grid > 0 ? Math.round(value / grid) * grid : value;
+  const pivot = {
+    x: snap((Math.min(...xs) + Math.max(...xs)) / 2),
+    y: snap((Math.min(...ys) + Math.max(...ys)) / 2),
+  };
+
+  const instances = placed
+    .map((instance): InstanceRotationProposal => {
+      const placement = instance.placement!;
+      return {
+        instanceId: instance.id,
+        position: turn(placement.position, pivot, deltaDegrees),
+        rotation: ((((placement.rotation + deltaDegrees) % 360) + 360) %
+          360) as 0 | 90 | 180 | 270,
+      };
+    })
+    .sort((left, right) =>
+      left.instanceId.localeCompare(right.instanceId, "en"),
+    );
+
+  const internalSelection = deriveRoutingInternalGroupSelection(document, [
+    ...selected,
+  ]);
+  const internalNetIds = new Set(internalSelection.netIds);
+  const turningJunctionIds = new Set(internalSelection.junctionIds);
+  const routingGeometry = resolveDocumentRoutingGeometry(document, resolver);
+
+  const turns = (
+    endpoint: SchematicDocument["routes"][number]["from"],
+  ): boolean =>
+    (endpoint.kind === "terminal" && selected.has(endpoint.instanceId)) ||
+    (endpoint.kind === "junction" &&
+      turningJunctionIds.has(endpoint.junctionId));
+
+  const proposals = new Map<string, RouteStretchProposal>();
+  for (const route of document.routes) {
+    const fromTurns = turns(route.from);
+    const toTurns = turns(route.to);
+    if (!fromTurns && !toTurns) continue;
+
+    if (fromTurns && toTurns) {
+      if (route.segmentModes.includes("locked")) {
+        throw new Error(`Route ${route.id} contains a locked segment`);
+      }
+      // Wholly inside: the Route is part of the body, so its own geometry
+      // turns rather than being stretched between two moved ends.
+      proposals.set(route.id, {
+        routeId: route.id,
+        waypoints: route.waypoints.map((point) =>
+          turn(point, pivot, deltaDegrees),
+        ),
+        segmentModes: [...route.segmentModes],
+      });
+      continue;
+    }
+
+    const original = routeEditPathFromGeometry(routingGeometry, route.id);
+    if (!original) throw new Error(`Route ${route.id} has unresolved geometry`);
+    const points = original.points.map((point) => ({ ...point }));
+    const modes = [...original.segmentModes];
+    if (fromTurns) {
+      const from = original.points[0]!;
+      stretchRouteEndpoint(
+        route.id,
+        points,
+        modes,
+        "from",
+        from,
+        turn(from, pivot, deltaDegrees),
+      );
+    }
+    if (toTurns) {
+      const to = original.points.at(-1)!;
+      stretchRouteEndpoint(
+        route.id,
+        points,
+        modes,
+        "to",
+        to,
+        turn(to, pivot, deltaDegrees),
+      );
+    }
+    proposals.set(route.id, normalizeProposal(route.id, points, modes));
+  }
+
+  const turnedObjectIds = new Set<string>([
+    ...internalNetIds,
+    ...internalSelection.routeIds,
+    ...turningJunctionIds,
+  ]);
+  return {
+    instances,
+    pivot,
+    routes: [...proposals.values()].sort((left, right) =>
+      left.routeId.localeCompare(right.routeId, "en"),
+    ),
+    junctions: document.junctions
+      .filter((junction) => turningJunctionIds.has(junction.id))
+      .map((junction) => ({
+        junctionId: junction.id,
+        position: turn(junction.position, pivot, deltaDegrees),
+      }))
+      .sort((left, right) =>
+        left.junctionId.localeCompare(right.junctionId, "en"),
+      ),
+    annotations: document.annotations
+      .filter(
+        (annotation) =>
+          annotation.anchor.kind === "free" &&
+          turnedObjectIds.has(annotation.netId ?? ""),
+      )
+      .map((annotation) => {
+        const anchor = annotation.anchor;
+        if (anchor.kind !== "free") {
+          throw new Error("Free annotation filter lost anchor narrowing");
+        }
+        return {
+          annotationId: annotation.id,
+          anchor: {
+            kind: "free" as const,
+            position: turn(anchor.position, pivot, deltaDegrees),
+          },
+        };
+      })
+      .sort((left, right) =>
+        left.annotationId.localeCompare(right.annotationId, "en"),
+      ),
+  };
+}
