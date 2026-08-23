@@ -78,9 +78,14 @@ The **File** menu exports SVG, PNG, and PDF containing only formal schematic
 layers. PNG uses 3x raster scale. PDF contains that same high-resolution raster
 on a page matching the SVG viewBox.
 
-For an electrical design netlist, choose **Netlist / Check Report** first, or press **Check and Save** in the toolbar to check the circuit and keep a copy on your account's shelf.
-The dialog reports every blocking electrical fact and, when valid, previews
-the deterministic structural SPICE or Spectre text. Use either the dialog's
+For an electrical design netlist, choose **Netlist / Check Report**. **Check and
+Save** is separate: it settles available MOS-body defaults and keeps a copy on
+your account's shelf without judging whether an abbreviated or unfinished
+drawing can be emitted as a netlist.
+The dialog reports structural netlist findings and current-revision ERC
+readiness separately; the ERC section is the same evidence used by Gallery.
+When a structural IR is available, it previews the deterministic SPICE or
+Spectre text. Use either the dialog's
 download button or **File / SPICE netlist** and **File / Spectre netlist** to
 download it. These files contain structure only: they do not add PDK includes,
 models, corners, stimuli, analyses, or simulator options.

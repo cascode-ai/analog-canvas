@@ -7,6 +7,7 @@ import type {
 } from "@icm/model";
 import {
   derivePowerRailComponent,
+  deriveDocumentContactEvidence,
   endpointBelongsToNet,
   polylineSatisfiesConstraint,
   endpointKey,
@@ -55,6 +56,7 @@ export function endpointOwnerNetId(
 export function netEndpointGroups(
   document: SchematicDocument,
   netId: string,
+  resolver?: SymbolResolver,
 ): string[][] {
   const net = document.nets.find((candidate) => candidate.id === netId);
   if (!net) return [];
@@ -81,6 +83,19 @@ export function netEndpointGroups(
     (candidate) => candidate.netId === netId,
   )) {
     union(endpointKey(route.from), endpointKey(route.to));
+  }
+  // A pin or Junction placed directly on another explicit same-Net endpoint
+  // is a real electrical contact even when no Route object exists between the
+  // coincident endpoints. Preserve that contact when a different Route is cut.
+  // Name claims and other Logical-Net Evidence are intentionally excluded:
+  // they express logical equivalence, not one physical Base-Net component.
+  if (resolver) {
+    for (const contact of deriveDocumentContactEvidence(document, resolver)
+      .contacts) {
+      if (contact.netId !== netId || contact.endpoints.length < 2) continue;
+      const [first, ...rest] = contact.endpoints.map(endpointKey);
+      for (const key of rest) union(first!, key);
+    }
   }
   const grouped = new Map<string, string[]>();
   for (const key of keys) {

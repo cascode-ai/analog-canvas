@@ -596,6 +596,13 @@ export function proposeVisualRouteDeletion(
   const sortedJunctionIds = [...junctionsToRemove].sort((a, b) =>
     a.localeCompare(b, "en"),
   );
+  const removedRouteAnnotationIds = document.annotations
+    .filter(
+      (annotation) =>
+        annotation.anchor.kind === "route" &&
+        routesToRemove.has(annotation.anchor.routeId),
+    )
+    .map((annotation) => annotation.id);
   const removedPowerLabelIds = document.annotations
     .filter(
       (annotation) =>
@@ -609,8 +616,10 @@ export function proposeVisualRouteDeletion(
             route.netId === annotation.netId,
         ),
     )
-    .map((annotation) => annotation.id)
-    .sort((a, b) => a.localeCompare(b, "en"));
+    .map((annotation) => annotation.id);
+  const removedAnnotationIds = [
+    ...new Set([...removedRouteAnnotationIds, ...removedPowerLabelIds]),
+  ].sort((a, b) => a.localeCompare(b, "en"));
   // `cut_connection` removes a junction that becomes orphaned. Only a selected
   // junction already detached before this transaction needs an explicit edit;
   // otherwise a second remove would reject the transaction.
@@ -656,9 +665,9 @@ export function proposeVisualRouteDeletion(
   return {
     routeIds: sortedRouteIds,
     junctionIds: sortedJunctionIds,
-    annotationIds: removedPowerLabelIds,
+    annotationIds: removedAnnotationIds,
     edits: [
-      ...removedPowerLabelIds.map((annotationId): SchematicEdit => ({
+      ...removedAnnotationIds.map((annotationId): SchematicEdit => ({
         kind: "remove_schematic_annotation",
         annotationId,
       })),

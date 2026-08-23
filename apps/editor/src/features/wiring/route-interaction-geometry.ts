@@ -25,6 +25,51 @@ import type { SymbolResolver } from "@icm/symbols";
 import { clamp, closestPointOnSegment } from "../../canvas/canvas-geometry";
 import { instanceVisibleHitBox } from "../../canvas/instance-geometry";
 
+/**
+ * Where a tap on a conductor lands.
+ *
+ * The projection onto the segment is quantized to the grid so a tap that is
+ * merely aimed at a wire still lands tidily. But the grid is a tidiness
+ * preference, while landing on a conductor is an electrical act: when a run
+ * is already under way, the coordinate it arrives on wins within one grid
+ * step, so a straight connection stays straight instead of being bent into
+ * an elbow — or refused. Any point along a conductor may be tapped.
+ */
+export function routeTapPoint(
+  pointer: Point,
+  from: Point,
+  to: Point,
+  grid: number,
+  arrival?: Point | null,
+): Point {
+  const projected = closestPointOnSegment(pointer, from, to);
+  const prefers = (wanted: number, along: number, low: number, high: number) =>
+    wanted >= Math.min(low, high) &&
+    wanted <= Math.max(low, high) &&
+    Math.abs(wanted - along) <= grid;
+  const onGrid = (value: number) => Math.round(value / grid) * grid;
+  if (from.y === to.y) {
+    if (arrival && prefers(arrival.x, projected.x, from.x, to.x)) {
+      return { x: arrival.x, y: from.y };
+    }
+    return { x: onGrid(projected.x), y: from.y };
+  }
+  if (from.x === to.x) {
+    if (arrival && prefers(arrival.y, projected.y, from.y, to.y)) {
+      return { x: from.x, y: arrival.y };
+    }
+    return { x: from.x, y: onGrid(projected.y) };
+  }
+  // Octilinear diagonal: choosing one grid coordinate determines the other.
+  // Endpoints already satisfy the grid invariant, so the paired coordinate
+  // remains integral and on-grid too.
+  const slope = Math.sign(to.y - from.y) * Math.sign(to.x - from.x);
+  const minX = Math.min(from.x, to.x);
+  const maxX = Math.max(from.x, to.x);
+  const x = clamp(onGrid(projected.x), minX, maxX);
+  return { x, y: from.y + slope * (x - from.x) };
+}
+
 export interface RouteGeometryRecord {
   route: SchematicDocument["routes"][number];
   geometry: ResolvedRouteGeometry;

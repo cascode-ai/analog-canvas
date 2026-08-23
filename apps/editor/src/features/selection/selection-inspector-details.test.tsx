@@ -143,6 +143,7 @@ describe("selection inspector details", () => {
     const trace: HierarchyNetTrace = {
       primary: {
         documentId: "document-top",
+        hierarchyPath: [],
         netId: "net-top",
         visibleEndpoints: [],
         routes: [],
@@ -153,6 +154,7 @@ describe("selection inspector details", () => {
       highlights: [
         {
           documentId: "document-top",
+          hierarchyPath: [],
           netId: "net-top",
           visibleEndpoints: [],
           routes: [],
@@ -162,6 +164,13 @@ describe("selection inspector details", () => {
         },
         {
           documentId: "document-child",
+          hierarchyPath: [
+            {
+              parentDocumentId: "document-top",
+              instanceId: "XBIAS",
+              childDocumentId: "document-child",
+            },
+          ],
           netId: "net-child",
           visibleEndpoints: [],
           routes: [],
@@ -173,8 +182,22 @@ describe("selection inspector details", () => {
       hops: [
         {
           direction: "down",
-          from: { documentId: "document-top", netId: "net-top" },
-          to: { documentId: "document-child", netId: "net-child" },
+          from: {
+            documentId: "document-top",
+            netId: "net-top",
+            hierarchyPath: [],
+          },
+          to: {
+            documentId: "document-child",
+            netId: "net-child",
+            hierarchyPath: [
+              {
+                parentDocumentId: "document-top",
+                instanceId: "XBIAS",
+                childDocumentId: "document-child",
+              },
+            ],
+          },
           frame: {
             parentDocumentId: "document-top",
             instanceId: "XBIAS",
@@ -206,6 +229,7 @@ describe("selection inspector details", () => {
     const trace: HierarchyNetTrace = {
       primary: {
         documentId: "document-top",
+        hierarchyPath: [],
         netId: "net-vdd-top",
         visibleEndpoints: [],
         routes: [],
@@ -217,8 +241,16 @@ describe("selection inspector details", () => {
       hops: [
         {
           direction: "global",
-          from: { documentId: "document-top", netId: "net-vdd-top" },
-          to: { documentId: "document-child", netId: "net-vdd-child" },
+          from: {
+            documentId: "document-top",
+            netId: "net-vdd-top",
+            hierarchyPath: [],
+          },
+          to: {
+            documentId: "document-child",
+            netId: "net-vdd-child",
+            hierarchyPath: [],
+          },
           foldedName: "vdd",
         },
       ],

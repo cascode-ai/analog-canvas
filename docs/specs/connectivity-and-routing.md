@@ -29,7 +29,12 @@ Route transaction.
   remains disconnected.
 - Moving a connected Instance stretches the attached Route while preserving
   endpoint identity.
-- Deleting geometry does not silently invent an alternate connection.
+- `remove_route_geometry` removes presentation geometry only. The ordinary
+  Wire Delete command uses `cut_connection`: it always recomputes physical
+  Base-Net components and never lets imported, global, or name Evidence hide a
+  real disconnection.
+- A Route-anchored label or marker is part of the Route deletion closure and is
+  removed through its typed annotation edit before the Route is cut.
 - `NoConnect` and Net membership are mutually exclusive.
 - Snap, selection, highlight, clipboard, undo, Agent Snapshot, and formal render
   consume the same resolved endpoint geometry.
@@ -74,8 +79,10 @@ A guide is transient presentation, never a Route, Junction, or electrical
 contact. A guide click starts the ordinary Wire interaction. Label, geometry,
 or transform edits cannot dismiss guidance; the current graph simply yields a
 new result. `remove_route_geometry` retains Net membership and therefore
-re-exposes unresolved imported components. A normal connection cut may split
-an authored local Net but must retain imported membership. The editor may show
+re-exposes unresolved imported components. A normal connection cut splits all
+physical components, including imported and global Base Nets; only the primary
+component retains source/equivalence Evidence, while owner-addressed markers
+follow their surviving component. The editor may show
 focused, all, or hidden imported guides; Net highlight suppresses only the
 highlighted Net's guides. Unplaced endpoints remain in the Placement Tray and
 do not receive invented page coordinates.

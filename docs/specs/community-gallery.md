@@ -81,9 +81,9 @@ informational in the dialog). Failure codes:
 
 - `erc-errors` — any ERC diagnostic with `severity: "error"`.
 - `floating-endpoints` — `ERC_UNCONNECTED_PIN`, `ERC_BULK_UNRESOLVED`,
-  and `ERC_FLOATING_GATE`, except a floating gate whose single-member
-  net carries a name (a deliberate port/rail). The sanctioned escapes
-  are therefore: wire the pin, name its net, or mark it NoConnect.
+  and `ERC_FLOATING_GATE`. A name on a singleton local Net is not electrical
+  connectivity. The sanctioned cases are a real peer connection, a formal
+  boundary, a reviewed global supply, an implicit pin, or explicit NoConnect.
 - `empty-project` — fewer than 2 instances AND no substantial drawing
   (3+ drafting objects including a text); pure block diagrams pass.
 

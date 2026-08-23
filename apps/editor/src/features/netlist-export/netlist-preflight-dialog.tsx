@@ -1,4 +1,5 @@
 import { printDesignNetlist } from "@icm/netlist";
+import type { Diagnostic } from "@icm/derived";
 import type {
   DesignNetlistAnalysisResult,
   NetlistDiagnostic,
@@ -6,18 +7,22 @@ import type {
 } from "@icm/netlist";
 import { useMemo, useState } from "react";
 
-/** Presentation-only consumer of the canonical design-netlist analysis. */
+/** Presentation-only composition of structural analysis and current ERC. */
 export function NetlistPreflightDialog({
   open,
   result,
+  electricalDiagnostics,
   onClose,
   onNavigate,
+  onNavigateElectrical,
   onExport,
 }: {
   open: boolean;
   result: DesignNetlistAnalysisResult;
+  electricalDiagnostics: readonly Diagnostic[];
   onClose(): void;
   onNavigate(diagnostic: NetlistDiagnostic): void;
+  onNavigateElectrical(diagnostic: Diagnostic): void;
   onExport(format: NetlistFormat): void;
 }) {
   const [format, setFormat] = useState<NetlistFormat>("spice");
@@ -78,7 +83,11 @@ export function NetlistPreflightDialog({
         <div className="insert-dialog-body">
           {result.ir ? (
             <section className="insert-control-column">
-              <h3>Ready to export</h3>
+              <h3>
+                {electricalDiagnostics.length > 0
+                  ? "Structure ready; review electrical findings"
+                  : "Ready to export"}
+              </h3>
               <p>
                 {result.ir.cells.length} internal Cell
                 {result.ir.cells.length === 1 ? "" : "s"};{" "}
@@ -138,6 +147,33 @@ export function NetlistPreflightDialog({
                         {group.message}
                         {group.count > 1 ? ` (×${group.count})` : ""}
                       </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+          {electricalDiagnostics.length > 0 ? (
+            <section
+              className="insert-control-column"
+              aria-label="Electrical findings"
+            >
+              <h3>Electrical readiness ({electricalDiagnostics.length})</h3>
+              <p>
+                These findings use the same current-revision connectivity
+                assessment as ERC and the Gallery gate. Saving remains a
+                separate action and is allowed for unfinished work.
+              </p>
+              <ul className="preflight-findings">
+                {electricalDiagnostics.map((diagnostic) => (
+                  <li key={diagnostic.id}>
+                    <button
+                      type="button"
+                      data-severity={diagnostic.severity}
+                      onClick={() => onNavigateElectrical(diagnostic)}
+                    >
+                      <strong>{diagnostic.code}</strong>
+                      <span>{diagnostic.message}</span>
                     </button>
                   </li>
                 ))}

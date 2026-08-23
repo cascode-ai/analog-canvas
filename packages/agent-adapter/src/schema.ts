@@ -348,6 +348,10 @@ const SnapshotPrimitiveSchema = z.union([
   z.boolean(),
 ]);
 
+const AgentSnapshotLogicalNetIdSchema = StableIdSchema.describe(
+  "Resolved Logical-Net representative valid only for this Snapshot Document revision; refresh after any committed edit",
+);
+
 export const AgentSnapshotPinSchema = z.strictObject({
   name: z.string().min(1),
   role: z.string().min(1).nullable(),
@@ -355,7 +359,7 @@ export const AgentSnapshotPinSchema = z.strictObject({
   visibility: z.enum(["visible", "implicit", "conditional", "unknown"]),
   localPosition: SymbolLocalPointSchema.nullable(),
   pagePosition: PointSchema.nullable(),
-  netId: StableIdSchema.nullable(),
+  netId: AgentSnapshotLogicalNetIdSchema.nullable(),
 });
 
 const AgentNetlistFactsSchema = z.strictObject({
@@ -424,7 +428,7 @@ export const AgentSnapshotInstanceSchema = z.strictObject({
 });
 
 export const AgentSnapshotNetSchema = z.strictObject({
-  id: StableIdSchema,
+  id: AgentSnapshotLogicalNetIdSchema,
   name: z.string().min(1).nullable(),
   scope: z.enum(["local", "global"]),
   powerDomain: NetPowerDomainSchema,
@@ -440,7 +444,7 @@ export const AgentSnapshotNetSchema = z.strictObject({
 
 export const AgentSnapshotRouteSchema = z.strictObject({
   id: StableIdSchema,
-  netId: StableIdSchema,
+  netId: AgentSnapshotLogicalNetIdSchema,
   from: RouteEndpointSchema,
   to: RouteEndpointSchema,
   waypoints: z.array(PointSchema),
@@ -451,7 +455,7 @@ export const AgentSnapshotRouteSchema = z.strictObject({
 
 export const AgentSnapshotJunctionSchema = z.strictObject({
   id: StableIdSchema,
-  netId: StableIdSchema,
+  netId: AgentSnapshotLogicalNetIdSchema,
   position: PointSchema,
   role: JunctionRoleSchema.optional(),
 });

@@ -106,6 +106,71 @@ describe("EditorDocumentController", () => {
     expect(codes()).not.toContain("ERC_UNCONNECTED_PIN");
   });
 
+  it("re-derives endpoint readiness when Wire Delete is undone and redone", () => {
+    const controller = new EditorDocumentController(hierarchicalProject());
+    controller.transact([
+      {
+        kind: "add_instance",
+        instance: {
+          id: "P1",
+          symbolId: "port",
+          placement: {
+            position: { x: 0, y: 0 },
+            rotation: 0,
+            mirror: "none",
+          },
+        },
+      },
+      {
+        kind: "add_instance",
+        instance: {
+          id: "P2",
+          symbolId: "port",
+          placement: {
+            position: { x: 100, y: 0 },
+            rotation: 0,
+            mirror: "none",
+          },
+        },
+      },
+      {
+        kind: "connect_endpoints",
+        from: { kind: "terminal", instanceId: "P1", pinName: "P" },
+        to: { kind: "terminal", instanceId: "P2", pinName: "P" },
+        newNetId: "net-ports",
+      },
+      {
+        kind: "set_route_points",
+        routeId: "wire-ports",
+        netId: "net-ports",
+        from: { kind: "terminal", instanceId: "P1", pinName: "P" },
+        to: { kind: "terminal", instanceId: "P2", pinName: "P" },
+        waypoints: [],
+        segmentModes: ["manual"],
+      },
+    ]);
+    const unconnectedCount = () =>
+      diagnoseProjectSnapshot(
+        controller.project,
+        controller.resolver,
+      ).diagnostics.filter(
+        (diagnostic) => diagnostic.code === "ERC_UNCONNECTED_PIN",
+      ).length;
+
+    expect(unconnectedCount()).toBe(0);
+    const cut = controller.transact([
+      { kind: "cut_connection", routeId: "wire-ports" },
+    ]);
+    expect(cut.ok).toBe(true);
+    expect(unconnectedCount()).toBe(2);
+
+    controller.transact([{ kind: "undo" }]);
+    expect(unconnectedCount()).toBe(0);
+
+    controller.transact([{ kind: "redo" }]);
+    expect(unconnectedCount()).toBe(2);
+  });
+
   it("rejects missing documents without changing the active history", () => {
     const controller = new EditorDocumentController(hierarchicalProject());
     const activeId = controller.activeDocumentId;
