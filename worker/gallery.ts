@@ -21,6 +21,27 @@ import type { CircuitProject } from "@icm/model";
 
 import { sessionUserOf, type AuthNamespaceLike } from "./auth";
 
+/**
+ * A circuit's id is its address, so it is short enough to read out loud and
+ * type. Ten characters of this alphabet carry ~50 bits — far more than the
+ * wall will ever hold — and the alphabet drops the characters that get
+ * misread when someone copies a link off a screen: no 0/o, 1/l/i, or u.
+ *
+ * Existing entries keep the UUIDs they were given. This shortens what new
+ * links look like; it never rewrites an address someone may have shared.
+ */
+const SHORT_ID_ALPHABET = "23456789abcdefghjkmnpqrstvwxyz";
+export const SHORT_ID_LENGTH = 10;
+
+export function shortId(length = SHORT_ID_LENGTH): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(length));
+  let id = "";
+  for (const byte of bytes) {
+    id += SHORT_ID_ALPHABET[byte % SHORT_ID_ALPHABET.length];
+  }
+  return id;
+}
+
 export const GALLERY_MAX_PROJECT_BYTES = 2 * 1024 * 1024;
 /** How many circuits an account's scratch shelf keeps. */
 export const WORKSPACE_SLOT_LIMIT = 3;
@@ -218,13 +239,14 @@ export class GalleryDO {
         user_id TEXT NOT NULL,
         name TEXT NOT NULL,
         saved_at TEXT NOT NULL,
+        seq INTEGER NOT NULL DEFAULT 0,
         schema_version INTEGER NOT NULL,
         project_text TEXT NOT NULL
       ) WITHOUT ROWID
     `);
     this.sql.exec(`
       CREATE INDEX IF NOT EXISTS idx_workspace_slots_user
-      ON workspace_slots(user_id, saved_at)
+      ON workspace_slots(user_id, seq)
     `);
     // Additive columns for pre-existing databases.
     for (const alteration of [
@@ -234,6 +256,7 @@ export class GalleryDO {
       "ALTER TABLE gallery_entries ADD COLUMN tags TEXT NOT NULL DEFAULT ''",
       "ALTER TABLE gallery_entries ADD COLUMN submitter_email TEXT",
       "ALTER TABLE gallery_entries ADD COLUMN submitter_provider TEXT",
+      "ALTER TABLE workspace_slots ADD COLUMN seq INTEGER NOT NULL DEFAULT 0",
     ]) {
       try {
         this.sql.exec(alteration);
@@ -302,6 +325,23 @@ export class GalleryDO {
     }
   }
 
+  /** A free id, redrawn on the vanishing chance the first one is taken. */
+  private freeEntryId(): string {
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      const candidate = shortId();
+      const taken = this.sql
+        .exec<{ id: string }>(
+          "SELECT id FROM gallery_entries WHERE id = ?",
+          candidate,
+        )
+        .toArray();
+      if (taken.length === 0) return candidate;
+    }
+    // Eight collisions in a row is not chance; fall back to something that
+    // cannot collide rather than looping or overwriting an entry.
+    return crypto.randomUUID();
+  }
+
   private submit(body: Record<string, unknown>): Response {
     const entry = body.entry as EntryRow;
     const day = String(body.day);
@@ -331,6 +371,7 @@ export class GalleryDO {
           submitterHash,
         );
       }
+      entry.id = this.freeEntryId();
       this.sql.exec(
         `INSERT INTO gallery_entries(
           id, name, author, description, created_at, schema_version,
@@ -436,7 +477,7 @@ export class GalleryDO {
         id, entry_id, version_no, name, author, description, tags,
         schema_version, project_text, svg_text, created_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      crypto.randomUUID(),
+      shortId(),
       row.id,
       lastVersion + 1,
       row.name,
@@ -616,10 +657,17 @@ export class GalleryDO {
   private workspaceSave(body: Record<string, unknown>): Response {
     const userId = String(body.userId);
     const id = String(body.id);
+    // Order the shelf by an insertion counter rather than by the clock: two
+    // saves in the same millisecond would otherwise fall back to comparing
+    // ids, which is to say to no order at all.
     this.sql.exec(
       `INSERT INTO workspace_slots
-         (id, user_id, name, saved_at, schema_version, project_text)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+         (id, user_id, name, saved_at, seq, schema_version, project_text)
+       VALUES (
+         ?, ?, ?, ?,
+         (SELECT COALESCE(MAX(seq), 0) + 1 FROM workspace_slots),
+         ?, ?
+       )`,
       id,
       userId,
       String(body.name),
@@ -632,7 +680,7 @@ export class GalleryDO {
        WHERE user_id = ?
          AND id NOT IN (
            SELECT id FROM workspace_slots WHERE user_id = ?
-           ORDER BY saved_at DESC, id DESC LIMIT ?
+           ORDER BY seq DESC LIMIT ?
          )`,
       userId,
       userId,
@@ -645,7 +693,7 @@ export class GalleryDO {
     return this.sql
       .exec<WorkspaceSlotRow>(
         `SELECT id, name, saved_at, schema_version FROM workspace_slots
-         WHERE user_id = ? ORDER BY saved_at DESC, id DESC LIMIT ?`,
+         WHERE user_id = ? ORDER BY seq DESC LIMIT ?`,
         userId,
         WORKSPACE_SLOT_LIMIT,
       )
@@ -914,7 +962,7 @@ async function handleWorkspace(
   }
   const { status, payload } = await callGallery(env, "workspace-save", {
     userId: user.id,
-    id: crypto.randomUUID(),
+    id: shortId(),
     name,
     savedAt: new Date().toISOString(),
     schemaVersion: project.schemaVersion,
@@ -989,7 +1037,9 @@ async function handleSubmission(
       submitterHash: await submitterHash(request),
       enforceLimit: !privileged,
       entry: {
-        id: crypto.randomUUID(),
+        // The id is drawn inside the Durable Object, which is the only place
+        // that can tell whether one is already taken.
+        id: "",
         name,
         author,
         description,
