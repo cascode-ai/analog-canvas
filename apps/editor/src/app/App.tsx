@@ -191,6 +191,7 @@ import {
   powerConnectionForSymbol,
   proposePlacementContact,
   proposedStandalonePowerConnection,
+  proposedSupplyPortRename,
 } from "../features/component-insert/placement-connectivity";
 import {
   componentParameters,
@@ -2522,10 +2523,16 @@ export function App({
         terminal.interfaceInstanceIds.includes(selectedInstance.id),
       )
     : undefined;
+  // A supply marker is nameable for the same reason a Net Port is: a design
+  // routinely carries VDDH and VDDL, or VDD1 and VDD2, at once, and until
+  // this field existed every marker was stuck on the one Net named VDD.
+  const selectedSupplyMarker =
+    selectedInstance?.symbolId === "vdd-port" ? selectedInstance : undefined;
   const selectedPortNet =
     selectedInstance &&
     (selectedInstance.symbolId === "port" ||
-      selectedInstance.symbolId === "port-filled")
+      selectedInstance.symbolId === "port-filled" ||
+      selectedInstance.symbolId === "vdd-port")
       ? document.nets.find((net) =>
           net.terminals.some(
             (terminal) => terminal.instanceId === selectedInstance.id,
@@ -2554,6 +2561,21 @@ export function App({
     if (!selectedPortNet || !selectedInstance || selectedFormalTerminal) return;
     name = name.trim();
     if (!name || name === selectedPortLogicalName) return;
+    if (selectedSupplyMarker) {
+      // Naming a supply detaches it onto a rail of its own rather than
+      // renaming the shared one under every other marker using it.
+      const plan = proposedSupplyPortRename(
+        document,
+        selectedSupplyMarker,
+        name,
+      );
+      if (plan.rejected) {
+        setStatus(plan.rejected);
+        return;
+      }
+      if (transact(plan.edits).ok) setStatus(`Supply named ${name}`);
+      return;
+    }
     const plan = planEnsureNamedNet(document, {
       candidateNetId: selectedPortNet.id,
       name,
@@ -9018,11 +9040,17 @@ export function App({
                     <dl className="component-readonly-fields">
                       {selectedPortNet && !selectedFormalTerminal ? (
                         <div>
-                          <dt>Net name</dt>
+                          <dt>
+                            {selectedSupplyMarker ? "Supply" : "Net name"}
+                          </dt>
                           <dd>
                             <input
                               key={`${selectedPortNet.id}-${document.revision}-net-port-name`}
-                              aria-label="Net Port name"
+                              aria-label={
+                                selectedSupplyMarker
+                                  ? "Supply name"
+                                  : "Net Port name"
+                              }
                               defaultValue={selectedPortLogicalName ?? ""}
                               onBlur={(event) =>
                                 renameSelectedNetPort(event.currentTarget.value)
