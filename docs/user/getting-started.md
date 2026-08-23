@@ -78,7 +78,7 @@ The **File** menu exports SVG, PNG, and PDF containing only formal schematic
 layers. PNG uses 3x raster scale. PDF contains that same high-resolution raster
 on a page matching the SVG viewBox.
 
-For an electrical design netlist, choose **Netlist / Run Preflight** first.
+For an electrical design netlist, choose **Netlist / Check Report** first, or press **Check and Save** in the toolbar to check the circuit and keep a copy on your account's shelf.
 The dialog reports every blocking electrical fact and, when valid, previews
 the deterministic structural SPICE or Spectre text. Use either the dialog's
 download button or **File / SPICE netlist** and **File / Spectre netlist** to

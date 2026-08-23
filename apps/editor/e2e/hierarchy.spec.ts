@@ -343,8 +343,8 @@ test("declares a top Formal Cell Pin and exports the top interface", async ({
   }
   await expect(page.getByLabel("Cell Port properties")).toBeVisible();
 
-  await clickCommand(page, "Netlist", "Run Preflight…");
-  const preflight = page.getByRole("dialog", { name: "Netlist Preflight" });
+  await clickCommand(page, "Netlist", "Check Report…");
+  const preflight = page.getByRole("dialog", { name: "Check Report" });
   await expect(preflight.getByTestId("netlist-preview")).toContainText(
     ".subckt Main VIN",
   );
@@ -402,10 +402,10 @@ test("copies and independently deletes repeated Formal Cell Pin markers", async 
       .getByLabel("Cell Port properties")
       .getByLabel("Cell Port terminal name"),
   ).toHaveValue("VIN");
-  await clickCommand(page, "Netlist", "Run Preflight…");
+  await clickCommand(page, "Netlist", "Check Report…");
   await expect(
     page
-      .getByRole("dialog", { name: "Netlist Preflight" })
+      .getByRole("dialog", { name: "Check Report" })
       .getByTestId("netlist-preview"),
   ).toContainText(".subckt Main VIN");
 });
@@ -443,8 +443,8 @@ test("places a free Net Port whose rich label edits the Net name", async ({
   await page.getByTestId("hit-P1").click();
   await expect(netName).toHaveValue("VINP");
 
-  await clickCommand(page, "Netlist", "Run Preflight…");
-  const preflight = page.getByRole("dialog", { name: "Netlist Preflight" });
+  await clickCommand(page, "Netlist", "Check Report…");
+  const preflight = page.getByRole("dialog", { name: "Check Report" });
   await expect(preflight).not.toContainText("MISSING_DEVICE_DEFINITION");
   await expect(preflight.getByTestId("netlist-preview")).toContainText(
     ".subckt Main",

@@ -310,6 +310,13 @@ import { useInteractionState } from "../interaction/interaction-state";
 import type { EditorTool } from "../interaction/interaction-state";
 import { resolveTextEditingTarget } from "../features/text-editing/text-editing";
 import { planMosBulkDefaultUpdate } from "../features/component-insert/mos-bulk-defaults";
+import { planCheckBulkDefaults } from "../features/netlist-export/check-and-save";
+import {
+  listWorkspaceShelf,
+  openWorkspaceSlot,
+  saveToWorkspaceShelf,
+  type WorkspaceSlot,
+} from "../features/editor-shell/workspace-shelf";
 import {
   defaultRazaviSymbolVariantId,
   materializeRazaviProjectBulkConnections,
@@ -731,6 +738,22 @@ export function App({
   const [publishGates, setPublishGates] = useState<SubmissionGateReport | null>(
     null,
   );
+  // Check and Save needs to know who is signed in before anyone opens the
+  // publish dialog, and the shelf it writes to is worth listing on arrival.
+  useEffect(() => {
+    let cancelled = false;
+    void fetchSessionUser().then(async (user) => {
+      if (cancelled) return;
+      setPublishSession(user);
+      if (!user) return;
+      const slots = await listWorkspaceShelf();
+      if (!cancelled) setWorkspaceSlots(slots);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   useEffect(() => {
     if (!publishGalleryOpen) return;
     let cancelled = false;
@@ -867,6 +890,10 @@ export function App({
   const [publishDraft, setPublishDraft] = useState<PublishGalleryDraft | null>(
     null,
   );
+  /** The signed-in account's last few checked circuits, newest first. */
+  const [workspaceSlots, setWorkspaceSlots] = useState<
+    readonly WorkspaceSlot[]
+  >([]);
   /**
    * The corner shape is a standing authoring preference, not per-wire state:
    * picking the wire tool again reset it, so a chosen diagonal had to be
@@ -5217,6 +5244,25 @@ export function App({
     });
   }
 
+  /** Open a shelved circuit through the same staging path a file uses. */
+  async function openShelvedCircuit(slot: WorkspaceSlot): Promise<void> {
+    const fetched = await openWorkspaceSlot(slot.id);
+    if (fetched.status !== "opened") {
+      setStatus(
+        fetched.status === "signed-out"
+          ? "Sign in again to open your shelf"
+          : fetched.status === "not-found"
+            ? "That shelved circuit is no longer there"
+            : `Could not reach your shelf (${fetched.message})`,
+      );
+      return;
+    }
+    await openProjectFile({
+      name: `${fetched.name}.icproj.json`,
+      text: () => Promise.resolve(fetched.projectText),
+    } as unknown as File);
+  }
+
   function loadVisualDemo(): void {
     const next = createVisualDemoProject();
     replaceActiveProject(next, { x: 20, y: -10, width: 430, height: 350 });
@@ -6246,18 +6292,69 @@ export function App({
     void reportExport(`Exported revision ${document.revision}`);
   }
 
+  /**
+   * Check the circuit and shelve it. One button for the question people
+   * actually ask — "is this finished, and is it somewhere safe?" — instead of
+   * a menu entry named after a stage of a netlist pipeline.
+   *
+   * A failed check never withholds the save. Unfinished work is exactly the
+   * work worth keeping, and refusing to shelve it would make the button
+   * useless at the moment it matters most; the findings are reported and the
+   * copy is kept.
+   */
+  async function checkAndSave(): Promise<void> {
+    const bulkPlan = planCheckBulkDefaults(document);
+    if (bulkPlan.edits.length > 0) transact([...bulkPlan.edits]);
+    const ambiguousSides = [
+      bulkPlan.ambiguous.nmos ? "NMOS" : null,
+      bulkPlan.ambiguous.pmos ? "PMOS" : null,
+    ].filter((side): side is string => side !== null);
+
+    // Read the analysis from a fresh run: the Project has just been edited.
+    const checked = analyzeDesignNetlist(editorDocumentController.project);
+    const findings = !checked.ir
+      ? "problems to resolve"
+      : checked.diagnostics.length > 0
+        ? `${checked.diagnostics.length} warning(s)`
+        : ambiguousSides.length > 0
+          ? `${ambiguousSides.join(" and ")} bodies still need a supply chosen`
+          : null;
+    if (!checked.ir) setNetlistPreflightOpen(true);
+
+    const checkedNote = findings ? `Checked, ${findings}` : "Checked";
+    if (!publishSession) {
+      setStatus(`${checkedNote}; sign in to keep a copy on your shelf`);
+      return;
+    }
+    const outcome = await saveToWorkspaceShelf(
+      editorDocumentController.project,
+    );
+    if (outcome.status === "saved") {
+      setWorkspaceSlots(outcome.slots);
+      setStatus(`${checkedNote} — saved to your shelf`);
+      return;
+    }
+    setStatus(
+      outcome.status === "signed-out"
+        ? `${checkedNote}; sign in again to keep a copy on your shelf`
+        : outcome.status === "too-large"
+          ? `${checkedNote}; the circuit is too large for the shelf`
+          : `${checkedNote}; the shelf could not be reached (${outcome.message})`,
+    );
+  }
+
   function exportDesignNetlist(
     format: NetlistFormat,
     warningsReviewed = false,
   ): void {
     if (!netlistAnalysis.ir) {
       setNetlistPreflightOpen(true);
-      setStatus("Resolve Netlist Preflight findings before export");
+      setStatus("Resolve the Check Report findings before export");
       return;
     }
     if (netlistAnalysis.diagnostics.length > 0 && !warningsReviewed) {
       setNetlistPreflightOpen(true);
-      setStatus("Review Netlist Preflight warnings before export");
+      setStatus("Review the Check Report warnings before export");
       return;
     }
     const artifact = printDesignNetlist(format, netlistAnalysis.ir);
@@ -7422,6 +7519,22 @@ export function App({
                   >
                     Save Project As…
                   </button>
+                  {workspaceSlots.length > 0 ? (
+                    <>
+                      <span className="command-group-label">Your shelf</span>
+                      {workspaceSlots.map((slot) => (
+                        <button
+                          key={slot.id}
+                          type="button"
+                          data-testid={`shelf-slot-${slot.id}`}
+                          title={`Saved ${slot.savedAt}`}
+                          onClick={() => void openShelvedCircuit(slot)}
+                        >
+                          {slot.name}
+                        </button>
+                      ))}
+                    </>
+                  ) : null}
                   <button type="button" onClick={refreshApp}>
                     Refresh app
                   </button>
@@ -7584,14 +7697,14 @@ export function App({
                   >
                     Instance Table…
                   </button>
-                  <span className="command-group-label">Validation</span>
+                  <span className="command-group-label">Check</span>
                   <button
                     type="button"
                     aria-haspopup="dialog"
                     aria-expanded={netlistPreflightOpen}
                     onClick={() => setNetlistPreflightOpen(true)}
                   >
-                    Run Preflight…
+                    Check Report…
                   </button>
                 </div>
               </details>
@@ -7617,6 +7730,16 @@ export function App({
                   </div>
                 </details>
               ) : null}
+              <button
+                type="button"
+                className="toolbar-check-save"
+                data-testid="check-and-save-button"
+                title="Check the circuit and save it to your shelf"
+                onClick={() => void checkAndSave()}
+              >
+                <span className="toolbar-check-glyph" aria-hidden="true" />
+                Check and Save
+              </button>
               <button
                 type="button"
                 data-testid="publish-gallery-button"

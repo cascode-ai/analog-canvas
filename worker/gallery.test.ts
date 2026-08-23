@@ -9,6 +9,8 @@ import {
   GALLERY_MAX_PROJECT_BYTES,
   GalleryDO,
   routeGalleryRequest,
+  SHORT_ID_LENGTH,
+  shortId,
   type GalleryEnv,
 } from "./gallery";
 import { AuthDO, type AuthEnv } from "./auth";
@@ -48,14 +50,19 @@ function sqliteState() {
   };
 }
 
-type Harness = GalleryEnv & { authDurable: AuthDO };
+type Harness = GalleryEnv & {
+  authDurable: AuthDO;
+  /** The gallery's own storage, for seeding rows a route cannot create. */
+  gallerySql: ReturnType<typeof sqliteState>["storage"]["sql"];
+};
 
 /**
  * One harness for every test: a gallery DO plus the auth DO that is now the
  * only way to publish anything.
  */
 function environment(): Harness {
-  const durable = new GalleryDO(sqliteState());
+  const galleryState = sqliteState();
+  const durable = new GalleryDO(galleryState);
   const authDurable = new AuthDO(sqliteState(), {
     RESEND_API_KEY: "rk",
     ADMIN_EMAILS: "owner@example.com",
@@ -76,6 +83,7 @@ function environment(): Harness {
       }),
     },
     authDurable,
+    gallerySql: galleryState.storage.sql,
   };
 }
 
@@ -155,6 +163,182 @@ async function submitOne(
   const payload = (await response.json()) as { id: string };
   return payload.id;
 }
+
+describe("circuit addresses", () => {
+  it("gives a new circuit a short, readable id", async () => {
+    const env = environment();
+    const cookie = await adminOf(env);
+    const id = await submitOne(env, "Short", { cookie });
+    expect(id).toHaveLength(SHORT_ID_LENGTH);
+    // No characters that get misread off a screen: 0/o, 1/l/i, u.
+    expect(id).toMatch(/^[23456789abcdefghjkmnpqrstvwxyz]+$/u);
+
+    // And it is the address: the entry is readable at exactly that id.
+    const entry = await route(env, new Request(`${ORIGIN}/api/gallery/${id}`));
+    expect(entry.status).toBe(200);
+  });
+
+  it("keeps drawing distinct ids", () => {
+    const drawn = new Set(Array.from({ length: 500 }, () => shortId()));
+    expect(drawn.size).toBe(500);
+  });
+
+  it("still serves an entry that was given a long id", async () => {
+    // Shortening changes what new links look like; it must never strand an
+    // address someone already shared.
+    const env = environment();
+    const legacy = "0f9d2c4e-1a3b-4c5d-8e7f-102030405060";
+    env.gallerySql.exec(
+      `INSERT INTO gallery_entries(
+         id, name, author, description, created_at, schema_version,
+         status, recycled_at, owner_user_id, submitter_email,
+         submitter_provider, tags, project_text, svg_text
+       ) VALUES (?, ?, ?, ?, ?, ?, 'public', NULL, NULL, NULL, NULL, '', ?, '')`,
+      legacy,
+      "Old Link",
+      "Someone",
+      "",
+      new Date().toISOString(),
+      CURRENT_PROJECT_SCHEMA_VERSION,
+      projectText("Old Link"),
+    );
+    const served = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/${legacy}`),
+    );
+    expect(served.status).toBe(200);
+    expect((await served.json()).entry.name).toBe("Old Link");
+  });
+});
+
+describe("account workspace shelf", () => {
+  function saveRequest(cookie: string, name: string): Request {
+    return new Request(`${ORIGIN}/api/workspace/recent`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        Origin: ORIGIN,
+        Cookie: cookie,
+      },
+      body: JSON.stringify({ name, projectText: projectText(name) }),
+    });
+  }
+
+  it("keeps only the newest three circuits per account", async () => {
+    const env = environment();
+    const cookie = await makerOf(env);
+    for (const name of ["One", "Two", "Three", "Four"]) {
+      const saved = await route(env, saveRequest(cookie, name));
+      expect(saved.status).toBe(200);
+    }
+    const listed = await route(
+      env,
+      new Request(`${ORIGIN}/api/workspace/recent`, {
+        headers: cookieHeaders(cookie),
+      }),
+    );
+    const { slots } = (await listed.json()) as {
+      slots: { name: string; id: string }[];
+    };
+    expect(slots.map((slot) => slot.name)).toEqual(["Four", "Three", "Two"]);
+  });
+
+  it("is private to the account that saved it", async () => {
+    const env = environment();
+    const mine = await makerOf(env);
+    const saved = await route(env, saveRequest(mine, "Private"));
+    const { slots } = (await saved.json()) as { slots: { id: string }[] };
+    const slotId = slots[0]!.id;
+
+    const stranger = await adminOf(env);
+    const strangerRead = await route(
+      env,
+      new Request(`${ORIGIN}/api/workspace/recent/${slotId}`, {
+        headers: cookieHeaders(stranger),
+      }),
+    );
+    // An id is not a capability: even an admin reads only their own shelf.
+    expect(strangerRead.status).toBe(404);
+    const strangerList = await route(
+      env,
+      new Request(`${ORIGIN}/api/workspace/recent`, {
+        headers: cookieHeaders(stranger),
+      }),
+    );
+    expect((await strangerList.json()).slots).toEqual([]);
+
+    const own = await route(
+      env,
+      new Request(`${ORIGIN}/api/workspace/recent/${slotId}`, {
+        headers: cookieHeaders(mine),
+      }),
+    );
+    expect(own.status).toBe(200);
+    expect((await own.json()).projectText).toContain("Private");
+  });
+
+  it("refuses a signed-out visitor and an oversized or unparseable project", async () => {
+    const env = environment();
+    const anonymous = await route(
+      env,
+      new Request(`${ORIGIN}/api/workspace/recent`),
+    );
+    expect(anonymous.status).toBe(401);
+
+    const cookie = await makerOf(env);
+    const oversized = await route(
+      env,
+      new Request(`${ORIGIN}/api/workspace/recent`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          Origin: ORIGIN,
+          Cookie: cookie,
+        },
+        body: JSON.stringify({
+          name: "Huge",
+          projectText: "x".repeat(GALLERY_MAX_PROJECT_BYTES + 1),
+        }),
+      }),
+    );
+    expect(oversized.status).toBe(413);
+
+    const unparseable = await route(
+      env,
+      new Request(`${ORIGIN}/api/workspace/recent`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          Origin: ORIGIN,
+          Cookie: cookie,
+        },
+        body: JSON.stringify({ name: "Broken", projectText: "{" }),
+      }),
+    );
+    expect(unparseable.status).toBe(400);
+  });
+
+  it("saves whatever was checked, gates and all", async () => {
+    // The shelf is not the Gallery: nobody else sees it, so an unfinished
+    // circuit that would fail a submission gate still has to be keepable.
+    const env = environment();
+    const cookie = await makerOf(env);
+    const empty = serializeProject(createEmptyProject("blank", "Blank"));
+    const saved = await route(
+      env,
+      new Request(`${ORIGIN}/api/workspace/recent`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          Origin: ORIGIN,
+          Cookie: cookie,
+        },
+        body: JSON.stringify({ name: "Blank", projectText: empty }),
+      }),
+    );
+    expect(saved.status).toBe(200);
+  });
+});
 
 describe("gallery submissions", () => {
   it("publishes immediately with canonical text and a server preview", async () => {
