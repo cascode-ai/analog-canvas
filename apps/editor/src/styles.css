@@ -456,6 +456,36 @@ body {
   white-space: nowrap;
 }
 
+/* Check and Save reads as the one forward action in the bar, so it carries a
+   green run glyph rather than another word among words. */
+.toolbar-check-save {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--icm-space-1);
+  min-height: var(--icm-control-h);
+  padding: 0 var(--icm-space-2);
+  border: 1px solid transparent;
+  border-radius: var(--icm-radius-sm);
+  background: transparent;
+  color: var(--icm-text);
+  font-size: var(--icm-font-md);
+  font-weight: 500;
+  line-height: var(--icm-line-tight);
+  white-space: nowrap;
+}
+
+.toolbar-check-save:hover:not(:disabled) {
+  background: var(--icm-surface-hover);
+}
+
+.toolbar-check-glyph {
+  width: 0;
+  height: 0;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 8px solid #1a8f4c;
+}
+
 .document-nav {
   display: flex;
   flex: 1 1 auto;

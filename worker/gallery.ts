@@ -22,6 +22,22 @@ import type { CircuitProject } from "@icm/model";
 import { sessionUserOf, type AuthNamespaceLike } from "./auth";
 
 export const GALLERY_MAX_PROJECT_BYTES = 2 * 1024 * 1024;
+/** How many circuits an account's scratch shelf keeps. */
+export const WORKSPACE_SLOT_LIMIT = 3;
+
+export interface WorkspaceSlotSummary {
+  id: string;
+  name: string;
+  savedAt: string;
+  schemaVersion: number;
+}
+
+interface WorkspaceSlotRow {
+  id: string;
+  name: string;
+  saved_at: string;
+  schema_version: number;
+}
 export const GALLERY_MAX_NAME_LENGTH = 120;
 export const GALLERY_MAX_AUTHOR_LENGTH = 40;
 export const GALLERY_MAX_DESCRIPTION_LENGTH = 300;
@@ -193,6 +209,23 @@ export class GalleryDO {
       CREATE INDEX IF NOT EXISTS idx_gallery_entry_versions_entry
       ON gallery_entry_versions(entry_id, version_no)
     `);
+    // A signed-in account's own scratch shelf: the last few circuits it
+    // checked, kept so work survives a closed tab or a different machine.
+    // Not the Gallery — nothing here is published or visible to anyone else.
+    this.sql.exec(`
+      CREATE TABLE IF NOT EXISTS workspace_slots (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        saved_at TEXT NOT NULL,
+        schema_version INTEGER NOT NULL,
+        project_text TEXT NOT NULL
+      ) WITHOUT ROWID
+    `);
+    this.sql.exec(`
+      CREATE INDEX IF NOT EXISTS idx_workspace_slots_user
+      ON workspace_slots(user_id, saved_at)
+    `);
     // Additive columns for pre-existing databases.
     for (const alteration of [
       "ALTER TABLE gallery_entries ADD COLUMN reject_reason TEXT",
@@ -258,6 +291,12 @@ export class GalleryDO {
         return this.version(String(body.entryId), String(body.versionId));
       case "restore-version":
         return this.restoreVersion(body);
+      case "workspace-save":
+        return this.workspaceSave(body);
+      case "workspace-list":
+        return this.workspaceList(String(body.userId));
+      case "workspace-open":
+        return this.workspaceOpen(String(body.userId), String(body.id));
       default:
         return Response.json({ error: "Unknown operation" }, { status: 404 });
     }
@@ -568,6 +607,80 @@ export class GalleryDO {
     });
   }
 
+  /**
+   * Keep the newest few slots per account and drop the rest. A shelf that
+   * grew without bound would be storage, and this is deliberately not that:
+   * the Project file stays canonical and the Gallery stays the place work is
+   * published.
+   */
+  private workspaceSave(body: Record<string, unknown>): Response {
+    const userId = String(body.userId);
+    const id = String(body.id);
+    this.sql.exec(
+      `INSERT INTO workspace_slots
+         (id, user_id, name, saved_at, schema_version, project_text)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      id,
+      userId,
+      String(body.name),
+      String(body.savedAt),
+      Number(body.schemaVersion),
+      String(body.projectText),
+    );
+    this.sql.exec(
+      `DELETE FROM workspace_slots
+       WHERE user_id = ?
+         AND id NOT IN (
+           SELECT id FROM workspace_slots WHERE user_id = ?
+           ORDER BY saved_at DESC, id DESC LIMIT ?
+         )`,
+      userId,
+      userId,
+      WORKSPACE_SLOT_LIMIT,
+    );
+    return Response.json({ id, slots: this.workspaceRows(userId) });
+  }
+
+  private workspaceRows(userId: string): WorkspaceSlotSummary[] {
+    return this.sql
+      .exec<WorkspaceSlotRow>(
+        `SELECT id, name, saved_at, schema_version FROM workspace_slots
+         WHERE user_id = ? ORDER BY saved_at DESC, id DESC LIMIT ?`,
+        userId,
+        WORKSPACE_SLOT_LIMIT,
+      )
+      .toArray()
+      .map((row) => ({
+        id: row.id,
+        name: row.name,
+        savedAt: row.saved_at,
+        schemaVersion: row.schema_version,
+      }));
+  }
+
+  private workspaceList(userId: string): Response {
+    return Response.json({ slots: this.workspaceRows(userId) });
+  }
+
+  private workspaceOpen(userId: string, id: string): Response {
+    // Scoped by account as well as id: a slot id is never a capability.
+    const row = this.sql
+      .exec<WorkspaceSlotRow & { project_text: string }>(
+        "SELECT * FROM workspace_slots WHERE id = ? AND user_id = ?",
+        id,
+        userId,
+      )
+      .toArray()[0];
+    if (!row) return Response.json({ error: "not-found" }, { status: 404 });
+    return Response.json({
+      id: row.id,
+      name: row.name,
+      savedAt: row.saved_at,
+      schemaVersion: row.schema_version,
+      projectText: row.project_text,
+    });
+  }
+
   private setStatus(id: string, status: string, at: string): Response {
     const row = this.sql
       .exec<EntryRow>("SELECT * FROM gallery_entries WHERE id = ?", id)
@@ -748,6 +861,66 @@ function renderPreview(project: CircuitProject): string {
     (document) => document.id === project.topDocumentId,
   )!;
   return renderDocumentSvg(topDocument, resolver);
+}
+
+/**
+ * An account's own scratch shelf. Unlike a submission this is never seen by
+ * anyone else, is not gated on quality, and holds only the newest few — it
+ * exists so a check does not leave work living solely in one browser tab.
+ */
+async function handleWorkspace(
+  request: Request,
+  env: GalleryEnv,
+  slotId: string | null,
+): Promise<Response> {
+  if (request.method !== "GET" && !sameOrigin(request)) {
+    return Response.json({ error: "forbidden" }, { status: 403 });
+  }
+  const user = await sessionUserOf(request, env);
+  if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
+
+  if (request.method === "GET") {
+    const { status, payload } = slotId
+      ? await callGallery(env, "workspace-open", {
+          userId: user.id,
+          id: slotId,
+        })
+      : await callGallery(env, "workspace-list", { userId: user.id });
+    return Response.json(payload, {
+      status,
+      headers: { "cache-control": "no-store" },
+    });
+  }
+
+  const body = (await request.json().catch(() => null)) as {
+    name?: unknown;
+    projectText?: unknown;
+  } | null;
+  const name = fieldText(body?.name, GALLERY_MAX_NAME_LENGTH);
+  if (!body || !name || typeof body.projectText !== "string") {
+    return Response.json({ error: "invalid-fields" }, { status: 400 });
+  }
+  if (
+    new TextEncoder().encode(body.projectText).length >
+    GALLERY_MAX_PROJECT_BYTES
+  ) {
+    return Response.json({ error: "too-large" }, { status: 413 });
+  }
+  let project: CircuitProject;
+  try {
+    project = parseProject(body.projectText);
+  } catch {
+    return Response.json({ error: "invalid-project" }, { status: 400 });
+  }
+  const { status, payload } = await callGallery(env, "workspace-save", {
+    userId: user.id,
+    id: crypto.randomUUID(),
+    name,
+    savedAt: new Date().toISOString(),
+    schemaVersion: project.schemaVersion,
+    projectText: body.projectText,
+  });
+  return Response.json(payload, { status });
 }
 
 async function handleSubmission(
@@ -970,6 +1143,19 @@ export async function routeGalleryRequest(
   env: GalleryEnv,
 ): Promise<Response | null> {
   const url = new URL(request.url);
+  if (url.pathname === "/api/workspace/recent") {
+    if (request.method === "GET" || request.method === "POST") {
+      return handleWorkspace(request, env, null);
+    }
+    return Response.json({ error: "Not found" }, { status: 404 });
+  }
+  if (url.pathname.startsWith("/api/workspace/recent/")) {
+    const slotId = url.pathname.slice("/api/workspace/recent/".length);
+    if (request.method === "GET" && slotId.length > 0) {
+      return handleWorkspace(request, env, slotId);
+    }
+    return Response.json({ error: "Not found" }, { status: 404 });
+  }
   if (!url.pathname.startsWith("/api/gallery")) return null;
   const segments = url.pathname.split("/").filter(Boolean).slice(2);
 

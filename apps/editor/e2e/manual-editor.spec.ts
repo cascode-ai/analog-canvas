@@ -33,8 +33,8 @@ test("opens netlist preflight and navigates its canonical finding", async ({
 }) => {
   await page.goto("/editor");
   await placeComponent(page, "resistor", { x: 360, y: 240 });
-  await clickCommand(page, "Netlist", "Run Preflight…");
-  const dialog = page.getByRole("dialog", { name: "Netlist Preflight" });
+  await clickCommand(page, "Netlist", "Check Report…");
+  const dialog = page.getByRole("dialog", { name: "Check Report" });
   await expect(dialog).toContainText("blocking issue");
   await dialog
     .getByRole("button", { name: /MISSING_PIN_NET/u })
@@ -49,8 +49,8 @@ test("previews a validated structural netlist in both export dialects", async ({
   page,
 }) => {
   await page.goto("/editor");
-  await clickCommand(page, "Netlist", "Run Preflight…");
-  const dialog = page.getByRole("dialog", { name: "Netlist Preflight" });
+  await clickCommand(page, "Netlist", "Check Report…");
+  const dialog = page.getByRole("dialog", { name: "Check Report" });
   const preview = dialog.getByTestId("netlist-preview");
   await expect(preview).toContainText(".subckt Main");
   await dialog.getByLabel("Netlist export format").selectOption("spectre");
@@ -2895,7 +2895,7 @@ test("requires warning review before exporting generated NoConnect nodes", async
     buffer: Buffer.from(JSON.stringify(project)),
   });
   await clickCommand(page, "File", "Export SPICE netlist");
-  const dialog = page.getByRole("dialog", { name: "Netlist Preflight" });
+  const dialog = page.getByRole("dialog", { name: "Check Report" });
   await expect(dialog).toContainText("GENERATED_NO_CONNECT_NODE");
   await expect(dialog.getByTestId("netlist-preview")).toContainText(
     "R1 IN NC0001 10k",

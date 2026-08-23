@@ -45,7 +45,7 @@ export function NetlistPreflightDialog({
         <header className="insert-dialog-header">
           <div>
             <p>Canonical design-netlist analysis</p>
-            <h2 id="netlist-preflight-title">Netlist Preflight</h2>
+            <h2 id="netlist-preflight-title">Check Report</h2>
           </div>
         </header>
         <div className="insert-dialog-body">
@@ -118,7 +118,11 @@ export function NetlistPreflightDialog({
           ) : null}
         </div>
         <footer className="insert-dialog-actions">
-          <button type="button" onClick={onClose}>
+          <button
+            type="button"
+            data-testid="check-report-close"
+            onClick={onClose}
+          >
             Close
           </button>
         </footer>

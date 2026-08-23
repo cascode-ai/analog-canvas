@@ -105,7 +105,11 @@ describe("editor shell", () => {
     expect(markup).toContain("Manage Cells…");
     expect(markup).toContain("Instance Table…");
     expect(markup).toContain("<summary>Netlist</summary>");
-    expect(markup).toContain("Run Preflight…");
+    expect(markup).toContain("Check Report…");
+    // "Preflight" named a stage of a netlist pipeline, not the question the
+    // person is asking; the toolbar carries the plain action.
+    expect(markup).not.toContain("Preflight…");
+    expect(markup).toContain('data-testid="check-and-save-button"');
     expect(markup).not.toContain("Edit Cell Interface…");
   });
 

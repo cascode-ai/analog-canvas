@@ -156,6 +156,135 @@ async function submitOne(
   return payload.id;
 }
 
+describe("account workspace shelf", () => {
+  function saveRequest(cookie: string, name: string): Request {
+    return new Request(`${ORIGIN}/api/workspace/recent`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        Origin: ORIGIN,
+        Cookie: cookie,
+      },
+      body: JSON.stringify({ name, projectText: projectText(name) }),
+    });
+  }
+
+  it("keeps only the newest three circuits per account", async () => {
+    const env = environment();
+    const cookie = await makerOf(env);
+    for (const name of ["One", "Two", "Three", "Four"]) {
+      const saved = await route(env, saveRequest(cookie, name));
+      expect(saved.status).toBe(200);
+    }
+    const listed = await route(
+      env,
+      new Request(`${ORIGIN}/api/workspace/recent`, {
+        headers: cookieHeaders(cookie),
+      }),
+    );
+    const { slots } = (await listed.json()) as {
+      slots: { name: string; id: string }[];
+    };
+    expect(slots.map((slot) => slot.name)).toEqual(["Four", "Three", "Two"]);
+  });
+
+  it("is private to the account that saved it", async () => {
+    const env = environment();
+    const mine = await makerOf(env);
+    const saved = await route(env, saveRequest(mine, "Private"));
+    const { slots } = (await saved.json()) as { slots: { id: string }[] };
+    const slotId = slots[0]!.id;
+
+    const stranger = await adminOf(env);
+    const strangerRead = await route(
+      env,
+      new Request(`${ORIGIN}/api/workspace/recent/${slotId}`, {
+        headers: cookieHeaders(stranger),
+      }),
+    );
+    // An id is not a capability: even an admin reads only their own shelf.
+    expect(strangerRead.status).toBe(404);
+    const strangerList = await route(
+      env,
+      new Request(`${ORIGIN}/api/workspace/recent`, {
+        headers: cookieHeaders(stranger),
+      }),
+    );
+    expect((await strangerList.json()).slots).toEqual([]);
+
+    const own = await route(
+      env,
+      new Request(`${ORIGIN}/api/workspace/recent/${slotId}`, {
+        headers: cookieHeaders(mine),
+      }),
+    );
+    expect(own.status).toBe(200);
+    expect((await own.json()).projectText).toContain("Private");
+  });
+
+  it("refuses a signed-out visitor and an oversized or unparseable project", async () => {
+    const env = environment();
+    const anonymous = await route(
+      env,
+      new Request(`${ORIGIN}/api/workspace/recent`),
+    );
+    expect(anonymous.status).toBe(401);
+
+    const cookie = await makerOf(env);
+    const oversized = await route(
+      env,
+      new Request(`${ORIGIN}/api/workspace/recent`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          Origin: ORIGIN,
+          Cookie: cookie,
+        },
+        body: JSON.stringify({
+          name: "Huge",
+          projectText: "x".repeat(GALLERY_MAX_PROJECT_BYTES + 1),
+        }),
+      }),
+    );
+    expect(oversized.status).toBe(413);
+
+    const unparseable = await route(
+      env,
+      new Request(`${ORIGIN}/api/workspace/recent`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          Origin: ORIGIN,
+          Cookie: cookie,
+        },
+        body: JSON.stringify({ name: "Broken", projectText: "{" }),
+      }),
+    );
+    expect(unparseable.status).toBe(400);
+  });
+
+  it("saves whatever was checked, gates and all", async () => {
+    // The shelf is not the Gallery: nobody else sees it, so an unfinished
+    // circuit that would fail a submission gate still has to be keepable.
+    const env = environment();
+    const cookie = await makerOf(env);
+    const empty = serializeProject(createEmptyProject("blank", "Blank"));
+    const saved = await route(
+      env,
+      new Request(`${ORIGIN}/api/workspace/recent`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          Origin: ORIGIN,
+          Cookie: cookie,
+        },
+        body: JSON.stringify({ name: "Blank", projectText: empty }),
+      }),
+    );
+    expect(saved.status).toBe(200);
+  });
+});
+
 describe("gallery submissions", () => {
   it("publishes immediately with canonical text and a server preview", async () => {
     const env = environment();
