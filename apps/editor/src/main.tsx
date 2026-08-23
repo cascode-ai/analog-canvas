@@ -25,9 +25,9 @@ const GalleryFeed = lazy(() =>
   })),
 );
 
-const ReviewQueue = lazy(() =>
-  import("./components/review-queue").then((module) => ({
-    default: module.ReviewQueue,
+const Moderation = lazy(() =>
+  import("./components/moderation").then((module) => ({
+    default: module.Moderation,
   })),
 );
 
@@ -107,12 +107,12 @@ function Root() {
       </Suspense>
     );
   }
-  if (/^\/review\/?$/.test(path)) {
+  if (/^\/moderation\/?$/.test(path)) {
     return (
       <Suspense
-        fallback={<div className="analytics-loading">Loading review…</div>}
+        fallback={<div className="analytics-loading">Loading moderation…</div>}
       >
-        <ReviewQueue />
+        <Moderation />
       </Suspense>
     );
   }

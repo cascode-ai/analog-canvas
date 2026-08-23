@@ -60,9 +60,11 @@ export async function setMyEntryRecycled(
   }
 }
 
+// Publishing is direct, so nothing new is ever "pending". `rejected` is
+// kept for the handful of entries a reviewer turned down before the queue
+// was retired; their owners still need to see why.
 const STATUS_LABELS: Record<string, string> = {
   public: "Published",
-  pending: "Waiting for review",
   rejected: "Rejected",
   recycled: "Withdrawn",
 };

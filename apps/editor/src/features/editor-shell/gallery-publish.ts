@@ -4,32 +4,29 @@ import { serializeProject } from "@icm/project-protocol";
 
 /**
  * Client for the documented gallery submissions endpoint
- * (docs/specs/community-gallery.md). Phase G1 gates publishing behind the
- * owner's admin passphrase; the same call path later carries the signed-in
- * session instead. The fetch seam keeps the mapping testable offline.
+ * (docs/specs/community-gallery.md). The signed-in session is the only
+ * credential: it travels as a same-origin cookie, so nothing here handles a
+ * secret. The fetch seam keeps the mapping testable offline.
  */
 
 export interface GalleryPublishFields {
   name: string;
-  author: string;
   description: string;
   /** Category tags ("amplifier", "adc", …); the server normalizes. */
   tags: readonly string[];
-  /** Owner passphrase; empty when an admin session authenticates instead. */
-  token: string;
 }
 
-/** What the dialog needs to know about the signed-in user (phase G2). */
+/** What the dialog needs to know about the signed-in user. */
 export interface PublishSessionUser {
+  /** Also the byline: the server takes it from the account, not from us. */
   displayName: string;
   isAdmin: boolean;
-  /** "user" or "moderator"; moderators publish directly (phase G3). */
+  /** "user" or "moderator"; moderators bypass the quality gates. */
   role?: string;
 }
 
 export type GalleryPublishOutcome =
   | { status: "published"; id: string }
-  | { status: "pending-review"; id: string }
   | { status: "gate-failed"; failures: readonly SubmissionGateFailure[] }
   | { status: "unauthorized" }
   | { status: "too-large" }
@@ -44,20 +41,15 @@ async function sendGalleryProject(
   fields: GalleryPublishFields,
   fetchLike: typeof fetch,
 ): Promise<GalleryPublishOutcome> {
-  const headers: Record<string, string> = {
-    "content-type": "application/json",
-  };
-  // Without a passphrase the session cookie authenticates instead.
-  if (fields.token) headers.authorization = `Bearer ${fields.token}`;
   let response: Response;
   try {
     response = await fetchLike(url, {
       method,
+      // The session cookie is the credential; there is nothing else to send.
       credentials: "same-origin",
-      headers,
+      headers: { "content-type": "application/json" },
       body: JSON.stringify({
         name: fields.name.trim(),
-        author: fields.author.trim(),
         description: fields.description.trim(),
         tags: fields.tags,
         projectText: serializeProject(project),
@@ -72,12 +64,11 @@ async function sendGalleryProject(
   if (response.status === 201 || response.status === 200) {
     const payload = (await response.json().catch(() => null)) as {
       id?: unknown;
-      status?: unknown;
     } | null;
-    const id = typeof payload?.id === "string" ? payload.id : "";
-    return payload?.status === "pending"
-      ? { status: "pending-review", id }
-      : { status: "published", id };
+    return {
+      status: "published",
+      id: typeof payload?.id === "string" ? payload.id : "",
+    };
   }
   if (response.status === 422) {
     const payload = (await response.json().catch(() => null)) as {
@@ -114,7 +105,7 @@ export function publishProjectToGallery(
   );
 }
 
-/** Owner/reviewer update of an existing entry (phase G3 completion). */
+/** Owner or moderator update of an existing entry. */
 export function updateGalleryEntry(
   entryId: string,
   project: CircuitProject,
@@ -135,106 +126,23 @@ export function describePublishOutcome(outcome: GalleryPublishOutcome): string {
   switch (outcome.status) {
     case "published":
       return "Published to the gallery";
-    case "pending-review":
-      return "Submitted — your circuit is waiting for review";
     case "gate-failed":
       return "The submission did not pass the quality gates";
     case "unauthorized":
-      return "The passphrase was not accepted, so it was forgotten — ask the gallery owner for the current one";
+      return "Your sign-in has expired — sign in again to publish";
     case "too-large":
       return "This Project exceeds the gallery's 2 MB limit";
     case "rate-limited":
       return "Daily publish limit reached — try again tomorrow";
     case "rejected":
       return outcome.message === "invalid-fields"
-        ? "Check the fields: a name is required; author and description have length caps"
+        ? "Check the fields: a name is required, and the description has a length cap"
         : outcome.message === "invalid-project"
           ? "The Project failed strict validation on the server"
           : outcome.message === "forbidden"
-            ? "Only the entry's owner or a reviewer can update it"
+            ? "Only the entry's owner or a moderator can update it"
             : `The gallery rejected the submission (${outcome.message})`;
     case "unreachable":
       return `Could not reach the gallery: ${outcome.message}`;
-  }
-}
-
-const TOKEN_STORAGE_KEY = "icm.gallery-publish-token.v1";
-const AUTHOR_STORAGE_KEY = "icm.gallery-publish-author.v1";
-
-type TokenStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
-
-function sessionStorageOrNull(): TokenStorage | null {
-  try {
-    return window.sessionStorage;
-  } catch {
-    return null;
-  }
-}
-
-function localStorageOrNull(): TokenStorage | null {
-  try {
-    return window.localStorage;
-  } catch {
-    return null;
-  }
-}
-
-/** The author byline used last time, prefill for the next publish. */
-export function rememberedPublishAuthor(
-  storage: TokenStorage | null = localStorageOrNull(),
-): string {
-  try {
-    return storage?.getItem(AUTHOR_STORAGE_KEY) ?? "";
-  } catch {
-    return "";
-  }
-}
-
-/** Remember (non-empty) or forget (empty) the author byline. */
-export function rememberPublishAuthor(
-  author: string,
-  storage: TokenStorage | null = localStorageOrNull(),
-): void {
-  try {
-    const trimmed = author.trim();
-    if (trimmed) storage?.setItem(AUTHOR_STORAGE_KEY, trimmed);
-    else storage?.removeItem(AUTHOR_STORAGE_KEY);
-  } catch {
-    // Local storage may be unavailable; the byline is just not remembered.
-  }
-}
-
-/** The passphrase remembered for this browser session, if any. */
-export function rememberedPublishToken(
-  storage: TokenStorage | null = sessionStorageOrNull(),
-): string {
-  try {
-    return storage?.getItem(TOKEN_STORAGE_KEY) ?? "";
-  } catch {
-    return "";
-  }
-}
-
-/** A 401 forgets the remembered passphrase; reports whether it did. */
-export function forgetOnUnauthorized(
-  outcome: GalleryPublishOutcome,
-  storage: TokenStorage | null = sessionStorageOrNull(),
-): boolean {
-  if (outcome.status !== "unauthorized") return false;
-  rememberPublishToken("", storage);
-  return true;
-}
-
-/** Remember (non-empty) or forget (empty) the passphrase for this session. */
-export function rememberPublishToken(
-  token: string,
-  storage: TokenStorage | null = sessionStorageOrNull(),
-): void {
-  try {
-    if (token) storage?.setItem(TOKEN_STORAGE_KEY, token);
-    else storage?.removeItem(TOKEN_STORAGE_KEY);
-  } catch {
-    // Session storage may be unavailable (private mode); publishing still
-    // works, the passphrase is just not remembered.
   }
 }

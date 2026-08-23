@@ -2,7 +2,7 @@ import { AccountMenu } from "./account";
 
 /**
  * The one gallery site header, shared by the feed and every gallery
- * subpage (/mine, /review) in all their states, so no page ever renders
+ * subpage (/mine) in all their states, so no page ever renders
  * as a bare paragraph without navigation. Markup mirrors the feed's
  * original header exactly (test ids included).
  */

@@ -48,8 +48,18 @@ function sqliteState() {
   };
 }
 
-function environment(adminToken?: string): GalleryEnv {
+type Harness = GalleryEnv & { authDurable: AuthDO };
+
+/**
+ * One harness for every test: a gallery DO plus the auth DO that is now the
+ * only way to publish anything.
+ */
+function environment(): Harness {
   const durable = new GalleryDO(sqliteState());
+  const authDurable = new AuthDO(sqliteState(), {
+    RESEND_API_KEY: "rk",
+    ADMIN_EMAILS: "owner@example.com",
+  } as AuthEnv);
   return {
     GALLERY: {
       getByName: () => ({
@@ -57,28 +67,31 @@ function environment(adminToken?: string): GalleryEnv {
           durable.fetch(new Request(input, init)),
       }),
     },
-    ...(adminToken ? { GALLERY_ADMIN_TOKEN: adminToken } : {}),
+    AUTH: {
+      getByName: () => ({
+        fetch: (input: Request | string, init?: RequestInit) =>
+          authDurable.fetch(
+            typeof input === "string" ? new Request(input, init) : input,
+          ),
+      }),
+    },
+    authDurable,
   };
 }
 
 const ORIGIN = "https://gallery.test";
-const ADMIN_TOKEN = "secret-token";
 
 function submissionRequest(
   body: unknown,
   overrides: {
     ip?: string;
     origin?: string | null;
-    token?: string | null;
     cookie?: string;
   } = {},
 ): Request {
   const headers = new Headers({ "content-type": "application/json" });
   if (overrides.origin !== null) {
     headers.set("Origin", overrides.origin ?? ORIGIN);
-  }
-  if (overrides.token !== null) {
-    headers.set("Authorization", `Bearer ${overrides.token ?? ADMIN_TOKEN}`);
   }
   if (overrides.cookie) headers.set("Cookie", overrides.cookie);
   headers.set("CF-Connecting-IP", overrides.ip ?? "203.0.113.7");
@@ -105,25 +118,37 @@ async function route(env: GalleryEnv, request: Request) {
   return response;
 }
 
-function adminHeaders(token: string): HeadersInit {
-  return { Authorization: `Bearer ${token}` };
+function cookieHeaders(cookie: string): HeadersInit {
+  return { Cookie: cookie };
+}
+
+/** A curator session: exempt from the gates and the daily quota. */
+function adminOf(env: Harness): Promise<string> {
+  return signIn(env.authDurable, "owner@example.com");
+}
+
+/** An ordinary member: gated and quota-limited, but publishes directly. */
+function makerOf(env: Harness): Promise<string> {
+  return signIn(env.authDurable, "maker@example.com");
 }
 
 async function submitOne(
-  env: GalleryEnv,
+  env: Harness,
   name: string,
-  overrides: { ip?: string; text?: string } = {},
+  overrides: { ip?: string; text?: string; cookie?: string } = {},
 ): Promise<string> {
   const response = await route(
     env,
     submissionRequest(
       {
         name,
-        author: "tz",
         description: "d",
         projectText: overrides.text ?? projectText(name),
       },
-      { ip: overrides.ip ?? "203.0.113.7" },
+      {
+        ip: overrides.ip ?? "203.0.113.7",
+        cookie: overrides.cookie ?? (await adminOf(env)),
+      },
     ),
   );
   expect(response.status).toBe(201);
@@ -133,7 +158,7 @@ async function submitOne(
 
 describe("gallery submissions", () => {
   it("publishes immediately with canonical text and a server preview", async () => {
-    const env = environment(ADMIN_TOKEN);
+    const env = environment();
     const id = await submitOne(env, "Ring Oscillator");
 
     const list = await route(env, new Request(`${ORIGIN}/api/gallery`));
@@ -162,7 +187,7 @@ describe("gallery submissions", () => {
   });
 
   it("upgrades a previous-schema submission through the protocol", async () => {
-    const env = environment(ADMIN_TOKEN);
+    const env = environment();
     const id = await submitOne(env, "Old Schema", {
       text: previousVersionText(),
     });
@@ -173,31 +198,120 @@ describe("gallery submissions", () => {
     );
   });
 
-  it("refuses publishing without the admin bearer while sign-in is pending", async () => {
-    const env = environment(ADMIN_TOKEN);
+  it("refuses an anonymous submission: a session is the whole gate", async () => {
+    const env = environment();
     const anonymous = await route(
       env,
-      submissionRequest(
-        { name: "X", projectText: projectText() },
-        { token: null },
-      ),
+      submissionRequest({ name: "X", projectText: projectText() }),
     );
     expect(anonymous.status).toBe(401);
-    const wrongToken = await route(
+
+    // There is no passphrase to fall back on: a bearer header buys nothing.
+    const withBearer = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/submissions`, {
+        method: "POST",
+        headers: {
+          Origin: ORIGIN,
+          "content-type": "application/json",
+          Authorization: "Bearer secret-token",
+        },
+        body: JSON.stringify({ name: "X", projectText: projectText() }),
+      }),
+    );
+    expect(withBearer.status).toBe(401);
+  });
+
+  it("publishes an ordinary member's circuit straight to the wall", async () => {
+    const env = environment();
+    const cookie = await makerOf(env);
+    const response = await route(
       env,
       submissionRequest(
-        { name: "X", projectText: projectText() },
-        { token: "wrong" },
+        { name: "Direct", projectText: wiredProjectText("Direct") },
+        { cookie },
       ),
     );
-    expect(wrongToken.status).toBe(401);
+    expect(response.status).toBe(201);
+    const { id, status } = (await response.json()) as {
+      id: string;
+      status: string;
+    };
+    expect(status).toBe("public");
+
+    // Visible to everyone immediately: no queue, no approval step.
+    const list = await route(env, new Request(`${ORIGIN}/api/gallery`));
+    expect(
+      ((await list.json()) as { entries: { id: string }[] }).entries.map(
+        (entry) => entry.id,
+      ),
+    ).toEqual([id]);
+    expect(
+      (await route(env, new Request(`${ORIGIN}/api/gallery/${id}`))).status,
+    ).toBe(200);
+  });
+
+  it("takes the byline from the account, not from the request", async () => {
+    const env = environment();
+    const cookie = await makerOf(env);
+    const response = await route(
+      env,
+      submissionRequest(
+        {
+          name: "Claimed",
+          author: "someone-else",
+          projectText: wiredProjectText("Claimed"),
+        },
+        { cookie },
+      ),
+    );
+    const { id } = (await response.json()) as { id: string };
+    const detail = (await (
+      await route(env, new Request(`${ORIGIN}/api/gallery/${id}`))
+    ).json()) as { entry: { author: string } };
+    expect(detail.entry.author).toBe("maker");
+  });
+
+  it("records the submitting identity and shows it only to a curator", async () => {
+    const env = environment();
+    const cookie = await makerOf(env);
+    const adminCookie = await adminOf(env);
+    const response = await route(
+      env,
+      submissionRequest(
+        { name: "Traced", projectText: wiredProjectText("Traced") },
+        { cookie },
+      ),
+    );
+    const { id } = (await response.json()) as { id: string };
+
+    const asCurator = (await (
+      await route(
+        env,
+        new Request(`${ORIGIN}/api/gallery/${id}`, {
+          headers: cookieHeaders(adminCookie),
+        }),
+      )
+    ).json()) as { submitterEmail?: string; submitterProvider?: string };
+    expect(asCurator).toMatchObject({
+      submitterEmail: "maker@example.com",
+      submitterProvider: "email",
+    });
+
+    // The wall shows a byline; it does not show anybody's email address.
+    const asVisitor = (await (
+      await route(env, new Request(`${ORIGIN}/api/gallery/${id}`))
+    ).json()) as Record<string, unknown>;
+    expect(asVisitor).not.toHaveProperty("submitterEmail");
+    expect(asVisitor).not.toHaveProperty("submitterProvider");
   });
 
   it("rejects invalid fields, foreign origins, oversized and invalid projects", async () => {
-    const env = environment(ADMIN_TOKEN);
+    const env = environment();
+    const cookie = await adminOf(env);
     const noName = await route(
       env,
-      submissionRequest({ name: "  ", projectText: projectText() }),
+      submissionRequest({ name: "  ", projectText: projectText() }, { cookie }),
     );
     expect(noName.status).toBe(400);
 
@@ -205,29 +319,35 @@ describe("gallery submissions", () => {
       env,
       submissionRequest(
         { name: "X", projectText: projectText() },
-        { origin: "https://evil.example" },
+        { origin: "https://evil.example", cookie },
       ),
     );
     expect(foreign.status).toBe(403);
 
     const oversized = await route(
       env,
-      submissionRequest({
-        name: "X",
-        projectText: "x".repeat(GALLERY_MAX_PROJECT_BYTES + 1),
-      }),
+      submissionRequest(
+        {
+          name: "X",
+          projectText: "x".repeat(GALLERY_MAX_PROJECT_BYTES + 1),
+        },
+        { cookie },
+      ),
     );
     expect(oversized.status).toBe(413);
 
     const invalid = await route(
       env,
-      submissionRequest({ name: "X", projectText: '{"schemaVersion":99}' }),
+      submissionRequest(
+        { name: "X", projectText: '{"schemaVersion":99}' },
+        { cookie },
+      ),
     );
     expect(invalid.status).toBe(400);
   });
 
   it("rate-limits ordinary submitters per day; curators are exempt", async () => {
-    const env = environment(ADMIN_TOKEN);
+    const env = environment();
 
     // Ordinary submissions (limit enforced) exhaust the day, without
     // touching a different submitter.
@@ -248,7 +368,6 @@ describe("gallery submissions", () => {
               description: "",
               created_at: "2026-08-22T00:00:00.000Z",
               schema_version: 21,
-              status: "pending",
               project_text: projectText(),
               svg_text: "<svg/>",
             },
@@ -263,167 +382,28 @@ describe("gallery submissions", () => {
     expect(await submitDirect("hash-a")).toBe(429);
     expect(await submitDirect("hash-b")).toBe(200);
 
-    // The bearer (curator) is exempt: more than the limit, all accepted.
+    // A curator is exempt: more than the limit, all accepted.
+    const adminCookie = await adminOf(env);
     for (
       let index = 0;
       index < GALLERY_DAILY_SUBMISSION_LIMIT + 2;
       index += 1
     ) {
-      await submitOne(env, `Curated ${index}`);
+      await submitOne(env, `Curated ${index}`, { cookie: adminCookie });
     }
   });
 });
 
-describe("gallery review queue with quality gates (phase G3)", () => {
-  it("walks submit → pending (invisible) → approve → public", async () => {
-    const { authDurable, env } = reviewHarness();
-    const userCookie = await signIn(authDurable, "maker@example.com");
-    const adminCookie = await signIn(authDurable, "owner@example.com");
-
-    const submitted = await route(
-      env,
-      submissionRequest(
-        { name: "Queued", projectText: wiredProjectText("Queued") },
-        { token: null, cookie: userCookie },
-      ),
-    );
-    expect(submitted.status).toBe(201);
-    const { id, status } = (await submitted.json()) as {
-      id: string;
-      status: string;
-    };
-    expect(status).toBe("pending");
-
-    // Invisible on every public surface.
-    const list = await route(env, new Request(`${ORIGIN}/api/gallery`));
-    expect(((await list.json()) as { entries: unknown[] }).entries).toEqual([]);
-    const anonymousDetail = await route(
-      env,
-      new Request(`${ORIGIN}/api/gallery/${id}`),
-    );
-    expect(anonymousDetail.status).toBe(404);
-    const anonymousPreview = await route(
-      env,
-      new Request(`${ORIGIN}/api/gallery/${id}/preview.svg`),
-    );
-    expect(anonymousPreview.status).toBe(404);
-
-    // The owner and reviewers can see it; the queue lists it.
-    const ownerPreview = await route(
-      env,
-      new Request(`${ORIGIN}/api/gallery/${id}/preview.svg`, {
-        headers: { Cookie: userCookie },
-      }),
-    );
-    expect(ownerPreview.status).toBe(200);
-    const queue = await route(
-      env,
-      new Request(`${ORIGIN}/api/gallery/review`, {
-        headers: { Cookie: adminCookie },
-      }),
-    );
-    const queued = (await queue.json()) as { entries: { id: string }[] };
-    expect(queued.entries.map((entry) => entry.id)).toEqual([id]);
-    const deniedQueue = await route(
-      env,
-      new Request(`${ORIGIN}/api/gallery/review`, {
-        headers: { Cookie: userCookie },
-      }),
-    );
-    expect(deniedQueue.status).toBe(401);
-
-    const approved = await route(
-      env,
-      new Request(`${ORIGIN}/api/gallery/${id}/approve`, {
-        method: "POST",
-        headers: { Origin: ORIGIN, Cookie: adminCookie },
-      }),
-    );
-    expect(approved.status).toBe(200);
-    const publicList = await route(env, new Request(`${ORIGIN}/api/gallery`));
-    expect(
-      ((await publicList.json()) as { entries: { id: string }[] }).entries.map(
-        (entry) => entry.id,
-      ),
-    ).toEqual([id]);
-  });
-
-  it("rejects with a stored reason the owner sees; moderators can review", async () => {
-    const { authDurable, env } = reviewHarness();
-    const userCookie = await signIn(authDurable, "maker@example.com");
-    const modCookie = await signIn(authDurable, "reviewer@example.com");
-    const adminCookie = await signIn(authDurable, "owner@example.com");
-    await authDurable.fetch(
-      new Request(`${ORIGIN}/api/auth/users/role`, {
-        method: "POST",
-        headers: {
-          Origin: ORIGIN,
-          Cookie: adminCookie,
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({
-          email: "reviewer@example.com",
-          role: "moderator",
-        }),
-      }),
-    );
-
-    const submitted = await route(
-      env,
-      submissionRequest(
-        { name: "Refused", projectText: wiredProjectText("Refused") },
-        { token: null, cookie: userCookie },
-      ),
-    );
-    const { id } = (await submitted.json()) as { id: string };
-
-    const rejected = await route(
-      env,
-      new Request(`${ORIGIN}/api/gallery/${id}/reject`, {
-        method: "POST",
-        headers: {
-          Origin: ORIGIN,
-          Cookie: modCookie,
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({ reason: "Needs net labels" }),
-      }),
-    );
-    expect(rejected.status).toBe(200);
-
-    const mine = await route(
-      env,
-      new Request(`${ORIGIN}/api/gallery/mine`, {
-        headers: { Cookie: userCookie },
-      }),
-    );
-    const entries = (await mine.json()) as {
-      entries: { id: string; status: string; rejectReason: string | null }[];
-    };
-    expect(entries.entries).toMatchObject([
-      { id, status: "rejected", rejectReason: "Needs net labels" },
-    ]);
-
-    // A decided entry cannot be re-reviewed.
-    const again = await route(
-      env,
-      new Request(`${ORIGIN}/api/gallery/${id}/approve`, {
-        method: "POST",
-        headers: { Origin: ORIGIN, Cookie: modCookie },
-      }),
-    );
-    expect(again.status).toBe(409);
-  });
-
-  it("blocks gate failures for ordinary users and bypasses them for admins", async () => {
-    const { authDurable, env } = reviewHarness();
-    const userCookie = await signIn(authDurable, "maker@example.com");
+describe("direct publishing (the review queue is retired)", () => {
+  it("keeps the gates blocking for a member and open for a curator", async () => {
+    const env = environment();
+    const cookie = await makerOf(env);
 
     const gated = await route(
       env,
       submissionRequest(
         { name: "Empty", projectText: projectText("Empty") },
-        { token: null, cookie: userCookie },
+        { cookie },
       ),
     );
     expect(gated.status).toBe(422);
@@ -436,23 +416,13 @@ describe("gallery review queue with quality gates (phase G3)", () => {
       "empty-project",
     );
 
-    // The bearer (owner) publishes the same empty project directly.
-    const viaBearer = await route(
-      env,
-      submissionRequest({ name: "Empty", projectText: projectText("Empty") }),
-    );
-    expect(viaBearer.status).toBe(201);
-    expect(((await viaBearer.json()) as { status: string }).status).toBe(
-      "public",
-    );
-
-    // A moderator submission also publishes directly.
-    const adminCookie = await signIn(authDurable, "owner@example.com");
+    // A curator curates: the same empty project goes straight up.
+    const adminCookie = await adminOf(env);
     const viaAdmin = await route(
       env,
       submissionRequest(
         { name: "Admin Empty", projectText: projectText("Admin Empty") },
-        { token: null, cookie: adminCookie },
+        { cookie: adminCookie },
       ),
     );
     expect(viaAdmin.status).toBe(201);
@@ -460,25 +430,80 @@ describe("gallery review queue with quality gates (phase G3)", () => {
       "public",
     );
   });
+
+  it("has no queue to read and no decision to hand down", async () => {
+    const env = environment();
+    const adminCookie = await adminOf(env);
+    const id = await submitOne(env, "Live", { cookie: adminCookie });
+
+    for (const [path, method] of [
+      [`${ORIGIN}/api/gallery/review`, "GET"],
+      [`${ORIGIN}/api/gallery/${id}/approve`, "POST"],
+      [`${ORIGIN}/api/gallery/${id}/reject`, "POST"],
+    ] as const) {
+      const response = await route(
+        env,
+        new Request(path, {
+          method,
+          headers: { Origin: ORIGIN, Cookie: adminCookie },
+        }),
+      );
+      expect(response.status).toBe(404);
+    }
+  });
+
+  it("publishes an entry stranded in the queue, keeping real rejections", () => {
+    const state = sqliteState();
+    // A database written before direct publishing: no submitter columns,
+    // one entry still waiting for a reviewer, one already turned down.
+    state.storage.sql.exec(`
+      CREATE TABLE gallery_entries (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        author TEXT NOT NULL,
+        description TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        schema_version INTEGER NOT NULL,
+        status TEXT NOT NULL,
+        recycled_at TEXT,
+        owner_user_id TEXT,
+        project_text TEXT NOT NULL,
+        svg_text TEXT NOT NULL
+      ) WITHOUT ROWID
+    `);
+    for (const [id, status] of [
+      ["waiting", "pending"],
+      ["refused", "rejected"],
+    ]) {
+      state.storage.sql.exec(
+        `INSERT INTO gallery_entries(
+           id, name, author, description, created_at, schema_version,
+           status, recycled_at, owner_user_id, project_text, svg_text
+         ) VALUES (?, ?, '', '', '2026-01-01T00:00:00.000Z', 21, ?, NULL, NULL, ?, '<svg/>')`,
+        id,
+        id,
+        status,
+        projectText(),
+      );
+    }
+
+    new GalleryDO(state);
+
+    const rows = state.storage.sql
+      .exec<{ id: string; status: string }>(
+        "SELECT id, status FROM gallery_entries ORDER BY id",
+      )
+      .toArray();
+    expect(rows).toEqual([
+      { id: "refused", status: "rejected" },
+      { id: "waiting", status: "public" },
+    ]);
+  });
 });
 
-function reviewHarness() {
-  const authDurable = new AuthDO(sqliteState(), {
-    RESEND_API_KEY: "rk",
-    ADMIN_EMAILS: "owner@example.com",
-  } as AuthEnv);
-  const env: GalleryEnv = {
-    ...environment(ADMIN_TOKEN),
-    AUTH: {
-      getByName: () => ({
-        fetch: (input: Request | string, init?: RequestInit) =>
-          authDurable.fetch(
-            typeof input === "string" ? new Request(input, init) : input,
-          ),
-      }),
-    },
-  };
-  return { authDurable, env };
+function reviewHarness(): { authDurable: AuthDO; env: Harness } {
+  const env = environment();
+  return { authDurable: env.authDurable, env };
 }
 
 async function signIn(authDurable: AuthDO, email: string): Promise<string> {
@@ -554,15 +579,16 @@ function wiredProjectText(name = "Wired"): string {
 
 describe("gallery version history", () => {
   it("snapshots on every update, lists, restores (reversibly), and guards", async () => {
-    const env = environment(ADMIN_TOKEN);
-    const id = await submitOne(env, "Versioned v1");
+    const env = environment();
+    const adminCookie = await adminOf(env);
+    const id = await submitOne(env, "Versioned v1", { cookie: adminCookie });
 
     function updateRequest(name: string): Request {
       return new Request(`${ORIGIN}/api/gallery/${id}`, {
         method: "PUT",
         headers: {
           Origin: ORIGIN,
-          Authorization: `Bearer ${ADMIN_TOKEN}`,
+          Cookie: adminCookie,
           "content-type": "application/json",
         },
         body: JSON.stringify({
@@ -585,7 +611,7 @@ describe("gallery version history", () => {
     const listed = await route(
       env,
       new Request(`${ORIGIN}/api/gallery/${id}/versions`, {
-        headers: adminHeaders(ADMIN_TOKEN),
+        headers: cookieHeaders(adminCookie),
       }),
     );
     const { versions } = (await listed.json()) as {
@@ -600,7 +626,7 @@ describe("gallery version history", () => {
       env,
       new Request(
         `${ORIGIN}/api/gallery/${id}/versions/${versions[1]!.versionId}/preview.svg`,
-        { headers: adminHeaders(ADMIN_TOKEN) },
+        { headers: cookieHeaders(adminCookie) },
       ),
     );
     expect(versionPreview.headers.get("content-type")).toBe("image/svg+xml");
@@ -612,7 +638,7 @@ describe("gallery version history", () => {
         `${ORIGIN}/api/gallery/${id}/versions/${versions[1]!.versionId}/restore`,
         {
           method: "POST",
-          headers: { Origin: ORIGIN, ...adminHeaders(ADMIN_TOKEN) },
+          headers: { Origin: ORIGIN, ...cookieHeaders(adminCookie) },
         },
       ),
     );
@@ -626,7 +652,7 @@ describe("gallery version history", () => {
       await route(
         env,
         new Request(`${ORIGIN}/api/gallery/${id}/versions`, {
-          headers: adminHeaders(ADMIN_TOKEN),
+          headers: cookieHeaders(adminCookie),
         }),
       )
     ).json()) as { versions: { name: string }[] };
@@ -638,8 +664,9 @@ describe("gallery version history", () => {
   });
 
   it("prunes history beyond the per-entry cap", async () => {
-    const env = environment(ADMIN_TOKEN);
-    const id = await submitOne(env, "Cap 0");
+    const env = environment();
+    const adminCookie = await adminOf(env);
+    const id = await submitOne(env, "Cap 0", { cookie: adminCookie });
     for (let index = 1; index <= 24; index += 1) {
       await route(
         env,
@@ -647,7 +674,7 @@ describe("gallery version history", () => {
           method: "PUT",
           headers: {
             Origin: ORIGIN,
-            Authorization: `Bearer ${ADMIN_TOKEN}`,
+            Cookie: adminCookie,
             "content-type": "application/json",
           },
           body: JSON.stringify({
@@ -661,7 +688,7 @@ describe("gallery version history", () => {
       await route(
         env,
         new Request(`${ORIGIN}/api/gallery/${id}/versions`, {
-          headers: adminHeaders(ADMIN_TOKEN),
+          headers: cookieHeaders(adminCookie),
         }),
       )
     ).json()) as { versions: { versionNo: number }[] };
@@ -673,11 +700,15 @@ describe("gallery version history", () => {
 
 describe("gallery circuit tags", () => {
   it("normalizes tags on write, filters as an OR-union, and aggregates", async () => {
-    const env = environment(ADMIN_TOKEN);
+    const env = environment();
+    const adminCookie = await adminOf(env);
     const submitTagged = (name: string, tags: unknown) =>
       route(
         env,
-        submissionRequest({ name, tags, projectText: projectText(name) }),
+        submissionRequest(
+          { name, tags, projectText: projectText(name) },
+          { cookie: adminCookie },
+        ),
       );
     await submitTagged("Amp A", ["  Amplifier ", "OTA", "amplifier"]);
     await submitTagged("Comp B", ["comparator"]);
@@ -735,7 +766,7 @@ describe("gallery circuit tags", () => {
         method: "PUT",
         headers: {
           Origin: ORIGIN,
-          Authorization: `Bearer ${ADMIN_TOKEN}`,
+          Cookie: adminCookie,
           "content-type": "application/json",
         },
         body: JSON.stringify({
@@ -755,17 +786,44 @@ describe("gallery circuit tags", () => {
 
 describe("gallery list author filter and paging (phase G4)", () => {
   it("filters by exact byline and pages the filtered set", async () => {
-    const env = environment(ADMIN_TOKEN);
-    for (const [name, author] of [
-      ["A1", "alice"],
-      ["B1", "bob"],
-      ["A2", "alice"],
-      ["A3", "alice"],
+    const env = environment();
+    // The byline follows the account, so the fixture needs two of them. Both
+    // are admins here only to skip the gates the empty fixture would fail.
+    const alice = await signIn(env.authDurable, "alice@example.com");
+    const bob = await signIn(env.authDurable, "bob@example.com");
+    await env.authDurable.fetch(
+      new Request(`${ORIGIN}/api/auth/users/role`, {
+        method: "POST",
+        headers: {
+          Origin: ORIGIN,
+          Cookie: await adminOf(env),
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ email: "alice@example.com", role: "moderator" }),
+      }),
+    );
+    await env.authDurable.fetch(
+      new Request(`${ORIGIN}/api/auth/users/role`, {
+        method: "POST",
+        headers: {
+          Origin: ORIGIN,
+          Cookie: await adminOf(env),
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ email: "bob@example.com", role: "moderator" }),
+      }),
+    );
+    for (const [name, cookie] of [
+      ["A1", alice],
+      ["B1", bob],
+      ["A2", alice],
+      ["A3", alice],
     ] as const) {
-      await route(
+      const response = await route(
         env,
-        submissionRequest({ name, author, projectText: projectText(name) }),
+        submissionRequest({ name, projectText: projectText(name) }, { cookie }),
       );
+      expect(response.status).toBe(201);
     }
 
     const filtered = await route(
@@ -800,47 +858,33 @@ describe("gallery list author filter and paging (phase G4)", () => {
   });
 });
 
-describe("gallery owner editing (phase G3 completion)", () => {
-  it("owner updates re-enter review and clear the previous rejection", async () => {
-    const { authDurable, env } = reviewHarness();
-    const ownerCookie = await signIn(authDurable, "maker@example.com");
-    const adminCookie = await signIn(authDurable, "owner@example.com");
-    const strangerCookie = await signIn(authDurable, "other@example.com");
+describe("gallery owner editing", () => {
+  it("keeps an owner's update on the wall and under its own byline", async () => {
+    const env = environment();
+    const ownerCookie = await makerOf(env);
+    const adminCookie = await adminOf(env);
+    const strangerCookie = await signIn(env.authDurable, "other@example.com");
 
     const submitted = await route(
       env,
       submissionRequest(
         { name: "Edit Me", projectText: wiredProjectText("Edit Me") },
-        { token: null, cookie: ownerCookie },
+        { cookie: ownerCookie },
       ),
     );
     const { id } = (await submitted.json()) as { id: string };
-    await route(
-      env,
-      new Request(`${ORIGIN}/api/gallery/${id}/reject`, {
-        method: "POST",
-        headers: {
-          Origin: ORIGIN,
-          Cookie: adminCookie,
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({ reason: "Wrong polarity" }),
-      }),
-    );
 
-    function updateRequest(cookie: string | null, token = false): Request {
+    function updateRequest(cookie: string | null): Request {
       const headers = new Headers({
         "content-type": "application/json",
         Origin: ORIGIN,
       });
       if (cookie) headers.set("Cookie", cookie);
-      if (token) headers.set("Authorization", `Bearer ${ADMIN_TOKEN}`);
       return new Request(`${ORIGIN}/api/gallery/${id}`, {
         method: "PUT",
         headers,
         body: JSON.stringify({
           name: "Edit Me v2",
-          author: "maker",
           projectText: wiredProjectText("Edit Me v2"),
         }),
       });
@@ -851,39 +895,37 @@ describe("gallery owner editing (phase G3 completion)", () => {
     const anonymous = await route(env, updateRequest(null));
     expect(anonymous.status).toBe(401);
 
+    // The owner's own edit stays live rather than dropping out of the feed.
     const updated = await route(env, updateRequest(ownerCookie));
     expect(updated.status).toBe(200);
     expect(((await updated.json()) as { status: string }).status).toBe(
-      "pending",
+      "public",
     );
 
     const mine = await route(
       env,
       new Request(`${ORIGIN}/api/gallery/mine`, {
-        headers: { Cookie: ownerCookie },
+        headers: cookieHeaders(ownerCookie),
       }),
     );
     const entries = (await mine.json()) as {
-      entries: { name: string; status: string; rejectReason: string | null }[];
+      entries: { name: string; status: string }[];
     };
     expect(entries.entries).toMatchObject([
-      { name: "Edit Me v2", status: "pending", rejectReason: null },
+      { name: "Edit Me v2", status: "public" },
     ]);
 
-    // Approve, then an admin edit keeps the entry public.
-    await route(
-      env,
-      new Request(`${ORIGIN}/api/gallery/${id}/approve`, {
-        method: "POST",
-        headers: { Origin: ORIGIN, Cookie: adminCookie },
-      }),
-    );
+    // A curator's edit does not re-attribute the entry to the curator.
     const adminEdit = await route(env, updateRequest(adminCookie));
-    expect(((await adminEdit.json()) as { status: string }).status).toBe(
-      "public",
-    );
+    expect(adminEdit.status).toBe(200);
+    const detail = (await (
+      await route(env, new Request(`${ORIGIN}/api/gallery/${id}`))
+    ).json()) as { entry: { author: string }; ownerUserId: string | null };
+    expect(detail.entry.author).toBe("maker");
+    // The detail response names the owner so the editor can offer updates.
+    expect(typeof detail.ownerUserId).toBe("string");
 
-    // An empty replacement fails the gates for the ordinary owner.
+    // An empty replacement still fails the gates for the ordinary owner.
     const gated = await route(
       env,
       new Request(`${ORIGIN}/api/gallery/${id}`, {
@@ -897,139 +939,80 @@ describe("gallery owner editing (phase G3 completion)", () => {
       }),
     );
     expect(gated.status).toBe(422);
-
-    // The detail response names the owner so the editor can offer updates.
-    const detail = await route(
-      env,
-      new Request(`${ORIGIN}/api/gallery/${id}`, {
-        headers: { Cookie: ownerCookie },
-      }),
-    );
-    const payload = (await detail.json()) as { ownerUserId: string | null };
-    expect(typeof payload.ownerUserId).toBe("string");
   });
 });
 
-describe("gallery admin sessions (phase G2)", () => {
-  async function sessionCookieFor(
-    authDurable: AuthDO,
-    email: string,
-  ): Promise<string> {
-    const sent: string[] = [];
-    authDurable.fetchLike = (async (
-      input: RequestInfo | URL,
-      init?: RequestInit,
-    ) => {
-      void input;
-      sent.push((JSON.parse(String(init?.body)) as { text: string }).text);
-      return Response.json({ id: "email-1" });
-    }) as typeof fetch;
-    const start = await authDurable.fetch(
-      new Request(`${ORIGIN}/api/auth/email/start`, {
-        method: "POST",
-        headers: { Origin: ORIGIN, "content-type": "application/json" },
-        body: JSON.stringify({ email }),
-      }),
-    );
-    expect(start.status).toBe(202);
-    const link = sent[0]!.match(/https?:\/\/\S+/u)![0];
-    const callback = await authDurable.fetch(new Request(link));
-    const header = callback.headers
-      .getSetCookie()
-      .find((cookie) => cookie.startsWith("icm_session="));
-    return header!.split(";")[0]!;
-  }
+describe("gallery admin sessions", () => {
+  it("lets a curator session reach the curator-only surfaces", async () => {
+    const env = environment();
+    const adminCookie = await adminOf(env);
+    const memberCookie = await makerOf(env);
 
-  it("accepts an admin session in place of the bearer and refuses others", async () => {
-    const authDurable = new AuthDO(sqliteState(), {
-      RESEND_API_KEY: "rk",
-      ADMIN_EMAILS: "owner@example.com",
-    } as AuthEnv);
-    const env: GalleryEnv = {
-      ...environment(ADMIN_TOKEN),
-      AUTH: {
-        getByName: () => ({
-          fetch: (input: Request | string, init?: RequestInit) =>
-            authDurable.fetch(
-              typeof input === "string" ? new Request(input, init) : input,
-            ),
-        }),
-      },
-    };
-
-    const adminCookie = await sessionCookieFor(
-      authDurable,
-      "owner@example.com",
-    );
-    const viaSession = await route(
-      env,
-      submissionRequest(
-        { name: "Session Published", projectText: projectText() },
-        { token: null, cookie: adminCookie },
-      ),
-    );
-    expect(viaSession.status).toBe(201);
-
-    // An ordinary session is no longer refused outright (phase G3): it
-    // goes through the quality gates instead — the empty fixture fails
-    // them — and never publishes directly.
-    const ordinaryCookie = await sessionCookieFor(
-      authDurable,
-      "visitor@example.com",
-    );
-    const viaOrdinary = await route(
-      env,
-      submissionRequest(
-        { name: "Gated", projectText: projectText() },
-        { token: null, cookie: ordinaryCookie },
-      ),
-    );
-    expect(viaOrdinary.status).toBe(422);
-
-    const recycledList = await route(
+    const asCurator = await route(
       env,
       new Request(`${ORIGIN}/api/gallery/recycled`, {
-        headers: { Cookie: adminCookie },
+        headers: cookieHeaders(adminCookie),
       }),
     );
-    expect(recycledList.status).toBe(200);
+    expect(asCurator.status).toBe(200);
+
+    const asMember = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/recycled`, {
+        headers: cookieHeaders(memberCookie),
+      }),
+    );
+    expect(asMember.status).toBe(401);
   });
 });
 
 describe("gallery administration", () => {
-  it("requires the bearer secret for every admin operation", async () => {
-    const env = environment(ADMIN_TOKEN);
-    const id = await submitOne(env, "Guarded");
+  it("requires an admin session for every admin operation", async () => {
+    const env = environment();
+    const adminCookie = await adminOf(env);
+    const id = await submitOne(env, "Guarded", { cookie: adminCookie });
 
     const anonymous = await route(
       env,
-      new Request(`${ORIGIN}/api/gallery/${id}/recycle`, { method: "POST" }),
+      new Request(`${ORIGIN}/api/gallery/${id}/recycle`, {
+        method: "POST",
+        headers: { Origin: ORIGIN },
+      }),
     );
     expect(anonymous.status).toBe(401);
 
-    // Without a configured bearer the caller is an ordinary visitor; the
-    // ownership check runs first, so an unknown entry reads as not-found.
-    const noTokenConfigured = environment();
+    // A bearer header is not a credential any more: the caller reads as an
+    // ordinary visitor, and the ownership check turns an unknown entry into
+    // a not-found rather than an unauthorized.
     const impossible = await route(
-      noTokenConfigured,
+      env,
       new Request(`${ORIGIN}/api/gallery/some-id/recycle`, {
         method: "POST",
-        headers: adminHeaders("anything"),
+        headers: { Origin: ORIGIN, Authorization: "Bearer anything" },
       }),
     );
     expect(impossible.status).toBe(404);
+
+    const asMember = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/${id}`, {
+        method: "DELETE",
+        headers: cookieHeaders(await makerOf(env)),
+      }),
+    );
+    expect(asMember.status).toBe(401);
   });
 
   it("recycles, hides, restores, and only hard-deletes from the bin", async () => {
-    const token = ADMIN_TOKEN;
-    const env = environment(token);
-    const id = await submitOne(env, "Lifecycle");
+    const env = environment();
+    const adminCookie = await adminOf(env);
+    const id = await submitOne(env, "Lifecycle", { cookie: adminCookie });
 
     const earlyDelete = await route(
       env,
       new Request(`${ORIGIN}/api/gallery/${id}`, {
         method: "DELETE",
-        headers: adminHeaders(token),
+        headers: cookieHeaders(adminCookie),
       }),
     );
     expect(earlyDelete.status).toBe(409);
@@ -1038,7 +1021,7 @@ describe("gallery administration", () => {
       env,
       new Request(`${ORIGIN}/api/gallery/${id}/recycle`, {
         method: "POST",
-        headers: adminHeaders(token),
+        headers: cookieHeaders(adminCookie),
       }),
     );
     expect(recycle.status).toBe(200);
@@ -1051,7 +1034,7 @@ describe("gallery administration", () => {
     const bin = await route(
       env,
       new Request(`${ORIGIN}/api/gallery/recycled`, {
-        headers: adminHeaders(token),
+        headers: cookieHeaders(adminCookie),
       }),
     );
     const binned = (await bin.json()) as { entries: { id: string }[] };
@@ -1061,7 +1044,7 @@ describe("gallery administration", () => {
       env,
       new Request(`${ORIGIN}/api/gallery/${id}/restore`, {
         method: "POST",
-        headers: adminHeaders(token),
+        headers: cookieHeaders(adminCookie),
       }),
     );
     expect(restore.status).toBe(200);
@@ -1074,30 +1057,30 @@ describe("gallery administration", () => {
       env,
       new Request(`${ORIGIN}/api/gallery/${id}/recycle`, {
         method: "POST",
-        headers: adminHeaders(token),
+        headers: cookieHeaders(adminCookie),
       }),
     );
     const remove = await route(
       env,
       new Request(`${ORIGIN}/api/gallery/${id}`, {
         method: "DELETE",
-        headers: adminHeaders(token),
+        headers: cookieHeaders(adminCookie),
       }),
     );
     expect(remove.status).toBe(200);
     const gone = await route(
       env,
       new Request(`${ORIGIN}/api/gallery/recycled`, {
-        headers: adminHeaders(token),
+        headers: cookieHeaders(adminCookie),
       }),
     );
     expect(((await gone.json()) as { entries: unknown[] }).entries).toEqual([]);
   });
 
   it("re-serializes stored entries back into the rolling window", async () => {
-    const token = ADMIN_TOKEN;
-    const env = environment(token);
-    const id = await submitOne(env, "Aging Entry");
+    const env = environment();
+    const adminCookie = await adminOf(env);
+    const id = await submitOne(env, "Aging Entry", { cookie: adminCookie });
 
     // Age the stored record to the previous schema version through the
     // internal update operation, simulating a record left behind by time.
@@ -1119,7 +1102,7 @@ describe("gallery administration", () => {
       env,
       new Request(`${ORIGIN}/api/gallery/maintenance/reserialize`, {
         method: "POST",
-        headers: adminHeaders(token),
+        headers: cookieHeaders(adminCookie),
       }),
     );
     const report = (await maintenance.json()) as {
@@ -1146,29 +1129,24 @@ describe("gallery administration", () => {
 });
 
 describe("gallery owner lifecycle (withdrawal and history)", () => {
-  async function submitApproved(
+  async function submitPublished(
     env: GalleryEnv,
     ownerCookie: string,
-    adminCookie: string,
     name: string,
   ): Promise<string> {
     const submitted = await route(
       env,
       submissionRequest(
         { name, projectText: wiredProjectText(name) },
-        { token: null, cookie: ownerCookie },
+        { cookie: ownerCookie },
       ),
     );
     expect(submitted.status).toBe(201);
-    const { id } = (await submitted.json()) as { id: string };
-    const approved = await route(
-      env,
-      new Request(`${ORIGIN}/api/gallery/${id}/approve`, {
-        method: "POST",
-        headers: { Origin: ORIGIN, Cookie: adminCookie },
-      }),
-    );
-    expect(approved.status).toBe(200);
+    const { id, status } = (await submitted.json()) as {
+      id: string;
+      status: string;
+    };
+    expect(status).toBe("public");
     return id;
   }
 
@@ -1207,7 +1185,7 @@ describe("gallery owner lifecycle (withdrawal and history)", () => {
     const ownerCookie = await signIn(authDurable, "maker@example.com");
     const adminCookie = await signIn(authDurable, "owner@example.com");
     const strangerCookie = await signIn(authDurable, "other@example.com");
-    const id = await submitApproved(env, ownerCookie, adminCookie, "Mine");
+    const id = await submitPublished(env, ownerCookie, "Mine");
 
     expect(
       (await route(env, lifecycle(id, "recycle", strangerCookie))).status,
@@ -1223,11 +1201,11 @@ describe("gallery owner lifecycle (withdrawal and history)", () => {
     expect(wall.entries.some((entry) => entry.id === id)).toBe(false);
     expect(await mineStatus(env, ownerCookie, id)).toBe("recycled");
 
-    // The owner's restore re-enters review; the admin's goes straight back.
+    // Bringing it back republishes it, for the owner as much as the admin.
     expect(
       (await route(env, lifecycle(id, "restore", ownerCookie))).status,
     ).toBe(200);
-    expect(await mineStatus(env, ownerCookie, id)).toBe("pending");
+    expect(await mineStatus(env, ownerCookie, id)).toBe("public");
     expect(
       (await route(env, lifecycle(id, "recycle", adminCookie))).status,
     ).toBe(200);
@@ -1243,14 +1221,14 @@ describe("gallery owner lifecycle (withdrawal and history)", () => {
     expect(missing.status).toBe(404);
   });
 
-  it("owners browse their version history; restores re-enter review", async () => {
+  it("owners browse their version history; a restore stays published", async () => {
     const { authDurable, env } = reviewHarness();
     const ownerCookie = await signIn(authDurable, "maker@example.com");
     const adminCookie = await signIn(authDurable, "owner@example.com");
     const strangerCookie = await signIn(authDurable, "other@example.com");
-    const id = await submitApproved(env, ownerCookie, adminCookie, "Hist v1");
+    const id = await submitPublished(env, ownerCookie, "Hist v1");
 
-    // Owner update snapshots v1 and re-enters review.
+    // The owner's update snapshots v1 and stays on the wall.
     const updated = await route(
       env,
       new Request(`${ORIGIN}/api/gallery/${id}`, {
@@ -1298,14 +1276,7 @@ describe("gallery owner lifecycle (withdrawal and history)", () => {
     );
     expect(await ownerPreview.text()).toContain("<svg");
 
-    // Approve v2, then the owner's restore of v1 demotes it to pending.
-    await route(
-      env,
-      new Request(`${ORIGIN}/api/gallery/${id}/approve`, {
-        method: "POST",
-        headers: { Origin: ORIGIN, Cookie: adminCookie },
-      }),
-    );
+    // Restoring v1 puts the old content back without taking the entry down.
     const restore = await route(
       env,
       new Request(
@@ -1314,7 +1285,7 @@ describe("gallery owner lifecycle (withdrawal and history)", () => {
       ),
     );
     expect(restore.status).toBe(200);
-    expect(await mineStatus(env, ownerCookie, id)).toBe("pending");
+    expect(await mineStatus(env, ownerCookie, id)).toBe("public");
     const detail = await route(
       env,
       new Request(`${ORIGIN}/api/gallery/${id}`, {

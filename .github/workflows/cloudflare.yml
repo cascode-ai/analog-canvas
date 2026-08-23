@@ -47,7 +47,7 @@ jobs:
       # GITHUB_, hence GH_OAUTH_*.
       - name: Sync worker secrets
         run: |
-          for name in GALLERY_ADMIN_TOKEN GH_OAUTH_CLIENT_ID GH_OAUTH_CLIENT_SECRET GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET RESEND_API_KEY AUTH_EMAIL_FROM ADMIN_EMAILS; do
+          for name in GH_OAUTH_CLIENT_ID GH_OAUTH_CLIENT_SECRET GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET RESEND_API_KEY AUTH_EMAIL_FROM ADMIN_EMAILS; do
             value="${!name}"
             if [ -z "$value" ]; then
               echo "$name is not configured; skipping"
@@ -58,7 +58,6 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          GALLERY_ADMIN_TOKEN: ${{ secrets.GALLERY_ADMIN_TOKEN }}
           GH_OAUTH_CLIENT_ID: ${{ secrets.GH_OAUTH_CLIENT_ID }}
           GH_OAUTH_CLIENT_SECRET: ${{ secrets.GH_OAUTH_CLIENT_SECRET }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}

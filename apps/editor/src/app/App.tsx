@@ -8017,7 +8017,6 @@ export function App({
           updateDefaults={
             galleryEntryContext
               ? {
-                  author: galleryEntryContext.author,
                   description: galleryEntryContext.description,
                   tags: galleryEntryContext.tags,
                 }
@@ -8030,16 +8029,12 @@ export function App({
                   updateGalleryEntry(galleryEntryContext.id, project, fields)
               : undefined
           }
-          onPublished={({ name, pending, updated }) => {
+          onPublished={({ name, updated }) => {
             setPublishGalleryOpen(false);
             setStatus(
               updated
-                ? pending
-                  ? `Submitted the update to "${name}" for review`
-                  : `Updated "${name}" in the gallery`
-                : pending
-                  ? `Submitted "${name}" for review`
-                  : `Published "${name}" to the gallery`,
+                ? `Updated "${name}" in the gallery`
+                : `Published "${name}" to the gallery`,
             );
           }}
           onShowHistory={

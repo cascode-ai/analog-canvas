@@ -4,61 +4,25 @@ import { fetchSessionUser, type SessionUser } from "./account";
 import { GalleryChrome } from "./gallery-chrome";
 
 /**
- * Review queue (roadmap phase G3): the super-admin and appointed
- * moderators approve pending community submissions into the public feed
- * or reject them with an optional reason the submitter sees. The admin
- * additionally appoints moderators by email from this page.
+ * Moderation, the post-publication surface. Publishing is direct, so there
+ * is nothing to approve in advance; what a curator needs is the ability to
+ * take an entry down afterwards, put it back, and finally delete it. The
+ * super-admin also appoints moderators by email from here.
  */
 
-export interface PendingEntry {
-  id: string;
-  name: string;
-  author: string;
-  description: string;
-  createdAt: string;
-}
-
-type QueueState =
+type ModerationState =
   | { status: "loading" }
   | { status: "denied" }
-  | { status: "ready"; user: SessionUser; entries: PendingEntry[] };
+  | { status: "ready"; user: SessionUser };
 
-export async function loadReviewQueue(
+export async function loadModerationAccess(
   fetchLike: typeof fetch = fetch,
-): Promise<QueueState> {
+): Promise<ModerationState> {
   const user = await fetchSessionUser(fetchLike);
   if (!user || (!user.isAdmin && user.role !== "moderator")) {
     return { status: "denied" };
   }
-  try {
-    const response = await fetchLike("/api/gallery/review", {
-      credentials: "same-origin",
-    });
-    if (!response.ok) return { status: "denied" };
-    const payload = (await response.json()) as { entries?: PendingEntry[] };
-    return { status: "ready", user, entries: payload.entries ?? [] };
-  } catch {
-    return { status: "denied" };
-  }
-}
-
-async function decide(
-  id: string,
-  decision: "approve" | "reject",
-  reason: string,
-  fetchLike: typeof fetch = fetch,
-): Promise<boolean> {
-  try {
-    const response = await fetchLike(`/api/gallery/${id}/${decision}`, {
-      method: "POST",
-      credentials: "same-origin",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(decision === "reject" ? { reason } : {}),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
+  return { status: "ready", user };
 }
 
 async function appointModerator(
@@ -75,7 +39,7 @@ async function appointModerator(
     });
     if (response.ok) {
       return role === "moderator"
-        ? `${email} can now review submissions.`
+        ? `${email} can now moderate the gallery.`
         : `${email} is an ordinary user again.`;
     }
     if (response.status === 404) {
@@ -87,75 +51,6 @@ async function appointModerator(
   }
 }
 
-function ReviewCard({
-  entry,
-  onDecided,
-}: {
-  entry: PendingEntry;
-  onDecided: (id: string) => void;
-}) {
-  const [reason, setReason] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  async function act(decision: "approve" | "reject"): Promise<void> {
-    setBusy(true);
-    const ok = await decide(entry.id, decision, reason.trim());
-    setBusy(false);
-    if (ok) onDecided(entry.id);
-  }
-
-  return (
-    <article className="review-card" data-testid={`review-card-${entry.id}`}>
-      <a
-        className="review-card-preview"
-        href={`/g/${entry.id}`}
-        title="Open in the editor"
-      >
-        <img
-          src={`/api/gallery/${entry.id}/preview.svg`}
-          alt={`Preview of ${entry.name}`}
-          loading="lazy"
-        />
-      </a>
-      <div className="review-card-copy">
-        <h2>{entry.name}</h2>
-        <p className="review-card-meta">
-          {entry.author ? `${entry.author} · ` : ""}
-          {new Date(entry.createdAt).toLocaleString()}
-        </p>
-        {entry.description ? <p>{entry.description}</p> : null}
-        <input
-          aria-label="Rejection reason"
-          data-testid={`review-reason-${entry.id}`}
-          placeholder="Optional rejection reason"
-          value={reason}
-          maxLength={300}
-          onChange={(event) => setReason(event.currentTarget.value)}
-        />
-        <div className="review-card-actions">
-          <button
-            type="button"
-            data-testid={`review-reject-${entry.id}`}
-            disabled={busy}
-            onClick={() => void act("reject")}
-          >
-            Reject
-          </button>
-          <button
-            type="button"
-            className="review-approve"
-            data-testid={`review-approve-${entry.id}`}
-            disabled={busy}
-            onClick={() => void act("approve")}
-          >
-            Approve
-          </button>
-        </div>
-      </div>
-    </article>
-  );
-}
-
 interface RecycledEntry {
   id: string;
   name: string;
@@ -163,9 +58,9 @@ interface RecycledEntry {
 }
 
 /**
- * In-feed admin recycle bin (G4): the post-approval takedown surface.
- * Restore returns an entry to the public wall; Delete forever is the
- * only hard deletion and asks for confirmation first.
+ * The recycle bin: the takedown surface. Restore returns an entry to the
+ * public wall; Delete forever is the only hard deletion and asks for
+ * confirmation first.
  */
 function RecycleBin() {
   const [entries, setEntries] = useState<RecycledEntry[] | null>(null);
@@ -265,14 +160,14 @@ function RecycleBin() {
   );
 }
 
-export function ReviewQueue() {
-  const [state, setState] = useState<QueueState>({ status: "loading" });
+export function Moderation() {
+  const [state, setState] = useState<ModerationState>({ status: "loading" });
   const [email, setEmail] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    void loadReviewQueue().then((next) => {
+    void loadModerationAccess().then((next) => {
       if (!cancelled) setState(next);
     });
     return () => {
@@ -288,12 +183,12 @@ export function ReviewQueue() {
           state.status === "denied" ? "review-denied" : "review-page"
         }
       >
-        <GalleryChrome subtitle="Review queue" />
+        <GalleryChrome subtitle="Moderation" />
         <div className="page-body">
           <p className="gallery-status">
             {state.status === "loading"
-              ? "Loading review queue…"
-              : "The review queue is for the gallery owner and appointed moderators."}
+              ? "Loading moderation…"
+              : "Moderation is for the gallery owner and appointed moderators."}
           </p>
         </div>
       </main>
@@ -301,8 +196,8 @@ export function ReviewQueue() {
   }
 
   return (
-    <main className="review-shell" data-testid="review-queue">
-      <GalleryChrome subtitle="Review queue" />
+    <main className="review-shell" data-testid="moderation">
+      <GalleryChrome subtitle="Moderation" />
       <div className="page-body">
         {state.user.isAdmin ? (
           <form
@@ -325,33 +220,14 @@ export function ReviewQueue() {
             {notice ? <span className="account-notice">{notice}</span> : null}
           </form>
         ) : null}
-        {state.entries.length === 0 ? (
-          <p className="gallery-status" data-testid="review-empty">
-            Nothing waiting for review.
-          </p>
+        {state.user.isAdmin ? (
+          <RecycleBin />
         ) : (
-          <section className="review-list">
-            {state.entries.map((entry) => (
-              <ReviewCard
-                key={entry.id}
-                entry={entry}
-                onDecided={(id) =>
-                  setState((previous) =>
-                    previous.status === "ready"
-                      ? {
-                          ...previous,
-                          entries: previous.entries.filter(
-                            (candidate) => candidate.id !== id,
-                          ),
-                        }
-                      : previous,
-                  )
-                }
-              />
-            ))}
-          </section>
+          <p className="gallery-status">
+            Withdraw an entry from its page; the owner and the admin can bring
+            it back.
+          </p>
         )}
-        {state.user.isAdmin ? <RecycleBin /> : null}
       </div>
     </main>
   );

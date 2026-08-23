@@ -318,9 +318,6 @@ test("the admin recycle bin restores a recycled entry", async ({ page }) => {
       },
     }),
   );
-  await page.route("**/api/gallery/review", (route) =>
-    route.fulfill({ json: { entries: [] } }),
-  );
   let restored = 0;
   await page.route("**/api/gallery/recycled", (route) =>
     route.fulfill({
@@ -342,7 +339,7 @@ test("the admin recycle bin restores a recycled entry", async ({ page }) => {
     return route.fulfill({ json: { id: "bin-1", status: "public" } });
   });
 
-  await page.goto("/review");
+  await page.goto("/moderation");
   await expect(page.getByTestId("bin-card-bin-1")).toBeVisible();
   await page.getByTestId("bin-restore-bin-1").click();
   await expect(page.getByTestId("bin-empty")).toBeVisible();
@@ -458,59 +455,29 @@ test("a signed-in owner renames the display name and signs out", async ({
   expect(loggedOut).toBe(1);
 });
 
-test("the Publish button posts the live Project with the passphrase", async ({
+test("a signed-out visitor is asked to sign in, not for a passphrase", async ({
   page,
 }) => {
-  const posted: { authorization: string | null; body: string }[] = [];
-  // The real submissions endpoint is /api/gallery/submissions — the mock
-  // matches it exactly so a client posting anywhere else fails this test.
   await page.route("**/api/gallery", (route) =>
     route.fulfill({ json: { entries: [], nextCursor: null } }),
   );
-  await page.route("**/api/gallery/submissions", (route) => {
-    if (route.request().method() !== "POST") return route.fallback();
-    posted.push({
-      authorization: route.request().headers()["authorization"] ?? null,
-      body: route.request().postData() ?? "",
-    });
-    return route.fulfill({ status: 201, json: { id: "entry-99" } });
-  });
 
   await page.goto("/editor");
   await page.getByTestId("publish-gallery-button").click();
   const dialog = page.getByTestId("publish-gallery-dialog");
   await expect(dialog).toBeVisible();
 
-  await dialog.getByLabel("Circuit name").fill("Publish Demo");
-  await dialog.getByLabel("Author").fill("Vivian");
-  const publish = dialog.getByRole("button", { name: "Publish" });
-  await expect(publish).toBeDisabled();
-  await dialog.getByLabel("Owner passphrase").fill("secret-token");
-  await publish.click();
-
-  await expect(page.getByTestId("status")).toHaveText(
-    'Published "Publish Demo" to the gallery',
+  await expect(dialog.getByTestId("publish-signin")).toBeVisible();
+  await expect(dialog.getByTestId("publish-signin-github")).toHaveAttribute(
+    "href",
+    "/api/auth/github/start",
   );
-  expect(posted).toHaveLength(1);
-  const request = posted[0]!;
-  expect(request.authorization).toBe("Bearer secret-token");
-  const body = JSON.parse(request.body) as {
-    name: string;
-    author: string;
-    projectText: string;
-  };
-  expect(body.name).toBe("Publish Demo");
-  expect(body.author).toBe("Vivian");
-  expect(JSON.parse(body.projectText).schemaVersion).toBe(ENTRY.schemaVersion);
-
-  // The passphrase is remembered for the session and offered on reopen.
-  await page.getByTestId("publish-gallery-button").click();
-  await expect(
-    page.getByTestId("publish-gallery-dialog").getByLabel("Owner passphrase"),
-  ).toHaveValue("secret-token");
+  // The passphrase is gone: no field, and nothing to submit without a session.
+  await expect(dialog.getByLabel("Owner passphrase")).toHaveCount(0);
+  await expect(dialog.getByRole("button", { name: "Publish" })).toHaveCount(0);
 });
 
-test("an admin session publishes without the passphrase row", async ({
+test("a signed-in member publishes directly, bylined by the account", async ({
   page,
 }) => {
   await page.route("**/api/auth/me", (route) =>
@@ -528,18 +495,28 @@ test("an admin session publishes without the passphrase row", async ({
   );
   const posted: {
     authorization: string | null;
-    author: string;
+    hasAuthor: boolean;
+    name: string;
     tags: string[];
+    schemaVersion: number;
   }[] = [];
+  // The real submissions endpoint is /api/gallery/submissions — the mock
+  // matches it exactly so a client posting anywhere else fails this test.
   await page.route("**/api/gallery/submissions", (route) => {
+    if (route.request().method() !== "POST") return route.fallback();
     const body = route.request().postDataJSON() as {
-      author: string;
+      author?: string;
+      name: string;
       tags: string[];
+      projectText: string;
     };
     posted.push({
       authorization: route.request().headers()["authorization"] ?? null,
-      author: body.author,
+      hasAuthor: "author" in body,
+      name: body.name,
       tags: body.tags,
+      schemaVersion: (JSON.parse(body.projectText) as { schemaVersion: number })
+        .schemaVersion,
     });
     return route.fulfill({ status: 201, json: { id: "entry-77" } });
   });
@@ -548,10 +525,10 @@ test("an admin session publishes without the passphrase row", async ({
   await page.getByTestId("publish-gallery-button").click();
   const dialog = page.getByTestId("publish-gallery-dialog");
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByText("Signed in as Token Zhang")).toBeVisible();
+  await expect(dialog.getByText("Publishing as Token Zhang")).toBeVisible();
   await expect(dialog.getByLabel("Owner passphrase")).toHaveCount(0);
-  // The account display name prefills the author byline.
-  await expect(dialog.getByLabel("Author")).toHaveValue("Token Zhang");
+  // The byline comes from the account, so there is no field to fill in.
+  await expect(dialog.getByLabel("Author")).toHaveCount(0);
 
   await dialog.getByLabel("Circuit name").fill("Session Publish");
   await dialog.getByTestId("publish-preset-amplifier").click();
@@ -565,8 +542,10 @@ test("an admin session publishes without the passphrase row", async ({
   expect(posted).toEqual([
     {
       authorization: null,
-      author: "Token Zhang",
+      hasAuthor: false,
+      name: "Session Publish",
       tags: ["amplifier", "latch"],
+      schemaVersion: ENTRY.schemaVersion,
     },
   ]);
 });
@@ -597,15 +576,14 @@ test("an ordinary user sees blocking quality gates on an empty project", async (
   // The empty canvas fails the content gate, evaluated locally.
   const gates = page.getByTestId("publish-gallery-gates");
   await expect(gates).toBeVisible();
-  await expect(gates).toContainText("Fix these before submitting");
+  await expect(gates).toContainText("Fix these before publishing");
   await expect(gates).toContainText("Too little content");
   await expect(dialog.getByLabel("Owner passphrase")).toHaveCount(0);
-  await expect(
-    dialog.getByRole("button", { name: "Submit for review" }),
-  ).toBeDisabled();
+  // The gates still hold, but the button says what actually happens next.
+  await expect(dialog.getByRole("button", { name: "Publish" })).toBeDisabled();
 });
 
-test("a reviewer approves a pending submission from the review queue", async ({
+test("the retired review queue is gone from the moderation page", async ({
   page,
 }) => {
   await page.route("**/api/auth/me", (route) =>
@@ -622,40 +600,16 @@ test("a reviewer approves a pending submission from the review queue", async ({
       },
     }),
   );
-  await page.route("**/api/gallery/review", (route) =>
-    route.fulfill({
-      json: {
-        entries: [
-          {
-            id: "p-1",
-            name: "Pending Filter",
-            author: "maker",
-            description: "Second-order RC",
-            createdAt: "2026-08-22T09:00:00.000Z",
-          },
-        ],
-      },
-    }),
+  await page.route("**/api/gallery/recycled", (route) =>
+    route.fulfill({ json: { entries: [] } }),
   );
-  await page.route("**/api/gallery/p-1/preview.svg", (route) =>
-    route.fulfill({
-      contentType: "image/svg+xml",
-      body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10" fill="#fff"/></svg>',
-    }),
-  );
-  const decisions: string[] = [];
-  await page.route("**/api/gallery/p-1/approve", (route) => {
-    decisions.push("approve");
-    return route.fulfill({ json: { id: "p-1", status: "public" } });
-  });
 
-  await page.goto("/review");
-  const card = page.getByTestId("review-card-p-1");
-  await expect(card).toBeVisible();
-  await expect(card).toContainText("Pending Filter");
-  await card.getByTestId("review-approve-p-1").click();
-  await expect(page.getByTestId("review-empty")).toBeVisible();
-  expect(decisions).toEqual(["approve"]);
+  await page.goto("/moderation");
+  await expect(page.getByTestId("moderation")).toBeVisible();
+  // Curation is post-publication now: a bin to restore from, no inbox.
+  await expect(page.getByTestId("bin-empty")).toBeVisible();
+  await expect(page.getByTestId("review-empty")).toHaveCount(0);
+  await expect(page.getByText("Nothing waiting for review")).toHaveCount(0);
 });
 
 test("/mine wears the site chrome and links every entry back to the editor", async ({

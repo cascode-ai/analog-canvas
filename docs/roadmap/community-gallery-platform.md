@@ -22,15 +22,12 @@ server contract lives in
 - `GalleryDO` (SQLite, third Durable Object) stores published entries:
   canonical strict-schema Project text plus a server-rendered preview SVG;
   nothing client-authored is ever stored or served as markup.
-- Public read API: list, entry, preview image. Publishing exists but is
-  admin-token-gated until real sign-in lands (anonymous upload stays
-  impossible from day one; admin-published entries go live directly — the
-  end-state review queue for ordinary users arrives in G3). The editor's
-  File > "Publish to Gallery…" dialog is the in-app publishing surface:
-  it posts the live Project with the owner passphrase (remembered per
-  browser session, forgotten on a 401) and later switches to signed-in
-  identity without moving the entry point.
-- Admin API (bearer `GALLERY_ADMIN_TOKEN`): recycle (soft, restorable),
+- Public read API: list, entry, preview image. Publishing shipped behind
+  an owner passphrase while real sign-in was being built; that stopgap is
+  retired — see G5. The editor's File > "Publish to Gallery…" dialog is
+  the in-app publishing surface and did not move when the credential
+  changed.
+- Admin API (a super-admin session): recycle (soft, restorable),
   restore, hard-delete from the bin only, recycled list, and batch
   re-serialization that keeps long-lived entries inside the rolling schema
   window (previews stored independently so browsing survives an expired
@@ -54,9 +51,8 @@ editor behavior reachable at `/editor` unchanged.
 - Profile basics: users rename their own display name; identities from
   different providers stay distinct accounts in G2 (linking is a later
   refinement).
-- Super-admin is computed per request from the `ADMIN_EMAILS` secret; an
-  admin session carries the same authority as the gallery bearer,
-  including in-app publishing without the pasted passphrase.
+- Super-admin is computed per request from the `ADMIN_EMAILS` secret,
+  and rotation needs no re-login.
 - Every provider ships dark until its secrets exist; the deploy workflow
   syncs whichever of the GitHub secrets are present. To light one up, the
   owner provisions (Claude cannot create accounts or handle credentials):
@@ -83,7 +79,7 @@ provider; display-name edits stick; the owner's account sees admin
 affordances; no credential material ever transits or is stored beyond the
 provider contract.
 
-## Phase G3 — Ownership, review, and editing (queue + gates live)
+## Phase G3 — Ownership, review, and editing (queue since retired in G5)
 
 - Publishing requires a session; a submission enters a `pending` queue
   instead of going live. The super-admin — or reviewers the super-admin
@@ -105,14 +101,15 @@ dialog, then wait in `pending` (publicly invisible) until the
 super-admin or an appointed moderator (`/review`, in-app appointment by
 email) approves or rejects with an optional reason surfaced at `/mine`.
 Owner editing shipped 2026-08-22: every entry stays editable by its
-owner (updates re-enter review; a rejection becomes an informed
-resubmission) and by reviewers in place; withdrawal remains a recorded
-refinement.
+owner and by moderators in place.
 
-Acceptance: an ordinary submission is invisible publicly until approved;
-rejection stores and surfaces its optional reason; two ordinary accounts
-cannot touch each other's tiles while moderators and the admin can;
-anonymous writes are impossible at the API, not just the UI.
+Superseded by G5: the review queue described above no longer exists. The
+quality gates, the ownership rules, and the moderator role all survive
+it; only the wait for approval is gone.
+
+Acceptance: two ordinary accounts cannot touch each other's tiles while
+moderators and the admin can; anonymous writes are impossible at the
+API, not just the UI.
 
 ## Phase G4 — Feed experience (masonry live)
 
@@ -120,8 +117,35 @@ anonymous writes are impossible at the API, not just the UI.
   each circuit's natural aspect ratio, left-to-right reading order,
   balanced bottoms). Infinite scroll (sentinel over the keyset cursor),
   per-author filtering (clickable bylines, URL-carried, clearable chip),
-  and the in-feed admin recycle bin (restore / delete-forever on
-  /review) shipped 2026-08-22; still open: seeded starter content
+  and the admin recycle bin (restore / delete-forever, now on
+  /moderation) shipped 2026-08-22; still open: seeded starter content
   curation.
+
+## Phase G5 — Direct publishing (live)
+
+Shipped 2026-08-23, on the repository owner's decision that a submission
+queue should not accumulate and that the passphrase should go.
+
+- The passphrase is retired. `GALLERY_ADMIN_TOKEN` is removed from the
+  worker, the deploy workflow, and the publish dialog; a session cookie
+  is the only credential on the gallery write path, and an
+  `Authorization` header buys nothing.
+- Signing in is the whole publishing gate. Every signed-in account
+  publishes straight to the wall; the quality gates still run for
+  ordinary members, instantly and with the failures listed, because they
+  are an automatic check rather than a queue.
+- The byline comes from the account, not the form: the worker reads
+  `author` from the session, so nobody publishes under another's name
+  and an update never re-attributes an entry.
+- Every entry records the submitting account's id, email, and provider.
+  The email and provider are disclosed only to a moderator or admin.
+- `pending` is retired along with `GET /api/gallery/review` and the
+  approve/reject routes. Opening the storage promotes a leftover
+  `pending` row to `public` rather than stranding it. Curation moved to
+  `/moderation`: the recycle bin plus moderator appointment.
+
+Acceptance: a signed-in member's circuit is on the wall the moment they
+publish; an anonymous submission is refused at the API; a moderator can
+still take an entry down and put it back.
 
 Each phase closes by updating this file's status line for that phase.

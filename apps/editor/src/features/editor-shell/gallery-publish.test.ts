@@ -3,12 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   describePublishOutcome,
-  forgetOnUnauthorized,
   publishProjectToGallery,
-  rememberedPublishAuthor,
-  rememberedPublishToken,
-  rememberPublishAuthor,
-  rememberPublishToken,
 } from "./gallery-publish";
 
 const project = createEmptyProject("p1", "Ring Oscillator");
@@ -25,47 +20,36 @@ function fetchReturning(
   }) as typeof fetch;
 }
 
-function memoryStorage(): Pick<
-  Storage,
-  "getItem" | "setItem" | "removeItem"
-> & { map: Map<string, string> } {
-  const map = new Map<string, string>();
-  return {
-    map,
-    getItem: (key) => map.get(key) ?? null,
-    setItem: (key, value) => void map.set(key, value),
-    removeItem: (key) => void map.delete(key),
-  };
-}
-
 describe("publishProjectToGallery", () => {
-  it("posts the serialized Project with the bearer passphrase", async () => {
+  it("posts the serialized Project under the session cookie alone", async () => {
     const seen: { url?: string; init?: RequestInit | undefined } = {};
     const outcome = await publishProjectToGallery(
       project,
       {
         name: "  Ring Oscillator  ",
-        author: "Vivian",
         description: "Five stages",
         tags: ["Amplifier", "OTA"],
-        token: "secret-token",
       },
       fetchReturning(201, { id: "entry-1" }, seen),
     );
     expect(outcome).toEqual({ status: "published", id: "entry-1" });
     expect(seen.url).toBe("/api/gallery/submissions");
-    expect((seen.init?.headers as Record<string, string>).authorization).toBe(
-      "Bearer secret-token",
-    );
+    expect(seen.init?.credentials).toBe("same-origin");
+
+    // No passphrase travels any more: the cookie is the whole credential.
+    const headers = seen.init?.headers as Record<string, string>;
+    expect(headers.authorization).toBeUndefined();
+
     const body = JSON.parse(String(seen.init?.body)) as {
       name: string;
-      author: string;
       description: string;
       projectText: string;
     };
     expect(body.name).toBe("Ring Oscillator");
-    expect(body.author).toBe("Vivian");
     expect(body.description).toBe("Five stages");
+    // The byline is the server's to set from the session, so the request
+    // carries no author claim at all.
+    expect(body).not.toHaveProperty("author");
     expect(JSON.parse(body.projectText).schemaVersion).toBe(
       project.schemaVersion,
     );
@@ -81,7 +65,7 @@ describe("publishProjectToGallery", () => {
     for (const [status, payload, expected] of cases) {
       const outcome = await publishProjectToGallery(
         project,
-        { name: "N", author: "", description: "", tags: [], token: "t" },
+        { name: "N", description: "", tags: [] },
         fetchReturning(status, payload),
       );
       expect(outcome.status).toBe(expected);
@@ -89,54 +73,35 @@ describe("publishProjectToGallery", () => {
     }
   });
 
-  it("omits the bearer for an empty passphrase so the session cookie signs", async () => {
-    const seen: { url?: string; init?: RequestInit | undefined } = {};
+  it("reads a 422 as the quality gates, not as a refusal", async () => {
     const outcome = await publishProjectToGallery(
       project,
-      { name: "N", author: "", description: "", tags: [], token: "" },
-      fetchReturning(201, { id: "entry-2" }, seen),
+      { name: "N", description: "", tags: [] },
+      fetchReturning(422, {
+        error: "quality-gate",
+        failures: [
+          { code: "empty-project", message: "Nothing to publish", count: 1 },
+        ],
+      }),
     );
-    expect(outcome.status).toBe("published");
-    const headers = seen.init?.headers as Record<string, string>;
-    expect(headers.authorization).toBeUndefined();
-    expect(seen.init?.credentials).toBe("same-origin");
+    expect(outcome).toMatchObject({
+      status: "gate-failed",
+      failures: [{ code: "empty-project" }],
+    });
   });
 
   it("reports a thrown fetch as unreachable", async () => {
     const outcome = await publishProjectToGallery(
       project,
-      { name: "N", author: "", description: "", tags: [], token: "t" },
+      { name: "N", description: "", tags: [] },
       (() => Promise.reject(new Error("offline"))) as typeof fetch,
     );
     expect(outcome).toEqual({ status: "unreachable", message: "offline" });
   });
-});
 
-describe("publish passphrase session memory", () => {
-  it("round-trips the passphrase and forgets it on a 401", () => {
-    const storage = memoryStorage();
-    rememberPublishToken("secret-token", storage);
-    expect(rememberedPublishToken(storage)).toBe("secret-token");
-    expect(forgetOnUnauthorized({ status: "rate-limited" }, storage)).toBe(
-      false,
+  it("points a signed-out publisher at signing in, not at a passphrase", () => {
+    expect(describePublishOutcome({ status: "unauthorized" })).toContain(
+      "sign in",
     );
-    expect(rememberedPublishToken(storage)).toBe("secret-token");
-    expect(forgetOnUnauthorized({ status: "unauthorized" }, storage)).toBe(
-      true,
-    );
-    expect(rememberedPublishToken(storage)).toBe("");
-    expect(storage.map.size).toBe(0);
-  });
-});
-
-describe("publish author memory", () => {
-  it("prefills the last-used byline and forgets a cleared one", () => {
-    const storage = memoryStorage();
-    expect(rememberedPublishAuthor(storage)).toBe("");
-    rememberPublishAuthor("  Token Zhang  ", storage);
-    expect(rememberedPublishAuthor(storage)).toBe("Token Zhang");
-    rememberPublishAuthor("   ", storage);
-    expect(rememberedPublishAuthor(storage)).toBe("");
-    expect(storage.map.size).toBe(0);
   });
 });

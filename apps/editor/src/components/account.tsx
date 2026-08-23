@@ -187,7 +187,7 @@ export function AccountMenuView({
               </span>
             ) : user.role === "moderator" ? (
               <span className="account-owner-badge" data-testid="account-mod">
-                Reviewer
+                Moderator
               </span>
             ) : null}
             <span aria-hidden="true">⋯</span>
@@ -196,10 +196,10 @@ export function AccountMenuView({
             {user.isAdmin || user.role === "moderator" ? (
               <a
                 className="account-link"
-                href="/review"
-                data-testid="account-review-link"
+                href="/moderation"
+                data-testid="account-moderation-link"
               >
-                Review
+                Moderation
               </a>
             ) : null}
             <a className="account-link" href="/mine" data-testid="account-mine">

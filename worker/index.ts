@@ -28,7 +28,6 @@ type Env = {
   AGENT_SESSION: AgentSessionNamespaceLike;
   AGENT_ALLOWED_ORIGIN?: string;
   GALLERY: GalleryNamespaceLike;
-  GALLERY_ADMIN_TOKEN?: string;
   AUTH: AuthNamespaceLike;
   GH_OAUTH_CLIENT_ID?: string;
   GH_OAUTH_CLIENT_SECRET?: string;

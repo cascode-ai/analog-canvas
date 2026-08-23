@@ -4,8 +4,10 @@
 // strict protocol boundary (`parseProject`, rolling-window upgrade applied).
 // Everything served back — canonical Project text and the preview SVG — is
 // derived server-side from that validated model; no client-supplied markup
-// is ever stored or echoed. Entries publish immediately; the admin (bearer
-// `GALLERY_ADMIN_TOKEN`, a Cloudflare secret) can recycle (soft, restorable),
+// is ever stored or echoed. Signing in is the whole publishing gate: any
+// signed-in account publishes straight to the wall, and every entry records
+// the submitting account's email and provider so it stays traceable. An
+// admin session can recycle (soft, restorable),
 // hard-delete from the bin only, and batch re-serialize every entry to keep
 // long-lived records inside the rolling schema window. Previews are stored
 // independently so browsing survives an entry the current window can no
@@ -54,8 +56,7 @@ export type GalleryNamespaceLike = {
 
 export type GalleryEnv = {
   GALLERY: GalleryNamespaceLike;
-  GALLERY_ADMIN_TOKEN?: string;
-  /** Phase G2: an admin session works wherever the bearer does. */
+  /** Sessions are the only identity: publishing requires one. */
   AUTH?: AuthNamespaceLike;
   ADMIN_EMAILS?: string;
 };
@@ -114,6 +115,8 @@ interface EntryRow {
   status: string;
   recycled_at: string | null;
   owner_user_id: string | null;
+  submitter_email: string | null;
+  submitter_provider: string | null;
   tags: string | null;
   reject_reason: string | null;
   reviewed_at: string | null;
@@ -153,6 +156,8 @@ export class GalleryDO {
         status TEXT NOT NULL,
         recycled_at TEXT,
         owner_user_id TEXT,
+        submitter_email TEXT,
+        submitter_provider TEXT,
         project_text TEXT NOT NULL,
         svg_text TEXT NOT NULL
       ) WITHOUT ROWID
@@ -188,12 +193,14 @@ export class GalleryDO {
       CREATE INDEX IF NOT EXISTS idx_gallery_entry_versions_entry
       ON gallery_entry_versions(entry_id, version_no)
     `);
-    // Additive review-queue columns (phase G3) for pre-existing databases.
+    // Additive columns for pre-existing databases.
     for (const alteration of [
       "ALTER TABLE gallery_entries ADD COLUMN reject_reason TEXT",
       "ALTER TABLE gallery_entries ADD COLUMN reviewed_at TEXT",
       "ALTER TABLE gallery_entries ADD COLUMN reviewed_by TEXT",
       "ALTER TABLE gallery_entries ADD COLUMN tags TEXT NOT NULL DEFAULT ''",
+      "ALTER TABLE gallery_entries ADD COLUMN submitter_email TEXT",
+      "ALTER TABLE gallery_entries ADD COLUMN submitter_provider TEXT",
     ]) {
       try {
         this.sql.exec(alteration);
@@ -201,6 +208,13 @@ export class GalleryDO {
         // Column already present.
       }
     }
+    // Direct publishing retired the review queue. An entry still waiting for
+    // a reviewer would otherwise be stranded — listed nowhere, approvable by
+    // nothing — so publish it, which is what its author asked for. An entry a
+    // reviewer actually rejected keeps that decision.
+    this.sql.exec(
+      "UPDATE gallery_entries SET status = 'public' WHERE status = 'pending'",
+    );
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -228,10 +242,6 @@ export class GalleryDO {
         return this.delete(String(body.id));
       case "recycled":
         return this.recycled();
-      case "pending":
-        return this.pending();
-      case "review":
-        return this.review(body);
       case "mine":
         return this.mine(String(body.ownerUserId));
       case "all-ids":
@@ -258,7 +268,7 @@ export class GalleryDO {
     const day = String(body.day);
     const submitterHash = String(body.submitterHash);
     // The daily quota is anti-garbage protection for ordinary submitters;
-    // the bearer and admin/moderator sessions are exempt (they curate).
+    // admin and moderator sessions are exempt (they curate).
     const enforceLimit = body.enforceLimit !== false;
     const outcome = this.state.storage.transactionSync(() => {
       if (enforceLimit) {
@@ -285,16 +295,18 @@ export class GalleryDO {
       this.sql.exec(
         `INSERT INTO gallery_entries(
           id, name, author, description, created_at, schema_version,
-          status, recycled_at, owner_user_id, tags, project_text, svg_text
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?)`,
+          status, recycled_at, owner_user_id, submitter_email,
+          submitter_provider, tags, project_text, svg_text
+        ) VALUES (?, ?, ?, ?, ?, ?, 'public', NULL, ?, ?, ?, ?, ?, ?)`,
         entry.id,
         entry.name,
         entry.author,
         entry.description,
         entry.created_at,
         entry.schema_version,
-        entry.status === "pending" ? "pending" : "public",
         entry.owner_user_id ?? null,
+        entry.submitter_email ?? null,
+        entry.submitter_provider ?? null,
         entry.tags ?? "",
         entry.project_text,
         entry.svg_text,
@@ -348,6 +360,10 @@ export class GalleryDO {
     return Response.json({ entries: page.map(summaryOf), nextCursor });
   }
 
+  /**
+   * One entry. `submitterEmail`/`submitterProvider` ride along for the
+   * caller to gate: `routeGalleryRequest` only forwards them to a curator.
+   */
   private entry(id: string, requiredStatus: string | null): Response {
     const row = this.sql
       .exec<EntryRow>("SELECT * FROM gallery_entries WHERE id = ?", id)
@@ -359,51 +375,10 @@ export class GalleryDO {
       entry: summaryOf(row),
       status: row.status,
       ownerUserId: row.owner_user_id,
+      submitterEmail: row.submitter_email,
+      submitterProvider: row.submitter_provider,
       projectText: row.project_text,
       svgText: row.svg_text,
-    });
-  }
-
-  private pending(): Response {
-    const rows = this.sql
-      .exec<EntryRow>(
-        `SELECT * FROM gallery_entries WHERE status = 'pending'
-         ORDER BY created_at ASC, id ASC`,
-      )
-      .toArray();
-    return Response.json({
-      entries: rows.map((row) => ({
-        ...summaryOf(row),
-        ownerUserId: row.owner_user_id,
-      })),
-    });
-  }
-
-  private review(body: Record<string, unknown>): Response {
-    const row = this.sql
-      .exec<EntryRow>(
-        "SELECT * FROM gallery_entries WHERE id = ?",
-        String(body.id),
-      )
-      .toArray()[0];
-    if (!row) return Response.json({ error: "not-found" }, { status: 404 });
-    if (row.status !== "pending") {
-      return Response.json({ error: "not-pending" }, { status: 409 });
-    }
-    const approve = body.decision === "approve";
-    this.sql.exec(
-      `UPDATE gallery_entries
-       SET status = ?, reject_reason = ?, reviewed_at = ?, reviewed_by = ?
-       WHERE id = ?`,
-      approve ? "public" : "rejected",
-      approve ? null : ((body.reason as string | null) ?? null),
-      String(body.at),
-      String(body.reviewerId),
-      row.id,
-    );
-    return Response.json({
-      id: row.id,
-      status: approve ? "public" : "rejected",
     });
   }
 
@@ -572,14 +547,6 @@ export class GalleryDO {
         version.tags ?? "",
         entry.id,
       );
-      // An owner-initiated restore re-enters review like any owner edit.
-      if (body.pending === true) {
-        this.sql.exec(
-          `UPDATE gallery_entries
-           SET status = 'pending', reject_reason = NULL WHERE id = ?`,
-          entry.id,
-        );
-      }
     });
     return Response.json({ id: entry.id, restored: true });
   }
@@ -718,23 +685,13 @@ function sameOrigin(request: Request): boolean {
   return true;
 }
 
-function bearerIsAdmin(request: Request, env: GalleryEnv): boolean {
-  return Boolean(
-    env.GALLERY_ADMIN_TOKEN &&
-    request.headers.get("Authorization") ===
-      `Bearer ${env.GALLERY_ADMIN_TOKEN}`,
-  );
-}
-
 async function isAdmin(request: Request, env: GalleryEnv): Promise<boolean> {
-  if (bearerIsAdmin(request, env)) return true;
   const user = await sessionUserOf(request, env);
   return user?.isAdmin === true;
 }
 
-/** Review authority (phase G3): the bearer, an admin, or a moderator. */
+/** Curation authority: an admin or an appointed moderator. */
 async function canReview(request: Request, env: GalleryEnv): Promise<boolean> {
-  if (bearerIsAdmin(request, env)) return true;
   const user = await sessionUserOf(request, env);
   return user?.isAdmin === true || user?.role === "moderator";
 }
@@ -800,31 +757,29 @@ async function handleSubmission(
   if (!sameOrigin(request)) {
     return Response.json({ error: "forbidden" }, { status: 403 });
   }
-  // Phase G3: the bearer and admin/moderator sessions publish directly;
-  // ordinary signed-in users pass the quality gates and enter the review
-  // queue as `pending`. Anonymous upload stays impossible — the original
-  // day-one rule.
-  const bearer = bearerIsAdmin(request, env);
+  // Signing in is the whole gate: every signed-in user publishes straight to
+  // the wall. Anonymous upload stays impossible, because an entry has to be
+  // attributable to the account that submitted it.
   const user = await sessionUserOf(request, env);
-  const privileged =
-    bearer || user?.isAdmin === true || user?.role === "moderator";
-  if (!bearer && !user) {
+  if (!user) {
     return Response.json({ error: "unauthorized" }, { status: 401 });
   }
+  const privileged = user.isAdmin === true || user.role === "moderator";
   const body = (await request.json().catch(() => null)) as {
     name?: unknown;
-    author?: unknown;
     description?: unknown;
     tags?: unknown;
     projectText?: unknown;
   } | null;
   const name = fieldText(body?.name, GALLERY_MAX_NAME_LENGTH);
-  const author = fieldText(body?.author, GALLERY_MAX_AUTHOR_LENGTH);
+  // The byline is the signed-in account's display name. Reading it from the
+  // request would let one account publish under another's name.
+  const author = user.displayName.slice(0, GALLERY_MAX_AUTHOR_LENGTH);
   const description = fieldText(
     body?.description,
     GALLERY_MAX_DESCRIPTION_LENGTH,
   );
-  if (!body || !name || author === null || description === null) {
+  if (!body || !name || description === null) {
     return Response.json({ error: "invalid-fields" }, { status: 400 });
   }
   if (typeof body.projectText !== "string") {
@@ -853,7 +808,6 @@ async function handleSubmission(
   }
   project.name = name;
   const now = new Date();
-  const entryStatus = privileged ? "public" : "pending";
   const { status, payload } = await callGallery<{ id?: string }>(
     env,
     "submit",
@@ -868,8 +822,11 @@ async function handleSubmission(
         description,
         created_at: now.toISOString(),
         schema_version: project.schemaVersion,
-        status: entryStatus,
-        owner_user_id: user?.id ?? null,
+        owner_user_id: user.id,
+        // Recorded per submission, so an entry stays traceable to the
+        // identity that published it even if the account later changes.
+        submitter_email: user.email,
+        submitter_provider: user.provider,
         tags: wrapTags(sanitizeGalleryTags(body.tags)),
         project_text: serializeProject(project),
         svg_text: renderPreview(project),
@@ -879,19 +836,14 @@ async function handleSubmission(
   if (status === 429) {
     return Response.json({ error: "rate-limited" }, { status: 429 });
   }
-  return Response.json(
-    { id: payload.id, status: entryStatus },
-    { status: 201 },
-  );
+  return Response.json({ id: payload.id, status: "public" }, { status: 201 });
 }
 
 /**
- * Owner/reviewer entry update (phase G3 completion). The bearer and
- * admin/moderator sessions may update any entry, keeping its current
- * status; an ordinary session must own the entry and passes the quality
- * gates, after which the entry re-enters review as `pending` with the
- * previous decision cleared — a rejection therefore becomes an informed
- * resubmission.
+ * Owner or curator entry update. A moderator may update any entry; an
+ * ordinary session must own the entry and passes the quality gates. Either
+ * way the entry keeps its byline and its current status, so editing a
+ * published circuit neither takes it off the wall nor re-attributes it.
  */
 async function handleEntryUpdate(
   request: Request,
@@ -903,18 +855,17 @@ async function handleEntryUpdate(
   }
   const existing = await callGallery<{
     status?: string;
+    entry?: { author?: string };
     ownerUserId?: string | null;
   }>(env, "any-entry", { id });
   if (existing.status !== 200) {
     return Response.json({ error: "not-found" }, { status: 404 });
   }
-  const bearer = bearerIsAdmin(request, env);
   const user = await sessionUserOf(request, env);
-  const privileged =
-    bearer || user?.isAdmin === true || user?.role === "moderator";
-  if (!bearer && !user) {
+  if (!user) {
     return Response.json({ error: "unauthorized" }, { status: 401 });
   }
+  const privileged = user.isAdmin === true || user.role === "moderator";
   const owner =
     user !== null &&
     existing.payload.ownerUserId != null &&
@@ -924,18 +875,19 @@ async function handleEntryUpdate(
   }
   const body = (await request.json().catch(() => null)) as {
     name?: unknown;
-    author?: unknown;
     description?: unknown;
     tags?: unknown;
     projectText?: unknown;
   } | null;
   const name = fieldText(body?.name, GALLERY_MAX_NAME_LENGTH);
-  const author = fieldText(body?.author, GALLERY_MAX_AUTHOR_LENGTH);
+  // An update never re-attributes the entry, not even when a moderator
+  // makes it: the byline stays the one the submitter published under.
+  const author = existing.payload.entry?.author ?? "";
   const description = fieldText(
     body?.description,
     GALLERY_MAX_DESCRIPTION_LENGTH,
   );
-  if (!body || !name || author === null || description === null) {
+  if (!body || !name || description === null) {
     return Response.json({ error: "invalid-fields" }, { status: 400 });
   }
   if (typeof body.projectText !== "string") {
@@ -963,9 +915,7 @@ async function handleEntryUpdate(
     }
   }
   project.name = name;
-  const nextStatus = privileged
-    ? (existing.payload.status ?? "public")
-    : "pending";
+  const nextStatus = existing.payload.status ?? "public";
   const { status, payload } = await callGallery(env, "replace-entry", {
     id,
     at: new Date().toISOString(),
@@ -1077,17 +1027,6 @@ export async function routeGalleryRequest(
   }
   if (
     segments.length === 1 &&
-    segments[0] === "review" &&
-    request.method === "GET"
-  ) {
-    if (!(await canReview(request, env))) {
-      return Response.json({ error: "unauthorized" }, { status: 401 });
-    }
-    const { payload } = await callGallery(env, "pending", {});
-    return Response.json(payload, { headers: { "cache-control": "no-store" } });
-  }
-  if (
-    segments.length === 1 &&
     segments[0] === "mine" &&
     request.method === "GET"
   ) {
@@ -1167,8 +1106,6 @@ export async function routeGalleryRequest(
       entryId: segments[0],
       versionId: segments[2],
       at: new Date().toISOString(),
-      // An ordinary owner's restore is an owner edit: back through review.
-      pending: !access.reviewer,
     });
     return Response.json(payload, { status });
   }
@@ -1212,14 +1149,17 @@ export async function routeGalleryRequest(
       entry?: GalleryEntrySummary;
       status?: string;
       ownerUserId?: string | null;
+      submitterEmail?: string | null;
+      submitterProvider?: string | null;
       projectText?: string;
     }>(env, "any-entry", { id: segments[0] });
     if (status !== 200) {
       return Response.json({ error: "not-found" }, { status: 404 });
     }
+    const curator = await canReview(request, env);
     if (payload.status !== "public") {
       const allowed =
-        (await canReview(request, env)) ||
+        curator ||
         (payload.ownerUserId != null &&
           (await sessionUserOf(request, env))?.id === payload.ownerUserId);
       if (!allowed) {
@@ -1231,6 +1171,14 @@ export async function routeGalleryRequest(
         entry: payload.entry,
         status: payload.status,
         ownerUserId: payload.ownerUserId ?? null,
+        // Traceability data, not feed data: a curator sees who submitted an
+        // entry, the public sees only the byline.
+        ...(curator
+          ? {
+              submitterEmail: payload.submitterEmail ?? null,
+              submitterProvider: payload.submitterProvider ?? null,
+            }
+          : {}),
         projectText: payload.projectText,
       },
       { headers: { "cache-control": "no-store" } },
@@ -1241,27 +1189,6 @@ export async function routeGalleryRequest(
   }
   if (segments.length === 2 && request.method === "POST") {
     const [id, action] = segments;
-    if (action === "approve" || action === "reject") {
-      if (!(await canReview(request, env))) {
-        return Response.json({ error: "unauthorized" }, { status: 401 });
-      }
-      const body =
-        action === "reject"
-          ? ((await request.json().catch(() => null)) as {
-              reason?: unknown;
-            } | null)
-          : null;
-      const reason = fieldText(body?.reason, GALLERY_MAX_DESCRIPTION_LENGTH);
-      const reviewer = await sessionUserOf(request, env);
-      const { status, payload } = await callGallery(env, "review", {
-        id,
-        decision: action,
-        reason: action === "reject" && reason ? reason : null,
-        at: new Date().toISOString(),
-        reviewerId: reviewer?.id ?? "bearer",
-      });
-      return Response.json(payload, { status });
-    }
     if (action !== "recycle" && action !== "restore") {
       return Response.json({ error: "not-found" }, { status: 404 });
     }
@@ -1269,9 +1196,7 @@ export async function routeGalleryRequest(
       return Response.json({ error: "forbidden" }, { status: 403 });
     }
     // Admins curate anything; an owner may withdraw their own entry and
-    // bring it back — but an ordinary owner's restore re-enters review
-    // (the pre-withdrawal status is not recorded, and it may have been
-    // pending).
+    // bring it back, which republishes it.
     const admin = await isAdmin(request, env);
     if (!admin) {
       const access = await entryManager(request, env, id!);
@@ -1284,7 +1209,7 @@ export async function routeGalleryRequest(
     }
     const { status, payload } = await callGallery(env, "set-status", {
       id,
-      status: action === "recycle" ? "recycled" : admin ? "public" : "pending",
+      status: action === "recycle" ? "recycled" : "public",
       at: new Date().toISOString(),
     });
     return Response.json(payload, { status });

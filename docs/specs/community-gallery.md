@@ -48,16 +48,27 @@ trimmed `name` (required, ≤120), optional `author` (≤40), `description`
 chars each, at most 5, deduplicated — `sanitizeGalleryTags` is the one
 normalization for writes and filters), `projectText` ≤2 MiB. The Worker validates, stamps the canonical
 serialization, renders the preview, and stores the entry as `public`.
-Ordinary and anonymous submissions count against a per-submitter (hashed
-IP) limit of 10 per UTC day; privileged submitters (the bearer and
-admin/moderator sessions) are exempt — the quota is anti-garbage
-protection, and curators are the ones cleaning up.
+Ordinary submissions count against a per-submitter (hashed IP) limit of
+10 per UTC day; admin and moderator sessions are exempt — the quota is
+anti-garbage protection, and curators are the ones cleaning up.
 
-Publishing authority (since G3): the bearer and admin/moderator sessions
-publish directly as `public`; an ordinary signed-in session submits into
-the review queue as `pending` after passing the quality gates below;
-anonymous upload stays impossible — the day-one rule. A successful
-submission answers 201 `{id, status}`.
+Publishing authority: a signed-in session is the whole gate. Every
+signed-in account publishes directly as `public`; an ordinary member
+passes the quality gates below first, and a moderator curates past them.
+Anonymous upload stays impossible — an entry has to be attributable to
+the account that published it. A successful submission answers 201
+`{id, status}` with `status` always `public`.
+
+The byline is not a request field: the Worker takes `author` from the
+session's display name, so one account cannot publish under another's
+name, and an update never re-attributes an entry.
+
+Every entry records the submitting account: `owner_user_id` plus the
+`submitter_email` and `submitter_provider` read from the session at
+submission time, so an entry stays traceable to the identity that
+published it even if the account is later renamed. These two fields are
+traceability data, not feed data — the detail route returns them only to
+a moderator or admin, never on a public surface.
 
 ## Submission quality gates (Phase G3)
 
@@ -78,55 +89,50 @@ informational in the dialog). Failure codes:
 
 Failures carry `message`, `count`, and up to five example labels.
 
-## Review queue (Phase G3)
+## Moderation
 
-Statuses: `public | pending | rejected | recycled`. Pending and rejected
-entries never appear on any public surface (list, detail, preview);
-their detail and preview answer only to reviewers or the owning session.
+Statuses: `public | rejected | recycled`. Publishing is direct, so
+nothing new ever enters a queue; curation is post-publication. A
+`rejected` or `recycled` entry never appears on a public surface (list,
+detail, preview); its detail and preview answer only to a moderator or
+the owning session.
 
-- `GET /api/gallery/review` — pending entries, oldest first (reviewers:
-  bearer, admin, or moderator session).
-- `POST /api/gallery/<id>/approve` — pending → `public` (reviewers).
-- `POST /api/gallery/<id>/reject` — pending → `rejected` with an
-  optional trimmed reason (≤300) stored alongside reviewer id and
-  timestamp (reviewers). Reviewing a decided entry answers 409.
+`pending` is retired. `rejected` remains only for the entries a reviewer
+turned down before the queue was removed, so their owners still see why;
+opening the storage promotes any leftover `pending` row to `public`
+rather than stranding it, and leaves a real rejection alone.
+
 - `GET /api/gallery/mine` — the calling session's entries with `status`
   and `rejectReason`.
 - Moderators: `users.role` (`user`/`moderator`); the super-admin
   appoints by email via `POST /api/auth/users/role` `{email, role}`,
-  which applies to every account carrying that verified email.
-  Moderators hold exactly review authority; the recycle bin and
+  which applies to every account carrying that verified email. A
+  moderator curates and bypasses the quality gates; the recycle bin and
   maintenance stay admin-only.
 
-The editor surfaces the queue at `/review` (approve, reject with reason,
+The editor surfaces moderation at `/moderation` (the recycle bin, plus
 admin-only moderator appointment) and the submitter's view at `/mine`
-(status chips, rejection reason, owner-visible preview, open-in-editor).
-Every gallery page state wears the shared site chrome.
+(status chips, owner-visible preview, open-in-editor). Every gallery
+page state wears the shared site chrome.
 
 ## Owner editing (Phase G3 completion)
 
 `PUT /api/gallery/<id>` (same-origin) updates an entry's content and
 metadata (tags included — they stay editable any time) with the
-submission field rules. Authority: the bearer and
-admin/moderator sessions may update any entry, keeping its current
-status; an ordinary session must own the entry (403 otherwise) and
-passes the quality gates (422), after which the entry re-enters review
-as `pending` with the previous decision cleared — a rejection becomes an
-informed resubmission. The Project is re-serialized canonically and the
-preview re-rendered; 200 answers `{id, status}`. The detail response
-carries `ownerUserId` so the editor offers "update the opened entry"
-exactly to owners and reviewers.
-
-Entries persist a nullable owner column stamped from the submitting
-session.
+submission field rules. Authority: an admin or moderator session may
+update any entry; an ordinary session must own the entry (403 otherwise)
+and passes the quality gates (422). Either way the entry keeps its
+byline and its current status, so editing a published circuit neither
+takes it off the wall nor re-attributes it. The Project is re-serialized
+canonically and the preview re-rendered; 200 answers `{id, status}`. The
+detail response carries `ownerUserId` so the editor offers "update the
+opened entry" exactly to owners and moderators.
 
 Owner withdrawal: `POST /api/gallery/<id>/recycle` (same-origin) also
 accepts the owning session — the entry moves to `recycled` and leaves
 every public surface, exactly like an admin recycle. The owner brings it
-back with `POST /api/gallery/<id>/restore`; because the pre-withdrawal
-status is not recorded (and may have been `pending`), an ordinary
-owner's restore re-enters review as `pending`, while an admin restore
-still goes straight to `public`. `/mine` surfaces both actions (a
+back with `POST /api/gallery/<id>/restore`, which republishes it — for
+the owner exactly as for an admin. `/mine` surfaces both actions (a
 two-step Withdraw and a Restore on withdrawn entries).
 
 ## Version history
@@ -136,19 +142,18 @@ snapshots the entry's previous state — name, author, description, tags,
 canonical project text, preview — into `gallery_entry_versions`,
 numbered per entry and capped at the newest 20 (older pruned).
 Maintenance re-serialization does not snapshot (content-equivalent).
-Authority: reviewers (bearer, admin, or moderator) and the entry's
+Authority: moderators (admin or moderator session) and the entry's
 owning session:
 
 - `GET /api/gallery/<id>/versions` — versions, newest first.
 - `GET /api/gallery/<id>/versions/<versionId>/preview.svg`.
 - `POST /api/gallery/<id>/versions/<versionId>/restore` — snapshots the
   current state, then adopts the version's content and metadata, so
-  restores are themselves reversible. A reviewer's restore keeps the
-  entry status; an ordinary owner's restore is an owner edit and
-  re-enters review as `pending`.
+  restores are themselves reversible. A restore keeps the entry's status
+  and byline.
 
 The editor surfaces this as "Version history…" inside the publish
-dialog's update mode (reviewers and owners) and as a per-entry
+dialog's update mode (moderators and owners) and as a per-entry
 "Version history" action on `/mine`.
 
 ## Accounts and sessions (Phase G2, dark-shipped)
@@ -183,25 +188,23 @@ database stores only SHA-256 hashes of session and login tokens.
 Identities from different providers are distinct accounts in G2 (linking
 is a later refinement). Super-admin is computed per request: a session
 whose email appears in the `ADMIN_EMAILS` secret (comma-separated,
-case-insensitive) has admin authority everywhere the bearer does —
-including publishing and the administration routes below — and rotation
-of `ADMIN_EMAILS` needs no re-login. Ordinary sessions cannot publish
-until the G3 review queue exists.
+case-insensitive) has admin authority — including the administration
+routes below — and rotation of `ADMIN_EMAILS` needs no re-login. The
+session cookie is the only publishing credential there is: there is no
+passphrase, bearer token, or shared secret anywhere on the gallery
+write path.
 
 ## Administration
 
-Admin routes require admin authority: `Authorization: Bearer
-<GALLERY_ADMIN_TOKEN>` (a Cloudflare Worker secret, synced from the
-GitHub Actions secret of the same name on every Cloudflare deploy;
-rotation is one GitHub-secret update plus a deploy run) or, since G2, a
-signed-in super-admin session. With neither configured every admin route
-answers 401:
+Admin routes require a signed-in super-admin session. There is no bearer
+alternative: `GALLERY_ADMIN_TOKEN` is retired, and an `Authorization`
+header buys nothing. Without such a session every admin route answers
+401:
 
 - `POST /api/gallery/<id>/recycle` — soft delete into the restorable bin;
   the entry disappears from every public surface. (Also open to the
   owning session as withdrawal — see Owner editing.)
-- `POST /api/gallery/<id>/restore` — back to `public` (an ordinary
-  owner's restore re-enters review instead).
+- `POST /api/gallery/<id>/restore` — back to `public`.
 - `DELETE /api/gallery/<id>` — permanent, and only for entries already in
   the bin (`409` otherwise).
 - `GET /api/gallery/recycled` — the bin.
@@ -213,11 +216,16 @@ answers 401:
 
 ## Retention and privacy
 
-Entries are public content; in the shipped G1 surface only the admin can
-publish and the recycle bin is the takedown mechanism. The decided end
-state (roadmap G3) is review-then-publish: ordinary submissions wait in a
-pending queue for the owner or appointed moderators, and a rejection may
-carry an optional reason. Submitter identity is a salted hash of
-the connecting IP used only for the daily quota; no account data exists in
-Phase G1. Sign-in, per-user ownership, and owner-scoped editing arrive in
-Phases G2–G3 as recorded in the roadmap.
+Entries are public content. Publishing is publish-then-moderate: a
+signed-in account puts a circuit straight on the wall, and the recycle
+bin is the takedown mechanism if it should not have gone up.
+
+Two separate notions of "who submitted" coexist, and neither is public:
+
+- the daily quota keys on a salted hash of the connecting IP, which
+  identifies nobody and is never stored against an entry;
+- an entry stores the submitting account's id, email, and provider, and
+  the API discloses the email and provider only to a moderator or admin.
+
+What a visitor sees is the byline — the account's display name — which
+the account holder controls from the account menu.

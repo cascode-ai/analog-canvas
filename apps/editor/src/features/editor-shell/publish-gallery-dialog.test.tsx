@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { PublishGalleryDialog } from "./publish-gallery-dialog";
 
 describe("PublishGalleryDialog", () => {
-  it("prefills the Project name and gates Publish on the passphrase", () => {
+  it("asks a signed-out visitor to sign in instead of for a passphrase", () => {
     const markup = renderToStaticMarkup(
       createElement(PublishGalleryDialog, {
         defaultName: "Ring Oscillator",
@@ -15,39 +15,17 @@ describe("PublishGalleryDialog", () => {
       }),
     );
     expect(markup).toContain('data-testid="publish-gallery-dialog"');
-    expect(markup).toContain('value="Ring Oscillator"');
-    expect(markup).toContain('aria-label="Owner passphrase"');
-    expect(markup).toContain('type="password"');
-    // Empty passphrase (no session memory in this render) disables Publish.
-    expect(markup).toMatch(/disabled=""[^>]*>Publish</u);
-    expect(markup).toContain("owner&#x27;s passphrase");
-    // The modern single-column card: stacked full-width fields, a primary
-    // Publish action, and the author byline placeholder.
-    expect(markup).toContain('class="publish-gallery-fields"');
-    expect(markup).toContain('class="publish-gallery-primary"');
-    expect(markup).toContain('placeholder="Shown on your tile"');
-    expect(markup).not.toContain("insert-component-dialog");
+    expect(markup).toContain('data-testid="publish-signin"');
+    expect(markup).toContain('href="/api/auth/github/start"');
+    // The passphrase is gone entirely — no field, no copy, no password input.
+    expect(markup).not.toContain("passphrase");
+    expect(markup).not.toContain('type="password"');
+    // With no account there is nothing to fill in and nothing to submit.
+    expect(markup).not.toContain('class="publish-gallery-fields"');
+    expect(markup).not.toContain('class="publish-gallery-primary"');
   });
 
-  it("drops the passphrase row for a signed-in admin session", () => {
-    const markup = renderToStaticMarkup(
-      createElement(PublishGalleryDialog, {
-        defaultName: "Ring Oscillator",
-        session: { displayName: "Token Zhang", isAdmin: true },
-        publish: () => Promise.resolve({ status: "unauthorized" as const }),
-        onPublished: () => undefined,
-        onClose: () => undefined,
-      }),
-    );
-    expect(markup).not.toContain("Owner passphrase");
-    expect(markup).toContain("Signed in as Token Zhang");
-    // Publish is enabled without any passphrase.
-    expect(markup).not.toMatch(/disabled=""[^>]*>Publish</u);
-    // The account display name prefills the author byline.
-    expect(markup).toContain('value="Token Zhang"');
-  });
-
-  it("offers submit-for-review, not a passphrase, to an ordinary user", () => {
+  it("publishes an ordinary member's circuit straight away", () => {
     const markup = renderToStaticMarkup(
       createElement(PublishGalleryDialog, {
         defaultName: "Ring Oscillator",
@@ -58,13 +36,33 @@ describe("PublishGalleryDialog", () => {
         onClose: () => undefined,
       }),
     );
-    expect(markup).not.toContain("Owner passphrase");
-    expect(markup).toContain("Submit for review");
-    expect(markup).toContain("review queue");
-    expect(markup).not.toMatch(/disabled=""[^>]*>Submit for review</u);
+    expect(markup).toContain('value="Ring Oscillator"');
+    expect(markup).toContain('class="publish-gallery-fields"');
+    expect(markup).toContain('class="publish-gallery-primary"');
+    expect(markup).toContain("Publishing as Visitor");
+    expect(markup).toContain("goes up straight away");
+    // No queue to wait in, and no passphrase to guess.
+    expect(markup).not.toContain("review");
+    expect(markup).not.toContain("passphrase");
+    expect(markup).not.toMatch(/disabled=""[^>]*>Publish</u);
   });
 
-  it("blocks an ordinary user on gate failures and lists them", () => {
+  it("never asks for the byline: the account supplies it", () => {
+    const markup = renderToStaticMarkup(
+      createElement(PublishGalleryDialog, {
+        defaultName: "Ring Oscillator",
+        session: { displayName: "Token Zhang", isAdmin: true },
+        publish: () => Promise.resolve({ status: "unauthorized" as const }),
+        onPublished: () => undefined,
+        onClose: () => undefined,
+      }),
+    );
+    expect(markup).not.toContain('aria-label="Author"');
+    expect(markup).not.toContain("Shown on your tile");
+    expect(markup).toContain("Publishing as Token Zhang");
+  });
+
+  it("blocks an ordinary member on gate failures and lists them", () => {
     const markup = renderToStaticMarkup(
       createElement(PublishGalleryDialog, {
         defaultName: "Ring Oscillator",
@@ -87,9 +85,9 @@ describe("PublishGalleryDialog", () => {
       }),
     );
     expect(markup).toContain("publish-gallery-gates-blocking");
-    expect(markup).toContain("Fix these before submitting:");
+    expect(markup).toContain("Fix these before publishing:");
     expect(markup).toContain("M1.g, R2.2");
-    expect(markup).toMatch(/disabled=""[^>]*>Submit for review</u);
+    expect(markup).toMatch(/disabled=""[^>]*>Publish</u);
   });
 
   it("shows the same failures as informational for a moderator", () => {

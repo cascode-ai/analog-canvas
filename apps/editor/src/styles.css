@@ -4017,6 +4017,47 @@ body {
   line-height: 1.4;
 }
 
+/* Signed out, the dialog is a sign-in prompt rather than a form: the byline,
+   the ownership, and the credential all come from the account. */
+.publish-gallery-signin {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.publish-gallery-signin p {
+  margin: 0;
+  color: var(--icm-text-muted, #667085);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.publish-gallery-signin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.publish-gallery-signin-actions a {
+  flex: 1 1 12rem;
+  padding: 0.5rem 0.85rem;
+  border: 1px solid var(--icm-border, #d0d5dd);
+  border-radius: 0.5rem;
+  background: var(--icm-surface, #fff);
+  color: inherit;
+  font-size: 0.85rem;
+  text-align: center;
+  text-decoration: none;
+}
+
+.publish-gallery-signin-actions a:hover {
+  border-color: var(--icm-accent, #1570ef);
+}
+
+.publish-gallery-signin-note {
+  font-size: 0.75rem;
+}
+
 .publish-gallery-actions {
   display: flex;
   justify-content: flex-end;
