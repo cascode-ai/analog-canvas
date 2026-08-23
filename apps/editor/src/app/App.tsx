@@ -8500,10 +8500,6 @@ export function App({
                         <dd>{selectedInstance.symbolId}</dd>
                       </div>
                       <div>
-                        <dt>Device class</dt>
-                        <dd>{selectedPropertyDevice?.deviceClass ?? "none"}</dd>
-                      </div>
-                      <div>
                         <dt>Cell</dt>
                         <dd>{document.netlist?.name ?? document.name}</dd>
                       </div>
@@ -8529,11 +8525,6 @@ export function App({
                           </div>
                         ))}
                       </dl>
-                      <small>
-                        Plate roles are defined by the device. Change their Net
-                        connections through wiring or orientation, not by
-                        renaming the roles.
-                      </small>
                     </div>
                   ) : null}
                   {selectedInstance.netlist ? (
@@ -8818,7 +8809,7 @@ export function App({
                     <div className="property-card property-placement-card">
                       <div className="property-section-heading">Placement</div>
                       <div
-                        className="component-geometry-row"
+                        className="component-geometry-row property-placement-controls"
                         aria-label="Component geometry"
                       >
                         <label>
@@ -8851,88 +8842,83 @@ export function App({
                             }}
                           />
                         </label>
-                        <label>
-                          Rotate
-                          <select
-                            aria-label="Component rotation"
-                            value={instancePropertyDraft.rotation}
-                            onChange={(event) => {
-                              const rotation = event.currentTarget.value as
-                                "0" | "90" | "180" | "270";
-                              updateInstancePropertyDraft((current) => ({
-                                ...current,
-                                rotation,
-                              }));
-                            }}
-                          >
-                            <option value="0">0°</option>
-                            <option value="90">90°</option>
-                            <option value="180">180°</option>
-                            <option value="270">270°</option>
-                          </select>
-                        </label>
-                      </div>
-                      <div
-                        className="component-mirror-row"
-                        aria-label="Mirror component"
-                      >
                         <button
                           type="button"
+                          className="property-placement-icon-button"
+                          aria-label={`Rotate component clockwise 90 degrees; current rotation ${instancePropertyDraft.rotation} degrees; shortcut R`}
+                          title={`Rotate 90° clockwise · current ${instancePropertyDraft.rotation}° (R)`}
+                          onClick={() => rotateSelected()}
+                        >
+                          <ToolIcon name="rotate" />
+                        </button>
+                        <button
+                          type="button"
+                          className="property-placement-icon-button"
                           aria-label="Mirror component left to right, Shift+R"
                           title="Mirror left/right (Shift+R)"
                           onClick={() => mirrorSelected("left-right")}
                         >
-                          Mirror left/right
+                          <ToolIcon name="mirror-horizontal" />
                         </button>
                         <button
                           type="button"
+                          className="property-placement-icon-button"
                           aria-label="Mirror component top to bottom, Ctrl+R"
                           title="Mirror top/bottom (Ctrl+R)"
                           onClick={() => mirrorSelected("top-bottom")}
                         >
-                          Mirror top/bottom
-                        </button>
-                        {differentialOutputSibling(
-                          selectedInstance.symbolId,
-                        ) ? (
-                          <button
-                            type="button"
-                            data-testid="swap-differential-outputs"
-                            aria-label="Swap the + and - outputs"
-                            title="Swap the + and - outputs"
-                            onClick={() =>
-                              transact(
-                                planDifferentialOutputSwap(
-                                  selectedInstance.id,
-                                  selectedInstance.symbolId,
-                                ),
-                              )
-                            }
-                          >
-                            Swap + / − outputs
-                          </button>
-                        ) : null}
-                        {selectedInstanceHasDifferentialInputs ? (
-                          <button
-                            type="button"
-                            data-testid="swap-differential-inputs"
-                            aria-label="Swap the + and - inputs"
-                            title="Swap + / - inputs (Ctrl+R)"
-                            onClick={() => mirrorSelected("top-bottom")}
-                          >
-                            Swap + / − inputs
-                          </button>
-                        ) : null}
-                        <button
-                          type="button"
-                          aria-label="Return component to Placement Tray"
-                          onClick={() =>
-                            returnInstancesToTray([selectedInstance.id])
-                          }
-                        >
-                          Return to tray
+                          <ToolIcon name="mirror-vertical" />
                         </button>
                       </div>
+                      <button
+                        type="button"
+                        className="property-return-to-tray"
+                        aria-label="Return component to Placement Tray"
+                        onClick={() =>
+                          returnInstancesToTray([selectedInstance.id])
+                        }
+                      >
+                        Return to tray
+                      </button>
+                      {differentialOutputSibling(selectedInstance.symbolId) ||
+                      selectedInstanceHasDifferentialInputs ? (
+                        <div
+                          className="component-mirror-row property-amplifier-actions"
+                          aria-label="Amplifier placement actions"
+                        >
+                          {differentialOutputSibling(
+                            selectedInstance.symbolId,
+                          ) ? (
+                            <button
+                              type="button"
+                              data-testid="swap-differential-outputs"
+                              aria-label="Swap the + and - outputs"
+                              title="Swap the + and - outputs"
+                              onClick={() =>
+                                transact(
+                                  planDifferentialOutputSwap(
+                                    selectedInstance.id,
+                                    selectedInstance.symbolId,
+                                  ),
+                                )
+                              }
+                            >
+                              Swap + / − outputs
+                            </button>
+                          ) : null}
+                          {selectedInstanceHasDifferentialInputs ? (
+                            <button
+                              type="button"
+                              data-testid="swap-differential-inputs"
+                              aria-label="Swap the + and - inputs"
+                              title="Swap + / - inputs (Ctrl+R)"
+                              onClick={() => mirrorSelected("top-bottom")}
+                            >
+                              Swap + / − inputs
+                            </button>
+                          ) : null}
+                        </div>
+                      ) : null}
                     </div>
                   ) : null}
                   {hasInstancePropertyDraftChanges ? (
@@ -9234,11 +9220,17 @@ export function App({
                 className="context-actions placement-tray"
                 aria-label="Placement Tray"
               >
-                <h2>Placement Tray</h2>
-                <p>
-                  {unplaced.length} retained · drag to the canvas, choose Place,
-                  or arrange every retained Instance in a starter grid.
-                </p>
+                <div className="placement-tray-heading">
+                  <h2>Placement Tray</h2>
+                  <span
+                    className="placement-tray-count"
+                    aria-label={`${unplaced.length} retained ${
+                      unplaced.length === 1 ? "Instance" : "Instances"
+                    }`}
+                  >
+                    {unplaced.length}
+                  </span>
+                </div>
                 <div className="component-mirror-row">
                   <button
                     type="button"
@@ -9261,9 +9253,7 @@ export function App({
                     Return all
                   </button>
                 </div>
-                {unplaced.length === 0 ? (
-                  <small>No retained Instances.</small>
-                ) : (
+                {unplaced.length > 0 ? (
                   <div className="placement-tray-list">
                     {unplaced.map((instance) => (
                       <div
@@ -9302,7 +9292,7 @@ export function App({
                       </div>
                     ))}
                   </div>
-                )}
+                ) : null}
               </section>
               {selectedRouteId ? (
                 <section className="context-actions" aria-label="Route actions">

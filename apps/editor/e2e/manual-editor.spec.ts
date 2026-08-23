@@ -1925,6 +1925,9 @@ test("shows fixed and variable capacitor plate terminals as read-only Properties
     "Pin 2 · Unconnected",
   );
   await expect(plateCard.locator("input, select, button")).toHaveCount(0);
+  await expect(plateCard).not.toContainText(
+    "Plate roles are defined by the device",
+  );
 
   await page.getByTestId("hit-C2").click();
   plateCard = properties.getByRole("group", {

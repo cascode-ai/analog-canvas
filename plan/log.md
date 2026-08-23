@@ -5160,3 +5160,21 @@ Keep reusable lessons in `docs/experience/`, not in this log.
   one Cloudflare currently serves, typecheck, prettier, markdown links.
 - Commit status: completed on `claude/retire-pages`; mainline merge gated on
   the remote required checks.
+
+## 2026-08-23 - Properties Identity and Placement polish
+
+- Kept the Identity card but removed Device class; compacted X/Y, rotation, and
+  two mirror actions into one row using editor-native icon buttons.
+- Kept Return to tray on its own row and preserved differential-amplifier input
+  and output swaps in a dedicated row.
+- Removed the capacitor role explanation and replaced the verbose Placement
+  Tray introduction and empty-state duplication with a compact retained-count
+  badge.
+- Added browser contracts for the five-column placement layout, amplifier
+  actions, Identity contents, tray copy removal, and capacitor copy removal.
+- Validation: preflight passed; affected gate passed 1192 unit tests, 25
+  component-insert browser tests, and 99 manual-editor browser tests; focused
+  browser inspection covered ordinary and differential-amplifier Properties.
+- Commit status: committed and pushed on
+  `codex/properties-identity-placement-polish`; mainline merge remains gated on
+  canonical CI and remote required checks.
