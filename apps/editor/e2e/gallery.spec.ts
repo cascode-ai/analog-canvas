@@ -550,6 +550,56 @@ test("a signed-in member publishes directly, bylined by the account", async ({
   ]);
 });
 
+test("a mistaken click beside the publish form keeps what was written", async ({
+  page,
+}) => {
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      json: {
+        user: {
+          id: "u1",
+          displayName: "Token Zhang",
+          email: "owner@example.com",
+          provider: "github",
+          isAdmin: true,
+        },
+      },
+    }),
+  );
+
+  await page.goto("/editor");
+  await page.getByTestId("publish-gallery-button").click();
+  const dialog = page.getByTestId("publish-gallery-dialog");
+  await expect(dialog).toBeVisible();
+
+  await dialog.getByLabel("Circuit name").fill("Folded Cascode");
+  await dialog
+    .getByLabel("Description")
+    .fill("Gain boosted, 1.2 V supply, trimmed offset.");
+  await dialog.getByLabel("Add tag").fill("Cascode");
+  await dialog.getByLabel("Add tag").press("Enter");
+  await expect(dialog.getByTestId("publish-tag-cascode")).toBeVisible();
+
+  // A stray press on the backdrop beside a form being written in is a miss,
+  // not a decision to throw the writing away.
+  const viewport = page.viewportSize()!;
+  await page.mouse.click(8, viewport.height - 8);
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByLabel("Circuit name")).toHaveValue("Folded Cascode");
+
+  // Cancelling is a decision, and it still closes — but reopening comes back
+  // to the draft rather than to an empty form.
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(dialog).toHaveCount(0);
+  await page.getByTestId("publish-gallery-button").click();
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByLabel("Circuit name")).toHaveValue("Folded Cascode");
+  await expect(dialog.getByLabel("Description")).toHaveValue(
+    "Gain boosted, 1.2 V supply, trimmed offset.",
+  );
+  await expect(dialog.getByTestId("publish-tag-cascode")).toBeVisible();
+});
+
 test("an ordinary user sees blocking quality gates on an empty project", async ({
   page,
 }) => {

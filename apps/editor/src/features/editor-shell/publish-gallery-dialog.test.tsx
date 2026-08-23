@@ -47,6 +47,30 @@ describe("PublishGalleryDialog", () => {
     expect(markup).not.toMatch(/disabled=""[^>]*>Publish</u);
   });
 
+  it("reopens on the draft it was closed with", () => {
+    // Closing the dialog unmounts it, so a mistaken dismissal used to throw
+    // away everything typed. The draft is held outside and handed back.
+    const markup = renderToStaticMarkup(
+      createElement(PublishGalleryDialog, {
+        defaultName: "Ring Oscillator",
+        session: { displayName: "Visitor", isAdmin: false, role: "user" },
+        gateReport: { ok: true, failures: [] },
+        draft: {
+          name: "Ring Oscillator v2",
+          description: "Five stages, skewed for duty cycle.",
+          tags: ["oscillator", "cmos"],
+        },
+        publish: () => Promise.resolve({ status: "unauthorized" as const }),
+        onPublished: () => undefined,
+        onClose: () => undefined,
+      }),
+    );
+    expect(markup).toContain('value="Ring Oscillator v2"');
+    expect(markup).toContain("Five stages, skewed for duty cycle.");
+    expect(markup).toContain("oscillator");
+    expect(markup).toContain("cmos");
+  });
+
   it("never asks for the byline: the account supplies it", () => {
     const markup = renderToStaticMarkup(
       createElement(PublishGalleryDialog, {

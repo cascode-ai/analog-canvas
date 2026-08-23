@@ -229,7 +229,10 @@ import { NetlistPreflightDialog } from "../features/netlist-export/netlist-prefl
 import { parseProject } from "@icm/project-protocol";
 import { DocumentSettingsSection } from "../features/editor-shell/document-settings-section";
 import { derivedFingerWidth } from "../features/properties/finger-width";
-import { PublishGalleryDialog } from "../features/editor-shell/publish-gallery-dialog";
+import {
+  PublishGalleryDialog,
+  type PublishGalleryDraft,
+} from "../features/editor-shell/publish-gallery-dialog";
 import {
   publishProjectToGallery,
   updateGalleryEntry,
@@ -854,6 +857,10 @@ export function App({
   const [selectedRouteSegmentIndex, setSelectedRouteSegmentIndex] = useState<
     number | null
   >(null);
+  /** Survives the dialog closing, so a mistaken dismissal loses nothing. */
+  const [publishDraft, setPublishDraft] = useState<PublishGalleryDraft | null>(
+    null,
+  );
   /**
    * The corner shape is a standing authoring preference, not per-wire state:
    * picking the wire tool again reset it, so a chosen diagonal had to be
@@ -8005,6 +8012,8 @@ export function App({
       />
       {publishGalleryOpen ? (
         <PublishGalleryDialog
+          draft={publishDraft}
+          onDraftChange={setPublishDraft}
           defaultName={project.name}
           session={publishSession}
           gateReport={publishGates}
@@ -8035,6 +8044,7 @@ export function App({
           }
           onPublished={({ name, updated }) => {
             setPublishGalleryOpen(false);
+            setPublishDraft(null);
             setStatus(
               updated
                 ? `Updated "${name}" in the gallery`

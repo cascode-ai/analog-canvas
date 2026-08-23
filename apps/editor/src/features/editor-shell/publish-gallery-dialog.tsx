@@ -36,6 +36,19 @@ export interface PublishGalleryDialogProps {
    * Rendered only alongside an update target. */
   onShowHistory?: (() => void) | undefined;
   onClose: () => void;
+  /**
+   * What was typed last time the dialog was open. The dialog unmounts on
+   * close, so without somewhere outside it to keep them, a mistaken click on
+   * the backdrop threw away everything the person had written.
+   */
+  draft?: PublishGalleryDraft | null;
+  onDraftChange?: ((draft: PublishGalleryDraft) => void) | undefined;
+}
+
+export interface PublishGalleryDraft {
+  name: string;
+  description: string;
+  tags: readonly string[];
 }
 
 /**
@@ -57,6 +70,8 @@ export function PublishGalleryDialog({
   onPublished,
   onShowHistory,
   onClose,
+  draft = null,
+  onDraftChange,
 }: PublishGalleryDialogProps) {
   const privileged = session?.isAdmin === true || session?.role === "moderator";
   const ordinary = session !== null && !privileged;
@@ -67,9 +82,9 @@ export function PublishGalleryDialog({
     canUpdate ? "update" : "new",
   );
   const updating = canUpdate && mode === "update";
-  const [name, setName] = useState(defaultName);
-  const [description, setDescription] = useState("");
-  const [tags, setTags] = useState<string[]>([]);
+  const [name, setName] = useState(draft?.name ?? defaultName);
+  const [description, setDescription] = useState(draft?.description ?? "");
+  const [tags, setTags] = useState<string[]>([...(draft?.tags ?? [])]);
   const [tagDraft, setTagDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -92,6 +107,18 @@ export function PublishGalleryDialog({
       previous.length > 0 ? previous : [...updateDefaults.tags],
     );
   }, [canUpdate, updateDefaults, defaultsApplied]);
+
+  // Report the draft outward on every keystroke, so it survives whichever way
+  // the dialog closes — backdrop, Escape, or Cancel.
+  useEffect(() => {
+    onDraftChange?.({ name, description, tags });
+  }, [name, description, tags, onDraftChange]);
+
+  const hasDraft =
+    description.trim().length > 0 ||
+    tags.length > 0 ||
+    tagDraft.trim().length > 0 ||
+    name.trim() !== defaultName.trim();
 
   function addTag(raw: string): void {
     const tag = raw.replace(/\s+/gu, " ").trim().toLowerCase();
@@ -121,7 +148,11 @@ export function PublishGalleryDialog({
     <div
       className="insert-dialog-backdrop"
       onPointerDown={(event) => {
-        if (event.target === event.currentTarget && !busy) onClose();
+        // A stray click beside a form someone has been writing in is far more
+        // likely a miss than a decision to abandon it. Cancel and Escape are
+        // still there, and both now keep the draft.
+        if (event.target !== event.currentTarget || busy || hasDraft) return;
+        onClose();
       }}
     >
       <section
