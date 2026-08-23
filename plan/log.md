@@ -5137,3 +5137,26 @@ Keep reusable lessons in `docs/experience/`, not in this log.
   markdown links, component tests (14) and `chrome-isolation.spec.ts` (3).
 - Commit status: completed on `claude/repo-move`; mainline merge gated on the
   remote required checks.
+
+## 2026-08-23 - Retire the GitHub Pages deployment
+
+- Diagnosis: the Pages workflow had been `disabled_manually` since about
+  13 August, well before the repository move, so no build had run since
+  9 August. That last build baked the repository name into every asset path
+  through `ICM_PAGE_BASE_PATH`, and the rename changed the serving path but not
+  the baked prefix — the site returned 200 and then loaded nothing, asking for
+  `/interactive-circuit-maker/assets/…` (404) while the files sat at
+  `/analog-canvas/assets/…` (200). The old Pages URL 404s outright; Pages does
+  not redirect the way a repository path does.
+- Owner chose to retire it rather than repair it: Cloudflare already carries
+  every public duty, and two deployments blur which one is real.
+- Removed `pages.yml`, dropped `pageBasePath` from the Vite config (the Worker
+  serves from a domain root, so `base` is `/`), and replaced the guide's Pages
+  section. The old text claimed the deployment has "no public Agent API,
+  account system, or backend endpoint" — true of a static Pages build, false of
+  the Worker.
+- Validation: full unit suite (1192), full Playwright suite (211 passed),
+  production build emitting root-relative assets whose bundle hash matches the
+  one Cloudflare currently serves, typecheck, prettier, markdown links.
+- Commit status: completed on `claude/retire-pages`; mainline merge gated on
+  the remote required checks.

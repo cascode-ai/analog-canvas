@@ -101,26 +101,17 @@ node output/release/interactive-circuit-maker-v0.1.0/start.mjs
 Open `http://127.0.0.1:4173`. Chromium can install the app from its browser
 install action. The server accepts only loopback connections.
 
-## GitHub Pages release
+## Deployment
 
-The public Pages build is a static, local-first editor. GitHub Pages serves
-the application files; it does not receive, store, or synchronize Projects.
-The editor has no public Agent API, account system, or backend endpoint. Keep
-downloaded `.icproj.json` files as the authoritative copy of your work; the
-browser recovery copy is specific to one browser profile and may disappear
-when site data is cleared.
+The editor is served by the Cloudflare Worker in `worker/`, which
+`.github/workflows/cloudflare.yml` deploys on every push to `main`. That
+Worker is the only public deployment: it hosts the built editor and the
+gallery, account, and Agent-session endpoints behind it.
 
-Repository administrators enable **Settings / Pages / Build and deployment /
-Source: GitHub Actions** once. The included `Deploy GitHub Pages` workflow
-then publishes every push to `main` at:
+A downloaded `.icproj.json` file remains the authoritative copy of your work.
+The browser recovery copy is specific to one browser profile and may disappear
+when site data is cleared, and publishing to the gallery is a deliberate,
+separate act rather than a backup.
 
-```text
-https://cascode-ai.github.io/analog-canvas/
-```
-
-It also supports a manual run from the Actions tab. The workflow builds with
-the repository path prefix, so it is intended for this project-site URL. A
-custom domain is an administrator decision: configure its DNS and Pages custom
-domain setting before advertising it. Before a public release, verify opening,
-refreshing, importing/exporting, browser recovery, and PWA installation at the
-deployed URL.
+Before a public release, verify opening, refreshing, importing and exporting,
+browser recovery, and PWA installation at the deployed URL.
