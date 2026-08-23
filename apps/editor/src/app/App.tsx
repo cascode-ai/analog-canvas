@@ -912,6 +912,7 @@ export function App({
   const [highlightedNetOrigin, setHighlightedNetOrigin] = useState<{
     documentId: string;
     netId: string;
+    hierarchyPath: readonly HierarchyFrame[];
     endpoint?: RouteEndpoint;
   } | null>(null);
   const routeCounter = useRef(0);
@@ -1038,6 +1039,7 @@ export function App({
             highlightedNetOrigin.documentId,
             highlightedNetOrigin.netId,
             highlightedNetOrigin.endpoint,
+            highlightedNetOrigin.hierarchyPath,
           )
         : undefined,
     [highlightedNetOrigin, projectConnectivityIndex],
@@ -1045,14 +1047,30 @@ export function App({
   const highlightedNet = useMemo(
     () =>
       highlightedTrace?.highlights.find(
-        (highlight) => highlight.documentId === document.id,
+        (highlight) =>
+          highlight.documentId === document.id &&
+          highlight.hierarchyPath.length === documentStack.length &&
+          highlight.hierarchyPath.every(
+            (frame, index) =>
+              frame.parentDocumentId ===
+                documentStack[index]?.parentDocumentId &&
+              frame.instanceId === documentStack[index]?.instanceId &&
+              frame.childDocumentId === documentStack[index]?.childDocumentId,
+          ),
       ),
-    [document.id, highlightedTrace],
+    [document.id, documentStack, highlightedTrace],
   );
   const highlightedNetId = highlightedNet?.netId ?? null;
   const liveDiagnosticSnapshot = useMemo(
     () => diagnoseProjectSnapshot(project, resolver, projectConnectivityIndex),
     [project, projectConnectivityIndex, resolver],
+  );
+  const electricalDiagnostics = useMemo(
+    () =>
+      liveDiagnosticSnapshot.diagnostics.filter(
+        (diagnostic) => diagnostic.domain === "erc",
+      ),
+    [liveDiagnosticSnapshot],
   );
   const searchResults = useMemo(
     () =>
@@ -1406,6 +1424,13 @@ export function App({
   const selectedHighlightIsActive = Boolean(
     selectedHighlightNetId &&
     highlightedNetOrigin?.documentId === document.id &&
+    highlightedNetOrigin.hierarchyPath.length === documentStack.length &&
+    highlightedNetOrigin.hierarchyPath.every(
+      (frame, index) =>
+        frame.parentDocumentId === documentStack[index]?.parentDocumentId &&
+        frame.instanceId === documentStack[index]?.instanceId &&
+        frame.childDocumentId === documentStack[index]?.childDocumentId,
+    ) &&
     highlightedNetOrigin.netId === selectedHighlightNetId &&
     (!highlightedNetOrigin.endpoint ||
       (selectedHighlightEndpoint &&
@@ -2843,6 +2868,7 @@ export function App({
       setHighlightedNetOrigin({
         documentId: opened.id,
         netId: locator.objectId,
+        hierarchyPath: locator.hierarchyPath,
       });
       const route = opened.routes.find(
         (item) => item.netId === locator.objectId,
@@ -6532,7 +6558,11 @@ export function App({
       setStatus("Resolve the Check Report findings before export");
       return;
     }
-    if (netlistAnalysis.diagnostics.length > 0 && !warningsReviewed) {
+    if (
+      (netlistAnalysis.diagnostics.length > 0 ||
+        electricalDiagnostics.length > 0) &&
+      !warningsReviewed
+    ) {
       setNetlistPreflightOpen(true);
       setStatus("Review the Check Report warnings before export");
       return;
@@ -7590,10 +7620,18 @@ export function App({
     netId: string,
     documentId = document.id,
     endpoint?: RouteEndpoint,
+    hierarchyPath: readonly HierarchyFrame[] = documentId === document.id
+      ? documentStack
+      : (findHierarchyPath(
+          projectConnectivityIndex,
+          project.topDocumentId,
+          documentId,
+        ) ?? []),
   ): void {
     setHighlightedNetOrigin({
       documentId,
       netId,
+      hierarchyPath,
       ...(endpoint ? { endpoint } : {}),
     });
     setStatus(`Highlighted Net ${netId}`);
@@ -7621,7 +7659,7 @@ export function App({
     navigateToLocator(
       {
         documentId: hop.to.documentId,
-        hierarchyPath: [],
+        hierarchyPath: hop.to.hierarchyPath,
         kind: "net",
         objectId: hop.to.netId,
       },
@@ -8414,8 +8452,10 @@ export function App({
       <NetlistPreflightDialog
         open={netlistPreflightOpen}
         result={netlistAnalysis}
+        electricalDiagnostics={electricalDiagnostics}
         onClose={() => setNetlistPreflightOpen(false)}
         onNavigate={navigateToNetlistDiagnostic}
+        onNavigateElectrical={jumpToProjectDiagnostic}
         onExport={(format) => exportDesignNetlist(format, true)}
       />
       {publishGalleryOpen ? (

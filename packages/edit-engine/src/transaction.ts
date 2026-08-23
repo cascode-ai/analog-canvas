@@ -2086,6 +2086,19 @@ export function executeTransaction(
             `Route contains a locked segment: ${route.id}`,
           );
         }
+        const anchoredAnnotation = draft.annotations.find(
+          (annotation) =>
+            annotation.anchor.kind === "route" &&
+            annotation.anchor.routeId === route.id,
+        );
+        if (anchoredAnnotation) {
+          return rejectAt(
+            "EDIT_PRECONDITION",
+            `Remove Route annotation ${anchoredAnnotation.id} before deleting Route ${route.id}`,
+            [],
+            [anchoredAnnotation.id, route.id],
+          );
+        }
         const ownerNetIds = removeConnectivityEvidenceOwnedBy(
           draft,
           new Set([route.id]),
@@ -2116,6 +2129,19 @@ export function executeTransaction(
             `Route contains a locked segment: ${route.id}`,
           );
         }
+        const anchoredAnnotation = draft.annotations.find(
+          (annotation) =>
+            annotation.anchor.kind === "route" &&
+            annotation.anchor.routeId === route.id,
+        );
+        if (anchoredAnnotation) {
+          return rejectAt(
+            "EDIT_PRECONDITION",
+            `Remove Route annotation ${anchoredAnnotation.id} before cutting Route ${route.id}`,
+            [],
+            [anchoredAnnotation.id, route.id],
+          );
+        }
         const net = draft.nets.find(
           (candidate) => candidate.id === route.netId,
         );
@@ -2125,14 +2151,6 @@ export function executeTransaction(
             `Route Net does not exist: ${route.netId}`,
           );
         }
-        const beforeGroups = netEndpointGroups(draft, net.id);
-        const logicalNetBeforeCut = resolveDocumentLogicalNets(
-          draft,
-        ).byBaseNetId.get(net.id);
-        const preserveLogicalNet =
-          beforeGroups.length > 1 ||
-          (logicalNetBeforeCut?.sourceNetIds.length ?? 0) > 0;
-
         const candidateOrphanJunctionIds = new Set(
           [route.from, route.to].flatMap((endpoint) =>
             endpoint.kind === "junction" ? [endpoint.junctionId] : [],
@@ -2178,7 +2196,7 @@ export function executeTransaction(
           changedObjectIds.add(junctionId);
         }
 
-        const groups = netEndpointGroups(draft, net.id);
+        const groups = netEndpointGroups(draft, net.id, context.symbolResolver);
         if (groups.length === 0) {
           for (const netId of new Set([net.id, ...ownerNetIds])) {
             pruneUnreachableLocalNet(draft, netId, changedObjectIds);
@@ -2194,11 +2212,19 @@ export function executeTransaction(
           connectivityChanged = true;
           break;
         }
-        if (
-          groups.length > 1 &&
-          !preserveLogicalNet &&
-          logicalNetBeforeCut?.scope !== "global"
-        ) {
+        if (groups.length > 1) {
+          // The component containing the authored Route's `from` endpoint (or
+          // `to` when `from` was an orphan Junction removed by this cut)
+          // retains the original Base-Net identity and non-owner Evidence.
+          // Every detached component receives a new Base Net; logical/global/
+          // imported Evidence is never allowed to suppress physical splitting.
+          const primaryIndex = [route.from, route.to]
+            .map((endpoint) => endpointKey(endpoint))
+            .map((key) => groups.findIndex((group) => group.includes(key)))
+            .find((index) => index >= 0);
+          if (primaryIndex !== undefined && primaryIndex > 0) {
+            groups.unshift(...groups.splice(primaryIndex, 1));
+          }
           const netIdByEndpoint = new Map<string, string>();
           const splitNetIds = groups
             .slice(1)

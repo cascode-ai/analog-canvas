@@ -340,13 +340,16 @@ describe("ERC engine", () => {
 
   it("treats equal local names as one logical Net without physically merging", () => {
     const project = emptyProject();
-    project.documents[0]!.instances = [instance("I1")];
+    project.documents[0]!.instances = [instance("I1"), instance("I2")];
     project.documents[0]!.nets = [
       {
         id: "net-a",
         name: "out",
         scope: "local",
-        terminals: [{ instanceId: "I1", pinName: "L" }],
+        terminals: [
+          { instanceId: "I1", pinName: "L" },
+          { instanceId: "I2", pinName: "L" },
+        ],
       },
       {
         id: "net-b",
@@ -411,13 +414,16 @@ describe("ERC engine", () => {
     // The schema invariant (WP-R7) rejects this at parse/Edit-Engine time; ERC
     // repeats the check defensively. Construct the invalid state via a cast.
     const project = emptyProject();
-    project.documents[0]!.instances = [instance("I1")];
+    project.documents[0]!.instances = [instance("I1"), instance("I2")];
     project.documents[0]!.nets = [
       {
         id: "net-1",
         name: "sig",
         scope: "local",
-        terminals: [{ instanceId: "I1", pinName: "L" }],
+        terminals: [
+          { instanceId: "I1", pinName: "L" },
+          { instanceId: "I2", pinName: "L" },
+        ],
       },
     ];
     project.documents[0]!.noConnects = [

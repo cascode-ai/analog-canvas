@@ -237,6 +237,103 @@ async function submitOne(
   return payload.id;
 }
 
+describe("stars and thumbs", () => {
+  function likeRequest(id: string, cookie?: string): Request {
+    const headers = new Headers({ Origin: ORIGIN });
+    if (cookie) headers.set("Cookie", cookie);
+    return new Request(`${ORIGIN}/api/gallery/${id}/like`, {
+      method: "POST",
+      headers,
+    });
+  }
+
+  async function feed(env: Harness, cookie?: string) {
+    const response = await route(
+      env,
+      new Request(
+        `${ORIGIN}/api/gallery`,
+        cookie ? { headers: cookieHeaders(cookie) } : undefined,
+      ),
+    );
+    return (await response.json()) as {
+      entries: {
+        id: string;
+        netlistable: boolean;
+        likes: number;
+        likedByViewer: boolean;
+      }[];
+    };
+  }
+
+  it("records whether a circuit extracts, and publishes both alike", async () => {
+    const env = environment();
+    const cookie = await adminOf(env);
+
+    // An ideal switch has no reviewed netlist definition, so this circuit
+    // does not extract. That is a legitimate schematic, not a mistake: it is
+    // published exactly like any other and simply wears no star.
+    const sketch = createEmptyProject("sketch", "Sketch");
+    sketch.documents[0]!.instances.push({
+      id: "S1",
+      symbolId: "ideal-switch",
+      schematicReference: "S1",
+      placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+    });
+    const sketchId = await submitOne(env, "Sketch", {
+      cookie,
+      text: serializeProject(sketch),
+    });
+    const extractableId = await submitOne(env, "Extractable", { cookie });
+
+    const listed = await feed(env);
+    const byId = new Map(listed.entries.map((entry) => [entry.id, entry]));
+    expect(byId.get(sketchId)!.netlistable).toBe(false);
+    expect(byId.get(extractableId)!.netlistable).toBe(true);
+    // Both are on the wall; the star separates them, nothing else does.
+    expect(listed.entries).toHaveLength(2);
+  });
+
+  it("counts one thumb per account and takes it back on a second press", async () => {
+    const env = environment();
+    const owner = await adminOf(env);
+    const id = await submitOne(env, "Liked", { cookie: owner });
+    const other = await makerOf(env);
+
+    const first = await route(env, likeRequest(id, other));
+    expect(await first.json()).toEqual({ likes: 1, likedByViewer: true });
+    // Pressing again is not a second thumb; it is taking the thumb back.
+    const second = await route(env, likeRequest(id, other));
+    expect(await second.json()).toEqual({ likes: 0, likedByViewer: false });
+
+    await route(env, likeRequest(id, other));
+    await route(env, likeRequest(id, owner));
+    const listed = await feed(env, other);
+    expect(listed.entries[0]!.likes).toBe(2);
+    expect(listed.entries[0]!.likedByViewer).toBe(true);
+  });
+
+  it("shows counts to a signed-out visitor without claiming they liked it", async () => {
+    const env = environment();
+    const owner = await adminOf(env);
+    const id = await submitOne(env, "Public", { cookie: owner });
+    await route(env, likeRequest(id, owner));
+
+    const anonymous = await feed(env);
+    expect(anonymous.entries[0]!.likes).toBe(1);
+    expect(anonymous.entries[0]!.likedByViewer).toBe(false);
+    // And a thumb needs an account.
+    expect((await route(env, likeRequest(id))).status).toBe(401);
+  });
+
+  it("refuses a thumb for a circuit that is not on the wall", async () => {
+    const env = environment();
+    const cookie = await adminOf(env);
+    expect((await route(env, likeRequest("nosuchid", cookie))).status).toBe(
+      404,
+    );
+  });
+});
+
 describe("circuit addresses", () => {
   it("gives a new circuit a short, readable id", async () => {
     const env = environment();

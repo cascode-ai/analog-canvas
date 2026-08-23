@@ -1,10 +1,8 @@
 import type { CircuitProject } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
-import type {
-  DocumentConnectivityIndex,
-  ProjectConnectivityIndex,
-} from "../connectivity-index.js";
+import type { ProjectConnectivityIndex } from "../connectivity-index.js";
+import { createEndpointConnectivityClassifier } from "../endpoint-connectivity.js";
 import {
   resolveDocumentLogicalNets,
   validateLogicalNetContract,
@@ -48,22 +46,6 @@ function terminalLocator(
   };
 }
 
-function endpointHasOnlyInternalMembership(
-  index: DocumentConnectivityIndex | undefined,
-  netId: string,
-  instanceId: string,
-  pinName: string,
-): boolean {
-  const net = index?.logicalNetByBaseNetId.get(netId);
-  return Boolean(
-    net &&
-    net.logicalEndpoints.length === 1 &&
-    net.logicalEndpoints[0]?.kind === "terminal" &&
-    net.logicalEndpoints[0]?.instanceId === instanceId &&
-    net.logicalEndpoints[0]?.pinName === pinName,
-  );
-}
-
 export function runErcChecks(
   project: CircuitProject,
   index: ProjectConnectivityIndex,
@@ -76,12 +58,11 @@ export function runErcChecks(
 
   for (const document of documents) {
     const docIndex = index.documents.get(document.id);
-    const endpointToNet =
-      docIndex?.endpointToBaseNetId ?? new Map<string, string>();
-    const noConnectEndpoints = new Set(
-      document.noConnects.map((noConnect) => noConnectKey(noConnect.endpoint)),
+    const endpointConnectivity = createEndpointConnectivityClassifier(
+      document,
+      docIndex,
+      resolver,
     );
-
     const logicalNets = resolveDocumentLogicalNets(document);
     for (const net of logicalNets.groups) {
       if (net.powerDomain !== "conflict") continue;
@@ -336,8 +317,13 @@ export function runErcChecks(
 
     // ERC_NO_CONNECT_CONFLICT
     for (const noConnect of document.noConnects) {
-      const owner = endpointToNet.get(noConnectKey(noConnect.endpoint));
-      if (!owner) continue;
+      const assessment = endpointConnectivity.assess(noConnect.endpoint);
+      const conflictsWithConnection =
+        assessment.membership === "peer-connected" ||
+        assessment.intent.formalBoundary ||
+        assessment.intent.globalSupply;
+      if (!conflictsWithConnection) continue;
+      const owner = assessment.baseNetId;
       diagnostics.push({
         id: `erc:no-connect-conflict:${document.id}:${noConnect.id}`,
         domain: "erc",
@@ -345,13 +331,16 @@ export function runErcChecks(
         severity: "error",
         confidence: "high",
         gateEligible: true,
-        message: `NoConnect ${noConnect.id} is also connected to net ${owner}`,
+        message: `NoConnect ${noConnect.id} is also electrically connected${owner ? ` to net ${owner}` : ""}`,
         primary: {
           ...directObjectLocator(document.id, "no-connect", noConnect.id),
           endpoint: noConnect.endpoint,
         },
-        related: [directObjectLocator(document.id, "net", owner)],
-        parameters: { netId: owner, noConnectId: noConnect.id },
+        related: owner ? [directObjectLocator(document.id, "net", owner)] : [],
+        parameters: {
+          ...(owner ? { netId: owner } : {}),
+          noConnectId: noConnect.id,
+        },
       });
     }
 
@@ -371,22 +360,12 @@ export function runErcChecks(
           instanceId: instance.id,
           pinName: pin.name,
         };
-        const key = noConnectKey(endpoint);
-        const netId = endpointToNet.get(key);
-        const explicitlyNoConnect = noConnectEndpoints.has(key);
+        const assessment = endpointConnectivity.assess(endpoint);
+        const netId = assessment.baseNetId ?? undefined;
         const role = pin.role.toLowerCase();
 
         if (role === "gate") {
-          if (
-            !explicitlyNoConnect &&
-            (!netId ||
-              endpointHasOnlyInternalMembership(
-                docIndex,
-                netId,
-                instance.id,
-                pin.name,
-              ))
-          ) {
+          if (!assessment.electricallySatisfied) {
             diagnostics.push({
               id: `erc:floating-gate:${document.id}:${instance.id}:${pin.name}`,
               domain: "erc",
@@ -413,10 +392,12 @@ export function runErcChecks(
 
         if (role === "bulk") {
           const resolution = resolveMosBulkConnection(document, instance);
+          const configuredDefault =
+            resolution?.status === "cell-default" ||
+            resolution?.status === "supply-default";
           if (
-            !explicitlyNoConnect &&
-            !netId &&
-            (!resolution || resolution.status === "unresolved") &&
+            !assessment.electricallySatisfied &&
+            !configuredDefault &&
             pin.presentation.visibility !== "implicit"
           ) {
             diagnostics.push({
@@ -426,13 +407,16 @@ export function runErcChecks(
               severity: "warning",
               confidence: "high",
               gateEligible: false,
-              message: `Bulk ${instance.id}.${pin.name} has no explicit or configured cell-default connection`,
+              message: netId
+                ? `Bulk ${instance.id}.${pin.name} is the only endpoint on net ${netId}`
+                : `Bulk ${instance.id}.${pin.name} has no explicit or configured cell-default connection`,
               primary: terminalLocator(document.id, instance.id, pin.name),
               related: [],
               parameters: {
                 instanceId: instance.id,
                 pinName: pin.name,
                 hidden: hidden.has(pin.name),
+                ...(netId ? { netId } : {}),
               },
             });
           }
@@ -443,8 +427,7 @@ export function runErcChecks(
         // visible non-role-specialized pin must have a Net or a NoConnect;
         // passive-pin tolerance is deferred).
         if (hidden.has(pin.name)) continue;
-        if (pin.presentation.visibility === "implicit") continue;
-        if (netId || explicitlyNoConnect) continue;
+        if (assessment.electricallySatisfied) continue;
         diagnostics.push({
           id: `erc:unconnected-pin:${document.id}:${instance.id}:${pin.name}`,
           domain: "erc",
@@ -452,10 +435,18 @@ export function runErcChecks(
           severity: "warning",
           confidence: "high",
           gateEligible: false,
-          message: `Pin ${instance.id}.${pin.name} is not connected and has no NoConnect`,
+          message: netId
+            ? `Pin ${instance.id}.${pin.name} is the only endpoint on net ${netId}`
+            : `Pin ${instance.id}.${pin.name} is not connected and has no NoConnect`,
           primary: terminalLocator(document.id, instance.id, pin.name),
-          related: [],
-          parameters: { instanceId: instance.id, pinName: pin.name },
+          related: netId
+            ? [directObjectLocator(document.id, "net", netId)]
+            : [],
+          parameters: {
+            instanceId: instance.id,
+            pinName: pin.name,
+            ...(netId ? { netId } : {}),
+          },
         });
       }
     }

@@ -14,6 +14,7 @@
 // longer open.
 
 import { evaluateSubmissionGates } from "@icm/derived";
+import { analyzeDesignNetlist } from "@icm/netlist";
 import { parseProject, serializeProject } from "@icm/project-protocol";
 import { renderDocumentSvg } from "@icm/render-svg";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
@@ -106,6 +107,15 @@ export interface GalleryEntrySummary {
   createdAt: string;
   schemaVersion: number;
   tags: string[];
+  /**
+   * Whether this circuit currently extracts to a design netlist. A schematic
+   * is allowed to be abbreviated, so this is a mark of extra completeness and
+   * never a gate: circuits without it are published and browsed alike.
+   */
+  netlistable: boolean;
+  likes: number;
+  /** Whether the requesting account has liked it; false when signed out. */
+  likedByViewer: boolean;
 }
 
 /**
@@ -160,11 +170,14 @@ interface EntryRow {
   reviewed_by: string | null;
   project_text: string;
   svg_text: string;
+  netlistable: number;
 }
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 
-function summaryOf(row: EntryRow): GalleryEntrySummary {
+function summaryOf(
+  row: EntryRow & { likes?: number; liked_by_viewer?: number },
+): GalleryEntrySummary {
   return {
     id: row.id,
     name: row.name,
@@ -173,6 +186,9 @@ function summaryOf(row: EntryRow): GalleryEntrySummary {
     createdAt: row.created_at,
     schemaVersion: row.schema_version,
     tags: unwrapTags(row.tags),
+    netlistable: row.netlistable === 1,
+    likes: row.likes ?? 0,
+    likedByViewer: (row.liked_by_viewer ?? 0) === 1,
   };
 }
 
@@ -202,6 +218,19 @@ export class GalleryDO {
     this.sql.exec(`
       CREATE INDEX IF NOT EXISTS idx_gallery_entries_status_created
       ON gallery_entries(status, created_at)
+    `);
+    // One thumb per account per circuit, so the primary key is the rule.
+    this.sql.exec(`
+      CREATE TABLE IF NOT EXISTS gallery_likes (
+        entry_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        liked_at TEXT NOT NULL,
+        PRIMARY KEY (entry_id, user_id)
+      ) WITHOUT ROWID
+    `);
+    this.sql.exec(`
+      CREATE INDEX IF NOT EXISTS idx_gallery_likes_entry
+      ON gallery_likes(entry_id)
     `);
     this.sql.exec(`
       CREATE TABLE IF NOT EXISTS gallery_submissions (
@@ -257,6 +286,7 @@ export class GalleryDO {
       "ALTER TABLE gallery_entries ADD COLUMN submitter_email TEXT",
       "ALTER TABLE gallery_entries ADD COLUMN submitter_provider TEXT",
       "ALTER TABLE workspace_slots ADD COLUMN seq INTEGER NOT NULL DEFAULT 0",
+      "ALTER TABLE gallery_entries ADD COLUMN netlistable INTEGER NOT NULL DEFAULT 0",
     ]) {
       try {
         this.sql.exec(alteration);
@@ -314,6 +344,12 @@ export class GalleryDO {
         return this.version(String(body.entryId), String(body.versionId));
       case "restore-version":
         return this.restoreVersion(body);
+      case "toggle-like":
+        return this.toggleLike(
+          String(body.id),
+          String(body.userId),
+          String(body.at),
+        );
       case "workspace-save":
         return this.workspaceSave(body);
       case "workspace-list":
@@ -323,6 +359,50 @@ export class GalleryDO {
       default:
         return Response.json({ error: "Unknown operation" }, { status: 404 });
     }
+  }
+
+  /**
+   * One thumb per account, and pressing it again takes it back. The entry has
+   * to exist and be public: a like is not a way to discover a withdrawn one.
+   */
+  private toggleLike(id: string, userId: string, at: string): Response {
+    const entry = this.sql
+      .exec<{ status: string }>(
+        "SELECT status FROM gallery_entries WHERE id = ?",
+        id,
+      )
+      .toArray()[0];
+    if (!entry || entry.status !== "public") {
+      return Response.json({ error: "not-found" }, { status: 404 });
+    }
+    const existing = this.sql
+      .exec<{ entry_id: string }>(
+        "SELECT entry_id FROM gallery_likes WHERE entry_id = ? AND user_id = ?",
+        id,
+        userId,
+      )
+      .toArray();
+    if (existing.length > 0) {
+      this.sql.exec(
+        "DELETE FROM gallery_likes WHERE entry_id = ? AND user_id = ?",
+        id,
+        userId,
+      );
+    } else {
+      this.sql.exec(
+        "INSERT INTO gallery_likes(entry_id, user_id, liked_at) VALUES (?, ?, ?)",
+        id,
+        userId,
+        at,
+      );
+    }
+    const likes =
+      this.sql
+        .exec<{
+          count: number;
+        }>("SELECT COUNT(*) AS count FROM gallery_likes WHERE entry_id = ?", id)
+        .toArray()[0]?.count ?? 0;
+    return Response.json({ likes, likedByViewer: existing.length === 0 });
   }
 
   /** A free id, redrawn on the vanishing chance the first one is taken. */
@@ -376,8 +456,8 @@ export class GalleryDO {
         `INSERT INTO gallery_entries(
           id, name, author, description, created_at, schema_version,
           status, recycled_at, owner_user_id, submitter_email,
-          submitter_provider, tags, project_text, svg_text
-        ) VALUES (?, ?, ?, ?, ?, ?, 'public', NULL, ?, ?, ?, ?, ?, ?)`,
+          submitter_provider, tags, project_text, svg_text, netlistable
+        ) VALUES (?, ?, ?, ?, ?, ?, 'public', NULL, ?, ?, ?, ?, ?, ?, ?)`,
         entry.id,
         entry.name,
         entry.author,
@@ -390,6 +470,7 @@ export class GalleryDO {
         entry.tags ?? "",
         entry.project_text,
         entry.svg_text,
+        entry.netlistable ?? 0,
       );
       return { status: "stored" as const };
     });
@@ -424,10 +505,17 @@ export class GalleryDO {
       conditions.push("(created_at || '|' || id) < ?");
       bindings.push(cursor);
     }
+    // The viewer id leads the bindings because its sub-select comes first.
+    const viewerId = typeof body.viewerId === "string" ? body.viewerId : "";
     const rows = this.sql
-      .exec<EntryRow>(
-        `SELECT * FROM gallery_entries WHERE ${conditions.join(" AND ")}
+      .exec<EntryRow & { likes: number; liked_by_viewer: number }>(
+        `SELECT e.*,
+           (SELECT COUNT(*) FROM gallery_likes WHERE entry_id = e.id) AS likes,
+           (SELECT COUNT(*) FROM gallery_likes
+             WHERE entry_id = e.id AND user_id = ?) AS liked_by_viewer
+         FROM gallery_entries e WHERE ${conditions.join(" AND ")}
          ORDER BY created_at DESC, id DESC LIMIT ?`,
+        viewerId,
         ...bindings,
         limit + 1,
       )
@@ -1040,6 +1128,9 @@ async function handleSubmission(
         // The id is drawn inside the Durable Object, which is the only place
         // that can tell whether one is already taken.
         id: "",
+        // Recorded, never enforced: a circuit that does not extract is
+        // published exactly the same way, it simply does not wear the star.
+        netlistable: analyzeDesignNetlist(project).ir ? 1 : 0,
         name,
         author,
         description,
@@ -1209,8 +1300,30 @@ export async function routeGalleryRequest(
   if (!url.pathname.startsWith("/api/gallery")) return null;
   const segments = url.pathname.split("/").filter(Boolean).slice(2);
 
+  if (
+    segments.length === 2 &&
+    segments[1] === "like" &&
+    request.method === "POST"
+  ) {
+    if (!sameOrigin(request)) {
+      return Response.json({ error: "forbidden" }, { status: 403 });
+    }
+    const user = await sessionUserOf(request, env);
+    if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
+    const { status, payload } = await callGallery(env, "toggle-like", {
+      id: segments[0],
+      userId: user.id,
+      at: new Date().toISOString(),
+    });
+    return Response.json(payload, { status });
+  }
+
   if (segments.length === 0 && request.method === "GET") {
+    // Signed in, the feed says which circuits this account has already
+    // thumbed; signed out it simply carries the counts.
+    const viewer = await sessionUserOf(request, env);
     const { payload } = await callGallery(env, "list", {
+      viewerId: viewer?.id ?? "",
       limit: url.searchParams.get("limit"),
       cursor: url.searchParams.get("cursor"),
       author: url.searchParams.get("author"),

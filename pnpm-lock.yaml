@@ -16,6 +16,9 @@ importers:
       "@icm/model":
         specifier: workspace:*
         version: link:packages/model
+      "@icm/netlist":
+        specifier: workspace:*
+        version: link:packages/netlist
       "@icm/project-protocol":
         specifier: workspace:*
         version: link:packages/project-protocol

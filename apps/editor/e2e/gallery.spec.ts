@@ -673,6 +673,62 @@ test("Check and Save shelves the circuit and the shelf reopens it", async ({
   await expect(page.getByTestId("status")).toContainText("Opened");
 });
 
+test("stars the circuits that extract and counts thumbs on every card", async ({
+  page,
+}) => {
+  const extractable = {
+    ...ENTRY,
+    netlistable: true,
+    likes: 2,
+    likedByViewer: false,
+  };
+  const sketch = {
+    ...ENTRY,
+    id: "g-sketch",
+    name: "Ideal Sketch",
+    netlistable: false,
+    likes: 0,
+    likedByViewer: false,
+  };
+  await page.route("**/api/gallery", (route) =>
+    route.fulfill({
+      json: { entries: [extractable, sketch], nextCursor: null },
+    }),
+  );
+  await page.route("**/api/gallery/*/preview.svg", (route) =>
+    route.fulfill({
+      contentType: "image/svg+xml",
+      body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"></svg>',
+    }),
+  );
+  let toggles = 0;
+  await page.route("**/api/gallery/*/like", (route) => {
+    toggles += 1;
+    return route.fulfill({ json: { likes: 3, likedByViewer: true } });
+  });
+
+  await page.goto("/");
+  // The star marks the one that extracts. The other is on the wall all the
+  // same — a schematic is allowed to be abbreviated.
+  await expect(
+    page.getByTestId(`gallery-star-${extractable.id}`),
+  ).toBeVisible();
+  await expect(page.getByTestId(`gallery-star-${sketch.id}`)).toHaveCount(0);
+  await expect(page.getByTestId(`gallery-tile-${sketch.id}`)).toBeVisible();
+
+  const thumb = page.getByTestId(`gallery-like-${extractable.id}`);
+  await expect(thumb).toContainText("2");
+  await expect(thumb).toHaveAttribute("aria-pressed", "false");
+
+  // Pressing the thumb applies what the server returned, and does not follow
+  // the card's link on the way.
+  await thumb.click();
+  await expect(thumb).toContainText("3");
+  await expect(thumb).toHaveAttribute("aria-pressed", "true");
+  expect(toggles).toBe(1);
+  expect(new URL(page.url()).pathname).toBe("/");
+});
+
 test("an ordinary user sees blocking quality gates on an empty project", async ({
   page,
 }) => {

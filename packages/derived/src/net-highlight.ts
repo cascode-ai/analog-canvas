@@ -5,6 +5,8 @@ import type {
 } from "./connectivity-index.js";
 import type { RoutingGuide } from "./routing-guidance.js";
 import { endpointKey } from "./endpoint.js";
+import { findHierarchyPaths } from "./hierarchy-navigation.js";
+import type { HierarchyFrame } from "./object-locator.js";
 
 /**
  * Net highlight and cross-cell trace (ADR 0013 index / roadmap WP-R6 core).
@@ -14,6 +16,7 @@ import { endpointKey } from "./endpoint.js";
 
 export interface NetHighlight {
   documentId: string;
+  hierarchyPath: readonly HierarchyFrame[];
   netId: string;
   visibleEndpoints: readonly EndpointRef[];
   routes: readonly string[];
@@ -39,6 +42,7 @@ export interface NetTrace {
 export interface HierarchyNetRef {
   documentId: string;
   netId: string;
+  hierarchyPath: readonly HierarchyFrame[];
 }
 
 export interface HierarchyNetTraceHop {
@@ -63,11 +67,28 @@ export interface HierarchyNetTrace {
   hops: readonly (HierarchyNetTraceHop | GlobalNetTraceHop)[];
 }
 
+function hierarchyPathKey(path: readonly HierarchyFrame[]): string {
+  return path
+    .map(
+      (frame) =>
+        `${frame.parentDocumentId}/${frame.instanceId}/${frame.childDocumentId}`,
+    )
+    .join(">");
+}
+
+function sameHierarchyPath(
+  left: readonly HierarchyFrame[],
+  right: readonly HierarchyFrame[],
+): boolean {
+  return hierarchyPathKey(left) === hierarchyPathKey(right);
+}
+
 export function computeNetHighlight(
   index: ProjectConnectivityIndex,
   documentId: string,
   netId: string,
   origin?: EndpointRef,
+  hierarchyPath: readonly HierarchyFrame[] = [],
 ): NetHighlight | undefined {
   const documentIndex = index.documents.get(documentId);
   const record =
@@ -87,6 +108,7 @@ export function computeNetHighlight(
   const visibleEndpointKeys = new Set(visibleEndpoints.map(endpointKey));
   return {
     documentId,
+    hierarchyPath,
     netId,
     visibleEndpoints,
     routes: component?.routes ?? record.routes,
@@ -161,28 +183,53 @@ export function traceHierarchyNet(
   documentId: string,
   netId: string,
   origin?: EndpointRef,
+  hierarchyPath: readonly HierarchyFrame[] = [],
 ): HierarchyNetTrace | undefined {
-  const primary = computeNetHighlight(index, documentId, netId, origin);
+  const primary = computeNetHighlight(
+    index,
+    documentId,
+    netId,
+    origin,
+    hierarchyPath,
+  );
   if (!primary) return undefined;
   const canonicalRef = (ref: HierarchyNetRef): HierarchyNetRef => ({
     documentId: ref.documentId,
+    hierarchyPath: ref.hierarchyPath,
     netId:
       index.documents.get(ref.documentId)?.logicalNetByBaseNetId.get(ref.netId)
         ?.netId ?? ref.netId,
   });
-  const queue: HierarchyNetRef[] = [canonicalRef({ documentId, netId })];
+  const queue: HierarchyNetRef[] = [
+    canonicalRef({ documentId, netId, hierarchyPath }),
+  ];
   const visited = new Set<string>();
   const highlights: NetHighlight[] = [];
   const hops: Array<HierarchyNetTraceHop | GlobalNetTraceHop> = [];
 
   while (queue.length > 0) {
     const current = queue.shift()!;
-    const key = `${current.documentId}\u0000${current.netId}`;
+    const pathKey = hierarchyPathKey(current.hierarchyPath);
+    const key = `${pathKey}\u0000${current.documentId}\u0000${current.netId}`;
     if (visited.has(key)) continue;
     const highlight =
-      current.documentId === documentId && current.netId === netId
-        ? computeNetHighlight(index, current.documentId, current.netId, origin)
-        : computeNetHighlight(index, current.documentId, current.netId);
+      current.documentId === documentId &&
+      current.netId === primary.netId &&
+      sameHierarchyPath(current.hierarchyPath, hierarchyPath)
+        ? computeNetHighlight(
+            index,
+            current.documentId,
+            current.netId,
+            origin,
+            current.hierarchyPath,
+          )
+        : computeNetHighlight(
+            index,
+            current.documentId,
+            current.netId,
+            undefined,
+            current.hierarchyPath,
+          );
     if (!highlight) continue;
     visited.add(key);
     highlights.push(highlight);
@@ -208,11 +255,28 @@ export function traceHierarchyNet(
         const to = canonicalRef({
           documentId: edge.childDocumentId,
           netId: edge.childNetId,
+          hierarchyPath: [
+            ...current.hierarchyPath,
+            {
+              parentDocumentId: edge.parentDocumentId,
+              instanceId: edge.instanceId,
+              childDocumentId: edge.childDocumentId,
+            },
+          ],
         });
         hops.push({ direction: "down", from: current, to, frame });
         queue.push(to);
       }
       if (edge.childDocumentId === current.documentId) {
+        const caller = current.hierarchyPath.at(-1);
+        if (
+          !caller ||
+          caller.parentDocumentId !== edge.parentDocumentId ||
+          caller.instanceId !== edge.instanceId ||
+          caller.childDocumentId !== edge.childDocumentId
+        ) {
+          continue;
+        }
         if (!currentRecord?.baseNetIds.includes(edge.childNetId)) continue;
         const parentNetId = index.documents
           .get(edge.parentDocumentId)
@@ -228,6 +292,7 @@ export function traceHierarchyNet(
         const to = canonicalRef({
           documentId: edge.parentDocumentId,
           netId: parentNetId,
+          hierarchyPath: current.hierarchyPath.slice(0, -1),
         });
         hops.push({ direction: "up", from: current, to, frame });
         queue.push(to);
@@ -244,27 +309,40 @@ export function traceHierarchyNet(
       ),
     );
     if (globalRecord && group) {
-      for (const to of group.nets) {
-        if (
-          to.documentId === current.documentId &&
-          to.netId === current.netId
-        ) {
-          continue;
+      for (const target of group.nets) {
+        const targetPaths =
+          target.documentId === index.topDocumentId
+            ? [[]]
+            : (findHierarchyPaths(
+                index,
+                index.topDocumentId,
+                target.documentId,
+              ) ?? [[]]);
+        for (const targetPath of targetPaths) {
+          const to = canonicalRef({ ...target, hierarchyPath: targetPath });
+          const samePath = sameHierarchyPath(targetPath, current.hierarchyPath);
+          if (
+            to.documentId === current.documentId &&
+            to.netId === current.netId &&
+            samePath
+          ) {
+            continue;
+          }
+          hops.push({
+            direction: "global",
+            from: current,
+            to,
+            foldedName: group.foldedName,
+          });
+          queue.push(to);
         }
-        hops.push({
-          direction: "global",
-          from: current,
-          to,
-          foldedName: group.foldedName,
-        });
-        queue.push(canonicalRef(to));
       }
     }
   }
 
   highlights.sort((left, right) =>
-    `${left.documentId}\u0000${left.netId}`.localeCompare(
-      `${right.documentId}\u0000${right.netId}`,
+    `${left.documentId}\u0000${left.hierarchyPath.map((frame) => frame.instanceId).join("/")}\u0000${left.netId}`.localeCompare(
+      `${right.documentId}\u0000${right.hierarchyPath.map((frame) => frame.instanceId).join("/")}\u0000${right.netId}`,
       "en",
     ),
   );
@@ -277,8 +355,8 @@ export function traceHierarchyNet(
       right.direction === "global"
         ? right.foldedName
         : `${right.frame.instanceId}\u0000${right.frame.parentPinName}`;
-    return `${left.direction}\u0000${left.from.documentId}\u0000${left.from.netId}\u0000${leftSuffix}`.localeCompare(
-      `${right.direction}\u0000${right.from.documentId}\u0000${right.from.netId}\u0000${rightSuffix}`,
+    return `${left.direction}\u0000${left.from.hierarchyPath.map((frame) => frame.instanceId).join("/")}\u0000${left.from.documentId}\u0000${left.from.netId}\u0000${leftSuffix}`.localeCompare(
+      `${right.direction}\u0000${right.from.hierarchyPath.map((frame) => frame.instanceId).join("/")}\u0000${right.from.documentId}\u0000${right.from.netId}\u0000${rightSuffix}`,
       "en",
     );
   });

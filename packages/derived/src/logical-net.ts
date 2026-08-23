@@ -6,7 +6,11 @@ export type LogicalNetConflictCode =
 export type LogicalNetPowerDomain = "none" | "vdd" | "ground" | "conflict";
 
 export interface ResolvedLogicalNet {
-  /** Stable canonical Base-Net ID; derived groups are never persisted. */
+  /**
+   * Deterministic representative Base-Net ID for this Document revision.
+   * Split, merge, pruning, or Evidence edits may change or remove it; derived
+   * Logical-Net groups and their representatives are never persisted.
+   */
   id: string;
   baseNetIds: readonly string[];
   name?: string;

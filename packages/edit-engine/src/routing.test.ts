@@ -438,14 +438,45 @@ describe("routing Edit Engine", () => {
       rotation: 0,
       locked: false,
     });
+    document.annotations.push({
+      id: "label-on-vdd-route",
+      kind: "net-label",
+      netId: "VDD",
+      content: { runs: [{ kind: "text", value: "VDD" }] },
+      anchor: {
+        kind: "route",
+        routeId: "vdd-rail",
+        segmentIndex: 0,
+        t: 0.5,
+        normalOffset: 10,
+        direction: "forward",
+        orientation: "horizontal",
+        fallbackPosition: { x: 50, y: 10 },
+      },
+      alignment: "middle",
+      rotation: 0,
+      locked: false,
+    });
+
+    const rawCut = executeTransaction(
+      document,
+      transaction(document.id, 0, [
+        { kind: "cut_connection", routeId: "vdd-rail" },
+      ]),
+      context,
+    );
+    expect(rawCut).toMatchObject({
+      ok: false,
+      error: { code: "EDIT_PRECONDITION" },
+    });
 
     const proposal = proposeVisualRouteDeletion(document, ["vdd-rail"], []);
-    expect(proposal.annotationIds).toEqual(["label-VDD"]);
+    expect(proposal.annotationIds).toEqual(["label-on-vdd-route", "label-VDD"]);
     expect(
       proposal.edits.filter(
         (edit) => edit.kind === "remove_schematic_annotation",
       ),
-    ).toHaveLength(1);
+    ).toHaveLength(2);
     const deleted = executeTransaction(
       document,
       transaction(document.id, 0, proposal.edits),
@@ -2223,8 +2254,14 @@ describe("routing Edit Engine", () => {
     );
   });
 
-  it("deletes routed geometry while preserving a partially routed imported Net", () => {
+  it("physically splits a partially routed imported Net and keeps source Evidence on the primary component", () => {
     const document = documentFixture();
+    document.connectivityEvidence.push({
+      id: "source-net-h",
+      kind: "spice-source",
+      netId: "net-h",
+      sourceNetId: "source-horizontal",
+    });
     document.routes = [
       {
         id: "route-partial",
@@ -2244,20 +2281,33 @@ describe("routing Edit Engine", () => {
       context,
     );
 
-    const beforeNet = structuredClone(
-      document.nets.find((net) => net.id === "net-h"),
-    );
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.document.routes).toEqual([]);
-    expect(result.document.nets.find((net) => net.id === "net-h")).toEqual(
-      beforeNet,
+    expect(
+      result.document.nets.find((net) => net.id === "net-h")?.terminals,
+    ).toEqual([{ instanceId: "A", pinName: "P" }]);
+    expect(
+      result.document.nets
+        .filter((net) =>
+          net.terminals.some((terminal) =>
+            ["A", "B", "E"].includes(terminal.instanceId),
+          ),
+        )
+        .map((net) => net.terminals.map((terminal) => terminal.instanceId)),
+    ).toEqual([["A"], ["B"], ["E"]]);
+    expect(
+      result.document.connectivityEvidence.filter(
+        (evidence) => evidence.kind === "spice-source",
+      ),
+    ).toEqual(
+      expect.arrayContaining([expect.objectContaining({ netId: "net-h" })]),
     );
-    expect(deriveFlightlines(result.document, resolver)).toHaveLength(3);
-    expect(result.document.sourceStatus).toBe("geometry-only-changed");
+    expect(deriveFlightlines(result.document, resolver)).toHaveLength(1);
+    expect(result.document.sourceStatus).toBe("connectivity-modified");
   });
 
-  it("deletes global-Net route geometry without partitioning the Net", () => {
+  it("physically splits a global-Net Route instead of hiding the cut behind global Evidence", () => {
     const document = documentFixture();
     const net = document.nets.find((candidate) => candidate.id === "net-v")!;
     net.scope = "global";
@@ -2266,7 +2316,6 @@ describe("routing Edit Engine", () => {
         evidence.scope = "global";
       }
     }
-    const beforeNet = structuredClone(net);
     document.routes = [
       {
         id: "route-global",
@@ -2290,8 +2339,14 @@ describe("routing Edit Engine", () => {
     if (!result.ok) return;
     expect(result.document.routes).toEqual([]);
     expect(
-      result.document.nets.find((candidate) => candidate.id === "net-v"),
-    ).toEqual(beforeNet);
-    expect(result.document.sourceStatus).toBe("geometry-only-changed");
+      result.document.nets.find((candidate) => candidate.id === "net-v")
+        ?.terminals,
+    ).toEqual([{ instanceId: "C", pinName: "P" }]);
+    expect(
+      result.document.nets.find((candidate) =>
+        candidate.terminals.some((terminal) => terminal.instanceId === "D"),
+      ),
+    ).toMatchObject({ scope: "local", terminals: [{ instanceId: "D" }] });
+    expect(result.document.sourceStatus).toBe("connectivity-modified");
   });
 });

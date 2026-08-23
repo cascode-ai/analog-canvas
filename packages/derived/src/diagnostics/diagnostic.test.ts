@@ -161,16 +161,31 @@ describe("diagnostic aggregation", () => {
 
     const resolved = structuredClone(unresolved);
     resolved.documents[0]!.revision = 4;
+    resolved.documents[0]!.instances.push({
+      id: "I2",
+      symbolId: "dual",
+      placement: {
+        position: { x: 100, y: 0 },
+        rotation: 0,
+        mirror: "none",
+      },
+    });
     resolved.documents[0]!.nets = [
       {
         id: "net-left",
         scope: "local",
-        terminals: [{ instanceId: "I1", pinName: "L" }],
+        terminals: [
+          { instanceId: "I1", pinName: "L" },
+          { instanceId: "I2", pinName: "L" },
+        ],
       },
       {
         id: "net-right",
         scope: "local",
-        terminals: [{ instanceId: "I1", pinName: "R" }],
+        terminals: [
+          { instanceId: "I1", pinName: "R" },
+          { instanceId: "I2", pinName: "R" },
+        ],
       },
     ];
     const after = diagnoseProjectSnapshot(resolved, resolver);

@@ -82,8 +82,16 @@ describe("Net highlight", () => {
     ]);
     expect(trace?.hops).toContainEqual({
       direction: "global",
-      from: { documentId: "top", netId: "net-vdd-top" },
-      to: { documentId: "child", netId: "net-vdd-child" },
+      from: {
+        documentId: "top",
+        netId: "net-vdd-top",
+        hierarchyPath: [],
+      },
+      to: {
+        documentId: "child",
+        netId: "net-vdd-child",
+        hierarchyPath: [],
+      },
       foldedName: "vdd",
     });
   });
@@ -167,9 +175,107 @@ describe("Net highlight", () => {
     expect(trace?.hops).toContainEqual(
       expect.objectContaining({
         direction: "down",
-        from: { documentId: "top", netId: "net-a" },
-        to: { documentId: "child", netId: "child-net" },
+        from: { documentId: "top", netId: "net-a", hierarchyPath: [] },
+        to: {
+          documentId: "child",
+          netId: "child-net",
+          hierarchyPath: [
+            {
+              parentDocumentId: "top",
+              instanceId: "X1",
+              childDocumentId: "child",
+            },
+          ],
+        },
       }),
     );
+  });
+
+  it("keeps repeated child Cell occurrences distinct when tracing upward", () => {
+    const project = createEmptyProject("project", "Project", "top");
+    const top = project.documents[0]!;
+    top.instances.push(
+      ...["X1", "X2"].map((id) => ({
+        id,
+        symbolId: "single",
+        placement: null,
+        netlist: {
+          reference: id,
+          parameters: {},
+          binding: {
+            kind: "subcircuit" as const,
+            childDocumentId: "child",
+          },
+        },
+      })),
+    );
+    top.nets.push(
+      {
+        id: "parent-a",
+        scope: "local",
+        terminals: [{ instanceId: "X1", pinName: "P" }],
+      },
+      {
+        id: "parent-b",
+        scope: "local",
+        terminals: [{ instanceId: "X2", pinName: "P" }],
+      },
+    );
+    const child = createEmptyDocument("child", "Child");
+    child.instances.push({ id: "P1", symbolId: "port", placement: null });
+    child.nets.push({
+      id: "child-net",
+      scope: "local",
+      terminals: [{ instanceId: "P1", pinName: "P" }],
+    });
+    child.netlist = {
+      name: "child",
+      formalParameters: [],
+      terminals: [
+        {
+          id: "terminal-p",
+          name: "P",
+          netId: "child-net",
+          direction: "passive",
+          interfaceInstanceIds: ["P1"],
+        },
+      ],
+    };
+    project.documents.push(child);
+
+    const index = buildProjectConnectivityIndex(
+      project,
+      new InMemorySymbolResolver([...builtInSymbols, single]),
+    );
+    const x1Path = [
+      {
+        parentDocumentId: "top",
+        instanceId: "X1",
+        childDocumentId: "child",
+      },
+    ];
+    const trace = traceHierarchyNet(
+      index,
+      "child",
+      "child-net",
+      undefined,
+      x1Path,
+    );
+
+    expect(
+      trace?.highlights.map((highlight) => ({
+        documentId: highlight.documentId,
+        netId: highlight.netId,
+        path: highlight.hierarchyPath.map((frame) => frame.instanceId),
+      })),
+    ).toEqual([
+      { documentId: "child", netId: "child-net", path: ["X1"] },
+      { documentId: "top", netId: "parent-a", path: [] },
+    ]);
+    expect(
+      trace?.hops.some(
+        (hop) => hop.direction !== "global" && hop.frame.instanceId === "X2",
+      ),
+    ).toBe(false);
   });
 });

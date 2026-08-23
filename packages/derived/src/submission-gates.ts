@@ -3,7 +3,6 @@ import type { SymbolResolver } from "@icm/symbols";
 
 import { buildProjectConnectivityIndex } from "./connectivity-index.js";
 import { runErcChecks } from "./diagnostics/erc.js";
-import { resolveDocumentLogicalNets } from "./logical-net.js";
 
 /**
  * Gallery submission quality gates (roadmap phase G3). One deterministic
@@ -13,9 +12,8 @@ import { resolveDocumentLogicalNets } from "./logical-net.js";
  *
  * - no ERC errors;
  * - no floating endpoints — every visible pin is wired into a net with
- *   other members, sits on a NAMED single-member net (a deliberate
- *   port/rail), or carries an explicit NoConnect (the ERC engine already
- *   honors NoConnect and hidden/implicit pins);
+ *   other members or carries a sanctioned intent (formal boundary, global
+ *   supply, implicit pin, or explicit NoConnect) already classified by ERC;
  * - no near-empty submissions — at least 2 instances, or a drawing with
  *   at least 3 drafting objects including a text (pure block diagrams
  *   stay submittable).
@@ -44,20 +42,6 @@ const FLOATING_CODES = new Set([
 ]);
 
 const EXAMPLE_LIMIT = 5;
-
-function netIsNamed(
-  project: CircuitProject,
-  documentId: string,
-  netId: string,
-): boolean {
-  const document = project.documents.find(
-    (candidate) => candidate.id === documentId,
-  );
-  const net = document
-    ? resolveDocumentLogicalNets(document).byBaseNetId.get(netId)
-    : undefined;
-  return typeof net?.name === "string" && net.name.length > 0;
-}
 
 function terminalLabel(parameters: Record<string, unknown>): string {
   const instanceId = parameters.instanceId;
@@ -94,26 +78,14 @@ export function evaluateSubmissionGates(
     });
   }
 
-  const floating = diagnostics.filter((diagnostic) => {
-    if (!FLOATING_CODES.has(diagnostic.code)) return false;
-    // A gate wired onto a single-member net that carries a NAME is a
-    // deliberate port/rail declaration and passes ("unwired but named").
-    if (diagnostic.code === "ERC_FLOATING_GATE") {
-      const netId = diagnostic.parameters.netId;
-      if (
-        typeof netId === "string" &&
-        netIsNamed(project, diagnostic.primary.documentId, netId)
-      ) {
-        return false;
-      }
-    }
-    return true;
-  });
+  const floating = diagnostics.filter((diagnostic) =>
+    FLOATING_CODES.has(diagnostic.code),
+  );
   if (floating.length > 0) {
     failures.push({
       code: "floating-endpoints",
       message:
-        "Floating endpoints: wire each pin, name its net, or mark it NoConnect",
+        "Floating endpoints: wire each pin, declare a formal/global boundary, or mark it NoConnect",
       count: floating.length,
       examples: floating
         .slice(0, EXAMPLE_LIMIT)
