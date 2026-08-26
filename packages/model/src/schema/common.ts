@@ -1,5 +1,5 @@
 import { z } from "zod";
-export const CURRENT_PROJECT_SCHEMA_VERSION = 24;
+export const CURRENT_PROJECT_SCHEMA_VERSION = 25;
 
 export const StableIdSchema = z.string().min(1).max(256);
 /** A persisted Document page point before its Document-grid relation is known. */

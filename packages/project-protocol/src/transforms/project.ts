@@ -1,4 +1,4 @@
-import { CURRENT_PROJECT_SCHEMA_VERSION } from "@icm/model";
+import { CURRENT_PROJECT_SCHEMA_VERSION, deriveStableId } from "@icm/model";
 
 export class ProjectMigrationError extends Error {
   constructor(
@@ -11,466 +11,298 @@ export class ProjectMigrationError extends Error {
 
 type CellTerminalDirection = "input" | "output" | "inout" | "passive";
 
-export interface MigratedCellPin {
+/** One schema-25 authoring record produced from a schema-24 Cell terminal. */
+export interface MigratedIndependentCellPin {
   readonly documentId: string;
+  readonly sourceTerminalId: string;
   readonly terminalId: string;
+  readonly interfaceInstanceId: string;
   readonly name: string;
   readonly direction: CellTerminalDirection;
   readonly netId: string;
-  readonly interfaceInstanceIds: readonly string[];
-  readonly source: "existing-terminal" | "free-port";
+  readonly retainedSourceTerminalId: boolean;
 }
 
-export interface Schema23To24MigrationReport {
-  readonly cellPins: readonly MigratedCellPin[];
-  readonly removedFreePortClaims: number;
-  readonly mergedBaseNets: number;
-  readonly vddMarkersBefore: number;
-  readonly vddMarkersAfter: number;
-  readonly powerRailsBefore: number;
-  readonly powerRailsAfter: number;
-  readonly routesBefore: number;
-  readonly routesAfter: number;
-  readonly junctionsBefore: number;
-  readonly junctionsAfter: number;
+export interface PreservedLegacySharedNet {
+  readonly documentId: string;
+  readonly sourceTerminalId: string;
+  readonly netId: string;
 }
 
-export interface Schema23To24MigrationResult {
+export interface Schema24To25MigrationReport {
+  readonly independentCellPins: readonly MigratedIndependentCellPin[];
+  readonly splitRepeatedTerminalCount: number;
+  readonly createdTerminalIds: readonly string[];
+  readonly reboundAnnotationIds: readonly string[];
+  /** Legacy physical topology intentionally preserved without guessing a cut. */
+  readonly preservedLegacySharedNets: readonly PreservedLegacySharedNet[];
+}
+
+export interface Schema24To25MigrationResult {
   readonly project: Record<string, unknown>;
-  readonly report: Schema23To24MigrationReport;
+  readonly report: Schema24To25MigrationReport;
+}
+
+interface DocumentMigrationResult {
+  readonly independentCellPins: MigratedIndependentCellPin[];
+  readonly splitRepeatedTerminalCount: number;
+  readonly createdTerminalIds: string[];
+  readonly reboundAnnotationIds: string[];
+  readonly preservedLegacySharedNets: PreservedLegacySharedNet[];
 }
 
 /**
- * Schema 24 retires Free Port while retaining the ordinary EDA rule that one
- * formal Cell Pin may have several drawing markers. Schema-23 free markers
- * with the same semantic name are promoted into one ordered CellTerminal and
- * one electrical Net; existing repeated formal markers remain unchanged.
+ * Schema 25 makes every canvas Cell Pin an independent authoring record.
+ * Schema-24 terminals that owned several visual markers are split into
+ * singleton terminal records. Existing physical topology is authoritative and
+ * therefore remains byte-for-byte unchanged; the migration never guesses how
+ * to partition a Base Net, Route, or Junction.
  */
-export function upgradeSchema23To24WithReport(
+export function upgradeSchema24To25WithReport(
   raw: Record<string, unknown>,
-): Schema23To24MigrationResult {
+): Schema24To25MigrationResult {
   const project = structuredClone(raw);
-  const before = visualInventory(project);
-  const cellPins: MigratedCellPin[] = [];
-  let removedFreePortClaims = 0;
-  let mergedBaseNets = 0;
+  const independentCellPins: MigratedIndependentCellPin[] = [];
+  const createdTerminalIds: string[] = [];
+  const reboundAnnotationIds: string[] = [];
+  const preservedLegacySharedNets: PreservedLegacySharedNet[] = [];
+  let splitRepeatedTerminalCount = 0;
 
   if (Array.isArray(project.documents)) {
     for (const [documentIndex, value] of project.documents.entries()) {
       if (!isRecord(value)) continue;
-      const result = migrateDocumentPorts(value, documentIndex);
-      cellPins.push(...result.cellPins);
-      removedFreePortClaims += result.removedFreePortClaims;
-      mergedBaseNets += result.mergedBaseNets;
+      const result = migrateDocumentCellPins(value, documentIndex);
+      independentCellPins.push(...result.independentCellPins);
+      splitRepeatedTerminalCount += result.splitRepeatedTerminalCount;
+      createdTerminalIds.push(...result.createdTerminalIds);
+      reboundAnnotationIds.push(...result.reboundAnnotationIds);
+      preservedLegacySharedNets.push(...result.preservedLegacySharedNets);
     }
   }
+
   project.schemaVersion = CURRENT_PROJECT_SCHEMA_VERSION;
-  const after = visualInventory(project);
   return {
     project,
     report: {
-      cellPins,
-      removedFreePortClaims,
-      mergedBaseNets,
-      vddMarkersBefore: before.vddMarkers,
-      vddMarkersAfter: after.vddMarkers,
-      powerRailsBefore: before.powerRails,
-      powerRailsAfter: after.powerRails,
-      routesBefore: before.routes,
-      routesAfter: after.routes,
-      junctionsBefore: before.junctions,
-      junctionsAfter: after.junctions,
+      independentCellPins,
+      splitRepeatedTerminalCount,
+      createdTerminalIds,
+      reboundAnnotationIds,
+      preservedLegacySharedNets,
     },
   };
 }
 
-export function upgradeSchema23To24(
+export function upgradeSchema24To25(
   raw: Record<string, unknown>,
 ): Record<string, unknown> {
-  return upgradeSchema23To24WithReport(raw).project;
+  return upgradeSchema24To25WithReport(raw).project;
 }
 
-function migrateDocumentPorts(
+function migrateDocumentCellPins(
   document: Record<string, unknown>,
   documentIndex: number,
-): {
-  cellPins: MigratedCellPin[];
-  removedFreePortClaims: number;
-  mergedBaseNets: number;
-} {
+): DocumentMigrationResult {
   const documentId = stringValue(document.id) ?? `document-${documentIndex}`;
-  const instances = records(document.instances);
-  const ports = instances.filter(isPortInstance);
-  const nets = records(document.nets);
-  const annotations = records(document.annotations);
-  const evidence = records(document.connectivityEvidence);
-  const netlist = ensureNetlist(document);
+  const netlist = isRecord(document.netlist) ? document.netlist : null;
+  if (!netlist || !Array.isArray(netlist.terminals)) {
+    return {
+      independentCellPins: [],
+      splitRepeatedTerminalCount: 0,
+      createdTerminalIds: [],
+      reboundAnnotationIds: [],
+      preservedLegacySharedNets: [],
+    };
+  }
+
   const terminals = records(netlist.terminals);
-  const terminalIds = new Set<string>();
-  const terminalNames = new Set<string>();
-  const terminalByMarkerId = new Map<string, Record<string, unknown>>();
-  const terminalByName = new Map<string, Record<string, unknown>>();
-  const cellPins: MigratedCellPin[] = [];
+  const annotations = records(document.annotations);
+  const occupiedIds = collectIds(document);
+  const migrated: Record<string, unknown>[] = [];
+  const independentCellPins: MigratedIndependentCellPin[] = [];
+  const createdTerminalIds: string[] = [];
+  const reboundAnnotationIds: string[] = [];
+  const preservedLegacySharedNets: PreservedLegacySharedNet[] = [];
+  let splitRepeatedTerminalCount = 0;
+
+  if (terminals.length !== netlist.terminals.length) {
+    throw new ProjectMigrationError(
+      ["documents", documentIndex, "netlist", "terminals"],
+      "Cell terminals must be objects",
+    );
+  }
 
   for (const [terminalIndex, terminal] of terminals.entries()) {
-    const markerIds = terminalMarkerIds(terminal);
-    if (markerIds.length === 0) {
-      throw new ProjectMigrationError(
-        [
-          "documents",
-          documentIndex,
-          "netlist",
-          "terminals",
-          terminalIndex,
-          "interfaceInstanceIds",
-        ],
-        "Cell terminal has no drawing marker",
-      );
-    }
-    const id = stringValue(terminal.id);
+    const terminalPath = [
+      "documents",
+      documentIndex,
+      "netlist",
+      "terminals",
+      terminalIndex,
+    ] as const;
+    const sourceTerminalId = stringValue(terminal.id);
     const name = stringValue(terminal.name);
     const netId = stringValue(terminal.netId);
-    if (!id || !name || !netId) {
+    const markerIds = stringArray(terminal.interfaceInstanceIds);
+    if (!sourceTerminalId || !name || !netId) {
       throw new ProjectMigrationError(
-        ["documents", documentIndex, "netlist", "terminals", terminalIndex],
+        terminalPath,
         "Cell terminal is missing id, name, or Net",
       );
     }
-    if (terminalIds.has(id) || terminalNames.has(name.toLowerCase())) {
+    if (markerIds.length === 0) {
       throw new ProjectMigrationError(
-        ["documents", documentIndex, "netlist", "terminals", terminalIndex],
-        `Duplicate Cell terminal identity: ${name}`,
+        [...terminalPath, "interfaceInstanceIds"],
+        "Cell terminal has no drawing marker",
       );
     }
-    terminalIds.add(id);
-    terminalNames.add(name.toLowerCase());
-    terminal.interfaceInstanceIds = markerIds;
-    delete terminal.interfaceInstanceId;
-    terminalByName.set(name.toLowerCase(), terminal);
-    markerIds.forEach((markerId) => terminalByMarkerId.set(markerId, terminal));
-    cellPins.push({
-      documentId,
-      terminalId: id,
-      name,
-      direction: terminalDirection(terminal.direction),
-      netId,
-      interfaceInstanceIds: [...markerIds],
-      source: "existing-terminal",
-    });
-  }
-
-  let mergedBaseNets = 0;
-  const convertedAnnotationIds = new Set<string>();
-  const legacyPortFacts = ports.flatMap((port) => {
-    const markerId = stringValue(port.id);
-    if (!markerId || terminalByMarkerId.has(markerId)) return [];
-    const markerNet = nets.find((net) => netOwnsPort(net, markerId));
-    const markerNetId = markerNet ? stringValue(markerNet.id) : undefined;
-    if (!markerNetId) {
-      throw new ProjectMigrationError(
-        ["documents", documentIndex, "instances"],
-        `Port ${markerId} must belong to one Base Net`,
-      );
-    }
-    return [
-      {
-        port,
-        markerId,
-        markerNetId,
-        explicitName:
-          freePortClaimName(evidence, markerId) ??
-          anchoredAnnotationText(annotations, markerId) ??
-          stringValue(port.schematicReference),
-      },
-    ];
-  });
-  const explicitNamesByNet = new Map<string, Map<string, string>>();
-  for (const fact of legacyPortFacts) {
-    if (!fact.explicitName) continue;
-    const names = explicitNamesByNet.get(fact.markerNetId) ?? new Map();
-    names.set(fact.explicitName.toLowerCase(), fact.explicitName);
-    explicitNamesByNet.set(fact.markerNetId, names);
-  }
-  for (const { port, markerId, markerNetId, explicitName } of legacyPortFacts) {
-    const peerNames = explicitNamesByNet.get(markerNetId);
-    const uniquePeerName =
-      peerNames?.size === 1 ? [...peerNames.values()][0] : undefined;
-    const name = explicitName ?? uniquePeerName ?? markerId;
-    let terminal = terminalByName.get(name.toLowerCase());
-    if (terminal) {
-      const targetNetId = stringValue(terminal.netId)!;
-      if (markerNetId !== targetNetId) {
-        mergeRawBaseNets(document, targetNetId, markerNetId);
-        mergedBaseNets += 1;
-      }
-      const markerIds = terminalMarkerIds(terminal);
-      if (!markerIds.includes(markerId)) markerIds.push(markerId);
-      terminal.interfaceInstanceIds = markerIds;
-    } else {
-      const terminalId = uniqueId(
-        `terminal-${markerId.toLowerCase()}`,
-        terminalIds,
-      );
-      terminal = {
-        id: terminalId,
-        name,
-        netId: markerNetId,
-        direction: "inout",
-        interfaceInstanceIds: [markerId],
-      };
-      terminals.push(terminal);
-      terminalIds.add(terminalId);
-      terminalNames.add(name.toLowerCase());
-      terminalByName.set(name.toLowerCase(), terminal);
-    }
-    terminalByMarkerId.set(markerId, terminal);
-    delete port.schematicReference;
-    delete port.netlist;
-    for (const annotation of annotations) {
-      if (!annotationAnchorsObject(annotation, markerId)) continue;
-      if (
-        annotation.kind !== "instance-label" &&
-        annotation.kind !== "net-label"
-      ) {
-        continue;
-      }
-      const annotationId = stringValue(annotation.id);
-      if (annotationId) convertedAnnotationIds.add(annotationId);
-      annotation.kind = "instance-label";
-      annotation.binding = {
-        kind: "cell-terminal-name",
-        terminalId: stringValue(terminal.id)!,
-      };
-      delete annotation.netId;
-      delete annotation.content;
-    }
-  }
-
-  netlist.terminals = terminals;
-  let removedFreePortClaims = 0;
-  document.connectivityEvidence = evidence.filter((item) => {
-    const owner = isRecord(item.owner) ? item.owner : null;
-    const remove =
-      owner?.kind === "free-port" ||
-      (owner?.kind === "net-label" &&
-        typeof owner.annotationId === "string" &&
-        convertedAnnotationIds.has(owner.annotationId));
-    if (remove) removedFreePortClaims += 1;
-    return !remove;
-  });
-
-  return {
-    cellPins: terminals.map((terminal) => ({
-      documentId,
-      terminalId: stringValue(terminal.id)!,
-      name: stringValue(terminal.name)!,
-      direction: terminalDirection(terminal.direction),
-      netId: stringValue(terminal.netId)!,
-      interfaceInstanceIds: terminalMarkerIds(terminal),
-      source: cellPins.some((pin) => pin.terminalId === terminal.id)
-        ? "existing-terminal"
-        : "free-port",
-    })),
-    removedFreePortClaims,
-    mergedBaseNets,
-  };
-}
-
-function mergeRawBaseNets(
-  document: Record<string, unknown>,
-  targetNetId: string,
-  sourceNetId: string,
-): void {
-  if (targetNetId === sourceNetId) return;
-  const nets = records(document.nets);
-  const target = nets.find((net) => net.id === targetNetId);
-  const source = nets.find((net) => net.id === sourceNetId);
-  if (!target || !source) {
-    throw new ProjectMigrationError(
-      ["documents"],
-      `Cannot merge missing Base Nets ${targetNetId} and ${sourceNetId}`,
-    );
-  }
-  const targetTerminals = records(target.terminals);
-  for (const terminal of records(source.terminals)) {
     if (
-      !targetTerminals.some(
-        (candidate) =>
-          candidate.instanceId === terminal.instanceId &&
-          candidate.pinName === terminal.pinName,
-      )
+      !Array.isArray(terminal.interfaceInstanceIds) ||
+      markerIds.length !== terminal.interfaceInstanceIds.length
     ) {
-      targetTerminals.push(terminal);
+      throw new ProjectMigrationError(
+        [...terminalPath, "interfaceInstanceIds"],
+        "Cell terminal drawing markers must be stable IDs",
+      );
+    }
+    const direction = terminalDirection(terminal.direction);
+    if (!direction) {
+      throw new ProjectMigrationError(
+        [...terminalPath, "direction"],
+        "Cell terminal has an invalid direction",
+      );
+    }
+    if (markerIds.length > 1) {
+      splitRepeatedTerminalCount += 1;
+      preservedLegacySharedNets.push({
+        documentId,
+        sourceTerminalId,
+        netId,
+      });
+    }
+
+    for (const [markerIndex, interfaceInstanceId] of markerIds.entries()) {
+      const retainedSourceTerminalId = markerIndex === 0;
+      const terminalId = retainedSourceTerminalId
+        ? sourceTerminalId
+        : migratedTerminalId(
+            sourceTerminalId,
+            interfaceInstanceId,
+            occupiedIds,
+          );
+      occupiedIds.add(terminalId);
+      if (!retainedSourceTerminalId) createdTerminalIds.push(terminalId);
+      migrated.push({
+        ...terminal,
+        id: terminalId,
+        interfaceInstanceIds: [interfaceInstanceId],
+      });
+      independentCellPins.push({
+        documentId,
+        sourceTerminalId,
+        terminalId,
+        interfaceInstanceId,
+        name,
+        direction,
+        netId,
+        retainedSourceTerminalId,
+      });
+      if (retainedSourceTerminalId) continue;
+      for (const annotation of annotations) {
+        if (
+          !annotationBindsTerminalAtMarker(
+            annotation,
+            sourceTerminalId,
+            interfaceInstanceId,
+          )
+        ) {
+          continue;
+        }
+        annotation.binding = {
+          kind: "cell-terminal-name",
+          terminalId,
+        };
+        const annotationId = stringValue(annotation.id);
+        if (annotationId) reboundAnnotationIds.push(annotationId);
+      }
     }
   }
-  target.terminals = targetTerminals;
-  document.nets = nets.filter((net) => net !== source);
-  rewriteNetId(document, sourceNetId, targetNetId);
-}
 
-function rewriteNetId(
-  value: unknown,
-  sourceNetId: string,
-  targetNetId: string,
-): void {
-  if (Array.isArray(value)) {
-    value.forEach((item) => rewriteNetId(item, sourceNetId, targetNetId));
-    return;
-  }
-  if (!isRecord(value)) return;
-  for (const [key, child] of Object.entries(value)) {
-    if ((key === "netId" || key === "bodyNetId") && child === sourceNetId) {
-      value[key] = targetNetId;
-    } else if (key === "memberNetIds" && Array.isArray(child)) {
-      value[key] = [
-        ...new Set(child.map((id) => (id === sourceNetId ? targetNetId : id))),
-      ];
-    } else {
-      rewriteNetId(child, sourceNetId, targetNetId);
-    }
-  }
-}
-
-function ensureNetlist(
-  document: Record<string, unknown>,
-): Record<string, unknown> {
-  if (isRecord(document.netlist)) return document.netlist;
-  const netlist = {
-    name: stringValue(document.name) ?? "Cell",
-    terminals: [],
-    formalParameters: [],
+  netlist.terminals = migrated;
+  return {
+    independentCellPins,
+    splitRepeatedTerminalCount,
+    createdTerminalIds,
+    reboundAnnotationIds,
+    preservedLegacySharedNets,
   };
-  document.netlist = netlist;
-  return netlist;
 }
 
-function terminalMarkerIds(terminal: Record<string, unknown>): string[] {
-  if (Array.isArray(terminal.interfaceInstanceIds)) {
-    return terminal.interfaceInstanceIds.filter(
-      (value): value is string => typeof value === "string",
+function migratedTerminalId(
+  sourceTerminalId: string,
+  interfaceInstanceId: string,
+  occupiedIds: ReadonlySet<string>,
+): string {
+  let ordinal = 1;
+  while (true) {
+    const candidate = deriveStableId(
+      "cell-terminal",
+      sourceTerminalId,
+      interfaceInstanceId,
+      ...(ordinal === 1 ? [] : [String(ordinal)]),
     );
+    if (!occupiedIds.has(candidate)) return candidate;
+    ordinal += 1;
   }
-  return typeof terminal.interfaceInstanceId === "string"
-    ? [terminal.interfaceInstanceId]
-    : [];
 }
 
-function terminalDirection(value: unknown): CellTerminalDirection {
+function annotationBindsTerminalAtMarker(
+  annotation: Record<string, unknown>,
+  terminalId: string,
+  markerId: string,
+): boolean {
+  const anchor = isRecord(annotation.anchor) ? annotation.anchor : null;
+  const binding = isRecord(annotation.binding) ? annotation.binding : null;
+  return (
+    anchor?.kind === "object" &&
+    anchor.objectId === markerId &&
+    binding?.kind === "cell-terminal-name" &&
+    binding.terminalId === terminalId
+  );
+}
+
+function collectIds(value: unknown, result = new Set<string>()): Set<string> {
+  if (Array.isArray(value)) {
+    value.forEach((item) => collectIds(item, result));
+    return result;
+  }
+  if (!isRecord(value)) return result;
+  if (typeof value.id === "string") result.add(value.id);
+  Object.values(value).forEach((item) => collectIds(item, result));
+  return result;
+}
+
+function terminalDirection(value: unknown): CellTerminalDirection | undefined {
   return value === "input" ||
     value === "output" ||
     value === "inout" ||
     value === "passive"
     ? value
-    : "inout";
-}
-
-function freePortClaimName(
-  evidence: readonly Record<string, unknown>[],
-  markerId: string,
-): string | undefined {
-  const claim = evidence.find((item) => {
-    const owner = isRecord(item.owner) ? item.owner : null;
-    return (
-      item.kind === "name-claim" &&
-      owner?.kind === "free-port" &&
-      owner.instanceId === markerId
-    );
-  });
-  return claim ? stringValue(claim.name) : undefined;
-}
-
-function anchoredAnnotationText(
-  annotations: readonly Record<string, unknown>[],
-  markerId: string,
-): string | undefined {
-  const annotation = annotations.find((item) =>
-    annotationAnchorsObject(item, markerId),
-  );
-  if (!annotation) return undefined;
-  return flattenRawRichText(
-    annotation.formatOverride ?? annotation.content,
-  )?.trim();
-}
-
-function flattenRawRichText(value: unknown): string | undefined {
-  if (!isRecord(value) || !Array.isArray(value.runs)) return undefined;
-  const flatten = (runs: unknown[]): string =>
-    runs
-      .map((run): string => {
-        if (!isRecord(run)) return "";
-        if (run.kind === "text" && typeof run.value === "string")
-          return run.value;
-        if (run.kind === "span" && Array.isArray(run.children))
-          return flatten(run.children);
-        return run.kind === "line-break" ? "\n" : "";
-      })
-      .join("");
-  return flatten(value.runs);
-}
-
-function annotationAnchorsObject(
-  annotation: Record<string, unknown>,
-  objectId: string,
-): boolean {
-  return (
-    isRecord(annotation.anchor) &&
-    annotation.anchor.kind === "object" &&
-    annotation.anchor.objectId === objectId
-  );
-}
-
-function netOwnsPort(net: Record<string, unknown>, markerId: string): boolean {
-  return records(net.terminals).some(
-    (terminal) => terminal.instanceId === markerId && terminal.pinName === "P",
-  );
-}
-
-function isPortInstance(instance: Record<string, unknown>): boolean {
-  return instance.symbolId === "port" || instance.symbolId === "port-filled";
-}
-
-function uniqueId(base: string, occupied: Set<string>): string {
-  let candidate = base;
-  let suffix = 2;
-  while (occupied.has(candidate)) {
-    candidate = `${base}-${suffix}`;
-    suffix += 1;
-  }
-  return candidate;
-}
-
-function visualInventory(project: Record<string, unknown>): {
-  vddMarkers: number;
-  powerRails: number;
-  routes: number;
-  junctions: number;
-} {
-  let vddMarkers = 0;
-  let powerRails = 0;
-  let routes = 0;
-  let junctions = 0;
-  for (const document of records(project.documents)) {
-    const documentRoutes = records(document.routes);
-    routes += documentRoutes.length;
-    powerRails += documentRoutes.filter(
-      (route) => route.presentation === "power-rail",
-    ).length;
-    junctions += Array.isArray(document.junctions)
-      ? document.junctions.length
-      : 0;
-    vddMarkers += records(document.instances).filter(
-      (instance) => instance.symbolId === "vdd-port",
-    ).length;
-  }
-  return { vddMarkers, powerRails, routes, junctions };
+    : undefined;
 }
 
 function records(value: unknown): Record<string, unknown>[] {
   return Array.isArray(value) ? value.filter(isRecord) : [];
 }
 
+function stringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
+}
+
 function stringValue(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+  return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

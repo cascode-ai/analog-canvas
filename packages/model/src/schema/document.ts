@@ -34,7 +34,7 @@ export const CellNetlistTerminalSchema = z.strictObject({
   name: NetlistIdentifierSchema,
   netId: StableIdSchema,
   direction: z.enum(["input", "output", "inout", "passive"]),
-  interfaceInstanceIds: z.array(StableIdSchema).min(1),
+  interfaceInstanceIds: z.array(StableIdSchema).length(1),
 });
 export const CellNetlistFormalParameterSchema = z.strictObject({
   name: NetlistIdentifierSchema,
@@ -246,7 +246,6 @@ export const SchematicDocumentSchema = SchematicDocumentBaseSchema.superRefine(
         formalParameterNames.add(normalizedName);
       }
       const terminalIds = new Set<string>();
-      const terminalNames = new Set<string>();
       const cellPinInstanceIds = new Set<string>();
       for (const [
         terminalIndex,
@@ -260,15 +259,6 @@ export const SchematicDocumentSchema = SchematicDocumentBaseSchema.superRefine(
           });
         }
         terminalIds.add(terminal.id);
-        const normalizedName = terminal.name.toLowerCase();
-        if (terminalNames.has(normalizedName)) {
-          context.addIssue({
-            code: "custom",
-            message: `Duplicate netlist terminal name: ${terminal.name}`,
-            path: ["netlist", "terminals", terminalIndex, "name"],
-          });
-        }
-        terminalNames.add(normalizedName);
         for (const [
           markerIndex,
           interfaceInstanceId,

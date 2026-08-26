@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { createEmptyProject } from "@icm/model";
+import { createEmptyProject, deriveStableId } from "@icm/model";
 import {
   ProjectFormatError,
   loadProject,
@@ -12,6 +12,7 @@ import {
   saveProject,
   serializeProject,
   type ProjectStorage,
+  upgradeSchema24To25WithReport,
 } from "./index.js";
 
 class MemoryStorage implements ProjectStorage {
@@ -68,199 +69,202 @@ describe("Project persistence", () => {
     }
   });
 
-  it("retains repeated schema-23 Cell Pin markers", () => {
+  it("splits schema-24 repeated markers into independent Cell Pins without changing topology", () => {
     const source = JSON.parse(
       serializeProject(createEmptyProject("project-test", "Test Project")),
     ) as Record<string, any>;
-    source.schemaVersion = 23;
+    source.schemaVersion = 24;
     const document = source.documents[0];
-    document.instances.push({ id: "P1", symbolId: "port", placement: null });
+    document.instances.push(
+      { id: "P1", symbolId: "port", placement: null },
+      { id: "P2", symbolId: "port-filled", placement: null },
+    );
     document.nets.push({
       id: "net-in",
-      terminals: [{ instanceId: "P1", pinName: "P" }],
+      terminals: [
+        { instanceId: "P1", pinName: "P" },
+        { instanceId: "P2", pinName: "P" },
+      ],
+    });
+    document.routes.push({
+      id: "route-in",
+      netId: "net-in",
+      from: { kind: "terminal", instanceId: "P1", pinName: "P" },
+      to: { kind: "terminal", instanceId: "P2", pinName: "P" },
+      waypoints: [],
+      segmentModes: ["auto"],
+    });
+    document.junctions.push({
+      id: "junction-in",
+      netId: "net-in",
+      position: { x: 0, y: 0 },
     });
     document.netlist.terminals.push({
       id: "terminal-in",
       name: "IN",
       netId: "net-in",
       direction: "input",
-      interfaceInstanceIds: ["P1"],
+      interfaceInstanceIds: ["P1", "P2"],
     });
+    document.annotations.push(
+      {
+        id: "label-p1",
+        kind: "instance-label",
+        binding: { kind: "cell-terminal-name", terminalId: "terminal-in" },
+        anchor: {
+          kind: "object",
+          objectId: "P1",
+          localOffset: { x: 0, y: 0 },
+          fallbackPosition: { x: 0, y: 0 },
+        },
+        alignment: "start",
+        rotation: 0,
+        locked: false,
+      },
+      {
+        id: "label-p2",
+        kind: "instance-label",
+        binding: { kind: "cell-terminal-name", terminalId: "terminal-in" },
+        anchor: {
+          kind: "object",
+          objectId: "P2",
+          localOffset: { x: 0, y: 0 },
+          fallbackPosition: { x: 0, y: 0 },
+        },
+        alignment: "start",
+        rotation: 0,
+        locked: false,
+      },
+    );
+    document.presentation.cellSymbol = {
+      pinPlacements: [{ terminalId: "terminal-in", side: "west", offset: 0 }],
+    };
+    const topology = structuredClone({
+      nets: document.nets,
+      routes: document.routes,
+      junctions: document.junctions,
+    });
+
+    const direct = upgradeSchema24To25WithReport(source);
+    expect(direct.report).toMatchObject({
+      splitRepeatedTerminalCount: 1,
+      reboundAnnotationIds: ["label-p2"],
+      preservedLegacySharedNets: [
+        {
+          documentId: document.id,
+          sourceTerminalId: "terminal-in",
+          netId: "net-in",
+        },
+      ],
+    });
+    expect(direct.report.independentCellPins).toHaveLength(2);
+    const directDocument = (
+      direct.project.documents as Array<Record<string, any>>
+    )[0]!;
+    expect({
+      nets: directDocument.nets,
+      routes: directDocument.routes,
+      junctions: directDocument.junctions,
+    }).toEqual(topology);
 
     const migrated = parseProjectWithMetadata(JSON.stringify(source));
     expect(migrated).toMatchObject({
-      sourceSchemaVersion: 23,
+      sourceSchemaVersion: 24,
       migrated: true,
-      project: { schemaVersion: 24 },
+      project: { schemaVersion: 25 },
     });
-    expect(migrated.project.documents[0]!.netlist?.terminals[0]).toMatchObject({
-      name: "IN",
-      interfaceInstanceIds: ["P1"],
-    });
-  });
-
-  it("promotes same-named schema-23 Free Ports into one Cell Pin and Net", () => {
-    const source = JSON.parse(
-      serializeProject(createEmptyProject("project-test", "Test Project")),
-    ) as Record<string, any>;
-    source.schemaVersion = 23;
-    const document = source.documents[0];
-    document.instances.push(
-      {
-        id: "P1",
-        symbolId: "port",
-        schematicReference: "VIN",
-        placement: null,
-      },
-      {
-        id: "P2",
-        symbolId: "port-filled",
-        schematicReference: "VIN",
-        placement: null,
-      },
-    );
-    document.nets.push(
-      {
-        id: "net-vin-a",
-        terminals: [{ instanceId: "P1", pinName: "P" }],
-      },
-      {
-        id: "net-vin-b",
-        terminals: [{ instanceId: "P2", pinName: "P" }],
-      },
-    );
-    document.connectivityEvidence.push(
-      {
-        id: "claim-p1",
-        kind: "name-claim",
-        netId: "net-vin-a",
-        name: "VIN",
-        owner: { kind: "free-port", instanceId: "P1" },
-        scope: "local",
-      },
-      {
-        id: "claim-p2",
-        kind: "name-claim",
-        netId: "net-vin-b",
-        name: "VIN",
-        owner: { kind: "free-port", instanceId: "P2" },
-        scope: "local",
-      },
-    );
-
-    const migrated = parseProjectWithMetadata(JSON.stringify(source));
     const migratedDocument = migrated.project.documents[0]!;
     expect(migratedDocument.netlist?.terminals).toMatchObject([
       {
-        name: "VIN",
-        netId: "net-vin-a",
-        interfaceInstanceIds: ["P1", "P2"],
+        id: "terminal-in",
+        name: "IN",
+        netId: "net-in",
+        interfaceInstanceIds: ["P1"],
       },
+      { name: "IN", netId: "net-in", interfaceInstanceIds: ["P2"] },
     ]);
-    expect(migratedDocument.nets).toMatchObject([
-      {
-        id: "net-vin-a",
-        terminals: [
-          { instanceId: "P1", pinName: "P" },
-          { instanceId: "P2", pinName: "P" },
-        ],
-      },
-    ]);
-    expect(migratedDocument.connectivityEvidence).toEqual([]);
-  });
-
-  it("groups an unnamed copied Free Port with its uniquely named peer", () => {
-    const source = JSON.parse(
-      serializeProject(createEmptyProject("project-test", "Test Project")),
-    ) as Record<string, any>;
-    source.schemaVersion = 23;
-    const document = source.documents[0];
-    document.instances.push(
-      { id: "P1", symbolId: "port", placement: null },
-      { id: "P1-copy-1", symbolId: "port", placement: null },
-    );
-    document.nets.push({
-      id: "net-vin",
-      terminals: [
-        { instanceId: "P1", pinName: "P" },
-        { instanceId: "P1-copy-1", pinName: "P" },
-      ],
+    expect(
+      migratedDocument.annotations.find((item) => item.id === "label-p1")
+        ?.binding,
+    ).toEqual({ kind: "cell-terminal-name", terminalId: "terminal-in" });
+    expect(
+      migratedDocument.annotations.find((item) => item.id === "label-p2")
+        ?.binding,
+    ).toEqual({
+      kind: "cell-terminal-name",
+      terminalId: migratedDocument.netlist!.terminals[1]!.id,
     });
-    document.connectivityEvidence.push({
-      id: "claim-p1",
-      kind: "name-claim",
-      netId: "net-vin",
-      name: "VIN",
-      owner: { kind: "free-port", instanceId: "P1" },
-      scope: "local",
-    });
-
-    const migrated = parseProjectWithMetadata(JSON.stringify(source));
-    expect(migrated.project.documents[0]!.netlist?.terminals).toMatchObject([
-      {
-        name: "VIN",
-        netId: "net-vin",
-        interfaceInstanceIds: ["P1", "P1-copy-1"],
-      },
+    expect(migratedDocument.presentation.cellSymbol?.pinPlacements).toEqual([
+      { terminalId: "terminal-in", side: "west", offset: 0 },
     ]);
   });
 
-  it("does not guess for an unnamed Free Port on an ambiguously named Net", () => {
+  it("allocates deterministic collision-safe terminal IDs during migration", () => {
     const source = JSON.parse(
       serializeProject(createEmptyProject("project-test", "Test Project")),
     ) as Record<string, any>;
-    source.schemaVersion = 23;
+    source.schemaVersion = 24;
     const document = source.documents[0];
+    const collidingId = deriveStableId("cell-terminal", "terminal-in", "P2");
     document.instances.push(
       { id: "P1", symbolId: "port", placement: null },
       { id: "P2", symbolId: "port", placement: null },
       { id: "P3", symbolId: "port", placement: null },
     );
-    document.nets.push({
-      id: "net-shared",
-      terminals: ["P1", "P2", "P3"].map((instanceId) => ({
-        instanceId,
-        pinName: "P",
-      })),
-    });
-    document.connectivityEvidence.push(
+    document.nets.push(
       {
-        id: "claim-p1",
-        kind: "name-claim",
-        netId: "net-shared",
-        name: "VIN",
-        owner: { kind: "free-port", instanceId: "P1" },
-        scope: "local",
+        id: "net-in",
+        terminals: [
+          { instanceId: "P1", pinName: "P" },
+          { instanceId: "P2", pinName: "P" },
+        ],
       },
       {
-        id: "claim-p2",
-        kind: "name-claim",
-        netId: "net-shared",
-        name: "VOUT",
-        owner: { kind: "free-port", instanceId: "P2" },
-        scope: "local",
+        id: "net-other",
+        terminals: [{ instanceId: "P3", pinName: "P" }],
+      },
+    );
+    document.netlist.terminals.push(
+      {
+        id: "terminal-in",
+        name: "IN",
+        netId: "net-in",
+        direction: "input",
+        interfaceInstanceIds: ["P1", "P2"],
+      },
+      {
+        id: collidingId,
+        name: "OTHER",
+        netId: "net-other",
+        direction: "passive",
+        interfaceInstanceIds: ["P3"],
       },
     );
 
-    const migrated = parseProjectWithMetadata(JSON.stringify(source));
-    expect(
-      migrated.project.documents[0]!.netlist?.terminals.map((terminal) => ({
-        name: terminal.name,
-        interfaceInstanceIds: terminal.interfaceInstanceIds,
-      })),
-    ).toEqual([
-      { name: "VIN", interfaceInstanceIds: ["P1"] },
-      { name: "VOUT", interfaceInstanceIds: ["P2"] },
-      { name: "P3", interfaceInstanceIds: ["P3"] },
-    ]);
+    const first = upgradeSchema24To25WithReport(source);
+    const second = upgradeSchema24To25WithReport(source);
+    const firstDocument = (
+      first.project.documents as Array<Record<string, any>>
+    )[0]!;
+    const secondDocument = (
+      second.project.documents as Array<Record<string, any>>
+    )[0]!;
+    const splitId = firstDocument.netlist.terminals[1].id;
+    expect(splitId).not.toBe(collidingId);
+    expect(secondDocument.netlist.terminals[1].id).toBe(splitId);
+    expect(first.report.independentCellPins[1]).toMatchObject({
+      sourceTerminalId: "terminal-in",
+      terminalId: splitId,
+      interfaceInstanceId: "P2",
+    });
   });
 
   it("rejects schemas outside the current-and-previous window", () => {
     const project = createEmptyProject("project-test", "Test Project");
-    for (const schemaVersion of [22, 25, 99]) {
+    for (const schemaVersion of [23, 26, 99]) {
       expect(() =>
         parseProject(JSON.stringify({ ...project, schemaVersion })),
-      ).toThrow(/must be 23 or 24/);
+      ).toThrow(/must be 24 or 25/);
     }
   });
 });

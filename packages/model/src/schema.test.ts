@@ -280,6 +280,48 @@ describe("CircuitProject schema", () => {
     );
   });
 
+  it("keeps same-named Cell Pins as independent singleton terminal records", () => {
+    const project = createEmptyProject("project-pins", "Independent pins");
+    const document = project.documents[0]!;
+    document.instances.push(
+      { id: "P1", symbolId: "port", placement: null },
+      { id: "P2", symbolId: "port-filled", placement: null },
+    );
+    document.nets.push(
+      {
+        id: "net-vin-a",
+        terminals: [{ instanceId: "P1", pinName: "P" }],
+      },
+      {
+        id: "net-vin-b",
+        terminals: [{ instanceId: "P2", pinName: "P" }],
+      },
+    );
+    document.netlist!.terminals.push(
+      {
+        id: "terminal-vin-a",
+        name: "VIN",
+        netId: "net-vin-a",
+        direction: "input",
+        interfaceInstanceIds: ["P1"],
+      },
+      {
+        id: "terminal-vin-b",
+        name: "vin",
+        netId: "net-vin-b",
+        direction: "output",
+        interfaceInstanceIds: ["P2"],
+      },
+    );
+
+    expect(CircuitProjectSchema.safeParse(project).success).toBe(true);
+
+    document.netlist!.terminals[0]!.interfaceInstanceIds.push("P2");
+    expect(() => CircuitProjectSchema.parse(project)).toThrow(
+      /exactly one|at most 1|too big/i,
+    );
+  });
+
   it("validates owner-addressable Connectivity Evidence", () => {
     const project = createEmptyProject("project-evidence", "Evidence");
     const document = project.documents[0]!;
