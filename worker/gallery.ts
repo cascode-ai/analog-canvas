@@ -3,11 +3,7 @@
 
 import { evaluateSubmissionGates } from "@icm/derived";
 import { analyzeDesignNetlist } from "@icm/netlist";
-import {
-  parseProject,
-  serializeProject,
-  upgradeSchema23To24WithReport,
-} from "@icm/project-protocol";
+import { parseProject, serializeProject } from "@icm/project-protocol";
 import { renderDocumentSvg } from "@icm/render-svg";
 import {
   builtInSymbols,
@@ -488,7 +484,7 @@ export async function routeGalleryRequest(
   if (
     segments.length === 2 &&
     segments[0] === "maintenance" &&
-    segments[1] === "schema23" &&
+    segments[1] === "schema-current" &&
     request.method === "POST"
   ) {
     if (!(await isAdmin(request, env))) {

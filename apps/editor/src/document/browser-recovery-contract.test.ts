@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createEmptyProject } from "@icm/model";
+import { createEmptyProject, CURRENT_PROJECT_SCHEMA_VERSION } from "@icm/model";
 import { serializeProject } from "@icm/project-protocol";
 
 import {
@@ -185,19 +185,22 @@ describe("reviewBrowserRecoveryProject", () => {
     }
   });
 
-  it("accepts a schema-23 recovery envelope after upgrading its Project", () => {
+  it("accepts a previous-schema recovery envelope after upgrading its Project", () => {
     const previous = JSON.parse(projectText);
-    previous.schemaVersion = 23;
+    previous.schemaVersion = CURRENT_PROJECT_SCHEMA_VERSION - 1;
     const previousText = JSON.stringify(previous);
     const review = reviewBrowserRecoveryProject(
       finalizeBrowserRecoveryRecord(
-        draft({ projectText: previousText, projectSchemaVersion: 23 }),
+        draft({
+          projectText: previousText,
+          projectSchemaVersion: CURRENT_PROJECT_SCHEMA_VERSION - 1,
+        }),
       ),
     );
 
     expect(review.status).toBe("valid");
     if (review.status === "valid") {
-      expect(review.project.schemaVersion).toBe(24);
+      expect(review.project.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
     }
   });
 

@@ -1,10 +1,10 @@
 # ADR 0043: Cell Pin Contract Convergence
 
-Status: accepted
+Status: partially superseded
 
-The clipboard-copy clause is superseded by
-[ADR 0045](0045-independent-cell-pin-copy.md). The unified Cell Pin model and
-explicit repeated-marker behavior remain accepted.
+The unified Cell Pin artwork remains accepted. The repeated-marker ownership,
+placement, and lifecycle clauses are superseded by
+[ADR 0046](0046-independent-cell-pins-and-formal-port-projection.md).
 
 Date: 2026-08-25
 

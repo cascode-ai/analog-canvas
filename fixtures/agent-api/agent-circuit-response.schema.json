@@ -479,6 +479,7 @@
                               },
                               "interfaceInstanceIds": {
                                 "minItems": 1,
+                                "maxItems": 1,
                                 "type": "array",
                                 "items": {
                                   "$ref": "#/$defs/__schema0"

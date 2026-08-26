@@ -1,6 +1,10 @@
 # 0045 - Cell Pin copies own their interface identity
 
-Status: `accepted`
+Status: `partially superseded`
+
+The fresh copy identity and independent lifecycle remain accepted. Unique copy
+suffixes and explicit name-based terminal merge behavior are superseded by
+[ADR 0046](0046-independent-cell-pins-and-formal-port-projection.md).
 
 Date: `2026-08-26`
 

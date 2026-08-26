@@ -1,10 +1,10 @@
 # ADR 0037: Repeated Formal Port Markers
 
-Status: accepted
+Status: superseded
 
-The clipboard-copy clause is superseded by
-[ADR 0045](0045-independent-cell-pin-copy.md). Explicitly authored repeated
-markers remain part of this decision.
+Superseded by
+[ADR 0046](0046-independent-cell-pins-and-formal-port-projection.md). This
+document remains as the historical record of the retired shared-marker model.
 
 Date: 2026-08-21
 

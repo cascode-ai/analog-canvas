@@ -24,8 +24,8 @@ more than one path reaches it, which is reported in the status bar.
 The top Cell is the Project export root and is not instantiated as a symbol,
 but it is still emitted as a reusable structural subcircuit. **Port** and
 **Filled Port** are hollow and filled artwork for the same **Cell Pin** concept.
-A Cell Pin defines one ordered interface terminal; use Net Label instead when
-you only need to name or repeat an internal Net.
+A Cell Pin defines one independently authored interface declaration. Use Net
+Label instead when you only need to name an internal Net.
 
 To define a real Cell port:
 
@@ -44,18 +44,23 @@ adapt without a separate interface editor.
 Each visible marker remains an ordinary Instance for selection, move, wiring,
 copy, and deletion. Copying a Cell Pin creates a new formal terminal with an
 independent stable identity, name, direction, and internal Base Net. An
-in-place copy receives a unique name such as `VIN_copy`; later edits to either
-Pin do not affect the other. As with every copied connected component, a Pin
+in-place copy retains the same visible name; later edits to either Pin do not
+affect the other. As with every copied connected component, a Pin
 whose Net crosses the selection boundary remains attached to that existing
-Net, but its formal interface identity is still independent. Explicitly
-placing the same Pin name again remains the way to create another visual marker
-for one shared formal terminal. Repeated names that only name an internal Net
-use Net Labels instead.
+Net, but its declaration identity is still independent. Placing or renaming a
+Pin to the same name never attaches it to another Pin or merges their Nets.
 
-Renaming that annotation updates all connected parent Instances atomically.
-Deleting a Cell Pin removes its terminal and automatically detaches every child
-and caller wire endpoint to an editable Junction in the same undoable Project
-transaction; users never have to clear callers first.
+When the Cell is used as a hierarchical block or exported, a read-only final
+projection groups case-insensitively equal Pin names into one Formal Port. The
+first Pin fixes that Port's order and spelling. Grouping does not modify the
+canvas objects; only a Wire or explicit electrical contact connects them while
+drawing.
+
+Renaming that annotation changes only the selected Pin. Parent Instances are
+updated only if the before/after grouped interface actually changes. Deleting
+one of several same-name Pins leaves the parent Formal Port intact; deleting
+the last removes it and detaches affected caller wire endpoints to editable
+Junctions in the same undoable Project transaction.
 **Delete Cell** removes only a non-top, unreferenced Cell definition and can be undone or redone.
 Deleting a hierarchical Instance with the normal Delete command never deletes
 its reusable child Cell.
@@ -74,8 +79,8 @@ the Properties values remain the precise fallback. These are definition operatio
 not top-level drawing tools.
 
 Hierarchy presentation is saved as definition-level size and pin-placement
-intent in current Project schema 24. Schema-23 projects open through the
-bounded upgrade; schema-22 and older files remain unsupported. The block uses
+intent in current Project schema 25. Schema-24 projects open through the
+bounded upgrade; schema-23 and older files remain unsupported. The block uses
 a closed polygon body and the shared Razavi rich-text renderer for pin and Cell
 names; it is compatible with that visual grammar rather than a pixel-for-pixel
 textbook symbol asset.

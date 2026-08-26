@@ -2,6 +2,9 @@
 
 Status: accepted
 
+The repeated-formal-marker clause is superseded by
+[ADR 0046](0046-independent-cell-pins-and-formal-port-projection.md).
+
 Date: 2026-08-23
 
 Schema: schema 22

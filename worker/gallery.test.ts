@@ -125,73 +125,58 @@ function previousVersionText(): string {
   return JSON.stringify(raw);
 }
 
-function previousPowerRailVersionText(): string {
-  const raw = JSON.parse(projectText("Legacy VDD")) as any;
-  raw.schemaVersion = 23;
+function previousRepeatedCellPinVersionText(): string {
+  const raw = JSON.parse(projectText("Legacy repeated Pin")) as any;
+  raw.schemaVersion = CURRENT_PROJECT_SCHEMA_VERSION - 1;
   const document = raw.documents[0];
+  document.instances.push(
+    { id: "P1", symbolId: "port", placement: null },
+    { id: "P2", symbolId: "port", placement: null },
+  );
   document.nets.push({
-    id: "net-vdd",
-    terminals: [],
+    id: "net-vin",
+    terminals: [
+      { instanceId: "P1", pinName: "P" },
+      { instanceId: "P2", pinName: "P" },
+    ],
   });
-  document.connectivityEvidence.push({
-    id: "legacy-label-vdd",
-    kind: "name-claim",
-    netId: "net-vdd",
-    name: "VDD",
-    owner: { kind: "power-marker", objectId: "label-vdd" },
-    scope: "global",
-    powerDomain: "vdd",
+  document.netlist.terminals.push({
+    id: "terminal-vin",
+    name: "VIN",
+    netId: "net-vin",
+    direction: "input",
+    interfaceInstanceIds: ["P1", "P2"],
   });
-  document.junctions.push(
+  document.annotations.push(
     {
-      id: "junction-vdd-left",
-      netId: "net-vdd",
-      position: { x: 20, y: 20 },
-      role: "route-anchor",
+      id: "label-p1",
+      kind: "instance-label",
+      binding: { kind: "cell-terminal-name", terminalId: "terminal-vin" },
+      anchor: {
+        kind: "object",
+        objectId: "P1",
+        localOffset: { x: 0, y: 0 },
+        fallbackPosition: { x: 0, y: 0 },
+      },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
     },
     {
-      id: "junction-vdd-right",
-      netId: "net-vdd",
-      position: { x: 80, y: 20 },
-      role: "route-anchor",
+      id: "label-p2",
+      kind: "instance-label",
+      binding: { kind: "cell-terminal-name", terminalId: "terminal-vin" },
+      anchor: {
+        kind: "object",
+        objectId: "P2",
+        localOffset: { x: 0, y: 0 },
+        fallbackPosition: { x: 0, y: 0 },
+      },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
     },
   );
-  document.routes.push({
-    id: "route-vdd",
-    netId: "net-vdd",
-    from: { kind: "junction", junctionId: "junction-vdd-left" },
-    to: { kind: "junction", junctionId: "junction-vdd-right" },
-    waypoints: [],
-    segmentModes: ["manual"],
-    presentation: "power-rail",
-  });
-  document.annotations.push({
-    id: "label-vdd",
-    kind: "power-label",
-    binding: { kind: "net-name", netId: "net-vdd" },
-    netId: "net-vdd",
-    anchor: { kind: "free", position: { x: 90, y: 20 } },
-    alignment: "start",
-    rotation: 0,
-    locked: false,
-  });
-  return JSON.stringify(raw);
-}
-
-function brokenCurrentPowerRailText(): string {
-  const raw = JSON.parse(previousPowerRailVersionText()) as any;
-  raw.schemaVersion = 23;
-  raw.documents[0].connectivityEvidence = [
-    {
-      id: "legacy-label-vdd",
-      kind: "name-claim",
-      netId: "net-vdd",
-      name: "VDD",
-      owner: { kind: "power-marker", objectId: "label-vdd" },
-      scope: "global",
-      powerDomain: "vdd",
-    },
-  ];
   return JSON.stringify(raw);
 }
 
@@ -718,10 +703,7 @@ describe("gallery submissions", () => {
     expect(publish.status).toBe(201);
     const { id } = (await publish.json()) as { id: string };
 
-    const detail = await route(
-      env,
-      new Request(`${ORIGIN}/api/gallery/${id}`),
-    );
+    const detail = await route(env, new Request(`${ORIGIN}/api/gallery/${id}`));
     const stored = (await detail.json()) as { projectText: string };
     expect(parseProject(stored.projectText).documents).toHaveLength(2);
 
@@ -765,33 +747,31 @@ describe("gallery submissions", () => {
     );
   });
 
-  it("preserves previous-schema VDD rail semantics in stored text and preview", async () => {
+  it("splits previous-schema repeated Cell Pins in stored text", async () => {
     const env = environment();
-    const id = await submitOne(env, "Legacy VDD", {
-      text: previousPowerRailVersionText(),
+    const id = await submitOne(env, "Legacy repeated Pin", {
+      text: previousRepeatedCellPinVersionText(),
     });
     const detail = await route(env, new Request(`${ORIGIN}/api/gallery/${id}`));
     const payload = (await detail.json()) as { projectText: string };
     const stored = JSON.parse(payload.projectText) as any;
-    expect(stored.documents[0].connectivityEvidence).toEqual(
+    expect(stored.documents[0].netlist.terminals).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          kind: "name-claim",
-          netId: "net-vdd",
-          name: "VDD",
-          powerDomain: "vdd",
-          owner: { kind: "power-marker", objectId: "label-vdd" },
+          id: "terminal-vin",
+          name: "VIN",
+          interfaceInstanceIds: ["P1"],
+        }),
+        expect.objectContaining({
+          name: "VIN",
+          interfaceInstanceIds: ["P2"],
         }),
       ]),
     );
-
-    const preview = await route(
-      env,
-      new Request(`${ORIGIN}/api/gallery/${id}/preview.svg`),
+    const bindings = stored.documents[0].annotations.map(
+      (annotation: any) => annotation.binding?.terminalId,
     );
-    const svg = await preview.text();
-    expect(svg).toContain('data-route-presentation="power-rail"');
-    expect(svg).toContain('stroke-width="3.24"');
+    expect(new Set(bindings).size).toBe(2);
   });
 
   it("refuses an anonymous submission: a session is the whole gate", async () => {
@@ -1716,7 +1696,7 @@ describe("gallery administration", () => {
 
     const maintenance = await route(
       env,
-      new Request(`${ORIGIN}/api/gallery/maintenance/schema23`, {
+      new Request(`${ORIGIN}/api/gallery/maintenance/schema-current`, {
         method: "POST",
         headers: {
           ...cookieHeaders(adminCookie),
@@ -1748,7 +1728,7 @@ describe("gallery administration", () => {
     expect(await preview.text()).toContain("<svg");
   });
 
-  it("upgrades already-stored schema-23 power evidence during maintenance", async () => {
+  it("upgrades already-stored schema-24 repeated Cell Pins during maintenance", async () => {
     const env = environment();
     const adminCookie = await adminOf(env);
     const id = await submitOne(env, "Broken VDD", { cookie: adminCookie });
@@ -1759,7 +1739,7 @@ describe("gallery administration", () => {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           id,
-          projectText: brokenCurrentPowerRailText(),
+          projectText: previousRepeatedCellPinVersionText(),
           schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION - 1,
           svgText: "<svg/>",
         }),
@@ -1768,7 +1748,7 @@ describe("gallery administration", () => {
 
     const maintenance = await route(
       env,
-      new Request(`${ORIGIN}/api/gallery/maintenance/schema23`, {
+      new Request(`${ORIGIN}/api/gallery/maintenance/schema-current`, {
         method: "POST",
         headers: {
           ...cookieHeaders(adminCookie),
@@ -1787,15 +1767,12 @@ describe("gallery administration", () => {
     const detail = await route(env, new Request(`${ORIGIN}/api/gallery/${id}`));
     const payload = (await detail.json()) as { projectText: string };
     const stored = JSON.parse(payload.projectText) as any;
-    expect(stored.documents[0].connectivityEvidence).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: "legacy-label-vdd",
-          powerDomain: "vdd",
-          owner: { kind: "power-marker", objectId: "label-vdd" },
-        }),
-      ]),
-    );
+    expect(stored.documents[0].netlist.terminals).toHaveLength(2);
+    expect(
+      stored.documents[0].netlist.terminals.every(
+        (terminal: any) => terminal.interfaceInstanceIds.length === 1,
+      ),
+    ).toBe(true);
     const preview = await route(
       env,
       new Request(`${ORIGIN}/api/gallery/${id}/preview.svg`),
@@ -1832,14 +1809,14 @@ describe("gallery administration", () => {
       .one().id;
     env.gallerySql.exec(
       "UPDATE gallery_entries SET schema_version = ?, project_text = ? WHERE id = ?",
-      23,
+      CURRENT_PROJECT_SCHEMA_VERSION - 1,
       previousVersionText(),
       id,
     );
     env.gallerySql.exec(
       "UPDATE gallery_entry_versions SET schema_version = ?, project_text = ? WHERE id = ?",
-      23,
-      previousPowerRailVersionText(),
+      CURRENT_PROJECT_SCHEMA_VERSION - 1,
+      previousRepeatedCellPinVersionText(),
       versionId,
     );
     env.gallerySql.exec(
@@ -1851,8 +1828,8 @@ describe("gallery administration", () => {
       "Legacy workspace",
       "2026-08-24T00:00:00.000Z",
       1,
-      23,
-      previousPowerRailVersionText(),
+      CURRENT_PROJECT_SCHEMA_VERSION - 1,
+      previousRepeatedCellPinVersionText(),
     );
 
     const backup = await route(
@@ -1870,7 +1847,7 @@ describe("gallery administration", () => {
 
     const dryRun = await route(
       env,
-      new Request(`${ORIGIN}/api/gallery/maintenance/schema23`, {
+      new Request(`${ORIGIN}/api/gallery/maintenance/schema-current`, {
         method: "POST",
         headers: {
           ...cookieHeaders(adminCookie),
@@ -1884,19 +1861,24 @@ describe("gallery administration", () => {
       ready: 3,
       failures: [],
       inventory: {
-        gallery_entries: { "23": 1 },
-        gallery_entry_versions: { "23": 1 },
-        workspace_slots: { "23": 1 },
+        gallery_entries: {
+          [String(CURRENT_PROJECT_SCHEMA_VERSION - 1)]: 1,
+        },
+        gallery_entry_versions: {
+          [String(CURRENT_PROJECT_SCHEMA_VERSION - 1)]: 1,
+        },
+        workspace_slots: {
+          [String(CURRENT_PROJECT_SCHEMA_VERSION - 1)]: 1,
+        },
       },
       migrationReports: expect.arrayContaining([
         expect.objectContaining({
           table: "gallery_entries",
           id,
           report: expect.objectContaining({
-            vddMarkersBefore: expect.any(Number),
-            vddMarkersAfter: expect.any(Number),
-            powerRailsBefore: expect.any(Number),
-            powerRailsAfter: expect.any(Number),
+            splitRepeatedTerminalCount: expect.any(Number),
+            independentCellPins: expect.any(Array),
+            preservedLegacySharedNets: expect.any(Array),
           }),
         }),
       ]),
@@ -1908,11 +1890,11 @@ describe("gallery administration", () => {
           id,
         )
         .one().schema_version,
-    ).toBe(23);
+    ).toBe(CURRENT_PROJECT_SCHEMA_VERSION - 1);
 
     const applied = await route(
       env,
-      new Request(`${ORIGIN}/api/gallery/maintenance/schema23`, {
+      new Request(`${ORIGIN}/api/gallery/maintenance/schema-current`, {
         method: "POST",
         headers: {
           ...cookieHeaders(adminCookie),
@@ -1981,7 +1963,7 @@ describe("gallery administration", () => {
             `SELECT schema_version FROM ${table}`,
           )
           .one().schema_version,
-      ).toBe(23);
+      ).toBe(CURRENT_PROJECT_SCHEMA_VERSION - 1);
     }
   });
 });

@@ -51,7 +51,7 @@ Every emitted token has exactly one authority:
 | Fact                       | Authority                                     | Never inferred from                           |
 | -------------------------- | --------------------------------------------- | --------------------------------------------- |
 | Cell name                  | `Document.netlist.name`                       | Document title or filename                    |
-| Cell interface order       | `Document.netlist.terminals`                  | coordinates or alphabetical order             |
+| Cell interface order       | first occurrence in `projectCellInterface`    | coordinates or alphabetical order             |
 | Connectivity               | `Net.terminals`                               | Routes, Junction geometry, labels, or overlap |
 | Logical Net name/scope     | resolved owner-addressed marker claims        | legacy Base fields or text appearance         |
 | Instance reference         | `Instance.netlist.reference`                  | instance-label annotation                     |
@@ -70,7 +70,13 @@ The Project model supplies these normalized facts:
 ```typescript
 interface CellNetlistInterface {
   name: string;
-  terminals: Array<{ name: string; netId: StableId }>;
+  terminals: Array<{
+    id: StableId;
+    name: string;
+    direction: PortDirection;
+    netId: StableId;
+    interfaceInstanceIds: [StableId];
+  }>;
 }
 
 interface InstanceNetlistData {
@@ -87,22 +93,26 @@ interface InstanceNetlistData {
 Cell names, references, target names, parameter names, and raw values are
 length-bounded. The shared first-release identifier subset is ASCII letters,
 digits, and `_`, with the first character restricted to a letter or `_`.
-Identifiers are compared case-insensitively for uniqueness. Persistence permits
+Emitted identifiers are compared case-insensitively for uniqueness; authored
+Cell-Pin names may repeat because projection folds them into one Formal Port.
+Persistence permits
 bounded source identifiers outside the shared subset so an imported Project can
 still open; explicit invalid names block export and printers do not silently
 rename them.
 
-`terminals` maps each ordered formal cell-terminal name to one existing Net.
-Canvas `port` and `port-filled` symbols are Cell Pins: each owns exactly one
-ordered interface terminal through `terminals[].interfaceInstanceIds` and
-neither emits an instance line. Cell Pins are available in top and child
-Documents. A hierarchy instance uses its bound child
-Document and that child's explicit private interface. Ports receive no visible
+`terminals` stores independently authored Cell-Pin declarations. Canvas `port`
+and `port-filled` symbols are Cell Pins: each owns exactly one singleton
+declaration through `terminals[].interfaceInstanceIds` and neither emits an
+instance line. Cell Pins are available in top and child Documents. A hierarchy
+instance uses its bound child Document and the read-only formal projection of
+that child's declarations. Ports receive no visible
 schematic Reference or `Instance.netlist.reference`. A Cell Pin uses its
-ordered `CellTerminal.name`, such as `Vout`, for interface and export identity.
+`CellTerminal.name`, such as `Vout`, as its Port Name.
 Its bound Annotation may retain same-text RichText formatting, which never
-changes emitted names. Repeated internal naming uses Net Labels, not another
-Cell Pin marker.
+changes emitted names. At extraction, names are grouped case-insensitively;
+first occurrence fixes order and spelling, and every member Net maps to that
+one emitted formal node. This projection does not merge Base Nets or mutate the
+Project. Repeated internal Net naming still uses Net Labels.
 
 Every manually inserted device receives an explicit reference. References are
 unique per cell and have the prefix required by their device definition. Model-
@@ -173,8 +183,8 @@ represented structurally. A display string is not a source specification.
 - Named Nets are unique within a cell under case folding.
 - An unnamed local Net receives an ephemeral collision-free `N0001`, `N0002`,
   ... name in stable Net-ID order. This does not mutate the Project.
-- A Net mapped by a formal terminal uses the terminal name before anonymous
-  allocation and therefore receives no generated-name warning.
+- Every Net mapped by one projected Formal Port uses that Port name before
+  anonymous allocation and therefore receives no generated-name warning.
 - A global Net must have an explicit name.
 - The global Net named `0` is the reference node.
 - Other global Nets are emitted through the dialect's global declaration and
@@ -217,8 +227,9 @@ interface DesignNetlistInstance {
 ```
 
 Extraction validates the entire reachable hierarchy before returning an IR.
-Cells are dependency-first with stable tie breaking. Ports follow the persisted
-interface. Nodes follow the device definition or child interface. Instances,
+Cells are dependency-first with stable tie breaking. Ports follow the
+name-grouped formal projection of persisted Cell-Pin declarations. Nodes follow
+the device definition or child interface. Instances,
 globals, and parameter names use deterministic ordering. Hierarchy cycles are
 errors. Net-marker instances are validated and omitted.
 
@@ -251,8 +262,8 @@ Extraction returns structured diagnostics with stable code, severity,
 Document ID, and affected object IDs. Any error prevents printer invocation and
 download. Required error coverage includes:
 
-- invalid/duplicate cell terminal, Net, or instance identifiers;
-- missing/duplicate/mismatched formal terminal mappings;
+- invalid cell-terminal, Net, or instance identifiers;
+- missing or mismatched formal terminal mappings;
 - unconnected required terminal without `NoConnect`;
 - unnamed global Net or duplicate explicit Net name;
 - unknown or multiply assigned terminal;
@@ -262,7 +273,8 @@ download. Required error coverage includes:
 - unsupported dialect/device combination;
 - identifier, parameter, count, or output resource-limit violation.
 
-Warnings may report generated local Net names. They cannot downgrade a missing
+Warnings may report generated local Net names or conflicting directions inside
+one same-name Formal Port group. They cannot downgrade a missing
 electrical fact required for meaningful output.
 
 ## Operations and state transitions

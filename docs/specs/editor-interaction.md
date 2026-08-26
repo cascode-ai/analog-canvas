@@ -38,9 +38,10 @@ an Edit Engine operation, or an Agent API endpoint.
 `P`, the Library, and full Insert all enter the same placement planner. An
 isolated Pin receives the first unused `Vin`, `Vin2`, … interface name and the
 `passive` direction; a named contact or explicit text takes precedence.
-Duplicate interface names are rejected with guidance to use a Net Label for
-repeated internal Net naming. The bound name is edited in place and its Razavi
-RichText projection retains conventional subscripts.
+Duplicate Port Names are valid. Placement and rename always create or update
+only the selected Cell Pin; a matching name never attaches markers, merges
+Nets, or synchronizes directions. The bound name is edited in place and its
+Razavi RichText projection retains conventional subscripts.
 
 Rectangle-to-Cell is likewise a convenience
 gesture that commits an ordinary hierarchical Instance; rectangles remain
@@ -49,8 +50,10 @@ visual-only drafting objects.
 There is no separate Cell Interface authoring surface. A child Cell Pin shows
 only its object-anchored terminal-name annotation in the normal Reference slot;
 its stable Instance ID is not drawn and it has no schematic Reference. Normal
-Properties own direction. Annotation rename reconciles callers by stable
-terminal identity.
+Properties own direction. Annotation rename changes only that declaration.
+Caller reconciliation compares the formal name projection before and after:
+it does nothing while the old-name group survives and never merges caller
+Nets when a declaration joins an existing name.
 Ordinary Delete reuses the normal instance/route deletion proposal: it retains
 wire geometry by replacing affected terminal endpoints with Junctions, then
 removes electrical memberships, NoConnects, owned labels, layout references,
@@ -326,8 +329,8 @@ no electrical meaning.
 Open, demo load, restore, and human-approved staged import replace the entire
 Project through one replacement boundary; they are not Edit Engine
 transactions. Replacement cancels pending recovery for the outgoing Project
-and terminates its Agent session. A complete schema-23 Project may be upgraded
-at the read boundary and then enters the editor only as schema-24; migrated
+and terminates its Agent session. A complete schema-24 Project may be upgraded
+at the read boundary and then enters the editor only as schema-25; migrated
 files are marked as needing save.
 
 Selection, viewport, active tool, previews, Agent tokens, and approval UI are

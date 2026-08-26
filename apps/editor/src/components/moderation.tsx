@@ -87,7 +87,7 @@ function SchemaMaintenance() {
       setBackupConfirmed(false);
     }
     try {
-      const response = await fetch("/api/gallery/maintenance/schema23", {
+      const response = await fetch("/api/gallery/maintenance/schema-current", {
         method: "POST",
         credentials: "same-origin",
         headers: { "content-type": "application/json" },
@@ -121,7 +121,7 @@ function SchemaMaintenance() {
       <h2>Project schema maintenance</h2>
       <p className="review-card-meta">
         Back up all stored Projects, validate the complete inventory, then apply
-        one transactional schema 23 convergence.
+        one transactional convergence to the current Project schema.
       </p>
       <div className="review-card-actions">
         <a
@@ -133,19 +133,19 @@ function SchemaMaintenance() {
         <button
           type="button"
           disabled={running}
-          data-testid="schema23-dry-run"
+          data-testid="schema-current-dry-run"
           onClick={() => void converge(false)}
         >
-          Validate schema 23
+          Validate current schema
         </button>
         <button
           type="button"
           className="review-approve"
           disabled={running || !validated || !backupConfirmed}
-          data-testid="schema23-apply"
+          data-testid="schema-current-apply"
           onClick={() => void converge(true)}
         >
-          Apply schema 23
+          Apply current schema
         </button>
       </div>
       <label className="review-card-meta">
@@ -153,14 +153,14 @@ function SchemaMaintenance() {
           type="checkbox"
           checked={backupConfirmed}
           disabled={running || !validated}
-          data-testid="schema23-backup-confirmed"
+          data-testid="schema-current-backup-confirmed"
           onChange={(event) => setBackupConfirmed(event.currentTarget.checked)}
         />{" "}
         I verified the full backup and the zero-failure validation report.
       </label>
       {error ? <p className="account-notice">{error}</p> : null}
       {report ? (
-        <div className="gallery-status" data-testid="schema23-report">
+        <div className="gallery-status" data-testid="schema-current-report">
           <p>
             {report.applied ? "Applied" : "Validated"}: {report.ready}/
             {report.records} records ready for schema{" "}

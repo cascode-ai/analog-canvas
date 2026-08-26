@@ -98,10 +98,13 @@ changing netlist output; Cell Pins use their terminal name and reject
 this edit. `set_instance_schematic_name` instead changes the user-owned
 RichText label shown on an ordinary schematic instance. Net
 Label character edits update their owner-addressed name claim; formal Port
-character edits rename `CellTerminal.name`. A formatting-only edit
+character edits rename only the selected `CellTerminal.name`; a case-folded
+duplicate is valid and never invokes `merge_nets`. A formatting-only edit
 upserts the same-text `Annotation.formatOverride`. A Cell-terminal character
-edit uses the structural hierarchy planner so caller pins and the netlist
-interface reconcile atomically. `bulk_patch_instance_netlist` is the bounded,
+edit uses the structural hierarchy planner so the before/after projected
+caller interface reconciles atomically. A surviving old-name group leaves
+callers untouched; joining an existing group detaches the disappearing caller
+pin rather than merging it with the target pin. `bulk_patch_instance_netlist` is the bounded,
 atomic multi-instance netlist form. `set_instance_netlist` remains
 the whole-record operation for object initialization, import, and bounded
 migrations; product editing must not rebuild unrelated netlist facts through
@@ -143,7 +146,7 @@ Document revision once and is restored by one Undo. The retired Agent product
 categorizes these guarded UI lifecycle edits as unsupported.
 
 `upsert_connectivity_evidence` and `remove_connectivity_evidence` are the only
-atomic writers for the schema-24 evidence list. Upsert replaces evidence with
+atomic writers for the schema-25 evidence list. Upsert replaces evidence with
 the same ID or inserts a new record after checking the shared Document object
 namespace; final Document validation checks every Net and owner reference.
 Removing an Instance, Net Label, Junction, or Route also removes only

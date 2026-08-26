@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { IDBFactory } from "fake-indexeddb";
 
-import { createEmptyProject } from "@icm/model";
+import { createEmptyProject, CURRENT_PROJECT_SCHEMA_VERSION } from "@icm/model";
 import { serializeProject } from "@icm/project-protocol";
 
 import {
@@ -533,17 +533,19 @@ describe("migrateLegacyProjectRecovery", () => {
     expect(firstSession(read).latest?.source).toBe("recovered");
   });
 
-  it("stores a schema-23 legacy slot as internally consistent schema 24", async () => {
+  it("stores a previous-schema legacy slot as internally consistent current schema", async () => {
     const { store } = freshStore();
     const previous = JSON.parse(projectText);
-    previous.schemaVersion = 23;
+    previous.schemaVersion = CURRENT_PROJECT_SCHEMA_VERSION - 1;
     const previousText = JSON.stringify(previous);
     const storage = memoryStorage({ [PROJECT_RECOVERY_KEY]: previousText });
 
     expect(await migrate(storage, store)).toMatchObject({ status: "migrated" });
     const latest = firstSession(await store.readAll()).latest!;
-    expect(latest.projectSchemaVersion).toBe(24);
-    expect(JSON.parse(latest.projectText).schemaVersion).toBe(24);
+    expect(latest.projectSchemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
+    expect(JSON.parse(latest.projectText).schemaVersion).toBe(
+      CURRENT_PROJECT_SCHEMA_VERSION,
+    );
   });
 
   it("retains an unsupported-schema legacy slot", async () => {

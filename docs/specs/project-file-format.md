@@ -2,21 +2,23 @@
 
 Status: `accepted`
 
-Current Project schema: `24`
+Current Project schema: `25`
 
 Primary owners: `packages/model` (current shape) and
 `packages/project-protocol` (file boundary)
 
 An `.icproj.json` file is canonical JSON for one complete `CircuitProject`.
-`@icm/project-protocol` exposes `parseProject`. It accepts schemas 23 and 24,
-upgrades the previous singular Cell-Pin marker shape to the sole schema-24
-in-memory Project, and writes only schema 24. Older project files are rejected.
+`@icm/project-protocol` exposes `parseProject`. It accepts schemas 24 and 25,
+splits each previous multi-marker terminal into independent singleton Cell-Pin
+declarations, supplies only schema-25 in memory, and writes only schema 25.
+Older project files are rejected.
 
 ## Current authorities
 
-- `Document.netlist.terminals` defines the ordered formal Cell interface with
-  stable identity, direction, Net binding, and exactly one ordinary Cell Pin
-  Instance.
+- `Document.netlist.terminals` defines ordered authored Cell-Pin declarations
+  with stable identity, direction, Net binding, and exactly one ordinary Cell
+  Pin Instance. Equal names remain independent; formal consumers group them by
+  case-insensitive name without changing the Project.
 - `Document.netlist.formalParameters` and project-level
   `externalSubcircuitDefinitions` define exact nonlocal netlist interfaces.
   Each external definition has a stable identity, an ordered list of stable
@@ -60,8 +62,8 @@ in-memory Project, and writes only schema 24. Older project files are rejected.
 ## Read and write
 
 ```text
-read text -> parse JSON -> require Project schema 23 or 24
--> converge to schema 24 -> strict schema-24 validation -> open
+read text -> parse JSON -> require Project schema 24 or 25
+-> converge to schema 25 -> strict schema-25 validation -> open
 save -> strict validation -> canonical key ordering -> atomic write
 ```
 
@@ -71,7 +73,7 @@ after explicit human approval in the editor.
 
 A migrated formal file is marked as needing save. The editor does not silently
 overwrite the source selected through the browser file input. Browser recovery
-records may be canonicalized to v23 only after a successful validated write.
+records may be canonicalized to v25 only after a successful validated write.
 
 Project entry does not repair duplicate canonical supply Nets (`0` or `VDD`).
 Duplicate folded Net names are invalid input and remain a blocking diagnostic
@@ -80,7 +82,7 @@ until the author explicitly renames or merges the Nets.
 Canonical serialization ends with one newline and is byte-stable across
 save/load/save. The current corpus is listed in
 `fixtures/projects/compatibility-corpus.json`; its accepted entries must all be
-already canonical Project schema 24. The rejected corpus names expected
+already canonical Project schema 25. The rejected corpus names expected
 validation failures.
 
 Viewport, selection, undo history, canvas overlays, Agent credentials,

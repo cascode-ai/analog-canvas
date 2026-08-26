@@ -96,6 +96,10 @@ the reviewed external-master ERC classification, is
 The independent Cell-Pin clipboard identity decision, partially superseding
 the copy clauses of ADRs 0037 and 0043, is
 [`0045-independent-cell-pin-copy.md`](0045-independent-cell-pin-copy.md).
+The schema-25 independent Cell-Pin authoring contract and read-only Formal Port
+name projection, superseding ADR 0037 and the remaining shared-marker clauses
+of ADRs 0043/0045, is
+[`0046-independent-cell-pins-and-formal-port-projection.md`](0046-independent-cell-pins-and-formal-port-projection.md).
 The arbitrary-angle Route authoring decision is
 [`0039-any-angle-route-authoring.md`](0039-any-angle-route-authoring.md).
 

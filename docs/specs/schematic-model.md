@@ -5,7 +5,7 @@ Status: `accepted`
 Primary owner: `packages/model`
 
 The Project contains Documents; each Document owns revisioned electrical,
-geometric, and presentation facts. The current model is strict schema 24 and has
+geometric, and presentation facts. The current model is strict schema 25 and has
 no compatibility shape.
 
 ## Coordinate domains
@@ -43,18 +43,26 @@ migration. Invalid coordinates are rejected with their data path.
   endpoints only.
 - `Junction` owns explicit branch/anchor geometry.
 - `NoConnect` targets one terminal only and cannot overlap Net membership.
-- `Document.netlist.terminals` is the ordered formal Cell interface. Each
-  terminal has a stable ID, name, direction, Net ID, and a non-empty
-  `interfaceInstanceIds` array pointing to one or more ordinary canvas Cell
-  Pin Instances. Its interface name may differ from its internal Logical-Net
-  name.
+- `Document.netlist.terminals` is the ordered list of authored Cell Pins. Each
+  declaration has a stable ID, name, direction, Net ID, and a singleton
+  `interfaceInstanceIds` array pointing to its one ordinary canvas Cell Pin
+  Instance. Duplicate names are valid and do not imply connectivity. A
+  declaration's Port Name may differ from its internal Logical-Net name.
 
 Canvas `port` and `port-filled` artwork has exactly one meaning: a Cell Pin.
 Each is an ordinary single-pin Instance with pin `P`, owns exactly one ordered
-Cell terminal, and uses ordinary Net membership and Route endpoints. The model
-has no free-Port branch or separate Port collection; repeated markers belong
-to one formal CellTerminal rather than defining another interface,
-or Port-specific Net membership.
+Cell-Pin declaration, and uses ordinary Net membership and Route endpoints. The
+model has no free-Port branch or separate Port collection. Equal Port Names do
+not share terminal identity, direction, Base Net, annotations, or lifecycle.
+Only Wire/contact topology connects Pins.
+
+Consumers that need a Cell's formal interface use the pure
+`projectCellInterface` read model. It groups declarations by case-insensitive
+Port Name, preserving the first declaration's order and spelling. The
+projection is never persisted and never merges or rewrites authored objects.
+It also creates no editing-time connectivity: hierarchy trace/highlight omits
+a multi-member Formal Port unless independent electrical facts already place
+every member on the same Logical Net.
 
 VDD, Ground, route Net Label, and Power Rail all author the same
 `name-claim`. Power Rail is editable Route/Junction presentation rather than a
@@ -117,8 +125,9 @@ two explicit placements may occupy the same side/offset slot.
   its waypoints.
 - Net membership and NoConnect are mutually exclusive.
 - Layout groups and constraints reference existing objects.
-- Netlist interfaces reference existing Nets and connected Port Instances with
-  unique stable IDs, ordered names, and marker bindings.
+- Cell-Pin declarations reference existing Nets and connected Port Instances
+  with unique stable IDs and singleton marker bindings. Formal Port names are
+  unique only after read-only name projection.
 - Internal subcircuit bindings reference one child Document; their emitted
   Cell name is derived from that child. External bindings reference one
   project-level external definition, and unresolved imported bindings retain
@@ -152,6 +161,7 @@ ordinary Schematic edits inside one Project structural transaction. The
 Project's `structureRevision` protects this cross-Document boundary and the
 editor records it as one undoable structural commit.
 
-Persistence writes only schema 24. The rolling reader accepts schema 23 at the
-file boundary, then supplies the current model only; no
+Persistence writes only schema 25. The rolling reader accepts schema 24 at the
+file boundary, splits legacy multi-marker terminals without changing physical
+topology, then supplies the current model only; no
 compatibility shape enters runtime electrical derivation.

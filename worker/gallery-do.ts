@@ -18,7 +18,7 @@ import { analyzeDesignNetlist } from "@icm/netlist";
 import {
   parseProject,
   serializeProject,
-  upgradeSchema23To24WithReport,
+  upgradeSchema24To25WithReport,
 } from "@icm/project-protocol";
 import { renderDocumentSvg } from "@icm/render-svg";
 import {
@@ -216,8 +216,7 @@ interface EntryRow {
   netlistable: number;
 }
 
-const TOKENZHANG_BYLINE_MIGRATION =
-  "2026-08-26-tokenzhang-to-zhishuai-zhang";
+const TOKENZHANG_BYLINE_MIGRATION = "2026-08-26-tokenzhang-to-zhishuai-zhang";
 const TOKENZHANG_BYLINE = "Zhishuai Zhang";
 
 function summaryOf(
@@ -1084,7 +1083,7 @@ export class GalleryDO {
     const migrationReports: Array<{
       table: string;
       id: string;
-      report: ReturnType<typeof upgradeSchema23To24WithReport>["report"];
+      report: ReturnType<typeof upgradeSchema24To25WithReport>["report"];
     }> = [];
     for (const source of sources) {
       const versions: Record<string, number> = {};
@@ -1096,7 +1095,7 @@ export class GalleryDO {
           const raw = JSON.parse(row.project_text) as Record<string, unknown>;
           const migration =
             raw.schemaVersion === CURRENT_PROJECT_SCHEMA_VERSION - 1
-              ? upgradeSchema23To24WithReport(raw)
+              ? upgradeSchema24To25WithReport(raw)
               : null;
           const project = parseProject(
             JSON.stringify(migration?.project ?? raw),

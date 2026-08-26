@@ -8784,6 +8784,7 @@
         },
         "interfaceInstanceIds": {
           "minItems": 1,
+          "maxItems": 1,
           "type": "array",
           "items": {
             "$ref": "#/$defs/__schema1"
@@ -8822,13 +8823,6 @@
             "inout",
             "passive"
           ]
-        },
-        "interfaceInstanceIds": {
-          "minItems": 1,
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/__schema1"
-          }
         }
       },
       "required": [
@@ -11565,7 +11559,7 @@
             },
             "edits": {
               "minItems": 1,
-              "maxItems": 256,
+              "maxItems": 1024,
               "type": "array",
               "items": {
                 "$ref": "#/$defs/__schema243"

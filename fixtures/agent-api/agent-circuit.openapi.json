@@ -9561,6 +9561,7 @@
               },
               "interfaceInstanceIds": {
                 "minItems": 1,
+                "maxItems": 1,
                 "type": "array",
                 "items": {
                   "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema1"
@@ -9599,13 +9600,6 @@
                   "inout",
                   "passive"
                 ]
-              },
-              "interfaceInstanceIds": {
-                "minItems": 1,
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema1"
-                }
               }
             },
             "required": [
@@ -12342,7 +12336,7 @@
                   },
                   "edits": {
                     "minItems": 1,
-                    "maxItems": 256,
+                    "maxItems": 1024,
                     "type": "array",
                     "items": {
                       "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema243"
@@ -13199,6 +13193,7 @@
                                     },
                                     "interfaceInstanceIds": {
                                       "minItems": 1,
+                                      "maxItems": 1,
                                       "type": "array",
                                       "items": {
                                         "$ref": "#/components/schemas/agentCircuitResponse/$defs/__schema0"

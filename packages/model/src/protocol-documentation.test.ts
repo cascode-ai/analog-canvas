@@ -21,7 +21,10 @@ describe("Project protocol documentation", () => {
       ["docs/specs/persistence-and-recovery.md", `schema-${version}`],
       ["docs/specs/project-file-format.md", `Project schema: \`${version}\``],
       ["docs/specs/editor-interaction.md", `schema-${version}`],
-      ["docs/adr/0043-cell-pin-contract-convergence.md", `Schema ${version}`],
+      [
+        "docs/adr/0046-independent-cell-pins-and-formal-port-projection.md",
+        `Schema ${version}`,
+      ],
       [
         "docs/user/project-compatibility.md",
         `schema version is \`${version}\``,

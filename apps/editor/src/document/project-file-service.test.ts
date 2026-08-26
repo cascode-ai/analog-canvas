@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createEmptyProject } from "@icm/model";
+import { createEmptyProject, CURRENT_PROJECT_SCHEMA_VERSION } from "@icm/model";
 import { serializeProject } from "@icm/project-protocol";
 
 import {
@@ -385,26 +385,26 @@ describe("stageProjectFile", () => {
       status: "opened",
       fileName: "amp.icproj.json",
       topDocumentRevision: 0,
-      sourceSchemaVersion: 24,
+      sourceSchemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
       migrated: false,
     });
   });
 
-  it("stages schema 23 as an upgraded schema-24 Project", async () => {
+  it("stages the previous schema as an upgraded current Project", async () => {
     const previous = JSON.parse(serializeProject(project));
-    previous.schemaVersion = 23;
+    previous.schemaVersion = CURRENT_PROJECT_SCHEMA_VERSION - 1;
     const previousText = JSON.stringify(previous);
     const outcome = await stageProjectFile(
-      fakeFile("amp-v23.icproj.json", previousText),
+      fakeFile("amp-previous.icproj.json", previousText),
       () => [],
     );
 
     expect(outcome).toMatchObject({
       status: "opened",
-      fileName: "amp-v23.icproj.json",
-      sourceSchemaVersion: 23,
+      fileName: "amp-previous.icproj.json",
+      sourceSchemaVersion: CURRENT_PROJECT_SCHEMA_VERSION - 1,
       migrated: true,
-      project: { schemaVersion: 24 },
+      project: { schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION },
     });
   });
 

@@ -1,7 +1,11 @@
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
-import { createEmptyDocument, createEmptyProject } from "@icm/model";
+import {
+  createEmptyDocument,
+  createEmptyProject,
+  CURRENT_PROJECT_SCHEMA_VERSION,
+} from "@icm/model";
 import { serializeProject } from "@icm/project-protocol";
 import { hierarchicalSymbolId } from "@icm/symbols";
 
@@ -949,24 +953,33 @@ test("the retired review queue is gone from the moderation page", async ({
   await page.route("**/api/gallery/recycled", (route) =>
     route.fulfill({ json: { entries: [] } }),
   );
-  await page.route("**/api/gallery/maintenance/schema23", async (route) => {
-    const body = route.request().postDataJSON() as { apply?: boolean };
-    convergenceCalls.push(body.apply === true);
-    await route.fulfill({
-      json: {
-        applied: body.apply === true,
-        targetSchemaVersion: 23,
-        inventory: {
-          gallery_entries: { "23": 3 },
-          gallery_entry_versions: { "23": 1 },
-          workspace_slots: { "23": 1 },
+  await page.route(
+    "**/api/gallery/maintenance/schema-current",
+    async (route) => {
+      const body = route.request().postDataJSON() as { apply?: boolean };
+      convergenceCalls.push(body.apply === true);
+      await route.fulfill({
+        json: {
+          applied: body.apply === true,
+          targetSchemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
+          inventory: {
+            gallery_entries: {
+              [String(CURRENT_PROJECT_SCHEMA_VERSION - 1)]: 3,
+            },
+            gallery_entry_versions: {
+              [String(CURRENT_PROJECT_SCHEMA_VERSION - 1)]: 1,
+            },
+            workspace_slots: {
+              [String(CURRENT_PROJECT_SCHEMA_VERSION - 1)]: 1,
+            },
+          },
+          records: 5,
+          ready: 5,
+          failures: [],
         },
-        records: 5,
-        ready: 5,
-        failures: [],
-      },
-    });
-  });
+      });
+    },
+  );
 
   await page.goto("/moderation");
   await expect(page.getByTestId("moderation")).toBeVisible();
@@ -974,19 +987,19 @@ test("the retired review queue is gone from the moderation page", async ({
     "href",
     "/api/gallery/maintenance/schema-backup",
   );
-  await expect(page.getByTestId("schema23-apply")).toBeDisabled();
-  await page.getByTestId("schema23-dry-run").click();
-  await expect(page.getByTestId("schema23-report")).toContainText(
-    "Validated: 5/5 records ready for schema 23; 0 failures.",
+  await expect(page.getByTestId("schema-current-apply")).toBeDisabled();
+  await page.getByTestId("schema-current-dry-run").click();
+  await expect(page.getByTestId("schema-current-report")).toContainText(
+    `Validated: 5/5 records ready for schema ${CURRENT_PROJECT_SCHEMA_VERSION}; 0 failures.`,
   );
-  await expect(page.getByTestId("schema23-report")).toContainText(
-    "gallery_entries: v23=3",
+  await expect(page.getByTestId("schema-current-report")).toContainText(
+    `gallery_entries: v${CURRENT_PROJECT_SCHEMA_VERSION - 1}=3`,
   );
-  await expect(page.getByTestId("schema23-apply")).toBeDisabled();
-  await page.getByTestId("schema23-backup-confirmed").check();
-  await page.getByTestId("schema23-apply").click();
-  await expect(page.getByTestId("schema23-report")).toContainText(
-    "Applied: 5/5 records ready for schema 23; 0 failures.",
+  await expect(page.getByTestId("schema-current-apply")).toBeDisabled();
+  await page.getByTestId("schema-current-backup-confirmed").check();
+  await page.getByTestId("schema-current-apply").click();
+  await expect(page.getByTestId("schema-current-report")).toContainText(
+    `Applied: 5/5 records ready for schema ${CURRENT_PROJECT_SCHEMA_VERSION}; 0 failures.`,
   );
   expect(convergenceCalls).toEqual([false, true]);
   // Curation is post-publication now: a bin to restore from, no inbox.
