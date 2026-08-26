@@ -391,17 +391,6 @@
   color: var(--icm-accent);
 }
 
-.publish-gallery-history-link {
-  align-self: flex-start;
-  padding: 0;
-  border: none;
-  color: var(--icm-accent);
-  background: none;
-  font-size: 0.78rem;
-  text-decoration: underline;
-  cursor: pointer;
-}
-
 .version-history-dialog {
   width: min(36rem, 100%);
 }
@@ -531,24 +520,6 @@
 .review-bin h2 {
   margin: 8px 0 0;
   font-size: 17px;
-}
-
-.publish-gallery-mode {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 10px 12px;
-  border: 1px solid var(--icm-accent);
-  border-radius: 8px;
-  background: var(--icm-accent-soft);
-  font-size: 0.85rem;
-}
-
-.publish-gallery-mode label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
 }
 
 .review-card,

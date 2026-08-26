@@ -1153,6 +1153,7 @@ test("/mine offers owner withdrawal, restore, and version history", async ({
 });
 
 test("an opened gallery entry offers updating in place", async ({ page }) => {
+  await page.setViewportSize({ width: 420, height: 900 });
   await mockGallery(page, [ENTRY]);
   await page.route("**/api/auth/me", (route) =>
     route.fulfill({
@@ -1185,9 +1186,28 @@ test("an opened gallery entry offers updating in place", async ({ page }) => {
   await page.getByTestId("publish-gallery-button").click();
   const dialog = page.getByTestId("publish-gallery-dialog");
   await expect(dialog).toBeVisible();
-  await expect(page.getByTestId("publish-mode")).toBeVisible();
+  const publishMode = page.getByTestId("publish-mode");
+  await expect(publishMode).toBeVisible();
+  await expect(publishMode).toHaveCSS("display", "flex");
+  await expect(publishMode).toHaveCSS("flex-direction", "column");
+  const updateChoice = publishMode
+    .getByRole("radio", { name: /^Update /u })
+    .locator("..");
+  const newChoice = publishMode
+    .getByRole("radio", { name: "Publish as a new entry", exact: true })
+    .locator("..");
+  const [updateBox, newBox, historyBox] = await Promise.all([
+    updateChoice.boundingBox(),
+    newChoice.boundingBox(),
+    page.getByTestId("publish-history").boundingBox(),
+  ]);
+  expect(updateBox).not.toBeNull();
+  expect(newBox).not.toBeNull();
+  expect(historyBox).not.toBeNull();
+  expect(newBox!.y).toBeGreaterThanOrEqual(updateBox!.y + updateBox!.height);
+  expect(historyBox!.y).toBeGreaterThanOrEqual(newBox!.y + newBox!.height);
   // The update option names exactly what it will replace.
-  await expect(page.getByTestId("publish-mode")).toContainText(ENTRY.name);
+  await expect(publishMode).toContainText(ENTRY.name);
   await expect(dialog.getByText("updates the entry in place")).toBeVisible();
 
   await dialog.getByRole("button", { name: "Update entry" }).click();
