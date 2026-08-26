@@ -5,7 +5,7 @@ import { createEmptyDocument, createEmptyProject } from "@icm/model";
 import {
   executeProjectTransaction,
   executeTransaction,
-  planRemoveCellTerminalMarkers,
+  planRemoveCellTerminals,
   proposeVisualRouteDeletion,
 } from "@icm/edit-engine";
 import { parseProject } from "@icm/project-protocol";
@@ -61,12 +61,10 @@ describe("connected instance deletion", () => {
       projectId: project.id,
       expectedStructureRevision: project.structureRevision,
       actor: { kind: "human", id: "test" },
-      edits: planRemoveCellTerminalMarkers(
+      edits: planRemoveCellTerminals(
         project,
         document.id,
-        document.netlist!.terminals.flatMap(
-          (terminal) => terminal.interfaceInstanceIds,
-        ),
+        document.netlist!.terminals.map((terminal) => terminal.id),
         deletionEdits,
       ),
     });

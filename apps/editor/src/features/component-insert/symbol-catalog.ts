@@ -78,8 +78,8 @@ export function symbolCategory(symbolId: string): string {
  * Library display names, where the catalog's own name does not say what the
  * entry is *for*.
  *
- * Port artwork has one meaning: a formal Cell Pin. Hollow and filled entries
- * are presentation variants of that same interface object.
+ * Port artwork has one meaning: an independently authored Cell Pin. Hollow
+ * and filled entries are appearance variants, never shared interface objects.
  */
 const LIBRARY_DISPLAY_NAMES: Readonly<Record<string, string>> = {
   port: "Cell Pin",
@@ -89,7 +89,7 @@ const LIBRARY_DISPLAY_NAMES: Readonly<Record<string, string>> = {
 /** One line saying what an entry does, where the name alone leaves a doubt. */
 const LIBRARY_DESCRIPTIONS: Readonly<Record<string, string>> = {
   port: "A terminal on this Cell interface — the parent circuit connects to it",
-  "port-filled": "The same Cell interface terminal, drawn solid",
+  "port-filled": "An independent Cell Pin with a solid appearance",
 };
 
 export function libraryDisplayName(symbolId: string, fallback: string): string {

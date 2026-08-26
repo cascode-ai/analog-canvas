@@ -384,13 +384,13 @@ test("copies and independently deletes Formal Cell Pins", async ({ page }) => {
   }
   await expect(
     page.getByLabel("Cell Pin properties").getByLabel("Cell Pin name"),
-  ).toHaveValue("VIN_copy");
+  ).toHaveValue("VIN");
   await clickCommand(page, "Netlist", "Check Report…");
   await expect(
     page
       .getByRole("dialog", { name: "Check Report" })
       .getByTestId("netlist-preview"),
-  ).toContainText(".subckt Main VIN_copy");
+  ).toContainText(".subckt Main VIN");
 });
 
 test("edits a Cell Pin name and RichText presentation in place", async ({
@@ -629,16 +629,18 @@ test("renaming one Cell Pin leaves another interface Pin alone", async ({
   expect(texts).toContain("Vbias");
 });
 
-test("renaming a Cell Pin to an existing name merges the interface and Net", async ({
+test("same-name Cell Pins stay independent while the final interface groups them", async ({
   page,
 }) => {
   await page.goto("/editor");
   await placeCellPin(page, {
     name: "VIN",
+    direction: "input",
     position: { x: 260, y: 180 },
   });
   await placeCellPin(page, {
     name: "ALIAS",
+    direction: "output",
     position: { x: 260, y: 320 },
   });
 
@@ -652,6 +654,38 @@ test("renaming a Cell Pin to an existing name merges the interface and Net", asy
   await nameField.blur();
 
   await expect(page.getByTestId("status")).toContainText("Renamed Cell Pin");
+  const saved = JSON.parse(
+    (await downloadBytes(page, "File", "Save Project")).toString("utf8"),
+  ) as {
+    documents: Array<{
+      netlist: {
+        terminals: Array<{
+          id: string;
+          name: string;
+          netId: string;
+          direction: string;
+          interfaceInstanceIds: string[];
+        }>;
+      };
+    }>;
+  };
+  const terminals = saved.documents[0]!.netlist.terminals;
+  expect(terminals).toHaveLength(2);
+  expect(terminals.map((terminal) => terminal.name.toLowerCase())).toEqual([
+    "vin",
+    "vin",
+  ]);
+  expect(new Set(terminals.map((terminal) => terminal.id)).size).toBe(2);
+  expect(new Set(terminals.map((terminal) => terminal.netId)).size).toBe(2);
+  expect(terminals.map((terminal) => terminal.direction)).toEqual([
+    "input",
+    "output",
+  ]);
+  expect(terminals.map((terminal) => terminal.interfaceInstanceIds)).toEqual([
+    ["P1"],
+    ["P2"],
+  ]);
+
   await clickCommand(page, "Netlist", "Check Report…");
   const preview = await page
     .getByRole("dialog", { name: "Check Report" })
@@ -659,4 +693,10 @@ test("renaming a Cell Pin to an existing name merges the interface and Net", asy
     .innerText();
   expect(preview).toContain(".subckt Main VIN");
   expect(preview).not.toContain("ALIAS");
+  await page.getByTestId("check-report-close").click();
+
+  await page.getByTestId("hit-P2").click();
+  await page.keyboard.press("Delete");
+  await expect(page.getByTestId("hit-P2")).toHaveCount(0);
+  await expect(page.getByTestId("hit-P1")).toBeVisible();
 });

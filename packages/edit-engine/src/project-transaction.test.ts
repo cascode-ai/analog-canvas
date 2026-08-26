@@ -10,7 +10,6 @@ import { externalSubcircuitSymbolId, hierarchicalSymbolId } from "@icm/symbols";
 import {
   planRenameCell,
   planRemoveCellTerminal,
-  planRemoveCellTerminalMarkers,
   planRemoveCellTerminals,
   planEditCellTerminalAnnotation,
   planRenameCellTerminal,
@@ -40,6 +39,34 @@ function hierarchyInstance(
       },
     },
   };
+}
+
+function addCellPin(
+  document: ReturnType<typeof createEmptyDocument>,
+  input: {
+    instanceId: string;
+    terminalId: string;
+    name: string;
+    netId: string;
+    direction?: "input" | "output" | "inout" | "passive";
+  },
+): void {
+  document.instances.push({
+    id: input.instanceId,
+    symbolId: "port",
+    placement: null,
+  });
+  document.nets.push({
+    id: input.netId,
+    terminals: [{ instanceId: input.instanceId, pinName: "P" }],
+  });
+  document.netlist!.terminals.push({
+    id: input.terminalId,
+    name: input.name,
+    netId: input.netId,
+    direction: input.direction ?? "input",
+    interfaceInstanceIds: [input.instanceId],
+  });
 }
 
 describe("Project structural transaction", () => {
@@ -132,18 +159,13 @@ describe("Project structural transaction", () => {
       projectId: project.id,
       expectedStructureRevision: project.structureRevision,
       actor: { kind: "human", id: "human-local" },
-      edits: planRemoveCellTerminalMarkers(
-        project,
-        child.id,
-        ["P1"],
-        [
-          {
-            kind: "disconnect_endpoint",
-            endpoint: { kind: "terminal", instanceId: "P1", pinName: "P" },
-          },
-          { kind: "remove_instance", instanceId: "P1" },
-        ],
-      ),
+      edits: planRemoveCellTerminal(project, child.id, "terminal-in", [
+        {
+          kind: "disconnect_endpoint",
+          endpoint: { kind: "terminal", instanceId: "P1", pinName: "P" },
+        },
+        { kind: "remove_instance", instanceId: "P1" },
+      ]),
     });
 
     if (!result.ok) throw new Error(JSON.stringify(result, null, 2));
@@ -169,6 +191,380 @@ describe("Project structural transaction", () => {
       }),
     ]);
     expect(parent.junctions).toHaveLength(2);
+  });
+
+  it("keeps the caller pin wired while another same-named Cell Pin remains", () => {
+    const project = createEmptyProject("project", "Project");
+    const child = createEmptyDocument("document-child", "Child");
+    addCellPin(child, {
+      instanceId: "P1",
+      terminalId: "terminal-in-1",
+      name: "IN",
+      netId: "net-in-1",
+    });
+    addCellPin(child, {
+      instanceId: "P2",
+      terminalId: "terminal-in-2",
+      name: "in",
+      netId: "net-in-2",
+    });
+    project.documents.push(child);
+    const parent = project.documents[0]!;
+    parent.instances.push(hierarchyInstance("X1", "Child", child.id));
+    parent.nets.push({
+      id: "net-parent-in",
+      terminals: [{ instanceId: "X1", pinName: "IN" }],
+    });
+    parent.junctions.push({
+      id: "junction-parent-tail",
+      netId: "net-parent-in",
+      position: { x: -100, y: 0 },
+      role: "route-anchor",
+    });
+    parent.routes.push({
+      id: "route-parent-in",
+      netId: "net-parent-in",
+      from: { kind: "terminal", instanceId: "X1", pinName: "IN" },
+      to: { kind: "junction", junctionId: "junction-parent-tail" },
+      waypoints: [],
+      segmentModes: ["manual"],
+    });
+
+    const result = executeProjectTransaction(project, {
+      transactionId: "remove-one-independent-pin",
+      projectId: project.id,
+      expectedStructureRevision: project.structureRevision,
+      actor: { kind: "human", id: "human-local" },
+      edits: planRemoveCellTerminal(project, child.id, "terminal-in-2"),
+    });
+
+    if (!result.ok) throw new Error(JSON.stringify(result, null, 2));
+    const updatedParent = result.project.documents[0]!;
+    expect(updatedParent.nets[0]!.terminals).toEqual([
+      { instanceId: "X1", pinName: "IN" },
+    ]);
+    expect(updatedParent.routes[0]!.from).toEqual({
+      kind: "terminal",
+      instanceId: "X1",
+      pinName: "IN",
+    });
+    expect(updatedParent.junctions).toHaveLength(1);
+    expect(result.project.documents[1]!.netlist!.terminals).toMatchObject([
+      { id: "terminal-in-1", name: "IN", netId: "net-in-1" },
+    ]);
+  });
+
+  it("renames one same-named Cell Pin without rewriting the surviving caller pin", () => {
+    const project = createEmptyProject("project", "Project");
+    const child = createEmptyDocument("document-child", "Child");
+    addCellPin(child, {
+      instanceId: "P1",
+      terminalId: "terminal-in-1",
+      name: "IN",
+      netId: "net-in-1",
+    });
+    addCellPin(child, {
+      instanceId: "P2",
+      terminalId: "terminal-in-2",
+      name: "in",
+      netId: "net-in-2",
+    });
+    project.documents.push(child);
+    const parent = project.documents[0]!;
+    parent.instances.push(hierarchyInstance("X1", "Child", child.id));
+    parent.nets.push({
+      id: "net-parent-in",
+      terminals: [{ instanceId: "X1", pinName: "IN" }],
+    });
+
+    const result = executeProjectTransaction(project, {
+      transactionId: "rename-one-independent-pin",
+      projectId: project.id,
+      expectedStructureRevision: project.structureRevision,
+      actor: { kind: "human", id: "human-local" },
+      edits: planRenameCellTerminal(project, child.id, "terminal-in-2", "AUX"),
+    });
+
+    if (!result.ok) throw new Error(JSON.stringify(result, null, 2));
+    expect(result.project.documents[0]!.nets[0]!.terminals).toEqual([
+      { instanceId: "X1", pinName: "IN" },
+    ]);
+    expect(result.project.documents[1]!.netlist!.terminals).toMatchObject([
+      { id: "terminal-in-1", name: "IN", netId: "net-in-1" },
+      { id: "terminal-in-2", name: "AUX", netId: "net-in-2" },
+    ]);
+  });
+
+  it("detaches the vanished caller pin instead of merging it into an existing name", () => {
+    const project = createEmptyProject("project", "Project");
+    const child = createEmptyDocument("document-child", "Child");
+    addCellPin(child, {
+      instanceId: "P1",
+      terminalId: "terminal-old",
+      name: "OLD",
+      netId: "net-old",
+    });
+    addCellPin(child, {
+      instanceId: "P2",
+      terminalId: "terminal-new",
+      name: "NEW",
+      netId: "net-new",
+    });
+    project.documents.push(child);
+    const parent = project.documents[0]!;
+    parent.instances.push(hierarchyInstance("X1", "Child", child.id));
+    parent.nets.push(
+      {
+        id: "net-parent-old",
+        terminals: [{ instanceId: "X1", pinName: "OLD" }],
+      },
+      {
+        id: "net-parent-new",
+        terminals: [{ instanceId: "X1", pinName: "NEW" }],
+      },
+    );
+    parent.junctions.push({
+      id: "junction-parent-tail",
+      netId: "net-parent-old",
+      position: { x: -100, y: 0 },
+      role: "route-anchor",
+    });
+    parent.routes.push({
+      id: "route-parent-old",
+      netId: "net-parent-old",
+      from: { kind: "terminal", instanceId: "X1", pinName: "OLD" },
+      to: { kind: "junction", junctionId: "junction-parent-tail" },
+      waypoints: [],
+      segmentModes: ["manual"],
+    });
+
+    const result = executeProjectTransaction(project, {
+      transactionId: "rename-final-old-pin-onto-existing-name",
+      projectId: project.id,
+      expectedStructureRevision: project.structureRevision,
+      actor: { kind: "human", id: "human-local" },
+      edits: planRenameCellTerminal(project, child.id, "terminal-old", "new"),
+    });
+
+    if (!result.ok) throw new Error(JSON.stringify(result, null, 2));
+    const updatedParent = result.project.documents[0]!;
+    expect(updatedParent.nets).toEqual([
+      expect.objectContaining({ id: "net-parent-old", terminals: [] }),
+      expect.objectContaining({
+        id: "net-parent-new",
+        terminals: [{ instanceId: "X1", pinName: "new" }],
+      }),
+    ]);
+    expect(updatedParent.routes[0]!.from).toMatchObject({
+      kind: "junction",
+    });
+    expect(updatedParent.routes[0]!.netId).toBe("net-parent-old");
+    expect(
+      updatedParent.junctions.filter(
+        (junction) => junction.netId === "net-parent-old",
+      ),
+    ).toHaveLength(2);
+    expect(updatedParent.nets).toHaveLength(2);
+    expect(result.project.documents[1]!.nets).toMatchObject([
+      { id: "net-old", terminals: [{ instanceId: "P1", pinName: "P" }] },
+      { id: "net-new", terminals: [{ instanceId: "P2", pinName: "P" }] },
+    ]);
+    expect(result.project.documents[1]!.netlist!.terminals).toMatchObject([
+      { id: "terminal-old", name: "new", netId: "net-old" },
+      { id: "terminal-new", name: "NEW", netId: "net-new" },
+    ]);
+  });
+
+  it("renames the surviving caller spelling when the first same-named Pin leaves its group", () => {
+    const project = createEmptyProject("project", "Project");
+    const child = createEmptyDocument("document-child", "Child");
+    addCellPin(child, {
+      instanceId: "P1",
+      terminalId: "terminal-in-1",
+      name: "IN",
+      netId: "net-in-1",
+    });
+    addCellPin(child, {
+      instanceId: "P2",
+      terminalId: "terminal-in-2",
+      name: "in",
+      netId: "net-in-2",
+    });
+    project.documents.push(child);
+    const parent = project.documents[0]!;
+    parent.instances.push(hierarchyInstance("X1", "Child", child.id));
+    parent.nets.push({
+      id: "net-parent-in",
+      terminals: [{ instanceId: "X1", pinName: "IN" }],
+    });
+
+    const result = executeProjectTransaction(project, {
+      transactionId: "rename-representative-independent-pin",
+      projectId: project.id,
+      expectedStructureRevision: project.structureRevision,
+      actor: { kind: "human", id: "human-local" },
+      edits: planRenameCellTerminal(project, child.id, "terminal-in-1", "AUX"),
+    });
+
+    if (!result.ok) throw new Error(JSON.stringify(result, null, 2));
+    expect(result.project.documents[0]!.nets).toEqual([
+      {
+        id: "net-parent-in",
+        terminals: [{ instanceId: "X1", pinName: "in" }],
+      },
+    ]);
+    expect(result.project.documents[1]!.netlist!.terminals).toMatchObject([
+      { id: "terminal-in-1", name: "AUX", netId: "net-in-1" },
+      { id: "terminal-in-2", name: "in", netId: "net-in-2" },
+    ]);
+  });
+
+  it("renames the surviving caller spelling when the first same-named Pin is deleted", () => {
+    const project = createEmptyProject("project", "Project");
+    const child = createEmptyDocument("document-child", "Child");
+    addCellPin(child, {
+      instanceId: "P1",
+      terminalId: "terminal-in-1",
+      name: "IN",
+      netId: "net-in-1",
+    });
+    addCellPin(child, {
+      instanceId: "P2",
+      terminalId: "terminal-in-2",
+      name: "in",
+      netId: "net-in-2",
+    });
+    project.documents.push(child);
+    const parent = project.documents[0]!;
+    parent.instances.push(hierarchyInstance("X1", "Child", child.id));
+    parent.nets.push({
+      id: "net-parent-in",
+      terminals: [{ instanceId: "X1", pinName: "IN" }],
+    });
+    parent.junctions.push({
+      id: "junction-parent-tail",
+      netId: "net-parent-in",
+      position: { x: -100, y: 0 },
+      role: "route-anchor",
+    });
+    parent.routes.push({
+      id: "route-parent-in",
+      netId: "net-parent-in",
+      from: { kind: "terminal", instanceId: "X1", pinName: "IN" },
+      to: { kind: "junction", junctionId: "junction-parent-tail" },
+      waypoints: [],
+      segmentModes: ["manual"],
+    });
+
+    const result = executeProjectTransaction(project, {
+      transactionId: "delete-representative-independent-pin",
+      projectId: project.id,
+      expectedStructureRevision: project.structureRevision,
+      actor: { kind: "human", id: "human-local" },
+      edits: planRemoveCellTerminal(project, child.id, "terminal-in-1"),
+    });
+
+    if (!result.ok) throw new Error(JSON.stringify(result, null, 2));
+    const updatedParent = result.project.documents[0]!;
+    expect(updatedParent.nets).toEqual([
+      {
+        id: "net-parent-in",
+        terminals: [{ instanceId: "X1", pinName: "in" }],
+      },
+    ]);
+    expect(updatedParent.routes).toEqual([
+      expect.objectContaining({
+        id: "route-parent-in",
+        netId: "net-parent-in",
+        from: { kind: "terminal", instanceId: "X1", pinName: "in" },
+      }),
+    ]);
+    expect(updatedParent.junctions).toHaveLength(1);
+    expect(result.project.documents[1]!.netlist!.terminals).toMatchObject([
+      { id: "terminal-in-2", name: "in", netId: "net-in-2" },
+    ]);
+  });
+
+  it("updates every caller reference surface for a case-only representative rename", () => {
+    const project = createEmptyProject("project", "Project");
+    const child = createEmptyDocument("document-child", "Child");
+    addCellPin(child, {
+      instanceId: "P1",
+      terminalId: "terminal-vin",
+      name: "VIN",
+      netId: "net-vin",
+    });
+    project.documents.push(child);
+    const parent = project.documents[0]!;
+    const connectedCaller = hierarchyInstance("X1", "Child", child.id);
+    const openCaller = hierarchyInstance("X2", "Child", child.id);
+    openCaller.placement.position = { x: 200, y: 0 };
+    const importedCaller = {
+      ...hierarchyInstance("X3", "Child", child.id),
+      placement: {
+        ...hierarchyInstance("X3", "Child", child.id).placement,
+        position: { x: 400, y: 0 },
+      },
+      importProvenance: {
+        kind: "subcircuit" as const,
+        name: "Child",
+        sourceTarget: `cell:${child.id}`,
+        terminalMapping: [{ sourcePosition: 0, pinName: "VIN" }],
+      },
+    };
+    parent.instances.push(connectedCaller, openCaller, importedCaller);
+    parent.nets.push({
+      id: "net-parent-vin",
+      terminals: [{ instanceId: "X1", pinName: "VIN" }],
+    });
+    parent.junctions.push({
+      id: "junction-parent-tail",
+      netId: "net-parent-vin",
+      position: { x: -100, y: 0 },
+      role: "route-anchor",
+    });
+    parent.routes.push({
+      id: "route-parent-vin",
+      netId: "net-parent-vin",
+      from: { kind: "terminal", instanceId: "X1", pinName: "VIN" },
+      to: { kind: "junction", junctionId: "junction-parent-tail" },
+      waypoints: [],
+      segmentModes: ["manual"],
+    });
+    parent.noConnects.push({
+      id: "no-connect-vin",
+      endpoint: { kind: "terminal", instanceId: "X2", pinName: "VIN" },
+    });
+
+    const result = executeProjectTransaction(project, {
+      transactionId: "case-only-representative-rename",
+      projectId: project.id,
+      expectedStructureRevision: project.structureRevision,
+      actor: { kind: "human", id: "human-local" },
+      edits: planRenameCellTerminal(project, child.id, "terminal-vin", "vin"),
+    });
+
+    if (!result.ok) throw new Error(JSON.stringify(result, null, 2));
+    const updatedParent = result.project.documents[0]!;
+    expect(updatedParent.nets[0]!.terminals).toEqual([
+      { instanceId: "X1", pinName: "vin" },
+    ]);
+    expect(updatedParent.routes[0]!.from).toEqual({
+      kind: "terminal",
+      instanceId: "X1",
+      pinName: "vin",
+    });
+    expect(updatedParent.noConnects[0]!.endpoint).toEqual({
+      kind: "terminal",
+      instanceId: "X2",
+      pinName: "vin",
+    });
+    expect(
+      updatedParent.instances.find((instance) => instance.id === "X3")!
+        .importProvenance?.terminalMapping,
+    ).toEqual([{ sourcePosition: 0, pinName: "vin" }]);
+    expect(updatedParent.nets).toHaveLength(1);
+    expect(updatedParent.junctions).toHaveLength(1);
   });
 
   it("detaches both ends of a Wire between two callers of the same Cell", () => {

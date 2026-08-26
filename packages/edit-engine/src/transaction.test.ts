@@ -81,6 +81,16 @@ function defineCellPin(
 }
 
 describe("Edit Transaction envelope", () => {
+  it("does not allow an update edit to rebind a Cell Pin marker", () => {
+    expect(() =>
+      SchematicEditSchema.parse({
+        kind: "update_cell_terminal",
+        terminalId: "terminal-vin",
+        interfaceInstanceIds: ["P1", "P2"],
+      }),
+    ).toThrow();
+  });
+
   it("creates a manual Base Net without adding naming semantics", () => {
     const document = createEmptyDocument("document-main", "Main");
     document.instances.push(

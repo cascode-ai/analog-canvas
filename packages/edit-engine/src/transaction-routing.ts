@@ -84,22 +84,6 @@ export function netEndpointGroups(
   )) {
     union(endpointKey(route.from), endpointKey(route.to));
   }
-  // Repeated Cell Pin markers are multiple canvas representations of one
-  // formal interface terminal. They are therefore an explicit electrical
-  // equivalence edge even when the markers are not joined by Route geometry.
-  // Keeping them in one component lets a cut detach ordinary circuitry
-  // without falsely treating the formal interface itself as separated.
-  for (const terminal of document.netlist?.terminals ?? []) {
-    if (terminal.netId !== netId) continue;
-    const markerKeys = terminal.interfaceInstanceIds
-      .map((instanceId) =>
-        endpointKey({ kind: "terminal", instanceId, pinName: "P" }),
-      )
-      .filter((key) => parent.has(key));
-    const [first, ...rest] = markerKeys;
-    if (!first) continue;
-    for (const key of rest) union(first, key);
-  }
   // A pin or Junction placed directly on another explicit same-Net endpoint
   // is a real electrical contact even when no Route object exists between the
   // coincident endpoints. Preserve that contact when a different Route is cut.

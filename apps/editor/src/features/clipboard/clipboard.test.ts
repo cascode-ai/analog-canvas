@@ -99,7 +99,7 @@ describe("schematic clipboard", () => {
       interfaceInstanceIds: ["P1"],
     });
     expect(copiedTerminal).toMatchObject({
-      name: "VIN_copy",
+      name: "VIN",
       direction: "input",
       interfaceInstanceIds: ["P1-copy-1"],
     });
@@ -936,7 +936,7 @@ describe("a copy stands on its own", () => {
       result.document.netlist?.terminals.find((terminal) =>
         terminal.interfaceInstanceIds.includes(copyId),
       )?.name,
-    ).toBe("P12_copy");
+    ).toBe("P12");
 
     const secondProposal = proposePaste(
       result.document,
@@ -962,6 +962,6 @@ describe("a copy stands on its own", () => {
       secondResult.document.netlist?.terminals.find((terminal) =>
         terminal.interfaceInstanceIds.includes(secondCopyId),
       )?.name,
-    ).toBe("P12_copy2");
+    ).toBe("P12");
   });
 });

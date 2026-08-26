@@ -2281,10 +2281,10 @@ describe("routing Edit Engine", () => {
     }
   });
 
-  it("keeps repeated markers of one Cell Pin together when a route is cut", () => {
+  it("does not couple same-named Cell Pins when a route is cut", () => {
     const document = createEmptyDocument(
-      "repeated-cell-pin-cut",
-      "Repeated Cell pin cut",
+      "independent-cell-pin-cut",
+      "Independent Cell pin cut",
     );
     document.instances.push(
       {
@@ -2323,13 +2323,22 @@ describe("routing Edit Engine", () => {
         { instanceId: "R1", pinName: "1" },
       ],
     });
-    document.netlist!.terminals.push({
-      id: "terminal-vin",
-      name: "VIN",
-      netId: "net-vin",
-      direction: "input",
-      interfaceInstanceIds: ["P1", "P2"],
-    });
+    document.netlist!.terminals.push(
+      {
+        id: "terminal-vin-1",
+        name: "VIN",
+        netId: "net-vin",
+        direction: "input",
+        interfaceInstanceIds: ["P1"],
+      },
+      {
+        id: "terminal-vin-2",
+        name: "vin",
+        netId: "net-vin",
+        direction: "output",
+        interfaceInstanceIds: ["P2"],
+      },
+    );
     document.routes.push({
       id: "route-vin-r1",
       netId: "net-vin",
@@ -2349,25 +2358,21 @@ describe("routing Edit Engine", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    const cellTerminal = result.document.netlist!.terminals[0]!;
-    expect(cellTerminal).toMatchObject({
-      netId: "net-vin",
-      interfaceInstanceIds: ["P1", "P2"],
-    });
-    expect(
-      result.document.nets.find((net) => net.id === "net-vin")?.terminals,
-    ).toEqual([
-      { instanceId: "P1", pinName: "P" },
-      { instanceId: "P2", pinName: "P" },
-    ]);
-    expect(
+    const netOf = (instanceId: string) =>
       result.document.nets.find((net) =>
-        net.terminals.some(
-          (terminal) =>
-            terminal.instanceId === "R1" && terminal.pinName === "1",
-        ),
-      )?.id,
-    ).not.toBe("net-vin");
+        net.terminals.some((terminal) => terminal.instanceId === instanceId),
+      );
+    const first = result.document.netlist!.terminals.find(
+      (terminal) => terminal.id === "terminal-vin-1",
+    )!;
+    const second = result.document.netlist!.terminals.find(
+      (terminal) => terminal.id === "terminal-vin-2",
+    )!;
+    expect(first.netId).toBe(netOf("P1")?.id);
+    expect(second.netId).toBe(netOf("P2")?.id);
+    expect(first.netId).not.toBe(second.netId);
+    expect(netOf("R1")?.id).not.toBe(first.netId);
+    expect(netOf("R1")?.id).not.toBe(second.netId);
   });
 
   it("removes redundant cycle geometry without splitting the Net", () => {

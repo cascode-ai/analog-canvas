@@ -1989,23 +1989,16 @@ export function executeTransaction(
           }
           for (const cellTerminal of draft.netlist?.terminals ?? []) {
             if (cellTerminal.netId !== net.id) continue;
-            const groupNetIds = new Set(
-              cellTerminal.interfaceInstanceIds.flatMap((instanceId) => {
-                const groupNetId = netIdByEndpoint.get(
-                  endpointKey({ kind: "terminal", instanceId, pinName: "P" }),
-                );
-                return groupNetId ? [groupNetId] : [];
-              }),
-            );
-            if (groupNetIds.size > 1) {
-              return rejectAt(
-                "EDIT_PRECONDITION",
-                `Cut would separate repeated Cell Pin ${cellTerminal.name}; remove or reconnect a marker first`,
-                [],
-                [...cellTerminal.interfaceInstanceIds],
-              );
-            }
-            const groupNetId = [...groupNetIds][0];
+            const interfaceInstanceId = cellTerminal.interfaceInstanceIds[0];
+            const groupNetId = interfaceInstanceId
+              ? netIdByEndpoint.get(
+                  endpointKey({
+                    kind: "terminal",
+                    instanceId: interfaceInstanceId,
+                    pinName: "P",
+                  }),
+                )
+              : undefined;
             if (groupNetId && groupNetId !== cellTerminal.netId) {
               cellTerminal.netId = groupNetId;
               changedObjectIds.add(cellTerminal.id);

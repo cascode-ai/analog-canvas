@@ -6,7 +6,7 @@ import type {
   ExternalSubcircuitDefinition,
   SchematicDocument,
 } from "@icm/model";
-import { deriveStableId } from "@icm/model";
+import { deriveStableId, projectCellInterface } from "@icm/model";
 import {
   createReferenceIndex,
   hierarchyReferencePolicy,
@@ -21,6 +21,7 @@ import {
   resolvePdkSymbolMapping,
   resolvePdkSymbolMappingForTerminalOrder,
 } from "@icm/symbols";
+import { resolveEndpointConnection } from "@icm/derived";
 
 import type { ProjectStructureEdit } from "./project-transaction.js";
 import {
@@ -103,6 +104,191 @@ function transactDocument(
     expectedRevision: document.revision,
     edits,
   };
+}
+
+function instanceReferencesPin(
+  document: SchematicDocument,
+  instanceId: string,
+  pinName: string,
+): boolean {
+  return (
+    document.nets.some((net) =>
+      net.terminals.some(
+        (terminal) =>
+          terminal.instanceId === instanceId && terminal.pinName === pinName,
+      ),
+    ) ||
+    document.routes.some((route) =>
+      [route.from, route.to].some(
+        (endpoint) =>
+          endpoint.kind === "terminal" &&
+          endpoint.instanceId === instanceId &&
+          endpoint.pinName === pinName,
+      ),
+    ) ||
+    document.noConnects.some(
+      (noConnect) =>
+        noConnect.endpoint.instanceId === instanceId &&
+        noConnect.endpoint.pinName === pinName,
+    ) ||
+    (
+      document.instances.find((instance) => instance.id === instanceId)
+        ?.importProvenance?.terminalMapping ?? []
+    ).some((terminal) => terminal.pinName === pinName)
+  );
+}
+
+interface CallerPinRename {
+  readonly source: string;
+  readonly target: string;
+}
+
+function gapDetachedCallerJunctions(
+  document: SchematicDocument,
+  resolver: ReturnType<typeof createProjectSymbolResolver>,
+  edits: DocumentEdits,
+): DocumentEdits {
+  const terminalByJunctionId = new Map<
+    string,
+    { instanceId: string; pinName: string }
+  >();
+  for (const edit of edits) {
+    if (edit.kind !== "set_route_points") continue;
+    const original = document.routes.find((route) => route.id === edit.routeId);
+    if (!original) continue;
+    for (const [before, after] of [
+      [original.from, edit.from],
+      [original.to, edit.to],
+    ] as const) {
+      if (before.kind !== "terminal" || after.kind !== "junction") continue;
+      terminalByJunctionId.set(after.junctionId, {
+        instanceId: before.instanceId,
+        pinName: before.pinName,
+      });
+    }
+  }
+  if (terminalByJunctionId.size === 0) return edits;
+
+  return edits.map((edit) => {
+    if (edit.kind !== "add_junction") return edit;
+    const terminal = terminalByJunctionId.get(edit.junctionId);
+    if (!terminal) return edit;
+    const connection = resolveEndpointConnection(document, resolver, {
+      kind: "terminal",
+      ...terminal,
+    });
+    if (!connection?.outward) return edit;
+    const grid = document.presentation.grid;
+    return {
+      ...edit,
+      position: {
+        x: connection.gridLanding.x + connection.outward.x * grid,
+        y: connection.gridLanding.y + connection.outward.y * grid,
+      },
+    };
+  });
+}
+
+/**
+ * Keeps caller drawings valid when the read-only formal interface projection
+ * changes. Removed formal pins are detached to Junctions; canonical spelling
+ * changes are strictly one-to-one. Neither path aliases or merges parent Nets.
+ */
+function planCallerInterfaceChanges(
+  project: CircuitProject,
+  childDocumentId: string,
+  disappearingPinNames: readonly string[],
+  pinRenames: readonly CallerPinRename[],
+): {
+  readonly beforeChild: readonly ProjectStructureEdit[];
+  readonly afterChild: readonly ProjectStructureEdit[];
+} {
+  const resolver = createProjectSymbolResolver(project, builtInSymbols);
+  const uniqueDisappearingPinNames = [...new Set(disappearingPinNames)];
+  const uniquePinRenames = [
+    ...new Map(
+      pinRenames
+        .filter((rename) => rename.source !== rename.target)
+        .map((rename) => [rename.source, rename]),
+    ).values(),
+  ];
+  const beforeChild: ProjectStructureEdit[] = [];
+  const afterChild: ProjectStructureEdit[] = [];
+
+  for (const parent of project.documents) {
+    const callers = parent.instances.filter((instance) => {
+      const binding = instance.netlist?.binding;
+      return (
+        binding?.kind === "subcircuit" &&
+        binding.childDocumentId === childDocumentId
+      );
+    });
+    if (callers.length === 0) continue;
+
+    const detachTargets: { instanceId: string; pinName: string }[] = [];
+    const reconcileEdits: DocumentEdits = [];
+    for (const instance of callers) {
+      const referencedDisappearingPins = uniqueDisappearingPinNames.filter(
+        (pinName) => instanceReferencesPin(parent, instance.id, pinName),
+      );
+      detachTargets.push(
+        ...referencedDisappearingPins.map((pinName) => ({
+          instanceId: instance.id,
+          pinName,
+        })),
+      );
+      const pinMap = Object.fromEntries(
+        uniquePinRenames
+          .filter((rename) =>
+            instanceReferencesPin(parent, instance.id, rename.source),
+          )
+          .map((rename) => [rename.source, rename.target]),
+      );
+      if (
+        referencedDisappearingPins.length === 0 &&
+        Object.keys(pinMap).length === 0
+      ) {
+        continue;
+      }
+      reconcileEdits.push({
+        kind: "set_instance_symbol",
+        instanceId: instance.id,
+        symbolId: instance.symbolId,
+        ...(instance.symbolVariantId
+          ? { symbolVariantId: instance.symbolVariantId }
+          : {}),
+        ...(Object.keys(pinMap).length > 0 ? { pinMap } : {}),
+      });
+    }
+    if (reconcileEdits.length === 0) continue;
+
+    const detachEdits = gapDetachedCallerJunctions(
+      parent,
+      resolver,
+      planTerminalDeletion(
+        parent,
+        resolver,
+        detachTargets,
+        project.structureRevision + 2,
+      ),
+    );
+    if (detachEdits.length > 0) {
+      beforeChild.push({
+        kind: "transact_document",
+        documentId: parent.id,
+        expectedRevision: parent.revision,
+        edits: detachEdits,
+      });
+    }
+    afterChild.push({
+      kind: "transact_document",
+      documentId: parent.id,
+      expectedRevision: parent.revision + (detachEdits.length > 0 ? 1 : 0),
+      edits: reconcileEdits,
+    });
+  }
+
+  return { beforeChild, afterChild };
 }
 
 function externalDefinitionId(masterName: string): string {
@@ -458,8 +644,13 @@ export function planCreateCellPin(
   const document = requireDocument(project, documentId);
   if (!document.netlist)
     throw new Error(`Cell has no interface: ${documentId}`);
-  if (!input.terminal.interfaceInstanceIds.includes(input.instance.id)) {
-    throw new Error("Cell terminal must reference the placed Port Instance");
+  if (
+    input.terminal.interfaceInstanceIds.length !== 1 ||
+    input.terminal.interfaceInstanceIds[0] !== input.instance.id
+  ) {
+    throw new Error(
+      "A Cell terminal must own exactly its placed Port Instance",
+    );
   }
   if (
     input.instance.symbolId !== "port" &&
@@ -468,88 +659,12 @@ export function planCreateCellPin(
     throw new Error(
       `Cell interface marker must be a Port: ${input.instance.symbolId}`,
     );
-  }
-  if (
-    document.netlist.terminals.some(
-      (item) =>
-        item.name.localeCompare(input.terminal.name, undefined, {
-          sensitivity: "base",
-        }) === 0,
-    )
-  ) {
-    throw new Error(`Cell Pin name already exists: ${input.terminal.name}`);
   }
   return [
     transactDocument(project, documentId, [
       { kind: "add_instance", instance: input.instance },
       ...input.connectionEdits,
       { kind: "add_cell_terminal", terminal: input.terminal },
-      ...(input.annotation
-        ? [
-            {
-              kind: "upsert_schematic_annotation" as const,
-              annotation: input.annotation,
-            },
-          ]
-        : []),
-    ]),
-  ];
-}
-
-/**
- * Add another drawing marker for an existing Cell Pin. The ordered interface
- * terminal remains singular; every marker projects the same name, direction,
- * and electrical Net.
- */
-export function planAttachCellPinMarker(
-  project: CircuitProject,
-  documentId: string,
-  input: {
-    instance: SchematicDocument["instances"][number];
-    connectionEdits: DocumentEdits;
-    terminalId: string;
-    markerNetId: string;
-    annotation?: Annotation;
-  },
-): ProjectStructureEdit[] {
-  const document = requireDocument(project, documentId);
-  if (!document.netlist)
-    throw new Error(`Cell has no interface: ${documentId}`);
-  if (
-    input.instance.symbolId !== "port" &&
-    input.instance.symbolId !== "port-filled"
-  ) {
-    throw new Error(
-      `Cell interface marker must be a Port: ${input.instance.symbolId}`,
-    );
-  }
-  const terminal = document.netlist.terminals.find(
-    (candidate) => candidate.id === input.terminalId,
-  );
-  if (!terminal) {
-    throw new Error(`Cell terminal does not exist: ${input.terminalId}`);
-  }
-  return [
-    transactDocument(project, documentId, [
-      { kind: "add_instance", instance: input.instance },
-      ...input.connectionEdits,
-      ...(input.markerNetId === terminal.netId
-        ? []
-        : [
-            {
-              kind: "merge_nets" as const,
-              targetNetId: terminal.netId,
-              sourceNetId: input.markerNetId,
-            },
-          ]),
-      {
-        kind: "update_cell_terminal",
-        terminalId: terminal.id,
-        interfaceInstanceIds: [
-          ...terminal.interfaceInstanceIds,
-          input.instance.id,
-        ],
-      },
       ...(input.annotation
         ? [
             {
@@ -863,133 +978,6 @@ export function planRenameCellTerminal(
       `Cell terminal does not exist: ${childDocumentId}.${terminalId}`,
     );
   }
-  const mergeTarget = child.netlist.terminals.find(
-    (candidate) =>
-      candidate.id !== terminalId &&
-      candidate.name.toLowerCase() === newName.toLowerCase(),
-  );
-  if (mergeTarget) {
-    const childEdits: DocumentEdits = [
-      ...(terminal.netId === mergeTarget.netId
-        ? []
-        : [
-            {
-              kind: "merge_nets" as const,
-              targetNetId: mergeTarget.netId,
-              sourceNetId: terminal.netId,
-            },
-          ]),
-      {
-        kind: "update_cell_terminal",
-        terminalId: mergeTarget.id,
-        interfaceInstanceIds: [
-          ...mergeTarget.interfaceInstanceIds,
-          ...terminal.interfaceInstanceIds,
-        ],
-      },
-      ...child.annotations
-        .filter(
-          (annotation) =>
-            annotation.binding?.kind === "cell-terminal-name" &&
-            annotation.binding.terminalId === terminal.id,
-        )
-        .map((annotation) => {
-          const { formatOverride: _formatOverride, ...rest } = annotation;
-          return {
-            kind: "upsert_schematic_annotation" as const,
-            annotation: {
-              ...rest,
-              binding: {
-                kind: "cell-terminal-name" as const,
-                terminalId: mergeTarget.id,
-              },
-            },
-          };
-        }),
-      { kind: "remove_cell_terminal", terminalId: terminal.id },
-    ];
-    const edits: ProjectStructureEdit[] = [
-      transactDocument(project, child.id, childEdits),
-    ];
-    for (const parent of project.documents) {
-      const callerEdits: DocumentEdits = [];
-      for (const instance of parent.instances) {
-        const binding = instance.netlist?.binding;
-        if (
-          binding?.kind !== "subcircuit" ||
-          binding.childDocumentId !== child.id
-        ) {
-          continue;
-        }
-        const sourceNet = parent.nets.find((net) =>
-          net.terminals.some(
-            (reference) =>
-              reference.instanceId === instance.id &&
-              reference.pinName === terminal.name,
-          ),
-        );
-        const targetNet = parent.nets.find((net) =>
-          net.terminals.some(
-            (reference) =>
-              reference.instanceId === instance.id &&
-              reference.pinName === mergeTarget.name,
-          ),
-        );
-        if (sourceNet && targetNet && sourceNet.id !== targetNet.id) {
-          callerEdits.push({
-            kind: "merge_nets",
-            targetNetId: targetNet.id,
-            sourceNetId: sourceNet.id,
-          });
-        }
-        const sourceReferenced =
-          sourceNet !== undefined ||
-          parent.routes.some((route) =>
-            [route.from, route.to].some(
-              (endpoint) =>
-                endpoint.kind === "terminal" &&
-                endpoint.instanceId === instance.id &&
-                endpoint.pinName === terminal.name,
-            ),
-          ) ||
-          parent.noConnects.some(
-            (noConnect) =>
-              noConnect.endpoint.instanceId === instance.id &&
-              noConnect.endpoint.pinName === terminal.name,
-          ) ||
-          (instance.importProvenance?.terminalMapping ?? []).some(
-            (reference) => reference.pinName === terminal.name,
-          );
-        callerEdits.push({
-          kind: "set_instance_symbol",
-          instanceId: instance.id,
-          symbolId: hierarchicalSymbolId(child.netlist.name),
-          ...(sourceReferenced
-            ? { pinMap: { [terminal.name]: mergeTarget.name } }
-            : {}),
-        });
-      }
-      if (callerEdits.length > 0) {
-        edits.push(transactDocument(project, parent.id, callerEdits));
-      }
-    }
-    return edits;
-  }
-  if (
-    child.netlist.terminals.some(
-      (candidate) => candidate.id !== terminalId && candidate.name === newName,
-    )
-  ) {
-    // Renaming onto an existing interface name is ambiguous — it reads as
-    // either "these are one pin" or a typo — and folding two formal terminals
-    // together would silently rewrite the Cell interface every parent
-    // Instance resolves against. Repeating a local Net name is the Net Label's
-    // responsibility, not a second view of the same formal pin.
-    throw new Error(
-      `Cell terminal name already exists: ${newName}. Use a Net Label to repeat an internal Net name.`,
-    );
-  }
-
   const terminalRename = terminal.name !== newName;
   const annotationEdits = child.annotations
     .filter(
@@ -1026,80 +1014,79 @@ export function planRenameCellTerminal(
     });
   if (!terminalRename && annotationEdits.length === 0) return [];
 
-  const edits: ProjectStructureEdit[] = [
-    {
-      kind: "transact_document",
-      documentId: child.id,
-      expectedRevision: child.revision,
-      edits: [
-        ...(terminalRename
-          ? [
-              {
-                kind: "update_cell_terminal" as const,
-                terminalId,
-                name: newName,
-              },
-            ]
-          : []),
-        ...annotationEdits,
-      ],
-    },
-  ];
-  if (!terminalRename) return edits;
-  for (const parent of project.documents) {
-    const callerEdits: Extract<
-      ProjectStructureEdit,
-      { kind: "transact_document" }
-    >["edits"] = [];
-    for (const instance of parent.instances) {
-      const binding = instance.netlist?.binding;
-      if (
-        binding?.kind !== "subcircuit" ||
-        binding.childDocumentId !== child.id
-      )
-        continue;
-      const referencesOldPin =
-        parent.nets.some((net) =>
-          net.terminals.some(
-            (reference) =>
-              reference.instanceId === instance.id &&
-              reference.pinName === terminal.name,
-          ),
-        ) ||
-        parent.routes.some((route) =>
-          [route.from, route.to].some(
-            (endpoint) =>
-              endpoint.kind === "terminal" &&
-              endpoint.instanceId === instance.id &&
-              endpoint.pinName === terminal.name,
-          ),
-        ) ||
-        parent.noConnects.some(
-          (noConnect) =>
-            noConnect.endpoint.instanceId === instance.id &&
-            noConnect.endpoint.pinName === terminal.name,
-        ) ||
-        (instance.importProvenance?.terminalMapping ?? []).some(
-          (reference) => reference.pinName === terminal.name,
-        );
-      if (!referencesOldPin) continue;
-      callerEdits.push({
-        kind: "set_instance_symbol",
-        instanceId: instance.id,
-        symbolId: hierarchicalSymbolId(child.netlist.name),
-        pinMap: { [terminal.name]: newName },
-      });
+  const childEdit: ProjectStructureEdit = {
+    kind: "transact_document",
+    documentId: child.id,
+    expectedRevision: child.revision,
+    edits: [
+      ...(terminalRename
+        ? [
+            {
+              kind: "update_cell_terminal" as const,
+              terminalId,
+              name: newName,
+            },
+          ]
+        : []),
+      ...annotationEdits,
+    ],
+  };
+  if (!terminalRename) return [childEdit];
+
+  const beforeProjection = projectCellInterface(child.netlist);
+  const afterProjection = projectCellInterface({
+    ...child.netlist,
+    terminals: child.netlist.terminals.map((candidate) =>
+      candidate.id === terminalId ? { ...candidate, name: newName } : candidate,
+    ),
+  });
+  const beforeByKey = new Map(
+    beforeProjection.ports.map((port) => [port.key, port]),
+  );
+  const afterByKey = new Map(
+    afterProjection.ports.map((port) => [port.key, port]),
+  );
+  const selectedBeforePort = beforeProjection.ports.find((port) =>
+    port.terminalIds.includes(terminalId),
+  )!;
+  const selectedAfterPort = afterProjection.ports.find((port) =>
+    port.terminalIds.includes(terminalId),
+  )!;
+  const disappearingPinNames: string[] = [];
+  const pinRenames: CallerPinRename[] = [];
+
+  for (const beforePort of beforeProjection.ports) {
+    const afterPort = afterByKey.get(beforePort.key);
+    if (afterPort) {
+      if (beforePort.name !== afterPort.name) {
+        pinRenames.push({ source: beforePort.name, target: afterPort.name });
+      }
+      continue;
     }
-    if (callerEdits.length > 0) {
-      edits.push({
-        kind: "transact_document",
-        documentId: parent.id,
-        expectedRevision: parent.revision,
-        edits: callerEdits,
+
+    // A renamed Pin can either move a formal port one-to-one or make the old
+    // formal port disappear by joining a group that already existed. Only the
+    // former is a rename; the latter must detach the old caller endpoint.
+    if (
+      beforePort.key === selectedBeforePort.key &&
+      !beforeByKey.has(selectedAfterPort.key)
+    ) {
+      pinRenames.push({
+        source: beforePort.name,
+        target: selectedAfterPort.name,
       });
+    } else {
+      disappearingPinNames.push(beforePort.name);
     }
   }
-  return edits;
+
+  const callerChanges = planCallerInterfaceChanges(
+    project,
+    child.id,
+    disappearingPinNames,
+    pinRenames,
+  );
+  return [...callerChanges.beforeChild, childEdit, ...callerChanges.afterChild];
 }
 
 /**
@@ -1175,57 +1162,6 @@ export function planRemoveCellTerminal(
   );
 }
 
-export function planRemoveCellTerminalMarkers(
-  project: CircuitProject,
-  documentId: string,
-  markerInstanceIds: readonly string[],
-  instanceDeletionEdits: DocumentEdits,
-): ProjectStructureEdit[] {
-  const document = requireDocument(project, documentId);
-  if (!document.netlist)
-    throw new Error(`Cell has no interface: ${documentId}`);
-  const selected = new Set(markerInstanceIds);
-  if (selected.size === 0) return [];
-  const matched = new Set<string>();
-  const retainedTerminalEdits: DocumentEdits = [];
-  const removedTerminalIds: string[] = [];
-  for (const terminal of document.netlist.terminals) {
-    const removed = terminal.interfaceInstanceIds.filter((instanceId) =>
-      selected.has(instanceId),
-    );
-    if (removed.length === 0) continue;
-    removed.forEach((instanceId) => matched.add(instanceId));
-    const remaining = terminal.interfaceInstanceIds.filter(
-      (instanceId) => !selected.has(instanceId),
-    );
-    if (remaining.length > 0) {
-      retainedTerminalEdits.push({
-        kind: "update_cell_terminal",
-        terminalId: terminal.id,
-        interfaceInstanceIds: remaining,
-      });
-    } else {
-      removedTerminalIds.push(terminal.id);
-    }
-  }
-  const unknown = [...selected].find((instanceId) => !matched.has(instanceId));
-  if (unknown) {
-    throw new Error(`Cell Pin marker does not exist: ${unknown}`);
-  }
-  if (removedTerminalIds.length === 0) {
-    return [
-      transactDocument(project, documentId, [
-        ...retainedTerminalEdits,
-        ...instanceDeletionEdits,
-      ]),
-    ];
-  }
-  return planRemoveCellTerminals(project, documentId, removedTerminalIds, [
-    ...retainedTerminalEdits,
-    ...instanceDeletionEdits,
-  ]);
-}
-
 /**
  * Removes Cell Pins and detaches every child and caller wire to a Junction in
  * one Project transaction. Interface consistency is automatic; callers never
@@ -1252,6 +1188,27 @@ export function planRemoveCellTerminals(
     }
     return terminal;
   });
+  const retainedTerminals = document.netlist.terminals.filter(
+    (terminal) => !requestedIds.has(terminal.id),
+  );
+  const beforeProjection = projectCellInterface(document.netlist);
+  const afterProjection = projectCellInterface({
+    ...document.netlist,
+    terminals: retainedTerminals,
+  });
+  const afterByKey = new Map(
+    afterProjection.ports.map((port) => [port.key, port]),
+  );
+  const disappearingCallerPinNames: string[] = [];
+  const pinRenames: CallerPinRename[] = [];
+  for (const beforePort of beforeProjection.ports) {
+    const afterPort = afterByKey.get(beforePort.key);
+    if (!afterPort) {
+      disappearingCallerPinNames.push(beforePort.name);
+    } else if (beforePort.name !== afterPort.name) {
+      pinRenames.push({ source: beforePort.name, target: afterPort.name });
+    }
+  }
   const terminalInstanceIds = new Set(
     terminals.flatMap((terminal) => terminal.interfaceInstanceIds),
   );
@@ -1275,58 +1232,20 @@ export function planRemoveCellTerminals(
     })),
     ...instanceRemovalEdits,
   ];
-  const callerDetachEdits: ProjectStructureEdit[] = [];
-  const callerReconcileEdits: ProjectStructureEdit[] = [];
-  for (const parent of project.documents) {
-    const callers = parent.instances.filter((instance) => {
-      const binding = instance.netlist?.binding;
-      return (
-        binding?.kind === "subcircuit" && binding.childDocumentId === documentId
-      );
-    });
-    if (callers.length === 0) continue;
-    const detachEdits = planTerminalDeletion(
-      parent,
-      resolver,
-      callers.flatMap((instance) =>
-        terminals.map((terminal) => ({
-          instanceId: instance.id,
-          pinName: terminal.name,
-        })),
-      ),
-      project.structureRevision + 2,
-    );
-    const reconcileEdits: DocumentEdits = callers.map((instance) => ({
-      kind: "set_instance_symbol",
-      instanceId: instance.id,
-      symbolId: instance.symbolId,
-      ...(instance.symbolVariantId
-        ? { symbolVariantId: instance.symbolVariantId }
-        : {}),
-    }));
-    if (detachEdits.length > 0) {
-      callerDetachEdits.push({
-        kind: "transact_document",
-        documentId: parent.id,
-        expectedRevision: parent.revision,
-        edits: detachEdits,
-      });
-      callerReconcileEdits.push({
-        kind: "transact_document",
-        documentId: parent.id,
-        expectedRevision: parent.revision + 1,
-        edits: reconcileEdits,
-      });
-    }
-  }
+  const callerChanges = planCallerInterfaceChanges(
+    project,
+    documentId,
+    disappearingCallerPinNames,
+    pinRenames,
+  );
   return [
-    ...callerDetachEdits,
+    ...callerChanges.beforeChild,
     {
       kind: "transact_document",
       documentId,
       expectedRevision: document.revision,
       edits,
     },
-    ...callerReconcileEdits,
+    ...callerChanges.afterChild,
   ];
 }

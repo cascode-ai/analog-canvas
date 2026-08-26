@@ -5,11 +5,10 @@ import { createEmptyDocument, createEmptyProject } from "@icm/model";
 import {
   createExternalSubcircuitInstance,
   createHierarchyInstance,
-  planAttachCellPinMarker,
   planCreateCellPin,
   planDeleteCell,
   planPlaceCellInstance,
-  planRemoveCellTerminalMarkers,
+  planRemoveCellTerminal,
   planReorderCellTerminal,
   planRenameCellTerminal,
   planSetMosModelTarget,
@@ -148,7 +147,7 @@ describe("hierarchy domain planners", () => {
     });
   });
 
-  it("attaches a repeated Cell Pin name as another marker of the same interface", () => {
+  it("creates a repeated Cell Pin name as an independent interface", () => {
     const project = createEmptyProject("project", "Project");
     const port = (id: string, x: number) => ({
       id,
@@ -187,11 +186,11 @@ describe("hierarchy domain planners", () => {
 
     if (!first.ok) throw new Error(first.error.message);
     const second = executeProjectTransaction(first.project, {
-      transactionId: "attach-port-marker",
+      transactionId: "add-independent-port",
       projectId: project.id,
       expectedStructureRevision: first.project.structureRevision,
       actor: { kind: "human", id: "test" },
-      edits: planAttachCellPinMarker(first.project, project.topDocumentId, {
+      edits: planCreateCellPin(first.project, project.topDocumentId, {
         instance: port("P2", 200),
         connectionEdits: [
           {
@@ -201,8 +200,13 @@ describe("hierarchy domain planners", () => {
             newNetId: "net-marker-p2",
           },
         ],
-        terminalId: "terminal-in",
-        markerNetId: "net-marker-p2",
+        terminal: {
+          id: "terminal-in-copy",
+          name: "in",
+          netId: "net-marker-p2",
+          direction: "output",
+          interfaceInstanceIds: ["P2"],
+        },
       }),
     });
     expect(second).toMatchObject({
@@ -215,18 +219,26 @@ describe("hierarchy domain planners", () => {
                 {
                   id: "terminal-in",
                   name: "IN",
-                  interfaceInstanceIds: ["P1", "P2"],
+                  interfaceInstanceIds: ["P1"],
                   netId: "net-in",
+                },
+                {
+                  id: "terminal-in-copy",
+                  name: "in",
+                  direction: "output",
+                  interfaceInstanceIds: ["P2"],
+                  netId: "net-marker-p2",
                 },
               ],
             },
             nets: [
               {
                 id: "net-in",
-                terminals: [
-                  { instanceId: "P1", pinName: "P" },
-                  { instanceId: "P2", pinName: "P" },
-                ],
+                terminals: [{ instanceId: "P1", pinName: "P" }],
+              },
+              {
+                id: "net-marker-p2",
+                terminals: [{ instanceId: "P2", pinName: "P" }],
               },
             ],
           },
@@ -235,14 +247,14 @@ describe("hierarchy domain planners", () => {
     });
     if (!second.ok) throw new Error(second.error.message);
     const removedCopy = executeProjectTransaction(second.project, {
-      transactionId: "remove-port-marker",
+      transactionId: "remove-independent-port",
       projectId: project.id,
       expectedStructureRevision: second.project.structureRevision,
       actor: { kind: "human", id: "test" },
-      edits: planRemoveCellTerminalMarkers(
+      edits: planRemoveCellTerminal(
         second.project,
         project.topDocumentId,
-        ["P2"],
+        "terminal-in-copy",
         [
           {
             kind: "disconnect_endpoint",
@@ -261,6 +273,12 @@ describe("hierarchy domain planners", () => {
             netlist: {
               terminals: [{ id: "terminal-in", interfaceInstanceIds: ["P1"] }],
             },
+            nets: [
+              {
+                id: "net-in",
+                terminals: [{ instanceId: "P1", pinName: "P" }],
+              },
+            ],
           },
         ],
       },
@@ -286,7 +304,7 @@ describe("hierarchy domain planners", () => {
     ).toEqual([]);
   });
 
-  it("merges an existing Cell Pin onto a case-insensitive matching name", () => {
+  it("renames a Cell Pin to an existing name without merging identity or Net", () => {
     const project = createEmptyProject("project", "Project");
     const document = project.documents[0]!;
     document.instances.push(
@@ -344,17 +362,24 @@ describe("hierarchy domain planners", () => {
                   id: "terminal-in",
                   name: "IN",
                   netId: "net-in-a",
-                  interfaceInstanceIds: ["P1", "P2"],
+                  interfaceInstanceIds: ["P1"],
+                },
+                {
+                  id: "terminal-alias",
+                  name: "in",
+                  netId: "net-in-b",
+                  interfaceInstanceIds: ["P2"],
                 },
               ],
             },
             nets: [
               {
                 id: "net-in-a",
-                terminals: [
-                  { instanceId: "P1", pinName: "P" },
-                  { instanceId: "P2", pinName: "P" },
-                ],
+                terminals: [{ instanceId: "P1", pinName: "P" }],
+              },
+              {
+                id: "net-in-b",
+                terminals: [{ instanceId: "P2", pinName: "P" }],
               },
             ],
           },

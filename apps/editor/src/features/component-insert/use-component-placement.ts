@@ -9,7 +9,6 @@ import type {
 import {
   createHierarchyInstance,
   createExternalSubcircuitInstance,
-  planAttachCellPinMarker,
   planCreateCellPin,
   planPlaceExternalSubcircuitInstance,
   planPlaceCellInstance,
@@ -486,21 +485,11 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
           connectedNet.id,
         )
       : undefined;
-    const occupiedTerminalNames = new Set(
-      (options.document.netlist?.terminals ?? []).map((terminal) =>
-        terminal.name.toLowerCase(),
-      ),
-    );
     const connectedName = connectedLogicalNet?.name?.trim();
     const formalName =
       placementRequest.portName?.trim() ||
-      (connectedName && !occupiedTerminalNames.has(connectedName.toLowerCase())
-        ? connectedName
-        : undefined) ||
+      connectedName ||
       nextCellPinName(options.document);
-    const existingTerminal = options.document.netlist?.terminals.find(
-      (terminal) => terminal.name.toLowerCase() === formalName.toLowerCase(),
-    );
     const baseNetId = `net-cell-pin-${id.toLowerCase()}`;
     let netId = contact.netId ?? baseNetId;
     let netSuffix = 2;
@@ -537,42 +526,29 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
       instance,
       options.resolver,
       options.styleProfile,
-      {
-        formalTerminalId:
-          existingTerminal?.id ?? `terminal-${id.toLowerCase()}`,
-      },
+      { formalTerminalId: `terminal-${id.toLowerCase()}` },
     );
     const annotation = annotations[0] ? { ...annotations[0] } : undefined;
     const committed = options.transactProject(
       "place-cell-pin",
-      existingTerminal
-        ? planAttachCellPinMarker(options.project, options.document.id, {
-            instance,
-            connectionEdits,
-            terminalId: existingTerminal.id,
-            markerNetId: netId,
-            ...(annotation ? { annotation } : {}),
-          })
-        : planCreateCellPin(options.project, options.document.id, {
-            instance,
-            connectionEdits,
-            terminal: {
-              id: `terminal-${id.toLowerCase()}`,
-              name: formalName,
-              netId,
-              direction: placementRequest.direction,
-              interfaceInstanceIds: [id],
-            },
-            ...(annotation ? { annotation } : {}),
-          }),
+      planCreateCellPin(options.project, options.document.id, {
+        instance,
+        connectionEdits,
+        terminal: {
+          id: `terminal-${id.toLowerCase()}`,
+          name: formalName,
+          netId,
+          direction: placementRequest.direction,
+          interfaceInstanceIds: [id],
+        },
+        ...(annotation ? { annotation } : {}),
+      }),
     );
     if (!committed) return;
     options.selectOnly("instance", [id]);
     options.setComponentPreviewPoint(position);
     options.setStatus(
-      existingTerminal
-        ? `Added another marker for Cell Pin ${formalName} · click to place another · Esc exits`
-        : `Added Cell Pin ${formalName} · click to place another · Esc exits`,
+      `Added Cell Pin ${formalName} · click to place another · Esc exits`,
     );
   };
 

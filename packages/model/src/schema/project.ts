@@ -5,6 +5,7 @@ import { SourceManifestSchema, SymbolLibraryLockSchema } from "./source.js";
 import { SchematicDocumentSchema } from "./document.js";
 import { CellSymbolPresentationSchema } from "./presentation.js";
 import { reportDuplicateIds } from "./validation.js";
+import { projectCellInterface } from "../cell-interface-projection.js";
 
 export const ExternalSubcircuitTerminalSchema = z.strictObject({
   /** Stable interface identity. Name and presentation may change independently. */
@@ -166,7 +167,7 @@ export const CircuitProjectSchema = z
           continue;
         }
         const childPinNames = new Set(
-          child.netlist.terminals.map((terminal) => terminal.name),
+          projectCellInterface(child.netlist).ports.map((port) => port.name),
         );
         const referencedPins: Array<{
           pinName: string;

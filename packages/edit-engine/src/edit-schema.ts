@@ -153,7 +153,6 @@ export const UpdateCellTerminalEditSchema = z.strictObject({
   terminalId: StableIdSchema,
   name: z.string().min(1).max(128).optional(),
   direction: z.enum(["input", "output", "inout", "passive"]).optional(),
-  interfaceInstanceIds: z.array(StableIdSchema).min(1).optional(),
 });
 export const RemoveCellTerminalEditSchema = z.strictObject({
   kind: z.literal("remove_cell_terminal"),

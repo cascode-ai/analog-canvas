@@ -531,35 +531,6 @@ function pastedSchematicReference(
 }
 
 /**
- * A copied Cell Pin is a new formal interface, not another visual projection
- * of the source terminal. Preserve the source name when pasting into another
- * Document where it is free; an in-place copy receives a stable, readable
- * suffix instead. Cell-terminal names are unique case-insensitively.
- */
-function pastedCellTerminalName(
-  sourceName: string,
-  occupiedNames: Set<string>,
-): string {
-  const claim = (candidate: string): string | null => {
-    const folded = candidate.toLowerCase();
-    if (occupiedNames.has(folded)) return null;
-    occupiedNames.add(folded);
-    return candidate;
-  };
-  const unchanged = claim(sourceName);
-  if (unchanged) return unchanged;
-
-  let ordinal = 1;
-  while (true) {
-    const suffix = ordinal === 1 ? "_copy" : `_copy${ordinal}`;
-    const candidate = `${sourceName.slice(0, 128 - suffix.length)}${suffix}`;
-    const available = claim(candidate);
-    if (available) return available;
-    ordinal += 1;
-  }
-}
-
-/**
  * Rewrites a pasted instance-label whose text is still the copied reference
  * (or copied id) to the new reference, so a pasted R1 reads R2 on canvas.
  * The replacement content is rebuilt exactly like a freshly placed label
@@ -770,17 +741,6 @@ export function proposePaste(
       uniqueCopyId(terminal.id, sequence, occupied),
     ]),
   );
-  const occupiedTerminalNames = new Set(
-    (document.netlist?.terminals ?? []).map((terminal) =>
-      terminal.name.toLowerCase(),
-    ),
-  );
-  const terminalNames = new Map(
-    clipboard.cellTerminals.map((terminal) => [
-      terminal.id,
-      pastedCellTerminalName(terminal.name, occupiedTerminalNames),
-    ]),
-  );
   for (const net of clipboard.nets) {
     netIds.set(net.id, uniqueCopyId(net.id, sequence, occupied));
   }
@@ -842,7 +802,6 @@ export function proposePaste(
       terminal: {
         ...terminal,
         id: terminalIds.get(terminal.id)!,
-        name: terminalNames.get(terminal.id)!,
         netId: netIds.get(terminal.netId) ?? terminal.netId,
         interfaceInstanceIds: copiedMarkerIds,
       },

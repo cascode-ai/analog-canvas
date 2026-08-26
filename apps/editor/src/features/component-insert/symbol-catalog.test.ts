@@ -4,6 +4,7 @@ import {
   componentCatalog,
   findPaletteSymbol,
   flattenComponentCatalog,
+  libraryDescription,
   symbolCategory,
 } from "./symbol-catalog";
 
@@ -57,6 +58,12 @@ describe("component insertion catalog", () => {
 
     expect(symbols.map((symbol) => symbol.id)).toEqual(["variable-resistor"]);
     expect(symbols[0]?.pins.map((pin) => pin.name)).toEqual(["P1", "P2"]);
+  });
+
+  it("describes the filled Cell Pin as an independent authoring object", () => {
+    expect(libraryDescription("port-filled")).toBe(
+      "An independent Cell Pin with a solid appearance",
+    );
   });
 
   it("searches canonical names and ids without exposing retired MOS entries", () => {

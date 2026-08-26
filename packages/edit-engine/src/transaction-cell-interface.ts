@@ -109,9 +109,6 @@ export function applyCellInterfaceEdit(
         }
       }
       if (edit.direction !== undefined) terminal.direction = edit.direction;
-      if (edit.interfaceInstanceIds !== undefined) {
-        terminal.interfaceInstanceIds = [...edit.interfaceInstanceIds];
-      }
       changedObjectIds.add(terminal.id);
       return { ok: true, connectivityChanged: true };
     }
