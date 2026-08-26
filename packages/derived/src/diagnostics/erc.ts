@@ -1,3 +1,4 @@
+import { projectCellInterface } from "@icm/model";
 import type { CircuitProject } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
@@ -204,7 +205,7 @@ export function runErcChecks(
       if (!resolved) continue;
       const pinNames = new Set(resolved.definition.pins.map((pin) => pin.name));
       const childTerminalNames = new Set(
-        child.netlist?.terminals.map((terminal) => terminal.name) ?? [],
+        projectCellInterface(child.netlist).ports.map((port) => port.name),
       );
       if (pinNames.size !== childTerminalNames.size) {
         diagnostics.push({
@@ -224,9 +225,9 @@ export function runErcChecks(
           },
         });
       }
-      const mismatchedTerminals = (child.netlist?.terminals ?? []).filter(
-        (terminal) => !pinNames.has(terminal.name),
-      );
+      const mismatchedTerminals = projectCellInterface(
+        child.netlist,
+      ).ports.filter((terminal) => !pinNames.has(terminal.name));
       const unmatchedPins = resolved.definition.pins.filter(
         (pin) => !childTerminalNames.has(pin.name),
       );
@@ -491,7 +492,7 @@ export function runErcChecks(
       if (!child || !resolved) continue;
       const pinNames = new Set(resolved.definition.pins.map((pin) => pin.name));
       const childPortNames = new Set(
-        child.netlist?.terminals.map((terminal) => terminal.name) ?? [],
+        projectCellInterface(child.netlist).ports.map((port) => port.name),
       );
       const compatible =
         pinNames.size === childPortNames.size &&
@@ -515,7 +516,9 @@ export function runErcChecks(
     const expectedNames = new Set(
       group.callers.flatMap((caller) => [...caller.pinNames]),
     );
-    const mismatchedTerminal = [...(group.child.netlist?.terminals ?? [])]
+    const mismatchedTerminal = [
+      ...projectCellInterface(group.child.netlist).ports,
+    ]
       .filter((terminal) => !expectedNames.has(terminal.name))
       .sort((left, right) => left.name.localeCompare(right.name, "en"))[0];
     const primary = directObjectLocator(

@@ -130,6 +130,43 @@ function connectDrainAndSource(project: CircuitProject): void {
 }
 
 describe("ERC engine", () => {
+  it("does not group independent same-name Cell Pins for live ERC", () => {
+    const project = emptyProject();
+    const document = project.documents[0]!;
+    document.instances.push(
+      { id: "P1", symbolId: "port", placement: null },
+      { id: "P2", symbolId: "port", placement: null },
+    );
+    document.nets.push(
+      { id: "net-a", terminals: [{ instanceId: "P1", pinName: "P" }] },
+      { id: "net-b", terminals: [{ instanceId: "P2", pinName: "P" }] },
+    );
+    document.netlist!.terminals.push(
+      {
+        id: "terminal-a",
+        name: "BUS",
+        netId: "net-a",
+        direction: "input",
+        interfaceInstanceIds: ["P1"],
+      },
+      {
+        id: "terminal-b",
+        name: "bus",
+        netId: "net-b",
+        direction: "output",
+        interfaceInstanceIds: ["P2"],
+      },
+    );
+    const before = structuredClone(project);
+
+    expect(
+      run(project).some(
+        (diagnostic) => diagnostic.code === "ERC_CELL_PORT_DIRECTION_CONFLICT",
+      ),
+    ).toBe(false);
+    expect(project).toEqual(before);
+  });
+
   it("is silent on a clean project where every pin is connected", () => {
     const project = emptyProject();
     const document = project.documents[0]!;

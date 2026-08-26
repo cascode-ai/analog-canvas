@@ -16,6 +16,13 @@ describe("Cell summary", () => {
       direction: "input",
       interfaceInstanceIds: ["P1"],
     });
+    child.netlist!.terminals.push({
+      id: "terminal-in-elsewhere",
+      name: "in",
+      netId: "net-in-elsewhere",
+      direction: "input",
+      interfaceInstanceIds: ["P2"],
+    });
     project.documents.push(child);
     for (const id of ["X1", "X2"]) {
       project.documents[0]!.instances.push({
@@ -41,7 +48,7 @@ describe("Cell summary", () => {
       }),
       expect.objectContaining({
         id: "child",
-        portCount: 1,
+        portCount: 2,
         callers: [
           expect.objectContaining({ instanceId: "X1" }),
           expect.objectContaining({ instanceId: "X2" }),

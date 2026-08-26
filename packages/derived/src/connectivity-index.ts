@@ -392,6 +392,7 @@ function deriveLabelVirtualEdges(
 function buildHierarchyIndex(
   project: CircuitProject,
   resolver: SymbolResolver,
+  documents: ReadonlyMap<string, DocumentConnectivityIndex>,
 ): HierarchyConnectivityIndex {
   const edges: HierarchyEdge[] = [];
   for (const parent of project.documents) {
@@ -402,16 +403,31 @@ function buildHierarchyIndex(
         (candidate) => candidate.id === childId,
       );
       if (!child) continue;
+      const childIndex = documents.get(childId);
+      if (!childIndex) continue;
       const resolved = resolver.resolve(
         instance.symbolId,
         instance.symbolVariantId,
       );
       if (!resolved) continue;
       for (const pin of resolved.definition.pins) {
-        const childTerminal = child.netlist?.terminals.find(
-          (terminal) => terminal.name === pin.name,
+        const childTerminals = (child.netlist?.terminals ?? []).filter(
+          (terminal) => foldNetName(terminal.name) === foldNetName(pin.name),
         );
-        if (!childTerminal) continue;
+        const childLogicalNets = childTerminals.map((terminal) =>
+          childIndex.logicalNetByBaseNetId.get(terminal.netId),
+        );
+        // A name identifies the projected interface pin, not electrical
+        // equivalence. Only preserve an edge when every authored member is
+        // already connected by the child's independent connectivity facts.
+        if (
+          childLogicalNets.length === 0 ||
+          childLogicalNets.some((record) => !record) ||
+          new Set(childLogicalNets.map((record) => record!.netId)).size !== 1
+        ) {
+          continue;
+        }
+        const childTerminal = childTerminals[0]!;
         edges.push({
           parentDocumentId: parent.id,
           instanceId: instance.id,
@@ -521,7 +537,7 @@ export function buildProjectConnectivityIndex(
     projectId: project.id,
     topDocumentId: project.topDocumentId,
     documents,
-    hierarchy: buildHierarchyIndex(project, resolver),
+    hierarchy: buildHierarchyIndex(project, resolver, documents),
     globalNets: buildGlobalNetIndex(project),
     objectIndex: buildObjectIndex(project),
   };

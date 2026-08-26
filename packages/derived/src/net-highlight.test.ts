@@ -1,5 +1,10 @@
 import { createEmptyDocument, createEmptyProject } from "@icm/model";
-import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
+import {
+  builtInSymbols,
+  createProjectSymbolResolver,
+  hierarchicalSymbolId,
+  InMemorySymbolResolver,
+} from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
 import { buildProjectConnectivityIndex } from "./connectivity-index.js";
@@ -273,5 +278,76 @@ describe("Net highlight", () => {
         (hop) => hop.direction !== "global" && hop.frame.instanceId === "X2",
       ),
     ).toBe(false);
+  });
+
+  it("does not trace between independent same-name child Cell Pins", () => {
+    const project = createEmptyProject("project", "Project", "top");
+    const top = project.documents[0]!;
+    const child = createEmptyDocument("child", "Child");
+    child.instances.push(
+      { id: "P1", symbolId: "port", placement: null },
+      { id: "P2", symbolId: "port", placement: null },
+    );
+    child.nets.push(
+      {
+        id: "net-vin-a",
+        terminals: [{ instanceId: "P1", pinName: "P" }],
+      },
+      {
+        id: "net-vin-b",
+        terminals: [{ instanceId: "P2", pinName: "P" }],
+      },
+    );
+    child.netlist!.terminals.push(
+      {
+        id: "terminal-vin-a",
+        name: "VIN",
+        netId: "net-vin-a",
+        direction: "input",
+        interfaceInstanceIds: ["P1"],
+      },
+      {
+        id: "terminal-vin-b",
+        name: "vin",
+        netId: "net-vin-b",
+        direction: "input",
+        interfaceInstanceIds: ["P2"],
+      },
+    );
+    project.documents.push(child);
+    top.instances.push({
+      id: "X1",
+      symbolId: hierarchicalSymbolId(child.netlist!.name),
+      placement: null,
+      netlist: {
+        reference: "X1",
+        parameters: {},
+        binding: { kind: "subcircuit", childDocumentId: child.id },
+      },
+    });
+    top.nets.push({
+      id: "net-parent",
+      terminals: [{ instanceId: "X1", pinName: "VIN" }],
+    });
+
+    const index = buildProjectConnectivityIndex(
+      project,
+      createProjectSymbolResolver(project, builtInSymbols),
+    );
+    const trace = traceHierarchyNet(index, child.id, "net-vin-a", undefined, [
+      {
+        parentDocumentId: top.id,
+        instanceId: "X1",
+        childDocumentId: child.id,
+      },
+    ]);
+
+    expect(
+      trace?.highlights.map((highlight) => [
+        highlight.documentId,
+        highlight.netId,
+      ]),
+    ).toEqual([["child", "net-vin-a"]]);
+    expect(trace?.hops).toEqual([]);
   });
 });
