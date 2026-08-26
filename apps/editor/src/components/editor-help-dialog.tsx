@@ -4,6 +4,56 @@ import editorPackage from "../../package.json";
 
 const REPOSITORY_URL = "https://github.com/cascode-ai/analog-canvas";
 
+const SHORTCUT_GROUPS = [
+  {
+    id: "create",
+    title: "Create",
+    shortcuts: [
+      { keys: ["I"], action: "Insert component" },
+      { keys: ["P"], action: "Place Cell Pin" },
+      { keys: ["W"], action: "Draw wire" },
+      { keys: ["T"], action: "Add text" },
+    ],
+  },
+  {
+    id: "edit",
+    title: "Edit",
+    shortcuts: [
+      { keys: ["U"], action: "Undo last edit" },
+      { keys: ["Shift", "U"], action: "Redo last edit" },
+      { keys: ["C"], action: "Copy and place selection" },
+      { keys: ["R"], action: "Rotate selection / draw Rectangle when idle" },
+      { keys: ["Shift", "R"], action: "Mirror left / right" },
+      { keys: ["Ctrl", "R"], action: "Mirror top / bottom" },
+    ],
+  },
+  {
+    id: "workspace",
+    title: "Workspace",
+    shortcuts: [
+      { keys: ["Q"], action: "Toggle Properties" },
+      { keys: ["F"], action: "Fit circuit in view" },
+    ],
+  },
+] as const;
+
+function ShortcutChord({ keys }: { keys: readonly string[] }) {
+  return (
+    <span className="help-shortcut-chord" aria-label={keys.join(" plus ")}>
+      {keys.map((key, index) => (
+        <span key={key} className="help-shortcut-key-part">
+          {index > 0 ? (
+            <span className="help-shortcut-plus" aria-hidden="true">
+              +
+            </span>
+          ) : null}
+          <kbd>{key}</kbd>
+        </span>
+      ))}
+    </span>
+  );
+}
+
 export interface EditorHelpDialogProps {
   closeButtonRef: RefObject<HTMLButtonElement | null>;
   onClose(): void;
@@ -118,52 +168,33 @@ export function EditorHelpDialog({
           </section>
           <section id="help-shortcuts" className="help-shortcuts">
             <h3>Keyboard shortcuts</h3>
-            <dl>
-              <div>
-                <dt>File and history</dt>
-                <dd>
-                  <kbd>Ctrl</kbd> + <kbd>S</kbd> save; <kbd>Ctrl</kbd> +
-                  <kbd>O</kbd> open; <kbd>U</kbd> undo; <kbd>Shift</kbd> +
-                  <kbd>U</kbd> redo; <kbd>Ctrl</kbd> + <kbd>Z</kbd> undo;
-                  <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd> or
-                  <kbd>Ctrl</kbd> + <kbd>Y</kbd> redo.
-                </dd>
-              </div>
-              <div>
-                <dt>Selection and edit</dt>
-                <dd>
-                  <kbd>Ctrl</kbd> + <kbd>A</kbd> selects all placed components;
-                  <kbd>C</kbd> copy-place (click to place, <kbd>Esc</kbd> to
-                  cancel); <kbd>M</kbd> move/stretch the current selection;
-                  <kbd>R</kbd> rotate; <kbd>Shift</kbd> + <kbd>R</kbd>
-                  mirror left/right; <kbd>Ctrl</kbd> + <kbd>R</kbd> mirror
-                  top/bottom; <kbd>Ctrl</kbd> + <kbd>D</kbd> deselect;{" "}
-                  <kbd>F</kbd> fit view;
-                  <kbd>E</kbd> enter or create a hierarchical Cell;{" "}
-                  <kbd>Shift</kbd> + <kbd>E</kbd> return to its parent;
-                  <kbd>Delete</kbd> or <kbd>Backspace</kbd> delete.
-                </dd>
-              </div>
-              <div>
-                <dt>Tools and view</dt>
-                <dd>
-                  <kbd>I</kbd> insert a component; <kbd>P</kbd> place a Port;
-                  <kbd>W</kbd> wire; <kbd>L</kbd> edits a selected Net Label;
-                  <kbd>T</kbd> text; <kbd>A</kbd> arrow; <kbd>K</kbd>
-                  construction line; <kbd>Q</kbd> Properties open/close;{" "}
-                  <kbd>Home</kbd> fit view; <kbd>X</kbd> reverses a selected
-                  current arrow.
-                </dd>
-              </div>
-              <div>
-                <dt>In-progress drawing</dt>
-                <dd>
-                  <kbd>Enter</kbd> completes an active wire or drawing;
-                  <kbd>Esc</kbd> cancels the active tool or closes Help.
-                </dd>
-              </div>
-            </dl>
-            <p>Shortcuts do not run while you are typing in a text field.</p>
+            <div className="help-shortcut-grid">
+              {SHORTCUT_GROUPS.map((group) => (
+                <section
+                  key={group.id}
+                  className={`help-shortcut-group help-shortcut-group-${group.id}`}
+                  aria-labelledby={`help-shortcut-group-${group.id}`}
+                >
+                  <h4 id={`help-shortcut-group-${group.id}`}>{group.title}</h4>
+                  <ul>
+                    {group.shortcuts.map((shortcut) => (
+                      <li
+                        key={`${group.id}-${shortcut.keys.join("-")}`}
+                        className="help-shortcut-item"
+                      >
+                        <span className="help-shortcut-action">
+                          {shortcut.action}
+                        </span>
+                        <ShortcutChord keys={shortcut.keys} />
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ))}
+            </div>
+            <p className="help-shortcut-note">
+              Shortcuts pause while you are typing in a text field.
+            </p>
           </section>
           <section id="help-data" className="help-data-note">
             <h3>Project data and recovery</h3>
