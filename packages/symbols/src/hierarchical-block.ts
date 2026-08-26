@@ -1,4 +1,4 @@
-import { deriveStableId } from "@icm/model";
+import { deriveStableId, projectCellInterface } from "@icm/model";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
 
 import { createHierarchicalBlockGeometry } from "./hierarchical-block-geometry.js";
@@ -21,7 +21,7 @@ export function createHierarchicalBlockSymbol(
   },
 ): SymbolDefinition | null {
   const cellName = document.sourceBinding?.cellName ?? document.netlist?.name;
-  const terminals = document.netlist?.terminals ?? [];
+  const terminals = projectCellInterface(document.netlist).ports;
   if (!cellName) return null;
   const positional = createHierarchicalBlockGeometry(
     terminals,

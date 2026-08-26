@@ -1,4 +1,4 @@
-import { foldNetName } from "@icm/model";
+import { foldNetName, projectCellInterface } from "@icm/model";
 import {
   directObjectLocator,
   resolveDocumentLogicalNets,
@@ -217,33 +217,34 @@ function buildNetContext(
   }
 
   const formalTerminalByLogicalId = new Map<string, string>();
-  for (const terminal of document.netlist?.terminals ?? []) {
-    const logicalNet = logicalNets.byBaseNetId.get(terminal.netId);
-    const logicalId = logicalNet?.id ?? terminal.netId;
-    const prior = formalTerminalByLogicalId.get(logicalId);
-    if (prior && prior.toLowerCase() !== terminal.name.toLowerCase()) {
-      diagnostic(
-        diagnostics,
-        document.id,
-        "MULTIPLE_PORTS_SHARE_NET",
-        `Formal terminals ${prior} and ${terminal.name} map to the same logical Net ${logicalId}`,
-        [...(logicalNet?.baseNetIds ?? [terminal.netId])],
-      );
-      continue;
+  for (const port of projectCellInterface(document.netlist).ports) {
+    for (const netId of port.netIds) {
+      const logicalNet = logicalNets.byBaseNetId.get(netId);
+      const logicalId = logicalNet?.id ?? netId;
+      const prior = formalTerminalByLogicalId.get(logicalId);
+      if (prior && foldNetName(prior) !== port.key) {
+        diagnostic(
+          diagnostics,
+          document.id,
+          "MULTIPLE_PORTS_SHARE_NET",
+          `Formal terminals ${prior} and ${port.name} map to the same logical Net ${logicalId}`,
+          [...(logicalNet?.baseNetIds ?? [netId])],
+        );
+        continue;
+      }
+      const explicitOwner = explicitNames.get(port.key);
+      if (explicitOwner && explicitOwner !== logicalId) {
+        diagnostic(
+          diagnostics,
+          document.id,
+          "PORT_NET_NAME_COLLISION",
+          `Formal terminal ${port.name} collides with a different explicit Net`,
+          [logicalId, explicitOwner],
+        );
+      }
+      formalTerminalByLogicalId.set(logicalId, port.name);
+      occupiedNames.add(port.key);
     }
-    const folded = foldNetName(terminal.name);
-    const explicitOwner = explicitNames.get(folded);
-    if (explicitOwner && explicitOwner !== logicalId) {
-      diagnostic(
-        diagnostics,
-        document.id,
-        "PORT_NET_NAME_COLLISION",
-        `Formal terminal ${terminal.name} collides with a different explicit Net`,
-        [logicalId, explicitOwner],
-      );
-    }
-    formalTerminalByLogicalId.set(logicalId, terminal.name);
-    occupiedNames.add(folded);
   }
 
   const nameByNetId = new Map<string, string>();
@@ -291,9 +292,9 @@ function buildNetContext(
           binding?.kind === "subcircuit"
             ? documentsById.get(binding.childDocumentId)
             : undefined;
-        const allowedPins =
-          child?.netlist?.terminals.map((terminal) => terminal.name) ??
-          deviceDescriptor(instance.symbolId)?.pinOrder;
+        const allowedPins = child?.netlist
+          ? projectCellInterface(child.netlist).ports.map((port) => port.name)
+          : deviceDescriptor(instance.symbolId)?.pinOrder;
         if (allowedPins && !allowedPins.includes(terminal.pinName)) {
           diagnostic(
             diagnostics,
@@ -345,6 +346,7 @@ function buildNetContext(
     );
   }
 
+  const emittedNetNames = new Set<string>();
   return {
     nameByNetId,
     netByTerminal,
@@ -352,15 +354,17 @@ function buildNetContext(
     nets: [
       ...logicalNets.groups.flatMap((logicalNet) => {
         const name = nameByNetId.get(logicalNet.baseNetIds[0]!);
-        return name
-          ? [
-              {
-                id: logicalNet.id,
-                name,
-                scope: logicalNet.scope ?? "local",
-              },
-            ]
-          : [];
+        if (!name) return [];
+        const foldedName = foldNetName(name);
+        if (emittedNetNames.has(foldedName)) return [];
+        emittedNetNames.add(foldedName);
+        return [
+          {
+            id: logicalNet.id,
+            name,
+            scope: logicalNet.scope ?? "local",
+          },
+        ];
       }),
       ...noConnectNets,
     ],
@@ -440,15 +444,15 @@ function extractHierarchyInstance(
     child.netlist.formalParameters,
     diagnostics,
   );
-  const nodes = child.netlist.terminals.flatMap((terminal) => {
+  const nodes = projectCellInterface(child.netlist).ports.flatMap((port) => {
     const netName = terminalNetName(
       document,
       instance,
-      terminal.name,
+      port.name,
       context,
       diagnostics,
     );
-    return netName ? [{ pinName: terminal.name, netName }] : [];
+    return netName ? [{ pinName: port.name, netName }] : [];
   });
   return {
     id: instance.id,
@@ -813,44 +817,33 @@ function extractCell(
     );
   }
   const context = buildNetContext(document, documentsById, diagnostics);
-  const portNames = new Map<string, string>();
-  const ports = document.netlist.terminals.flatMap((terminal) => {
-    const net = document.nets.find(
-      (candidate) => candidate.id === terminal.netId,
-    );
-    if (!net) {
+  const interfaceProjection = projectCellInterface(document.netlist);
+  const ports = interfaceProjection.ports.flatMap((port) => {
+    let hasMissingNet = false;
+    for (const netId of port.netIds) {
+      if (document.nets.some((candidate) => candidate.id === netId)) continue;
+      hasMissingNet = true;
       diagnostic(
         diagnostics,
         document.id,
         "MISSING_INTERFACE_NET",
-        `Netlist terminal ${terminal.name} references unknown Net ${terminal.netId}`,
-        [terminal.netId],
+        `Netlist terminal ${port.name} references unknown Net ${netId}`,
+        [netId],
       );
-      return [];
     }
-    if (!isIdentifier(terminal.name, true)) {
+    if (hasMissingNet) return [];
+    if (!isIdentifier(port.name, true)) {
       diagnostic(
         diagnostics,
         document.id,
         "INVALID_PORT_NAME",
-        `Port name is outside the portable identifier subset: ${terminal.name}`,
-        [terminal.netId],
+        `Port name is outside the portable identifier subset: ${port.name}`,
+        [...port.netIds],
       );
     }
-    const priorPort = portNames.get(terminal.name.toLowerCase());
-    if (priorPort) {
-      diagnostic(
-        diagnostics,
-        document.id,
-        "DUPLICATE_PORT_NAME",
-        `Port name ${terminal.name} duplicates Net ${priorPort} under case folding`,
-        [priorPort, terminal.netId],
-      );
-    } else {
-      portNames.set(terminal.name.toLowerCase(), terminal.netId);
-    }
-    const netName = context.nameByNetId.get(net.id) ?? terminal.name;
-    return [{ id: terminal.netId, name: terminal.name, netName }];
+    const representativeNetId = port.netIds[0]!;
+    const netName = context.nameByNetId.get(representativeNetId) ?? port.name;
+    return [{ id: representativeNetId, name: port.name, netName }];
   });
 
   const referenceIndex = createReferenceIndex(document);
@@ -899,9 +892,7 @@ function extractCell(
   }
   const instances: DesignNetlistInstance[] = [];
   const cellPinInstanceIds = new Set(
-    document.netlist.terminals.flatMap(
-      (terminal) => terminal.interfaceInstanceIds,
-    ),
+    interfaceProjection.ports.flatMap((port) => port.interfaceInstanceIds),
   );
   for (const instance of [...document.instances].sort((a, b) => {
     const left = a.netlist?.reference ?? a.id;

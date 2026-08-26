@@ -5,7 +5,10 @@ import {
   type CircuitProject,
 } from "@icm/model";
 
-import { analyzeDesignNetlist as analyzeCurrentDesignNetlist } from "./index.js";
+import {
+  analyzeDesignNetlist as analyzeCurrentDesignNetlist,
+  printSpiceNetlist,
+} from "./index.js";
 
 function analyzeDesignNetlist(project: CircuitProject) {
   return analyzeCurrentDesignNetlist(project);
@@ -110,6 +113,84 @@ describe("current formal cell interface", () => {
       "VIN",
       "VOUT",
     ]);
+  });
+
+  it("groups same-name independent Pins only in the exported interface", () => {
+    const project = createEmptyProject("project", "Project");
+    const document = project.documents[0]!;
+    document.netlist = {
+      name: "same_name_ports",
+      formalParameters: [],
+      terminals: [
+        {
+          id: "terminal-vin-a",
+          name: "VIN",
+          netId: "net-vin-a",
+          direction: "input",
+          interfaceInstanceIds: ["P1"],
+        },
+        {
+          id: "terminal-vin-b",
+          name: "vin",
+          netId: "net-vin-b",
+          direction: "input",
+          interfaceInstanceIds: ["P2"],
+        },
+      ],
+    };
+    document.instances.push(
+      { id: "P1", symbolId: "port", placement: null },
+      { id: "P2", symbolId: "port-filled", placement: null },
+      {
+        id: "R1",
+        symbolId: "resistor",
+        placement: null,
+        netlist: {
+          reference: "R1",
+          binding: { kind: "primitive", deviceClass: "resistor" },
+          parameters: { value: "1k" },
+        },
+      },
+    );
+    document.nets.push(
+      {
+        id: "net-vin-a",
+        terminals: [
+          { instanceId: "P1", pinName: "P" },
+          { instanceId: "R1", pinName: "1" },
+        ],
+      },
+      {
+        id: "net-vin-b",
+        terminals: [
+          { instanceId: "P2", pinName: "P" },
+          { instanceId: "R1", pinName: "2" },
+        ],
+      },
+    );
+    const before = structuredClone(project);
+
+    const result = analyzeDesignNetlist(project);
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.ir?.cells[0]?.ports).toEqual([
+      {
+        id: "net-vin-a",
+        name: "VIN",
+        netName: "VIN",
+      },
+    ]);
+    expect(result.ir?.cells[0]?.instances[0]?.nodes).toEqual([
+      { pinName: "1", netName: "VIN" },
+      { pinName: "2", netName: "VIN" },
+    ]);
+    expect(result.ir?.cells[0]?.nets).toEqual([
+      { id: "net-vin-a", name: "VIN", scope: "local" },
+    ]);
+    expect(printSpiceNetlist(result.ir!)).toContain(
+      ".subckt same_name_ports VIN\nR1 VIN VIN 1k",
+    );
+    expect(project).toEqual(before);
   });
 
   it("exports evidence-equivalent Base Nets as one logical node", () => {

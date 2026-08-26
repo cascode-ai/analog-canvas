@@ -46,6 +46,44 @@ describe("hierarchical block formal terminals", () => {
     expect(symbol?.pins.map((pin) => pin.name)).toEqual(["IN", "OUT"]);
   });
 
+  it("projects independently authored same-name Pins as one hierarchy pin", () => {
+    const symbol = createHierarchicalBlockSymbol({
+      name: "Child",
+      netlist: {
+        name: "Child",
+        formalParameters: [],
+        terminals: [
+          {
+            id: "terminal-bus-a",
+            name: "BUS",
+            netId: "net-bus-a",
+            direction: "input",
+            interfaceInstanceIds: ["P1"],
+          },
+          {
+            id: "terminal-out",
+            name: "OUT",
+            netId: "net-out",
+            direction: "output",
+            interfaceInstanceIds: ["P2"],
+          },
+          {
+            id: "terminal-bus-b",
+            name: "bus",
+            netId: "net-bus-b",
+            direction: "output",
+            interfaceInstanceIds: ["P3"],
+          },
+        ],
+      },
+    });
+
+    expect(symbol?.pins.map((pin) => pin.name)).toEqual(["BUS", "OUT"]);
+    expect(symbol?.pins.find((pin) => pin.name === "BUS")?.direction).toBe(
+      "west",
+    );
+  });
+
   it("creates a formal zero-terminal block for a manual Cell", () => {
     const symbol = createHierarchicalBlockSymbol({
       name: "Cell1",

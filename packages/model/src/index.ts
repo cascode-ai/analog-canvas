@@ -1,5 +1,6 @@
 export * from "./drafting-geometry-schema.js";
 export * from "./coordinate-domain.js";
+export * from "./cell-interface-projection.js";
 export * from "./factories.js";
 export * from "./geometry.js";
 export * from "./ids.js";

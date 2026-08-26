@@ -4,6 +4,7 @@ import type {
   InstanceNetlistBinding,
   SchematicDocument,
 } from "@icm/model";
+import { projectCellInterface } from "@icm/model";
 
 export interface FormalInterfaceTerminal {
   readonly id: string;
@@ -29,14 +30,15 @@ function internalInterface(
   document: SchematicDocument,
 ): FormalSubcircuitInterface | null {
   if (!document.netlist) return null;
+  const projection = projectCellInterface(document.netlist);
   return {
     kind: "internal",
     definitionId: document.id,
     name: document.netlist.name,
-    terminals: document.netlist.terminals.map((terminal) => ({
-      id: terminal.id,
-      name: terminal.name,
-      direction: terminal.direction,
+    terminals: projection.ports.map((port) => ({
+      id: port.id,
+      name: port.name,
+      direction: port.direction,
     })),
     formalParameters: document.netlist.formalParameters.map((parameter) => ({
       name: parameter.name,
