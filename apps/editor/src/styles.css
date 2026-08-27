@@ -338,13 +338,13 @@ body {
   transform: translate(-50%, -50%);
 }
 
+/* One line, even if long: "Presented by [Z] TokenZhang" never wraps. */
 .app-chrome-actions .tokenzhang-credit {
-  flex-direction: column;
-  align-items: flex-end;
-  justify-content: center;
-  gap: 0;
+  align-items: center;
+  gap: var(--icm-space-1);
   max-height: var(--icm-menubar-h);
   line-height: 1.1;
+  white-space: nowrap;
 }
 
 .tokenzhang-credit-kicker {
