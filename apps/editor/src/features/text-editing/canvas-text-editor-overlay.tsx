@@ -1,3 +1,5 @@
+import { useLayoutEffect, useRef, useState } from "react";
+
 import type { DerivedRect, GridRect } from "@icm/model";
 
 import { RichTextEditor } from "./rich-text-editor";
@@ -23,7 +25,7 @@ export interface CanvasTextEditorOverlayProps {
  * text — are laid out at this size and then scaled as one, so the panel keeps
  * its proportions instead of reflowing as the camera moves.
  */
-const EDITOR_LAYOUT_WIDTH = 420;
+const EDITOR_FALLBACK_LAYOUT_WIDTH = 420;
 const EDITOR_LAYOUT_MIN_HEIGHT = 150;
 
 /**
@@ -35,7 +37,7 @@ const EDITOR_LAYOUT_MIN_HEIGHT = 150;
  * apparent size — and because its contents are laid out at a fixed pixel size
  * and scaled with it, they hold their size too.
  */
-const EDITOR_VIEW_FRACTION = 0.44;
+const EDITOR_VIEW_FRACTION = 2 / 3;
 
 export interface CanvasTextEditorFrame {
   /** Where the panel sits, in Document units. */
@@ -54,15 +56,24 @@ export function resolveCanvasTextEditorFrame(
   bounds: DerivedRect,
   viewBox: GridRect,
   sizeScale: number,
+  pixelsPerUnit?: number | null,
 ): CanvasTextEditorFrame {
-  const scale = (viewBox.width * EDITOR_VIEW_FRACTION) / EDITOR_LAYOUT_WIDTH;
+  const width = viewBox.width * EDITOR_VIEW_FRACTION;
+  // Laying the panel out at true screen pixels is what lets its type be set
+  // against the rest of the chrome rather than against the drawing. Without a
+  // measurement — the first render, before the canvas is on screen — fall back
+  // to a fixed layout width, which still keeps the panel proportional.
+  const scale =
+    pixelsPerUnit && pixelsPerUnit > 0
+      ? 1 / pixelsPerUnit
+      : width / EDITOR_FALLBACK_LAYOUT_WIDTH;
+  const layoutWidth = width / scale;
   // A name longer than the box wraps, and the frame is sized before any of it
   // is typed, so budget for a few wrapped lines instead of the one the
   // committed bounds imply. Anything past that scrolls rather than being
   // clipped away by the foreignObject.
   const lineHeight = 15.116 * sizeScale * 1.2;
   const layoutHeight = Math.max(EDITOR_LAYOUT_MIN_HEIGHT, 54 + lineHeight * 3);
-  const width = EDITOR_LAYOUT_WIDTH * scale;
   const height = layoutHeight * scale;
   const viewportInset = 8;
   const targetGap = 8;
@@ -85,7 +96,7 @@ export function resolveCanvasTextEditorFrame(
     width,
     height,
     scale,
-    layoutWidth: EDITOR_LAYOUT_WIDTH,
+    layoutWidth,
     layoutHeight,
   };
 }
@@ -100,14 +111,48 @@ export function CanvasTextEditorOverlay({
   onDelete,
   onReverseCurrentArrow,
 }: CanvasTextEditorOverlayProps) {
+  const anchorRef = useRef<SVGGElement | null>(null);
+  const [canvasSize, setCanvasSize] = useState<{
+    width: number;
+    height: number;
+  } | null>(null);
+
+  // How many screen pixels one Document unit covers. The panel is laid out in
+  // those pixels so its type can be set against the rest of the chrome, and
+  // the canvas can be resized under it, so the measurement is observed.
+  useLayoutEffect(() => {
+    const svg = anchorRef.current?.ownerSVGElement;
+    if (!svg) return;
+    const measure = () => {
+      const rect = svg.getBoundingClientRect();
+      setCanvasSize({ width: rect.width, height: rect.height });
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(svg);
+    return () => observer.disconnect();
+  }, []);
+
   const frame = resolveCanvasTextEditorFrame(
     bounds,
     viewBox,
     session.sizeScale,
+    // preserveAspectRatio="meet" fits the camera inside the element, so the
+    // painted scale is the smaller of the two ratios — not the width's alone.
+    canvasSize && viewBox.width > 0 && viewBox.height > 0
+      ? Math.min(
+          canvasSize.width / viewBox.width,
+          canvasSize.height / viewBox.height,
+        )
+      : null,
   );
 
   return (
-    <g transform={`translate(${frame.x} ${frame.y}) scale(${frame.scale})`}>
+    <g
+      ref={anchorRef}
+      transform={`translate(${frame.x} ${frame.y}) scale(${frame.scale})`}
+    >
       <foreignObject
         data-testid="canvas-text-editor"
         className="canvas-text-editor-overlay"
