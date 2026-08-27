@@ -217,6 +217,43 @@ test("snaps quick Text creation after a non-grid viewport zoom", async ({
   expect(textObject.anchor.position.y % 10).toBe(0);
 });
 
+test("copies a selected text with C", async ({ page }) => {
+  await page.goto("/editor");
+  const canvas = page.getByTestId("schematic-canvas");
+
+  await clickDrawTool(page, "text");
+  const draftInput = page.getByRole("textbox", { name: "Canvas text editor" });
+  await draftInput.fill("Design note");
+  await page.getByRole("button", { name: "Apply text changes" }).click();
+  await page.keyboard.press("Escape");
+
+  const texts = page.locator('[data-kind="draft-text"]');
+  await expect(texts).toHaveCount(1);
+  const origin = (await texts.first().boundingBox())!;
+
+  // Select the text and copy it. A drawing-only selection used to be refused
+  // outright — "Select at least one component to copy".
+  await page.mouse.click(
+    origin.x + origin.width / 2,
+    origin.y + origin.height / 2,
+  );
+  await page.keyboard.press("c");
+  await expect(page.getByTestId("status")).toContainText("Place copy");
+
+  const box = (await canvas.boundingBox())!;
+  await page.mouse.move(box.x + 420, box.y + 380);
+  await canvas.click({ position: { x: 420, y: 380 } });
+  await page.keyboard.press("Escape");
+
+  await expect(texts).toHaveCount(2);
+  const both = await texts.evaluateAll((elements) =>
+    elements.map((element) => element.textContent),
+  );
+  expect(both.filter((value) => value?.includes("Design note"))).toHaveLength(
+    2,
+  );
+});
+
 test("fits drafting text with F using an integer grid camera", async ({
   page,
 }) => {

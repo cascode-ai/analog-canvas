@@ -11,11 +11,13 @@ import {
   type OperationIdRemap,
   type RoutingOperationPlan,
 } from "@icm/edit-engine";
+import { translateDraftingObject } from "@icm/edit-engine";
 import type { SchematicEdit } from "@icm/edit-engine";
 import type {
   Annotation,
   CellNetlistTerminal,
   ConnectivityEvidence,
+  DraftingObject,
   Instance,
   Net,
   NoConnect,
@@ -53,6 +55,12 @@ export interface SchematicClipboard {
   annotations: Annotation[];
   noConnects: NoConnect[];
   connectivityEvidence: ConnectivityEvidence[];
+  /**
+   * Selected drafting objects — text, arrows, lines, rectangles, circles.
+   * They carry no connectivity, so they copy as themselves and are the only
+   * thing a copy needs when nothing electrical is selected.
+   */
+  draftingObjects: DraftingObject[];
 }
 
 export interface PasteProposal {
@@ -130,8 +138,22 @@ export function clipboardPlacementAnchor(
     clipboard.junctions[0]?.position ??
     (clipboard.routes[0] ? routeBends(clipboard.routes[0])[0] : undefined) ??
     annotationPosition ??
+    draftingOrigin(clipboard.draftingObjects[0]) ??
     null
   );
+}
+
+/** Where a drafting object sits, for a copy that holds only drawing. */
+function draftingOrigin(object: DraftingObject | undefined): Point | null {
+  if (!object) return null;
+  if (object.kind === "rectangle" || object.kind === "circle") {
+    return object.center;
+  }
+  return object.anchor.kind === "free"
+    ? object.anchor.position
+    : object.anchor.kind === "object"
+      ? object.anchor.fallbackPosition
+      : null;
 }
 
 /** Builds the isolated fallback copy ghost used when dry-run is unavailable. */
@@ -241,7 +263,10 @@ function fallbackClipboardPreviewDocument(
     })),
     noConnects: structuredClone(clipboard.noConnects),
     annotations,
-    drafting: undefined,
+    drafting:
+      clipboard.draftingObjects.length > 0
+        ? { objects: structuredClone(clipboard.draftingObjects) }
+        : undefined,
     // A copy ghost is an isolated fragment, not a filtered view of the base
     // Document. Every reference-bearing Document field must therefore be
     // owned explicitly here. Inheriting any of these through `...base` leaves
@@ -356,6 +381,7 @@ export function clipboardPreviewDocument(
           connectivityEvidence: result.document.connectivityEvidence.filter(
             (evidence) => evidenceIds.has(evidence.id),
           ),
+          draftingObjects: [],
         });
         return fallbackClipboardPreviewDocument(
           result.document,
@@ -444,18 +470,27 @@ export function copyWholeDocument(
         ? evidence.memberNetIds.every((netId) => netIds.has(netId))
         : netIds.has(evidence.netId),
     ),
+    draftingObjects: [],
   });
 }
 
 export function copySelection(
   document: SchematicDocument,
   instanceIds: readonly string[],
+  draftingIds: readonly string[] = [],
 ): SchematicClipboard | null {
   const selectedIds = new Set(instanceIds);
   const instances = document.instances.filter((instance) =>
     selectedIds.has(instance.id),
   );
-  if (instances.length === 0) return null;
+  const selectedDrafting = new Set(draftingIds);
+  const draftingObjects = (document.drafting?.objects ?? []).filter((object) =>
+    selectedDrafting.has(object.id),
+  );
+  // A drawing-only selection is a complete copy: notes and callouts are
+  // worth duplicating on their own, and requiring a part alongside them made
+  // C look broken to anyone who had only selected a piece of text.
+  if (instances.length === 0 && draftingObjects.length === 0) return null;
   const capture = captureRoutingCopyFragment(document, {
     instanceIds,
     routeIds: [],
@@ -531,6 +566,7 @@ export function copySelection(
           );
       }
     }),
+    draftingObjects,
   });
 }
 
@@ -1167,6 +1203,18 @@ export function proposePaste(
       message,
     })),
   });
+  // Drafting objects carry no connectivity, so a copy is the object itself
+  // under a fresh id, shifted by the same placement offset as everything else.
+  for (const object of clipboard.draftingObjects) {
+    edits.push({
+      kind: "upsert_drafting_object",
+      object: {
+        ...translateDraftingObject(object, offset, document.presentation.grid),
+        id: uniqueCopyId(object.id, sequence, occupied),
+      },
+    });
+  }
+
   return {
     edits,
     instanceIds: [...instanceIds.values()],

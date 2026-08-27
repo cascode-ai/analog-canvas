@@ -1088,9 +1088,13 @@ export function useSelectionInteraction(
       options.setStatus("Finish or cancel the active tool before copying");
       return;
     }
-    const copied = copySelection(options.document, options.selectedIds);
+    const copied = copySelection(
+      options.document,
+      options.selectedIds,
+      options.visualSelection.draftingIds,
+    );
     if (!copied) {
-      options.setStatus("Select at least one component to copy");
+      options.setStatus("Select something to copy");
       return;
     }
     const anchor = clipboardPlacementAnchor(copied);
