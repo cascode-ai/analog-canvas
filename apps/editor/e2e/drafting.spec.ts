@@ -565,7 +565,7 @@ test("R creates a selectable, styleable rectangle with four resize handles", asy
 }) => {
   await page.goto("/editor");
   await awaitEditorReady(page);
-  await page.keyboard.press("r");
+  await clickDrawTool(page, "rectangle");
   await clickCreate(page, { x: 220, y: 220 }, { x: 380, y: 320 });
   await expect(page.getByTestId("revision")).toHaveText("1");
 
@@ -691,7 +691,7 @@ test("E leaves a selected drafting rectangle as drawing geometry", async ({
 }) => {
   await page.goto("/editor");
   await awaitEditorReady(page);
-  await page.keyboard.press("r");
+  await clickDrawTool(page, "rectangle");
   await clickCreate(page, { x: 220, y: 220 }, { x: 380, y: 320 });
 
   await page.getByTestId(/^drafting-hit-rectangle-/).click({ force: true });
@@ -884,7 +884,7 @@ test("double-click inside a rectangle writes a centered, anchored label", async 
 }) => {
   await page.goto("/editor");
   await awaitEditorReady(page);
-  await page.keyboard.press("r");
+  await clickDrawTool(page, "rectangle");
   await clickCreate(page, { x: 220, y: 220 }, { x: 380, y: 320 });
   await expect(page.getByTestId("revision")).toHaveText("1");
 
@@ -982,7 +982,7 @@ test("double-click inside a rectangle writes a centered, anchored label", async 
 
   // An untouched empty label vanishes on commit instead of persisting.
   await page.keyboard.press("Escape");
-  await page.keyboard.press("r");
+  await clickDrawTool(page, "rectangle");
   await clickCreate(page, { x: 430, y: 220 }, { x: 560, y: 300 });
   const canvas = page.getByTestId("schematic-canvas");
   const box = await canvas.boundingBox();
