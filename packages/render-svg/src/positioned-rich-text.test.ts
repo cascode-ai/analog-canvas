@@ -204,22 +204,58 @@ describe("renderPositionedOverbarScriptDocument", () => {
     );
   });
 
-  it("leaves a plain overbar to the general rich-text renderer", () => {
-    expect(
-      renderPositionedOverbarScriptDocument(
-        {
-          runs: [
-            {
-              kind: "span",
-              style: "overbar",
-              children: [{ kind: "text", value: "Vout" }],
-            },
-          ],
-        },
-        razaviTextbookProfile,
-        { x: 0, y: 0, fontSize: 20, alignment: "start" },
-      ),
-    ).toBeNull();
+  it("draws a plain overbar as one line over the glyphs", () => {
+    // This used to fall through to CSS text-decoration, which puts the line
+    // at the font's ascender rather than over the glyphs.
+    const positioned = renderPositionedOverbarScriptDocument(
+      {
+        runs: [
+          {
+            kind: "span",
+            style: "overbar",
+            children: [{ kind: "text", value: "Vout" }],
+          },
+        ],
+      },
+      razaviTextbookProfile,
+      { x: 0, y: 0, fontSize: 20, alignment: "start" },
+    );
+    expect(positioned).not.toBeNull();
+    expect(positioned!.decorations.match(/<line /gu)).toHaveLength(1);
+    const line = /y1="(-?[\d.]+)"[^>]*x2="(-?[\d.]+)"/u.exec(
+      positioned!.decorations,
+    )!;
+    // Just clear of the cap line, and spanning exactly the text it covers.
+    expect(Number(line[1])).toBeCloseTo(-(20 * 0.78) - 20 * 0.08, 5);
+    expect(Number(line[2])).toBeCloseTo(positioned!.width, 5);
+  });
+
+  it("draws one overbar over a base carrying a single script", () => {
+    const positioned = renderPositionedOverbarScriptDocument(
+      {
+        runs: [
+          {
+            kind: "span",
+            style: "overbar",
+            children: [
+              { kind: "text", value: "Q" },
+              {
+                kind: "span",
+                style: "subscript",
+                children: [{ kind: "text", value: "1" }],
+              },
+            ],
+          },
+        ],
+      },
+      razaviTextbookProfile,
+      { x: 0, y: 0, fontSize: 20, alignment: "start" },
+    );
+    expect(positioned).not.toBeNull();
+    // One bar, not one per tspan, and a subscript cannot lift it.
+    expect(positioned!.decorations.match(/<line /gu)).toHaveLength(1);
+    const y = Number(/y1="(-?[\d.]+)"/u.exec(positioned!.decorations)![1]);
+    expect(y).toBeCloseTo(-(20 * 0.78) - 20 * 0.08, 5);
   });
 
   it("leaves multiline overbars to the general rich-text renderer", () => {

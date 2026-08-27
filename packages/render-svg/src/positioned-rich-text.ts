@@ -176,24 +176,41 @@ export function renderPositionedOverbarScriptDocument(
 
   const overbar = outer.runs[0] as Extract<RichTextRun, { kind: "span" }>;
   const expression = unwrapWholeTextStyles(overbar.children, outer.style);
-  if (expression.runs.length < 3) return null;
-  const firstScript = expression.runs.at(-2);
-  const secondScript = expression.runs.at(-1);
-  if (
-    !isScriptRun(firstScript) ||
-    !isScriptRun(secondScript) ||
-    firstScript.style === secondScript.style
-  ) {
-    return null;
-  }
+  if (expression.runs.length === 0) return null;
 
-  const base = plainSegments(expression.runs.slice(0, -2), expression.style);
-  const scripts = [firstScript, secondScript] as const;
-  const subscriptRun = scripts.find((run) => run.style === "subscript")!;
-  const superscriptRun = scripts.find((run) => run.style === "superscript")!;
+  // Take the trailing scripts, however many there are. An overbar over plain
+  // text and an overbar over a base with one script are the common shapes;
+  // they used to fall through to CSS text-decoration, which draws the line at
+  // the font's ascender rather than over the glyphs and inherits into every
+  // nested tspan — so a base with a subscript and a superscript came out with
+  // three separate bars floating at three different heights.
+  const trailing: Extract<RichTextRun, { kind: "span" }>[] = [];
+  for (const run of [expression.runs.at(-2), expression.runs.at(-1)]) {
+    if (isScriptRun(run)) trailing.push(run);
+    else trailing.length = 0;
+  }
+  const scripts =
+    trailing.length === 2 && trailing[0]!.style !== trailing[1]!.style
+      ? trailing
+      : isScriptRun(expression.runs.at(-1))
+        ? [expression.runs.at(-1) as Extract<RichTextRun, { kind: "span" }>]
+        : [];
+
+  const baseRuns = expression.runs.slice(
+    0,
+    expression.runs.length - scripts.length,
+  );
+  if (baseRuns.length === 0) return null;
+  const base = plainSegments(baseRuns, expression.style);
   const scriptStyle = { italic: false, bold: expression.style.bold };
-  const subscript = plainSegments(subscriptRun.children, scriptStyle);
-  const superscript = plainSegments(superscriptRun.children, scriptStyle);
+  const subscriptRun = scripts.find((run) => run.style === "subscript");
+  const superscriptRun = scripts.find((run) => run.style === "superscript");
+  const subscript = subscriptRun
+    ? plainSegments(subscriptRun.children, scriptStyle)
+    : [];
+  const superscript = superscriptRun
+    ? plainSegments(superscriptRun.children, scriptStyle)
+    : [];
   if (!base || !subscript || !superscript) return null;
 
   const scale = profile.typography.subscriptScale;
@@ -201,7 +218,9 @@ export function renderPositionedOverbarScriptDocument(
   const subscriptWidth = segmentsWidth(subscript, options.fontSize, scale);
   const superscriptWidth = segmentsWidth(superscript, options.fontSize, scale);
   const attachmentGap =
-    options.fontSize * profile.typography.subscriptHorizontalGapEm;
+    scripts.length > 0
+      ? options.fontSize * profile.typography.subscriptHorizontalGapEm
+      : 0;
   const width =
     baseWidth + attachmentGap + Math.max(subscriptWidth, superscriptWidth);
   const startX =
@@ -249,7 +268,11 @@ export function renderPositionedOverbarScriptDocument(
   const glyphAscent = 0.78;
   const overbarGap = options.fontSize * 0.08;
   const baseTop = options.y - options.fontSize * glyphAscent;
-  const superscriptTop = superscriptY - options.fontSize * scale * glyphAscent;
+  // Only a superscript can reach above the base, and only when there is one:
+  // clearing a superscript that is not there would float the bar.
+  const superscriptTop = superscriptRun
+    ? superscriptY - options.fontSize * scale * glyphAscent
+    : baseTop;
   const lineY = Math.min(baseTop, superscriptTop) - overbarGap;
   const strokeWidth = Math.max(1, profile.strokes.annotation);
   return {
