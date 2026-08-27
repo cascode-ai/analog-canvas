@@ -141,6 +141,7 @@ describe("Razavi symbol catalog", () => {
       ["closed-switch", "reviewed", "razavi-reference-v1"],
       ["comparator", "reviewed", "razavi-reference-v1"],
       ["comparator-inputs-swapped", "reviewed", "razavi-reference-v1"],
+      ["comparator-unmarked", "reviewed", "razavi-reference-v1"],
       ["current-source", "reviewed", "razavi-reference-v1"],
       ["d-flip-flop", "reviewed", "razavi-reference-v1"],
       ["delay-cell", "reviewed", "razavi-reference-v1"],
@@ -490,7 +491,7 @@ describe("Razavi symbol catalog", () => {
   });
 
   it("uses reviewed catalog objects as the sole built-in product library", () => {
-    expect(razaviCatalogSymbols).toHaveLength(39);
+    expect(razaviCatalogSymbols).toHaveLength(40);
     for (const catalogSymbol of razaviProductSymbols) {
       expect(
         builtInSymbols.find((symbol) => symbol.id === catalogSymbol.id),
@@ -507,6 +508,7 @@ describe("Razavi symbol catalog", () => {
       "capacitor",
       "closed-switch",
       "comparator",
+      "comparator-unmarked",
       "current-source",
       "d-flip-flop",
       "delay-cell",
@@ -1263,7 +1265,12 @@ describe("logic-gate and comparator family", () => {
     "nor-gate",
     "xnor-gate",
   ]);
-  const family = ["inverter", ...twoInputGates, "comparator"];
+  const family = [
+    "inverter",
+    ...twoInputGates,
+    "comparator",
+    "comparator-unmarked",
+  ];
 
   it("keeps gate pin identities and the comparator op-amp pinout", () => {
     expect(
@@ -1277,6 +1284,49 @@ describe("logic-gate and comparator family", () => {
     expect(
       requireRazaviCatalogSymbol("comparator").pins.map((pin) => pin.name),
     ).toEqual(["IN+", "IN-", "OUT"]);
+    expect(
+      requireRazaviCatalogSymbol("comparator-unmarked").pins.map(
+        (pin) => pin.name,
+      ),
+    ).toEqual(["IN+", "IN-", "OUT"]);
+  });
+
+  it("centres the unmarked comparator glyph without drawing polarity marks", () => {
+    const marked = requireRazaviCatalogSymbol("comparator");
+    const unmarked = requireRazaviCatalogSymbol("comparator-unmarked");
+    const body = unmarked.primitives.find(
+      (primitive) =>
+        primitive.kind === "path" && primitive.part !== "hysteresis-step",
+    );
+    const glyph = unmarked.primitives.find(
+      (primitive) => primitive.part === "hysteresis-step",
+    );
+    const markedGlyph = marked.primitives.find(
+      (primitive) => primitive.part === "hysteresis-step",
+    );
+    if (
+      !body ||
+      body.kind !== "path" ||
+      !glyph ||
+      glyph.kind !== "path" ||
+      !markedGlyph ||
+      markedGlyph.kind !== "path"
+    ) {
+      throw new Error("Comparator body or hysteresis glyph is missing");
+    }
+
+    const averageX = (points: readonly { x: number }[]) =>
+      points.reduce((sum, point) => sum + point.x, 0) / points.length;
+    const bodyCentreX = averageX(pathPoints(body.data));
+    const glyphCentreX = averageX(pathPoints(glyph.data));
+    const markedGlyphCentreX = averageX(pathPoints(markedGlyph.data));
+
+    expect(
+      unmarked.primitives.filter((primitive) => primitive.kind === "line"),
+    ).toHaveLength(3);
+    expect(glyphCentreX).toBeCloseTo(bodyCentreX, 0);
+    expect(glyphCentreX).toBe(-10);
+    expect(markedGlyphCentreX).toBe(0);
   });
 
   it("draws a negation bubble only on inverting shapes", () => {

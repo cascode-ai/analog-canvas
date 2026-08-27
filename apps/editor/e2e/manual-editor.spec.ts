@@ -335,7 +335,7 @@ test("shows faithful symbol previews for the reviewed Razavi palette", async ({
   const preview = dialog.locator("svg.insert-symbol-artwork");
   // Browser coverage owns dialog-to-preview wiring. Catalogue completeness and
   // every symbol's geometry are covered by the symbol contract and goldens.
-  for (const symbolId of ["pmos", "resistor"]) {
+  for (const symbolId of ["pmos", "resistor", "comparator-unmarked"]) {
     await search.fill(symbolId);
     await dialog.getByTestId(`insert-component-${symbolId}`).click();
     await expect(preview).toBeVisible();

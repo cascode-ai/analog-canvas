@@ -34,6 +34,7 @@ const COMPACT_LIBRARY_LABELS: Readonly<Record<string, string>> = {
   "opamp-differential-crossed": "FD Amp X",
   "and-gate": "AND",
   comparator: "Comp",
+  "comparator-unmarked": "Comp U",
   inverter: "Inv",
   "nand-gate": "NAND",
   "nor-gate": "NOR",

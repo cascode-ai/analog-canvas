@@ -26,8 +26,8 @@ The product set is exactly the reviewed, Reference-calibrated entries:
   reads at one scale. Imported SPICE `L` elements take `inductor-compact`;
 - the behavioral block family `inverter`, `and-gate`, `or-gate`, `nand-gate`,
   `nor-gate`, `xor-gate`, `xnor-gate`, `buffer`, `delay-cell`,
-  `d-flip-flop`, and
-  `comparator` (manual-only netlist mapping, like `opamp`). Inverter, AND,
+  `d-flip-flop`, `comparator`, and its polarity-unmarked sibling
+  `comparator-unmarked` (manual-only netlist mapping, like `opamp`). Inverter, AND,
   NAND, NOR, and XOR use hash-pinned native-vector evidence from textbook
   Figures 16.2, 16.24, and 16.25. Buffer and the generic D/CK/Q/Q-bar flip-flop
   use direct evidence from Figures 16.53(a) and 16.23(a). `delay-cell` uses the

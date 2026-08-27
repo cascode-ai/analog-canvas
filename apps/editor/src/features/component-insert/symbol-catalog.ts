@@ -66,6 +66,7 @@ export function symbolCategory(symbolId: string): string {
       "opamp-differential-crossed",
       "voltage-amplifier",
       "comparator",
+      "comparator-unmarked",
     ].includes(symbolId)
   ) {
     return "Analog Blocks";

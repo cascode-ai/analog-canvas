@@ -13,6 +13,7 @@ const PRODUCT_IDS = [
   "capacitor",
   "closed-switch",
   "comparator",
+  "comparator-unmarked",
   "current-source",
   "d-flip-flop",
   "delay-cell",
