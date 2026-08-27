@@ -26,7 +26,7 @@ export interface PublishSessionUser {
 }
 
 export type GalleryPublishOutcome =
-  | { status: "published"; id: string }
+  | { status: "published"; id: string; previewRevision?: string }
   | { status: "gate-failed"; failures: readonly SubmissionGateFailure[] }
   | { status: "unauthorized" }
   | { status: "too-large" }
@@ -64,10 +64,17 @@ async function sendGalleryProject(
   if (response.status === 201 || response.status === 200) {
     const payload = (await response.json().catch(() => null)) as {
       id?: unknown;
+      previewRevision?: unknown;
     } | null;
+    const previewRevision =
+      typeof payload?.previewRevision === "string" &&
+      payload.previewRevision.length > 0
+        ? payload.previewRevision
+        : undefined;
     return {
       status: "published",
       id: typeof payload?.id === "string" ? payload.id : "",
+      ...(previewRevision === undefined ? {} : { previewRevision }),
     };
   }
   if (response.status === 422) {

@@ -1,6 +1,11 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import "../styles/gallery-entry.css";
 
+import {
+  announceGalleryChange,
+  galleryPreviewUrl,
+  subscribeGalleryRefresh,
+} from "../gallery-client";
 import { fetchSessionUser } from "./account";
 import { GalleryChrome } from "./gallery-chrome";
 import { VersionHistoryDialog } from "./version-history-dialog";
@@ -17,6 +22,7 @@ export interface MineEntry {
   id: string;
   name: string;
   createdAt: string;
+  previewRevision?: string;
   status: string;
   rejectReason: string | null;
 }
@@ -54,6 +60,7 @@ export async function setMyEntryRecycled(
       method: "POST",
       credentials: "same-origin",
     });
+    if (response.ok) announceGalleryChange({ entryId: id });
     return response.ok;
   } catch {
     return false;
@@ -74,20 +81,22 @@ export function MySubmissions() {
   const [busy, setBusy] = useState<string | null>(null);
   const [historyFor, setHistoryFor] = useState<MineEntry | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const loadGenerationRef = useRef(0);
 
   const reload = useCallback(async () => {
-    setState(await loadMySubmissions());
+    const generation = ++loadGenerationRef.current;
+    const next = await loadMySubmissions();
+    if (generation === loadGenerationRef.current) setState(next);
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    void loadMySubmissions().then((next) => {
-      if (!cancelled) setState(next);
-    });
+    void reload();
     return () => {
-      cancelled = true;
+      loadGenerationRef.current += 1;
     };
-  }, []);
+  }, [reload]);
+
+  useEffect(() => subscribeGalleryRefresh(() => void reload()), [reload]);
 
   async function act(
     entry: MineEntry,
@@ -146,7 +155,7 @@ export function MySubmissions() {
                   title="Open in the editor"
                 >
                   <img
-                    src={`/api/gallery/${entry.id}/preview.svg`}
+                    src={galleryPreviewUrl(entry.id, entry.previewRevision)}
                     alt={`Preview of ${entry.name}`}
                     loading="lazy"
                   />

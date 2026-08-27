@@ -153,6 +153,11 @@ import {
   publishProjectToGallery,
   updateGalleryEntry,
 } from "../features/editor-shell/gallery-publish";
+import {
+  announceGalleryChange,
+  primeGalleryPreview,
+  subscribeGalleryRefresh,
+} from "../gallery-client";
 import { fetchSessionUser, type SessionUser } from "../components/account";
 import {
   evaluateSubmissionGates,
@@ -340,9 +345,19 @@ export function App({
   const visibleLibraryPanelOpen = compactLayout
     ? compactLibraryPanelOpen
     : libraryPanelOpen;
+  const [galleryRefreshSignal, setGalleryRefreshSignal] = useState(0);
+  const galleryLoadGenerationRef = useRef(0);
+  useEffect(() => {
+    if (!visibleLibraryPanelOpen) return;
+    return subscribeGalleryRefresh(() => {
+      galleryLoadGenerationRef.current += 1;
+      setGalleryRefreshSignal((previous) => previous + 1);
+    });
+  }, [visibleLibraryPanelOpen]);
   useEffect(() => {
     if (!visibleLibraryPanelOpen) return;
     let cancelled = false;
+    const generation = ++galleryLoadGenerationRef.current;
     void (async () => {
       try {
         const response = await fetch("/api/gallery?limit=60", {
@@ -355,10 +370,11 @@ export function App({
             name: string;
             author: string;
             description: string;
+            previewRevision?: string;
           }[];
         };
-        if (!cancelled && payload.entries && payload.entries.length > 0) {
-          setGalleryExamples(payload.entries);
+        if (!cancelled && generation === galleryLoadGenerationRef.current) {
+          setGalleryExamples(payload.entries ?? []);
         }
       } catch {
         // Unreachable worker (offline dev): the bundled list stands in.
@@ -367,7 +383,7 @@ export function App({
     return () => {
       cancelled = true;
     };
-  }, [visibleLibraryPanelOpen]);
+  }, [visibleLibraryPanelOpen, galleryRefreshSignal]);
 
   const [recoveryFailureDismissed, setRecoveryFailureDismissed] =
     useState(false);
@@ -485,6 +501,7 @@ export function App({
         name: string;
         author: string;
         description: string;
+        previewRevision?: string;
       }[]
     | null
   >(null);
@@ -3043,7 +3060,16 @@ export function App({
                         ),
                     }
                   : {}),
-                onPublished: ({ name, updated }) => {
+                onPublished: ({ id, name, updated, previewRevision }) => {
+                  void primeGalleryPreview(id, previewRevision);
+                  announceGalleryChange({
+                    entryId: id,
+                    ...(previewRevision === undefined
+                      ? {}
+                      : { previewRevision }),
+                  });
+                  galleryLoadGenerationRef.current += 1;
+                  setGalleryRefreshSignal((previous) => previous + 1);
                   setPublishGalleryOpen(false);
                   setPublishDraft(null);
                   setStatus(
@@ -3069,7 +3095,13 @@ export function App({
             ? {
                 entryId: galleryEntryContext.id,
                 entryName: galleryEntryContext.name,
-                onRestored: () => {
+                onRestored: ({ previewRevision }) => {
+                  void primeGalleryPreview(
+                    galleryEntryContext.id,
+                    previewRevision,
+                  );
+                  galleryLoadGenerationRef.current += 1;
+                  setGalleryRefreshSignal((previous) => previous + 1);
                   setVersionHistoryOpen(false);
                   setStatus("Version restored — reloading the entry");
                   void openGalleryEntryById(galleryEntryContext.id);

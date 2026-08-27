@@ -7,12 +7,14 @@ import {
   libraryProjectExamples,
   type LibraryProjectExample,
 } from "../../examples/library-examples";
+import { galleryPreviewUrl } from "../../gallery-client";
 
 export interface GalleryExampleSummary {
   id: string;
   name: string;
   author: string;
   description: string;
+  previewRevision?: string;
 }
 
 export interface ExamplesPanelProps {
@@ -86,7 +88,10 @@ export function ExamplesPanel({
                 >
                   <span className="shapes-example-preview">
                     <img
-                      src={`/api/gallery/${example.id}/preview.svg`}
+                      src={galleryPreviewUrl(
+                        example.id,
+                        example.previewRevision,
+                      )}
                       alt=""
                       loading="lazy"
                     />

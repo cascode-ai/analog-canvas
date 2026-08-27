@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import "../styles/gallery-entry.css";
 
+import { announceGalleryChange, galleryPreviewUrl } from "../gallery-client";
 import { fetchSessionUser, type SessionUser } from "./account";
 import { GalleryChrome } from "./gallery-chrome";
 
@@ -55,12 +56,14 @@ async function appointModerator(
 interface RecycledEntry {
   id: string;
   name: string;
+  previewRevision?: string;
   recycledAt?: string | null;
 }
 
 interface RejectedEntry {
   id: string;
   name: string;
+  previewRevision?: string;
   rejectReason?: string | null;
   reviewedAt?: string | null;
 }
@@ -227,7 +230,10 @@ function RejectedList({
         method: "POST",
         credentials: "same-origin",
       });
-      if (response.ok) onChanged();
+      if (response.ok) {
+        announceGalleryChange({ entryId: id });
+        onChanged();
+      }
     } catch {
       // Leave the row in place; it still reflects the last confirmed state.
     } finally {
@@ -261,7 +267,7 @@ function RejectedList({
                 title="Open in the editor"
               >
                 <img
-                  src={`/api/gallery/${entry.id}/preview.svg`}
+                  src={galleryPreviewUrl(entry.id, entry.previewRevision)}
                   alt={`Preview of ${entry.name}`}
                   loading="lazy"
                 />
@@ -356,7 +362,7 @@ function RecycleBin({
       return;
     }
     try {
-      await fetch(
+      const response = await fetch(
         kind === "restore"
           ? `/api/gallery/${id}/restore`
           : `/api/gallery/${id}`,
@@ -365,6 +371,7 @@ function RecycleBin({
           credentials: "same-origin",
         },
       );
+      if (response.ok) announceGalleryChange({ entryId: id });
     } catch {
       // The refresh below shows the true state either way.
     }
@@ -389,7 +396,7 @@ function RecycleBin({
             >
               <span className="mine-card-preview">
                 <img
-                  src={`/api/gallery/${entry.id}/preview.svg`}
+                  src={galleryPreviewUrl(entry.id, entry.previewRevision)}
                   alt={`Preview of ${entry.name}`}
                   loading="lazy"
                 />

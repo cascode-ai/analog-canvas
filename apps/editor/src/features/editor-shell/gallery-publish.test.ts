@@ -30,9 +30,17 @@ describe("publishProjectToGallery", () => {
         description: "Five stages",
         tags: ["Amplifier", "OTA"],
       },
-      fetchReturning(201, { id: "entry-1" }, seen),
+      fetchReturning(
+        201,
+        { id: "entry-1", previewRevision: "revision-0" },
+        seen,
+      ),
     );
-    expect(outcome).toEqual({ status: "published", id: "entry-1" });
+    expect(outcome).toEqual({
+      status: "published",
+      id: "entry-1",
+      previewRevision: "revision-0",
+    });
     expect(seen.url).toBe("/api/gallery/submissions");
     expect(seen.init?.credentials).toBe("same-origin");
 

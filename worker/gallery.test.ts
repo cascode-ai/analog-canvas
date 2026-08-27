@@ -210,7 +210,11 @@ async function submitOne(
     ),
   );
   expect(response.status).toBe(201);
-  const payload = (await response.json()) as { id: string };
+  const payload = (await response.json()) as {
+    id: string;
+    previewRevision: string;
+  };
+  expect(payload.previewRevision).toMatch(/^[a-f0-9]{64}$/u);
   return payload.id;
 }
 
@@ -654,13 +658,19 @@ describe("gallery submissions", () => {
 
     const list = await route(env, new Request(`${ORIGIN}/api/gallery`));
     const listed = (await list.json()) as {
-      entries: { id: string; name: string; schemaVersion: number }[];
+      entries: {
+        id: string;
+        name: string;
+        previewRevision: string;
+        schemaVersion: number;
+      }[];
     };
     expect(listed.entries.map((entry) => entry.id)).toEqual([id]);
     expect(listed.entries[0]).toMatchObject({
       name: "Ring Oscillator",
       schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
     });
+    expect(listed.entries[0]!.previewRevision).toMatch(/^[a-f0-9]{64}$/u);
 
     const detail = await route(env, new Request(`${ORIGIN}/api/gallery/${id}`));
     const payload = (await detail.json()) as { projectText: string };
@@ -674,7 +684,18 @@ describe("gallery submissions", () => {
       new Request(`${ORIGIN}/api/gallery/${id}/preview.svg`),
     );
     expect(preview.headers.get("content-type")).toBe("image/svg+xml");
+    expect(preview.headers.get("cache-control")).toBe("no-store");
     expect(await preview.text()).toContain("<svg");
+
+    const immutablePreview = await route(
+      env,
+      new Request(
+        `${ORIGIN}/api/gallery/${id}/preview.svg?v=${listed.entries[0]!.previewRevision}`,
+      ),
+    );
+    expect(immutablePreview.headers.get("cache-control")).toBe(
+      "public, max-age=31536000, immutable",
+    );
   });
 
   it("publishes and updates a hierarchical Project with its top-level Cell preview", async () => {
@@ -1089,7 +1110,7 @@ async function signIn(authDurable: AuthDO, email: string): Promise<string> {
     .split(";")[0]!;
 }
 
-function wiredProjectText(name = "Wired"): string {
+function wiredProjectText(name = "Wired", secondResistorX = 200): string {
   const project = createEmptyProject("g3", name);
   const document = project.documents[0]!;
   document.instances = [
@@ -1107,7 +1128,7 @@ function wiredProjectText(name = "Wired"): string {
       id: "R2",
       symbolId: "resistor",
       placement: {
-        position: { x: 200, y: 0 },
+        position: { x: secondResistorX, y: 0 },
         rotation: 0,
         mirror: "none",
       },
@@ -1161,7 +1182,7 @@ describe("gallery version history", () => {
     const adminCookie = await adminOf(env);
     const id = await submitOne(env, "Versioned v1", { cookie: adminCookie });
 
-    function updateRequest(name: string): Request {
+    function updateRequest(name: string, secondResistorX: number): Request {
       return new Request(`${ORIGIN}/api/gallery/${id}`, {
         method: "PUT",
         headers: {
@@ -1172,12 +1193,26 @@ describe("gallery version history", () => {
         body: JSON.stringify({
           name,
           author: "tz",
-          projectText: projectText(name),
+          projectText: wiredProjectText(name, secondResistorX),
         }),
       });
     }
-    await route(env, updateRequest("Versioned v2"));
-    await route(env, updateRequest("Versioned v3"));
+    const initialDetail = (await (
+      await route(env, new Request(`${ORIGIN}/api/gallery/${id}`))
+    ).json()) as { entry: { previewRevision: string } };
+    const updateV2 = (await (
+      await route(env, updateRequest("Versioned v2", 240))
+    ).json()) as { previewRevision: string };
+    const updateV3 = (await (
+      await route(env, updateRequest("Versioned v3", 280))
+    ).json()) as { previewRevision: string };
+    expect(
+      new Set([
+        initialDetail.entry.previewRevision,
+        updateV2.previewRevision,
+        updateV3.previewRevision,
+      ]).size,
+    ).toBe(3);
 
     // Anonymous callers see nothing.
     const denied = await route(
@@ -1221,10 +1256,16 @@ describe("gallery version history", () => {
       ),
     );
     expect(restored.status).toBe(200);
+    expect(
+      ((await restored.json()) as { previewRevision: string }).previewRevision,
+    ).toBe(initialDetail.entry.previewRevision);
     const detail = (await (
       await route(env, new Request(`${ORIGIN}/api/gallery/${id}`))
-    ).json()) as { entry: { name: string } };
+    ).json()) as { entry: { name: string; previewRevision: string } };
     expect(detail.entry.name).toBe("Versioned v1");
+    expect(detail.entry.previewRevision).toBe(
+      initialDetail.entry.previewRevision,
+    );
 
     const afterRestore = (await (
       await route(
@@ -1450,9 +1491,16 @@ describe("gallery owner editing", () => {
         { cookie: ownerCookie },
       ),
     );
-    const { id } = (await submitted.json()) as { id: string };
+    const { id, previewRevision: initialRevision } =
+      (await submitted.json()) as {
+        id: string;
+        previewRevision: string;
+      };
 
-    function updateRequest(cookie: string | null): Request {
+    function updateRequest(
+      cookie: string | null,
+      secondResistorX = 240,
+    ): Request {
       const headers = new Headers({
         "content-type": "application/json",
         Origin: ORIGIN,
@@ -1463,7 +1511,7 @@ describe("gallery owner editing", () => {
         headers,
         body: JSON.stringify({
           name: "Edit Me v2",
-          projectText: wiredProjectText("Edit Me v2"),
+          projectText: wiredProjectText("Edit Me v2", secondResistorX),
         }),
       });
     }
@@ -1476,8 +1524,29 @@ describe("gallery owner editing", () => {
     // The owner's own edit stays live rather than dropping out of the feed.
     const updated = await route(env, updateRequest(ownerCookie));
     expect(updated.status).toBe(200);
-    expect(((await updated.json()) as { status: string }).status).toBe(
-      "public",
+    const updatedPayload = (await updated.json()) as {
+      status: string;
+      previewRevision: string;
+    };
+    expect(updatedPayload.status).toBe("public");
+    expect(updatedPayload.previewRevision).toMatch(/^[a-f0-9]{64}$/u);
+    expect(updatedPayload.previewRevision).not.toBe(initialRevision);
+
+    const stalePreview = await route(
+      env,
+      new Request(
+        `${ORIGIN}/api/gallery/${id}/preview.svg?v=${initialRevision}`,
+      ),
+    );
+    expect(stalePreview.headers.get("cache-control")).toBe("no-store");
+    const freshPreview = await route(
+      env,
+      new Request(
+        `${ORIGIN}/api/gallery/${id}/preview.svg?v=${updatedPayload.previewRevision}`,
+      ),
+    );
+    expect(freshPreview.headers.get("cache-control")).toBe(
+      "public, max-age=31536000, immutable",
     );
 
     const mine = await route(
@@ -1487,15 +1556,23 @@ describe("gallery owner editing", () => {
       }),
     );
     const entries = (await mine.json()) as {
-      entries: { name: string; status: string }[];
+      entries: { name: string; status: string; previewRevision: string }[];
     };
     expect(entries.entries).toMatchObject([
-      { name: "Edit Me v2", status: "public" },
+      {
+        name: "Edit Me v2",
+        status: "public",
+        previewRevision: updatedPayload.previewRevision,
+      },
     ]);
 
     // A curator's edit does not re-attribute the entry to the curator.
-    const adminEdit = await route(env, updateRequest(adminCookie));
+    const adminEdit = await route(env, updateRequest(adminCookie, 280));
     expect(adminEdit.status).toBe(200);
+    const adminRevision = (
+      (await adminEdit.json()) as { previewRevision: string }
+    ).previewRevision;
+    expect(adminRevision).not.toBe(updatedPayload.previewRevision);
     const detail = (await (
       await route(env, new Request(`${ORIGIN}/api/gallery/${id}`))
     ).json()) as { entry: { author: string }; ownerUserId: string | null };
@@ -1585,6 +1662,10 @@ describe("gallery administration", () => {
     const env = environment();
     const adminCookie = await adminOf(env);
     const id = await submitOne(env, "Lifecycle", { cookie: adminCookie });
+    const initial = (await (
+      await route(env, new Request(`${ORIGIN}/api/gallery/${id}`))
+    ).json()) as { entry: { previewRevision: string } };
+    const previewUrl = `${ORIGIN}/api/gallery/${id}/preview.svg?v=${initial.entry.previewRevision}`;
 
     const earlyDelete = await route(
       env,
@@ -1608,6 +1689,9 @@ describe("gallery administration", () => {
     expect(((await list.json()) as { entries: unknown[] }).entries).toEqual([]);
     const hidden = await route(env, new Request(`${ORIGIN}/api/gallery/${id}`));
     expect(hidden.status).toBe(404);
+    const hiddenPreview = await route(env, new Request(previewUrl));
+    expect(hiddenPreview.status).toBe(404);
+    expect(hiddenPreview.headers.get("cache-control")).toBe("no-store");
 
     const bin = await route(
       env,
@@ -1626,6 +1710,11 @@ describe("gallery administration", () => {
       }),
     );
     expect(restore.status).toBe(200);
+    const restoredPreview = await route(env, new Request(previewUrl));
+    expect(restoredPreview.status).toBe(200);
+    expect(restoredPreview.headers.get("cache-control")).toBe(
+      "public, max-age=31536000, immutable",
+    );
     const back = await route(env, new Request(`${ORIGIN}/api/gallery`));
     expect(
       ((await back.json()) as { entries: { id: string }[] }).entries,

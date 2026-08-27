@@ -21,12 +21,15 @@ restrictive content-security-policy.
   (`{entries, nextCursor}`; keyset cursor; limit clamps at 60; optional
   `author` filters to that exact byline and optional `tags=a,b` to
   entries carrying ANY listed tag, both ahead of pagination). Rejected and
-  recycled entries never appear.
+  recycled entries never appear. Every entry includes the content-derived
+  `previewRevision` used by its thumbnail URL.
 - `GET /api/gallery/tags` — distinct public tags with counts, most
   frequent first (feeds the multi-select menu).
 - `GET /api/gallery/<id>` — one public entry with its canonical
   `projectText`.
-- `GET /api/gallery/<id>/preview.svg` — the server-rendered preview.
+- `GET /api/gallery/<id>/preview.svg?v=<previewRevision>` — the
+  server-rendered preview. A revision matching the stored SVG is immutable;
+  unversioned, stale-revision, hidden, and missing responses are `no-store`.
 - `/` serves the full-screen feed; each tile links to `/g/<id>`, which the
   editor opens through the ordinary protocol boundary. `/editor` is the
   plain editor; `/editor?example=<id>` opens a bundled example. The
@@ -52,7 +55,10 @@ signed-in account publishes directly as `public`; an ordinary member
 passes the quality gates below first, and a moderator curates past them.
 Anonymous upload stays impossible — an entry has to be attributable to
 the account that published it. A successful submission answers 201
-`{id, status}` with `status` always `public`.
+`{id, status, previewRevision}` with `status` always `public`. The editor
+starts a non-blocking fetch of that revision immediately, then notifies other
+same-origin tabs so an already-open Gallery switches URLs and refreshes its
+no-store metadata without waiting for a cache TTL.
 
 The byline is not a request field: the Worker takes `author` from the
 session's display name, so one account cannot publish under another's
@@ -124,9 +130,10 @@ update any entry; an ordinary session must own the entry (403 otherwise)
 and passes the quality gates (422). Either way the entry keeps its
 byline and its current status, so editing a published circuit neither
 takes it off the wall nor re-attributes it. The Project is re-serialized
-canonically and the preview re-rendered; 200 answers `{id, status}`. The
-detail response carries `ownerUserId` so the editor offers "update the
-opened entry" exactly to owners and moderators.
+canonically, the preview is re-rendered, and the netlistable marker is
+recalculated; 200 answers `{id, status, previewRevision}`. The detail response
+carries `ownerUserId` so the editor offers "update the opened entry" exactly
+to owners and moderators.
 
 Owner withdrawal: `POST /api/gallery/<id>/recycle` (same-origin) also
 accepts the owning session — the entry moves to `recycled` and leaves

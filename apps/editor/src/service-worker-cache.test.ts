@@ -96,4 +96,36 @@ describe("static shell cache policy", () => {
     );
     expect(stored.has("/assets/App-abc.js")).toBe(false);
   });
+
+  it("leaves Gallery preview APIs to their HTTP cache policy", () => {
+    const { listeners, stored } = loadWorker((() =>
+      Promise.reject(
+        new Error("the service worker must not fetch an API itself"),
+      )) as typeof fetch);
+    const request = new Request(
+      "https://analog-canvas.test/api/gallery/entry-1/preview.svg?v=2",
+    );
+    Object.defineProperty(request, "destination", { value: "image" });
+    let responded = false;
+    listeners.get("fetch")!({
+      request,
+      respondWith: () => {
+        responded = true;
+      },
+    });
+    expect(responded).toBe(false);
+    expect(stored.size).toBe(0);
+  });
+
+  it("does not store an explicitly no-store static response", async () => {
+    const { stored } = await requestScript(
+      new Response("export const dynamic = true;", {
+        headers: {
+          "content-type": "text/javascript",
+          "cache-control": "no-store",
+        },
+      }),
+    );
+    expect(stored.has("/assets/App-abc.js")).toBe(false);
+  });
 });
