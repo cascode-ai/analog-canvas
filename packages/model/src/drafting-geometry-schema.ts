@@ -31,7 +31,15 @@ export const ResolvedDraftingGeometrySchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("text"),
     position: DerivedPointSchema,
+    textPosition: DerivedPointSchema,
     rotation: RotationSchema,
+    polarityLines: z.array(
+      z.strictObject({
+        role: z.enum(["positive-horizontal", "positive-vertical", "negative"]),
+        from: DerivedPointSchema,
+        to: DerivedPointSchema,
+      }),
+    ),
     bounds: DerivedRectSchema,
     diagnostics: z.array(DraftingDiagnosticSchema),
   }),

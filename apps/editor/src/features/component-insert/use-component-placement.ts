@@ -22,11 +22,12 @@ import {
 } from "@icm/devices";
 import type {
   CircuitProject,
+  DraftingObject,
   Point,
   RouteEndpoint,
   SchematicDocument,
 } from "@icm/model";
-import { deriveStableId } from "@icm/model";
+import { defaultDraftTextDocument, deriveStableId } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
 import type { ComponentInsertRequest } from "./component-insert-request";
@@ -58,6 +59,7 @@ import {
 } from "../../presentation/razavi-presentation";
 import type { ScreenFlip } from "../../interaction/shortcut-orientation";
 import type { PendingComponentPlacement } from "../../interaction/interaction-state";
+import type { DrawingTool } from "../../interaction/interaction-state";
 
 type TransactionResult = { ok: boolean; revision: number };
 
@@ -93,13 +95,21 @@ export interface UseComponentPlacementOptions {
     transactionId: string,
     edits: ProjectStructureEdit[],
   ) => boolean;
-  selectOnly: (kind: "instance" | "route", ids: readonly string[]) => void;
+  selectOnly: (
+    kind: "instance" | "route" | "drafting",
+    ids: readonly string[],
+  ) => void;
   cancelAllTransientInteraction: () => void;
   cancelCanvasDrag: () => void;
   clearTransientCanvasState: () => void;
   paintSnapGuides: (guides: []) => void;
   beginVddRailInteraction: (netName: string) => void;
+  activateDrawingTool: (tool: DrawingTool) => void;
   beginComponentPlacement: (request: PendingComponentPlacement) => void;
+  beginDraftingTextEditing: (
+    object: Extract<DraftingObject, { kind: "text" }>,
+  ) => void;
+  nextId: (prefix: string) => string;
   rotateComponentPlacement: (delta: 90 | -90) => void;
   mirrorComponentPlacement: (direction: ScreenFlip) => void;
   componentPlacementRotation: 0 | 90 | 180 | 270;
@@ -593,6 +603,43 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
     );
   };
 
+  const placePolarityAnnotation = (
+    position: Point,
+    placementRequest: PendingComponentPlacement,
+  ): void => {
+    if (
+      placementRequest.kind !== "drafting-text" ||
+      !placementRequest.polarity
+    ) {
+      return;
+    }
+    let id = options.nextId("polarity");
+    while (
+      options.document.drafting?.objects.some((object) => object.id === id)
+    ) {
+      id = options.nextId("polarity");
+    }
+    const object: Extract<DraftingObject, { kind: "text" }> = {
+      id,
+      kind: "text",
+      locked: false,
+      zIndex: 0,
+      anchor: { kind: "free", position },
+      content: defaultDraftTextDocument("V_x"),
+      alignment: "middle",
+      rotation: options.componentPlacementRotation,
+      typographyToken: "label",
+      polarity: placementRequest.polarity,
+    };
+    if (!options.transact([{ kind: "upsert_drafting_object", object }]).ok) {
+      return;
+    }
+    options.cancelAllTransientInteraction();
+    options.selectOnly("drafting", [object.id]);
+    options.beginDraftingTextEditing(object);
+    options.setStatus(`Added ${placementRequest.polarity} polarity annotation`);
+  };
+
   const openInsertPicker = ({
     scope = "all",
     initialSelectionId = null,
@@ -629,6 +676,13 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
     setInsertDialogOpen(false);
     setInsertScope("all");
     setInsertInitialSelectionId(null);
+    if (request.kind === "drawing-tool") {
+      options.activateDrawingTool(request.tool);
+      options.setStatus(
+        `${request.symbolName}: click the canvas to start · double-click to finish · Esc exits`,
+      );
+      return;
+    }
     if (request.kind === "vdd-rail") {
       options.beginVddRailInteraction(request.netName);
       options.setStatus(
@@ -637,23 +691,36 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
       return;
     }
     const pendingRequest: PendingComponentPlacement =
-      request.kind === "symbol" &&
-      (request.symbolId === "port" || request.symbolId === "port-filled")
+      request.kind === "polarity-annotation"
         ? {
-            kind: "cell-pin",
+            kind: "drafting-text",
             symbolId: request.symbolId,
             parameters: {},
             initialRotation: request.initialRotation,
             showReference: false,
             referenceText: null,
             showValue: false,
-            direction: request.portDirection ?? "passive",
-            ...(request.portName ? { portName: request.portName } : {}),
+            polarity: request.polarity,
           }
-        : request;
+        : request.kind === "symbol" &&
+            (request.symbolId === "port" || request.symbolId === "port-filled")
+          ? {
+              kind: "cell-pin",
+              symbolId: request.symbolId,
+              parameters: {},
+              initialRotation: request.initialRotation,
+              showReference: false,
+              referenceText: null,
+              showValue: false,
+              direction: request.portDirection ?? "passive",
+              ...(request.portName ? { portName: request.portName } : {}),
+            }
+          : request;
     options.beginComponentPlacement(pendingRequest);
     options.setStatus(
-      `Place ${request.symbolName} on the canvas · R rotates · Shift+R / Ctrl+R mirrors · Esc cancels`,
+      request.kind === "polarity-annotation"
+        ? `Place ${request.symbolName} on the canvas · R rotates · Esc cancels`
+        : `Place ${request.symbolName} on the canvas · R rotates · Shift+R / Ctrl+R mirrors · Esc cancels`,
     );
   };
 
@@ -715,7 +782,9 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
       return;
     }
     if (!options.pendingSymbolId || !options.pendingComponentPlacement) return;
-    if (options.pendingComponentPlacement.kind === "retained-instance") {
+    if (options.pendingComponentPlacement.kind === "drafting-text") {
+      placePolarityAnnotation(point, options.pendingComponentPlacement);
+    } else if (options.pendingComponentPlacement.kind === "retained-instance") {
       const instanceId = options.pendingComponentPlacement.instanceId;
       if (instanceId) placeRetainedInstance(instanceId, point);
     } else if (options.pendingComponentPlacement.kind === "cell-pin") {

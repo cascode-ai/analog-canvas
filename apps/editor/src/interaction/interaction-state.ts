@@ -33,7 +33,8 @@ export interface PendingComponentPlacement {
     | "cell"
     | "external-subcircuit"
     | "cell-pin"
-    | "retained-instance";
+    | "retained-instance"
+    | "drafting-text";
   symbolId: string;
   parameters: Record<string, string>;
   initialRotation: 0 | 90 | 180 | 270;
@@ -46,6 +47,7 @@ export interface PendingComponentPlacement {
   masterName?: string;
   portName?: string;
   direction?: "input" | "output" | "inout" | "passive";
+  polarity?: "both" | "positive" | "negative";
   /** Existing unplaced Instance being returned from the Placement Tray. */
   instanceId?: string;
 }
@@ -190,6 +192,7 @@ function sameComponentPlacement(
     left.definitionId !== right.definitionId ||
     left.masterName !== right.masterName ||
     left.direction !== right.direction ||
+    left.polarity !== right.polarity ||
     left.instanceId !== right.instanceId
   ) {
     return false;

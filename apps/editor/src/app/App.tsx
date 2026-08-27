@@ -95,6 +95,7 @@ import {
   fullInsertLaunch,
 } from "../features/component-insert/insert-launch";
 import { useComponentPlacement } from "../features/component-insert/use-component-placement";
+import { findPaletteSymbol } from "../features/component-insert/symbol-catalog";
 import { createPlacementTrayCommands } from "../features/component-insert/placement-tray-commands";
 import { componentTargetDescription } from "../features/properties/component-identity-properties";
 import {
@@ -1198,7 +1199,8 @@ export function App({
     [project.externalSubcircuitDefinitions, resolver],
   );
   const pendingPlacementSymbol = pendingSymbolId
-    ? resolver.resolve(pendingSymbolId)?.definition
+    ? (resolver.resolve(pendingSymbolId)?.definition ??
+      findPaletteSymbol(document.presentation.styleProfileId, pendingSymbolId))
     : undefined;
   const {
     beginRetainedInstancePlacement: beginRetainedInstancePlacementFromHook,
@@ -1229,9 +1231,15 @@ export function App({
     clearTransientCanvasState,
     paintSnapGuides,
     beginVddRailInteraction,
+    activateDrawingTool: setTool,
     beginComponentPlacement: (request) => {
       beginComponentPlacement(request);
       seedComponentPreviewFromPointer();
+    },
+    beginDraftingTextEditing,
+    nextId: (prefix) => {
+      uniqueSuffixCounter.current += 1;
+      return `${prefix}-${uniqueSuffixCounter.current}`;
     },
     rotateComponentPlacement,
     mirrorComponentPlacement,

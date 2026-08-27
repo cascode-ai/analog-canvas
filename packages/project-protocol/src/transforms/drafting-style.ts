@@ -1,5 +1,3 @@
-import { CURRENT_PROJECT_SCHEMA_VERSION } from "@icm/model";
-
 export interface Schema26To27MigrationReport {
   /** Schema 27 only widens drafting style capacity; nothing migrates. */
   readonly changed: false;
@@ -20,7 +18,7 @@ export function upgradeSchema26To27WithReport(
   raw: Record<string, unknown>,
 ): Schema26To27MigrationResult {
   const project = structuredClone(raw);
-  project.schemaVersion = CURRENT_PROJECT_SCHEMA_VERSION;
+  project.schemaVersion = 27;
   return { project, report: { changed: false } };
 }
 

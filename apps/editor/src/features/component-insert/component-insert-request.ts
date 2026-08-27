@@ -18,6 +18,21 @@ export interface VddRailInsertRequest {
   netName: string;
 }
 
+export interface DrawingToolInsertRequest {
+  kind: "drawing-tool";
+  symbolId: string;
+  symbolName: string;
+  tool: "arrow" | "construction-line" | "rectangle" | "circle";
+}
+
+export interface PolarityAnnotationInsertRequest {
+  kind: "polarity-annotation";
+  symbolId: string;
+  symbolName: string;
+  polarity: "both" | "positive" | "negative";
+  initialRotation: 0 | 90 | 180 | 270;
+}
+
 export interface CellInsertRequest {
   kind: "cell";
   symbolId: string;
@@ -48,4 +63,6 @@ export type ComponentInsertRequest =
   | SymbolInsertRequest
   | CellInsertRequest
   | ExternalSubcircuitInsertRequest
-  | VddRailInsertRequest;
+  | VddRailInsertRequest
+  | DrawingToolInsertRequest
+  | PolarityAnnotationInsertRequest;

@@ -55,6 +55,45 @@ describe("drafting layer rendering", () => {
     expect(svg).not.toContain("a<b>&c");
   });
 
+  it.each([
+    ["both", 3],
+    ["positive", 2],
+    ["negative", 1],
+  ] as const)(
+    "renders the %s polarity label with fixed vector marks",
+    (polarity, lineCount) => {
+      const document = createEmptyDocument("doc", "Polarity label");
+      document.drafting = {
+        objects: [
+          {
+            id: `polarity-${polarity}`,
+            kind: "text",
+            locked: false,
+            zIndex: 0,
+            anchor: { kind: "free", position: { x: 100, y: 100 } },
+            content: { runs: [{ kind: "text", value: "V_x" }] },
+            alignment: "middle",
+            rotation: 90,
+            typographyToken: "label",
+            polarity,
+          },
+        ],
+      };
+
+      const svg = renderDocumentSvg(document, resolver);
+      const group = svg.match(
+        new RegExp(
+          `<g data-object-id="polarity-${polarity}" data-kind="draft-text"[\\s\\S]*?</g>`,
+          "u",
+        ),
+      )?.[0];
+      expect(group).toBeDefined();
+      expect(group?.match(/data-role="polarity-/gu)).toHaveLength(lineCount);
+      expect(group).toContain('transform="rotate(90 100 100)"');
+      expect(group).toContain("V_x");
+    },
+  );
+
   it("renders a squared subscript under one explicit overbar", () => {
     const document = createEmptyDocument("doc", "Squared noise current");
     document.drafting = {

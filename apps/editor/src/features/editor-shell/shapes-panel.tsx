@@ -8,6 +8,10 @@ import {
 import { SymbolArtwork } from "../component-insert/symbol-artwork";
 import { initialComponentParameterValues } from "../component-insert/component-parameters";
 import {
+  annotationDrawingTool,
+  annotationPolarity,
+} from "../component-insert/annotation-preview-symbols";
+import {
   componentCatalog,
   findPaletteSymbol,
   libraryDescription,
@@ -53,6 +57,13 @@ const COMPACT_LIBRARY_LABELS: Readonly<Record<string, string>> = {
   "vdd-port": "VDD",
   "voltage-amplifier": "V Amp",
   "voltage-source": "V Src",
+  "annotation-arrow": "Arrow",
+  "annotation-line": "Line",
+  "annotation-rectangle": "Rect",
+  "annotation-circle": "Circle",
+  "annotation-polarity-both": "+ V −",
+  "annotation-polarity-positive": "+ V",
+  "annotation-polarity-negative": "V −",
 };
 
 function libraryLabel(symbolId: string, symbolName: string): string {
@@ -71,6 +82,25 @@ export function quickPlaceRequest(
 ): ComponentInsertRequest | null {
   const symbol = findPaletteSymbol(styleProfileId, symbolId);
   if (!symbol) return null;
+  const drawingTool = annotationDrawingTool(symbolId);
+  if (drawingTool) {
+    return {
+      kind: "drawing-tool",
+      symbolId,
+      symbolName: symbol.name,
+      tool: drawingTool,
+    };
+  }
+  const polarity = annotationPolarity(symbolId);
+  if (polarity) {
+    return {
+      kind: "polarity-annotation",
+      symbolId,
+      symbolName: symbol.name,
+      polarity,
+      initialRotation: 0,
+    };
+  }
   if (symbolId === "vdd") {
     return {
       kind: "vdd-rail",

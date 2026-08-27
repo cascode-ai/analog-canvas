@@ -26,3 +26,11 @@ export type {
   Schema26To27MigrationReport,
   Schema26To27MigrationResult,
 } from "./transforms/drafting-style.js";
+export {
+  upgradeSchema27To28,
+  upgradeSchema27To28WithReport,
+} from "./transforms/polarity-drafting.js";
+export type {
+  Schema27To28MigrationReport,
+  Schema27To28MigrationResult,
+} from "./transforms/polarity-drafting.js";

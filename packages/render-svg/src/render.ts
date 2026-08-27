@@ -925,7 +925,7 @@ function renderDraftText(
   profile: SchematicStyleProfile,
   unresolved: string,
 ): string {
-  const { position, rotation } = geometry;
+  const { position, textPosition, rotation } = geometry;
   const fontSize =
     typographyFontSize(object.typographyToken ?? "body", profile) *
     (object.styleOverride?.sizeScale ?? 1);
@@ -933,16 +933,21 @@ function renderDraftText(
   // its uniform line grid centered on the resolved anchor position. Free and
   // route-anchored text keep the first-line-baseline placement unchanged.
   const baselineY =
-    object.anchor.kind === "object"
-      ? centeredFirstBaselineY(object.content, position.y, fontSize, profile)
-      : position.y;
+    object.anchor.kind === "object" || object.polarity
+      ? centeredFirstBaselineY(
+          object.content,
+          textPosition.y,
+          fontSize,
+          profile,
+        )
+      : textPosition.y;
   const weight = object.styleOverride?.weight === "bold" ? "bold" : "normal";
   const italic = object.styleOverride?.italic === true ? "italic" : "normal";
   const positioned = renderPositionedOverbarScriptDocument(
     object.content,
     profile,
     {
-      x: position.x,
+      x: textPosition.x,
       y: baselineY,
       fontSize,
       alignment: object.alignment,
@@ -950,16 +955,31 @@ function renderDraftText(
       defaultItalic: italic === "italic",
     },
   );
+  if (object.polarity) {
+    const color = object.styleOverride?.color ?? profile.foreground;
+    const strokeWidth =
+      profile.strokes.annotation * (object.styleOverride?.strokeScale ?? 1);
+    const markers = geometry.polarityLines
+      .map(
+        (line) =>
+          `<line data-role="polarity-${line.role}" x1="${line.from.x}" y1="${line.from.y}" x2="${line.to.x}" y2="${line.to.y}" stroke="${color}" stroke-width="${strokeWidth}" stroke-linecap="${profile.lineCap}"/>`,
+      )
+      .join("");
+    const text = positioned
+      ? `<text x="${textPosition.x}" y="${baselineY}" text-anchor="start" font-size="${fontSize}" font-weight="${weight}" font-style="${italic}" fill="${color}">${positioned.tspans}</text>${positioned.decorations}`
+      : `<text x="${textPosition.x}" y="${baselineY}" text-anchor="${object.alignment}" font-size="${fontSize}" font-weight="${weight}" font-style="${italic}" fill="${color}">${renderRichTextDocument(object.content, profile, { lineOriginX: textPosition.x })}</text>`;
+    return `<g data-object-id="${object.id}" data-kind="draft-text" data-polarity="${object.polarity}"${unresolved} transform="rotate(${rotation} ${position.x} ${position.y})">${markers}${text}</g>`;
+  }
   // P1: the renderer consumes geometry.rotation (the single rotation truth),
   // not the raw persisted object rotation. The rotation pivot stays on the
   // resolved anchor so centered labels rotate about their center.
   if (positioned) {
-    return `<g transform="rotate(${rotation} ${position.x} ${position.y})"><text data-object-id="${object.id}" data-kind="draft-text"${unresolved} x="${position.x}" y="${baselineY}" text-anchor="start" font-size="${fontSize}" font-weight="${weight}" font-style="${italic}">${positioned.tspans}</text>${positioned.decorations}</g>`;
+    return `<g transform="rotate(${rotation} ${position.x} ${position.y})"><text data-object-id="${object.id}" data-kind="draft-text"${unresolved} x="${textPosition.x}" y="${baselineY}" text-anchor="start" font-size="${fontSize}" font-weight="${weight}" font-style="${italic}">${positioned.tspans}</text>${positioned.decorations}</g>`;
   }
   const content = renderRichTextDocument(object.content, profile, {
-    lineOriginX: position.x,
+    lineOriginX: textPosition.x,
   });
-  return `<text data-object-id="${object.id}" data-kind="draft-text"${unresolved} x="${position.x}" y="${baselineY}" text-anchor="${object.alignment}" transform="rotate(${rotation} ${position.x} ${position.y})" font-size="${fontSize}" font-weight="${weight}" font-style="${italic}">${content}</text>`;
+  return `<text data-object-id="${object.id}" data-kind="draft-text"${unresolved} x="${textPosition.x}" y="${baselineY}" text-anchor="${object.alignment}" transform="rotate(${rotation} ${position.x} ${position.y})" font-size="${fontSize}" font-weight="${weight}" font-style="${italic}">${content}</text>`;
 }
 
 /** Glyph cap height is ~0.7 em; dropping the baseline by 0.35 em sits the

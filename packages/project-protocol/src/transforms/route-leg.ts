@@ -1,4 +1,4 @@
-import { CURRENT_PROJECT_SCHEMA_VERSION, deriveStableId } from "@icm/model";
+import { deriveStableId } from "@icm/model";
 
 import { ProjectMigrationError } from "./project.js";
 
@@ -33,7 +33,7 @@ export function upgradeSchema25To26WithReport(
     }
   }
 
-  project.schemaVersion = CURRENT_PROJECT_SCHEMA_VERSION;
+  project.schemaVersion = 26;
   return { project, report: { routes: migratedRoutes } };
 }
 

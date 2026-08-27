@@ -16,6 +16,7 @@ import {
   upgradeSchema25To26,
   upgradeSchema25To26WithReport,
   upgradeSchema26To27,
+  upgradeSchema27To28,
 } from "./index.js";
 
 class MemoryStorage implements ProjectStorage {
@@ -171,12 +172,16 @@ describe("Project persistence", () => {
     }).toEqual(topology);
 
     const migrated = parseProjectWithMetadata(
-      JSON.stringify(upgradeSchema26To27(upgradeSchema25To26(direct.project))),
+      JSON.stringify(
+        upgradeSchema27To28(
+          upgradeSchema26To27(upgradeSchema25To26(direct.project)),
+        ),
+      ),
     );
     expect(migrated).toMatchObject({
-      sourceSchemaVersion: 27,
+      sourceSchemaVersion: 28,
       migrated: false,
-      project: { schemaVersion: 27 },
+      project: { schemaVersion: 28 },
     });
     const migratedDocument = migrated.project.documents[0]!;
     expect(migratedDocument.netlist?.terminals).toMatchObject([
@@ -313,15 +318,17 @@ describe("Project persistence", () => {
       routeId: "route-1",
       reboundAnnotationIds: ["route-label"],
     });
-    // Schema 25 has left the rolling window; the retained transform lifts
-    // it to 26, and the boundary migrates that previous version to 27.
+    // Schema 25 has left the rolling window; retained transforms can still
+    // replay the complete history before the current boundary validates it.
     const parsed = parseProjectWithMetadata(
-      JSON.stringify(upgradeSchema25To26(source)),
+      JSON.stringify(
+        upgradeSchema27To28(upgradeSchema26To27(upgradeSchema25To26(source))),
+      ),
     );
     expect(parsed).toMatchObject({
-      sourceSchemaVersion: 27,
+      sourceSchemaVersion: 28,
       migrated: false,
-      project: { schemaVersion: 27 },
+      project: { schemaVersion: 28 },
     });
     const route = parsed.project.documents[0]!.routes[0]!;
     const annotation = parsed.project.documents[0]!.annotations[0]!;
@@ -339,10 +346,10 @@ describe("Project persistence", () => {
 
   it("rejects schemas outside the current-and-previous window", () => {
     const project = createEmptyProject("project-test", "Test Project");
-    for (const schemaVersion of [23, 24, 25, 28, 99]) {
+    for (const schemaVersion of [23, 24, 25, 29, 99]) {
       expect(() =>
         parseProject(JSON.stringify({ ...project, schemaVersion })),
-      ).toThrow(/must be 26 or 27/);
+      ).toThrow(/must be 27 or 28/);
     }
   });
 });

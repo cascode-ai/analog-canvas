@@ -43,6 +43,8 @@ export const DraftTextSchema = DraftingObjectBaseSchema.extend({
   alignment: z.enum(["start", "middle", "end"]),
   rotation: RotationSchema,
   typographyToken: z.enum(["caption", "body", "label"]).optional(),
+  /** Fixed vector polarity marks surrounding editable center text. */
+  polarity: z.enum(["both", "positive", "negative"]).optional(),
 });
 export const DraftArrowSchema = DraftingObjectBaseSchema.extend({
   kind: z.literal("arrow"),

@@ -5,7 +5,7 @@ Status: `accepted`
 Primary owner: `packages/model`
 
 The Project contains Documents; each Document owns revisioned electrical,
-geometric, and presentation facts. The current model is strict schema 27 and has
+geometric, and presentation facts. The current model is strict schema 28 and has
 no compatibility shape.
 
 ## Coordinate domains

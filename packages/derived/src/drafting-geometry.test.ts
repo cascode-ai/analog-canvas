@@ -184,3 +184,98 @@ describe("object-anchored drafting text on rectangles", () => {
     );
   });
 });
+
+describe("polarity drafting text", () => {
+  function polarityText(
+    polarity: "both" | "positive" | "negative",
+    rotation: 0 | 90 | 180 | 270 = 0,
+  ): Extract<DraftingObject, { kind: "text" }> {
+    return {
+      id: `polarity-${polarity}`,
+      kind: "text",
+      locked: false,
+      zIndex: 0,
+      anchor: { kind: "free", position: { x: 100, y: 80 } },
+      content: { runs: [{ kind: "text", value: "V_x" }] },
+      alignment: "middle",
+      rotation,
+      typographyToken: "label",
+      polarity,
+    };
+  }
+
+  it("includes fixed plus and minus strokes in shared bounds", () => {
+    const object = polarityText("both");
+    const geometry = resolveDraftingObjectGeometry(
+      documentWith([object]),
+      resolver,
+      object,
+    );
+    if (geometry.kind !== "text") throw new Error("expected text geometry");
+
+    expect(geometry.textPosition).toEqual({ x: 100, y: 80 });
+    expect(geometry.polarityLines.map((line) => line.role)).toEqual([
+      "positive-horizontal",
+      "positive-vertical",
+      "negative",
+    ]);
+    expect(geometry.bounds.y).toBeLessThan(geometry.polarityLines[0]!.from.y);
+    expect(geometry.bounds.y + geometry.bounds.height).toBeGreaterThan(
+      geometry.polarityLines[2]!.from.y,
+    );
+  });
+
+  it("centers each one-sided form around the stable rotation anchor", () => {
+    const positive = polarityText("positive");
+    const negative = polarityText("negative");
+    const positiveGeometry = resolveDraftingObjectGeometry(
+      documentWith([positive]),
+      resolver,
+      positive,
+    );
+    const negativeGeometry = resolveDraftingObjectGeometry(
+      documentWith([negative]),
+      resolver,
+      negative,
+    );
+    if (positiveGeometry.kind !== "text" || negativeGeometry.kind !== "text") {
+      throw new Error("expected text geometry");
+    }
+
+    expect(positiveGeometry.textPosition.y).toBeGreaterThan(80);
+    expect(negativeGeometry.textPosition.y).toBeLessThan(80);
+    expect(positiveGeometry.polarityLines).toHaveLength(2);
+    expect(negativeGeometry.polarityLines).toHaveLength(1);
+    expect(positiveGeometry.position).toEqual({ x: 100, y: 80 });
+    expect(negativeGeometry.position).toEqual({ x: 100, y: 80 });
+  });
+
+  it("rotates the complete three-part annotation around its center", () => {
+    const horizontal = polarityText("both", 0);
+    const vertical = polarityText("both", 90);
+    const horizontalGeometry = resolveDraftingObjectGeometry(
+      documentWith([horizontal]),
+      resolver,
+      horizontal,
+    );
+    const verticalGeometry = resolveDraftingObjectGeometry(
+      documentWith([vertical]),
+      resolver,
+      vertical,
+    );
+    if (
+      horizontalGeometry.kind !== "text" ||
+      verticalGeometry.kind !== "text"
+    ) {
+      throw new Error("expected text geometry");
+    }
+
+    expect(verticalGeometry.bounds.width).toBeCloseTo(
+      horizontalGeometry.bounds.height,
+    );
+    expect(verticalGeometry.bounds.height).toBeCloseTo(
+      horizontalGeometry.bounds.width,
+    );
+    expect(verticalGeometry.position).toEqual({ x: 100, y: 80 });
+  });
+});

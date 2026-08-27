@@ -5,10 +5,32 @@ import {
   AnnotationSchema,
   CircuitProjectJsonSchema,
   CircuitProjectSchema,
+  DraftTextSchema,
   SchematicDocumentSchema,
 } from "./schema.js";
 
 describe("CircuitProject schema", () => {
+  it("accepts only the three persisted polarity-label forms", () => {
+    const text = {
+      id: "polarity-1",
+      kind: "text" as const,
+      locked: false,
+      zIndex: 0,
+      anchor: { kind: "free" as const, position: { x: 20, y: 20 } },
+      content: { runs: [{ kind: "text" as const, value: "V_x" }] },
+      alignment: "middle" as const,
+      rotation: 0 as const,
+    };
+    for (const polarity of ["both", "positive", "negative"] as const) {
+      expect(DraftTextSchema.safeParse({ ...text, polarity }).success).toBe(
+        true,
+      );
+    }
+    expect(
+      DraftTextSchema.safeParse({ ...text, polarity: "plus-minus" }).success,
+    ).toBe(false);
+  });
+
   it("accepts a minimal Project with one Document", () => {
     const project = createEmptyProject("project-test", "Test Project");
     expect(CircuitProjectSchema.parse(project)).toEqual(project);

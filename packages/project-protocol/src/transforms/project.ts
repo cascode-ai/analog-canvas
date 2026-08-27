@@ -1,4 +1,4 @@
-import { CURRENT_PROJECT_SCHEMA_VERSION, deriveStableId } from "@icm/model";
+import { deriveStableId } from "@icm/model";
 
 export class ProjectMigrationError extends Error {
   constructor(
@@ -80,7 +80,7 @@ export function upgradeSchema24To25WithReport(
     }
   }
 
-  project.schemaVersion = CURRENT_PROJECT_SCHEMA_VERSION;
+  project.schemaVersion = 25;
   return {
     project,
     report: {

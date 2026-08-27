@@ -20,7 +20,7 @@ describe("shapes quick-place", () => {
       }),
     );
 
-    expect(symbols).toHaveLength(39);
+    expect(symbols).toHaveLength(46);
     expect(markup).toContain("All devices");
     expect(markup.match(/data-testid="shapes-chip-/g)).toHaveLength(
       symbols.length,
@@ -39,6 +39,7 @@ describe("shapes quick-place", () => {
       ["Switches", 2],
       ["Analog Blocks", 6],
       ["Logic Gates", 10],
+      ["Annotations", 7],
       ["Extended Devices", 2],
     ]);
     const categoryTestIds = [
@@ -49,6 +50,7 @@ describe("shapes quick-place", () => {
       "switches",
       "analog-blocks",
       "logic-gates",
+      "annotations",
       "extended-devices",
     ];
     for (let index = 0; index < categoryTestIds.length; index += 1) {
@@ -62,8 +64,8 @@ describe("shapes quick-place", () => {
         );
       }
     }
-    expect(markup.match(/class="shapes-category" open=""/g)).toHaveLength(8);
-    expect(markup.match(/class="shapes-category-header"/g)).toHaveLength(8);
+    expect(markup.match(/class="shapes-category" open=""/g)).toHaveLength(9);
+    expect(markup.match(/class="shapes-category-header"/g)).toHaveLength(9);
     expect(markup).toContain('aria-label="Place Independent Voltage Source"');
     expect(markup).toContain('title="Place Capacitor"');
     expect(markup).toContain('aria-label="Place Variable Resistor"');
@@ -109,6 +111,35 @@ describe("shapes quick-place", () => {
       symbolName: "Power Rail",
       netName: "VDD",
     });
+  });
+
+  it("starts annotation drawing tools and polarity-label placement", () => {
+    for (const [symbolId, symbolName, tool] of [
+      ["annotation-arrow", "Arrow", "arrow"],
+      ["annotation-line", "Line", "construction-line"],
+      ["annotation-rectangle", "Rectangle", "rectangle"],
+      ["annotation-circle", "Circle", "circle"],
+    ] as const) {
+      expect(quickPlaceRequest("razavi", symbolId)).toEqual({
+        kind: "drawing-tool",
+        symbolId,
+        symbolName,
+        tool,
+      });
+    }
+    expect(quickPlaceRequest("razavi", "annotation-polarity-both")).toEqual({
+      kind: "polarity-annotation",
+      symbolId: "annotation-polarity-both",
+      symbolName: "Polarity (+ / text / −)",
+      polarity: "both",
+      initialRotation: 0,
+    });
+    expect(
+      quickPlaceRequest("razavi", "annotation-polarity-positive"),
+    ).toMatchObject({ kind: "polarity-annotation", polarity: "positive" });
+    expect(
+      quickPlaceRequest("razavi", "annotation-polarity-negative"),
+    ).toMatchObject({ kind: "polarity-annotation", polarity: "negative" });
   });
 
   it("quick-places high-voltage DMOS with MOS parameters", () => {

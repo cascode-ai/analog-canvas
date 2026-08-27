@@ -8,6 +8,10 @@ import {
   initialComponentParameterValues,
 } from "./component-parameters";
 import {
+  annotationDrawingTool,
+  annotationPolarity,
+} from "./annotation-preview-symbols";
+import {
   componentCatalog,
   libraryDescription,
   libraryDisplayName,
@@ -189,6 +193,14 @@ export function InsertComponentDialog({
   const selectedIsPort =
     selected?.kind === "symbol" &&
     (selected.symbol.id === "port" || selected.symbol.id === "port-filled");
+  const selectedDrawingTool =
+    selected?.kind === "symbol"
+      ? annotationDrawingTool(selected.symbol.id)
+      : undefined;
+  const selectedPolarity =
+    selected?.kind === "symbol"
+      ? annotationPolarity(selected.symbol.id)
+      : undefined;
   const parameters = componentParameters(
     selected?.kind === "symbol" ? selected.symbol.id : "",
   );
@@ -264,7 +276,7 @@ export function InsertComponentDialog({
   };
 
   const rotatePreview = (): void => {
-    if (selectedIsVddRail) return;
+    if (selectedIsVddRail || selectedDrawingTool) return;
     setInitialRotation(
       (current) => ((current + 90) % 360) as 0 | 90 | 180 | 270,
     );
@@ -280,6 +292,25 @@ export function InsertComponentDialog({
         symbolId: "vdd",
         symbolName: "Power Rail",
         netName,
+      });
+      return;
+    }
+    if (selectedDrawingTool) {
+      onApply({
+        kind: "drawing-tool",
+        symbolId: selected.symbol.id,
+        symbolName: selected.symbol.name,
+        tool: selectedDrawingTool,
+      });
+      return;
+    }
+    if (selectedPolarity) {
+      onApply({
+        kind: "polarity-annotation",
+        symbolId: selected.symbol.id,
+        symbolName: selected.symbol.name,
+        polarity: selectedPolarity,
+        initialRotation,
       });
       return;
     }
@@ -503,6 +534,16 @@ export function InsertComponentDialog({
                   />
                 </label>
               </section>
+            ) : selectedDrawingTool ? (
+              <section
+                className="insert-placement-options"
+                aria-label="Drawing tool"
+              >
+                <p className="insert-cell-label-note">
+                  Starts the existing {selected!.symbol.name.toLowerCase()}{" "}
+                  tool. Click the canvas to draw; press Esc when finished.
+                </p>
+              </section>
             ) : (
               <section
                 className="insert-placement-options"
@@ -525,7 +566,12 @@ export function InsertComponentDialog({
                     <option value="270">270°</option>
                   </select>
                 </label>
-                {selectedIsPort ? (
+                {selectedPolarity ? (
+                  <p className="insert-cell-label-note">
+                    Place the annotation, then edit its center text directly on
+                    the canvas.
+                  </p>
+                ) : selectedIsPort ? (
                   <p className="insert-cell-label-note">
                     {libraryDescription(selected.symbol.id) ??
                       "Names a net on this sheet."}{" "}

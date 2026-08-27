@@ -21,6 +21,7 @@ describe("component insertion catalog", () => {
       "Switches",
       "Analog Blocks",
       "Logic Gates",
+      "Annotations",
       "Extended Devices",
     ]);
   });
@@ -54,7 +55,27 @@ describe("component insertion catalog", () => {
     expect(symbolCategory("closed-switch")).toBe("Switches");
     expect(symbolCategory("ndmos")).toBe("Extended Devices");
     expect(symbolCategory("pdmos")).toBe("Extended Devices");
+    expect(symbolCategory("annotation-arrow")).toBe("Annotations");
+    expect(symbolCategory("annotation-polarity-both")).toBe("Annotations");
     expect(symbolSubcategory("ndmos")).toBe("High-voltage devices");
+  });
+
+  it("offers drawing tools and editable polarity labels as annotations", () => {
+    const groups = componentCatalog("razavi-textbook-v1", "");
+    const annotations = groups.find(
+      (group) => group.category === "Annotations",
+    );
+
+    expect(annotations?.symbols.map((symbol) => symbol.id)).toEqual([
+      "annotation-arrow",
+      "annotation-circle",
+      "annotation-line",
+      "annotation-polarity-negative",
+      "annotation-polarity-both",
+      "annotation-polarity-positive",
+      "annotation-rectangle",
+    ]);
+    expect(groups.at(-1)?.category).toBe("Extended Devices");
   });
 
   it("offers marked and unmarked comparators as separate analog blocks", () => {

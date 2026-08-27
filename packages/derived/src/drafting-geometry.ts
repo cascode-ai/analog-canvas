@@ -43,8 +43,16 @@ export interface DraftingDiagnostic {
 export type ResolvedDraftingGeometry =
   | {
       kind: "text";
+      /** Rotation pivot and stable placement anchor for the whole object. */
       position: DerivedPoint;
+      /** Center of the editable text, which may shift between polarity marks. */
+      textPosition: DerivedPoint;
       rotation: 0 | 90 | 180 | 270;
+      polarityLines: Array<{
+        role: "positive-horizontal" | "positive-vertical" | "negative";
+        from: DerivedPoint;
+        to: DerivedPoint;
+      }>;
       bounds: DerivedRect;
       diagnostics: DraftingDiagnostic[];
     }
@@ -230,23 +238,108 @@ function resolveText(
   const follow =
     object.anchor.kind === "route" && object.anchor.orientation === "follow";
   const rotation = composeRotation(resolved.rotation, object.rotation, follow);
-  const bounds = textBounds(
-    position,
-    object.alignment,
-    rotation,
-    object.content,
-    richTextMetrics(
-      resolveDocumentStyleProfile(document.presentation),
-      object.typographyToken,
-      object.styleOverride?.sizeScale,
-    ),
+  const profile = resolveDocumentStyleProfile(document.presentation);
+  const metrics = richTextMetrics(
+    profile,
+    object.typographyToken,
+    object.styleOverride?.sizeScale,
   );
+  const polarity = object.polarity
+    ? resolvePolarityTextGeometry(
+        position,
+        object.polarity,
+        object.content,
+        metrics,
+      )
+    : null;
+  const textPosition = polarity?.textPosition ?? position;
+  const unrotatedTextBounds = textBounds(
+    textPosition,
+    object.alignment,
+    0,
+    object.content,
+    metrics,
+  );
+  const unrotatedBounds = polarity
+    ? unionRects([
+        unrotatedTextBounds,
+        paddedBounds(
+          unionBounds(polarity.lines.flatMap((line) => [line.from, line.to])),
+          STROKE_PADDING / 2,
+        ),
+      ])
+    : unrotatedTextBounds;
+  const bounds =
+    rotation === 0
+      ? unrotatedBounds
+      : rotatedRectBounds(unrotatedBounds, position, rotation);
   return {
     kind: "text" as const,
     position,
+    textPosition,
     rotation,
+    polarityLines: polarity?.lines ?? [],
     bounds,
     diagnostics,
+  };
+}
+
+function resolvePolarityTextGeometry(
+  position: DerivedPoint,
+  polarity: "both" | "positive" | "negative",
+  content: RichTextDocument,
+  metrics: ReturnType<typeof richTextMetrics>,
+): {
+  textPosition: DerivedPoint;
+  lines: Extract<ResolvedDraftingGeometry, { kind: "text" }>["polarityLines"];
+} {
+  const layout = measureRichTextDocument(content, metrics);
+  const textHalfHeight = layout.height / 2;
+  const markerHalfArm = metrics.fontSize * 0.23;
+  const separation = textHalfHeight + markerHalfArm + metrics.fontSize * 0.18;
+  let textOffset = 0;
+  let positiveOffset: number | null = null;
+  let negativeOffset: number | null = null;
+  if (polarity === "both") {
+    positiveOffset = -separation;
+    negativeOffset = separation;
+  } else if (polarity === "positive") {
+    positiveOffset = (-separation - textHalfHeight + markerHalfArm) / 2;
+    textOffset = positiveOffset + separation;
+  } else {
+    textOffset = -(separation - textHalfHeight + markerHalfArm) / 2;
+    negativeOffset = textOffset + separation;
+  }
+  const lines: Extract<
+    ResolvedDraftingGeometry,
+    { kind: "text" }
+  >["polarityLines"] = [];
+  if (positiveOffset !== null) {
+    const y = position.y + positiveOffset;
+    lines.push(
+      {
+        role: "positive-horizontal",
+        from: { x: position.x - markerHalfArm, y },
+        to: { x: position.x + markerHalfArm, y },
+      },
+      {
+        role: "positive-vertical",
+        from: { x: position.x, y: y - markerHalfArm },
+        to: { x: position.x, y: y + markerHalfArm },
+      },
+    );
+  }
+  if (negativeOffset !== null) {
+    const y = position.y + negativeOffset;
+    lines.push({
+      role: "negative",
+      from: { x: position.x - markerHalfArm, y },
+      to: { x: position.x + markerHalfArm, y },
+    });
+  }
+  return {
+    textPosition: { x: position.x, y: position.y + textOffset },
+    lines,
   };
 }
 

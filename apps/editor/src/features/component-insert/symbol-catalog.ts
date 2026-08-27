@@ -7,6 +7,11 @@ import {
 } from "@icm/symbols";
 import type { SymbolDefinition } from "@icm/symbols";
 
+import {
+  ANNOTATION_CATEGORY,
+  annotationPreviewSymbols,
+  isAnnotationPaletteSymbol,
+} from "./annotation-preview-symbols";
 import { vddRailPreviewSymbol } from "./vdd-rail-preview-symbol";
 
 /**
@@ -27,6 +32,7 @@ const CATALOG_SECTIONS: readonly CatalogSection[] = [
   { category: "Switches" },
   { category: "Analog Blocks" },
   { category: "Logic Gates" },
+  { category: ANNOTATION_CATEGORY },
   {
     category: EXTENDED_DEVICE_CATEGORY,
     subcategory: HIGH_VOLTAGE_DEVICE_SUBCATEGORY,
@@ -40,6 +46,7 @@ export interface ComponentCatalogGroup {
 }
 
 export function symbolCategory(symbolId: string): string {
+  if (isAnnotationPaletteSymbol(symbolId)) return ANNOTATION_CATEGORY;
   const expanded = expandedDeviceCatalogEntry(symbolId);
   if (expanded) return expanded.category;
   if (["nmos", "pmos", "npn", "pnp"].includes(symbolId)) {
@@ -130,6 +137,7 @@ export function paletteSymbols(_styleProfileId: string): SymbolDefinition[] {
   return [
     vddRailPreviewSymbol,
     ...razaviProductSymbols,
+    ...annotationPreviewSymbols,
     ...expandedDeviceSymbols,
   ];
 }

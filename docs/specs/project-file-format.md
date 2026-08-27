@@ -2,16 +2,16 @@
 
 Status: `accepted`
 
-Current Project schema: `27`
+Current Project schema: `28`
 
 Primary owners: `packages/model` (current shape) and
 `packages/project-protocol` (file boundary)
 
 An `.icproj.json` file is canonical JSON for one complete `CircuitProject`.
-`@icm/project-protocol` exposes `parseProject`. It accepts schemas 25 and 26,
-migrates previous parallel Route arrays and positional attachments to stable
-Route legs, supplies only schema-27 in memory, and writes only schema 27.
-Older project files are rejected.
+`@icm/project-protocol` exposes `parseProject`. It accepts schemas 27 and 28,
+adds the optional polarity-annotation intent when reading schema 27, supplies
+only schema 28 in memory, and writes only schema 28. Older project files are
+rejected.
 
 ## Current authorities
 
@@ -62,8 +62,8 @@ Older project files are rejected.
 ## Read and write
 
 ```text
-read text -> parse JSON -> require Project schema 25 or 26
--> converge to schema 27 -> strict schema-27 validation -> open
+read text -> parse JSON -> require Project schema 27 or 28
+-> converge to schema 28 -> strict schema-28 validation -> open
 save -> strict validation -> canonical key ordering -> atomic write
 ```
 
@@ -73,7 +73,7 @@ after explicit human approval in the editor.
 
 A migrated formal file is marked as needing save. The editor does not silently
 overwrite the source selected through the browser file input. Browser recovery
-records may be canonicalized to v26 only after a successful validated write.
+records may be canonicalized to v28 only after a successful validated write.
 
 Project entry does not repair duplicate canonical supply Nets (`0` or `VDD`).
 Duplicate folded Net names are invalid input and remain a blocking diagnostic
@@ -82,7 +82,7 @@ until the author explicitly renames or merges the Nets.
 Canonical serialization ends with one newline and is byte-stable across
 save/load/save. The current corpus is listed in
 `fixtures/projects/compatibility-corpus.json`; its accepted entries must all be
-already canonical Project schema 27. The rejected corpus names expected
+already canonical Project schema 28. The rejected corpus names expected
 validation failures.
 
 Viewport, selection, undo history, canvas overlays, Agent credentials,

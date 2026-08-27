@@ -317,6 +317,99 @@ test("groups and places high-voltage DMOS from Extended Devices", async ({
     .toContain('"symbolId": "ndmos"');
 });
 
+test("groups drafting tools and editable polarity labels under Annotations", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  const panel = page.getByTestId("shapes-library-panel");
+  if ((await panel.getAttribute("data-open")) !== "true") {
+    await page.getByTestId("library-toggle").click();
+  }
+
+  const annotations = page.getByTestId("shapes-category-annotations");
+  await expect(annotations).toBeVisible();
+  await expect(annotations.locator(".shapes-category-count")).toHaveText("7");
+  await expect(
+    annotations.getByTestId("shapes-chip-annotation-polarity-both"),
+  ).toBeVisible();
+  await expect(
+    annotations.getByTestId("shapes-chip-annotation-polarity-positive"),
+  ).toBeVisible();
+  await expect(
+    annotations.getByTestId("shapes-chip-annotation-polarity-negative"),
+  ).toBeVisible();
+
+  // The Library entries reuse the authoritative toolbar tools rather than
+  // creating fixed-size decorative symbols.
+  await annotations.getByTestId("shapes-chip-annotation-arrow").click();
+  await expect(page.getByTestId("draw-tool-arrow")).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("draw-tool-arrow")).not.toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await expect(page.getByTestId("draw-tool-rectangle")).toBeVisible();
+  await expect(page.getByTestId("draw-tool-circle")).toBeVisible();
+
+  await annotations.getByTestId("shapes-chip-annotation-polarity-both").click();
+  const canvas = page.getByTestId("schematic-canvas");
+  await canvas.hover({ position: { x: 460, y: 260 } });
+  const preview = page.getByTestId("component-placement-preview");
+  await expect(preview).toBeVisible();
+  await page.keyboard.press("r");
+  await expect(preview).toHaveAttribute("transform", /rotate\(90\)/u);
+
+  await canvas.click({ position: { x: 460, y: 260 } });
+  const editor = page.getByRole("textbox", { name: "Canvas text editor" });
+  await expect(editor).toBeVisible();
+  await editor.fill("VGS");
+  await page.getByRole("button", { name: "Apply text changes" }).click();
+
+  const polarity = canvas.locator('[data-polarity="both"]');
+  await expect(polarity).toBeVisible();
+  await expect(polarity).toHaveAttribute("transform", /rotate\(90 /u);
+  await expect(
+    polarity.locator('[data-role^="polarity-positive"]'),
+  ).toHaveCount(2);
+  await expect(polarity.locator('[data-role="polarity-negative"]')).toHaveCount(
+    1,
+  );
+  await expect(polarity.locator("text")).toContainText("VGS");
+  await expect
+    .poll(() => recoveryProjectTexts(page))
+    .toContain('"polarity": "both"');
+
+  // The full Insert picker exposes the same semantic entry and omits device
+  // reference/value controls that do not apply to drafting text.
+  await page.keyboard.press("i");
+  const dialog = page.getByRole("dialog", { name: "Insert Component" });
+  await dialog.getByLabel("Component search").fill("negative polarity");
+  await dialog
+    .getByTestId("insert-component-annotation-polarity-negative")
+    .click();
+  await expect(dialog.getByLabel("Initial rotation")).toBeVisible();
+  await expect(dialog.getByLabel("Reference name")).toHaveCount(0);
+  await dialog.getByRole("button", { name: "Apply" }).click();
+  await canvas.hover({ position: { x: 600, y: 260 } });
+  await canvas.click({ position: { x: 600, y: 260 } });
+  await expect(editor).toBeVisible();
+  await editor.fill("VDS");
+  await page.getByRole("button", { name: "Apply text changes" }).click();
+
+  const negative = canvas.locator('[data-polarity="negative"]');
+  await expect(negative).toBeVisible();
+  await expect(negative.locator('[data-role="polarity-negative"]')).toHaveCount(
+    1,
+  );
+  await expect(
+    negative.locator('[data-role^="polarity-positive"]'),
+  ).toHaveCount(0);
+});
+
 test("places a named vertical Power Rail from I", async ({ page }) => {
   await emulateDownloadOnlyBrowser(page);
   await page.goto("/editor");
@@ -1010,7 +1103,7 @@ test("shows the complete foldable categorized Library, quick-places a device, an
   await expect(panel).toHaveAttribute("data-open", "true");
   const libraryChipCount = await libraryChips.count();
   expect(libraryChipCount).toBeGreaterThanOrEqual(35);
-  await expect(categories).toHaveCount(8);
+  await expect(categories).toHaveCount(9);
   const transistorCategory = page.getByTestId("shapes-category-transistors");
   const transistorChips = transistorCategory.locator(
     '[data-testid^="shapes-chip-"]',
