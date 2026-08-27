@@ -295,6 +295,80 @@ describe("gallery data migrations", () => {
         .one().author,
     ).toBe("Token Zhang");
   });
+
+  it("migrates histories to two versions and removes orphaned data", () => {
+    const state = sqliteState();
+    new GalleryDO(state);
+    for (const entryId of ["entry-a", "entry-b"]) {
+      state.storage.sql.exec(
+        `INSERT INTO gallery_entries
+         (id, name, author, description, created_at, schema_version, status,
+          project_text, svg_text)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        entryId,
+        entryId,
+        "Author",
+        "",
+        "2026-08-01T00:00:00.000Z",
+        CURRENT_PROJECT_SCHEMA_VERSION,
+        "public",
+        projectText(entryId),
+        "<svg/>",
+      );
+    }
+    for (const [entryId, versionNo] of [
+      ["entry-a", 1],
+      ["entry-a", 2],
+      ["entry-a", 3],
+      ["entry-a", 4],
+      ["entry-b", 1],
+      ["entry-b", 2],
+      ["entry-b", 3],
+      ["missing-entry", 1],
+    ] as const) {
+      state.storage.sql.exec(
+        `INSERT INTO gallery_entry_versions
+         (id, entry_id, version_no, name, author, description,
+          schema_version, project_text, svg_text, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `${entryId}-${versionNo}`,
+        entryId,
+        versionNo,
+        `${entryId} v${versionNo}`,
+        "Author",
+        "",
+        CURRENT_PROJECT_SCHEMA_VERSION,
+        projectText(`${entryId} v${versionNo}`),
+        "<svg/>",
+        `2026-08-${String(versionNo).padStart(2, "0")}T00:00:00.000Z`,
+      );
+    }
+    state.storage.sql.exec(
+      `INSERT INTO gallery_likes(entry_id, user_id, liked_at)
+       VALUES ('missing-entry', 'legacy-user', '2026-08-01T00:00:00.000Z')`,
+    );
+    state.storage.sql.exec("DELETE FROM data_migrations");
+
+    new GalleryDO(state);
+    expect(
+      state.storage.sql
+        .exec<{ entry_id: string; version_no: number }>(
+          `SELECT entry_id, version_no FROM gallery_entry_versions
+           ORDER BY entry_id, version_no DESC`,
+        )
+        .toArray(),
+    ).toEqual([
+      { entry_id: "entry-a", version_no: 4 },
+      { entry_id: "entry-a", version_no: 3 },
+      { entry_id: "entry-b", version_no: 3 },
+      { entry_id: "entry-b", version_no: 2 },
+    ]);
+    expect(
+      state.storage.sql
+        .exec<{ count: number }>("SELECT COUNT(*) AS count FROM gallery_likes")
+        .one().count,
+    ).toBe(0);
+  });
 });
 
 describe("newest-first gallery feed", () => {
@@ -1278,7 +1352,6 @@ describe("gallery version history", () => {
     expect(afterRestore.versions.map((version) => version.name)).toEqual([
       "Versioned v3",
       "Versioned v2",
-      "Versioned v1",
     ]);
   });
 
@@ -1286,7 +1359,8 @@ describe("gallery version history", () => {
     const env = environment();
     const adminCookie = await adminOf(env);
     const id = await submitOne(env, "Cap 0", { cookie: adminCookie });
-    for (let index = 1; index <= 24; index += 1) {
+    let oldestVersionId = "";
+    for (let index = 1; index <= 4; index += 1) {
       await route(
         env,
         new Request(`${ORIGIN}/api/gallery/${id}`, {
@@ -1302,6 +1376,14 @@ describe("gallery version history", () => {
           }),
         }),
       );
+      if (index === 1) {
+        oldestVersionId = env.gallerySql
+          .exec<{ id: string }>(
+            "SELECT id FROM gallery_entry_versions WHERE entry_id = ?",
+            id,
+          )
+          .one().id;
+      }
     }
     const listed = (await (
       await route(
@@ -1311,9 +1393,29 @@ describe("gallery version history", () => {
         }),
       )
     ).json()) as { versions: { versionNo: number }[] };
-    expect(listed.versions).toHaveLength(20);
-    expect(listed.versions[0]!.versionNo).toBe(24);
-    expect(listed.versions.at(-1)!.versionNo).toBe(5);
+    expect(listed.versions).toHaveLength(2);
+    expect(listed.versions[0]!.versionNo).toBe(4);
+    expect(listed.versions.at(-1)!.versionNo).toBe(3);
+
+    const prunedPreview = await route(
+      env,
+      new Request(
+        `${ORIGIN}/api/gallery/${id}/versions/${oldestVersionId}/preview.svg`,
+        { headers: cookieHeaders(adminCookie) },
+      ),
+    );
+    expect(prunedPreview.status).toBe(404);
+    const prunedRestore = await route(
+      env,
+      new Request(
+        `${ORIGIN}/api/gallery/${id}/versions/${oldestVersionId}/restore`,
+        {
+          method: "POST",
+          headers: { Origin: ORIGIN, ...cookieHeaders(adminCookie) },
+        },
+      ),
+    );
+    expect(prunedRestore.status).toBe(404);
   });
 });
 
@@ -1720,6 +1822,48 @@ describe("gallery administration", () => {
       ((await back.json()) as { entries: { id: string }[] }).entries,
     ).toHaveLength(1);
 
+    const updated = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/${id}`, {
+        method: "PUT",
+        headers: {
+          Origin: ORIGIN,
+          Cookie: adminCookie,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          name: "Lifecycle v2",
+          projectText: projectText("Lifecycle v2"),
+        }),
+      }),
+    );
+    expect(updated.status).toBe(200);
+    const likerCookie = await makerOf(env);
+    const liked = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/${id}/like`, {
+        method: "POST",
+        headers: { Origin: ORIGIN, Cookie: likerCookie },
+      }),
+    );
+    expect(liked.status).toBe(200);
+    expect(
+      env.gallerySql
+        .exec<{ count: number }>(
+          "SELECT COUNT(*) AS count FROM gallery_entry_versions WHERE entry_id = ?",
+          id,
+        )
+        .one().count,
+    ).toBe(1);
+    expect(
+      env.gallerySql
+        .exec<{ count: number }>(
+          "SELECT COUNT(*) AS count FROM gallery_likes WHERE entry_id = ?",
+          id,
+        )
+        .one().count,
+    ).toBe(1);
+
     await route(
       env,
       new Request(`${ORIGIN}/api/gallery/${id}/recycle`, {
@@ -1742,6 +1886,22 @@ describe("gallery administration", () => {
       }),
     );
     expect(((await gone.json()) as { entries: unknown[] }).entries).toEqual([]);
+    expect(
+      env.gallerySql
+        .exec<{ count: number }>(
+          "SELECT COUNT(*) AS count FROM gallery_entry_versions WHERE entry_id = ?",
+          id,
+        )
+        .one().count,
+    ).toBe(0);
+    expect(
+      env.gallerySql
+        .exec<{ count: number }>(
+          "SELECT COUNT(*) AS count FROM gallery_likes WHERE entry_id = ?",
+          id,
+        )
+        .one().count,
+    ).toBe(0);
   });
 
   it("rejects with an owner-visible reason and prevents owner self-restore", async () => {
@@ -2280,6 +2440,86 @@ describe("gallery administration", () => {
           .one().schema_version,
       ).toBe(CURRENT_PROJECT_SCHEMA_VERSION - 1);
     }
+  });
+
+  it("reapplies two-version retention when restoring a legacy backup", async () => {
+    const env = environment();
+    const adminCookie = await adminOf(env);
+    const id = await submitOne(env, "Legacy backup v1", {
+      cookie: adminCookie,
+    });
+    for (const versionNo of [2, 3]) {
+      const updated = await route(
+        env,
+        new Request(`${ORIGIN}/api/gallery/${id}`, {
+          method: "PUT",
+          headers: {
+            Origin: ORIGIN,
+            Cookie: adminCookie,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            name: `Legacy backup v${versionNo}`,
+            projectText: projectText(`Legacy backup v${versionNo}`),
+          }),
+        }),
+      );
+      expect(updated.status).toBe(200);
+    }
+
+    const backupResponse = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/maintenance/schema-backup`, {
+        headers: cookieHeaders(adminCookie),
+      }),
+    );
+    const backup = (await backupResponse.json()) as any;
+    const versions = backup.tables.galleryEntryVersions as Record<
+      string,
+      unknown
+    >[];
+    expect(
+      versions
+        .map((version) => Number(version.version_no))
+        .sort((left, right) => left - right),
+    ).toEqual([1, 2]);
+    versions.push({
+      ...versions[0],
+      id: "legacy-version-zero",
+      version_no: 0,
+    });
+
+    const restored = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/maintenance/schema-restore`, {
+        method: "POST",
+        headers: {
+          Origin: ORIGIN,
+          Cookie: adminCookie,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ backup }),
+      }),
+    );
+    expect(await restored.json()).toMatchObject({
+      restored: true,
+      records: 3,
+      tables: {
+        galleryEntries: 1,
+        galleryEntryVersions: 2,
+        workspaceSlots: 0,
+      },
+    });
+    expect(
+      env.gallerySql
+        .exec<{ version_no: number }>(
+          `SELECT version_no FROM gallery_entry_versions
+           WHERE entry_id = ? ORDER BY version_no DESC`,
+          id,
+        )
+        .toArray()
+        .map((version) => version.version_no),
+    ).toEqual([2, 1]);
   });
 });
 

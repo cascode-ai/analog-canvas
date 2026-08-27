@@ -149,7 +149,8 @@ voluntarily withdrawn entries.
 Every content-replacing update (`PUT`, and Restore itself) first
 snapshots the entry's previous state — name, author, description, tags,
 canonical project text, preview — into `gallery_entry_versions`,
-numbered per entry and capped at the newest 20 (older pruned).
+numbered per entry and capped at the newest 2 (older versions are pruned).
+The live current state is separate and does not count toward those 2 snapshots.
 Maintenance re-serialization does not snapshot (content-equivalent).
 Authority: moderators (admin or moderator session) and the entry's
 owning session:
@@ -231,9 +232,10 @@ header buys nothing. Without such a session every admin route answers
   when every record is valid. The response reports each migrated Route leg,
   bend, and route-attachment rebinding.
 - `POST /api/gallery/maintenance/schema-restore` — atomically restore the three
-  Project-bearing tables from an unmodified `schema-backup` payload supplied as
-  `{ "backup": ... }`. This same-origin endpoint is an emergency rollback
-  operation, not a general import surface.
+  Project-bearing tables from a `schema-backup` payload supplied as
+  `{ "backup": ... }`. Current retention is reapplied, so a legacy backup with
+  more than 2 versions for an entry restores only its newest 2. This same-origin
+  endpoint is an emergency rollback operation, not a general import surface.
 
 ## Retention and privacy
 

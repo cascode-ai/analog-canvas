@@ -113,7 +113,8 @@ export const GALLERY_MAX_DESCRIPTION_LENGTH = 300;
 export const GALLERY_DAILY_SUBMISSION_LIMIT = 10;
 export const GALLERY_MAX_TAGS = 5;
 export const GALLERY_MAX_TAG_LENGTH = 24;
-export const GALLERY_MAX_VERSIONS_PER_ENTRY = 20;
+/** How many previous states each Gallery entry retains. */
+export const GALLERY_MAX_VERSIONS_PER_ENTRY = 2;
 export const GALLERY_DEFAULT_LIST_LIMIT = 30;
 export const GALLERY_MAX_LIST_LIMIT = 60;
 
@@ -125,6 +126,39 @@ type SqlResult<T> = {
 type SqlStorage = {
   exec<T>(query: string, ...bindings: unknown[]): SqlResult<T>;
 };
+
+/** Enforce retention by count, even for imported rows with sparse versions. */
+function pruneGalleryEntryVersions(sql: SqlStorage, entryId?: string): void {
+  const entryFilter = entryId === undefined ? "" : "WHERE entry_id = ?";
+  sql.exec(
+    `DELETE FROM gallery_entry_versions
+     WHERE id IN (
+       SELECT id FROM (
+         SELECT id,
+                ROW_NUMBER() OVER (
+                  PARTITION BY entry_id
+                  ORDER BY version_no DESC, id DESC
+                ) AS retention_rank
+         FROM gallery_entry_versions
+         ${entryFilter}
+       )
+       WHERE retention_rank > ?
+     )`,
+    ...(entryId === undefined ? [] : [entryId]),
+    GALLERY_MAX_VERSIONS_PER_ENTRY,
+  );
+}
+
+function deleteOrphanGalleryData(sql: SqlStorage): void {
+  sql.exec(
+    `DELETE FROM gallery_entry_versions
+     WHERE entry_id NOT IN (SELECT id FROM gallery_entries)`,
+  );
+  sql.exec(
+    `DELETE FROM gallery_likes
+     WHERE entry_id NOT IN (SELECT id FROM gallery_entries)`,
+  );
+}
 
 type DurableObjectStateLike = {
   storage: {
@@ -230,6 +264,7 @@ interface EntryRow {
 
 const TOKENZHANG_BYLINE_MIGRATION = "2026-08-26-tokenzhang-to-zhishuai-zhang";
 const TOKENZHANG_BYLINE = "Zhishuai Zhang";
+const VERSION_RETENTION_MIGRATION = "2026-08-27-gallery-version-retention-2";
 
 function summaryOf(
   row: EntryRow & { likes?: number; liked_by_viewer?: number },
@@ -382,6 +417,22 @@ export class GalleryDO {
       this.sql.exec(
         "INSERT INTO data_migrations(id, applied_at) VALUES (?, ?)",
         TOKENZHANG_BYLINE_MIGRATION,
+        new Date().toISOString(),
+      );
+    });
+    this.state.storage.transactionSync(() => {
+      const applied = this.sql
+        .exec<{ id: string }>(
+          "SELECT id FROM data_migrations WHERE id = ?",
+          VERSION_RETENTION_MIGRATION,
+        )
+        .toArray();
+      if (applied.length > 0) return;
+      deleteOrphanGalleryData(this.sql);
+      pruneGalleryEntryVersions(this.sql);
+      this.sql.exec(
+        "INSERT INTO data_migrations(id, applied_at) VALUES (?, ?)",
+        VERSION_RETENTION_MIGRATION,
         new Date().toISOString(),
       );
     });
@@ -682,12 +733,7 @@ export class GalleryDO {
       row.svg_text,
       at,
     );
-    this.sql.exec(
-      `DELETE FROM gallery_entry_versions
-       WHERE entry_id = ? AND version_no <= ?`,
-      row.id,
-      lastVersion + 1 - GALLERY_MAX_VERSIONS_PER_ENTRY,
-    );
+    pruneGalleryEntryVersions(this.sql, row.id);
   }
 
   private replaceEntry(body: Record<string, unknown>): Response {
@@ -968,7 +1014,7 @@ export class GalleryDO {
     });
   }
 
-  /** Restore exactly the three Project-bearing tables from an owned backup. */
+  /** Restore the Project-bearing tables while enforcing current retention. */
   private schemaRestore(rawBackup: unknown): Response {
     if (
       !isRecord(rawBackup) ||
@@ -989,7 +1035,7 @@ export class GalleryDO {
         { status: 400 },
       );
     }
-    this.state.storage.transactionSync(() => {
+    const retainedVersionCount = this.state.storage.transactionSync(() => {
       this.sql.exec("DELETE FROM gallery_entries");
       this.sql.exec("DELETE FROM gallery_entry_versions");
       this.sql.exec("DELETE FROM workspace_slots");
@@ -1050,6 +1096,8 @@ export class GalleryDO {
           ]),
         );
       }
+      deleteOrphanGalleryData(this.sql);
+      pruneGalleryEntryVersions(this.sql);
       for (const row of workspaceSlots) {
         this.sql.exec(
           `INSERT INTO workspace_slots
@@ -1066,16 +1114,19 @@ export class GalleryDO {
           ]),
         );
       }
+      return this.sql
+        .exec<{ count: number }>(
+          "SELECT COUNT(*) AS count FROM gallery_entry_versions",
+        )
+        .one().count;
     });
     return Response.json({
       restored: true,
       records:
-        galleryEntries.length +
-        galleryEntryVersions.length +
-        workspaceSlots.length,
+        galleryEntries.length + retainedVersionCount + workspaceSlots.length,
       tables: {
         galleryEntries: galleryEntries.length,
-        galleryEntryVersions: galleryEntryVersions.length,
+        galleryEntryVersions: retainedVersionCount,
         workspaceSlots: workspaceSlots.length,
       },
     });
@@ -1156,9 +1207,7 @@ export class GalleryDO {
               ? upgradeSchema27To28WithReport(lifted)
               : null;
           lifted = migration?.project ?? lifted;
-          const project = parseProject(
-            JSON.stringify(lifted),
-          );
+          const project = parseProject(JSON.stringify(lifted));
           if (migration) {
             migrationReports.push({
               table: source.table,
@@ -1270,7 +1319,14 @@ export class GalleryDO {
     if (row.status !== "recycled") {
       return Response.json({ error: "not-recycled" }, { status: 409 });
     }
-    this.sql.exec("DELETE FROM gallery_entries WHERE id = ?", id);
+    this.state.storage.transactionSync(() => {
+      this.sql.exec(
+        "DELETE FROM gallery_entry_versions WHERE entry_id = ?",
+        id,
+      );
+      this.sql.exec("DELETE FROM gallery_likes WHERE entry_id = ?", id);
+      this.sql.exec("DELETE FROM gallery_entries WHERE id = ?", id);
+    });
     return Response.json({ id, deleted: true });
   }
 

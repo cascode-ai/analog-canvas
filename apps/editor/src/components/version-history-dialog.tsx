@@ -116,7 +116,7 @@ export function VersionHistoryDialog({
         data-testid="version-history-dialog"
       >
         <header className="version-history-header">
-          <p>Every update keeps the previous state</p>
+          <p>Up to two previous versions are kept</p>
           <h2 id="version-history-title">Version history — {entryName}</h2>
         </header>
         {versions === null ? (
