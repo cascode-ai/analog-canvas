@@ -105,6 +105,50 @@ async function openSelectionShelf(page: Page): Promise<void> {
   }
 }
 
+async function selectRichTextOffsets(
+  editable: Locator,
+  start: number,
+  end: number,
+): Promise<void> {
+  await editable.evaluate(
+    (root, offsets) => {
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      const nodes: Text[] = [];
+      let node: Node | null;
+      while ((node = walker.nextNode())) nodes.push(node as Text);
+
+      const boundary = (offset: number, isEnd: boolean): [Text, number] => {
+        let consumed = 0;
+        for (const text of nodes) {
+          const next = consumed + text.data.length;
+          if (
+            (isEnd && offset <= next) ||
+            (!isEnd && (offset < next || text === nodes.at(-1)))
+          ) {
+            return [
+              text,
+              Math.max(0, Math.min(text.data.length, offset - consumed)),
+            ];
+          }
+          consumed = next;
+        }
+        throw new Error("Rich-text selection offset is outside the editor");
+      };
+
+      const [startNode, startOffset] = boundary(offsets.start, false);
+      const [endNode, endOffset] = boundary(offsets.end, true);
+      const range = document.createRange();
+      range.setStart(startNode, startOffset);
+      range.setEnd(endNode, endOffset);
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+      root.dispatchEvent(new Event("select", { bubbles: true }));
+    },
+    { start, end },
+  );
+}
+
 async function clickRoute(
   page: Page,
   routeId: string,
@@ -1897,8 +1941,8 @@ test("keeps literal text line breaks and overbars visible while editing", async 
   await editor.press("ControlOrMeta+A");
   await page.getByRole("button", { name: "Overbar" }).click();
   await expect(editor.locator('[data-rich-text-style="overbar"]')).toHaveCSS(
-    "text-decoration-line",
-    "overline",
+    "border-top-style",
+    "solid",
   );
   await page.getByRole("button", { name: "Overbar" }).click();
   await expect(editor.locator('[data-rich-text-style="overbar"]')).toHaveCount(
@@ -1915,6 +1959,263 @@ test("keeps literal text line breaks and overbars visible while editing", async 
     page.locator('[data-layer="drafting"] [data-text-run="line-break"]'),
   ).toHaveCount(1);
   await expect(page.locator('[data-layer="drafting"]')).toContainText("Vxbias");
+});
+
+test("stacks complementary scripts under one uninterrupted overbar", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await clickDrawTool(page, "text");
+  const editor = page.getByRole("textbox", { name: "Canvas text editor" });
+  await editor.fill("In22");
+
+  await selectRichTextOffsets(editor, 1, 3);
+  await page.getByRole("button", { name: "Subscript" }).click();
+  await selectRichTextOffsets(editor, 3, 4);
+  await page.getByRole("button", { name: "Superscript" }).click();
+  await selectRichTextOffsets(editor, 0, 4);
+  await page.getByRole("button", { name: "Overbar" }).click();
+
+  const editableOverbar = editor.locator('[data-rich-text-style="overbar"]');
+  const editableStack = editableOverbar.locator(
+    "[data-rich-text-script-stack]",
+  );
+  await expect(editableStack).toHaveCount(1);
+  await expect(editor.locator("[data-rich-text-script-stack]")).toHaveCount(1);
+  const editableLayout = await editableOverbar.evaluate((overbar) => {
+    const stack = overbar.querySelector("[data-rich-text-script-stack]");
+    const superscript = stack?.querySelector("sup");
+    const subscript = stack?.querySelector("sub");
+    if (!superscript || !subscript) {
+      throw new Error("Editable script stack is incomplete");
+    }
+    const superscriptBounds = superscript.getBoundingClientRect();
+    const subscriptBounds = subscript.getBoundingClientRect();
+    const overbarBounds = overbar.getBoundingClientRect();
+    const contentRange = document.createRange();
+    contentRange.selectNodeContents(overbar);
+    const contentBounds = contentRange.getBoundingClientRect();
+    return {
+      scriptOffset: Math.abs(superscriptBounds.left - subscriptBounds.left),
+      superscriptTop: superscriptBounds.top,
+      subscriptTop: subscriptBounds.top,
+      barTop: overbarBounds.top,
+      barLeft: overbarBounds.left,
+      barRight: overbarBounds.right,
+      contentLeft: contentBounds.left,
+      contentRight: contentBounds.right,
+    };
+  });
+  expect(editableLayout.scriptOffset).toBeLessThan(1);
+  expect(editableLayout.superscriptTop).toBeLessThan(
+    editableLayout.subscriptTop,
+  );
+  expect(editableLayout.barTop).toBeLessThanOrEqual(
+    editableLayout.superscriptTop,
+  );
+  expect(
+    Math.abs(editableLayout.barLeft - editableLayout.contentLeft),
+  ).toBeLessThan(1);
+  expect(
+    Math.abs(editableLayout.barRight - editableLayout.contentRight),
+  ).toBeLessThan(1);
+  await expect(editableOverbar).toHaveCSS("border-top-style", "solid");
+
+  await page.getByRole("button", { name: "Apply text changes" }).click();
+  const formalSvg = (await downloadBytes(page, "File", "Export SVG")).toString(
+    "utf8",
+  );
+  const formalLayout = await page.evaluate((source) => {
+    const svg = new DOMParser().parseFromString(source, "image/svg+xml");
+    const lines = [...svg.querySelectorAll('[data-text-decoration="overbar"]')];
+    const line = lines[0];
+    const base = [...svg.querySelectorAll('[data-text-run="base"]')];
+    const superscript = svg.querySelector('[data-text-run="superscript"]');
+    const subscript = svg.querySelector('[data-text-run="subscript"]');
+    if (!line || base.length === 0 || !superscript || !subscript) return null;
+    const numberAttribute = (element: Element, name: string): number =>
+      Number(element.getAttribute(name));
+    const content = [...base, superscript, subscript];
+    const contentLeft = Math.min(
+      ...content.map((run) => numberAttribute(run, "x")),
+    );
+    const contentRight = Math.max(
+      ...content.map(
+        (run) => numberAttribute(run, "x") + numberAttribute(run, "textLength"),
+      ),
+    );
+    const viewBox = (svg.documentElement.getAttribute("viewBox") ?? "")
+      .trim()
+      .split(/\s+/u)
+      .map(Number);
+    return {
+      lineCount: lines.length,
+      text: svg.querySelector('[data-text-run="overbar"]')?.textContent,
+      superscriptX: numberAttribute(superscript, "x"),
+      subscriptX: numberAttribute(subscript, "x"),
+      superscriptY: numberAttribute(superscript, "y"),
+      subscriptY: numberAttribute(subscript, "y"),
+      lineLeft: numberAttribute(line, "x1"),
+      lineRight: numberAttribute(line, "x2"),
+      lineY: numberAttribute(line, "y1"),
+      contentLeft,
+      contentRight,
+      viewBox,
+    };
+  }, formalSvg);
+  expect(formalLayout).not.toBeNull();
+  if (!formalLayout) throw new Error("Formal SVG lacks the positioned formula");
+  expect(formalLayout.lineCount).toBe(1);
+  expect(formalLayout.text).toBe("In22");
+  expect(formalLayout.superscriptX).toBeCloseTo(formalLayout.subscriptX, 6);
+  expect(formalLayout.superscriptY).toBeLessThan(formalLayout.subscriptY);
+  expect(formalLayout.lineLeft).toBeCloseTo(formalLayout.contentLeft, 6);
+  expect(formalLayout.lineRight).toBeCloseTo(formalLayout.contentRight, 6);
+
+  const png = await downloadBytes(page, "File", "Export PNG");
+  expect([...png.subarray(0, 8)]).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
+  const rasterOverbar = await page.evaluate(
+    async ({ source, lineLeft, lineRight, lineY, viewBox }) => {
+      if (
+        viewBox.length !== 4 ||
+        viewBox.some((value) => !Number.isFinite(value))
+      ) {
+        throw new Error("Formal SVG viewBox is invalid");
+      }
+      const image = new Image();
+      const loaded = new Promise<void>((resolve, reject) => {
+        image.onload = () => resolve();
+        image.onerror = () => reject(new Error("PNG could not be decoded"));
+      });
+      image.src = source;
+      await loaded;
+      const canvas = document.createElement("canvas");
+      canvas.width = image.naturalWidth;
+      canvas.height = image.naturalHeight;
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("Canvas 2D is unavailable");
+      context.drawImage(image, 0, 0);
+      const pixels = context.getImageData(
+        0,
+        0,
+        canvas.width,
+        canvas.height,
+      ).data;
+      const [viewX, viewY, viewWidth, viewHeight] = viewBox as [
+        number,
+        number,
+        number,
+        number,
+      ];
+      const scaleX = canvas.width / viewWidth;
+      const scaleY = canvas.height / viewHeight;
+      const firstX = Math.ceil((lineLeft - viewX) * scaleX) + 2;
+      const lastX = Math.floor((lineRight - viewX) * scaleX) - 2;
+      const centerY = (lineY - viewY) * scaleY;
+      let sampledColumns = 0;
+      let inkColumns = 0;
+      let blankRun = 0;
+      let longestBlankRun = 0;
+      for (let x = firstX; x <= lastX; x += 1) {
+        sampledColumns += 1;
+        let hasInk = false;
+        for (
+          let y = Math.floor(centerY - 3);
+          y <= Math.ceil(centerY + 3);
+          y += 1
+        ) {
+          if (x < 0 || x >= canvas.width || y < 0 || y >= canvas.height) {
+            continue;
+          }
+          const offset = (y * canvas.width + x) * 4;
+          if (
+            pixels[offset]! < 128 &&
+            pixels[offset + 1]! < 128 &&
+            pixels[offset + 2]! < 128
+          ) {
+            hasInk = true;
+            break;
+          }
+        }
+        if (hasInk) {
+          inkColumns += 1;
+          blankRun = 0;
+        } else {
+          blankRun += 1;
+          longestBlankRun = Math.max(longestBlankRun, blankRun);
+        }
+      }
+      return { sampledColumns, inkColumns, longestBlankRun };
+    },
+    {
+      source: `data:image/png;base64,${png.toString("base64")}`,
+      lineLeft: formalLayout.lineLeft,
+      lineRight: formalLayout.lineRight,
+      lineY: formalLayout.lineY,
+      viewBox: formalLayout.viewBox,
+    },
+  );
+  expect(rasterOverbar.sampledColumns).toBeGreaterThan(5);
+  expect(rasterOverbar.inkColumns).toBe(rasterOverbar.sampledColumns);
+  expect(rasterOverbar.longestBlankRun).toBe(0);
+  const pdf = await downloadBytes(page, "File", "Export PDF");
+  expect(pdf.subarray(0, 5).toString("ascii")).toBe("%PDF-");
+
+  type SavedRichTextRun = {
+    kind: string;
+    value?: string;
+    style?: string;
+    children?: SavedRichTextRun[];
+    numerator?: { runs: SavedRichTextRun[] };
+    denominator?: { runs: SavedRichTextRun[] };
+  };
+  const project = JSON.parse(
+    (await downloadBytes(page, "File", "Save Project")).toString("utf8"),
+  ) as {
+    documents: Array<{
+      drafting: {
+        objects: Array<{
+          kind: string;
+          content?: { runs: SavedRichTextRun[] };
+        }>;
+      };
+    }>;
+  };
+  const textObject = project.documents[0]!.drafting.objects.find(
+    (object) => object.kind === "text",
+  );
+  expect(textObject?.content).toBeTruthy();
+  if (!textObject?.content) throw new Error("Saved drafting text is missing");
+
+  const descendants = (runs: SavedRichTextRun[]): SavedRichTextRun[] =>
+    runs.flatMap((run) => [
+      run,
+      ...(run.children ? descendants(run.children) : []),
+      ...(run.numerator ? descendants(run.numerator.runs) : []),
+      ...(run.denominator ? descendants(run.denominator.runs) : []),
+    ]);
+  const savedRuns = descendants(textObject.content.runs);
+  const overbar = savedRuns.find(
+    (run) => run.kind === "span" && run.style === "overbar",
+  );
+  expect(overbar?.children).toEqual([
+    { kind: "text", value: "I" },
+    {
+      kind: "span",
+      style: "subscript",
+      children: [{ kind: "text", value: "n2" }],
+    },
+    {
+      kind: "span",
+      style: "superscript",
+      children: [{ kind: "text", value: "2" }],
+    },
+  ]);
+  expect(
+    savedRuns.filter(
+      (run) => run.kind === "span" && (run.children?.length ?? 0) === 0,
+    ),
+  ).toEqual([]);
 });
 
 test("L edits a selected route Net Label without opening Properties", async ({

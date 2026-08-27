@@ -493,8 +493,36 @@
 
 .rich-text-editable[data-rich-text-style="overbar"],
 .rich-text-editable [data-rich-text-style="overbar"] {
-  text-decoration-line: overline;
-  text-decoration-thickness: 1px;
+  display: inline-block;
+  box-sizing: content-box;
+  padding-top: 0.04em;
+  border-top: 1px solid currentcolor;
+  line-height: 1;
+  text-decoration: none;
+}
+
+.rich-text-editable [data-rich-text-script-stack] {
+  display: inline-grid;
+  margin-left: 0.046em;
+  line-height: 1;
+  vertical-align: baseline;
+}
+
+.rich-text-editable [data-rich-text-script-stack] > sub,
+.rich-text-editable [data-rich-text-script-stack] > sup {
+  position: relative;
+  grid-area: 1 / 1;
+  font-size: 76%;
+  line-height: 1;
+  vertical-align: baseline;
+}
+
+.rich-text-editable [data-rich-text-script-stack] > sup {
+  top: -0.28em;
+}
+
+.rich-text-editable [data-rich-text-script-stack] > sub {
+  top: 0.28em;
 }
 
 .rich-text-source-input {

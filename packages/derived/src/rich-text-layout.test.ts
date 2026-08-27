@@ -7,6 +7,7 @@ import {
   fractionGeometry,
   fractionPartScale,
   measureRichTextDocument,
+  richTextAdvanceEm,
   richTextMetrics,
 } from "./rich-text-layout.js";
 import { razaviTextbookProfile } from "./style-profile.js";
@@ -46,6 +47,52 @@ describe("shared rich-text layout", () => {
     expect(razaviScaled.width).toBe(base.width * 2);
   });
 
+  it("keeps automatic bounds at least as wide as positioned glyph advances", () => {
+    const metrics = richTextMetrics(razaviTextbookProfile);
+    const expression = (base: string): RichTextDocument => ({
+      runs: [
+        {
+          kind: "span",
+          style: "overbar",
+          children: [
+            { kind: "text", value: base },
+            {
+              kind: "span",
+              style: "subscript",
+              children: [{ kind: "text", value: "n2" }],
+            },
+            {
+              kind: "span",
+              style: "superscript",
+              children: [{ kind: "text", value: "2" }],
+            },
+          ],
+        },
+      ],
+    });
+    const wideText = "WWWWWWWWWWW";
+    const narrowText = "iiiiiiiiiii";
+    const wide = measureRichTextDocument(expression(wideText), metrics);
+    const narrow = measureRichTextDocument(expression(narrowText), metrics);
+    const scriptWidth =
+      metrics.subscriptScale *
+      Math.max(richTextAdvanceEm("n2"), richTextAdvanceEm("2"));
+
+    expect(wide.width).toBeGreaterThanOrEqual(
+      (richTextAdvanceEm(wideText) +
+        metrics.subscriptHorizontalGapEm +
+        scriptWidth) *
+        metrics.fontSize,
+    );
+    expect(narrow.width).toBeGreaterThanOrEqual(
+      (richTextAdvanceEm(narrowText) +
+        metrics.subscriptHorizontalGapEm +
+        scriptWidth) *
+        metrics.fontSize,
+    );
+    expect(wide.width).toBeGreaterThan(narrow.width);
+  });
+
   it("uses the profile baseline shift when reserving subscript bounds", () => {
     const metrics = {
       ...richTextMetrics(razaviTextbookProfile),
@@ -68,6 +115,41 @@ describe("shared rich-text layout", () => {
           metrics.lineHeight,
           metrics.subscriptScale + metrics.subscriptBaselineShiftEm,
         ),
+    );
+  });
+
+  it("places adjacent subscript and superscript in one attachment column", () => {
+    const metrics = richTextMetrics(razaviTextbookProfile);
+    const content = {
+      runs: [
+        { kind: "text", value: "I" },
+        {
+          kind: "span",
+          style: "superscript",
+          children: [{ kind: "text", value: "2" }],
+        },
+        {
+          kind: "span",
+          style: "subscript",
+          children: [{ kind: "text", value: "n2" }],
+        },
+      ],
+    } as RichTextDocument;
+    const layout = measureRichTextDocument(content, metrics);
+    const baseWidth = metrics.fontSize * 0.6;
+    const scriptWidth = metrics.fontSize * metrics.subscriptScale * 0.6 * 2;
+    const attachmentGap = metrics.fontSize * metrics.subscriptHorizontalGapEm;
+
+    expect(layout.width).toBeCloseTo(baseWidth + attachmentGap + scriptWidth);
+    expect(layout.width).toBeLessThan(
+      baseWidth +
+        attachmentGap +
+        metrics.fontSize * metrics.subscriptScale * 0.6 * 3,
+    );
+    expect(layout.height).toBeCloseTo(
+      metrics.fontSize *
+        (metrics.subscriptScale * metrics.lineHeight +
+          2 * metrics.subscriptBaselineShiftEm),
     );
   });
 

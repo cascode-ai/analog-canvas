@@ -49,6 +49,7 @@ import {
   schematicTextFontSize,
   schematicTextSizeAttribute,
 } from "./schematic-text.js";
+import { renderPositionedOverbarScriptDocument } from "./positioned-rich-text.js";
 import { renderRichTextDocument } from "./rich-text.js";
 
 export interface SvgRenderOptions {
@@ -900,14 +901,29 @@ function renderDraftText(
     object.anchor.kind === "object"
       ? centeredFirstBaselineY(object.content, position.y, fontSize, profile)
       : position.y;
-  const content = renderRichTextDocument(object.content, profile, {
-    lineOriginX: position.x,
-  });
   const weight = object.styleOverride?.weight === "bold" ? "bold" : "normal";
   const italic = object.styleOverride?.italic === true ? "italic" : "normal";
+  const positioned = renderPositionedOverbarScriptDocument(
+    object.content,
+    profile,
+    {
+      x: position.x,
+      y: baselineY,
+      fontSize,
+      alignment: object.alignment,
+      defaultBold: weight === "bold",
+      defaultItalic: italic === "italic",
+    },
+  );
   // P1: the renderer consumes geometry.rotation (the single rotation truth),
   // not the raw persisted object rotation. The rotation pivot stays on the
   // resolved anchor so centered labels rotate about their center.
+  if (positioned) {
+    return `<g transform="rotate(${rotation} ${position.x} ${position.y})"><text data-object-id="${object.id}" data-kind="draft-text"${unresolved} x="${position.x}" y="${baselineY}" text-anchor="start" font-size="${fontSize}" font-weight="${weight}" font-style="${italic}">${positioned.tspans}</text>${positioned.decorations}</g>`;
+  }
+  const content = renderRichTextDocument(object.content, profile, {
+    lineOriginX: position.x,
+  });
   return `<text data-object-id="${object.id}" data-kind="draft-text"${unresolved} x="${position.x}" y="${baselineY}" text-anchor="${object.alignment}" transform="rotate(${rotation} ${position.x} ${position.y})" font-size="${fontSize}" font-weight="${weight}" font-style="${italic}">${content}</text>`;
 }
 

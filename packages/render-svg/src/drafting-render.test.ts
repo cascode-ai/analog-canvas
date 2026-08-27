@@ -55,6 +55,59 @@ describe("drafting layer rendering", () => {
     expect(svg).not.toContain("a<b>&c");
   });
 
+  it("renders a squared subscript under one explicit overbar", () => {
+    const document = createEmptyDocument("doc", "Squared noise current");
+    document.drafting = {
+      objects: [
+        {
+          id: "noise-current",
+          kind: "text",
+          locked: false,
+          zIndex: 0,
+          anchor: { kind: "free", position: { x: 100, y: 100 } },
+          content: {
+            runs: [
+              {
+                kind: "span",
+                style: "overbar",
+                children: [
+                  { kind: "text", value: "I" },
+                  {
+                    kind: "span",
+                    style: "subscript",
+                    children: [{ kind: "text", value: "n2" }],
+                  },
+                  {
+                    kind: "span",
+                    style: "superscript",
+                    children: [{ kind: "text", value: "2" }],
+                  },
+                ],
+              },
+            ],
+          },
+          alignment: "start",
+          rotation: 0,
+        },
+      ],
+    };
+
+    const svg = renderDocumentSvg(document, resolver);
+    const subscript = svg.match(
+      /<tspan data-text-run="subscript" x="([^"]+)" y="([^"]+)"/u,
+    );
+    const superscript = svg.match(
+      /<tspan data-text-run="superscript" x="([^"]+)" y="([^"]+)"/u,
+    );
+
+    expect(subscript).not.toBeNull();
+    expect(superscript).not.toBeNull();
+    expect(subscript?.[1]).toBe(superscript?.[1]);
+    expect(Number(superscript?.[2])).toBeLessThan(Number(subscript?.[2]));
+    expect(svg.match(/data-text-decoration="overbar"/gu)).toHaveLength(1);
+    expect(svg).not.toContain("&#160;");
+  });
+
   it("omits the drafting group when there are no drafting objects", () => {
     const document = createEmptyDocument("doc", "Empty");
     const svg = renderDocumentSvg(document, resolver);

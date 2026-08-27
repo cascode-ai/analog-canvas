@@ -7,6 +7,7 @@ export interface RichTextMetrics {
   lineHeight: number;
   subscriptScale: number;
   subscriptBaselineShiftEm: number;
+  subscriptHorizontalGapEm: number;
 }
 
 export interface RichTextLayout {
@@ -14,6 +15,31 @@ export interface RichTextLayout {
   height: number;
   lineWidths: number[];
   lineHeights: number[];
+}
+
+/**
+ * Deterministic proportional advance used by explicitly positioned rich text.
+ * Matching export bounds reserve at least the same width, so wide glyph runs
+ * cannot outgrow their automatic crop.
+ */
+function richTextGlyphAdvanceEm(glyph: string): number {
+  if (/\s/u.test(glyph)) return 0.32;
+  if (/[ilI1|!.,:;'`]/u.test(glyph)) return 0.36;
+  if (/[MW@%&Ω]/u.test(glyph)) return 0.9;
+  if (/[mw]/u.test(glyph)) return 0.78;
+  if (/[A-Z]/u.test(glyph)) return 0.67;
+  if (/[a-zα-ω]/u.test(glyph)) return 0.56;
+  if (/[0-9x]/u.test(glyph)) return 0.5;
+  if (/[+≈≤≥=<>]/u.test(glyph)) return 0.57;
+  if (/[-−]/u.test(glyph)) return 0.33;
+  return 0.6;
+}
+
+export function richTextAdvanceEm(value: string): number {
+  return [...value].reduce(
+    (sum, glyph) => sum + richTextGlyphAdvanceEm(glyph),
+    0,
+  );
 }
 
 /**
@@ -79,6 +105,7 @@ export function richTextMetrics(
     lineHeight: profile.typography.lineHeight,
     subscriptScale: profile.typography.subscriptScale,
     subscriptBaselineShiftEm: profile.typography.subscriptBaselineShiftEm,
+    subscriptHorizontalGapEm: profile.typography.subscriptHorizontalGapEm,
   };
 }
 
@@ -99,12 +126,123 @@ export function measureRichTextDocument(
 function measureRuns(runs: RichTextRun[], metrics: RichTextMetrics): Line[] {
   const baseHeight = metrics.fontSize * metrics.lineHeight;
   const lines: Line[] = [{ width: 0, height: baseHeight }];
-  for (const run of runs) {
+  for (let index = 0; index < runs.length; index += 1) {
+    const run = runs[index]!;
     if (run.kind === "line-break") {
       lines.push({ width: 0, height: baseHeight });
       continue;
     }
+    const next = runs[index + 1];
+    if (
+      next &&
+      isScriptRun(run) &&
+      isScriptRun(next) &&
+      run.style !== next.style
+    ) {
+      appendInline(lines, measureScriptStack(run, next, metrics));
+      index += 1;
+      continue;
+    }
     appendInline(lines, measureRun(run, metrics));
+  }
+  return lines;
+}
+
+type ScriptRun = Extract<RichTextRun, { kind: "span" }> & {
+  style: "subscript" | "superscript";
+};
+
+function isScriptRun(run: RichTextRun | undefined): run is ScriptRun {
+  return (
+    run?.kind === "span" &&
+    (run.style === "subscript" || run.style === "superscript")
+  );
+}
+
+function unwrapWholeTextStyleRuns(initialRuns: RichTextRun[]): RichTextRun[] {
+  let runs = initialRuns;
+  while (
+    runs.length === 1 &&
+    runs[0]!.kind === "span" &&
+    (runs[0]!.style === "italic" || runs[0]!.style === "bold")
+  ) {
+    runs = runs[0]!.children;
+  }
+  return runs;
+}
+
+function plainStyledText(runs: RichTextRun[]): string | null {
+  let text = "";
+  const visit = (run: RichTextRun): boolean => {
+    if (run.kind === "text") {
+      text += run.value;
+      return true;
+    }
+    if (
+      run.kind === "span" &&
+      (run.style === "italic" || run.style === "bold")
+    ) {
+      return run.children.every(visit);
+    }
+    return false;
+  };
+  return runs.every(visit) && text.length > 0 ? text : null;
+}
+
+function positionedOverbarScriptWidth(
+  initialRuns: RichTextRun[],
+  metrics: RichTextMetrics,
+): number | null {
+  const runs = unwrapWholeTextStyleRuns(initialRuns);
+  if (runs.length < 3) return null;
+  const firstScript = runs.at(-2);
+  const secondScript = runs.at(-1);
+  if (
+    !isScriptRun(firstScript) ||
+    !isScriptRun(secondScript) ||
+    firstScript.style === secondScript.style
+  ) {
+    return null;
+  }
+  const base = plainStyledText(runs.slice(0, -2));
+  const firstText = plainStyledText(firstScript.children);
+  const secondText = plainStyledText(secondScript.children);
+  if (!base || !firstText || !secondText) return null;
+  return (
+    metrics.fontSize *
+    (richTextAdvanceEm(base) +
+      metrics.subscriptHorizontalGapEm +
+      metrics.subscriptScale *
+        Math.max(richTextAdvanceEm(firstText), richTextAdvanceEm(secondText)))
+  );
+}
+
+/** Adjacent complementary scripts share one attachment column. */
+function measureScriptStack(
+  first: ScriptRun,
+  second: ScriptRun,
+  metrics: RichTextMetrics,
+): Line[] {
+  const firstLines = measureRun(first, metrics);
+  const secondLines = measureRun(second, metrics);
+  const lineCount = Math.max(firstLines.length, secondLines.length);
+  const lines: Line[] = [];
+  for (let index = 0; index < lineCount; index += 1) {
+    const firstLine = firstLines[index];
+    const secondLine = secondLines[index];
+    lines.push({
+      width: Math.max(firstLine?.width ?? 0, secondLine?.width ?? 0),
+      height: Math.max(firstLine?.height ?? 0, secondLine?.height ?? 0),
+    });
+  }
+  if (lines[0]) {
+    lines[0].width += metrics.fontSize * metrics.subscriptHorizontalGapEm;
+    lines[0].height = Math.max(
+      lines[0].height,
+      metrics.fontSize *
+        (metrics.subscriptScale * metrics.lineHeight +
+          2 * metrics.subscriptBaselineShiftEm),
+    );
   }
   return lines;
 }
@@ -133,6 +271,15 @@ function measureRun(run: RichTextRun, metrics: RichTextMetrics): Line[] {
       ...metrics,
       fontSize: metrics.fontSize * scale,
     });
+    if (run.style === "overbar" && child[0]) {
+      const positionedWidth = positionedOverbarScriptWidth(
+        run.children,
+        metrics,
+      );
+      if (positionedWidth !== null) {
+        child[0].width = Math.max(child[0].width, positionedWidth);
+      }
+    }
     if (scale < 1) {
       const shift = metrics.fontSize * metrics.subscriptBaselineShiftEm;
       child.forEach((line) => {

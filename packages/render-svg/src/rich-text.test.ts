@@ -60,6 +60,27 @@ describe("renderRichTextDocument", () => {
     expect(svg).not.toContain('font-style:normal;font-weight:700">gm');
   });
 
+  it("keeps a plain overbar on the general renderer without spacer text", () => {
+    const svg = renderRichTextDocument(
+      {
+        runs: [
+          {
+            kind: "span",
+            style: "overbar",
+            children: [{ kind: "text", value: "Vout" }],
+          },
+        ],
+      },
+      razaviTextbookProfile,
+    );
+
+    expect(svg).toContain('data-text-run="overbar"');
+    expect(svg).toContain("text-decoration:overline");
+    expect(svg).toContain(">Vout</tspan>");
+    expect(svg).not.toContain("&#160;");
+    expect(svg).not.toContain("letter-spacing");
+  });
+
   it("renders subscript and superscript with scaled size and baseline shift", () => {
     const svg = renderRichTextDocument(
       {

@@ -33,6 +33,34 @@ function escapeHtml(value: string): string {
 }
 
 function toEditableHtml(document: RichTextDocument): string {
+  const isScriptRun = (
+    run: RichTextRun,
+  ): run is Extract<RichTextRun, { kind: "span" }> & {
+    style: "subscript" | "superscript";
+  } =>
+    run.kind === "span" &&
+    (run.style === "subscript" || run.style === "superscript");
+
+  const renderRuns = (runs: RichTextRun[]): string => {
+    let output = "";
+    for (let index = 0; index < runs.length; index += 1) {
+      const run = runs[index]!;
+      const next = runs[index + 1];
+      if (
+        next &&
+        isScriptRun(run) &&
+        isScriptRun(next) &&
+        run.style !== next.style
+      ) {
+        output += `<span data-rich-text-script-stack>${render(run)}${render(next)}</span>`;
+        index += 1;
+        continue;
+      }
+      output += render(run);
+    }
+    return output;
+  };
+
   const render = (run: RichTextRun): string => {
     switch (run.kind) {
       case "text":
@@ -43,9 +71,9 @@ function toEditableHtml(document: RichTextDocument): string {
         // Editing surfaces a fraction in its slash form; committing that
         // text replaces the fraction with plain runs, which the value
         // refresh deliberately treats as hand-edited content.
-        return `${run.numerator.runs.map(render).join("")}/${run.denominator.runs.map(render).join("")}`;
+        return `${renderRuns(run.numerator.runs)}/${renderRuns(run.denominator.runs)}`;
       case "span": {
-        const children = run.children.map(render).join("");
+        const children = renderRuns(run.children);
         if (run.style === "overbar") {
           return `<span data-rich-text-style="overbar">${children}</span>`;
         }
@@ -61,7 +89,7 @@ function toEditableHtml(document: RichTextDocument): string {
       }
     }
   };
-  return document.runs.map(render).join("");
+  return renderRuns(document.runs);
 }
 
 function isElement(node: Node): node is HTMLElement {
@@ -90,6 +118,7 @@ function readNode(node: Node): RichTextRun[] {
   const tag = node.tagName.toLowerCase();
   if (tag === "br") return [{ kind: "line-break" }];
   const children = readChildren(node);
+  if (children.length === 0 && tag !== "div" && tag !== "p") return [];
   if (tag === "strong" || tag === "b") {
     return [{ kind: "span", style: "bold", children }];
   }
@@ -109,6 +138,51 @@ function readNode(node: Node): RichTextRun[] {
     return [...children, { kind: "line-break" }];
   }
   return children;
+}
+
+function isScriptElement(node: Node): node is HTMLElement {
+  return (
+    isElement(node) &&
+    (node.tagName.toLowerCase() === "sub" ||
+      node.tagName.toLowerCase() === "sup")
+  );
+}
+
+/** Keep the browser's editable DOM aligned with the canonical script layout. */
+function normalizeEditableMarkup(editable: HTMLElement): void {
+  const formattingElements = [
+    ...editable.querySelectorAll<HTMLElement>(
+      "sub, sup, strong, em, b, i, span",
+    ),
+  ].reverse();
+  formattingElements.forEach((element) => {
+    if (!element.textContent && !element.querySelector("br")) element.remove();
+  });
+
+  const containers: HTMLElement[] = [
+    editable,
+    ...editable.querySelectorAll<HTMLElement>("*"),
+  ];
+  for (const container of containers) {
+    if (container.hasAttribute("data-rich-text-script-stack")) continue;
+    const children = [...container.childNodes];
+    for (let index = 0; index < children.length - 1; index += 1) {
+      const first = children[index]!;
+      const second = children[index + 1]!;
+      if (
+        !isScriptElement(first) ||
+        !isScriptElement(second) ||
+        first.tagName === second.tagName
+      ) {
+        continue;
+      }
+      const stack = globalThis.document.createElement("span");
+      stack.setAttribute("data-rich-text-script-stack", "");
+      container.insertBefore(stack, first);
+      stack.append(first, second);
+      index += 1;
+    }
+  }
 }
 
 function editableDocument(element: HTMLElement): RichTextDocument {
@@ -203,6 +277,7 @@ export function RichTextEditor({
         while (startOverbar.firstChild)
           contents.append(startOverbar.firstChild);
         parent.replaceChild(contents, startOverbar);
+        normalizeEditableMarkup(editableRef.current);
         rememberSelection();
         sync();
         return;
@@ -222,6 +297,7 @@ export function RichTextEditor({
     } else {
       document.execCommand(name);
     }
+    normalizeEditableMarkup(editableRef.current);
     rememberSelection();
     sync();
   };
