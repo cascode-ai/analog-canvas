@@ -40,7 +40,7 @@ test("dismisses Help with Escape or a backdrop pointer", async ({ page }) => {
   await expect(help).toHaveCount(0);
 });
 
-test("carries the version and repository link inside Help", async ({
+test("carries the version and project resource links inside Help", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -52,14 +52,20 @@ test("carries the version and repository link inside Help", async ({
   const about = page.getByRole("dialog");
   await expect(about).toContainText("About Analog Canvas");
   await expect(about).toContainText("Version 0.1.0");
-  const repositoryLink = about.getByRole("link", {
-    name: "https://github.com/cascode-ai/analog-canvas",
-  });
+  const repositoryLink = about.getByRole("link", { name: "Repository" });
   await expect(repositoryLink).toHaveAttribute(
     "href",
     "https://github.com/cascode-ai/analog-canvas",
   );
   await expect(repositoryLink).toHaveAttribute("target", "_blank");
+  await expect(about.getByRole("link", { name: "Change Log" })).toHaveAttribute(
+    "href",
+    "https://github.com/cascode-ai/analog-canvas/commits/main",
+  );
+  await expect(about.getByRole("link", { name: "Owner" })).toHaveAttribute(
+    "href",
+    "https://www.tokenzhang.com",
+  );
   await page.keyboard.press("Escape");
   await expect(about).toHaveCount(0);
 });

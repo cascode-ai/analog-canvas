@@ -3,6 +3,8 @@ import type { RefObject } from "react";
 import editorPackage from "../../package.json";
 
 const REPOSITORY_URL = "https://github.com/cascode-ai/analog-canvas";
+const CHANGE_LOG_URL = `${REPOSITORY_URL}/commits/main`;
+const OWNER_URL = "https://www.tokenzhang.com";
 
 const SHORTCUT_GROUPS = [
   {
@@ -212,7 +214,7 @@ export function EditorHelpDialog({
               work to another device.
             </p>
           </section>
-          <section>
+          <section className="help-about">
             <h3>About Analog Canvas</h3>
             <p>
               <strong>Analog Canvas</strong> is a local-first schematic editor
@@ -221,11 +223,20 @@ export function EditorHelpDialog({
             <p>
               Version <strong>{editorPackage.version}</strong>
             </p>
-            <p>
+            <nav
+              className="help-resource-links"
+              aria-label="Analog Canvas resources"
+            >
               <a href={REPOSITORY_URL} target="_blank" rel="noreferrer">
-                {REPOSITORY_URL}
+                Repository
               </a>
-            </p>
+              <a href={CHANGE_LOG_URL} target="_blank" rel="noreferrer">
+                Change Log
+              </a>
+              <a href={OWNER_URL} target="_blank" rel="noreferrer">
+                Owner
+              </a>
+            </nav>
           </section>
         </div>
       </section>

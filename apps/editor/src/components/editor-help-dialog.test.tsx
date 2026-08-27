@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { EditorHelpDialog } from "./editor-help-dialog";
 
 describe("EditorHelpDialog", () => {
-  it("identifies the editor, package version, and repository", () => {
+  it("identifies the editor, package version, and project resources", () => {
     // About was a second entry saying what Help already frames, so its
     // content lives here as a section rather than in its own dialog.
     const markup = renderToStaticMarkup(
@@ -17,6 +17,12 @@ describe("EditorHelpDialog", () => {
     expect(markup).toContain(
       'href="https://github.com/cascode-ai/analog-canvas"',
     );
+    expect(markup).toContain(
+      'href="https://github.com/cascode-ai/analog-canvas/commits/main"',
+    );
+    expect(markup).toContain('href="https://www.tokenzhang.com"');
+    expect(markup).toContain(">Change Log</a>");
+    expect(markup).toContain(">Owner</a>");
     expect(markup).toContain('target="_blank"');
     expect(markup).toContain('rel="noreferrer"');
   });

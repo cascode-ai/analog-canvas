@@ -391,3 +391,48 @@
   border-radius: var(--icm-radius-md);
   background: linear-gradient(135deg, var(--icm-surface-muted), #fff);
 }
+
+.help-about {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.help-resource-links {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin-top: 0.25rem;
+}
+
+.help-resource-links a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 0.62rem 0.7rem;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-md);
+  background: var(--icm-surface-muted);
+  color: var(--icm-accent);
+  font-size: var(--icm-font-md);
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.help-resource-links a::after {
+  flex: 0 0 auto;
+  color: var(--icm-text-muted);
+  content: "\2197";
+}
+
+.help-resource-links a:hover {
+  border-color: var(--icm-border-strong);
+  background: var(--icm-surface);
+}
+
+@media (max-width: 38rem) {
+  .help-resource-links {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
