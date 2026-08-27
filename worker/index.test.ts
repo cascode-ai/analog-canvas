@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 import worker, {
   normalizeAcquisitionSource,
   normalizeTrackedPath,
@@ -99,5 +102,31 @@ describe("static asset serving", () => {
       expect(response.status).toBe(200);
       expect(response.headers.get("content-type")).toContain("text/html");
     }
+  });
+});
+
+describe("assets binding wiring", () => {
+  /** wrangler.jsonc allows comments and trailing commas; JSON does not. */
+  function wranglerConfig(): {
+    assets: { run_worker_first?: string[]; not_found_handling?: string };
+  } {
+    const source = readFileSync(
+      resolve(process.cwd(), "wrangler.jsonc"),
+      "utf8",
+    );
+    const stripped = source
+      .replace(/^\s*\/\/.*$/gmu, "")
+      .replace(/,(\s*[}\]])/gu, "$1");
+    return JSON.parse(stripped) as ReturnType<typeof wranglerConfig>;
+  }
+
+  it("routes asset requests through the Worker", () => {
+    // Assets are served without invoking the Worker unless the path is listed
+    // here, so the 404 above is unreachable code without this entry — which is
+    // how a correct fix shipped once and changed nothing.
+    const { assets } = wranglerConfig();
+    expect(assets.run_worker_first).toContain("/assets/*");
+    expect(assets.run_worker_first).toContain("/api/*");
+    expect(assets.not_found_handling).toBe("single-page-application");
   });
 });

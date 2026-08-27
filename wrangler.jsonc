@@ -17,7 +17,12 @@
   "assets": {
     "directory": "./apps/editor/dist",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*"],
+    // Assets are served without invoking the Worker unless a path is listed
+    // here. "/assets/*" is listed so a request the build cannot satisfy can be
+    // answered as missing: single-page-application handling would otherwise
+    // hand back the shell at 200 text/html under a content-hashed name, which
+    // the browser reads as a module and every cache treats as permanent.
+    "run_worker_first": ["/api/*", "/assets/*"],
   },
   "durable_objects": {
     "bindings": [
