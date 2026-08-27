@@ -38,6 +38,34 @@ export interface EditorCanvasSurfaceProps {
   interactionPreviews: ComponentProps<typeof EditorInteractionPreviews>;
 }
 
+const CADENCE_QUICK_SHORTCUTS = [
+  { keys: ["I"], action: "Insert component" },
+  { keys: ["W"], action: "Draw wire" },
+  { keys: ["P"], action: "Place Cell Pin" },
+  { keys: ["L"], action: "Edit Net Label" },
+  { keys: ["M"], action: "Move selection" },
+  { keys: ["C"], action: "Copy selection" },
+  { keys: ["Q"], action: "Properties" },
+  { keys: ["R"], action: "Rotate" },
+  { keys: ["Shift", "R"], action: "Mirror left / right" },
+  { keys: ["Ctrl", "R"], action: "Mirror top / bottom" },
+  { keys: ["U"], action: "Undo" },
+  { keys: ["Shift", "U"], action: "Redo" },
+  { keys: ["F"], action: "Fit view" },
+  { keys: ["Delete"], action: "Delete selection" },
+  { keys: ["Esc"], action: "Cancel tool" },
+] as const;
+
+function CanvasShortcutChord({ keys }: { keys: readonly string[] }) {
+  return (
+    <span className="canvas-shortcut-chord" aria-label={keys.join(" plus ")}>
+      {keys.map((key) => (
+        <kbd key={key}>{key}</kbd>
+      ))}
+    </span>
+  );
+}
+
 /** SVG scene composition; interaction semantics arrive through typed models. */
 export function EditorCanvasSurface({
   empty,
@@ -66,16 +94,17 @@ export function EditorCanvasSurface({
           data-testid="canvas-empty-state"
           aria-label="Quick start shortcuts"
         >
-          <p className="canvas-shortcut-menu-title">Quick start</p>
+          <div className="canvas-shortcut-menu-heading">
+            <p className="canvas-shortcut-menu-title">Quick start</p>
+            <span>Cadence keys</span>
+          </div>
           <ul className="canvas-shortcut-list">
-            <li>
-              <kbd>I</kbd>
-              <span>Insert component</span>
-            </li>
-            <li>
-              <kbd>W</kbd>
-              <span>Draw wire</span>
-            </li>
+            {CADENCE_QUICK_SHORTCUTS.map((shortcut) => (
+              <li key={shortcut.keys.join("-")}>
+                <CanvasShortcutChord keys={shortcut.keys} />
+                <span>{shortcut.action}</span>
+              </li>
+            ))}
           </ul>
         </aside>
       ) : null}

@@ -45,7 +45,7 @@
   left: var(--icm-space-3);
   display: grid;
   gap: var(--icm-space-2);
-  width: max-content;
+  width: min(440px, calc(100% - var(--icm-space-6)));
   max-width: calc(100% - var(--icm-space-6));
   padding: 10px var(--icm-space-3);
   border: 1px solid var(--icm-border);
@@ -56,6 +56,20 @@
   pointer-events: none;
   text-align: left;
   backdrop-filter: blur(8px);
+}
+
+.canvas-shortcut-menu-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--icm-space-3);
+}
+
+.canvas-shortcut-menu-heading > span {
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+  line-height: var(--icm-line-tight);
+  opacity: 0.78;
 }
 
 .canvas-shortcut-menu-title {
@@ -70,7 +84,9 @@
 
 .canvas-shortcut-list {
   display: grid;
-  gap: var(--icm-space-1);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  row-gap: var(--icm-space-1);
+  column-gap: var(--icm-space-4);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -78,11 +94,21 @@
 
 .canvas-shortcut-list li {
   display: grid;
-  grid-template-columns: 24px auto;
+  grid-template-columns: 68px minmax(0, 1fr);
   align-items: center;
   gap: var(--icm-space-2);
   font-size: var(--icm-font-sm);
   line-height: var(--icm-line-tight);
+}
+
+.canvas-shortcut-list li > span:last-child {
+  min-width: 0;
+}
+
+.canvas-shortcut-chord {
+  display: flex;
+  align-items: center;
+  gap: 3px;
 }
 
 .canvas-shortcut-menu kbd {
@@ -97,7 +123,7 @@
   background: var(--icm-surface-muted);
   box-shadow: 0 1px 0 var(--icm-border-strong);
   font: inherit;
-  font-size: var(--icm-font-sm);
+  font-size: var(--icm-font-xs);
   font-weight: 650;
 }
 

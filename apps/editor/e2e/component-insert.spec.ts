@@ -210,9 +210,28 @@ test("keeps quick-start shortcuts in the corner until the first component is ins
     "Quick start shortcuts",
   );
   await expect(quickStart).toContainText("Quick start");
-  await expect(quickStart.locator("kbd")).toHaveText(["I", "W"]);
-  await expect(quickStart).toContainText("Insert component");
-  await expect(quickStart).toContainText("Draw wire");
+  await expect(quickStart).toContainText("Cadence keys");
+  await expect(quickStart.locator("li")).toHaveText([
+    "IInsert component",
+    "WDraw wire",
+    "PPlace Cell Pin",
+    "LEdit Net Label",
+    "MMove selection",
+    "CCopy selection",
+    "QProperties",
+    "RRotate",
+    "ShiftRMirror left / right",
+    "CtrlRMirror top / bottom",
+    "UUndo",
+    "ShiftURedo",
+    "FFit view",
+    "DeleteDelete selection",
+    "EscCancel tool",
+  ]);
+  await expect(quickStart.locator(".canvas-shortcut-list")).toHaveCSS(
+    "grid-template-columns",
+    /\S+px \S+px/u,
+  );
   expect(
     await quickStart.evaluate((element) => {
       const style = getComputedStyle(element);
