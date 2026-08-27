@@ -36,7 +36,9 @@ describe("FileCommandMenu", () => {
     );
 
     expect(markup).toContain("Save Project As…");
-    expect(markup).toContain("Saved Circuit");
+    expect(markup).not.toContain("Your shelf");
+    expect(markup).not.toContain("Saved Circuit");
+    expect(markup).not.toContain("shelf-slot-slot-1");
     expect(markup).toContain("Import SPICE");
     expect(markup).toContain("Export Spectre netlist");
     expect(markup).toContain("Recover recent work…");

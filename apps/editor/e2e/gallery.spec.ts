@@ -9,7 +9,7 @@ import {
 import { serializeProject } from "@icm/project-protocol";
 import { hierarchicalSymbolId } from "@icm/symbols";
 
-import { chooseComponent, clickCommand } from "./editor-fixtures.js";
+import { chooseComponent, clickCommand, openMenu } from "./editor-fixtures.js";
 
 const ENTRY = {
   id: "g-ring",
@@ -890,7 +890,7 @@ test("a mistaken click beside the publish form keeps what was written", async ({
   await expect(dialog.getByTestId("publish-tag-cascode")).toBeVisible();
 });
 
-test("Check and Save shelves the circuit and the shelf reopens it", async ({
+test("Check and Save shelves the circuit without cluttering File", async ({
   page,
 }) => {
   await page.route("**/api/auth/me", (route) =>
@@ -928,16 +928,6 @@ test("Check and Save shelves the circuit and the shelf reopens it", async ({
     }
     return route.fulfill({ json: { slots: [] } });
   });
-  await page.route("**/api/workspace/recent/*", (route) => {
-    const id = new URL(route.request().url()).pathname.split("/").pop();
-    const slot = shelf.find((candidate) => candidate.id === id);
-    return slot
-      ? route.fulfill({
-          json: { name: slot.name, projectText: slot.projectText },
-        })
-      : route.fulfill({ status: 404, json: { error: "not-found" } });
-  });
-
   await page.goto("/editor");
   await chooseComponent(page, "nmos");
   await page
@@ -956,9 +946,13 @@ test("Check and Save shelves the circuit and the shelf reopens it", async ({
   expect(shelf).toHaveLength(1);
   expect(shelf[0]!.projectText).toContain("nmos");
 
-  // And it comes back: the shelved circuit is listed under File and reopens.
-  await clickCommand(page, "File", shelf[0]!.name);
-  await expect(page.getByTestId("status")).toContainText("Opened");
+  // The private save remains available to the save flow, but recent scratch
+  // copies do not belong among formal Project file commands.
+  const fileMenu = await openMenu(page, "File");
+  await expect(fileMenu.getByText("Your shelf", { exact: true })).toHaveCount(
+    0,
+  );
+  await expect(fileMenu.getByTestId("shelf-slot-slot-0")).toHaveCount(0);
 });
 
 test("keeps newest-first order and stops after the last circuit", async ({

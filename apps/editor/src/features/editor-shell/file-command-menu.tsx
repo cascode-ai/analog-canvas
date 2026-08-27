@@ -23,14 +23,12 @@ export interface FileCommandMenuProps {
 }
 
 export function FileCommandMenu({
-  workspaceSlots,
   previousProjectName,
   canRevert,
   hasRecoverySessions,
   projectInputRef,
   onNewProject,
   onSaveProject,
-  onOpenShelfSlot,
   onRefresh,
   onOpenProject,
   onImportSpice,
@@ -58,22 +56,6 @@ export function FileCommandMenu({
         >
           Save Project As…
         </button>
-        {workspaceSlots.length > 0 ? (
-          <>
-            <span className="command-group-label">Your shelf</span>
-            {workspaceSlots.map((slot) => (
-              <button
-                key={slot.id}
-                type="button"
-                data-testid={`shelf-slot-${slot.id}`}
-                title={`Saved ${slot.savedAt}`}
-                onClick={() => onOpenShelfSlot(slot)}
-              >
-                {slot.name}
-              </button>
-            ))}
-          </>
-        ) : null}
         <button type="button" onClick={onRefresh}>
           Refresh app
         </button>
