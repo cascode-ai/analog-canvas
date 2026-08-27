@@ -2806,7 +2806,6 @@ export function App({
         onCheckAndSave={() => void checkAndSave()}
         publishGalleryOpen={publishGalleryOpen}
         onPublishGallery={() => setPublishGalleryOpen(true)}
-        visitStats={visitStats}
         helpButtonRef={helpButtonRef}
         helpOpen={helpOpen}
         onOpenHelp={() => setHelpOpen(true)}
@@ -3845,6 +3844,7 @@ export function App({
         />
       </div>
       <EditorStatusbar
+        visitStats={visitStats}
         status={status}
         tool={tool}
         vddRailMode={vddRailMode}

@@ -1387,17 +1387,15 @@ test("keeps a usable canvas while toggling Library at the narrow breakpoint", as
   await page.goto("/editor");
 
   const chrome = page.locator(".app-chrome-main");
-  const analytics = page.getByRole("link", { name: "Open visitor analytics" });
+  // The analytics readout lives in the statusbar now; the top bar ends
+  // with Help inside the chrome bounds.
   const help = page.getByRole("button", { name: "Help" });
-  await expect(analytics).toBeVisible();
   await expect(help).toBeVisible();
   const chromeBox = await chrome.boundingBox();
-  const analyticsBox = await analytics.boundingBox();
   const helpBox = await help.boundingBox();
-  if (!chromeBox || !analyticsBox || !helpBox) {
+  if (!chromeBox || !helpBox) {
     throw new Error("Top navigation is not measurable");
   }
-  expect(helpBox.x).toBeGreaterThan(analyticsBox.x);
   expect(helpBox.x + helpBox.width).toBeLessThanOrEqual(
     chromeBox.x + chromeBox.width,
   );

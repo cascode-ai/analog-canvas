@@ -727,6 +727,27 @@
   background: var(--icm-surface);
 }
 
+.statusbar-analytics {
+  margin-left: auto;
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.statusbar-analytics:hover {
+  color: var(--icm-accent);
+  text-decoration: underline;
+  text-underline-offset: 0.15rem;
+}
+
+@media (max-width: 760px) {
+  .statusbar-analytics {
+    display: none;
+  }
+}
+
 /* Root crash screen shown by the editor error boundary. */
 .editor-crash-screen {
   display: grid;

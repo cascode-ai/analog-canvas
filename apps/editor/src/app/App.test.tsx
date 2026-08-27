@@ -162,11 +162,9 @@ describe("editor shell", () => {
     expect(markup).toContain('href="https://tokenzhang.com"');
     expect(markup).toContain('src="/tokenzhang-favicon.png"');
     const navigationEnd = markup.indexOf("</nav>");
-    const analyticsLink = markup.indexOf('href="/analytics"');
     const helpButton = markup.indexOf(">Help</button>");
     const ownerLink = markup.indexOf('href="https://tokenzhang.com"');
-    expect(analyticsLink).toBeGreaterThan(navigationEnd);
-    expect(helpButton).toBeGreaterThan(analyticsLink);
+    expect(helpButton).toBeGreaterThan(navigationEnd);
     expect(ownerLink).toBeGreaterThan(helpButton);
     expect(markup).not.toContain('role="dialog"');
     // The Connect Agent command is available (WP-WA5), but the authorization
@@ -195,12 +193,15 @@ describe("editor shell", () => {
       <App project={project} visitStats={{ pv: 42, uv: 17 }} />,
     );
 
+    // The live numbers read out in the otherwise-empty statusbar and the
+    // whole readout links to /analytics; the menubar carries no entry.
+    expect(markup).toContain('data-testid="statusbar-analytics"');
     expect(markup).toContain('href="/analytics"');
-    // The label stays compact; the live numbers ride in the tooltip so the
-    // menubar fits a half-width window.
-    expect(markup).toContain(">Analytics</a>");
-    expect(markup).toContain("17 visitors · 42 views");
-    expect(markup).not.toContain("<summary>Analytics</summary>");
+    expect(markup).toContain("17 visitors");
+    expect(markup).toContain("42 views");
+    expect(markup).not.toContain(">Analytics</a>");
+    const statusbar = markup.indexOf('class="app-statusbar"');
+    expect(markup.indexOf('href="/analytics"')).toBeGreaterThan(statusbar);
   });
 
   it("keeps Properties docked with shapes quick-place, not a searchable catalog", () => {
