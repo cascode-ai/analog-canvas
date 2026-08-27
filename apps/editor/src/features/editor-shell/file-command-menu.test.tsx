@@ -22,6 +22,7 @@ describe("FileCommandMenu", () => {
         projectInputRef={createRef<HTMLInputElement>()}
         onNewProject={vi.fn()}
         onSaveProject={vi.fn()}
+        onCheckAndSave={vi.fn()}
         onOpenShelfSlot={vi.fn()}
         onRefresh={vi.fn()}
         onOpenProject={vi.fn()}
@@ -36,6 +37,7 @@ describe("FileCommandMenu", () => {
     );
 
     expect(markup).toContain("Save Project As…");
+    expect(markup).toContain("Check and Save");
     expect(markup).not.toContain("Your shelf");
     expect(markup).not.toContain("Saved Circuit");
     expect(markup).not.toContain("shelf-slot-slot-1");

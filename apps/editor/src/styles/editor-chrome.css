@@ -119,28 +119,6 @@
   white-space: nowrap;
 }
 
-/* Check and Save reads as the one forward action in the bar, so it carries a
-   green run glyph rather than another word among words. */
-.toolbar-check-save {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--icm-space-1);
-  min-height: var(--icm-control-h);
-  padding: 0 var(--icm-space-2);
-  border: 1px solid transparent;
-  border-radius: var(--icm-radius-sm);
-  background: transparent;
-  color: var(--icm-text);
-  font-size: var(--icm-font-md);
-  font-weight: 500;
-  line-height: var(--icm-line-tight);
-  white-space: nowrap;
-}
-
-.toolbar-check-save:hover:not(:disabled) {
-  background: var(--icm-surface-hover);
-}
-
 /* The check report had no styles at all, so each finding rendered its code
    and its sentence as one unbroken run: "GROUND_NAME_MISMATCHGround marker
    must connect to…". The code is a label for the sentence, so it sits above
@@ -346,9 +324,12 @@
   }
 }
 
+/* Check and Save keeps its green run glyph inside the File menu. */
 .toolbar-check-glyph {
+  display: inline-block;
   width: 0;
   height: 0;
+  margin-right: var(--icm-space-1);
   border-top: 5px solid transparent;
   border-bottom: 5px solid transparent;
   border-left: 8px solid #1a8f4c;
@@ -841,5 +822,15 @@
   .app-chrome-main {
     column-gap: var(--icm-space-2);
     padding: 0 var(--icm-space-2);
+  }
+}
+
+/* Half-screen windows: tighten every menubar pill so File…Publish and the
+   right-side actions share one uncut row. */
+@media (max-width: 940px) {
+  .command-menu summary,
+  .toolbar-button,
+  .menubar-help {
+    padding-inline: 0.35rem;
   }
 }

@@ -386,6 +386,11 @@ body {
   .tokenzhang-link-label {
     display: none;
   }
+
+  /* Narrow windows keep the verb; the tooltip still says where. */
+  .publish-label-long {
+    display: none;
+  }
 }
 
 /* Visitor analytics entry (compact, does not crowd menubar commands). */

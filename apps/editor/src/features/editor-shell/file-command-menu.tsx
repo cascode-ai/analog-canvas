@@ -10,6 +10,7 @@ export interface FileCommandMenuProps {
   projectInputRef: RefObject<HTMLInputElement | null>;
   onNewProject: () => void;
   onSaveProject: (pickLocation: boolean) => void;
+  onCheckAndSave: () => void;
   onOpenShelfSlot: (slot: WorkspaceSlot) => void;
   onRefresh: () => void;
   onOpenProject: (file: File | null) => void;
@@ -29,6 +30,7 @@ export function FileCommandMenu({
   projectInputRef,
   onNewProject,
   onSaveProject,
+  onCheckAndSave,
   onRefresh,
   onOpenProject,
   onImportSpice,
@@ -55,6 +57,15 @@ export function FileCommandMenu({
           onClick={() => onSaveProject(true)}
         >
           Save Project As…
+        </button>
+        <button
+          type="button"
+          data-testid="check-and-save-button"
+          title="Check the circuit and save it to your shelf"
+          onClick={onCheckAndSave}
+        >
+          <span className="toolbar-check-glyph" aria-hidden="true" />
+          Check and Save
         </button>
         <button type="button" onClick={onRefresh}>
           Refresh app

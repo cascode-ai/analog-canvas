@@ -25,7 +25,7 @@ export interface EditorAppChromeProps {
   onProjectNameDraftChange: (value: string) => void;
   onProjectNameCommit: () => void;
   onProjectNameCancel: () => void;
-  fileCommands: ComponentProps<typeof FileCommandMenu>;
+  fileCommands: Omit<ComponentProps<typeof FileCommandMenu>, "onCheckAndSave">;
   searchOpen: boolean;
   onManageCells: () => void;
   onOpenSearch: () => void;
@@ -139,7 +139,10 @@ export function EditorAppChrome({
           }}
         >
           <div className="menubar-row">
-            <FileCommandMenu {...fileCommands} />
+            <FileCommandMenu
+              {...fileCommands}
+              onCheckAndSave={onCheckAndSave}
+            />
             <details className="command-menu" name="editor-command-menu">
               <summary>Edit</summary>
               <div className="command-popover">
@@ -254,23 +257,13 @@ export function EditorAppChrome({
             ) : null}
             <button
               type="button"
-              className="toolbar-check-save"
-              data-testid="check-and-save-button"
-              title="Check the circuit and save it to your shelf"
-              onClick={onCheckAndSave}
-            >
-              <span className="toolbar-check-glyph" aria-hidden="true" />
-              Check and Save
-            </button>
-            <button
-              type="button"
               data-testid="publish-gallery-button"
               aria-haspopup="dialog"
               aria-expanded={publishGalleryOpen}
               title="Publish to Gallery"
               onClick={onPublishGallery}
             >
-              Publish to Gallery
+              Publish<span className="publish-label-long"> to Gallery</span>
             </button>
           </div>
         </nav>
@@ -279,16 +272,13 @@ export function EditorAppChrome({
             className="analytics-link"
             href="/analytics"
             aria-label="Open visitor analytics"
+            title={
+              visitStats
+                ? `${visitStats.uv.toLocaleString()} visitors · ${visitStats.pv.toLocaleString()} views`
+                : undefined
+            }
           >
-            {visitStats ? (
-              <>
-                <span>{visitStats.uv.toLocaleString()} visitors</span>
-                <span aria-hidden="true">·</span>
-                <span>{visitStats.pv.toLocaleString()} views</span>
-              </>
-            ) : (
-              "Analytics"
-            )}
+            Analytics
           </a>
           <button
             type="button"

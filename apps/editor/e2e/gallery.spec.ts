@@ -890,7 +890,7 @@ test("a mistaken click beside the publish form keeps what was written", async ({
   await expect(dialog.getByTestId("publish-tag-cascode")).toBeVisible();
 });
 
-test("Check and Save shelves the circuit without cluttering File", async ({
+test("Check and Save shelves the circuit from the File menu", async ({
   page,
 }) => {
   await page.route("**/api/auth/me", (route) =>
@@ -934,6 +934,7 @@ test("Check and Save shelves the circuit without cluttering File", async ({
     .getByTestId("schematic-canvas")
     .click({ position: { x: 360, y: 280 } });
   await page.keyboard.press("Escape");
+  await openMenu(page, "File");
   await page.getByTestId("check-and-save-button").click();
 
   // A lone transistor is not a netlistable circuit, and that is not an error:

@@ -108,6 +108,8 @@ describe("editor shell", () => {
     // "Preflight" named a stage of a netlist pipeline, not the question the
     // person is asking; the toolbar carries the plain action.
     expect(markup).not.toContain("Preflight…");
+    // Check and Save lives in the File menu now — narrow windows keep a
+    // one-row menubar.
     expect(markup).toContain('data-testid="check-and-save-button"');
     expect(markup).not.toContain("Edit Cell Interface…");
   });
@@ -194,8 +196,10 @@ describe("editor shell", () => {
     );
 
     expect(markup).toContain('href="/analytics"');
-    expect(markup).toContain("17 visitors");
-    expect(markup).toContain("42 views");
+    // The label stays compact; the live numbers ride in the tooltip so the
+    // menubar fits a half-width window.
+    expect(markup).toContain(">Analytics</a>");
+    expect(markup).toContain("17 visitors · 42 views");
     expect(markup).not.toContain("<summary>Analytics</summary>");
   });
 
