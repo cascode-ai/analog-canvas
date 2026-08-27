@@ -6,7 +6,7 @@ import {
 
 import {
   clipboardPlacementAnchor,
-  copyPlacementOrientationEdits,
+  orientClipboard,
   copySelection,
   proposePaste,
 } from "../clipboard/clipboard";
@@ -1115,9 +1115,16 @@ export function useSelectionInteraction(
     const interaction = options.getInteractionState();
     if (interaction.kind !== "copy-placement") return;
     const copyPlacement = interaction.copy;
+    // The whole copied subgraph turns/flips as one rigid body about its
+    // grab anchor — the same geometry the ghost previews.
+    const oriented = orientClipboard(
+      copyPlacement.clipboard,
+      copyPlacement.orientationOperations,
+      copyPlacement.anchor,
+    );
     const proposal = proposePaste(
       options.document,
-      copyPlacement.clipboard,
+      oriented,
       {
         x: point.x - copyPlacement.anchor.x,
         y: point.y - copyPlacement.anchor.y,
@@ -1129,12 +1136,7 @@ export function useSelectionInteraction(
       options.cancelAllTransientInteraction();
       return;
     }
-    const orientationEdits = copyPlacementOrientationEdits(
-      copyPlacement.clipboard.instances,
-      proposal.instanceIds,
-      copyPlacement.orientationOperations,
-    );
-    const edits = [...proposal.edits, ...orientationEdits];
+    const edits = [...proposal.edits];
     const copyPlan = createRoutingOperationPlan(options.document, {
       intent: "clone",
       affected: proposal.operationPlan.affected,

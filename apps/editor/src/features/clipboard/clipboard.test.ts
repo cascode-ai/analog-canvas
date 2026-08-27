@@ -16,6 +16,7 @@ import {
   clipboardPlacementAnchor,
   clipboardPreviewDocument,
   copyPlacementOrientationEdits,
+  orientClipboard,
   copySelection,
   copyWholeDocument,
   proposePaste,
@@ -395,6 +396,52 @@ describe("schematic clipboard", () => {
     expect(preview.constraints).toEqual([]);
     expect(preview.netlist).toBeUndefined();
     expect(() => buildSvgScene(preview, resolver)).not.toThrow();
+  });
+
+  it("orients a copied group as one rigid body about its anchor", () => {
+    const document = createEmptyDocument("document-main", "Rigid copy");
+    document.instances.push(
+      {
+        id: "R1",
+        symbolId: "resistor",
+        placement: {
+          position: { x: 100, y: 100 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+      {
+        id: "R2",
+        symbolId: "resistor",
+        placement: {
+          position: { x: 200, y: 140 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+    );
+    const clipboard = copySelection(document, ["R1", "R2"]);
+    expect(clipboard).not.toBeNull();
+
+    // Left-right reflection about the anchor (R1's origin): R2 lands the
+    // mirrored distance on the other side and both parts flip; the layout
+    // reflects instead of each part spinning in place.
+    const mirrored = orientClipboard(clipboard!, [
+      { kind: "reflect", direction: "left-right" },
+    ]);
+    expect(mirrored.instances.map((instance) => instance.placement)).toEqual([
+      { position: { x: 100, y: 100 }, rotation: 0, mirror: "x" },
+      { position: { x: 0, y: 140 }, rotation: 0, mirror: "x" },
+    ]);
+
+    // A quarter turn orbits R2 around the anchor while both parts turn.
+    const turned = orientClipboard(clipboard!, [
+      { kind: "rotate", deltaDegrees: 90 },
+    ]);
+    expect(turned.instances.map((instance) => instance.placement)).toEqual([
+      { position: { x: 100, y: 100 }, rotation: 90, mirror: "none" },
+      { position: { x: 60, y: 200 }, rotation: 90, mirror: "none" },
+    ]);
   });
 
   it("replays copy secondary commands in their input order", () => {

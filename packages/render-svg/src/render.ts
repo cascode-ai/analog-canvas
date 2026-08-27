@@ -605,18 +605,26 @@ export function buildSvgScene(
       ) {
         return false;
       }
-      if (
-        contact.endpoints.some(
-          (endpoint) =>
-            endpoint.kind === "terminal" &&
-            ["port", "port-filled"].includes(
-              document.instances.find(
-                (instance) => instance.id === endpoint.instanceId,
-              )?.symbolId ?? "",
-            ),
-        )
-      ) {
-        return false;
+      // A Port marks its own node, so a pin that merely terminates a wire
+      // (or stacks on another pin) stays dotless. But a Port parked on an
+      // explicit Junction is riding a real branch: its ring reads as one of
+      // the arms, so with two or more route arms the branch keeps its dot
+      // (the recorded stem direction of a Port dedupes into the through
+      // wire, which is why the three-direction rule alone misses this).
+      const portInvolved = contact.endpoints.some(
+        (endpoint) =>
+          endpoint.kind === "terminal" &&
+          ["port", "port-filled"].includes(
+            document.instances.find(
+              (instance) => instance.id === endpoint.instanceId,
+            )?.symbolId ?? "",
+          ),
+      );
+      if (portInvolved) {
+        return (
+          contact.endpoints.some((endpoint) => endpoint.kind === "junction") &&
+          contact.branchDirections.length >= 2
+        );
       }
       return contactRequiresJunctionDot(contact);
     })

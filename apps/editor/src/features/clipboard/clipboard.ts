@@ -119,6 +119,84 @@ export function copyPlacementOrientationEdits(
 }
 
 /**
+ * Turn or reflect the copied subgraph as ONE rigid body about the placement
+ * anchor, exactly like the canvas group transform: positions, wire bends,
+ * junctions, and annotations orbit together while each part also changes its
+ * own orientation. R / Shift+R during copy placement previously spun every
+ * part in place and left positions and wires untouched, which scrambled the
+ * ghost and the stamped result.
+ */
+export function orientClipboard(
+  clipboard: SchematicClipboard,
+  operations: readonly PlacementOrientationOperation[],
+  pivot?: Point,
+): SchematicClipboard {
+  if (operations.length === 0) return clipboard;
+  const anchor = pivot ?? clipboardPlacementAnchor(clipboard) ?? { x: 0, y: 0 };
+  const mapPoint = (point: Point): Point =>
+    operations.reduce((current, operation) => {
+      if (operation.kind === "reflect") {
+        return operation.direction === "left-right"
+          ? { x: 2 * anchor.x - current.x, y: current.y }
+          : { x: current.x, y: 2 * anchor.y - current.y };
+      }
+      const dx = current.x - anchor.x;
+      const dy = current.y - anchor.y;
+      return operation.deltaDegrees === 90
+        ? { x: anchor.x - dy, y: anchor.y + dx }
+        : { x: anchor.x + dy, y: anchor.y - dx };
+    }, point);
+  const mapVector = (vector: Point): Point => {
+    const mapped = mapPoint({ x: anchor.x + vector.x, y: anchor.y + vector.y });
+    return { x: mapped.x - anchor.x, y: mapped.y - anchor.y };
+  };
+  const flipsWorldX = mapVector({ x: 1, y: 0 }).x < 0;
+  return {
+    ...clipboard,
+    instances: clipboard.instances.map((instance) => ({
+      ...structuredClone(instance),
+      placement: instance.placement
+        ? {
+            ...applyOrientationOperations(instance.placement, operations),
+            position: mapPoint(instance.placement.position),
+          }
+        : null,
+    })),
+    routes: clipboard.routes.map((route) => ({
+      ...structuredClone(route),
+      legs: route.legs.map((leg) => ({
+        ...structuredClone(leg),
+        to:
+          leg.to.kind === "bend"
+            ? { ...leg.to, position: mapPoint(leg.to.position) }
+            : leg.to,
+      })),
+    })),
+    junctions: clipboard.junctions.map((junction) => ({
+      ...structuredClone(junction),
+      position: mapPoint(junction.position),
+    })),
+    annotations: clipboard.annotations.map((annotation) => {
+      const clone = structuredClone(annotation);
+      if (clone.anchor.kind === "free") {
+        clone.anchor.position = mapPoint(clone.anchor.position);
+      } else if (clone.anchor.kind === "object") {
+        clone.anchor.localOffset = mapVector(clone.anchor.localOffset);
+        clone.anchor.fallbackPosition = mapPoint(clone.anchor.fallbackPosition);
+      } else {
+        clone.anchor.fallbackPosition = mapPoint(clone.anchor.fallbackPosition);
+      }
+      // Upright text never mirrors as glyphs: when the body flips the world
+      // x-axis the anchor swaps sides, so the extent direction swaps too.
+      if (flipsWorldX && clone.alignment !== "middle") {
+        clone.alignment = clone.alignment === "start" ? "end" : "start";
+      }
+      return clone;
+    }),
+  };
+}
+
+/**
  * Returns the stable local origin used to attach a copied subgraph to the
  * pointer. Prefer an instance origin because it is also the point designers
  * intuitively grab when duplicating a component group.
@@ -161,7 +239,6 @@ function fallbackClipboardPreviewDocument(
   base: SchematicDocument,
   clipboard: SchematicClipboard,
   offset: Point,
-  orientationOperations: readonly PlacementOrientationOperation[] = [],
 ): SchematicDocument {
   const copiedInstances = new Map(
     clipboard.instances.map((instance) => [instance.id, instance]),
@@ -178,23 +255,8 @@ function fallbackClipboardPreviewDocument(
       if (preview.anchor.kind === "object") {
         const instance = copiedInstances.get(preview.anchor.objectId);
         if (instance?.placement) {
-          const nextOrientation = applyOrientationOperations(
-            instance.placement,
-            orientationOperations,
-          );
-          // This is the same old-local -> new-world calculation performed by
-          // followAttachedAnnotations in the Edit Engine.  Applying the
-          // operation to an identity orientation was wrong for already
-          // rotated/mirrored copied Symbols.
-          preview.anchor.localOffset = transformPoint(
-            inverseTransformPoint(
-              preview.anchor.localOffset,
-              { x: 0, y: 0 },
-              instance.placement,
-            ),
-            { x: 0, y: 0 },
-            nextOrientation,
-          );
+          // The clipboard arrives pre-oriented (orientClipboard); only the
+          // translation to the pointer remains.
           preview.anchor.fallbackPosition = {
             x:
               instance.placement.position.x +
@@ -217,10 +279,6 @@ function fallbackClipboardPreviewDocument(
       placement: instance.placement
         ? {
             ...instance.placement,
-            ...applyOrientationOperations(
-              instance.placement,
-              orientationOperations,
-            ),
             position: movePoint(instance.placement.position, offset),
           }
         : null,
@@ -300,8 +358,9 @@ export function clipboardPreviewDocument(
   resolver?: SymbolResolver,
   sequence = 0,
 ): SchematicDocument {
+  const oriented = orientClipboard(clipboard, orientationOperations);
   if (resolver) {
-    const proposal = proposePaste(base, clipboard, offset, sequence);
+    const proposal = proposePaste(base, oriented, offset, sequence);
     if (proposal.errors.length === 0) {
       const result = executeTransaction(
         base,
@@ -311,14 +370,7 @@ export function clipboardPreviewDocument(
           expectedRevision: base.revision,
           actor: { kind: "human", id: "copy-placement-preview" },
           dryRun: true,
-          edits: [
-            ...proposal.edits,
-            ...copyPlacementOrientationEdits(
-              clipboard.instances,
-              proposal.instanceIds,
-              orientationOperations,
-            ),
-          ],
+          edits: [...proposal.edits],
         },
         { symbolResolver: resolver },
       );
@@ -391,12 +443,7 @@ export function clipboardPreviewDocument(
       }
     }
   }
-  return fallbackClipboardPreviewDocument(
-    base,
-    clipboard,
-    offset,
-    orientationOperations,
-  );
+  return fallbackClipboardPreviewDocument(base, oriented, offset);
 }
 
 /**

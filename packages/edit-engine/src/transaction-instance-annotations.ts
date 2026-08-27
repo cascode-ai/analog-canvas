@@ -504,7 +504,24 @@ export function followAttachedAnnotations(
     };
     if (slot !== null) {
       annotation.rotation = 0;
-      annotation.alignment = transformedAlignment ?? annotation.alignment;
+      if (transformedAlignment !== null) {
+        annotation.alignment = transformedAlignment;
+      } else if (annotation.alignment !== "middle") {
+        // Rigid fallback for a user-placed label: upright text never mirrors
+        // as glyphs, so when the orientation change flips the world x-axis
+        // (a left/right mirror, or a 180-degree turn), the anchor lands on
+        // the far side of the artwork and the text must extend the other
+        // way. A 90-degree turn maps x to y and keeps the alignment.
+        const worldX = transformPoint(
+          inverseTransformPoint({ x: 1, y: 0 }, origin, oldOrientation),
+          origin,
+          newOrientation,
+        );
+        if (worldX.x < 0) {
+          annotation.alignment =
+            annotation.alignment === "start" ? "end" : "start";
+        }
+      }
     } else {
       const oldDirection = directionForRotation(annotation.rotation);
       const localDirection = inverseTransformPoint(

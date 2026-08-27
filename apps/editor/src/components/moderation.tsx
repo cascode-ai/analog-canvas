@@ -255,6 +255,17 @@ function RejectedList({
               className="mine-card"
               data-testid={`rejected-card-${entry.id}`}
             >
+              <a
+                className="mine-card-preview"
+                href={`/g/${entry.id}`}
+                title="Open in the editor"
+              >
+                <img
+                  src={`/api/gallery/${entry.id}/preview.svg`}
+                  alt={`Preview of ${entry.name}`}
+                  loading="lazy"
+                />
+              </a>
               <div className="mine-card-copy">
                 <h2>{entry.name}</h2>
                 {entry.rejectReason ? (
@@ -376,6 +387,13 @@ function RecycleBin({
               className="mine-card"
               data-testid={`bin-card-${entry.id}`}
             >
+              <span className="mine-card-preview">
+                <img
+                  src={`/api/gallery/${entry.id}/preview.svg`}
+                  alt={`Preview of ${entry.name}`}
+                  loading="lazy"
+                />
+              </span>
               <div className="mine-card-copy">
                 <h2>{entry.name}</h2>
                 {entry.recycledAt ? (
@@ -450,29 +468,34 @@ export function Moderation() {
       <GalleryChrome subtitle="Moderation" />
       <div className="page-body">
         {state.user.isAdmin ? (
-          <form
-            className="review-appoint"
-            data-testid="review-appoint"
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (!email.trim()) return;
-              void appointModerator(email.trim(), "moderator").then(setNotice);
-            }}
-          >
-            <input
-              type="email"
-              aria-label="Moderator email"
-              placeholder="Appoint a moderator by email"
-              value={email}
-              onChange={(event) => setEmail(event.currentTarget.value)}
-            />
-            <button type="submit">Appoint</button>
-            {notice ? <span className="account-notice">{notice}</span> : null}
-          </form>
+          <details className="owner-settings" data-testid="owner-settings">
+            <summary>Owner settings</summary>
+            <form
+              className="review-appoint"
+              data-testid="review-appoint"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (!email.trim()) return;
+                void appointModerator(email.trim(), "moderator").then(
+                  setNotice,
+                );
+              }}
+            >
+              <input
+                type="email"
+                aria-label="Moderator email"
+                placeholder="Appoint a moderator by email"
+                value={email}
+                onChange={(event) => setEmail(event.currentTarget.value)}
+              />
+              <button type="submit">Appoint</button>
+              {notice ? <span className="account-notice">{notice}</span> : null}
+            </form>
+            <SchemaMaintenance />
+          </details>
         ) : null}
         {state.user.isAdmin ? (
           <>
-            <SchemaMaintenance />
             <RejectedList
               refreshVersion={inventoryVersion}
               onChanged={() => setInventoryVersion((version) => version + 1)}

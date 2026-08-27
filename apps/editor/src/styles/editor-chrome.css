@@ -813,6 +813,18 @@
     padding-inline: 0.4rem;
   }
 
+  /* Half-width windows: the drawing toolbar collapses to icons so Style
+     never runs off the edge; every button keeps its tooltip. */
+  .draw-tool > span:not(.tool-icon):not([class]) {
+    display: none;
+  }
+
+  .draw-tool {
+    min-width: 2rem;
+    justify-content: center;
+    padding-inline: 0.4rem;
+  }
+
   .app-brand {
     min-width: 9rem;
   }

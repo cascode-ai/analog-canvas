@@ -393,6 +393,29 @@ body {
   }
 }
 
+/* The gallery header centers the credit absolutely, and a signed-in
+   account chip makes the right side wide, so the "Provided by" kicker
+   collides well above half width. The kicker goes first, then the label
+   (icon+tooltip remain), and once even the icon would collide the credit
+   yields entirely. */
+@media (max-width: 1400px) {
+  .gallery-chrome .tokenzhang-credit-kicker {
+    display: none;
+  }
+}
+
+@media (max-width: 1180px) {
+  .gallery-chrome .tokenzhang-link-label {
+    display: none;
+  }
+}
+
+@media (max-width: 860px) {
+  .gallery-chrome .tokenzhang-credit {
+    display: none;
+  }
+}
+
 /* Visitor analytics entry (compact, does not crowd menubar commands). */
 .analytics-link {
   display: inline-flex;
@@ -425,4 +448,35 @@ body {
 html.light .analytics-loading {
   color: #68738a;
   background: #ffffff;
+}
+
+/* Owner-only heavy tools live behind one collapsed disclosure so the
+   moderation page leads with the work lists. */
+.owner-settings {
+  margin: 4px 0 10px;
+  border: 1px solid var(--icm-border);
+  border-radius: 10px;
+  background: var(--icm-surface);
+}
+
+.owner-settings > summary {
+  padding: 10px 14px;
+  color: var(--icm-text-muted);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.owner-settings[open] > summary {
+  border-bottom: 1px solid var(--icm-border);
+  color: var(--icm-text);
+}
+
+.owner-settings > *:not(summary) {
+  padding-right: 14px;
+  padding-left: 14px;
+}
+
+.owner-settings > *:last-child {
+  padding-bottom: 12px;
 }

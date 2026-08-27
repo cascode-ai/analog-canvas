@@ -1217,6 +1217,7 @@ test("post-publication moderation has rejected work but no approval queue", asyn
 
   await page.goto("/moderation");
   await expect(page.getByTestId("moderation")).toBeVisible();
+  await page.getByTestId("owner-settings").locator("summary").click();
   await expect(page.getByTestId("schema-backup-download")).toHaveAttribute(
     "href",
     "/api/gallery/maintenance/schema-backup",
