@@ -120,12 +120,12 @@ describe("assets binding wiring", () => {
     return JSON.parse(stripped) as ReturnType<typeof wranglerConfig>;
   }
 
-  it("routes asset requests through the Worker", () => {
-    // Assets are served without invoking the Worker unless the path is listed
-    // here, so the 404 above is unreachable code without this entry — which is
-    // how a correct fix shipped once and changed nothing.
+  it("keeps the Worker out of the asset path", () => {
+    // Listing "/assets/*" in run_worker_first made env.ASSETS.fetch re-enter
+    // the Worker and every asset request returned 1101. Assets are served
+    // directly; the missing-asset 404 has to be built some other way.
     const { assets } = wranglerConfig();
-    expect(assets.run_worker_first).toContain("/assets/*");
+    expect(assets.run_worker_first).not.toContain("/assets/*");
     expect(assets.run_worker_first).toContain("/api/*");
     expect(assets.not_found_handling).toBe("single-page-application");
   });
