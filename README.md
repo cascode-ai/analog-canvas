@@ -53,7 +53,7 @@ Track instead of embedding a third-party analytics tracker.
   and [documentation map](docs/README.md).
 - **Develop or contribute:** [working rules](AGENTS.md),
   [current development reading set](docs/current/README.md), and
-  [validation commands](#validation) and the [test system](docs/testing/README.md).
+  [test system](docs/testing/README.md).
 
 ## Run locally
 
@@ -93,38 +93,6 @@ files.
 The [Razavi reference manifest](fixtures/visual-reference/razavi-reference-v1/)
 is the sole visual authority. The production Worker is deployed from `main` by
 the [Cloudflare workflow](.github/workflows/cloudflare.yml).
-
-## Validation
-
-```powershell
-# One-time browser setup before local Playwright checks
-pnpm setup:e2e
-
-# Review the planned validation surface before expensive checks
-pnpm gate:plan -- --base origin/main
-pnpm gate:preflight -- --base origin/main
-
-# Focused implementation loop
-pnpm test:local <test-paths>
-pnpm test:e2e:local <spec-paths> --grep <pattern>
-
-# Automated affected checks selected from the real diff
-pnpm gate:affected -- --base origin/main
-
-# Branch integration
-pnpm gate:branch
-
-# Full fallback for shared-core, production-boundary, gate, or unknown changes
-pnpm gate:full
-```
-
-Gate planning conservatively falls back to the full gate for shared-core,
-production-boundary, unknown-path, or validation-policy changes. Bounded
-changes run focused browser specs locally and in pull requests; every
-implementation pull request still runs all unit tests plus release and
-performance contracts. Merge-queue, nightly, and manual CI runs always run the
-complete browser suite. Every target also closes with `git diff --check` and
-`git status --short --branch`; see [AGENTS.md](AGENTS.md) for the delivery gate.
 
 ## License
 
