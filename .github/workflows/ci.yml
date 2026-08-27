@@ -160,11 +160,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Preserve the required-check names while using two workers in each
-        # shard: four browser workers without a branch-protection migration.
+        # Four shards, two Playwright workers each: eight browser workers.
+        # The required-check names migrated with this split (ruleset updated
+        # in the same change window).
         shard:
-          - 1/2
-          - 2/2
+          - 1/4
+          - 2/4
+          - 3/4
+          - 4/4
     steps:
       - if: needs.changes.outputs.heavy != 'true'
         run: echo "Documentation-only change; browser contracts are unchanged."
