@@ -13,13 +13,13 @@
       "name": "D",
       "role": "input",
       "at": {
-        "x": -50,
+        "x": -40,
         "y": -10
       },
       "direction": "west",
       "presentation": {
         "visibility": "visible",
-        "leadLength": 25,
+        "leadLength": 10,
         "showName": true,
         "textStyle": "math-symbol",
         "textSizeScale": 0.68
@@ -29,13 +29,13 @@
       "name": "CK",
       "role": "clock",
       "at": {
-        "x": -50,
+        "x": -40,
         "y": 10
       },
       "direction": "west",
       "presentation": {
         "visibility": "visible",
-        "leadLength": 25,
+        "leadLength": 10,
         "showName": true,
         "textStyle": "math-symbol",
         "textSizeScale": 0.68
@@ -45,13 +45,13 @@
       "name": "Q",
       "role": "output",
       "at": {
-        "x": 50,
+        "x": 40,
         "y": -10
       },
       "direction": "east",
       "presentation": {
         "visibility": "visible",
-        "leadLength": 25,
+        "leadLength": 10,
         "showName": true,
         "textStyle": "math-symbol",
         "textSizeScale": 0.68
@@ -61,13 +61,13 @@
       "name": "QBAR",
       "role": "output-complement",
       "at": {
-        "x": 50,
+        "x": 40,
         "y": 10
       },
       "direction": "east",
       "presentation": {
         "visibility": "visible",
-        "leadLength": 25,
+        "leadLength": 10,
         "showName": true,
         "displayName": "Q",
         "textStyle": "math-symbol",
@@ -79,7 +79,7 @@
     {
       "kind": "line",
       "from": {
-        "x": -50,
+        "x": -40,
         "y": -10
       },
       "to": {
@@ -95,7 +95,7 @@
     {
       "kind": "line",
       "from": {
-        "x": -50,
+        "x": -40,
         "y": 10
       },
       "to": {
@@ -125,7 +125,7 @@
         "y": -10
       },
       "to": {
-        "x": 50,
+        "x": 40,
         "y": -10
       },
       "style": {
@@ -141,7 +141,7 @@
         "y": 10
       },
       "to": {
-        "x": 50,
+        "x": 40,
         "y": 10
       },
       "style": {

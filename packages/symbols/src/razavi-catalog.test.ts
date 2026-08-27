@@ -275,13 +275,13 @@ describe("Razavi symbol catalog", () => {
     ).toHaveLength(5);
     expect(dff.viewBox).toEqual({ x: -55, y: -30, width: 110, height: 60 });
     expect(dff.pins.map((pin) => pin.at)).toEqual([
-      { x: -50, y: -10 },
-      { x: -50, y: 10 },
-      { x: 50, y: -10 },
-      { x: 50, y: 10 },
+      { x: -40, y: -10 },
+      { x: -40, y: 10 },
+      { x: 40, y: -10 },
+      { x: 40, y: 10 },
     ]);
     expect(dff.pins.map((pin) => pin.presentation.leadLength)).toEqual([
-      25, 25, 25, 25,
+      10, 10, 10, 10,
     ]);
     expect(dff.primitives[2]).toMatchObject({
       kind: "path",
@@ -298,14 +298,14 @@ describe("Razavi symbol catalog", () => {
     const delayCell = requireRazaviCatalogSymbol("delay-cell");
     expect(delayCell.pins.map((pin) => pin.name)).toEqual(["A", "Y"]);
     expect(delayCell.pins.map((pin) => pin.at)).toEqual([
-      { x: -40, y: 0 },
-      { x: 40, y: 0 },
+      { x: -30, y: 0 },
+      { x: 30, y: 0 },
     ]);
     const [inputLead, body, outputLead, ...glyphPolygons] =
       delayCell.primitives;
     expect(inputLead).toMatchObject({
       kind: "line",
-      from: { x: -40, y: 0 },
+      from: { x: -30, y: 0 },
       to: { x: -24, y: 0 },
       style: { strokeRole: "normal" },
     });
@@ -317,7 +317,7 @@ describe("Razavi symbol catalog", () => {
     expect(outputLead).toMatchObject({
       kind: "line",
       from: { x: 24, y: 0 },
-      to: { x: 40, y: 0 },
+      to: { x: 30, y: 0 },
       style: { strokeRole: "normal" },
     });
     expect(glyphPolygons).toHaveLength(4);
@@ -1389,5 +1389,48 @@ describe("logic-gate and comparator family", () => {
       kind: "circle",
       radius: norBubble?.kind === "circle" ? norBubble.radius : undefined,
     });
+  });
+});
+
+describe("logic-library port leads", () => {
+  const logicIds = [
+    "and-gate",
+    "buffer",
+    "d-flip-flop",
+    "delay-cell",
+    "inverter",
+    "nand-gate",
+    "nor-gate",
+    "or-gate",
+    "xnor-gate",
+    "xor-gate",
+  ];
+
+  it("keeps every horizontal port about one connection-grid cell from its body", () => {
+    for (const symbolId of logicIds) {
+      const symbol = requireRazaviCatalogSymbol(symbolId);
+      for (const pin of symbol.pins) {
+        const attached = symbol.primitives.filter(
+          (primitive) =>
+            primitive.kind === "line" &&
+            ((primitive.from.x === pin.at.x && primitive.from.y === pin.at.y) ||
+              (primitive.to.x === pin.at.x && primitive.to.y === pin.at.y)),
+        );
+        expect(attached, `${symbolId}.${pin.name}`).toHaveLength(1);
+        const lead = attached[0];
+        if (!lead || lead.kind !== "line") continue;
+        const bodyContact =
+          lead.from.x === pin.at.x && lead.from.y === pin.at.y
+            ? lead.to
+            : lead.from;
+        const outwardSign = pin.direction === "west" ? -1 : 1;
+        const expectedX =
+          Math.round((bodyContact.x + outwardSign * 10) / 10) * 10;
+
+        expect(pin.at.x, `${symbolId}.${pin.name}`).toBe(expectedX);
+        expect(Math.abs(pin.at.x % 10), `${symbolId}.${pin.name}`).toBe(0);
+        expect(pin.presentation.leadLength, `${symbolId}.${pin.name}`).toBe(10);
+      }
+    }
   });
 });

@@ -2,7 +2,11 @@ import { createRoutePath, routeEnd } from "@icm/model";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { endpointKey, resolveRouteGeometry } from "@icm/derived";
+import {
+  endpointKey,
+  resolveEndpointConnection,
+  resolveRouteGeometry,
+} from "@icm/derived";
 import type { RouteEndpoint, SchematicDocument } from "@icm/model";
 import { parseProject } from "@icm/project-protocol";
 import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
@@ -275,7 +279,7 @@ describe("direct-contact transform lifecycle", () => {
     expect(aOwner).toBe(bOwner);
   });
 
-  it("merges different Base Nets when a moved endpoint makes exact contact", () => {
+  it("keeps moved endpoints electrically separate at exact contact", () => {
     const document = fixture();
     document.instances.find((instance) => instance.id === "B")!.placement = {
       position: { x: 460, y: 300 },
@@ -312,17 +316,25 @@ describe("direct-contact transform lifecycle", () => {
       context,
     );
 
+    // Rearranging existing geometry never bonds: both Base Nets survive
+    // with their original memberships even though the pins now coincide.
     if (!result.ok) throw new Error(result.error.message);
-    expect(result.document.nets).toHaveLength(1);
-    expect(result.document.nets[0]?.terminals).toEqual(
+    expect(result.document.nets).toEqual(
       expect.arrayContaining([
-        { instanceId: "A", pinName: "P" },
-        { instanceId: "B", pinName: "P" },
+        expect.objectContaining({
+          id: "net-a",
+          terminals: [{ instanceId: "A", pinName: "P" }],
+        }),
+        expect.objectContaining({
+          id: "net-b",
+          terminals: [{ instanceId: "B", pinName: "P" }],
+        }),
       ]),
     );
+    expect(result.document.nets).toHaveLength(2);
   });
 
-  it("rejects exact contact between incompatible power domains", () => {
+  it("never rejects a transform for domains it must not merge", () => {
     const document = fixture();
     document.instances.find((instance) => instance.id === "B")!.placement = {
       position: { x: 460, y: 300 },
@@ -362,6 +374,10 @@ describe("direct-contact transform lifecycle", () => {
       },
     ];
 
+    // The move parks a ground pin exactly on a VDD pin. Since transforms
+    // never bond, there is no merge to reject: the move succeeds and the
+    // domains stay on their own Nets (this is the group-mirror regression:
+    // a rearrange must never fail with a merge precondition).
     const result = executeTransaction(
       document,
       transaction(
@@ -378,6 +394,72 @@ describe("direct-contact transform lifecycle", () => {
       context,
     );
 
+    if (!result.ok) throw new Error(result.error.message);
+    expect(result.document.nets.map((net) => net.id).sort()).toEqual([
+      "net-ground",
+      "net-vdd",
+    ]);
+  });
+
+  it("rejects a new Junction bonding incompatible power domains", () => {
+    const document = fixture();
+    document.nets = [
+      {
+        id: "net-vdd",
+        terminals: [{ instanceId: "A", pinName: "P" }],
+      },
+      {
+        id: "net-ground",
+        terminals: [{ instanceId: "B", pinName: "P" }],
+      },
+    ];
+    document.netlist!.terminals[0]!.netId = "net-vdd";
+    document.netlist!.terminals[1]!.netId = "net-ground";
+    document.connectivityEvidence = [
+      {
+        id: "claim-vdd",
+        kind: "name-claim",
+        netId: "net-vdd",
+        name: "VDD",
+        scope: "global",
+        powerDomain: "vdd",
+        owner: { kind: "explicit-net-property" },
+      },
+      {
+        id: "claim-ground",
+        kind: "name-claim",
+        netId: "net-ground",
+        name: "0",
+        scope: "global",
+        powerDomain: "ground",
+        owner: { kind: "explicit-net-property" },
+      },
+    ];
+
+    // An explicit Junction is authored geometry, so it does bond — and a
+    // bond across power domains is rejected atomically.
+    const contact = resolveEndpointConnection(
+      document,
+      resolver,
+      terminal("A"),
+    )!.contactPoint;
+    const result = executeTransaction(
+      document,
+      transaction(
+        document,
+        [
+          {
+            kind: "add_junction",
+            junctionId: "junction-conflict",
+            netId: "net-ground",
+            position: contact,
+          },
+        ],
+        "junction-power-conflict",
+      ),
+      context,
+    );
+
     expect(result).toMatchObject({
       ok: false,
       error: {
@@ -389,28 +471,49 @@ describe("direct-contact transform lifecycle", () => {
 
   it("assigns an ownerless terminal to the contacted Net and clears NoConnect", () => {
     const document = fixture();
-    document.instances.find((instance) => instance.id === "B")!.placement = {
-      position: { x: 460, y: 300 },
-      rotation: 0,
-      mirror: "x",
-    };
-    document.nets[0]!.terminals = [{ instanceId: "A", pinName: "P" }];
+    document.instances = [
+      {
+        id: "A",
+        symbolId: "ground",
+        placement: {
+          position: { x: 100, y: 100 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+    ];
+    document.netlist!.terminals = [];
+    document.nets = [
+      {
+        id: "net-a",
+        terminals: [{ instanceId: "A", pinName: "0" }],
+      },
+    ];
     document.noConnects = [
       {
-        id: "no-connect-b",
-        endpoint: { kind: "terminal", instanceId: "B", pinName: "P" },
+        id: "no-connect-a",
+        endpoint: { kind: "terminal", instanceId: "A", pinName: "0" },
       },
     ];
 
+    // Newly placed geometry bonds from its final exact placement, and the
+    // bond retires the NoConnect declarations on both endpoints.
     const result = executeTransaction(
       document,
       transaction(
         document,
         [
           {
-            kind: "move_instance",
-            instanceId: "B",
-            position: { x: 160, y: 300 },
+            kind: "add_instance",
+            instance: {
+              id: "B",
+              symbolId: "ground",
+              placement: {
+                position: { x: 100, y: 100 },
+                rotation: 0,
+                mirror: "none",
+              },
+            },
           },
         ],
         "ownerless-contact",
@@ -422,8 +525,8 @@ describe("direct-contact transform lifecycle", () => {
     expect(result.document.nets).toHaveLength(1);
     expect(result.document.nets[0]?.terminals).toEqual(
       expect.arrayContaining([
-        { instanceId: "A", pinName: "P" },
-        { instanceId: "B", pinName: "P" },
+        { instanceId: "A", pinName: "0" },
+        { instanceId: "B", pinName: "0" },
       ]),
     );
     expect(result.document.noConnects).toEqual([]);

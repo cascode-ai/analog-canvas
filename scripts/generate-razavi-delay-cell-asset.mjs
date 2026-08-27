@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { format } from "prettier";
 
 import { loadRazaviReferenceAuthority } from "./lib/razavi-reference-authority.mjs";
+import { normalizeLogicPortLeads } from "./lib/normalize-logic-port-leads.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const referenceRoot = resolve(
@@ -33,17 +34,20 @@ if (!authority || authority.kind !== "pdf-vector-extract") {
 const source = files.get(authority.extractPath);
 if (!source) fail(`authority did not load ${authority.extractPath}`);
 const parsed = JSON.parse(source.toString("utf8"));
-const definition = parsed.normalization?.symbolDefinition;
+const sourceDefinition = parsed.normalization?.symbolDefinition;
 if (
   parsed.schemaVersion !== 1 ||
   parsed.id !== authority.id ||
   parsed.source?.sha256 !== authority.source.sha256 ||
-  definition?.id !== "delay-cell" ||
-  !Array.isArray(definition.pins) ||
-  !definition.pins.every((pin) => pin.at.x % 10 === 0 && pin.at.y % 10 === 0)
+  sourceDefinition?.id !== "delay-cell" ||
+  !Array.isArray(sourceDefinition.pins) ||
+  !sourceDefinition.pins.every(
+    (pin) => pin.at.x % 10 === 0 && pin.at.y % 10 === 0,
+  )
 ) {
   fail("evidence contract mismatch");
 }
+const definition = normalizeLogicPortLeads(structuredClone(sourceDefinition));
 
 const assetSource = normalize(
   await format(JSON.stringify(definition, null, 2), { parser: "json" }),
@@ -88,7 +92,7 @@ Object.assign(entry, {
     referencePath:
       "fixtures/visual-reference/razavi-reference-v1/delay-cell-vector-source.json",
     converterPath: "scripts/generate-razavi-delay-cell-asset.mjs",
-    converterVersion: 1,
+    converterVersion: 2,
   },
 });
 const catalogSource = normalize(

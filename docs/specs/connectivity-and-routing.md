@@ -31,22 +31,29 @@ Route transaction.
   compiler persists only grid landings and ordinary grid bends. An offset
   MOS B anchor therefore uses the same Route transaction as every other pin;
   `bulk-dashed` changes only presentation.
-- Exact visible endpoint coincidence is a zero-length physical contact. After
-  placement or geometry edits reach their final coordinates, the Edit Engine
-  deterministically creates or merges the participating Base Net; incompatible
-  power domains or Net-name contracts reject the whole transaction. An
-  explicit `disconnect_endpoint` in the same transaction suppresses this
+- Exact visible endpoint coincidence is a zero-length physical contact, but
+  only geometry a transaction INTRODUCES bonds. When a newly placed Instance,
+  an explicit Junction, a drawn power rail, or a typed attach reaches its
+  final coordinates, the Edit Engine deterministically creates or merges the
+  participating Base Net; incompatible power domains or Net-name contracts
+  reject the whole transaction. Moving, rotating, mirroring, aligning, or
+  re-pointing EXISTING geometry never bonds: a transform that parks endpoints
+  on foreign conductors leaves them visually coincident but electrically
+  separate, exactly like a Crossing — rearranging a schematic can neither
+  silently merge Nets nor be rejected by a merge it never asked for. An
+  explicit `disconnect_endpoint` in the same transaction suppresses
   normalization so deletion cannot immediately reconnect itself.
 - If a move, rotation, or mirror separates a confirmed direct contact, the
   transaction materializes one ordinary manual Route after all transforms have
   reached their final positions. Jointly transformed endpoints remain a
   route-free direct contact, and an existing alternate physical path prevents
   duplicate Route creation.
-- A Route-segment tap splits geometry at an explicit Junction. A Junction that
-  lands on another ordinary Route joins and splits that conductor as well; a
-  mere route-interior crossing remains disconnected. Pin-to-route attachment
-  remains a snapped typed intent because it changes the selected Route's
-  identity and geometry.
+- A Route-segment tap splits geometry at an explicit Junction. A newly
+  authored Junction that lands on another ordinary Route joins and splits
+  that conductor as well; an existing Junction carried across a conductor by
+  a transform does not, and a mere route-interior crossing remains
+  disconnected. Pin-to-route attachment remains a snapped typed intent
+  because it changes the selected Route's identity and geometry.
 - Moving a connected Instance stretches the attached Route while preserving
   endpoint identity.
 - `remove_route_geometry` removes presentation geometry only. The ordinary

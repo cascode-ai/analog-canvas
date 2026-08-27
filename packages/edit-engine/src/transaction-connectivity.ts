@@ -279,6 +279,18 @@ export function uniquePhysicalContactId(
   }
 }
 
+/**
+ * Objects whose exact endpoint contacts this transaction may normalize
+ * into electrical connections.
+ *
+ * Only geometry the transaction INTRODUCES bonds: a placed instance, an
+ * explicit Junction, a drawn power rail, a typed attach. Moving,
+ * rotating, mirroring, aligning, or re-pointing EXISTING geometry never
+ * bonds — rearranging a schematic must not silently merge Nets (nor be
+ * rejected by a merge it never asked for). A transform that parks pins
+ * on foreign conductors leaves them visually coincident but electrically
+ * separate, exactly like a Crossing.
+ */
 export function physicalContactObjectIdsForTransaction(
   transaction: EditTransaction,
 ): Set<string> {
@@ -288,24 +300,10 @@ export function physicalContactObjectIdsForTransaction(
       case "add_instance":
         result.add(edit.instance.id);
         break;
-      case "set_instance_symbol":
       case "place_instance":
-      case "move_instance":
-      case "rotate_instance":
-      case "mirror_instance":
         result.add(edit.instanceId);
         break;
-      case "align_instances":
-        edit.instanceIds.forEach((instanceId) => result.add(instanceId));
-        break;
-      case "set_route_path":
-        result.add(edit.route.id);
-        break;
-      case "route_orthogonal":
-        result.add(edit.routeId);
-        break;
       case "add_junction":
-      case "move_junction":
         result.add(edit.junctionId);
         break;
       case "attach_endpoint_to_route":

@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { format } from "prettier";
 
 import { loadRazaviReferenceAuthority } from "./lib/razavi-reference-authority.mjs";
+import { normalizeLogicPortLeads } from "./lib/normalize-logic-port-leads.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const referenceRoot = resolve(
@@ -150,6 +151,10 @@ definitions.set(
   ),
 );
 
+for (const definition of definitions.values()) {
+  normalizeLogicPortLeads(definition);
+}
+
 const assetSources = new Map();
 for (const symbolId of familyIds) {
   assetSources.set(
@@ -215,12 +220,9 @@ for (const symbolId of familyIds) {
       "fixtures/visual-reference/razavi-reference-v1/manifest.json",
     referencePath: `fixtures/visual-reference/razavi-reference-v1/${evidencePath(referenceIds[0])}`,
     converterPath: "scripts/generate-razavi-logic-gate-assets.mjs",
-    converterVersion: 1,
+    converterVersion: 2,
   };
 }
-catalog.entries.sort((left, right) =>
-  left.symbolId.localeCompare(right.symbolId),
-);
 const catalogSource = normalize(
   await format(JSON.stringify(catalog, null, 2), { parser: "json" }),
 );
