@@ -13,26 +13,26 @@
       "name": "A",
       "role": "input",
       "at": {
-        "x": -30,
+        "x": -40,
         "y": 0
       },
       "direction": "west",
       "presentation": {
         "visibility": "visible",
-        "leadLength": 10
+        "leadLength": 15
       }
     },
     {
       "name": "Y",
       "role": "output",
       "at": {
-        "x": 30,
+        "x": 40,
         "y": 0
       },
       "direction": "east",
       "presentation": {
         "visibility": "visible",
-        "leadLength": 10
+        "leadLength": 15
       }
     }
   ],
@@ -40,7 +40,7 @@
     {
       "kind": "line",
       "from": {
-        "x": -30,
+        "x": -40,
         "y": 0
       },
       "to": {
@@ -70,7 +70,7 @@
         "y": 0
       },
       "to": {
-        "x": 30,
+        "x": 40,
         "y": 0
       },
       "style": {

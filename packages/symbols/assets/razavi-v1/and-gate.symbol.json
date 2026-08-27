@@ -45,7 +45,7 @@
       "direction": "east",
       "presentation": {
         "visibility": "visible",
-        "leadLength": 10
+        "leadLength": 15
       }
     }
   ],

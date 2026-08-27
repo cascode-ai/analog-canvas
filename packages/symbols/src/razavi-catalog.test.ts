@@ -281,7 +281,7 @@ describe("Razavi symbol catalog", () => {
       { x: 40, y: 10 },
     ]);
     expect(dff.pins.map((pin) => pin.presentation.leadLength)).toEqual([
-      10, 10, 10, 10,
+      15, 15, 15, 15,
     ]);
     expect(dff.primitives[2]).toMatchObject({
       kind: "path",
@@ -298,14 +298,14 @@ describe("Razavi symbol catalog", () => {
     const delayCell = requireRazaviCatalogSymbol("delay-cell");
     expect(delayCell.pins.map((pin) => pin.name)).toEqual(["A", "Y"]);
     expect(delayCell.pins.map((pin) => pin.at)).toEqual([
-      { x: -30, y: 0 },
-      { x: 30, y: 0 },
+      { x: -40, y: 0 },
+      { x: 40, y: 0 },
     ]);
     const [inputLead, body, outputLead, ...glyphPolygons] =
       delayCell.primitives;
     expect(inputLead).toMatchObject({
       kind: "line",
-      from: { x: -30, y: 0 },
+      from: { x: -40, y: 0 },
       to: { x: -24, y: 0 },
       style: { strokeRole: "normal" },
     });
@@ -317,7 +317,7 @@ describe("Razavi symbol catalog", () => {
     expect(outputLead).toMatchObject({
       kind: "line",
       from: { x: 24, y: 0 },
-      to: { x: 30, y: 0 },
+      to: { x: 40, y: 0 },
       style: { strokeRole: "normal" },
     });
     expect(glyphPolygons).toHaveLength(4);
@@ -1406,7 +1406,7 @@ describe("logic-library port leads", () => {
     "xor-gate",
   ];
 
-  it("keeps every horizontal port about one connection-grid cell from its body", () => {
+  it("uses only one-cell or half-grid-adjusted 1.5-cell port leads", () => {
     for (const symbolId of logicIds) {
       const symbol = requireRazaviCatalogSymbol(symbolId);
       for (const pin of symbol.pins) {
@@ -1424,12 +1424,22 @@ describe("logic-library port leads", () => {
             ? lead.to
             : lead.from;
         const outwardSign = pin.direction === "west" ? -1 : 1;
+        const nominalBodyX = Math.round(bodyContact.x / 5) * 5;
+        const oneCellOut = nominalBodyX + outwardSign * 10;
         const expectedX =
-          Math.round((bodyContact.x + outwardSign * 10) / 10) * 10;
+          outwardSign < 0
+            ? Math.floor(oneCellOut / 10) * 10
+            : Math.ceil(oneCellOut / 10) * 10;
+        const nominalLeadLength = Math.abs(expectedX - nominalBodyX);
 
         expect(pin.at.x, `${symbolId}.${pin.name}`).toBe(expectedX);
         expect(Math.abs(pin.at.x % 10), `${symbolId}.${pin.name}`).toBe(0);
-        expect(pin.presentation.leadLength, `${symbolId}.${pin.name}`).toBe(10);
+        expect([10, 15], `${symbolId}.${pin.name}`).toContain(
+          nominalLeadLength,
+        );
+        expect(pin.presentation.leadLength, `${symbolId}.${pin.name}`).toBe(
+          nominalLeadLength,
+        );
       }
     }
   });
