@@ -292,14 +292,14 @@ export function EditorAppChrome({
             Help
           </button>
           <div className="tokenzhang-credit">
-            <span className="tokenzhang-credit-kicker">Provided by</span>
+            <span className="tokenzhang-credit-kicker">Presented by</span>
             <a
               className="tokenzhang-link"
               href="https://tokenzhang.com"
               target="_blank"
               rel="noreferrer"
-              aria-label="tokenzhang.com"
-              title="tokenzhang.com"
+              aria-label="TokenZhang"
+              title="TokenZhang"
             >
               <img
                 className="tokenzhang-link-icon"
@@ -308,7 +308,7 @@ export function EditorAppChrome({
                 width={12}
                 height={12}
               />
-              <span className="tokenzhang-link-label">tokenzhang.com</span>
+              <span className="tokenzhang-link-label">TokenZhang</span>
             </a>
           </div>
         </div>

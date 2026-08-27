@@ -25,14 +25,14 @@ export function GalleryChrome({ subtitle }: { subtitle: string }) {
         </div>
       </div>
       <div className="tokenzhang-credit">
-        <span className="tokenzhang-credit-kicker">Provided by</span>
+        <span className="tokenzhang-credit-kicker">Presented by</span>
         <a
           className="tokenzhang-link"
           href="https://tokenzhang.com"
           target="_blank"
           rel="noreferrer"
-          aria-label="tokenzhang.com"
-          title="tokenzhang.com"
+          aria-label="TokenZhang"
+          title="TokenZhang"
         >
           <img
             className="tokenzhang-link-icon"
@@ -41,7 +41,7 @@ export function GalleryChrome({ subtitle }: { subtitle: string }) {
             width={16}
             height={16}
           />
-          <span className="tokenzhang-link-label">tokenzhang.com</span>
+          <span className="tokenzhang-link-label">TokenZhang</span>
         </a>
       </div>
       <nav className="gallery-actions">

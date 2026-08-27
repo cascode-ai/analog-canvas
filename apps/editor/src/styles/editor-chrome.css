@@ -828,6 +828,18 @@
   .app-brand {
     min-width: 9rem;
   }
+
+  /* Collapsed chrome keeps just the Z mark; the wording returns with
+     room. */
+  .app-chrome-actions .tokenzhang-credit-kicker,
+  .app-chrome-actions .tokenzhang-link-label {
+    display: none;
+  }
+
+  .app-chrome-actions .tokenzhang-link-icon {
+    width: 16px;
+    height: 16px;
+  }
 }
 
 @media (max-width: 860px) {

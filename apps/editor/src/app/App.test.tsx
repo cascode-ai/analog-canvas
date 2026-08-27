@@ -158,7 +158,7 @@ describe("editor shell", () => {
     expect(markup).not.toContain(">About</button>");
     expect(markup).toContain(">Help</button>");
     expect(markup).toContain('class="app-chrome-actions"');
-    expect(markup).toContain("Provided by");
+    expect(markup).toContain("Presented by");
     expect(markup).toContain('href="https://tokenzhang.com"');
     expect(markup).toContain('src="/tokenzhang-favicon.png"');
     const navigationEnd = markup.indexOf("</nav>");
