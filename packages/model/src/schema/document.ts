@@ -477,9 +477,13 @@ export const SchematicDocumentSchema = SchematicDocumentBaseSchema.superRefine(
             (binding.kind === "net-name" ? binding.netId : undefined) &&
           ((evidence.owner.kind === "net-label" &&
             evidence.owner.annotationId === annotation.id) ||
-            (annotation.anchor.kind === "object" &&
-              evidence.owner.kind === "power-marker" &&
-              evidence.owner.objectId === annotation.anchor.objectId)),
+            // A power-marker claim is owned by the marker instance for supply
+            // ports, but a drawn power rail's claim is owned by the label
+            // annotation itself — both spellings name this annotation's net.
+            (evidence.owner.kind === "power-marker" &&
+              ((annotation.anchor.kind === "object" &&
+                evidence.owner.objectId === annotation.anchor.objectId) ||
+                evidence.owner.objectId === annotation.id))),
       );
       const semanticContent =
         binding.kind === "cell-terminal-name"

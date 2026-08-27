@@ -89,7 +89,7 @@ test("mirrors component and copy placement previews before their commits", async
   await page.keyboard.press("Escape");
 });
 
-test("writes a manual netlist reference into the placed Instance", async ({
+test("writes a manual netlist reference through post-placement Properties", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -98,12 +98,17 @@ test("writes a manual netlist reference into the placed Instance", async ({
   const dialog = page.getByRole("dialog", { name: "Insert Component" });
   await dialog.getByLabel("Component search").fill("resistor");
   await dialog.getByTestId("insert-component-resistor").click();
-  await dialog.getByLabel("Reference name").fill("R7");
-  await dialog.getByRole("button", { name: "Apply" }).click();
   await page
     .getByTestId("schematic-canvas")
     .click({ position: { x: 360, y: 220 } });
   await page.keyboard.press("Escape");
+
+  // The quick pick carries no reference field; naming happens in Properties.
+  await page.getByTestId("hit-R1").click();
+  await page.getByTestId("selection-shelf").click();
+  const netlistReference = page.getByLabel("Component netlist reference");
+  await netlistReference.fill("R7");
+  await netlistReference.press("Tab");
 
   await expect
     .poll(() => recoveryProjectTexts(page))
@@ -243,7 +248,7 @@ test("keeps quick-start shortcuts in the corner until the first component is ins
   const search = dialog.getByLabel("Component search");
   await expect(search).toBeFocused();
   await search.fill("not-a-real-component");
-  await expect(dialog.getByRole("button", { name: "Apply" })).toBeDisabled();
+  await expect(dialog.getByText("No matching components")).toBeVisible();
   await search.fill("mos");
   const before = await search.getAttribute("aria-activedescendant");
   await page.keyboard.press("ArrowDown");
@@ -284,11 +289,9 @@ test("keeps quick-start shortcuts in the corner until the first component is ins
 
   await page.keyboard.press("i");
   const reopened = page.getByRole("dialog", { name: "Insert Component" });
-  await expect(reopened.locator(".insert-component-options")).toBeVisible();
-  const passives = reopened
-    .locator(".insert-option-group")
-    .filter({ hasText: "Passives" });
-  await expect(passives.locator("button").first()).toHaveAttribute(
+  await expect(reopened.locator(".insert-tile-grid")).toBeVisible();
+  // Recent picks float to the front of the flat grid.
+  await expect(reopened.getByRole("option").first()).toHaveAttribute(
     "data-testid",
     "insert-component-resistor",
   );
@@ -301,25 +304,16 @@ test("groups and places high-voltage DMOS from Extended Devices", async ({
   await awaitEditorReady(page);
   await page.keyboard.press("i");
   const dialog = page.getByRole("dialog", { name: "Insert Component" });
-  const expanded = dialog
-    .locator(".insert-option-group")
-    .filter({ hasText: "Extended Devices" });
-  await expect(expanded.getByRole("heading", { level: 3 })).toHaveText(
-    "Extended Devices",
-  );
-  await expect(expanded.getByRole("heading", { level: 4 })).toHaveText(
-    "High-voltage devices",
-  );
-  await expect(expanded.getByTestId("insert-component-ndmos")).toContainText(
+  // The flat grid tiles both DMOS variants with their full names; clicking
+  // one starts placement with the catalog defaults.
+  await expect(dialog.getByTestId("insert-component-ndmos")).toContainText(
     "N-channel DMOS",
   );
-  await expect(expanded.getByTestId("insert-component-pdmos")).toContainText(
+  await expect(dialog.getByTestId("insert-component-pdmos")).toContainText(
     "P-channel DMOS",
   );
 
-  await expanded.getByTestId("insert-component-ndmos").click();
-  await expect(dialog.getByLabel("Component w")).toHaveValue("1u");
-  await dialog.getByRole("button", { name: "Apply" }).click();
+  await dialog.getByTestId("insert-component-ndmos").click();
   await page
     .getByTestId("schematic-canvas")
     .click({ position: { x: 360, y: 230 } });
@@ -333,6 +327,8 @@ test("groups and places high-voltage DMOS from Extended Devices", async ({
   await expect
     .poll(() => recoveryProjectTexts(page))
     .toContain('"symbolId": "ndmos"');
+  // Quick placement still carries the catalog defaults for the device.
+  await expect.poll(() => recoveryProjectTexts(page)).toContain('"w": "1u"');
 });
 
 test("groups drafting tools and editable polarity labels under Annotations", async ({
@@ -401,17 +397,14 @@ test("groups drafting tools and editable polarity labels under Annotations", asy
     .poll(() => recoveryProjectTexts(page))
     .toContain('"polarity": "both"');
 
-  // The full Insert picker exposes the same semantic entry and omits device
-  // reference/value controls that do not apply to drafting text.
+  // The full Insert picker exposes the same semantic entry; clicking its tile
+  // starts annotation placement directly.
   await page.keyboard.press("i");
   const dialog = page.getByRole("dialog", { name: "Insert Component" });
   await dialog.getByLabel("Component search").fill("negative polarity");
   await dialog
     .getByTestId("insert-component-annotation-polarity-negative")
     .click();
-  await expect(dialog.getByLabel("Initial rotation")).toBeVisible();
-  await expect(dialog.getByLabel("Reference name")).toHaveCount(0);
-  await dialog.getByRole("button", { name: "Apply" }).click();
   await canvas.hover({ position: { x: 600, y: 260 } });
   await canvas.click({ position: { x: 600, y: 260 } });
   await expect(editor).toBeVisible();
@@ -428,7 +421,9 @@ test("groups drafting tools and editable polarity labels under Annotations", asy
   ).toHaveCount(0);
 });
 
-test("places a named vertical Power Rail from I", async ({ page }) => {
+test("places a vertical Power Rail from I and renames it on the canvas", async ({
+  page,
+}) => {
   await emulateDownloadOnlyBrowser(page);
   await page.goto("/editor");
   await awaitEditorReady(page);
@@ -436,16 +431,20 @@ test("places a named vertical Power Rail from I", async ({ page }) => {
   const dialog = page.getByRole("dialog", { name: "Insert Component" });
   await dialog.getByLabel("Component search").fill("vdd");
   await dialog.getByTestId("insert-component-vdd").click();
-  await expect(dialog.locator("svg.insert-symbol-artwork")).toBeVisible();
-  await expect(dialog.getByLabel("Placement options")).toHaveCount(0);
-  await dialog.getByLabel("Power rail Net name").fill("AVDD");
-  await dialog.getByRole("button", { name: "Apply" }).click();
 
   const canvas = page.getByTestId("schematic-canvas");
   await canvas.hover({ position: { x: 260, y: 140 } });
   await expect(page.getByTestId("component-placement-preview")).toBeVisible();
   await canvas.click({ position: { x: 260, y: 140 } });
   await canvas.click({ position: { x: 260, y: 380 } });
+  await page.keyboard.press("Escape");
+
+  // The quick pick always lands the default VDD name; the label is the
+  // net-name authority, so editing it renames the rail to AVDD.
+  await page.getByTestId("annotation-hit-label-VDD1").dblclick();
+  const railEditor = page.getByRole("textbox", { name: "Canvas text editor" });
+  await railEditor.fill("AVDD");
+  await page.getByRole("button", { name: "Apply text changes" }).click();
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("component-input-plane")).toHaveCount(0);
   await expect(page.getByTestId("instance-count")).toHaveText("0");
@@ -522,8 +521,6 @@ test("places the VDD power-port device as the default VDD entry", async ({
     "insert-component-vdd",
   ]);
   await dialog.getByTestId("insert-component-vdd-port").click();
-  await expect(dialog.locator("svg.insert-symbol-artwork")).toBeVisible();
-  await dialog.getByRole("button", { name: "Apply" }).click();
 
   const canvas = page.getByTestId("schematic-canvas");
   await canvas.click({ position: { x: 300, y: 160 } });
@@ -766,8 +763,7 @@ test("carries a manual Value through placement and Q property editing", async ({
   await page.keyboard.press("i");
   const dialog = page.getByRole("dialog", { name: "Insert Component" });
   await dialog.getByLabel("Component search").fill("resistor");
-  await dialog.getByLabel("Component value").fill("10k");
-  await dialog.getByRole("button", { name: "Apply" }).click();
+  await dialog.getByTestId("insert-component-resistor").click();
 
   const canvas = page.getByTestId("schematic-canvas");
   await canvas.click({ position: { x: 360, y: 230 } });
@@ -835,7 +831,8 @@ test("carries a manual Value through placement and Q property editing", async ({
   // toggle and editing starts only when the user clicks an input.
   await expect(page.getByTestId("selection-shelf")).toBeFocused();
   await expect(propertyValue).not.toBeFocused();
-  await expect(propertyValue).toHaveValue("10k");
+  // Quick placement leaves the value blank; it arrives through Q editing.
+  await expect(propertyValue).toHaveValue("");
   await page.keyboard.press("q");
   await expect(page.getByTestId("selection-shelf")).toHaveAttribute(
     "aria-expanded",
@@ -847,18 +844,18 @@ test("carries a manual Value through placement and Q property editing", async ({
     "true",
   );
   await expect(propertyValue).not.toBeFocused();
-  await expect(propertyValue).toHaveValue("10k");
+  await expect(propertyValue).toHaveValue("");
   await propertyValue.click();
   await expect(propertyValue).toBeFocused();
-  await propertyValue.fill("12k");
-  await expect(propertyValue).toHaveValue("12k");
+  await propertyValue.fill("10k");
+  await expect(propertyValue).toHaveValue("10k");
   await expect(page.getByTestId("revision")).toHaveText("2");
   await expect(
     page.getByRole("button", { name: "Apply component properties" }),
   ).toHaveCount(0);
   await page.getByRole("button", { name: "Discard changes" }).click();
   await expect(page.getByTestId("revision")).toHaveText("3");
-  await expect(propertyValue).toHaveValue("10k");
+  await expect(propertyValue).toHaveValue("");
   await expect(
     page.getByRole("button", { name: "Discard changes" }),
   ).toHaveCount(0);
@@ -950,7 +947,7 @@ test("keeps the workspace inside the viewport and exposes low-interference zoom 
     .toBeLessThan(canvasBefore?.width ?? 0);
 });
 
-test("keeps preview fixed while picking from the always-open catalog", async ({
+test("tiles the whole catalog into one flat quick-pick grid", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1100, height: 720 });
@@ -959,61 +956,56 @@ test("keeps preview fixed while picking from the always-open catalog", async ({
   await page.keyboard.press("i");
 
   const dialog = page.getByRole("dialog", { name: "Insert Component" });
-  const artwork = dialog.locator(".insert-symbol-artwork");
-  const cancel = dialog.getByRole("button", { name: "Cancel" });
-  const apply = dialog.getByRole("button", { name: "Apply" });
-
-  const measure = () =>
-    dialog.evaluate((element) => {
-      const bounds = (target: Element) => {
-        const rect = target.getBoundingClientRect();
-        return {
-          top: rect.top,
-          bottom: rect.bottom,
-          width: rect.width,
-          height: rect.height,
-        };
-      };
-      const preview = element.querySelector(".insert-component-preview")!;
-      const artwork = element.querySelector(".insert-symbol-artwork")!;
-      const footer = element.querySelector(".insert-dialog-actions")!;
-      return {
-        dialog: bounds(element),
-        preview: bounds(preview),
-        artwork: bounds(artwork),
-        footer: bounds(footer),
-      };
-    });
-
-  const before = await measure();
-  await expect(cancel).toBeVisible();
-  await expect(apply).toBeVisible();
-  expect(before.footer.bottom).toBeLessThanOrEqual(before.dialog.bottom);
-  const options = dialog.locator(".insert-component-options");
-  await expect(options).toBeVisible();
+  const grid = dialog.locator(".insert-tile-grid");
+  await expect(grid).toBeVisible();
   expect(
-    await options.evaluate((element) => getComputedStyle(element).overflowY),
+    await grid.evaluate((element) => getComputedStyle(element).overflowY),
   ).toBe("auto");
 
-  // The catalog is permanently open: no collapse control exists, and picking
-  // an item keeps the list in place for the next pick.
-  await expect(
-    dialog.getByRole("button", { name: "Collapse component list" }),
-  ).toHaveCount(0);
+  // One glance covers the library: the grid is flat (no category headings),
+  // every tile carries its own artwork, and the grid packs several columns.
+  await expect(grid.locator("h3, h4")).toHaveCount(0);
+  const optionCount = await dialog.getByRole("option").count();
+  expect(optionCount).toBeGreaterThan(20);
+  expect(await grid.locator("svg.insert-symbol-artwork").count()).toBe(
+    optionCount,
+  );
+  const firstTop = await dialog
+    .getByRole("option")
+    .first()
+    .evaluate((element) => (element as HTMLElement).offsetTop);
+  const sameRow = await grid.evaluate(
+    (element, top) =>
+      Array.from(
+        element.querySelectorAll<HTMLElement>('[role="option"]'),
+      ).filter((option) => option.offsetTop === top).length,
+    firstTop,
+  );
+  expect(sameRow).toBeGreaterThan(3);
+
+  // There is no separate confirm step to fit in: the footer is a hint line,
+  // and it stays inside the dialog bounds.
+  await expect(dialog.getByRole("button", { name: "Apply" })).toHaveCount(0);
+  await expect(dialog.getByRole("button", { name: "Cancel" })).toHaveCount(0);
+  const bounds = await dialog.evaluate((element) => {
+    const footer = element.querySelector(".insert-dialog-actions")!;
+    return {
+      dialogBottom: element.getBoundingClientRect().bottom,
+      footerBottom: footer.getBoundingClientRect().bottom,
+    };
+  });
+  expect(bounds.footerBottom).toBeLessThanOrEqual(bounds.dialogBottom);
+
+  // Clicking a tile starts placement immediately.
   await dialog.getByTestId("insert-component-inductor").click();
-  await expect(options).toBeVisible();
-  await expect(dialog.getByTestId("insert-component-resistor")).toBeVisible();
-  const after = await measure();
-  expect(after.dialog.height).toBeCloseTo(before.dialog.height, 0);
-  expect(after.preview.width).toBeCloseTo(before.preview.width, 0);
-  expect(after.preview.height).toBeCloseTo(before.preview.height, 0);
-  expect(after.artwork.width).toBeCloseTo(before.artwork.width, 0);
-  expect(after.artwork.height).toBeCloseTo(before.artwork.height, 0);
-  expect(after.footer.top).toBeCloseTo(before.footer.top, 0);
-  expect(after.footer.bottom).toBeLessThanOrEqual(after.dialog.bottom);
+  await expect(dialog).toHaveCount(0);
+  const canvas = page.getByTestId("schematic-canvas");
+  await canvas.hover({ position: { x: 360, y: 230 } });
+  await expect(page.getByTestId("component-placement-preview")).toBeVisible();
+  await page.keyboard.press("Escape");
 });
 
-test("places MOS parameters and orientation without a hidden-label suppressor", async ({
+test("sets MOS parameters and orientation through the ghost and Properties", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -1022,36 +1014,15 @@ test("places MOS parameters and orientation without a hidden-label suppressor", 
 
   const dialog = page.getByRole("dialog", { name: "Insert Component" });
   await dialog.getByLabel("Component search").fill("nmos");
-  await expect(
-    dialog.getByLabel("Component w", { exact: true }),
-  ).toHaveAttribute("placeholder", "1u");
-  await dialog.getByLabel("Component w", { exact: true }).fill("2u");
-  await dialog.getByLabel("Component l", { exact: true }).fill("180n");
-  await dialog.getByLabel("Component m", { exact: true }).fill("4");
-  await dialog.getByLabel("Initial rotation").selectOption("90");
-  const dialogArtwork = dialog.locator(".insert-symbol-artwork");
-  await expect(dialogArtwork).toHaveAttribute("data-rotation", "90");
-  await expect(dialogArtwork.locator("g")).toHaveAttribute(
-    "transform",
-    "rotate(90)",
-  );
-  await dialog.getByLabel("Component preview").focus();
-  await page.keyboard.press("r");
-  await expect(dialog.getByLabel("Initial rotation")).toHaveValue("180");
-  await expect(dialogArtwork).toHaveAttribute("data-rotation", "180");
-  await dialog.getByLabel("Initial rotation").selectOption("90");
-  await dialog
-    .getByRole("checkbox", { name: "Reference", exact: true })
-    .uncheck();
-  await expect(dialog.locator(".insert-parameter-name").first()).toHaveText(
-    "W / m(Total channel width)",
-  );
-  await dialog.getByRole("button", { name: "Apply" }).click();
+  await dialog.getByTestId("insert-component-nmos").click();
 
+  // Orientation is a ghost decision now: R rotates the placement preview.
   const canvas = page.getByTestId("schematic-canvas");
   const box = await canvas.boundingBox();
   if (!box) throw new Error("Canvas is not measurable");
   await page.mouse.move(box.x + 360, box.y + 230);
+  await expect(page.getByTestId("component-placement-preview")).toBeVisible();
+  await page.keyboard.press("r");
   await expect(page.getByTestId("component-placement-preview")).toHaveAttribute(
     "transform",
     /rotate\(90\)/u,
@@ -1059,10 +1030,22 @@ test("places MOS parameters and orientation without a hidden-label suppressor", 
   await canvas.click({ position: { x: 360, y: 230 } });
   await page.keyboard.press("Escape");
 
+  // Parameters and label visibility are Properties decisions.
+  await page.getByTestId("hit-M1").click();
+  await page.keyboard.press("q");
+  await expect(page.getByLabel("Component w", { exact: true })).toHaveValue(
+    "1u",
+  );
+  await page.getByLabel("Component w", { exact: true }).fill("2u");
+  await page.getByLabel("Component l", { exact: true }).fill("180n");
+  await page.getByLabel("Component m", { exact: true }).fill("4");
+  await page.getByLabel("Component m", { exact: true }).press("Tab");
+  await page
+    .getByRole("checkbox", { name: "Reference", exact: true })
+    .uncheck();
   await expect(
     page.locator('[data-object-id="instance-label-M1"]'),
   ).toHaveCount(0);
-  await page.keyboard.press("q");
   await expect(page.getByLabel("Component w", { exact: true })).toHaveValue(
     "2u",
   );
@@ -1087,7 +1070,8 @@ test("keeps component placement active across independent canvas commits", async
   await page.keyboard.press("i");
   const dialog = page.getByRole("dialog", { name: "Insert Component" });
   await dialog.getByLabel("Component search").fill("resistor");
-  await dialog.getByRole("button", { name: "Apply" }).click();
+  // Enter places the top match straight from the search field.
+  await page.keyboard.press("Enter");
 
   const canvas = page.getByTestId("schematic-canvas");
   const box = await canvas.boundingBox();
@@ -1476,8 +1460,7 @@ test("double-clicking a placed device opens Properties for editing", async ({
   await page.keyboard.press("i");
   const dialog = page.getByRole("dialog", { name: "Insert Component" });
   await dialog.getByLabel("Component search").fill("resistor");
-  await dialog.getByLabel("Component value").fill("4.7k");
-  await dialog.getByRole("button", { name: "Apply" }).click();
+  await dialog.getByTestId("insert-component-resistor").click();
   const canvas = page.getByTestId("schematic-canvas");
   await canvas.click({ position: { x: 360, y: 230 } });
   await page.keyboard.press("Escape");
@@ -1494,7 +1477,6 @@ test("double-clicking a placed device opens Properties for editing", async ({
   );
   const propertyValue = page.getByLabel("Component value");
   await expect(propertyValue).toBeVisible();
-  await expect(propertyValue).toHaveValue("4.7k");
   await expect(propertyValue).toBeFocused();
 });
 

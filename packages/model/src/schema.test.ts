@@ -479,6 +479,49 @@ describe("CircuitProject schema", () => {
     );
   });
 
+  it("accepts a rail label format override whose power claim is owned by the label itself", () => {
+    // A drawn power rail's name-claim owner is the label annotation, not the
+    // junction the label anchors to; the override check must find that claim.
+    const document = createEmptyProject("project-rail", "Rail").documents[0]!;
+    document.nets.push({ id: "net-power-vdd1", terminals: [] });
+    document.junctions.push({
+      id: "junction-vdd1-start",
+      netId: "net-power-vdd1",
+      position: { x: 0, y: 0 },
+    });
+    document.annotations.push({
+      id: "label-VDD1",
+      kind: "power-label",
+      binding: { kind: "net-name", netId: "net-power-vdd1" },
+      netId: "net-power-vdd1",
+      anchor: {
+        kind: "object",
+        objectId: "junction-vdd1-start",
+        localOffset: { x: 10, y: 10 },
+        fallbackPosition: { x: 10, y: 10 },
+      },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+      formatOverride: { runs: [{ kind: "text", value: "AVDD" }] },
+    });
+    document.connectivityEvidence.push({
+      id: "claim-rail-vdd1",
+      kind: "name-claim",
+      netId: "net-power-vdd1",
+      name: "AVDD",
+      owner: { kind: "power-marker", objectId: "label-VDD1" },
+      scope: "global",
+      powerDomain: "vdd",
+    });
+    expect(SchematicDocumentSchema.safeParse(document).success).toBe(true);
+
+    document.annotations.at(-1)!.formatOverride = {
+      runs: [{ kind: "text", value: "OTHER" }],
+    };
+    expect(SchematicDocumentSchema.safeParse(document).success).toBe(false);
+  });
+
   it("rejects every removed first-class Port shape", () => {
     const project = createEmptyProject("project-port", "Port contract");
     const document = project.documents[0]!;

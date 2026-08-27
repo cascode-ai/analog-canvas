@@ -332,18 +332,22 @@ test("shows faithful symbol previews for the reviewed Razavi palette", async ({
   await page.keyboard.press("i");
   const dialog = page.getByRole("dialog", { name: "Insert Component" });
   const search = dialog.getByLabel("Component search");
-  const preview = dialog.locator("svg.insert-symbol-artwork");
-  // Browser coverage owns dialog-to-preview wiring. Catalogue completeness and
+  // Browser coverage owns tile-to-artwork wiring. Catalogue completeness and
   // every symbol's geometry are covered by the symbol contract and goldens.
   for (const symbolId of ["pmos", "resistor", "comparator-unmarked"]) {
     await search.fill(symbolId);
-    await dialog.getByTestId(`insert-component-${symbolId}`).click();
-    await expect(preview).toBeVisible();
+    await expect(
+      dialog
+        .getByTestId(`insert-component-${symbolId}`)
+        .locator("svg.insert-symbol-artwork"),
+    ).toBeVisible();
   }
   await search.fill("pmos");
-  await dialog.getByTestId("insert-component-pmos").click();
-  await expect(preview.locator("circle")).toHaveCount(0);
-  await expect(preview.locator("polygon")).toHaveCount(3);
+  const tileArtwork = dialog
+    .getByTestId("insert-component-pmos")
+    .locator("svg.insert-symbol-artwork");
+  await expect(tileArtwork.locator("circle")).toHaveCount(0);
+  await expect(tileArtwork.locator("polygon")).toHaveCount(3);
   await expect(dialog.getByTestId("insert-component-nmos3")).toHaveCount(0);
   await expect(dialog.getByTestId("insert-component-pmos3")).toHaveCount(0);
   await page.keyboard.press("Escape");
@@ -2456,21 +2460,18 @@ test("value display projects MOS W/L and passive values beside the reference", a
   await page.keyboard.press("i");
   const dialog = page.getByRole("dialog", { name: "Insert Component" });
   await dialog.getByLabel("Component search").fill("nmos");
-  // A MOS arrives with its device defaults, so the Value toggle is usable
-  // without typing geometry first.
-  const valueToggle = dialog.getByRole("checkbox", {
-    name: "Value",
-    exact: true,
-  });
-  await expect(valueToggle).toBeEnabled();
-  await dialog.getByLabel("Component w", { exact: true }).fill("2u");
-  await dialog.getByLabel("Component l", { exact: true }).fill("180n");
-  await expect(valueToggle).toBeEnabled();
-  await valueToggle.check();
-  await dialog.getByRole("button", { name: "Apply" }).click();
+  await dialog.getByTestId("insert-component-nmos").click();
   const canvas = page.getByTestId("schematic-canvas");
   await canvas.click({ position: { x: 360, y: 240 } });
   await page.keyboard.press("Escape");
+
+  // Geometry and the Value display are Properties decisions after placement.
+  await page.getByTestId("hit-M1").click();
+  await openSelectionShelf(page);
+  await page.getByLabel("Component w", { exact: true }).fill("2u");
+  await page.getByLabel("Component l", { exact: true }).fill("180n");
+  await page.getByRole("checkbox", { name: "Value", exact: true }).check();
+  await canvas.click({ position: { x: 80, y: 80 } });
 
   const reference = page.locator('[data-object-id="instance-label-M1"]');
   const value = page.locator('[data-object-id="instance-value-M1"]');
@@ -2486,14 +2487,17 @@ test("value display projects MOS W/L and passive values beside the reference", a
   if (!referenceBox || !valueBox) throw new Error("Labels are not measurable");
   expect(valueBox.y).toBeGreaterThan(referenceBox.y);
 
-  // A passive value projects the same way from the insert dialog.
+  // A passive value projects the same way through Properties.
   await page.keyboard.press("i");
   await dialog.getByLabel("Component search").fill("resistor");
-  await dialog.getByLabel("Component value", { exact: true }).fill("33k");
-  await dialog.getByRole("checkbox", { name: "Value", exact: true }).check();
-  await dialog.getByRole("button", { name: "Apply" }).click();
+  await dialog.getByTestId("insert-component-resistor").click();
   await canvas.click({ position: { x: 560, y: 240 } });
   await page.keyboard.press("Escape");
+  await page.getByTestId("hit-R1").click();
+  await openSelectionShelf(page);
+  await page.getByLabel("Component value", { exact: true }).fill("33k");
+  await page.getByRole("checkbox", { name: "Value", exact: true }).check();
+  await canvas.click({ position: { x: 80, y: 80 } });
   await expect(
     page.locator('[data-object-id="instance-value-R1"]'),
   ).toContainText("33kΩ");
@@ -3674,7 +3678,6 @@ test("keeps component insertion and inspection from resizing the canvas", async 
   const dialog = page.getByRole("dialog", { name: "Insert Component" });
   await dialog.getByLabel("Component search").fill("pmos");
   await dialog.getByTestId("insert-component-pmos").click();
-  await dialog.getByRole("button", { name: "Apply" }).click();
 
   await canvas.click({ position: { x: 420, y: 260 } });
 

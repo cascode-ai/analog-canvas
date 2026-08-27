@@ -133,7 +133,6 @@ test("manages Cell rename and lists callers", async ({ page }) => {
   await runCellCommand(page, "Place Cell");
   const insert = page.getByRole("dialog", { name: "Place Hierarchical Cell" });
   await insert.getByRole("option", { name: /ReusableStage/u }).click();
-  await insert.getByRole("button", { name: "Apply" }).click();
   await page
     .getByTestId("schematic-canvas")
     .click({ position: { x: 320, y: 180 } });
@@ -215,7 +214,6 @@ test("declares and places a Cell Pin on a new local Net", async ({ page }) => {
     name: "Place Hierarchical Cell",
   });
   await insertDialog.getByRole("option", { name: /ReusableStage/u }).click();
-  await insertDialog.getByRole("button", { name: "Apply" }).click();
   await canvas.click({ position: { x: 420, y: 180 } });
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("active-instance-count")).toHaveText("1");
@@ -532,7 +530,9 @@ test("places an existing Cell and blocks deleting its shared definition", async 
 
   await runCellCommand(page, "Place Cell");
   const dialog = page.getByRole("dialog", { name: "Place Hierarchical Cell" });
-  await expect(dialog.getByText("Cells", { exact: true })).toBeVisible();
+  await expect(
+    dialog.getByRole("option", { name: /ReusableStage/u }),
+  ).toBeVisible();
   await expect(dialog.getByTestId("insert-component-nmos")).toHaveCount(0);
   await page.keyboard.press("Escape");
   await page.keyboard.press("i");
@@ -545,7 +545,6 @@ test("places an existing Cell and blocks deleting its shared definition", async 
     name: "Place Hierarchical Cell",
   });
   await cellDialog.getByRole("option", { name: /ReusableStage/u }).click();
-  await cellDialog.getByRole("button", { name: "Apply" }).click();
 
   const canvas = page.getByTestId("schematic-canvas");
   await canvas.hover({ position: { x: 360, y: 230 } });

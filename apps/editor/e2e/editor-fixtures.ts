@@ -70,8 +70,9 @@ export async function chooseComponent(
   await clickDrawTool(page, "insert");
   const dialog = page.getByRole("dialog", { name: "Insert Component" });
   await dialog.getByLabel("Component search").fill(symbolId);
+  // Clicking a tile starts placement immediately; the quick-pick grid has no
+  // separate Apply step.
   await dialog.getByTestId(`insert-component-${symbolId}`).click();
-  await dialog.getByRole("button", { name: "Apply" }).click();
 }
 
 export async function downloadBytes(

@@ -1,24 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { displayableInstanceValue } from "@icm/derived";
 import type { SymbolDefinition } from "@icm/symbols";
 
-import {
-  componentParameters,
-  initialComponentParameterValues,
-} from "./component-parameters";
+import { initialComponentParameterValues } from "./component-parameters";
 import {
   annotationDrawingTool,
   annotationPolarity,
 } from "./annotation-preview-symbols";
-import {
-  componentCatalog,
-  libraryDescription,
-  libraryDisplayName,
-} from "./symbol-catalog";
+import { componentCatalog, libraryDisplayName } from "./symbol-catalog";
 import type { ComponentInsertRequest } from "./component-insert-request";
 import type { InsertScope } from "./insert-launch";
-import { DisplayToggle } from "./display-toggle";
 import { SymbolArtwork } from "./symbol-artwork";
 
 export type { ComponentInsertRequest } from "./component-insert-request";
@@ -56,6 +47,12 @@ interface InsertChoice {
   readonly masterName?: string;
 }
 
+/**
+ * The I picker is a one-glance speed surface: every candidate tiles into one
+ * flat grid and a click or Enter starts placement immediately. Per-device
+ * setup (parameters, reference text, value display, supply names) lives in
+ * the Properties panel after placement, not here.
+ */
 export function InsertComponentDialog({
   open,
   styleProfileId,
@@ -72,63 +69,21 @@ export function InsertComponentDialog({
   const dialogTitle = cellsOnly
     ? "Place Hierarchical Cell"
     : "Insert Component";
-  const initialChoices = useMemo<InsertChoice[]>(
-    () => [
-      ...(cellsOnly
-        ? []
-        : componentCatalog(styleProfileId, "", recentSymbolIds).flatMap(
-            (group) =>
-              group.symbols.map((symbol) => ({
-                key: symbol.id,
-                kind: "symbol" as const,
-                symbol,
-              })),
-          )),
-      ...cells.map((cell) => ({
-        key: `cell:${cell.childDocumentId}`,
-        kind: "cell" as const,
-        symbol: cell.symbol,
-        childDocumentId: cell.childDocumentId,
-        cellName: cell.cellName,
-      })),
-      ...(cellsOnly
-        ? []
-        : externalDefinitions.map((definition) => ({
-            key: `external:${definition.definitionId}`,
-            kind: "external-subcircuit" as const,
-            symbol: definition.symbol,
-            definitionId: definition.definitionId,
-            masterName: definition.masterName,
-          }))),
-    ],
-    [cellsOnly, cells, externalDefinitions, recentSymbolIds, styleProfileId],
-  );
   const [query, setQuery] = useState("");
-  const [selectedId, setSelectedId] = useState(
-    () => initialChoices[0]?.key ?? null,
-  );
-  const [parameterValues, setParameterValues] = useState<
-    Record<string, string>
-  >({});
-  const [initialRotation, setInitialRotation] = useState<0 | 90 | 180 | 270>(0);
-  const [showReference, setShowReference] = useState(true);
-  const [referenceText, setReferenceText] = useState("");
-  const [showValue, setShowValue] = useState(false);
-  const [railNetName, setRailNetName] = useState("VDD");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const groups = useMemo<
-    { category: string; subcategory?: string; choices: InsertChoice[] }[]
-  >(() => {
+  const gridRef = useRef<HTMLDivElement>(null);
+
+  const choices = useMemo<InsertChoice[]>(() => {
+    const normalized = query.trim().toLowerCase();
     const cellChoices = cells
-      .filter((cell) => {
-        const normalized = query.trim().toLowerCase();
-        return (
+      .filter(
+        (cell) =>
           normalized.length === 0 ||
           `${cell.cellName} ${cell.symbol.id}`
             .toLowerCase()
-            .includes(normalized)
-        );
-      })
+            .includes(normalized),
+      )
       .map<InsertChoice>((cell) => ({
         key: `cell:${cell.childDocumentId}`,
         kind: "cell",
@@ -137,15 +92,13 @@ export function InsertComponentDialog({
         cellName: cell.cellName,
       }));
     const externalChoices = (cellsOnly ? [] : externalDefinitions)
-      .filter((definition) => {
-        const normalized = query.trim().toLowerCase();
-        return (
+      .filter(
+        (definition) =>
           normalized.length === 0 ||
           `${definition.masterName} ${definition.symbol.id}`
             .toLowerCase()
-            .includes(normalized)
-        );
-      })
+            .includes(normalized),
+      )
       .map<InsertChoice>((definition) => ({
         key: `external:${definition.definitionId}`,
         kind: "external-subcircuit",
@@ -153,27 +106,27 @@ export function InsertComponentDialog({
         definitionId: definition.definitionId,
         masterName: definition.masterName,
       }));
-    return [
-      ...(cellsOnly
-        ? []
-        : componentCatalog(styleProfileId, query, recentSymbolIds).map(
-            (group) => ({
-              category: group.category,
-              ...(group.subcategory ? { subcategory: group.subcategory } : {}),
-              choices: group.symbols.map<InsertChoice>((symbol) => ({
-                key: symbol.id,
-                kind: "symbol",
-                symbol,
-              })),
-            }),
-          )),
-      ...(cellChoices.length > 0
-        ? [{ category: "Cells", choices: cellChoices }]
-        : []),
-      ...(externalChoices.length > 0
-        ? [{ category: "External masters", choices: externalChoices }]
-        : []),
-    ];
+    // The catalog ranks recents within each category; the flat grid hoists
+    // them to the very front so the last few picks are always the first tiles.
+    const recentRank = new Map(
+      recentSymbolIds.map((symbolId, index) => [symbolId, index] as const),
+    );
+    const symbolChoices = cellsOnly
+      ? []
+      : componentCatalog(styleProfileId, query, recentSymbolIds)
+          .flatMap((group) =>
+            group.symbols.map<InsertChoice>((symbol) => ({
+              key: symbol.id,
+              kind: "symbol",
+              symbol,
+            })),
+          )
+          .sort(
+            (left, right) =>
+              (recentRank.get(left.symbol.id) ?? Number.POSITIVE_INFINITY) -
+              (recentRank.get(right.symbol.id) ?? Number.POSITIVE_INFINITY),
+          );
+    return [...symbolChoices, ...cellChoices, ...externalChoices];
   }, [
     cellsOnly,
     cells,
@@ -182,71 +135,17 @@ export function InsertComponentDialog({
     recentSymbolIds,
     styleProfileId,
   ]);
-  const choices = useMemo(
-    () => groups.flatMap((group) => group.choices),
-    [groups],
-  );
+
   const selected =
     choices.find((choice) => choice.key === selectedId) ?? choices[0] ?? null;
-  const selectedIsVddRail =
-    selected?.kind === "symbol" && selected.symbol.id === "vdd";
-  const selectedIsPort =
-    selected?.kind === "symbol" &&
-    (selected.symbol.id === "port" || selected.symbol.id === "port-filled");
-  const selectedDrawingTool =
-    selected?.kind === "symbol"
-      ? annotationDrawingTool(selected.symbol.id)
-      : undefined;
-  const selectedPolarity =
-    selected?.kind === "symbol"
-      ? annotationPolarity(selected.symbol.id)
-      : undefined;
-  const parameters = componentParameters(
-    selected?.kind === "symbol" ? selected.symbol.id : "",
-  );
-  const valueDisplay = displayableInstanceValue({
-    symbolId: selected?.kind === "symbol" ? selected.symbol.id : "",
-    netlist: {
-      parameters: Object.fromEntries(
-        Object.entries(parameterValues)
-          .map(([key, value]) => [key, value.trim()] as const)
-          .filter(([, value]) => value !== ""),
-      ),
-    },
-  });
-  const valueAvailable =
-    selected?.kind === "cell" || valueDisplay.kind === "displayable";
 
   useEffect(() => {
     if (!open) return;
     setQuery("");
-    setSelectedId(
-      initialSelectionId &&
-        initialChoices.some((choice) => choice.key === initialSelectionId)
-        ? initialSelectionId
-        : (initialChoices[0]?.key ?? null),
-    );
-    setInitialRotation(0);
-    setShowReference(true);
-    setReferenceText("");
-    setShowValue(false);
-    setRailNetName("VDD");
+    setSelectedId(initialSelectionId);
     const frame = requestAnimationFrame(() => inputRef.current?.focus());
     return () => cancelAnimationFrame(frame);
-  }, [initialChoices, initialSelectionId, open]);
-
-  useEffect(() => {
-    setParameterValues(
-      initialComponentParameterValues(
-        selected?.kind === "symbol" ? selected.symbol.id : "",
-      ),
-    );
-  }, [selected]);
-
-  useEffect(() => {
-    if (selected?.kind === "cell" || selected?.kind === "external-subcircuit")
-      setShowValue(true);
-  }, [selected?.kind]);
+  }, [initialSelectionId, open]);
 
   useEffect(() => {
     if (choices.length === 0) {
@@ -256,7 +155,29 @@ export function InsertComponentDialog({
     }
   }, [choices, selectedId]);
 
+  useEffect(() => {
+    if (!open || !selected) return;
+    gridRef.current
+      ?.querySelector(
+        `[id="insert-component-option-${CSS.escape(selected.key)}"]`,
+      )
+      ?.scrollIntoView({ block: "nearest" });
+  }, [open, selected]);
+
   if (!open) return null;
+
+  const gridColumns = (): number => {
+    const options =
+      gridRef.current?.querySelectorAll<HTMLElement>('[role="option"]');
+    if (!options || options.length === 0) return 1;
+    const firstTop = options[0]!.offsetTop;
+    let columns = 0;
+    for (const option of options) {
+      if (option.offsetTop !== firstTop) break;
+      columns += 1;
+    }
+    return Math.max(1, columns);
+  };
 
   const selectOffset = (offset: number): void => {
     if (choices.length === 0) return;
@@ -264,95 +185,82 @@ export function InsertComponentDialog({
       0,
       choices.findIndex((choice) => choice.key === selected?.key),
     );
-    const next = (index + offset + choices.length) % choices.length;
+    const next = Math.min(Math.max(index + offset, 0), choices.length - 1);
     setSelectedId(choices[next]!.key);
   };
 
-  // Selecting never folds the list away: the catalog stays in place so the
-  // next pick is one click, not an expand-then-click.
-  const selectChoice = (key: string): void => {
-    setSelectedId(key);
-    setQuery("");
-  };
-
-  const rotatePreview = (): void => {
-    if (selectedIsVddRail || selectedDrawingTool) return;
-    setInitialRotation(
-      (current) => ((current + 90) % 360) as 0 | 90 | 180 | 270,
-    );
-  };
-
-  const apply = (): void => {
-    if (!selected) return;
-    if (selectedIsVddRail) {
-      const netName = railNetName.trim();
-      if (!netName) return;
+  const applyChoice = (choice: InsertChoice | null): void => {
+    if (!choice) return;
+    const symbolId = choice.symbol.id;
+    if (choice.kind === "symbol" && symbolId === "vdd") {
       onApply({
         kind: "vdd-rail",
         symbolId: "vdd",
         symbolName: "Power Rail",
-        netName,
+        netName: "VDD",
       });
       return;
     }
-    if (selectedDrawingTool) {
+    const drawingTool =
+      choice.kind === "symbol" ? annotationDrawingTool(symbolId) : undefined;
+    if (drawingTool) {
       onApply({
         kind: "drawing-tool",
-        symbolId: selected.symbol.id,
-        symbolName: selected.symbol.name,
-        tool: selectedDrawingTool,
+        symbolId,
+        symbolName: choice.symbol.name,
+        tool: drawingTool,
       });
       return;
     }
-    if (selectedPolarity) {
+    const polarity =
+      choice.kind === "symbol" ? annotationPolarity(symbolId) : undefined;
+    if (polarity) {
       onApply({
         kind: "polarity-annotation",
-        symbolId: selected.symbol.id,
-        symbolName: selected.symbol.name,
-        polarity: selectedPolarity,
-        initialRotation,
+        symbolId,
+        symbolName: choice.symbol.name,
+        polarity,
+        initialRotation: 0,
       });
       return;
     }
-    if (selected.kind === "cell") {
-      const trimmedReference = referenceText.trim();
+    if (choice.kind === "cell") {
       onApply({
         kind: "cell",
-        symbolId: selected.symbol.id,
-        symbolName: selected.cellName ?? selected.symbol.name,
-        childDocumentId: selected.childDocumentId!,
-        cellName: selected.cellName ?? selected.symbol.name,
+        symbolId,
+        symbolName: choice.cellName ?? choice.symbol.name,
+        childDocumentId: choice.childDocumentId!,
+        cellName: choice.cellName ?? choice.symbol.name,
         parameters: {},
-        initialRotation,
-        showReference,
-        referenceText: trimmedReference === "" ? null : trimmedReference,
+        initialRotation: 0,
+        showReference: true,
+        referenceText: null,
         showValue: true,
       });
       return;
     }
-    if (selected.kind === "external-subcircuit") {
-      const trimmedReference = referenceText.trim();
+    if (choice.kind === "external-subcircuit") {
       onApply({
         kind: "external-subcircuit",
-        symbolId: selected.symbol.id,
-        symbolName: selected.masterName ?? selected.symbol.name,
-        definitionId: selected.definitionId!,
-        masterName: selected.masterName ?? selected.symbol.name,
+        symbolId,
+        symbolName: choice.masterName ?? choice.symbol.name,
+        definitionId: choice.definitionId!,
+        masterName: choice.masterName ?? choice.symbol.name,
         parameters: {},
-        initialRotation,
-        showReference,
-        referenceText: trimmedReference === "" ? null : trimmedReference,
+        initialRotation: 0,
+        showReference: true,
+        referenceText: null,
         showValue: true,
       });
       return;
     }
-    if (selectedIsPort) {
+    if (symbolId === "port" || symbolId === "port-filled") {
       onApply({
         kind: "symbol",
-        symbolId: selected.symbol.id,
-        symbolName: selected.symbol.name,
+        symbolId,
+        symbolName: choice.symbol.name,
         parameters: {},
-        initialRotation,
+        initialRotation: 0,
         showReference: false,
         referenceText: null,
         showValue: false,
@@ -360,21 +268,22 @@ export function InsertComponentDialog({
       });
       return;
     }
+    // Devices arrive with their catalog defaults (a MOS still lands as
+    // 1u/180n); everything is editable in Properties after placement.
     const parameters = Object.fromEntries(
-      Object.entries(parameterValues)
+      Object.entries(initialComponentParameterValues(symbolId))
         .map(([key, value]) => [key, value.trim()] as const)
         .filter(([, value]) => value !== ""),
     );
-    const trimmedReference = referenceText.trim();
     onApply({
       kind: "symbol",
-      symbolId: selected.symbol.id,
-      symbolName: selected.symbol.name,
+      symbolId,
+      symbolName: choice.symbol.name,
       parameters,
-      initialRotation,
-      showReference,
-      referenceText: trimmedReference === "" ? null : trimmedReference,
-      showValue: showValue && valueAvailable,
+      initialRotation: 0,
+      showReference: true,
+      referenceText: null,
+      showValue: false,
     });
   };
 
@@ -386,38 +295,30 @@ export function InsertComponentDialog({
         if (event.target === event.currentTarget) onCancel();
       }}
     >
-      <form
+      <div
         className="insert-component-dialog"
         role="dialog"
         aria-modal="true"
         aria-labelledby="insert-component-title"
-        onSubmit={(event) => {
-          event.preventDefault();
-          apply();
-        }}
         onKeyDown={(event) => {
-          const target = event.target as HTMLElement;
-          const isTextEntry = Boolean(
-            target.closest('input, textarea, [contenteditable="true"]'),
-          );
-          if (
-            event.key.toLowerCase() === "r" &&
-            !event.ctrlKey &&
-            !event.metaKey &&
-            !event.altKey &&
-            !isTextEntry
-          ) {
-            event.preventDefault();
-            rotatePreview();
-          } else if (event.key === "Escape") {
+          if (event.key === "Escape") {
             event.preventDefault();
             onCancel();
-          } else if (event.key === "ArrowDown") {
+          } else if (event.key === "Enter") {
+            event.preventDefault();
+            applyChoice(selected);
+          } else if (event.key === "ArrowRight") {
             event.preventDefault();
             selectOffset(1);
-          } else if (event.key === "ArrowUp") {
+          } else if (event.key === "ArrowLeft") {
             event.preventDefault();
             selectOffset(-1);
+          } else if (event.key === "ArrowDown") {
+            event.preventDefault();
+            selectOffset(gridColumns());
+          } else if (event.key === "ArrowUp") {
+            event.preventDefault();
+            selectOffset(-gridColumns());
           } else if (event.key === "Home") {
             event.preventDefault();
             setSelectedId(choices[0]?.key ?? null);
@@ -435,250 +336,75 @@ export function InsertComponentDialog({
           {cellsOnly ? null : <kbd>I</kbd>}
         </header>
 
-        <div className="insert-dialog-body">
-          <aside
-            className="insert-control-column"
-            aria-label={`${pickerNoun} setup`}
-          >
-            <section className="insert-component-picker">
-              <label className="insert-search-field">
-                <span>{pickerNoun}</span>
-                <div className="insert-picker-input-row">
-                  <input
-                    ref={inputRef}
-                    role="combobox"
-                    aria-label={`${pickerNoun} search`}
-                    aria-autocomplete="list"
-                    aria-expanded={true}
-                    aria-controls="insert-component-options"
-                    aria-activedescendant={
-                      selected
-                        ? `insert-component-option-${selected.key}`
-                        : undefined
-                    }
-                    value={query}
-                    placeholder={`Search ${pickerNoun.toLowerCase()}`}
-                    onChange={(event) => setQuery(event.currentTarget.value)}
-                  />
-                </div>
-              </label>
-              {
-                <div
-                  id="insert-component-options"
-                  className="insert-component-options"
-                  role="listbox"
-                  aria-label={`${pickerNoun} choices`}
-                >
-                  {groups.map((group) => (
-                    <section
-                      key={`${group.category}:${group.subcategory ?? ""}`}
-                      className="insert-option-group"
-                    >
-                      <h3>{group.category}</h3>
-                      {group.subcategory ? <h4>{group.subcategory}</h4> : null}
-                      {group.choices.map((choice) => (
-                        <button
-                          type="button"
-                          id={`insert-component-option-${choice.key}`}
-                          key={choice.key}
-                          role="option"
-                          aria-selected={choice.key === selected?.key}
-                          data-testid={
-                            choice.kind === "cell"
-                              ? `insert-cell-${choice.childDocumentId}`
-                              : `insert-component-${choice.symbol.id}`
-                          }
-                          onClick={() => selectChoice(choice.key)}
-                          onDoubleClick={() => {
-                            // The first click of the pair already committed
-                            // this selection; the second applies it.
-                            apply();
-                          }}
-                        >
-                          <span>
-                            {choice.cellName ??
-                              libraryDisplayName(
-                                choice.symbol.id,
-                                choice.symbol.name,
-                              )}
-                          </span>
-                          <small>
-                            {choice.kind === "cell" ? "Cell" : choice.symbol.id}
-                          </small>
-                        </button>
-                      ))}
-                    </section>
-                  ))}
-                  {choices.length === 0 ? (
-                    <p className="insert-no-results">
-                      No matching {pickerNoun.toLowerCase()}s
-                    </p>
-                  ) : null}
-                </div>
-              }
-            </section>
+        <input
+          ref={inputRef}
+          className="insert-quick-search"
+          role="combobox"
+          aria-label={`${pickerNoun} search`}
+          aria-autocomplete="list"
+          aria-expanded={true}
+          aria-controls="insert-component-options"
+          aria-activedescendant={
+            selected ? `insert-component-option-${selected.key}` : undefined
+          }
+          value={query}
+          placeholder={`Search ${pickerNoun.toLowerCase()}s`}
+          onChange={(event) => setQuery(event.currentTarget.value)}
+        />
 
-            {selectedIsVddRail ? (
-              <section
-                className="insert-placement-options"
-                aria-label="Power rail options"
+        <div
+          ref={gridRef}
+          id="insert-component-options"
+          className="insert-tile-grid"
+          role="listbox"
+          aria-label={`${pickerNoun} choices`}
+        >
+          {choices.map((choice) => {
+            const label =
+              choice.cellName ??
+              choice.masterName ??
+              libraryDisplayName(choice.symbol.id, choice.symbol.name);
+            return (
+              <button
+                type="button"
+                id={`insert-component-option-${choice.key}`}
+                key={choice.key}
+                role="option"
+                aria-selected={choice.key === selected?.key}
+                className="insert-tile"
+                title={
+                  choice.kind === "cell"
+                    ? `${label} · Cell`
+                    : `${label} · ${choice.symbol.id}`
+                }
+                data-testid={
+                  choice.kind === "cell"
+                    ? `insert-cell-${choice.childDocumentId}`
+                    : `insert-component-${choice.symbol.id}`
+                }
+                onClick={() => applyChoice(choice)}
               >
-                <label>
-                  <span>Net name</span>
-                  <input
-                    aria-label="Power rail Net name"
-                    value={railNetName}
-                    onChange={(event) =>
-                      setRailNetName(event.currentTarget.value)
-                    }
-                  />
-                </label>
-              </section>
-            ) : selectedDrawingTool ? (
-              <section
-                className="insert-placement-options"
-                aria-label="Drawing tool"
-              >
-                <p className="insert-cell-label-note">
-                  Starts the existing {selected!.symbol.name.toLowerCase()}{" "}
-                  tool. Click the canvas to draw; press Esc when finished.
-                </p>
-              </section>
-            ) : (
-              <section
-                className="insert-placement-options"
-                aria-label="Placement options"
-              >
-                <label className="insert-rotation-control">
-                  <span>Rotate</span>
-                  <select
-                    aria-label="Initial rotation"
-                    value={initialRotation}
-                    onChange={(event) =>
-                      setInitialRotation(
-                        Number(event.currentTarget.value) as 0 | 90 | 180 | 270,
-                      )
-                    }
-                  >
-                    <option value="0">0°</option>
-                    <option value="90">90°</option>
-                    <option value="180">180°</option>
-                    <option value="270">270°</option>
-                  </select>
-                </label>
-                {selectedPolarity ? (
-                  <p className="insert-cell-label-note">
-                    Place the annotation, then edit its center text directly on
-                    the canvas.
-                  </p>
-                ) : selectedIsPort ? (
-                  <p className="insert-cell-label-note">
-                    {libraryDescription(selected.symbol.id) ??
-                      "Names a net on this sheet."}{" "}
-                    Rename it on the canvas.
-                  </p>
-                ) : (
-                  <div className="insert-label-control">
-                    <DisplayToggle
-                      label="Reference"
-                      checked={showReference}
-                      onChange={setShowReference}
-                    />
-                    <input
-                      aria-label="Reference name"
-                      value={referenceText}
-                      disabled={!showReference}
-                      placeholder="Name (auto)"
-                      onChange={(event) =>
-                        setReferenceText(event.currentTarget.value)
-                      }
-                    />
-                    <DisplayToggle
-                      label="Value"
-                      checked={showValue}
-                      disabled={!valueAvailable}
-                      help={
-                        valueAvailable
-                          ? undefined
-                          : "Fill the device parameters first"
-                      }
-                      onChange={setShowValue}
-                    />
-                  </div>
-                )}
-              </section>
-            )}
-
-            {parameters.length > 0 ? (
-              <section
-                className="insert-control-section"
-                aria-label="Device parameters"
-              >
-                <h3>Device parameters</h3>
-                {parameters.map((parameter) => (
-                  <label key={parameter.key} title={parameter.help}>
-                    <span className="insert-parameter-name">
-                      {parameter.label}
-                      {parameter.unit ? ` / ${parameter.unit}` : ""}
-                      <em>({parameter.help})</em>
-                    </span>
-                    <input
-                      aria-label={`Component ${parameter.label.toLowerCase()}`}
-                      inputMode={parameter.inputMode}
-                      value={parameterValues[parameter.key] ?? ""}
-                      placeholder={parameter.placeholder}
-                      onChange={(event) => {
-                        const value = event.currentTarget.value;
-                        setParameterValues((current) => ({
-                          ...current,
-                          [parameter.key]: value,
-                        }));
-                      }}
-                    />
-                  </label>
-                ))}
-              </section>
-            ) : null}
-          </aside>
-
-          <section
-            className="insert-component-preview"
-            aria-label="Component preview"
-            aria-live="polite"
-            tabIndex={0}
-          >
-            {selected ? (
-              <>
                 <SymbolArtwork
-                  symbol={selected.symbol}
+                  symbol={choice.symbol}
                   className="insert-symbol-artwork"
-                  rotation={initialRotation}
                 />
-                <div>
-                  <h3>{selected.cellName ?? selected.symbol.name}</h3>
-                  <p>
-                    {selected.kind === "cell" ? "Cell" : selected.symbol.id}
-                  </p>
-                </div>
-              </>
-            ) : (
-              <p>Select a component to preview it.</p>
-            )}
-          </section>
+                <span>{label}</span>
+              </button>
+            );
+          })}
+          {choices.length === 0 ? (
+            <p className="insert-no-results">
+              No matching {pickerNoun.toLowerCase()}s
+            </p>
+          ) : null}
         </div>
 
         <footer className="insert-dialog-actions">
-          <small>Type to search · ↑↓ choose · Enter place · Esc cancel</small>
-          <div>
-            <button type="button" onClick={onCancel}>
-              Cancel
-            </button>
-            <button type="submit" className="primary" disabled={!selected}>
-              Apply
-            </button>
-          </div>
+          <small>
+            Type to filter · ←↑↓→ choose · Enter or click places · Esc closes
+          </small>
         </footer>
-      </form>
+      </div>
     </div>
   );
 }

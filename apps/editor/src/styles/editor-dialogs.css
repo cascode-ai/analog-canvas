@@ -111,15 +111,14 @@
   gap: 0.5rem;
 }
 
-/* The Insert dialog is deliberately a compact setup surface: discovery and
-   parameters remain in the left column, while the right preview never reflows
-   when the component picker opens. */
+/* The Insert dialog is a one-glance speed picker: every candidate tiles into
+   one flat grid, and a click or Enter starts placement immediately. */
 .insert-component-dialog {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  gap: 0.9rem;
-  width: min(54rem, calc(100vw - 2.5rem));
-  height: min(38rem, calc(100dvh - 2.5rem));
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  gap: 0.8rem;
+  width: min(46rem, calc(100vw - 2.5rem));
+  max-height: calc(100dvh - 2.5rem);
   padding: 1rem;
   overflow: hidden;
   border: 1px solid var(--icm-border-strong);
@@ -138,9 +137,7 @@
 }
 
 .insert-dialog-header p,
-.insert-dialog-header h2,
-.insert-component-preview h3,
-.insert-component-preview p {
+.insert-dialog-header h2 {
   margin: 0;
 }
 
@@ -167,15 +164,7 @@
   font-size: var(--icm-font-sm);
 }
 
-.insert-search-field {
-  display: grid;
-  gap: 0.35rem;
-  color: var(--icm-text-muted);
-  font-size: var(--icm-font-sm);
-  font-weight: 650;
-}
-
-.insert-search-field input {
+.insert-quick-search {
   width: 100%;
   min-height: 2.35rem;
   padding: 0.45rem 0.6rem;
@@ -187,90 +176,69 @@
   font-size: var(--icm-font-lg);
 }
 
-.insert-search-field input:focus {
+.insert-quick-search:focus {
   border-color: var(--icm-accent);
   background: var(--icm-surface);
   box-shadow: 0 0 0 3px var(--icm-accent-soft);
 }
 
-.insert-dialog-body {
+.insert-tile-grid {
   display: grid;
-  grid-template-columns: minmax(17rem, 0.85fr) minmax(24rem, 1.15fr);
+  grid-template-columns: repeat(auto-fill, minmax(6.4rem, 1fr));
+  align-content: start;
+  gap: 0.45rem;
   min-height: 0;
-  overflow: hidden;
-  border: 1px solid var(--icm-border);
-  border-radius: var(--icm-radius-md);
-}
-
-.insert-component-options {
-  min-height: 0;
+  padding: 0.55rem;
   overflow-y: auto;
   overscroll-behavior: contain;
-  border-right: 1px solid var(--icm-border);
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-md);
   background: var(--icm-surface-muted);
   scrollbar-width: thin;
 }
 
-.insert-option-group h3 {
-  position: sticky;
-  z-index: 1;
-  top: 0;
-  margin: 0;
-  padding: 0.55rem 0.75rem 0.35rem;
-  color: var(--icm-text-muted);
-  background: rgb(248 250 252 / 95%);
-  font-size: var(--icm-font-xs);
-  letter-spacing: 0.075em;
-  text-transform: uppercase;
-  backdrop-filter: blur(8px);
-}
-
-.insert-option-group h4 {
-  margin: 0;
-  padding: 0.25rem 0.75rem 0.35rem;
-  color: var(--icm-text-muted);
-  font-size: var(--icm-font-xs);
-  font-weight: 600;
-}
-
-.insert-option-group button {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.75rem;
-  width: 100%;
-  min-height: 2.25rem;
-  padding: 0.45rem 0.75rem;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
+.insert-tile {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.5rem 0.35rem 0.45rem;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-md);
+  background: var(--icm-surface);
   box-shadow: none;
-  text-align: left;
+  text-align: center;
 }
 
-.insert-option-group button:hover,
-.insert-option-group button[aria-selected="true"] {
+.insert-tile:hover,
+.insert-tile[aria-selected="true"] {
+  border-color: var(--icm-accent);
   color: var(--icm-accent);
   background: var(--icm-accent-soft);
 }
 
-.insert-option-group button[aria-selected="true"] {
-  box-shadow: inset 3px 0 0 var(--icm-accent);
+.insert-tile[aria-selected="true"] {
+  box-shadow: 0 0 0 2px var(--icm-accent-soft);
 }
 
-.insert-option-group button span {
+.insert-tile .insert-symbol-artwork {
+  width: 100%;
+  height: 3.4rem;
+  color: #111827;
+}
+
+.insert-tile span {
+  max-width: 100%;
   overflow: hidden;
-  font-size: var(--icm-font-md);
+  font-size: var(--icm-font-xs);
   font-weight: 600;
+  line-height: 1.25;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.insert-option-group button small {
-  color: var(--icm-text-muted);
-  font-size: var(--icm-font-xs);
-}
-
 .insert-no-results {
+  grid-column: 1 / -1;
   margin: 0;
   padding: 1.25rem;
   color: var(--icm-text-muted);
@@ -278,57 +246,9 @@
   text-align: center;
 }
 
-.insert-component-preview {
-  display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
-  gap: 0.75rem;
-  min-width: 0;
-  min-height: 0;
-  padding: 1.25rem;
-  overflow: hidden;
-  background:
-    radial-gradient(circle at 50% 40%, #fff 0, #fff 42%, transparent 72%),
-    linear-gradient(135deg, var(--icm-surface-muted), #fff);
-}
-
-.insert-symbol-artwork {
-  align-self: center;
-  justify-self: center;
-  width: min(100%, 18rem);
-  height: 14rem;
-  color: #111827;
-}
-
-.insert-component-preview h3 {
-  font-size: var(--icm-font-lg);
-}
-
-.insert-component-preview p,
-.insert-component-preview small {
-  color: var(--icm-text-muted);
-  font-size: var(--icm-font-sm);
-}
-
 .insert-dialog-actions > small {
   color: var(--icm-text-muted);
   font-size: var(--icm-font-sm);
-}
-
-.insert-dialog-actions > div {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.insert-dialog-actions button {
-  min-width: 5.5rem;
-  min-height: 2.3rem;
-  padding-inline: 0.85rem;
-}
-
-.insert-dialog-actions .primary {
-  border-color: var(--icm-accent);
-  color: #fff;
-  background: var(--icm-accent);
 }
 
 /* Cell Manager is a compact master-detail workbench. Interface facts remain
@@ -779,26 +699,6 @@
   background: var(--icm-danger, #b42318);
 }
 
-.insert-cell-label-note {
-  margin: 0;
-  color: var(--icm-text-muted);
-  font-size: var(--icm-font-sm);
-}
-
-.insert-control-column {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  min-width: 0;
-  min-height: 0;
-  padding: 0.8rem;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  border-right: 1px solid var(--icm-border);
-  background: var(--icm-surface-muted);
-  scrollbar-width: thin;
-}
-
 /* Document style knobs: one settings row per knob, sharing the publish
    dialog's card so the two modals read as one family. */
 .style-dialog {
@@ -931,111 +831,6 @@
   white-space: pre;
 }
 
-.insert-component-picker,
-.insert-control-section {
-  padding: 0.65rem;
-  border: 1px solid var(--icm-border);
-  border-radius: var(--icm-radius-md);
-  background: var(--icm-surface);
-}
-
-.insert-picker-input-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 2.4rem;
-  gap: 0.35rem;
-}
-
-.insert-picker-toggle {
-  padding: 0;
-  border-color: var(--icm-border-strong);
-  box-shadow: none;
-  font-size: var(--icm-font-lg);
-}
-
-.insert-component-options {
-  /* The catalog stays permanently open; give it real height so most
-     categories are visible without scrolling. */
-  max-height: min(26rem, 48vh);
-  margin-top: 0.55rem;
-  overflow-y: auto;
-  border: 1px solid var(--icm-border);
-  border-radius: var(--icm-radius-sm);
-  background: var(--icm-surface-muted);
-}
-
-.insert-control-section {
-  display: grid;
-  gap: 0.45rem;
-}
-
-.insert-control-section h3 {
-  margin: 0;
-  color: var(--icm-text-muted);
-  font-size: var(--icm-font-xs);
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-}
-
-.insert-control-section label {
-  display: grid;
-  gap: 0.22rem;
-  color: var(--icm-text-muted);
-  font-size: var(--icm-font-sm);
-}
-
-.insert-control-section input {
-  min-width: 0;
-  min-height: var(--icm-control-h-lg);
-  padding: 0.4rem 0.5rem;
-  border: 1px solid var(--icm-border);
-  border-radius: var(--icm-radius-sm);
-  color: var(--icm-text);
-  background: var(--icm-surface);
-  font: inherit;
-}
-
-.insert-control-section small {
-  color: var(--icm-text-muted);
-  font-size: var(--icm-font-xs);
-}
-
-.insert-placement-options {
-  display: grid;
-  grid-template-columns: 6.2rem minmax(0, 1fr);
-  align-items: end;
-  gap: 0.55rem;
-  padding: 0.55rem 0.65rem;
-  border: 1px solid var(--icm-border);
-  border-radius: var(--icm-radius-md);
-  background: var(--icm-surface);
-}
-
-.insert-rotation-control {
-  display: grid;
-  gap: 0.22rem;
-  color: var(--icm-text-muted);
-  font-size: var(--icm-font-sm);
-}
-
-.insert-rotation-control select,
-.insert-label-control > input {
-  min-width: 0;
-  min-height: var(--icm-control-h-lg);
-  padding: 0.4rem 0.5rem;
-  border: 1px solid var(--icm-border);
-  border-radius: var(--icm-radius-sm);
-  color: var(--icm-text);
-  background: var(--icm-surface);
-  font: inherit;
-}
-
-.insert-label-control {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: end;
-  gap: 0.45rem;
-}
-
 /* One compact Reference/Value switch shared by the insert dialog, the
    component properties panel, and group selection. */
 .display-toggle-row {
@@ -1068,28 +863,7 @@
   cursor: help;
 }
 
-.insert-parameter-name {
-  color: var(--icm-text);
-  font-weight: 650;
-}
-
-.insert-parameter-name em {
-  margin-left: 0.25rem;
-  color: var(--icm-text-muted);
-  font-size: var(--icm-font-xs);
-  font-style: normal;
-  font-weight: 500;
-}
-
 @media (max-width: 860px) {
-  .insert-component-dialog {
-    width: min(40rem, calc(100vw - 2rem));
-  }
-
-  .insert-dialog-body {
-    grid-template-columns: minmax(12rem, 0.85fr) minmax(15rem, 1.15fr);
-  }
-
   .cell-manager-dialog {
     width: calc(100vw - 1rem);
     height: calc(100dvh - 1rem);
