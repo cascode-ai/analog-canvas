@@ -225,12 +225,11 @@ test("keeps quick-start shortcuts in the corner until the first component is ins
     "UUndo",
     "ShiftURedo",
     "FFit view",
-    "DeleteDelete selection",
     "EscCancel tool",
   ]);
   await expect(quickStart.locator(".canvas-shortcut-list")).toHaveCSS(
     "grid-template-columns",
-    /\S+px \S+px/u,
+    /^\d+(?:\.\d+)?px$/u,
   );
   expect(
     await quickStart.evaluate((element) => {

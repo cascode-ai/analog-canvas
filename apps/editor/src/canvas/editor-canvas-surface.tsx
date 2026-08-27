@@ -52,7 +52,6 @@ const CADENCE_QUICK_SHORTCUTS = [
   { keys: ["U"], action: "Undo" },
   { keys: ["Shift", "U"], action: "Redo" },
   { keys: ["F"], action: "Fit view" },
-  { keys: ["Delete"], action: "Delete selection" },
   { keys: ["Esc"], action: "Cancel tool" },
 ] as const;
 

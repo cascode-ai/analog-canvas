@@ -45,7 +45,7 @@
   left: var(--icm-space-3);
   display: grid;
   gap: var(--icm-space-2);
-  width: min(440px, calc(100% - var(--icm-space-6)));
+  width: max-content;
   max-width: calc(100% - var(--icm-space-6));
   padding: 10px var(--icm-space-3);
   border: 1px solid var(--icm-border);
@@ -84,9 +84,8 @@
 
 .canvas-shortcut-list {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   row-gap: var(--icm-space-1);
-  column-gap: var(--icm-space-4);
   margin: 0;
   padding: 0;
   list-style: none;
