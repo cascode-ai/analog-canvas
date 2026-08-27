@@ -212,20 +212,20 @@ test("keeps quick-start shortcuts in the corner until the first component is ins
   await expect(quickStart).toContainText("Quick start");
   await expect(quickStart).toContainText("Cadence keys");
   await expect(quickStart.locator("li")).toHaveText([
-    "IInsert component",
-    "WDraw wire",
-    "PPlace Cell Pin",
-    "LEdit Net Label",
-    "MMove selection",
+    "FFit view",
+    "UUndo",
     "CCopy selection",
     "QProperties",
     "RRotate",
+    "WDraw wire",
+    "IInsert component",
+    "PPlace Cell Pin",
+    "LEdit Net Label",
+    "MMove selection",
     "ShiftRMirror left / right",
     "CtrlRMirror top / bottom",
-    "UUndo",
-    "ShiftURedo",
-    "FFit view",
     "EscCancel tool",
+    "ShiftURedo",
   ]);
   await expect(quickStart.locator(".canvas-shortcut-list")).toHaveCSS(
     "grid-template-columns",

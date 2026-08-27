@@ -39,20 +39,20 @@ export interface EditorCanvasSurfaceProps {
 }
 
 const CADENCE_QUICK_SHORTCUTS = [
-  { keys: ["I"], action: "Insert component" },
-  { keys: ["W"], action: "Draw wire" },
-  { keys: ["P"], action: "Place Cell Pin" },
-  { keys: ["L"], action: "Edit Net Label" },
-  { keys: ["M"], action: "Move selection" },
+  { keys: ["F"], action: "Fit view" },
+  { keys: ["U"], action: "Undo" },
   { keys: ["C"], action: "Copy selection" },
   { keys: ["Q"], action: "Properties" },
   { keys: ["R"], action: "Rotate" },
+  { keys: ["W"], action: "Draw wire" },
+  { keys: ["I"], action: "Insert component" },
+  { keys: ["P"], action: "Place Cell Pin" },
+  { keys: ["L"], action: "Edit Net Label" },
+  { keys: ["M"], action: "Move selection" },
   { keys: ["Shift", "R"], action: "Mirror left / right" },
   { keys: ["Ctrl", "R"], action: "Mirror top / bottom" },
-  { keys: ["U"], action: "Undo" },
-  { keys: ["Shift", "U"], action: "Redo" },
-  { keys: ["F"], action: "Fit view" },
   { keys: ["Esc"], action: "Cancel tool" },
+  { keys: ["Shift", "U"], action: "Redo" },
 ] as const;
 
 function CanvasShortcutChord({ keys }: { keys: readonly string[] }) {
