@@ -742,12 +742,6 @@
   text-underline-offset: 0.15rem;
 }
 
-@media (max-width: 760px) {
-  .statusbar-analytics {
-    display: none;
-  }
-}
-
 /* Root crash screen shown by the editor error boundary. */
 .editor-crash-screen {
   display: grid;
