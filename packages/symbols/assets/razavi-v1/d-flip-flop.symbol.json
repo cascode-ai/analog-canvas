@@ -19,7 +19,7 @@
       "direction": "west",
       "presentation": {
         "visibility": "visible",
-        "leadLength": 10,
+        "leadLength": 15,
         "showName": true,
         "textStyle": "math-symbol",
         "textSizeScale": 0.68
@@ -35,7 +35,7 @@
       "direction": "west",
       "presentation": {
         "visibility": "visible",
-        "leadLength": 10,
+        "leadLength": 15,
         "showName": true,
         "textStyle": "math-symbol",
         "textSizeScale": 0.68
@@ -51,7 +51,7 @@
       "direction": "east",
       "presentation": {
         "visibility": "visible",
-        "leadLength": 10,
+        "leadLength": 15,
         "showName": true,
         "textStyle": "math-symbol",
         "textSizeScale": 0.68
@@ -67,7 +67,7 @@
       "direction": "east",
       "presentation": {
         "visibility": "visible",
-        "leadLength": 10,
+        "leadLength": 15,
         "showName": true,
         "displayName": "Q",
         "textStyle": "math-symbol",

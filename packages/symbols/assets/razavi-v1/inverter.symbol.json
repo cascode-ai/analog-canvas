@@ -13,13 +13,13 @@
       "name": "A",
       "role": "input",
       "at": {
-        "x": -20,
+        "x": -30,
         "y": 0
       },
       "direction": "west",
       "presentation": {
         "visibility": "visible",
-        "leadLength": 10
+        "leadLength": 15
       }
     },
     {
@@ -32,7 +32,7 @@
       "direction": "east",
       "presentation": {
         "visibility": "visible",
-        "leadLength": 10
+        "leadLength": 15
       }
     }
   ],
@@ -40,7 +40,7 @@
     {
       "kind": "line",
       "from": {
-        "x": -20,
+        "x": -30,
         "y": 0
       },
       "to": {

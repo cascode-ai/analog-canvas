@@ -13,39 +13,39 @@
       "name": "A",
       "role": "input",
       "at": {
-        "x": -20,
+        "x": -30,
         "y": -10
       },
       "direction": "west",
       "presentation": {
         "visibility": "visible",
-        "leadLength": 10
+        "leadLength": 15
       }
     },
     {
       "name": "B",
       "role": "input",
       "at": {
-        "x": -20,
+        "x": -30,
         "y": 10
       },
       "direction": "west",
       "presentation": {
         "visibility": "visible",
-        "leadLength": 10
+        "leadLength": 15
       }
     },
     {
       "name": "Y",
       "role": "output",
       "at": {
-        "x": 30,
+        "x": 40,
         "y": 0
       },
       "direction": "east",
       "presentation": {
         "visibility": "visible",
-        "leadLength": 10
+        "leadLength": 15
       }
     }
   ],
@@ -53,7 +53,7 @@
     {
       "kind": "line",
       "from": {
-        "x": -20,
+        "x": -30,
         "y": -10
       },
       "to": {
@@ -69,7 +69,7 @@
     {
       "kind": "line",
       "from": {
-        "x": -20,
+        "x": -30,
         "y": 10
       },
       "to": {
@@ -109,7 +109,7 @@
         "y": 0
       },
       "to": {
-        "x": 30,
+        "x": 40,
         "y": 0
       },
       "style": {

@@ -4,13 +4,28 @@ function samePoint(left, right) {
   return left.x === right.x && left.y === right.y;
 }
 
-function snapToConnectionGrid(value) {
-  return Math.round(value / CONNECTION_GRID) * CONNECTION_GRID;
+function snapToHalfGrid(value) {
+  const halfGrid = CONNECTION_GRID / 2;
+  return Math.round(value / halfGrid) * halfGrid;
+}
+
+function outerConnectionPoint(bodyContactX, outwardSign) {
+  const nominalBodyContactX = snapToHalfGrid(bodyContactX);
+  const oneCellOut = nominalBodyContactX + outwardSign * CONNECTION_GRID;
+  const connectionX =
+    outwardSign < 0
+      ? Math.floor(oneCellOut / CONNECTION_GRID) * CONNECTION_GRID
+      : Math.ceil(oneCellOut / CONNECTION_GRID) * CONNECTION_GRID;
+  return {
+    connectionX,
+    nominalLeadLength: Math.abs(connectionX - nominalBodyContactX),
+  };
 }
 
 /**
  * Keeps source-calibrated logic artwork intact while shortening each external
- * horizontal lead to the closest grid-aligned approximation of one grid cell.
+ * horizontal lead to one grid cell. A body contact on a half-grid, such as a
+ * DFF edge, continues to the following connection point for a 1.5-cell lead.
  */
 export function normalizeLogicPortLeads(definition) {
   for (const pin of definition.pins) {
@@ -31,15 +46,19 @@ export function normalizeLogicPortLeads(definition) {
     const pinStartsLead = samePoint(lead.from, pin.at);
     const bodyContact = pinStartsLead ? lead.to : lead.from;
     const outwardSign = pin.direction === "west" ? -1 : 1;
+    const { connectionX, nominalLeadLength } = outerConnectionPoint(
+      bodyContact.x,
+      outwardSign,
+    );
     const nextPin = {
-      x: snapToConnectionGrid(bodyContact.x + outwardSign * CONNECTION_GRID),
+      x: connectionX,
       y: pin.at.y,
     };
 
     pin.at = nextPin;
     pin.presentation = {
       ...pin.presentation,
-      leadLength: CONNECTION_GRID,
+      leadLength: nominalLeadLength,
     };
     if (pinStartsLead) lead.from = { ...nextPin };
     else lead.to = { ...nextPin };

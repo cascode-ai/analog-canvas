@@ -39,13 +39,13 @@
       "name": "Y",
       "role": "output",
       "at": {
-        "x": 20,
+        "x": 30,
         "y": 0
       },
       "direction": "east",
       "presentation": {
         "visibility": "visible",
-        "leadLength": 10
+        "leadLength": 15
       }
     }
   ],
@@ -99,7 +99,7 @@
         "y": 0.002616
       },
       "to": {
-        "x": 20,
+        "x": 30,
         "y": 0
       },
       "style": {
