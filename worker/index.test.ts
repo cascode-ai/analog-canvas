@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizeAcquisitionSource, normalizeTrackedPath } from "./index";
+import worker, {
+  normalizeAcquisitionSource,
+  normalizeTrackedPath,
+} from "./index";
 
 describe("analytics request normalization", () => {
   it("keeps bounded page paths and excludes analytics/API routes", () => {
@@ -36,5 +39,65 @@ describe("analytics request normalization", () => {
       ),
     ).toBe("ref:example.com");
     expect(normalizeAcquisitionSource("", "qrcode", site)).toBe("campaign:qr");
+  });
+});
+
+describe("static asset serving", () => {
+  /**
+   * The assets binding is configured with single-page-application not-found
+   * handling, so anything it cannot match comes back as the shell.
+   */
+  function envServing(files: Record<string, string>) {
+    return {
+      ASSETS: {
+        fetch(request: Request) {
+          const path = new URL(request.url).pathname;
+          const body = files[path];
+          return Promise.resolve(
+            body === undefined
+              ? new Response("<!doctype html><html></html>", {
+                  headers: { "content-type": "text/html" },
+                })
+              : new Response(body, {
+                  headers: { "content-type": "text/javascript" },
+                }),
+          );
+        },
+      },
+    } as unknown as Parameters<typeof worker.fetch>[1];
+  }
+
+  const call = (env: unknown, path: string) =>
+    worker.fetch(
+      new Request(`https://analog-canvas.test${path}`),
+      env as Parameters<typeof worker.fetch>[1],
+    );
+
+  it("serves an asset that exists", async () => {
+    const env = envServing({ "/assets/App-abc.js": "export const a = 1;" });
+    const response = await call(env, "/assets/App-abc.js");
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain("export const a");
+  });
+
+  it("404s a hashed asset the build no longer has", async () => {
+    // A page open across a deploy asks for names this build does not carry.
+    // Answering with the shell hands the browser a document where it asked
+    // for a module, and every cache in the path is invited to keep it under
+    // a name that promised to be immutable.
+    const env = envServing({});
+    const response = await call(env, "/assets/App-gone.js");
+    expect(response.status).toBe(404);
+    expect(response.headers.get("content-type")).toContain("text/plain");
+    expect(response.headers.get("cache-control")).toBe("no-store");
+  });
+
+  it("still renders the shell for a route with no file behind it", async () => {
+    const env = envServing({});
+    for (const path of ["/g/2cdq4dmhy9", "/editor", "/mine"]) {
+      const response = await call(env, path);
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toContain("text/html");
+    }
   });
 });

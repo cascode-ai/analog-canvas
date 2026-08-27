@@ -50,6 +50,24 @@ function isStaticAsset(request) {
   );
 }
 
+/**
+ * Whether a response is the kind of thing the request asked for.
+ *
+ * Asset names carry a content hash, so this cache is keyed on names that
+ * promise never to change meaning — which makes a wrong answer permanent.
+ * A single-page-application fallback answers a missing asset with the app
+ * shell under `200 text/html`; caching that as a script would leave the name
+ * broken for as long as the cache lives, long after the deploy that caused
+ * it. Store only what matches.
+ */
+function servesWhatWasAsked(request, response) {
+  const type = (response.headers.get("content-type") ?? "").toLowerCase();
+  if (!type) return true;
+  if (request.destination === "script") return type.includes("javascript");
+  if (request.destination === "style") return type.includes("css");
+  return !type.includes("text/html");
+}
+
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
 
@@ -82,7 +100,7 @@ self.addEventListener("fetch", (event) => {
       caches.match(event.request).then((cached) => {
         if (cached) return cached;
         return fetch(event.request).then((response) => {
-          if (response.ok) {
+          if (response.ok && servesWhatWasAsked(event.request, response)) {
             void caches
               .open(CACHE)
               .then((cache) => cache.put(event.request, response.clone()));

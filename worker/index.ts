@@ -118,9 +118,39 @@ export default {
       return Response.json({ error: "Not found" }, { status: 404 });
     }
 
-    return env.ASSETS.fetch(request);
+    return serveAsset(request, env);
   },
 };
+
+/**
+ * Serve a static asset, and let a missing one be missing.
+ *
+ * `not_found_handling: "single-page-application"` is right for a route like
+ * `/g/<id>`, which has no file behind it and must render the shell. It is
+ * wrong for `/assets/*`: those names carry a content hash, so a request for
+ * one that is not there is a stale page asking for a build that no longer
+ * exists — not a route. Answering it with `200 text/html` hands the browser
+ * a document where it asked for a module, which surfaces as "error loading
+ * dynamically imported module" instead of a plain missing file, and invites
+ * every cache in the path to keep the wrong answer under a name that
+ * promised to be immutable.
+ */
+async function serveAsset(request: Request, env: Env): Promise<Response> {
+  const response = await env.ASSETS.fetch(request);
+  const path = new URL(request.url).pathname;
+  if (!path.startsWith("/assets/")) return response;
+  const servedShell = (response.headers.get("content-type") ?? "").includes(
+    "text/html",
+  );
+  if (!servedShell) return response;
+  return new Response(`Not found: ${path}`, {
+    status: 404,
+    headers: {
+      "content-type": "text/plain; charset=utf-8",
+      "cache-control": "no-store",
+    },
+  });
+}
 
 async function trackPageView(request: Request, env: Env): Promise<Response> {
   const noContent = () => new Response(null, { status: 204 });
