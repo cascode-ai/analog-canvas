@@ -39,17 +39,28 @@ export interface GalleryFeedState {
 }
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
+const OWNER_REJECT_REASONS = [
+  "too ugly",
+  "circuit incorrect",
+  "too simple",
+  "duplicate",
+] as const;
+
+function joinedRejectReason(reasons: readonly string[], note: string): string {
+  const selected = reasons.join("; ");
+  const detail = note.trim();
+  if (selected && detail) return `${selected} — Note: ${detail}`;
+  return selected || detail;
+}
 
 function GalleryOwnerMenu({
   entry,
   busy,
   onWithdraw,
-  onReject,
 }: {
   entry: GalleryFeedEntry;
   busy: boolean;
   onWithdraw: () => void;
-  onReject: () => void;
 }) {
   return (
     <details
@@ -77,35 +88,58 @@ function GalleryOwnerMenu({
         >
           Withdraw
         </button>
-        <button
-          type="button"
-          className="gallery-owner-danger"
-          disabled={busy}
-          data-testid={`gallery-owner-reject-${entry.id}`}
-          onClick={onReject}
-        >
-          Reject with reason
-        </button>
       </div>
     </details>
   );
 }
 
+function GalleryOwnerRejectButton({
+  entry,
+  busy,
+  onReject,
+}: {
+  entry: GalleryFeedEntry;
+  busy: boolean;
+  onReject: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className="gallery-owner-reject-shortcut"
+      aria-label={`Reject ${entry.name}`}
+      title={`Reject ${entry.name}`}
+      disabled={busy}
+      data-testid={`gallery-owner-reject-${entry.id}`}
+      onClick={onReject}
+    >
+      ×
+    </button>
+  );
+}
+
 function RejectEntryDialog({
   entry,
-  reason,
   busy,
-  onReasonChange,
   onSubmit,
   onClose,
 }: {
   entry: GalleryFeedEntry;
-  reason: string;
   busy: boolean;
-  onReasonChange: (reason: string) => void;
-  onSubmit: () => void;
+  onSubmit: (reason: string) => void;
   onClose: () => void;
 }) {
+  const [selectedReasons, setSelectedReasons] = useState<string[]>([]);
+  const [note, setNote] = useState("");
+  const reason = joinedRejectReason(selectedReasons, note);
+
+  function toggleReason(candidate: string): void {
+    setSelectedReasons((previous) =>
+      previous.includes(candidate)
+        ? previous.filter((reason) => reason !== candidate)
+        : [...previous, candidate],
+    );
+  }
+
   return (
     <div
       className="gallery-owner-dialog-backdrop"
@@ -128,19 +162,36 @@ function RejectEntryDialog({
         <form
           onSubmit={(event) => {
             event.preventDefault();
-            if (reason.trim()) onSubmit();
+            if (reason) onSubmit(reason);
           }}
         >
-          <label htmlFor="gallery-reject-reason">Reason</label>
+          <fieldset className="gallery-owner-reason-options">
+            <legend>Common reasons (choose all that apply)</legend>
+            <div>
+              {OWNER_REJECT_REASONS.map((candidate, index) => (
+                <label key={candidate}>
+                  <input
+                    type="checkbox"
+                    checked={selectedReasons.includes(candidate)}
+                    autoFocus={index === 0}
+                    data-testid={`gallery-owner-reject-option-${candidate.replace(/\s/gu, "-")}`}
+                    onChange={() => toggleReason(candidate)}
+                  />
+                  <span>{candidate}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          <label htmlFor="gallery-reject-note">
+            Additional note or other reason <span>(optional)</span>
+          </label>
           <textarea
-            id="gallery-reject-reason"
-            value={reason}
-            maxLength={500}
-            required
-            autoFocus
-            placeholder="Explain what should be corrected…"
-            data-testid="gallery-owner-reject-reason"
-            onChange={(event) => onReasonChange(event.currentTarget.value)}
+            id="gallery-reject-note"
+            value={note}
+            maxLength={360}
+            placeholder="Add context for the submitter…"
+            data-testid="gallery-owner-reject-note"
+            onChange={(event) => setNote(event.currentTarget.value)}
           />
           <div className="gallery-owner-dialog-actions">
             <button type="button" disabled={busy} onClick={onClose}>
@@ -149,7 +200,7 @@ function RejectEntryDialog({
             <button
               type="submit"
               className="gallery-owner-danger"
-              disabled={busy || !reason.trim()}
+              disabled={busy || !reason}
               data-testid="gallery-owner-reject-confirm"
             >
               {busy ? "Rejecting…" : "Reject entry"}
@@ -261,7 +312,6 @@ export function GalleryFeed() {
   const [ownerBusy, setOwnerBusy] = useState<string | null>(null);
   const [ownerNotice, setOwnerNotice] = useState<string | null>(null);
   const [rejecting, setRejecting] = useState<GalleryFeedEntry | null>(null);
-  const [rejectReason, setRejectReason] = useState("");
   const [author, setAuthor] = useState<string | null>(() =>
     typeof window === "undefined"
       ? null
@@ -479,8 +529,8 @@ export function GalleryFeed() {
     }
   }
 
-  async function rejectEntry(): Promise<void> {
-    if (!rejecting || !rejectReason.trim()) return;
+  async function rejectEntry(reason: string): Promise<void> {
+    if (!rejecting || !reason.trim()) return;
     setOwnerBusy(rejecting.id);
     setOwnerNotice(null);
     try {
@@ -488,7 +538,7 @@ export function GalleryFeed() {
         method: "POST",
         credentials: "same-origin",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ reason: rejectReason.trim() }),
+        body: JSON.stringify({ reason: reason.trim() }),
       });
       if (!response.ok) throw new Error();
       removeManagedEntry(rejecting);
@@ -496,7 +546,6 @@ export function GalleryFeed() {
         `“${rejecting.name}” was rejected and hidden from the Gallery.`,
       );
       setRejecting(null);
-      setRejectReason("");
     } catch {
       setOwnerNotice(`Could not reject “${rejecting.name}”.`);
     } finally {
@@ -674,15 +723,18 @@ export function GalleryFeed() {
                       </span>
                     </a>
                     {isOwner ? (
-                      <GalleryOwnerMenu
-                        entry={entry}
-                        busy={ownerBusy === entry.id}
-                        onWithdraw={() => void withdrawEntry(entry)}
-                        onReject={() => {
-                          setRejecting(entry);
-                          setRejectReason("");
-                        }}
-                      />
+                      <>
+                        <GalleryOwnerRejectButton
+                          entry={entry}
+                          busy={ownerBusy === entry.id}
+                          onReject={() => setRejecting(entry)}
+                        />
+                        <GalleryOwnerMenu
+                          entry={entry}
+                          busy={ownerBusy === entry.id}
+                          onWithdraw={() => void withdrawEntry(entry)}
+                        />
+                      </>
                     ) : null}
                   </div>
                 ),
@@ -736,14 +788,9 @@ export function GalleryFeed() {
       {rejecting ? (
         <RejectEntryDialog
           entry={rejecting}
-          reason={rejectReason}
           busy={ownerBusy === rejecting.id}
-          onReasonChange={setRejectReason}
-          onSubmit={() => void rejectEntry()}
-          onClose={() => {
-            setRejecting(null);
-            setRejectReason("");
-          }}
+          onSubmit={(reason) => void rejectEntry(reason)}
+          onClose={() => setRejecting(null)}
         />
       ) : null}
     </main>

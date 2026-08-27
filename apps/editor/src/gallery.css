@@ -648,6 +648,37 @@
   right: 8px;
 }
 
+.gallery-owner-reject-shortcut {
+  position: absolute;
+  z-index: 3;
+  top: 8px;
+  right: 46px;
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgb(180 35 24 / 30%);
+  border-radius: 999px;
+  color: var(--icm-danger, #b42318);
+  background: rgb(255 255 255 / 94%);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 12%);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.gallery-owner-reject-shortcut:hover {
+  color: #fff;
+  background: var(--icm-danger, #b42318);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 18%);
+}
+
+.gallery-owner-reject-shortcut:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
 .gallery-owner-menu > summary {
   display: grid;
   width: 30px;
@@ -757,9 +788,77 @@
   gap: 8px;
 }
 
+.gallery-owner-reason-options {
+  min-width: 0;
+  margin: 0 0 4px;
+  padding: 0;
+  border: 0;
+}
+
+.gallery-owner-reason-options legend {
+  margin-bottom: 8px;
+  padding: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.gallery-owner-reason-options > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.gallery-owner-reason-options label {
+  position: relative;
+  cursor: pointer;
+}
+
+.gallery-owner-reason-options input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.gallery-owner-reason-options span {
+  display: block;
+  padding: 6px 10px;
+  border: 1px solid var(--icm-border);
+  border-radius: 999px;
+  color: var(--icm-text-muted);
+  background: var(--icm-surface);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.gallery-owner-reason-options label:hover span {
+  border-color: var(--icm-border-hover);
+  background: var(--icm-surface-hover);
+}
+
+.gallery-owner-reason-options input:focus-visible + span {
+  outline: 2px solid color-mix(in srgb, var(--icm-accent) 30%, transparent);
+  outline-offset: 2px;
+}
+
+.gallery-owner-reason-options input:checked + span {
+  border-color: var(--icm-danger, #b42318);
+  color: var(--icm-danger, #b42318);
+  background: color-mix(
+    in srgb,
+    var(--icm-danger, #b42318) 9%,
+    var(--icm-surface)
+  );
+}
+
 .gallery-owner-dialog label {
   font-size: 13px;
   font-weight: 600;
+}
+
+.gallery-owner-dialog > form > label span {
+  color: var(--icm-text-muted);
+  font-weight: 400;
 }
 
 .gallery-owner-dialog textarea {

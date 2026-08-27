@@ -159,10 +159,36 @@ test("the Owner rejects a Gallery entry with an author-visible reason", async ({
   await expect(
     page.getByTestId(`gallery-owner-edit-${ENTRY.id}`),
   ).toHaveAttribute("href", `/g/${ENTRY.id}`);
+  await menu.locator("summary").click();
+
+  // Rejection is a direct card action, beside the management menu.
   await page.getByTestId(`gallery-owner-reject-${ENTRY.id}`).click();
   await expect(page.getByTestId("gallery-owner-reject-confirm")).toBeDisabled();
+  for (const reason of [
+    "too ugly",
+    "circuit incorrect",
+    "too simple",
+    "duplicate",
+  ]) {
+    await expect(
+      page.getByTestId(
+        `gallery-owner-reject-option-${reason.replace(/\s/gu, "-")}`,
+      ),
+    ).toBeVisible();
+  }
+  // A free-form other reason is independently sufficient.
+  await page.getByTestId("gallery-owner-reject-note").fill("Other reason");
+  await expect(page.getByTestId("gallery-owner-reject-confirm")).toBeEnabled();
+  await page.getByTestId("gallery-owner-reject-note").fill("");
+  await expect(page.getByTestId("gallery-owner-reject-confirm")).toBeDisabled();
+
+  await page.getByTestId("gallery-owner-reject-option-too-ugly").check();
   await page
-    .getByTestId("gallery-owner-reject-reason")
+    .getByTestId("gallery-owner-reject-option-circuit-incorrect")
+    .check();
+  await expect(page.getByTestId("gallery-owner-reject-confirm")).toBeEnabled();
+  await page
+    .getByTestId("gallery-owner-reject-note")
     .fill("Label the ports and remove the loose wire.");
   await page.getByTestId("gallery-owner-reject-confirm").click();
 
@@ -170,7 +196,9 @@ test("the Owner rejects a Gallery entry with an author-visible reason", async ({
   await expect(page.getByTestId("gallery-owner-notice")).toContainText(
     "rejected",
   );
-  expect(rejectReason).toBe("Label the ports and remove the loose wire.");
+  expect(rejectReason).toBe(
+    "too ugly; circuit incorrect — Note: Label the ports and remove the loose wire.",
+  );
 });
 
 test("the Owner withdraws a Gallery entry into the recycle bin", async ({

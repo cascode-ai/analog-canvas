@@ -105,12 +105,15 @@ submitter until the Owner restores the entry.
   moderator curates and bypasses the quality gates; the recycle bin and
   maintenance stay admin-only.
 
-The Gallery feed gives the super-admin an Owner menu on every community tile:
-Edit and replace, Withdraw, and Reject with reason. The editor surfaces the
-full administration lifecycle at `/moderation` (rejected entries, recycle
-bin, plus admin-only moderator appointment) and the submitter's view at
-`/mine` (status chips, rejection reason, owner-visible preview,
-open-in-editor). Every gallery page state wears the shared site chrome.
+The Gallery feed gives the super-admin direct Like and Reject (`×`) controls
+on every community tile, plus an Owner menu for Edit and replace and Withdraw.
+Reject opens a multi-select form with common reasons (`too ugly`,
+`circuit incorrect`, `too simple`, `duplicate`) and an independent optional
+note/other-reason field. The editor surfaces the full administration lifecycle
+at `/moderation` (rejected entries, recycle bin, plus admin-only moderator
+appointment) and the submitter's view at `/mine` (status chips, rejection
+reason, owner-visible preview, open-in-editor). Every gallery page state wears
+the shared site chrome.
 
 ## Owner editing
 
