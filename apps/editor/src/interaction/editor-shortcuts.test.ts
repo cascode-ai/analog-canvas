@@ -109,9 +109,10 @@ describe("editor shortcut contract", () => {
   });
 
   it("resolves R rotation and the two agreed mirror shortcuts", () => {
-    expect(resolve("r")).toEqual(
-      command({ id: "tool.activate", tool: "rectangle" }),
-    );
+    // R means rotate whether or not something is selected. With nothing
+    // selected it arms the turn; it used to reach the rectangle tool, so one
+    // key did two unrelated things depending on state.
+    expect(resolve("r")).toEqual(command({ id: "transform.rotate-next" }));
     expect(resolve("r", { canRotate: true })).toEqual(
       command({ id: "transform.rotate", deltaDegrees: 90 }),
     );
@@ -119,6 +120,18 @@ describe("editor shortcut contract", () => {
       command({ id: "transform.mirror", direction: "left-right" }),
     );
     expect(resolve("v", { canRotate: true }, { shiftKey: true })).toBeNull();
+  });
+
+  it("never reaches the rectangle tool from R", () => {
+    for (const context of [
+      {},
+      { canRotate: true },
+      { hasDraftingSelection: true },
+      { interactionMode: "placing-component" as const },
+    ]) {
+      const resolved = resolve("r", context);
+      expect(JSON.stringify(resolved)).not.toContain("rectangle");
+    }
   });
 
   it("does not replace a selected non-rotatable drawing with a rectangle", () => {

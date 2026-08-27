@@ -262,17 +262,21 @@ export function resolveEditorShortcut(
           }
         : null;
     }
-    return context.canRotate
-      ? {
-          kind: "run-command",
-          command: { id: "transform.rotate", deltaDegrees: 90 },
-        }
-      : context.hasDraftingSelection
-        ? { kind: "blocked-interaction-command", command: "Rotate" }
-        : {
-            kind: "run-command",
-            command: { id: "tool.activate", tool: "rectangle" },
-          };
+    if (context.canRotate) {
+      return {
+        kind: "run-command",
+        command: { id: "transform.rotate", deltaDegrees: 90 },
+      };
+    }
+    if (context.hasDraftingSelection) {
+      return { kind: "blocked-interaction-command", command: "Rotate" };
+    }
+    // R means rotate, with or without something selected already. It used to
+    // reach the rectangle tool when nothing was selected, so the key did two
+    // unrelated things depending on state — press it meaning "turn this" and
+    // get a rectangle. With nothing selected it now arms the turn and waits
+    // for a part to be pointed at.
+    return { kind: "run-command", command: { id: "transform.rotate-next" } };
   }
   if (plain && key === "w") {
     return {

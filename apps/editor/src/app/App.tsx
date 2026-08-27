@@ -731,6 +731,12 @@ export function App({
   const [publishDraft, setPublishDraft] = useState<PublishGalleryDraft | null>(
     null,
   );
+  /**
+   * R pressed with nothing selected: the next part pointed at is turned.
+   * The key means rotate whether or not something is selected yet, rather
+   * than meaning rotate sometimes and draw a rectangle the rest of the time.
+   */
+  const [rotateArmed, setRotateArmed] = useState(false);
   /** The signed-in account's last few checked circuits, newest first. */
   const [workspaceSlots, setWorkspaceSlots] = useState<
     readonly WorkspaceSlot[]
@@ -1267,6 +1273,35 @@ export function App({
     transact,
     setStatus,
   });
+
+  /** Arm R so the next part pointed at is the one that turns. */
+  function armRotateOnNextPart(): void {
+    setRotateArmed(true);
+    setStatus("Rotate: click a part to turn it, Escape to stop");
+  }
+
+  /** Turn one part where it stands. Returns false when nothing was armed. */
+  function rotateArmedInstance(instanceId: string): boolean {
+    if (!rotateArmed) return false;
+    const instance = document.instances.find(
+      (candidate) => candidate.id === instanceId,
+    );
+    if (!instance?.placement) return false;
+    const next = (instance.placement.rotation + 90) % 360;
+    const applied = transact([
+      {
+        kind: "rotate_instance",
+        instanceId,
+        rotation: next as 0 | 90 | 180 | 270,
+      },
+    ]);
+    if (applied.ok) {
+      setStatus(
+        `Rotated ${instanceId} to ${next}° — click another, Escape to stop`,
+      );
+    }
+    return true;
+  }
   const {
     handleDrop,
     placeAll: placeAllFromTray,
@@ -1921,6 +1956,7 @@ export function App({
     cancelInteraction();
     setBulkDrawInstanceId(null);
     setBoxPreview(null);
+    setRotateArmed(false);
   }
 
   function selectEndpoint(candidate: WireSource): void {
@@ -2258,6 +2294,7 @@ export function App({
       rotateCopy: rotatePendingCopy,
       rotateMove: rotateCommandMoveFromSelection,
       rotateSelection: rotateSelected,
+      armRotate: () => armRotateOnNextPart(),
       mirrorPlacement: mirrorPendingComponentFromHook,
       mirrorCopy: mirrorPendingCopy,
       mirrorMove: mirrorCommandMoveFromSelection,
@@ -3633,8 +3670,16 @@ export function App({
                   enterHierarchy(instance.id);
                 else inspectInstance(instance.id);
               },
-              onInstancePointerDown: (event, instance) =>
-                beginMoveFromSelection(event, instance.id),
+              onInstancePointerDown: (event, instance) => {
+                // While R is armed the click turns the part rather than
+                // picking it up, so the gesture reads as "rotate that one".
+                if (rotateArmedInstance(instance.id)) {
+                  event.stopPropagation();
+                  event.preventDefault();
+                  return;
+                }
+                beginMoveFromSelection(event, instance.id);
+              },
               onRoutePointerDown: handleRoutePointerDown,
               onAnnotationPointerDown: beginAnnotationDrag,
               onAnnotationEdit: beginAnnotationTextEditing,

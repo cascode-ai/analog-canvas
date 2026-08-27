@@ -42,6 +42,7 @@ function fixture(overrides: Partial<EditorCommandContext> = {}) {
     rotateCopy: vi.fn(),
     rotateMove: vi.fn(),
     rotateSelection: vi.fn(),
+    armRotate: vi.fn(),
     mirrorPlacement: vi.fn(),
     mirrorCopy: vi.fn(),
     mirrorMove: vi.fn(),

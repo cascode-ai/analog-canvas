@@ -15,6 +15,7 @@ export type EditorCommandRequest =
   | { id: "selection.copy" }
   | { id: "selection.move" }
   | { id: "transform.rotate"; deltaDegrees?: 90 | -90 }
+  | { id: "transform.rotate-next" }
   | { id: "transform.mirror"; direction: ScreenFlip }
   | { id: "insert.start"; launch: InsertLaunch }
   | { id: "insert.open" }
@@ -70,6 +71,8 @@ export interface EditorCommandOperations {
   rotateCopy(deltaDegrees: 90 | -90): void;
   rotateMove(deltaDegrees: 90 | -90): void;
   rotateSelection(deltaDegrees: 90 | -90): void;
+  /** Wait for a part to be pointed at, then turn that one. */
+  armRotate(): void;
   mirrorPlacement(direction: ScreenFlip): void;
   mirrorCopy(direction: ScreenFlip): void;
   mirrorMove(direction: ScreenFlip): void;
@@ -203,6 +206,12 @@ export function createEditorCommandRouter(
           ? disabled(resolution.reason)
           : enabled(resolution.active);
       }
+      case "transform.rotate-next":
+        // Arming needs nothing selected and nothing in progress: it is what R
+        // does when there is not yet anything to turn.
+        return context.interactionMode === "idle"
+          ? enabled()
+          : disabled("Finish the current action before rotating");
       case "transform.mirror": {
         const resolution = resolveTransformOwner(context, "mirror");
         return resolution.owner === "unavailable"
@@ -286,6 +295,9 @@ export function createEditorCommandRouter(
         break;
       case "selection.move":
         options.operations.beginMove();
+        break;
+      case "transform.rotate-next":
+        options.operations.armRotate();
         break;
       case "transform.rotate": {
         const deltaDegrees = request.deltaDegrees ?? 90;
