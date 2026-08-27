@@ -50,6 +50,15 @@ function isStaticAsset(request) {
   );
 }
 
+function isSameOriginApi(request) {
+  const requestUrl = new URL(request.url);
+  const scope = scopeUrl();
+  return (
+    requestUrl.origin === scope.origin &&
+    (requestUrl.pathname === "/api" || requestUrl.pathname.startsWith("/api/"))
+  );
+}
+
 /**
  * Whether a response is the kind of thing the request asked for.
  *
@@ -61,6 +70,13 @@ function isStaticAsset(request) {
  * it. Store only what matches.
  */
 function servesWhatWasAsked(request, response) {
+  if (
+    (response.headers.get("cache-control") ?? "")
+      .toLowerCase()
+      .includes("no-store")
+  ) {
+    return false;
+  }
   const type = (response.headers.get("content-type") ?? "").toLowerCase();
   if (!type) return true;
   if (request.destination === "script") return type.includes("javascript");
@@ -70,6 +86,11 @@ function servesWhatWasAsked(request, response) {
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
+
+  // APIs own their own HTTP caching policy. In particular, Gallery previews
+  // use revisioned URLs; putting them in the build-scoped shell cache would
+  // ignore that policy and keep an old or access-controlled image alive.
+  if (isSameOriginApi(event.request)) return;
 
   // Navigation is network-first so a deployed build can replace index.html and
   // point at its fresh, content-hashed Vite assets. Offline falls back only to
@@ -94,7 +115,7 @@ self.addEventListener("fetch", (event) => {
   // arbitrary GETs, imported files, Project downloads, and future APIs.
   if (
     isStaticAsset(event.request) &&
-    event.request.url.startsWith(scopeUrl().origin)
+    new URL(event.request.url).origin === scopeUrl().origin
   ) {
     event.respondWith(
       caches.match(event.request).then((cached) => {

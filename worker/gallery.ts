@@ -273,40 +273,46 @@ async function handleSubmission(
   }
   project.name = name;
   const now = new Date();
-  const { status, payload } = await callGallery<{ id?: string }>(
-    env,
-    "submit",
-    {
-      day: now.toISOString().slice(0, 10),
-      submitterHash: await submitterHash(request),
-      enforceLimit: !privileged,
-      entry: {
-        // The id is drawn inside the Durable Object, which is the only place
-        // that can tell whether one is already taken.
-        id: "",
-        // Recorded, never enforced: a circuit that does not extract is
-        // published exactly the same way, it simply does not wear the star.
-        netlistable: analyzeDesignNetlist(project).ir ? 1 : 0,
-        name,
-        author,
-        description,
-        created_at: now.toISOString(),
-        schema_version: project.schemaVersion,
-        owner_user_id: user.id,
-        // Recorded per submission, so an entry stays traceable to the
-        // identity that published it even if the account later changes.
-        submitter_email: user.email,
-        submitter_provider: user.provider,
-        tags: wrapTags(sanitizeGalleryTags(body.tags)),
-        project_text: serializeProject(project),
-        svg_text: renderPreview(project, projectResolver),
-      },
+  const { status, payload } = await callGallery<{
+    id?: string;
+    previewRevision?: string;
+  }>(env, "submit", {
+    day: now.toISOString().slice(0, 10),
+    submitterHash: await submitterHash(request),
+    enforceLimit: !privileged,
+    entry: {
+      // The id is drawn inside the Durable Object, which is the only place
+      // that can tell whether one is already taken.
+      id: "",
+      // Recorded, never enforced: a circuit that does not extract is
+      // published exactly the same way, it simply does not wear the star.
+      netlistable: analyzeDesignNetlist(project).ir ? 1 : 0,
+      name,
+      author,
+      description,
+      created_at: now.toISOString(),
+      schema_version: project.schemaVersion,
+      owner_user_id: user.id,
+      // Recorded per submission, so an entry stays traceable to the
+      // identity that published it even if the account later changes.
+      submitter_email: user.email,
+      submitter_provider: user.provider,
+      tags: wrapTags(sanitizeGalleryTags(body.tags)),
+      project_text: serializeProject(project),
+      svg_text: renderPreview(project, projectResolver),
     },
-  );
+  });
   if (status === 429) {
     return Response.json({ error: "rate-limited" }, { status: 429 });
   }
-  return Response.json({ id: payload.id, status: "public" }, { status: 201 });
+  return Response.json(
+    {
+      id: payload.id,
+      status: "public",
+      previewRevision: payload.previewRevision ?? "legacy",
+    },
+    { status: 201 },
+  );
 }
 
 /**
@@ -387,6 +393,7 @@ async function handleEntryUpdate(
   }
   project.name = name;
   const nextStatus = existing.payload.status ?? "public";
+  const netlistable = analyzeDesignNetlist(project).ir ? 1 : 0;
   const { status, payload } = await callGallery(env, "replace-entry", {
     id,
     at: new Date().toISOString(),
@@ -396,6 +403,7 @@ async function handleEntryUpdate(
     projectText: serializeProject(project),
     svgText: renderPreview(project, projectResolver),
     schemaVersion: project.schemaVersion,
+    netlistable,
     status: nextStatus,
     tags: wrapTags(sanitizeGalleryTags(body.tags)),
   });
@@ -651,17 +659,31 @@ export async function routeGalleryRequest(
   if (segments.length === 2 && segments[1] === "preview.svg") {
     const { status, payload } = await callGallery<{
       status?: string;
+      entry?: GalleryEntrySummary;
       ownerUserId?: string | null;
       svgText?: string;
     }>(env, "any-entry", { id: segments[0] });
     if (status !== 200 || !payload.svgText) {
-      return Response.json({ error: "not-found" }, { status: 404 });
+      return Response.json(
+        { error: "not-found" },
+        { status: 404, headers: { "cache-control": "no-store" } },
+      );
     }
     if (payload.status === "public") {
+      // A matching revision URL names immutable bytes. Old and unversioned
+      // clients still receive the current image, but it is never stored under
+      // a mutable or incorrect cache key.
+      const requestedRevision = url.searchParams.get("v");
+      const currentRevision = payload.entry?.previewRevision;
+      const immutable =
+        typeof currentRevision === "string" &&
+        requestedRevision === String(currentRevision);
       return new Response(payload.svgText, {
         headers: {
           "content-type": "image/svg+xml",
-          "cache-control": "public, max-age=300",
+          "cache-control": immutable
+            ? "public, max-age=31536000, immutable"
+            : "no-store",
           "content-security-policy":
             "default-src 'none'; style-src 'unsafe-inline'",
         },
@@ -672,7 +694,10 @@ export async function routeGalleryRequest(
       (payload.ownerUserId != null &&
         (await sessionUserOf(request, env))?.id === payload.ownerUserId);
     if (!allowed) {
-      return Response.json({ error: "not-found" }, { status: 404 });
+      return Response.json(
+        { error: "not-found" },
+        { status: 404, headers: { "cache-control": "no-store" } },
+      );
     }
     return new Response(payload.svgText, {
       headers: {

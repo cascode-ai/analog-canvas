@@ -17,6 +17,7 @@ const ENTRY = {
   author: "tz",
   description: "Three-stage loop",
   createdAt: "2026-08-21T10:00:00.000Z",
+  previewRevision: "revision-0",
   schemaVersion: 23,
 };
 
@@ -87,7 +88,7 @@ async function mockGallery(page: Page, entries: object[]): Promise<void> {
   await page.route(galleryListUrl, (route) =>
     route.fulfill({ json: { entries, nextCursor: null } }),
   );
-  await page.route(`**/api/gallery/${ENTRY.id}/preview.svg`, (route) =>
+  await page.route(`**/api/gallery/${ENTRY.id}/preview.svg*`, (route) =>
     route.fulfill({
       contentType: "image/svg+xml",
       body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10" fill="#fff"/></svg>',
@@ -119,12 +120,62 @@ test("the site lands on the full-screen gallery feed", async ({ page }) => {
   // starter tiles exist only while the gallery is empty.
   await expect(page.getByTestId(`gallery-tile-${ENTRY.id}`)).toBeVisible();
   await expect(
+    page.getByTestId(`gallery-tile-${ENTRY.id}`).locator("img"),
+  ).toHaveAttribute("src", `/api/gallery/${ENTRY.id}/preview.svg?v=revision-0`);
+  await expect(
     page.getByTestId("gallery-bundled-common-source-amplifier"),
   ).toHaveCount(0);
   await expect(page.getByTestId("gallery-new-circuit")).toHaveAttribute(
     "href",
     "/editor",
   );
+});
+
+test("an open Gallery switches to a newly published preview revision", async ({
+  page,
+}) => {
+  let previewRevision = "revision-0";
+  let listRequests = 0;
+  await page.route(galleryListUrl, (route) => {
+    listRequests += 1;
+    return route.fulfill({
+      json: {
+        entries: [{ ...ENTRY, previewRevision }],
+        nextCursor: null,
+      },
+    });
+  });
+  await page.route(`**/api/gallery/${ENTRY.id}/preview.svg*`, (route) =>
+    route.fulfill({
+      contentType: "image/svg+xml",
+      body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"/>',
+    }),
+  );
+
+  await page.goto("/");
+  const image = page.getByTestId(`gallery-tile-${ENTRY.id}`).locator("img");
+  await expect(image).toHaveAttribute(
+    "src",
+    `/api/gallery/${ENTRY.id}/preview.svg?v=revision-0`,
+  );
+
+  previewRevision = "revision-1";
+  await page.evaluate(() => {
+    const channel = new BroadcastChannel("analog-canvas-gallery-change-v1");
+    channel.postMessage({
+      type: "gallery-changed",
+      sourceId: "editor-tab",
+      entryId: "g-ring",
+      previewRevision: "revision-1",
+    });
+    channel.close();
+  });
+
+  await expect(image).toHaveAttribute(
+    "src",
+    `/api/gallery/${ENTRY.id}/preview.svg?v=revision-1`,
+  );
+  expect(listRequests).toBeGreaterThanOrEqual(2);
 });
 
 test("the Owner rejects a Gallery entry with an author-visible reason", async ({

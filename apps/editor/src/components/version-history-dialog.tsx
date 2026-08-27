@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 
+import { announceGalleryChange } from "../gallery-client";
+
 /**
  * Version history of one gallery entry, for reviewers and the entry's
  * owner: every update snapshotted the previous state; Restore adopts a
@@ -38,22 +40,35 @@ async function restoreVersion(
   entryId: string,
   versionId: string,
   fetchLike: typeof fetch = fetch,
-): Promise<boolean> {
+): Promise<{ previewRevision?: string } | null> {
   try {
     const response = await fetchLike(
       `/api/gallery/${entryId}/versions/${versionId}/restore`,
       { method: "POST", credentials: "same-origin" },
     );
-    return response.ok;
+    if (!response.ok) return null;
+    const payload = (await response.json().catch(() => null)) as {
+      previewRevision?: unknown;
+    } | null;
+    const previewRevision =
+      typeof payload?.previewRevision === "string" &&
+      payload.previewRevision.length > 0
+        ? payload.previewRevision
+        : undefined;
+    const restored = {
+      ...(previewRevision === undefined ? {} : { previewRevision }),
+    };
+    announceGalleryChange({ entryId, ...restored });
+    return restored;
   } catch {
-    return false;
+    return null;
   }
 }
 
 export interface VersionHistoryDialogProps {
   entryId: string;
   entryName: string;
-  onRestored(): void;
+  onRestored(result: { previewRevision?: string }): void;
   onClose(): void;
 }
 
@@ -80,9 +95,9 @@ export function VersionHistoryDialog({
   async function restore(versionId: string): Promise<void> {
     setBusy(true);
     setError(null);
-    const ok = await restoreVersion(entryId, versionId);
+    const result = await restoreVersion(entryId, versionId);
     setBusy(false);
-    if (ok) onRestored();
+    if (result) onRestored(result);
     else setError("Could not restore this version.");
   }
 

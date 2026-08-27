@@ -5,6 +5,11 @@ import { renderDocumentSvg } from "@icm/render-svg";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 
 import { libraryProjectExamples } from "../examples/library-examples";
+import {
+  announceGalleryChange,
+  galleryPreviewUrl,
+  subscribeGalleryRefresh,
+} from "../gallery-client";
 import { fetchSessionUser } from "./account";
 import { GalleryChrome } from "./gallery-chrome";
 import { Masonry } from "./masonry";
@@ -15,6 +20,8 @@ export interface GalleryFeedEntry {
   author: string;
   description: string;
   createdAt: string;
+  /** Absent only while a newer client is rolling out against an older API. */
+  previewRevision?: string;
   schemaVersion: number;
   tags?: string[];
   /**
@@ -327,6 +334,7 @@ export function GalleryFeed() {
   const [tagOptions, setTagOptions] = useState<
     { tag: string; count: number }[]
   >([]);
+  const [refreshSignal, setRefreshSignal] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -357,13 +365,40 @@ export function GalleryFeed() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [refreshSignal]);
   const [state, setState] = useState<GalleryFeedState>({
     status: "loading",
     entries: [],
     nextCursor: null,
   });
   const loadingMoreRef = useRef(false);
+  const firstPageLoadingRef = useRef(true);
+  const feedGenerationRef = useRef(0);
+  const loadedQueryRef = useRef<string | null>(null);
+
+  useEffect(
+    () =>
+      subscribeGalleryRefresh((change) => {
+        // Invalidate an older first-page or cursor request immediately. The
+        // effect triggered below will claim a fresh generation.
+        feedGenerationRef.current += 1;
+        firstPageLoadingRef.current = true;
+        loadingMoreRef.current = false;
+        const previewRevision = change?.previewRevision;
+        if (change && previewRevision !== undefined) {
+          setState((previous) => ({
+            ...previous,
+            entries: previous.entries.map((entry) =>
+              entry.id === change.entryId
+                ? { ...entry, previewRevision }
+                : entry,
+            ),
+          }));
+        }
+        setRefreshSignal((previous) => previous + 1);
+      }),
+    [],
+  );
 
   /**
    * One thumb per account, taken back by pressing again. The server owns the
@@ -408,28 +443,37 @@ export function GalleryFeed() {
 
   useEffect(() => {
     let cancelled = false;
+    const generation = ++feedGenerationRef.current;
+    firstPageLoadingRef.current = true;
     loadingMoreRef.current = false;
-    setState({
-      status: "loading",
-      entries: [],
-      nextCursor: null,
-    });
+    const queryKey = `${author ?? ""}\u0000${selectedTags.join(",")}`;
+    const changingQuery = loadedQueryRef.current !== queryKey;
+    if (changingQuery) {
+      setState({
+        status: "loading",
+        entries: [],
+        nextCursor: null,
+      });
+    }
     void loadGalleryFeed(fetch, { author, tags: selectedTags }).then((page) => {
-      if (cancelled) return;
-      setState(
-        page
-          ? { status: "ready", ...page }
-          : {
-              status: "unavailable",
-              entries: [],
-              nextCursor: null,
-            },
-      );
+      if (cancelled || generation !== feedGenerationRef.current) return;
+      firstPageLoadingRef.current = false;
+      if (page) {
+        loadedQueryRef.current = queryKey;
+        setState({ status: "ready", ...page });
+      } else if (changingQuery) {
+        loadedQueryRef.current = queryKey;
+        setState({
+          status: "unavailable",
+          entries: [],
+          nextCursor: null,
+        });
+      }
     });
     return () => {
       cancelled = true;
     };
-  }, [author, selectedTags]);
+  }, [author, selectedTags, refreshSignal]);
 
   // The sentinel appends the next newest-first page as it comes into view.
   // Once the server returns no cursor, the wall is complete and stops.
@@ -441,17 +485,20 @@ export function GalleryFeed() {
     if (typeof IntersectionObserver === "undefined") return;
     const observer = new IntersectionObserver((observed) => {
       if (!observed.some((entry) => entry.isIntersecting)) return;
+      if (firstPageLoadingRef.current) return;
       if (loadingMoreRef.current) return;
       loadingMoreRef.current = true;
+      const generation = feedGenerationRef.current;
       void loadGalleryFeed(fetch, {
         author,
         tags: selectedTags,
         cursor: nextCursor,
       }).then((page) => {
+        if (generation !== feedGenerationRef.current) return;
         loadingMoreRef.current = false;
         if (!page) return;
         setState((previous) =>
-          previous.status === "ready"
+          previous.status === "ready" && previous.nextCursor === nextCursor
             ? {
                 ...previous,
                 entries: [...previous.entries, ...page.entries],
@@ -521,6 +568,7 @@ export function GalleryFeed() {
       });
       if (!response.ok) throw new Error();
       removeManagedEntry(entry);
+      announceGalleryChange({ entryId: entry.id });
       setOwnerNotice(`“${entry.name}” was moved to the recycle bin.`);
     } catch {
       setOwnerNotice(`Could not withdraw “${entry.name}”.`);
@@ -542,6 +590,7 @@ export function GalleryFeed() {
       });
       if (!response.ok) throw new Error();
       removeManagedEntry(rejecting);
+      announceGalleryChange({ entryId: rejecting.id });
       setOwnerNotice(
         `“${rejecting.name}” was rejected and hidden from the Gallery.`,
       );
@@ -629,7 +678,10 @@ export function GalleryFeed() {
                     >
                       <span className="gallery-tile-preview">
                         <img
-                          src={`/api/gallery/${entry.id}/preview.svg`}
+                          src={galleryPreviewUrl(
+                            entry.id,
+                            entry.previewRevision,
+                          )}
                           alt={`Preview of ${entry.name}`}
                           loading="lazy"
                         />

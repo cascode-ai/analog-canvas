@@ -14,7 +14,7 @@
 // independently so browsing survives an entry the current window can no
 // longer open.
 
-import { evaluateSubmissionGates } from "@icm/derived";
+import { evaluateSubmissionGates, sha256Hex } from "@icm/derived";
 import { analyzeDesignNetlist } from "@icm/netlist";
 import {
   parseProject,
@@ -153,6 +153,12 @@ export interface GalleryEntrySummary {
   author: string;
   description: string;
   createdAt: string;
+  /**
+   * Content revision of the stored SVG. The public URL includes this so a
+   * changed rendering gets a new cache key while identical bytes reuse the
+   * existing immutable response.
+   */
+  previewRevision: string;
   schemaVersion: number;
   tags: string[];
   /**
@@ -219,6 +225,7 @@ interface EntryRow {
   project_text: string;
   svg_text: string;
   netlistable: number;
+  preview_revision: string;
 }
 
 const TOKENZHANG_BYLINE_MIGRATION = "2026-08-26-tokenzhang-to-zhishuai-zhang";
@@ -233,6 +240,10 @@ function summaryOf(
     author: row.author,
     description: row.description,
     createdAt: row.created_at,
+    // Existing rows receive the additive column as empty. "legacy" moves
+    // them off the formerly mutable URL once; their next SVG write stores a
+    // content hash like every new row.
+    previewRevision: row.preview_revision || "legacy",
     schemaVersion: row.schema_version,
     tags: unwrapTags(row.tags),
     netlistable: row.netlistable === 1,
@@ -261,7 +272,8 @@ export class GalleryDO {
         submitter_email TEXT,
         submitter_provider TEXT,
         project_text TEXT NOT NULL,
-        svg_text TEXT NOT NULL
+        svg_text TEXT NOT NULL,
+        preview_revision TEXT NOT NULL DEFAULT ''
       ) WITHOUT ROWID
     `);
     this.sql.exec(`
@@ -336,6 +348,7 @@ export class GalleryDO {
       "ALTER TABLE gallery_entries ADD COLUMN submitter_provider TEXT",
       "ALTER TABLE workspace_slots ADD COLUMN seq INTEGER NOT NULL DEFAULT 0",
       "ALTER TABLE gallery_entries ADD COLUMN netlistable INTEGER NOT NULL DEFAULT 0",
+      "ALTER TABLE gallery_entries ADD COLUMN preview_revision TEXT NOT NULL DEFAULT ''",
     ]) {
       try {
         this.sql.exec(alteration);
@@ -512,6 +525,7 @@ export class GalleryDO {
 
   private submit(body: Record<string, unknown>): Response {
     const entry = body.entry as EntryRow;
+    const previewRevision = sha256Hex(entry.svg_text);
     const day = String(body.day);
     const submitterHash = String(body.submitterHash);
     // The daily quota is anti-garbage protection for ordinary submitters;
@@ -544,8 +558,9 @@ export class GalleryDO {
         `INSERT INTO gallery_entries(
           id, name, author, description, created_at, schema_version,
           status, recycled_at, owner_user_id, submitter_email,
-          submitter_provider, tags, project_text, svg_text, netlistable
-        ) VALUES (?, ?, ?, ?, ?, ?, 'public', NULL, ?, ?, ?, ?, ?, ?, ?)`,
+          submitter_provider, tags, project_text, svg_text, netlistable,
+          preview_revision
+        ) VALUES (?, ?, ?, ?, ?, ?, 'public', NULL, ?, ?, ?, ?, ?, ?, ?, ?)`,
         entry.id,
         entry.name,
         entry.author,
@@ -559,13 +574,14 @@ export class GalleryDO {
         entry.project_text,
         entry.svg_text,
         entry.netlistable ?? 0,
+        previewRevision,
       );
       return { status: "stored" as const };
     });
     if (outcome.status === "rate-limited") {
       return Response.json({ error: "rate-limited" }, { status: 429 });
     }
-    return Response.json({ id: entry.id });
+    return Response.json({ id: entry.id, previewRevision });
   }
 
   private list(body: Record<string, unknown>): Response {
@@ -682,25 +698,34 @@ export class GalleryDO {
       )
       .toArray()[0];
     if (!row) return Response.json({ error: "not-found" }, { status: 404 });
+    const svgText = String(body.svgText);
+    const previewRevision = sha256Hex(svgText);
     this.state.storage.transactionSync(() => {
       this.snapshotEntry(row, String(body.at ?? row.created_at));
       this.sql.exec(
         `UPDATE gallery_entries
          SET name = ?, author = ?, description = ?, project_text = ?,
-             svg_text = ?, schema_version = ?, status = ?, tags = ?
+             svg_text = ?, schema_version = ?, status = ?, tags = ?,
+             netlistable = ?, preview_revision = ?
          WHERE id = ?`,
         String(body.name),
         String(body.author),
         String(body.description),
         String(body.projectText),
-        String(body.svgText),
+        svgText,
         Number(body.schemaVersion),
         String(body.status),
         typeof body.tags === "string" ? body.tags : "",
+        Number(body.netlistable) === 1 ? 1 : 0,
+        previewRevision,
         row.id,
       );
     });
-    return Response.json({ id: row.id, status: String(body.status) });
+    return Response.json({
+      id: row.id,
+      status: String(body.status),
+      previewRevision,
+    });
   }
 
   private versions(entryId: string): Response {
@@ -800,12 +825,15 @@ export class GalleryDO {
       );
     }
     const restoredProjectText = serializeProject(restoredProject);
+    const netlistable = analyzeDesignNetlist(restoredProject).ir ? 1 : 0;
+    const previewRevision = sha256Hex(version.svg_text);
     this.state.storage.transactionSync(() => {
       this.snapshotEntry(entry, String(body.at));
       this.sql.exec(
         `UPDATE gallery_entries
          SET name = ?, author = ?, description = ?, project_text = ?,
-             svg_text = ?, schema_version = ?, tags = ?
+             svg_text = ?, schema_version = ?, tags = ?, netlistable = ?,
+             preview_revision = ?
          WHERE id = ?`,
         version.name,
         version.author,
@@ -814,10 +842,12 @@ export class GalleryDO {
         version.svg_text,
         restoredProject.schemaVersion,
         version.tags ?? "",
+        netlistable,
+        previewRevision,
         entry.id,
       );
     });
-    return Response.json({ id: entry.id, restored: true });
+    return Response.json({ id: entry.id, restored: true, previewRevision });
   }
 
   private mine(ownerUserId: string): Response {
@@ -964,33 +994,39 @@ export class GalleryDO {
       this.sql.exec("DELETE FROM gallery_entry_versions");
       this.sql.exec("DELETE FROM workspace_slots");
       for (const row of galleryEntries) {
+        const values = rowValues(row, [
+          "id",
+          "name",
+          "author",
+          "description",
+          "created_at",
+          "schema_version",
+          "status",
+          "recycled_at",
+          "owner_user_id",
+          "submitter_email",
+          "submitter_provider",
+          "project_text",
+          "svg_text",
+          "reject_reason",
+          "reviewed_at",
+          "reviewed_by",
+          "tags",
+          "netlistable",
+        ]);
+        const svgText = values[12];
+        if (typeof svgText !== "string") {
+          throw new Error("Backup row has invalid svg_text");
+        }
         this.sql.exec(
           `INSERT INTO gallery_entries
            (id, name, author, description, created_at, schema_version, status,
             recycled_at, owner_user_id, submitter_email, submitter_provider,
             project_text, svg_text, reject_reason, reviewed_at, reviewed_by,
-            tags, netlistable)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          ...rowValues(row, [
-            "id",
-            "name",
-            "author",
-            "description",
-            "created_at",
-            "schema_version",
-            "status",
-            "recycled_at",
-            "owner_user_id",
-            "submitter_email",
-            "submitter_provider",
-            "project_text",
-            "svg_text",
-            "reject_reason",
-            "reviewed_at",
-            "reviewed_by",
-            "tags",
-            "netlistable",
-          ]),
+            tags, netlistable, preview_revision)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          ...values,
+          sha256Hex(svgText),
         );
       }
       for (const row of galleryEntryVersions) {
@@ -1303,13 +1339,19 @@ export class GalleryDO {
       )
       .toArray()[0];
     if (!row) return Response.json({ error: "not-found" }, { status: 404 });
+    const svgText = String(body.svgText);
+    const previewRevision = sha256Hex(svgText);
     this.sql.exec(
-      "UPDATE gallery_entries SET project_text = ?, schema_version = ?, svg_text = ? WHERE id = ?",
+      `UPDATE gallery_entries
+       SET project_text = ?, schema_version = ?, svg_text = ?,
+           preview_revision = ?
+       WHERE id = ?`,
       String(body.projectText),
       Number(body.schemaVersion),
-      String(body.svgText),
+      svgText,
+      previewRevision,
       String(body.id),
     );
-    return Response.json({ id: row.id });
+    return Response.json({ id: row.id, previewRevision });
   }
 }

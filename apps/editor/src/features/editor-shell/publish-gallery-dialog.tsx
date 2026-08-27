@@ -31,6 +31,7 @@ export interface PublishGalleryDialogProps {
     id: string;
     name: string;
     updated: boolean;
+    previewRevision?: string;
   }) => void;
   /** Moderators and the entry's owner: open the version history instead.
    * Rendered only alongside an update target. */
@@ -137,7 +138,14 @@ export function PublishGalleryDialog({
     const send = updating ? (publishUpdate ?? publish) : publish;
     const outcome = await send({ name, description, tags });
     if (outcome.status === "published") {
-      onPublished({ id: outcome.id, name: name.trim(), updated: updating });
+      onPublished({
+        id: outcome.id,
+        name: name.trim(),
+        updated: updating,
+        ...(outcome.previewRevision === undefined
+          ? {}
+          : { previewRevision: outcome.previewRevision }),
+      });
       return;
     }
     setBusy(false);
