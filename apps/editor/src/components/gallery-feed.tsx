@@ -5,6 +5,7 @@ import { renderDocumentSvg } from "@icm/render-svg";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 
 import { libraryProjectExamples } from "../examples/library-examples";
+import { fetchSessionUser } from "./account";
 import { GalleryChrome } from "./gallery-chrome";
 import { Masonry } from "./masonry";
 
@@ -38,6 +39,127 @@ export interface GalleryFeedState {
 }
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
+
+function GalleryOwnerMenu({
+  entry,
+  busy,
+  onWithdraw,
+  onReject,
+}: {
+  entry: GalleryFeedEntry;
+  busy: boolean;
+  onWithdraw: () => void;
+  onReject: () => void;
+}) {
+  return (
+    <details
+      className="gallery-owner-menu"
+      data-testid={`gallery-owner-menu-${entry.id}`}
+    >
+      <summary
+        aria-label={`Manage ${entry.name}`}
+        title={`Manage ${entry.name}`}
+      >
+        ⋯
+      </summary>
+      <div className="gallery-owner-popover">
+        <a
+          href={`/g/${entry.id}`}
+          data-testid={`gallery-owner-edit-${entry.id}`}
+        >
+          Edit and replace
+        </a>
+        <button
+          type="button"
+          disabled={busy}
+          data-testid={`gallery-owner-withdraw-${entry.id}`}
+          onClick={onWithdraw}
+        >
+          Withdraw
+        </button>
+        <button
+          type="button"
+          className="gallery-owner-danger"
+          disabled={busy}
+          data-testid={`gallery-owner-reject-${entry.id}`}
+          onClick={onReject}
+        >
+          Reject with reason
+        </button>
+      </div>
+    </details>
+  );
+}
+
+function RejectEntryDialog({
+  entry,
+  reason,
+  busy,
+  onReasonChange,
+  onSubmit,
+  onClose,
+}: {
+  entry: GalleryFeedEntry;
+  reason: string;
+  busy: boolean;
+  onReasonChange: (reason: string) => void;
+  onSubmit: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      className="gallery-owner-dialog-backdrop"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !busy) onClose();
+      }}
+    >
+      <section
+        className="gallery-owner-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="gallery-reject-title"
+        data-testid="gallery-owner-reject-dialog"
+      >
+        <h2 id="gallery-reject-title">Reject “{entry.name}”</h2>
+        <p>
+          The circuit will leave the Gallery immediately. The submitter will see
+          this reason in My submissions.
+        </p>
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (reason.trim()) onSubmit();
+          }}
+        >
+          <label htmlFor="gallery-reject-reason">Reason</label>
+          <textarea
+            id="gallery-reject-reason"
+            value={reason}
+            maxLength={500}
+            required
+            autoFocus
+            placeholder="Explain what should be corrected…"
+            data-testid="gallery-owner-reject-reason"
+            onChange={(event) => onReasonChange(event.currentTarget.value)}
+          />
+          <div className="gallery-owner-dialog-actions">
+            <button type="button" disabled={busy} onClick={onClose}>
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="gallery-owner-danger"
+              disabled={busy || !reason.trim()}
+              data-testid="gallery-owner-reject-confirm"
+            >
+              {busy ? "Rejecting…" : "Reject entry"}
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
+  );
+}
 
 /**
  * The like mark, drawn rather than typed.
@@ -135,6 +257,11 @@ export async function loadGalleryFeed(
  * worker), so the landing page is never blank.
  */
 export function GalleryFeed() {
+  const [isOwner, setIsOwner] = useState(false);
+  const [ownerBusy, setOwnerBusy] = useState<string | null>(null);
+  const [ownerNotice, setOwnerNotice] = useState<string | null>(null);
+  const [rejecting, setRejecting] = useState<GalleryFeedEntry | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
   const [author, setAuthor] = useState<string | null>(() =>
     typeof window === "undefined"
       ? null
@@ -150,6 +277,16 @@ export function GalleryFeed() {
   const [tagOptions, setTagOptions] = useState<
     { tag: string; count: number }[]
   >([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchSessionUser().then((user) => {
+      if (!cancelled) setIsOwner(user?.isAdmin === true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -302,6 +439,71 @@ export function GalleryFeed() {
     });
   }
 
+  function removeManagedEntry(entry: GalleryFeedEntry): void {
+    setState((previous) => ({
+      ...previous,
+      entries: previous.entries.filter(
+        (candidate) => candidate.id !== entry.id,
+      ),
+    }));
+    const removedTags = new Set(entry.tags ?? []);
+    if (removedTags.size > 0) {
+      setTagOptions((previous) =>
+        previous
+          .map((option) =>
+            removedTags.has(option.tag)
+              ? { ...option, count: option.count - 1 }
+              : option,
+          )
+          .filter((option) => option.count > 0),
+      );
+    }
+  }
+
+  async function withdrawEntry(entry: GalleryFeedEntry): Promise<void> {
+    if (!window.confirm(`Withdraw “${entry.name}” from the Gallery?`)) return;
+    setOwnerBusy(entry.id);
+    setOwnerNotice(null);
+    try {
+      const response = await fetch(`/api/gallery/${entry.id}/recycle`, {
+        method: "POST",
+        credentials: "same-origin",
+      });
+      if (!response.ok) throw new Error();
+      removeManagedEntry(entry);
+      setOwnerNotice(`“${entry.name}” was moved to the recycle bin.`);
+    } catch {
+      setOwnerNotice(`Could not withdraw “${entry.name}”.`);
+    } finally {
+      setOwnerBusy(null);
+    }
+  }
+
+  async function rejectEntry(): Promise<void> {
+    if (!rejecting || !rejectReason.trim()) return;
+    setOwnerBusy(rejecting.id);
+    setOwnerNotice(null);
+    try {
+      const response = await fetch(`/api/gallery/${rejecting.id}/reject`, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ reason: rejectReason.trim() }),
+      });
+      if (!response.ok) throw new Error();
+      removeManagedEntry(rejecting);
+      setOwnerNotice(
+        `“${rejecting.name}” was rejected and hidden from the Gallery.`,
+      );
+      setRejecting(null);
+      setRejectReason("");
+    } catch {
+      setOwnerNotice(`Could not reject “${rejecting.name}”.`);
+    } finally {
+      setOwnerBusy(null);
+    }
+  }
+
   const entries = state.entries;
 
   return (
@@ -353,6 +555,11 @@ export function GalleryFeed() {
           </button>
         </div>
       ) : null}
+      {ownerNotice ? (
+        <p className="gallery-status" data-testid="gallery-owner-notice">
+          {ownerNotice}
+        </p>
+      ) : null}
       {state.status === "loading" ? (
         <p className="gallery-status" data-testid="gallery-loading">
           Loading gallery…
@@ -365,105 +572,119 @@ export function GalleryFeed() {
               ...entries.map((entry) => ({
                 key: entry.id,
                 node: (
-                  <a
-                    className="gallery-tile"
-                    href={`/g/${entry.id}`}
-                    data-testid={`gallery-tile-${entry.id}`}
-                  >
-                    <span className="gallery-tile-preview">
-                      <img
-                        src={`/api/gallery/${entry.id}/preview.svg`}
-                        alt={`Preview of ${entry.name}`}
-                        loading="lazy"
-                      />
-                    </span>
-                    <span className="gallery-tile-copy">
-                      <span className="gallery-tile-name">
-                        {entry.name}
-                        {entry.netlistable ? (
-                          <span
-                            className="gallery-tile-star"
-                            data-testid={`gallery-star-${entry.id}`}
-                            title="Extracts to a SPICE netlist"
-                            aria-label="Extracts to a SPICE netlist"
+                  <div className="gallery-tile-wrap">
+                    <a
+                      className="gallery-tile"
+                      href={`/g/${entry.id}`}
+                      data-testid={`gallery-tile-${entry.id}`}
+                    >
+                      <span className="gallery-tile-preview">
+                        <img
+                          src={`/api/gallery/${entry.id}/preview.svg`}
+                          alt={`Preview of ${entry.name}`}
+                          loading="lazy"
+                        />
+                      </span>
+                      <span className="gallery-tile-copy">
+                        <span className="gallery-tile-name">
+                          {entry.name}
+                          {entry.netlistable ? (
+                            <span
+                              className="gallery-tile-star"
+                              data-testid={`gallery-star-${entry.id}`}
+                              title="Extracts to a SPICE netlist"
+                              aria-label="Extracts to a SPICE netlist"
+                            >
+                              ★
+                            </span>
+                          ) : null}
+                        </span>
+                        <span className="gallery-tile-meta">
+                          {entry.author ? (
+                            <>
+                              <button
+                                type="button"
+                                className="gallery-tile-author"
+                                data-testid={`gallery-author-${entry.id}`}
+                                title={`Show circuits by ${entry.author}`}
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  selectAuthor(entry.author);
+                                }}
+                              >
+                                {entry.author}
+                              </button>
+                              {" · "}
+                            </>
+                          ) : null}
+                          {savedAtLabel(entry.createdAt)}
+                          {" · "}
+                          <button
+                            type="button"
+                            className="gallery-tile-like"
+                            data-testid={`gallery-like-${entry.id}`}
+                            aria-pressed={entry.likedByViewer === true}
+                            title={
+                              entry.likedByViewer
+                                ? "Remove your like"
+                                : "Like this circuit"
+                            }
+                            aria-label={
+                              entry.likedByViewer
+                                ? `Remove your like from ${entry.name}`
+                                : `Like ${entry.name}`
+                            }
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              void toggleLike(entry.id);
+                            }}
                           >
-                            ★
+                            <HeartIcon filled={entry.likedByViewer === true} />
+                            {entry.likes ?? 0}
+                          </button>
+                        </span>
+                        {entry.description ? (
+                          <span className="gallery-tile-description">
+                            {entry.description}
+                          </span>
+                        ) : null}
+                        {entry.tags && entry.tags.length > 0 ? (
+                          <span className="gallery-tile-tags">
+                            {entry.tags.map((tag) => (
+                              <button
+                                key={tag}
+                                type="button"
+                                className="gallery-tile-tag"
+                                data-testid={`gallery-tile-tag-${entry.id}-${tag.replace(/\s/gu, "-")}`}
+                                title={`Filter by ${tag}`}
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  if (!selectedTags.includes(tag))
+                                    toggleTag(tag);
+                                }}
+                              >
+                                {tag}
+                              </button>
+                            ))}
                           </span>
                         ) : null}
                       </span>
-                      <span className="gallery-tile-meta">
-                        {entry.author ? (
-                          <>
-                            <button
-                              type="button"
-                              className="gallery-tile-author"
-                              data-testid={`gallery-author-${entry.id}`}
-                              title={`Show circuits by ${entry.author}`}
-                              onClick={(event) => {
-                                event.preventDefault();
-                                event.stopPropagation();
-                                selectAuthor(entry.author);
-                              }}
-                            >
-                              {entry.author}
-                            </button>
-                            {" · "}
-                          </>
-                        ) : null}
-                        {savedAtLabel(entry.createdAt)}
-                        {" · "}
-                        <button
-                          type="button"
-                          className="gallery-tile-like"
-                          data-testid={`gallery-like-${entry.id}`}
-                          aria-pressed={entry.likedByViewer === true}
-                          title={
-                            entry.likedByViewer
-                              ? "Remove your like"
-                              : "Like this circuit"
-                          }
-                          aria-label={
-                            entry.likedByViewer
-                              ? `Remove your like from ${entry.name}`
-                              : `Like ${entry.name}`
-                          }
-                          onClick={(event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            void toggleLike(entry.id);
-                          }}
-                        >
-                          <HeartIcon filled={entry.likedByViewer === true} />
-                          {entry.likes ?? 0}
-                        </button>
-                      </span>
-                      {entry.description ? (
-                        <span className="gallery-tile-description">
-                          {entry.description}
-                        </span>
-                      ) : null}
-                      {entry.tags && entry.tags.length > 0 ? (
-                        <span className="gallery-tile-tags">
-                          {entry.tags.map((tag) => (
-                            <button
-                              key={tag}
-                              type="button"
-                              className="gallery-tile-tag"
-                              data-testid={`gallery-tile-tag-${entry.id}-${tag.replace(/\s/gu, "-")}`}
-                              title={`Filter by ${tag}`}
-                              onClick={(event) => {
-                                event.preventDefault();
-                                event.stopPropagation();
-                                if (!selectedTags.includes(tag)) toggleTag(tag);
-                              }}
-                            >
-                              {tag}
-                            </button>
-                          ))}
-                        </span>
-                      ) : null}
-                    </span>
-                  </a>
+                    </a>
+                    {isOwner ? (
+                      <GalleryOwnerMenu
+                        entry={entry}
+                        busy={ownerBusy === entry.id}
+                        onWithdraw={() => void withdrawEntry(entry)}
+                        onReject={() => {
+                          setRejecting(entry);
+                          setRejectReason("");
+                        }}
+                      />
+                    ) : null}
+                  </div>
                 ),
               })),
               ...(entries.length === 0 && author === null
@@ -512,6 +733,19 @@ export function GalleryFeed() {
         Browse freely; open any circuit and edit your own copy. Publishing joins
         in a later release with sign-in.
       </footer>
+      {rejecting ? (
+        <RejectEntryDialog
+          entry={rejecting}
+          reason={rejectReason}
+          busy={ownerBusy === rejecting.id}
+          onReasonChange={setRejectReason}
+          onSubmit={() => void rejectEntry()}
+          onClose={() => {
+            setRejecting(null);
+            setRejectReason("");
+          }}
+        />
+      ) : null}
     </main>
   );
 }

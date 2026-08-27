@@ -20,8 +20,8 @@ restrictive content-security-policy.
 - `GET /api/gallery` — newest-first `public` entries
   (`{entries, nextCursor}`; keyset cursor; limit clamps at 60; optional
   `author` filters to that exact byline and optional `tags=a,b` to
-  entries carrying ANY listed tag, both ahead of pagination). Recycled
-  entries never appear.
+  entries carrying ANY listed tag, both ahead of pagination). Rejected and
+  recycled entries never appear.
 - `GET /api/gallery/tags` — distinct public tags with counts, most
   frequent first (feeds the multi-select menu).
 - `GET /api/gallery/<id>` — one public entry with its canonical
@@ -92,10 +92,10 @@ nothing new ever enters a queue; curation is post-publication. A
 detail, preview); its detail and preview answer only to a moderator or
 the owning session.
 
-`pending` is retired. `rejected` remains only for the entries a reviewer
-turned down before the queue was removed, so their owners still see why;
-opening the storage promotes any leftover `pending` row to `public`
-rather than stranding it, and leaves a real rejection alone.
+`pending` is retired. Opening the storage promotes any leftover `pending` row
+to `public` rather than stranding it. `rejected` is now the Owner's explicit
+post-publication decision: its required reason remains visible to the
+submitter until the Owner restores the entry.
 
 - `GET /api/gallery/mine` — the calling session's entries with `status`
   and `rejectReason`.
@@ -105,10 +105,12 @@ rather than stranding it, and leaves a real rejection alone.
   moderator curates and bypasses the quality gates; the recycle bin and
   maintenance stay admin-only.
 
-The editor surfaces moderation at `/moderation` (the recycle bin, plus
-admin-only moderator appointment) and the submitter's view at `/mine`
-(status chips, owner-visible preview, open-in-editor). Every gallery
-page state wears the shared site chrome.
+The Gallery feed gives the super-admin an Owner menu on every community tile:
+Edit and replace, Withdraw, and Reject with reason. The editor surfaces the
+full administration lifecycle at `/moderation` (rejected entries, recycle
+bin, plus admin-only moderator appointment) and the submitter's view at
+`/mine` (status chips, rejection reason, owner-visible preview,
+open-in-editor). Every gallery page state wears the shared site chrome.
 
 ## Owner editing
 
@@ -125,10 +127,12 @@ opened entry" exactly to owners and moderators.
 
 Owner withdrawal: `POST /api/gallery/<id>/recycle` (same-origin) also
 accepts the owning session — the entry moves to `recycled` and leaves
-every public surface, exactly like an admin recycle. The owner brings it
-back with `POST /api/gallery/<id>/restore`, which republishes it — for
-the owner exactly as for an admin. `/mine` surfaces both actions (a
-two-step Withdraw and a Restore on withdrawn entries).
+every public surface, exactly like an admin recycle. The owner brings a
+voluntary withdrawal back with `POST /api/gallery/<id>/restore`, which
+republishes it. An ordinary owner cannot restore or recycle an Owner-rejected
+entry; it remains editable but hidden until the Owner restores it. `/mine`
+surfaces the available actions: a two-step Withdraw and a Restore on
+voluntarily withdrawn entries.
 
 ## Version history
 
@@ -201,10 +205,14 @@ header buys nothing. Without such a session every admin route answers
 - `POST /api/gallery/<id>/recycle` — soft delete into the restorable bin;
   the entry disappears from every public surface. (Also open to the
   owning session as withdrawal — see Owner editing.)
+- `POST /api/gallery/<id>/reject` — hide a public entry and record a required
+  `{reason}` (trimmed, at most 500 characters), the reviewing account, and the
+  review time. The submitter sees the reason on `/mine`.
 - `POST /api/gallery/<id>/restore` — back to `public`.
 - `DELETE /api/gallery/<id>` — permanent, and only for entries already in
   the bin (`409` otherwise).
 - `GET /api/gallery/recycled` — the bin.
+- `GET /api/gallery/rejected` — rejected entries and their reasons.
 - `GET /api/gallery/maintenance/schema-backup` — download a full-fidelity
   administrator backup of entries, saved versions, and workspace slots.
 - `POST /api/gallery/maintenance/schema-current` — validate or transactionally

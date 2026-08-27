@@ -7,11 +7,10 @@ import { VersionHistoryDialog } from "./version-history-dialog";
 
 /**
  * "My submissions" (roadmap phase G3): a signed-in user's gallery entries
- * with their review status; a rejection shows the reviewer's optional
- * reason, and every entry opens back into the editor for another round
- * (an owner update re-enters review server-side). Owners can withdraw an
- * entry from the gallery, bring it back (through review for ordinary
- * accounts), and browse its version history.
+ * with their review status; a rejection shows the Owner's required
+ * reason, and every entry opens back into the editor for correction. Owners
+ * can withdraw and restore their own public entries and browse version
+ * history; an Owner rejection stays hidden until the Owner restores it.
  */
 
 export interface MineEntry {
@@ -61,9 +60,8 @@ export async function setMyEntryRecycled(
   }
 }
 
-// Publishing is direct, so nothing new is ever "pending". `rejected` is
-// kept for the handful of entries a reviewer turned down before the queue
-// was retired; their owners still need to see why.
+// Publishing is direct, so nothing new is ever "pending". Rejection is the
+// Owner's post-publication takedown with an author-visible reason.
 const STATUS_LABELS: Record<string, string> = {
   public: "Published",
   rejected: "Rejected",
@@ -109,7 +107,7 @@ export function MySubmissions() {
     setNotice(
       action === "recycle"
         ? `Withdrew "${entry.name}" from the gallery.`
-        : `"${entry.name}" is on its way back — it re-enters review first.`,
+        : `Restored "${entry.name}" to the gallery.`,
     );
     await reload();
   }
@@ -174,7 +172,7 @@ export function MySubmissions() {
                     >
                       Version history
                     </button>
-                    {entry.status === "recycled" ? (
+                    {entry.status === "recycled" && !entry.rejectReason ? (
                       <button
                         type="button"
                         className="account-link mine-card-restore"
@@ -182,9 +180,9 @@ export function MySubmissions() {
                         disabled={busy === entry.id}
                         onClick={() => void act(entry, "restore")}
                       >
-                        Restore (re-enters review)
+                        Restore
                       </button>
-                    ) : confirming === entry.id ? (
+                    ) : entry.status === "public" && confirming === entry.id ? (
                       <>
                         <button
                           type="button"
@@ -203,7 +201,7 @@ export function MySubmissions() {
                           Keep it
                         </button>
                       </>
-                    ) : (
+                    ) : entry.status === "public" ? (
                       <button
                         type="button"
                         className="mine-withdraw"
@@ -212,7 +210,7 @@ export function MySubmissions() {
                       >
                         Withdraw
                       </button>
-                    )}
+                    ) : null}
                   </div>
                 </div>
                 <div className="mine-card-status">
@@ -232,14 +230,15 @@ export function MySubmissions() {
                   ) : null}
                   {entry.status === "rejected" ? (
                     <p className="mine-reason">
-                      Edit it in the editor and publish again — the update
-                      re-enters review.
+                      You may correct it in the editor. It remains hidden until
+                      the Owner restores it.
                     </p>
                   ) : null}
                   {entry.status === "recycled" ? (
                     <p className="mine-reason">
-                      Not shown in the gallery. Restore sends it back through
-                      review.
+                      {entry.rejectReason
+                        ? "Removed after rejection. Only the Owner can restore it."
+                        : "Not shown in the Gallery. Restore republishes it."}
                     </p>
                   ) : null}
                 </div>
@@ -255,7 +254,7 @@ export function MySubmissions() {
           onRestored={() => {
             setHistoryFor(null);
             setNotice(
-              `Restored an earlier version of "${historyFor.name}" — it re-enters review unless you are a reviewer.`,
+              `Restored an earlier version of "${historyFor.name}". Its publication status did not change.`,
             );
             void reload();
           }}

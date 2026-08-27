@@ -637,6 +637,178 @@
     box-shadow 120ms ease;
 }
 
+.gallery-tile-wrap {
+  position: relative;
+}
+
+.gallery-owner-menu {
+  position: absolute;
+  z-index: 3;
+  top: 8px;
+  right: 8px;
+}
+
+.gallery-owner-menu > summary {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 1px solid rgb(0 0 0 / 12%);
+  border-radius: 999px;
+  color: #202124;
+  background: rgb(255 255 255 / 94%);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 12%);
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1;
+  list-style: none;
+  cursor: pointer;
+}
+
+.gallery-owner-menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.gallery-owner-menu[open] > summary,
+.gallery-owner-menu > summary:hover {
+  background: #fff;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 18%);
+}
+
+.gallery-owner-popover {
+  position: absolute;
+  top: 36px;
+  right: 0;
+  display: grid;
+  min-width: 11.5rem;
+  gap: 2px;
+  padding: 6px;
+  border: 1px solid var(--icm-border);
+  border-radius: 10px;
+  background: var(--icm-surface);
+  box-shadow: 0 12px 32px rgb(15 15 15 / 18%);
+}
+
+.gallery-owner-popover a,
+.gallery-owner-popover button {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 7px;
+  color: var(--icm-text);
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.gallery-owner-popover a:hover,
+.gallery-owner-popover button:hover {
+  background: var(--icm-surface-hover);
+}
+
+.gallery-owner-popover button:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.gallery-owner-danger {
+  color: var(--icm-danger, #b42318) !important;
+}
+
+.gallery-owner-dialog-backdrop {
+  position: fixed;
+  z-index: 100;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgb(15 23 42 / 42%);
+}
+
+.gallery-owner-dialog {
+  box-sizing: border-box;
+  width: min(30rem, 100%);
+  padding: 20px;
+  border: 1px solid var(--icm-border);
+  border-radius: 14px;
+  color: var(--icm-text);
+  background: var(--icm-surface);
+  box-shadow: 0 24px 64px rgb(0 0 0 / 24%);
+}
+
+.gallery-owner-dialog h2 {
+  margin: 0;
+  font-size: 19px;
+}
+
+.gallery-owner-dialog p {
+  margin: 8px 0 18px;
+  color: var(--icm-text-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.gallery-owner-dialog form {
+  display: grid;
+  gap: 8px;
+}
+
+.gallery-owner-dialog label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.gallery-owner-dialog textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 7rem;
+  resize: vertical;
+  padding: 10px 12px;
+  border: 1px solid var(--icm-border);
+  border-radius: 8px;
+  color: var(--icm-text);
+  background: var(--icm-surface);
+  font: inherit;
+  font-size: 13px;
+}
+
+.gallery-owner-dialog textarea:focus {
+  border-color: var(--icm-accent);
+  outline: 2px solid color-mix(in srgb, var(--icm-accent) 18%, transparent);
+}
+
+.gallery-owner-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.gallery-owner-dialog-actions button {
+  padding: 7px 12px;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  color: var(--icm-text);
+  background: var(--icm-surface);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.gallery-owner-dialog-actions .gallery-owner-danger {
+  border-color: var(--icm-danger, #b42318);
+  color: #fff !important;
+  background: var(--icm-danger, #b42318);
+}
+
+.gallery-owner-dialog-actions button:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
 .gallery-tile:hover {
   border-color: var(--icm-border-hover);
   box-shadow: 0 4px 16px rgb(0 0 0 / 8%);

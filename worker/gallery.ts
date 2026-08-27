@@ -24,6 +24,7 @@ import {
   GALLERY_MAX_LIST_LIMIT,
   GALLERY_MAX_NAME_LENGTH,
   GALLERY_MAX_PROJECT_BYTES,
+  GALLERY_MAX_REJECT_REASON_LENGTH,
   GALLERY_MAX_VERSIONS_PER_ENTRY,
   WORKSPACE_SLOT_LIMIT,
   sanitizeGalleryTags,
@@ -86,14 +87,26 @@ async function entryManager(
   request: Request,
   env: GalleryEnv,
   id: string,
-): Promise<{ found: boolean; reviewer: boolean; owner: boolean }> {
-  const existing = await callGallery<{ ownerUserId?: string | null }>(
-    env,
-    "any-entry",
-    { id },
-  );
+): Promise<{
+  found: boolean;
+  reviewer: boolean;
+  owner: boolean;
+  status: string | null;
+  rejectReason: string | null;
+}> {
+  const existing = await callGallery<{
+    ownerUserId?: string | null;
+    status?: string;
+    rejectReason?: string | null;
+  }>(env, "any-entry", { id });
   if (existing.status !== 200) {
-    return { found: false, reviewer: false, owner: false };
+    return {
+      found: false,
+      reviewer: false,
+      owner: false,
+      status: null,
+      rejectReason: null,
+    };
   }
   const reviewer = await canReview(request, env);
   const user = await sessionUserOf(request, env);
@@ -101,7 +114,13 @@ async function entryManager(
     user !== null &&
     existing.payload.ownerUserId != null &&
     existing.payload.ownerUserId === user.id;
-  return { found: true, reviewer, owner };
+  return {
+    found: true,
+    reviewer,
+    owner,
+    status: existing.payload.status ?? null,
+    rejectReason: existing.payload.rejectReason ?? null,
+  };
 }
 
 async function submitterHash(request: Request): Promise<string> {
@@ -464,6 +483,19 @@ export async function routeGalleryRequest(
     });
   }
   if (
+    segments.length === 1 &&
+    segments[0] === "rejected" &&
+    request.method === "GET"
+  ) {
+    if (!(await isAdmin(request, env))) {
+      return Response.json({ error: "unauthorized" }, { status: 401 });
+    }
+    const { payload } = await callGallery(env, "rejected", {});
+    return Response.json(payload, {
+      headers: { "cache-control": "no-store" },
+    });
+  }
+  if (
     segments.length === 2 &&
     segments[0] === "maintenance" &&
     segments[1] === "schema-backup" &&
@@ -694,6 +726,33 @@ export async function routeGalleryRequest(
   if (segments.length === 1 && request.method === "PUT") {
     return handleEntryUpdate(request, env, segments[0]!);
   }
+  if (
+    segments.length === 2 &&
+    segments[1] === "reject" &&
+    request.method === "POST"
+  ) {
+    if (!sameOrigin(request)) {
+      return Response.json({ error: "forbidden" }, { status: 403 });
+    }
+    const reviewer = await sessionUserOf(request, env);
+    if (!reviewer?.isAdmin) {
+      return Response.json({ error: "unauthorized" }, { status: 401 });
+    }
+    const body = (await request.json().catch(() => null)) as {
+      reason?: unknown;
+    } | null;
+    const reason = fieldText(body?.reason, GALLERY_MAX_REJECT_REASON_LENGTH);
+    if (!reason) {
+      return Response.json({ error: "invalid-fields" }, { status: 400 });
+    }
+    const { status, payload } = await callGallery(env, "reject", {
+      id: segments[0],
+      reason,
+      at: new Date().toISOString(),
+      reviewerId: reviewer.id,
+    });
+    return Response.json(payload, { status });
+  }
   if (segments.length === 2 && request.method === "POST") {
     const [id, action] = segments;
     if (action !== "recycle" && action !== "restore") {
@@ -702,8 +761,8 @@ export async function routeGalleryRequest(
     if (!sameOrigin(request)) {
       return Response.json({ error: "forbidden" }, { status: 403 });
     }
-    // Admins curate anything; an owner may withdraw their own entry and
-    // bring it back, which republishes it.
+    // Admins curate anything. An ordinary owner may withdraw a public entry
+    // or restore a voluntary withdrawal, but cannot undo an Owner rejection.
     const admin = await isAdmin(request, env);
     if (!admin) {
       const access = await entryManager(request, env, id!);
@@ -712,6 +771,13 @@ export async function routeGalleryRequest(
       }
       if (!access.owner) {
         return Response.json({ error: "unauthorized" }, { status: 401 });
+      }
+      const validOwnerTransition =
+        action === "recycle"
+          ? access.status === "public"
+          : access.status === "recycled" && access.rejectReason === null;
+      if (!validOwnerTransition) {
+        return Response.json({ error: "invalid-status" }, { status: 409 });
       }
     }
     const { status, payload } = await callGallery(env, "set-status", {

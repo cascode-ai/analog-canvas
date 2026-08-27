@@ -1007,7 +1007,7 @@ describe("direct publishing (the review queue is retired)", () => {
     );
   });
 
-  it("has no queue to read and no decision to hand down", async () => {
+  it("has no queue to read and no approval step", async () => {
     const env = environment();
     const adminCookie = await adminOf(env);
     const id = await submitOne(env, "Live", { cookie: adminCookie });
@@ -1015,7 +1015,6 @@ describe("direct publishing (the review queue is retired)", () => {
     for (const [path, method] of [
       [`${ORIGIN}/api/gallery/review`, "GET"],
       [`${ORIGIN}/api/gallery/${id}/approve`, "POST"],
-      [`${ORIGIN}/api/gallery/${id}/reject`, "POST"],
     ] as const) {
       const response = await route(
         env,
@@ -1671,6 +1670,150 @@ describe("gallery administration", () => {
       }),
     );
     expect(((await gone.json()) as { entries: unknown[] }).entries).toEqual([]);
+  });
+
+  it("rejects with an owner-visible reason and prevents owner self-restore", async () => {
+    const env = environment();
+    const adminCookie = await adminOf(env);
+    const ownerCookie = await makerOf(env);
+    const id = await submitOne(env, "Needs cleanup", {
+      cookie: ownerCookie,
+      text: wiredProjectText("Needs cleanup"),
+    });
+
+    function rejectRequest(cookie: string, reason: unknown, origin = ORIGIN) {
+      return new Request(`${ORIGIN}/api/gallery/${id}/reject`, {
+        method: "POST",
+        headers: {
+          Cookie: cookie,
+          Origin: origin,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ reason }),
+      });
+    }
+
+    expect((await route(env, rejectRequest(ownerCookie, "No"))).status).toBe(
+      401,
+    );
+    expect(
+      (await route(env, rejectRequest(adminCookie, "No", "https://evil.test")))
+        .status,
+    ).toBe(403);
+    expect((await route(env, rejectRequest(adminCookie, "   "))).status).toBe(
+      400,
+    );
+
+    const rejected = await route(
+      env,
+      rejectRequest(adminCookie, "Label the ports and remove loose wires."),
+    );
+    expect(rejected.status).toBe(200);
+    expect(await rejected.json()).toMatchObject({ id, status: "rejected" });
+
+    const publicList = await route(env, new Request(`${ORIGIN}/api/gallery`));
+    expect(
+      ((await publicList.json()) as { entries: unknown[] }).entries,
+    ).toEqual([]);
+    const mine = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/mine`, {
+        headers: cookieHeaders(ownerCookie),
+      }),
+    );
+    expect(await mine.json()).toMatchObject({
+      entries: [
+        {
+          id,
+          status: "rejected",
+          rejectReason: "Label the ports and remove loose wires.",
+        },
+      ],
+    });
+
+    const adminRejected = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/rejected`, {
+        headers: cookieHeaders(adminCookie),
+      }),
+    );
+    expect(adminRejected.status).toBe(200);
+    expect(await adminRejected.json()).toMatchObject({
+      entries: [
+        {
+          id,
+          rejectReason: "Label the ports and remove loose wires.",
+        },
+      ],
+    });
+    const memberRejected = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/rejected`, {
+        headers: cookieHeaders(ownerCookie),
+      }),
+    );
+    expect(memberRejected.status).toBe(401);
+
+    const ownerRestore = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/${id}/restore`, {
+        method: "POST",
+        headers: { Cookie: ownerCookie, Origin: ORIGIN },
+      }),
+    );
+    expect(ownerRestore.status).toBe(409);
+    const earlyDelete = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/${id}`, {
+        method: "DELETE",
+        headers: cookieHeaders(adminCookie),
+      }),
+    );
+    expect(earlyDelete.status).toBe(409);
+
+    expect(
+      (
+        await route(
+          env,
+          new Request(`${ORIGIN}/api/gallery/${id}/recycle`, {
+            method: "POST",
+            headers: { Cookie: adminCookie, Origin: ORIGIN },
+          }),
+        )
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await route(
+          env,
+          new Request(`${ORIGIN}/api/gallery/${id}/restore`, {
+            method: "POST",
+            headers: { Cookie: ownerCookie, Origin: ORIGIN },
+          }),
+        )
+      ).status,
+    ).toBe(409);
+    expect(
+      (
+        await route(
+          env,
+          new Request(`${ORIGIN}/api/gallery/${id}/restore`, {
+            method: "POST",
+            headers: { Cookie: adminCookie, Origin: ORIGIN },
+          }),
+        )
+      ).status,
+    ).toBe(200);
+
+    const restoredMine = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/mine`, {
+        headers: cookieHeaders(ownerCookie),
+      }),
+    );
+    expect(await restoredMine.json()).toMatchObject({
+      entries: [{ id, status: "public", rejectReason: null }],
+    });
   });
 
   it("converges stored entries back into the rolling window", async () => {

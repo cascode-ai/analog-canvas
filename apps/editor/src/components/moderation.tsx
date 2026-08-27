@@ -7,8 +7,8 @@ import { GalleryChrome } from "./gallery-chrome";
 /**
  * Moderation, the post-publication surface. Publishing is direct, so there
  * is nothing to approve in advance; what a curator needs is the ability to
- * take an entry down afterwards, put it back, and finally delete it. The
- * super-admin also appoints moderators by email from here.
+ * take an entry down afterwards, explain a rejection, put it back, and finally
+ * delete it. The super-admin also appoints moderators by email from here.
  */
 
 type ModerationState =
@@ -56,6 +56,13 @@ interface RecycledEntry {
   id: string;
   name: string;
   recycledAt?: string | null;
+}
+
+interface RejectedEntry {
+  id: string;
+  name: string;
+  rejectReason?: string | null;
+  reviewedAt?: string | null;
 }
 
 interface SchemaConvergenceReport {
@@ -182,12 +189,129 @@ function SchemaMaintenance() {
   );
 }
 
+/** Owner decisions waiting for correction, restoration, or archival. */
+function RejectedList({
+  refreshVersion,
+  onChanged,
+}: {
+  refreshVersion: number;
+  onChanged: () => void;
+}) {
+  const [entries, setEntries] = useState<RejectedEntry[] | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await fetch("/api/gallery/rejected", {
+          credentials: "same-origin",
+        });
+        const payload = response.ok
+          ? ((await response.json()) as { entries?: RejectedEntry[] })
+          : { entries: [] };
+        if (!cancelled) setEntries(payload.entries ?? []);
+      } catch {
+        if (!cancelled) setEntries([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [refreshVersion]);
+
+  async function act(id: string, action: "restore" | "recycle") {
+    setBusy(id);
+    try {
+      const response = await fetch(`/api/gallery/${id}/${action}`, {
+        method: "POST",
+        credentials: "same-origin",
+      });
+      if (response.ok) onChanged();
+    } catch {
+      // Leave the row in place; it still reflects the last confirmed state.
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  if (entries === null) return null;
+  return (
+    <section className="review-bin" data-testid="rejected-list">
+      <h2>Rejected entries</h2>
+      <p className="review-card-meta">
+        Restore a corrected circuit, or move it to the recycle bin before
+        permanent deletion.
+      </p>
+      {entries.length === 0 ? (
+        <p className="gallery-status" data-testid="rejected-empty">
+          No rejected entries.
+        </p>
+      ) : (
+        <div className="mine-list">
+          {entries.map((entry) => (
+            <article
+              key={entry.id}
+              className="mine-card"
+              data-testid={`rejected-card-${entry.id}`}
+            >
+              <div className="mine-card-copy">
+                <h2>{entry.name}</h2>
+                {entry.rejectReason ? (
+                  <p className="mine-reason">Reason: {entry.rejectReason}</p>
+                ) : null}
+                {entry.reviewedAt ? (
+                  <p className="review-card-meta">
+                    Rejected {new Date(entry.reviewedAt).toLocaleString()}
+                  </p>
+                ) : null}
+              </div>
+              <div className="review-card-actions">
+                <a
+                  className="account-link"
+                  href={`/g/${entry.id}`}
+                  data-testid={`rejected-edit-${entry.id}`}
+                >
+                  Edit and replace
+                </a>
+                <button
+                  type="button"
+                  disabled={busy === entry.id}
+                  data-testid={`rejected-recycle-${entry.id}`}
+                  onClick={() => void act(entry.id, "recycle")}
+                >
+                  Move to recycle bin
+                </button>
+                <button
+                  type="button"
+                  className="review-approve"
+                  disabled={busy === entry.id}
+                  data-testid={`rejected-restore-${entry.id}`}
+                  onClick={() => void act(entry.id, "restore")}
+                >
+                  Restore
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 /**
  * The recycle bin: the takedown surface. Restore returns an entry to the
  * public wall; Delete forever is the only hard deletion and asks for
  * confirmation first.
  */
-function RecycleBin() {
+function RecycleBin({
+  refreshVersion,
+  onChanged,
+}: {
+  refreshVersion: number;
+  onChanged: () => void;
+}) {
   const [entries, setEntries] = useState<RecycledEntry[] | null>(null);
 
   async function refresh(): Promise<void> {
@@ -210,8 +334,8 @@ function RecycleBin() {
 
   useEffect(() => {
     void refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- load once
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refresh is local
+  }, [refreshVersion]);
 
   async function act(id: string, kind: "restore" | "delete"): Promise<void> {
     if (
@@ -233,7 +357,7 @@ function RecycleBin() {
     } catch {
       // The refresh below shows the true state either way.
     }
-    void refresh();
+    onChanged();
   }
 
   if (entries === null) return null;
@@ -289,6 +413,7 @@ export function Moderation() {
   const [state, setState] = useState<ModerationState>({ status: "loading" });
   const [email, setEmail] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
+  const [inventoryVersion, setInventoryVersion] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -348,7 +473,14 @@ export function Moderation() {
         {state.user.isAdmin ? (
           <>
             <SchemaMaintenance />
-            <RecycleBin />
+            <RejectedList
+              refreshVersion={inventoryVersion}
+              onChanged={() => setInventoryVersion((version) => version + 1)}
+            />
+            <RecycleBin
+              refreshVersion={inventoryVersion}
+              onChanged={() => setInventoryVersion((version) => version + 1)}
+            />
           </>
         ) : (
           <p className="gallery-status">

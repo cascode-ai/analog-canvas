@@ -127,6 +127,91 @@ test("the site lands on the full-screen gallery feed", async ({ page }) => {
   );
 });
 
+test("the Owner rejects a Gallery entry with an author-visible reason", async ({
+  page,
+}) => {
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      json: {
+        user: {
+          id: "owner-1",
+          displayName: "Owner",
+          email: "owner@example.com",
+          provider: "github",
+          role: "user",
+          isAdmin: true,
+        },
+      },
+    }),
+  );
+  await mockGallery(page, [ENTRY]);
+  let rejectReason = "";
+  await page.route(`**/api/gallery/${ENTRY.id}/reject`, async (route) => {
+    rejectReason = (route.request().postDataJSON() as { reason: string })
+      .reason;
+    await route.fulfill({ json: { id: ENTRY.id, status: "rejected" } });
+  });
+
+  await page.goto("/");
+  const menu = page.getByTestId(`gallery-owner-menu-${ENTRY.id}`);
+  await expect(menu).toBeVisible();
+  await menu.locator("summary").click();
+  await expect(
+    page.getByTestId(`gallery-owner-edit-${ENTRY.id}`),
+  ).toHaveAttribute("href", `/g/${ENTRY.id}`);
+  await page.getByTestId(`gallery-owner-reject-${ENTRY.id}`).click();
+  await expect(page.getByTestId("gallery-owner-reject-confirm")).toBeDisabled();
+  await page
+    .getByTestId("gallery-owner-reject-reason")
+    .fill("Label the ports and remove the loose wire.");
+  await page.getByTestId("gallery-owner-reject-confirm").click();
+
+  await expect(page.getByTestId(`gallery-tile-${ENTRY.id}`)).toHaveCount(0);
+  await expect(page.getByTestId("gallery-owner-notice")).toContainText(
+    "rejected",
+  );
+  expect(rejectReason).toBe("Label the ports and remove the loose wire.");
+});
+
+test("the Owner withdraws a Gallery entry into the recycle bin", async ({
+  page,
+}) => {
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      json: {
+        user: {
+          id: "owner-1",
+          displayName: "Owner",
+          email: "owner@example.com",
+          provider: "github",
+          role: "user",
+          isAdmin: true,
+        },
+      },
+    }),
+  );
+  await mockGallery(page, [ENTRY]);
+  let withdrawn = 0;
+  await page.route(`**/api/gallery/${ENTRY.id}/recycle`, (route) => {
+    withdrawn += 1;
+    return route.fulfill({ json: { id: ENTRY.id, status: "recycled" } });
+  });
+
+  await page.goto("/");
+  await page
+    .getByTestId(`gallery-owner-menu-${ENTRY.id}`)
+    .locator("summary")
+    .click();
+  page.once("dialog", (dialog) => void dialog.accept());
+  await page.getByTestId(`gallery-owner-withdraw-${ENTRY.id}`).click();
+
+  await expect(page.getByTestId(`gallery-tile-${ENTRY.id}`)).toHaveCount(0);
+  await expect(page.getByTestId("gallery-owner-notice")).toContainText(
+    "recycle bin",
+  );
+  expect(withdrawn).toBe(1);
+});
+
 test("masonry places the top row left-to-right in distinct columns", async ({
   page,
 }) => {
@@ -399,6 +484,9 @@ test("the admin recycle bin restores a recycled entry", async ({ page }) => {
     }),
   );
   let restored = 0;
+  await page.route("**/api/gallery/rejected", (route) =>
+    route.fulfill({ json: { entries: [] } }),
+  );
   await page.route("**/api/gallery/recycled", (route) =>
     route.fulfill({
       json: {
@@ -424,6 +512,97 @@ test("the admin recycle bin restores a recycled entry", async ({ page }) => {
   await page.getByTestId("bin-restore-bin-1").click();
   await expect(page.getByTestId("bin-empty")).toBeVisible();
   expect(restored).toBe(1);
+});
+
+test("the Owner restores rejected work or moves it through the bin before deletion", async ({
+  page,
+}) => {
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      json: {
+        user: {
+          id: "u1",
+          displayName: "Token Zhang",
+          email: "owner@example.com",
+          provider: "github",
+          role: "user",
+          isAdmin: true,
+        },
+      },
+    }),
+  );
+  let rejected = [
+    {
+      id: "rejected-restore",
+      name: "Corrected Amp",
+      rejectReason: "Remove the loose wire",
+      reviewedAt: "2026-08-22T09:00:00.000Z",
+    },
+    {
+      id: "rejected-delete",
+      name: "Spam",
+      rejectReason: "Not a circuit",
+      reviewedAt: "2026-08-22T08:00:00.000Z",
+    },
+  ];
+  let recycled: Array<{ id: string; name: string; recycledAt: string }> = [];
+  let deleted = 0;
+  await page.route("**/api/gallery/rejected", (route) =>
+    route.fulfill({ json: { entries: rejected } }),
+  );
+  await page.route("**/api/gallery/recycled", (route) =>
+    route.fulfill({ json: { entries: recycled } }),
+  );
+  await page.route("**/api/gallery/rejected-restore/restore", (route) => {
+    rejected = rejected.filter((entry) => entry.id !== "rejected-restore");
+    return route.fulfill({
+      json: { id: "rejected-restore", status: "public" },
+    });
+  });
+  await page.route("**/api/gallery/rejected-delete/recycle", (route) => {
+    rejected = rejected.filter((entry) => entry.id !== "rejected-delete");
+    recycled = [
+      {
+        id: "rejected-delete",
+        name: "Spam",
+        recycledAt: "2026-08-22T10:00:00.000Z",
+      },
+    ];
+    return route.fulfill({
+      json: { id: "rejected-delete", status: "recycled" },
+    });
+  });
+  await page.route("**/api/gallery/rejected-delete", (route) => {
+    deleted += 1;
+    recycled = [];
+    return route.fulfill({ json: { id: "rejected-delete", deleted: true } });
+  });
+
+  await page.goto("/moderation");
+  await expect(
+    page.getByTestId("rejected-card-rejected-restore"),
+  ).toContainText("Remove the loose wire");
+  await expect(
+    page.getByTestId("rejected-edit-rejected-restore"),
+  ).toHaveAttribute("href", "/g/rejected-restore");
+  await page.getByTestId("rejected-restore-rejected-restore").click();
+  await expect(page.getByTestId("rejected-card-rejected-restore")).toHaveCount(
+    0,
+  );
+
+  await page.getByTestId("rejected-recycle-rejected-delete").click();
+  await expect(page.getByTestId("rejected-empty")).toBeVisible();
+  await expect(page.getByTestId("bin-card-rejected-delete")).toBeVisible();
+
+  page.once("dialog", (dialog) => void dialog.dismiss());
+  await page.getByTestId("bin-delete-rejected-delete").click();
+  expect(deleted).toBe(0);
+  await expect(page.getByTestId("bin-card-rejected-delete")).toBeVisible();
+
+  page.once("dialog", (dialog) => void dialog.accept());
+  await page.getByTestId("bin-delete-rejected-delete").click();
+  await expect(page.getByTestId("bin-empty")).toBeVisible();
+  expect(deleted).toBe(1);
 });
 
 test("falls back to bundled tiles when the gallery is empty or unreachable", async ({
@@ -628,7 +807,7 @@ test("a signed-in member publishes directly, bylined by the account", async ({
       hasAuthor: false,
       name: "Session Publish",
       tags: ["amplifier", "latch"],
-      schemaVersion: createEmptyProject("current", "Current").schemaVersion,
+      schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
     },
   ]);
 });
@@ -961,7 +1140,7 @@ test("the publish dialog resolves internal Cell instances from the open Project"
   await expect(dialog.getByRole("button", { name: "Publish" })).toBeEnabled();
 });
 
-test("the retired review queue is gone from the moderation page", async ({
+test("post-publication moderation has rejected work but no approval queue", async ({
   page,
 }) => {
   const convergenceCalls: boolean[] = [];
@@ -980,6 +1159,9 @@ test("the retired review queue is gone from the moderation page", async ({
     }),
   );
   await page.route("**/api/gallery/recycled", (route) =>
+    route.fulfill({ json: { entries: [] } }),
+  );
+  await page.route("**/api/gallery/rejected", (route) =>
     route.fulfill({ json: { entries: [] } }),
   );
   await page.route(
@@ -1031,7 +1213,8 @@ test("the retired review queue is gone from the moderation page", async ({
     `Applied: 5/5 records ready for schema ${CURRENT_PROJECT_SCHEMA_VERSION}; 0 failures.`,
   );
   expect(convergenceCalls).toEqual([false, true]);
-  // Curation is post-publication now: a bin to restore from, no inbox.
+  // Curation is post-publication: rejected work and a bin, never an inbox.
+  await expect(page.getByTestId("rejected-empty")).toBeVisible();
   await expect(page.getByTestId("bin-empty")).toBeVisible();
   await expect(page.getByTestId("review-empty")).toHaveCount(0);
   await expect(page.getByText("Nothing waiting for review")).toHaveCount(0);
@@ -1089,6 +1272,10 @@ test("/mine wears the site chrome and links every entry back to the editor", asy
   await expect(page.getByTestId("gallery-new-circuit")).toBeVisible();
   await expect(page.getByTestId("mine-reason-mine-1")).toContainText(
     "Label the ports",
+  );
+  await expect(page.getByTestId("mine-withdraw-mine-1")).toHaveCount(0);
+  await expect(page.getByTestId("mine-card-mine-1")).toContainText(
+    "remains hidden until the Owner restores it",
   );
   await expect(page.getByTestId("mine-edit-mine-2")).toHaveAttribute(
     "href",
@@ -1171,8 +1358,7 @@ test("/mine offers owner withdrawal, restore, and version history", async ({
   await page.getByTestId("mine-withdraw-confirm-mine-2").click();
   await expect(page.getByTestId("mine-status-mine-2")).toHaveText("Withdrawn");
   await expect(page.getByTestId("mine-notice")).toContainText("Withdrew");
-  // Restore (the worker re-enters review for ordinary owners; the mock
-  // simply flips the entry back).
+  // Restore republishes a voluntary withdrawal.
   await page.getByTestId("mine-restore-mine-2").click();
   await expect(page.getByTestId("mine-status-mine-2")).toHaveText("Published");
   // The version history dialog lists the snapshot with its preview.
@@ -1384,9 +1570,9 @@ test("replacing the project retires the stale update offer", async ({
       serializeProject(createEmptyProject("fresh-project", "Fresh Start")),
     ),
   });
-  await expect(page.getByTestId("status")).toContainText(
-    "Opened fresh.icproj.json",
-  );
+  // The fixture may pass through the rolling schema upgrade; either status
+  // still proves that this different Project replaced the gallery entry.
+  await expect(page.getByTestId("status")).toContainText("fresh.icproj.json");
 
   await page.getByTestId("publish-gallery-button").click();
   const dialog = page.getByTestId("publish-gallery-dialog");

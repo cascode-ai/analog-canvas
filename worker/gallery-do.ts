@@ -7,8 +7,9 @@
 // is ever stored or echoed. Signing in is the whole publishing gate: any
 // signed-in account publishes straight to the wall, and every entry records
 // the submitting account's email and provider so it stays traceable. An
-// admin session can recycle (soft, restorable),
-// hard-delete from the bin only, and batch re-serialize every entry to keep
+// admin session can reject with an author-visible reason, recycle (soft,
+// restorable), hard-delete from the bin only, and batch re-serialize every
+// entry to keep
 // long-lived records inside the rolling schema window. Previews are stored
 // independently so browsing survives an entry the current window can no
 // longer open.
@@ -55,6 +56,7 @@ export function shortId(length = SHORT_ID_LENGTH): string {
 }
 
 export const GALLERY_MAX_PROJECT_BYTES = 2 * 1024 * 1024;
+export const GALLERY_MAX_REJECT_REASON_LENGTH = 500;
 /** How many circuits an account's scratch shelf keeps. */
 export const WORKSPACE_SLOT_LIMIT = 3;
 
@@ -397,10 +399,14 @@ export class GalleryDO {
           String(body.status),
           String(body.at),
         );
+      case "reject":
+        return this.reject(body);
       case "delete":
         return this.delete(String(body.id));
       case "recycled":
         return this.recycled();
+      case "rejected":
+        return this.rejected();
       case "mine":
         return this.mine(String(body.ownerUserId));
       case "all-ids":
@@ -624,6 +630,7 @@ export class GalleryDO {
       ownerUserId: row.owner_user_id,
       submitterEmail: row.submitter_email,
       submitterProvider: row.submitter_provider,
+      rejectReason: row.reject_reason,
       projectText: row.project_text,
       svgText: row.svg_text,
     });
@@ -677,8 +684,7 @@ export class GalleryDO {
       this.sql.exec(
         `UPDATE gallery_entries
          SET name = ?, author = ?, description = ?, project_text = ?,
-             svg_text = ?, schema_version = ?, status = ?, tags = ?,
-             reject_reason = NULL, reviewed_at = NULL, reviewed_by = NULL
+             svg_text = ?, schema_version = ?, status = ?, tags = ?
          WHERE id = ?`,
         String(body.name),
         String(body.author),
@@ -1162,13 +1168,45 @@ export class GalleryDO {
       .exec<EntryRow>("SELECT * FROM gallery_entries WHERE id = ?", id)
       .toArray()[0];
     if (!row) return Response.json({ error: "not-found" }, { status: 404 });
+    if (status === "public") {
+      this.sql.exec(
+        `UPDATE gallery_entries
+         SET status = 'public', recycled_at = NULL, reject_reason = NULL,
+             reviewed_at = NULL, reviewed_by = NULL
+         WHERE id = ?`,
+        id,
+      );
+    } else {
+      this.sql.exec(
+        "UPDATE gallery_entries SET status = ?, recycled_at = ? WHERE id = ?",
+        status,
+        status === "recycled" ? at : null,
+        id,
+      );
+    }
+    return Response.json({ id, status });
+  }
+
+  private reject(body: Record<string, unknown>): Response {
+    const id = String(body.id);
+    const row = this.sql
+      .exec<EntryRow>("SELECT * FROM gallery_entries WHERE id = ?", id)
+      .toArray()[0];
+    if (!row) return Response.json({ error: "not-found" }, { status: 404 });
+    if (row.status !== "public") {
+      return Response.json({ error: "not-public" }, { status: 409 });
+    }
     this.sql.exec(
-      "UPDATE gallery_entries SET status = ?, recycled_at = ? WHERE id = ?",
-      status,
-      status === "recycled" ? at : null,
+      `UPDATE gallery_entries
+       SET status = 'rejected', recycled_at = NULL, reject_reason = ?,
+           reviewed_at = ?, reviewed_by = ?
+       WHERE id = ?`,
+      String(body.reason),
+      String(body.at),
+      String(body.reviewerId),
       id,
     );
-    return Response.json({ id, status });
+    return Response.json({ id, status: "rejected" });
   }
 
   private delete(id: string): Response {
@@ -1194,6 +1232,22 @@ export class GalleryDO {
       entries: rows.map((row) => ({
         ...summaryOf(row),
         recycledAt: row.recycled_at,
+      })),
+    });
+  }
+
+  private rejected(): Response {
+    const rows = this.sql
+      .exec<EntryRow>(
+        `SELECT * FROM gallery_entries WHERE status = 'rejected'
+         ORDER BY reviewed_at DESC, created_at DESC, id DESC`,
+      )
+      .toArray();
+    return Response.json({
+      entries: rows.map((row) => ({
+        ...summaryOf(row),
+        rejectReason: row.reject_reason,
+        reviewedAt: row.reviewed_at,
       })),
     });
   }
