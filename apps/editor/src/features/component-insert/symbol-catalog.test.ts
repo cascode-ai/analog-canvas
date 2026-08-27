@@ -40,6 +40,7 @@ describe("component insertion catalog", () => {
     expect(symbolCategory("variable-resistor")).toBe("Passives");
     expect(symbolCategory("opamp")).toBe("Analog Blocks");
     expect(symbolCategory("comparator")).toBe("Analog Blocks");
+    expect(symbolCategory("comparator-unmarked")).toBe("Analog Blocks");
     expect(symbolCategory("inverter")).toBe("Logic Gates");
     expect(symbolCategory("and-gate")).toBe("Logic Gates");
     expect(symbolCategory("or-gate")).toBe("Logic Gates");
@@ -54,6 +55,17 @@ describe("component insertion catalog", () => {
     expect(symbolCategory("ndmos")).toBe("Extended Devices");
     expect(symbolCategory("pdmos")).toBe("Extended Devices");
     expect(symbolSubcategory("ndmos")).toBe("High-voltage devices");
+  });
+
+  it("offers marked and unmarked comparators as separate analog blocks", () => {
+    const symbols = flattenComponentCatalog(
+      componentCatalog("razavi-textbook-v1", "comparator"),
+    );
+
+    expect(symbols.map((symbol) => symbol.id)).toEqual([
+      "comparator",
+      "comparator-unmarked",
+    ]);
   });
 
   it("offers the two-terminal variable resistor as a searchable passive", () => {

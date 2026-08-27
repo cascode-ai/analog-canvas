@@ -155,6 +155,27 @@
       }
     },
     {
+      "symbolId": "comparator-unmarked",
+      "name": "Comparator (unmarked)",
+      "category": "analog-block",
+      "reviewStatus": "reviewed",
+      "pinOrder": ["IN+", "IN-", "OUT"],
+      "palette": true,
+      "automaticMappings": [],
+      "manualOnlyReason": "Unmarked comparator block; SPICE subcircuit pin polarity and supply contracts require an explicit PDK mapping.",
+      "assetPath": "comparator-unmarked.symbol.json",
+      "assetHash": "201c9f0739ac58b637e93364bf1f1235432dbed0b3eb864f279634d7e099f80c",
+      "visualAuthority": {
+        "kind": "razavi-reference-v1",
+        "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+        "referencePaths": [
+          "fixtures/visual-reference/razavi-reference-v1/opamp-vector-source.json",
+          "fixtures/visual-reference/razavi-reference-v1/opamp-reference.png"
+        ],
+        "calibrationPath": "fixtures/visual-reference/razavi-reference-v1/opamp-geometry.json"
+      }
+    },
+    {
       "symbolId": "current-source",
       "name": "Independent Current Source",
       "category": "source",

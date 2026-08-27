@@ -17,6 +17,7 @@ describe("differential input swap", () => {
     expect(differentialInputSibling("opamp-differential-crossed")).toBe(
       "opamp-differential-crossed-inputs-swapped",
     );
+    expect(differentialInputSibling("comparator-unmarked")).toBeUndefined();
     expect(differentialInputSibling("resistor")).toBeUndefined();
   });
 
@@ -36,7 +37,11 @@ describe("differential input swap", () => {
     // without a sibling would show a control that does nothing.
     const marked = builtInSymbols.filter((symbol) => {
       const roles = new Set(symbol.pins.map((pin) => pin.role));
-      return roles.has("non-inverting-input") && roles.has("inverting-input");
+      return (
+        symbol.id !== "comparator-unmarked" &&
+        roles.has("non-inverting-input") &&
+        roles.has("inverting-input")
+      );
     });
     expect(marked.length).toBeGreaterThan(0);
     for (const symbol of marked) {
