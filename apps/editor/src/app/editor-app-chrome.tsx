@@ -45,7 +45,6 @@ export interface EditorAppChromeProps {
   onCheckAndSave: () => void;
   publishGalleryOpen: boolean;
   onPublishGallery: () => void;
-  visitStats: { uv: number; pv: number } | null | undefined;
   helpButtonRef: RefObject<HTMLButtonElement | null>;
   helpOpen: boolean;
   onOpenHelp: () => void;
@@ -82,7 +81,6 @@ export function EditorAppChrome({
   onCheckAndSave,
   publishGalleryOpen,
   onPublishGallery,
-  visitStats,
   helpButtonRef,
   helpOpen,
   onOpenHelp,
@@ -268,18 +266,6 @@ export function EditorAppChrome({
           </div>
         </nav>
         <div className="app-chrome-actions">
-          <a
-            className="analytics-link"
-            href="/analytics"
-            aria-label="Open visitor analytics"
-            title={
-              visitStats
-                ? `${visitStats.uv.toLocaleString()} visitors · ${visitStats.pv.toLocaleString()} views`
-                : undefined
-            }
-          >
-            Analytics
-          </a>
           <button
             type="button"
             className="menubar-help"

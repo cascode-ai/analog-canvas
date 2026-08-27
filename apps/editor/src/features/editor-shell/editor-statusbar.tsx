@@ -16,6 +16,7 @@ function toolLabel(
 }
 
 export function EditorStatusbar({
+  visitStats,
   status,
   tool,
   vddRailMode,
@@ -34,6 +35,7 @@ export function EditorStatusbar({
   onZoomIn,
   onFitView,
 }: {
+  visitStats?: { pv: number; uv: number } | null | undefined;
   status: string;
   tool: EditorTool;
   vddRailMode: boolean;
@@ -117,6 +119,17 @@ export function EditorStatusbar({
           </output>
         ) : null}
       </div>
+      {visitStats ? (
+        <a
+          className="statusbar-analytics"
+          href="/analytics"
+          data-testid="statusbar-analytics"
+          title="Open visitor analytics"
+        >
+          {visitStats.uv.toLocaleString()} visitors ·{" "}
+          {visitStats.pv.toLocaleString()} views
+        </a>
+      ) : null}
       <div className="canvas-controls" aria-label="Canvas view controls">
         <button
           type="button"
