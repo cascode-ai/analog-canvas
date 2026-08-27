@@ -801,9 +801,7 @@ test("arrow Properties omits the Segment selector", async ({ page }) => {
     properties.getByRole("combobox", { name: "Curve segment" }),
   ).toHaveCount(0);
 
-  await properties
-    .getByRole("combobox", { name: "Stroke width" })
-    .selectOption("2");
+  await properties.getByLabel("Stroke width").fill("2");
   await expect(shaft).toHaveAttribute("stroke-width", "3.2");
 
   await properties
@@ -992,4 +990,113 @@ test("double-click inside a rectangle writes a centered, anchored label", async 
   await page.keyboard.press("Escape");
   await expect(editor).toHaveCount(0);
   await expect(page.locator('[data-kind="draft-text"]')).toHaveCount(1);
+});
+
+test("Properties sets precise size, stroke width, and color per shape", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+
+  // Rectangle: precise width/height plus an explicit color.
+  await clickDrawTool(page, "rectangle");
+  await clickCreate(page, { x: 220, y: 220 }, { x: 380, y: 320 });
+  const rectangle = page.locator('[data-kind="draft-rectangle"]');
+  await expect(rectangle).toHaveCount(1);
+  await expect(page.getByTestId("revision")).toHaveText("1");
+  const rectangleHit = page.getByTestId(/^drafting-hit-rectangle-/);
+  const rectangleEdge = await rectangleHit.evaluate((element) => {
+    const polygon = element as SVGPolygonElement;
+    const matrix = polygon.getScreenCTM();
+    if (!matrix || polygon.points.numberOfItems < 2) return null;
+    const first = polygon.points.getItem(0);
+    const second = polygon.points.getItem(1);
+    const midpoint = new DOMPoint(
+      (first.x + second.x) / 2,
+      (first.y + second.y) / 2,
+    ).matrixTransform(matrix);
+    return { x: midpoint.x, y: midpoint.y };
+  });
+  if (!rectangleEdge) throw new Error("rectangle edge is not measurable");
+  await page.mouse.click(rectangleEdge.x, rectangleEdge.y);
+  await page.keyboard.press("q");
+  const properties = page.getByTestId("drafting-properties");
+  await expect(properties).toBeVisible();
+
+  await properties.getByLabel("Rectangle width").fill("120");
+  await properties.getByLabel("Rectangle height").fill("48");
+  const size = await rectangle.evaluate((element) => {
+    const polygon = element as SVGPolygonElement;
+    const points = Array.from({ length: 4 }, (_, index) =>
+      polygon.points.getItem(index),
+    );
+    const xs = points.map((point) => point.x);
+    const ys = points.map((point) => point.y);
+    return {
+      width: Math.max(...xs) - Math.min(...xs),
+      height: Math.max(...ys) - Math.min(...ys),
+    };
+  });
+  expect(size).toEqual({ width: 120, height: 48 });
+
+  await properties.getByLabel("Stroke width").fill("2.5");
+  await properties.getByLabel("Stroke color").evaluate((input, value) => {
+    const element = input as HTMLInputElement;
+    const setter = Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      "value",
+    )!.set!;
+    setter.call(element, value);
+    element.dispatchEvent(new Event("input", { bubbles: true }));
+    element.dispatchEvent(new Event("change", { bubbles: true }));
+  }, "#cc2200");
+  await expect(rectangle).toHaveAttribute("stroke", "#cc2200");
+  const rectangleStroke = Number(await rectangle.getAttribute("stroke-width"));
+
+  // Circle: precise radius; its stroke stays at the profile default and is
+  // therefore narrower than the widened rectangle stroke.
+  await page.keyboard.press("Escape");
+  await clickDrawTool(page, "circle");
+  await clickCreate(page, { x: 560, y: 240 }, { x: 610, y: 240 });
+  const circle = page.locator('[data-kind="draft-circle"]');
+  await expect(circle).toHaveCount(1);
+  await circle.click({ position: { x: 0, y: 0 }, force: true });
+  const circleEdge = await circle.evaluate((element) => {
+    const shape = element as SVGCircleElement;
+    const matrix = shape.getScreenCTM();
+    if (!matrix) return null;
+    const edge = new DOMPoint(
+      shape.cx.baseVal.value + shape.r.baseVal.value,
+      shape.cy.baseVal.value,
+    ).matrixTransform(matrix);
+    return { x: edge.x, y: edge.y };
+  });
+  if (!circleEdge) throw new Error("circle edge is not measurable");
+  // The dock stays open from the rectangle phase (Q toggles it); selecting
+  // the circle swaps the panel content in place.
+  await page.mouse.click(circleEdge.x, circleEdge.y);
+  await properties.getByLabel("Circle radius").fill("75");
+  await expect(circle).toHaveAttribute("r", "75");
+  const circleStroke = Number(await circle.getAttribute("stroke-width"));
+  expect(circleStroke).toBeLessThan(rectangleStroke);
+
+  // Auto returns the rectangle to the document ink. The rectangle was
+  // resized above, so its edge is re-measured before re-selecting it.
+  const resizedEdge = await rectangleHit.evaluate((element) => {
+    const polygon = element as SVGPolygonElement;
+    const matrix = polygon.getScreenCTM();
+    if (!matrix || polygon.points.numberOfItems < 2) return null;
+    const first = polygon.points.getItem(0);
+    const second = polygon.points.getItem(1);
+    const midpoint = new DOMPoint(
+      (first.x + second.x) / 2,
+      (first.y + second.y) / 2,
+    ).matrixTransform(matrix);
+    return { x: midpoint.x, y: midpoint.y };
+  });
+  if (!resizedEdge) throw new Error("resized rectangle is not measurable");
+  await page.mouse.click(resizedEdge.x, resizedEdge.y);
+  await properties.getByRole("button", { name: "Auto" }).click();
+  const stroke = await rectangle.getAttribute("stroke");
+  expect(stroke).not.toBe("#cc2200");
 });

@@ -1,6 +1,6 @@
 # Project File Compatibility
 
-The released Project schema version is `26`. It retains schematic-only
+The released Project schema version is `27`. It retains schematic-only
 hierarchy integrity, a Project structural revision, stable formal Cell ports,
 and definition-level Cell symbol presentation. It also has one typed Instance
 netlist authority, formal Cell parameters, and Project-local external

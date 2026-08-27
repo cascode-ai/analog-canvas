@@ -4,7 +4,10 @@ import type { SymbolResolver } from "@icm/symbols";
 
 import { normalizedBearing } from "../../canvas/canvas-geometry";
 import { ToolIcon } from "../editor-shell/tool-icon";
-import type { DraftingStylePatch } from "./drafting-manipulation";
+import type {
+  DraftingGeometryPatch,
+  DraftingStylePatch,
+} from "./drafting-manipulation";
 import { quadraticTangentAngle } from "./drafting-path";
 
 export interface DraftingPropertiesPanelProps {
@@ -22,6 +25,7 @@ export interface DraftingPropertiesPanelProps {
     value: { objectId: string; value: string } | null,
   ) => void;
   onStyleChange: (patch: DraftingStylePatch) => void;
+  onGeometryChange: (patch: DraftingGeometryPatch) => void;
   onTangentAngleChange: (angle: number) => void;
   onBearingChange: (bearing: number) => void;
   onReverse: () => void;
@@ -41,6 +45,7 @@ export function DraftingPropertiesPanel({
   onTangentInputChange,
   onBearingInputChange,
   onStyleChange,
+  onGeometryChange,
   onTangentAngleChange,
   onBearingChange,
   onReverse,
@@ -129,24 +134,104 @@ export function DraftingPropertiesPanel({
         </select>
       </label>
       <label>
-        Stroke width
-        <select
+        Stroke width (×)
+        <input
           aria-label="Stroke width"
+          type="number"
+          min="0.25"
+          max="4"
+          step="0.05"
           value={String(object.styleOverride?.strokeScale ?? 1)}
           disabled={object.locked}
-          onChange={(event) =>
-            onStyleChange({
-              strokeScale: Number(event.currentTarget.value) as
-                0.75 | 1 | 1.5 | 2,
-            })
-          }
-        >
-          <option value="0.75">0.75×</option>
-          <option value="1">1×</option>
-          <option value="1.5">1.5×</option>
-          <option value="2">2×</option>
-        </select>
+          onChange={(event) => {
+            const scale = Number(event.currentTarget.value);
+            if (Number.isFinite(scale)) {
+              onStyleChange({
+                strokeScale: Math.min(4, Math.max(0.25, scale)),
+              });
+            }
+          }}
+        />
       </label>
+      <label>
+        Stroke color
+        <span className="drawing-color-row">
+          <input
+            aria-label="Stroke color"
+            type="color"
+            value={object.styleOverride?.color ?? "#1a1a1a"}
+            disabled={object.locked}
+            onChange={(event) =>
+              onStyleChange({ color: event.currentTarget.value })
+            }
+          />
+          <button
+            type="button"
+            disabled={object.locked || !object.styleOverride?.color}
+            title="Use the document ink color"
+            onClick={() => onStyleChange({ color: undefined })}
+          >
+            Auto
+          </button>
+        </span>
+      </label>
+      {isCircle && object.kind === "circle" ? (
+        <label>
+          Radius
+          <input
+            aria-label="Circle radius"
+            type="number"
+            min="1"
+            step="1"
+            value={String(object.radius)}
+            disabled={object.locked}
+            onChange={(event) => {
+              const radius = Number(event.currentTarget.value);
+              if (Number.isFinite(radius) && radius >= 1) {
+                onGeometryChange({ radius });
+              }
+            }}
+          />
+        </label>
+      ) : null}
+      {isRectangle && object.kind === "rectangle" ? (
+        <>
+          <label>
+            Width
+            <input
+              aria-label="Rectangle width"
+              type="number"
+              min="1"
+              step="1"
+              value={String(object.width)}
+              disabled={object.locked}
+              onChange={(event) => {
+                const width = Number(event.currentTarget.value);
+                if (Number.isFinite(width) && width >= 1) {
+                  onGeometryChange({ width });
+                }
+              }}
+            />
+          </label>
+          <label>
+            Height
+            <input
+              aria-label="Rectangle height"
+              type="number"
+              min="1"
+              step="1"
+              value={String(object.height)}
+              disabled={object.locked}
+              onChange={(event) => {
+                const height = Number(event.currentTarget.value);
+                if (Number.isFinite(height) && height >= 1) {
+                  onGeometryChange({ height });
+                }
+              }}
+            />
+          </label>
+        </>
+      ) : null}
       {object.kind === "construction-line" && points.length > 2 ? (
         <label>
           Curve segment

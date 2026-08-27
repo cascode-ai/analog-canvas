@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   createEmptyDocument,
   createEmptyProject,
+  createRoutePath,
   CURRENT_PROJECT_SCHEMA_VERSION,
 } from "@icm/model";
 import { parseProject, serializeProject } from "@icm/project-protocol";
@@ -126,22 +127,25 @@ function previousVersionText(): string {
 }
 
 function previousRouteVersionText(): string {
-  const raw = JSON.parse(projectText("Legacy Route")) as any;
-  raw.schemaVersion = CURRENT_PROJECT_SCHEMA_VERSION - 1;
-  const document = raw.documents[0];
+  // A structurally valid previous-window (schema 26) document: 26 already
+  // uses stable Route legs, so the boundary's migration is the version
+  // stamp — the assertions protect the leg and anchor round-trip.
+  const project = createEmptyProject("gallery-fixture", "Legacy Route");
+  const document = project.documents[0]! as any;
   document.nets.push({ id: "net-route", terminals: [] });
   document.junctions.push(
     { id: "J1", netId: "net-route", position: { x: 0, y: 0 } },
     { id: "J2", netId: "net-route", position: { x: 100, y: 100 } },
   );
-  document.routes.push({
+  const legacy = createRoutePath({
     id: "route-legacy",
     netId: "net-route",
-    from: { kind: "junction", junctionId: "J1" },
-    to: { kind: "junction", junctionId: "J2" },
-    waypoints: [{ x: 100, y: 0 }],
-    segmentModes: ["manual", "trunk"],
+    start: { kind: "junction", junctionId: "J1" },
+    end: { kind: "junction", junctionId: "J2" },
+    bends: [{ x: 100, y: 0 }],
+    modes: ["manual", "trunk"],
   });
+  document.routes.push(legacy);
   document.annotations.push({
     id: "label-route",
     kind: "net-label",
@@ -150,7 +154,7 @@ function previousRouteVersionText(): string {
     anchor: {
       kind: "route",
       routeId: "route-legacy",
-      segmentIndex: 1,
+      legId: legacy.legs[1]!.id,
       t: 0.5,
       normalOffset: -10,
       direction: "forward",
@@ -161,6 +165,8 @@ function previousRouteVersionText(): string {
     rotation: 0,
     locked: false,
   });
+  const raw = JSON.parse(serializeProject(project)) as any;
+  raw.schemaVersion = CURRENT_PROJECT_SCHEMA_VERSION - 1;
   return JSON.stringify(raw);
 }
 
@@ -1848,6 +1854,110 @@ describe("gallery administration", () => {
     expect(await preview.text()).toContain("<svg");
   });
 
+  function legacy25RouteText(): string {
+    const raw = JSON.parse(projectText("Legacy 25")) as any;
+    raw.schemaVersion = 25;
+    const document = raw.documents[0];
+    document.nets.push({ id: "net-route", terminals: [] });
+    document.junctions.push(
+      { id: "J1", netId: "net-route", position: { x: 0, y: 0 } },
+      { id: "J2", netId: "net-route", position: { x: 100, y: 100 } },
+    );
+    document.routes.push({
+      id: "route-legacy",
+      netId: "net-route",
+      from: { kind: "junction", junctionId: "J1" },
+      to: { kind: "junction", junctionId: "J2" },
+      waypoints: [{ x: 100, y: 0 }],
+      segmentModes: ["manual", "trunk"],
+    });
+    return JSON.stringify(raw);
+  }
+
+  it("chains schema-24 stock through converge in one run", async () => {
+    const env = environment();
+    const adminCookie = await adminOf(env);
+    const id = await submitOne(env, "Ancient", { cookie: adminCookie });
+    const raw = JSON.parse(legacy25RouteText()) as any;
+    raw.schemaVersion = 24;
+    await env.GALLERY.getByName("gallery").fetch(
+      "https://gallery/update-entry",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          id,
+          projectText: JSON.stringify(raw),
+          schemaVersion: 24,
+          svgText: "<svg/>",
+        }),
+      },
+    );
+
+    const maintenance = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/maintenance/schema-current`, {
+        method: "POST",
+        headers: {
+          ...cookieHeaders(adminCookie),
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ apply: true }),
+      }),
+    );
+    expect(await maintenance.json()).toMatchObject({
+      applied: true,
+      ready: 1,
+      failures: [],
+    });
+    const detail = await route(env, new Request(`${ORIGIN}/api/gallery/${id}`));
+    const payload = (await detail.json()) as { projectText: string };
+    const stored = JSON.parse(payload.projectText) as any;
+    expect(stored.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
+    expect(stored.documents[0].routes[0].legs).toHaveLength(2);
+  });
+
+  it("chains schema-25 stock through converge in one run", async () => {
+    const env = environment();
+    const adminCookie = await adminOf(env);
+    const id = await submitOne(env, "Deep Legacy", { cookie: adminCookie });
+    await env.GALLERY.getByName("gallery").fetch(
+      "https://gallery/update-entry",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          id,
+          projectText: legacy25RouteText(),
+          schemaVersion: 25,
+          svgText: "<svg/>",
+        }),
+      },
+    );
+
+    const maintenance = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/maintenance/schema-current`, {
+        method: "POST",
+        headers: {
+          ...cookieHeaders(adminCookie),
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ apply: true }),
+      }),
+    );
+    expect(await maintenance.json()).toMatchObject({
+      applied: true,
+      ready: 1,
+      failures: [],
+    });
+    const detail = await route(env, new Request(`${ORIGIN}/api/gallery/${id}`));
+    const payload = (await detail.json()) as { projectText: string };
+    const stored = JSON.parse(payload.projectText) as any;
+    expect(stored.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
+    expect(stored.documents[0].routes[0].legs).toHaveLength(2);
+  });
+
   it("upgrades already-stored schema-25 Routes during maintenance", async () => {
     const env = environment();
     const adminCookie = await adminOf(env);
@@ -1994,7 +2104,7 @@ describe("gallery administration", () => {
           table: "gallery_entries",
           id,
           report: expect.objectContaining({
-            routes: expect.any(Array),
+            changed: false,
           }),
         }),
       ]),

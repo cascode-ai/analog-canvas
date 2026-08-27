@@ -187,6 +187,87 @@ describe("drafting layer rendering", () => {
     expect(svg).toContain('stroke-dasharray="6 4"');
   });
 
+  it("honors an explicit color and a precise stroke multiplier", () => {
+    const document = createEmptyDocument("doc", "Styled");
+    document.drafting = {
+      objects: [
+        {
+          id: "circle-red",
+          kind: "circle",
+          locked: false,
+          zIndex: 0,
+          anchor: { kind: "free", position: { x: 50, y: 50 } },
+          center: { x: 50, y: 50 },
+          radius: 20,
+          lineStyle: "solid",
+          styleOverride: { strokeScale: 1.35, color: "#cc2200" },
+        },
+        {
+          id: "rect-blue",
+          kind: "rectangle",
+          locked: false,
+          zIndex: 0,
+          anchor: { kind: "free", position: { x: 150, y: 50 } },
+          center: { x: 150, y: 50 },
+          width: 40,
+          height: 20,
+          rotation: 0,
+          lineStyle: "solid",
+          styleOverride: { color: "#0044cc" },
+        },
+      ],
+    };
+    const svg = renderDocumentSvg(document, resolver);
+    expect(svg).toContain('stroke="#cc2200"');
+    expect(svg).toContain('stroke="#0044cc"');
+    const circle = svg.match(
+      /<circle[^>]*data-kind="draft-circle"[^>]*\/>/u,
+    )![0];
+    const width = Number(circle.match(/stroke-width="([\d.]+)"/u)![1]);
+    const rect = svg.match(
+      /<polygon[^>]*data-kind="draft-rectangle"[^>]*\/>/u,
+    )![0];
+    const base = Number(rect.match(/stroke-width="([\d.]+)"/u)![1]);
+    expect(width).toBeCloseTo(base * 1.35, 5);
+  });
+
+  it("composes object stroke over the document scale multiplicatively", () => {
+    const document = createEmptyDocument("doc", "Composed");
+    document.presentation.styleOverrides = { annotationStrokeScale: 1.5 };
+    document.drafting = {
+      objects: [
+        {
+          id: "circle-base",
+          kind: "circle",
+          locked: false,
+          zIndex: 0,
+          anchor: { kind: "free", position: { x: 40, y: 40 } },
+          center: { x: 40, y: 40 },
+          radius: 10,
+          lineStyle: "solid",
+        },
+        {
+          id: "circle-scaled",
+          kind: "circle",
+          locked: false,
+          zIndex: 0,
+          anchor: { kind: "free", position: { x: 90, y: 40 } },
+          center: { x: 90, y: 40 },
+          radius: 10,
+          lineStyle: "solid",
+          styleOverride: { strokeScale: 1.5 },
+        },
+      ],
+    };
+    const svg = renderDocumentSvg(document, resolver);
+    const widths = [
+      ...svg.matchAll(/data-kind="draft-circle"[^>]*stroke-width="([\d.]+)"/gu),
+    ].map((match) => Number(match[1]));
+    // Document 1.5x lifts both; the per-object 1.5x stacks to 2.25x overall.
+    expect(widths).toHaveLength(2);
+    expect(widths[1]! / widths[0]!).toBeCloseTo(1.5, 5);
+  });
+
   it("renders a draft arrow with a head", () => {
     const document = createEmptyDocument("doc", "Drafting");
     document.drafting = {

@@ -6,6 +6,7 @@ import type { DraftingObject } from "@icm/model";
 import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 
 import {
+  applyDraftingGeometryPatch,
   applyDraftingHandle,
   applyDraftingStylePatch,
   deleteConstructionVertex,
@@ -279,5 +280,70 @@ describe("drafting manipulation", () => {
       kind: "updated",
       object: { rotation: 270 },
     });
+  });
+});
+
+describe("drafting precise properties", () => {
+  const circle = (): DraftingObject => ({
+    id: "circle-1",
+    kind: "circle",
+    locked: false,
+    zIndex: 0,
+    anchor: { kind: "free", position: { x: 40, y: 40 } },
+    center: { x: 40, y: 40 },
+    radius: 25,
+    lineStyle: "solid",
+  });
+  const rectangle = (): DraftingObject => ({
+    id: "rect-1",
+    kind: "rectangle",
+    locked: false,
+    zIndex: 0,
+    anchor: { kind: "free", position: { x: 100, y: 40 } },
+    center: { x: 100, y: 40 },
+    width: 60,
+    height: 30,
+    rotation: 0,
+    lineStyle: "solid",
+  });
+
+  it("sets a circle radius and rectangle size as integers with a floor", () => {
+    expect(
+      applyDraftingGeometryPatch(circle(), { radius: 42.4 }),
+    ).toMatchObject({ radius: 42 });
+    expect(applyDraftingGeometryPatch(circle(), { radius: 0.2 })).toMatchObject(
+      { radius: 1 },
+    );
+    expect(
+      applyDraftingGeometryPatch(rectangle(), { width: 120.6, height: 44 }),
+    ).toMatchObject({ width: 121, height: 44 });
+    expect(
+      applyDraftingGeometryPatch(rectangle(), { height: 12 }),
+    ).toMatchObject({ width: 60, height: 12 });
+  });
+
+  it("refuses geometry edits on locked or mismatched objects", () => {
+    expect(
+      applyDraftingGeometryPatch({ ...circle(), locked: true }, { radius: 9 }),
+    ).toBeNull();
+    expect(applyDraftingGeometryPatch(circle(), { width: 9 })).toBeNull();
+    expect(applyDraftingGeometryPatch(rectangle(), { radius: 9 })).toBeNull();
+    expect(
+      applyDraftingGeometryPatch(circle(), { radius: Number.NaN }),
+    ).toBeNull();
+  });
+
+  it("applies precise stroke multipliers and explicit colors independently", () => {
+    const red = applyDraftingStylePatch(circle(), {
+      strokeScale: 1.35,
+      color: "#cc2200",
+    });
+    expect(red?.styleOverride).toEqual({
+      strokeScale: 1.35,
+      color: "#cc2200",
+    });
+    // An explicit undefined clears back to the profile foreground.
+    const cleared = applyDraftingStylePatch(red!, { color: undefined });
+    expect(cleared?.styleOverride).toEqual({ strokeScale: 1.35 });
   });
 });

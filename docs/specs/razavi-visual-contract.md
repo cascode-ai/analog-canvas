@@ -93,12 +93,12 @@ points first, then cap/join, then miter limit, and only then outline amplitude.
 
 The following are distinct reviewed presentations and must not be conflated:
 
-| Object                                    | Presentation                                       | Meaning                                     |
-| ----------------------------------------- | -------------------------------------------------- | ------------------------------------------- |
-| `port` symbol                             | Hollow circle and lead                             | Explicit hollow interface symbol            |
-| `port-filled` symbol (`solid-port` alias) | Filled circle and lead                             | Explicit manual solid-endpoint symbol       |
-| Explicit `Junction`                       | Filled solid dot                                   | Route-graph branch/join object              |
-| Device pin, bend, or crossing             | No automatic dot                                   | Geometry alone never creates node semantics |
+| Object                                    | Presentation           | Meaning                                     |
+| ----------------------------------------- | ---------------------- | ------------------------------------------- |
+| `port` symbol                             | Hollow circle and lead | Explicit hollow interface symbol            |
+| `port-filled` symbol (`solid-port` alias) | Filled circle and lead | Explicit manual solid-endpoint symbol       |
+| Explicit `Junction`                       | Filled solid dot       | Route-graph branch/join object              |
+| Device pin, bend, or crossing             | No automatic dot       | Geometry alone never creates node semantics |
 
 Both `port` and `port-filled` are reviewed palette symbols and ordinary
 single-pin Instances. `port-filled` is manual-only and has no automatic SPICE

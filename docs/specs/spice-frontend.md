@@ -70,18 +70,18 @@ The accepted baseline is `ngspice-46-core`, defined by
 [machine-readable matrix](../../fixtures/spice-baseline/ngspice-46-core.json).
 The baseline is structural, not a promise of simulation equivalence.
 
-| Form | Projection |
-|---|---|
-| R/C/L, V/I, E/F/G/H, B | primitive connectivity plus raw value/expression |
-| D/Q/J/Z/M, S/W | model-backed ordered connectivity |
-| T/O/P/U/Y | transmission/distributed-line connectivity plus raw tail |
-| K | typed coupling references without invented electrical terminals |
-| X | ordered terminals and subcircuit/master name |
-| `.subckt`, `.ends`, `.model`, `.global` | structural definitions |
-| `.param`, `.func`, `.if/.elseif/.else/.endif` | raw expressions plus bounded deterministic elaboration |
-| `.include`, `.incpslt`, `.lib/.endl` | sandboxed dependency/section structure |
-| analyses, output, option, metadata dot commands | typed name/category plus raw arguments |
-| `.control/.endc` and enclosed commands | preserved structure; never executed |
+| Form                                            | Projection                                                      |
+| ----------------------------------------------- | --------------------------------------------------------------- |
+| R/C/L, V/I, E/F/G/H, B                          | primitive connectivity plus raw value/expression                |
+| D/Q/J/Z/M, S/W                                  | model-backed ordered connectivity                               |
+| T/O/P/U/Y                                       | transmission/distributed-line connectivity plus raw tail        |
+| K                                               | typed coupling references without invented electrical terminals |
+| X                                               | ordered terminals and subcircuit/master name                    |
+| `.subckt`, `.ends`, `.model`, `.global`         | structural definitions                                          |
+| `.param`, `.func`, `.if/.elseif/.else/.endif`   | raw expressions plus bounded deterministic elaboration          |
+| `.include`, `.incpslt`, `.lib/.endl`            | sandboxed dependency/section structure                          |
+| analyses, output, option, metadata dot commands | typed name/category plus raw arguments                          |
+| `.control/.endc` and enclosed commands          | preserved structure; never executed                             |
 
 XSPICE A devices, Verilog-A/OSDI N devices, XSPICE-specific U forms, CIDER,
 and vendor translations remain opaque with warnings. They are preserved

@@ -18,3 +18,11 @@ export type {
   Schema25To26MigrationReport,
   Schema25To26MigrationResult,
 } from "./transforms/route-leg.js";
+export {
+  upgradeSchema26To27,
+  upgradeSchema26To27WithReport,
+} from "./transforms/drafting-style.js";
+export type {
+  Schema26To27MigrationReport,
+  Schema26To27MigrationResult,
+} from "./transforms/drafting-style.js";

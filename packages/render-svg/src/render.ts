@@ -995,11 +995,12 @@ function renderConstructionLine(
         : "";
   const strokeScale = object.styleOverride?.strokeScale ?? 1;
   const strokeWidth = profile.strokes.annotation * strokeScale;
+  const stroke = object.styleOverride?.color ?? profile.foreground;
   const hasCurve = (object.curveControls ?? []).some(Boolean);
   const shape = hasCurve
     ? `<path d="${draftingPathData(object.points, object.curveControls ?? [])}" fill="none"`
     : `<polyline points="${points}" fill="none"`;
-  return `${shape} data-object-id="${object.id}" data-kind="construction-line" stroke="${profile.foreground}" stroke-width="${strokeWidth}" stroke-linecap="${profile.lineCap}" stroke-linejoin="${profile.lineJoin}"${dash}/>`;
+  return `${shape} data-object-id="${object.id}" data-kind="construction-line" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linecap="${profile.lineCap}" stroke-linejoin="${profile.lineJoin}"${dash}/>`;
 }
 
 function renderDraftRectangle(
@@ -1016,10 +1017,11 @@ function renderDraftRectangle(
         : "";
   const strokeWidth =
     profile.strokes.annotation * (object.styleOverride?.strokeScale ?? 1);
+  const stroke = object.styleOverride?.color ?? profile.foreground;
   const points = geometry.corners
     .map((point) => `${point.x},${point.y}`)
     .join(" ");
-  return `<polygon data-object-id="${object.id}" data-kind="draft-rectangle" points="${points}" fill="none" stroke="${profile.foreground}" stroke-width="${strokeWidth}" stroke-linecap="${profile.lineCap}" stroke-linejoin="${profile.lineJoin}"${dash}/>`;
+  return `<polygon data-object-id="${object.id}" data-kind="draft-rectangle" points="${points}" fill="none" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linecap="${profile.lineCap}" stroke-linejoin="${profile.lineJoin}"${dash}/>`;
 }
 
 function renderDraftCircle(
@@ -1036,7 +1038,8 @@ function renderDraftCircle(
         : "";
   const strokeWidth =
     profile.strokes.annotation * (object.styleOverride?.strokeScale ?? 1);
-  return `<circle data-object-id="${object.id}" data-kind="draft-circle" cx="${geometry.center.x}" cy="${geometry.center.y}" r="${geometry.radius}" fill="none" stroke="${profile.foreground}" stroke-width="${strokeWidth}" stroke-linecap="${profile.lineCap}" stroke-linejoin="${profile.lineJoin}"${dash}/>`;
+  const stroke = object.styleOverride?.color ?? profile.foreground;
+  return `<circle data-object-id="${object.id}" data-kind="draft-circle" cx="${geometry.center.x}" cy="${geometry.center.y}" r="${geometry.radius}" fill="none" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linecap="${profile.lineCap}" stroke-linejoin="${profile.lineJoin}"${dash}/>`;
 }
 
 function draftingPathData(
@@ -1119,6 +1122,7 @@ function renderDraftArrow(
   const baseX = tipX - (dx / length) * head;
   const baseY = tipY - (dy / length) * head;
   const arrowHead = object.styleOverride?.arrowHead ?? "filled";
+  const stroke = object.styleOverride?.color ?? profile.foreground;
   const lineStyle = object.styleOverride?.lineStyle ?? "solid";
   const dash =
     lineStyle === "dashed"
@@ -1129,7 +1133,7 @@ function renderDraftArrow(
   const headBody =
     arrowHead === "none"
       ? ""
-      : `<polygon points="${tipX},${tipY} ${baseX + nx},${baseY + ny} ${baseX - nx},${baseY - ny}" ${arrowHead === "open" ? `fill="none" stroke="${profile.foreground}" stroke-width="${strokeWidth}"` : `fill="${profile.foreground}"`}/>`;
+      : `<polygon points="${tipX},${tipY} ${baseX + nx},${baseY + ny} ${baseX - nx},${baseY - ny}" ${arrowHead === "open" ? `fill="none" stroke="${stroke}" stroke-width="${strokeWidth}"` : `fill="${stroke}"`}/>`;
   // The shaft terminates on the arrow head's base plane, not underneath its
   // tip. This preserves the clean triangular point of Razavi-style arrows at
   // every angle and head scale. A headless arrow remains a complete line.
@@ -1142,7 +1146,7 @@ function renderDraftArrow(
   const shaft = hasCurve
     ? `<path d="${draftingPathData(points, geometry.curveControls, { x: shaftEndX, y: shaftEndY })}" fill="none"`
     : `<polyline points="${shaftPoints}" fill="none"`;
-  return `<g data-object-id="${object.id}" data-kind="draft-arrow"${unresolved}>${shaft} stroke="${profile.foreground}" stroke-width="${strokeWidth}" stroke-linecap="${profile.lineCap}" stroke-linejoin="${profile.lineJoin}"${dash}/>${headBody}</g>`;
+  return `<g data-object-id="${object.id}" data-kind="draft-arrow"${unresolved}>${shaft} stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linecap="${profile.lineCap}" stroke-linejoin="${profile.lineJoin}"${dash}/>${headBody}</g>`;
 }
 
 function renderDraftLeader(

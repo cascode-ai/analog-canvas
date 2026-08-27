@@ -19,7 +19,9 @@ import { analyzeDesignNetlist } from "@icm/netlist";
 import {
   parseProject,
   serializeProject,
-  upgradeSchema25To26WithReport,
+  upgradeSchema24To25,
+  upgradeSchema25To26,
+  upgradeSchema26To27WithReport,
 } from "@icm/project-protocol";
 import { renderDocumentSvg } from "@icm/render-svg";
 import {
@@ -1089,7 +1091,7 @@ export class GalleryDO {
     const migrationReports: Array<{
       table: string;
       id: string;
-      report: ReturnType<typeof upgradeSchema25To26WithReport>["report"];
+      report: ReturnType<typeof upgradeSchema26To27WithReport>["report"];
     }> = [];
     for (const source of sources) {
       const versions: Record<string, number> = {};
@@ -1099,12 +1101,25 @@ export class GalleryDO {
         versions[versionKey] = (versions[versionKey] ?? 0) + 1;
         try {
           const raw = JSON.parse(row.project_text) as Record<string, unknown>;
+          // Rows can lag more than one version between converge runs; the
+          // retained adapters chain older stock link by link. Each retained
+          // adapter stamps the CURRENT constant, so the stamp is rewound to
+          // the link's real target before the next adapter decides to run —
+          // otherwise a 24 row would skip the 25->26 Route-leg migration.
+          let lifted = raw;
+          if (lifted.schemaVersion === 24) {
+            lifted = upgradeSchema24To25(lifted);
+            lifted.schemaVersion = 25;
+          }
+          if (lifted.schemaVersion === 25) {
+            lifted = upgradeSchema25To26(lifted);
+          }
           const migration =
-            raw.schemaVersion === CURRENT_PROJECT_SCHEMA_VERSION - 1
-              ? upgradeSchema25To26WithReport(raw)
+            lifted.schemaVersion === CURRENT_PROJECT_SCHEMA_VERSION - 1
+              ? upgradeSchema26To27WithReport(lifted)
               : null;
           const project = parseProject(
-            JSON.stringify(migration?.project ?? raw),
+            JSON.stringify(migration?.project ?? lifted),
           );
           if (migration) {
             migrationReports.push({

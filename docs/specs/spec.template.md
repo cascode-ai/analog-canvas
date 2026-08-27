@@ -16,8 +16,8 @@ Describe the contract and why it exists.
 
 ## Terminology
 
-| Term | Meaning |
-|---|---|
+| Term    | Meaning                             |
+| ------- | ----------------------------------- |
 | Example | Precise project-specific definition |
 
 ## Data model or interface

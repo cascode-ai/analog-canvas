@@ -14,12 +14,14 @@ import type { SymbolResolver } from "@icm/symbols";
 import type { VisualSelection } from "../selection/visual-selection";
 import type { RouteGeometryRecord } from "../wiring/route-interaction-geometry";
 import {
+  applyDraftingGeometryPatch,
   applyDraftingStylePatch,
   deleteConstructionVertex as deleteConstructionVertexObject,
   insertArrowWaypoint as insertArrowWaypointObject,
   insertConstructionVertex as insertConstructionVertexObject,
   setDraftingBearing as setDraftingObjectBearing,
   setDraftingTangentAngle as setDraftingObjectTangentAngle,
+  type DraftingGeometryPatch,
   type DraftingStylePatch,
 } from "./drafting-manipulation";
 
@@ -112,6 +114,27 @@ export function createDraftingCommands({
       if (transact(edits).ok) setStatus("Updated drawing style");
     } else {
       setStatus("Drawing is locked; unlock it before editing its style");
+    }
+  };
+
+  const setDraftingGeometry = (patch: DraftingGeometryPatch): void => {
+    const ids = selection.draftingIds;
+    if (ids.length === 0) return;
+    const edits: SchematicEdit[] = [];
+    for (const id of ids) {
+      const object = document.drafting?.objects.find(
+        (candidate) => candidate.id === id,
+      );
+      if (!object) continue;
+      const nextObject = applyDraftingGeometryPatch(object, patch);
+      if (nextObject) {
+        edits.push({ kind: "upsert_drafting_object", object: nextObject });
+      }
+    }
+    if (edits.length > 0) {
+      if (transact(edits).ok) setStatus("Updated drawing geometry");
+    } else {
+      setStatus("Drawing is locked; unlock it before editing its geometry");
     }
   };
 
@@ -296,6 +319,7 @@ export function createDraftingCommands({
     insertArrowWaypoint,
     deleteConstructionVertex,
     setDraftingStyle,
+    setDraftingGeometry,
     setDraftingTangentAngle,
     setDraftingBearing,
     toggleDraftingLock,

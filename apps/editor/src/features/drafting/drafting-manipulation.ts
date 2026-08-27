@@ -24,10 +24,47 @@ export type DraftingHandle =
 
 export type DraftingStylePatch = Partial<{
   lineStyle: "solid" | "dashed" | "dotted";
-  strokeScale: 0.75 | 1 | 1.5 | 2;
+  /** Free multiplier over the profile annotation stroke, 0.25–4. */
+  strokeScale: number;
+  /** Explicit stroke color; an explicit undefined restores the profile
+   * foreground (the patch application deletes the key). */
+  color: string | undefined;
   arrowHead: "none" | "filled" | "open";
   arrowHeadScale: 0.75 | 1 | 1.25 | 1.5;
 }>;
+
+export type DraftingGeometryPatch = Partial<{
+  radius: number;
+  width: number;
+  height: number;
+}>;
+
+/**
+ * Precise geometry from the Properties dock: a circle takes a radius, a
+ * rectangle takes width/height. Values are rounded to integers and floored
+ * at 1 to stay inside the persisted schema; other kinds return null.
+ */
+export function applyDraftingGeometryPatch(
+  object: DraftingObject,
+  patch: DraftingGeometryPatch,
+): DraftingObject | null {
+  if (object.locked) return null;
+  const size = (value: number): number => Math.max(1, Math.round(value));
+  if (object.kind === "circle" && patch.radius !== undefined) {
+    if (!Number.isFinite(patch.radius)) return null;
+    return { ...object, radius: size(patch.radius) };
+  }
+  if (
+    object.kind === "rectangle" &&
+    (patch.width !== undefined || patch.height !== undefined)
+  ) {
+    const width = patch.width ?? object.width;
+    const height = patch.height ?? object.height;
+    if (!Number.isFinite(width) || !Number.isFinite(height)) return null;
+    return { ...object, width: size(width), height: size(height) };
+  }
+  return null;
+}
 
 export function draftingDragOrigin(object: DraftingObject): GridPoint | null {
   if (object.kind === "construction-line") return object.points[0] ?? null;

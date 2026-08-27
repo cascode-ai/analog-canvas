@@ -21,8 +21,14 @@ const DraftingObjectBaseSchema = z.strictObject({
       italic: z.boolean().optional(),
       lineStyle: z.enum(["solid", "dashed", "dotted"]).optional(),
       arrowHead: z.enum(["none", "filled", "open"]).optional(),
-      strokeScale: z
-        .union([z.literal(0.75), z.literal(1), z.literal(1.5), z.literal(2)])
+      /** Free multiplier over the profile's annotation stroke (schema 27
+       * widened the previous four-step ladder); document-level
+       * annotationStrokeScale composes multiplicatively on top. */
+      strokeScale: z.number().finite().min(0.25).max(4).optional(),
+      /** Explicit stroke color; absent means the profile foreground. */
+      color: z
+        .string()
+        .regex(/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/u)
         .optional(),
       arrowHeadScale: z
         .union([z.literal(0.75), z.literal(1), z.literal(1.25), z.literal(1.5)])
