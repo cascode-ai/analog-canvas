@@ -116,13 +116,23 @@ function Root() {
     const analyticsHost =
       window.location.hostname === "analog-canvas.tokenzhang.com" ||
       window.location.hostname.endsWith(".workers.dev");
-    if (
-      !analyticsHost ||
-      navigator.doNotTrack === "1" ||
-      /^\/analytics\/?$/.test(path)
-    ) {
+    if (!analyticsHost || /^\/analytics\/?$/.test(path)) {
       return;
     }
+    // The statusbar readout is a public counter, not tracking: it loads for
+    // every visitor — Do Not Track included — and never depends on whether
+    // the beacon below chose to report.
+    void fetch("/api/stats", { cache: "no-store" })
+      .then(async (response) =>
+        response.ok ? ((await response.json()) as VisitStats) : null,
+      )
+      .then((value) => {
+        if (value) setStats(value);
+      })
+      .catch(() => {
+        // Analytics must never interfere with editor startup.
+      });
+    if (navigator.doNotTrack === "1") return;
     let referrerOrigin = "";
     try {
       const referrer = new URL(document.referrer);
@@ -143,15 +153,9 @@ function Root() {
       keepalive: true,
       cache: "no-store",
       body: JSON.stringify({ p: path, r: referrerOrigin, s: source }),
-    })
-      .then(async (response) => {
-        if (!response.ok || response.status === 204) return null;
-        return response.json() as Promise<VisitStats>;
-      })
-      .then((value) => setStats(value))
-      .catch(() => {
-        // Analytics must never interfere with editor startup.
-      });
+    }).catch(() => {
+      // The beacon is fire-and-forget.
+    });
   }, [path]);
 
   if (/^\/analytics\/?$/.test(path)) {
