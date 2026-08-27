@@ -344,15 +344,23 @@ test("groups drafting tools and editable polarity labels under Annotations", asy
   const annotations = page.getByTestId("shapes-category-annotations");
   await expect(annotations).toBeVisible();
   await expect(annotations.locator(".shapes-category-count")).toHaveText("7");
-  await expect(
-    annotations.getByTestId("shapes-chip-annotation-polarity-both"),
-  ).toBeVisible();
-  await expect(
-    annotations.getByTestId("shapes-chip-annotation-polarity-positive"),
-  ).toBeVisible();
-  await expect(
-    annotations.getByTestId("shapes-chip-annotation-polarity-negative"),
-  ).toBeVisible();
+  // Drawing tools lead; the polarity label and the standalone sign texts
+  // close the category. The one-sign-with-text variants no longer exist.
+  expect(
+    await annotations
+      .locator(".shapes-chip")
+      .evaluateAll((chips) =>
+        chips.map((chip) => chip.getAttribute("data-testid")),
+      ),
+  ).toEqual([
+    "shapes-chip-annotation-arrow",
+    "shapes-chip-annotation-line",
+    "shapes-chip-annotation-rectangle",
+    "shapes-chip-annotation-circle",
+    "shapes-chip-annotation-polarity-both",
+    "shapes-chip-annotation-text-plus",
+    "shapes-chip-annotation-text-minus",
+  ]);
 
   // The Library entries reuse the authoritative toolbar tools rather than
   // creating fixed-size decorative symbols.
@@ -397,28 +405,36 @@ test("groups drafting tools and editable polarity labels under Annotations", asy
     .poll(() => recoveryProjectTexts(page))
     .toContain('"polarity": "both"');
 
-  // The full Insert picker exposes the same semantic entry; clicking its tile
-  // starts annotation placement directly.
-  await page.keyboard.press("i");
-  const dialog = page.getByRole("dialog", { name: "Insert Component" });
-  await dialog.getByLabel("Component search").fill("negative polarity");
-  await dialog
-    .getByTestId("insert-component-annotation-polarity-negative")
-    .click();
-  await canvas.hover({ position: { x: 600, y: 260 } });
-  await canvas.click({ position: { x: 600, y: 260 } });
+  // Deleting the center text keeps the polarity object: the + / − marks are
+  // the component and the text is one removable part of it.
+  await page.getByTestId("drafting-hit-polarity-1").dblclick();
   await expect(editor).toBeVisible();
-  await editor.fill("VDS");
+  await editor.press("ControlOrMeta+a");
+  await editor.press("Delete");
   await page.getByRole("button", { name: "Apply text changes" }).click();
-
-  const negative = canvas.locator('[data-polarity="negative"]');
-  await expect(negative).toBeVisible();
-  await expect(negative.locator('[data-role="polarity-negative"]')).toHaveCount(
+  await expect(polarity).toBeVisible();
+  await expect(
+    polarity.locator('[data-role^="polarity-positive"]'),
+  ).toHaveCount(2);
+  await expect(polarity.locator('[data-role="polarity-negative"]')).toHaveCount(
     1,
   );
-  await expect(
-    negative.locator('[data-role^="polarity-positive"]'),
-  ).toHaveCount(0);
+  await expect(polarity.locator("text")).not.toContainText("VGS");
+
+  // The standalone signs place directly from the Insert picker as ordinary
+  // texts — no editor popup, editable and stylable later like any text.
+  await page.keyboard.press("i");
+  const dialog = page.getByRole("dialog", { name: "Insert Component" });
+  await dialog.getByLabel("Component search").fill("minus");
+  await dialog.getByTestId("insert-component-annotation-text-minus").click();
+  await canvas.hover({ position: { x: 600, y: 260 } });
+  await canvas.click({ position: { x: 600, y: 260 } });
+  await expect(editor).toHaveCount(0);
+  const minusText = canvas.locator(
+    '[data-kind="draft-text"]:not([data-polarity])',
+  );
+  await expect(minusText).toBeVisible();
+  await expect(minusText).toContainText("−");
 });
 
 test("places a vertical Power Rail from I and renames it on the canvas", async ({

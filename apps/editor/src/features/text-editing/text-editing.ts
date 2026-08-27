@@ -106,7 +106,18 @@ export function proposeTextEditingCommit(
   session: TextEditingSession,
 ): TextEditingCommitProposal {
   const plainText = flattenRichText(session.content).trim();
-  if (!plainText) {
+  const emptied = !plainText;
+  const emptyTarget = emptied
+    ? resolveTextEditingTarget(document, session)
+    : null;
+  // A polarity label survives with its center text removed: the + / − marks
+  // are the object, and the text is one deletable part of it. Every other
+  // text object is gone once its content is.
+  const polarityKeepsObject =
+    emptyTarget?.owner === "drafting" &&
+    emptyTarget.object.kind === "text" &&
+    Boolean(emptyTarget.object.polarity);
+  if (emptied && !polarityKeepsObject) {
     return {
       kind: "delete",
       edit: textDeletionEdit(session),
@@ -145,7 +156,11 @@ export function proposeTextEditingCommit(
   const object = target.object;
   const next = {
     ...object,
-    content: session.content,
+    // An emptied polarity center persists as the canonical empty document —
+    // a lone line break — because bare text runs must carry characters.
+    content: emptied
+      ? { runs: [{ kind: "line-break" as const }] }
+      : session.content,
     alignment: session.alignment,
     styleOverride: {
       ...object.styleOverride,

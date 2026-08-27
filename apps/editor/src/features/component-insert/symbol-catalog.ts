@@ -155,6 +155,15 @@ const SYMBOL_ORDER: readonly string[] = [
   "vdd-port",
   "vdd",
   "ground",
+  // Annotations: drawing tools first (toolbar order), then the polarity
+  // label, and the standalone sign texts last.
+  "annotation-arrow",
+  "annotation-line",
+  "annotation-rectangle",
+  "annotation-circle",
+  "annotation-polarity-both",
+  "annotation-text-plus",
+  "annotation-text-minus",
 ];
 
 function symbolRank(symbolId: string): number {

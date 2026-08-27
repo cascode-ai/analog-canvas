@@ -48,6 +48,8 @@ export interface PendingComponentPlacement {
   portName?: string;
   direction?: "input" | "output" | "inout" | "passive";
   polarity?: "both" | "positive" | "negative";
+  /** Fixed initial content for a preset drafting text ("+", "−"). */
+  presetText?: string;
   /** Existing unplaced Instance being returned from the Placement Tray. */
   instanceId?: string;
 }

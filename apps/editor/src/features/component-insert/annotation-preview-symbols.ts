@@ -15,9 +15,14 @@ const drawingToolBySymbolId = {
 
 const polarityBySymbolId = {
   "annotation-polarity-both": "both",
-  "annotation-polarity-positive": "positive",
-  "annotation-polarity-negative": "negative",
 } as const satisfies Readonly<Record<string, PolarityAnnotationKind>>;
+
+// Standalone signs are ordinary DraftText objects with a fixed initial
+// content — sizable and colorable like any text, no polarity machinery.
+const presetTextBySymbolId = {
+  "annotation-text-plus": "+",
+  "annotation-text-minus": "−",
+} as const satisfies Readonly<Record<string, string>>;
 
 export function annotationDrawingTool(
   symbolId: string,
@@ -31,9 +36,15 @@ export function annotationPolarity(
   return polarityBySymbolId[symbolId as keyof typeof polarityBySymbolId];
 }
 
+export function annotationPresetText(symbolId: string): string | undefined {
+  return presetTextBySymbolId[symbolId as keyof typeof presetTextBySymbolId];
+}
+
 export function isAnnotationPaletteSymbol(symbolId: string): boolean {
   return Boolean(
-    annotationDrawingTool(symbolId) ?? annotationPolarity(symbolId),
+    annotationDrawingTool(symbolId) ??
+    annotationPolarity(symbolId) ??
+    annotationPresetText(symbolId),
   );
 }
 
@@ -161,26 +172,29 @@ const annotationPolarityBoth = {
   primitives: [...plusStrokes(-18), ...textStrokes(0), ...minusStrokes(18)],
 } satisfies SymbolDefinition;
 
-const annotationPolarityPositive = {
+const annotationTextPlus = {
   ...shared,
-  id: "annotation-polarity-positive",
-  name: "Positive polarity (+ / text)",
-  viewBox: { x: -14, y: -20, width: 28, height: 40 },
-  primitives: [...plusStrokes(-11), ...textStrokes(7)],
+  id: "annotation-text-plus",
+  name: "Plus sign",
+  viewBox: { x: -12, y: -12, width: 24, height: 24 },
+  primitives: [
+    { kind: "line", from: { x: -6, y: 0 }, to: { x: 6, y: 0 } },
+    { kind: "line", from: { x: 0, y: -6 }, to: { x: 0, y: 6 } },
+  ],
 } satisfies SymbolDefinition;
 
-const annotationPolarityNegative = {
+const annotationTextMinus = {
   ...shared,
-  id: "annotation-polarity-negative",
-  name: "Negative polarity (text / −)",
-  viewBox: { x: -14, y: -20, width: 28, height: 40 },
-  primitives: [...textStrokes(-7), ...minusStrokes(11)],
+  id: "annotation-text-minus",
+  name: "Minus sign",
+  viewBox: { x: -12, y: -12, width: 24, height: 24 },
+  primitives: [{ kind: "line", from: { x: -6, y: 0 }, to: { x: 6, y: 0 } }],
 } satisfies SymbolDefinition;
 
 /**
  * Editor-only catalog artwork. These definitions never enter the electrical
  * SymbolResolver: drawing entries activate an existing tool, while polarity
- * entries create editable DraftText objects.
+ * and sign entries create editable DraftText objects.
  */
 export const annotationPreviewSymbols: readonly SymbolDefinition[] = [
   annotationArrow,
@@ -188,6 +202,6 @@ export const annotationPreviewSymbols: readonly SymbolDefinition[] = [
   annotationRectangle,
   annotationCircle,
   annotationPolarityBoth,
-  annotationPolarityPositive,
-  annotationPolarityNegative,
+  annotationTextPlus,
+  annotationTextMinus,
 ];

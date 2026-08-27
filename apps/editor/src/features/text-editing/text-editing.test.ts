@@ -169,6 +169,31 @@ describe("unified text editing", () => {
     ).toEqual({ kind: "blocked" });
   });
 
+  it("keeps an emptied polarity label alive as its bare marks", () => {
+    const object = { ...draftingText(), polarity: "both" as const };
+    const document = {
+      ...createEmptyDocument("text", "Text"),
+      drafting: { objects: [object] },
+    };
+    const session = createTextEditingSession({ owner: "drafting", object });
+    const blank = updateTextEditingSession(session, {
+      content: { runs: [{ kind: "text", value: "   " }] },
+    });
+    // The + / − marks are the component; clearing the center text updates the
+    // object to the canonical empty document instead of deleting it.
+    expect(proposeTextEditingCommit(document, blank)).toMatchObject({
+      kind: "update",
+      edit: {
+        kind: "upsert_drafting_object",
+        object: {
+          id: "drafting-1",
+          polarity: "both",
+          content: { runs: [{ kind: "line-break" }] },
+        },
+      },
+    });
+  });
+
   it("creates deletion edits from the session owner", () => {
     const session = createTextEditingSession({
       owner: "annotation",

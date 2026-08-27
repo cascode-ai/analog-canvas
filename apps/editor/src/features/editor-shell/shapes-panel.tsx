@@ -10,6 +10,7 @@ import { initialComponentParameterValues } from "../component-insert/component-p
 import {
   annotationDrawingTool,
   annotationPolarity,
+  annotationPresetText,
 } from "../component-insert/annotation-preview-symbols";
 import {
   componentCatalog,
@@ -62,8 +63,8 @@ const COMPACT_LIBRARY_LABELS: Readonly<Record<string, string>> = {
   "annotation-rectangle": "Rect",
   "annotation-circle": "Circle",
   "annotation-polarity-both": "+ V −",
-  "annotation-polarity-positive": "+ V",
-  "annotation-polarity-negative": "V −",
+  "annotation-text-plus": "+",
+  "annotation-text-minus": "−",
 };
 
 function libraryLabel(symbolId: string, symbolName: string): string {
@@ -99,6 +100,15 @@ export function quickPlaceRequest(
       symbolName: symbol.name,
       polarity,
       initialRotation: 0,
+    };
+  }
+  const presetText = annotationPresetText(symbolId);
+  if (presetText) {
+    return {
+      kind: "preset-text",
+      symbolId,
+      symbolName: symbol.name,
+      text: presetText,
     };
   }
   if (symbolId === "vdd") {

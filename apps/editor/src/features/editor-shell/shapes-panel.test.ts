@@ -134,12 +134,26 @@ describe("shapes quick-place", () => {
       polarity: "both",
       initialRotation: 0,
     });
-    expect(
-      quickPlaceRequest("razavi", "annotation-polarity-positive"),
-    ).toMatchObject({ kind: "polarity-annotation", polarity: "positive" });
-    expect(
-      quickPlaceRequest("razavi", "annotation-polarity-negative"),
-    ).toMatchObject({ kind: "polarity-annotation", polarity: "negative" });
+    // Standalone signs are preset texts, not polarity variants; the single
+    // sign-with-text forms left the palette entirely.
+    expect(quickPlaceRequest("razavi", "annotation-text-plus")).toEqual({
+      kind: "preset-text",
+      symbolId: "annotation-text-plus",
+      symbolName: "Plus sign",
+      text: "+",
+    });
+    expect(quickPlaceRequest("razavi", "annotation-text-minus")).toEqual({
+      kind: "preset-text",
+      symbolId: "annotation-text-minus",
+      symbolName: "Minus sign",
+      text: "−",
+    });
+    expect(quickPlaceRequest("razavi", "annotation-polarity-positive")).toBe(
+      null,
+    );
+    expect(quickPlaceRequest("razavi", "annotation-polarity-negative")).toBe(
+      null,
+    );
   });
 
   it("quick-places high-voltage DMOS with MOS parameters", () => {

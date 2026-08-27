@@ -60,7 +60,7 @@ describe("component insertion catalog", () => {
     expect(symbolSubcategory("ndmos")).toBe("High-voltage devices");
   });
 
-  it("offers drawing tools and editable polarity labels as annotations", () => {
+  it("orders annotations as drawing tools, the polarity label, then signs", () => {
     const groups = componentCatalog("razavi-textbook-v1", "");
     const annotations = groups.find(
       (group) => group.category === "Annotations",
@@ -68,12 +68,12 @@ describe("component insertion catalog", () => {
 
     expect(annotations?.symbols.map((symbol) => symbol.id)).toEqual([
       "annotation-arrow",
-      "annotation-circle",
       "annotation-line",
-      "annotation-polarity-negative",
-      "annotation-polarity-both",
-      "annotation-polarity-positive",
       "annotation-rectangle",
+      "annotation-circle",
+      "annotation-polarity-both",
+      "annotation-text-plus",
+      "annotation-text-minus",
     ]);
     expect(groups.at(-1)?.category).toBe("Extended Devices");
   });

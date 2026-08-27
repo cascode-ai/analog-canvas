@@ -603,13 +603,13 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
     );
   };
 
-  const placePolarityAnnotation = (
+  const placeDraftingTextAnnotation = (
     position: Point,
     placementRequest: PendingComponentPlacement,
   ): void => {
     if (
       placementRequest.kind !== "drafting-text" ||
-      !placementRequest.polarity
+      (!placementRequest.polarity && !placementRequest.presetText)
     ) {
       return;
     }
@@ -625,19 +625,29 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
       locked: false,
       zIndex: 0,
       anchor: { kind: "free", position },
-      content: defaultDraftTextDocument("V_x"),
+      content: defaultDraftTextDocument(placementRequest.presetText ?? "V_x"),
       alignment: "middle",
       rotation: options.componentPlacementRotation,
       typographyToken: "label",
-      polarity: placementRequest.polarity,
+      ...(placementRequest.polarity
+        ? { polarity: placementRequest.polarity }
+        : {}),
     };
     if (!options.transact([{ kind: "upsert_drafting_object", object }]).ok) {
       return;
     }
     options.cancelAllTransientInteraction();
     options.selectOnly("drafting", [object.id]);
-    options.beginDraftingTextEditing(object);
-    options.setStatus(`Added ${placementRequest.polarity} polarity annotation`);
+    if (placementRequest.polarity) {
+      // Polarity labels open for center-text editing right away; a preset
+      // sign is already its final content and stays placed as-is.
+      options.beginDraftingTextEditing(object);
+      options.setStatus(
+        `Added ${placementRequest.polarity} polarity annotation`,
+      );
+    } else {
+      options.setStatus(`Added ${placementRequest.presetText} text`);
+    }
   };
 
   const openInsertPicker = ({
@@ -702,25 +712,39 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
             showValue: false,
             polarity: request.polarity,
           }
-        : request.kind === "symbol" &&
-            (request.symbolId === "port" || request.symbolId === "port-filled")
+        : request.kind === "preset-text"
           ? {
-              kind: "cell-pin",
+              kind: "drafting-text",
               symbolId: request.symbolId,
               parameters: {},
-              initialRotation: request.initialRotation,
+              initialRotation: 0,
               showReference: false,
               referenceText: null,
               showValue: false,
-              direction: request.portDirection ?? "passive",
-              ...(request.portName ? { portName: request.portName } : {}),
+              presetText: request.text,
             }
-          : request;
+          : request.kind === "symbol" &&
+              (request.symbolId === "port" ||
+                request.symbolId === "port-filled")
+            ? {
+                kind: "cell-pin",
+                symbolId: request.symbolId,
+                parameters: {},
+                initialRotation: request.initialRotation,
+                showReference: false,
+                referenceText: null,
+                showValue: false,
+                direction: request.portDirection ?? "passive",
+                ...(request.portName ? { portName: request.portName } : {}),
+              }
+            : request;
     options.beginComponentPlacement(pendingRequest);
     options.setStatus(
       request.kind === "polarity-annotation"
         ? `Place ${request.symbolName} on the canvas · R rotates · Esc cancels`
-        : `Place ${request.symbolName} on the canvas · R rotates · Shift+R / Ctrl+R mirrors · Esc cancels`,
+        : request.kind === "preset-text"
+          ? `Place ${request.symbolName} on the canvas · Esc cancels`
+          : `Place ${request.symbolName} on the canvas · R rotates · Shift+R / Ctrl+R mirrors · Esc cancels`,
     );
   };
 
@@ -783,7 +807,7 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
     }
     if (!options.pendingSymbolId || !options.pendingComponentPlacement) return;
     if (options.pendingComponentPlacement.kind === "drafting-text") {
-      placePolarityAnnotation(point, options.pendingComponentPlacement);
+      placeDraftingTextAnnotation(point, options.pendingComponentPlacement);
     } else if (options.pendingComponentPlacement.kind === "retained-instance") {
       const instanceId = options.pendingComponentPlacement.instanceId;
       if (instanceId) placeRetainedInstance(instanceId, point);
