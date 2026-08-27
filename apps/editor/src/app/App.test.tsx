@@ -154,11 +154,16 @@ describe("editor shell", () => {
     expect(markup).not.toContain(">About</button>");
     expect(markup).toContain(">Help</button>");
     expect(markup).toContain('class="app-chrome-actions"');
+    expect(markup).toContain("Provided by");
+    expect(markup).toContain('href="https://tokenzhang.com"');
+    expect(markup).toContain('src="/tokenzhang-favicon.png"');
     const navigationEnd = markup.indexOf("</nav>");
     const analyticsLink = markup.indexOf('href="/analytics"');
     const helpButton = markup.indexOf(">Help</button>");
+    const ownerLink = markup.indexOf('href="https://tokenzhang.com"');
     expect(analyticsLink).toBeGreaterThan(navigationEnd);
     expect(helpButton).toBeGreaterThan(analyticsLink);
+    expect(ownerLink).toBeGreaterThan(helpButton);
     expect(markup).not.toContain('role="dialog"');
     // The Connect Agent command is available (WP-WA5), but the authorization
     // panel itself must not render until the user opens it.

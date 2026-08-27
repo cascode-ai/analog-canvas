@@ -65,6 +65,9 @@ describe("GalleryFeed", () => {
     expect(markup).toContain("Analog Canvas");
     expect(markup).toContain('data-testid="gallery-new-circuit"');
     expect(markup).toContain('href="/editor"');
+    expect(markup).toContain("Provided by");
+    expect(markup).toContain('href="https://tokenzhang.com"');
+    expect(markup).toContain('src="/tokenzhang-favicon.png"');
     expect(markup).toContain('data-testid="gallery-loading"');
   });
 });

@@ -301,6 +301,26 @@ export function EditorAppChrome({
           >
             Help
           </button>
+          <div className="tokenzhang-credit">
+            <span className="tokenzhang-credit-kicker">Provided by</span>
+            <a
+              className="tokenzhang-link"
+              href="https://tokenzhang.com"
+              target="_blank"
+              rel="noreferrer"
+              aria-label="tokenzhang.com"
+              title="tokenzhang.com"
+            >
+              <img
+                className="tokenzhang-link-icon"
+                src="/tokenzhang-favicon.png"
+                alt=""
+                width={12}
+                height={12}
+              />
+              <span className="tokenzhang-link-label">tokenzhang.com</span>
+            </a>
+          </div>
         </div>
       </div>
       <DrawingToolbar {...drawingToolbar} />

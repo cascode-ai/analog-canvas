@@ -323,6 +323,71 @@ body {
   margin-left: auto;
 }
 
+/* Owner credit: centered on the gallery bar; stacked after Help in the editor. */
+.tokenzhang-credit {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--icm-space-1);
+  white-space: nowrap;
+}
+
+.gallery-chrome .tokenzhang-credit {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.app-chrome-actions .tokenzhang-credit {
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 0;
+  max-height: var(--icm-menubar-h);
+  line-height: 1.1;
+}
+
+.tokenzhang-credit-kicker {
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+  font-weight: 500;
+  line-height: 1.1;
+}
+
+.tokenzhang-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--icm-space-1);
+  color: var(--icm-text);
+  font-size: var(--icm-font-xs);
+  font-weight: 500;
+  line-height: 1.1;
+  text-decoration: none;
+}
+
+.tokenzhang-link:hover {
+  color: var(--icm-accent);
+  text-decoration: underline;
+  text-underline-offset: 0.15rem;
+}
+
+.tokenzhang-link-icon {
+  width: var(--icm-icon);
+  height: var(--icm-icon);
+  border-radius: 3px;
+}
+
+.app-chrome-actions .tokenzhang-link-icon {
+  width: 12px;
+  height: 12px;
+}
+
+@media (max-width: 900px) {
+  .tokenzhang-link-label {
+    display: none;
+  }
+}
+
 /* Visitor analytics entry (compact, does not crowd menubar commands). */
 .analytics-link {
   display: inline-flex;
