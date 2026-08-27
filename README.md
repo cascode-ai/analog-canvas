@@ -1,12 +1,51 @@
 # Analog Canvas
 
-Analog Canvas is a local-first, connectivity-aware schematic editor. Import
-structural SPICE, edit a typed circuit model in the browser, save one portable
-Project file, and export formal drawings.
+Analog Canvas is a local-first, connectivity-aware schematic editor for the
+web. Draw and organize hierarchical circuits, import structural SPICE, export
+deterministic SPICE/Spectre netlists and vector SVG/PDF, publish selected work
+to the Community Gallery, and connect authorized Agents through the same typed
+edit model.
+
+[Browse the Gallery](https://analog-canvas.tokenzhang.com/) ·
+[Open the editor](https://analog-canvas.tokenzhang.com/editor) ·
+[Documentation](docs/README.md) ·
+[GitHub repository](https://github.com/cascode-ai/analog-canvas)
+
+## Highlights
+
+- **Connectivity-aware editing:** place devices, route wires, distinguish
+  Crossings from Junctions, label Nets, and make undoable multi-object edits
+  without treating drawing geometry as electrical truth.
+- **Reusable hierarchy:** author each schematic as a Cell, define independent
+  Cell Pins, place reusable hierarchical blocks, and navigate between callers
+  and child Cells.
+- **Portable projects and interchange:** save the canonical `.icproj.json`
+  Project, import structural `.cir`, `.sp`, and `.spi` files, and export
+  deterministic structural SPICE or Spectre. Analog Canvas does not supply
+  simulation, PDKs, device models, corners, stimuli, or analyses.
+- **Publication-ready output:** the web editor's SVG and PDF exports remain
+  vector graphics; PNG is rendered at 3× raster scale.
+- **Community publishing:** signed-in users can publish selected circuits with
+  server-rendered previews, tags, likes, moderation, and bounded version
+  history. Publishing is deliberate and is not a backup mechanism.
+- **Agent integration:** the typed Snapshot and transaction API is available
+  through a version-pinned stdio MCP adapter, an HTTP Agent Kit, and the
+  published OpenAPI contract. See the [Agent integration guide](docs/agent/README.md).
+
+## Project ownership and privacy
+
+An explicit **File / Save Project** `.icproj.json` file is the authoritative
+copy of a design. Browser recovery and the signed-in recent-work shelf are
+safety copies; Community Gallery entries are public publications. The hosted
+service keeps its visitor reporting first-party and honors browser Do Not
+Track instead of embedding a third-party analytics tracker.
 
 ## Start here
 
-- **Use the editor:** [Getting started](docs/user/getting-started.md),
+- **Use the hosted product:** browse the
+  [Community Gallery](https://analog-canvas.tokenzhang.com/) or start a
+  [new circuit](https://analog-canvas.tokenzhang.com/editor).
+- **Learn the editor:** [Getting started](docs/user/getting-started.md),
   [schematic hierarchy](docs/user/schematic-hierarchy.md),
   [compatibility](docs/user/project-compatibility.md), and
   [troubleshooting](docs/user/troubleshooting.md).
@@ -18,21 +57,24 @@ Project file, and export formal drawings.
 
 ## Run locally
 
+Requires Node.js 24 or newer and pnpm 11.16.0 or newer.
+
 ```powershell
 pnpm install --frozen-lockfile
-pnpm setup:e2e # one-time browser setup for local Playwright checks
 pnpm dev
 ```
 
-Open the displayed loopback URL. Create a circuit from the component palette,
-or import one `.cir`, `.sp`, or `.spi` entry together with its local include
-files. Use **File / Save Project** to download the authoritative
-`.icproj.json` file; browser recovery is only a non-authoritative safety copy.
+Open the displayed loopback URL and choose **New Circuit**, or open its
+`/editor` route directly. Create a circuit from the component palette, or
+import one `.cir`, `.sp`, or `.spi` entry together with its local include
+files.
 
 ## What the repository contains
 
-- `apps/editor/`: React/SVG editor.
+- `apps/editor/`: React/SVG editor plus the Gallery, account, moderation, and
+  analytics screens.
 - `apps/local-host/`: loopback-only production host for the installable PWA.
+- `apps/mcp-server/`: packaged stdio MCP adapter for authorized Agent sessions.
 - `packages/model/`, `packages/project-protocol/`, and `packages/edit-engine/`:
   current persisted circuit model, bounded file compatibility, and atomic
   mutation boundary.
@@ -41,15 +83,23 @@ files. Use **File / Save Project** to download the authoritative
   semantics, and deterministic design-netlist export.
 - `packages/exporters/` and `packages/render-svg/`: formal SVG, PNG, and PDF
   output.
+- `packages/agent-adapter/`, `packages/agent-client/`, and
+  `packages/agent-routing/`: shared Agent contract, client, and routing logic.
+- `worker/`: Cloudflare Worker and Durable Objects for static hosting, Gallery,
+  accounts, first-party analytics, and Agent relay sessions.
 - `docs/`: current architecture, user guides, normative contracts, ADRs, and
   delivery plans.
 
 The [Razavi reference manifest](fixtures/visual-reference/razavi-reference-v1/)
-is the sole visual authority.
+is the sole visual authority. The production Worker is deployed from `main` by
+the [Cloudflare workflow](.github/workflows/cloudflare.yml).
 
 ## Validation
 
 ```powershell
+# One-time browser setup before local Playwright checks
+pnpm setup:e2e
+
 # Review the planned validation surface before expensive checks
 pnpm gate:plan -- --base origin/main
 pnpm gate:preflight -- --base origin/main
@@ -78,7 +128,7 @@ complete browser suite. Every target also closes with `git diff --check` and
 
 ## License
 
-Copyright © 2026 Zhishuai Zhang and Zengchun Chen.
+Copyright © 2026 Zengchun Chen and Zhishuai Zhang.
 
 Except where otherwise noted, Analog Canvas is licensed under the
 [GNU Affero General Public License v3.0 only](LICENSE.md)
@@ -91,15 +141,16 @@ retain their respective copyright and license terms.
 
 If you use Analog Canvas in research, teaching, or another publication, cite:
 
-> Zhishuai Zhang and Zengchun Chen. _Analog Canvas_. 2026.
-> Available at: https://github.com/chenzc24/Analog-Canvas
+> Zengchun Chen and Zhishuai Zhang. _Analog Canvas_. 2026.
+> Available at: https://analog-canvas.tokenzhang.com/
+> Source code: https://github.com/cascode-ai/analog-canvas
 
 ```bibtex
-@software{zhang2026analogcanvas,
-  author = {Zhang, Zhishuai and Chen, Zengchun},
+@software{chen2026analogcanvas,
+  author = {Chen, Zengchun and Zhang, Zhishuai},
   title = {Analog Canvas},
   year = {2026},
-  url = {https://github.com/chenzc24/Analog-Canvas},
-  note = {Software repository}
+  url = {https://analog-canvas.tokenzhang.com/},
+  note = {Source code: https://github.com/cascode-ai/analog-canvas}
 }
 ```
