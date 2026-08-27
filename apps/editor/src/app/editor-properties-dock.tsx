@@ -83,6 +83,9 @@ export function EditorPropertiesDock({
   return (
     <aside
       className={open ? "selection-dock open" : "selection-dock"}
+      // Fit View insets the camera by the docks that float over the
+      // canvas, so the drawing lands where it can be seen.
+      data-canvas-overlay="true"
       aria-label="Properties"
       role="complementary"
     >

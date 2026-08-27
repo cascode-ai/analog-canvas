@@ -4631,6 +4631,44 @@ test("flips a marquee selection as one body, not three parts in place", async ({
   expect(await order()).toEqual([...before].reverse());
 });
 
+test("Fit View keeps the drawing clear of the Properties dock", async ({
+  page,
+}) => {
+  // Below 860px the Properties dock stops being a column and floats over the
+  // canvas — the half-screen case where fitting to the element hid work.
+  await page.setViewportSize({ width: 800, height: 800 });
+  await page.goto("/editor");
+  const canvas = page.getByTestId("schematic-canvas");
+
+  await placeComponent(page, "resistor", { x: 120, y: 160 });
+  await placeComponent(page, "capacitor", { x: 320, y: 260 });
+  await placeComponent(page, "resistor", { x: 520, y: 360 });
+  await page.keyboard.press("Escape");
+
+  // Open Properties so it floats over the canvas at full width.
+  await canvas.click({ position: { x: 120, y: 160 } });
+  await openSelectionShelf(page);
+  const dock = page.locator(".selection-dock");
+  // The dock animates open over 160ms; measure the settled width.
+  await expect
+    .poll(async () => (await dock.boundingBox())?.width ?? 0)
+    .toBeGreaterThan(120);
+  const dockBox = (await dock.boundingBox())!;
+
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("f");
+
+  // Every symbol has to land left of the dock: the canvas runs underneath it,
+  // so fitting to the element alone put part of the drawing out of sight.
+  const rights = await page
+    .locator('[data-layer="symbols"] [data-object-id]')
+    .evaluateAll((elements) =>
+      elements.map((element) => element.getBoundingClientRect().right),
+    );
+  expect(rights).toHaveLength(3);
+  for (const right of rights) expect(right).toBeLessThanOrEqual(dockBox.x);
+});
+
 test("drags a marquee selection that holds no instance", async ({ page }) => {
   await page.goto("/editor");
   const canvas = page.getByTestId("schematic-canvas");

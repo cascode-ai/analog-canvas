@@ -24,7 +24,12 @@ import type {
 import { buildSvgScene } from "@icm/render-svg";
 import type { SymbolResolver } from "@icm/symbols";
 
-import { fitCameraToBounds, type CameraRectInput } from "../../canvas/fit-view";
+import {
+  fitCameraToBounds,
+  fitCameraToVisibleBounds,
+  type CameraRectInput,
+  type CanvasInsets,
+} from "../../canvas/fit-view";
 import { referencedDocumentId } from "../../document/editor-session";
 import { endpointNetId } from "../wiring/route-interaction-geometry";
 
@@ -46,6 +51,14 @@ export interface EditorNavigationControllerDependencies {
   viewBox: GridRect;
   defaultViewBox: GridRect;
   setViewBox: SetViewBox;
+  /**
+   * The canvas element's size and how much of it floating panels cover.
+   * Absent when the canvas is not mounted, which leaves fit to the element.
+   */
+  measureCanvasView?: () => {
+    viewport: { width: number; height: number };
+    insets: CanvasInsets;
+  } | null;
   openDocument: (documentId: string) => SchematicDocument | null | undefined;
   resetInteractionState: () => void;
   selectOnly: (kind: SelectionKind, ids: readonly string[]) => void;
@@ -81,6 +94,7 @@ export function createEditorNavigationController({
   viewBox,
   defaultViewBox,
   setViewBox,
+  measureCanvasView,
   openDocument,
   resetInteractionState,
   selectOnly,
@@ -304,12 +318,19 @@ export function createEditorNavigationController({
         statusMessage,
       );
     }
+    const bounds = buildSvgScene(target, resolver).viewBox;
+    const grid = target.presentation.grid;
+    const measured = measureCanvasView?.() ?? null;
     setViewBox(
-      fitCameraToBounds(
-        buildSvgScene(target, resolver).viewBox,
-        target.presentation.grid,
-      ),
-      target.presentation.grid,
+      measured
+        ? fitCameraToVisibleBounds(
+            bounds,
+            grid,
+            measured.viewport,
+            measured.insets,
+          )
+        : fitCameraToBounds(bounds, grid),
+      grid,
     );
   };
 

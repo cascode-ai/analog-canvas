@@ -61,9 +61,11 @@ import {
 } from "../features/clipboard/clipboard";
 import type { SchematicClipboard } from "../features/clipboard/clipboard";
 import {
+  canvasInsetsFromOverlays,
   fitCameraToBounds,
   normalizeCameraRect,
   type CameraRectInput,
+  type CanvasInsets,
 } from "../canvas/fit-view";
 import type { CanvasDragSession } from "../canvas/canvas-drag-session";
 import { createCanvasHitController } from "../canvas/canvas-hit-controller";
@@ -1747,6 +1749,7 @@ export function App({
         lastCanvasPointRef.current = point;
       },
       setStatus,
+      measureCanvasView,
     },
     selection: {
       updateCommandMovePreview: updateCommandMovePreviewFromSelection,
@@ -1784,6 +1787,29 @@ export function App({
       completeDrag: completeCellSymbolLayoutDrag,
     },
   });
+  /**
+   * The canvas element and the docks floating over it. Fit reads this at the
+   * moment it runs, so a panel opened since the last fit is accounted for.
+   */
+  function measureCanvasView(): {
+    viewport: { width: number; height: number };
+    insets: CanvasInsets;
+  } | null {
+    const canvas = window.document.querySelector(
+      '[data-testid="schematic-canvas"]',
+    );
+    if (!canvas) return null;
+    const canvasRect = canvas.getBoundingClientRect();
+    if (canvasRect.width <= 0 || canvasRect.height <= 0) return null;
+    const overlays = [
+      ...window.document.querySelectorAll("[data-canvas-overlay]"),
+    ].map((element) => element.getBoundingClientRect());
+    return {
+      viewport: { width: canvasRect.width, height: canvasRect.height },
+      insets: canvasInsetsFromOverlays(canvasRect, overlays),
+    };
+  }
+
   const {
     switchDocument,
     selectDocumentFromHierarchy,
@@ -1812,6 +1838,7 @@ export function App({
     viewBox,
     defaultViewBox: DEFAULT_VIEWBOX,
     setViewBox,
+    measureCanvasView,
     openDocument,
     resetInteractionState,
     selectOnly,

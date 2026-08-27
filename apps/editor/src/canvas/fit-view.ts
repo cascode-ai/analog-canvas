@@ -75,6 +75,99 @@ export function fitCameraToBounds(bounds: DerivedRect, grid: number): GridRect {
   };
 }
 
+/** Pixels of the canvas element hidden behind a floating panel, per side. */
+export interface CanvasInsets {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+}
+
+/**
+ * How far floating panels reach in over each edge of the canvas.
+ *
+ * Only a panel anchored to an edge can be avoided by insetting: one floating
+ * in the middle of the canvas would cost the whole drawing its width to dodge,
+ * which is worse than being overlapped. Edge panels are the docks, and they
+ * are the ones wide enough to hide work behind.
+ */
+export function canvasInsetsFromOverlays(
+  canvas: { x: number; y: number; width: number; height: number },
+  overlays: readonly { x: number; y: number; width: number; height: number }[],
+): CanvasInsets {
+  const insets: CanvasInsets = { left: 0, right: 0, top: 0, bottom: 0 };
+  const canvasRight = canvas.x + canvas.width;
+  const canvasBottom = canvas.y + canvas.height;
+  const touches = 1;
+  for (const overlay of overlays) {
+    if (overlay.width <= 0 || overlay.height <= 0) continue;
+    const right = overlay.x + overlay.width;
+    const bottom = overlay.y + overlay.height;
+    if (right <= canvas.x || overlay.x >= canvasRight) continue;
+    if (bottom <= canvas.y || overlay.y >= canvasBottom) continue;
+    if (overlay.x <= canvas.x + touches) {
+      insets.left = Math.max(insets.left, right - canvas.x);
+    } else if (right >= canvasRight - touches) {
+      insets.right = Math.max(insets.right, canvasRight - overlay.x);
+    } else if (overlay.y <= canvas.y + touches) {
+      insets.top = Math.max(insets.top, bottom - canvas.y);
+    } else if (bottom >= canvasBottom - touches) {
+      insets.bottom = Math.max(insets.bottom, canvasBottom - overlay.y);
+    }
+  }
+  return insets;
+}
+
+/**
+ * Fit the Document into the part of the canvas nobody is standing on.
+ *
+ * The canvas element spans the whole workspace and the Properties dock floats
+ * over its right-hand side, so fitting to the element put a slice of the
+ * drawing underneath the panel — the wider the panel, the more went missing.
+ * Fit centres the Document in the unobscured region instead.
+ *
+ * The camera is given the element's aspect ratio, so `xMidYMid meet` adds no
+ * letterboxing of its own and the offset below lands exactly where intended.
+ */
+export function fitCameraToVisibleBounds(
+  bounds: DerivedRect,
+  grid: number,
+  viewport: { width: number; height: number },
+  insets: CanvasInsets,
+): GridRect {
+  assertFinitePositiveRect(bounds, grid, "Fit View");
+  const visibleWidth = viewport.width - insets.left - insets.right;
+  const visibleHeight = viewport.height - insets.top - insets.bottom;
+  // Nothing to centre in: fall back to fitting the element itself rather than
+  // inventing a camera from a non-positive region.
+  if (
+    !Number.isFinite(visibleWidth) ||
+    !Number.isFinite(visibleHeight) ||
+    visibleWidth <= 0 ||
+    visibleHeight <= 0 ||
+    viewport.width <= 0 ||
+    viewport.height <= 0
+  ) {
+    return fitCameraToBounds(bounds, grid);
+  }
+
+  // Pixels per Document unit that shows the whole drawing inside the region.
+  const scale = Math.min(
+    visibleWidth / bounds.width,
+    visibleHeight / bounds.height,
+  );
+  const cameraWidth = viewport.width / scale;
+  const cameraHeight = viewport.height / scale;
+  const centreX = bounds.x + bounds.width / 2;
+  const centreY = bounds.y + bounds.height / 2;
+  const cameraX = centreX - (insets.left + visibleWidth / 2) / scale;
+  const cameraY = centreY - (insets.top + visibleHeight / 2) / scale;
+  return normalizeCameraRect(
+    { x: cameraX, y: cameraY, width: cameraWidth, height: cameraHeight },
+    grid,
+  );
+}
+
 export interface CameraZoomLimits {
   minWidth: number;
   maxWidth: number;

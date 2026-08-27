@@ -34,8 +34,10 @@ import {
 import { normalizedRect } from "./canvas-geometry";
 import {
   fitCameraToBounds,
+  fitCameraToVisibleBounds,
   zoomCameraAtAnchor,
   type CameraRectInput,
+  type CanvasInsets,
 } from "./fit-view";
 
 // A stiff middle button drifts under the hand; keep a larger slop than an
@@ -81,6 +83,11 @@ export interface CanvasGestureControllerDependencies {
     paintSnapGuides: (guides: readonly SnapGuideLine[]) => void;
     noteCanvasPoint: (point: Point) => void;
     setStatus: (status: string) => void;
+    /** Canvas size and how far floating docks reach over it; see fitView. */
+    measureCanvasView?: () => {
+      viewport: { width: number; height: number };
+      insets: CanvasInsets;
+    } | null;
   };
   selection: {
     updateCommandMovePreview: (
@@ -153,6 +160,7 @@ export function createCanvasGestureController({
     paintSnapGuides,
     noteCanvasPoint,
     setStatus,
+    measureCanvasView,
   },
   selection: {
     updateCommandMovePreview,
@@ -189,11 +197,21 @@ export function createCanvasGestureController({
   },
 }: CanvasGestureControllerDependencies) {
   const fitView = (): void => {
+    const bounds = contentBounds ?? defaultViewBox;
+    const grid = document.presentation.grid;
+    // Below the layout's narrow breakpoint the Properties dock stops being a
+    // column and floats over the canvas, so fitting to the element put part
+    // of the drawing underneath it.
+    const measured = measureCanvasView?.() ?? null;
     setViewBox(
-      fitCameraToBounds(
-        contentBounds ?? defaultViewBox,
-        document.presentation.grid,
-      ),
+      measured
+        ? fitCameraToVisibleBounds(
+            bounds,
+            grid,
+            measured.viewport,
+            measured.insets,
+          )
+        : fitCameraToBounds(bounds, grid),
     );
     setStatus("Fit Document");
   };

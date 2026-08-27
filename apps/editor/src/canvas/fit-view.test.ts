@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   CAMERA_ZOOM_LIMITS,
+  canvasInsetsFromOverlays,
   fitCameraToBounds,
+  fitCameraToVisibleBounds,
   normalizeCameraRect,
   zoomCameraAtAnchor,
 } from "./fit-view";
@@ -73,5 +75,59 @@ describe("zoomCameraAtAnchor", () => {
     );
     expect(grown.width).toBe(CAMERA_ZOOM_LIMITS.maxWidth);
     expect(grown.height).toBe(CAMERA_ZOOM_LIMITS.maxHeight);
+  });
+});
+
+describe("fit around floating panels", () => {
+  const canvas = { x: 0, y: 82, width: 760, height: 780 };
+
+  it("insets only for panels anchored to an edge", () => {
+    expect(
+      canvasInsetsFromOverlays(canvas, [
+        // The Properties dock, open, on the right edge.
+        { x: 410, y: 82, width: 350, height: 780 },
+        // A floating menu in the middle: dodging it would cost more width
+        // than being overlapped by it.
+        { x: 200, y: 300, width: 158, height: 40 },
+      ]),
+    ).toEqual({ left: 0, right: 350, top: 0, bottom: 0 });
+  });
+
+  it("ignores a panel that is closed away to nothing", () => {
+    expect(
+      canvasInsetsFromOverlays(canvas, [
+        { x: 760, y: 82, width: 0, height: 780 },
+      ]),
+    ).toEqual({ left: 0, right: 0, top: 0, bottom: 0 });
+  });
+
+  it("centres the drawing in what is left, not under the panel", () => {
+    const bounds = { x: 0, y: 0, width: 400, height: 400 };
+    const camera = fitCameraToVisibleBounds(
+      bounds,
+      10,
+      { width: 760, height: 780 },
+      { left: 0, right: 350, top: 0, bottom: 0 },
+    );
+    // 410px of canvas for 400 units, so 1.025 px per unit; the camera spans
+    // the whole element at that scale.
+    expect(camera.width).toBeCloseTo(740, -1);
+    // The drawing's centre lands at the centre of the visible strip (205px),
+    // not at the element's centre (380px), so nothing sits under the dock.
+    const scale = 410 / 400;
+    const centreOnScreen = (200 - camera.x) * scale;
+    expect(centreOnScreen).toBeCloseTo(205, 0);
+  });
+
+  it("falls back to fitting the element when nothing is visible", () => {
+    const bounds = { x: 0, y: 0, width: 400, height: 400 };
+    expect(
+      fitCameraToVisibleBounds(
+        bounds,
+        10,
+        { width: 760, height: 780 },
+        { left: 400, right: 400, top: 0, bottom: 0 },
+      ),
+    ).toEqual(fitCameraToBounds(bounds, 10));
   });
 });
