@@ -218,6 +218,44 @@ describe("drafting layer rendering", () => {
     );
   });
 
+  it("keeps the head in proportion when the shaft thickens", () => {
+    // A head held at profile size while the shaft thickened stopped being a
+    // head: at the widest stroke its base corners barely cleared the shaft,
+    // so the point read as a stub with the shaft showing through beside it.
+    const headWidthAt = (strokeScale: 0.75 | 1 | 1.5 | 2) => {
+      const document = createEmptyDocument("doc", "Drafting");
+      document.drafting = {
+        objects: [
+          {
+            id: "ar-1",
+            kind: "arrow",
+            locked: false,
+            zIndex: 0,
+            anchor: { kind: "free", position: { x: 0, y: 300 } },
+            from: { kind: "free", position: { x: 0, y: 300 } },
+            to: { kind: "free", position: { x: 0, y: 0 } },
+            styleOverride: { strokeScale },
+          },
+        ],
+      };
+      const svg = renderDocumentSvg(document, resolver);
+      const points = /<polygon points="([^"]+)"/u.exec(svg)![1]!.split(" ");
+      const xs = points.map((point) => Number(point.split(",")[0]));
+      const stroke = Number(/stroke-width="([\d.]+)"/u.exec(svg)![1]);
+      return { width: Math.max(...xs) - Math.min(...xs), stroke };
+    };
+
+    const thin = headWidthAt(1);
+    const thick = headWidthAt(2);
+    // Twice the shaft is twice the head, so the shape is unchanged.
+    expect(thick.stroke / thin.stroke).toBeCloseTo(2, 5);
+    expect(thick.width / thin.width).toBeCloseTo(2, 5);
+    // And the head stays comfortably wider than the shaft it caps.
+    for (const measured of [thin, thick, headWidthAt(0.75), headWidthAt(1.5)]) {
+      expect(measured.width / measured.stroke).toBeGreaterThan(3);
+    }
+  });
+
   it("honors the constrained arrow-head override", () => {
     const document = createEmptyDocument("doc", "Drafting");
     document.drafting = {

@@ -1105,8 +1105,15 @@ function renderDraftArrow(
   // Free arrows and route-mounted current arrows intentionally share the
   // profile-owned head proportions. They differ only in shaft ownership: a
   // route marker reuses its conductor, while a free arrow draws its own.
-  const head = profile.annotations.arrowHeadLength * headScale;
-  const halfHeadWidth = (profile.annotations.arrowHeadWidth * headScale) / 2;
+  //
+  // The head follows the shaft's weight. A head held at profile size while the
+  // shaft thickened stopped being a head: at the widest stroke its base
+  // corners barely cleared the shaft, so the point read as a stub and the
+  // shaft showed through on either side of it. arrowHeadScale still tunes the
+  // head on top of that, which is what it is for.
+  const headWeight = headScale * strokeScale;
+  const head = profile.annotations.arrowHeadLength * headWeight;
+  const halfHeadWidth = (profile.annotations.arrowHeadWidth * headWeight) / 2;
   const nx = (-dy / length) * halfHeadWidth;
   const ny = (dx / length) * halfHeadWidth;
   const baseX = tipX - (dx / length) * head;
