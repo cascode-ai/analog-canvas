@@ -61,12 +61,23 @@ export function EditorCanvasSurface({
   return (
     <section className="canvas-panel">
       {empty ? (
-        <div className="canvas-empty-state" data-testid="canvas-empty-state">
-          <strong>Start a schematic</strong>
-          <span>
-            Press <kbd>I</kbd> to insert a component or <kbd>W</kbd> to wire.
-          </span>
-        </div>
+        <aside
+          className="canvas-shortcut-menu"
+          data-testid="canvas-empty-state"
+          aria-label="Quick start shortcuts"
+        >
+          <p className="canvas-shortcut-menu-title">Quick start</p>
+          <ul className="canvas-shortcut-list">
+            <li>
+              <kbd>I</kbd>
+              <span>Insert component</span>
+            </li>
+            <li>
+              <kbd>W</kbd>
+              <span>Draw wire</span>
+            </li>
+          </ul>
+        </aside>
       ) : null}
       <svg
         className={className}

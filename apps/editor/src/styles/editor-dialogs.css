@@ -157,8 +157,7 @@
   font-size: 16px;
 }
 
-.insert-dialog-header kbd,
-.canvas-empty-state kbd {
+.insert-dialog-header kbd {
   padding: 0.15rem 0.42rem;
   border: 1px solid var(--icm-border-strong);
   border-radius: 0.3rem;

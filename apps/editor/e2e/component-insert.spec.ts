@@ -199,11 +199,26 @@ test("refreshes explicitly only after flushing and automatically restoring recov
     .toBeNull();
 });
 
-test("inserts from the master-detail dialog with keyboard and live placement preview", async ({
+test("keeps quick-start shortcuts in the corner until the first component is inserted", async ({
   page,
 }) => {
   await page.goto("/editor");
-  await expect(page.getByTestId("canvas-empty-state")).toBeVisible();
+  const quickStart = page.getByTestId("canvas-empty-state");
+  await expect(quickStart).toBeVisible();
+  await expect(quickStart).toHaveAttribute(
+    "aria-label",
+    "Quick start shortcuts",
+  );
+  await expect(quickStart).toContainText("Quick start");
+  await expect(quickStart.locator("kbd")).toHaveText(["I", "W"]);
+  await expect(quickStart).toContainText("Insert component");
+  await expect(quickStart).toContainText("Draw wire");
+  expect(
+    await quickStart.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return { top: style.top, left: style.left, transform: style.transform };
+    }),
+  ).toEqual({ top: "12px", left: "12px", transform: "none" });
 
   await page.keyboard.press("i");
   const dialog = page.getByRole("dialog", { name: "Insert Component" });
@@ -238,7 +253,7 @@ test("inserts from the master-detail dialog with keyboard and live placement pre
   await canvas.click({ position: { x: 360, y: 230 } });
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("hit-R1")).toBeVisible();
-  await expect(page.getByTestId("canvas-empty-state")).toHaveCount(0);
+  await expect(quickStart).toHaveCount(0);
   await page.getByTestId("selection-shelf").click();
   await expect(page.getByTestId("selection-shelf")).toContainText(
     "R1 · resistor",
