@@ -6,7 +6,13 @@ import { AccountMenu } from "./account";
  * as a bare paragraph without navigation. Markup mirrors the feed's
  * original header exactly (test ids included).
  */
-export function GalleryChrome({ subtitle }: { subtitle: string }) {
+export function GalleryChrome({
+  subtitle,
+  visitStats,
+}: {
+  subtitle: string;
+  visitStats?: { pv: number; uv: number } | null | undefined;
+}) {
   return (
     <header className="gallery-chrome">
       <div className="app-brand">
@@ -24,25 +30,38 @@ export function GalleryChrome({ subtitle }: { subtitle: string }) {
           <p>{subtitle}</p>
         </div>
       </div>
-      <div className="tokenzhang-credit">
-        <span className="tokenzhang-credit-kicker">Presented by</span>
-        <a
-          className="tokenzhang-link"
-          href="https://tokenzhang.com"
-          target="_blank"
-          rel="noreferrer"
-          aria-label="TokenZhang"
-          title="TokenZhang"
-        >
-          <img
-            className="tokenzhang-link-icon"
-            src="/tokenzhang-favicon.png"
-            alt=""
-            width={16}
-            height={16}
-          />
-          <span className="tokenzhang-link-label">TokenZhang</span>
-        </a>
+      <div className="gallery-credit-group">
+        <div className="tokenzhang-credit">
+          <span className="tokenzhang-credit-kicker">Presented by</span>
+          <a
+            className="tokenzhang-link"
+            href="https://tokenzhang.com"
+            target="_blank"
+            rel="noreferrer"
+            aria-label="TokenZhang"
+            title="TokenZhang"
+          >
+            <img
+              className="tokenzhang-link-icon"
+              src="/tokenzhang-favicon.png"
+              alt=""
+              width={16}
+              height={16}
+            />
+            <span className="tokenzhang-link-label">TokenZhang</span>
+          </a>
+        </div>
+        {visitStats ? (
+          <a
+            className="analytics-link gallery-analytics-link"
+            href="/analytics"
+            data-testid="gallery-analytics"
+            title="Open visitor analytics"
+          >
+            {visitStats.uv.toLocaleString()} visitors ·{" "}
+            {visitStats.pv.toLocaleString()} views
+          </a>
+        ) : null}
       </div>
       <nav className="gallery-actions">
         <AccountMenu />

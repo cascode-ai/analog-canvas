@@ -172,7 +172,7 @@ function Root() {
       <Suspense
         fallback={<div className="analytics-loading">Loading gallery…</div>}
       >
-        <GalleryFeed />
+        <GalleryFeed visitStats={stats} />
       </Suspense>
     );
   }

@@ -60,7 +60,9 @@ describe("loadGalleryFeed", () => {
 
 describe("GalleryFeed", () => {
   it("renders the landing chrome and editor entry point", () => {
-    const markup = renderToStaticMarkup(createElement(GalleryFeed));
+    const markup = renderToStaticMarkup(
+      createElement(GalleryFeed, { visitStats: { pv: 42, uv: 17 } }),
+    );
     expect(markup).toContain('data-testid="gallery-feed"');
     expect(markup).toContain("Analog Canvas");
     expect(markup).toContain('data-testid="gallery-new-circuit"');
@@ -68,6 +70,14 @@ describe("GalleryFeed", () => {
     expect(markup).toContain("Presented by");
     expect(markup).toContain('href="https://tokenzhang.com"');
     expect(markup).toContain('src="/tokenzhang-favicon.png"');
+    expect(markup).toContain('class="gallery-credit-group"');
+    expect(markup).toContain('data-testid="gallery-analytics"');
+    expect(markup).toContain('href="/analytics"');
+    expect(markup).toContain("17 visitors");
+    expect(markup).toContain("42 views");
+    expect(markup.indexOf("Presented by")).toBeLessThan(
+      markup.indexOf('data-testid="gallery-analytics"'),
+    );
     expect(markup).toContain('data-testid="gallery-loading"');
   });
 });

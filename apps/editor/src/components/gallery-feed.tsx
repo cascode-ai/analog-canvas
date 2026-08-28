@@ -314,7 +314,11 @@ export async function loadGalleryFeed(
  * the community gallery is empty or unreachable (development hosts have no
  * worker), so the landing page is never blank.
  */
-export function GalleryFeed() {
+export function GalleryFeed({
+  visitStats,
+}: {
+  visitStats?: { pv: number; uv: number } | null | undefined;
+}) {
   const [isOwner, setIsOwner] = useState(false);
   const [ownerBusy, setOwnerBusy] = useState<string | null>(null);
   const [ownerNotice, setOwnerNotice] = useState<string | null>(null);
@@ -606,7 +610,7 @@ export function GalleryFeed() {
 
   return (
     <main className="gallery-shell" data-testid="gallery-feed">
-      <GalleryChrome subtitle="Community gallery" />
+      <GalleryChrome subtitle="Community gallery" visitStats={visitStats} />
 
       {tagOptions.length > 0 ? (
         <div className="gallery-tag-bar" data-testid="gallery-tag-bar">

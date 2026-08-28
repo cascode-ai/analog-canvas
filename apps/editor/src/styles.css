@@ -323,7 +323,7 @@ body {
   margin-left: auto;
 }
 
-/* Owner credit: centered on the gallery bar; stacked after Help in the editor. */
+/* Owner credit: paired with analytics at gallery center; after Help in editor. */
 .tokenzhang-credit {
   display: inline-flex;
   align-items: center;
@@ -331,11 +331,15 @@ body {
   white-space: nowrap;
 }
 
-.gallery-chrome .tokenzhang-credit {
+.gallery-credit-group {
   position: absolute;
   left: 50%;
   top: 50%;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--icm-space-3);
   transform: translate(-50%, -50%);
+  white-space: nowrap;
 }
 
 /* One line, even if long: "Presented by [Z] TokenZhang" never wraps. */
@@ -393,11 +397,9 @@ body {
   }
 }
 
-/* The gallery header centers the credit absolutely, and a signed-in
-   account chip makes the right side wide, so the "Provided by" kicker
-   collides well above half width. The kicker goes first, then the label
-   (icon+tooltip remain), and once even the icon would collide the credit
-   yields entirely. */
+/* The gallery header centers credit plus analytics as one unit. A signed-in
+   account chip makes the right side wide, so text yields progressively before
+   the whole centered group does. */
 @media (max-width: 1400px) {
   .gallery-chrome .tokenzhang-credit-kicker {
     display: none;
@@ -411,7 +413,7 @@ body {
 }
 
 @media (max-width: 860px) {
-  .gallery-chrome .tokenzhang-credit {
+  .gallery-credit-group {
     display: none;
   }
 }
