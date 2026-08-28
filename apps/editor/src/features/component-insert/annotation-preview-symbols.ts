@@ -13,16 +13,16 @@ const drawingToolBySymbolId = {
   "annotation-circle": "circle",
 } as const satisfies Readonly<Record<string, DrawingTool>>;
 
+// A standalone sign is the same mark as the one the pair draws, so it goes
+// through the same polarity machinery. Drawn as a text glyph instead, it
+// came out a different size beside the pair — a glyph is a font's drawing of
+// a plus, while the mark is two strokes measured from the type size, and no
+// amount of tuning makes those two agree.
 const polarityBySymbolId = {
   "annotation-polarity-both": "both",
+  "annotation-text-plus": "positive",
+  "annotation-text-minus": "negative",
 } as const satisfies Readonly<Record<string, PolarityAnnotationKind>>;
-
-// Standalone signs are ordinary DraftText objects with a fixed initial
-// content — sizable and colorable like any text, no polarity machinery.
-const presetTextBySymbolId = {
-  "annotation-text-plus": "+",
-  "annotation-text-minus": "−",
-} as const satisfies Readonly<Record<string, string>>;
 
 export function annotationDrawingTool(
   symbolId: string,
@@ -36,15 +36,15 @@ export function annotationPolarity(
   return polarityBySymbolId[symbolId as keyof typeof polarityBySymbolId];
 }
 
-export function annotationPresetText(symbolId: string): string | undefined {
-  return presetTextBySymbolId[symbolId as keyof typeof presetTextBySymbolId];
+/** True for a lone + or −: a polarity mark with no centre text to write. */
+export function isBarePolaritySign(symbolId: string): boolean {
+  const polarity = annotationPolarity(symbolId);
+  return polarity === "positive" || polarity === "negative";
 }
 
 export function isAnnotationPaletteSymbol(symbolId: string): boolean {
   return Boolean(
-    annotationDrawingTool(symbolId) ??
-    annotationPolarity(symbolId) ??
-    annotationPresetText(symbolId),
+    annotationDrawingTool(symbolId) ?? annotationPolarity(symbolId),
   );
 }
 
@@ -177,10 +177,7 @@ const annotationTextPlus = {
   id: "annotation-text-plus",
   name: "Plus sign",
   viewBox: { x: -12, y: -12, width: 24, height: 24 },
-  primitives: [
-    { kind: "line", from: { x: -6, y: 0 }, to: { x: 6, y: 0 } },
-    { kind: "line", from: { x: 0, y: -6 }, to: { x: 0, y: 6 } },
-  ],
+  primitives: plusStrokes(0),
 } satisfies SymbolDefinition;
 
 const annotationTextMinus = {
@@ -188,7 +185,7 @@ const annotationTextMinus = {
   id: "annotation-text-minus",
   name: "Minus sign",
   viewBox: { x: -12, y: -12, width: 24, height: 24 },
-  primitives: [{ kind: "line", from: { x: -6, y: 0 }, to: { x: 6, y: 0 } }],
+  primitives: minusStrokes(0),
 } satisfies SymbolDefinition;
 
 /**

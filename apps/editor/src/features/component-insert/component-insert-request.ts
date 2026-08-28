@@ -33,18 +33,6 @@ export interface PolarityAnnotationInsertRequest {
   initialRotation: 0 | 90 | 180 | 270;
 }
 
-/**
- * A drafting text placed with its content already decided — the standalone
- * "+" and "−" signs. Ordinary text afterwards: independently movable,
- * editable, and stylable like any other DraftText.
- */
-export interface PresetTextInsertRequest {
-  kind: "preset-text";
-  symbolId: string;
-  symbolName: string;
-  text: string;
-}
-
 export interface CellInsertRequest {
   kind: "cell";
   symbolId: string;
@@ -77,5 +65,4 @@ export type ComponentInsertRequest =
   | ExternalSubcircuitInsertRequest
   | VddRailInsertRequest
   | DrawingToolInsertRequest
-  | PolarityAnnotationInsertRequest
-  | PresetTextInsertRequest;
+  | PolarityAnnotationInsertRequest;

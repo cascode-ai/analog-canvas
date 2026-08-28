@@ -137,19 +137,23 @@ describe("shapes quick-place", () => {
       polarity: "both",
       initialRotation: 0,
     });
-    // Standalone signs are preset texts, not polarity variants; the single
-    // sign-with-text forms left the palette entirely.
+    // A standalone sign is the same mark the pair draws, so it goes through
+    // the same polarity placement; as a preset text glyph it came out a
+    // different size beside the pair. The sign-with-text forms left the
+    // palette entirely.
     expect(quickPlaceRequest("razavi", "annotation-text-plus")).toEqual({
-      kind: "preset-text",
+      kind: "polarity-annotation",
       symbolId: "annotation-text-plus",
       symbolName: "Plus sign",
-      text: "+",
+      polarity: "positive",
+      initialRotation: 0,
     });
     expect(quickPlaceRequest("razavi", "annotation-text-minus")).toEqual({
-      kind: "preset-text",
+      kind: "polarity-annotation",
       symbolId: "annotation-text-minus",
       symbolName: "Minus sign",
-      text: "−",
+      polarity: "negative",
+      initialRotation: 0,
     });
     expect(quickPlaceRequest("razavi", "annotation-polarity-positive")).toBe(
       null,

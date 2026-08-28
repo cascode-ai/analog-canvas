@@ -609,10 +609,13 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
   ): void => {
     if (
       placementRequest.kind !== "drafting-text" ||
-      (!placementRequest.polarity && !placementRequest.presetText)
+      !placementRequest.polarity
     ) {
       return;
     }
+    // A lone + or − has no centre to write in, so it lands as the canonical
+    // empty document — the same shape an emptied polarity label keeps.
+    const bare = placementRequest.polarity !== "both";
     let id = options.nextId("polarity");
     while (
       options.document.drafting?.objects.some((object) => object.id === id)
@@ -625,7 +628,9 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
       locked: false,
       zIndex: 0,
       anchor: { kind: "free", position },
-      content: defaultDraftTextDocument(placementRequest.presetText ?? "V_x"),
+      content: bare
+        ? { runs: [{ kind: "line-break" as const }] }
+        : defaultDraftTextDocument("V_x"),
       alignment: "middle",
       rotation: options.componentPlacementRotation,
       typographyToken: "label",
@@ -638,16 +643,13 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
     }
     options.cancelAllTransientInteraction();
     options.selectOnly("drafting", [object.id]);
-    if (placementRequest.polarity) {
-      // Polarity labels open for center-text editing right away; a preset
-      // sign is already its final content and stays placed as-is.
-      options.beginDraftingTextEditing(object);
-      options.setStatus(
-        `Added ${placementRequest.polarity} polarity annotation`,
-      );
-    } else {
-      options.setStatus(`Added ${placementRequest.presetText} text`);
+    if (bare) {
+      options.setStatus(`Added ${placementRequest.polarity} polarity mark`);
+      return;
     }
+    // A pair brackets a name, so it opens for that name straight away.
+    options.beginDraftingTextEditing(object);
+    options.setStatus(`Added ${placementRequest.polarity} polarity annotation`);
   };
 
   const openInsertPicker = ({
@@ -712,39 +714,25 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
             showValue: false,
             polarity: request.polarity,
           }
-        : request.kind === "preset-text"
+        : request.kind === "symbol" &&
+            (request.symbolId === "port" || request.symbolId === "port-filled")
           ? {
-              kind: "drafting-text",
+              kind: "cell-pin",
               symbolId: request.symbolId,
               parameters: {},
-              initialRotation: 0,
+              initialRotation: request.initialRotation,
               showReference: false,
               referenceText: null,
               showValue: false,
-              presetText: request.text,
+              direction: request.portDirection ?? "passive",
+              ...(request.portName ? { portName: request.portName } : {}),
             }
-          : request.kind === "symbol" &&
-              (request.symbolId === "port" ||
-                request.symbolId === "port-filled")
-            ? {
-                kind: "cell-pin",
-                symbolId: request.symbolId,
-                parameters: {},
-                initialRotation: request.initialRotation,
-                showReference: false,
-                referenceText: null,
-                showValue: false,
-                direction: request.portDirection ?? "passive",
-                ...(request.portName ? { portName: request.portName } : {}),
-              }
-            : request;
+          : request;
     options.beginComponentPlacement(pendingRequest);
     options.setStatus(
       request.kind === "polarity-annotation"
         ? `Place ${request.symbolName} on the canvas · R rotates · Esc cancels`
-        : request.kind === "preset-text"
-          ? `Place ${request.symbolName} on the canvas · Esc cancels`
-          : `Place ${request.symbolName} on the canvas · R rotates · Shift+R / Ctrl+R mirrors · Esc cancels`,
+        : `Place ${request.symbolName} on the canvas · R rotates · Shift+R / Ctrl+R mirrors · Esc cancels`,
     );
   };
 

@@ -10,7 +10,6 @@ import { initialComponentParameterValues } from "../component-insert/component-p
 import {
   annotationDrawingTool,
   annotationPolarity,
-  annotationPresetText,
 } from "../component-insert/annotation-preview-symbols";
 import {
   componentCatalog,
@@ -106,15 +105,6 @@ export function quickPlaceRequest(
       symbolName: symbol.name,
       polarity,
       initialRotation: 0,
-    };
-  }
-  const presetText = annotationPresetText(symbolId);
-  if (presetText) {
-    return {
-      kind: "preset-text",
-      symbolId,
-      symbolName: symbol.name,
-      text: presetText,
     };
   }
   if (symbolId === "vdd") {
