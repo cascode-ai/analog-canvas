@@ -88,6 +88,23 @@
   cursor: move;
 }
 
+.wire-under-symbol-overlay .wire-under-symbol-paint {
+  stroke: #d3212c;
+  stroke-width: 2.5;
+  stroke-dasharray: 5 3;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+  opacity: 0.9;
+}
+
+.wire-under-symbol-overlay .wire-under-symbol-hit {
+  stroke: transparent;
+  stroke-width: 10;
+  cursor: pointer;
+  vector-effect: non-scaling-stroke;
+  pointer-events: stroke;
+}
+
 .flightline {
   stroke: var(--icm-text-muted);
   stroke-width: 1;

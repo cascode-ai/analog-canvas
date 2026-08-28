@@ -147,3 +147,53 @@ export function NetHighlightOverlay({
     </g>
   );
 }
+
+import type { WireUnderSymbolWarning } from "./wire-under-symbol";
+
+/**
+ * Red spans over wires buried under symbol artwork. The symbol's own hit
+ * box sits above the wire there, so each span carries its own click
+ * target that selects the buried Route for deletion.
+ */
+export function WireUnderSymbolOverlay({
+  warnings,
+  onSelectRoute,
+}: {
+  warnings: readonly WireUnderSymbolWarning[];
+  onSelectRoute: (routeId: string) => void;
+}) {
+  if (warnings.length === 0) return null;
+  return (
+    <g
+      data-testid="wire-under-symbol-overlay"
+      className="wire-under-symbol-overlay"
+    >
+      {warnings.map((warning, index) => (
+        <g key={`${warning.routeId}:${warning.instanceId}:${index}`}>
+          <line
+            className="wire-under-symbol-paint"
+            pointerEvents="none"
+            x1={warning.from.x}
+            y1={warning.from.y}
+            x2={warning.to.x}
+            y2={warning.to.y}
+          />
+          <line
+            className="wire-under-symbol-hit"
+            data-testid={`wire-under-symbol-hit-${warning.routeId}`}
+            x1={warning.from.x}
+            y1={warning.from.y}
+            x2={warning.to.x}
+            y2={warning.to.y}
+            onPointerDown={(event) => {
+              event.stopPropagation();
+              event.preventDefault();
+              onSelectRoute(warning.routeId);
+            }}
+            onClick={(event) => event.stopPropagation()}
+          />
+        </g>
+      ))}
+    </g>
+  );
+}

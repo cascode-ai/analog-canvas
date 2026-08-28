@@ -141,9 +141,14 @@ export function createCanvasHitController({
     }
     // Handles outrank the scene even when another hit surface is above their
     // SVG element, such as a power-rail endpoint under its Junction circle.
+    // The buried-wire warning span joins them: it exists precisely because
+    // the symbol's hit box sits over the wire, so the span must win the
+    // point or the wire underneath could never be picked.
     const handleAtPoint = event.currentTarget.ownerDocument
       .elementsFromPoint(event.clientX, event.clientY)
-      .some((element) => element.closest(".draft-handle, .route-handle"));
+      .some((element) =>
+        element.closest(".draft-handle, .route-handle, .wire-under-symbol-hit"),
+      );
     if (handleAtPoint) return;
     const hit = resolveCanvasHitAtPoint(
       event.currentTarget.ownerDocument,

@@ -4,6 +4,7 @@ import {
   CanvasGridOverlay,
   CanvasInputPlanes,
   NetHighlightOverlay,
+  WireUnderSymbolOverlay,
 } from "./editor-canvas-overlays";
 import { EditorCanvasHitLayer } from "./editor-canvas-hit-layer";
 import { EditorCellSymbolLayoutOverlay } from "./editor-cell-symbol-layout-overlay";
@@ -27,6 +28,7 @@ export interface EditorCanvasSurfaceProps {
   sceneInnerHtml: { __html: string };
   cellSymbolLayout: ComponentProps<typeof EditorCellSymbolLayoutOverlay> | null;
   netHighlight: ComponentProps<typeof NetHighlightOverlay>;
+  wireUnderSymbol: ComponentProps<typeof WireUnderSymbolOverlay>;
   copyPreviewInnerHtml: { __html: string } | null;
   inputPlanes: ComponentProps<typeof CanvasInputPlanes>;
   placementPreview: ComponentProps<typeof EditorPlacementPreview>;
@@ -75,6 +77,7 @@ export function EditorCanvasSurface({
   sceneInnerHtml,
   cellSymbolLayout,
   netHighlight,
+  wireUnderSymbol,
   copyPreviewInnerHtml,
   inputPlanes,
   placementPreview,
@@ -135,6 +138,7 @@ export function EditorCanvasSurface({
           <EditorRouteHandles {...routeHandles} />
           <EditorCanvasHitLayer {...selectionHitLayer} />
           <EditorDraftingHitTargets {...draftingHitTargets} />
+          <WireUnderSymbolOverlay {...wireUnderSymbol} />
           <EditorDraftingHandles {...draftingHandles} />
           <EditorInteractionPreviews {...interactionPreviews} />
         </g>

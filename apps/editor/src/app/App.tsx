@@ -105,6 +105,7 @@ import {
 } from "../features/component-insert/symbol-catalog";
 import { SymbolArtwork } from "../features/component-insert/symbol-artwork";
 import { CanvasContextMenu } from "../features/selection/canvas-context-menu";
+import { deriveWireUnderSymbolWarnings } from "../canvas/wire-under-symbol";
 import { createPlacementTrayCommands } from "../features/component-insert/placement-tray-commands";
 import { componentTargetDescription } from "../features/properties/component-identity-properties";
 import {
@@ -1291,6 +1292,11 @@ export function App({
       : false;
   });
   const styleProfile = resolveDocumentStyleProfile(document.presentation);
+  const wireUnderSymbolWarnings = useMemo(
+    () =>
+      deriveWireUnderSymbolWarnings(document, resolver, routeGeometryRecords),
+    [document, resolver, routeGeometryRecords],
+  );
   const {
     createRouteAnchor,
     beginRouteStretch,
@@ -3905,6 +3911,13 @@ export function App({
             document,
             resolver,
             routeGeometryRecords,
+          }}
+          wireUnderSymbol={{
+            warnings: wireUnderSymbolWarnings,
+            onSelectRoute: (routeId) => {
+              selectOnly("route", [routeId]);
+              setStatus("Selected a wire buried under a symbol");
+            },
           }}
           copyPreviewInnerHtml={copyPreviewInnerHtml}
           inputPlanes={{
