@@ -10,6 +10,7 @@ import {
 import { parseProject, serializeProject } from "@icm/project-protocol";
 import { hierarchicalSymbolId } from "@icm/symbols";
 
+import { CLOUD_PROJECT_LIMIT } from "./gallery-do";
 import {
   GALLERY_DAILY_SUBMISSION_LIMIT,
   GALLERY_MAX_PROJECT_BYTES,
@@ -612,11 +613,11 @@ describe("private Cloud Projects", () => {
   it("limits distinct Projects without evicting an existing Project", async () => {
     const env = environment();
     const cookie = await makerOf(env);
-    for (const name of ["One", "Two", "Three"]) {
-      const saved = await route(env, saveRequest(cookie, name));
+    for (let index = 0; index < CLOUD_PROJECT_LIMIT; index += 1) {
+      const saved = await route(env, saveRequest(cookie, `Shelf ${index}`));
       expect(saved.status).toBe(201);
     }
-    const refused = await route(env, saveRequest(cookie, "Four"));
+    const refused = await route(env, saveRequest(cookie, "One too many"));
     expect(refused.status).toBe(409);
     expect((await refused.json()).error).toBe("project-limit");
     const listed = await route(
@@ -628,8 +629,10 @@ describe("private Cloud Projects", () => {
     const { projects } = (await listed.json()) as {
       projects: { name: string; id: string }[];
     };
-    expect(projects).toHaveLength(3);
-    expect(projects.map((project) => project.name)).not.toContain("Four");
+    expect(projects).toHaveLength(CLOUD_PROJECT_LIMIT);
+    expect(projects.map((project) => project.name)).not.toContain(
+      "One too many",
+    );
 
     const removed = await route(
       env,
@@ -639,8 +642,49 @@ describe("private Cloud Projects", () => {
       }),
     );
     expect(removed.status).toBe(200);
-    expect((await removed.json()).projects).toHaveLength(2);
-    expect((await route(env, saveRequest(cookie, "Four"))).status).toBe(201);
+    expect((await removed.json()).projects).toHaveLength(
+      CLOUD_PROJECT_LIMIT - 1,
+    );
+    expect((await route(env, saveRequest(cookie, "Room again"))).status).toBe(
+      201,
+    );
+  });
+
+  it("serves a shelf thumbnail only to the account that owns it", async () => {
+    const env = environment();
+    const cookie = await makerOf(env);
+    const created = await route(env, saveRequest(cookie, "Bias branch"));
+    const { project } = (await created.json()) as {
+      project: { id: string; revision: number };
+    };
+
+    const preview = await route(
+      env,
+      new Request(`${ORIGIN}/api/projects/${project.id}/preview.svg`, {
+        headers: cookieHeaders(cookie),
+      }),
+    );
+    expect(preview.status).toBe(200);
+    expect(preview.headers.get("content-type")).toContain("image/svg+xml");
+    // Private caching only: a shared cache must never hold one member's shelf.
+    expect(preview.headers.get("cache-control")).toContain("private");
+    expect(await preview.text()).toContain("<svg");
+
+    // A Project id is not a capability, and being signed in is not enough.
+    const stranger = await adminOf(env);
+    const denied = await route(
+      env,
+      new Request(`${ORIGIN}/api/projects/${project.id}/preview.svg`, {
+        headers: cookieHeaders(stranger),
+      }),
+    );
+    expect(denied.status).toBe(404);
+
+    const anonymous = await route(
+      env,
+      new Request(`${ORIGIN}/api/projects/${project.id}/preview.svg`),
+    );
+    expect(anonymous.status).toBe(401);
   });
 
   it("updates one stable Project with optimistic revision checking", async () => {
