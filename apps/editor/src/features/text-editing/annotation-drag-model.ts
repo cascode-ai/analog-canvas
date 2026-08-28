@@ -20,6 +20,8 @@ import {
 
 export interface AnnotationDragGeometryContext {
   document: SchematicDocument;
+  /** Rounding pitch for dragged labels; 1-unit precision is valid. */
+  annotationGrid: number;
   resolver: SymbolResolver;
   routeGeometryRecords: readonly {
     route: RouteBranch;
@@ -28,7 +30,12 @@ export interface AnnotationDragGeometryContext {
 }
 
 function constrainAnnotationPosition(
-  { document, resolver, routeGeometryRecords }: AnnotationDragGeometryContext,
+  {
+    document,
+    annotationGrid,
+    resolver,
+    routeGeometryRecords,
+  }: AnnotationDragGeometryContext,
   annotation: Annotation,
   candidate: DerivedPoint,
 ): Point {
@@ -67,7 +74,7 @@ function constrainAnnotationPosition(
             instance.placement.position.y + radius,
           ),
         },
-        document.presentation.grid,
+        annotationGrid,
       );
     }
   }
@@ -106,11 +113,11 @@ function constrainAnnotationPosition(
             closest.y + NET_LABEL_MAX_NORMAL_OFFSET,
           ),
         },
-        document.presentation.grid,
+        annotationGrid,
       );
     }
   }
-  return snapGridPoint(candidate, document.presentation.grid);
+  return snapGridPoint(candidate, annotationGrid);
 }
 
 /** Resolve the persisted annotation produced by one completed drag gesture. */

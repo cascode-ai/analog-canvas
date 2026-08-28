@@ -12,6 +12,7 @@ describe("drafting commands", () => {
     const beginTextEditing = vi.fn();
     const commands = createDraftingCommands({
       document,
+      annotationGrid: 10,
       resolver: new InMemorySymbolResolver(builtInSymbols),
       viewBox: { x: 0, y: 0, width: 400, height: 300 },
       selection: {

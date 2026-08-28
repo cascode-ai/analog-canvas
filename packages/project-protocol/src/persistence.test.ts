@@ -180,8 +180,8 @@ describe("Project persistence", () => {
     );
     expect(migrated).toMatchObject({
       sourceSchemaVersion: 28,
-      migrated: false,
-      project: { schemaVersion: 28 },
+      migrated: true,
+      project: { schemaVersion: 29 },
     });
     const migratedDocument = migrated.project.documents[0]!;
     expect(migratedDocument.netlist?.terminals).toMatchObject([
@@ -327,8 +327,8 @@ describe("Project persistence", () => {
     );
     expect(parsed).toMatchObject({
       sourceSchemaVersion: 28,
-      migrated: false,
-      project: { schemaVersion: 28 },
+      migrated: true,
+      project: { schemaVersion: 29 },
     });
     const route = parsed.project.documents[0]!.routes[0]!;
     const annotation = parsed.project.documents[0]!.annotations[0]!;
@@ -346,10 +346,10 @@ describe("Project persistence", () => {
 
   it("rejects schemas outside the current-and-previous window", () => {
     const project = createEmptyProject("project-test", "Test Project");
-    for (const schemaVersion of [23, 24, 25, 29, 99]) {
+    for (const schemaVersion of [23, 24, 25, 30, 99]) {
       expect(() =>
         parseProject(JSON.stringify({ ...project, schemaVersion })),
-      ).toThrow(/must be 27 or 28/);
+      ).toThrow(/must be 28 or 29/);
     }
   });
 });

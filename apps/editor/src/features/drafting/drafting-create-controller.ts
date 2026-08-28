@@ -40,6 +40,7 @@ export function constrainDraftingAngle(
 
 export function createDraftingCreateController({
   document,
+  annotationGrid,
   resolver,
   visibleEndpoints,
   routeGeometryRecords,
@@ -58,6 +59,8 @@ export function createDraftingCreateController({
   nextId,
 }: {
   document: SchematicDocument;
+  /** Rounding pitch for drawn objects; the Document grid stays electrical. */
+  annotationGrid: number;
   resolver: SymbolResolver;
   visibleEndpoints: readonly WireSource[];
   routeGeometryRecords: readonly RouteGeometryRecord[];
@@ -94,7 +97,7 @@ export function createDraftingCreateController({
       const constrained =
         shiftKey && origin ? constrainDraftingAngle(origin, point) : point;
       return {
-        point: snapGridPoint(constrained, document.presentation.grid),
+        point: snapGridPoint(constrained, annotationGrid),
         snap: null,
         guides: [],
       };
@@ -117,7 +120,7 @@ export function createDraftingCreateController({
         ...routeTargets,
       ],
       {
-        grid: document.presentation.grid,
+        grid: annotationGrid,
         tolerance,
         profile: SNAP_PROFILES.draftingHandle,
       },
@@ -130,7 +133,7 @@ export function createDraftingCreateController({
       (resolved.xMatch && resolved.xMatch.targetKind !== "grid") ||
       (resolved.yMatch && resolved.yMatch.targetKind !== "grid");
     if (shiftKey && origin) snapped = constrainDraftingAngle(origin, snapped);
-    const gridPoint = snapGridPoint(snapped, document.presentation.grid);
+    const gridPoint = snapGridPoint(snapped, annotationGrid);
     return {
       point: gridPoint,
       snap: hasObjectSnap ? gridPoint : null,
@@ -142,7 +145,7 @@ export function createDraftingCreateController({
     if (points.length < 2) return;
     const id = nextId("construction");
     const snappedPoints = points.map((point) =>
-      snapGridPoint(point, document.presentation.grid),
+      snapGridPoint(point, annotationGrid),
     );
     if (
       transact([
@@ -167,8 +170,8 @@ export function createDraftingCreateController({
 
   const commit = (active: DraftingTool, start: Point, end: Point): void => {
     const id = nextId(active === "construction-line" ? "construction" : active);
-    const snappedStart = snapGridPoint(start, document.presentation.grid);
-    const snappedEnd = snapGridPoint(end, document.presentation.grid);
+    const snappedStart = snapGridPoint(start, annotationGrid);
+    const snappedEnd = snapGridPoint(end, annotationGrid);
     if (active === "circle") {
       const radius = Math.round(
         Math.hypot(
@@ -211,7 +214,7 @@ export function createDraftingCreateController({
           x: Math.round((snappedStart.x + snappedEnd.x) / 2),
           y: Math.round((snappedStart.y + snappedEnd.y) / 2),
         },
-        document.presentation.grid,
+        annotationGrid,
       );
       if (
         transact([

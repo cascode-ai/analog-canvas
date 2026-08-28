@@ -134,15 +134,23 @@ export function gridAlignmentDiagnostics(
   edit: SchematicEdit,
   grid: number,
 ): EditDiagnostic[] {
+  // Annotations and drafting objects position at 1-unit precision (schema
+  // 29); the Document grid remains the hard contract for electrical edits so
+  // pins, wires, and junctions always coincide.
+  const pitch =
+    edit.kind === "upsert_schematic_annotation" ||
+    edit.kind === "upsert_drafting_object"
+      ? 1
+      : grid;
   return gridPointsOfEdit(edit).flatMap(({ point, path }) =>
     (["x", "y"] as const).flatMap((axis) =>
-      point[axis] % grid === 0
+      point[axis] % pitch === 0
         ? []
         : [
             {
               code: "GRID_ALIGNMENT",
               severity: "error" as const,
-              message: `Document page coordinates must align to grid ${grid}`,
+              message: `Document page coordinates must align to grid ${pitch}`,
               path: [...path, axis],
             },
           ],

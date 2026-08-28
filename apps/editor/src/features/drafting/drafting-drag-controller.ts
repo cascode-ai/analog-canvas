@@ -44,6 +44,7 @@ type TransactionResult = { ok: boolean };
 
 export function createDraftingDragController({
   document,
+  annotationGrid,
   resolver,
   visibleEndpoints,
   dragSessionRef,
@@ -62,6 +63,8 @@ export function createDraftingDragController({
   setStatus,
 }: {
   document: SchematicDocument;
+  /** Rounding pitch for dragged drafting objects. */
+  annotationGrid: number;
   resolver: SymbolResolver;
   visibleEndpoints: readonly import("@icm/edit-engine").WireSource[];
   dragSessionRef: MutableRefObject<CanvasDragSession | null>;
@@ -153,7 +156,7 @@ export function createDraftingDragController({
               movingAnchors,
               targetAnchors,
               primaryAnchorId: `drafting:${object.id}:origin`,
-              grid: document.presentation.grid,
+              grid: annotationGrid,
               tolerance,
               profile: SNAP_PROFILES.draftingMove,
             },
@@ -210,7 +213,7 @@ export function createDraftingDragController({
               object: translateDraftingObject(
                 latest,
                 { x: position.x - original.x, y: position.y - original.y },
-                document.presentation.grid,
+                annotationGrid,
               ),
             },
           ]);
@@ -268,7 +271,7 @@ export function createDraftingDragController({
             handle,
             snapped.point,
             originalGeometry,
-            document.presentation.grid,
+            annotationGrid,
           ),
         });
       },
@@ -290,7 +293,7 @@ export function createDraftingDragController({
               handle,
               point,
               originalGeometry,
-              document.presentation.grid,
+              annotationGrid,
             );
             if (next !== latest) {
               transact([{ kind: "upsert_drafting_object", object: next }]);

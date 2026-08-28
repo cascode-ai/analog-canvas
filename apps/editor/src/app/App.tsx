@@ -446,6 +446,23 @@ export function App({
   const uniqueSuffixCounter = useRef(0);
   const [viewBox, setRawViewBox] = useState<GridRect>(DEFAULT_VIEWBOX);
   const [gridDotsVisible, setGridDotsVisible] = useState(true);
+  // Annotations and drafting place on their own pitch; the Document grid
+  // stays the electrical contract for devices, wires, and junctions.
+  const [annotationGrid, setAnnotationGridState] = useState<1 | 5 | 10>(() => {
+    if (typeof window === "undefined") return 5;
+    const stored = Number(
+      window.localStorage.getItem("icm.annotation-grid.v1"),
+    );
+    return stored === 1 || stored === 5 || stored === 10 ? stored : 5;
+  });
+  const setAnnotationGrid = (pitch: 1 | 5 | 10): void => {
+    setAnnotationGridState(pitch);
+    try {
+      window.localStorage.setItem("icm.annotation-grid.v1", String(pitch));
+    } catch {
+      // Storage may be unavailable; the choice still applies to this session.
+    }
+  };
   const setViewBox = (
     next: GridRect | CameraRectInput | ((current: GridRect) => CameraRectInput),
     grid = document.presentation.grid,
@@ -848,7 +865,15 @@ export function App({
   /** Show a placement ghost under the cursor without waiting for a move. */
   function seedComponentPreviewFromPointer(): void {
     const point = lastCanvasPointRef.current;
-    if (point) setComponentPreviewPoint(point);
+    if (!point) return;
+    const pitch =
+      pendingComponentPlacement?.kind === "drafting-text"
+        ? annotationGrid
+        : document.presentation.grid;
+    setComponentPreviewPoint({
+      x: snapCoordinate(point.x, pitch),
+      y: snapCoordinate(point.y, pitch),
+    });
   }
 
   function seedCopyPreviewFromPointer(): void {
@@ -1614,6 +1639,7 @@ export function App({
     reverseSelectedDrafting,
   } = createDraftingCommands({
     document,
+    annotationGrid,
     resolver,
     viewBox,
     selection: visualSelection,
@@ -1637,6 +1663,7 @@ export function App({
     finish: finishDraftingCreate,
   } = createDraftingCreateController({
     document,
+    annotationGrid,
     resolver,
     visibleEndpoints,
     routeGeometryRecords,
@@ -1662,6 +1689,7 @@ export function App({
     beginHandleDrag: beginDraftingHandleDrag,
   } = createDraftingDragController({
     document,
+    annotationGrid,
     resolver,
     visibleEndpoints,
     dragSessionRef: canvasDragSessionRef,
@@ -1698,6 +1726,7 @@ export function App({
   });
   const { beginDrag: beginAnnotationDrag } = createAnnotationDragController({
     document,
+    annotationGrid,
     resolver,
     routeGeometryRecords,
     dragSessionRef: canvasDragSessionRef,
@@ -1853,6 +1882,10 @@ export function App({
         pendingSymbolId && pendingComponentPlacement,
       ),
       componentSymbolPending: pendingSymbolId !== null,
+      placementGrid: () =>
+        pendingComponentPlacement?.kind === "drafting-text"
+          ? annotationGrid
+          : document.presentation.grid,
       setComponentPreviewPoint,
       vddRailMode,
       vddRailStart,
@@ -2701,10 +2734,16 @@ export function App({
       pendingComponentPlacement: Boolean(pendingComponentPlacement),
       vddRailMode,
       copyPlacementActive: copyPlacement !== null,
-      snapPlacementPoint: (point) => ({
-        x: snapCoordinate(point.x, document.presentation.grid),
-        y: snapCoordinate(point.y, document.presentation.grid),
-      }),
+      snapPlacementPoint: (point) => {
+        const pitch =
+          pendingComponentPlacement?.kind === "drafting-text"
+            ? annotationGrid
+            : document.presentation.grid;
+        return {
+          x: snapCoordinate(point.x, pitch),
+          y: snapCoordinate(point.y, pitch),
+        };
+      },
       commitCopyPlacement: commitCopyPlacementFromSelection,
       commitPendingPlacement: commitPendingPlacementAtFromHook,
       clearComponentPreview: () => setComponentPreviewPoint(null),
@@ -3961,6 +4000,8 @@ export function App({
         wireCornerOrder={wireCornerOrder}
         recoveryLabel={isDirtyWork() ? recoveryStateLabel(recoveryState) : null}
         gridDotsVisible={gridDotsVisible}
+        annotationGrid={annotationGrid}
+        onAnnotationGridChange={setAnnotationGrid}
         zoomPercent={zoomPercent}
         onToggleWireOptions={() => setWireOptionsOpen((open) => !open)}
         onWireRoutingModeChange={setWireRoutingMode}

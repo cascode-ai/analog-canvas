@@ -216,8 +216,10 @@ test("snaps quick Text creation after a non-grid viewport zoom", async ({
   const textObject = project.documents[0].drafting.objects.find(
     (object: { kind: string }) => object.kind === "text",
   );
-  expect(textObject.anchor.position.x % 10).toBe(0);
-  expect(textObject.anchor.position.y % 10).toBe(0);
+  // Quick text rounds to the annotation pitch (default 5), never raw
+  // fractional viewport coordinates.
+  expect(textObject.anchor.position.x % 5).toBe(0);
+  expect(textObject.anchor.position.y % 5).toBe(0);
 });
 
 test("copies a selected text with C", async ({ page }) => {
@@ -710,7 +712,9 @@ test("O creates a selectable, styleable circle with one radial handle and no rot
   const circle = page.locator('[data-kind="draft-circle"]');
   await expect(circle).toHaveCount(1);
   await expect(circle).toHaveAttribute("fill", "none");
-  await expect(circle).toHaveAttribute("r", "80");
+  // The default 5-unit annotation pitch resolves this gesture half a grid
+  // finer than the old device-grid rounding did.
+  await expect(circle).toHaveAttribute("r", "85");
 
   const hit = page.getByTestId(/^drafting-hit-circle-/);
   await expect(hit).toHaveCSS("pointer-events", "stroke");
@@ -1155,4 +1159,83 @@ test("Properties sets precise size, stroke width, and color per shape", async ({
   await properties.getByRole("button", { name: "Auto" }).click();
   const stroke = await rectangle.getAttribute("stroke");
   expect(stroke).not.toBe("#cc2200");
+});
+
+test("annotation grid pitch frees drawings from the device grid", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+
+  // Half-grid is the shipped default; the electrical grid is not offered.
+  const pitch = page.getByTestId("annotation-grid-select");
+  await expect(pitch).toHaveValue("5");
+  await pitch.selectOption("1");
+
+  // A drawn rectangle commits at 1-unit precision and survives validation.
+  await clickDrawTool(page, "rectangle");
+  const canvas = page.getByTestId("schematic-canvas");
+  const corners = [
+    { x: 301, y: 203 },
+    { x: 352, y: 247 },
+  ];
+  await canvas.click({ position: corners[0]! });
+  await canvas.click({ position: corners[1]! });
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("revision")).toHaveText("1");
+  // Reproduce the click-to-document mapping so the center assertion is exact.
+  const expectedCenter = await canvas.evaluate((element, points) => {
+    const svg = element as SVGSVGElement;
+    const bounds = svg.getBoundingClientRect();
+    const matrix = svg.getScreenCTM()!.inverse();
+    const toDocument = (point: { x: number; y: number }) => {
+      const client = new DOMPoint(bounds.left + point.x, bounds.top + point.y);
+      const local = client.matrixTransform(matrix);
+      return { x: Math.round(local.x), y: Math.round(local.y) };
+    };
+    const start = toDocument(points[0]!);
+    const end = toDocument(points[1]!);
+    return {
+      x: Math.round((start.x + end.x) / 2),
+      y: Math.round((start.y + end.y) / 2),
+    };
+  }, corners);
+
+  // A device stays on the Document grid no matter the annotation pitch.
+  await chooseComponent(page, "resistor");
+  await canvas.click({ position: { x: 363, y: 327 } });
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("hit-R1")).toBeVisible();
+
+  const saved = JSON.parse(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  ) as {
+    schemaVersion: number;
+    documents: Array<{
+      instances: Array<{ placement?: { position: { x: number; y: number } } }>;
+      drafting?: {
+        objects: Array<{
+          kind: string;
+          anchor: { kind: string; position?: { x: number; y: number } };
+        }>;
+      };
+    }>;
+  };
+  expect(saved.schemaVersion).toBe(29);
+  const document = saved.documents[0]!;
+  const rectangle = document.drafting?.objects.find(
+    (object) => object.kind === "rectangle",
+  ) as { center?: { x: number; y: number } } | undefined;
+  // 1-unit pitch: the drawn center lands exactly where the clicks map, not
+  // on a device-grid multiple.
+  expect(rectangle?.center).toEqual(expectedCenter);
+  const placement = document.instances[0]!.placement!.position;
+  expect(placement.x % 10).toBe(0);
+  expect(placement.y % 10).toBe(0);
+
+  // The pitch choice is an editor preference that survives a reload.
+  await page.reload();
+  await expect(page.getByTestId("annotation-grid-select")).toHaveValue("1");
 });

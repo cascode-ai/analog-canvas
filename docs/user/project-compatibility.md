@@ -1,6 +1,6 @@
 # Project File Compatibility
 
-The released Project schema version is `28`. It retains schematic-only
+The released Project schema version is `29`. It retains schematic-only
 hierarchy integrity, a Project structural revision, stable formal Cell ports,
 and definition-level Cell symbol presentation. It also has one typed Instance
 netlist authority, formal Cell parameters, and Project-local external
@@ -14,14 +14,17 @@ Its bound annotation may persist same-text RichText formatting but cannot store
 a divergent alias. Equal Port Names remain independent in the saved drawing
 and are grouped only by the read-only formal interface projection. Drafting
 text may also carry one of three polarity-label forms while its editable RichText
-content remains independent from the fixed vector marks. A canonical v28 file
-can be opened, saved, reopened, and saved again without byte drift.
+content remains independent from the fixed vector marks. Annotations and
+drafting objects position at 1-unit integer precision, while Instance
+placements, route bends, and Junctions stay aligned to the Document grid. A
+canonical v29 file can be opened, saved, reopened, and saved again without
+byte drift.
 
-Schema v27 is accepted through a bounded upgrade to v28. The new polarity
-field is optional, so the upgrade preserves all existing circuit and drafting
-content and stamps the current version. The next save writes v28. The original
-file is never overwritten silently. Schema v26 and older, and versions newer
-than v28, are rejected by the interactive project-file boundary.
+Schema v28 is accepted through a bounded upgrade to v29. The change is a
+validation relaxation only, so the upgrade preserves all existing circuit and
+drafting content and stamps the current version. The next save writes v29. The
+original file is never overwritten silently. Schema v27 and older, and versions
+newer than v29, are rejected by the interactive project-file boundary.
 
 The canonical-current corpus at
 [`fixtures/projects/compatibility-corpus.json`](../../fixtures/projects/compatibility-corpus.json)
@@ -33,7 +36,7 @@ Retired fields such as first-class
 
 An incompatible Project is rejected before it can replace the current browser
 Project. Conversion, when needed, is an explicit external operation that must
-produce and validate a complete v28 candidate before a human chooses to load it.
+produce and validate a complete v29 candidate before a human chooses to load it.
 
 The editor never silently merges duplicate canonical Ground (`0`) or VDD Nets.
 Duplicate folded Net names are invalid and remain diagnostics until the author

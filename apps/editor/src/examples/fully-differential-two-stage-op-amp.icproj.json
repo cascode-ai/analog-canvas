@@ -1277,28 +1277,36 @@
           {
             "direction": "passive",
             "id": "cell-terminal-p1",
-            "interfaceInstanceIds": ["P1"],
+            "interfaceInstanceIds": [
+              "P1"
+            ],
             "name": "Vin+",
             "netId": "net-ui-34"
           },
           {
             "direction": "passive",
             "id": "cell-terminal-p2",
-            "interfaceInstanceIds": ["P2"],
+            "interfaceInstanceIds": [
+              "P2"
+            ],
             "name": "Vin-",
             "netId": "net-ui-35"
           },
           {
             "direction": "passive",
             "id": "cell-terminal-p3",
-            "interfaceInstanceIds": ["P3"],
+            "interfaceInstanceIds": [
+              "P3"
+            ],
             "name": "Vout1",
             "netId": "net-port-p3"
           },
           {
             "direction": "passive",
             "id": "cell-terminal-p4",
-            "interfaceInstanceIds": ["P4"],
+            "interfaceInstanceIds": [
+              "P4"
+            ],
             "name": "Vout2",
             "netId": "net-port-p4"
           }
@@ -2521,7 +2529,7 @@
   "externalSubcircuitDefinitions": [],
   "id": "project-main",
   "name": "New Circuit",
-  "schemaVersion": 28,
+  "schemaVersion": 29,
   "source": {
     "dialect": "none",
     "entry": null,

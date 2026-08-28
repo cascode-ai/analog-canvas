@@ -188,7 +188,12 @@ export function createEditorCanvasEventHandlers({
         event.stopPropagation();
         commitCopyPlacement(
           snapPlacementPoint(
-            pointFromClient(event.clientX, event.clientY, event.currentTarget),
+            pointFromClient(
+              event.clientX,
+              event.clientY,
+              event.currentTarget,
+              false,
+            ),
           ),
         );
         return;
@@ -199,7 +204,12 @@ export function createEditorCanvasEventHandlers({
       event.stopPropagation();
       commitPendingPlacement(
         snapPlacementPoint(
-          pointFromClient(event.clientX, event.clientY, event.currentTarget),
+          pointFromClient(
+            event.clientX,
+            event.clientY,
+            event.currentTarget,
+            false,
+          ),
         ),
       );
     },
@@ -256,7 +266,14 @@ export function createEditorCanvasEventHandlers({
         onBackground
       ) {
         handleDraftingCanvasClick(
-          pointFromClient(event.clientX, event.clientY, event.currentTarget),
+          // Raw pointer: the drafting controller rounds by the annotation
+          // grid, which can be finer than the Document grid.
+          pointFromClient(
+            event.clientX,
+            event.clientY,
+            event.currentTarget,
+            false,
+          ),
           event.altKey,
           event.shiftKey,
           logicalRadiusForPixels(event.currentTarget, snapCaptureRadiusPixels),

@@ -185,25 +185,35 @@ describe("CircuitProject schema", () => {
     expect(SchematicDocumentSchema.safeParse(document).success).toBe(false);
   });
 
-  it("rejects a persisted page point that is not aligned to its Document grid", () => {
+  it("holds electrical objects to the Document grid while annotations position freely", () => {
     const document = createEmptyProject("project-grid", "Grid").documents[0]!;
+    // Schema 29: drafting and annotation anchors are 1-unit precise.
     document.drafting!.objects.push({
-      id: "draft-off-grid",
+      id: "draft-fine",
       kind: "text",
       locked: false,
       zIndex: 0,
-      anchor: { kind: "free", position: { x: 15, y: 20 } },
-      content: { runs: [{ kind: "text", value: "off grid" }] },
+      anchor: { kind: "free", position: { x: 15, y: 21 } },
+      content: { runs: [{ kind: "text", value: "fine placed" }] },
       alignment: "start",
       rotation: 0,
     });
+    expect(SchematicDocumentSchema.safeParse(document).success).toBe(true);
 
+    // The electrical grid contract is unchanged: an off-grid Instance
+    // placement still fails Document validation.
+    document.instances.push({
+      id: "R1",
+      symbolId: "resistor",
+      schematicReference: "R1",
+      placement: { position: { x: 15, y: 20 }, rotation: 0, mirror: "none" },
+    });
     const result = SchematicDocumentSchema.safeParse(document);
     expect(result.success).toBe(false);
     if (result.success) return;
     expect(result.error.issues).toContainEqual(
       expect.objectContaining({
-        path: ["drafting", "objects", 0, "anchor", "position", "x"],
+        path: ["instances", 0, "placement", "position", "x"],
       }),
     );
   });

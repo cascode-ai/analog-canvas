@@ -31,6 +31,7 @@ type TransactionResult = { ok: boolean };
 
 export function createDraftingCommands({
   document,
+  annotationGrid,
   resolver,
   viewBox,
   selection,
@@ -46,6 +47,8 @@ export function createDraftingCommands({
   selectAnnotation,
 }: {
   document: SchematicDocument;
+  /** Rounding pitch for drafting geometry edits and new plain text. */
+  annotationGrid: number;
   resolver: SymbolResolver;
   viewBox: GridRect;
   selection: VisualSelection;
@@ -164,7 +167,7 @@ export function createDraftingCommands({
       geometry,
       index,
       angleDegrees,
-      document.presentation.grid,
+      annotationGrid,
     );
     if (next) {
       transact([{ kind: "upsert_drafting_object", object: next }]);
@@ -191,7 +194,7 @@ export function createDraftingCommands({
       selectedDrafting,
       geometry,
       bearingDegrees,
-      document.presentation.grid,
+      annotationGrid,
     );
     if (next.kind === "attached-arrow") {
       setStatus(
@@ -225,7 +228,7 @@ export function createDraftingCommands({
         x: Math.round(viewBox.x + viewBox.width / 2),
         y: Math.round(viewBox.y + viewBox.height - 20),
       },
-      document.presentation.grid,
+      annotationGrid,
     );
     const object: DraftingText = {
       id,

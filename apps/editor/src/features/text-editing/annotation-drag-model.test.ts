@@ -13,6 +13,7 @@ function context(document: ReturnType<typeof createEmptyDocument>) {
   const routing = resolveDocumentRoutingGeometry(document, resolver);
   return {
     document,
+    annotationGrid: 10,
     resolver,
     routeGeometryRecords: document.routes.flatMap((route) => {
       const geometry = routing.routes.get(route.id);

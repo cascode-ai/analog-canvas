@@ -26,12 +26,14 @@ export function EditorStatusbar({
   wireCornerOrder,
   recoveryLabel,
   gridDotsVisible,
+  annotationGrid,
   zoomPercent,
   onToggleWireOptions,
   onWireRoutingModeChange,
   onWireCornerOrderChange,
   onToggleGridDots,
   onOpenAnalytics,
+  onAnnotationGridChange,
   onZoomOut,
   onZoomIn,
   onFitView,
@@ -46,12 +48,14 @@ export function EditorStatusbar({
   wireCornerOrder: WireCornerOrder;
   recoveryLabel: string | null;
   gridDotsVisible: boolean;
+  annotationGrid: 1 | 5 | 10;
   zoomPercent: number;
   onToggleWireOptions: () => void;
   onWireRoutingModeChange: (mode: WireRoutingMode) => void;
   onWireCornerOrderChange: (order: WireCornerOrder) => void;
   onToggleGridDots: () => void;
   onOpenAnalytics: () => void;
+  onAnnotationGridChange: (pitch: 1 | 5 | 10) => void;
   onZoomOut: () => void;
   onZoomIn: () => void;
   onFitView: () => void;
@@ -159,6 +163,21 @@ export function EditorStatusbar({
         >
           <ToolIcon name="grid" />
         </button>
+        <select
+          aria-label="Annotation grid"
+          data-testid="annotation-grid-select"
+          title="Placement pitch for text and drawing annotations. Devices, wires, and junctions always stay on the 10-unit grid."
+          value={annotationGrid}
+          onChange={(event) =>
+            onAnnotationGridChange(
+              Number(event.currentTarget.value) as 1 | 5 | 10,
+            )
+          }
+        >
+          <option value="10">±10</option>
+          <option value="5">±5</option>
+          <option value="1">±1</option>
+        </select>
         <button
           type="button"
           aria-label="Zoom out"

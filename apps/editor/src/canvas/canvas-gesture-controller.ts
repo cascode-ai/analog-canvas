@@ -102,6 +102,8 @@ export interface CanvasGestureControllerDependencies {
   placement: {
     componentPlacementPending: boolean;
     componentSymbolPending: boolean;
+    /** Rounding pitch for the pending placement's ghost (annotation texts move finer than devices). */
+    placementGrid: () => number;
     setComponentPreviewPoint: (point: Point) => void;
     vddRailMode: boolean;
     vddRailStart: Point | null;
@@ -170,6 +172,7 @@ export function createCanvasGestureController({
   placement: {
     componentPlacementPending,
     componentSymbolPending,
+    placementGrid,
     setComponentPreviewPoint,
     vddRailMode,
     vddRailStart,
@@ -330,7 +333,15 @@ export function createCanvasGestureController({
       return;
     }
     if (componentSymbolPending) {
-      setComponentPreviewPoint(point);
+      const raw = rawPointFromClient(
+        event.clientX,
+        event.clientY,
+        event.currentTarget,
+      );
+      setComponentPreviewPoint({
+        x: snapCoordinate(raw.x, placementGrid()),
+        y: snapCoordinate(raw.y, placementGrid()),
+      });
       return;
     }
     if (interactionKind === "copy-placement") {
@@ -350,8 +361,10 @@ export function createCanvasGestureController({
         tool === "circle") &&
       draftingSource !== null
     ) {
+      // Raw pointer: the drafting snapper rounds by the annotation grid,
+      // which can be finer than the Document grid this handler's point uses.
       const snapped = snapDraftingPoint(
-        point,
+        rawPointFromClient(event.clientX, event.clientY, event.currentTarget),
         event.altKey,
         event.shiftKey,
         draftingSource,

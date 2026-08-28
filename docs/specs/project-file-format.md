@@ -2,15 +2,16 @@
 
 Status: `accepted`
 
-Current Project schema: `28`
+Current Project schema: `29`
 
 Primary owners: `packages/model` (current shape) and
 `packages/project-protocol` (file boundary)
 
 An `.icproj.json` file is canonical JSON for one complete `CircuitProject`.
 `@icm/project-protocol` exposes `parseProject`. It accepts schemas 27 and 28,
-adds the optional polarity-annotation intent when reading schema 27, supplies
-only schema 28 in memory, and writes only schema 28. Older project files are
+accepts schema 28 unchanged (schema 29 only relaxes annotation and drafting
+anchors to 1-unit precision), supplies only schema 29 in memory, and writes
+only schema 29. Older project files are
 rejected.
 
 ## Current authorities
@@ -62,8 +63,8 @@ rejected.
 ## Read and write
 
 ```text
-import text -> parse JSON -> require Project schema 27 or 28
--> converge to schema 28 -> strict schema-28 validation -> install unbound
+import text -> parse JSON -> require Project schema 28 or 29
+-> converge to schema 29 -> strict schema-29 validation -> install unbound
 export -> strict validation -> canonical key ordering -> Blob download
 ```
 
@@ -83,7 +84,7 @@ until the author explicitly renames or merges the Nets.
 Canonical serialization ends with one newline and is byte-stable across
 serialize/parse/serialize. The current corpus is listed in
 `fixtures/projects/compatibility-corpus.json`; its accepted entries must all be
-already canonical Project schema 28. The rejected corpus names expected
+already canonical Project schema 29. The rejected corpus names expected
 validation failures.
 
 Viewport, selection, undo history, canvas overlays, Agent credentials,

@@ -34,3 +34,11 @@ export type {
   Schema27To28MigrationReport,
   Schema27To28MigrationResult,
 } from "./transforms/polarity-drafting.js";
+export {
+  upgradeSchema28To29,
+  upgradeSchema28To29WithReport,
+} from "./transforms/annotation-grid.js";
+export type {
+  Schema28To29MigrationReport,
+  Schema28To29MigrationResult,
+} from "./transforms/annotation-grid.js";

@@ -13,7 +13,7 @@ import {
   NoConnectSchema,
 } from "./connectivity.js";
 import { JunctionSchema, RouteBranchSchema } from "./routing.js";
-import { AnnotationSchema, VisualAnchorSchema } from "./annotations.js";
+import { AnnotationSchema } from "./annotations.js";
 import { DraftingLayerSchema } from "./drafting.js";
 import { flattenRichText } from "../rich-text.js";
 import { semanticTextDocument } from "../semantic-text.js";
@@ -23,7 +23,7 @@ import {
   MosBulkDefaultsSchema,
   PresentationIntentSchema,
 } from "./presentation.js";
-import type { DraftingObject, GridPoint, VisualAnchor } from "./types.js";
+import type { GridPoint } from "./types.js";
 import { reportDuplicateIds } from "./validation.js";
 export const SourceBindingSchema = z.strictObject({
   cellName: z.string().min(1),
@@ -90,123 +90,6 @@ function reportGridPoint(
       message: `Document page coordinates must align to grid ${grid}`,
       path: [...path, axis],
     });
-  }
-}
-
-function reportVisualAnchorGridAlignment(
-  anchor: VisualAnchor,
-  grid: number,
-  path: ReadonlyArray<string | number>,
-  context: z.RefinementCtx,
-): void {
-  switch (anchor.kind) {
-    case "free":
-      reportGridPoint(anchor.position, grid, [...path, "position"], context);
-      return;
-    case "object":
-      reportGridPoint(
-        anchor.localOffset,
-        grid,
-        [...path, "localOffset"],
-        context,
-      );
-      reportGridPoint(
-        anchor.fallbackPosition,
-        grid,
-        [...path, "fallbackPosition"],
-        context,
-      );
-      return;
-    case "route":
-      // `t` and normalOffset are parametric scalars, not page coordinates.
-      reportGridPoint(
-        anchor.fallbackPosition,
-        grid,
-        [...path, "fallbackPosition"],
-        context,
-      );
-  }
-}
-
-function reportDraftingObjectGridAlignment(
-  object: DraftingObject,
-  grid: number,
-  path: ReadonlyArray<string | number>,
-  context: z.RefinementCtx,
-): void {
-  reportVisualAnchorGridAlignment(
-    object.anchor,
-    grid,
-    [...path, "anchor"],
-    context,
-  );
-  switch (object.kind) {
-    case "text":
-    case "floating-symbol":
-      return;
-    case "arrow":
-      reportVisualAnchorGridAlignment(
-        object.from,
-        grid,
-        [...path, "from"],
-        context,
-      );
-      reportVisualAnchorGridAlignment(
-        object.to,
-        grid,
-        [...path, "to"],
-        context,
-      );
-      object.waypoints?.forEach((point, index) =>
-        reportGridPoint(point, grid, [...path, "waypoints", index], context),
-      );
-      object.curveControls?.forEach((point, index) => {
-        if (point) {
-          reportGridPoint(
-            point,
-            grid,
-            [...path, "curveControls", index],
-            context,
-          );
-        }
-      });
-      return;
-    case "leader":
-      reportVisualAnchorGridAlignment(
-        object.target,
-        grid,
-        [...path, "target"],
-        context,
-      );
-      return;
-    case "callout":
-      reportVisualAnchorGridAlignment(
-        object.target,
-        grid,
-        [...path, "target"],
-        context,
-      );
-      return;
-    case "construction-line":
-      object.points.forEach((point, index) =>
-        reportGridPoint(point, grid, [...path, "points", index], context),
-      );
-      object.curveControls?.forEach((point, index) => {
-        if (point) {
-          reportGridPoint(
-            point,
-            grid,
-            [...path, "curveControls", index],
-            context,
-          );
-        }
-      });
-      return;
-    case "rectangle":
-      reportGridPoint(object.center, grid, [...path, "center"], context);
-      return;
-    case "circle":
-      reportGridPoint(object.center, grid, [...path, "center"], context);
   }
 }
 
@@ -564,22 +447,11 @@ export const SchematicDocumentSchema = SchematicDocumentBaseSchema.superRefine(
         context,
       ),
     );
-    document.annotations.forEach((annotation, index) =>
-      reportVisualAnchorGridAlignment(
-        annotation.anchor,
-        grid,
-        ["annotations", index, "anchor"],
-        context,
-      ),
-    );
-    document.drafting?.objects.forEach((object, index) =>
-      reportDraftingObjectGridAlignment(
-        object,
-        grid,
-        ["drafting", "objects", index],
-        context,
-      ),
-    );
+    // Schema 29: annotations and drafting objects position at 1-unit
+    // precision (their point schemas already enforce integers). The Document
+    // grid remains the hard electrical contract above — instance placements,
+    // route bends, and junctions stay grid-aligned so pins and wires always
+    // coincide.
 
     const instanceIds = new Set(
       document.instances.map((instance) => instance.id),

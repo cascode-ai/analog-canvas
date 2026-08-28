@@ -12,7 +12,7 @@ import {
 } from "./diagnostics.js";
 import {
   ProjectMigrationError,
-  upgradeSchema27To28,
+  upgradeSchema28To29,
 } from "./previous-to-current.js";
 import { PREVIOUS_PROJECT_SCHEMA_VERSION } from "./version.js";
 
@@ -108,7 +108,7 @@ export function tryParseProjectWithMetadata(
   try {
     current =
       sourceSchemaVersion === PREVIOUS_PROJECT_SCHEMA_VERSION
-        ? upgradeSchema27To28(parsed)
+        ? upgradeSchema28To29(parsed)
         : parsed;
   } catch (error) {
     if (error instanceof ProjectMigrationError) {

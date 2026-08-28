@@ -21,6 +21,7 @@ describe("drafting create controller", () => {
     const setTool = vi.fn();
     const controller = createDraftingCreateController({
       document: createEmptyDocument("cell", "Cell"),
+      annotationGrid: 10,
       resolver: new InMemorySymbolResolver(builtInSymbols),
       visibleEndpoints: [],
       routeGeometryRecords: [],
@@ -55,6 +56,7 @@ describe("drafting create controller", () => {
     const transact = vi.fn(() => ({ ok: true }));
     const controller = createDraftingCreateController({
       document: createEmptyDocument("cell", "Cell"),
+      annotationGrid: 10,
       resolver: new InMemorySymbolResolver(builtInSymbols),
       visibleEndpoints: [],
       routeGeometryRecords: [],

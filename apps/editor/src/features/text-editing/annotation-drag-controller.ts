@@ -29,6 +29,7 @@ type TransactionResult = { ok: boolean };
 
 export function createAnnotationDragController({
   document,
+  annotationGrid,
   resolver,
   routeGeometryRecords,
   dragSessionRef,
@@ -41,6 +42,8 @@ export function createAnnotationDragController({
   setStatus,
 }: {
   document: SchematicDocument;
+  /** Rounding pitch for dragged labels. */
+  annotationGrid: number;
   resolver: SymbolResolver;
   routeGeometryRecords: readonly RouteGeometryRecord[];
   dragSessionRef: MutableRefObject<CanvasDragSession | null>;
@@ -131,12 +134,9 @@ export function createAnnotationDragController({
           {
             kind: "upsert_schematic_annotation",
             annotation: draggedAnnotationAtPosition(
-              { document, resolver, routeGeometryRecords },
+              { document, annotationGrid, resolver, routeGeometryRecords },
               latest,
-              snapGridPoint(
-                positionAt(client.x, client.y),
-                document.presentation.grid,
-              ),
+              snapGridPoint(positionAt(client.x, client.y), annotationGrid),
             ),
           },
         ]);

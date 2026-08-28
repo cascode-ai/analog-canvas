@@ -16,12 +16,14 @@ describe("editor statusbar", () => {
         wireCornerOrder="horizontal-first"
         recoveryLabel="Saved locally"
         gridDotsVisible
+        annotationGrid={5}
         zoomPercent={100}
         onToggleWireOptions={vi.fn()}
         onWireRoutingModeChange={vi.fn()}
         onWireCornerOrderChange={vi.fn()}
         onToggleGridDots={vi.fn()}
         onOpenAnalytics={vi.fn()}
+        onAnnotationGridChange={vi.fn()}
         onZoomOut={vi.fn()}
         onZoomIn={vi.fn()}
         onFitView={vi.fn()}
@@ -30,5 +32,6 @@ describe("editor statusbar", () => {
     expect(markup).toContain('data-testid="wire-options"');
     expect(markup).toContain("Saved locally");
     expect(markup).toContain('aria-label="Current zoom"');
+    expect(markup).toContain('aria-label="Annotation grid"');
   });
 });

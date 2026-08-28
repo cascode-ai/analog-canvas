@@ -1,5 +1,3 @@
-import { CURRENT_PROJECT_SCHEMA_VERSION } from "@icm/model";
-
 export interface Schema27To28MigrationReport {
   /** Schema 28 adds optional polarity intent; existing projects are unchanged. */
   readonly changed: false;
@@ -18,7 +16,7 @@ export function upgradeSchema27To28WithReport(
   raw: Record<string, unknown>,
 ): Schema27To28MigrationResult {
   const project = structuredClone(raw);
-  project.schemaVersion = CURRENT_PROJECT_SCHEMA_VERSION;
+  project.schemaVersion = 28;
   return { project, report: { changed: false } };
 }
 

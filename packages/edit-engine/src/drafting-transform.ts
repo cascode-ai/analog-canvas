@@ -12,9 +12,12 @@ import type { DraftingObject, GridPoint, VisualAnchor } from "@icm/model";
 function translatePoint(
   point: GridPoint,
   delta: GridPoint,
-  grid: number,
+  _grid: number,
 ): GridPoint {
-  return snapGridPoint({ x: point.x + delta.x, y: point.y + delta.y }, grid);
+  // Translation preserves an object's relative fine placement: annotation
+  // pitch can be finer than the Document grid, so only integer precision is
+  // restored here — the delta itself carries the grid discipline.
+  return snapGridPoint({ x: point.x + delta.x, y: point.y + delta.y }, 1);
 }
 
 function translateFreeAnchor<T extends VisualAnchor>(
