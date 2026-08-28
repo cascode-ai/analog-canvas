@@ -4,7 +4,6 @@ export interface ReplaceGuardDialogProps {
   /** What is about to replace the dirty work, e.g. "Open amp.icproj.json". */
   intent: string;
   saving: boolean;
-  recoveryProtected: boolean;
   onCancel(): void;
   onSaveAndContinue(): void;
   onDiscard(): void;
@@ -19,7 +18,6 @@ export interface ReplaceGuardDialogProps {
 export function ReplaceGuardDialog({
   intent,
   saving,
-  recoveryProtected,
   onCancel,
   onSaveAndContinue,
   onDiscard,
@@ -50,28 +48,19 @@ export function ReplaceGuardDialog({
       >
         <header className="help-dialog-header">
           <div>
-            <p className="help-kicker">Unsaved changes</p>
-            <h2 id="replace-guard-title">Protect the current Project</h2>
+            <h2 id="replace-guard-title">Unsaved changes</h2>
           </div>
         </header>
         <div className="help-dialog-content">
           <p>
-            The current Project has unsaved changes. Browser recovery is only a
-            safety copy. Choose what happens before <strong>{intent}</strong>{" "}
-            continues.
+            If you continue to <strong>{intent}</strong>, your latest changes
+            will not be saved.
           </p>
-          {recoveryProtected ? (
-            <p>
-              A temporary recovery copy is available while you decide. Choosing
-              Discard removes this working copy before continuing.
-            </p>
-          ) : null}
-          {!recoveryProtected ? (
-            <p className="replace-guard-warning" role="alert">
-              A current browser recovery copy could not be confirmed. Saving is
-              strongly recommended before continuing.
-            </p>
-          ) : null}
+          <p>
+            <strong>Save</strong> stores this Project in Cloud Projects (up to
+            3). <strong>File / Export Project File…</strong> downloads a local
+            <code>.icproj.json</code> file.
+          </p>
           <div className="replace-guard-actions">
             <button
               type="button"
@@ -79,10 +68,10 @@ export function ReplaceGuardDialog({
               onClick={onCancel}
               disabled={saving}
             >
-              Cancel (keep editing)
+              Stay
             </button>
             <button type="button" onClick={onSaveAndContinue} disabled={saving}>
-              {saving ? "Saving…" : "Save and continue"}
+              {saving ? "Saving to Cloud…" : "Save to Cloud and continue"}
             </button>
             <button
               type="button"
@@ -90,14 +79,9 @@ export function ReplaceGuardDialog({
               onClick={onDiscard}
               disabled={saving}
             >
-              Discard and continue
+              Continue without saving
             </button>
           </div>
-          <p>
-            Cloud Project is the formal saved copy. Browser recovery and local
-            exports remain safety and interchange copies; neither is a hidden
-            project history.
-          </p>
         </div>
       </section>
     </div>

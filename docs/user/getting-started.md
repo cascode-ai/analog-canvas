@@ -69,9 +69,12 @@ If Cloud is unavailable, continue editing normally and use **Export Project
 File…** when you want a portable copy. A direct **Download Backup** action is
 shown contextually if browser recovery itself cannot protect current work.
 
-New, Open, Revert, and the same-tab trip to Gallery ask whether to **Save and
-continue**, **Discard and continue**, or **Cancel** when the current Project is
-dirty. Discard means discard: that working copy is removed before the action
+New, Open, Revert, and the same-tab trip to Gallery ask whether to **Save to
+Cloud and continue**, **Continue without saving**, or **Stay** when the current
+Project is dirty. The prompt also identifies where each explicit save goes:
+Cloud Save updates one of at most three private Cloud Projects, while **Export
+Project File…** downloads a local `.icproj.json` file. Continue without saving
+means discard: that working copy is removed before the action
 continues. If a newer
 unsaved recovery copy is found on a later start, a small banner offers
 **Restore**, **Download backup**, or **Ignore**. The same copies remain

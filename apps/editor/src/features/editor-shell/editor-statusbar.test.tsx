@@ -21,6 +21,7 @@ describe("editor statusbar", () => {
         onWireRoutingModeChange={vi.fn()}
         onWireCornerOrderChange={vi.fn()}
         onToggleGridDots={vi.fn()}
+        onOpenAnalytics={vi.fn()}
         onZoomOut={vi.fn()}
         onZoomIn={vi.fn()}
         onFitView={vi.fn()}

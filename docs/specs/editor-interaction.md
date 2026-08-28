@@ -353,9 +353,17 @@ lifecycle that controls Save. While that marker is present, browser Back,
 Refresh, and tab/window close use the browser-native leave confirmation;
 ordinary in-app navigation, selection, zoom, and panel changes do not affect
 it. New, Open, Revert, recovery restore, and approved staged replacement use
-one application dialog with Save and continue, Discard and continue, and
-Cancel. A startup recovery offer is a non-modal overlay and never silently
+one concise application dialog with Stay, Save to Cloud and continue, and
+Continue without saving. The dialog states the destination and distinguishes
+Cloud Save (at most three private Cloud Projects) from local Project-file
+export without exposing browser-recovery internals. A startup recovery offer is
+a non-modal overlay and never silently
 replaces the active Project.
+
+Same-site destinations owned by the product, including Gallery and Analytics,
+enter through this application replacement guard. Their anchors retain normal
+link behavior for modified clicks, but an ordinary primary click must not fall
+through to a second native `beforeunload` prompt.
 
 ## Agent semantic control
 

@@ -112,7 +112,8 @@ read bytes, JSON/schema validation, approved-symbol validation, Project
 preparation — before the live Project changes. Invalid input leaves the
 Project, selection, history, recovery, and file state untouched. Before
 replacing dirty work the editor first attempts and flushes a recovery write,
-then offers **Save and continue**, **Discard and continue**, or **Cancel**,
+then offers **Save to Cloud and continue**, **Continue without saving**, or
+**Stay**,
 defaulting to Cancel. Cloud Save failure leaves the foreground
 Project and dialog in place. Recovery failure is shown in the same dialog as
 elevated risk but never grants permission to discard.

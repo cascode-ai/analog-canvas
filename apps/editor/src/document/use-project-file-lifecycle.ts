@@ -47,7 +47,6 @@ export type PersistenceState =
 interface ReplaceGuardState {
   intent: string;
   perform: () => void | Promise<void>;
-  recoveryProtected: boolean;
 }
 
 export interface ReplaceProjectOptions {
@@ -294,11 +293,10 @@ export function useProjectFileLifecycle({
       return;
     }
     recovery.stage(project, { unsavedAtSnapshot: true, cloudBinding });
-    const recoveryState = await recovery.flushNow();
+    await recovery.flushNow();
     setReplaceGuard({
       intent,
       perform,
-      recoveryProtected: recoveryState === "stored",
     });
   }
 

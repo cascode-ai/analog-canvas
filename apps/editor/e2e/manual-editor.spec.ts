@@ -3761,8 +3761,8 @@ test("retains recovery across export but honors explicit discard on replacement"
       ),
     );
   await page
-    .getByRole("dialog", { name: "Protect the current Project" })
-    .getByRole("button", { name: "Discard and continue" })
+    .getByRole("dialog", { name: "Unsaved changes" })
+    .getByRole("button", { name: "Continue without saving" })
     .click();
   await expect(page.getByTestId("active-document-name")).toHaveText(
     "Manual Editor Demo",

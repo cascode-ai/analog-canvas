@@ -1690,14 +1690,14 @@ test("the Examples panel guards dirty work before opening an entry", async ({
 
   await card.click();
   const dialog = page.getByRole("dialog", {
-    name: "Protect the current Project",
+    name: "Unsaved changes",
   });
   await expect(dialog).toBeVisible();
-  await dialog.getByRole("button", { name: "Cancel (keep editing)" }).click();
+  await dialog.getByRole("button", { name: "Stay" }).click();
   await expect(page.getByTestId("hit-R1")).toHaveCount(1);
 
   await card.click();
-  await dialog.getByRole("button", { name: "Discard and continue" }).click();
+  await dialog.getByRole("button", { name: "Continue without saving" }).click();
   await expect(page.getByTestId("status")).toContainText(
     `Opened gallery circuit: ${ENTRY.name}`,
   );

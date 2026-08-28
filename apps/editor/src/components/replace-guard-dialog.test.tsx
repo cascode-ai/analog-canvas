@@ -4,39 +4,38 @@ import { describe, expect, it, vi } from "vitest";
 import { ReplaceGuardDialog } from "./replace-guard-dialog";
 
 describe("ReplaceGuardDialog", () => {
-  it("offers save, discard, and cancellation without treating recovery as a save", () => {
+  it("states the consequence and distinguishes Cloud Save from file export", () => {
     const html = renderToStaticMarkup(
       <ReplaceGuardDialog
         intent="Open OTA.icproj.json"
         saving={false}
-        recoveryProtected={true}
         onCancel={vi.fn()}
         onSaveAndContinue={vi.fn()}
         onDiscard={vi.fn()}
       />,
     );
-    expect(html).toContain("Save and continue");
-    expect(html).toContain("Discard and continue");
-    expect(html).toContain("Discard removes this working copy");
-    expect(html).toContain("Cancel (keep editing)");
-    expect(html).toContain("Cloud Project is the formal saved copy");
-    expect(html).not.toContain("authoritative copy");
-    expect(html).not.toContain("Download current Project");
+    expect(html).toContain("Unsaved changes");
+    expect(html).toContain("your latest changes will not be saved");
+    expect(html).toContain("Cloud Projects (up to 3)");
+    expect(html).toContain("Export Project File");
+    expect(html).toContain(".icproj.json");
+    expect(html).toContain("Save to Cloud and continue");
+    expect(html).toContain("Continue without saving");
+    expect(html).toContain("Stay");
+    expect(html).not.toContain("Browser recovery");
   });
 
-  it("warns when the outgoing recovery copy could not be confirmed", () => {
+  it("disables every decision while Cloud Save is in progress", () => {
     const html = renderToStaticMarkup(
       <ReplaceGuardDialog
         intent="Create a new Project"
         saving={true}
-        recoveryProtected={false}
         onCancel={vi.fn()}
         onSaveAndContinue={vi.fn()}
         onDiscard={vi.fn()}
       />,
     );
-    expect(html).toContain("could not be confirmed");
-    expect(html).toContain("Saving…");
+    expect(html).toContain("Saving to Cloud…");
     expect(html).toContain("disabled");
   });
 });

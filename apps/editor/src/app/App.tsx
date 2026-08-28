@@ -3012,7 +3012,6 @@ export function App({
             ? {
                 intent: replaceGuard.intent,
                 saving: replaceGuardSaving,
-                recoveryProtected: replaceGuard.recoveryProtected,
                 onCancel: cancelReplaceGuard,
                 onSaveAndContinue: saveAndContinueReplaceGuard,
                 onDiscard: confirmReplaceGuard,
@@ -3974,6 +3973,12 @@ export function App({
             return !visible;
           })
         }
+        onOpenAnalytics={() => {
+          void guardDirtyReplacement("Open Analytics", () => {
+            allowNextBrowserUnload();
+            window.location.assign("/analytics");
+          });
+        }}
         onZoomOut={() => zoomViewAtCenter(1.2)}
         onZoomIn={() => zoomViewAtCenter(0.84)}
         onFitView={() => editorCommands.execute({ id: "view.fit" })}

@@ -151,14 +151,14 @@ test("Gallery navigation uses the replacement decision without a second browser 
   await page.keyboard.press("Escape");
   await page.getByRole("link", { name: "Back to the gallery" }).click();
   const guard = page.getByRole("dialog", {
-    name: "Protect the current Project",
+    name: "Unsaved changes",
   });
   await expect(guard).toBeVisible();
-  await guard.getByRole("button", { name: "Cancel (keep editing)" }).click();
+  await guard.getByRole("button", { name: "Stay" }).click();
   await expect(page).toHaveURL(/\/editor/u);
 
   await page.getByRole("link", { name: "Back to the gallery" }).click();
-  await guard.getByRole("button", { name: "Discard and continue" }).click();
+  await guard.getByRole("button", { name: "Continue without saving" }).click();
   await expect(page).toHaveURL(/\/$/u);
   await page.goto("/editor");
   await expect(page.getByTestId("startup-recovery-banner")).toHaveCount(0);
@@ -240,14 +240,16 @@ test("replacement guard offers cancel, discard, and Cloud Save", async ({
   );
   await input.setInputFiles(replacement);
   const dialog = page.getByRole("dialog", {
-    name: "Protect the current Project",
+    name: "Unsaved changes",
   });
-  await dialog.getByRole("button", { name: "Cancel (keep editing)" }).click();
+  await dialog.getByRole("button", { name: "Stay" }).click();
   await expect(page.getByTestId("revision")).toHaveText("1");
 
   await input.evaluate((element) => ((element as HTMLInputElement).value = ""));
   await input.setInputFiles(replacement);
-  await dialog.getByRole("button", { name: "Save and continue" }).click();
+  await dialog
+    .getByRole("button", { name: "Save to Cloud and continue" })
+    .click();
   await expect(dialog).toBeHidden();
   expect(cloud.stored()?.projectText).toContain("resistor");
   await expect(page.getByTestId("active-document-name")).toHaveText(
@@ -267,9 +269,9 @@ test("discarding a dirty replacement does not leave a second project stack", asy
   let fileMenu = await openMenu(page, "File");
   await fileMenu.getByRole("button", { name: "New Project" }).click();
   const dialog = page.getByRole("dialog", {
-    name: "Protect the current Project",
+    name: "Unsaved changes",
   });
-  await dialog.getByRole("button", { name: "Discard and continue" }).click();
+  await dialog.getByRole("button", { name: "Continue without saving" }).click();
   await expect(page.getByTestId("canvas-empty-state")).toBeVisible();
   fileMenu = await openMenu(page, "File");
   await expect(
@@ -300,8 +302,8 @@ test("reverts to the last acknowledged Cloud revision", async ({ page }) => {
   fileMenu = await openMenu(page, "File");
   await fileMenu.getByRole("button", { name: "Revert to Last Saved" }).click();
   await page
-    .getByRole("dialog", { name: "Protect the current Project" })
-    .getByRole("button", { name: "Discard and continue" })
+    .getByRole("dialog", { name: "Unsaved changes" })
+    .getByRole("button", { name: "Continue without saving" })
     .click();
   await expect(page.getByTestId("hit-R1")).toHaveCount(1);
   await expect(page.getByTestId("hit-R2")).toHaveCount(0);

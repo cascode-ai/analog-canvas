@@ -31,6 +31,7 @@ export function EditorStatusbar({
   onWireRoutingModeChange,
   onWireCornerOrderChange,
   onToggleGridDots,
+  onOpenAnalytics,
   onZoomOut,
   onZoomIn,
   onFitView,
@@ -50,6 +51,7 @@ export function EditorStatusbar({
   onWireRoutingModeChange: (mode: WireRoutingMode) => void;
   onWireCornerOrderChange: (order: WireCornerOrder) => void;
   onToggleGridDots: () => void;
+  onOpenAnalytics: () => void;
   onZoomOut: () => void;
   onZoomIn: () => void;
   onFitView: () => void;
@@ -125,6 +127,19 @@ export function EditorStatusbar({
           href="/analytics"
           data-testid="statusbar-analytics"
           title="Open visitor analytics"
+          onClick={(event) => {
+            if (
+              event.button !== 0 ||
+              event.metaKey ||
+              event.ctrlKey ||
+              event.shiftKey ||
+              event.altKey
+            ) {
+              return;
+            }
+            event.preventDefault();
+            onOpenAnalytics();
+          }}
         >
           {visitStats.uv.toLocaleString()} visitors ·{" "}
           {visitStats.pv.toLocaleString()} views
