@@ -39,6 +39,34 @@ export interface WireCanvasSnapResult {
 }
 
 /** Resolve one wire-canvas pointer to a grid, endpoint, or routed conductor. */
+/**
+ * How far a leg may drift off one axis before it counts as a deliberate turn.
+ */
+const AXIS_LOCK_RATIO = 1 / 3;
+
+/**
+ * Hold a free leg to a single axis.
+ *
+ * A hand that drifts a grid sideways while pulling a wire down turned the leg
+ * into a corner, and at the next click the wire folded back over the line it
+ * had just drawn. A leg that is overwhelmingly one direction is meant to be
+ * that direction. A deliberate diagonal, where both components are
+ * comparable, still opens a corner — that is what the corner-order modes are
+ * for.
+ */
+function holdLegToOneAxis(from: Point, to: Point): Point {
+  const alongX = Math.abs(to.x - from.x);
+  const alongY = Math.abs(to.y - from.y);
+  if (alongX === 0 || alongY === 0) return to;
+  if (alongY > alongX && alongX <= alongY * AXIS_LOCK_RATIO) {
+    return { x: from.x, y: to.y };
+  }
+  if (alongX > alongY && alongY <= alongX * AXIS_LOCK_RATIO) {
+    return { x: to.x, y: from.y };
+  }
+  return to;
+}
+
 export function resolveWireCanvasSnap(
   {
     document,
@@ -148,8 +176,14 @@ export function resolveWireCanvasSnap(
           (candidate) => candidate.anchor.id === contact.route!.id,
         )
       : undefined;
+  // Only a landing that hit nothing is free to be straightened; a leg aimed at
+  // a terminal, a junction, or a route has to reach it exactly.
+  const landing =
+    !endpoint && !route && !ambiguous && arrival
+      ? holdLegToOneAxis(arrival, snappedPoint)
+      : snappedPoint;
   return {
-    point: snappedPoint,
+    point: landing,
     ...(ambiguous ? { ambiguous: true } : {}),
     ...(endpoint ? { endpoint } : {}),
     ...(route

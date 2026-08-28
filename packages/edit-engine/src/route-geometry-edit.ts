@@ -41,7 +41,10 @@ const MODE_PRIORITY: Record<SegmentMode, number> = {
   locked: 4,
 };
 
-function strongerMode(left: SegmentMode, right: SegmentMode): SegmentMode {
+export function strongerMode(
+  left: SegmentMode,
+  right: SegmentMode,
+): SegmentMode {
   return MODE_PRIORITY[left] >= MODE_PRIORITY[right] ? left : right;
 }
 

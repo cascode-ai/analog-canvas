@@ -11,6 +11,7 @@ import {
 } from "@icm/derived";
 import {
   normalizeRouteGeometry,
+  strongerMode,
   type SegmentMode,
 } from "./route-geometry-edit.js";
 import {
@@ -848,6 +849,54 @@ function appendOctilinear(
  * Compile authored wire clicks to ordinary persisted Route geometry.  A mode
  * applies only to the leg being authored; prior compiled legs are immutable.
  */
+/**
+ * Drop legs that double back along the leg before them.
+ *
+ * Authoring keeps whatever the pointer traced: pull left, come back right and
+ * the wire folds over itself; overshoot downwards and return and the overshoot
+ * hangs past the corner as a stub. Both paint on top of a line already drawn,
+ * so neither is geometry anyone asked for.
+ *
+ * `normalizeRouteGeometry` will not do this — its collinearity test means
+ * collinear *and continuing*, which is what crossing detection and hit testing
+ * need. Only the authored path wants the wider reading, so it is folded in
+ * here rather than in the shared normalizer.
+ */
+function cancelDoubledBackLegs(
+  points: readonly Point[],
+  modes: readonly SegmentMode[],
+): { points: Point[]; segmentModes: SegmentMode[] } {
+  const keptPoints: Point[] = [];
+  const keptModes: SegmentMode[] = [];
+  for (const [index, point] of points.entries()) {
+    keptPoints.push({ ...point });
+    if (index > 0) keptModes.push(modes[index - 1]!);
+    for (;;) {
+      const count = keptPoints.length;
+      if (count < 3) break;
+      const first = keptPoints[count - 3]!;
+      const middle = keptPoints[count - 2]!;
+      const last = keptPoints[count - 1]!;
+      const before = { x: middle.x - first.x, y: middle.y - first.y };
+      const after = { x: last.x - middle.x, y: last.y - middle.y };
+      const onOneLine = before.x * after.y - before.y * after.x === 0;
+      const reverses = before.x * after.x + before.y * after.y < 0;
+      if (!onOneLine || !reverses) break;
+      keptPoints.splice(count - 2, 1);
+      keptModes.splice(
+        count - 3,
+        2,
+        strongerMode(keptModes[count - 3]!, keptModes[count - 2]!),
+      );
+      if (samePoint(keptPoints.at(-2)!, keptPoints.at(-1)!)) {
+        keptPoints.pop();
+        keptModes.pop();
+      }
+    }
+  }
+  return { points: keptPoints, segmentModes: keptModes };
+}
+
 export function compileWireDraft(
   from: WireEndpointGeometry,
   to: WireEndpointGeometry,
@@ -888,10 +937,14 @@ export function compileWireDraft(
     routingMode: finalRoutingMode,
     cornerOrder: finalCornerOrder,
   });
-  const normalized =
+  const straightened =
     points.length === 1
       ? { points, segmentModes: [] as SegmentMode[] }
-      : normalizeRouteGeometry(points, modes);
+      : cancelDoubledBackLegs(points, modes);
+  const normalized =
+    straightened.points.length === 1
+      ? straightened
+      : normalizeRouteGeometry(straightened.points, straightened.segmentModes);
   const authoredPoints: Point[] = [{ ...from.connection.contactPoint }];
   const authoredModes: SegmentMode[] = [];
   const appendAuthored = (point: Point, mode: SegmentMode) => {
