@@ -90,9 +90,13 @@ function createHarness(
     storage,
     fire: timers.fire,
     settle: async () => {
-      // fake-indexeddb settles requests across real macrotasks; a short
-      // real-timer wait lets the full write chain finish.
-      await new Promise((resolve) => globalThis.setTimeout(resolve, 25));
+      // Await the serial write chain (and with it the fake-indexeddb
+      // transaction) through the coordinator's own settling point instead of
+      // racing a wall-clock wait. Every settle site runs after `fire()` or a
+      // cancel, so the scheduler holds no candidate and the flush half of
+      // `flushNow()` is a no-op — were a supposedly dropped candidate still
+      // pending, it would be written and fail the test's readAll assertions.
+      await coordinator.flushNow();
     },
   };
 }
