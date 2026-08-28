@@ -200,6 +200,112 @@ export function orientClipboard(
       }
       return clone;
     }),
+    // Drafting objects are part of the same rigid body: their anchors and
+    // kind-specific geometry orbit the anchor exactly like routes and
+    // junctions do, or a rotated paste tears the group apart.
+    draftingObjects: clipboard.draftingObjects.map((object) => {
+      const clone = structuredClone(object);
+      const mapAnchor = (anchor: typeof clone.anchor): typeof clone.anchor => {
+        if (anchor.kind === "free") {
+          return { ...anchor, position: mapPoint(anchor.position) };
+        }
+        if (anchor.kind === "object") {
+          return {
+            ...anchor,
+            localOffset: mapVector(anchor.localOffset),
+            fallbackPosition: mapPoint(anchor.fallbackPosition),
+          };
+        }
+        return {
+          ...anchor,
+          fallbackPosition: mapPoint(anchor.fallbackPosition),
+        };
+      };
+      const mappedAngle = (degrees: number): number => {
+        const radians = (degrees * Math.PI) / 180;
+        const turned = mapVector({
+          x: Math.cos(radians),
+          y: Math.sin(radians),
+        });
+        const next = (Math.atan2(turned.y, turned.x) * 180) / Math.PI;
+        const normalized = ((next % 360) + 360) % 360;
+        // Quarter turns and mirrors keep the angle exact in real math; only
+        // strip the trig float dust, never a genuinely fractional angle.
+        return Math.abs(normalized - Math.round(normalized)) < 1e-9
+          ? Math.round(normalized) % 360
+          : normalized;
+      };
+      const quarterTurns = operations.reduce(
+        (total, operation) =>
+          operation.kind === "rotate"
+            ? (((total + operation.deltaDegrees / 90) % 4) + 4) % 4
+            : total,
+        0,
+      );
+      const turnedRotation = (
+        rotation: 0 | 90 | 180 | 270,
+      ): 0 | 90 | 180 | 270 =>
+        (((rotation / 90 + quarterTurns) % 4) * 90) as 0 | 90 | 180 | 270;
+      clone.anchor = mapAnchor(clone.anchor);
+      switch (clone.kind) {
+        case "text": {
+          clone.rotation = turnedRotation(clone.rotation);
+          if (flipsWorldX && clone.alignment !== "middle") {
+            clone.alignment = clone.alignment === "start" ? "end" : "start";
+          }
+          break;
+        }
+        case "callout": {
+          clone.rotation = turnedRotation(clone.rotation);
+          clone.target = mapAnchor(clone.target);
+          if (flipsWorldX && clone.alignment !== "middle") {
+            clone.alignment = clone.alignment === "start" ? "end" : "start";
+          }
+          break;
+        }
+        case "leader": {
+          clone.target = mapAnchor(clone.target);
+          break;
+        }
+        case "arrow": {
+          clone.from = mapAnchor(clone.from);
+          clone.to = mapAnchor(clone.to);
+          if (clone.waypoints) clone.waypoints = clone.waypoints.map(mapPoint);
+          if (clone.curveControls) {
+            clone.curveControls = clone.curveControls.map((control) =>
+              control ? mapPoint(control) : control,
+            );
+          }
+          break;
+        }
+        case "construction-line": {
+          clone.points = clone.points.map(mapPoint);
+          if (clone.curveControls) {
+            clone.curveControls = clone.curveControls.map((control) =>
+              control ? mapPoint(control) : control,
+            );
+          }
+          break;
+        }
+        case "rectangle": {
+          clone.center = mapPoint(clone.center);
+          clone.rotation = mappedAngle(clone.rotation);
+          break;
+        }
+        case "circle": {
+          clone.center = mapPoint(clone.center);
+          break;
+        }
+        case "floating-symbol": {
+          clone.transform = applyOrientationOperations(
+            clone.transform,
+            operations,
+          );
+          break;
+        }
+      }
+      return clone;
+    }),
   };
 }
 
@@ -607,13 +713,13 @@ export function copySelection(
       .filter((net) => netIds.has(net.id))
       .map((net) => ({
         ...net,
-        // Owner-retained boundary Nets become a new physical Base Net around
-        // the copied owner. Ordinary boundary terminals remain disconnected.
-        terminals: internalNetIds.has(net.id)
-          ? net.terminals
-          : net.terminals.filter((terminal) =>
-              selectedIds.has(terminal.instanceId),
-            ),
+        // Only terminals whose instance is actually copied travel: an
+        // explicitly selected Route promotes its whole net to internal, but
+        // that net can still land on instances outside the copy, and their
+        // terminals would map to nothing at paste time.
+        terminals: net.terminals.filter((terminal) =>
+          selectedIds.has(terminal.instanceId),
+        ),
       })),
     routes: document.routes.filter((route) => routeIds.has(route.id)),
     junctions: document.junctions.filter((junction) =>
@@ -936,6 +1042,17 @@ export function proposePaste(
   for (const net of clipboard.nets) {
     netIds.set(net.id, uniqueCopyId(net.id, sequence, occupied));
   }
+  for (const junction of clipboard.junctions) {
+    // A junction can arrive without its net (a junction-only marquee copy
+    // clones no internal Route, so the net is never cloned): the paste
+    // creates a fresh net for it instead of emitting an undefined netId.
+    if (!netIds.has(junction.netId)) {
+      netIds.set(
+        junction.netId,
+        uniqueCopyId(junction.netId, sequence, occupied),
+      );
+    }
+  }
   const objectIds = new Map<string, string>([
     ...instanceIds,
     ...netIds,
@@ -1001,11 +1118,18 @@ export function proposePaste(
   }
 
   for (const net of clipboard.nets) {
-    const mappedTerminals = net.terminals.map((terminal): RouteEndpoint => ({
-      kind: "terminal",
-      instanceId: instanceIds.get(terminal.instanceId)!,
-      pinName: terminal.pinName,
-    }));
+    const mappedTerminals = net.terminals.flatMap(
+      (terminal): RouteEndpoint[] => {
+        const instanceId = instanceIds.get(terminal.instanceId);
+        if (!instanceId) {
+          // Legacy clipboards could carry terminals of uncopied instances;
+          // surface a plan-time error instead of a raw schema rejection.
+          errors.push(`Unknown terminal instance: ${terminal.instanceId}`);
+          return [];
+        }
+        return [{ kind: "terminal", instanceId, pinName: terminal.pinName }];
+      },
+    );
     const netId = netIds.get(net.id)!;
     if (mappedTerminals[0]) {
       edits.push({

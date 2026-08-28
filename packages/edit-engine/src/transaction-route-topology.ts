@@ -21,8 +21,14 @@ import {
   retargetMosBulkDefaultsAfterSplit,
   retargetOwnerEvidenceAfterSplit,
 } from "./transaction-connectivity.js";
-import { captureRouteMarkerAnchors } from "./transaction-route-annotations.js";
-import { remapRouteMarkersAfterSplit } from "./transaction-route-annotation-follow.js";
+import {
+  captureNetLabelRouteAnchors,
+  captureRouteMarkerAnchors,
+} from "./transaction-route-annotations.js";
+import {
+  remapNetLabelsAfterSplit,
+  remapRouteMarkersAfterSplit,
+} from "./transaction-route-annotation-follow.js";
 import { splitRoute } from "./transaction-route-follow.js";
 import {
   addEndpointToNet,
@@ -139,6 +145,10 @@ export function applyRouteTopologyEdit(
           draft,
           resolver,
         ).filter((anchor) => anchor.routeId === route.id);
+        const splitNetLabelAnchors = captureNetLabelRouteAnchors(
+          draft,
+          resolver,
+        ).filter((anchor) => anchor.routeId === route.id);
         const splitIndex = route.legs.findIndex(
           (leg) => leg.id === edit.split!.legId,
         );
@@ -176,6 +186,13 @@ export function applyRouteTopologyEdit(
           draft,
           resolver,
           splitMarkerAnchors,
+          [split.first.id, split.second.id],
+          changedObjectIds,
+        );
+        remapNetLabelsAfterSplit(
+          draft,
+          resolver,
+          splitNetLabelAnchors,
           [split.first.id, split.second.id],
           changedObjectIds,
         );
@@ -243,6 +260,10 @@ export function applyRouteTopologyEdit(
       const markerAnchors = captureRouteMarkerAnchors(draft, resolver).filter(
         (anchor) => anchor.routeId === route.id,
       );
+      const netLabelAnchors = captureNetLabelRouteAnchors(
+        draft,
+        resolver,
+      ).filter((anchor) => anchor.routeId === route.id);
       const splitIndex = route.legs.findIndex((leg) => leg.id === edit.legId);
       if (splitIndex < 0) {
         return rejectAt(
@@ -279,6 +300,13 @@ export function applyRouteTopologyEdit(
         draft,
         resolver,
         markerAnchors,
+        [split.first.id, split.second.id],
+        changedObjectIds,
+      );
+      remapNetLabelsAfterSplit(
+        draft,
+        resolver,
+        netLabelAnchors,
         [split.first.id, split.second.id],
         changedObjectIds,
       );

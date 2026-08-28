@@ -11,6 +11,7 @@ import {
   followNetLabelsOnChangedRoutes,
   followRouteMarkersOnChangedRoutes,
   remapRouteMarkersAfterSplit,
+  remapNetLabelsAfterSplit,
 } from "./transaction-route-annotation-follow.js";
 import {
   captureNetLabelRouteAnchors,
@@ -652,6 +653,10 @@ export function executeTransaction(
       const markerAnchors = captureRouteMarkerAnchors(draft, resolver).filter(
         (anchor) => anchor.routeId === route.id,
       );
+      const netLabelAnchors = captureNetLabelRouteAnchors(
+        draft,
+        resolver,
+      ).filter((anchor) => anchor.routeId === route.id);
       const seed = `${route.id}:${endpointKey(operation.endpoint)}:${operation.point.x},${operation.point.y}`;
       // Keep the original ID on the from-side so selection, drag state, and
       // callers holding a revision-local Route address remain valid after an
@@ -709,6 +714,13 @@ export function executeTransaction(
         draft,
         resolver,
         markerAnchors,
+        [split.first.id, split.second.id],
+        changedObjectIds,
+      );
+      remapNetLabelsAfterSplit(
+        draft,
+        resolver,
+        netLabelAnchors,
         [split.first.id, split.second.id],
         changedObjectIds,
       );

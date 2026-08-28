@@ -1325,7 +1325,10 @@ describe("routing Edit Engine", () => {
         (annotation) => annotation.id === "net-label-route-h",
       ),
     ).toMatchObject({
-      anchor: { fallbackPosition: { x: 300, y: 330 } },
+      // Conductor lands on y=340; the persisted -8 normal offset survives
+      // verbatim (the old 330 expectation encoded the coarse-grid snap the
+      // follow no longer applies).
+      anchor: { fallbackPosition: { x: 300, y: 332 } },
       rotation: 0,
     });
     expect(reshaped.diff.changedObjectIds).toEqual(

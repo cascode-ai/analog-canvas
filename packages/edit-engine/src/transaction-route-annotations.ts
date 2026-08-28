@@ -11,6 +11,8 @@ export interface NetLabelRouteAnchor {
   t: number;
   normalOffset: number;
   arcFraction: number;
+  /** Conductor point of the anchor at capture time (world coordinates). */
+  position: Point;
 }
 
 export interface RouteMarkerAnchor {
@@ -96,7 +98,10 @@ function closestRouteAnchor(
   points: readonly Point[],
   position: Point,
 ):
-  | (Omit<NetLabelRouteAnchor, "annotationId" | "routeId" | "segmentCount"> & {
+  | (Omit<
+      NetLabelRouteAnchor,
+      "annotationId" | "routeId" | "segmentCount" | "position"
+    > & {
       distanceSquared: number;
     })
   | null {
@@ -161,33 +166,77 @@ export function captureNetLabelRouteAnchors(
     ) {
       return [];
     }
-    const closest = polylines
-      .filter(({ route }) => route.id === annotationAnchor.routeId)
-      .flatMap(({ route, polyline }) => {
-        const anchor = closestRouteAnchor(
-          polyline.points,
-          annotationAnchor.fallbackPosition,
-        );
-        return anchor
-          ? [
-              {
-                ...anchor,
-                annotationId: annotation.id,
-                routeId: route.id,
-                segmentCount: polyline.points.length - 1,
-              },
-            ]
-          : [];
-      })
-      .sort(
-        (left, right) =>
-          left.distanceSquared - right.distanceSquared ||
-          left.routeId.localeCompare(right.routeId, "en"),
-      )[0];
-    if (!closest) return [];
-    const { distanceSquared: _distanceSquared, ...anchor } = closest;
-    return [anchor];
+    const entry = polylines.find(
+      ({ route }) => route.id === annotationAnchor.routeId,
+    );
+    if (!entry) return [];
+    // Persisted-first: the stored legId/t/normalOffset are the anchor's
+    // source of truth. Re-projecting from the grid-snapped fallbackPosition
+    // quantized the anchor a little further on every routing transaction.
+    const legIndex = entry.route.legs.findIndex(
+      (leg) => leg.id === annotationAnchor.legId,
+    );
+    if (legIndex >= 0 && legIndex < entry.polyline.points.length - 1) {
+      const from = entry.polyline.points[legIndex]!;
+      const to = entry.polyline.points[legIndex + 1]!;
+      return [
+        {
+          annotationId: annotation.id,
+          routeId: entry.route.id,
+          segmentIndex: legIndex,
+          segmentCount: entry.polyline.points.length - 1,
+          t: annotationAnchor.t,
+          normalOffset: annotationAnchor.normalOffset,
+          arcFraction: arcFractionAt(
+            entry.polyline.points,
+            legIndex,
+            annotationAnchor.t,
+          ),
+          position: {
+            x: from.x + (to.x - from.x) * annotationAnchor.t,
+            y: from.y + (to.y - from.y) * annotationAnchor.t,
+          },
+        },
+      ];
+    }
+    const anchor = closestRouteAnchor(
+      entry.polyline.points,
+      annotationAnchor.fallbackPosition,
+    );
+    if (!anchor) return [];
+    const { distanceSquared: _distanceSquared, ...rest } = anchor;
+    const from = entry.polyline.points[rest.segmentIndex]!;
+    const to = entry.polyline.points[rest.segmentIndex + 1]!;
+    return [
+      {
+        ...rest,
+        annotationId: annotation.id,
+        routeId: entry.route.id,
+        segmentCount: entry.polyline.points.length - 1,
+        position: {
+          x: from.x + (to.x - from.x) * rest.t,
+          y: from.y + (to.y - from.y) * rest.t,
+        },
+      },
+    ];
   });
+}
+
+function arcFractionAt(
+  points: readonly Point[],
+  segmentIndex: number,
+  t: number,
+): number {
+  const lengths = points.slice(0, -1).map((from, index) => {
+    const to = points[index + 1]!;
+    return Math.hypot(to.x - from.x, to.y - from.y);
+  });
+  const total = lengths.reduce((sum, length) => sum + length, 0);
+  if (total === 0) return 0;
+  const before = lengths
+    .slice(0, segmentIndex)
+    .reduce((sum, length) => sum + length, 0);
+  return (before + (lengths[segmentIndex] ?? 0) * t) / total;
 }
 
 export function captureRouteMarkerAnchors(
