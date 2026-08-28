@@ -145,6 +145,11 @@ describe("Razavi symbol catalog", () => {
       ["current-source", "reviewed", "razavi-reference-v1"],
       ["d-flip-flop", "reviewed", "razavi-reference-v1"],
       ["delay-cell", "reviewed", "razavi-reference-v1"],
+      ["adder", "reviewed", "razavi-reference-v1"],
+      ["multiplier", "reviewed", "razavi-reference-v1"],
+      ["integrator", "reviewed", "razavi-reference-v1"],
+      ["unit-delay", "reviewed", "razavi-reference-v1"],
+      ["quantizer", "reviewed", "razavi-reference-v1"],
       ["diode", "reviewed", "razavi-reference-v1"],
       ["ground", "reviewed", "razavi-reference-v1"],
       ["ideal-switch", "reviewed", "razavi-reference-v1"],
@@ -492,7 +497,7 @@ describe("Razavi symbol catalog", () => {
   });
 
   it("uses reviewed catalog objects as the sole built-in product library", () => {
-    expect(razaviCatalogSymbols).toHaveLength(41);
+    expect(razaviCatalogSymbols).toHaveLength(46);
     for (const catalogSymbol of razaviProductSymbols) {
       expect(
         builtInSymbols.find((symbol) => symbol.id === catalogSymbol.id),
@@ -513,6 +518,11 @@ describe("Razavi symbol catalog", () => {
       "current-source",
       "d-flip-flop",
       "delay-cell",
+      "adder",
+      "multiplier",
+      "integrator",
+      "unit-delay",
+      "quantizer",
       "diode",
       "ground",
       "ideal-switch",

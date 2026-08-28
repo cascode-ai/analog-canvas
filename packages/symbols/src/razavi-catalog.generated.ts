@@ -317,6 +317,116 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     },
   },
   {
+    symbolId: "adder",
+    name: "Adder",
+    category: "signal-flow",
+    reviewStatus: "reviewed",
+    pinOrder: ["A", "B", "Y"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Behavioral summing node; structural netlists need an explicit implementation mapping.",
+    assetPath: "adder.symbol.json",
+    assetHash:
+      "69973ee3d2e41d98faf892b7214c2b8c7cccb27446c6a342d4b1c54be613f89b",
+    visualAuthority: {
+      kind: "razavi-reference-v1",
+      referenceManifestPath:
+        "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      referencePaths: [
+        "fixtures/visual-reference/razavi-reference-v1/razavi-six-panel.png",
+      ],
+    },
+  },
+  {
+    symbolId: "multiplier",
+    name: "Multiplier",
+    category: "signal-flow",
+    reviewStatus: "reviewed",
+    pinOrder: ["A", "B", "Y"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Behavioral mixing node; structural netlists need an explicit implementation mapping.",
+    assetPath: "multiplier.symbol.json",
+    assetHash:
+      "5d6215b95bf56494770f20255be4ceb70b51cf7ac660b36657b58476cc46d321",
+    visualAuthority: {
+      kind: "razavi-reference-v1",
+      referenceManifestPath:
+        "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      referencePaths: [
+        "fixtures/visual-reference/razavi-reference-v1/razavi-six-panel.png",
+      ],
+    },
+  },
+  {
+    symbolId: "integrator",
+    name: "Integrator (1/s)",
+    category: "signal-flow",
+    reviewStatus: "reviewed",
+    pinOrder: ["A", "Y"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Behavioral s-domain block; structural netlists need an explicit implementation mapping.",
+    assetPath: "integrator.symbol.json",
+    assetHash:
+      "a330c262993b8d8ad4716eabaf32d2fa3bb9aea534abb73a4bd8c82386be5f3e",
+    visualAuthority: {
+      kind: "razavi-reference-v1",
+      referenceManifestPath:
+        "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      referencePaths: [
+        "fixtures/visual-reference/razavi-reference-v1/razavi-six-panel.png",
+      ],
+    },
+  },
+  {
+    symbolId: "unit-delay",
+    name: "Unit Delay (z⁻¹)",
+    category: "signal-flow",
+    reviewStatus: "reviewed",
+    pinOrder: ["A", "Y"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Behavioral z-domain block; structural netlists need an explicit implementation mapping.",
+    assetPath: "unit-delay.symbol.json",
+    assetHash:
+      "9c6038e68a3a7feda8e47b476fcd498f16b51d5d9c0e101e486a472ec675d59d",
+    visualAuthority: {
+      kind: "razavi-reference-v1",
+      referenceManifestPath:
+        "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      referencePaths: [
+        "fixtures/visual-reference/razavi-reference-v1/razavi-six-panel.png",
+      ],
+    },
+  },
+  {
+    symbolId: "quantizer",
+    name: "Quantizer",
+    category: "signal-flow",
+    reviewStatus: "reviewed",
+    pinOrder: ["A", "Y"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Behavioral quantization block; structural netlists need an explicit implementation mapping.",
+    assetPath: "quantizer.symbol.json",
+    assetHash:
+      "8395934c657d3b56be05dc80eb67c7ac8c5f08bae9ec14b4c884259a3c179a93",
+    visualAuthority: {
+      kind: "razavi-reference-v1",
+      referenceManifestPath:
+        "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      referencePaths: [
+        "fixtures/visual-reference/razavi-reference-v1/razavi-six-panel.png",
+      ],
+    },
+  },
+  {
     symbolId: "diode",
     name: "Diode",
     category: "passive",
@@ -2652,6 +2762,727 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         ],
         fill: "foreground",
         stroke: "none",
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "adder",
+    name: "Adder",
+    viewBox: {
+      x: -34,
+      y: -22,
+      width: 68,
+      height: 56,
+    },
+    pins: [
+      {
+        name: "A",
+        role: "input",
+        at: {
+          x: -30,
+          y: 0,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 15,
+        },
+      },
+      {
+        name: "B",
+        role: "input",
+        at: {
+          x: 0,
+          y: 30,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 15,
+        },
+      },
+      {
+        name: "Y",
+        role: "output",
+        at: {
+          x: 30,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 15,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: 0,
+        },
+        to: {
+          x: -12,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "circle",
+        center: {
+          x: 0,
+          y: 0,
+        },
+        radius: 12,
+        fill: "none",
+        stroke: "foreground",
+        style: {
+          strokeRole: "emphasis",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 12,
+          y: 0,
+        },
+        to: {
+          x: 30,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 12,
+        },
+        to: {
+          x: 0,
+          y: 30,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -6,
+          y: 0,
+        },
+        to: {
+          x: 6,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: -6,
+        },
+        to: {
+          x: 0,
+          y: 6,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "multiplier",
+    name: "Multiplier",
+    viewBox: {
+      x: -34,
+      y: -22,
+      width: 68,
+      height: 56,
+    },
+    pins: [
+      {
+        name: "A",
+        role: "input",
+        at: {
+          x: -30,
+          y: 0,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 15,
+        },
+      },
+      {
+        name: "B",
+        role: "input",
+        at: {
+          x: 0,
+          y: 30,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 15,
+        },
+      },
+      {
+        name: "Y",
+        role: "output",
+        at: {
+          x: 30,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 15,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: 0,
+        },
+        to: {
+          x: -12,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "circle",
+        center: {
+          x: 0,
+          y: 0,
+        },
+        radius: 12,
+        fill: "none",
+        stroke: "foreground",
+        style: {
+          strokeRole: "emphasis",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 12,
+          y: 0,
+        },
+        to: {
+          x: 30,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 12,
+        },
+        to: {
+          x: 0,
+          y: 30,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -4.243,
+          y: -4.243,
+        },
+        to: {
+          x: 4.243,
+          y: 4.243,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -4.243,
+          y: 4.243,
+        },
+        to: {
+          x: 4.243,
+          y: -4.243,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "integrator",
+    name: "Integrator (1/s)",
+    viewBox: {
+      x: -44,
+      y: -24,
+      width: 88,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "A",
+        role: "input",
+        at: {
+          x: -40,
+          y: 0,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 15,
+        },
+      },
+      {
+        name: "Y",
+        role: "output",
+        at: {
+          x: 40,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 15,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -40,
+          y: 0,
+        },
+        to: {
+          x: -24,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M -24 -12 L 24 -12 L 24 12 L -24 12 Z",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 24,
+          y: 0,
+        },
+        to: {
+          x: 40,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: -9,
+        },
+        to: {
+          x: 0,
+          y: -3,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -1.8,
+          y: -7.3,
+        },
+        to: {
+          x: 0,
+          y: -9,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -6,
+          y: 0,
+        },
+        to: {
+          x: 6,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "path",
+        data: "M 2.6 3.6 A 1.9 1.9 0 1 0 0.4 5.6 A 1.9 1.9 0 1 1 -1.8 7.6",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "unit-delay",
+    name: "Unit Delay (z⁻¹)",
+    viewBox: {
+      x: -44,
+      y: -24,
+      width: 88,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "A",
+        role: "input",
+        at: {
+          x: -40,
+          y: 0,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 15,
+        },
+      },
+      {
+        name: "Y",
+        role: "output",
+        at: {
+          x: 40,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 15,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -40,
+          y: 0,
+        },
+        to: {
+          x: -24,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M -24 -12 L 24 -12 L 24 12 L -24 12 Z",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 24,
+          y: 0,
+        },
+        to: {
+          x: 40,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polyline",
+        points: [
+          {
+            x: -10,
+            y: -5,
+          },
+          {
+            x: -2,
+            y: -5,
+          },
+          {
+            x: -10,
+            y: 5,
+          },
+          {
+            x: -2,
+            y: 5,
+          },
+        ],
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 2,
+          y: -6,
+        },
+        to: {
+          x: 7,
+          y: -6,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 10,
+          y: -9,
+        },
+        to: {
+          x: 10,
+          y: -3,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 8.5,
+          y: -7.5,
+        },
+        to: {
+          x: 10,
+          y: -9,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "quantizer",
+    name: "Quantizer",
+    viewBox: {
+      x: -44,
+      y: -24,
+      width: 88,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "A",
+        role: "input",
+        at: {
+          x: -40,
+          y: 0,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 15,
+        },
+      },
+      {
+        name: "Y",
+        role: "output",
+        at: {
+          x: 40,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 15,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -40,
+          y: 0,
+        },
+        to: {
+          x: -24,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M -24 -12 L 24 -12 L 24 12 L -24 12 Z",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 24,
+          y: 0,
+        },
+        to: {
+          x: 40,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polyline",
+        points: [
+          {
+            x: -14,
+            y: 8,
+          },
+          {
+            x: -7,
+            y: 8,
+          },
+          {
+            x: -7,
+            y: 3,
+          },
+          {
+            x: 0,
+            y: 3,
+          },
+          {
+            x: 0,
+            y: -2,
+          },
+          {
+            x: 7,
+            y: -2,
+          },
+          {
+            x: 7,
+            y: -7,
+          },
+          {
+            x: 14,
+            y: -7,
+          },
+        ],
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
       },
     ],
     variants: [],

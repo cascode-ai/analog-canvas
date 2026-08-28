@@ -1,0 +1,158 @@
+{
+  "schemaVersion": 1,
+  "id": "unit-delay",
+  "name": "Unit Delay (z⁻¹)",
+  "viewBox": {
+    "x": -44,
+    "y": -24,
+    "width": 88,
+    "height": 48
+  },
+  "pins": [
+    {
+      "name": "A",
+      "role": "input",
+      "at": {
+        "x": -40,
+        "y": 0
+      },
+      "direction": "west",
+      "presentation": {
+        "visibility": "visible",
+        "leadLength": 15
+      }
+    },
+    {
+      "name": "Y",
+      "role": "output",
+      "at": {
+        "x": 40,
+        "y": 0
+      },
+      "direction": "east",
+      "presentation": {
+        "visibility": "visible",
+        "leadLength": 15
+      }
+    }
+  ],
+  "primitives": [
+    {
+      "kind": "line",
+      "from": {
+        "x": -40,
+        "y": 0
+      },
+      "to": {
+        "x": -24,
+        "y": 0
+      },
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "butt",
+        "lineJoin": "miter"
+      }
+    },
+    {
+      "kind": "path",
+      "data": "M -24 -12 L 24 -12 L 24 12 L -24 12 Z",
+      "style": {
+        "strokeRole": "emphasis",
+        "lineCap": "butt",
+        "lineJoin": "miter",
+        "miterLimit": 4
+      }
+    },
+    {
+      "kind": "line",
+      "from": {
+        "x": 24,
+        "y": 0
+      },
+      "to": {
+        "x": 40,
+        "y": 0
+      },
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "butt",
+        "lineJoin": "miter"
+      }
+    },
+    {
+      "kind": "polyline",
+      "points": [
+        {
+          "x": -10,
+          "y": -5
+        },
+        {
+          "x": -2,
+          "y": -5
+        },
+        {
+          "x": -10,
+          "y": 5
+        },
+        {
+          "x": -2,
+          "y": 5
+        }
+      ],
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "round",
+        "lineJoin": "round"
+      }
+    },
+    {
+      "kind": "line",
+      "from": {
+        "x": 2,
+        "y": -6
+      },
+      "to": {
+        "x": 7,
+        "y": -6
+      },
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "round",
+        "lineJoin": "round"
+      }
+    },
+    {
+      "kind": "line",
+      "from": {
+        "x": 10,
+        "y": -9
+      },
+      "to": {
+        "x": 10,
+        "y": -3
+      },
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "round",
+        "lineJoin": "round"
+      }
+    },
+    {
+      "kind": "line",
+      "from": {
+        "x": 8.5,
+        "y": -7.5
+      },
+      "to": {
+        "x": 10,
+        "y": -9
+      },
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "round",
+        "lineJoin": "round"
+      }
+    }
+  ],
+  "variants": []
+}

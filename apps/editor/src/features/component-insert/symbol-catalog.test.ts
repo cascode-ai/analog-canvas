@@ -21,6 +21,7 @@ describe("component insertion catalog", () => {
       "Switches",
       "Analog Blocks",
       "Logic Gates",
+      "Signal Flow",
       "Annotations",
       "Extended Devices",
     ]);

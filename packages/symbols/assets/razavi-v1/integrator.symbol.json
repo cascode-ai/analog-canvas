@@ -1,0 +1,141 @@
+{
+  "schemaVersion": 1,
+  "id": "integrator",
+  "name": "Integrator (1/s)",
+  "viewBox": {
+    "x": -44,
+    "y": -24,
+    "width": 88,
+    "height": 48
+  },
+  "pins": [
+    {
+      "name": "A",
+      "role": "input",
+      "at": {
+        "x": -40,
+        "y": 0
+      },
+      "direction": "west",
+      "presentation": {
+        "visibility": "visible",
+        "leadLength": 15
+      }
+    },
+    {
+      "name": "Y",
+      "role": "output",
+      "at": {
+        "x": 40,
+        "y": 0
+      },
+      "direction": "east",
+      "presentation": {
+        "visibility": "visible",
+        "leadLength": 15
+      }
+    }
+  ],
+  "primitives": [
+    {
+      "kind": "line",
+      "from": {
+        "x": -40,
+        "y": 0
+      },
+      "to": {
+        "x": -24,
+        "y": 0
+      },
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "butt",
+        "lineJoin": "miter"
+      }
+    },
+    {
+      "kind": "path",
+      "data": "M -24 -12 L 24 -12 L 24 12 L -24 12 Z",
+      "style": {
+        "strokeRole": "emphasis",
+        "lineCap": "butt",
+        "lineJoin": "miter",
+        "miterLimit": 4
+      }
+    },
+    {
+      "kind": "line",
+      "from": {
+        "x": 24,
+        "y": 0
+      },
+      "to": {
+        "x": 40,
+        "y": 0
+      },
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "butt",
+        "lineJoin": "miter"
+      }
+    },
+    {
+      "kind": "line",
+      "from": {
+        "x": 0,
+        "y": -9
+      },
+      "to": {
+        "x": 0,
+        "y": -3
+      },
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "round",
+        "lineJoin": "round"
+      }
+    },
+    {
+      "kind": "line",
+      "from": {
+        "x": -1.8,
+        "y": -7.3
+      },
+      "to": {
+        "x": 0,
+        "y": -9
+      },
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "round",
+        "lineJoin": "round"
+      }
+    },
+    {
+      "kind": "line",
+      "from": {
+        "x": -6,
+        "y": 0
+      },
+      "to": {
+        "x": 6,
+        "y": 0
+      },
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "round",
+        "lineJoin": "round"
+      }
+    },
+    {
+      "kind": "path",
+      "data": "M 2.6 3.6 A 1.9 1.9 0 1 0 0.4 5.6 A 1.9 1.9 0 1 1 -1.8 7.6",
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "round",
+        "lineJoin": "round"
+      }
+    }
+  ],
+  "variants": []
+}

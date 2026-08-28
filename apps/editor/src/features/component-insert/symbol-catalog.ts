@@ -33,6 +33,7 @@ const CATALOG_SECTIONS: readonly CatalogSection[] = [
   { category: "Switches" },
   { category: "Analog Blocks" },
   { category: "Logic Gates" },
+  { category: "Signal Flow" },
   { category: ANNOTATION_CATEGORY },
   {
     category: EXTENDED_DEVICE_CATEGORY,
@@ -94,6 +95,13 @@ export function symbolCategory(symbolId: string): string {
     ].includes(symbolId)
   ) {
     return "Logic Gates";
+  }
+  if (
+    ["adder", "multiplier", "integrator", "unit-delay", "quantizer"].includes(
+      symbolId,
+    )
+  ) {
+    return "Signal Flow";
   }
   if (
     ["voltage-source", "pulse-voltage-source", "current-source"].includes(
@@ -169,6 +177,12 @@ const SYMBOL_ORDER: readonly string[] = [
   "vdd-port",
   "vdd",
   "ground",
+  // Signal-flow blocks in signal-chain order, not alphabetical.
+  "adder",
+  "multiplier",
+  "integrator",
+  "unit-delay",
+  "quantizer",
   // Annotations: drawing tools first (toolbar order), then the polarity
   // label, and the standalone sign texts last.
   "annotation-arrow",

@@ -1191,7 +1191,7 @@ test("shows the complete foldable categorized Library, quick-places a device, an
   await expect(panel).toHaveAttribute("data-open", "true");
   const libraryChipCount = await libraryChips.count();
   expect(libraryChipCount).toBeGreaterThanOrEqual(35);
-  await expect(categories).toHaveCount(9);
+  await expect(categories).toHaveCount(10);
   const transistorCategory = page.getByTestId("shapes-category-transistors");
   const transistorChips = transistorCategory.locator(
     '[data-testid^="shapes-chip-"]',

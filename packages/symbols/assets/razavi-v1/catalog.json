@@ -258,6 +258,101 @@
       }
     },
     {
+      "symbolId": "adder",
+      "name": "Adder",
+      "category": "signal-flow",
+      "reviewStatus": "reviewed",
+      "pinOrder": ["A", "B", "Y"],
+      "palette": true,
+      "automaticMappings": [],
+      "manualOnlyReason": "Behavioral summing node; structural netlists need an explicit implementation mapping.",
+      "assetPath": "adder.symbol.json",
+      "assetHash": "69973ee3d2e41d98faf892b7214c2b8c7cccb27446c6a342d4b1c54be613f89b",
+      "visualAuthority": {
+        "kind": "razavi-reference-v1",
+        "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+        "referencePaths": [
+          "fixtures/visual-reference/razavi-reference-v1/razavi-six-panel.png"
+        ]
+      }
+    },
+    {
+      "symbolId": "multiplier",
+      "name": "Multiplier",
+      "category": "signal-flow",
+      "reviewStatus": "reviewed",
+      "pinOrder": ["A", "B", "Y"],
+      "palette": true,
+      "automaticMappings": [],
+      "manualOnlyReason": "Behavioral mixing node; structural netlists need an explicit implementation mapping.",
+      "assetPath": "multiplier.symbol.json",
+      "assetHash": "5d6215b95bf56494770f20255be4ceb70b51cf7ac660b36657b58476cc46d321",
+      "visualAuthority": {
+        "kind": "razavi-reference-v1",
+        "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+        "referencePaths": [
+          "fixtures/visual-reference/razavi-reference-v1/razavi-six-panel.png"
+        ]
+      }
+    },
+    {
+      "symbolId": "integrator",
+      "name": "Integrator (1/s)",
+      "category": "signal-flow",
+      "reviewStatus": "reviewed",
+      "pinOrder": ["A", "Y"],
+      "palette": true,
+      "automaticMappings": [],
+      "manualOnlyReason": "Behavioral s-domain block; structural netlists need an explicit implementation mapping.",
+      "assetPath": "integrator.symbol.json",
+      "assetHash": "a330c262993b8d8ad4716eabaf32d2fa3bb9aea534abb73a4bd8c82386be5f3e",
+      "visualAuthority": {
+        "kind": "razavi-reference-v1",
+        "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+        "referencePaths": [
+          "fixtures/visual-reference/razavi-reference-v1/razavi-six-panel.png"
+        ]
+      }
+    },
+    {
+      "symbolId": "unit-delay",
+      "name": "Unit Delay (z⁻¹)",
+      "category": "signal-flow",
+      "reviewStatus": "reviewed",
+      "pinOrder": ["A", "Y"],
+      "palette": true,
+      "automaticMappings": [],
+      "manualOnlyReason": "Behavioral z-domain block; structural netlists need an explicit implementation mapping.",
+      "assetPath": "unit-delay.symbol.json",
+      "assetHash": "9c6038e68a3a7feda8e47b476fcd498f16b51d5d9c0e101e486a472ec675d59d",
+      "visualAuthority": {
+        "kind": "razavi-reference-v1",
+        "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+        "referencePaths": [
+          "fixtures/visual-reference/razavi-reference-v1/razavi-six-panel.png"
+        ]
+      }
+    },
+    {
+      "symbolId": "quantizer",
+      "name": "Quantizer",
+      "category": "signal-flow",
+      "reviewStatus": "reviewed",
+      "pinOrder": ["A", "Y"],
+      "palette": true,
+      "automaticMappings": [],
+      "manualOnlyReason": "Behavioral quantization block; structural netlists need an explicit implementation mapping.",
+      "assetPath": "quantizer.symbol.json",
+      "assetHash": "8395934c657d3b56be05dc80eb67c7ac8c5f08bae9ec14b4c884259a3c179a93",
+      "visualAuthority": {
+        "kind": "razavi-reference-v1",
+        "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+        "referencePaths": [
+          "fixtures/visual-reference/razavi-reference-v1/razavi-six-panel.png"
+        ]
+      }
+    },
+    {
       "symbolId": "diode",
       "name": "Diode",
       "category": "passive",
