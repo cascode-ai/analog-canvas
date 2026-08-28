@@ -716,36 +716,28 @@
           {
             "direction": "passive",
             "id": "cell-terminal-p1",
-            "interfaceInstanceIds": [
-              "P1"
-            ],
+            "interfaceInstanceIds": ["P1"],
             "name": "Vin1",
             "netId": "net-contact-p1"
           },
           {
             "direction": "passive",
             "id": "cell-terminal-p2",
-            "interfaceInstanceIds": [
-              "P2"
-            ],
+            "interfaceInstanceIds": ["P2"],
             "name": "Vin2",
             "netId": "net-contact-p2"
           },
           {
             "direction": "passive",
             "id": "cell-terminal-p3",
-            "interfaceInstanceIds": [
-              "P3"
-            ],
+            "interfaceInstanceIds": ["P3"],
             "name": "Vout",
             "netId": "net-ui-8"
           },
           {
             "direction": "passive",
             "id": "cell-terminal-p4",
-            "interfaceInstanceIds": [
-              "P4"
-            ],
+            "interfaceInstanceIds": ["P4"],
             "name": "Vb",
             "netId": "net-contact-p4"
           }

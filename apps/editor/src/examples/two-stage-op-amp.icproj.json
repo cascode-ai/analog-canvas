@@ -454,18 +454,14 @@
           {
             "direction": "passive",
             "id": "cell-terminal-p12",
-            "interfaceInstanceIds": [
-              "P12"
-            ],
+            "interfaceInstanceIds": ["P12"],
             "name": "P1",
             "netId": "net-contact-p13"
           },
           {
             "direction": "passive",
             "id": "cell-terminal-p13",
-            "interfaceInstanceIds": [
-              "P13"
-            ],
+            "interfaceInstanceIds": ["P13"],
             "name": "P2",
             "netId": "net-contact-p13"
           }
