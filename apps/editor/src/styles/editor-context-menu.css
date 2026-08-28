@@ -1,0 +1,90 @@
+.canvas-context-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+}
+
+.canvas-context-menu {
+  position: fixed;
+  min-width: 180px;
+  max-width: 280px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--icm-surface);
+  border: 1px solid var(--icm-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 14%);
+}
+
+.canvas-context-menu .context-menu-section {
+  display: flex;
+  flex-direction: column;
+}
+
+.canvas-context-menu .context-menu-section + .context-menu-section {
+  border-top: 1px solid var(--icm-border);
+  padding-top: 4px;
+  margin-top: 2px;
+}
+
+.canvas-context-menu .context-menu-heading {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--icm-muted);
+  padding: 2px 8px 4px;
+}
+
+.canvas-context-menu .context-menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.canvas-context-menu .context-menu-item:hover:not(:disabled) {
+  background: var(--icm-hover);
+}
+
+.canvas-context-menu .context-menu-item:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.canvas-context-menu .context-menu-variants {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 0 4px 2px;
+}
+
+.canvas-context-menu .context-menu-variant {
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border: 1px solid var(--icm-border);
+  border-radius: 6px;
+  background: var(--icm-surface);
+  cursor: pointer;
+}
+
+.canvas-context-menu .context-menu-variant:hover {
+  border-color: var(--icm-accent);
+  background: var(--icm-hover);
+}
+
+.canvas-context-menu .context-menu-variant svg {
+  max-width: 100%;
+  max-height: 100%;
+}

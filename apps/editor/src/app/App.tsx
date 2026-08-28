@@ -98,7 +98,13 @@ import {
   fullInsertLaunch,
 } from "../features/component-insert/insert-launch";
 import { useComponentPlacement } from "../features/component-insert/use-component-placement";
-import { findPaletteSymbol } from "../features/component-insert/symbol-catalog";
+import {
+  componentCatalog,
+  findPaletteSymbol,
+  symbolCategory,
+} from "../features/component-insert/symbol-catalog";
+import { SymbolArtwork } from "../features/component-insert/symbol-artwork";
+import { CanvasContextMenu } from "../features/selection/canvas-context-menu";
 import { createPlacementTrayCommands } from "../features/component-insert/placement-tray-commands";
 import { componentTargetDescription } from "../features/properties/component-identity-properties";
 import {
@@ -486,6 +492,10 @@ export function App({
   );
   const [importReviewOpen, setImportReviewOpen] = useState(false);
   const [cellManagerOpen, setCellManagerOpen] = useState(false);
+  const [canvasContextMenu, setCanvasContextMenu] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
   const [pendingCellReset, setPendingCellReset] = useState<{
     plan: CellResetPlan;
     command: string;
@@ -1186,6 +1196,68 @@ export function App({
     },
     commitCellPinAnnotation: editCellTerminalAnnotation,
   });
+  const deviceVariantCandidates = useMemo(() => {
+    if (!canvasContextMenu || selectedIds.length !== 1 || !selectedInstance) {
+      return [];
+    }
+    const resolved = resolver.resolve(
+      selectedInstance.symbolId,
+      selectedInstance.symbolVariantId,
+    );
+    if (!resolved) return [];
+    const pinCount = resolved.definition.pins.length;
+    const category = symbolCategory(selectedInstance.symbolId);
+    return componentCatalog(document.presentation.styleProfileId, "")
+      .flatMap((group) => group.symbols)
+      .filter(
+        (symbol) =>
+          symbol.id !== selectedInstance.symbolId &&
+          symbol.pins.length === pinCount &&
+          symbolCategory(symbol.id) === category,
+      )
+      .slice(0, 8)
+      .map((symbol) => ({ symbolId: symbol.id, name: symbol.name }));
+  }, [
+    canvasContextMenu,
+    selectedIds,
+    selectedInstance,
+    resolver,
+    document.presentation.styleProfileId,
+  ]);
+  const swapSelectedInstanceSymbol = (symbolId: string): void => {
+    if (!selectedInstance) return;
+    const resolved = resolver.resolve(
+      selectedInstance.symbolId,
+      selectedInstance.symbolVariantId,
+    );
+    const target = findPaletteSymbol(
+      document.presentation.styleProfileId,
+      symbolId,
+    );
+    if (!resolved || !target) return;
+    // Map pins positionally so nets follow the swap even when the
+    // replacement names its pins differently (A/Y vs 1/2).
+    const oldPins = resolved.definition.pins.map((pin) => pin.name);
+    const newPins = target.pins.map((pin) => pin.name);
+    const pinMap = Object.fromEntries(
+      oldPins.flatMap((name, index) => {
+        const next = newPins[index];
+        return next && next !== name ? [[name, next] as const] : [];
+      }),
+    );
+    const result = transactDocument([
+      {
+        kind: "set_instance_symbol",
+        instanceId: selectedInstance.id,
+        symbolId,
+        symbolVariantId: null,
+        ...(Object.keys(pinMap).length > 0 ? { pinMap } : {}),
+      },
+    ]);
+    setStatus(
+      result.ok ? `Swapped to ${target.name}` : "Could not swap the device",
+    );
+  };
   const selectedInstanceLabel = selectedInstance
     ? instanceLabelAnnotationFor(document, selectedInstance.id)
     : undefined;
@@ -1393,6 +1465,7 @@ export function App({
     rotate: rotateSelected,
     mirror: mirrorSelected,
     align: alignSelectedInstances,
+    alignEdge: alignEdgeSelected,
   } = createSelectionTransformController({
     document,
     resolver,
@@ -2953,6 +3026,14 @@ export function App({
           libraryPanelOpen: visibleLibraryPanelOpen,
           tool,
           documentSettingsOpen,
+          undo: {
+            enabled: editorCommands.state({ id: "history.undo" }).enabled,
+            execute: () => editorCommands.execute({ id: "history.undo" }),
+          },
+          redo: {
+            enabled: editorCommands.state({ id: "history.redo" }).enabled,
+            execute: () => editorCommands.execute({ id: "history.redo" }),
+          },
           onToggleExamples: toggleExamplesPanel,
           onToggleLibrary: toggleLibraryPanel,
           onInsert: () =>
@@ -3923,6 +4004,12 @@ export function App({
                 }
                 beginMoveFromSelection(event, instance.id);
               },
+              onInstanceContextMenu: (instance, clientX, clientY) => {
+                if (!selectedIds.includes(instance.id)) {
+                  selectInstanceFromSelection(instance.id, false);
+                }
+                setCanvasContextMenu({ x: clientX, y: clientY });
+              },
               onRoutePointerDown: handleRoutePointerDown,
               onAnnotationPointerDown: beginAnnotationDrag,
               onAnnotationEdit: beginAnnotationTextEditing,
@@ -4017,6 +4104,55 @@ export function App({
               : {}),
           }}
         />
+        {canvasContextMenu ? (
+          <CanvasContextMenu
+            position={canvasContextMenu}
+            variants={deviceVariantCandidates}
+            renderVariantArtwork={(symbolId) => {
+              const symbol = findPaletteSymbol(
+                document.presentation.styleProfileId,
+                symbolId,
+              );
+              return symbol ? (
+                <SymbolArtwork
+                  symbol={symbol}
+                  className="context-variant-art"
+                />
+              ) : null;
+            }}
+            onSwapVariant={swapSelectedInstanceSymbol}
+            alignmentEnabled={selectedIds.length > 1}
+            onAlign={alignEdgeSelected}
+            actions={[
+              {
+                label: "Rotate (R)",
+                enabled: editorCommands.state({ id: "transform.rotate" })
+                  .enabled,
+                execute: () =>
+                  editorCommands.execute({ id: "transform.rotate" }),
+              },
+              {
+                label: "Mirror left/right (Shift+R)",
+                enabled: editorCommands.state({
+                  id: "transform.mirror",
+                  direction: "left-right",
+                }).enabled,
+                execute: () =>
+                  editorCommands.execute({
+                    id: "transform.mirror",
+                    direction: "left-right",
+                  }),
+              },
+              {
+                label: "Delete",
+                enabled: hasVisualSelection(visualSelection),
+                execute: () =>
+                  editorCommands.execute({ id: "selection.delete" }),
+              },
+            ]}
+            onClose={() => setCanvasContextMenu(null)}
+          />
+        ) : null}
       </div>
       {timingUiEnabled ? (
         <TimingSimulationPanel

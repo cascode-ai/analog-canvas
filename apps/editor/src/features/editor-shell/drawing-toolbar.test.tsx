@@ -11,6 +11,8 @@ describe("DrawingToolbar", () => {
         libraryPanelOpen
         tool="wire"
         documentSettingsOpen
+        undo={{ enabled: true, execute: vi.fn() }}
+        redo={{ enabled: true, execute: vi.fn() }}
         onToggleExamples={vi.fn()}
         onToggleLibrary={vi.fn()}
         onInsert={vi.fn()}

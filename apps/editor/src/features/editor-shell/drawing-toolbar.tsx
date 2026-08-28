@@ -1,11 +1,18 @@
 import type { EditorTool } from "../../interaction/interaction-state";
 import { ToolIcon } from "./tool-icon";
 
+interface ToolbarCommand {
+  enabled: boolean;
+  execute: () => void;
+}
+
 export interface DrawingToolbarProps {
   leftPanelMode: "examples" | "library";
   libraryPanelOpen: boolean;
   tool: EditorTool;
   documentSettingsOpen: boolean;
+  undo: ToolbarCommand;
+  redo: ToolbarCommand;
   onToggleExamples: () => void;
   onToggleLibrary: () => void;
   onInsert: () => void;
@@ -19,6 +26,8 @@ export function DrawingToolbar({
   libraryPanelOpen,
   tool,
   documentSettingsOpen,
+  undo,
+  redo,
   onToggleExamples,
   onToggleLibrary,
   onInsert,
@@ -64,6 +73,29 @@ export function DrawingToolbar({
       >
         <ToolIcon name="library" />
         <span>Library</span>
+      </button>
+      <span className="draw-toolbar-divider" aria-hidden="true" />
+      <button
+        type="button"
+        className="draw-tool"
+        data-testid="draw-tool-undo"
+        title="Undo (Ctrl+Z)"
+        onClick={undo.execute}
+        disabled={!undo.enabled}
+      >
+        <ToolIcon name="undo" />
+        <span>Undo</span>
+      </button>
+      <button
+        type="button"
+        className="draw-tool"
+        data-testid="draw-tool-redo"
+        title="Redo (Ctrl+Shift+Z)"
+        onClick={redo.execute}
+        disabled={!redo.enabled}
+      >
+        <ToolIcon name="redo" />
+        <span>Redo</span>
       </button>
       <span className="draw-toolbar-divider" aria-hidden="true" />
       <button

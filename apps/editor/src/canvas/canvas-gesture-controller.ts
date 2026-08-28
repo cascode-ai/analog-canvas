@@ -238,6 +238,16 @@ export function createCanvasGestureController({
   };
 
   const begin = (event: ReactPointerEvent<SVGSVGElement>): void => {
+    // Right-press on a device opens its context menu: starting the frame
+    // gesture here would capture the pointer and swallow the contextmenu
+    // event, so the frame only starts on canvas background.
+    if (
+      event.button === 2 &&
+      (event.target as Element).getAttribute?.("data-canvas-hit-kind") ===
+        "instance"
+    ) {
+      return;
+    }
     const gesture = classifyCanvasGestureStart({
       button: event.button,
       altKey: event.altKey,

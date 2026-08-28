@@ -4,6 +4,10 @@ import type { SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
 import { rotateDraftingObject } from "../drafting/drafting-manipulation";
+import {
+  proposeEdgeAlignmentEdits,
+  type EdgeAlignmentMode,
+} from "./align-instances";
 import type { ScreenFlip } from "../../interaction/shortcut-orientation";
 import type { VisualSelection } from "./visual-selection";
 
@@ -105,6 +109,25 @@ export function createSelectionTransformController({
       );
   };
 
+  const alignEdge = (mode: EdgeAlignmentMode): void => {
+    if (selectedInstanceIds.length < 2) {
+      setStatus("Select at least two instances to align");
+      return;
+    }
+    const edits = proposeEdgeAlignmentEdits(
+      document,
+      resolver,
+      selectedInstanceIds,
+      mode,
+    );
+    if (edits.length === 0) {
+      setStatus("Selection is already aligned");
+      return;
+    }
+    if (transact(edits).ok)
+      setStatus(`Aligned ${selectedInstanceIds.length} selected instances`);
+  };
+
   const align = (): void => {
     if (selectedInstanceIds.length < 2) {
       setStatus("Select at least two instances to align");
@@ -122,5 +145,5 @@ export function createSelectionTransformController({
       setStatus(`Aligned ${selectedInstanceIds.length} selected instances`);
   };
 
-  return { rotate, mirror, align };
+  return { rotate, mirror, align, alignEdge };
 }

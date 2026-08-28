@@ -46,6 +46,11 @@ interface SelectionHitTargetProps {
     event: ReactPointerEvent<SVGRectElement>,
     instance: Instance,
   ) => void;
+  onInstanceContextMenu: (
+    instance: Instance,
+    clientX: number,
+    clientY: number,
+  ) => void;
   onRoutePointerDown: (
     event: ReactPointerEvent<SVGPolylineElement>,
     routeId: string,
@@ -110,6 +115,7 @@ function SelectionHitTargets({
   onInstanceClick,
   onInstanceOpen,
   onInstancePointerDown,
+  onInstanceContextMenu,
   onRoutePointerDown,
   onAnnotationPointerDown,
   onAnnotationEdit,
@@ -145,6 +151,11 @@ function SelectionHitTargets({
                 onInstanceOpen(instance);
               }}
               onPointerDown={(event) => onInstancePointerDown(event, instance)}
+              onContextMenu={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onInstanceContextMenu(instance, event.clientX, event.clientY);
+              }}
               pointerEvents={tool === "wire" ? "none" : undefined}
             />
           );
