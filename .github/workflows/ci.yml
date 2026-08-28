@@ -160,7 +160,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Four shards, two Playwright workers each: eight browser workers.
+        # Four shards, three Playwright workers each on 4-vCPU runners:
+        # twelve browser workers.
         # The required-check names migrated with this split (ruleset updated
         # in the same change window).
         shard:
@@ -189,4 +190,4 @@ jobs:
           E2E_ARGS: ${{ needs.changes.outputs.e2e_args }}
         run: |
           read -r -a specs <<< "$E2E_ARGS"
-          pnpm ci:e2e --workers=2 --shard=${{ matrix.shard }} "${specs[@]}"
+          pnpm ci:e2e --workers=3 --shard=${{ matrix.shard }} "${specs[@]}"
