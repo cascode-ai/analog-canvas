@@ -57,8 +57,9 @@ export interface PublishGalleryDraft {
  * account publishes straight to the wall — no passphrase, no review queue.
  * The byline is the account's display name, which the server reads from the
  * session rather than from this form, so one account cannot publish under
- * another's name. Ordinary members still pass the quality gates (listed
- * live, blocking); moderators curate past them.
+ * another's name. Quality checks are advisory for every role: the list keeps
+ * publishers informed, but the checker has false positives and sharing a
+ * work-in-progress sketch is legitimate, so nothing here blocks Publish.
  */
 export function PublishGalleryDialog({
   defaultName,
@@ -74,10 +75,7 @@ export function PublishGalleryDialog({
   draft = null,
   onDraftChange,
 }: PublishGalleryDialogProps) {
-  const privileged = session?.isAdmin === true || session?.role === "moderator";
-  const ordinary = session !== null && !privileged;
   const signedOut = session === null;
-  const gatesBlock = ordinary && gateReport !== null && !gateReport.ok;
   const canUpdate = updateTarget !== null && publishUpdate !== undefined;
   const [mode, setMode] = useState<"update" | "new">(
     canUpdate ? "update" : "new",
@@ -332,18 +330,10 @@ export function PublishGalleryDialog({
             </div>
             {gateReport && gateReport.failures.length > 0 ? (
               <div
-                className={
-                  gatesBlock
-                    ? "publish-gallery-gates publish-gallery-gates-blocking"
-                    : "publish-gallery-gates"
-                }
+                className="publish-gallery-gates"
                 data-testid="publish-gallery-gates"
               >
-                <p>
-                  {gatesBlock
-                    ? "Fix these before publishing:"
-                    : "Quality checks (informational for your role):"}
-                </p>
+                <p>Quality checks — worth a look, publishing stays open:</p>
                 <ul>
                   {gateReport.failures.map((failure) => (
                     <li key={failure.code}>
@@ -377,7 +367,7 @@ export function PublishGalleryDialog({
             <button
               type="button"
               className="publish-gallery-primary"
-              disabled={busy || name.trim() === "" || gatesBlock}
+              disabled={busy || name.trim() === ""}
               onClick={() => void submit()}
             >
               {busy ? "Publishing…" : updating ? "Update entry" : "Publish"}

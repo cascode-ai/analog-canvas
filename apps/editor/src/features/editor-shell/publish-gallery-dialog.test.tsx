@@ -86,7 +86,7 @@ describe("PublishGalleryDialog", () => {
     expect(markup).toContain("Publishing as Token Zhang");
   });
 
-  it("blocks an ordinary member on gate failures and lists them", () => {
+  it("keeps Publish open for an ordinary member and lists gate findings", () => {
     const markup = renderToStaticMarkup(
       createElement(PublishGalleryDialog, {
         defaultName: "Ring Oscillator",
@@ -108,13 +108,15 @@ describe("PublishGalleryDialog", () => {
         onClose: () => undefined,
       }),
     );
-    expect(markup).toContain("publish-gallery-gates-blocking");
-    expect(markup).toContain("Fix these before publishing:");
+    // Advisory, never a hard gate: the checker has false positives and a
+    // sketch is legitimate to share.
+    expect(markup).not.toContain("publish-gallery-gates-blocking");
+    expect(markup).toContain("publishing stays open");
     expect(markup).toContain("M1.g, R2.2");
-    expect(markup).toMatch(/disabled=""[^>]*>Publish</u);
+    expect(markup).not.toMatch(/disabled=""[^>]*>Publish</u);
   });
 
-  it("shows the same failures as informational for a moderator", () => {
+  it("shows the same advisory failures for a moderator", () => {
     const markup = renderToStaticMarkup(
       createElement(PublishGalleryDialog, {
         defaultName: "Ring Oscillator",
@@ -136,7 +138,7 @@ describe("PublishGalleryDialog", () => {
       }),
     );
     expect(markup).not.toContain("publish-gallery-gates-blocking");
-    expect(markup).toContain("informational for your role");
+    expect(markup).toContain("publishing stays open");
     expect(markup).not.toMatch(/disabled=""[^>]*>Publish</u);
   });
 });

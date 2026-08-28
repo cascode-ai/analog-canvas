@@ -159,15 +159,6 @@
   padding-left: 1.1rem;
 }
 
-.publish-gallery-gates-blocking {
-  border-color: var(--icm-error);
-  background: rgb(235 87 87 / 8%);
-}
-
-.publish-gallery-gates-blocking p {
-  color: var(--icm-error);
-}
-
 .publish-gallery-note {
   margin: 0;
   color: var(--icm-text-muted, #667085);
