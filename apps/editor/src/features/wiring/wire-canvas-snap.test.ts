@@ -130,7 +130,9 @@ describe("wire canvas snap", () => {
     expect(result.point).toEqual({ x: 0, y: 0 });
   });
 
-  it("holds a drifting leg to the axis it is really going", () => {
+  it("keeps a one-grid offset exactly where it was put", () => {
+    // Offsetting a wire a single grid is ordinary drawing, not a wobble to be
+    // corrected. An earlier axis hold straightened these away.
     const document = createEmptyDocument("document", "Document");
     document.presentation.grid = 10;
     const context = {
@@ -140,32 +142,15 @@ describe("wire canvas snap", () => {
       routeGeometryRecords: [],
       contactComponents: [],
       wireSource: source(),
-      // A corner already committed, two grid to the left of the source.
       wireWaypoints: [{ x: -20, y: 0 }],
       captureTolerance: 7,
     };
 
-    // Four grid down and one adrift: the hand wobbled, the wire did not turn.
-    // Left as a corner, the next click folded it back over the line just drawn.
     expect(
       resolveWireCanvasSnap(context, { x: -10, y: 40 }, false).point,
-    ).toEqual({ x: -20, y: 40 });
-
-    // Sideways drift on a mostly horizontal leg is held the same way.
+    ).toEqual({ x: -10, y: 40 });
     expect(
       resolveWireCanvasSnap(context, { x: 40, y: 10 }, false).point,
-    ).toEqual({ x: 40, y: 0 });
-
-    // Four grid off the axis is a step someone meant, even though it is the
-    // same fraction of the run as the one-grid wobble above. Distance off the
-    // line separates them; a ratio cannot.
-    expect(
-      resolveWireCanvasSnap(context, { x: -20 + 210, y: 40 }, false).point,
-    ).toEqual({ x: 190, y: 40 });
-
-    // And a plain diagonal still opens a corner.
-    expect(
-      resolveWireCanvasSnap(context, { x: 20, y: 40 }, false).point,
-    ).toEqual({ x: 20, y: 40 });
+    ).toEqual({ x: 40, y: 10 });
   });
 });
