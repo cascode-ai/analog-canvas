@@ -489,8 +489,10 @@ test("groups drafting tools and editable polarity labels under Annotations", asy
   );
   await expect(polarity.locator("text")).not.toContainText("VGS");
 
-  // The standalone signs place directly from the Insert picker as ordinary
-  // texts — no editor popup, editable and stylable later like any text.
+  // A standalone sign places directly from the Insert picker with no editor
+  // popup, and lands as the same mark the pair draws rather than as a font's
+  // glyph for the character — otherwise the two are different sizes side by
+  // side.
   await page.keyboard.press("i");
   const dialog = page.getByRole("dialog", { name: "Insert Component" });
   await dialog.getByLabel("Component search").fill("minus");
@@ -498,11 +500,21 @@ test("groups drafting tools and editable polarity labels under Annotations", asy
   await canvas.hover({ position: { x: 600, y: 260 } });
   await canvas.click({ position: { x: 600, y: 260 } });
   await expect(editor).toHaveCount(0);
-  const minusText = canvas.locator(
-    '[data-kind="draft-text"]:not([data-polarity])',
-  );
-  await expect(minusText).toBeVisible();
-  await expect(minusText).toContainText("−");
+  const loneMinus = canvas.locator('[data-polarity="negative"]');
+  await expect(loneMinus).toBeVisible();
+  await expect(
+    loneMinus.locator('[data-role="polarity-negative"]'),
+  ).toHaveCount(1);
+  // Its arm is the pair's arm, measured rather than eyeballed.
+  const armOf = (locator: ReturnType<typeof canvas.locator>) =>
+    locator.evaluate((line) =>
+      Math.abs(
+        Number(line.getAttribute("x2")) - Number(line.getAttribute("x1")),
+      ),
+    );
+  expect(
+    await armOf(loneMinus.locator('[data-role="polarity-negative"]')),
+  ).toBe(await armOf(polarity.locator('[data-role="polarity-negative"]')));
 });
 
 test("places a vertical Power Rail from I and renames it on the canvas", async ({
