@@ -264,10 +264,18 @@ export function proposeGroupReflectionEdits(
   instanceIds: readonly string[],
   direction: ScreenFlip,
   center?: Point,
+  additionalJunctionIds: readonly string[] = [],
 ): GroupMoveEditProposal {
   return rigidBodyEdits(
     document,
-    proposeGroupReflection(document, resolver, instanceIds, direction, center),
+    proposeGroupReflection(
+      document,
+      resolver,
+      instanceIds,
+      direction,
+      center,
+      additionalJunctionIds,
+    ),
   );
 }
 
@@ -277,10 +285,18 @@ export function proposeGroupRotationEdits(
   instanceIds: readonly string[],
   deltaDegrees: 90 | -90 | 180,
   center?: Point,
+  additionalJunctionIds: readonly string[] = [],
 ): GroupMoveEditProposal {
   return rigidBodyEdits(
     document,
-    proposeGroupRotation(document, resolver, instanceIds, deltaDegrees, center),
+    proposeGroupRotation(
+      document,
+      resolver,
+      instanceIds,
+      deltaDegrees,
+      center,
+      additionalJunctionIds,
+    ),
   );
 }
 

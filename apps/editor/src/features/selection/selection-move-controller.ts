@@ -14,6 +14,7 @@ import {
   resolveElectricalContactTargets,
   resolveEndpointConnection,
   type RoutedComponent,
+  deriveNetConnectivityContext,
 } from "@icm/derived";
 import {
   routeEndpoints,
@@ -91,12 +92,15 @@ export function createSelectionMoveController({
             ...annotation,
             anchor: {
               kind: "free" as const,
+              // Translation preserves the annotation's fine placement: the
+              // grid discipline rides on the delta, and the annotation pitch
+              // can be finer than the Document grid (drafting contract).
               position: snapGridPoint(
                 {
                   x: annotation.anchor.position.x + delta.x,
                   y: annotation.anchor.position.y + delta.y,
                 },
-                sourceDocument.presentation.grid,
+                1,
               ),
             },
           },
@@ -277,10 +281,23 @@ export function createSelectionMoveController({
         })()
       : routeGeometryRecords;
     const sourceContactComponents = projectedDocument
-      ? sourceDocument.nets.flatMap(
-          (net) =>
-            deriveNetConnectivity(sourceDocument, resolver, net).components,
-        )
+      ? (() => {
+          // One shared geometry+contacts pass; deriving them per net made
+          // every keyboard-Move pointer event quadratic in net count.
+          const connectivityContext = deriveNetConnectivityContext(
+            sourceDocument,
+            resolver,
+          );
+          return sourceDocument.nets.flatMap(
+            (net) =>
+              deriveNetConnectivity(
+                sourceDocument,
+                resolver,
+                net,
+                connectivityContext,
+              ).components,
+          );
+        })()
       : contactComponents;
     const rawDelta = {
       x: position.x - preview.pointerStart.x,

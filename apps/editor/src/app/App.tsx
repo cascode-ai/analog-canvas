@@ -435,7 +435,15 @@ export function App({
     controller: editorDocumentController,
     projectSessionId,
     synchronizeExternalCommit,
-  } = useDocumentController(preparedInitialProject, stageRecovery);
+  } = useDocumentController(preparedInitialProject, (project) => {
+    // A commit landing outside the active pointer session invalidates it:
+    // the session's completion would otherwise plan on the pointer-down
+    // document and stamp the live revision, silently reverting this commit
+    // (audit #8). The session's own commit runs after its cleanup, so this
+    // is a no-op for ordinary drags.
+    canvasDragSessionRef.current?.cancel();
+    stageRecovery(project);
+  });
   const agentSemanticIntentRef = useRef<
     (request: AgentHostSemanticIntentRequest) => AgentHostSemanticIntentResult
   >(() => ({

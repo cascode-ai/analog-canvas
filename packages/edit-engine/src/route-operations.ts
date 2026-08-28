@@ -1398,6 +1398,7 @@ export function proposeGroupRotation(
   instanceIds: readonly string[],
   deltaDegrees: 90 | -90 | 180,
   center?: Point,
+  additionalJunctionIds: readonly string[] = [],
 ): GroupRotationProposal {
   return proposeRigidBodyMove(
     document,
@@ -1412,6 +1413,7 @@ export function proposeGroupRotation(
       }),
     }),
     center,
+    additionalJunctionIds,
   );
 }
 
@@ -1430,6 +1432,7 @@ export function proposeGroupReflection(
   instanceIds: readonly string[],
   direction: ScreenFlip,
   center?: Point,
+  additionalJunctionIds: readonly string[] = [],
 ): GroupRotationProposal {
   const axis = direction === "left-right" ? "x" : "y";
   return proposeRigidBodyMove(
@@ -1441,6 +1444,7 @@ export function proposeGroupReflection(
       placement: (placement) => reflectOrientation(placement, direction),
     }),
     center,
+    additionalJunctionIds,
   );
 }
 
@@ -1455,6 +1459,12 @@ function proposeRigidBodyMove(
   instanceIds: readonly string[],
   transformFor: (pivot: Point) => RigidBodyTransform,
   center?: Point,
+  /**
+   * Explicitly selected Junctions that turn with the body even when the
+   * instance closure alone would not carry them — the translate path has
+   * always taken these; rotate and mirror dropped them (audit #7).
+   */
+  additionalJunctionIds: readonly string[] = [],
 ): GroupRotationProposal {
   const selected = new Set(instanceIds);
   const placed = document.instances.filter(
@@ -1503,6 +1513,11 @@ function proposeRigidBodyMove(
   ]);
   const internalNetIds = new Set(internalSelection.netIds);
   const turningJunctionIds = new Set(internalSelection.junctionIds);
+  for (const junctionId of additionalJunctionIds) {
+    if (document.junctions.some((junction) => junction.id === junctionId)) {
+      turningJunctionIds.add(junctionId);
+    }
+  }
   const routingGeometry = resolveDocumentRoutingGeometry(document, resolver);
   const movedDocument = structuredClone(document);
   for (const instance of movedDocument.instances) {

@@ -106,6 +106,7 @@ export function planRoutingTransform(
       affected.instances,
       delta,
       operation.center,
+      affected.internalJunctions,
     ).edits;
   } else {
     const direction: ScreenFlip =
@@ -116,6 +117,7 @@ export function planRoutingTransform(
       affected.instances,
       direction,
       operation.center,
+      affected.internalJunctions,
     ).edits;
   }
 

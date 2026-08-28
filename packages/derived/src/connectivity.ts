@@ -9,6 +9,10 @@ import {
   resolveEndpointPoint,
 } from "./endpoint.js";
 import { deriveDocumentContactEvidence } from "./contact.js";
+import {
+  resolveDocumentRoutingGeometry,
+  type ResolvedDocumentRoutingGeometry,
+} from "./resolved-route-geometry.js";
 import { resolveNetLabelBindings } from "./net-label.js";
 import { resolveAnnotationText } from "./annotation-text.js";
 import { resolveDocumentLogicalNets } from "./logical-net.js";
@@ -67,10 +71,36 @@ class DisjointSet {
   }
 }
 
+/**
+ * Shared per-document context for connectivity derivation. Deriving it once
+ * and passing it through turns an all-nets sweep from quadratic (full
+ * contact evidence and label bindings re-derived per net) into one pass.
+ */
+export interface NetConnectivityContext {
+  routingGeometry: ResolvedDocumentRoutingGeometry;
+  contacts: ReturnType<typeof deriveDocumentContactEvidence>;
+}
+
+export function deriveNetConnectivityContext(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+): NetConnectivityContext {
+  const routingGeometry = resolveDocumentRoutingGeometry(document, resolver);
+  return {
+    routingGeometry,
+    contacts: deriveDocumentContactEvidence(
+      document,
+      resolver,
+      routingGeometry,
+    ),
+  };
+}
+
 export function deriveNetConnectivity(
   document: SchematicDocument,
   resolver: SymbolResolver,
   net: Net,
+  context?: NetConnectivityContext,
 ): VisibleNetConnectivity {
   const endpoints = netEndpoints(document, net).filter((endpoint) =>
     isVisibleEndpoint(document, resolver, endpoint),
@@ -97,7 +127,8 @@ export function deriveNetConnectivity(
     const to = endpointKey(routeEnd(route));
     if (nodes.has(from) && nodes.has(to)) sets.union(from, to);
   }
-  const contacts = deriveDocumentContactEvidence(document, resolver);
+  const contacts =
+    context?.contacts ?? deriveDocumentContactEvidence(document, resolver);
   for (const contact of contacts.contacts.filter(
     (candidate) => candidate.netId === net.id,
   )) {
@@ -109,7 +140,15 @@ export function deriveNetConnectivity(
     for (const key of keys.slice(1)) sets.union(first, key);
   }
   const labeledEndpoints = new Map<string, string[]>();
-  for (const binding of resolveNetLabelBindings(document, resolver, net.id)) {
+  const netLabelBindings = context
+    ? resolveNetLabelBindings(
+        document,
+        resolver,
+        net.id,
+        context.routingGeometry,
+      )
+    : resolveNetLabelBindings(document, resolver, net.id);
+  for (const binding of netLabelBindings) {
     const annotation = document.annotations.find(
       (candidate) => candidate.id === binding.annotationId,
     )!;
@@ -126,7 +165,7 @@ export function deriveNetConnectivity(
     if (annotation.kind !== "power-label" || annotation.netId !== net.id) {
       continue;
     }
-    const binding = resolveNetLabelBindings(document, resolver, net.id).find(
+    const binding = netLabelBindings.find(
       (candidate) => candidate.annotationId === annotation.id,
     );
     if (!binding) continue;
