@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import "../styles/editor-entry.css";
 import type {
@@ -199,9 +199,10 @@ import type { EditorTool } from "../interaction/interaction-state";
 import { resolveTextEditingTarget } from "../features/text-editing/text-editing";
 import { planMosBulkDefaultUpdate } from "../features/component-insert/mos-bulk-defaults";
 import {
-  listWorkspaceShelf,
-  type WorkspaceSlot,
-} from "../features/editor-shell/workspace-shelf";
+  deleteCloudProject,
+  listCloudProjects,
+  type CloudProjectSummary,
+} from "../features/editor-shell/cloud-projects";
 import {
   defaultRazaviSymbolVariantId,
   materializeRazaviProjectBulkConnections,
@@ -473,6 +474,25 @@ export function App({
   const [publishSession, setPublishSession] = useState<SessionUser | null>(
     null,
   );
+  /** The signed-in account's private formal Projects, newest first. */
+  const [cloudProjects, setCloudProjects] = useState<
+    readonly CloudProjectSummary[]
+  >([]);
+  const [cloudProjectsReady, setCloudProjectsReady] = useState(false);
+  const cloudListRequestRef = useRef(0);
+  const cloudListMutationRef = useRef(0);
+  const reloadCloudProjects = useCallback(async (): Promise<void> => {
+    const request = ++cloudListRequestRef.current;
+    const mutationAtStart = cloudListMutationRef.current;
+    const outcome = await listCloudProjects();
+    if (request !== cloudListRequestRef.current) return;
+    setCloudProjectsReady(true);
+    if (outcome.status !== "listed") return;
+    // A Save or Delete acknowledged after this request began is newer than
+    // the response, so the stale list must not erase that mutation.
+    if (mutationAtStart !== cloudListMutationRef.current) return;
+    setCloudProjects(outcome.projects);
+  }, []);
   const [galleryEntryContext, setGalleryEntryContext] = useState<{
     id: string;
     name: string;
@@ -508,21 +528,30 @@ export function App({
   const [publishGates, setPublishGates] = useState<SubmissionGateReport | null>(
     null,
   );
-  // Check and Save needs to know who is signed in before anyone opens the
-  // publish dialog, and the shelf it writes to is worth listing on arrival.
+  // Account state owns publishing authority and the private Cloud Project
+  // list shown by the File menu.
   useEffect(() => {
     let cancelled = false;
     void fetchSessionUser().then(async (user) => {
       if (cancelled) return;
       setPublishSession(user);
-      if (!user) return;
-      const slots = await listWorkspaceShelf();
-      if (!cancelled) setWorkspaceSlots(slots);
+      if (!user) {
+        setCloudProjectsReady(true);
+        return;
+      }
+      await reloadCloudProjects();
     });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [reloadCloudProjects]);
+
+  useEffect(() => {
+    if (!publishSession) return;
+    const refreshAfterReturning = () => void reloadCloudProjects();
+    window.addEventListener("focus", refreshAfterReturning);
+    return () => window.removeEventListener("focus", refreshAfterReturning);
+  }, [publishSession, reloadCloudProjects]);
 
   useEffect(() => {
     if (!publishGalleryOpen) return;
@@ -555,40 +584,47 @@ export function App({
     [editorDocumentController, projectSessionId],
   );
   const {
-    fileState,
-    formalProjectBaseline,
-    previousProject,
+    cloudBinding,
+    savedProjectBaseline,
     replaceGuard,
     replaceGuardSaving,
     recoveryDialogOpen,
     startupRecovery,
+    startupCloudProjectId,
+    canRestoreStartupCloudProject,
     setRecoveryDialogOpen,
     isDirtyWork,
     replaceActiveProject,
-    saveProjectFile,
+    saveProjectToCloud,
+    exportProjectFile,
     downloadCurrentProjectBackup,
-    reportExport,
     guardDirtyReplacement,
     cancelReplaceGuard,
     confirmReplaceGuard,
     saveAndContinueReplaceGuard,
     dismissStartupRecovery,
     createNewProject,
-    restorePreviousProject,
-    revertToFormalProjectBaseline,
+    revertToSavedProjectBaseline,
     openRecoveryDialog,
     restoreRecoverySession,
     downloadRecoveryBackup,
     deleteRecoverySessionFromDialog,
     refreshApp,
     openProjectFile,
-    openShelvedCircuit,
+    openCloudProjectById,
   } = useProjectFileLifecycle({
     project,
     projectSessionId,
     viewBox,
     defaultViewBox: DEFAULT_VIEWBOX,
     setStatus,
+    onCloudProjectSaved: (saved) => {
+      cloudListMutationRef.current += 1;
+      setCloudProjects((current) => [
+        saved,
+        ...current.filter((candidate) => candidate.id !== saved.id),
+      ]);
+    },
     recovery: {
       ready: recoveryReady,
       sessions: recoverySessions,
@@ -617,6 +653,36 @@ export function App({
     },
   });
   const allowNextBrowserUnload = useUnsavedWorkGuard(isDirtyWork());
+  const startupCloudRestoreAttemptedRef = useRef(false);
+  const hasExplicitBootTarget =
+    initialGalleryEntryId !== null ||
+    (typeof window !== "undefined" &&
+      (() => {
+        const search = new URLSearchParams(window.location.search);
+        return search.has("example") || search.get("new") === "1";
+      })());
+  useEffect(() => {
+    if (
+      startupCloudRestoreAttemptedRef.current ||
+      !cloudProjectsReady ||
+      !publishSession ||
+      !canRestoreStartupCloudProject ||
+      hasExplicitBootTarget ||
+      !startupCloudProjectId
+    ) {
+      return;
+    }
+    startupCloudRestoreAttemptedRef.current = true;
+    setStatus("Opening recent Cloud Project…");
+    void openCloudProjectById(startupCloudProjectId);
+  }, [
+    canRestoreStartupCloudProject,
+    cloudProjectsReady,
+    hasExplicitBootTarget,
+    openCloudProjectById,
+    publishSession,
+    startupCloudProjectId,
+  ]);
   const agentSession = useAgentSession({
     enabled: publicAgentUiEnabled,
     project,
@@ -762,10 +828,6 @@ export function App({
    * than meaning rotate sometimes and draw a rectangle the rest of the time.
    */
   const [rotateArmed, setRotateArmed] = useState(false);
-  /** The signed-in account's last few checked circuits, newest first. */
-  const [workspaceSlots, setWorkspaceSlots] = useState<
-    readonly WorkspaceSlot[]
-  >([]);
   const [selectedEndpoint, setSelectedEndpoint] = useState<WireSource | null>(
     null,
   );
@@ -1978,8 +2040,15 @@ export function App({
     const exampleId = new URLSearchParams(window.location.search).get(
       "example",
     );
+    const requestsNewProject =
+      new URLSearchParams(window.location.search).get("new") === "1";
     if (initialGalleryEntryId) {
       void openGalleryEntryById(initialGalleryEntryId, false);
+      return;
+    }
+    if (requestsNewProject) {
+      replaceActiveProject(preparedInitialProject, DEFAULT_VIEWBOX);
+      setStatus("Created a new Project");
       return;
     }
     if (exampleId) {
@@ -1988,9 +2057,7 @@ export function App({
         (candidate) => candidate.id === exampleId,
       );
       if (exampleProject && example) {
-        replaceActiveProject(exampleProject, DEFAULT_VIEWBOX, {
-          rememberPrevious: false,
-        });
+        replaceActiveProject(exampleProject, DEFAULT_VIEWBOX);
         setStatus(`Opened example: ${example.name}`);
       }
     }
@@ -2374,34 +2441,24 @@ export function App({
       report: setStatus,
     },
   });
-  const {
-    exportSvg,
-    checkAndSave,
-    exportDesignNetlist,
-    exportRaster,
-    importSpiceFiles,
-  } = createEditorFileCommands({
-    project,
-    getCurrentProject: () => editorDocumentController.project,
-    document,
-    resolver,
-    defaultViewBox: DEFAULT_VIEWBOX,
-    publishSessionPresent: publishSession !== null,
-    netlistIr: netlistAnalysis.ir,
-    exportWarningsPresent:
-      netlistAnalysis.diagnostics.length > 0 ||
-      electricalDiagnostics.length > 0,
-    transact,
-    reportExport,
-    guardDirtyReplacement,
-    replaceActiveProject,
-    setWorkspaceSlots,
-    setNetlistPreflightOpen,
-    setImportReport,
-    setImportReviewOpen,
-    setSelectionOpen,
-    setStatus,
-  });
+  const { exportSvg, exportDesignNetlist, exportRaster, importSpiceFiles } =
+    createEditorFileCommands({
+      project,
+      document,
+      resolver,
+      defaultViewBox: DEFAULT_VIEWBOX,
+      netlistIr: netlistAnalysis.ir,
+      exportWarningsPresent:
+        netlistAnalysis.diagnostics.length > 0 ||
+        electricalDiagnostics.length > 0,
+      guardDirtyReplacement,
+      replaceActiveProject,
+      setNetlistPreflightOpen,
+      setImportReport,
+      setImportReviewOpen,
+      setSelectionOpen,
+      setStatus,
+    });
 
   // Single entry point for selecting a drafting object. Editing is opened
   // separately (double-click/Enter) so selection and text caret ownership do
@@ -2549,7 +2606,7 @@ export function App({
           setStatus("Browser bookmark shortcut blocked while editing");
           return;
         case "save":
-          void saveProjectFile();
+          void saveProjectToCloud();
           return;
         case "open":
           projectInputRef.current?.click();
@@ -2706,27 +2763,53 @@ export function App({
         onProjectNameDraftChange={setProjectNameDraft}
         onProjectNameCommit={commitProjectName}
         onProjectNameCancel={() => setProjectNameDraft(null)}
+        onOpenGallery={() => {
+          void guardDirtyReplacement("Go to Gallery", () => {
+            allowNextBrowserUnload();
+            window.location.assign("/");
+          });
+        }}
         fileCommands={{
-          workspaceSlots,
-          previousProjectName: previousProject?.project.name ?? null,
-          canRevert: formalProjectBaseline !== null && isDirtyWork(),
-          hasRecoverySessions: recoverySessions.length > 0,
+          cloudProjects,
+          activeCloudProjectId: cloudBinding?.id ?? null,
+          canRevert: savedProjectBaseline !== null && isDirtyWork(),
+          hasRecoverySessions: recoverySessions.some(
+            (session) =>
+              session.latest?.unsavedAtSnapshot === true ||
+              (session.latest !== null && session.latest.review !== "valid"),
+          ),
           projectInputRef,
           onNewProject: createNewProject,
-          onSaveProject: (pickLocation) =>
-            void saveProjectFile({ pickLocation }),
-          onOpenShelfSlot: (slot) => void openShelvedCircuit(slot),
+          onSave: () => void saveProjectToCloud(),
+          onSaveAsCopy: () => void saveProjectToCloud({ asCopy: true }),
+          onRefreshCloudProjects: () => void reloadCloudProjects(),
+          onOpenCloudProject: (summary) =>
+            void openCloudProjectById(summary.id),
+          onDeleteCloudProject: (summary) => {
+            if (!window.confirm(`Delete Cloud Project "${summary.name}"?`)) {
+              return;
+            }
+            void deleteCloudProject(summary.id).then((outcome) => {
+              if (outcome.status === "deleted") {
+                cloudListMutationRef.current += 1;
+                setCloudProjects(outcome.projects);
+                setStatus(`Deleted Cloud Project ${summary.name}`);
+                return;
+              }
+              setStatus(`Could not delete Cloud Project (${outcome.message})`);
+            });
+          },
           onRefresh: () => {
             allowNextBrowserUnload();
             refreshApp();
           },
-          onOpenProject: (file) => void openProjectFile(file),
+          onImportProject: (file) => void openProjectFile(file),
           onImportSpice: (files) => void importSpiceFiles(files),
+          onExportProject: exportProjectFile,
           onExportSvg: exportSvg,
           onExportRaster: (format) => void exportRaster(format),
           onExportNetlist: exportDesignNetlist,
-          onRestorePrevious: restorePreviousProject,
-          onRevert: revertToFormalProjectBaseline,
+          onRevert: revertToSavedProjectBaseline,
           onOpenRecovery: openRecoveryDialog,
         }}
         searchOpen={searchOpen}
@@ -2812,7 +2895,6 @@ export function App({
               }
             : null
         }
-        onCheckAndSave={() => void checkAndSave()}
         publishGalleryOpen={publishGalleryOpen}
         onPublishGallery={() => setPublishGalleryOpen(true)}
         helpButtonRef={helpButtonRef}
@@ -2899,6 +2981,7 @@ export function App({
                 projectName: startupRecovery.projectName,
                 updatedAt: startupRecovery.latest.updatedAt,
                 onRestore: () => {
+                  startupCloudRestoreAttemptedRef.current = true;
                   dismissStartupRecovery();
                   restoreRecoverySession(
                     startupRecovery.workingCopyId,

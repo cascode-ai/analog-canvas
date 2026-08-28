@@ -46,7 +46,7 @@ export function RecoveryFailureBanner({
       </p>
       <div className="recovery-banner-actions">
         <button type="button" onClick={onDownload}>
-          Download Project
+          Download Backup
         </button>
         <button type="button" onClick={onDismiss} aria-label="Dismiss warning">
           Dismiss

@@ -127,7 +127,7 @@ test("the site lands on the full-screen gallery feed", async ({ page }) => {
   ).toHaveCount(0);
   await expect(page.getByTestId("gallery-new-circuit")).toHaveAttribute(
     "href",
-    "/editor",
+    "/editor?new=1",
   );
 });
 
@@ -941,9 +941,7 @@ test("a mistaken click beside the publish form keeps what was written", async ({
   await expect(dialog.getByTestId("publish-tag-cascode")).toBeVisible();
 });
 
-test("Save cloud snapshot keeps and relists the newest copy", async ({
-  page,
-}) => {
+test("Cloud Save updates one stable private Project", async ({ page }) => {
   await page.route("**/api/auth/me", (route) =>
     route.fulfill({
       json: {
@@ -957,27 +955,37 @@ test("Save cloud snapshot keeps and relists the newest copy", async ({
       },
     }),
   );
-  const shelf: { id: string; name: string; projectText: string }[] = [];
-  await page.route("**/api/workspace/recent", (route) => {
+  let cloudProject: {
+    id: string;
+    name: string;
+    projectText: string;
+    updatedAt: string;
+    revision: number;
+    schemaVersion: number;
+  } | null = null;
+  let storedProjectText = "";
+  await page.route("**/api/projects", (route) => {
     if (route.request().method() === "POST") {
       const body = route.request().postDataJSON() as {
         name: string;
         projectText: string;
       };
-      // The server keeps the newest three; the client only has to send.
-      shelf.unshift({ id: `slot-${shelf.length}`, ...body });
+      storedProjectText = body.projectText;
+      cloudProject = {
+        id: "cloud-1",
+        ...body,
+        updatedAt: "2026-08-23T00:00:00.000Z",
+        revision: 1,
+        schemaVersion: ENTRY.schemaVersion,
+      };
       return route.fulfill({
-        json: {
-          slots: shelf.slice(0, 3).map((slot) => ({
-            id: slot.id,
-            name: slot.name,
-            savedAt: "2026-08-23T00:00:00.000Z",
-            schemaVersion: ENTRY.schemaVersion,
-          })),
-        },
+        status: 201,
+        json: { project: cloudProject },
       });
     }
-    return route.fulfill({ json: { slots: [] } });
+    return route.fulfill({
+      json: { projects: cloudProject ? [cloudProject] : [] },
+    });
   });
   await page.goto("/editor");
   await chooseComponent(page, "nmos");
@@ -985,24 +993,23 @@ test("Save cloud snapshot keeps and relists the newest copy", async ({
     .getByTestId("schematic-canvas")
     .click({ position: { x: 360, y: 280 } });
   await page.keyboard.press("Escape");
-  await openMenu(page, "File");
-  await page.getByTestId("check-and-save-button").click();
+  const fileMenu = await openMenu(page, "File");
+  await fileMenu.getByRole("button", { name: "Save", exact: true }).click();
 
-  // A lone transistor is not a netlistable circuit, and that is not an error:
-  // a schematic is allowed to be abbreviated. Saving neither judges it nor
-  // interrupts with a report.
-  await expect(page.getByTestId("status")).toContainText("cloud snapshot");
+  // Private formal saving does not apply Gallery quality gates.
+  await expect(page.getByTestId("status")).toContainText(
+    "Saved New Circuit to Cloud",
+  );
   await expect(page.getByRole("dialog", { name: "Check Report" })).toHaveCount(
     0,
   );
-  expect(shelf).toHaveLength(1);
-  expect(shelf[0]!.projectText).toContain("nmos");
+  expect(storedProjectText).toContain("nmos");
 
-  // The recovery snapshots list the newest copies right in File, so a
-  // crash or a device switch can restore them.
-  const fileMenu = await openMenu(page, "File");
-  await expect(fileMenu.getByText(/Cloud snapshots/u)).toBeVisible();
-  await expect(fileMenu.getByTestId("shelf-slot-slot-0")).toBeVisible();
+  const reopenedMenu = await openMenu(page, "File");
+  await expect(reopenedMenu.getByText("Cloud Projects (1/3)")).toBeVisible();
+  await expect(
+    reopenedMenu.getByTestId("cloud-project-cloud-1"),
+  ).toBeDisabled();
 });
 
 test("keeps newest-first order and stops after the last circuit", async ({

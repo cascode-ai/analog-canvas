@@ -27,6 +27,7 @@ import type { CircuitProject } from "@icm/model";
 import {
   finalizeBrowserRecoveryRecord,
   reviewBrowserRecoveryProject,
+  type BrowserRecoveryCloudBinding,
   type BrowserRecoveryFormalFileHint,
   type BrowserRecoveryGeneration,
   type BrowserRecoveryRecordV2,
@@ -64,6 +65,7 @@ export interface RecoveryGenerationSummary {
 export interface RecoveryStageOptions {
   /** Defaults to true because normal staging follows a committed edit. */
   unsavedAtSnapshot?: boolean;
+  cloudBinding?: BrowserRecoveryCloudBinding | null;
 }
 
 export interface RecoverySessionSummary {
@@ -228,6 +230,7 @@ export function createRecoveryCoordinator(
   interface RecoveryCandidate {
     project: CircuitProject;
     unsavedAtSnapshot: boolean;
+    cloudBinding: BrowserRecoveryCloudBinding | null;
   }
 
   function enqueueWrite(candidate: RecoveryCandidate): void {
@@ -287,6 +290,9 @@ export function createRecoveryCoordinator(
       updatedAt: now(),
       projectText: serializeProject(project),
       unsavedAtSnapshot: candidate.unsavedAtSnapshot,
+      ...(candidate.cloudBinding === null
+        ? {}
+        : { cloudBinding: candidate.cloudBinding }),
       ...(formalFileHint === undefined ? {} : { formalFileHint }),
     });
   }
@@ -321,6 +327,7 @@ export function createRecoveryCoordinator(
       scheduler.schedule({
         project,
         unsavedAtSnapshot: options.unsavedAtSnapshot ?? true,
+        cloudBinding: options.cloudBinding ?? null,
       });
     },
 

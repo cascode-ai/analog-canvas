@@ -4,7 +4,6 @@ import type { Page } from "@playwright/test";
 import {
   chooseComponent,
   clickCommand,
-  emulateDownloadOnlyBrowser,
   readRecoveryRecords,
   recoveryProjectTexts,
 } from "./editor-fixtures.js";
@@ -27,7 +26,7 @@ async function restoreThroughDialog(
   if ((await fileMenu.getAttribute("open")) === null) {
     await fileMenu.locator("summary").click();
   }
-  await fileMenu.getByRole("button", { name: "Recover recent work…" }).click();
+  await fileMenu.getByRole("button", { name: "Recover Local Work…" }).click();
   const dialog = page.getByRole("dialog", { name: "Recover recent work" });
   await expect(dialog).toBeVisible();
   const card = dialog
@@ -39,10 +38,6 @@ async function restoreThroughDialog(
     .click();
   await expect(dialog).toBeHidden();
 }
-
-test.beforeEach(async ({ page }) => {
-  await emulateDownloadOnlyBrowser(page);
-});
 
 test("a hard renderer crash restores the latest committed Project", async ({
   page,
@@ -66,7 +61,6 @@ test("a hard renderer crash restores the latest committed Project", async ({
   // IndexedDB (polled above), so recovery must work from a fresh tab.
   await page.close({ runBeforeUnload: false });
   const revived = await page.context().newPage();
-  await emulateDownloadOnlyBrowser(revived);
   await revived.goto("/editor");
 
   await restoreThroughDialog(revived, "revision 2");
@@ -78,8 +72,6 @@ test("a hard renderer crash restores the latest committed Project", async ({
 test("simultaneous tabs keep separate working copies", async ({ context }) => {
   const pageA = await context.newPage();
   const pageB = await context.newPage();
-  await emulateDownloadOnlyBrowser(pageA);
-  await emulateDownloadOnlyBrowser(pageB);
 
   await pageA.goto("/editor");
   await placeResistor(pageA, 360, 230);
@@ -200,7 +192,7 @@ test("quota-exceeded keeps the editor alive with a persistent warning", async ({
   await expect(warning).toBeVisible();
 
   const downloadPromise = page.waitForEvent("download");
-  await warning.getByRole("button", { name: "Download Project" }).click();
+  await warning.getByRole("button", { name: "Download Backup" }).click();
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toContain(".icproj.json");
 });

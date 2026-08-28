@@ -1,109 +1,122 @@
 import type { RefObject } from "react";
 
-import type { WorkspaceSlot } from "./workspace-shelf";
+import {
+  CLOUD_PROJECT_LIMIT,
+  type CloudProjectSummary,
+} from "./cloud-projects";
 
 export interface FileCommandMenuProps {
-  workspaceSlots: readonly WorkspaceSlot[];
-  previousProjectName: string | null;
+  cloudProjects: readonly CloudProjectSummary[];
+  activeCloudProjectId: string | null;
   canRevert: boolean;
   hasRecoverySessions: boolean;
   projectInputRef: RefObject<HTMLInputElement | null>;
   onNewProject: () => void;
-  onSaveProject: (pickLocation: boolean) => void;
-  onCheckAndSave: () => void;
-  onOpenShelfSlot: (slot: WorkspaceSlot) => void;
+  onSave: () => void;
+  onSaveAsCopy: () => void;
+  onRefreshCloudProjects: () => void;
+  onOpenCloudProject: (project: CloudProjectSummary) => void;
+  onDeleteCloudProject: (project: CloudProjectSummary) => void;
   onRefresh: () => void;
-  onOpenProject: (file: File | null) => void;
+  onImportProject: (file: File | null) => void;
   onImportSpice: (files: FileList | null) => void;
+  onExportProject: () => void;
   onExportSvg: () => void;
   onExportRaster: (format: "png" | "pdf") => void;
   onExportNetlist: (format: "spice" | "spectre") => void;
-  onRestorePrevious: () => void;
   onRevert: () => void;
   onOpenRecovery: () => void;
 }
 
 export function FileCommandMenu({
-  workspaceSlots,
-  onOpenShelfSlot,
-  previousProjectName,
+  cloudProjects,
+  activeCloudProjectId,
+  onOpenCloudProject,
+  onDeleteCloudProject,
   canRevert,
   hasRecoverySessions,
   projectInputRef,
   onNewProject,
-  onSaveProject,
-  onCheckAndSave,
+  onSave,
+  onSaveAsCopy,
+  onRefreshCloudProjects,
   onRefresh,
-  onOpenProject,
+  onImportProject,
   onImportSpice,
+  onExportProject,
   onExportSvg,
   onExportRaster,
   onExportNetlist,
-  onRestorePrevious,
   onRevert,
   onOpenRecovery,
 }: FileCommandMenuProps) {
   return (
-    <details className="command-menu" name="editor-command-menu">
+    <details
+      className="command-menu"
+      name="editor-command-menu"
+      onToggle={(event) => {
+        if (event.currentTarget.open) onRefreshCloudProjects();
+      }}
+    >
       <summary>File</summary>
       <div className="command-popover">
         <button type="button" onClick={onNewProject}>
           New Project
         </button>
-        <button type="button" onClick={() => onSaveProject(false)}>
-          Save Project
+        <button type="button" data-testid="save-cloud-project" onClick={onSave}>
+          Save
         </button>
         <button
           type="button"
-          data-testid="save-project-as"
-          onClick={() => onSaveProject(true)}
+          onClick={onSaveAsCopy}
+          disabled={activeCloudProjectId === null}
+          title={
+            activeCloudProjectId === null
+              ? "Save this Project to Cloud before creating a copy"
+              : "Create a separate Cloud Project"
+          }
         >
-          Save Project As…
+          Save as Cloud Copy…
         </button>
-        <button
-          type="button"
-          data-testid="check-and-save-button"
-          title="Run a quick check and keep a recovery snapshot on the server (newest 3)"
-          onClick={onCheckAndSave}
-        >
-          <span className="toolbar-check-glyph" aria-hidden="true" />
-          Save cloud snapshot
-        </button>
-        {workspaceSlots.length > 0 ? (
-          <>
-            <span className="command-group-label">
-              Cloud snapshots (newest {workspaceSlots.length})
-            </span>
-            {workspaceSlots.map((slot) => (
-              <button
-                key={slot.id}
-                type="button"
-                data-testid={`shelf-slot-${slot.id}`}
-                title="Restore this snapshot into the editor"
-                onClick={() => onOpenShelfSlot(slot)}
-              >
-                {slot.name} — {new Date(slot.savedAt).toLocaleString()}
-              </button>
-            ))}
-          </>
-        ) : null}
-        <button type="button" onClick={onRefresh}>
-          Refresh app
-        </button>
+        <span className="command-group-label">
+          Cloud Projects ({cloudProjects.length}/{CLOUD_PROJECT_LIMIT})
+        </span>
+        {cloudProjects.map((project) => (
+          <div className="cloud-project-command" key={project.id}>
+            <button
+              type="button"
+              data-testid={`cloud-project-${project.id}`}
+              title={`Open revision ${project.revision}`}
+              disabled={project.id === activeCloudProjectId}
+              onClick={() => onOpenCloudProject(project)}
+            >
+              {project.name} — {new Date(project.updatedAt).toLocaleString()}
+            </button>
+            <button
+              type="button"
+              aria-label={`Delete Cloud Project ${project.name}`}
+              title="Delete this Cloud Project"
+              disabled={project.id === activeCloudProjectId}
+              onClick={() => onDeleteCloudProject(project)}
+            >
+              Delete
+            </button>
+          </div>
+        ))}
         <label className="file-import">
-          Open Project
+          Import Project File…
           <input
             ref={projectInputRef}
             data-testid="project-file"
             type="file"
             accept=".json,.icproj.json,application/json"
             onChange={(event) =>
-              onOpenProject(event.currentTarget.files?.[0] ?? null)
+              onImportProject(event.currentTarget.files?.[0] ?? null)
             }
           />
         </label>
         <label className="file-import">
-          Import SPICE
+          Import SPICE…
           <input
             data-testid="spice-files"
             type="file"
@@ -112,7 +125,10 @@ export function FileCommandMenu({
             onChange={(event) => onImportSpice(event.currentTarget.files)}
           />
         </label>
-        <span className="command-group-label">Export</span>
+        <button type="button" onClick={onExportProject}>
+          Export Project File…
+        </button>
+        <span className="command-group-label">Export Drawing</span>
         <button type="button" aria-label="Export SVG" onClick={onExportSvg}>
           SVG
         </button>
@@ -144,24 +160,15 @@ export function FileCommandMenu({
         >
           Spectre netlist
         </button>
-        <button
-          type="button"
-          onClick={onRestorePrevious}
-          disabled={previousProjectName === null}
-          title={
-            previousProjectName
-              ? `Return to ${previousProjectName}`
-              : "No previous Project in this editor session"
-          }
-        >
-          Previous Project
+        <button type="button" onClick={onRefresh}>
+          Refresh app
         </button>
         <button type="button" onClick={onRevert} disabled={!canRevert}>
           Revert to Last Saved
         </button>
         {hasRecoverySessions ? (
           <button type="button" onClick={onOpenRecovery}>
-            Recover recent work…
+            Recover Local Work…
           </button>
         ) : null}
       </div>

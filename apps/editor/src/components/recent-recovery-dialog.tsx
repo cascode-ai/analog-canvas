@@ -61,6 +61,7 @@ const SOURCE_LABELS: Record<BrowserRecoverySource, string> = {
   new: "New Project",
   "opened-file": "Opened file",
   "spice-import": "SPICE import",
+  "cloud-project": "Cloud Project",
   recovered: "Earlier restore",
 };
 
@@ -138,7 +139,7 @@ export function RecentRecoveryDialog({
         <div className="help-dialog-content">
           <p>
             These copies live only in this browser and are not the formal
-            Project file. Save or download the Project for a durable backup.
+            Project. Save to Cloud or download a backup for durable storage.
           </p>
           <ul className="recovery-session-list">
             {sessions.map((session) => {

@@ -596,9 +596,9 @@ describe("circuit addresses", () => {
   });
 });
 
-describe("account workspace shelf", () => {
+describe("private Cloud Projects", () => {
   function saveRequest(cookie: string, name: string): Request {
-    return new Request(`${ORIGIN}/api/workspace/recent`, {
+    return new Request(`${ORIGIN}/api/projects`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -609,36 +609,91 @@ describe("account workspace shelf", () => {
     });
   }
 
-  it("keeps only the newest three circuits per account", async () => {
+  it("limits distinct Projects without evicting an existing Project", async () => {
     const env = environment();
     const cookie = await makerOf(env);
-    for (const name of ["One", "Two", "Three", "Four"]) {
+    for (const name of ["One", "Two", "Three"]) {
       const saved = await route(env, saveRequest(cookie, name));
-      expect(saved.status).toBe(200);
+      expect(saved.status).toBe(201);
     }
+    const refused = await route(env, saveRequest(cookie, "Four"));
+    expect(refused.status).toBe(409);
+    expect((await refused.json()).error).toBe("project-limit");
     const listed = await route(
       env,
-      new Request(`${ORIGIN}/api/workspace/recent`, {
+      new Request(`${ORIGIN}/api/projects`, {
         headers: cookieHeaders(cookie),
       }),
     );
-    const { slots } = (await listed.json()) as {
-      slots: { name: string; id: string }[];
+    const { projects } = (await listed.json()) as {
+      projects: { name: string; id: string }[];
     };
-    expect(slots.map((slot) => slot.name)).toEqual(["Four", "Three", "Two"]);
+    expect(projects).toHaveLength(3);
+    expect(projects.map((project) => project.name)).not.toContain("Four");
+
+    const removed = await route(
+      env,
+      new Request(`${ORIGIN}/api/projects/${projects[0]!.id}`, {
+        method: "DELETE",
+        headers: { Origin: ORIGIN, Cookie: cookie },
+      }),
+    );
+    expect(removed.status).toBe(200);
+    expect((await removed.json()).projects).toHaveLength(2);
+    expect((await route(env, saveRequest(cookie, "Four"))).status).toBe(201);
+  });
+
+  it("updates one stable Project with optimistic revision checking", async () => {
+    const env = environment();
+    const cookie = await makerOf(env);
+    const created = await route(env, saveRequest(cookie, "First"));
+    const createdProject = (await created.json()).project as {
+      id: string;
+      revision: number;
+    };
+    const update = (revision: number, name: string) =>
+      route(
+        env,
+        new Request(`${ORIGIN}/api/projects/${createdProject.id}`, {
+          method: "PUT",
+          headers: {
+            "content-type": "application/json",
+            Origin: ORIGIN,
+            Cookie: cookie,
+            "If-Match": `revision-${revision}`,
+          },
+          body: JSON.stringify({ name, projectText: projectText(name) }),
+        }),
+      );
+    const updated = await update(1, "Second");
+    expect(updated.status).toBe(200);
+    expect((await updated.json()).project).toMatchObject({
+      id: createdProject.id,
+      name: "Second",
+      revision: 2,
+    });
+    const retried = await update(1, "Second");
+    expect(retried.status).toBe(200);
+    expect((await retried.json()).project).toMatchObject({ revision: 2 });
+    const conflict = await update(1, "Stale");
+    expect(conflict.status).toBe(409);
+    expect(await conflict.json()).toMatchObject({
+      error: "revision-conflict",
+      project: { id: createdProject.id, revision: 2 },
+    });
   });
 
   it("is private to the account that saved it", async () => {
     const env = environment();
     const mine = await makerOf(env);
     const saved = await route(env, saveRequest(mine, "Private"));
-    const { slots } = (await saved.json()) as { slots: { id: string }[] };
-    const slotId = slots[0]!.id;
+    const { project } = (await saved.json()) as { project: { id: string } };
+    const projectId = project.id;
 
     const stranger = await adminOf(env);
     const strangerRead = await route(
       env,
-      new Request(`${ORIGIN}/api/workspace/recent/${slotId}`, {
+      new Request(`${ORIGIN}/api/projects/${projectId}`, {
         headers: cookieHeaders(stranger),
       }),
     );
@@ -646,34 +701,31 @@ describe("account workspace shelf", () => {
     expect(strangerRead.status).toBe(404);
     const strangerList = await route(
       env,
-      new Request(`${ORIGIN}/api/workspace/recent`, {
+      new Request(`${ORIGIN}/api/projects`, {
         headers: cookieHeaders(stranger),
       }),
     );
-    expect((await strangerList.json()).slots).toEqual([]);
+    expect((await strangerList.json()).projects).toEqual([]);
 
     const own = await route(
       env,
-      new Request(`${ORIGIN}/api/workspace/recent/${slotId}`, {
+      new Request(`${ORIGIN}/api/projects/${projectId}`, {
         headers: cookieHeaders(mine),
       }),
     );
     expect(own.status).toBe(200);
-    expect((await own.json()).projectText).toContain("Private");
+    expect((await own.json()).project.projectText).toContain("Private");
   });
 
   it("refuses a signed-out visitor and an oversized or unparseable project", async () => {
     const env = environment();
-    const anonymous = await route(
-      env,
-      new Request(`${ORIGIN}/api/workspace/recent`),
-    );
+    const anonymous = await route(env, new Request(`${ORIGIN}/api/projects`));
     expect(anonymous.status).toBe(401);
 
     const cookie = await makerOf(env);
     const oversized = await route(
       env,
-      new Request(`${ORIGIN}/api/workspace/recent`, {
+      new Request(`${ORIGIN}/api/projects`, {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -690,7 +742,7 @@ describe("account workspace shelf", () => {
 
     const unparseable = await route(
       env,
-      new Request(`${ORIGIN}/api/workspace/recent`, {
+      new Request(`${ORIGIN}/api/projects`, {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -703,15 +755,13 @@ describe("account workspace shelf", () => {
     expect(unparseable.status).toBe(400);
   });
 
-  it("saves whatever was checked, gates and all", async () => {
-    // The shelf is not the Gallery: nobody else sees it, so an unfinished
-    // circuit that would fail a submission gate still has to be keepable.
+  it("saves private unfinished work without Gallery quality gates", async () => {
     const env = environment();
     const cookie = await makerOf(env);
     const empty = serializeProject(createEmptyProject("blank", "Blank"));
     const saved = await route(
       env,
-      new Request(`${ORIGIN}/api/workspace/recent`, {
+      new Request(`${ORIGIN}/api/projects`, {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -721,7 +771,7 @@ describe("account workspace shelf", () => {
         body: JSON.stringify({ name: "Blank", projectText: empty }),
       }),
     );
-    expect(saved.status).toBe(200);
+    expect(saved.status).toBe(201);
   });
 });
 
@@ -2297,12 +2347,14 @@ describe("gallery administration", () => {
       versionId,
     );
     env.gallerySql.exec(
-      `INSERT INTO workspace_slots
-       (id, user_id, name, saved_at, seq, schema_version, project_text)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      "workspace-legacy",
+      `INSERT INTO cloud_projects
+       (id, user_id, name, created_at, updated_at, revision,
+        schema_version, project_text)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      "cloud-legacy",
       "user-legacy",
-      "Legacy workspace",
+      "Legacy Cloud Project",
+      "2026-08-24T00:00:00.000Z",
       "2026-08-24T00:00:00.000Z",
       1,
       CURRENT_PROJECT_SCHEMA_VERSION - 1,
@@ -2320,7 +2372,7 @@ describe("gallery administration", () => {
     const backupPayload = (await backup.json()) as any;
     expect(backupPayload.tables.galleryEntries).toHaveLength(1);
     expect(backupPayload.tables.galleryEntryVersions).toHaveLength(1);
-    expect(backupPayload.tables.workspaceSlots).toHaveLength(1);
+    expect(backupPayload.tables.cloudProjects).toHaveLength(1);
 
     const dryRun = await route(
       env,
@@ -2344,7 +2396,7 @@ describe("gallery administration", () => {
         gallery_entry_versions: {
           [String(CURRENT_PROJECT_SCHEMA_VERSION - 1)]: 1,
         },
-        workspace_slots: {
+        cloud_projects: {
           [String(CURRENT_PROJECT_SCHEMA_VERSION - 1)]: 1,
         },
       },
@@ -2386,7 +2438,7 @@ describe("gallery administration", () => {
     for (const table of [
       "gallery_entries",
       "gallery_entry_versions",
-      "workspace_slots",
+      "cloud_projects",
     ]) {
       const row = env.gallerySql
         .exec<{
@@ -2424,13 +2476,13 @@ describe("gallery administration", () => {
       tables: {
         galleryEntries: 1,
         galleryEntryVersions: 1,
-        workspaceSlots: 1,
+        cloudProjects: 1,
       },
     });
     for (const table of [
       "gallery_entries",
       "gallery_entry_versions",
-      "workspace_slots",
+      "cloud_projects",
     ]) {
       expect(
         env.gallerySql
@@ -2507,7 +2559,7 @@ describe("gallery administration", () => {
       tables: {
         galleryEntries: 1,
         galleryEntryVersions: 2,
-        workspaceSlots: 0,
+        cloudProjects: 0,
       },
     });
     expect(

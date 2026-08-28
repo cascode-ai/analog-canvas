@@ -20,7 +20,7 @@ missing vendor construct.
 ## Recovery copies
 
 Safety copies live in this browser's IndexedDB and are never authoritative.
-Use **File / Recover recent work…** to browse them. A damaged latest copy
+Use **File / Recover Local Work…** to browse them. A damaged latest copy
 offers the previous generation; a copy from a newer Project schema cannot be
 restored here but can still be downloaded. Deleting one copy never deletes
 another Project's copy. If a warning says recovery cannot be saved (storage

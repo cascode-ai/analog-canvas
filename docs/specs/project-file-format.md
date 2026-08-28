@@ -62,25 +62,26 @@ rejected.
 ## Read and write
 
 ```text
-read text -> parse JSON -> require Project schema 27 or 28
--> converge to schema 28 -> strict schema-28 validation -> open
-save -> strict validation -> canonical key ordering -> atomic write
+import text -> parse JSON -> require Project schema 27 or 28
+-> converge to schema 28 -> strict schema-28 validation -> install unbound
+export -> strict validation -> canonical key ordering -> Blob download
 ```
 
 An invalid candidate never replaces the current browser Project. File Resource
 staging is non-mutating; a staged Project can replace the live Project only
 after explicit human approval in the editor.
 
-A migrated formal file is marked as needing save. The editor does not silently
-overwrite the source selected through the browser file input. Browser recovery
-records may be canonicalized to v28 only after a successful validated write.
+A migrated imported file is marked dirty. The editor never overwrites a source
+selected through the browser file input; the user may Save it as a Cloud
+Project or explicitly export upgraded bytes. Browser recovery records may be
+canonicalized to v28 only after a successful validated write.
 
 Project entry does not repair duplicate canonical supply Nets (`0` or `VDD`).
 Duplicate folded Net names are invalid input and remain a blocking diagnostic
 until the author explicitly renames or merges the Nets.
 
 Canonical serialization ends with one newline and is byte-stable across
-save/load/save. The current corpus is listed in
+serialize/parse/serialize. The current corpus is listed in
 `fixtures/projects/compatibility-corpus.json`; its accepted entries must all be
 already canonical Project schema 28. The rejected corpus names expected
 validation failures.

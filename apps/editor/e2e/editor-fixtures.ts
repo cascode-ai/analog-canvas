@@ -150,16 +150,3 @@ export async function recoveryProjectTexts(page: Page): Promise<string> {
   const records = await readRecoveryRecords(page);
   return records.map((record) => record.projectText).join("\n");
 }
-
-/**
- * Emulate a browser without File System Access (the supported Firefox/Safari
- * configuration). Headless Chrome exposes `showSaveFilePicker` but aborts the
- * native picker, so specs that assert Save Project behavior pin the
- * deterministic download fallback and dedicated specs mock the picker itself.
- */
-export async function emulateDownloadOnlyBrowser(page: Page): Promise<void> {
-  await page.addInitScript(() => {
-    delete (window as unknown as { showSaveFilePicker?: unknown })
-      .showSaveFilePicker;
-  });
-}

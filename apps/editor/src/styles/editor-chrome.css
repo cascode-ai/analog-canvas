@@ -451,6 +451,17 @@
   white-space: nowrap;
 }
 
+.cloud-project-command {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px;
+}
+
+.command-popover .cloud-project-command > button:last-child {
+  width: auto;
+  color: var(--icm-text-muted);
+}
+
 .document-nav .command-popover button {
   height: auto;
 }

@@ -1,7 +1,8 @@
 // Browser recovery record contract (v2).
 //
-// The canonical `.icproj.json` Project file stays the only portable,
-// user-owned artifact. Browser recovery is a bounded, origin-local safety copy
+// A `.icproj.json` export stays the portable, user-owned artifact while a
+// Cloud Project is the formal saved state. Browser recovery is a bounded,
+// origin-local safety copy
 // of committed Project text, kept in an application-specific IndexedDB store.
 // This module owns the pure, browser-API-free half of that contract:
 //
@@ -39,6 +40,7 @@ export const BROWSER_RECOVERY_SOURCES = [
   "new",
   "opened-file",
   "spice-import",
+  "cloud-project",
   "recovered",
 ] as const;
 
@@ -50,6 +52,11 @@ export interface BrowserRecoveryFormalFileHint {
   name: string;
   lastConfirmedWriteAt?: string;
   lastDownloadRequestedAt?: string;
+}
+
+export interface BrowserRecoveryCloudBinding {
+  id: string;
+  revision: number;
 }
 
 /**
@@ -71,8 +78,9 @@ export interface BrowserRecoveryRecordV2 {
   /** UTF-8 byte length of `projectText`; always recomputed, never trusted. */
   byteLength: number;
   projectText: string;
-  /** Whether this snapshot represents work not confirmed in a formal file. */
+  /** Whether this snapshot is ahead of the acknowledged Cloud Project. */
   unsavedAtSnapshot?: boolean;
+  cloudBinding?: BrowserRecoveryCloudBinding;
   formalFileHint?: BrowserRecoveryFormalFileHint;
 }
 
@@ -90,6 +98,7 @@ export interface BrowserRecoveryRecordDraft {
   updatedAt: string;
   projectText: string;
   unsavedAtSnapshot?: boolean;
+  cloudBinding?: BrowserRecoveryCloudBinding;
   formalFileHint?: BrowserRecoveryFormalFileHint;
 }
 
@@ -130,6 +139,9 @@ export function finalizeBrowserRecoveryRecord(
     ...(draft.unsavedAtSnapshot === undefined
       ? {}
       : { unsavedAtSnapshot: draft.unsavedAtSnapshot }),
+    ...(draft.cloudBinding === undefined
+      ? {}
+      : { cloudBinding: draft.cloudBinding }),
     ...(draft.formalFileHint === undefined
       ? {}
       : { formalFileHint: draft.formalFileHint }),
@@ -245,6 +257,20 @@ export function decodeBrowserRecoveryRecord(
   ) {
     return corrupt("unsavedAtSnapshot is not a boolean");
   }
+  if (raw.cloudBinding !== undefined) {
+    const binding = raw.cloudBinding;
+    if (
+      typeof binding !== "object" ||
+      binding === null ||
+      typeof (binding as Record<string, unknown>).id !== "string" ||
+      (binding as Record<string, unknown>).id === "" ||
+      typeof (binding as Record<string, unknown>).revision !== "number" ||
+      !Number.isInteger((binding as Record<string, unknown>).revision) ||
+      ((binding as Record<string, unknown>).revision as number) < 1
+    ) {
+      return corrupt("cloudBinding is invalid");
+    }
+  }
 
   const projectText = raw.projectText as string;
   const record: BrowserRecoveryRecordV2 = {
@@ -264,6 +290,11 @@ export function decodeBrowserRecoveryRecord(
     ...(raw.unsavedAtSnapshot === undefined
       ? {}
       : { unsavedAtSnapshot: raw.unsavedAtSnapshot as boolean }),
+    ...(raw.cloudBinding === undefined
+      ? {}
+      : {
+          cloudBinding: raw.cloudBinding as BrowserRecoveryCloudBinding,
+        }),
     ...(raw.formalFileHint === undefined
       ? {}
       : {
@@ -403,9 +434,14 @@ export function rotateBrowserRecoverySession(
         candidate.formalFileHint?.lastConfirmedWriteAt &&
       session.latest.formalFileHint?.lastDownloadRequestedAt ===
         candidate.formalFileHint?.lastDownloadRequestedAt;
+    const sameCloudBinding =
+      session.latest.cloudBinding?.id === candidate.cloudBinding?.id &&
+      session.latest.cloudBinding?.revision ===
+        candidate.cloudBinding?.revision;
     if (
       session.latest.unsavedAtSnapshot === candidate.unsavedAtSnapshot &&
-      sameHint
+      sameHint &&
+      sameCloudBinding
     ) {
       return { status: "unchanged", session };
     }

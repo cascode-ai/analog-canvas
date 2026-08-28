@@ -99,6 +99,20 @@ describe("finalizeBrowserRecoveryRecord", () => {
         .unsavedAtSnapshot,
     ).toBe(true);
   });
+
+  it("keeps the transient Cloud binding outside Project JSON", () => {
+    const record = finalizeBrowserRecoveryRecord(
+      draft({ cloudBinding: { id: "cloud-1", revision: 4 } }),
+    );
+    expect(record.cloudBinding).toEqual({ id: "cloud-1", revision: 4 });
+    expect(JSON.parse(record.projectText)).not.toHaveProperty("cloudBinding");
+    expect(
+      decodeBrowserRecoveryRecord({
+        ...record,
+        cloudBinding: { id: "cloud-1", revision: 0 },
+      }),
+    ).toMatchObject({ status: "corrupt" });
+  });
 });
 
 describe("decodeBrowserRecoveryRecord", () => {
@@ -334,6 +348,30 @@ describe("rotateBrowserRecoverySession", () => {
     if (rotation.status === "updated") {
       expect(rotation.session.latest?.recordId).toBe("record-2");
       expect(rotation.session.latest?.unsavedAtSnapshot).toBe(false);
+      expect(rotation.session.previous).toBeNull();
+    }
+  });
+
+  it("updates a Cloud binding in place without consuming previous", () => {
+    const first = finalizeBrowserRecoveryRecord(
+      draft({ recordId: "record-1" }),
+    );
+    const bound = finalizeBrowserRecoveryRecord(
+      draft({
+        recordId: "record-2",
+        cloudBinding: { id: "cloud-1", revision: 1 },
+      }),
+    );
+    const rotation = rotateBrowserRecoverySession(
+      session("working-copy-a", { latest: first }),
+      bound,
+    );
+    expect(rotation.status).toBe("updated");
+    if (rotation.status === "updated") {
+      expect(rotation.session.latest?.cloudBinding).toEqual({
+        id: "cloud-1",
+        revision: 1,
+      });
       expect(rotation.session.previous).toBeNull();
     }
   });

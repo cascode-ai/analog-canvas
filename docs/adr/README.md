@@ -107,6 +107,9 @@ the existing electrical endpoint and Junction model, is
 The single transient routing-operation envelope and independent electrical
 effect validation decision is
 [`0048-routing-operation-plan.md`](0048-routing-operation-plan.md).
+The stable private Cloud Project identity, explicit Save, local recovery, and
+portable interchange boundary is
+[`0049-cloud-project-save-boundary.md`](0049-cloud-project-save-boundary.md).
 The arbitrary-angle Route authoring decision is
 [`0039-any-angle-route-authoring.md`](0039-any-angle-route-authoring.md).
 

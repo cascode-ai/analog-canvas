@@ -19,8 +19,8 @@ edit model.
 - **Reusable hierarchy:** author each schematic as a Cell, define independent
   Cell Pins, place reusable hierarchical blocks, and navigate between callers
   and child Cells.
-- **Portable projects and interchange:** save the canonical `.icproj.json`
-  Project, import structural `.cir`, `.sp`, and `.spi` files, and export
+- **Projects and interchange:** save a private Cloud Project, import/export
+  canonical `.icproj.json`, import structural `.cir`, `.sp`, and `.spi` files, and export
   deterministic structural SPICE or Spectre. Analog Canvas does not supply
   simulation, PDKs, device models, corners, stimuli, or analyses.
 - **Publication-ready output:** the web editor's SVG and PDF exports remain
@@ -34,11 +34,12 @@ edit model.
 
 ## Project ownership and privacy
 
-An explicit **File / Save Project** `.icproj.json` file is the authoritative
-copy of a design. Browser recovery and the signed-in recent-work shelf are
-safety copies; Community Gallery entries are public publications. The hosted
-service keeps its visitor reporting first-party and honors browser Do Not
-Track instead of embedding a third-party analytics tracker.
+An explicit **File / Save** updates one private Cloud Project in place. Local
+`.icproj.json` files are portable import/export and backup artifacts; browser
+recovery is an origin-local crash-safety copy. Neither is confused with formal
+Cloud Save, and Community Gallery entries remain separate public publications.
+The hosted service keeps its visitor reporting first-party and honors browser
+Do Not Track instead of embedding a third-party analytics tracker.
 
 ## Start here
 

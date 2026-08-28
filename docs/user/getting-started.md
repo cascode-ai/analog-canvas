@@ -55,26 +55,39 @@ palette-first manual authoring; no Project file needs to be opened first.
 
 ## Save and recover
 
-**File / Save Project** creates a canonical `.icproj.json` formal Project
-file. In browsers without an explicitly authorised file handle, this is a
-download; keep the downloaded file as your authoritative Project. Edits also
-stage an origin-local recovery copy. A recovery copy is not a formal save and
-can be lost if browser site data is cleared. A dot beside the Project name
-means the formal Project has unsaved changes. Browser Back, Refresh, and tab or
-window close then show the browser's standard leave warning; after a successful
-save or requested download, they do not.
+**File / Save** (or `Ctrl+S`) saves the current content to one private Cloud
+Project. Repeated saves update that Project instead of creating snapshots. A
+new or imported drawing is unbound until its first Save; **Save as Cloud Copy**
+deliberately creates another Cloud Project. A dot beside the Project name means
+the Cloud Project has unsaved changes. Browser Back, Refresh, and tab or window
+close then show the browser's standard leave warning; only an acknowledged
+Cloud Save of the current content clears it.
 
-New, Open, and Revert ask whether to **Save and continue**, **Discard and
-continue**, or **Cancel** when the current Project is dirty. If a newer
+Edits also stage an origin-local IndexedDB recovery copy. Recovery is silent
+crash protection, not Save, and can be lost if browser site data is cleared.
+If Cloud is unavailable, continue editing normally and use **Export Project
+File…** when you want a portable copy. A direct **Download Backup** action is
+shown contextually if browser recovery itself cannot protect current work.
+
+New, Open, Revert, and the same-tab trip to Gallery ask whether to **Save and
+continue**, **Discard and continue**, or **Cancel** when the current Project is
+dirty. Discard means discard: that working copy is removed before the action
+continues. If a newer
 unsaved recovery copy is found on a later start, a small banner offers
 **Restore**, **Download backup**, or **Ignore**. The same copies remain
-available through **File / Recover recent work…**; recovery never silently
-replaces a formal file.
+available through **File / Recover Local Work…**; recovery never silently
+replaces the current Project.
 
-Use **File / Open Project** to validate and reopen a formal Project file.
-Opening an invalid or future-version file leaves the current Document
-unchanged. The old manual snapshot buttons have been removed; recovery is
-automatic infrastructure.
+Returning from Gallery reopens the last active Cloud Project for this browser
+tab. The tab stores only that Cloud Project id; the editor fetches the formal
+Project again rather than treating browser state as Save. A newer unsaved
+recovery copy still gets the first decision.
+
+Use the Cloud Projects list in **File** to open formal work. Use **Import
+Project File…** to validate a portable `.icproj.json`; invalid or future-version
+input leaves the current Document unchanged. **Export Project File…** does not
+change Cloud save state. The old rolling cloud
+snapshot and local File System Access Save paths have been removed.
 
 SPICE files are import inputs, not embedded source attachments. Saving an
 imported Project preserves the editable schematic and source provenance, but
@@ -123,10 +136,10 @@ The editor is served by the Cloudflare Worker in `worker/`, which
 Worker is the only public deployment: it hosts the built editor and the
 gallery, account, and Agent-session endpoints behind it.
 
-A downloaded `.icproj.json` file remains the authoritative copy of your work.
-The browser recovery copy is specific to one browser profile and may disappear
-when site data is cleared, and publishing to the gallery is a deliberate,
-separate act rather than a backup.
+The private Cloud Project is the formal saved copy. Exported `.icproj.json`
+and downloaded backups remain portable user-owned copies. Browser recovery is
+specific to one browser profile and may disappear when site data is cleared;
+publishing to the Gallery is a deliberate, separate act rather than a backup.
 
 Before a public release, verify opening, refreshing, importing and exporting,
 browser recovery, and PWA installation at the deployed URL.

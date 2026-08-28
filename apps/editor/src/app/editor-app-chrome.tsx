@@ -26,7 +26,8 @@ export interface EditorAppChromeProps {
   onProjectNameDraftChange: (value: string) => void;
   onProjectNameCommit: () => void;
   onProjectNameCancel: () => void;
-  fileCommands: Omit<ComponentProps<typeof FileCommandMenu>, "onCheckAndSave">;
+  onOpenGallery: () => void;
+  fileCommands: ComponentProps<typeof FileCommandMenu>;
   searchOpen: boolean;
   onManageCells: () => void;
   onOpenSearch: () => void;
@@ -43,7 +44,6 @@ export interface EditorAppChromeProps {
   onOpenInstanceTable: () => void;
   onOpenNetlistPreflight: () => void;
   agentAction: { label: string; execute: () => void } | null;
-  onCheckAndSave: () => void;
   publishGalleryOpen: boolean;
   onPublishGallery: () => void;
   helpButtonRef: RefObject<HTMLButtonElement | null>;
@@ -63,6 +63,7 @@ export function EditorAppChrome({
   onProjectNameDraftChange,
   onProjectNameCommit,
   onProjectNameCancel,
+  onOpenGallery,
   fileCommands,
   searchOpen,
   onManageCells,
@@ -80,7 +81,6 @@ export function EditorAppChrome({
   onOpenInstanceTable,
   onOpenNetlistPreflight,
   agentAction,
-  onCheckAndSave,
   publishGalleryOpen,
   onPublishGallery,
   helpButtonRef,
@@ -100,6 +100,19 @@ export function EditorAppChrome({
             href="/"
             aria-label="Back to the gallery"
             title="Back to the gallery"
+            onClick={(event) => {
+              if (
+                event.button !== 0 ||
+                event.metaKey ||
+                event.ctrlKey ||
+                event.shiftKey ||
+                event.altKey
+              ) {
+                return;
+              }
+              event.preventDefault();
+              onOpenGallery();
+            }}
           >
             <span className="app-brand-mark" aria-hidden="true" />
             <h1 title="Analog Canvas">Analog Canvas</h1>
@@ -149,10 +162,7 @@ export function EditorAppChrome({
           }}
         >
           <div className="menubar-row">
-            <FileCommandMenu
-              {...fileCommands}
-              onCheckAndSave={onCheckAndSave}
-            />
+            <FileCommandMenu {...fileCommands} />
             <details className="command-menu" name="editor-command-menu">
               <summary>Edit</summary>
               <div className="command-popover">

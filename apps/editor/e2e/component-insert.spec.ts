@@ -5,7 +5,6 @@ import {
   chooseComponent,
   clickCommand,
   downloadBytes,
-  emulateDownloadOnlyBrowser,
   recoveryProjectTexts,
 } from "./editor-fixtures.js";
 
@@ -440,7 +439,6 @@ test("groups drafting tools and editable polarity labels under Annotations", asy
 test("places a vertical Power Rail from I and renames it on the canvas", async ({
   page,
 }) => {
-  await emulateDownloadOnlyBrowser(page);
   await page.goto("/editor");
   await awaitEditorReady(page);
   await page.keyboard.press("i");
@@ -476,7 +474,9 @@ test("places a vertical Power Rail from I and renames it on the canvas", async (
   expect(railPoints.at(-1)!.y).not.toBe(railPoints[0]!.y);
 
   const saved = JSON.parse(
-    (await downloadBytes(page, "File", "Save Project")).toString("utf8"),
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
   ) as {
     documents: Array<{
       nets: Array<{ id: string; name?: string; scope: string }>;
@@ -517,7 +517,6 @@ test("places a vertical Power Rail from I and renames it on the canvas", async (
 test("places the VDD power-port device as the default VDD entry", async ({
   page,
 }) => {
-  await emulateDownloadOnlyBrowser(page);
   await page.goto("/editor");
   await awaitEditorReady(page);
   await page.keyboard.press("i");
@@ -550,7 +549,9 @@ test("places the VDD power-port device as the default VDD entry", async ({
   await expect(page.getByTestId("instance-count")).toHaveText("2");
 
   const saved = JSON.parse(
-    (await downloadBytes(page, "File", "Save Project")).toString("utf8"),
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
   ) as {
     documents: Array<{
       instances: Array<{ id: string; symbolId: string }>;
