@@ -195,6 +195,50 @@ test("authors one validated formula through the canonical text editor", async ({
     page.locator('math-field[aria-label="Formula editor"]'),
   ).toBeVisible();
 
+  const editorLayout = await page
+    .getByTestId("canvas-text-editor")
+    .evaluate((element) => {
+      const shell = element.querySelector<HTMLElement>(
+        ".rich-text-editor-shell",
+      );
+      const formulaScroll = element.querySelector<HTMLElement>(
+        '[data-testid="formula-scroll-region"]',
+      );
+      const mathfield = element.querySelector<HTMLElement>("math-field");
+      const keyboardToggle = mathfield?.shadowRoot?.querySelector<HTMLElement>(
+        '[part="virtual-keyboard-toggle"]',
+      );
+      return {
+        frameHeight: Number(element.getAttribute("height")),
+        shellHeight: shell?.offsetHeight ?? 0,
+        shellScrollHeight: shell?.scrollHeight ?? 0,
+        shellOverflowY: shell ? getComputedStyle(shell).overflowY : "",
+        formulaOverflowY: formulaScroll
+          ? getComputedStyle(formulaScroll).overflowY
+          : "",
+        keyboardToggleDisplay: keyboardToggle
+          ? getComputedStyle(keyboardToggle).display
+          : "none",
+        virtualKeyboardVisible: window.mathVirtualKeyboard?.visible === true,
+      };
+    });
+  expect(editorLayout.frameHeight).toBeGreaterThanOrEqual(
+    editorLayout.shellScrollHeight,
+  );
+  expect(editorLayout.shellHeight).toBeGreaterThanOrEqual(
+    editorLayout.shellScrollHeight,
+  );
+  expect(editorLayout.shellOverflowY).not.toBe("auto");
+  expect(editorLayout.shellOverflowY).not.toBe("scroll");
+  expect(editorLayout.formulaOverflowY).toBe("auto");
+  expect(editorLayout.keyboardToggleDisplay).toBe("none");
+  expect(editorLayout.virtualKeyboardVisible).toBe(false);
+
+  await page.getByRole("button", { name: "Insert Square root" }).click();
+  await expect(
+    page.getByRole("textbox", { name: "Formula LaTeX source" }),
+  ).toHaveValue(/\\sqrt/u);
+
   const source = page.getByRole("textbox", { name: "Formula LaTeX source" });
   await source.fill(String.raw`A_v=\frac{g_m}{1+s/\omega_p}`);
   await page.getByRole("button", { name: "Display" }).click();

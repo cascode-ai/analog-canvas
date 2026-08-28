@@ -82,6 +82,18 @@ describe("canvas text editor frame", () => {
     expect(frame.layoutHeight).toBeGreaterThan(54 + oneLine * 2);
   });
 
+  it("expands to the editor's measured content height", () => {
+    const frame = resolveCanvasTextEditorFrame(
+      target,
+      camera(960, 640),
+      1,
+      1,
+      312,
+    );
+    expect(frame.layoutHeight).toBe(312);
+    expect(frame.height).toBe(312);
+  });
+
   it("clamps the frame to all four viewport edges", () => {
     const view = camera(960, 640);
     const topLeft = resolveCanvasTextEditorFrame(

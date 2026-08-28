@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
 import {
   flattenRichText,
@@ -30,6 +37,7 @@ export interface RichTextEditorProps {
   onCommit(): void;
   onDelete(): void;
   onReverseCurrentArrow?(): void;
+  onLayoutHeightChange?(height: number): void;
 }
 
 function escapeHtml(value: string): string {
@@ -215,21 +223,45 @@ function editableDocument(element: HTMLElement): RichTextDocument {
   return normalizeRichText(document);
 }
 
-function FormulaMathfield({
-  value,
-  onChange,
-}: {
-  value: string;
-  onChange(value: string): void;
-}) {
+interface FormulaMathfieldHandle {
+  insert(latex: string): void;
+}
+
+const FormulaMathfield = forwardRef<
+  FormulaMathfieldHandle,
+  {
+    value: string;
+    onChange(value: string): void;
+  }
+>(function FormulaMathfield({ value, onChange }, ref) {
   const hostRef = useRef<HTMLDivElement>(null);
   const fieldRef = useRef<import("mathlive").MathfieldElement | null>(null);
   const changeRef = useRef(onChange);
+  const valueRef = useRef(value);
   changeRef.current = onChange;
+  valueRef.current = value;
+
+  useImperativeHandle(ref, () => ({
+    insert(latex: string): void {
+      const field = fieldRef.current;
+      if (!field) return;
+      field.insert(latex, {
+        format: "latex",
+        selectionMode: "placeholder",
+        focus: true,
+        feedback: false,
+      });
+      changeRef.current(field.value);
+    },
+  }));
 
   useEffect(() => {
     let disposed = false;
     let field: import("mathlive").MathfieldElement | undefined;
+    let keyboard: Window["mathVirtualKeyboard"] | undefined;
+    const suppressVirtualKeyboard = (event: Event): void => {
+      event.preventDefault();
+    };
     const mount = async () => {
       const [{ MathfieldElement }] = await Promise.all([
         import("mathlive"),
@@ -240,13 +272,25 @@ function FormulaMathfield({
       // MathLive's fallback loader, whose module-relative `/fonts` guess does
       // not exist in a bundled application.
       MathfieldElement.fontsDirectory = null;
+      MathfieldElement.soundsDirectory = null;
       field = new MathfieldElement();
-      field.value = value;
+      field.value = valueRef.current;
       field.setAttribute("aria-label", "Formula editor");
+      // The stock virtual keyboard is appended to the page, outside this SVG
+      // foreignObject. Keep physical-keyboard input and provide a local,
+      // product-styled formula structure palette instead.
       field.setAttribute("math-virtual-keyboard-policy", "manual");
+      field.popoverPolicy = "off";
+      field.environmentPopoverPolicy = "off";
       field.addEventListener("input", () => changeRef.current(field!.value));
       hostRef.current.replaceChildren(field);
       fieldRef.current = field;
+      keyboard = window.mathVirtualKeyboard;
+      if (keyboard.visible) keyboard.hide({ animate: false });
+      keyboard.addEventListener(
+        "before-virtual-keyboard-toggle",
+        suppressVirtualKeyboard,
+      );
       field.focus();
     };
     void mount();
@@ -254,6 +298,11 @@ function FormulaMathfield({
       disposed = true;
       fieldRef.current = null;
       field?.remove();
+      keyboard?.removeEventListener(
+        "before-virtual-keyboard-toggle",
+        suppressVirtualKeyboard,
+      );
+      if (keyboard?.visible) keyboard.hide({ animate: false });
     };
   }, []);
 
@@ -264,7 +313,30 @@ function FormulaMathfield({
   }, [value]);
 
   return <div className="rich-text-formula-mathfield" ref={hostRef} />;
-}
+});
+
+const FORMULA_KEYCAPS = [
+  { label: "xₙ", title: "Subscript", latex: "_{#0}" },
+  { label: "xⁿ", title: "Superscript", latex: "^{#0}" },
+  { label: "a⁄b", title: "Fraction", latex: "\\frac{#0}{#0}" },
+  { label: "√x", title: "Square root", latex: "\\sqrt{#0}" },
+  { label: "x̅", title: "Overbar", latex: "\\overline{#0}" },
+  { label: "|x|", title: "Absolute value", latex: "\\left|#0\\right|" },
+  { label: "∫", title: "Integral", latex: "\\int_{#0}^{#0}" },
+  { label: "Σ", title: "Summation", latex: "\\sum_{#0}^{#0}" },
+  { label: "+", title: "Plus", latex: "+" },
+  { label: "−", title: "Minus", latex: "-" },
+  { label: "×", title: "Multiply", latex: "\\times" },
+  { label: "÷", title: "Divide", latex: "\\div" },
+  { label: "=", title: "Equals", latex: "=" },
+  { label: "(", title: "Open parenthesis", latex: "(" },
+  { label: ")", title: "Close parenthesis", latex: ")" },
+  { label: "π", title: "Pi", latex: "\\pi" },
+  { label: "ω", title: "Omega", latex: "\\omega" },
+  { label: "μ", title: "Mu", latex: "\\mu" },
+  { label: "Δ", title: "Delta", latex: "\\Delta" },
+  { label: "→", title: "Right arrow", latex: "\\rightarrow" },
+] as const;
 
 export function RichTextEditor({
   targetKey,
@@ -280,9 +352,12 @@ export function RichTextEditor({
   onCommit,
   onDelete,
   onReverseCurrentArrow,
+  onLayoutHeightChange,
 }: RichTextEditorProps) {
+  const shellRef = useRef<HTMLDivElement>(null);
   const editableRef = useRef<HTMLDivElement>(null);
   const sourceInputRef = useRef<HTMLInputElement>(null);
+  const formulaMathfieldRef = useRef<FormulaMathfieldHandle>(null);
   const selectionRangeRef = useRef<Range | null>(null);
   const existingFormula = soleRichTextMathRun(content);
   const [formulaOpen, setFormulaOpen] = useState(false);
@@ -293,6 +368,19 @@ export function RichTextEditor({
     existingFormula?.display ?? "inline",
   );
   const [formulaError, setFormulaError] = useState<string | null>(null);
+
+  useLayoutEffect(() => {
+    const shell = shellRef.current;
+    if (!shell || !onLayoutHeightChange) return;
+    const report = (): void => {
+      onLayoutHeightChange(Math.ceil(shell.offsetHeight));
+    };
+    report();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(report);
+    observer.observe(shell);
+    return () => observer.disconnect();
+  }, [onLayoutHeightChange, targetKey]);
 
   useEffect(() => {
     if (sourceOnly && sourceInputRef.current) {
@@ -417,7 +505,7 @@ export function RichTextEditor({
     if (disabled) return;
     const selection = window.getSelection()?.toString().trim();
     const formula = soleRichTextMathRun(content);
-    setFormulaDraft(formula?.latex ?? selection ?? "V_{OUT}");
+    setFormulaDraft(formula?.latex ?? (selection || "V_{OUT}"));
     setFormulaDisplay(formula?.display ?? "inline");
     setFormulaError(null);
     setFormulaOpen(true);
@@ -448,6 +536,7 @@ export function RichTextEditor({
 
   return (
     <div
+      ref={shellRef}
       className="rich-text-editor-shell"
       onPointerDown={(event) => event.stopPropagation()}
     >
@@ -651,43 +740,90 @@ export function RichTextEditor({
           role="dialog"
           aria-label="Formula"
         >
-          <FormulaMathfield value={formulaDraft} onChange={setFormulaDraft} />
-          {formulaError ? (
-            <div className="rich-text-formula-error" role="alert">
-              {formulaError}
+          <div className="rich-text-formula-header">
+            <div>
+              <strong>Formula</strong>
+              <span>LaTeX with live preview</span>
             </div>
-          ) : null}
-          <div className="rich-text-formula-source">
-            <label>
-              LaTeX
+            <button
+              type="button"
+              aria-label="Close formula editor"
+              onClick={() => setFormulaOpen(false)}
+            >
+              ×
+            </button>
+          </div>
+          <div
+            className="rich-text-formula-scroll-region"
+            data-testid="formula-scroll-region"
+          >
+            <section className="rich-text-formula-preview">
+              <span>Preview</span>
+              <FormulaMathfield
+                ref={formulaMathfieldRef}
+                value={formulaDraft}
+                onChange={setFormulaDraft}
+              />
+            </section>
+            <div
+              className="rich-text-formula-keyboard"
+              role="toolbar"
+              aria-label="Formula keyboard"
+            >
+              {FORMULA_KEYCAPS.map((item) => (
+                <button
+                  key={item.title}
+                  type="button"
+                  aria-label={`Insert ${item.title}`}
+                  title={item.title}
+                  onPointerDown={(event) => event.preventDefault()}
+                  onClick={() =>
+                    formulaMathfieldRef.current?.insert(item.latex)
+                  }
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+            <label className="rich-text-formula-source">
+              <span>LaTeX source</span>
               <textarea
                 value={formulaDraft}
                 aria-label="Formula LaTeX source"
                 spellCheck={false}
+                rows={3}
                 onChange={(event) => setFormulaDraft(event.target.value)}
               />
             </label>
+            {formulaError ? (
+              <div className="rich-text-formula-error" role="alert">
+                {formulaError}
+              </div>
+            ) : null}
           </div>
           <div className="rich-text-formula-actions">
+            <div className="rich-text-formula-display-toggle">
+              <button
+                type="button"
+                aria-pressed={formulaDisplay === "inline"}
+                onClick={() => setFormulaDisplay("inline")}
+              >
+                Inline
+              </button>
+              <button
+                type="button"
+                aria-pressed={formulaDisplay === "block"}
+                onClick={() => setFormulaDisplay("block")}
+              >
+                Display
+              </button>
+            </div>
             <button
+              className="rich-text-formula-primary-action"
               type="button"
-              aria-pressed={formulaDisplay === "inline"}
-              onClick={() => setFormulaDisplay("inline")}
+              onClick={() => void applyFormula()}
             >
-              Inline
-            </button>
-            <button
-              type="button"
-              aria-pressed={formulaDisplay === "block"}
-              onClick={() => setFormulaDisplay("block")}
-            >
-              Display
-            </button>
-            <button type="button" onClick={() => void applyFormula()}>
               Insert
-            </button>
-            <button type="button" onClick={() => setFormulaOpen(false)}>
-              Cancel
             </button>
           </div>
         </div>

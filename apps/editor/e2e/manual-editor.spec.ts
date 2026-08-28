@@ -4630,14 +4630,29 @@ test("keeps a long right-aligned Port label readable while editing", async ({
   await editable.click();
   await page.keyboard.type("VinputDifferentialPositive");
 
-  // The overlay is a foreignObject, so anything past its frame is clipped
-  // away silently rather than scrolled to.
-  const overflow = await editable.evaluate((element) => ({
-    hidden: element.scrollHeight - element.clientHeight,
-    scrollable: getComputedStyle(element).overflowY,
-  }));
-  expect(overflow.hidden).toBeLessThanOrEqual(0);
-  expect(overflow.scrollable).toBe("auto");
+  // The outer foreignObject follows the editor's measured height. The text
+  // stays fully visible without turning the main editing surface into a
+  // nested vertical scroller.
+  const layout = await page
+    .getByTestId("canvas-text-editor")
+    .evaluate((element) => {
+      const editable = element.querySelector<HTMLElement>(
+        ".rich-text-editable",
+      );
+      const shell = element.querySelector<HTMLElement>(
+        ".rich-text-editor-shell",
+      );
+      return {
+        hidden: (editable?.scrollHeight ?? 0) - (editable?.clientHeight ?? 0),
+        editableOverflowY: editable ? getComputedStyle(editable).overflowY : "",
+        frameHeight: Number(element.getAttribute("height")),
+        shellScrollHeight: shell?.scrollHeight ?? 0,
+      };
+    });
+  expect(layout.hidden).toBeLessThanOrEqual(0);
+  expect(layout.editableOverflowY).not.toBe("auto");
+  expect(layout.editableOverflowY).not.toBe("scroll");
+  expect(layout.frameHeight).toBeGreaterThanOrEqual(layout.shellScrollHeight);
 });
 
 test("turns a marquee selection as one body, not three parts in place", async ({

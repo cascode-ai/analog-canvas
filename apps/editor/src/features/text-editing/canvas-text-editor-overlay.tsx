@@ -1,4 +1,10 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
 import type { DerivedRect, GridRect } from "@icm/model";
 
@@ -57,6 +63,7 @@ export function resolveCanvasTextEditorFrame(
   viewBox: GridRect,
   sizeScale: number,
   pixelsPerUnit?: number | null,
+  preferredLayoutHeight?: number | null,
 ): CanvasTextEditorFrame {
   const width = viewBox.width * EDITOR_VIEW_FRACTION;
   // Laying the panel out at true screen pixels is what lets its type be set
@@ -73,7 +80,11 @@ export function resolveCanvasTextEditorFrame(
   // committed bounds imply. Anything past that scrolls rather than being
   // clipped away by the foreignObject.
   const lineHeight = 15.116 * sizeScale * 1.2;
-  const layoutHeight = Math.max(EDITOR_LAYOUT_MIN_HEIGHT, 54 + lineHeight * 3);
+  const layoutHeight = Math.max(
+    EDITOR_LAYOUT_MIN_HEIGHT,
+    54 + lineHeight * 3,
+    preferredLayoutHeight ?? 0,
+  );
   const height = layoutHeight * scale;
   const viewportInset = 8;
   const targetGap = 8;
@@ -116,6 +127,19 @@ export function CanvasTextEditorOverlay({
     width: number;
     height: number;
   } | null>(null);
+  const [measuredLayoutHeight, setMeasuredLayoutHeight] = useState<
+    number | null
+  >(null);
+
+  useEffect(() => {
+    setMeasuredLayoutHeight(null);
+  }, [session.id, session.owner]);
+
+  const handleLayoutHeightChange = useCallback((height: number): void => {
+    setMeasuredLayoutHeight((current) =>
+      current !== null && Math.abs(current - height) < 1 ? current : height,
+    );
+  }, []);
 
   // How many screen pixels one Document unit covers. The panel is laid out in
   // those pixels so its type can be set against the rest of the chrome, and
@@ -146,6 +170,7 @@ export function CanvasTextEditorOverlay({
           canvasSize.height / viewBox.height,
         )
       : null,
+    measuredLayoutHeight,
   );
 
   return (
@@ -187,6 +212,7 @@ export function CanvasTextEditorOverlay({
           onAlignmentChange={(alignment) => onUpdate({ alignment })}
           onCommit={onCommit}
           onDelete={onDelete}
+          onLayoutHeightChange={handleLayoutHeightChange}
           {...(onReverseCurrentArrow ? { onReverseCurrentArrow } : {})}
         />
       </foreignObject>

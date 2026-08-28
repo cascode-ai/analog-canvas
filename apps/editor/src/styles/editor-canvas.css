@@ -376,10 +376,9 @@
   gap: 0.15rem;
   box-sizing: border-box;
   width: 100%;
-  height: 100%;
   min-width: 0;
   padding: 0.2rem;
-  overflow: hidden;
+  overflow: visible;
   border: 1px solid var(--icm-border-strong);
   border-radius: var(--icm-radius-md);
   color: var(--icm-text);
@@ -489,10 +488,7 @@
 .rich-text-editable {
   box-sizing: border-box;
   max-width: 100%;
-  /* The overlay is a foreignObject, which clips silently. Text that still
-     overflows the frame must stay reachable by scrolling. */
-  max-height: 100%;
-  overflow-y: auto;
+  overflow-y: visible;
   min-height: 1.35rem;
   padding: 0.1rem 0.25rem;
   border: 1px solid var(--icm-accent);
@@ -553,23 +549,78 @@
 
 .rich-text-formula-popover {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.2rem 0.35rem;
-  padding: 0.25rem;
-  overflow: auto;
+  gap: 0;
+  min-width: 0;
+  overflow: hidden;
   border: 1px solid var(--icm-border-strong);
-  border-radius: var(--icm-radius-sm);
-  background: #fff;
+  border-radius: var(--icm-radius-md);
+  background: var(--icm-surface);
   box-shadow: var(--icm-shadow-md);
+}
+
+.rich-text-formula-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.45rem 0.55rem;
+  border-bottom: 1px solid var(--icm-border);
+  background: var(--icm-surface-muted);
+}
+
+.rich-text-formula-header > div {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+}
+
+.rich-text-formula-header strong {
+  font-size: var(--icm-font-sm);
+}
+
+.rich-text-formula-header span,
+.rich-text-formula-preview > span,
+.rich-text-formula-source > span {
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+}
+
+.rich-text-formula-header button {
+  width: 1.65rem;
+  height: 1.65rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.rich-text-formula-header button:hover {
+  background: var(--icm-accent-tint);
+}
+
+.rich-text-formula-scroll-region {
+  display: grid;
+  gap: 0.45rem;
+  max-height: min(20rem, 48vh);
+  min-height: 0;
+  padding: 0.5rem 0.55rem;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.rich-text-formula-preview {
+  display: grid;
+  gap: 0.2rem;
 }
 
 .rich-text-formula-mathfield {
   min-width: 0;
-  grid-column: 1 / -1;
 }
 
 .rich-text-formula-error {
-  grid-column: 1 / -1;
   color: var(--icm-danger, #b42318);
   font-size: var(--icm-font-xs);
 }
@@ -578,38 +629,97 @@
   box-sizing: border-box;
   width: 100%;
   min-height: 2.2rem;
+  padding: 0.2rem 0.35rem;
   border: 1px solid var(--icm-border);
   border-radius: var(--icm-radius-sm);
+  outline: 0;
+  background: #fff;
   font-size: 1.05rem;
 }
 
-.rich-text-formula-source label {
+.rich-text-formula-mathfield math-field:focus-within {
+  border-color: var(--icm-accent);
+  box-shadow: 0 0 0 2px rgb(var(--icm-accent-rgb) / 20%);
+}
+
+.rich-text-formula-mathfield math-field::part(virtual-keyboard-toggle),
+.rich-text-formula-mathfield math-field::part(menu-toggle) {
+  display: none;
+}
+
+.rich-text-formula-keyboard {
   display: grid;
-  grid-template-columns: auto minmax(10rem, 1fr);
-  align-items: center;
-  gap: 0.25rem;
-  color: var(--icm-text-muted);
-  font-size: var(--icm-font-xs);
+  grid-template-columns: repeat(10, minmax(1.8rem, 1fr));
+  gap: 0.18rem;
+}
+
+.rich-text-formula-keyboard button {
+  min-width: 0;
+  min-height: 1.8rem;
+  padding: 0.15rem;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  background: var(--icm-surface-muted);
+  font-family: "DejaVu Sans", Arial, sans-serif;
+  font-size: var(--icm-font-sm);
+}
+
+.rich-text-formula-keyboard button:hover {
+  border-color: var(--icm-accent);
+  background: var(--icm-accent-tint);
+}
+
+.rich-text-formula-source {
+  display: grid;
+  gap: 0.2rem;
 }
 
 .rich-text-formula-source textarea {
   box-sizing: border-box;
   width: 100%;
-  min-height: 2rem;
-  resize: vertical;
+  min-height: 3.7rem;
+  max-height: 7rem;
+  padding: 0.35rem 0.45rem;
+  resize: none;
   border: 1px solid var(--icm-border);
   border-radius: var(--icm-radius-sm);
+  background: #fff;
   font-family: "Google Sans Code Variable", monospace;
+  font-size: var(--icm-font-xs);
+  line-height: 1.35;
 }
 
 .rich-text-formula-actions {
   display: flex;
   align-items: center;
-  gap: 0.15rem;
+  justify-content: space-between;
+  gap: 0.4rem;
+  padding: 0.4rem 0.55rem;
+  border-top: 1px solid var(--icm-border);
+  background: var(--icm-surface-muted);
+}
+
+.rich-text-formula-display-toggle {
+  display: inline-flex;
+  padding: 0.1rem;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  background: #fff;
+}
+
+.rich-text-formula-display-toggle button {
+  border: 0;
+  background: transparent;
 }
 
 .rich-text-formula-actions button[aria-pressed="true"] {
   color: #fff;
+  background: var(--icm-accent);
+}
+
+.rich-text-formula-primary-action {
+  color: #fff;
+  border-color: var(--icm-accent);
   background: var(--icm-accent);
 }
 
