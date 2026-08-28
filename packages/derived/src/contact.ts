@@ -203,13 +203,11 @@ function contactIncidents(
   resolver: SymbolResolver,
   netId: string,
   endpoints: readonly RouteEndpoint[],
+  point: Point,
   geometry: ResolvedDocumentRoutingGeometry,
 ): ContactIncident[] {
   const incidents: ContactIncident[] = [];
   const explicitEndpointKeys = new Set(endpoints.map(endpointKey));
-  const point = endpoints
-    .map((endpoint) => resolveEndpointPoint(document, resolver, endpoint))
-    .find((candidate) => candidate !== null);
   for (const route of document.routes) {
     if (route.netId !== netId) continue;
     const centerline = geometry.routes.get(route.id)?.centerline;
@@ -222,7 +220,7 @@ function contactIncidents(
     for (const direction of endpointDirections) {
       incidents.push({ kind: "route", objectId: route.id, direction });
     }
-    if (endpointDirections.length === 0 && point) {
+    if (endpointDirections.length === 0) {
       for (const direction of routeThroughDirections(centerline, point)) {
         incidents.push({ kind: "route", objectId: route.id, direction });
       }
@@ -284,6 +282,7 @@ function netContacts(
         resolver,
         net.id,
         endpoints,
+        point,
         geometry,
       );
       const directions = new Map<string, Point>();
