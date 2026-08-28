@@ -170,6 +170,10 @@
   cursor: crosshair;
 }
 
+.schematic-canvas.waveform-placement-active {
+  cursor: copy;
+}
+
 @media (max-width: 760px) {
   .digital-simulation-window {
     right: 8px;

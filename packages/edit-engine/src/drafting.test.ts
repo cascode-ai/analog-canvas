@@ -103,6 +103,66 @@ describe("drafting and guide edits", () => {
     expect(removed.document.drafting?.objects).toEqual([]);
   });
 
+  it("keeps drafting layout groups valid as their objects are removed", () => {
+    const document = createEmptyDocument("doc", "Grouped drafting");
+    const line = (id: string, y: number) => ({
+      id,
+      kind: "construction-line" as const,
+      locked: false,
+      zIndex: 0,
+      anchor: { kind: "free" as const, position: { x: 0, y } },
+      points: [
+        { x: 0, y },
+        { x: 100, y },
+      ],
+      lineStyle: "solid" as const,
+    });
+    const created = executeTransaction(
+      document,
+      transaction("doc", [
+        { kind: "upsert_drafting_object", object: line("wave-a", 0) },
+        { kind: "upsert_drafting_object", object: line("wave-b", 20) },
+        {
+          kind: "set_layout_group",
+          group: {
+            id: "waveform-group",
+            kind: "custom",
+            objectIds: ["wave-a", "wave-b"],
+            locked: false,
+          },
+        },
+      ]),
+    );
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+
+    const firstRemoved = executeTransaction(
+      created.document,
+      transaction(
+        "doc",
+        [{ kind: "remove_drafting_object", objectId: "wave-a" }],
+        1,
+      ),
+    );
+    expect(firstRemoved.ok).toBe(true);
+    if (!firstRemoved.ok) return;
+    expect(firstRemoved.document.layoutGroups[0]?.objectIds).toEqual([
+      "wave-b",
+    ]);
+
+    const secondRemoved = executeTransaction(
+      firstRemoved.document,
+      transaction(
+        "doc",
+        [{ kind: "remove_drafting_object", objectId: "wave-b" }],
+        2,
+      ),
+    );
+    expect(secondRemoved.ok).toBe(true);
+    if (!secondRemoved.ok) return;
+    expect(secondRemoved.document.layoutGroups).toEqual([]);
+  });
+
   it("removes a locked drafting object because Delete has priority", () => {
     const document = createEmptyDocument("doc", "Drafting");
     const created = executeTransaction(

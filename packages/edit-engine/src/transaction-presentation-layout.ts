@@ -226,6 +226,14 @@ export function applyPresentationLayoutEdit(
         };
       }
       objects.splice(index, 1);
+      draft.layoutGroups = draft.layoutGroups.flatMap((group) => {
+        if (!group.objectIds.includes(object.id)) return [group];
+        const objectIds = group.objectIds.filter(
+          (objectId) => objectId !== object.id,
+        );
+        changedObjectIds.add(group.id);
+        return objectIds.length > 0 ? [{ ...group, objectIds }] : [];
+      });
       changedObjectIds.add(object.id);
       return { ok: true, connectivityChanged: false };
     }

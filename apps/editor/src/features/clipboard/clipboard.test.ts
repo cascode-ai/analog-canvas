@@ -1115,4 +1115,72 @@ describe("a copy stands on its own", () => {
       )?.name,
     ).toBe("P12");
   });
+
+  it("keeps a copied drafting snapshot as one layout group", () => {
+    const document = createEmptyDocument("document-main", "Grouped waveform");
+    document.drafting = {
+      objects: [
+        {
+          id: "wave-a",
+          kind: "construction-line",
+          locked: false,
+          zIndex: 0,
+          anchor: { kind: "free", position: { x: 100, y: 100 } },
+          points: [
+            { x: 100, y: 100 },
+            { x: 200, y: 100 },
+          ],
+          lineStyle: "solid",
+        },
+        {
+          id: "wave-b",
+          kind: "construction-line",
+          locked: false,
+          zIndex: 0,
+          anchor: { kind: "free", position: { x: 100, y: 140 } },
+          points: [
+            { x: 100, y: 140 },
+            { x: 200, y: 140 },
+          ],
+          lineStyle: "solid",
+        },
+      ],
+    };
+    document.layoutGroups.push({
+      id: "waveform-group",
+      kind: "custom",
+      objectIds: ["wave-a", "wave-b"],
+      locked: false,
+    });
+
+    const clipboard = copySelection(document, [], ["wave-a", "wave-b"]);
+    expect(clipboard?.draftingGroups).toEqual([document.layoutGroups[0]]);
+
+    const proposal = proposePaste(document, clipboard!, { x: 200, y: 0 }, 1);
+    const pastedObjects = proposal.edits.flatMap((edit) =>
+      edit.kind === "upsert_drafting_object" ? [edit.object] : [],
+    );
+    const pastedGroup = proposal.edits.find(
+      (edit) => edit.kind === "set_layout_group",
+    );
+    expect(pastedObjects).toHaveLength(2);
+    expect(pastedGroup).toMatchObject({
+      kind: "set_layout_group",
+      group: { objectIds: pastedObjects.map((object) => object.id) },
+    });
+
+    const preview = clipboardPreviewDocument(
+      document,
+      clipboard!,
+      { x: 200, y: 0 },
+      [],
+      resolver,
+      1,
+    );
+    expect(preview.drafting?.objects).toHaveLength(2);
+    expect(preview.layoutGroups).toHaveLength(1);
+    expect(preview.layoutGroups[0]!.objectIds).toEqual(
+      preview.drafting!.objects.map((object) => object.id),
+    );
+  });
 });

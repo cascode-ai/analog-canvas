@@ -19,6 +19,7 @@ import type {
   ConnectivityEvidence,
   DraftingObject,
   Instance,
+  LayoutGroup,
   Net,
   NoConnect,
   Point,
@@ -61,6 +62,8 @@ export interface SchematicClipboard {
    * thing a copy needs when nothing electrical is selected.
    */
   draftingObjects: DraftingObject[];
+  /** Layout groups wholly contained in the copied drafting selection. */
+  draftingGroups: LayoutGroup[];
 }
 
 export interface PasteProposal {
@@ -453,7 +456,7 @@ function fallbackClipboardPreviewDocument(
         : undefined,
     mosBulkDefaults: undefined,
     connectivityEvidence: structuredClone(clipboard.connectivityEvidence),
-    layoutGroups: [],
+    layoutGroups: structuredClone(clipboard.draftingGroups),
     constraints: [],
   };
 }
@@ -495,6 +498,16 @@ export function clipboardPreviewDocument(
           Object.values(proposal.idRemap.annotations),
         );
         const evidenceIds = new Set(Object.values(proposal.idRemap.evidence));
+        const draftingIds = new Set(
+          proposal.edits.flatMap((edit) =>
+            edit.kind === "upsert_drafting_object" ? [edit.object.id] : [],
+          ),
+        );
+        const layoutGroupIds = new Set(
+          proposal.edits.flatMap((edit) =>
+            edit.kind === "set_layout_group" ? [edit.group.id] : [],
+          ),
+        );
         const instances = result.document.instances.filter((instance) =>
           instanceIds.has(instance.id),
         );
@@ -546,7 +559,12 @@ export function clipboardPreviewDocument(
           connectivityEvidence: result.document.connectivityEvidence.filter(
             (evidence) => evidenceIds.has(evidence.id),
           ),
-          draftingObjects: [],
+          draftingObjects: (result.document.drafting?.objects ?? []).filter(
+            (object) => draftingIds.has(object.id),
+          ),
+          draftingGroups: result.document.layoutGroups.filter((group) =>
+            layoutGroupIds.has(group.id),
+          ),
         });
         return fallbackClipboardPreviewDocument(
           result.document,
@@ -631,6 +649,7 @@ export function copyWholeDocument(
         : netIds.has(evidence.netId),
     ),
     draftingObjects: [],
+    draftingGroups: [],
   });
 }
 
@@ -647,6 +666,11 @@ export function copySelection(
   const selectedDrafting = new Set(draftingIds);
   const draftingObjects = (document.drafting?.objects ?? []).filter((object) =>
     selectedDrafting.has(object.id),
+  );
+  const draftingGroups = document.layoutGroups.filter(
+    (group) =>
+      group.objectIds.length > 0 &&
+      group.objectIds.every((objectId) => selectedDrafting.has(objectId)),
   );
   // A drawing-only selection is a complete copy: notes and callouts are
   // worth duplicating on their own, and requiring a part alongside them made
@@ -750,6 +774,7 @@ export function copySelection(
       }
     }),
     draftingObjects,
+    draftingGroups,
   });
 }
 
@@ -913,6 +938,7 @@ export function proposePaste(
       ...document.constraints,
       ...document.connectivityEvidence,
       ...(document.netlist?.terminals ?? []),
+      ...(document.drafting?.objects ?? []),
     ].map((object) => object.id),
   );
   const referenceIndex = createReferenceIndex(document);
@@ -1406,12 +1432,30 @@ export function proposePaste(
   });
   // Drafting objects carry no connectivity, so a copy is the object itself
   // under a fresh id, shifted by the same placement offset as everything else.
+  const draftingIds = new Map<string, string>();
   for (const object of clipboard.draftingObjects) {
+    const id = uniqueCopyId(object.id, sequence, occupied);
+    draftingIds.set(object.id, id);
     edits.push({
       kind: "upsert_drafting_object",
       object: {
         ...translateDraftingObject(object, offset, document.presentation.grid),
-        id: uniqueCopyId(object.id, sequence, occupied),
+        id,
+      },
+    });
+  }
+  for (const group of clipboard.draftingGroups) {
+    const objectIds = group.objectIds.flatMap((objectId) => {
+      const mapped = draftingIds.get(objectId);
+      return mapped ? [mapped] : [];
+    });
+    if (objectIds.length === 0) continue;
+    edits.push({
+      kind: "set_layout_group",
+      group: {
+        ...structuredClone(group),
+        id: uniqueCopyId(group.id, sequence, occupied),
+        objectIds,
       },
     });
   }

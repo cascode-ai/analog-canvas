@@ -47,6 +47,7 @@ import type {
   SchematicDocument,
 } from "@icm/model";
 import { buildSvgScene } from "@icm/render-svg";
+import type { DigitalSimulationResult } from "@icm/simulation";
 import { renderCrashRequested, sceneCrashRequested } from "./crash-test-hooks";
 import { buildSceneSafely } from "./scene-safety";
 import {
@@ -279,6 +280,12 @@ import {
   snapCoordinate,
 } from "../snap/engine";
 import type { SnapAnchor, SnapGuideLine, SnapResult } from "../snap/engine";
+
+interface PendingWaveformPlacement {
+  groupId: string;
+  objects: DraftingObject[];
+  result: DigitalSimulationResult;
+}
 
 const DEFAULT_VIEWBOX: GridRect = { x: 0, y: 0, width: 960, height: 640 };
 const RECENT_COMPONENTS_STORAGE_KEY = "icm.recent-components.v1";
@@ -915,10 +922,16 @@ export function App({
   const [simulationSavedNetIds, setSimulationSavedNetIds] = useState<
     Set<string>
   >(() => new Set());
+  const [pendingWaveformPlacement, setPendingWaveformPlacement] =
+    useState<PendingWaveformPlacement | null>(null);
+  const [waveformPlacementPoint, setWaveformPlacementPoint] =
+    useState<Point | null>(null);
   useEffect(() => {
     setSimulationPickNetsActive(false);
     setSimulationHoverNetId(null);
     setSimulationSavedNetIds(new Set());
+    setPendingWaveformPlacement(null);
+    setWaveformPlacementPoint(null);
   }, [document.id]);
   const routeCounter = useRef(0);
   const canvasDragSessionRef = useRef<CanvasDragSession | null>(null);
@@ -961,20 +974,43 @@ export function App({
   const [projectedMovePreviewDocument, setProjectedMovePreviewDocument] =
     useState<SchematicDocument | null>(null);
   const renderedDocument = useMemo(() => {
-    if (projectedMovePreviewDocument) return projectedMovePreviewDocument;
-    if (!draftingHandlePreview || !document.drafting) return document;
-    return {
-      ...document,
-      drafting: {
-        ...document.drafting,
-        objects: document.drafting.objects.map((object) =>
-          object.id === draftingHandlePreview.objectId
-            ? draftingHandlePreview.object
-            : object,
+    let rendered = projectedMovePreviewDocument ?? document;
+    if (draftingHandlePreview && rendered.drafting) {
+      rendered = {
+        ...rendered,
+        drafting: {
+          ...rendered.drafting,
+          objects: rendered.drafting.objects.map((object) =>
+            object.id === draftingHandlePreview.objectId
+              ? draftingHandlePreview.object
+              : object,
+          ),
+        },
+      };
+    }
+    if (pendingWaveformPlacement && waveformPlacementPoint) {
+      const previewObjects = pendingWaveformPlacement.objects.map((object) =>
+        translateDraftingObject(
+          object,
+          waveformPlacementPoint,
+          document.presentation.grid,
         ),
-      },
-    };
-  }, [document, draftingHandlePreview, projectedMovePreviewDocument]);
+      );
+      rendered = {
+        ...rendered,
+        drafting: {
+          objects: [...(rendered.drafting?.objects ?? []), ...previewObjects],
+        },
+      };
+    }
+    return rendered;
+  }, [
+    document,
+    draftingHandlePreview,
+    pendingWaveformPlacement,
+    projectedMovePreviewDocument,
+    waveformPlacementPoint,
+  ]);
   const lastGoodSceneRef = useRef<ReturnType<typeof buildSvgScene> | null>(
     null,
   );
@@ -2087,7 +2123,8 @@ export function App({
       placementOwnsCanvas: Boolean(
         (pendingSymbolId && pendingComponentPlacement) ||
         vddRailMode ||
-        copyPlacement !== null,
+        copyPlacement !== null ||
+        pendingWaveformPlacement !== null,
       ),
       tool,
       cellSymbolLayoutEnabled,
@@ -2098,6 +2135,23 @@ export function App({
       beginAnnotationDrag,
       handleRoutePointerDown,
       beginDraftingDrag,
+      beginDraftingGroupMove: (event, object, hitTarget) => {
+        const groupIds = draftingSelectionIds(object.id);
+        if (groupIds.length <= 1) return false;
+        selectOnly("drafting", groupIds);
+        beginVisualSelectionMoveFromSelection(
+          event,
+          {
+            instanceIds: [],
+            routeIds: [],
+            junctionIds: [],
+            annotationIds: [],
+            draftingIds: groupIds,
+          },
+          hitTarget,
+        );
+        return true;
+      },
       selectEndpoint,
       endpointStatusLabel: (endpoint) => endpointTestId(endpoint.endpoint),
       setStatus,
@@ -2156,6 +2210,12 @@ export function App({
       setVddRailPreviewPoint,
       copyPlacementPending: copyPlacement !== null,
       setCopyPreviewPoint,
+      waveformPlacementPending: pendingWaveformPlacement !== null,
+      setWaveformPreviewPoint: (point) =>
+        setWaveformPlacementPoint({
+          x: snapCoordinate(point.x, document.presentation.grid),
+          y: snapCoordinate(point.y, document.presentation.grid),
+        }),
     },
     drafting: {
       tool,
@@ -2780,8 +2840,19 @@ export function App({
   // Single entry point for selecting a drafting object. Editing is opened
   // separately (double-click/Enter) so selection and text caret ownership do
   // not fight drag gestures.
+  function draftingSelectionIds(id: string): string[] {
+    const group = document.layoutGroups.find((candidate) =>
+      candidate.objectIds.includes(id),
+    );
+    if (!group) return [id];
+    const draftingIds = new Set(
+      (document.drafting?.objects ?? []).map((object) => object.id),
+    );
+    return group.objectIds.filter((objectId) => draftingIds.has(objectId));
+  }
+
   function selectDraftingObject(id: string): void {
-    selectOnly("drafting", [id]);
+    selectOnly("drafting", draftingSelectionIds(id));
     setDraftingInspectorSegment(null);
     setDraftingTangentInput(null);
     setDraftingBearingInput(null);
@@ -2840,6 +2911,13 @@ export function App({
       if (event.key === "Escape" && simulationPickNetsActive) {
         event.preventDefault();
         setSimulationPickMode(false);
+        return;
+      }
+      if (event.key === "Escape" && pendingWaveformPlacement) {
+        event.preventDefault();
+        setPendingWaveformPlacement(null);
+        setWaveformPlacementPoint(null);
+        setStatus("Waveform placement cancelled");
         return;
       }
       if (event.key === "Escape" && searchOpen) {
@@ -3003,6 +3081,68 @@ export function App({
     return () => window.removeEventListener("keydown", onKeyDown, true);
   });
 
+  const beginWaveformPlacement = (result: DigitalSimulationResult): void => {
+    const objects = waveformDraftingObjects(
+      result,
+      { x: 0, y: 0 },
+      document.presentation.grid,
+      (prefix) => {
+        uniqueSuffixCounter.current += 1;
+        return `${prefix}-${uniqueSuffixCounter.current}`;
+      },
+    );
+    uniqueSuffixCounter.current += 1;
+    const groupId = `waveform-group-${uniqueSuffixCounter.current}`;
+    setSimulationPickMode(false);
+    setPendingWaveformPlacement({ groupId, objects, result });
+    const pointer = lastCanvasPointRef.current;
+    setWaveformPlacementPoint(
+      pointer
+        ? {
+            x: snapCoordinate(pointer.x, document.presentation.grid),
+            y: snapCoordinate(pointer.y, document.presentation.grid),
+          }
+        : null,
+    );
+    setStatus("Place waveform: move over the canvas and click · Esc cancels");
+  };
+
+  const commitWaveformPlacement = (point: Point): void => {
+    if (!pendingWaveformPlacement) return;
+    const snapped = {
+      x: snapCoordinate(point.x, document.presentation.grid),
+      y: snapCoordinate(point.y, document.presentation.grid),
+    };
+    const objects = pendingWaveformPlacement.objects.map((object) =>
+      translateDraftingObject(object, snapped, document.presentation.grid),
+    );
+    const placed = transact([
+      ...objects.map((object) => ({
+        kind: "upsert_drafting_object" as const,
+        object,
+      })),
+      {
+        kind: "set_layout_group" as const,
+        group: {
+          id: pendingWaveformPlacement.groupId,
+          kind: "custom" as const,
+          objectIds: objects.map((object) => object.id),
+          locked: false,
+        },
+      },
+    ]);
+    if (!placed.ok) return;
+    selectOnly(
+      "drafting",
+      objects.map((object) => object.id),
+    );
+    setPendingWaveformPlacement(null);
+    setWaveformPlacementPoint(null);
+    setStatus(
+      `Placed a grouped timing snapshot with ${pendingWaveformPlacement.result.traces.length} trace${pendingWaveformPlacement.result.traces.length === 1 ? "" : "s"}`,
+    );
+  };
+
   const canvasEventHandlers = createEditorCanvasEventHandlers({
     model: { tool, document, resolver },
     session: {
@@ -3025,6 +3165,7 @@ export function App({
       pendingComponentPlacement: Boolean(pendingComponentPlacement),
       vddRailMode,
       copyPlacementActive: copyPlacement !== null,
+      waveformPlacementActive: pendingWaveformPlacement !== null,
       snapPlacementPoint: (point) => {
         const pitch =
           pendingComponentPlacement?.kind === "drafting-text"
@@ -3037,9 +3178,11 @@ export function App({
       },
       commitCopyPlacement: commitCopyPlacementFromSelection,
       commitPendingPlacement: commitPendingPlacementAtFromHook,
+      commitWaveformPlacement,
       clearComponentPreview: () => setComponentPreviewPoint(null),
       clearVddRailPreview: () => setVddRailPreviewPoint(null),
       clearCopyPreview: () => setCopyPreviewPoint(null),
+      clearWaveformPreview: () => setWaveformPlacementPoint(null),
     },
     gesture: {
       begin: beginCanvasGesture,
@@ -4094,6 +4237,7 @@ export function App({
             pendingSymbolId || vddRailMode || copyPlacement
               ? "component-mode"
               : "",
+            pendingWaveformPlacement ? "waveform-placement-active" : "",
             tool === "arrow" ||
             tool === "construction-line" ||
             tool === "rectangle" ||
@@ -4333,7 +4477,21 @@ export function App({
             selectedDraftingId,
             supplementalDraftingIds: supplementalSelection.draftingIds,
             onPointerDown: (event, object, draggable) => {
-              if (draggable) beginDraftingDrag(event, object);
+              const groupIds = draftingSelectionIds(object.id);
+              if (draggable && groupIds.length > 1) {
+                selectOnly("drafting", groupIds);
+                beginVisualSelectionMoveFromSelection(
+                  event,
+                  {
+                    instanceIds: [],
+                    routeIds: [],
+                    junctionIds: [],
+                    annotationIds: [],
+                    draftingIds: groupIds,
+                  },
+                  event.currentTarget,
+                );
+              } else if (draggable) beginDraftingDrag(event, object);
               else {
                 event.stopPropagation();
                 selectDraftingObject(object.id);
@@ -4458,33 +4616,7 @@ export function App({
           onToggleSavedNet={toggleSimulationSavedNet}
           onSetSavedNets={(netIds) => setSimulationSavedNetIds(new Set(netIds))}
           onStatus={setStatus}
-          onPlaceOnCanvas={(result) => {
-            const grid = document.presentation.grid;
-            const origin = {
-              x: snapCoordinate(viewBox.x + viewBox.width * 0.08, grid),
-              y: snapCoordinate(viewBox.y + viewBox.height * 0.08, grid),
-            };
-            const objects = waveformDraftingObjects(
-              result,
-              origin,
-              grid,
-              (prefix) => {
-                uniqueSuffixCounter.current += 1;
-                return `${prefix}-${uniqueSuffixCounter.current}`;
-              },
-            );
-            const placed = transact(
-              objects.map((object) => ({
-                kind: "upsert_drafting_object" as const,
-                object,
-              })),
-            );
-            if (placed.ok) {
-              setStatus(
-                `Placed a static vector timing snapshot with ${result.traces.length} trace${result.traces.length === 1 ? "" : "s"}`,
-              );
-            }
-          }}
+          onPlaceOnCanvas={beginWaveformPlacement}
         />
       ) : null}
       <EditorStatusbar

@@ -49,6 +49,11 @@ export interface CanvasHitControllerDependencies {
       object: DraftingObject,
       hitTarget: SVGElement,
     ) => void;
+    beginDraftingGroupMove: (
+      event: ReactPointerEvent<SVGElement>,
+      object: DraftingObject,
+      hitTarget: SVGElement,
+    ) => boolean;
     selectEndpoint: (endpoint: WireSource) => void;
     endpointStatusLabel: (endpoint: WireSource) => string;
     setStatus: (status: string) => void;
@@ -77,6 +82,7 @@ export function createCanvasHitController({
     beginAnnotationDrag,
     handleRoutePointerDown,
     beginDraftingDrag,
+    beginDraftingGroupMove,
     selectEndpoint,
     endpointStatusLabel,
     setStatus,
@@ -203,7 +209,9 @@ export function createCanvasHitController({
       const object = document.drafting?.objects.find(
         (candidate) => candidate.id === hit.id,
       );
-      if (object) beginDraftingDrag(event, object, hitTarget);
+      if (object && !beginDraftingGroupMove(event, object, hitTarget)) {
+        beginDraftingDrag(event, object, hitTarget);
+      }
       return;
     }
     const endpoint = visibleEndpoints.find(

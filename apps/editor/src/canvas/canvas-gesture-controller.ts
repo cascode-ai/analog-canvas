@@ -107,6 +107,8 @@ export interface CanvasGestureControllerDependencies {
     setVddRailPreviewPoint: (point: Point) => void;
     copyPlacementPending: boolean;
     setCopyPreviewPoint: (point: Point) => void;
+    waveformPlacementPending: boolean;
+    setWaveformPreviewPoint: (point: Point) => void;
   };
   drafting: {
     tool: EditorTool;
@@ -176,6 +178,8 @@ export function createCanvasGestureController({
     setVddRailPreviewPoint,
     copyPlacementPending,
     setCopyPreviewPoint,
+    waveformPlacementPending,
+    setWaveformPreviewPoint,
   },
   drafting: {
     tool,
@@ -282,7 +286,7 @@ export function createCanvasGestureController({
       targetIsCanvas:
         event.target === event.currentTarget ||
         (event.target as Element).tagName === "rect",
-      placementPending: componentPlacementPending,
+      placementPending: componentPlacementPending || waveformPlacementPending,
       vddRailMode,
       copyPlacementPending,
       tool,
@@ -360,6 +364,10 @@ export function createCanvasGestureController({
       event.currentTarget,
     );
     noteCanvasPoint(point);
+    if (waveformPlacementPending) {
+      setWaveformPreviewPoint(point);
+      return;
+    }
     if (vddRailMode) {
       const snapped = {
         x: snapCoordinate(point.x, document.presentation.grid),

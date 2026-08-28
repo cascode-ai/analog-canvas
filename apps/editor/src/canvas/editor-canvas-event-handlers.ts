@@ -59,12 +59,15 @@ interface CanvasEventHandlerDependencies {
     pendingComponentPlacement: boolean;
     vddRailMode: boolean;
     copyPlacementActive: boolean;
+    waveformPlacementActive: boolean;
     snapPlacementPoint: (point: Point) => Point;
     commitCopyPlacement: (point: Point) => void;
     commitPendingPlacement: (point: Point) => void;
+    commitWaveformPlacement: (point: Point) => void;
     clearComponentPreview: () => void;
     clearVddRailPreview: () => void;
     clearCopyPreview: () => void;
+    clearWaveformPreview: () => void;
   };
   gesture: {
     begin: (event: CanvasPointerEvent) => void;
@@ -128,12 +131,15 @@ export function createEditorCanvasEventHandlers({
     pendingComponentPlacement,
     vddRailMode,
     copyPlacementActive,
+    waveformPlacementActive,
     snapPlacementPoint,
     commitCopyPlacement,
     commitPendingPlacement,
+    commitWaveformPlacement,
     clearComponentPreview,
     clearVddRailPreview,
     clearCopyPreview,
+    clearWaveformPreview,
   },
   gesture: {
     begin: beginCanvasGesture,
@@ -183,6 +189,22 @@ export function createEditorCanvasEventHandlers({
         event.preventDefault();
         event.stopPropagation();
         commitCopyPlacement(
+          snapPlacementPoint(
+            pointFromClient(
+              event.clientX,
+              event.clientY,
+              event.currentTarget,
+              false,
+            ),
+          ),
+        );
+        return;
+      }
+      if (waveformPlacementActive) {
+        if (event.detail > 1) return;
+        event.preventDefault();
+        event.stopPropagation();
+        commitWaveformPlacement(
           snapPlacementPoint(
             pointFromClient(
               event.clientX,
@@ -246,6 +268,7 @@ export function createEditorCanvasEventHandlers({
       if (pendingSymbolId) clearComponentPreview();
       if (vddRailMode) clearVddRailPreview();
       if (kind === "copy-placement") clearCopyPreview();
+      if (waveformPlacementActive) clearWaveformPreview();
     },
     onPointerUp: finishCanvasGesture,
     onPointerCancel: finishCanvasGesture,

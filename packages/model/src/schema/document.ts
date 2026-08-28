@@ -473,6 +473,7 @@ export const SchematicDocumentSchema = SchematicDocumentBaseSchema.superRefine(
     const layoutObjectIds = new Set([
       ...attachableIds,
       ...document.annotations.map((item) => item.id),
+      ...(document.drafting?.objects ?? []).map((item) => item.id),
     ]);
     const terminalNetByKey = new Map<string, string>();
 
