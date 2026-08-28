@@ -15,12 +15,58 @@ describe("drafting create controller", () => {
     });
   });
 
+  it("applies the persistent draw-angle mode without Shift", () => {
+    const base = {
+      document: createEmptyDocument("cell", "Cell"),
+      annotationGrid: 1,
+      resolver: new InMemorySymbolResolver(builtInSymbols),
+      visibleEndpoints: [],
+      routeGeometryRecords: [],
+      tool: "construction-line" as const,
+      source: { x: 0, y: 0 },
+      hover: null,
+      waypoints: [],
+      setSource: vi.fn(),
+      setHover: vi.fn(),
+      setWaypoints: vi.fn(),
+      setSnapPoint: vi.fn(),
+      clear: vi.fn(),
+      setTool: vi.fn(),
+      transact: vi.fn(() => ({ ok: true })),
+      setStatus: vi.fn(),
+      nextId: () => "line-1",
+    };
+    const at = (angleMode: "free" | "45" | "orthogonal") =>
+      createDraftingCreateController({ ...base, angleMode }).snapPoint(
+        { x: 40, y: 9 },
+        true,
+        false,
+        { x: 0, y: 0 },
+      ).point;
+    // Free keeps the raw direction; 45 locks to the diagonal family;
+    // orthogonal locks to the nearest axis.
+    expect(at("free")).toEqual({ x: 40, y: 9 });
+    expect(at("orthogonal")).toEqual({ x: 41, y: 0 });
+    const diag = at("45");
+    expect(diag.y).toBe(0);
+    // Shift still forces the 45-degree family even in free mode.
+    expect(
+      createDraftingCreateController({ ...base, angleMode: "free" }).snapPoint(
+        { x: 30, y: 28 },
+        true,
+        true,
+        { x: 0, y: 0 },
+      ).point,
+    ).toEqual({ x: 29, y: 29 });
+  });
+
   it("finishes an arrow through one transaction and clears the session", () => {
     const transact = vi.fn(() => ({ ok: true }));
     const clear = vi.fn();
     const setTool = vi.fn();
     const controller = createDraftingCreateController({
       document: createEmptyDocument("cell", "Cell"),
+      angleMode: "free",
       annotationGrid: 10,
       resolver: new InMemorySymbolResolver(builtInSymbols),
       visibleEndpoints: [],
@@ -56,6 +102,7 @@ describe("drafting create controller", () => {
     const transact = vi.fn(() => ({ ok: true }));
     const controller = createDraftingCreateController({
       document: createEmptyDocument("cell", "Cell"),
+      angleMode: "free",
       annotationGrid: 10,
       resolver: new InMemorySymbolResolver(builtInSymbols),
       visibleEndpoints: [],

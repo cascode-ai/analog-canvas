@@ -23,14 +23,17 @@ type DraftingTool = Extract<
   "arrow" | "construction-line" | "rectangle" | "circle"
 >;
 
+export type DrawAngleMode = "free" | "45" | "orthogonal";
+
 export function constrainDraftingAngle(
   origin: Point,
   target: DerivedPoint,
+  step: number = Math.PI / 4,
 ): DerivedPoint {
   const dx = target.x - origin.x;
   const dy = target.y - origin.y;
   const angle = Math.atan2(dy, dx);
-  const locked = Math.round(angle / (Math.PI / 4)) * (Math.PI / 4);
+  const locked = Math.round(angle / step) * step;
   const length = Math.hypot(dx, dy);
   return {
     x: Math.round(origin.x + Math.cos(locked) * length),
@@ -41,6 +44,7 @@ export function constrainDraftingAngle(
 export function createDraftingCreateController({
   document,
   annotationGrid,
+  angleMode,
   resolver,
   visibleEndpoints,
   routeGeometryRecords,
@@ -61,6 +65,8 @@ export function createDraftingCreateController({
   document: SchematicDocument;
   /** Rounding pitch for drawn objects; the Document grid stays electrical. */
   annotationGrid: number;
+  /** Persistent draw-angle lock for arrows and lines; Shift still forces the 45-degree family. */
+  angleMode: DrawAngleMode;
   resolver: SymbolResolver;
   visibleEndpoints: readonly WireSource[];
   routeGeometryRecords: readonly RouteGeometryRecord[];
@@ -93,9 +99,18 @@ export function createDraftingCreateController({
     origin?: Point,
     tolerance = document.presentation.grid,
   ): { point: Point; snap: Point | null; guides: SnapGuideLine[] } => {
+    const angleStep = shiftKey
+      ? Math.PI / 4
+      : angleMode === "orthogonal"
+        ? Math.PI / 2
+        : angleMode === "45"
+          ? Math.PI / 4
+          : null;
     if (altKey) {
       const constrained =
-        shiftKey && origin ? constrainDraftingAngle(origin, point) : point;
+        angleStep && origin
+          ? constrainDraftingAngle(origin, point, angleStep)
+          : point;
       return {
         point: snapGridPoint(constrained, annotationGrid),
         snap: null,
@@ -132,7 +147,8 @@ export function createDraftingCreateController({
     const hasObjectSnap =
       (resolved.xMatch && resolved.xMatch.targetKind !== "grid") ||
       (resolved.yMatch && resolved.yMatch.targetKind !== "grid");
-    if (shiftKey && origin) snapped = constrainDraftingAngle(origin, snapped);
+    if (angleStep && origin)
+      snapped = constrainDraftingAngle(origin, snapped, angleStep);
     const gridPoint = snapGridPoint(snapped, annotationGrid);
     return {
       point: gridPoint,

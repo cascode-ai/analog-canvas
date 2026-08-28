@@ -185,7 +185,10 @@ import {
   translateDraftingObject,
 } from "../features/drafting/drafting-manipulation";
 import { createDraftingCommands } from "../features/drafting/drafting-commands";
-import { createDraftingCreateController } from "../features/drafting/drafting-create-controller";
+import {
+  createDraftingCreateController,
+  type DrawAngleMode,
+} from "../features/drafting/drafting-create-controller";
 import {
   createDraftingDragController,
   type DraftingHandlePreview,
@@ -472,6 +475,19 @@ export function App({
     setAnnotationGridState(pitch);
     try {
       window.localStorage.setItem("icm.annotation-grid.v1", String(pitch));
+    } catch {
+      // Storage may be unavailable; the choice still applies to this session.
+    }
+  };
+  const [drawAngleMode, setDrawAngleModeState] = useState<DrawAngleMode>(() => {
+    if (typeof window === "undefined") return "free";
+    const stored = window.localStorage.getItem("icm.draw-angle.v1");
+    return stored === "45" || stored === "orthogonal" ? stored : "free";
+  });
+  const setDrawAngleMode = (mode: DrawAngleMode): void => {
+    setDrawAngleModeState(mode);
+    try {
+      window.localStorage.setItem("icm.draw-angle.v1", mode);
     } catch {
       // Storage may be unavailable; the choice still applies to this session.
     }
@@ -1746,6 +1762,7 @@ export function App({
   } = createDraftingCreateController({
     document,
     annotationGrid,
+    angleMode: drawAngleMode,
     resolver,
     visibleEndpoints,
     routeGeometryRecords,
@@ -4201,6 +4218,8 @@ export function App({
         gridDotsVisible={gridDotsVisible}
         annotationGrid={annotationGrid}
         onAnnotationGridChange={setAnnotationGrid}
+        drawAngleMode={drawAngleMode}
+        onDrawAngleModeChange={setDrawAngleMode}
         zoomPercent={zoomPercent}
         onToggleWireOptions={() => setWireOptionsOpen((open) => !open)}
         onWireRoutingModeChange={setWireRoutingMode}

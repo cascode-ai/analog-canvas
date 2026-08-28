@@ -16,6 +16,8 @@ describe("editor statusbar", () => {
         wireCornerOrder="horizontal-first"
         recoveryLabel="Saved locally"
         gridDotsVisible
+        drawAngleMode="free"
+        onDrawAngleModeChange={vi.fn()}
         annotationGrid={5}
         zoomPercent={100}
         onToggleWireOptions={vi.fn()}

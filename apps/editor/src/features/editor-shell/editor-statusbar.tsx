@@ -27,6 +27,7 @@ export function EditorStatusbar({
   recoveryLabel,
   gridDotsVisible,
   annotationGrid,
+  drawAngleMode,
   zoomPercent,
   onToggleWireOptions,
   onWireRoutingModeChange,
@@ -34,6 +35,7 @@ export function EditorStatusbar({
   onToggleGridDots,
   onOpenAnalytics,
   onAnnotationGridChange,
+  onDrawAngleModeChange,
   onZoomOut,
   onZoomIn,
   onFitView,
@@ -49,6 +51,7 @@ export function EditorStatusbar({
   recoveryLabel: string | null;
   gridDotsVisible: boolean;
   annotationGrid: 1 | 5 | 10;
+  drawAngleMode: "free" | "45" | "orthogonal";
   zoomPercent: number;
   onToggleWireOptions: () => void;
   onWireRoutingModeChange: (mode: WireRoutingMode) => void;
@@ -56,6 +59,7 @@ export function EditorStatusbar({
   onToggleGridDots: () => void;
   onOpenAnalytics: () => void;
   onAnnotationGridChange: (pitch: 1 | 5 | 10) => void;
+  onDrawAngleModeChange: (mode: "free" | "45" | "orthogonal") => void;
   onZoomOut: () => void;
   onZoomIn: () => void;
   onFitView: () => void;
@@ -177,6 +181,21 @@ export function EditorStatusbar({
           <option value="10">±10</option>
           <option value="5">±5</option>
           <option value="1">±1</option>
+        </select>
+        <select
+          aria-label="Draw angle"
+          data-testid="draw-angle-select"
+          title="Angle lock for the Arrow and Line tools. Shift while drawing always locks to the 45-degree family; wires stay orthogonal."
+          value={drawAngleMode}
+          onChange={(event) =>
+            onDrawAngleModeChange(
+              event.currentTarget.value as "free" | "45" | "orthogonal",
+            )
+          }
+        >
+          <option value="free">Free</option>
+          <option value="45">45°</option>
+          <option value="orthogonal">Ortho</option>
         </select>
         <button
           type="button"
