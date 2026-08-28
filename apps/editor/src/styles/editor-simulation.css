@@ -112,11 +112,36 @@
   white-space: nowrap;
 }
 
-.simulation-saved-nets button {
-  min-height: 24px;
-  padding: 2px 7px;
-  border-radius: 999px;
+.simulation-saved-net {
+  display: grid;
+  grid-template-columns: auto minmax(92px, 150px) 24px;
+  align-items: center;
+  gap: 4px;
+  min-height: 28px;
+  padding: 2px 3px 2px 8px;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
   background: var(--icm-surface-muted);
+  white-space: nowrap;
+}
+
+.simulation-saved-net > span {
+  max-width: 130px;
+  overflow: hidden;
+  font-size: var(--icm-font-xs);
+  text-overflow: ellipsis;
+}
+
+.simulation-saved-net input {
+  min-width: 0;
+  height: 24px;
+  padding: 2px 6px;
+  font-size: var(--icm-font-xs);
+}
+
+.simulation-saved-net button {
+  min-height: 24px;
+  padding: 0;
   font-size: var(--icm-font-xs);
   white-space: nowrap;
 }
@@ -168,6 +193,16 @@
 .schematic-canvas.simulation-net-pick-active .endpoint-hit,
 .schematic-canvas.simulation-net-pick-active .annotation-text-hit {
   cursor: crosshair;
+}
+
+.schematic-canvas.simulation-net-pick-active .route-hit {
+  stroke-width: 26;
+}
+
+.schematic-canvas.simulation-net-pick-active .endpoint-hit {
+  r: 9px;
+  fill: rgb(0 0 0 / 0.1%);
+  pointer-events: all;
 }
 
 .schematic-canvas.waveform-placement-active {

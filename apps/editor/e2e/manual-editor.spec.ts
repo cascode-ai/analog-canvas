@@ -171,13 +171,17 @@ test("opens one digital simulation window and picks a Net from the canvas", asyn
   await expect(page.locator(".schematic-canvas")).toHaveClass(
     /simulation-net-pick-active/u,
   );
-  await page
-    .getByTestId("route-hit-route-simulation-pick")
-    .dispatchEvent("pointerdown", {
-      button: 0,
-      pointerId: 1,
-      pointerType: "mouse",
-    });
+  const pickedRoute = page.getByTestId("route-hit-route-simulation-pick");
+  await expect
+    .poll(() =>
+      pickedRoute.evaluate((element) => getComputedStyle(element).strokeWidth),
+    )
+    .toBe("26px");
+  await pickedRoute.dispatchEvent("pointerdown", {
+    button: 0,
+    pointerId: 1,
+    pointerType: "mouse",
+  });
   await expect(simulation.getByLabel("Saved Nets")).toContainText("HORIZONTAL");
   await page.keyboard.press("Escape");
   await expect(page.locator(".schematic-canvas")).not.toHaveClass(
@@ -186,8 +190,15 @@ test("opens one digital simulation window and picks a Net from the canvas", asyn
 
   await simulation.getByRole("button", { name: "Clear" }).click();
   await simulation.getByLabel("Add saved Net").selectOption("clock");
+  await simulation.getByLabel("Waveform alias for CK").fill("CLK_ALIAS");
   await simulation.getByRole("button", { name: "Run Simulation" }).click();
-  await expect(simulation.getByTestId("timing-waveform-preview")).toBeVisible();
+  const waveformPreview = simulation.getByTestId("timing-waveform-preview");
+  await expect(waveformPreview).toBeVisible();
+  await expect(waveformPreview).toContainText("CLK_ALIAS");
+  await expect(waveformPreview.locator("text").first()).toHaveCSS(
+    "font-weight",
+    "400",
+  );
 
   const placeSnapshot = async (xRatio: number, yRatio: number) => {
     await simulation.getByRole("button", { name: "Place on Canvas" }).click();
@@ -225,9 +236,30 @@ test("opens one digital simulation window and picks a Net from the canvas", asyn
   await expect(
     simulation.getByRole("button", { name: "Place on Canvas" }),
   ).toBeEnabled();
-  await placeSnapshot(0.55, 0.55);
+  await placeSnapshot(0.35, 0.55);
   await expect(draftingHits).toHaveCount(firstSnapshotSize * 2);
   await expect(selectedDraftingHits).toHaveCount(firstSnapshotSize);
+
+  const secondSnapshotTitle = draftingHits.nth(firstSnapshotSize);
+  const titleBeforeScale = await secondSnapshotTitle.boundingBox();
+  expect(titleBeforeScale).not.toBeNull();
+  const scaleHandle = page.locator(
+    '[data-testid^="draft-group-scale-waveform-group-"]',
+  );
+  await expect(scaleHandle).toBeVisible();
+  const scaleHandleBounds = await scaleHandle.boundingBox();
+  expect(scaleHandleBounds).not.toBeNull();
+  const scaleStart = {
+    x: scaleHandleBounds!.x + scaleHandleBounds!.width / 2,
+    y: scaleHandleBounds!.y + scaleHandleBounds!.height / 2,
+  };
+  await page.mouse.move(scaleStart.x, scaleStart.y);
+  await page.mouse.down();
+  await page.mouse.move(scaleStart.x + 90, scaleStart.y + 60, { steps: 5 });
+  await page.mouse.up();
+  await expect(page.getByTestId("status")).toContainText("Scaled waveform to");
+  const titleAfterScale = await secondSnapshotTitle.boundingBox();
+  expect(titleAfterScale!.width).toBeGreaterThan(titleBeforeScale!.width * 1.1);
 
   const firstGroupMember = draftingHits.first();
   const secondGroupMember = draftingHits.nth(1);

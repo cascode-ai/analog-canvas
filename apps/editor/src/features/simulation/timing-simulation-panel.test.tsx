@@ -44,6 +44,8 @@ describe("TimingSimulationPanel", () => {
     expect(markup).toContain('role="dialog"');
     expect(markup).toContain("Digital Simulation");
     expect(markup).toContain("Saved Nets");
+    expect(markup).toContain('aria-label="Waveform alias for clock"');
+    expect(markup).toContain('placeholder="Waveform alias"');
     expect(markup).toContain("Pick Nets");
     expect(markup).toContain("Run Simulation");
     expect(markup).toContain("Export SVG");

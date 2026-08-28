@@ -42,6 +42,7 @@ import type {
   DerivedPoint,
   DraftingObject,
   GridRect,
+  LayoutGroup,
   Point,
   Rect,
   SchematicDocument,
@@ -70,7 +71,11 @@ import {
   type CameraRectInput,
   type CanvasInsets,
 } from "../canvas/fit-view";
-import type { CanvasDragSession } from "../canvas/canvas-drag-session";
+import {
+  startCanvasDragSession,
+  type CanvasDragSession,
+} from "../canvas/canvas-drag-session";
+import { startCanvasDragVisual } from "../canvas/canvas-drag-visual";
 import { createCanvasHitController } from "../canvas/canvas-hit-controller";
 import {
   type RouteStretchPreview,
@@ -190,6 +195,7 @@ import {
   draftingDragOrigin,
   translateDraftingObject,
 } from "../features/drafting/drafting-manipulation";
+import { scaleDraftingGroup } from "../features/drafting/drafting-group-scale";
 import { createDraftingCommands } from "../features/drafting/drafting-commands";
 import {
   createDraftingCreateController,
@@ -3143,6 +3149,69 @@ export function App({
     );
   };
 
+  const beginWaveformGroupScale = (
+    event: ReactPointerEvent<SVGElement>,
+    group: LayoutGroup,
+    bounds: Rect,
+  ): void => {
+    if (event.button !== 0 || group.locked) return;
+    event.preventDefault();
+    event.stopPropagation();
+    canvasDragSessionRef.current?.cancel();
+    const target = event.currentTarget;
+    const svg = target.ownerSVGElement!;
+    const pivot = { x: bounds.x, y: bounds.y };
+    const originalRadius = Math.max(1, Math.hypot(bounds.width, bounds.height));
+    const factorAt = (client: Point): number => {
+      const point = pointFromClient(client.x, client.y, svg, false);
+      return Math.min(
+        4,
+        Math.max(
+          0.25,
+          Math.hypot(point.x - pivot.x, point.y - pivot.y) / originalRadius,
+        ),
+      );
+    };
+    const visual = startCanvasDragVisual(svg, group.objectIds);
+    canvasDragSessionRef.current = startCanvasDragSession({
+      target,
+      pointerId: event.pointerId,
+      startClient: { x: event.clientX, y: event.clientY },
+      thresholdPx: DRAG_START_DISTANCE_PX,
+      onPreview: (client) => visual.scale(pivot, factorAt(client)),
+      onFinish: ({ client, dragged }) => {
+        canvasDragSessionRef.current = null;
+        visual.restore();
+        if (!dragged) return;
+        const factor = factorAt(client);
+        const objects = scaleDraftingGroup(
+          document,
+          group.objectIds,
+          pivot,
+          factor,
+        );
+        if (!objects) {
+          setStatus("This waveform group contains an object that cannot scale");
+          return;
+        }
+        if (
+          transact(
+            objects.map((object) => ({
+              kind: "upsert_drafting_object" as const,
+              object,
+            })),
+          ).ok
+        ) {
+          setStatus(`Scaled waveform to ${Math.round(factor * 100)}%`);
+        }
+      },
+      onCancel: () => {
+        canvasDragSessionRef.current = null;
+        visual.restore();
+      },
+    });
+  };
+
   const canvasEventHandlers = createEditorCanvasEventHandlers({
     model: { tool, document, resolver },
     session: {
@@ -4525,7 +4594,9 @@ export function App({
             document,
             resolver,
             selectedDraftingId,
+            selectedDraftingIds: visualSelection.draftingIds,
             onHandlePointerDown: beginDraftingHandleDrag,
+            onGroupScalePointerDown: beginWaveformGroupScale,
             onDeleteVertex: deleteConstructionVertex,
           }}
           interactionPreviews={{

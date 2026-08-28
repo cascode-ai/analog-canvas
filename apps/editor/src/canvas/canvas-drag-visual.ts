@@ -2,6 +2,7 @@ import type { Point } from "@icm/model";
 
 export interface CanvasDragVisual {
   translate(delta: Point): void;
+  scale(pivot: Point, factor: number): void;
   setPolyline(points: readonly Point[]): void;
   setObjectPolyline(objectId: string, points: readonly Point[]): void;
   restore(): void;
@@ -49,6 +50,15 @@ export function startCanvasDragVisual(
     translate(delta) {
       for (const item of saved) {
         const prefix = `translate(${delta.x} ${delta.y})`;
+        item.element.setAttribute(
+          "transform",
+          item.transform ? `${prefix} ${item.transform}` : prefix,
+        );
+      }
+    },
+    scale(pivot, factor) {
+      for (const item of saved) {
+        const prefix = `translate(${pivot.x} ${pivot.y}) scale(${factor}) translate(${-pivot.x} ${-pivot.y})`;
         item.element.setAttribute(
           "transform",
           item.transform ? `${prefix} ${item.transform}` : prefix,

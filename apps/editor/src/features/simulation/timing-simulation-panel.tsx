@@ -75,6 +75,7 @@ export function TimingSimulationPanel({
 }: TimingSimulationPanelProps) {
   const [stopTime, setStopTime] = useState("40ns");
   const [result, setResult] = useState<DigitalSimulationResult | null>(null);
+  const [netAliases, setNetAliases] = useState<Record<string, string>>({});
   const [position, setPosition] = useState<{
     left: number;
     top: number;
@@ -88,7 +89,19 @@ export function TimingSimulationPanel({
     () => resolveDocumentLogicalNets(document).groups,
     [document],
   );
-  const waveformSvg = result ? timingWaveformSvg(result) : null;
+  const displayResult = useMemo(() => {
+    if (!result) return null;
+    return {
+      ...result,
+      traces: result.traces.map((trace) => {
+        const alias = trace.baseNetIds
+          .map((baseNetId) => netAliases[baseNetId]?.trim())
+          .find((candidate): candidate is string => Boolean(candidate));
+        return alias ? { ...trace, name: alias } : trace;
+      }),
+    };
+  }, [netAliases, result]);
+  const waveformSvg = displayResult ? timingWaveformSvg(displayResult) : null;
   const stale =
     result !== null &&
     result.inputFingerprint !== digitalSimulationInputFingerprint(document);
@@ -261,15 +274,31 @@ export function TimingSimulationPanel({
           const net = logicalNets.find((candidate) =>
             candidate.baseNetIds.includes(baseNetId),
           );
+          const netName = net?.name ?? baseNetId;
           return (
-            <button
-              type="button"
-              key={baseNetId}
-              title={`Remove ${net?.name ?? baseNetId}`}
-              onClick={() => onToggleSavedNet(baseNetId)}
-            >
-              {net?.name ?? baseNetId} <span aria-hidden="true">×</span>
-            </button>
+            <div className="simulation-saved-net" key={baseNetId}>
+              <span title={netName}>{netName}</span>
+              <input
+                aria-label={`Waveform alias for ${netName}`}
+                placeholder="Waveform alias"
+                value={netAliases[baseNetId] ?? ""}
+                onChange={(event) => {
+                  const alias = event.currentTarget.value;
+                  setNetAliases((current) => ({
+                    ...current,
+                    [baseNetId]: alias,
+                  }));
+                }}
+              />
+              <button
+                type="button"
+                aria-label={`Remove saved Net ${netName}`}
+                title={`Remove ${netName}`}
+                onClick={() => onToggleSavedNet(baseNetId)}
+              >
+                <span aria-hidden="true">×</span>
+              </button>
+            </div>
           );
         })}
       </div>
@@ -328,7 +357,7 @@ export function TimingSimulationPanel({
         <button
           type="button"
           disabled={!result || result.traces.length === 0 || stale}
-          onClick={() => result && onPlaceOnCanvas(result)}
+          onClick={() => displayResult && onPlaceOnCanvas(displayResult)}
         >
           Place on Canvas
         </button>

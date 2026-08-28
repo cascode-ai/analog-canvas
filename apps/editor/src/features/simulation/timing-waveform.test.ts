@@ -51,13 +51,16 @@ describe("timing waveform presentation", () => {
     ]);
   });
 
-  it("exports a self-contained Razavi-style SVG with guides and time axis", () => {
+  it("exports a self-contained waveform using ordinary Text typography", () => {
     const svg = timingWaveformSvg(result);
     expect(svg).toContain('aria-label="Digital timing waveform"');
     expect(svg).toContain("stroke-dasharray:5 5");
     expect(svg).toContain(">CK</text>");
     expect(svg).toContain(">20 ns</text>");
     expect(svg).toContain('marker-end="url(#time-arrow)"');
+    expect(svg).toContain("'DejaVu Sans',Arial");
+    expect(svg).toContain("font-style:normal;font-weight:400");
+    expect(svg).not.toContain("font-style:italic");
   });
 
   it("converts a temporary run into valid editable vector drafting objects", () => {
@@ -80,5 +83,10 @@ describe("timing waveform presentation", () => {
     for (const object of objects) {
       expect(DraftingObjectSchema.parse(object)).toEqual(object);
     }
+    expect(
+      objects
+        .filter((object) => object.kind === "text")
+        .map((object) => object.typographyToken),
+    ).toEqual(["label", "label", "label"]);
   });
 });

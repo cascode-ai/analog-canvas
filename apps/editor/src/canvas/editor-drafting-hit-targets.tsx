@@ -4,13 +4,19 @@ import type {
 } from "react";
 
 import { resolveDraftingObjectGeometry } from "@icm/derived";
-import type { DraftingObject, SchematicDocument } from "@icm/model";
+import type {
+  DraftingObject,
+  LayoutGroup,
+  Rect,
+  SchematicDocument,
+} from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
 import {
   draftingDragOrigin,
   type DraftingHandle,
 } from "../features/drafting/drafting-manipulation";
+import { draftingGroupBounds } from "../features/drafting/drafting-group-scale";
 import {
   draftingPathData,
   quadraticMidpoint,
@@ -194,22 +200,74 @@ export function EditorDraftingHandles({
   document,
   resolver,
   selectedDraftingId,
+  selectedDraftingIds,
   onHandlePointerDown,
+  onGroupScalePointerDown,
   onDeleteVertex,
 }: {
   document: SchematicDocument;
   resolver: SymbolResolver;
   selectedDraftingId: string | null;
+  selectedDraftingIds: readonly string[];
   onHandlePointerDown: (
     event: ReactPointerEvent<SVGElement>,
     object: DraftingObject,
     handle: DraftingHandle,
+  ) => void;
+  onGroupScalePointerDown: (
+    event: ReactPointerEvent<SVGElement>,
+    group: LayoutGroup,
+    bounds: Rect,
   ) => void;
   onDeleteVertex: (
     object: Extract<DraftingObject, { kind: "construction-line" }>,
     index: number,
   ) => void;
 }) {
+  const selectedIds = new Set(selectedDraftingIds);
+  const selectedGroup = document.layoutGroups.find(
+    (group) =>
+      group.id.startsWith("waveform-group-") &&
+      group.objectIds.length > 1 &&
+      selectedDraftingId !== null &&
+      group.objectIds.includes(selectedDraftingId) &&
+      group.objectIds.every((objectId) => selectedIds.has(objectId)),
+  );
+  if (selectedGroup) {
+    const bounds = draftingGroupBounds(
+      document,
+      resolver,
+      selectedGroup.objectIds,
+    );
+    if (!bounds) return null;
+    const handle = {
+      x: bounds.x + bounds.width,
+      y: bounds.y + bounds.height,
+    };
+    return (
+      <g data-testid={`drafting-group-handles-${selectedGroup.id}`}>
+        <rect
+          className="draft-group-bounds"
+          x={bounds.x}
+          y={bounds.y}
+          width={bounds.width}
+          height={bounds.height}
+        />
+        <rect
+          className="draft-handle draft-group-scale-handle"
+          data-testid={`draft-group-scale-${selectedGroup.id}`}
+          aria-label="Scale waveform"
+          x={handle.x - 5}
+          y={handle.y - 5}
+          width="10"
+          height="10"
+          onPointerDown={(event) =>
+            onGroupScalePointerDown(event, selectedGroup, bounds)
+          }
+        />
+      </g>
+    );
+  }
   const object = document.drafting?.objects.find(
     (candidate) => candidate.id === selectedDraftingId,
   );

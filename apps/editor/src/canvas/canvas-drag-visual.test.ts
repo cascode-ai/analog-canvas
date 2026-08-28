@@ -68,4 +68,30 @@ describe("startCanvasDragVisual", () => {
     expect(route.getAttribute("points")).toBe("0,0 10,0");
     expect(sibling.getAttribute("points")).toBe("0,10 10,10");
   });
+
+  it("previews a uniform group scale around its fixed pivot", () => {
+    const trace = new FakeElement({
+      "data-object-id": "waveform-trace",
+      transform: "rotate(90)",
+    });
+    const hit = new FakeElement({
+      "data-drag-object-id": "waveform-trace",
+    });
+    const root = {
+      querySelectorAll: () => [trace, hit],
+    } as unknown as ParentNode;
+    const visual = startCanvasDragVisual(root, ["waveform-trace"]);
+
+    visual.scale({ x: 20, y: 30 }, 1.5);
+
+    expect(trace.getAttribute("transform")).toBe(
+      "translate(20 30) scale(1.5) translate(-20 -30) rotate(90)",
+    );
+    expect(hit.getAttribute("transform")).toBe(
+      "translate(20 30) scale(1.5) translate(-20 -30)",
+    );
+    visual.restore();
+    expect(trace.getAttribute("transform")).toBe("rotate(90)");
+    expect(hit.getAttribute("transform")).toBeNull();
+  });
 });

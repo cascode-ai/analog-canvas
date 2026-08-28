@@ -359,6 +359,19 @@
   fill: var(--icm-accent);
 }
 
+.draft-group-bounds {
+  fill: none;
+  stroke: var(--icm-accent);
+  stroke-width: 1;
+  stroke-dasharray: 5 4;
+  pointer-events: none;
+  vector-effect: non-scaling-stroke;
+}
+
+.draft-group-scale-handle {
+  cursor: nwse-resize;
+}
+
 /* A diamond is the directly draggable midpoint of a quadratic curve. Endpoint
    and existing-vertex handles stay circular, so a smooth bend is distinct from
    explicit polyline vertex editing. */
