@@ -57,8 +57,8 @@ palette-first manual authoring; no Project file needs to be opened first.
 
 **File / Save** (or `Ctrl+S`) saves the current content to one private Cloud
 Project. Repeated saves update that Project instead of creating snapshots. A
-new or imported drawing is unbound until its first Save; **Save as Cloud Copy**
-deliberately creates another Cloud Project. A dot beside the Project name means
+new or imported drawing is unbound until its first Save, which creates and
+binds its Cloud Project. A dot beside the Project name means
 the Cloud Project has unsaved changes. Browser Back, Refresh, and tab or window
 close then show the browser's standard leave warning; only an acknowledged
 Cloud Save of the current content clears it.

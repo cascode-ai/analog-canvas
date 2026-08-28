@@ -80,10 +80,10 @@ GET  /api/projects/:id             open one Project
 
 Repeated Save updates the same id and does not consume another account slot.
 The first Save of an unbound New/imported/recovered Project creates a Cloud
-Project. **Save as Cloud Copy** deliberately creates and binds a new id. The
-server retains no implicit save history and never evicts another Project to
-make room. A revision mismatch or capacity limit blocks only that explicit
-Save; editing and local recovery continue.
+Project. The editor exposes no second Save command that silently creates a
+duplicate Project. The server retains no implicit save history and never
+evicts another Project to make room. A revision mismatch or capacity limit
+blocks only that explicit Save; editing and local recovery continue.
 
 The editor session owns only the transient Cloud binding (`id` and acknowledged
 revision), the saved content baseline, and its recovery working-copy id. No
@@ -92,10 +92,11 @@ the binding and saved baseline. If edits occurred while the request was in
 flight, the submitted snapshot is saved but the newer live content remains
 dirty. Undo back to the acknowledged content becomes clean.
 
-**Import Project File**, **Export Project File**, and **Download Backup** are
-interchange operations. They never claim to be Save and never clear Cloud
-dirty state. Export/download does not remove recovery records; bounded
-retention and explicit user deletion remain their only removal paths.
+**Import Project File** and **Export Project File** are interchange operations.
+They never claim to be Save and never clear Cloud dirty state. A contextual
+backup download is offered only when recovery needs attention. Export/download
+does not remove recovery records; bounded retention and explicit user deletion
+remain their only removal paths.
 
 The editor persistence lifecycle is the single source of unsaved truth. A
 successful persistent edit marks it dirty; only an acknowledged Cloud Save of

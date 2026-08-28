@@ -455,6 +455,33 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 2px;
+  width: min(22rem, calc(100vw - var(--icm-space-6)));
+  min-width: 0;
+  max-width: 100%;
+}
+
+.command-popover .cloud-project-open {
+  display: grid;
+  min-width: 0;
+  height: auto;
+  padding-block: 6px;
+  gap: 1px;
+  white-space: normal;
+}
+
+.cloud-project-name,
+.cloud-project-time {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cloud-project-time {
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-sm);
+  font-weight: 400;
 }
 
 .command-popover .cloud-project-command > button:last-child {

@@ -91,7 +91,7 @@ test("Cloud Save updates one binding while local export stays interchange", asyn
   const fileMenu = await openMenu(page, "File");
   await expect(
     fileMenu.getByRole("button", { name: "Save as Cloud Copy…" }),
-  ).toBeDisabled();
+  ).toHaveCount(0);
   await fileMenu.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByTestId("status")).toContainText(
     "Saved New Circuit to Cloud",
@@ -107,8 +107,23 @@ test("Cloud Save updates one binding while local export stays interchange", asyn
   const reopenedMenu = await openMenu(page, "File");
   await expect(reopenedMenu.getByText("Cloud Projects (1/3)")).toBeVisible();
   await expect(
-    reopenedMenu.getByRole("button", { name: "Save as Cloud Copy…" }),
-  ).toBeEnabled();
+    reopenedMenu.getByRole("button", { name: "Save", exact: true }),
+  ).toHaveCount(1);
+  const cloudProjectButton = reopenedMenu.getByTestId("cloud-project-cloud-1");
+  const cloudProjectTime = cloudProjectButton.locator("time");
+  await expect(cloudProjectTime).toBeVisible();
+  expect(
+    await cloudProjectTime.evaluate(
+      (element) => getComputedStyle(element).overflow,
+    ),
+  ).toBe("hidden");
+  const buttonBounds = await cloudProjectButton.boundingBox();
+  const timeBounds = await cloudProjectTime.boundingBox();
+  expect(buttonBounds).not.toBeNull();
+  expect(timeBounds).not.toBeNull();
+  expect(timeBounds!.x + timeBounds!.width).toBeLessThanOrEqual(
+    buttonBounds!.x + buttonBounds!.width,
+  );
   await page.getByRole("link", { name: "Back to the gallery" }).click();
   await expect(page).toHaveURL(/\/$/u);
   await page.goto("/editor");

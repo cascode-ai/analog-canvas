@@ -13,7 +13,6 @@ export interface FileCommandMenuProps {
   projectInputRef: RefObject<HTMLInputElement | null>;
   onNewProject: () => void;
   onSave: () => void;
-  onSaveAsCopy: () => void;
   onRefreshCloudProjects: () => void;
   onOpenCloudProject: (project: CloudProjectSummary) => void;
   onDeleteCloudProject: (project: CloudProjectSummary) => void;
@@ -38,7 +37,6 @@ export function FileCommandMenu({
   projectInputRef,
   onNewProject,
   onSave,
-  onSaveAsCopy,
   onRefreshCloudProjects,
   onRefresh,
   onImportProject,
@@ -66,18 +64,6 @@ export function FileCommandMenu({
         <button type="button" data-testid="save-cloud-project" onClick={onSave}>
           Save
         </button>
-        <button
-          type="button"
-          onClick={onSaveAsCopy}
-          disabled={activeCloudProjectId === null}
-          title={
-            activeCloudProjectId === null
-              ? "Save this Project to Cloud before creating a copy"
-              : "Create a separate Cloud Project"
-          }
-        >
-          Save as Cloud Copy…
-        </button>
         <span className="command-group-label">
           Cloud Projects ({cloudProjects.length}/{CLOUD_PROJECT_LIMIT})
         </span>
@@ -85,12 +71,19 @@ export function FileCommandMenu({
           <div className="cloud-project-command" key={project.id}>
             <button
               type="button"
+              className="cloud-project-open"
               data-testid={`cloud-project-${project.id}`}
               title={`Open revision ${project.revision}`}
               disabled={project.id === activeCloudProjectId}
               onClick={() => onOpenCloudProject(project)}
             >
-              {project.name} — {new Date(project.updatedAt).toLocaleString()}
+              <span className="cloud-project-name">{project.name}</span>
+              <time className="cloud-project-time" dateTime={project.updatedAt}>
+                {new Date(project.updatedAt).toLocaleString(undefined, {
+                  dateStyle: "short",
+                  timeStyle: "short",
+                })}
+              </time>
             </button>
             <button
               type="button"

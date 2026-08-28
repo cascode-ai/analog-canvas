@@ -23,7 +23,6 @@ describe("FileCommandMenu", () => {
         projectInputRef={createRef<HTMLInputElement>()}
         onNewProject={vi.fn()}
         onSave={vi.fn()}
-        onSaveAsCopy={vi.fn()}
         onRefreshCloudProjects={vi.fn()}
         onOpenCloudProject={vi.fn()}
         onDeleteCloudProject={vi.fn()}
@@ -39,12 +38,10 @@ describe("FileCommandMenu", () => {
       />,
     );
 
-    expect(markup).toContain("Save as Cloud Copy…");
-    expect(markup).toContain(
-      'disabled="" title="Save this Project to Cloud before creating a copy"',
-    );
+    expect(markup).not.toContain("Save as Cloud Copy");
     expect(markup).toContain("Cloud Projects (1/3)");
     expect(markup).toContain("Saved Circuit");
+    expect(markup).toContain('class="cloud-project-time"');
     expect(markup).toContain("cloud-project-cloud-1");
     expect(markup).toContain("Import Project File…");
     expect(markup).toContain("Export Project File…");

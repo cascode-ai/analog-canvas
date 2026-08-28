@@ -2781,7 +2781,6 @@ export function App({
           projectInputRef,
           onNewProject: createNewProject,
           onSave: () => void saveProjectToCloud(),
-          onSaveAsCopy: () => void saveProjectToCloud({ asCopy: true }),
           onRefreshCloudProjects: () => void reloadCloudProjects(),
           onOpenCloudProject: (summary) =>
             void openCloudProjectById(summary.id),

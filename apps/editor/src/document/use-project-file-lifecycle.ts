@@ -179,18 +179,13 @@ export function useProjectFileLifecycle({
     return nextDocument;
   }
 
-  async function performProjectSaveToCloud(
-    options: { asCopy?: boolean } = {},
-  ): Promise<CloudProjectSaveOutcome> {
+  async function performProjectSaveToCloud(): Promise<CloudProjectSaveOutcome> {
     setPersistenceState("saving");
     recovery.stage(project, { unsavedAtSnapshot: true, cloudBinding });
     await recovery.flushNow();
     const savedCandidate = structuredClone(project);
     const savedCandidateToken = projectChangeToken(savedCandidate);
-    const outcome = await saveCloudProject(
-      savedCandidate,
-      options.asCopy ? null : cloudBinding,
-    );
+    const outcome = await saveCloudProject(savedCandidate, cloudBinding);
     if (outcome.status === "saved") {
       const nextBinding = {
         id: outcome.project.id,
@@ -246,12 +241,10 @@ export function useProjectFileLifecycle({
     return outcome;
   }
 
-  function saveProjectToCloud(
-    options: { asCopy?: boolean } = {},
-  ): Promise<CloudProjectSaveOutcome> {
+  function saveProjectToCloud(): Promise<CloudProjectSaveOutcome> {
     const inFlight = saveInFlightRef.current;
     if (inFlight) return inFlight;
-    const operation = performProjectSaveToCloud(options);
+    const operation = performProjectSaveToCloud();
     saveInFlightRef.current = operation;
     const clear = () => {
       if (saveInFlightRef.current === operation) saveInFlightRef.current = null;
