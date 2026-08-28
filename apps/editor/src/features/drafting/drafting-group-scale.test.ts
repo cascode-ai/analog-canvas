@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   draftingGroupBounds,
+  draftingGroupScaleRange,
   scaleDraftingGroup,
 } from "./drafting-group-scale";
 
@@ -55,12 +56,61 @@ describe("drafting group scale", () => {
     });
     expect(scaled?.[1]).toMatchObject({
       id: "trace",
+      styleOverride: { strokeScale: 1.5 },
       points: [
         { x: 140, y: 20 },
         { x: 290, y: 20 },
         { x: 290, y: 50 },
       ],
     });
+  });
+
+  it("keeps geometry, text, and every waveform stroke on one scale factor", () => {
+    const document = createEmptyDocument("main", "Waveform strokes");
+    document.drafting = {
+      objects: [
+        {
+          id: "trace",
+          kind: "construction-line",
+          locked: false,
+          zIndex: 0,
+          anchor: { kind: "free", position: { x: 20, y: 20 } },
+          points: [
+            { x: 20, y: 20 },
+            { x: 120, y: 20 },
+          ],
+          lineStyle: "solid",
+          styleOverride: { strokeScale: 1.5 },
+        },
+        {
+          id: "guide",
+          kind: "construction-line",
+          locked: false,
+          zIndex: 0,
+          anchor: { kind: "free", position: { x: 40, y: 20 } },
+          points: [
+            { x: 40, y: 20 },
+            { x: 40, y: 80 },
+          ],
+          lineStyle: "dashed",
+          styleOverride: { strokeScale: 0.75 },
+        },
+      ],
+    };
+
+    expect(draftingGroupScaleRange(document, ["trace", "guide"])).toEqual({
+      min: 1 / 3,
+      max: 8 / 3,
+    });
+    const scaled = scaleDraftingGroup(
+      document,
+      ["trace", "guide"],
+      { x: 20, y: 20 },
+      2,
+    );
+    expect(scaled?.map((object) => object.styleOverride?.strokeScale)).toEqual([
+      3, 1.5,
+    ]);
   });
 
   it("resolves one selection box for every object in the snapshot", () => {

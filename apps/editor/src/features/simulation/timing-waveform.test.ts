@@ -59,8 +59,7 @@ describe("timing waveform presentation", () => {
     expect(svg).toContain(">20 ns</text>");
     expect(svg).toContain('marker-end="url(#time-arrow)"');
     expect(svg).toContain("'DejaVu Sans',Arial");
-    expect(svg).toContain("font-style:normal;font-weight:400");
-    expect(svg).not.toContain("font-style:italic");
+    expect(svg).toContain("font-style:italic;font-weight:700");
   });
 
   it("converts a temporary run into valid editable vector drafting objects", () => {
@@ -88,5 +87,14 @@ describe("timing waveform presentation", () => {
         .filter((object) => object.kind === "text")
         .map((object) => object.typographyToken),
     ).toEqual(["label", "label", "label"]);
+    expect(objects[1]).toMatchObject({
+      kind: "text",
+      content: {
+        runs: [
+          { kind: "span", style: "italic" },
+          { kind: "span", style: "subscript" },
+        ],
+      },
+    });
   });
 });

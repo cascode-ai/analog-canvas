@@ -10,6 +10,29 @@ import type {
 } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
+const MIN_STROKE_SCALE = 0.25;
+const MAX_STROKE_SCALE = 4;
+
+function hasScalableStroke(object: DraftingObject): boolean {
+  return (
+    object.kind === "construction-line" ||
+    object.kind === "arrow" ||
+    object.kind === "rectangle" ||
+    object.kind === "circle"
+  );
+}
+
+function scaledStrokeOverride(
+  object: DraftingObject,
+  factor: number,
+): DraftingObject["styleOverride"] | null {
+  const strokeScale = (object.styleOverride?.strokeScale ?? 1) * factor;
+  if (strokeScale < MIN_STROKE_SCALE || strokeScale > MAX_STROKE_SCALE) {
+    return null;
+  }
+  return { ...(object.styleOverride ?? {}), strokeScale };
+}
+
 function scalePoint(
   point: Point,
   pivot: Point,
@@ -61,9 +84,12 @@ export function scaleDraftingObject(
     };
   }
   if (object.kind === "construction-line") {
+    const styleOverride = scaledStrokeOverride(object, factor);
+    if (!styleOverride) return null;
     return {
       ...object,
       anchor,
+      styleOverride,
       points: object.points.map((point) =>
         scalePoint(point, pivot, factor, grid),
       ),
@@ -75,10 +101,12 @@ export function scaleDraftingObject(
   if (object.kind === "arrow") {
     const from = scaleFreeAnchor(object.from, pivot, factor, grid);
     const to = scaleFreeAnchor(object.to, pivot, factor, grid);
-    if (!from || !to) return null;
+    const styleOverride = scaledStrokeOverride(object, factor);
+    if (!from || !to || !styleOverride) return null;
     return {
       ...object,
       anchor,
+      styleOverride,
       from,
       to,
       waypoints: object.waypoints?.map((point) =>
@@ -91,9 +119,12 @@ export function scaleDraftingObject(
   }
   if (object.kind === "rectangle") {
     const center = scalePoint(object.center, pivot, factor, grid);
+    const styleOverride = scaledStrokeOverride(object, factor);
+    if (!styleOverride) return null;
     return {
       ...object,
       anchor: { kind: "free", position: center },
+      styleOverride,
       center,
       width: Math.max(grid, Math.round((object.width * factor) / grid) * grid),
       height: Math.max(
@@ -104,9 +135,12 @@ export function scaleDraftingObject(
   }
   if (object.kind === "circle") {
     const center = scalePoint(object.center, pivot, factor, grid);
+    const styleOverride = scaledStrokeOverride(object, factor);
+    if (!styleOverride) return null;
     return {
       ...object,
       anchor: { kind: "free", position: center },
+      styleOverride,
       center,
       radius: Math.max(
         grid,
@@ -135,6 +169,28 @@ export function draftingGroupBounds(
   const right = Math.max(...bounds.map((item) => item.x + item.width));
   const bottom = Math.max(...bounds.map((item) => item.y + item.height));
   return { x: left, y: top, width: right - left, height: bottom - top };
+}
+
+export function draftingGroupScaleRange(
+  document: SchematicDocument,
+  objectIds: readonly string[],
+): { min: number; max: number } | null {
+  const ids = new Set(objectIds);
+  const source = (document.drafting?.objects ?? []).filter((object) =>
+    ids.has(object.id),
+  );
+  if (source.length !== ids.size) return null;
+  return source.reduce(
+    (range, object) => {
+      if (!hasScalableStroke(object)) return range;
+      const strokeScale = object.styleOverride?.strokeScale ?? 1;
+      return {
+        min: Math.max(range.min, MIN_STROKE_SCALE / strokeScale),
+        max: Math.min(range.max, MAX_STROKE_SCALE / strokeScale),
+      };
+    },
+    { min: 0.25, max: 4 },
+  );
 }
 
 export function scaleDraftingGroup(

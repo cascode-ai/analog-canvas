@@ -195,7 +195,10 @@ import {
   draftingDragOrigin,
   translateDraftingObject,
 } from "../features/drafting/drafting-manipulation";
-import { scaleDraftingGroup } from "../features/drafting/drafting-group-scale";
+import {
+  draftingGroupScaleRange,
+  scaleDraftingGroup,
+} from "../features/drafting/drafting-group-scale";
 import { createDraftingCommands } from "../features/drafting/drafting-commands";
 import {
   createDraftingCreateController,
@@ -1237,6 +1240,7 @@ export function App({
     setStatus(`Toggled saved Net ${group?.name ?? baseNetId}`);
   };
   const setSimulationPickMode = (active: boolean): void => {
+    if (active) activateTool("pointer");
     setSimulationPickNetsActive(active);
     if (!active) setSimulationHoverNetId(null);
     setStatus(
@@ -3162,12 +3166,17 @@ export function App({
     const svg = target.ownerSVGElement!;
     const pivot = { x: bounds.x, y: bounds.y };
     const originalRadius = Math.max(1, Math.hypot(bounds.width, bounds.height));
+    const scaleRange = draftingGroupScaleRange(document, group.objectIds);
+    if (!scaleRange) {
+      setStatus("This waveform group cannot scale");
+      return;
+    }
     const factorAt = (client: Point): number => {
       const point = pointFromClient(client.x, client.y, svg, false);
       return Math.min(
-        4,
+        scaleRange.max,
         Math.max(
-          0.25,
+          scaleRange.min,
           Math.hypot(point.x - pivot.x, point.y - pivot.y) / originalRadius,
         ),
       );
@@ -3227,7 +3236,9 @@ export function App({
     selection: {
       commitCommandMove: commitCommandMoveFromSelection,
       clearDraftingSelection: () => replaceSelectionKind("drafting", []),
-      handleCanvasHitPointerDown,
+      handleCanvasHitPointerDown: (event) => {
+        if (!simulationPickNetsActive) handleCanvasHitPointerDown(event);
+      },
     },
     placement: {
       pendingSymbolId,

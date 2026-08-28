@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 
 import { resolveDocumentLogicalNets } from "@icm/derived";
@@ -89,6 +89,18 @@ export function TimingSimulationPanel({
     () => resolveDocumentLogicalNets(document).groups,
     [document],
   );
+  useEffect(() => {
+    setNetAliases((current) => {
+      const retained = Object.fromEntries(
+        Object.entries(current).filter(([baseNetId]) =>
+          savedNetIds.has(baseNetId),
+        ),
+      );
+      return Object.keys(retained).length === Object.keys(current).length
+        ? current
+        : retained;
+    });
+  }, [savedNetIds]);
   const displayResult = useMemo(() => {
     if (!result) return null;
     return {
@@ -268,26 +280,42 @@ export function TimingSimulationPanel({
       </div>
 
       <div className="simulation-saved-nets" aria-label="Saved Nets">
-        <span>Saved Nets</span>
+        <div className="simulation-saved-nets-heading">
+          <span>Waveforms</span>
+          <small>Display names only; circuit Nets stay unchanged</small>
+        </div>
         {savedNetIds.size === 0 ? <small>None</small> : null}
         {[...savedNetIds].map((baseNetId) => {
           const net = logicalNets.find((candidate) =>
             candidate.baseNetIds.includes(baseNetId),
           );
           const netName = net?.name ?? baseNetId;
+          const waveformName = netAliases[baseNetId] ?? netName;
           return (
             <div className="simulation-saved-net" key={baseNetId}>
-              <span title={netName}>{netName}</span>
+              <span className="simulation-saved-net-source" title={netName}>
+                <small>Net</small> {netName}
+              </span>
+              <span aria-hidden="true">→</span>
               <input
-                aria-label={`Waveform alias for ${netName}`}
-                placeholder="Waveform alias"
-                value={netAliases[baseNetId] ?? ""}
+                aria-label={`Waveform name for ${netName}`}
+                title={`Waveform display name for Net ${netName}`}
+                value={waveformName}
                 onChange={(event) => {
                   const alias = event.currentTarget.value;
                   setNetAliases((current) => ({
                     ...current,
                     [baseNetId]: alias,
                   }));
+                }}
+                onBlur={() => {
+                  setNetAliases((current) => {
+                    const alias = current[baseNetId]?.trim();
+                    if (alias) return { ...current, [baseNetId]: alias };
+                    const next = { ...current };
+                    delete next[baseNetId];
+                    return next;
+                  });
                 }}
               />
               <button

@@ -1,4 +1,9 @@
-import { snapGridPoint, type DraftingObject, type GridPoint } from "@icm/model";
+import {
+  defaultDraftTextDocument,
+  snapGridPoint,
+  type DraftingObject,
+  type GridPoint,
+} from "@icm/model";
 import type {
   DigitalSimulationResult,
   DigitalTrace,
@@ -130,7 +135,7 @@ export function timingWaveformSvg(result: DigitalSimulationResult): string {
       return `<text class="label" x="${labelWidth}" y="${top + 18}" text-anchor="end">${escapeXml(trace.name)}</text><polyline class="trace" points="${points}" />`;
     })
     .join("");
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="Digital timing waveform"><defs><marker id="time-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#111"/></marker></defs><rect width="100%" height="100%" fill="#fff"/><style>.trace{fill:none;stroke:#111;stroke-width:3;stroke-linejoin:miter;stroke-linecap:square}.guide{stroke:#666;stroke-width:1.2;stroke-dasharray:5 5}.label,.time-label{fill:#111;font-family:'DejaVu Sans',Arial,'Helvetica Neue',Helvetica,sans-serif;font-size:15.116px;font-style:normal;font-weight:400}.time-label{font-size:15.116px}</style>${guides}${traces}<line x1="${plotLeft - 12}" y1="${axisY}" x2="${plotLeft + plotWidth + 16}" y2="${axisY}" stroke="#111" stroke-width="2" marker-end="url(#time-arrow)"/><text class="time-label" x="${plotLeft + plotWidth}" y="${axisY + 28}" text-anchor="end">${escapeXml(formatSimulationTime(result.stopTimePs))}</text><text class="label" x="${plotLeft + plotWidth + 28}" y="${axisY + 8}">t</text></svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="Digital timing waveform"><defs><marker id="time-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#111"/></marker></defs><rect width="100%" height="100%" fill="#fff"/><style>.trace{fill:none;stroke:#111;stroke-width:3;stroke-linejoin:miter;stroke-linecap:square}.guide{stroke:#666;stroke-width:1.2;stroke-dasharray:5 5}.label,.time-label{fill:#111;font-family:'DejaVu Sans',Arial,'Helvetica Neue',Helvetica,sans-serif;font-size:15.116px;font-style:italic;font-weight:700}.time-label{font-size:15.116px}</style>${guides}${traces}<line x1="${plotLeft - 12}" y1="${axisY}" x2="${plotLeft + plotWidth + 16}" y2="${axisY}" stroke="#111" stroke-width="2" marker-end="url(#time-arrow)"/><text class="time-label" x="${plotLeft + plotWidth}" y="${axisY + 28}" text-anchor="end">${escapeXml(formatSimulationTime(result.stopTimePs))}</text><text class="label" x="${plotLeft + plotWidth + 28}" y="${axisY + 8}">t</text></svg>`;
 }
 
 function free(position: GridPoint) {
@@ -158,7 +163,7 @@ export function waveformDraftingObjects(
       locked: false,
       zIndex: 0,
       anchor: free(position),
-      content: { runs: [{ kind: "text", value }] },
+      content: defaultDraftTextDocument(value),
       alignment: "start",
       rotation: 0,
       typographyToken: token,

@@ -93,6 +93,11 @@ test("opens one digital simulation window and picks a Net from the canvas", asyn
   page,
 }) => {
   const project = createRoutingDemoProject();
+  for (const instance of project.documents[0]!.instances) {
+    if (["A", "B", "E"].includes(instance.id) && instance.placement) {
+      instance.placement.position.y = 500;
+    }
+  }
   project.documents[0]!.routes = [
     createRoutePath({
       id: "route-simulation-pick",
@@ -158,6 +163,9 @@ test("opens one digital simulation window and picks a Net from the canvas", asyn
   await expect(
     page.getByLabel("Place Digital Clock", { exact: true }),
   ).toBeVisible();
+  const canvas = page.getByTestId("schematic-canvas");
+  await page.getByLabel("Place Resistor", { exact: true }).click();
+  await expect(canvas).toHaveClass(/component-mode/u);
   await page.getByRole("button", { name: "Simulation", exact: true }).click();
 
   const simulation = page.getByRole("dialog", {
@@ -168,20 +176,19 @@ test("opens one digital simulation window and picks a Net from the canvas", asyn
   await expect(simulation.locator("details")).toHaveCount(0);
 
   await simulation.getByRole("button", { name: "Pick Nets" }).click();
-  await expect(page.locator(".schematic-canvas")).toHaveClass(
-    /simulation-net-pick-active/u,
-  );
+  await expect(canvas).toHaveClass(/simulation-net-pick-active/u);
+  await expect(canvas).not.toHaveClass(/component-mode/u);
   const pickedRoute = page.getByTestId("route-hit-route-simulation-pick");
   await expect
     .poll(() =>
       pickedRoute.evaluate((element) => getComputedStyle(element).strokeWidth),
     )
     .toBe("26px");
-  await pickedRoute.dispatchEvent("pointerdown", {
-    button: 0,
-    pointerId: 1,
-    pointerType: "mouse",
-  });
+  await clickRoute(page, "route-simulation-pick", 0.15);
+  await expect(simulation.getByLabel("Saved Nets")).toContainText("HORIZONTAL");
+  await clickRoute(page, "route-simulation-pick", 0.85);
+  await expect(simulation.getByLabel("Saved Nets")).toContainText("None");
+  await clickRoute(page, "route-simulation-pick", 0.5);
   await expect(simulation.getByLabel("Saved Nets")).toContainText("HORIZONTAL");
   await page.keyboard.press("Escape");
   await expect(page.locator(".schematic-canvas")).not.toHaveClass(
@@ -190,14 +197,26 @@ test("opens one digital simulation window and picks a Net from the canvas", asyn
 
   await simulation.getByRole("button", { name: "Clear" }).click();
   await simulation.getByLabel("Add saved Net").selectOption("clock");
-  await simulation.getByLabel("Waveform alias for CK").fill("CLK_ALIAS");
+  const waveformName = simulation.getByLabel("Waveform name for CK");
+  await expect(waveformName).toHaveValue("CK");
+  await waveformName.fill("");
+  await waveformName.press("Tab");
+  await expect(waveformName).toHaveValue("CK");
+  await waveformName.fill("CLK_ALIAS");
+  await expect(
+    simulation.locator(".simulation-saved-net-source"),
+  ).toContainText("CK");
   await simulation.getByRole("button", { name: "Run Simulation" }).click();
   const waveformPreview = simulation.getByTestId("timing-waveform-preview");
   await expect(waveformPreview).toBeVisible();
   await expect(waveformPreview).toContainText("CLK_ALIAS");
   await expect(waveformPreview.locator("text").first()).toHaveCSS(
     "font-weight",
-    "400",
+    "700",
+  );
+  await expect(waveformPreview.locator("text").first()).toHaveCSS(
+    "font-style",
+    "italic",
   );
 
   const placeSnapshot = async (xRatio: number, yRatio: number) => {
@@ -205,7 +224,6 @@ test("opens one digital simulation window and picks a Net from the canvas", asyn
     await simulation
       .getByRole("button", { name: "Close Digital Simulation" })
       .click();
-    const canvas = page.getByTestId("schematic-canvas");
     await expect(canvas).toHaveClass(/waveform-placement-active/u);
     const bounds = await canvas.boundingBox();
     expect(bounds).not.toBeNull();
@@ -241,6 +259,17 @@ test("opens one digital simulation window and picks a Net from the canvas", asyn
   await expect(selectedDraftingHits).toHaveCount(firstSnapshotSize);
 
   const secondSnapshotTitle = draftingHits.nth(firstSnapshotSize);
+  const secondSnapshotTrace = draftingHits.nth(firstSnapshotSize + 2);
+  const secondSnapshotTraceId = await secondSnapshotTrace.getAttribute(
+    "data-drag-object-id",
+  );
+  expect(secondSnapshotTraceId).not.toBeNull();
+  const secondSnapshotTraceLine = canvas.locator(
+    `[data-object-id="${secondSnapshotTraceId}"][data-kind="construction-line"]`,
+  );
+  const traceStrokeBefore = Number(
+    await secondSnapshotTraceLine.getAttribute("stroke-width"),
+  );
   const titleBeforeScale = await secondSnapshotTitle.boundingBox();
   expect(titleBeforeScale).not.toBeNull();
   const scaleHandle = page.locator(
@@ -260,6 +289,10 @@ test("opens one digital simulation window and picks a Net from the canvas", asyn
   await expect(page.getByTestId("status")).toContainText("Scaled waveform to");
   const titleAfterScale = await secondSnapshotTitle.boundingBox();
   expect(titleAfterScale!.width).toBeGreaterThan(titleBeforeScale!.width * 1.1);
+  const traceStrokeAfter = Number(
+    await secondSnapshotTraceLine.getAttribute("stroke-width"),
+  );
+  expect(traceStrokeAfter).toBeGreaterThan(traceStrokeBefore * 1.1);
 
   const firstGroupMember = draftingHits.first();
   const secondGroupMember = draftingHits.nth(1);
