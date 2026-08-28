@@ -1002,3 +1002,68 @@
     transform: none;
   }
 }
+
+/* The two walls: everyone's circuits, and your own private shelf. */
+.gallery-view-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 14px 22px 0;
+  border-bottom: 1px solid var(--icm-border);
+}
+
+.gallery-view-tab {
+  appearance: none;
+  border: 1px solid transparent;
+  border-bottom: none;
+  background: none;
+  color: var(--icm-text-muted);
+  font: inherit;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 8px 8px 0 0;
+  cursor: pointer;
+  transform: translateY(1px);
+}
+
+.gallery-view-tab:hover {
+  color: var(--icm-text);
+}
+
+.gallery-view-tab[aria-selected="true"] {
+  color: var(--icm-text);
+  background: var(--icm-surface);
+  border-color: var(--icm-border);
+}
+
+.shelf-count {
+  margin: 0 0 12px;
+  color: var(--icm-text-muted);
+  font-size: 0.85rem;
+}
+
+.shelf-tile-revision {
+  color: var(--icm-text-muted);
+}
+
+.shelf-tile-delete {
+  appearance: none;
+  border: 1px solid var(--icm-border);
+  background: var(--icm-surface);
+  color: var(--icm-text-muted);
+  font: inherit;
+  font-size: 0.8rem;
+  padding: 4px 10px;
+  border-radius: var(--icm-radius-sm);
+  margin-top: 6px;
+  cursor: pointer;
+}
+
+.shelf-tile-delete:hover:not(:disabled) {
+  color: var(--icm-text);
+  border-color: var(--icm-text);
+}
+
+.shelf-tile-delete:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

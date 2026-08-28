@@ -2,7 +2,7 @@ import type { CircuitProject } from "@icm/model";
 import { serializeProject } from "@icm/project-protocol";
 
 /** Private formal Project storage. One id owns one mutable current revision. */
-export const CLOUD_PROJECT_LIMIT = 3;
+export const CLOUD_PROJECT_LIMIT = 20;
 
 export interface CloudProjectSummary {
   id: string;
@@ -42,6 +42,18 @@ export type CloudProjectListOutcome =
   | { status: "unreachable"; message: string };
 
 const ENDPOINT = "/api/projects";
+
+/**
+ * The shelf thumbnail for one Cloud Project. The revision names the bytes, so
+ * a saved change shows immediately while an unchanged tile stays cached.
+ */
+export function cloudProjectPreviewUrl(
+  projectId: string,
+  revision: number,
+): string {
+  const id = encodeURIComponent(projectId);
+  return `${ENDPOINT}/${id}/preview.svg?v=${revision}`;
+}
 
 function summaryOf(value: unknown): CloudProjectSummary | null {
   if (typeof value !== "object" || value === null) return null;

@@ -723,7 +723,11 @@ export function App({
     (typeof window !== "undefined" &&
       (() => {
         const search = new URLSearchParams(window.location.search);
-        return search.has("example") || search.get("new") === "1";
+        return (
+          search.has("example") ||
+          search.has("project") ||
+          search.get("new") === "1"
+        );
       })());
   useEffect(() => {
     if (
@@ -2274,6 +2278,10 @@ export function App({
     const exampleId = new URLSearchParams(window.location.search).get(
       "example",
     );
+    // A tile on the shelf opens straight into its Project.
+    const shelfProjectId = new URLSearchParams(window.location.search).get(
+      "project",
+    );
     const requestsNewProject =
       new URLSearchParams(window.location.search).get("new") === "1";
     if (initialGalleryEntryId) {
@@ -2283,6 +2291,11 @@ export function App({
     if (requestsNewProject) {
       replaceActiveProject(preparedInitialProject, DEFAULT_VIEWBOX);
       setStatus("Created a new Project");
+      return;
+    }
+    if (shelfProjectId) {
+      setStatus("Opening your Cloud Project…");
+      void openCloudProjectById(shelfProjectId);
       return;
     }
     if (exampleId) {
