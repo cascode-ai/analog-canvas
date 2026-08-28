@@ -1,7 +1,6 @@
 // Public Gallery HTTP policy and rendering. Durable storage lives in
 // gallery-do.ts; this module only authenticates and maps API requests.
 
-import { evaluateSubmissionGates } from "@icm/derived";
 import { analyzeDesignNetlist } from "@icm/netlist";
 import { parseProject, serializeProject } from "@icm/project-protocol";
 import { renderDocumentSvg } from "@icm/render-svg";
@@ -278,15 +277,6 @@ async function handleSubmission(
     return Response.json({ error: "invalid-project" }, { status: 400 });
   }
   const projectResolver = createProjectSymbolResolver(project, builtInSymbols);
-  if (!privileged) {
-    const report = evaluateSubmissionGates(project, projectResolver);
-    if (!report.ok) {
-      return Response.json(
-        { error: "quality-gate", failures: report.failures },
-        { status: 422 },
-      );
-    }
-  }
   project.name = name;
   const now = new Date();
   const { status, payload } = await callGallery<{
@@ -398,15 +388,6 @@ async function handleEntryUpdate(
     return Response.json({ error: "invalid-project" }, { status: 400 });
   }
   const projectResolver = createProjectSymbolResolver(project, builtInSymbols);
-  if (!privileged) {
-    const report = evaluateSubmissionGates(project, projectResolver);
-    if (!report.ok) {
-      return Response.json(
-        { error: "quality-gate", failures: report.failures },
-        { status: 422 },
-      );
-    }
-  }
   project.name = name;
   const nextStatus = existing.payload.status ?? "public";
   const netlistable = analyzeDesignNetlist(project).ir ? 1 : 0;

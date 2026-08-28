@@ -1099,26 +1099,20 @@ describe("gallery submissions", () => {
 });
 
 describe("direct publishing (the review queue is retired)", () => {
-  it("keeps the gates blocking for a member and open for a curator", async () => {
+  it("publishes for every role: quality checks are advisory, never a gate", async () => {
     const env = environment();
     const cookie = await makerOf(env);
 
-    const gated = await route(
+    // An ordinary member publishes even when the quality checks would flag
+    // the project; the checker has false positives and sharing is the point.
+    const member = await route(
       env,
       submissionRequest(
         { name: "Empty", projectText: projectText("Empty") },
         { cookie },
       ),
     );
-    expect(gated.status).toBe(422);
-    const payload = (await gated.json()) as {
-      error: string;
-      failures: { code: string }[];
-    };
-    expect(payload.error).toBe("quality-gate");
-    expect(payload.failures.map((failure) => failure.code)).toContain(
-      "empty-project",
-    );
+    expect(member.status).toBe(201);
 
     // A curator curates: the same empty project goes straight up.
     const adminCookie = await adminOf(env);
@@ -1732,8 +1726,9 @@ describe("gallery owner editing", () => {
     // The detail response names the owner so the editor can offer updates.
     expect(typeof detail.ownerUserId).toBe("string");
 
-    // An empty replacement still fails the gates for the ordinary owner.
-    const gated = await route(
+    // Quality checks are advisory on updates too: an ordinary owner may
+    // replace the entry with a sparse sketch.
+    const sparse = await route(
       env,
       new Request(`${ORIGIN}/api/gallery/${id}`, {
         method: "PUT",
@@ -1745,7 +1740,7 @@ describe("gallery owner editing", () => {
         body: JSON.stringify({ name: "Empty", projectText: projectText() }),
       }),
     );
-    expect(gated.status).toBe(422);
+    expect(sparse.status).toBe(200);
   });
 });
 
