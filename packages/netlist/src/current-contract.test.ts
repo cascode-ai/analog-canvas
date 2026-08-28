@@ -710,3 +710,44 @@ describe("current formal cell interface", () => {
     });
   });
 });
+
+describe("voltage-controlled switch", () => {
+  it("extracts and prints the four-node S card the simulator reads", () => {
+    const project = createEmptyProject("project", "Project");
+    const document = project.documents[0]!;
+    document.instances.push({
+      id: "S1",
+      symbolId: "voltage-controlled-switch",
+      placement: null,
+      netlist: {
+        reference: "S1",
+        binding: { kind: "model", deviceClass: "switch", name: "SW_RLY" },
+        parameters: {},
+      },
+    });
+    // Two switched nodes then two control nodes, in the descriptor's pin
+    // order, which is the order SPICE reads them.
+    const wire = (netId: string, name: string, pinName: string) => {
+      document.nets.push({
+        id: netId,
+        terminals: [{ instanceId: "S1", pinName }],
+      });
+      claimNet(document, netId, name);
+    };
+    wire("net-a", "vout", "P");
+    wire("net-b", "0", "N");
+    wire("net-c", "vctrl", "CP");
+    wire("net-d", "vcm", "CN");
+
+    const analysis = analyzeDesignNetlist(project);
+    expect(
+      analysis.diagnostics.filter(
+        (diagnostic) => diagnostic.severity === "error",
+      ),
+    ).toEqual([]);
+    expect(analysis.ir).not.toBeNull();
+    expect(printSpiceNetlist(analysis.ir!)).toContain(
+      "S1 vout 0 vctrl vcm SW_RLY",
+    );
+  });
+});

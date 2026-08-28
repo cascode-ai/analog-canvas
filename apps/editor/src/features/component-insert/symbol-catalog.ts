@@ -112,7 +112,11 @@ export function symbolCategory(symbolId: string): string {
   ) {
     return "Sources";
   }
-  if (["ideal-switch", "closed-switch"].includes(symbolId)) {
+  if (
+    ["ideal-switch", "closed-switch", "voltage-controlled-switch"].includes(
+      symbolId,
+    )
+  ) {
     return "Switches";
   }
   return "Power and Ports";

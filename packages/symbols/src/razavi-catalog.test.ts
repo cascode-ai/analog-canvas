@@ -132,7 +132,9 @@ describe("Razavi symbol catalog", () => {
       razaviSymbolCatalogEntries.map((entry) => [
         entry.symbolId,
         entry.reviewStatus,
-        entry.visualAuthority.kind,
+        // A house primitive has no visual authority and reports its
+        // provenance instead, so the table shows what each entry answers to.
+        entry.visualAuthority?.kind ?? entry.provenance,
       ]),
     ).toEqual([
       ["and-gate", "reviewed", "razavi-reference-v1"],
@@ -182,6 +184,7 @@ describe("Razavi symbol catalog", () => {
       ["vdd-port", "reviewed", "razavi-reference-v1"],
       ["voltage-amplifier", "reviewed", "razavi-reference-v1"],
       ["pulse-voltage-source", "reviewed", "razavi-reference-v1"],
+      ["voltage-controlled-switch", "reviewed", "house"],
       ["voltage-source", "reviewed", "razavi-reference-v1"],
       ["xnor-gate", "reviewed", "razavi-reference-v1"],
       ["xor-gate", "reviewed", "razavi-reference-v1"],
@@ -498,7 +501,7 @@ describe("Razavi symbol catalog", () => {
   });
 
   it("uses reviewed catalog objects as the sole built-in product library", () => {
-    expect(razaviCatalogSymbols).toHaveLength(47);
+    expect(razaviCatalogSymbols).toHaveLength(48);
     for (const catalogSymbol of razaviProductSymbols) {
       expect(
         builtInSymbols.find((symbol) => symbol.id === catalogSymbol.id),
@@ -549,6 +552,7 @@ describe("Razavi symbol catalog", () => {
       "vdd-port",
       "voltage-amplifier",
       "pulse-voltage-source",
+      "voltage-controlled-switch",
       "voltage-source",
       "xnor-gate",
       "xor-gate",

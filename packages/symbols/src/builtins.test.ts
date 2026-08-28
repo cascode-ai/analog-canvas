@@ -47,6 +47,7 @@ const PRODUCT_IDS = [
   "vdd-port",
   "voltage-amplifier",
   "pulse-voltage-source",
+  "voltage-controlled-switch",
   "voltage-source",
   "xnor-gate",
   "xor-gate",

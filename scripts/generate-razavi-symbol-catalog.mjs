@@ -128,35 +128,57 @@ for (const entry of catalog.entries) {
   ) {
     fail(`${entry.symbolId} is unreachable and lacks a manual-only reason`);
   }
-  if (entry.visualAuthority.kind !== "razavi-reference-v1") {
-    fail(`invalid visual authority for ${entry.symbolId}`);
+  const provenance = entry.provenance ?? "razavi-reference-v1";
+  if (provenance !== "razavi-reference-v1" && provenance !== "house") {
+    fail(`invalid provenance for ${entry.symbolId}`);
   }
-  const manifestPath = resolve(
-    root,
-    entry.visualAuthority.referenceManifestPath,
-  );
-  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
-  if (
-    manifest.id !== "razavi-reference-v1" ||
-    manifest.visualAuthority !== "sole"
-  ) {
-    fail(`invalid Razavi Reference authority for ${entry.symbolId}`);
-  }
-  if (entry.visualAuthority.referencePaths.length === 0) {
-    fail(`missing Razavi Reference path for ${entry.symbolId}`);
-  }
-  for (const referencePath of entry.visualAuthority.referencePaths) {
-    if (
-      !referencePath.startsWith(
-        "fixtures/visual-reference/razavi-reference-v1/",
-      )
-    ) {
-      fail(`reference path escapes Razavi authority for ${entry.symbolId}`);
+  if (provenance === "house") {
+    // Drawn here, for a primitive the reference never contained. It must not
+    // borrow the authority it does not have, and it must say why it exists.
+    if (entry.visualAuthority) {
+      fail(`house entry ${entry.symbolId} must not claim visual authority`);
     }
-    await readFile(resolve(root, referencePath));
-  }
-  if (entry.visualAuthority.calibrationPath) {
-    await readFile(resolve(root, entry.visualAuthority.calibrationPath));
+    if (!entry.houseReason) {
+      fail(
+        `house entry ${entry.symbolId} must state why the reference lacks it`,
+      );
+    }
+  } else {
+    if (entry.houseReason) {
+      fail(
+        `${entry.symbolId} states a house reason but claims Razavi authority`,
+      );
+    }
+    if (entry.visualAuthority?.kind !== "razavi-reference-v1") {
+      fail(`invalid visual authority for ${entry.symbolId}`);
+    }
+    const manifestPath = resolve(
+      root,
+      entry.visualAuthority.referenceManifestPath,
+    );
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+    if (
+      manifest.id !== "razavi-reference-v1" ||
+      manifest.visualAuthority !== "sole"
+    ) {
+      fail(`invalid Razavi Reference authority for ${entry.symbolId}`);
+    }
+    if (entry.visualAuthority.referencePaths.length === 0) {
+      fail(`missing Razavi Reference path for ${entry.symbolId}`);
+    }
+    for (const referencePath of entry.visualAuthority.referencePaths) {
+      if (
+        !referencePath.startsWith(
+          "fixtures/visual-reference/razavi-reference-v1/",
+        )
+      ) {
+        fail(`reference path escapes Razavi authority for ${entry.symbolId}`);
+      }
+      await readFile(resolve(root, referencePath));
+    }
+    if (entry.visualAuthority.calibrationPath) {
+      await readFile(resolve(root, entry.visualAuthority.calibrationPath));
+    }
   }
   if (assetPaths.has(entry.assetPath)) {
     fail(`duplicate asset path ${entry.assetPath}`);

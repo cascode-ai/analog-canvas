@@ -1057,6 +1057,19 @@
       }
     },
     {
+      "symbolId": "voltage-controlled-switch",
+      "name": "Voltage-Controlled Switch",
+      "category": "switch",
+      "reviewStatus": "reviewed",
+      "provenance": "house",
+      "houseReason": "The reference draws a two-terminal switch and no control terminals, while a SPICE switch is S<ref> n+ n- nc+ nc- MODEL. Drawn here rather than by widening the two-terminal evidence with geometry the source does not contain.",
+      "pinOrder": ["P", "N", "CP", "CN"],
+      "palette": true,
+      "automaticMappings": ["spice:S"],
+      "assetPath": "voltage-controlled-switch.symbol.json",
+      "assetHash": "017dca36a916932614666b12f91785e8edf7848c1751cc30157ecdae94200db0"
+    },
+    {
       "symbolId": "voltage-source",
       "name": "Independent Voltage Source",
       "category": "source",

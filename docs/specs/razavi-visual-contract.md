@@ -2,7 +2,7 @@
 
 Status: `accepted`
 
-Version: `1.1`
+Version: `1.2`
 
 Owners: `fixtures/visual-reference`, `packages/symbols`, `packages/derived`,
 `packages/render-svg`, `scripts`
@@ -14,13 +14,37 @@ construction, product exposure, reference registration, and pixel-fidelity
 comparison. Generic Symbol DSL, electrical model, routing, and export contracts
 remain in their owning specifications and are not duplicated here.
 
+## Scope
+
+Every catalog entry declares its `provenance`:
+
+- `razavi-reference-v1` — drawn from the reviewed textbook authority. Every
+  rule in this contract applies, and the entry must pin its evidence.
+- `house` — drawn here, for a primitive the textbook does not contain. It
+  carries no visual authority and claims none.
+
+`razavi-reference-v1` is the default and stays the rule for anything the
+textbook covers. A `house` entry exists so a primitive the reference simply
+never drew — a four-terminal voltage-controlled switch, say — can be placed
+at all, instead of being unreachable because a book about analog design had
+no figure for it.
+
+The line is deliberate and narrow. A `house` entry may not stand in for a
+component the reference does cover, and may not be introduced to avoid the
+work of pinning evidence for one that it does. Naming the provenance in the
+catalog is what keeps the distinction checkable rather than remembered: a
+reader can see at a glance which artwork answers to the textbook and which
+answers to us.
+
 ## Authority and evidence
 
+The rules in this section govern `razavi-reference-v1` entries.
+
 `fixtures/visual-reference/razavi-reference-v1/manifest.json` and the evidence
-it hash-pins are the sole visual authority. They control component geometry,
-stroke hierarchy, node and interface-symbol treatment, arrows, typography,
-annotations, and visual acceptance. Supplemental rasters and PDF vector
-extracts are scoped evidence inside the same authority, not competing
+it hash-pins are the sole visual authority for them. They control component
+geometry, stroke hierarchy, node and interface-symbol treatment, arrows,
+typography, annotations, and visual acceptance. Supplemental rasters and PDF
+vector extracts are scoped evidence inside the same authority, not competing
 authorities.
 
 Existing raster targets remain raster-owned. A `pdf-vector-extract` entry is
@@ -34,7 +58,10 @@ derived artwork must never serve as the raster witness.
 
 VSS, decoded master IR, historical generators, and the
 current candidate rendering are not visual evidence. If the authority lacks a
-component or feature, it remains unreviewed; do not infer it from those sources.
+component or feature, it remains unreviewed; do not infer it from those
+sources, and never widen an evidence file to cover geometry the source does
+not contain. A primitive the textbook never drew is a `house` entry, drawn
+openly as ours, rather than a Razavi entry with invented evidence.
 
 PDF extraction, Symbol generation, and raster comparison are separate tools:
 

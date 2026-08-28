@@ -1265,6 +1265,21 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     },
   },
   {
+    symbolId: "voltage-controlled-switch",
+    name: "Voltage-Controlled Switch",
+    category: "switch",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "The reference draws a two-terminal switch and no control terminals, while a SPICE switch is S<ref> n+ n- nc+ nc- MODEL. Drawn here rather than by widening the two-terminal evidence with geometry the source does not contain.",
+    pinOrder: ["P", "N", "CP", "CN"],
+    palette: true,
+    automaticMappings: ["spice:S"],
+    assetPath: "voltage-controlled-switch.symbol.json",
+    assetHash:
+      "017dca36a916932614666b12f91785e8edf7848c1751cc30157ecdae94200db0",
+  },
+  {
     symbolId: "voltage-source",
     name: "Independent Voltage Source",
     category: "source",
@@ -7443,6 +7458,232 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         to: {
           x: 0,
           y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "voltage-controlled-switch",
+    name: "Voltage-Controlled Switch",
+    viewBox: {
+      x: -34,
+      y: -27,
+      width: 68,
+      height: 55,
+    },
+    pins: [
+      {
+        name: "P",
+        role: "passive",
+        at: {
+          x: -30,
+          y: -10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "N",
+        role: "passive",
+        at: {
+          x: 30,
+          y: -10,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "CP",
+        role: "passive",
+        at: {
+          x: -30,
+          y: 20,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "CN",
+        role: "passive",
+        at: {
+          x: 30,
+          y: 20,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: -10,
+        },
+        to: {
+          x: -13,
+          y: -10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "circle",
+        center: {
+          x: -10,
+          y: -10,
+        },
+        radius: 3,
+        fill: "none",
+        stroke: "foreground",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -7,
+          y: -12.4,
+        },
+        to: {
+          x: 6.4,
+          y: -22.8,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "circle",
+        center: {
+          x: 11,
+          y: -10,
+        },
+        radius: 3,
+        fill: "none",
+        stroke: "foreground",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 14,
+          y: -10,
+        },
+        to: {
+          x: 30,
+          y: -10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: 20,
+        },
+        to: {
+          x: -4,
+          y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 4,
+          y: 20,
+        },
+        to: {
+          x: 30,
+          y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 16,
+        },
+        to: {
+          x: 0,
+          y: 12,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 8,
+        },
+        to: {
+          x: 0,
+          y: 4,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 0,
+        },
+        to: {
+          x: 0,
+          y: -4,
         },
         style: {
           strokeRole: "normal",

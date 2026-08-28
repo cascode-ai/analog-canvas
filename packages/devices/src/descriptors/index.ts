@@ -15,6 +15,7 @@ export { resistorDevice } from "./resistor.js";
 export { variableCapacitorDevice } from "./variable-capacitor.js";
 export { variableInductorDevice } from "./variable-inductor.js";
 export { variableResistorDevice } from "./variable-resistor.js";
+export { voltageControlledSwitchDevice } from "./voltage-controlled-switch.js";
 export { vddPortDevice } from "./vdd-port.js";
 export { voltageSourceDevice } from "./voltage-source.js";
 export { zenerDiodeDevice } from "./zener-diode.js";

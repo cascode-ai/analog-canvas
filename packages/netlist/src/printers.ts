@@ -106,6 +106,9 @@ function spiceInstance(instance: DesignNetlistInstance): string[] {
     case "mos":
     case "diode":
     case "bjt":
+    // `S<ref> n+ n- nc+ nc- MODEL`: nodes then the model card, the same shape
+    // as every other model-bearing primitive.
+    case "switch":
       tokens = [
         instance.reference,
         ...nodes,
@@ -211,6 +214,7 @@ function spectreInstance(instance: DesignNetlistInstance): string {
     case "mos":
     case "diode":
     case "bjt":
+    case "switch":
     case "hierarchical":
       master = instance.target!;
       values = assignments(instance.parameters);

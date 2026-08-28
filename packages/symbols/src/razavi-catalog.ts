@@ -11,7 +11,18 @@ export interface RazaviSymbolCatalogEntry {
   name: string;
   category: string;
   reviewStatus: "reviewed" | "provisional";
-  visualAuthority: {
+  /**
+   * Where the artwork comes from. `razavi-reference-v1` answers to the
+   * reviewed textbook authority and pins its evidence; `house` is drawn here
+   * for a primitive the textbook never contained, and says so rather than
+   * borrowing an authority it does not have. Absent means Razavi, which is
+   * what every reviewed entry is.
+   */
+  provenance?: "razavi-reference-v1" | "house";
+  /** Required on a house entry: why the reference does not cover it. */
+  houseReason?: string;
+  /** Present exactly when the provenance is `razavi-reference-v1`. */
+  visualAuthority?: {
     kind: "razavi-reference-v1";
     referenceManifestPath: string;
     referencePaths: string[];
@@ -81,10 +92,11 @@ const entriesById = new Map(
 export function isRazaviLibraryCatalogEntry(
   entry: RazaviSymbolCatalogEntry,
 ): boolean {
-  return (
-    entry.reviewStatus === "reviewed" &&
-    entry.visualAuthority.kind === "razavi-reference-v1"
-  );
+  if (entry.reviewStatus !== "reviewed") return false;
+  // A house primitive resolves and draws like any other reviewed entry; what
+  // it does not do is claim the reference's authority for its geometry.
+  if (entry.provenance === "house") return entry.visualAuthority === undefined;
+  return entry.visualAuthority?.kind === "razavi-reference-v1";
 }
 
 /** Browsable: the subset a person picks from. */

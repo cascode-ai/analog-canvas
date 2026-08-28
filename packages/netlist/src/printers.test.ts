@@ -166,6 +166,19 @@ describe("design netlist printers", () => {
     );
   });
 
+  it("prints a voltage-controlled switch as its four-node S card", () => {
+    const ir = structuralIr();
+    ir.cells[1]!.instances.push(
+      device("s1", "S1", "switch", ["vout", "0", "vctrl", "0"], "SW_RLY", []),
+    );
+
+    // The card a simulator reads: two switched nodes, two control nodes, then
+    // the model. Node order is the descriptor's pin order, so nothing is
+    // reordered on the way out.
+    expect(printSpiceNetlist(ir)).toContain("S1 vout 0 vctrl 0 SW_RLY");
+    expect(printSpectreNetlist(ir)).toContain("S1 (vout 0 vctrl 0) SW_RLY");
+  });
+
   it("wraps long SPICE instance records with continuation lines", () => {
     const ir = structuralIr();
     ir.cells[1]!.instances[0]!.parameters = Array.from(

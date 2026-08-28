@@ -55,6 +55,9 @@ export const NetlistDeviceClassSchema = z.enum([
   "bjt",
   "voltage-source",
   "current-source",
+  // A voltage-controlled switch: `S<ref> n+ n- nc+ nc- MODEL` — two switched
+  // nodes, two control nodes, and a required model card.
+  "switch",
   "net-marker",
 ]);
 export const InstanceNetlistBindingSchema = z.discriminatedUnion("kind", [
