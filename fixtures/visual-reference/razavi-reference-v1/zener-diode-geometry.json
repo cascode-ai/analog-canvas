@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "referenceId": "razavi-reference-v1",
+  "symbols": {
+    "zener-diode": {
+      "assetPath": "zener-diode-reference.png",
+      "pixelsPerLogical": 2.4,
+      "originPx": {
+        "x": 24.888201,
+        "y": 48.916484
+      },
+      "window": {
+        "width": 48,
+        "height": 96,
+        "minX": -10,
+        "minY": -20
+      }
+    }
+  }
+}

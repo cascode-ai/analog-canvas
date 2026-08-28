@@ -1,0 +1,259 @@
+{
+  "schemaVersion": 1,
+  "id": "razavi-textbook-zener-diode",
+  "kind": "pdf-vector-extract",
+  "source": {
+    "title": "Fundamentals of Microelectronics, First Edition",
+    "sha256": "4b5d1a96f998a6fb7f9ce2d1251a0087712032297e858e118f7476fa37d7d586",
+    "pdfPage": 126,
+    "printedPage": 101,
+    "figure": "3.44(a)"
+  },
+  "selection": {
+    "method": "direct-device-vector-normalization",
+    "boundsPdf": {
+      "left": 271.5,
+      "top": 136.4,
+      "right": 279.4,
+      "bottom": 158.7
+    },
+    "nativeObjectCount": 5,
+    "nativeObjectSha256": "dc941d675d9b8d0661cc8ee027f4d90a135423012bd1ba05f5706fed4dd7a261",
+    "nativeObjects": [
+      {
+        "objectType": "line",
+        "x0": 275.576,
+        "top": 150.803,
+        "x1": 275.576,
+        "bottom": 158.622,
+        "lineWidthPdfPt": 0.717,
+        "pathCommandCount": 2,
+        "pathSha256": "342da5a17d9217d5a57cc44341b8740f09c948aab07d5f5cfdd2535aa94600e0"
+      },
+      {
+        "objectType": "line",
+        "x0": 275.576,
+        "top": 136.453,
+        "x1": 275.576,
+        "bottom": 144.272,
+        "lineWidthPdfPt": 0.717,
+        "pathCommandCount": 2,
+        "pathSha256": "770a06e9feb79da69af360fab7b2943292373811585ac195629d10f6deb313f7"
+      },
+      {
+        "objectType": "curve",
+        "x0": 272.706,
+        "top": 144.345,
+        "x1": 278.446,
+        "bottom": 150.802,
+        "lineWidthPdfPt": 0.717,
+        "pathCommandCount": 4,
+        "pathSha256": "00a598b0473c6ea06f9557acab07f58aa08df026b8af7eb0dfdd45864b5e8033"
+      },
+      {
+        "objectType": "curve",
+        "x0": 272.706,
+        "top": 144.345,
+        "x1": 278.446,
+        "bottom": 150.802,
+        "lineWidthPdfPt": 0.717,
+        "pathCommandCount": 4,
+        "pathSha256": "f811b2251d6eb0064aab254b3dbd0124fc4ed261dc52f1edacc07b5bebcc0d42"
+      },
+      {
+        "objectType": "curve",
+        "x0": 271.764,
+        "top": 141.09,
+        "x1": 279.253,
+        "bottom": 147.592,
+        "lineWidthPdfPt": 1.435,
+        "pathCommandCount": 4,
+        "pathSha256": "a37669c8e1fef26d418f6a1ef09b4535ed444ec2971083ef1694aec962dc0bc2"
+      }
+    ]
+  },
+  "normalization": {
+    "originPdf": {
+      "x": 275.576,
+      "y": 147.3055
+    },
+    "logicalUnitsPerPdfPoint": 2.23152,
+    "pinAnchorsLogical": [
+      {
+        "name": "A",
+        "x": -20,
+        "y": 0
+      },
+      {
+        "name": "K",
+        "x": 20,
+        "y": 0
+      }
+    ],
+    "strokeMapping": {
+      "normal": {
+        "sourcePdfPt": 0.717,
+        "targetRole": "normal"
+      },
+      "cathode": {
+        "sourcePdfPt": 1.435,
+        "targetRole": "emphasis"
+      }
+    },
+    "symbolDefinition": {
+      "schemaVersion": 1,
+      "id": "zener-diode",
+      "name": "Zener Diode",
+      "viewBox": {
+        "x": -24,
+        "y": -10,
+        "width": 48,
+        "height": 20
+      },
+      "pins": [
+        {
+          "name": "A",
+          "role": "anode",
+          "at": {
+            "x": -20,
+            "y": 0
+          },
+          "direction": "west",
+          "presentation": {
+            "visibility": "visible",
+            "leadLength": 10
+          }
+        },
+        {
+          "name": "K",
+          "role": "cathode",
+          "at": {
+            "x": 20,
+            "y": 0
+          },
+          "direction": "east",
+          "presentation": {
+            "visibility": "visible",
+            "leadLength": 10
+          }
+        }
+      ],
+      "primitives": [
+        {
+          "kind": "line",
+          "from": {
+            "x": -20,
+            "y": 0
+          },
+          "to": {
+            "x": -7.802511,
+            "y": 0
+          },
+          "style": {
+            "strokeRole": "normal",
+            "lineCap": "butt",
+            "lineJoin": "miter"
+          }
+        },
+        {
+          "kind": "polygon",
+          "points": [
+            {
+              "x": -7.802511,
+              "y": -6.404463
+            },
+            {
+              "x": -7.802511,
+              "y": 6.404463
+            },
+            {
+              "x": 6.606415,
+              "y": 0.0
+            }
+          ],
+          "fill": "none",
+          "stroke": "foreground",
+          "style": {
+            "strokeRole": "normal",
+            "lineCap": "butt",
+            "lineJoin": "miter"
+          }
+        },
+        {
+          "kind": "polyline",
+          "points": [
+            {
+              "x": -0.639331,
+              "y": -8.506555
+            },
+            {
+              "x": 6.666666,
+              "y": -8.406137
+            },
+            {
+              "x": 6.666666,
+              "y": 8.2053
+            },
+            {
+              "x": 13.870013,
+              "y": 8.2053
+            }
+          ],
+          "style": {
+            "strokeRole": "emphasis",
+            "lineCap": "butt",
+            "lineJoin": "miter"
+          }
+        },
+        {
+          "kind": "line",
+          "from": {
+            "x": 6.666666,
+            "y": 0
+          },
+          "to": {
+            "x": 20,
+            "y": 0
+          },
+          "style": {
+            "strokeRole": "normal",
+            "lineCap": "butt",
+            "lineJoin": "miter"
+          }
+        }
+      ],
+      "variants": []
+    }
+  },
+  "derivation": {
+    "orientation": "native vertical symbol rotated into the canonical A-left/K-right product orientation",
+    "pinExtension": "native circuit leads replaced by symmetric leads ending at the nearest 20-unit anchors",
+    "topology": "native open diode outline and native four-segment bent Zener cathode retained"
+  },
+  "rasterWitness": {
+    "kind": "source-pdf-crop",
+    "sourcePdfPage": 126,
+    "dpi": 385.606695,
+    "pixels": {
+      "width": 48,
+      "height": 96
+    },
+    "pixelsPerLogical": 2.4,
+    "originPx": {
+      "x": 24.888201,
+      "y": 48.916484
+    },
+    "window": {
+      "width": 48,
+      "height": 96,
+      "minX": -10,
+      "minY": -20
+    },
+    "sourceCropPx": {
+      "x": 1451,
+      "y": 740
+    },
+    "assetPath": "zener-diode-reference.png",
+    "threshold": 160
+  }
+}

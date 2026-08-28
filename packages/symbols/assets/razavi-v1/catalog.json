@@ -1139,6 +1139,34 @@
         "converterPath": "scripts/generate-razavi-logic-gate-assets.mjs",
         "converterVersion": 2
       }
+    },
+    {
+      "symbolId": "zener-diode",
+      "name": "Zener Diode",
+      "category": "passive",
+      "reviewStatus": "reviewed",
+      "pinOrder": ["A", "K"],
+      "palette": true,
+      "automaticMappings": [],
+      "manualOnlyReason": "SPICE D syntax does not distinguish a Zener presentation from an ordinary diode; select this reviewed symbol manually or through an explicit PDK mapping.",
+      "assetPath": "zener-diode.symbol.json",
+      "assetHash": "01261cd11d9a03e7e457d5b0d7ab261b69ff4c28c022a087883ab6614f295772",
+      "visualAuthority": {
+        "kind": "razavi-reference-v1",
+        "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+        "referencePaths": [
+          "fixtures/visual-reference/razavi-reference-v1/zener-diode-vector-source.json",
+          "fixtures/visual-reference/razavi-reference-v1/zener-diode-reference.png"
+        ],
+        "calibrationPath": "fixtures/visual-reference/razavi-reference-v1/zener-diode-geometry.json"
+      },
+      "generation": {
+        "kind": "razavi-pdf-vector-reference",
+        "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+        "referencePath": "fixtures/visual-reference/razavi-reference-v1/zener-diode-vector-source.json",
+        "converterPath": "scripts/generate-razavi-zener-asset.mjs",
+        "converterVersion": 1
+      }
     }
   ],
   "semanticPrimitives": [

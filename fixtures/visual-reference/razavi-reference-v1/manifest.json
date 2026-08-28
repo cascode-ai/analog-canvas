@@ -173,6 +173,26 @@
       "scope": ["outline diode geometry", "double-width cathode bar"]
     },
     {
+      "id": "razavi-textbook-zener-diode",
+      "kind": "pdf-vector-extract",
+      "source": {
+        "title": "Fundamentals of Microelectronics, First Edition",
+        "sha256": "4b5d1a96f998a6fb7f9ce2d1251a0087712032297e858e118f7476fa37d7d586",
+        "pdfPage": 126,
+        "printedPage": 101,
+        "figure": "3.44(a)"
+      },
+      "extractPath": "zener-diode-vector-source.json",
+      "extractSha256": "8eafcf41158edda8570177370b1af9d8e8b7fbc7e87fac99b70a1a5e39f05973",
+      "rasterPath": "zener-diode-reference.png",
+      "rasterSha256": "ca0a4629953a0d6cfd1478d863409fc82a4a366cf73b9c6b8e79dd2616465c1e",
+      "scope": [
+        "Zener diode outline geometry",
+        "bent cathode-bar treatment",
+        "device-to-wire stroke hierarchy"
+      ]
+    },
+    {
       "id": "razavi-textbook-ideal-switch",
       "kind": "pdf-vector-extract",
       "source": {
@@ -371,6 +391,8 @@
   "differentialOpampGeometrySha256": "a3f16365d6a7f87d91459c1708c58152ac81aad7f8832c73144b74d13b148612",
   "commonSymbolGeometryPath": "common-symbol-geometry.json",
   "commonSymbolGeometrySha256": "de9531139628f23ecdadf7dbc51d64ad176d790cb17f6929ef7fbaae597c398a",
+  "zenerDiodeGeometryPath": "zener-diode-geometry.json",
+  "zenerDiodeGeometrySha256": "0ceb7d8e0512e933dc36fff854a851491baf8e270748d6793b40a2fdc1bf1a15",
   "logicGateGeometryPath": "logic-gate-geometry.json",
   "logicGateGeometrySha256": "82ab85760e6c5db3f1201a792fbad19d7a3dad32dfc42c90bd69603f693c88f8",
   "bufferDffGeometryPath": "buffer-dff-geometry.json",
@@ -378,7 +400,7 @@
   "delayCellGeometryPath": "delay-cell-geometry.json",
   "delayCellGeometrySha256": "b64afe75141020b265bc7826a1c21fa5f13cb9f898e9e6bc013f1e0ef3f84985",
   "fidelityTargetsPath": "fidelity-targets.json",
-  "fidelityTargetsSha256": "0555f60611d74e58038b5c8b275d3a89bbfbab82dd4b9b1faf3e2ec980783ad6",
+  "fidelityTargetsSha256": "6e01aec78e60da326a0b16342ea5e3669a84955aa6c740e0b028ef5bb269d63d",
   "pixels": {
     "width": 1204,
     "height": 794
@@ -396,6 +418,7 @@
     "PDF-derived three-terminal op-amp geometry and polarity marks",
     "PDF-derived fully differential op-amp geometry and polarity marks",
     "PDF-derived common BJT, diode, gain-block, and switch families",
+    "PDF-derived Zener diode geometry and bent-cathode treatment",
     "PDF-derived logic-gate bodies, bubbles, and lead junctions",
     "PDF-derived Buffer and generic D flip-flop geometry",
     "PDF-derived page-331 Delay Cell geometry and Delta-T mark",

@@ -74,6 +74,8 @@
     "symbols:razavi-delay-cell:check": "node scripts/generate-razavi-delay-cell-asset.mjs --check",
     "symbols:razavi-common": "node scripts/generate-razavi-common-assets.mjs",
     "symbols:razavi-common:check": "node scripts/generate-razavi-common-assets.mjs --check",
+    "symbols:razavi-zener": "node scripts/generate-razavi-zener-asset.mjs",
+    "symbols:razavi-zener:check": "node scripts/generate-razavi-zener-asset.mjs --check",
     "visual:golden": "pnpm build && node scripts/visual-golden.mjs",
     "visual:golden:check": "pnpm build && node scripts/visual-golden.mjs --check",
     "test": "vitest run",

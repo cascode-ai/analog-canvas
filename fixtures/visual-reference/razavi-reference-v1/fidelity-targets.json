@@ -170,6 +170,14 @@
       "rotation": -90
     },
     {
+      "id": "zener-diode",
+      "measurementPath": "zener-diode-geometry.json",
+      "measurementKey": "zener-diode",
+      "symbolId": "zener-diode",
+      "useVariant": false,
+      "rotation": -90
+    },
+    {
       "id": "ideal-switch",
       "measurementPath": "common-symbol-geometry.json",
       "measurementKey": "ideal-switch",

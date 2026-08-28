@@ -54,6 +54,7 @@ function netlistDeviceClass(symbolId: string): NetlistDeviceClass | null {
     nmos: "mos",
     pmos: "mos",
     diode: "diode",
+    "zener-diode": "diode",
     npn: "bjt",
     pnp: "bjt",
     "voltage-source": "voltage-source",

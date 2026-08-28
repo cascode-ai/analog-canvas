@@ -254,6 +254,7 @@ pnpm symbols:razavi-peripherals
 pnpm symbols:razavi-inductor
 pnpm symbols:razavi-opamp
 pnpm symbols:razavi-common
+pnpm symbols:razavi-zener
 pnpm symbols:razavi
 pnpm symbols:razavi:check
 pnpm --filter @icm/symbols build

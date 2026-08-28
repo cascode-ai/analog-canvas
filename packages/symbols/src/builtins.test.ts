@@ -50,6 +50,7 @@ const PRODUCT_IDS = [
   "voltage-source",
   "xnor-gate",
   "xor-gate",
+  "zener-diode",
 ] as const;
 
 describe("built-in Symbol libraries", () => {

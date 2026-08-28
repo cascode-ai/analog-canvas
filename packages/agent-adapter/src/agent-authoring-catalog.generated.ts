@@ -1055,6 +1055,28 @@ export const agentRazaviAuthoringCatalog = {
       ],
       variants: [],
     },
+    {
+      symbolId: "zener-diode",
+      name: "Zener Diode",
+      category: "passive",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      pins: [
+        {
+          name: "A",
+          role: "anode",
+          direction: "west",
+          visibility: "visible",
+        },
+        {
+          name: "K",
+          role: "cathode",
+          direction: "east",
+          visibility: "visible",
+        },
+      ],
+      variants: [],
+    },
   ],
   primitives: [
     {

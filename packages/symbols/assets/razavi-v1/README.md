@@ -26,6 +26,10 @@ The product set is exactly the reviewed, Reference-calibrated entries:
   target, while `inductor-compact` applies one uniform `pinSpanScale` (2/3)
   recorded in its catalog `generation` block so a schematic mixing R, C, and L
   reads at one scale. Imported SPICE `L` elements take `inductor-compact`;
+- `diode` and `zener-diode`. The Zener body is direct PDF-vector evidence from
+  _Fundamentals of Microelectronics_, Figure 3.44(a). Both retain the SPICE D
+  electrical contract, but Zener presentation is manual or PDK-mapped because
+  ordinary D syntax does not identify breakdown use;
 - the behavioral block family `inverter`, `and-gate`, `or-gate`, `nand-gate`,
   `nor-gate`, `xor-gate`, `xnor-gate`, `buffer`, `delay-cell`,
   `d-flip-flop`, `comparator`, and its polarity-unmarked sibling

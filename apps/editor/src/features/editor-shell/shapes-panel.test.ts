@@ -20,7 +20,7 @@ describe("shapes quick-place", () => {
       }),
     );
 
-    expect(symbols).toHaveLength(52);
+    expect(symbols).toHaveLength(53);
     expect(markup).toContain("All devices");
     expect(markup.match(/data-testid="shapes-chip-/g)).toHaveLength(
       symbols.length,
@@ -34,7 +34,7 @@ describe("shapes quick-place", () => {
     ).toEqual([
       ["Transistors", 5],
       ["Passives", 7],
-      ["Power and Ports", 5],
+      ["Power and Ports", 6],
       ["Sources", 3],
       ["Switches", 2],
       ["Analog Blocks", 6],
@@ -70,6 +70,7 @@ describe("shapes quick-place", () => {
     expect(markup).toContain('aria-label="Place Independent Voltage Source"');
     expect(markup).toContain('aria-label="Place Pulse Voltage Source"');
     expect(markup).toContain('title="Place Capacitor"');
+    expect(markup).toContain('aria-label="Place Zener Diode"');
     expect(markup).toContain('aria-label="Place Variable Resistor"');
     expect(markup).toContain('aria-label="Place Inverter"');
     expect(markup).toContain('aria-label="Place Buffer"');

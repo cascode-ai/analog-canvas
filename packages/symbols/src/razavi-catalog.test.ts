@@ -185,6 +185,7 @@ describe("Razavi symbol catalog", () => {
       ["voltage-source", "reviewed", "razavi-reference-v1"],
       ["xnor-gate", "reviewed", "razavi-reference-v1"],
       ["xor-gate", "reviewed", "razavi-reference-v1"],
+      ["zener-diode", "reviewed", "razavi-reference-v1"],
     ]);
   });
 
@@ -497,7 +498,7 @@ describe("Razavi symbol catalog", () => {
   });
 
   it("uses reviewed catalog objects as the sole built-in product library", () => {
-    expect(razaviCatalogSymbols).toHaveLength(46);
+    expect(razaviCatalogSymbols).toHaveLength(47);
     for (const catalogSymbol of razaviProductSymbols) {
       expect(
         builtInSymbols.find((symbol) => symbol.id === catalogSymbol.id),
@@ -551,6 +552,7 @@ describe("Razavi symbol catalog", () => {
       "voltage-source",
       "xnor-gate",
       "xor-gate",
+      "zener-diode",
     ]);
     for (const entry of razaviSymbolCatalogEntries) {
       expect(isRazaviProductCatalogEntry(entry)).toBe(
@@ -637,6 +639,7 @@ describe("Razavi symbol catalog", () => {
       "inductor",
       "opamp",
       "diode",
+      "zener-diode",
       "closed-switch",
       "ideal-switch",
       "npn",
@@ -993,6 +996,41 @@ describe("Razavi symbol catalog", () => {
       ]),
     );
     expect(diode.pins.map((pin) => pin.at.x)).toEqual([-20, 20]);
+    const zener = requireRazaviCatalogSymbol("zener-diode");
+    expect(zener.pins).toMatchObject([
+      { name: "A", at: { x: -20, y: 0 }, direction: "west" },
+      { name: "K", at: { x: 20, y: 0 }, direction: "east" },
+    ]);
+    expect(zener.primitives).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "polygon",
+          fill: "none",
+          stroke: "foreground",
+          style: expect.objectContaining({ strokeRole: "normal" }),
+        }),
+        expect.objectContaining({
+          kind: "polyline",
+          points: [
+            { x: -0.639331, y: -8.506555 },
+            { x: 6.666666, y: -8.406137 },
+            { x: 6.666666, y: 8.2053 },
+            { x: 13.870013, y: 8.2053 },
+          ],
+          style: expect.objectContaining({ strokeRole: "emphasis" }),
+        }),
+      ]),
+    );
+    expect(getRazaviCatalogEntry("zener-diode")).toMatchObject({
+      automaticMappings: [],
+      manualOnlyReason: expect.stringContaining(
+        "does not distinguish a Zener presentation",
+      ),
+      generation: {
+        kind: "razavi-pdf-vector-reference",
+        converterPath: "scripts/generate-razavi-zener-asset.mjs",
+      },
+    });
     const voltageAmplifier = requireRazaviCatalogSymbol("voltage-amplifier");
     expect(voltageAmplifier.primitives).toEqual(
       expect.arrayContaining([

@@ -86,6 +86,19 @@ describe("built-in device registry", () => {
     });
   });
 
+  it("models the Zener presentation as the ordinary model-bound diode primitive", () => {
+    expect(deviceDescriptor("zener-diode")).toMatchObject({
+      deviceClass: "diode",
+      referencePrefix: "D",
+      pinOrder: ["A", "K"],
+      targetPolicy: "required-model",
+      capabilities: {
+        supportsModel: true,
+        supportsBulkBinding: false,
+      },
+    });
+  });
+
   it("keeps fixed and variable capacitor plate meaning on stable electrical pins", () => {
     const capacitor = deviceDescriptor("capacitor");
     const variableCapacitor = deviceDescriptor("variable-capacitor");

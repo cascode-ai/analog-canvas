@@ -19,6 +19,7 @@ import {
   variableResistorDevice,
   vddPortDevice,
   voltageSourceDevice,
+  zenerDiodeDevice,
 } from "./descriptors/index.js";
 import { validateDeviceDescriptors } from "./validation.js";
 
@@ -57,6 +58,7 @@ export const deviceRegistry = defineDeviceRegistry([
   ndmosDevice,
   pdmosDevice,
   diodeDevice,
+  zenerDiodeDevice,
   npnDevice,
   pnpDevice,
   voltageSourceDevice,

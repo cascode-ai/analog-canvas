@@ -1365,6 +1365,40 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       converterVersion: 2,
     },
   },
+  {
+    symbolId: "zener-diode",
+    name: "Zener Diode",
+    category: "passive",
+    reviewStatus: "reviewed",
+    pinOrder: ["A", "K"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "SPICE D syntax does not distinguish a Zener presentation from an ordinary diode; select this reviewed symbol manually or through an explicit PDK mapping.",
+    assetPath: "zener-diode.symbol.json",
+    assetHash:
+      "01261cd11d9a03e7e457d5b0d7ab261b69ff4c28c022a087883ab6614f295772",
+    visualAuthority: {
+      kind: "razavi-reference-v1",
+      referenceManifestPath:
+        "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      referencePaths: [
+        "fixtures/visual-reference/razavi-reference-v1/zener-diode-vector-source.json",
+        "fixtures/visual-reference/razavi-reference-v1/zener-diode-reference.png",
+      ],
+      calibrationPath:
+        "fixtures/visual-reference/razavi-reference-v1/zener-diode-geometry.json",
+    },
+    generation: {
+      kind: "razavi-pdf-vector-reference",
+      referenceManifestPath:
+        "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      referencePath:
+        "fixtures/visual-reference/razavi-reference-v1/zener-diode-vector-source.json",
+      converterPath: "scripts/generate-razavi-zener-asset.mjs",
+      converterVersion: 1,
+    },
+  },
 ];
 
 export const razaviSemanticPrimitives: readonly RazaviSemanticPrimitiveEntry[] =
@@ -7804,6 +7838,130 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         },
         to: {
           x: 40,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "zener-diode",
+    name: "Zener Diode",
+    viewBox: {
+      x: -24,
+      y: -10,
+      width: 48,
+      height: 20,
+    },
+    pins: [
+      {
+        name: "A",
+        role: "anode",
+        at: {
+          x: -20,
+          y: 0,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "K",
+        role: "cathode",
+        at: {
+          x: 20,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -20,
+          y: 0,
+        },
+        to: {
+          x: -7.802511,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polygon",
+        points: [
+          {
+            x: -7.802511,
+            y: -6.404463,
+          },
+          {
+            x: -7.802511,
+            y: 6.404463,
+          },
+          {
+            x: 6.606415,
+            y: 0,
+          },
+        ],
+        fill: "none",
+        stroke: "foreground",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polyline",
+        points: [
+          {
+            x: -0.639331,
+            y: -8.506555,
+          },
+          {
+            x: 6.666666,
+            y: -8.406137,
+          },
+          {
+            x: 6.666666,
+            y: 8.2053,
+          },
+          {
+            x: 13.870013,
+            y: 8.2053,
+          },
+        ],
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 6.666666,
+          y: 0,
+        },
+        to: {
+          x: 20,
           y: 0,
         },
         style: {

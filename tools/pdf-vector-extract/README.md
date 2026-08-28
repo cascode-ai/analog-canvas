@@ -13,6 +13,8 @@ The family extractors currently cover:
   dual-output edge joins, and polarity marks from Figure 13.48;
 - `extract-razavi-common-assets.py`: NPN/PNP BJT, diode, voltage amplifier,
   and ideal switch.
+- `extract-razavi-zener.py`: direct Zener diode geometry from Figure 3.44(a)
+  of _Fundamentals of Microelectronics_;
 - `extract-razavi-logic-gates.py`: inverter, AND, NAND, NOR, and XOR native
   vectors from Figures 16.2, 16.24, and 16.25. OR and XNOR are explicitly
   derived by the family generator from these direct sources.
@@ -35,9 +37,9 @@ The authority manifest separately pins both generated files.
 Example (PowerShell):
 
 ```powershell
-$python = "C:\Users\90590\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe"
+$python = (Get-Command python).Source
 & $python tools/pdf-vector-extract/extract-razavi-inductor.py `
-  --pdf "C:\Users\90590\Desktop\[Razavi] Design of Analog CMOS Integrated Circuits 2nd Edition.pdf" `
+  --pdf "$env:ICM_REFERENCE_ROOT\books\razavi-design-of-analog-cmos-integrated-circuits-2e.pdf" `
   --output-json fixtures/visual-reference/razavi-reference-v1/inductor-vector-source.json `
   --output-png fixtures/visual-reference/razavi-reference-v1/inductor-reference.png
 ```
