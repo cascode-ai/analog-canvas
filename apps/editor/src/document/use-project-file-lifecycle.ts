@@ -34,7 +34,7 @@ import {
   rememberRecentCloudProject,
 } from "./cloud-project-session";
 
-const REFRESH_RESTORE_STORAGE_KEY = "icm.restore-after-refresh.v1";
+export const REFRESH_RESTORE_STORAGE_KEY = "icm.restore-after-refresh.v1";
 
 export interface SavedProjectBaseline {
   project: CircuitProject;
@@ -95,15 +95,19 @@ export function useProjectFileLifecycle({
   setStatus,
   onCloudProjectSaved,
 }: UseProjectFileLifecycleOptions) {
-  const [restoreAfterRefresh] = useState(() => {
-    if (typeof window === "undefined") return false;
-    const requested =
-      window.sessionStorage.getItem(REFRESH_RESTORE_STORAGE_KEY) === "true";
-    if (requested) {
+  // Read-only initializer: consuming the one-shot flag here would be a render
+  // side effect, and a discarded render (StrictMode's double pass, a Suspense
+  // retry) would eat the flag before the committed render sees it.
+  const [restoreAfterRefresh] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      window.sessionStorage.getItem(REFRESH_RESTORE_STORAGE_KEY) === "true",
+  );
+  useEffect(() => {
+    if (restoreAfterRefresh) {
       window.sessionStorage.removeItem(REFRESH_RESTORE_STORAGE_KEY);
     }
-    return requested;
-  });
+  }, [restoreAfterRefresh]);
   const [startupCloudProjectId] = useState(readRecentCloudProjectId);
   const refreshRestoreAttemptedRef = useRef(false);
   const saveInFlightRef = useRef<Promise<CloudProjectSaveOutcome> | null>(null);
@@ -656,6 +660,7 @@ export function useProjectFileLifecycle({
     startupRecovery,
     startupCloudProjectId,
     canRestoreStartupCloudProject,
+    restoreAfterRefresh,
     setRecoveryDialogOpen,
     isDirtyWork,
     replaceActiveProject,

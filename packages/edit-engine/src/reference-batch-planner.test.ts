@@ -89,4 +89,40 @@ describe("planReferenceRenumber", () => {
       },
     ]);
   });
+
+  it("terminates at the safe-integer suffix boundary instead of looping", () => {
+    // M9007199254740991 = M{2^53 - 1}: the next float increment no-ops, which
+    // previously pinned nextAvailableReference in an endless render-time scan.
+    const project = createEmptyProject("project", "Project");
+    project.documents[0]!.instances.push(
+      nmos("M1", "M9007199254740991"),
+      nmos("M2", "MX"),
+      nmos("M3", "MY"),
+    );
+
+    const preview = planReferenceRenumber(
+      project,
+      [
+        { documentId: project.topDocumentId, instanceId: "M1" },
+        { documentId: project.topDocumentId, instanceId: "M2" },
+        { documentId: project.topDocumentId, instanceId: "M3" },
+      ],
+      { policy: "fill-gaps" },
+    );
+
+    // The boundary reference is preserved; the invalid ones renumber from the
+    // low end because the unsafe successor is never used as a start.
+    expect(preview.preserved).toEqual([
+      {
+        documentId: project.topDocumentId,
+        instanceId: "M1",
+        reference: "M9007199254740991",
+      },
+    ]);
+    expect(preview.reassigned.map((entry) => entry.reference)).toEqual([
+      "M1",
+      "M2",
+    ]);
+    expect(preview.skipped).toEqual([]);
+  });
 });

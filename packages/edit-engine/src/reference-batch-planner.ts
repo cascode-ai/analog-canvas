@@ -56,9 +56,14 @@ function nextAvailableReference(
   policy: Extract<ReferencePolicy, { kind: "required" }>,
   occupied: ReadonlySet<string>,
   startAt: number,
-): string {
+): string | null {
   let suffix = Math.max(1, startAt);
-  while (occupied.has(folded(`${policy.prefix}${suffix}`))) suffix += 1;
+  while (occupied.has(folded(`${policy.prefix}${suffix}`))) {
+    suffix += 1;
+    // Past 2^53 the float increment no-ops, so the same occupied candidate
+    // would repeat forever. Runs during render — it must terminate.
+    if (!Number.isSafeInteger(suffix)) return null;
+  }
   return `${policy.prefix}${suffix}`;
 }
 
@@ -142,10 +147,19 @@ export function planReferenceRenumber(
         const reference = validCurrent
           ? current
           : nextAvailableReference(policy, occupied, nextSuffix);
+        if (reference === null) {
+          skipped.push({
+            ...target,
+            reason: "Reference numbering space is exhausted",
+          });
+          continue;
+        }
         occupied.add(folded(reference));
         retained.add(folded(reference));
         const suffix = referenceSuffixForPolicy(reference, policy);
-        if (suffix !== null) nextSuffix = suffix + 1;
+        if (suffix !== null && Number.isSafeInteger(suffix + 1)) {
+          nextSuffix = suffix + 1;
+        }
         if (reference === current) {
           preserved.push({ ...target, reference });
           continue;

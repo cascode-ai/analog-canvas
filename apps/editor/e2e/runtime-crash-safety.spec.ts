@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { chooseComponent } from "./editor-fixtures.js";
+import { chooseComponent, clickCommand } from "./editor-fixtures.js";
 
 test("a render crash shows the recovery screen instead of a blank page", async ({
   page,
@@ -36,6 +36,47 @@ test("a render crash shows the recovery screen instead of a blank page", async (
   // Reloading brings the editor back without the transient crash flag.
   await crashScreen.getByRole("button", { name: "Reload editor" }).click();
   await expect(page.getByTestId("schematic-canvas")).toBeVisible();
+});
+
+test("a failed dialog chunk degrades to a scoped notice, not the crash screen", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await chooseComponent(page, "resistor");
+  await page
+    .getByTestId("schematic-canvas")
+    .click({ position: { x: 360, y: 230 } });
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("hit-R1")).toBeVisible();
+
+  // A tab that survives a redeploy asks for chunk names the server no longer
+  // has. Aborting the request reproduces the same rejected dynamic import.
+  await page.route("**/instance-table-dialog*", (route) => route.abort());
+  await clickCommand(page, "Netlist", "Instance Table…");
+
+  const fallback = page.getByTestId("dialog-chunk-load-fallback");
+  await expect(fallback).toBeVisible();
+  await expect(fallback).toContainText("This dialog could not be loaded");
+  await expect(page.getByTestId("editor-crash-screen")).toHaveCount(0);
+
+  // Closing the notice hands the intact editor back.
+  await fallback.getByRole("button", { name: "Close" }).click();
+  await expect(fallback).toHaveCount(0);
+  await expect(page.getByTestId("hit-R1")).toBeVisible();
+
+  // Refreshing from the notice restores the circuit automatically.
+  await clickCommand(page, "Netlist", "Instance Table…");
+  const navigated = page.waitForEvent("framenavigated");
+  await page.unroute("**/instance-table-dialog*");
+  await page
+    .getByTestId("dialog-chunk-load-fallback")
+    .getByRole("button", { name: "Refresh app" })
+    .click();
+  await navigated;
+  await expect(page.getByTestId("hit-R1")).toBeVisible();
+  await expect(page.getByTestId("status")).toHaveText(
+    "Restored recovery revision 1",
+  );
 });
 
 test("a scene build failure degrades to the last good view and recovers", async ({
