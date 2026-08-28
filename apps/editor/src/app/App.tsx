@@ -27,6 +27,7 @@ import {
   resolveDocumentStyleProfile,
   resolveRouteTap,
   summarizeProjectCells,
+  resolveRouteAttachment,
 } from "@icm/derived";
 import type { HierarchyFrame } from "@icm/derived";
 import {
@@ -1334,6 +1335,54 @@ export function App({
       deriveWireUnderSymbolWarnings(document, resolver, routeGeometryRecords),
     [document, resolver, routeGeometryRecords],
   );
+  const wouldMoveIds = useMemo(() => {
+    const ids = new Set(
+      planSelectionMove(document, visualSelection).previewObjectIds,
+    );
+    // Boundary routes stretch rather than translate, but they move all the
+    // same — the highlight covers everything a drag would change.
+    const closure = deriveRoutingAffectedClosure(document, {
+      instanceIds: visualSelection.instanceIds,
+      routeIds: visualSelection.routeIds,
+      junctionIds: visualSelection.junctionIds,
+      annotationIds: visualSelection.annotationIds,
+    });
+    for (const routeId of closure.boundaryRoutes) ids.add(routeId);
+    return ids;
+  }, [document, visualSelection]);
+  const netLabelTether = useMemo(() => {
+    const annotation = document.annotations.find(
+      (candidate) => candidate.id === selectedAnnotationId,
+    );
+    if (!annotation || annotation.kind !== "net-label") return null;
+    const anchor = annotation.anchor;
+    if (anchor.kind !== "route") return null;
+    const record = routeGeometryRecords.find(
+      (candidate) => candidate.route.id === anchor.routeId,
+    );
+    const attachment = record
+      ? resolveRouteAttachment(record.geometry, anchor)
+      : null;
+    if (!attachment) return null;
+    return {
+      label: annotationAnchor(
+        document,
+        resolver,
+        annotation,
+        routeGeometryRecords,
+        styleProfile,
+      ),
+      conductor: attachment.conductorPoint,
+      netName: record?.route.netId ?? null,
+    };
+  }, [
+    document,
+    selectedAnnotationId,
+    routeGeometryRecords,
+    resolver,
+    styleProfile,
+  ]);
+
   const {
     createRouteAnchor,
     beginRouteStretch,
@@ -3958,6 +4007,7 @@ export function App({
               setStatus("Selected a wire buried under a symbol");
             },
           }}
+          netLabelTether={netLabelTether}
           copyPreviewInnerHtml={copyPreviewInnerHtml}
           inputPlanes={{
             tool,
@@ -4034,6 +4084,7 @@ export function App({
               cellSymbolLayoutInstanceId: cellSymbolLayoutEnabled
                 ? (selectedInstance?.id ?? null)
                 : null,
+              wouldMoveIds,
               onInstanceClick: (instance, additive) => {
                 if (suppressInstanceClick.current) {
                   suppressInstanceClick.current = false;

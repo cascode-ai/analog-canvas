@@ -82,9 +82,12 @@
   color: var(--icm-text-muted);
 }
 
+/* Selection highlights the device itself rather than boxing it: a soft
+   accent wash plus a solid outline. would-move marks everything a drag on
+   the selection would carry, so the whole moving body reads at a glance. */
 .hit-target.selected {
-  stroke: var(--icm-accent);
-  stroke-dasharray: 6 4;
+  fill: rgb(var(--icm-accent-rgb) / 13%);
+  stroke: rgb(var(--icm-accent-rgb) / 60%);
   cursor: move;
 }
 
@@ -103,6 +106,30 @@
   cursor: pointer;
   vector-effect: non-scaling-stroke;
   pointer-events: stroke;
+}
+
+.hit-target.would-move {
+  fill: rgb(var(--icm-accent-rgb) / 7%);
+  stroke: rgb(var(--icm-accent-rgb) / 28%);
+}
+
+.net-label-tether line {
+  stroke: rgb(var(--icm-accent-rgb) / 75%);
+  stroke-width: 1.2;
+  stroke-dasharray: 4 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.net-label-tether circle {
+  fill: none;
+  stroke: rgb(var(--icm-accent-rgb) / 90%);
+  stroke-width: 1.6;
+  vector-effect: non-scaling-stroke;
+}
+
+.route-hit.would-move {
+  stroke: rgb(var(--icm-accent-rgb) / 9%);
+  stroke-width: 14;
 }
 
 .flightline {
@@ -211,6 +238,20 @@
   stroke-width: 1.5;
   cursor: move;
   vector-effect: non-scaling-stroke;
+}
+
+/* The white-and-blue grab circles earn their keep on touch, where fingers
+   need a target. With a mouse they read as clutter — but they stay
+   functional (route drag, power-rail resize), so they fade instead of
+   disappearing and light up on approach. */
+@media (pointer: fine) {
+  .route-handle {
+    opacity: 0.4;
+  }
+
+  .route-handle:hover {
+    opacity: 1;
+  }
 }
 
 .endpoint-hit {

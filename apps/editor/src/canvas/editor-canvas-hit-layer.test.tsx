@@ -42,6 +42,7 @@ function emptySelectionProps(document = createEmptyDocument("cell", "Cell")) {
     selectedAnnotationId: null,
     supplementalAnnotationIds: [],
     cellSymbolLayoutInstanceId: null,
+    wouldMoveIds: new Set<string>(),
     onInstanceClick: vi.fn(),
     onInstanceOpen: vi.fn(),
     onInstancePointerDown: vi.fn(),

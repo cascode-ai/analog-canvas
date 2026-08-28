@@ -40,6 +40,12 @@ interface SelectionHitTargetProps {
   selectedAnnotationId: string | null;
   supplementalAnnotationIds: readonly string[];
   cellSymbolLayoutInstanceId: string | null;
+  /**
+   * Everything a drag starting on the selection would carry: selected
+   * objects plus their translated routes, junctions, and annotations.
+   * Members get the `would-move` tint so the moving body reads as one.
+   */
+  wouldMoveIds: ReadonlySet<string>;
   onInstanceClick: (instance: Instance, additive: boolean) => void;
   onInstanceOpen: (instance: Instance) => void;
   onInstancePointerDown: (
@@ -112,6 +118,7 @@ function SelectionHitTargets({
   selectedAnnotationId,
   supplementalAnnotationIds,
   cellSymbolLayoutInstanceId,
+  wouldMoveIds,
   onInstanceClick,
   onInstanceOpen,
   onInstancePointerDown,
@@ -140,7 +147,9 @@ function SelectionHitTargets({
               className={
                 selectedInstanceIds.includes(instance.id)
                   ? "hit-target selected"
-                  : "hit-target"
+                  : wouldMoveIds.has(instance.id)
+                    ? "hit-target would-move"
+                    : "hit-target"
               }
               onClick={(event) => {
                 event.stopPropagation();
@@ -172,7 +181,9 @@ function SelectionHitTargets({
             supplementalRouteIds.includes(route.id) ||
             selectedInternalRouteIds.has(route.id)
               ? "route-hit selected"
-              : "route-hit"
+              : wouldMoveIds.has(route.id)
+                ? "route-hit would-move"
+                : "route-hit"
           }
           points={serializePolylinePoints(geometry.centerline)}
           onPointerDown={(event) => onRoutePointerDown(event, route.id)}
@@ -212,7 +223,9 @@ function SelectionHitTargets({
               className={
                 selected
                   ? "hit-target annotation-text-hit selected"
-                  : "hit-target annotation-text-hit"
+                  : wouldMoveIds.has(annotation.id)
+                    ? "hit-target annotation-text-hit would-move"
+                    : "hit-target annotation-text-hit"
               }
               {...hitBox}
               onClick={(event) => event.stopPropagation()}

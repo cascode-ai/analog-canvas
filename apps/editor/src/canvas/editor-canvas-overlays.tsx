@@ -197,3 +197,36 @@ export function WireUnderSymbolOverlay({
     </g>
   );
 }
+
+export interface NetLabelTether {
+  label: { x: number; y: number };
+  conductor: { x: number; y: number };
+  netName: string | null;
+}
+
+/**
+ * Selected net label -> its conductor tap: a dashed tether and a ring on
+ * the exact attachment point, so the label's electrical home is visible.
+ */
+export function NetLabelTetherOverlay({
+  tether,
+}: {
+  tether: NetLabelTether | null;
+}) {
+  if (!tether) return null;
+  return (
+    <g
+      data-testid="net-label-tether"
+      className="net-label-tether"
+      pointerEvents="none"
+    >
+      <line
+        x1={tether.label.x}
+        y1={tether.label.y}
+        x2={tether.conductor.x}
+        y2={tether.conductor.y}
+      />
+      <circle cx={tether.conductor.x} cy={tether.conductor.y} r="4.5" />
+    </g>
+  );
+}

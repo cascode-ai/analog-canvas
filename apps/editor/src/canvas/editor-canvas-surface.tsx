@@ -5,6 +5,8 @@ import {
   CanvasInputPlanes,
   NetHighlightOverlay,
   WireUnderSymbolOverlay,
+  NetLabelTetherOverlay,
+  type NetLabelTether,
 } from "./editor-canvas-overlays";
 import { EditorCanvasHitLayer } from "./editor-canvas-hit-layer";
 import { EditorCellSymbolLayoutOverlay } from "./editor-cell-symbol-layout-overlay";
@@ -29,6 +31,7 @@ export interface EditorCanvasSurfaceProps {
   cellSymbolLayout: ComponentProps<typeof EditorCellSymbolLayoutOverlay> | null;
   netHighlight: ComponentProps<typeof NetHighlightOverlay>;
   wireUnderSymbol: ComponentProps<typeof WireUnderSymbolOverlay>;
+  netLabelTether: NetLabelTether | null;
   copyPreviewInnerHtml: { __html: string } | null;
   inputPlanes: ComponentProps<typeof CanvasInputPlanes>;
   placementPreview: ComponentProps<typeof EditorPlacementPreview>;
@@ -78,6 +81,7 @@ export function EditorCanvasSurface({
   cellSymbolLayout,
   netHighlight,
   wireUnderSymbol,
+  netLabelTether,
   copyPreviewInnerHtml,
   inputPlanes,
   placementPreview,
@@ -124,6 +128,7 @@ export function EditorCanvasSurface({
           <EditorCellSymbolLayoutOverlay {...cellSymbolLayout} />
         ) : null}
         <NetHighlightOverlay {...netHighlight} />
+        <NetLabelTetherOverlay tether={netLabelTether} />
         {copyPreviewInnerHtml ? (
           <g
             data-testid="copy-placement-preview"

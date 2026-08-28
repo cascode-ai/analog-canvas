@@ -170,7 +170,8 @@ test("adds formatted drafting text and undo/redo restores it", async ({
   const selectedTextHit = page.getByTestId(/^drafting-hit-note-/);
   await expect(selectedTextHit).toHaveClass(/hit-target/u);
   await expect(selectedTextHit).toHaveClass(/selected/u);
-  await expect(selectedTextHit).toHaveCSS("stroke-dasharray", /6px.*4px/u);
+  // Selection is a solid tinted wash, not a dashed marquee box.
+  await expect(selectedTextHit).toHaveCSS("stroke-dasharray", "none");
 
   await page.keyboard.press("Control+z");
   await expect(page.locator('[data-layer="drafting"] text')).toHaveCount(1);
