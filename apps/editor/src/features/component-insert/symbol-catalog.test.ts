@@ -39,7 +39,9 @@ describe("component insertion catalog", () => {
       "resistor",
     ]);
     expect(symbolCategory("capacitor")).toBe("Passives");
-    expect(symbolCategory("variable-resistor")).toBe("Passives");
+    expect(symbolCategory("variable-resistor")).toBe("Extended Devices");
+    expect(symbolCategory("variable-capacitor")).toBe("Extended Devices");
+    expect(symbolCategory("variable-inductor")).toBe("Extended Devices");
     expect(symbolCategory("opamp")).toBe("Analog Blocks");
     expect(symbolCategory("comparator")).toBe("Analog Blocks");
     expect(symbolCategory("comparator-unmarked")).toBe("Analog Blocks");
@@ -90,11 +92,11 @@ describe("component insertion catalog", () => {
     ]);
   });
 
-  it("offers the two-terminal variable resistor as a searchable passive", () => {
-    const symbols = flattenComponentCatalog(
-      componentCatalog("razavi-textbook-v1", "variable resistor"),
-    );
+  it("offers the two-terminal variable resistor as a searchable extended device", () => {
+    const groups = componentCatalog("razavi-textbook-v1", "variable resistor");
+    const symbols = flattenComponentCatalog(groups);
 
+    expect(groups.map((group) => group.category)).toEqual(["Extended Devices"]);
     expect(symbols.map((symbol) => symbol.id)).toEqual(["variable-resistor"]);
     expect(symbols[0]?.pins.map((pin) => pin.name)).toEqual(["P1", "P2"]);
   });
@@ -126,12 +128,15 @@ describe("component insertion catalog", () => {
     ).toEqual([]);
   });
 
-  it("keeps diode and DMOS tiles in one undivided expanded library", () => {
+  it("keeps adjustable passives, diodes, and DMOS in one extended library", () => {
     const extended = componentCatalog("razavi-textbook-v1", "").find(
       (group) => group.category === "Extended Devices",
     );
 
     expect(extended?.symbols.map((symbol) => symbol.id)).toEqual([
+      "variable-resistor",
+      "variable-capacitor",
+      "variable-inductor",
       "diode",
       "zener-diode",
       "ndmos",
@@ -192,6 +197,9 @@ describe("reach order inside a category", () => {
     // and the supply Port from its Rail.
     expect(ids("Transistors")).toEqual(["nmos", "pmos", "npn", "pnp"]);
     expect(ids("Extended Devices")).toEqual([
+      "variable-resistor",
+      "variable-capacitor",
+      "variable-inductor",
       "diode",
       "zener-diode",
       "ndmos",

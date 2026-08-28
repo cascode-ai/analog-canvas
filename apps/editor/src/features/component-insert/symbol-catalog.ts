@@ -43,9 +43,17 @@ export interface ComponentCatalogGroup {
 
 export function symbolCategory(symbolId: string): string {
   if (isAnnotationPaletteSymbol(symbolId)) return ANNOTATION_CATEGORY;
-  // Keep the two diode tiles in the Extended Devices UI group, not at the
-  // front of the everyday transistor palette.
-  if (["diode", "zener-diode"].includes(symbolId)) {
+  // Keep diode and adjustable-passive tiles in Extended Devices,
+  // leaving the everyday transistor and passive groups compact.
+  if (
+    [
+      "variable-resistor",
+      "variable-capacitor",
+      "variable-inductor",
+      "diode",
+      "zener-diode",
+    ].includes(symbolId)
+  ) {
     return EXTENDED_DEVICE_CATEGORY;
   }
   const expanded = expandedDeviceCatalogEntry(symbolId);
@@ -54,15 +62,7 @@ export function symbolCategory(symbolId: string): string {
     return "Transistors";
   }
   if (
-    [
-      "resistor",
-      "variable-resistor",
-      "capacitor",
-      "variable-capacitor",
-      "inductor-compact",
-      "inductor",
-      "variable-inductor",
-    ].includes(symbolId)
+    ["resistor", "capacitor", "inductor-compact", "inductor"].includes(symbolId)
   ) {
     return "Passives";
   }
@@ -170,6 +170,9 @@ const SYMBOL_ORDER: readonly string[] = [
   "pmos",
   "npn",
   "pnp",
+  "variable-resistor",
+  "variable-capacitor",
+  "variable-inductor",
   "diode",
   "zener-diode",
   "ndmos",
