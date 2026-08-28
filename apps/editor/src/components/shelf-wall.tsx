@@ -140,6 +140,7 @@ export function ShelfWall() {
                     <time dateTime={project.updatedAt}>
                       {formatUpdatedAt(project.updatedAt)}
                     </time>
+                    {" · "}
                     <span className="shelf-tile-revision">
                       revision {project.revision}
                     </span>

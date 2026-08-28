@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import { FileCommandMenu } from "./file-command-menu";
+import { CLOUD_PROJECT_LIMIT } from "./cloud-projects";
 
 describe("FileCommandMenu", () => {
   it("presents one Cloud Save protocol and explicit local interchange", () => {
@@ -39,7 +40,7 @@ describe("FileCommandMenu", () => {
     );
 
     expect(markup).not.toContain("Save as Cloud Copy");
-    expect(markup).toContain("Cloud Projects (1/3)");
+    expect(markup).toContain(`Cloud Projects (1/${CLOUD_PROJECT_LIMIT})`);
     expect(markup).toContain("Saved Circuit");
     expect(markup).toContain('class="cloud-project-time"');
     expect(markup).toContain("cloud-project-cloud-1");
