@@ -94,11 +94,104 @@ function junctionCircleCount(svg: string): number {
   return (layer.match(/<circle/gu) ?? []).length;
 }
 
+function straightTap(): SchematicDocument {
+  // A Port riding a Junction in the middle of a straight through-wire:
+  // P0.pin (310,240) —— J1 (420,240) —— P2.pin (470,240), with P1's pin
+  // parked exactly on J1. Visually this is a plain wire with a Port ring,
+  // so no dot may render (the owner-reported "orphaned dot").
+  const document = createEmptyDocument("doc", "StraightTap");
+  document.instances.push(
+    {
+      id: "P0",
+      symbolId: "port",
+      placement: { position: { x: 300, y: 240 }, rotation: 0, mirror: "none" },
+      netlist: { reference: "P0", parameters: {} },
+    },
+    {
+      id: "P1",
+      symbolId: "port",
+      placement: { position: { x: 410, y: 240 }, rotation: 0, mirror: "none" },
+      netlist: { reference: "P1", parameters: {} },
+    },
+    {
+      id: "P2",
+      symbolId: "port",
+      placement: { position: { x: 480, y: 240 }, rotation: 0, mirror: "x" },
+      netlist: { reference: "P2", parameters: {} },
+    },
+  );
+  document.netlist!.terminals.push(
+    {
+      id: "cell-terminal-p0",
+      name: "L",
+      netId: "net-s",
+      direction: "passive",
+      interfaceInstanceIds: ["P0"],
+    },
+    {
+      id: "cell-terminal-p1",
+      name: "VIN",
+      netId: "net-s",
+      direction: "passive",
+      interfaceInstanceIds: ["P1"],
+    },
+    {
+      id: "cell-terminal-p2",
+      name: "R",
+      netId: "net-s",
+      direction: "passive",
+      interfaceInstanceIds: ["P2"],
+    },
+  );
+  document.nets.push({
+    id: "net-s",
+    terminals: [
+      { instanceId: "P0", pinName: "P" },
+      { instanceId: "P1", pinName: "P" },
+      { instanceId: "P2", pinName: "P" },
+    ],
+  });
+  document.junctions.push({
+    id: "J1",
+    netId: "net-s",
+    position: { x: 420, y: 240 },
+    role: "branch",
+  });
+  document.routes.push(
+    createRoutePath({
+      id: "r-west",
+      netId: "net-s",
+      start: { kind: "terminal", instanceId: "P0", pinName: "P" },
+      end: { kind: "junction", junctionId: "J1" },
+      bends: [],
+      modes: ["manual"],
+    }),
+    createRoutePath({
+      id: "r-east",
+      netId: "net-s",
+      start: { kind: "junction", junctionId: "J1" },
+      end: { kind: "terminal", instanceId: "P2", pinName: "P" },
+      bends: [],
+      modes: ["manual"],
+    }),
+  );
+  return document;
+}
+
 describe("junction dots at Port pins", () => {
   it("keeps the branch dot when a moved group parks the Port on the tee", () => {
     // The regression: a rearrange that makes the Port pin coincide with the
     // three-way branch must not erase the branch's junction dot.
     expect(junctionCircleCount(renderDocumentSvg(tee(true), resolver))).toBe(1);
+  });
+
+  it("stays dotless where the Port rides a straight through-wire", () => {
+    // The owner-reported orphan: a dot in the middle of a plain wire next
+    // to a Port ring, with no branch anywhere.
+    const svg = renderDocumentSvg(straightTap(), resolver);
+    const layer =
+      svg.match(/<g data-layer="junctions">(.*?)<\/g>/su)?.[1] ?? "";
+    expect((layer.match(/<circle/gu) ?? []).length).toBe(0);
   });
 
   it("stays dotless where the Port merely terminates the wire", () => {

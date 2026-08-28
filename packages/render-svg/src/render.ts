@@ -632,9 +632,18 @@ export function buildSvgScene(
           ),
       );
       if (portInvolved) {
+        // Two opposite arms are a straight through-wire: the Port ring rides
+        // a plain conductor and a dot there reads as an orphan. Any bend or
+        // third arm keeps the branch dot.
+        const arms = contact.branchDirections;
+        const straightThrough =
+          arms.length === 2 &&
+          arms[0]!.x * arms[1]!.y - arms[0]!.y * arms[1]!.x === 0 &&
+          arms[0]!.x * arms[1]!.x + arms[0]!.y * arms[1]!.y < 0;
         return (
           contact.endpoints.some((endpoint) => endpoint.kind === "junction") &&
-          contact.branchDirections.length >= 2
+          arms.length >= 2 &&
+          !straightThrough
         );
       }
       return contactRequiresJunctionDot(contact);
