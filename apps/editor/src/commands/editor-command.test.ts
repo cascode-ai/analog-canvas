@@ -23,6 +23,7 @@ function fixture(overrides: Partial<EditorCommandContext> = {}) {
     helpOpen: false,
     canvasDragActive: false,
     hasClearableDraftingSelection: false,
+    hasActiveNetHighlight: false,
     ...overrides,
   };
   const operations: EditorCommandOperations = {
@@ -30,6 +31,7 @@ function fixture(overrides: Partial<EditorCommandContext> = {}) {
     cancelCanvasDrag: vi.fn(),
     cancelInteraction: vi.fn(),
     clearDraftingSelection: vi.fn(),
+    clearNetHighlight: vi.fn(),
     cancelPassive: vi.fn(),
     undo: vi.fn(),
     redo: vi.fn(),
@@ -84,6 +86,26 @@ describe("editor command router", () => {
     expect(interaction.operations.cancelInteraction).toHaveBeenCalledWith(
       "placing-vdd-rail",
     );
+  });
+
+  it("clears an active Net highlight on Escape once nothing else is pending", () => {
+    // Highlight alone: cancel is enabled and clears exactly the highlight.
+    const highlightOnly = fixture({ hasActiveNetHighlight: true });
+    expect(highlightOnly.router.state({ id: "editor.cancel" }).enabled).toBe(
+      true,
+    );
+    highlightOnly.router.execute({ id: "editor.cancel" });
+    expect(highlightOnly.operations.clearNetHighlight).toHaveBeenCalledOnce();
+    expect(highlightOnly.operations.cancelPassive).not.toHaveBeenCalled();
+
+    // A drafting selection still outranks the highlight in the Escape order.
+    const layered = fixture({
+      hasActiveNetHighlight: true,
+      hasClearableDraftingSelection: true,
+    });
+    layered.router.execute({ id: "editor.cancel" });
+    expect(layered.operations.clearDraftingSelection).toHaveBeenCalledOnce();
+    expect(layered.operations.clearNetHighlight).not.toHaveBeenCalled();
   });
 
   it("routes one Rotate command to the active domain", () => {

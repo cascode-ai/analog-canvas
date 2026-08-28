@@ -71,6 +71,7 @@ export interface EditorNavigationControllerDependencies {
       endpoint?: RouteEndpoint;
     } | null,
   ) => void;
+  highlightedNetOrigin: { netId: string } | null;
   selectedHighlightNetId: string | null;
   selectedHighlightEndpoint: RouteEndpoint | undefined;
   selectedHighlightIsActive: boolean;
@@ -100,6 +101,7 @@ export function createEditorNavigationController({
   selectOnly,
   setSelectedEndpoint,
   setHighlightedNetOrigin,
+  highlightedNetOrigin,
   selectedHighlightNetId,
   selectedHighlightEndpoint,
   selectedHighlightIsActive,
@@ -272,14 +274,21 @@ export function createEditorNavigationController({
           : annotation?.anchor.fallbackPosition;
       if (position) focusPoint(position);
     } else if (locator.kind === "net") {
+      // Store the same resolved path that the document stack was set to:
+      // diagnostics carry an empty locator path, and a mismatched origin
+      // would keep the highlight from ever reading as active (so the first
+      // H press would re-highlight instead of clearing it).
       setHighlightedNetOrigin({
         documentId: opened.id,
         netId: locator.objectId,
-        hierarchyPath: locator.hierarchyPath,
+        hierarchyPath,
       });
       const route = opened.routes.find(
         (item) => item.netId === locator.objectId,
       );
+      // Give the highlight a selection like every other locator kind, so the
+      // H toggle and the dock's Highlight action stay reachable.
+      if (route) selectOnly("route", [route.id]);
       const centerline = route
         ? connectivityIndex.documents
             .get(opened.id)
@@ -415,6 +424,14 @@ export function createEditorNavigationController({
 
   const toggleHighlightedNet = (): void => {
     if (!selectedHighlightNetId) {
+      // No selection to highlight from — but an active highlight must still
+      // be clearable, or a highlight set by a diagnostic/agent with no
+      // surviving selection would be stuck on screen.
+      if (highlightedNetOrigin !== null) {
+        setHighlightedNetOrigin(null);
+        setStatus(`Cleared Net highlight ${highlightedNetOrigin.netId}`);
+        return;
+      }
       setStatus(
         "Select a wire, connected pin, or Net Label before highlighting a Net",
       );

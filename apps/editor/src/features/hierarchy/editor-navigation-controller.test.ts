@@ -1,5 +1,5 @@
 import { buildProjectConnectivityIndex } from "@icm/derived";
-import { createEmptyProject } from "@icm/model";
+import { createEmptyProject, createRoutePath } from "@icm/model";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 import { describe, expect, it, vi } from "vitest";
 
@@ -33,6 +33,7 @@ function dependencies(
     selectOnly: vi.fn(),
     setSelectedEndpoint: vi.fn(),
     setHighlightedNetOrigin: vi.fn(),
+    highlightedNetOrigin: null,
     selectedHighlightNetId: "net-a",
     selectedHighlightEndpoint: undefined,
     selectedHighlightIsActive,
@@ -78,5 +79,64 @@ describe("editor navigation controller", () => {
     const clear = dependencies(true);
     createEditorNavigationController(clear).toggleHighlightedNet();
     expect(clear.setHighlightedNetOrigin).toHaveBeenCalledWith(null);
+  });
+
+  it("clears an active highlight even when nothing highlightable is selected", () => {
+    const stuck = {
+      ...dependencies(false),
+      selectedHighlightNetId: null,
+      highlightedNetOrigin: { netId: "net-x" },
+    };
+    createEditorNavigationController(stuck).toggleHighlightedNet();
+    expect(stuck.setHighlightedNetOrigin).toHaveBeenCalledWith(null);
+    expect(stuck.setStatus).toHaveBeenCalledWith("Cleared Net highlight net-x");
+  });
+
+  it("net navigation selects the net's route so the highlight stays togglable", () => {
+    const input = dependencies(false);
+    input.document.nets.push({ id: "net-1", terminals: [] });
+    input.document.junctions.push(
+      {
+        id: "j1",
+        netId: "net-1",
+        position: { x: 0, y: 0 },
+        role: "route-anchor",
+      },
+      {
+        id: "j2",
+        netId: "net-1",
+        position: { x: 40, y: 0 },
+        role: "route-anchor",
+      },
+    );
+    input.document.routes.push(
+      createRoutePath({
+        id: "route-1",
+        netId: "net-1",
+        start: { kind: "junction", junctionId: "j1" },
+        end: { kind: "junction", junctionId: "j2" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    input.connectivityIndex = buildProjectConnectivityIndex(
+      input.project,
+      input.resolver,
+    );
+    createEditorNavigationController(input).navigateToLocator(
+      {
+        documentId: input.document.id,
+        hierarchyPath: [],
+        kind: "net",
+        objectId: "net-1",
+      },
+      "Preflight: floating net",
+    );
+    expect(input.setHighlightedNetOrigin).toHaveBeenCalledWith({
+      documentId: input.document.id,
+      netId: "net-1",
+      hierarchyPath: [],
+    });
+    expect(input.selectOnly).toHaveBeenCalledWith("route", ["route-1"]);
   });
 });

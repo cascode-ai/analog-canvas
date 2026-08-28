@@ -21,6 +21,8 @@ export interface EditorShortcutContext {
   hasInspectableSelection: boolean;
   hasRouteSelection: boolean;
   hasHighlightableNet: boolean;
+  /** A Net highlight is showing; H must stay reachable to clear it. */
+  hasActiveNetHighlight: boolean;
   wireReadyToFinish: boolean;
   draftingReadyToFinish: boolean;
   hasRemovableWireWaypoint: boolean;
@@ -307,7 +309,11 @@ export function resolveEditorShortcut(
       ? { kind: "edit-net-label" }
       : { kind: "net-label-selection-required" };
   }
-  if (plain && key === "h" && context.hasHighlightableNet) {
+  if (
+    plain &&
+    key === "h" &&
+    (context.hasHighlightableNet || context.hasActiveNetHighlight)
+  ) {
     return { kind: "toggle-net-highlight" };
   }
   if (plain && key === "k") {

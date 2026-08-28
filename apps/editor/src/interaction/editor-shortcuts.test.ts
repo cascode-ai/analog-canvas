@@ -17,6 +17,7 @@ const baseContext: EditorShortcutContext = {
   hasInspectableSelection: false,
   hasRouteSelection: false,
   hasHighlightableNet: false,
+  hasActiveNetHighlight: false,
   wireReadyToFinish: false,
   draftingReadyToFinish: false,
   hasRemovableWireWaypoint: false,
@@ -202,6 +203,11 @@ describe("editor shortcut contract", () => {
     });
     expect(resolve("h")).toBeNull();
     expect(resolve("h", { hasHighlightableNet: true })).toEqual({
+      kind: "toggle-net-highlight",
+    });
+    // A showing highlight keeps H reachable with nothing selected, so a
+    // highlight set by a diagnostic can always be toggled off.
+    expect(resolve("h", { hasActiveNetHighlight: true })).toEqual({
       kind: "toggle-net-highlight",
     });
     expect(resolve("q")).toEqual(command({ id: "properties.open" }));

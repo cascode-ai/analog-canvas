@@ -52,6 +52,7 @@ export interface EditorCommandContext {
   helpOpen: boolean;
   canvasDragActive: boolean;
   hasClearableDraftingSelection: boolean;
+  hasActiveNetHighlight: boolean;
 }
 
 export interface EditorCommandOperations {
@@ -59,6 +60,7 @@ export interface EditorCommandOperations {
   cancelCanvasDrag(): void;
   cancelInteraction(interactionMode: InteractionMode): void;
   clearDraftingSelection(): void;
+  clearNetHighlight(): void;
   cancelPassive(): void;
   undo(): void;
   redo(): void;
@@ -168,7 +170,8 @@ export function createEditorCommandRouter(
           context.helpOpen ||
             context.canvasDragActive ||
             context.interactionMode !== "idle" ||
-            context.hasClearableDraftingSelection,
+            context.hasClearableDraftingSelection ||
+            context.hasActiveNetHighlight,
         );
       case "history.undo":
         return context.canUndo ? enabled() : disabled("Nothing to undo");
@@ -268,6 +271,8 @@ export function createEditorCommandRouter(
           options.operations.cancelInteraction(context.interactionMode);
         } else if (context.hasClearableDraftingSelection) {
           options.operations.clearDraftingSelection();
+        } else if (context.hasActiveNetHighlight) {
+          options.operations.clearNetHighlight();
         } else {
           options.operations.cancelPassive();
         }
