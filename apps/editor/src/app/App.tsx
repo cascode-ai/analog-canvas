@@ -644,6 +644,7 @@ export function App({
     startupRecovery,
     startupCloudProjectId,
     canRestoreStartupCloudProject,
+    restoreAfterRefresh,
     setRecoveryDialogOpen,
     isDirtyWork,
     replaceActiveProject,
@@ -2196,6 +2197,11 @@ export function App({
   useEffect(() => {
     if (bootTargetHandled.current) return;
     bootTargetHandled.current = true;
+    // "Refresh app" reloads the same URL on purpose: the pending restore owns
+    // this boot. Re-running the URL's boot target here would fork the
+    // working-copy identity and orphan the snapshot the restore is about to
+    // read.
+    if (restoreAfterRefresh) return;
     const exampleId = new URLSearchParams(window.location.search).get(
       "example",
     );
@@ -2220,7 +2226,7 @@ export function App({
         setStatus(`Opened example: ${example.name}`);
       }
     }
-  }, [initialGalleryEntryId]);
+  }, [initialGalleryEntryId, restoreAfterRefresh]);
 
   function resetInteractionState(): void {
     exitCellSymbolLayout();

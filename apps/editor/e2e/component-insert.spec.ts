@@ -225,6 +225,40 @@ test("refreshes explicitly only after flushing and automatically restoring recov
     .toBeNull();
 });
 
+test("refresh restores the circuit when the session started from a boot-target URL", async ({
+  page,
+}) => {
+  // location.reload() keeps the entry URL, so the ?new=1 boot target re-runs
+  // on the refreshed page. It must yield to the pending restore instead of
+  // forking a fresh working copy that orphans the flushed snapshot.
+  await page.goto("/editor?new=1");
+  await expect(page.getByTestId("status")).toHaveText("Created a new Project");
+  await chooseComponent(page, "resistor");
+  await page
+    .getByTestId("schematic-canvas")
+    .click({ position: { x: 360, y: 230 } });
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("hit-R1")).toBeVisible();
+  await expect(page.getByTestId("revision")).toHaveText("1");
+
+  const navigated = page.waitForEvent("framenavigated");
+  await clickCommand(page, "File", "Refresh app");
+  await navigated;
+
+  await expect(page.getByTestId("hit-R1")).toBeVisible();
+  await expect(page.getByTestId("revision")).toHaveText("1");
+  await expect(page.getByTestId("status")).toHaveText(
+    "Restored recovery revision 1",
+  );
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        sessionStorage.getItem("icm.restore-after-refresh.v1"),
+      ),
+    )
+    .toBeNull();
+});
+
 test("keeps quick-start shortcuts in the corner until the first component is inserted", async ({
   page,
 }) => {
