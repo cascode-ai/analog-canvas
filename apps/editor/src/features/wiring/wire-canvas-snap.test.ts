@@ -156,8 +156,14 @@ describe("wire canvas snap", () => {
       resolveWireCanvasSnap(context, { x: 40, y: 10 }, false).point,
     ).toEqual({ x: 40, y: 0 });
 
-    // A deliberate diagonal still opens a corner — that is what the
-    // corner-order modes are for.
+    // Four grid off the axis is a step someone meant, even though it is the
+    // same fraction of the run as the one-grid wobble above. Distance off the
+    // line separates them; a ratio cannot.
+    expect(
+      resolveWireCanvasSnap(context, { x: -20 + 210, y: 40 }, false).point,
+    ).toEqual({ x: 190, y: 40 });
+
+    // And a plain diagonal still opens a corner.
     expect(
       resolveWireCanvasSnap(context, { x: 20, y: 40 }, false).point,
     ).toEqual({ x: 20, y: 40 });
