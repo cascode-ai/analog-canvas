@@ -204,6 +204,18 @@ async function handleCloudProjects(
   } catch {
     return Response.json({ error: "invalid-project" }, { status: 400 });
   }
+  // The shelf shows the circuit, not its name, so the thumbnail is rendered
+  // once here on save rather than on every read. A drawing the renderer
+  // cannot handle still saves; the shelf draws a placeholder tile instead.
+  let previewSvg = "";
+  try {
+    previewSvg = renderPreview(
+      project,
+      createProjectSymbolResolver(project, builtInSymbols),
+    );
+  } catch {
+    previewSvg = "";
+  }
   const operation =
     request.method === "POST" ? "cloud-project-create" : "cloud-project-update";
   const expectedRevisionMatch = request.headers
@@ -225,8 +237,52 @@ async function handleCloudProjects(
       : {}),
     schemaVersion: project.schemaVersion,
     projectText: serializeProject(project),
+    previewSvg,
   });
   return Response.json(payload, { status });
+}
+
+/**
+ * One shelf thumbnail. Private by construction: the Durable Object scopes the
+ * read to the signed-in account, and the response is marked private so no
+ * shared cache ever holds another member's drawing.
+ */
+async function handleCloudProjectPreview(
+  request: Request,
+  env: GalleryEnv,
+  projectId: string,
+): Promise<Response> {
+  const user = await sessionUserOf(request, env);
+  if (!user) {
+    return Response.json(
+      { error: "unauthorized" },
+      { status: 401, headers: { "cache-control": "no-store" } },
+    );
+  }
+  const { status, payload } = await callGallery<{
+    previewSvg?: string;
+    revision?: number;
+  }>(env, "cloud-project-preview", { userId: user.id, id: projectId });
+  if (status !== 200 || !payload.previewSvg) {
+    return Response.json(
+      { error: "not-found" },
+      { status: 404, headers: { "cache-control": "no-store" } },
+    );
+  }
+  // A matching revision names immutable bytes, so a shelf that has not been
+  // saved since costs nothing to redraw.
+  const requestedRevision = new URL(request.url).searchParams.get("v");
+  const immutable =
+    typeof payload.revision === "number" &&
+    requestedRevision === String(payload.revision);
+  return new Response(payload.previewSvg, {
+    headers: {
+      "content-type": "image/svg+xml; charset=utf-8",
+      "cache-control": immutable
+        ? "private, max-age=31536000, immutable"
+        : "private, no-cache",
+    },
+  });
 }
 
 async function handleSubmission(
@@ -424,6 +480,10 @@ export async function routeGalleryRequest(
   }
   if (url.pathname.startsWith("/api/projects/")) {
     const projectId = url.pathname.slice("/api/projects/".length);
+    const previewMatch = /^([^/]+)\/preview\.svg$/u.exec(projectId);
+    if (previewMatch && request.method === "GET") {
+      return handleCloudProjectPreview(request, env, previewMatch[1]!);
+    }
     if (
       (request.method === "GET" ||
         request.method === "PUT" ||

@@ -63,7 +63,7 @@ export function shortId(length = SHORT_ID_LENGTH): string {
 export const GALLERY_MAX_PROJECT_BYTES = 2 * 1024 * 1024;
 export const GALLERY_MAX_REJECT_REASON_LENGTH = 500;
 /** How many distinct private Cloud Projects one account may own. */
-export const CLOUD_PROJECT_LIMIT = 3;
+export const CLOUD_PROJECT_LIMIT = 20;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -370,7 +370,8 @@ export class GalleryDO {
         updated_at TEXT NOT NULL,
         revision INTEGER NOT NULL DEFAULT 1,
         schema_version INTEGER NOT NULL,
-        project_text TEXT NOT NULL
+        project_text TEXT NOT NULL,
+        preview_svg TEXT NOT NULL DEFAULT ''
       ) WITHOUT ROWID
     `);
     this.sql.exec(`
@@ -402,6 +403,7 @@ export class GalleryDO {
       "ALTER TABLE gallery_entries ADD COLUMN submitter_provider TEXT",
       "ALTER TABLE gallery_entries ADD COLUMN netlistable INTEGER NOT NULL DEFAULT 0",
       "ALTER TABLE gallery_entries ADD COLUMN preview_revision TEXT NOT NULL DEFAULT ''",
+      "ALTER TABLE cloud_projects ADD COLUMN preview_svg TEXT NOT NULL DEFAULT ''",
     ]) {
       try {
         this.sql.exec(alteration);
@@ -524,6 +526,8 @@ export class GalleryDO {
         return this.cloudProjectOpen(String(body.userId), String(body.id));
       case "cloud-project-delete":
         return this.cloudProjectDelete(String(body.userId), String(body.id));
+      case "cloud-project-preview":
+        return this.cloudProjectPreview(String(body.userId), String(body.id));
       case "schema-backup":
         return this.schemaBackup();
       case "schema-converge":
@@ -953,8 +957,8 @@ export class GalleryDO {
     this.sql.exec(
       `INSERT INTO cloud_projects
          (id, user_id, name, created_at, updated_at, revision,
-          schema_version, project_text)
-       VALUES (?, ?, ?, ?, ?, 1, ?, ?)`,
+          schema_version, project_text, preview_svg)
+       VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)`,
       id,
       userId,
       String(body.name),
@@ -962,6 +966,7 @@ export class GalleryDO {
       String(body.updatedAt),
       Number(body.schemaVersion),
       String(body.projectText),
+      String(body.previewSvg ?? ""),
     );
     return Response.json(
       { project: this.cloudProjectOpenPayload(userId, id) },
@@ -1008,13 +1013,14 @@ export class GalleryDO {
     this.sql.exec(
       `UPDATE cloud_projects
        SET name = ?, updated_at = ?, revision = ?, schema_version = ?,
-           project_text = ?
+           project_text = ?, preview_svg = ?
        WHERE id = ? AND user_id = ? AND revision = ?`,
       String(body.name),
       String(body.updatedAt),
       nextRevision,
       Number(body.schemaVersion),
       String(body.projectText),
+      String(body.previewSvg ?? ""),
       id,
       userId,
       expectedRevision,
@@ -1047,6 +1053,27 @@ export class GalleryDO {
 
   private cloudProjectList(userId: string): Response {
     return Response.json({ projects: this.cloudProjectRows(userId) });
+  }
+
+  /**
+   * One shelf thumbnail. Scoped by account like every other Cloud Project
+   * read: a Project id is never a capability. An empty string means the row
+   * predates stored previews, and the shelf draws a placeholder instead.
+   */
+  private cloudProjectPreview(userId: string, id: string): Response {
+    const row = this.sql
+      .exec<{ preview_svg: string; revision: number }>(
+        `SELECT preview_svg, revision
+         FROM cloud_projects WHERE id = ? AND user_id = ?`,
+        id,
+        userId,
+      )
+      .toArray()[0];
+    if (!row) return Response.json({ error: "not-found" }, { status: 404 });
+    return Response.json({
+      previewSvg: row.preview_svg,
+      revision: row.revision,
+    });
   }
 
   private cloudProjectOpenPayload(userId: string, id: string) {
