@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import type { ComponentProps, SVGProps } from "react";
 
 import {
@@ -23,6 +24,12 @@ export interface EditorCanvasSurfaceProps {
   className: string;
   viewBox: string;
   eventHandlers: SVGProps<SVGSVGElement>;
+  /**
+   * Native wheel handler, attached non-passively. React's onWheel rides the
+   * passive root listener, where preventDefault cannot stop browser page
+   * zoom (pinch) or history-swipe navigation (horizontal scroll).
+   */
+  onWheel: (event: WheelEvent, element: SVGSVGElement) => void;
   grid: ComponentProps<typeof CanvasGridOverlay>;
   sceneInnerHtml: { __html: string };
   cellSymbolLayout: ComponentProps<typeof EditorCellSymbolLayoutOverlay> | null;
@@ -71,6 +78,7 @@ export function EditorCanvasSurface({
   className,
   viewBox,
   eventHandlers,
+  onWheel,
   grid,
   sceneInnerHtml,
   cellSymbolLayout,
@@ -85,6 +93,18 @@ export function EditorCanvasSurface({
   draftingHandles,
   interactionPreviews,
 }: EditorCanvasSurfaceProps) {
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const onWheelRef = useRef(onWheel);
+  useEffect(() => {
+    onWheelRef.current = onWheel;
+  });
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const listener = (event: WheelEvent) => onWheelRef.current(event, svg);
+    svg.addEventListener("wheel", listener, { passive: false });
+    return () => svg.removeEventListener("wheel", listener);
+  }, []);
   return (
     <section className="canvas-panel">
       {empty ? (
@@ -108,6 +128,7 @@ export function EditorCanvasSurface({
         </aside>
       ) : null}
       <svg
+        ref={svgRef}
         className={className}
         data-testid="schematic-canvas"
         role="img"

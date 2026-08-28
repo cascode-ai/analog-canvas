@@ -925,7 +925,18 @@ export function App({
       if (sceneCrashRequested()) {
         throw new Error("scene build crashed (test hook)");
       }
-      return buildSvgScene(renderedDocument, resolver, { bounds: viewBox });
+      // The scene contract validates integer grid bounds; the camera itself
+      // may sit between grid lines mid-gesture, so hand the builder an
+      // outward integer envelope of the viewport instead.
+      const sceneX = Math.floor(viewBox.x);
+      const sceneY = Math.floor(viewBox.y);
+      const sceneBounds = {
+        x: sceneX,
+        y: sceneY,
+        width: Math.max(1, Math.ceil(viewBox.x + viewBox.width) - sceneX),
+        height: Math.max(1, Math.ceil(viewBox.y + viewBox.height) - sceneY),
+      };
+      return buildSvgScene(renderedDocument, resolver, { bounds: sceneBounds });
     }, lastGoodSceneRef.current);
     if (!outcome.degraded) lastGoodSceneRef.current = outcome.scene;
     return outcome;
@@ -2765,7 +2776,6 @@ export function App({
       continue: continueCanvasGesture,
       finish: finishCanvasGesture,
       cancelDrag: () => canvasDragSessionRef.current?.cancel(),
-      onWheel: handleWheel,
       onDrop: handleDrop,
     },
     drafting: {
@@ -3783,6 +3793,7 @@ export function App({
         />
         <EditorCanvasSurface
           empty={canvasIsEmpty}
+          onWheel={handleWheel}
           className={[
             "schematic-canvas",
             tool === "wire" ? "wire-mode" : "",

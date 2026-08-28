@@ -2,7 +2,6 @@ import type {
   DragEvent as ReactDragEvent,
   MouseEvent as ReactMouseEvent,
   PointerEvent as ReactPointerEvent,
-  WheelEvent as ReactWheelEvent,
 } from "react";
 
 import type {
@@ -72,7 +71,6 @@ interface CanvasEventHandlerDependencies {
     continue: (event: CanvasPointerEvent) => void;
     finish: (event: CanvasPointerEvent) => void;
     cancelDrag: () => void;
-    onWheel: (event: ReactWheelEvent<SVGSVGElement>) => void;
     onDrop: (event: ReactDragEvent<SVGSVGElement>) => void;
   };
   drafting: {
@@ -142,7 +140,6 @@ export function createEditorCanvasEventHandlers({
     continue: continueCanvasGesture,
     finish: finishCanvasGesture,
     cancelDrag: cancelCanvasDrag,
-    onWheel,
     onDrop,
   },
   drafting: {
@@ -167,7 +164,6 @@ export function createEditorCanvasEventHandlers({
   report: setStatus,
 }: CanvasEventHandlerDependencies) {
   return {
-    onWheel,
     onClickCapture(event: CanvasMouseEvent) {
       const kind = interactionKind();
       if (kind === "moving-selection") {

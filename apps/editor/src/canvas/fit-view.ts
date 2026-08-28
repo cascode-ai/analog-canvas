@@ -37,21 +37,23 @@ function assertFinitePositiveRect(
 }
 
 /**
- * Quantizes an editor viewport to the current Document grid. Camera is
- * transient, but retaining the same grid contract prevents it from becoming a
- * covert float path into SVG rendering and pointer conversion.
+ * Sanitizes an editor viewport update. The camera is transient and stays
+ * continuous — quantizing it to the Document grid made wheel zoom step and
+ * the cursor anchor drift. Snapped pointer conversion still lands edits on
+ * the grid; only the viewport itself may sit between grid lines. Values are
+ * rounded to a fine fixed precision so float noise never accumulates.
  */
 export function normalizeCameraRect(
   rect: CameraRectInput,
   grid: number,
 ): GridRect {
   assertFinitePositiveRect(rect, grid, "Camera normalization");
-  const snap = (value: number) => Math.round(value / grid) * grid;
+  const precise = (value: number) => Math.round(value * 1000) / 1000;
   return {
-    x: snap(rect.x),
-    y: snap(rect.y),
-    width: Math.max(grid, snap(rect.width)),
-    height: Math.max(grid, snap(rect.height)),
+    x: precise(rect.x),
+    y: precise(rect.y),
+    width: Math.max(1, precise(rect.width)),
+    height: Math.max(1, precise(rect.height)),
   };
 }
 
@@ -162,8 +164,17 @@ export function fitCameraToVisibleBounds(
   const centreY = bounds.y + bounds.height / 2;
   const cameraX = centreX - (insets.left + visibleWidth / 2) / scale;
   const cameraY = centreY - (insets.top + visibleHeight / 2) / scale;
+  // Fit is a named landing point, not a gesture: it keeps the historical
+  // Document-grid camera (wheel zoom is the path that stays continuous),
+  // so a fresh fit always yields a grid-aligned integer camera.
+  const snap = (value: number) => Math.round(value / grid) * grid;
   return normalizeCameraRect(
-    { x: cameraX, y: cameraY, width: cameraWidth, height: cameraHeight },
+    {
+      x: snap(cameraX),
+      y: snap(cameraY),
+      width: Math.max(grid, snap(cameraWidth)),
+      height: Math.max(grid, snap(cameraHeight)),
+    },
     grid,
   );
 }
@@ -193,19 +204,25 @@ export function zoomCameraAtAnchor(
   anchor: { x: number; y: number },
   limits: CameraZoomLimits = CAMERA_ZOOM_LIMITS,
 ): GridRect {
-  const width = Math.max(
-    limits.minWidth,
-    Math.min(limits.maxWidth, Math.round(current.width * factor)),
+  // Clamp the scale once for both axes so hitting a limit never distorts
+  // the aspect ratio, and keep everything continuous: rounding here made
+  // the point under the cursor drift on every wheel step.
+  const scale = Math.max(
+    Math.min(
+      factor,
+      limits.maxWidth / current.width,
+      limits.maxHeight / current.height,
+    ),
+    limits.minWidth / current.width,
+    limits.minHeight / current.height,
   );
-  const height = Math.max(
-    limits.minHeight,
-    Math.min(limits.maxHeight, Math.round(current.height * factor)),
-  );
+  const width = current.width * scale;
+  const height = current.height * scale;
   const anchorX = current.x + anchor.x * current.width;
   const anchorY = current.y + anchor.y * current.height;
   return {
-    x: Math.round(anchorX - anchor.x * width),
-    y: Math.round(anchorY - anchor.y * height),
+    x: anchorX - anchor.x * width,
+    y: anchorY - anchor.y * height,
     width,
     height,
   };

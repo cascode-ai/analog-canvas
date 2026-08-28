@@ -22,13 +22,24 @@ describe("fitCameraToBounds", () => {
     ).toEqual({ x: -40, y: 20, width: 960, height: 640 });
   });
 
-  it("normalizes zoom, pan, and focus camera updates onto the grid", () => {
+  it("keeps camera updates continuous instead of snapping to the grid", () => {
+    // Snapping the camera made wheel zoom step and the cursor anchor
+    // drift; the viewport may sit between grid lines.
     expect(
       normalizeCameraRect(
         { x: 97.55, y: -43.2, width: 61.3, height: 16.7 },
         10,
       ),
-    ).toEqual({ x: 100, y: -40, width: 60, height: 20 });
+    ).toEqual({ x: 97.55, y: -43.2, width: 61.3, height: 16.7 });
+  });
+
+  it("rounds camera updates to a fine precision so float noise cannot accumulate", () => {
+    expect(
+      normalizeCameraRect(
+        { x: 29.999999999999996, y: 0.0001, width: 100.00049, height: 50 },
+        10,
+      ),
+    ).toEqual({ x: 30, y: 0, width: 100, height: 50 });
   });
 });
 
@@ -60,21 +71,24 @@ describe("zoomCameraAtAnchor", () => {
     });
   });
 
-  it("clamps zoomed extents to the camera limits", () => {
+  it("clamps zoomed extents to the camera limits without distorting aspect", () => {
     const shrunk = zoomCameraAtAnchor(
       { x: 0, y: 0, width: 100, height: 60 },
       0.5,
       { x: 0.5, y: 0.5 },
     );
-    expect(shrunk.width).toBe(CAMERA_ZOOM_LIMITS.minWidth);
+    // The tighter limit wins for both axes so aspect ratio is preserved:
+    // height hits minHeight (60 -> 80, scale 4/3) and width follows.
     expect(shrunk.height).toBe(CAMERA_ZOOM_LIMITS.minHeight);
+    expect(shrunk.width).toBeCloseTo((100 * 4) / 3, 10);
     const grown = zoomCameraAtAnchor(
       { x: 0, y: 0, width: 4000, height: 3000 },
       4,
       { x: 0.5, y: 0.5 },
     );
-    expect(grown.width).toBe(CAMERA_ZOOM_LIMITS.maxWidth);
+    // maxHeight (3000 -> 3500, scale 7/6) binds before maxWidth.
     expect(grown.height).toBe(CAMERA_ZOOM_LIMITS.maxHeight);
+    expect(grown.width).toBeCloseTo((4000 * 7) / 6, 10);
   });
 });
 
