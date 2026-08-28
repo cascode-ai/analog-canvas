@@ -113,6 +113,47 @@ describe("drafting group scale", () => {
     ]);
   });
 
+  it("preserves waveform proportions instead of snapping scaled points to the electrical grid", () => {
+    const document = createEmptyDocument("main", "Waveform proportions");
+    document.drafting = {
+      objects: [
+        {
+          id: "trace",
+          kind: "construction-line",
+          locked: false,
+          zIndex: 0,
+          anchor: { kind: "free", position: { x: 20, y: 20 } },
+          points: [
+            { x: 20, y: 20 },
+            { x: 50, y: 20 },
+            { x: 50, y: 40 },
+            { x: 80, y: 40 },
+            { x: 80, y: 20 },
+          ],
+          lineStyle: "solid",
+        },
+      ],
+    };
+
+    const scaled = scaleDraftingGroup(
+      document,
+      ["trace"],
+      { x: 20, y: 20 },
+      1.2,
+    );
+
+    expect(scaled?.[0]).toMatchObject({
+      styleOverride: { strokeScale: 1.2 },
+      points: [
+        { x: 20, y: 20 },
+        { x: 56, y: 20 },
+        { x: 56, y: 44 },
+        { x: 92, y: 44 },
+        { x: 92, y: 20 },
+      ],
+    });
+  });
+
   it("resolves one selection box for every object in the snapshot", () => {
     const document = createEmptyDocument("main", "Waveform bounds");
     document.drafting = {

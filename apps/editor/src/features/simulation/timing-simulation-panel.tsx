@@ -279,82 +279,100 @@ export function TimingSimulationPanel({
         </button>
       </div>
 
-      <div className="simulation-saved-nets" aria-label="Saved Nets">
-        <div className="simulation-saved-nets-heading">
-          <span>Waveforms</span>
-          <small>Display names only; circuit Nets stay unchanged</small>
-        </div>
-        {savedNetIds.size === 0 ? <small>None</small> : null}
-        {[...savedNetIds].map((baseNetId) => {
-          const net = logicalNets.find((candidate) =>
-            candidate.baseNetIds.includes(baseNetId),
-          );
-          const netName = net?.name ?? baseNetId;
-          const waveformName = netAliases[baseNetId] ?? netName;
-          return (
-            <div className="simulation-saved-net" key={baseNetId}>
-              <span className="simulation-saved-net-source" title={netName}>
-                <small>Net</small> {netName}
-              </span>
-              <span aria-hidden="true">→</span>
-              <input
-                aria-label={`Waveform name for ${netName}`}
-                title={`Waveform display name for Net ${netName}`}
-                value={waveformName}
-                onChange={(event) => {
-                  const alias = event.currentTarget.value;
-                  setNetAliases((current) => ({
-                    ...current,
-                    [baseNetId]: alias,
-                  }));
-                }}
-                onBlur={() => {
-                  setNetAliases((current) => {
-                    const alias = current[baseNetId]?.trim();
-                    if (alias) return { ...current, [baseNetId]: alias };
-                    const next = { ...current };
-                    delete next[baseNetId];
-                    return next;
-                  });
-                }}
-              />
-              <button
-                type="button"
-                aria-label={`Remove saved Net ${netName}`}
-                title={`Remove ${netName}`}
-                onClick={() => onToggleSavedNet(baseNetId)}
-              >
-                <span aria-hidden="true">×</span>
-              </button>
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="digital-simulation-body">
-        {waveformSvg ? (
-          <div
-            className="timing-waveform-preview"
-            data-testid="timing-waveform-preview"
-            dangerouslySetInnerHTML={{ __html: waveformSvg }}
-          />
-        ) : (
-          <div className="simulation-empty">
-            Pick the Nets to observe, then run the simulation.
+      <div className="digital-simulation-workspace">
+        <aside className="simulation-saved-nets" aria-label="Saved Nets">
+          <div className="simulation-saved-nets-heading">
+            <span>Saved Nets</span>
+            <small>Names below only affect waveform labels.</small>
           </div>
-        )}
-        {result && result.diagnostics.length > 0 ? (
-          <ul
-            className="simulation-diagnostics"
-            aria-label="Simulation diagnostics"
-          >
-            {result.diagnostics.map((diagnostic, index) => (
-              <li key={`${diagnostic.code}-${index}`}>
-                <strong>{diagnostic.code}</strong> {diagnostic.message}
-              </li>
-            ))}
-          </ul>
-        ) : null}
+          <div className="simulation-saved-net-list" role="list">
+            {savedNetIds.size === 0 ? (
+              <small className="simulation-saved-nets-empty">None</small>
+            ) : null}
+            {[...savedNetIds].map((baseNetId) => {
+              const net = logicalNets.find((candidate) =>
+                candidate.baseNetIds.includes(baseNetId),
+              );
+              const netName = net?.name ?? baseNetId;
+              const waveformName = netAliases[baseNetId] ?? netName;
+              return (
+                <div
+                  className="simulation-saved-net"
+                  key={baseNetId}
+                  role="listitem"
+                >
+                  <div className="simulation-saved-net-header">
+                    <span
+                      className="simulation-saved-net-source"
+                      title={netName}
+                    >
+                      <small>Net</small>
+                      <strong>{netName}</strong>
+                    </span>
+                    <button
+                      type="button"
+                      aria-label={`Remove saved Net ${netName}`}
+                      title={`Remove ${netName}`}
+                      onClick={() => onToggleSavedNet(baseNetId)}
+                    >
+                      <span aria-hidden="true">×</span>
+                    </button>
+                  </div>
+                  <label>
+                    <small>Waveform name</small>
+                    <input
+                      aria-label={`Waveform name for ${netName}`}
+                      title={`Waveform display name for Net ${netName}`}
+                      value={waveformName}
+                      onChange={(event) => {
+                        const alias = event.currentTarget.value;
+                        setNetAliases((current) => ({
+                          ...current,
+                          [baseNetId]: alias,
+                        }));
+                      }}
+                      onBlur={() => {
+                        setNetAliases((current) => {
+                          const alias = current[baseNetId]?.trim();
+                          if (alias) return { ...current, [baseNetId]: alias };
+                          const next = { ...current };
+                          delete next[baseNetId];
+                          return next;
+                        });
+                      }}
+                    />
+                  </label>
+                </div>
+              );
+            })}
+          </div>
+        </aside>
+
+        <div className="digital-simulation-body">
+          {waveformSvg ? (
+            <div
+              className="timing-waveform-preview"
+              data-testid="timing-waveform-preview"
+              dangerouslySetInnerHTML={{ __html: waveformSvg }}
+            />
+          ) : (
+            <div className="simulation-empty">
+              Pick the Nets to observe, then run the simulation.
+            </div>
+          )}
+          {result && result.diagnostics.length > 0 ? (
+            <ul
+              className="simulation-diagnostics"
+              aria-label="Simulation diagnostics"
+            >
+              {result.diagnostics.map((diagnostic, index) => (
+                <li key={`${diagnostic.code}-${index}`}>
+                  <strong>{diagnostic.code}</strong> {diagnostic.message}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
       </div>
 
       <footer className="digital-simulation-footer">

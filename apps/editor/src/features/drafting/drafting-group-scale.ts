@@ -1,5 +1,4 @@
 import { resolveDraftingObjectGeometry } from "@icm/derived";
-import { snapGridPoint } from "@icm/model";
 import type {
   DraftingObject,
   GridPoint,
@@ -33,29 +32,22 @@ function scaledStrokeOverride(
   return { ...(object.styleOverride ?? {}), strokeScale };
 }
 
-function scalePoint(
-  point: Point,
-  pivot: Point,
-  factor: number,
-  grid: number,
-): GridPoint {
-  return snapGridPoint(
-    {
-      x: pivot.x + (point.x - pivot.x) * factor,
-      y: pivot.y + (point.y - pivot.y) * factor,
-    },
-    grid,
-  );
+function scalePoint(point: Point, pivot: Point, factor: number): GridPoint {
+  // Drafting geometry supports one-unit precision. Snapping every scaled point
+  // to the electrical grid independently changes pulse widths and amplitudes.
+  return {
+    x: Math.round(pivot.x + (point.x - pivot.x) * factor),
+    y: Math.round(pivot.y + (point.y - pivot.y) * factor),
+  };
 }
 
 function scaleFreeAnchor(
   anchor: VisualAnchor,
   pivot: Point,
   factor: number,
-  grid: number,
 ): Extract<VisualAnchor, { kind: "free" }> | null {
   return anchor.kind === "free"
-    ? { ...anchor, position: scalePoint(anchor.position, pivot, factor, grid) }
+    ? { ...anchor, position: scalePoint(anchor.position, pivot, factor) }
     : null;
 }
 
@@ -68,10 +60,9 @@ export function scaleDraftingObject(
   object: DraftingObject,
   pivot: Point,
   factor: number,
-  grid: number,
 ): DraftingObject | null {
   if (object.locked || !Number.isFinite(factor) || factor <= 0) return null;
-  const anchor = scaleFreeAnchor(object.anchor, pivot, factor, grid);
+  const anchor = scaleFreeAnchor(object.anchor, pivot, factor);
   if (!anchor) return null;
   if (object.kind === "text") {
     return {
@@ -90,17 +81,15 @@ export function scaleDraftingObject(
       ...object,
       anchor,
       styleOverride,
-      points: object.points.map((point) =>
-        scalePoint(point, pivot, factor, grid),
-      ),
+      points: object.points.map((point) => scalePoint(point, pivot, factor)),
       curveControls: object.curveControls?.map((point) =>
-        point ? scalePoint(point, pivot, factor, grid) : null,
+        point ? scalePoint(point, pivot, factor) : null,
       ),
     };
   }
   if (object.kind === "arrow") {
-    const from = scaleFreeAnchor(object.from, pivot, factor, grid);
-    const to = scaleFreeAnchor(object.to, pivot, factor, grid);
+    const from = scaleFreeAnchor(object.from, pivot, factor);
+    const to = scaleFreeAnchor(object.to, pivot, factor);
     const styleOverride = scaledStrokeOverride(object, factor);
     if (!from || !to || !styleOverride) return null;
     return {
@@ -110,15 +99,15 @@ export function scaleDraftingObject(
       from,
       to,
       waypoints: object.waypoints?.map((point) =>
-        scalePoint(point, pivot, factor, grid),
+        scalePoint(point, pivot, factor),
       ),
       curveControls: object.curveControls?.map((point) =>
-        point ? scalePoint(point, pivot, factor, grid) : null,
+        point ? scalePoint(point, pivot, factor) : null,
       ),
     };
   }
   if (object.kind === "rectangle") {
-    const center = scalePoint(object.center, pivot, factor, grid);
+    const center = scalePoint(object.center, pivot, factor);
     const styleOverride = scaledStrokeOverride(object, factor);
     if (!styleOverride) return null;
     return {
@@ -126,15 +115,12 @@ export function scaleDraftingObject(
       anchor: { kind: "free", position: center },
       styleOverride,
       center,
-      width: Math.max(grid, Math.round((object.width * factor) / grid) * grid),
-      height: Math.max(
-        grid,
-        Math.round((object.height * factor) / grid) * grid,
-      ),
+      width: Math.max(1, Math.round(object.width * factor)),
+      height: Math.max(1, Math.round(object.height * factor)),
     };
   }
   if (object.kind === "circle") {
-    const center = scalePoint(object.center, pivot, factor, grid);
+    const center = scalePoint(object.center, pivot, factor);
     const styleOverride = scaledStrokeOverride(object, factor);
     if (!styleOverride) return null;
     return {
@@ -142,10 +128,7 @@ export function scaleDraftingObject(
       anchor: { kind: "free", position: center },
       styleOverride,
       center,
-      radius: Math.max(
-        grid,
-        Math.round((object.radius * factor) / grid) * grid,
-      ),
+      radius: Math.max(1, Math.round(object.radius * factor)),
     };
   }
   return null;
@@ -205,7 +188,7 @@ export function scaleDraftingGroup(
   );
   if (source.length !== ids.size) return null;
   const scaled = source.map((object) =>
-    scaleDraftingObject(object, pivot, factor, document.presentation.grid),
+    scaleDraftingObject(object, pivot, factor),
   );
   return scaled.every((object): object is DraftingObject => object !== null)
     ? scaled

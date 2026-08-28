@@ -174,6 +174,16 @@ test("opens one digital simulation window and picks a Net from the canvas", asyn
   await expect(simulation).toBeVisible();
   await expect(page.getByRole("dialog")).toHaveCount(1);
   await expect(simulation.locator("details")).toHaveCount(0);
+  await expect(
+    simulation.locator(".digital-simulation-workspace"),
+  ).toBeVisible();
+  await expect
+    .poll(() =>
+      simulation
+        .locator(".simulation-saved-net-list")
+        .evaluate((element) => getComputedStyle(element).flexDirection),
+    )
+    .toBe("column");
 
   await simulation.getByRole("button", { name: "Pick Nets" }).click();
   await expect(canvas).toHaveClass(/simulation-net-pick-active/u);

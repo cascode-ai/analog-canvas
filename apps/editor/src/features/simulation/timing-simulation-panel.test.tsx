@@ -44,9 +44,12 @@ describe("TimingSimulationPanel", () => {
     expect(markup).toContain('role="dialog"');
     expect(markup).toContain("Digital Simulation");
     expect(markup).toContain("Saved Nets");
+    expect(markup).toContain('<aside class="simulation-saved-nets"');
+    expect(markup).toContain('class="simulation-saved-net-list" role="list"');
+    expect(markup).toContain('role="listitem"');
     expect(markup).toContain('aria-label="Waveform name for clock"');
     expect(markup).toContain('value="clock"');
-    expect(markup).toContain("circuit Nets stay unchanged");
+    expect(markup).toContain("Names below only affect waveform labels.");
     expect(markup).toContain("Pick Nets");
     expect(markup).toContain("Run Simulation");
     expect(markup).toContain("Export SVG");
