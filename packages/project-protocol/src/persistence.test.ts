@@ -326,9 +326,7 @@ describe("Project persistence", () => {
     const parsed = parseProjectWithMetadata(
       JSON.stringify(
         upgradeSchema28To29(
-          upgradeSchema27To28(
-            upgradeSchema26To27(upgradeSchema25To26(source)),
-          ),
+          upgradeSchema27To28(upgradeSchema26To27(upgradeSchema25To26(source))),
         ),
       ),
     );
