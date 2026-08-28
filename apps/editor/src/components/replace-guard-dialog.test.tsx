@@ -17,6 +17,7 @@ describe("ReplaceGuardDialog", () => {
     );
     expect(html).toContain("Save and continue");
     expect(html).toContain("Discard and continue");
+    expect(html).toContain("Discard removes this working copy");
     expect(html).toContain("Cancel (keep editing)");
     expect(html).toContain("Cloud Project is the formal saved copy");
     expect(html).not.toContain("authoritative copy");

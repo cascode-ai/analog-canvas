@@ -28,6 +28,11 @@ import {
   type CloudProjectSaveOutcome,
   type CloudProjectSummary,
 } from "../features/editor-shell/cloud-projects";
+import {
+  forgetRecentCloudProject,
+  readRecentCloudProjectId,
+  rememberRecentCloudProject,
+} from "./cloud-project-session";
 
 const REFRESH_RESTORE_STORAGE_KEY = "icm.restore-after-refresh.v1";
 
@@ -39,12 +44,6 @@ export interface SavedProjectBaseline {
 export type PersistenceState =
   "unbound" | "clean" | "dirty" | "saving" | "offline" | "conflict" | "failed";
 
-interface PreviousProjectSnapshot extends SavedProjectBaseline {
-  persistenceState: PersistenceState;
-  cloudBinding: CloudProjectBinding | null;
-  savedBaseline: SavedProjectBaseline | null;
-}
-
 interface ReplaceGuardState {
   intent: string;
   perform: () => void | Promise<void>;
@@ -55,7 +54,6 @@ export interface ReplaceProjectOptions {
   source?: BrowserRecoverySource;
   keepWorkingCopy?: boolean;
   formalFileHint?: BrowserRecoveryFormalFileHint;
-  rememberPrevious?: boolean;
   persistenceState?: PersistenceState;
   cloudBinding?: CloudProjectBinding | null;
   savedBaseline?: SavedProjectBaseline | null;
@@ -107,6 +105,7 @@ export function useProjectFileLifecycle({
     }
     return requested;
   });
+  const [startupCloudProjectId] = useState(readRecentCloudProjectId);
   const refreshRestoreAttemptedRef = useRef(false);
   const saveInFlightRef = useRef<Promise<CloudProjectSaveOutcome> | null>(null);
   const liveProjectRef = useRef(project);
@@ -122,8 +121,6 @@ export function useProjectFileLifecycle({
     session: string;
     token: string;
   } | null>(null);
-  const [previousProject, setPreviousProject] =
-    useState<PreviousProjectSnapshot | null>(null);
   const [replaceGuard, setReplaceGuard] = useState<ReplaceGuardState | null>(
     null,
   );
@@ -149,20 +146,6 @@ export function useProjectFileLifecycle({
     nextViewBox: GridRect = defaultViewBox,
     options: ReplaceProjectOptions = {},
   ): SchematicDocument {
-    if (options.rememberPrevious !== false) {
-      setPreviousProject({
-        project: structuredClone(project),
-        viewBox: { ...viewBox },
-        persistenceState,
-        cloudBinding,
-        savedBaseline: savedProjectBaseline
-          ? {
-              project: structuredClone(savedProjectBaseline.project),
-              viewBox: { ...savedProjectBaseline.viewBox },
-            }
-          : null,
-      });
-    }
     recovery.cancelPending();
     if (options.keepWorkingCopy !== true) {
       recovery.beginWorkingCopy(options.source ?? "new");
@@ -180,12 +163,18 @@ export function useProjectFileLifecycle({
           ? "clean"
           : "unbound");
     setPersistenceState(nextPersistenceState);
-    setCloudBinding(options.cloudBinding ?? null);
+    const nextCloudBinding = options.cloudBinding ?? null;
+    setCloudBinding(nextCloudBinding);
     setSavedProjectBaseline(options.savedBaseline ?? null);
+    if (nextCloudBinding) {
+      rememberRecentCloudProject(nextCloudBinding.id);
+    } else {
+      forgetRecentCloudProject();
+    }
     recovery.stage(prepared.project, {
       unsavedAtSnapshot:
         nextPersistenceState !== "clean" && nextPersistenceState !== "unbound",
-      cloudBinding: options.cloudBinding ?? null,
+      cloudBinding: nextCloudBinding,
     });
     return nextDocument;
   }
@@ -208,6 +197,7 @@ export function useProjectFileLifecycle({
         revision: outcome.project.revision,
       };
       setCloudBinding(nextBinding);
+      rememberRecentCloudProject(nextBinding.id);
       setSavedProjectBaseline({
         project: savedCandidate,
         viewBox: { ...viewBox },
@@ -328,8 +318,14 @@ export function useProjectFileLifecycle({
     if (replaceGuardSaving) return;
     const guard = replaceGuard;
     if (!guard) return;
-    setReplaceGuard(null);
-    void guard.perform();
+    setReplaceGuardSaving(true);
+    void (async () => {
+      recovery.cancelPending();
+      await recovery.deleteSession(recovery.workingCopyId);
+      setReplaceGuard(null);
+      await guard.perform();
+      setReplaceGuardSaving(false);
+    })();
   }
 
   function saveAndContinueReplaceGuard(): void {
@@ -354,27 +350,7 @@ export function useProjectFileLifecycle({
         createId("document"),
       );
       replaceActiveProject(next, defaultViewBox, { source: "new" });
-      setStatus("Created a new Project · Previous Project is available");
-    });
-  }
-
-  function restorePreviousProject(): void {
-    const previous = previousProject;
-    if (!previous) return;
-    void guardDirtyReplacement(`Return to ${previous.project.name}`, () => {
-      const restored = replaceActiveProject(
-        previous.project,
-        previous.viewBox,
-        {
-          source: "recovered",
-          persistenceState: previous.persistenceState,
-          cloudBinding: previous.cloudBinding,
-          savedBaseline: previous.savedBaseline,
-        },
-      );
-      setStatus(
-        `Returned to Previous Project ${previous.project.name} at revision ${restored.revision}`,
-      );
+      setStatus("Created a new Project");
     });
   }
 
@@ -539,11 +515,10 @@ export function useProjectFileLifecycle({
     await guardDirtyReplacement(`Open ${file.name}`, performOpen);
   }
 
-  async function openCloudProjectById(
-    summary: CloudProjectSummary,
-  ): Promise<void> {
-    const fetched = await openCloudProject(summary.id);
+  async function openCloudProjectById(projectId: string): Promise<void> {
+    const fetched = await openCloudProject(projectId);
     if (fetched.status !== "opened") {
+      if (fetched.status === "not-found") forgetRecentCloudProject();
       setStatus(
         fetched.status === "signed-out"
           ? "Sign in again to open Cloud Projects"
@@ -616,7 +591,6 @@ export function useProjectFileLifecycle({
         {
           source: "recovered",
           keepWorkingCopy: true,
-          rememberPrevious: false,
           persistenceState:
             read.record.unsavedAtSnapshot === false && read.record.cloudBinding
               ? "clean"
@@ -672,16 +646,22 @@ export function useProjectFileLifecycle({
             session.latest.recordId !== dismissedStartupRecoveryRecordId,
         ) ?? null)
       : null;
+  const canRestoreStartupCloudProject =
+    recovery.ready &&
+    !restoreAfterRefresh &&
+    !isDirtyWork() &&
+    startupRecovery === null;
 
   return {
     persistenceState,
     cloudBinding,
     savedProjectBaseline,
-    previousProject,
     replaceGuard,
     replaceGuardSaving,
     recoveryDialogOpen,
     startupRecovery,
+    startupCloudProjectId,
+    canRestoreStartupCloudProject,
     setRecoveryDialogOpen,
     isDirtyWork,
     replaceActiveProject,
@@ -697,7 +677,6 @@ export function useProjectFileLifecycle({
         startupRecovery?.latest?.recordId ?? null,
       ),
     createNewProject,
-    restorePreviousProject,
     revertToSavedProjectBaseline,
     openRecoveryDialog,
     restoreRecoverySession,

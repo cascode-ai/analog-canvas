@@ -8,24 +8,22 @@ import {
 export interface FileCommandMenuProps {
   cloudProjects: readonly CloudProjectSummary[];
   activeCloudProjectId: string | null;
-  previousProjectName: string | null;
   canRevert: boolean;
   hasRecoverySessions: boolean;
   projectInputRef: RefObject<HTMLInputElement | null>;
   onNewProject: () => void;
   onSave: () => void;
   onSaveAsCopy: () => void;
+  onRefreshCloudProjects: () => void;
   onOpenCloudProject: (project: CloudProjectSummary) => void;
   onDeleteCloudProject: (project: CloudProjectSummary) => void;
   onRefresh: () => void;
   onImportProject: (file: File | null) => void;
   onImportSpice: (files: FileList | null) => void;
   onExportProject: () => void;
-  onDownloadBackup: () => void;
   onExportSvg: () => void;
   onExportRaster: (format: "png" | "pdf") => void;
   onExportNetlist: (format: "spice" | "spectre") => void;
-  onRestorePrevious: () => void;
   onRevert: () => void;
   onOpenRecovery: () => void;
 }
@@ -35,27 +33,31 @@ export function FileCommandMenu({
   activeCloudProjectId,
   onOpenCloudProject,
   onDeleteCloudProject,
-  previousProjectName,
   canRevert,
   hasRecoverySessions,
   projectInputRef,
   onNewProject,
   onSave,
   onSaveAsCopy,
+  onRefreshCloudProjects,
   onRefresh,
   onImportProject,
   onImportSpice,
   onExportProject,
-  onDownloadBackup,
   onExportSvg,
   onExportRaster,
   onExportNetlist,
-  onRestorePrevious,
   onRevert,
   onOpenRecovery,
 }: FileCommandMenuProps) {
   return (
-    <details className="command-menu" name="editor-command-menu">
+    <details
+      className="command-menu"
+      name="editor-command-menu"
+      onToggle={(event) => {
+        if (event.currentTarget.open) onRefreshCloudProjects();
+      }}
+    >
       <summary>File</summary>
       <div className="command-popover">
         <button type="button" onClick={onNewProject}>
@@ -126,9 +128,6 @@ export function FileCommandMenu({
         <button type="button" onClick={onExportProject}>
           Export Project File…
         </button>
-        <button type="button" onClick={onDownloadBackup}>
-          Download Backup
-        </button>
         <span className="command-group-label">Export Drawing</span>
         <button type="button" aria-label="Export SVG" onClick={onExportSvg}>
           SVG
@@ -163,18 +162,6 @@ export function FileCommandMenu({
         </button>
         <button type="button" onClick={onRefresh}>
           Refresh app
-        </button>
-        <button
-          type="button"
-          onClick={onRestorePrevious}
-          disabled={previousProjectName === null}
-          title={
-            previousProjectName
-              ? `Return to ${previousProjectName}`
-              : "No previous Project in this editor session"
-          }
-        >
-          Previous Project
         </button>
         <button type="button" onClick={onRevert} disabled={!canRevert}>
           Revert to Last Saved

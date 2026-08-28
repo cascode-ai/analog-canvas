@@ -116,12 +116,13 @@ export function EditorHelpDialog({
               <strong>Import Project File</strong> and
               <strong>Import SPICE</strong> for portable inputs. Use{" "}
               <strong>File / Save</strong> for the formal Cloud Project;
-              <strong>Export Project File</strong> and
-              <strong>Download Backup</strong> produce portable local copies.
-              Drawing export provides SVG, PNG, and PDF. Because raw browser
-              refresh shortcuts are blocked to protect unsaved work, use{" "}
-              <strong>File / Refresh app</strong> when you deliberately want to
-              reload; it saves and restores the current recovery snapshot.
+              <strong>Export Project File</strong> produces a portable local
+              copy. A direct backup download appears only when browser recovery
+              cannot protect current work. Drawing export provides SVG, PNG, and
+              PDF. Because raw browser refresh shortcuts are blocked to protect
+              unsaved work, use <strong>File / Refresh app</strong> when you
+              deliberately want to reload; it saves and restores the current
+              recovery snapshot.
             </p>
             <h3>Place, select, and connect</h3>
             <p>
@@ -210,8 +211,10 @@ export function EditorHelpDialog({
               download, or delete those copies. They are not formal Cloud
               Projects and can be lost when browser data is cleared, and a
               reload within a fraction of a second of an edit may miss that last
-              edit. Save updates the private Cloud Project; exporting or
-              downloading a backup never deletes the safety copies.
+              edit. Save updates the private Cloud Project; exporting never
+              deletes the safety copies. Returning from Gallery reopens the last
+              active Cloud Project in this browser tab unless newer local
+              recovery needs a decision first.
             </p>
           </section>
           <section className="help-about">

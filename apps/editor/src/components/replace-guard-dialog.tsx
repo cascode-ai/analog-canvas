@@ -60,6 +60,12 @@ export function ReplaceGuardDialog({
             safety copy. Choose what happens before <strong>{intent}</strong>{" "}
             continues.
           </p>
+          {recoveryProtected ? (
+            <p>
+              A temporary recovery copy is available while you decide. Choosing
+              Discard removes this working copy before continuing.
+            </p>
+          ) : null}
           {!recoveryProtected ? (
             <p className="replace-guard-warning" role="alert">
               A current browser recovery copy could not be confirmed. Saving is
@@ -89,7 +95,8 @@ export function ReplaceGuardDialog({
           </div>
           <p>
             Cloud Project is the formal saved copy. Browser recovery and local
-            exports remain safety and interchange copies.
+            exports remain safety and interchange copies; neither is a hidden
+            project history.
           </p>
         </div>
       </section>

@@ -127,7 +127,7 @@ test("the site lands on the full-screen gallery feed", async ({ page }) => {
   ).toHaveCount(0);
   await expect(page.getByTestId("gallery-new-circuit")).toHaveAttribute(
     "href",
-    "/editor",
+    "/editor?new=1",
   );
 });
 

@@ -26,6 +26,7 @@ export interface EditorAppChromeProps {
   onProjectNameDraftChange: (value: string) => void;
   onProjectNameCommit: () => void;
   onProjectNameCancel: () => void;
+  onOpenGallery: () => void;
   fileCommands: ComponentProps<typeof FileCommandMenu>;
   searchOpen: boolean;
   onManageCells: () => void;
@@ -62,6 +63,7 @@ export function EditorAppChrome({
   onProjectNameDraftChange,
   onProjectNameCommit,
   onProjectNameCancel,
+  onOpenGallery,
   fileCommands,
   searchOpen,
   onManageCells,
@@ -98,6 +100,19 @@ export function EditorAppChrome({
             href="/"
             aria-label="Back to the gallery"
             title="Back to the gallery"
+            onClick={(event) => {
+              if (
+                event.button !== 0 ||
+                event.metaKey ||
+                event.ctrlKey ||
+                event.shiftKey ||
+                event.altKey
+              ) {
+                return;
+              }
+              event.preventDefault();
+              onOpenGallery();
+            }}
           >
             <span className="app-brand-mark" aria-hidden="true" />
             <h1 title="Analog Canvas">Analog Canvas</h1>

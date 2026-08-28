@@ -111,23 +111,43 @@ test("Cloud Save updates one binding while local export stays interchange", asyn
   ).toBeEnabled();
   await page.getByRole("link", { name: "Back to the gallery" }).click();
   await expect(page).toHaveURL(/\/$/u);
+  await page.goto("/editor");
+  await expect(page.getByTestId("status")).toContainText(
+    "Opened Cloud Project New Circuit",
+  );
+  await expect(page.getByTestId("hit-R1")).toHaveCount(1);
+  await expect(page.getByTestId("hit-R2")).toHaveCount(1);
+
+  await page.getByRole("link", { name: "Back to the gallery" }).click();
+  await page.getByTestId("gallery-new-circuit").click();
+  await expect(page).toHaveURL(/\/editor\?new=1$/u);
+  await expect(page.getByTestId("canvas-empty-state")).toBeVisible();
+  await expect(page.getByTestId("hit-R1")).toHaveCount(0);
 });
 
-test("dirty work uses the native browser leave prompt", async ({ page }) => {
+test("Gallery navigation uses the replacement decision without a second browser prompt", async ({
+  page,
+}) => {
   await page.goto("/editor");
   await chooseComponent(page, "resistor");
   await page
     .getByTestId("schematic-canvas")
     .click({ position: { x: 360, y: 230 } });
   await page.keyboard.press("Escape");
-  const leaveAttempt = page
-    .getByRole("link", { name: "Back to the gallery" })
-    .click();
-  const dialog = await page.waitForEvent("dialog");
-  expect(dialog.type()).toBe("beforeunload");
-  await dialog.dismiss();
-  await leaveAttempt;
+  await page.getByRole("link", { name: "Back to the gallery" }).click();
+  const guard = page.getByRole("dialog", {
+    name: "Protect the current Project",
+  });
+  await expect(guard).toBeVisible();
+  await guard.getByRole("button", { name: "Cancel (keep editing)" }).click();
   await expect(page).toHaveURL(/\/editor/u);
+
+  await page.getByRole("link", { name: "Back to the gallery" }).click();
+  await guard.getByRole("button", { name: "Discard and continue" }).click();
+  await expect(page).toHaveURL(/\/$/u);
+  await page.goto("/editor");
+  await expect(page.getByTestId("startup-recovery-banner")).toHaveCount(0);
+  await expect(page.getByTestId("canvas-empty-state")).toBeVisible();
 });
 
 test("imports and upgrades a portable Project before explicit export", async ({
@@ -220,7 +240,7 @@ test("replacement guard offers cancel, discard, and Cloud Save", async ({
   );
 });
 
-test("new and Previous Project preserve the explicit replacement decision", async ({
+test("discarding a dirty replacement does not leave a second project stack", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -237,8 +257,12 @@ test("new and Previous Project preserve the explicit replacement decision", asyn
   await dialog.getByRole("button", { name: "Discard and continue" }).click();
   await expect(page.getByTestId("canvas-empty-state")).toBeVisible();
   fileMenu = await openMenu(page, "File");
-  await fileMenu.getByRole("button", { name: "Previous Project" }).click();
-  await expect(page.getByTestId("hit-R1")).toHaveCount(1);
+  await expect(
+    fileMenu.getByRole("button", { name: "Previous Project" }),
+  ).toHaveCount(0);
+  await expect(
+    fileMenu.getByRole("button", { name: "Download Backup" }),
+  ).toHaveCount(0);
 });
 
 test("reverts to the last acknowledged Cloud revision", async ({ page }) => {

@@ -8,6 +8,7 @@ import {
   awaitRecoveryStoreReady,
   chooseComponent,
   clickCommand,
+  openMenu,
   readRecoveryRecords,
   recoveryProjectTexts,
 } from "./editor-fixtures.js";
@@ -214,7 +215,7 @@ test("a newer-schema copy is downloadable but not restorable", async ({
     .toBe(true);
 });
 
-test("deleting one session keeps the other project's copy", async ({
+test("explicit discard removes outgoing recovery and hides a clean replacement", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -241,21 +242,21 @@ test("deleting one session keeps the other project's copy", async ({
   await expect(page.getByTestId("active-document-name")).toHaveText(
     "Manual Editor Demo",
   );
-  // Wait for the debounced seed write of the incoming working copy before
-  // reloading, then both sessions must appear after discovery.
+  // Wait for the debounced seed write of the incoming clean working copy.
+  // Explicit Discard removed the outgoing session, and a clean recovery seed
+  // must not make the exceptional Recovery command permanently visible.
   await expect
     .poll(() => recoveryProjectTexts(page))
     .toContain('"name": "Phase 1 Manual Editor"');
+  await expect
+    .poll(() => recoveryProjectTexts(page))
+    .not.toContain('"name": "New Circuit"');
   await page.reload();
 
-  await clickCommand(page, "File", "Recover Local Work…");
-  const dialog = page.getByRole("dialog", { name: "Recover recent work" });
-  await expect(dialog.getByTestId("recovery-session-card")).toHaveCount(2);
-  const firstCard = dialog.getByTestId("recovery-session-card").first();
-  await firstCard.getByRole("button", { name: /^Delete/ }).click();
-  await expect(dialog.getByTestId("recovery-session-card")).toHaveCount(1);
-  const remaining = await readRecoveryRecords(page);
-  expect(remaining.length).toBeGreaterThan(0);
+  const fileMenu = await openMenu(page, "File");
+  await expect(
+    fileMenu.getByRole("button", { name: "Recover Local Work…" }),
+  ).toHaveCount(0);
 });
 
 test("dialog closes with Escape and keeps focus labels", async ({ page }) => {

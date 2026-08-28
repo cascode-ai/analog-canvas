@@ -124,7 +124,14 @@ describe("Cloud Project client", () => {
       await listCloudProjects(
         respondWith(200, { projects: [summary] }).fetchLike,
       ),
-    ).toEqual([summary]);
+    ).toEqual({ status: "listed", projects: [summary] });
+    expect(await listCloudProjects(respondWith(401, {}).fetchLike)).toEqual({
+      status: "signed-out",
+    });
+    expect(await listCloudProjects(respondWith(503, {}).fetchLike)).toEqual({
+      status: "unreachable",
+      message: "Cloud Project list is unavailable (503)",
+    });
     const opened = respondWith(200, {
       project: { ...summary, projectText: "{}" },
     });

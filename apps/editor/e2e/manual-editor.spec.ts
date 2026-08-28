@@ -3718,7 +3718,7 @@ test("keeps component insertion and inspection from resizing the canvas", async 
   await expect(page.getByTestId("selection-shelf")).toContainText("M1");
 });
 
-test("retains recovery across save and project replacement", async ({
+test("retains recovery across export but honors explicit discard on replacement", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -3756,13 +3756,13 @@ test("retains recovery across save and project replacement", async ({
   await expect(page.getByTestId("active-document-name")).toHaveText(
     "Manual Editor Demo",
   );
-  // The outgoing Project stays recoverable and the incoming Project seeds
-  // its own working copy.
+  // Discard is not a hidden undo stack: it removes the outgoing working copy,
+  // while the incoming Project seeds its own bounded recovery session.
   await expect
     .poll(async () => {
       const texts = await recoveryProjectTexts(page);
       return (
-        texts.includes('"revision": 2') &&
+        !texts.includes('"revision": 2') &&
         texts.includes('"name": "Phase 1 Manual Editor"')
       );
     })

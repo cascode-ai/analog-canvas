@@ -36,6 +36,11 @@ export type CloudProjectOpenOutcome =
   | { status: "not-found" }
   | { status: "unreachable"; message: string };
 
+export type CloudProjectListOutcome =
+  | { status: "listed"; projects: readonly CloudProjectSummary[] }
+  | { status: "signed-out" }
+  | { status: "unreachable"; message: string };
+
 const ENDPOINT = "/api/projects";
 
 function summaryOf(value: unknown): CloudProjectSummary | null {
@@ -124,20 +129,32 @@ export async function saveCloudProject(
 
 export async function listCloudProjects(
   fetchLike: typeof fetch = fetch,
-): Promise<readonly CloudProjectSummary[]> {
+): Promise<CloudProjectListOutcome> {
   try {
     const response = await fetchLike(ENDPOINT, {
       credentials: "same-origin",
     });
-    if (!response.ok) return [];
+    if (response.status === 401) return { status: "signed-out" };
+    if (!response.ok) {
+      return {
+        status: "unreachable",
+        message: `Cloud Project list is unavailable (${response.status})`,
+      };
+    }
     const payload = (await response.json().catch(() => null)) as {
       projects?: unknown[];
     } | null;
-    return (payload?.projects ?? [])
-      .map(summaryOf)
-      .filter((item): item is CloudProjectSummary => item !== null);
-  } catch {
-    return [];
+    return {
+      status: "listed",
+      projects: (payload?.projects ?? [])
+        .map(summaryOf)
+        .filter((item): item is CloudProjectSummary => item !== null),
+    };
+  } catch (error) {
+    return {
+      status: "unreachable",
+      message: error instanceof Error ? error.message : "Network error",
+    };
   }
 }
 

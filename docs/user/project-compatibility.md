@@ -45,5 +45,6 @@ recovery is a non-authoritative safety copy kept in this browser's IndexedDB:
 at most two recent working copies, each with a current and a previous
 generation, each copy at most 4 MB and 12 MB in total. It does not survive
 explicitly clearing site data. Use **File / Save** for the formal Cloud Project
-and **Export Project File…** or **Download Backup** for portable bytes. None of
-these operations deletes browser recovery copies.
+and **Export Project File…** for portable bytes. A direct backup download is
+shown when recovery storage fails. These operations do not delete browser
+recovery copies.

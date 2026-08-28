@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import "../styles/editor-entry.css";
 import type {
@@ -474,6 +474,25 @@ export function App({
   const [publishSession, setPublishSession] = useState<SessionUser | null>(
     null,
   );
+  /** The signed-in account's private formal Projects, newest first. */
+  const [cloudProjects, setCloudProjects] = useState<
+    readonly CloudProjectSummary[]
+  >([]);
+  const [cloudProjectsReady, setCloudProjectsReady] = useState(false);
+  const cloudListRequestRef = useRef(0);
+  const cloudListMutationRef = useRef(0);
+  const reloadCloudProjects = useCallback(async (): Promise<void> => {
+    const request = ++cloudListRequestRef.current;
+    const mutationAtStart = cloudListMutationRef.current;
+    const outcome = await listCloudProjects();
+    if (request !== cloudListRequestRef.current) return;
+    setCloudProjectsReady(true);
+    if (outcome.status !== "listed") return;
+    // A Save or Delete acknowledged after this request began is newer than
+    // the response, so the stale list must not erase that mutation.
+    if (mutationAtStart !== cloudListMutationRef.current) return;
+    setCloudProjects(outcome.projects);
+  }, []);
   const [galleryEntryContext, setGalleryEntryContext] = useState<{
     id: string;
     name: string;
@@ -516,14 +535,23 @@ export function App({
     void fetchSessionUser().then(async (user) => {
       if (cancelled) return;
       setPublishSession(user);
-      if (!user) return;
-      const projects = await listCloudProjects();
-      if (!cancelled) setCloudProjects(projects);
+      if (!user) {
+        setCloudProjectsReady(true);
+        return;
+      }
+      await reloadCloudProjects();
     });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [reloadCloudProjects]);
+
+  useEffect(() => {
+    if (!publishSession) return;
+    const refreshAfterReturning = () => void reloadCloudProjects();
+    window.addEventListener("focus", refreshAfterReturning);
+    return () => window.removeEventListener("focus", refreshAfterReturning);
+  }, [publishSession, reloadCloudProjects]);
 
   useEffect(() => {
     if (!publishGalleryOpen) return;
@@ -558,11 +586,12 @@ export function App({
   const {
     cloudBinding,
     savedProjectBaseline,
-    previousProject,
     replaceGuard,
     replaceGuardSaving,
     recoveryDialogOpen,
     startupRecovery,
+    startupCloudProjectId,
+    canRestoreStartupCloudProject,
     setRecoveryDialogOpen,
     isDirtyWork,
     replaceActiveProject,
@@ -575,7 +604,6 @@ export function App({
     saveAndContinueReplaceGuard,
     dismissStartupRecovery,
     createNewProject,
-    restorePreviousProject,
     revertToSavedProjectBaseline,
     openRecoveryDialog,
     restoreRecoverySession,
@@ -590,11 +618,13 @@ export function App({
     viewBox,
     defaultViewBox: DEFAULT_VIEWBOX,
     setStatus,
-    onCloudProjectSaved: (saved) =>
+    onCloudProjectSaved: (saved) => {
+      cloudListMutationRef.current += 1;
       setCloudProjects((current) => [
         saved,
         ...current.filter((candidate) => candidate.id !== saved.id),
-      ]),
+      ]);
+    },
     recovery: {
       ready: recoveryReady,
       sessions: recoverySessions,
@@ -623,6 +653,36 @@ export function App({
     },
   });
   const allowNextBrowserUnload = useUnsavedWorkGuard(isDirtyWork());
+  const startupCloudRestoreAttemptedRef = useRef(false);
+  const hasExplicitBootTarget =
+    initialGalleryEntryId !== null ||
+    (typeof window !== "undefined" &&
+      (() => {
+        const search = new URLSearchParams(window.location.search);
+        return search.has("example") || search.get("new") === "1";
+      })());
+  useEffect(() => {
+    if (
+      startupCloudRestoreAttemptedRef.current ||
+      !cloudProjectsReady ||
+      !publishSession ||
+      !canRestoreStartupCloudProject ||
+      hasExplicitBootTarget ||
+      !startupCloudProjectId
+    ) {
+      return;
+    }
+    startupCloudRestoreAttemptedRef.current = true;
+    setStatus("Opening recent Cloud Project…");
+    void openCloudProjectById(startupCloudProjectId);
+  }, [
+    canRestoreStartupCloudProject,
+    cloudProjectsReady,
+    hasExplicitBootTarget,
+    openCloudProjectById,
+    publishSession,
+    startupCloudProjectId,
+  ]);
   const agentSession = useAgentSession({
     enabled: publicAgentUiEnabled,
     project,
@@ -768,10 +828,6 @@ export function App({
    * than meaning rotate sometimes and draw a rectangle the rest of the time.
    */
   const [rotateArmed, setRotateArmed] = useState(false);
-  /** The signed-in account's private formal Projects, newest first. */
-  const [cloudProjects, setCloudProjects] = useState<
-    readonly CloudProjectSummary[]
-  >([]);
   const [selectedEndpoint, setSelectedEndpoint] = useState<WireSource | null>(
     null,
   );
@@ -1984,8 +2040,15 @@ export function App({
     const exampleId = new URLSearchParams(window.location.search).get(
       "example",
     );
+    const requestsNewProject =
+      new URLSearchParams(window.location.search).get("new") === "1";
     if (initialGalleryEntryId) {
       void openGalleryEntryById(initialGalleryEntryId, false);
+      return;
+    }
+    if (requestsNewProject) {
+      replaceActiveProject(preparedInitialProject, DEFAULT_VIEWBOX);
+      setStatus("Created a new Project");
       return;
     }
     if (exampleId) {
@@ -1994,9 +2057,7 @@ export function App({
         (candidate) => candidate.id === exampleId,
       );
       if (exampleProject && example) {
-        replaceActiveProject(exampleProject, DEFAULT_VIEWBOX, {
-          rememberPrevious: false,
-        });
+        replaceActiveProject(exampleProject, DEFAULT_VIEWBOX);
         setStatus(`Opened example: ${example.name}`);
       }
     }
@@ -2702,23 +2763,35 @@ export function App({
         onProjectNameDraftChange={setProjectNameDraft}
         onProjectNameCommit={commitProjectName}
         onProjectNameCancel={() => setProjectNameDraft(null)}
+        onOpenGallery={() => {
+          void guardDirtyReplacement("Go to Gallery", () => {
+            allowNextBrowserUnload();
+            window.location.assign("/");
+          });
+        }}
         fileCommands={{
           cloudProjects,
           activeCloudProjectId: cloudBinding?.id ?? null,
-          previousProjectName: previousProject?.project.name ?? null,
           canRevert: savedProjectBaseline !== null && isDirtyWork(),
-          hasRecoverySessions: recoverySessions.length > 0,
+          hasRecoverySessions: recoverySessions.some(
+            (session) =>
+              session.latest?.unsavedAtSnapshot === true ||
+              (session.latest !== null && session.latest.review !== "valid"),
+          ),
           projectInputRef,
           onNewProject: createNewProject,
           onSave: () => void saveProjectToCloud(),
           onSaveAsCopy: () => void saveProjectToCloud({ asCopy: true }),
-          onOpenCloudProject: (summary) => void openCloudProjectById(summary),
+          onRefreshCloudProjects: () => void reloadCloudProjects(),
+          onOpenCloudProject: (summary) =>
+            void openCloudProjectById(summary.id),
           onDeleteCloudProject: (summary) => {
             if (!window.confirm(`Delete Cloud Project "${summary.name}"?`)) {
               return;
             }
             void deleteCloudProject(summary.id).then((outcome) => {
               if (outcome.status === "deleted") {
+                cloudListMutationRef.current += 1;
                 setCloudProjects(outcome.projects);
                 setStatus(`Deleted Cloud Project ${summary.name}`);
                 return;
@@ -2733,11 +2806,9 @@ export function App({
           onImportProject: (file) => void openProjectFile(file),
           onImportSpice: (files) => void importSpiceFiles(files),
           onExportProject: exportProjectFile,
-          onDownloadBackup: downloadCurrentProjectBackup,
           onExportSvg: exportSvg,
           onExportRaster: (format) => void exportRaster(format),
           onExportNetlist: exportDesignNetlist,
-          onRestorePrevious: restorePreviousProject,
           onRevert: revertToSavedProjectBaseline,
           onOpenRecovery: openRecoveryDialog,
         }}
@@ -2910,6 +2981,7 @@ export function App({
                 projectName: startupRecovery.projectName,
                 updatedAt: startupRecovery.latest.updatedAt,
                 onRestore: () => {
+                  startupCloudRestoreAttemptedRef.current = true;
                   dismissStartupRecovery();
                   restoreRecoverySession(
                     startupRecovery.workingCopyId,

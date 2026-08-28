@@ -18,24 +18,22 @@ describe("FileCommandMenu", () => {
           },
         ]}
         activeCloudProjectId={null}
-        previousProjectName="Earlier"
         canRevert
         hasRecoverySessions
         projectInputRef={createRef<HTMLInputElement>()}
         onNewProject={vi.fn()}
         onSave={vi.fn()}
         onSaveAsCopy={vi.fn()}
+        onRefreshCloudProjects={vi.fn()}
         onOpenCloudProject={vi.fn()}
         onDeleteCloudProject={vi.fn()}
         onRefresh={vi.fn()}
         onImportProject={vi.fn()}
         onImportSpice={vi.fn()}
         onExportProject={vi.fn()}
-        onDownloadBackup={vi.fn()}
         onExportSvg={vi.fn()}
         onExportRaster={vi.fn()}
         onExportNetlist={vi.fn()}
-        onRestorePrevious={vi.fn()}
         onRevert={vi.fn()}
         onOpenRecovery={vi.fn()}
       />,
@@ -50,7 +48,8 @@ describe("FileCommandMenu", () => {
     expect(markup).toContain("cloud-project-cloud-1");
     expect(markup).toContain("Import Project File…");
     expect(markup).toContain("Export Project File…");
-    expect(markup).toContain("Download Backup");
+    expect(markup).not.toContain("Download Backup");
+    expect(markup).not.toContain("Previous Project");
     expect(markup).not.toContain("cloud snapshot");
   });
 });

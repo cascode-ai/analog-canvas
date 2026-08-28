@@ -65,20 +65,28 @@ Cloud Save of the current content clears it.
 
 Edits also stage an origin-local IndexedDB recovery copy. Recovery is silent
 crash protection, not Save, and can be lost if browser site data is cleared.
-If Cloud is unavailable, continue editing normally and use **Download Backup**
-when you want an additional portable copy.
+If Cloud is unavailable, continue editing normally and use **Export Project
+File…** when you want a portable copy. A direct **Download Backup** action is
+shown contextually if browser recovery itself cannot protect current work.
 
-New, Open, and Revert ask whether to **Save and continue**, **Discard and
-continue**, or **Cancel** when the current Project is dirty. If a newer
+New, Open, Revert, and the same-tab trip to Gallery ask whether to **Save and
+continue**, **Discard and continue**, or **Cancel** when the current Project is
+dirty. Discard means discard: that working copy is removed before the action
+continues. If a newer
 unsaved recovery copy is found on a later start, a small banner offers
 **Restore**, **Download backup**, or **Ignore**. The same copies remain
 available through **File / Recover Local Work…**; recovery never silently
 replaces the current Project.
 
+Returning from Gallery reopens the last active Cloud Project for this browser
+tab. The tab stores only that Cloud Project id; the editor fetches the formal
+Project again rather than treating browser state as Save. A newer unsaved
+recovery copy still gets the first decision.
+
 Use the Cloud Projects list in **File** to open formal work. Use **Import
 Project File…** to validate a portable `.icproj.json`; invalid or future-version
-input leaves the current Document unchanged. **Export Project File…** and
-**Download Backup** do not change Cloud save state. The old rolling cloud
+input leaves the current Document unchanged. **Export Project File…** does not
+change Cloud save state. The old rolling cloud
 snapshot and local File System Access Save paths have been removed.
 
 SPICE files are import inputs, not embedded source attachments. Saving an
