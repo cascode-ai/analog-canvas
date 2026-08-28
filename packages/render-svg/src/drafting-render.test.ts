@@ -1,6 +1,9 @@
 import { createEmptyDocument } from "@icm/model";
 import type { RichTextRun } from "@icm/model";
-import { resolveSchematicStyleProfile } from "@icm/derived";
+import {
+  resolveDraftingObjectGeometry,
+  resolveSchematicStyleProfile,
+} from "@icm/derived";
 import {
   ANALOG_CANVAS_MATH_PROFILE_ID,
   prepareFormula,
@@ -698,9 +701,33 @@ describe("object-anchored drafting text centering", () => {
     );
     const fontSize = profile.typography.annotationFontSize;
     const lineStep = fontSize * profile.typography.lineHeight;
+    // Count the lines actually drawn rather than the ones authored: a label
+    // inside a box also wraps to it, and the centering rule is about however
+    // many lines end up there.
+    const lines = (svg.match(/data-text-run="line-break"/gu) ?? []).length + 1;
+    expect(lines).toBeGreaterThan(1);
     expect(textBaselineY(svg, "label-1")).toBeCloseTo(
-      60 - lineStep / 2 + CENTERED_CAP_BASELINE_RATIO * fontSize,
+      60 -
+        ((lines - 1) * lineStep) / 2 +
+        CENTERED_CAP_BASELINE_RATIO * fontSize,
     );
+  });
+
+  it("wraps a boxed label and draws exactly the lines it measured", () => {
+    const document = labelDocument(
+      [{ kind: "text", value: "A very long bias network label indeed" }],
+      "object",
+    );
+    const svg = renderDocumentSvg(document, resolver);
+    const lines = (svg.match(/data-text-run="line-break"/gu) ?? []).length + 1;
+    expect(lines).toBeGreaterThan(1);
+
+    // The drawn lines are the ones the geometry measured its bounds from, so
+    // a selection box cannot come away from the text it frames.
+    const label = document.drafting!.objects[1]!;
+    const geometry = resolveDraftingObjectGeometry(document, resolver, label);
+    if (geometry.kind !== "text") throw new Error("expected text geometry");
+    expect(geometry.bounds.width).toBeLessThanOrEqual(80);
   });
 
   it("keeps free text on its first-line baseline unchanged", () => {

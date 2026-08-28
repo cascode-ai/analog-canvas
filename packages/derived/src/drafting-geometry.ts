@@ -16,6 +16,7 @@ import {
 import {
   measureRichTextDocument,
   richTextMetrics,
+  wrapRichTextDocument,
 } from "./rich-text-layout.js";
 import { resolveDocumentStyleProfile } from "./style-profile.js";
 
@@ -123,6 +124,35 @@ export type ResolvedDraftingGeometry =
     };
 
 const STROKE_PADDING = 6;
+/** Breathing room between a boxed label and the rectangle's own stroke. */
+const RECT_LABEL_PADDING = 6;
+
+/**
+ * The content a drafting text actually lays out.
+ *
+ * A label anchored to a rectangle is a label *inside a box*, so it wraps to
+ * that box instead of running out past its edges. Every other text keeps the
+ * author's own lines exactly. The SVG renderer calls this too: one wrapped
+ * document for both is what keeps the selection box on the text it frames,
+ * rather than two implementations agreeing by luck.
+ */
+export function draftTextLayoutContent(
+  document: SchematicDocument,
+  object: Extract<DraftingObject, { kind: "text" }>,
+  metrics: Parameters<typeof measureRichTextDocument>[1],
+): RichTextDocument {
+  if (object.anchor.kind !== "object") return object.content;
+  const anchorId = object.anchor.objectId;
+  const target = document.drafting?.objects.find(
+    (candidate) => candidate.id === anchorId,
+  );
+  if (target?.kind !== "rectangle") return object.content;
+  return wrapRichTextDocument(
+    object.content,
+    metrics,
+    target.width - RECT_LABEL_PADDING * 2,
+  );
+}
 const TEXT_PADDING_X = 6;
 const TEXT_PADDING_Y = 8;
 const ARROWHEAD_PADDING = 12;
@@ -244,20 +274,16 @@ function resolveText(
     object.typographyToken,
     object.styleOverride?.sizeScale,
   );
+  const content = draftTextLayoutContent(document, object, metrics);
   const polarity = object.polarity
-    ? resolvePolarityTextGeometry(
-        position,
-        object.polarity,
-        object.content,
-        metrics,
-      )
+    ? resolvePolarityTextGeometry(position, object.polarity, content, metrics)
     : null;
   const textPosition = polarity?.textPosition ?? position;
   const unrotatedTextBounds = textBounds(
     textPosition,
     object.alignment,
     0,
-    object.content,
+    content,
     metrics,
   );
   const unrotatedBounds = polarity

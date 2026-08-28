@@ -128,6 +128,138 @@ export function measureRichTextDocument(
   };
 }
 
+/**
+ * Break a document's lines so none is wider than `maxWidth`.
+ *
+ * The result is an ordinary RichTextDocument with `line-break` runs inserted,
+ * which is why this is the whole of the feature: every consumer — measurement,
+ * bounds, the SVG renderer, export — already lays out explicit line breaks, so
+ * a wrapped document draws and measures the same everywhere by construction
+ * rather than by two implementations agreeing.
+ *
+ * Wrapping is by word. A single word wider than the box overflows rather than
+ * being cut mid-glyph, because a broken identifier reads as a different one.
+ * A script stack is indivisible, so `V` never comes apart from its subscript,
+ * while an ordinary styling span is descended into and reopened on each line —
+ * the house text style wraps a whole sentence in one italic span, so a wrapper
+ * that only split bare text runs would never break anything a person typed.
+ * Authored breaks are kept as they are.
+ */
+export function wrapRichTextDocument(
+  document: RichTextDocument,
+  metrics: RichTextMetrics,
+  maxWidth: number,
+): RichTextDocument {
+  if (!Number.isFinite(maxWidth) || maxWidth <= 0) return document;
+  const lines = wrapRunsIntoLines(document.runs, metrics, maxWidth, {
+    width: 0,
+  });
+  const runs: RichTextRun[] = [];
+  lines.forEach((line, index) => {
+    if (index > 0) runs.push({ kind: "line-break" });
+    runs.push(...line);
+  });
+  return { ...document, runs };
+}
+
+/** A line never ends in the space that pushed it over; that space is the break. */
+function trimLineEnd(line: RichTextRun[]): void {
+  const last = line.at(-1);
+  if (last?.kind !== "text") return;
+  const trimmed = last.value.replace(/\s+$/u, "");
+  if (trimmed) last.value = trimmed;
+  else line.pop();
+}
+
+function wrapRunsIntoLines(
+  runs: RichTextRun[],
+  metrics: RichTextMetrics,
+  maxWidth: number,
+  state: { width: number },
+): RichTextRun[][] {
+  const lines: RichTextRun[][] = [[]];
+  const breakLine = (): void => {
+    trimLineEnd(lines.at(-1)!);
+    lines.push([]);
+    state.width = 0;
+  };
+  const place = (run: RichTextRun, width: number): void => {
+    const line = lines.at(-1)!;
+    const last = line.at(-1);
+    if (run.kind === "text" && last?.kind === "text") last.value += run.value;
+    else line.push(run);
+    state.width += width;
+  };
+  const widthOf = (run: RichTextRun): number =>
+    measureRun(run, metrics)[0]?.width ?? 0;
+
+  for (let index = 0; index < runs.length; index += 1) {
+    const run = runs[index]!;
+    if (run.kind === "line-break") {
+      lines.push([]);
+      state.width = 0;
+      continue;
+    }
+    const next = runs[index + 1];
+    if (
+      next &&
+      isScriptRun(run) &&
+      isScriptRun(next) &&
+      run.style !== next.style
+    ) {
+      const width = measureScriptStack(run, next, metrics)[0]?.width ?? 0;
+      if (state.width > 0 && state.width + width > maxWidth) breakLine();
+      place(run, width);
+      place(next, 0);
+      index += 1;
+      continue;
+    }
+    if (run.kind === "text") {
+      // Keep the separators so a rebuilt line reads exactly as authored.
+      for (const piece of run.value.split(/(\s+)/u)) {
+        if (!piece) continue;
+        const width = widthOf({ kind: "text", value: piece });
+        if (/^\s+$/u.test(piece)) {
+          if (state.width === 0) continue;
+          if (state.width + width > maxWidth) {
+            breakLine();
+            continue;
+          }
+        } else if (state.width > 0 && state.width + width > maxWidth) {
+          breakLine();
+        }
+        place({ kind: "text", value: piece }, width);
+      }
+      continue;
+    }
+    if (
+      run.kind === "span" &&
+      run.style !== "subscript" &&
+      run.style !== "superscript"
+    ) {
+      // Styling only: wrap the children, then reopen the same span per line.
+      const childLines = wrapRunsIntoLines(
+        run.children,
+        metrics,
+        maxWidth,
+        state,
+      );
+      childLines.forEach((children, childIndex) => {
+        if (childIndex > 0) {
+          trimLineEnd(lines.at(-1)!);
+          lines.push([]);
+        }
+        if (children.length > 0) lines.at(-1)!.push({ ...run, children });
+      });
+      continue;
+    }
+    const width = widthOf(run);
+    if (state.width > 0 && state.width + width > maxWidth) breakLine();
+    place(run, width);
+  }
+  return lines;
+}
+
 function measureRuns(runs: RichTextRun[], metrics: RichTextMetrics): Line[] {
   const baseHeight = metrics.fontSize * metrics.lineHeight;
   const lines: Line[] = [{ width: 0, height: baseHeight }];

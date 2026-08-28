@@ -1064,6 +1064,47 @@ test("drawing Properties unlocks a protected drawing and Delete overrides its lo
   await expect(drawing).toHaveCount(0);
 });
 
+test("a label too long for its box wraps inside it", async ({ page }) => {
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await clickDrawTool(page, "rectangle");
+  await clickCreate(page, { x: 220, y: 220 }, { x: 380, y: 320 });
+  await expect(page.getByTestId("revision")).toHaveText("1");
+
+  const hit = page.getByTestId(/^drafting-hit-rectangle-/);
+  const box = await hit.first().boundingBox();
+  if (!box) throw new Error("rectangle is not measurable");
+  await page.mouse.dblclick(box.x + box.width / 2, box.y + box.height / 2);
+  await expect(
+    page.getByRole("textbox", { name: "Canvas text editor" }),
+  ).toBeVisible();
+  await page.keyboard.type("A very long bias network label indeed");
+  await page.keyboard.press("Escape");
+
+  const label = page.locator('[data-kind="draft-text"]');
+  await expect(label).toHaveCount(1);
+  // Several drawn lines, not one line running out past both edges.
+  expect(
+    await label.locator('[data-text-run="line-break"]').count(),
+  ).toBeGreaterThan(0);
+
+  // And it stays inside the box it belongs to.
+  const fits = await page.evaluate(() => {
+    const polygon = document.querySelector(
+      '[data-kind="draft-rectangle"]',
+    ) as SVGPolygonElement | null;
+    const text = document.querySelector(
+      '[data-kind="draft-text"]',
+    ) as SVGTextElement | null;
+    if (!polygon || !text) return null;
+    const rect = polygon.getBBox();
+    const drawn = text.getBBox();
+    return { rectWidth: rect.width, textWidth: drawn.width };
+  });
+  if (!fits) throw new Error("label geometry is not measurable");
+  expect(fits.textWidth).toBeLessThanOrEqual(fits.rectWidth);
+});
+
 test("double-click inside a rectangle writes a centered, anchored label", async ({
   page,
 }) => {

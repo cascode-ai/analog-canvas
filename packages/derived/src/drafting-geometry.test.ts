@@ -3,7 +3,16 @@ import type { DraftingObject, SchematicDocument } from "@icm/model";
 import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
-import { resolveDraftingObjectGeometry } from "./drafting-geometry.js";
+import {
+  draftTextLayoutContent,
+  resolveDraftingObjectGeometry,
+} from "./drafting-geometry.js";
+import { richTextMetrics } from "./rich-text-layout.js";
+import { resolveDocumentStyleProfile } from "./style-profile.js";
+
+/** The metrics a label lays out with, so a test measures what the app does. */
+const labelMetrics = (document: SchematicDocument) =>
+  richTextMetrics(resolveDocumentStyleProfile(document.presentation), "label");
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 
@@ -105,6 +114,66 @@ describe("object-anchored drafting text on rectangles", () => {
     // Bounds stay centered on the resolved anchor.
     expect(geometry.bounds.x + geometry.bounds.width / 2).toBeCloseTo(100);
     expect(geometry.bounds.y + geometry.bounds.height / 2).toBeCloseTo(60);
+  });
+
+  it("wraps a long label inside its box instead of running past the edges", () => {
+    const label = anchoredLabel("label-1", "box-1", { x: 0, y: 0 });
+    label.content = {
+      runs: [{ kind: "text", value: "A very long bias network label indeed" }],
+    };
+    const document = documentWith([
+      rectangle("box-1", { x: 100, y: 60 }, 120, 80),
+      label,
+    ]);
+    const geometry = resolveDraftingObjectGeometry(
+      document,
+      resolver,
+      document.drafting!.objects[1]!,
+    );
+    if (geometry.kind !== "text") throw new Error("expected text geometry");
+
+    // The label is inside a box, so it wraps to that box rather than spilling
+    // out both sides of it.
+    expect(geometry.bounds.width).toBeLessThanOrEqual(120);
+    const laidOut = draftTextLayoutContent(
+      document,
+      label,
+      labelMetrics(document),
+    );
+    expect(
+      laidOut.runs.filter((run) => run.kind === "line-break").length,
+    ).toBeGreaterThan(0);
+    // Wrapping is a layout act, not an edit: every word survives, in order.
+    const words = laidOut.runs
+      .map((run) => (run.kind === "text" ? run.value : " "))
+      .join("")
+      .split(/\s+/u)
+      .filter(Boolean);
+    expect(words.join(" ")).toBe("A very long bias network label indeed");
+    // The stored content is untouched; only the laid-out copy carries breaks.
+    expect(label.content.runs).toHaveLength(1);
+  });
+
+  it("leaves a label that already fits on one line", () => {
+    const document = documentWith([
+      rectangle("box-1", { x: 100, y: 60 }, 120, 80),
+      anchoredLabel("label-1", "box-1", { x: 0, y: 0 }),
+    ]);
+    const geometry = resolveDraftingObjectGeometry(
+      document,
+      resolver,
+      document.drafting!.objects[1]!,
+    );
+    if (geometry.kind !== "text") throw new Error("expected text geometry");
+    const laidOut = draftTextLayoutContent(
+      document,
+      document.drafting!.objects[1] as Extract<
+        DraftingObject,
+        { kind: "text" }
+      >,
+      labelMetrics(document),
+    );
+    expect(laidOut.runs.some((run) => run.kind === "line-break")).toBe(false);
   });
 
   it("keeps the resolved center in sync with a moved rectangle", () => {

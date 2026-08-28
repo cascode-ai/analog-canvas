@@ -19,6 +19,8 @@ import {
   resolveAnnotationText,
   resolveDocumentStyleProfile,
   resolveDocumentLogicalNets,
+  draftTextLayoutContent,
+  richTextMetrics,
   resolveRouteAttachment,
   razaviTextbookProfile,
 } from "@icm/derived";
@@ -936,6 +938,7 @@ function renderDraftingLayer(
       switch (object.kind) {
         case "text":
           return renderDraftText(
+            document,
             object,
             geometry as Extract<ResolvedDraftingGeometry, { kind: "text" }>,
             profile,
@@ -997,6 +1000,7 @@ function renderDraftingLayer(
 }
 
 function renderDraftText(
+  document: SchematicDocument,
   object: Extract<DraftingObject, { kind: "text" }>,
   geometry: Extract<ResolvedDraftingGeometry, { kind: "text" }>,
   profile: SchematicStyleProfile,
@@ -1006,33 +1010,36 @@ function renderDraftText(
   const fontSize =
     typographyFontSize(object.typographyToken ?? "body", profile) *
     (object.styleOverride?.sizeScale ?? 1);
+  // The same function the geometry measured with, on the same inputs: a label
+  // inside a box arrives wrapped to that box, and the drawn lines cannot
+  // disagree with the bounds that framed them.
+  const content = draftTextLayoutContent(
+    document,
+    object,
+    richTextMetrics(
+      profile,
+      object.typographyToken,
+      object.styleOverride?.sizeScale,
+    ),
+  );
   // Object-anchored drafting text (e.g. a rectangle's centered label) paints
   // its uniform line grid centered on the resolved anchor position. Free and
   // route-anchored text keep the first-line-baseline placement unchanged.
   const baselineY =
     object.anchor.kind === "object" || object.polarity
-      ? centeredFirstBaselineY(
-          object.content,
-          textPosition.y,
-          fontSize,
-          profile,
-        )
+      ? centeredFirstBaselineY(content, textPosition.y, fontSize, profile)
       : textPosition.y;
   const weight = object.styleOverride?.weight === "bold" ? "bold" : "normal";
   const italic = object.styleOverride?.italic === true ? "italic" : "normal";
-  const positioned = renderPositionedOverbarScriptDocument(
-    object.content,
-    profile,
-    {
-      x: textPosition.x,
-      y: baselineY,
-      fontSize,
-      alignment: object.alignment,
-      defaultBold: weight === "bold",
-      defaultItalic: italic === "italic",
-    },
-  );
-  const formula = renderFormulaDocument(object.content, profile, {
+  const positioned = renderPositionedOverbarScriptDocument(content, profile, {
+    x: textPosition.x,
+    y: baselineY,
+    fontSize,
+    alignment: object.alignment,
+    defaultBold: weight === "bold",
+    defaultItalic: italic === "italic",
+  });
+  const formula = renderFormulaDocument(content, profile, {
     x: textPosition.x,
     baselineY,
     fontSize,
@@ -1055,7 +1062,7 @@ function renderDraftText(
       ? formula
       : positioned
         ? `<text x="${textPosition.x}" y="${baselineY}" text-anchor="start" font-size="${fontSize}" font-weight="${weight}" font-style="${italic}" fill="${color}">${positioned.tspans}</text>${positioned.decorations}`
-        : `<text x="${textPosition.x}" y="${baselineY}" text-anchor="${object.alignment}" font-size="${fontSize}" font-weight="${weight}" font-style="${italic}" fill="${color}">${renderRichTextDocument(object.content, profile, { lineOriginX: textPosition.x, fontSize })}</text>`;
+        : `<text x="${textPosition.x}" y="${baselineY}" text-anchor="${object.alignment}" font-size="${fontSize}" font-weight="${weight}" font-style="${italic}" fill="${color}">${renderRichTextDocument(content, profile, { lineOriginX: textPosition.x, fontSize })}</text>`;
     return `<g data-object-id="${object.id}" data-kind="draft-text" data-polarity="${object.polarity}"${unresolved} transform="rotate(${rotation} ${position.x} ${position.y})">${markers}${text}</g>`;
   }
   // P1: the renderer consumes geometry.rotation (the single rotation truth),
@@ -1067,11 +1074,11 @@ function renderDraftText(
   if (positioned) {
     return `<g transform="rotate(${rotation} ${position.x} ${position.y})"><text data-object-id="${object.id}" data-kind="draft-text"${unresolved} x="${textPosition.x}" y="${baselineY}" text-anchor="start" font-size="${fontSize}" font-weight="${weight}" font-style="${italic}">${positioned.tspans}</text>${positioned.decorations}</g>`;
   }
-  const content = renderRichTextDocument(object.content, profile, {
+  const markup = renderRichTextDocument(content, profile, {
     lineOriginX: textPosition.x,
     fontSize,
   });
-  return `<text data-object-id="${object.id}" data-kind="draft-text"${unresolved} x="${textPosition.x}" y="${baselineY}" text-anchor="${object.alignment}" transform="rotate(${rotation} ${position.x} ${position.y})" font-size="${fontSize}" font-weight="${weight}" font-style="${italic}">${content}</text>`;
+  return `<text data-object-id="${object.id}" data-kind="draft-text"${unresolved} x="${textPosition.x}" y="${baselineY}" text-anchor="${object.alignment}" transform="rotate(${rotation} ${position.x} ${position.y})" font-size="${fontSize}" font-weight="${weight}" font-style="${italic}">${markup}</text>`;
 }
 
 /** Glyph cap height is ~0.7 em; dropping the baseline by 0.35 em sits the
