@@ -1,4 +1,5 @@
 import {
+  planDirectEndpointConnection,
   proposeEndpointRouteAttachment,
   planRoutingTransform,
   type RoutingOperationIntent,
@@ -498,6 +499,29 @@ export function createSelectionMoveController({
               `move-${nextRoutingSuffix()}`,
             ).edits
           : [];
+      // A pin dropped exactly on a foreign pin (or junction) is the same
+      // explicit gesture as placing a component against one: bond the two
+      // endpoints through the direct-contact planner. Incompatible nets
+      // (conflicting names or power domains) fall back to a plain move.
+      let directContactRejection: string | null = null;
+      const directEdits: readonly SchematicEdit[] = (() => {
+        if (
+          movingElectrical?.kind !== "endpoint" ||
+          targetElectrical?.kind !== "endpoint"
+        ) {
+          return [];
+        }
+        const plan = planDirectEndpointConnection(projected, {
+          from: movingElectrical.endpoint,
+          to: targetElectrical.endpoint,
+          newNetId: `net-move-${nextRoutingSuffix()}`,
+        });
+        if (!plan.ok) {
+          directContactRejection = plan.message;
+          return [];
+        }
+        return plan.edits;
+      })();
       const result = transactConnectivity(
         targetElectrical?.kind === "route"
           ? "attach-to-route"
@@ -509,10 +533,13 @@ export function createSelectionMoveController({
           ...groupMove.edits,
           ...visualMoveEdits(preview.movePlan, delta, sourceDocument),
           ...contactEdits,
+          ...directEdits,
         ],
       );
-      if (result?.ok && electricalMatch) {
+      if (result?.ok && (contactEdits.length > 0 || directEdits.length > 0)) {
         setStatus("Snapped pin endpoints and connected them without a wire");
+      } else if (result?.ok && directContactRejection) {
+        setStatus(`Moved without connecting: ${directContactRejection}`);
       } else if (result?.ok && prefixEdits.length > 0) {
         setStatus("Moved and transformed selection");
       }

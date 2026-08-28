@@ -72,6 +72,7 @@ export function ComponentIdentityProperties({
               <dt>{portNet.supply ? "Supply" : "Net name"}</dt>
               <dd>
                 <input
+                  dir="auto"
                   key={`${portNet.id}-${revision}-net-port-name`}
                   aria-label={
                     portNet.supply ? "Supply name" : "Supply Net name"
@@ -88,6 +89,7 @@ export function ComponentIdentityProperties({
               <dt>Schematic label</dt>
               <dd>
                 <input
+                  dir="auto"
                   key={`${instance.id}-${revision}-schematic-label`}
                   aria-label="Component schematic label"
                   defaultValue={flattenRichText(
@@ -111,6 +113,7 @@ export function ComponentIdentityProperties({
               <dt>Netlist reference</dt>
               <dd>
                 <input
+                  dir="auto"
                   key={`${instance.id}-${revision}-netlist-reference`}
                   aria-label="Component netlist reference"
                   defaultValue={instance.netlist.reference}
@@ -166,6 +169,7 @@ export function ComponentIdentityProperties({
           <label>
             Model
             <input
+              dir="auto"
               key={`${instance.id}-${revision}-model-target`}
               aria-label="Component model target"
               list={modelTarget.listId}

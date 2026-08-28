@@ -205,6 +205,7 @@ export function PublishGalleryDialog({
               <div className="publish-gallery-mode" data-testid="publish-mode">
                 <label>
                   <input
+                    dir="auto"
                     type="radio"
                     name="publish-mode"
                     checked={mode === "update"}
@@ -217,6 +218,7 @@ export function PublishGalleryDialog({
                 </label>
                 <label>
                   <input
+                    dir="auto"
                     type="radio"
                     name="publish-mode"
                     checked={mode === "new"}
@@ -243,6 +245,7 @@ export function PublishGalleryDialog({
               <label>
                 Circuit name
                 <input
+                  dir="auto"
                   aria-label="Circuit name"
                   value={name}
                   maxLength={120}
@@ -256,6 +259,7 @@ export function PublishGalleryDialog({
                   <span className="publish-gallery-optional">optional</span>
                 </span>
                 <textarea
+                  dir="auto"
                   aria-label="Description"
                   value={description}
                   maxLength={300}
@@ -290,6 +294,7 @@ export function PublishGalleryDialog({
                   </div>
                 ) : null}
                 <input
+                  dir="auto"
                   aria-label="Add tag"
                   placeholder="Type a tag and press Enter"
                   value={tagDraft}

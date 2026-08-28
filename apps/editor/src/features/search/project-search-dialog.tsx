@@ -47,6 +47,7 @@ export function ProjectSearchDialog({
           </button>
         </header>
         <input
+          dir="auto"
           ref={inputRef}
           data-testid="project-search-input"
           aria-label="Search project"

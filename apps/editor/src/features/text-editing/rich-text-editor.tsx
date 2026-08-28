@@ -525,6 +525,7 @@ export function RichTextEditor({
           ref={sourceInputRef}
           className="rich-text-editable rich-text-source-input"
           type="text"
+          dir="auto"
           value={flattenRichText(content)}
           disabled={disabled}
           aria-label="Canvas text editor"
@@ -547,6 +548,8 @@ export function RichTextEditor({
           contentEditable={!disabled}
           suppressContentEditableWarning
           role="textbox"
+          // Follow the content's script: RTL text edits right-to-left.
+          dir="auto"
           aria-label="Canvas text editor"
           aria-multiline="true"
           style={{
