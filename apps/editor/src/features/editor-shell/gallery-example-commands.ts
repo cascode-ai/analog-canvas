@@ -108,9 +108,7 @@ export function createGalleryExampleCommands({
       const galleryProject = parseProject(payload.projectText);
       const name = payload.entry?.name ?? galleryProject.name;
       const install = () => {
-        replaceActiveProject(galleryProject, defaultViewBox, {
-          rememberPrevious: protectCurrentProject,
-        });
+        replaceActiveProject(galleryProject, defaultViewBox);
         setGalleryEntryContext({
           id: entryId,
           name,

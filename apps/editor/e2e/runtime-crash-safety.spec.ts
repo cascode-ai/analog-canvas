@@ -1,13 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import {
-  chooseComponent,
-  emulateDownloadOnlyBrowser,
-} from "./editor-fixtures.js";
-
-test.beforeEach(async ({ page }) => {
-  await emulateDownloadOnlyBrowser(page);
-});
+import { chooseComponent } from "./editor-fixtures.js";
 
 test("a render crash shows the recovery screen instead of a blank page", async ({
   page,

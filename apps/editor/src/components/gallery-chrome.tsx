@@ -48,7 +48,7 @@ export function GalleryChrome({ subtitle }: { subtitle: string }) {
         <AccountMenu />
         <a
           className="gallery-open-editor"
-          href="/editor"
+          href="/editor?new=1"
           data-testid="gallery-new-circuit"
         >
           New Circuit

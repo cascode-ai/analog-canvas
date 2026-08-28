@@ -5,45 +5,51 @@ import { describe, expect, it, vi } from "vitest";
 import { FileCommandMenu } from "./file-command-menu";
 
 describe("FileCommandMenu", () => {
-  it("projects file capabilities without owning Project state", () => {
+  it("presents one Cloud Save protocol and explicit local interchange", () => {
     const markup = renderToStaticMarkup(
       <FileCommandMenu
-        workspaceSlots={[
+        cloudProjects={[
           {
-            id: "slot-1",
+            id: "cloud-1",
             name: "Saved Circuit",
-            savedAt: "now",
-            schemaVersion: 1,
+            updatedAt: "2026-08-28T10:00:00.000Z",
+            revision: 3,
+            schemaVersion: 28,
           },
         ]}
-        previousProjectName="Earlier"
+        activeCloudProjectId={null}
         canRevert
         hasRecoverySessions
         projectInputRef={createRef<HTMLInputElement>()}
         onNewProject={vi.fn()}
-        onSaveProject={vi.fn()}
-        onCheckAndSave={vi.fn()}
-        onOpenShelfSlot={vi.fn()}
+        onSave={vi.fn()}
+        onSaveAsCopy={vi.fn()}
+        onRefreshCloudProjects={vi.fn()}
+        onOpenCloudProject={vi.fn()}
+        onDeleteCloudProject={vi.fn()}
         onRefresh={vi.fn()}
-        onOpenProject={vi.fn()}
+        onImportProject={vi.fn()}
         onImportSpice={vi.fn()}
+        onExportProject={vi.fn()}
         onExportSvg={vi.fn()}
         onExportRaster={vi.fn()}
         onExportNetlist={vi.fn()}
-        onRestorePrevious={vi.fn()}
         onRevert={vi.fn()}
         onOpenRecovery={vi.fn()}
       />,
     );
 
-    expect(markup).toContain("Save Project As…");
-    expect(markup).toContain("Save cloud snapshot");
-    // The recovery snapshots list restores the newest three in place.
-    expect(markup).toContain("Cloud snapshots (newest 1)");
+    expect(markup).toContain("Save as Cloud Copy…");
+    expect(markup).toContain(
+      'disabled="" title="Save this Project to Cloud before creating a copy"',
+    );
+    expect(markup).toContain("Cloud Projects (1/3)");
     expect(markup).toContain("Saved Circuit");
-    expect(markup).toContain("shelf-slot-slot-1");
-    expect(markup).toContain("Import SPICE");
-    expect(markup).toContain("Export Spectre netlist");
-    expect(markup).toContain("Recover recent work…");
+    expect(markup).toContain("cloud-project-cloud-1");
+    expect(markup).toContain("Import Project File…");
+    expect(markup).toContain("Export Project File…");
+    expect(markup).not.toContain("Download Backup");
+    expect(markup).not.toContain("Previous Project");
+    expect(markup).not.toContain("cloud snapshot");
   });
 });

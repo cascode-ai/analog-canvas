@@ -112,14 +112,16 @@ export function EditorHelpDialog({
             <p className="help-section-label">Handbook</p>
             <h3>Start, open, and save</h3>
             <p>
-              Use <strong>File / Open Project</strong> to continue an exported
-              project, or <strong>File / Import SPICE</strong> to create
-              editable Documents from SPICE source files. Use{" "}
-              <strong>File / Save Project</strong> to download an editable
-              project file; use <strong>File / Export</strong> for SVG, PNG, or
-              PDF drawings. Because raw browser refresh shortcuts are blocked to
-              protect unsaved work, use <strong>File / Refresh app</strong> when
-              you deliberately want to reload; it saves and restores the current
+              Open a private Cloud Project from <strong>File</strong>, or use
+              <strong>Import Project File</strong> and
+              <strong>Import SPICE</strong> for portable inputs. Use{" "}
+              <strong>File / Save</strong> for the formal Cloud Project;
+              <strong>Export Project File</strong> produces a portable local
+              copy. A direct backup download appears only when browser recovery
+              cannot protect current work. Drawing export provides SVG, PNG, and
+              PDF. Because raw browser refresh shortcuts are blocked to protect
+              unsaved work, use <strong>File / Refresh app</strong> when you
+              deliberately want to reload; it saves and restores the current
               recovery snapshot.
             </p>
             <h3>Place, select, and connect</h3>
@@ -205,13 +207,14 @@ export function EditorHelpDialog({
               keeps a safety copy of the current Project in this browser's
               storage: at most two recent working copies, each with a current
               and a previous generation (at most 4 MB each, 12 MB in total). Use{" "}
-              <strong>File / Recover recent work…</strong> to browse, restore,
-              download, or delete those copies. They are not cloud storage, can
-              be lost when browser data is cleared, and a reload within a
-              fraction of a second of an edit may miss that last edit. Saving or
-              downloading a Project never deletes the safety copies; export a
-              Project file whenever you need a durable backup or want to move
-              work to another device.
+              <strong>File / Recover Local Work…</strong> to browse, restore,
+              download, or delete those copies. They are not formal Cloud
+              Projects and can be lost when browser data is cleared, and a
+              reload within a fraction of a second of an edit may miss that last
+              edit. Save updates the private Cloud Project; exporting never
+              deletes the safety copies. Returning from Gallery reopens the last
+              active Cloud Project in this browser tab unless newer local
+              recovery needs a decision first.
             </p>
           </section>
           <section className="help-about">

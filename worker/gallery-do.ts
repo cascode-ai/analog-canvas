@@ -60,8 +60,8 @@ export function shortId(length = SHORT_ID_LENGTH): string {
 
 export const GALLERY_MAX_PROJECT_BYTES = 2 * 1024 * 1024;
 export const GALLERY_MAX_REJECT_REASON_LENGTH = 500;
-/** How many circuits an account's scratch shelf keeps. */
-export const WORKSPACE_SLOT_LIMIT = 3;
+/** How many distinct private Cloud Projects one account may own. */
+export const CLOUD_PROJECT_LIMIT = 3;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -88,17 +88,19 @@ function rowValues(
   });
 }
 
-export interface WorkspaceSlotSummary {
+export interface CloudProjectSummary {
   id: string;
   name: string;
-  savedAt: string;
+  updatedAt: string;
+  revision: number;
   schemaVersion: number;
 }
 
-interface WorkspaceSlotRow {
+interface CloudProjectRow {
   id: string;
   name: string;
-  saved_at: string;
+  updated_at: string;
+  revision: number;
   schema_version: number;
 }
 
@@ -355,24 +357,39 @@ export class GalleryDO {
       CREATE INDEX IF NOT EXISTS idx_gallery_entry_versions_entry
       ON gallery_entry_versions(entry_id, version_no)
     `);
-    // A signed-in account's own scratch shelf: the last few circuits it
-    // checked, kept so work survives a closed tab or a different machine.
-    // Not the Gallery — nothing here is published or visible to anyone else.
+    // A signed-in account's private, stable Projects. Save updates one row;
+    // it never consumes another slot or creates implicit version history.
     this.sql.exec(`
-      CREATE TABLE IF NOT EXISTS workspace_slots (
+      CREATE TABLE IF NOT EXISTS cloud_projects (
         id TEXT PRIMARY KEY,
         user_id TEXT NOT NULL,
         name TEXT NOT NULL,
-        saved_at TEXT NOT NULL,
-        seq INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        revision INTEGER NOT NULL DEFAULT 1,
         schema_version INTEGER NOT NULL,
         project_text TEXT NOT NULL
       ) WITHOUT ROWID
     `);
     this.sql.exec(`
-      CREATE INDEX IF NOT EXISTS idx_workspace_slots_user
-      ON workspace_slots(user_id, seq)
+      CREATE INDEX IF NOT EXISTS idx_cloud_projects_user
+      ON cloud_projects(user_id, updated_at)
     `);
+    // One-time conversion of the retired rolling workspace shelf. Old rows
+    // become stable Projects at revision 1; no compatibility route remains.
+    try {
+      this.sql.exec(`
+        INSERT OR IGNORE INTO cloud_projects
+          (id, user_id, name, created_at, updated_at, revision,
+           schema_version, project_text)
+        SELECT id, user_id, name, saved_at, saved_at, 1,
+               schema_version, project_text
+        FROM workspace_slots
+      `);
+      this.sql.exec("DROP TABLE workspace_slots");
+    } catch {
+      // Fresh databases never had the retired table.
+    }
     // Additive columns for pre-existing databases.
     for (const alteration of [
       "ALTER TABLE gallery_entries ADD COLUMN reject_reason TEXT",
@@ -381,7 +398,6 @@ export class GalleryDO {
       "ALTER TABLE gallery_entries ADD COLUMN tags TEXT NOT NULL DEFAULT ''",
       "ALTER TABLE gallery_entries ADD COLUMN submitter_email TEXT",
       "ALTER TABLE gallery_entries ADD COLUMN submitter_provider TEXT",
-      "ALTER TABLE workspace_slots ADD COLUMN seq INTEGER NOT NULL DEFAULT 0",
       "ALTER TABLE gallery_entries ADD COLUMN netlistable INTEGER NOT NULL DEFAULT 0",
       "ALTER TABLE gallery_entries ADD COLUMN preview_revision TEXT NOT NULL DEFAULT ''",
     ]) {
@@ -496,12 +512,16 @@ export class GalleryDO {
           String(body.userId),
           String(body.at),
         );
-      case "workspace-save":
-        return this.workspaceSave(body);
-      case "workspace-list":
-        return this.workspaceList(String(body.userId));
-      case "workspace-open":
-        return this.workspaceOpen(String(body.userId), String(body.id));
+      case "cloud-project-create":
+        return this.cloudProjectCreate(body);
+      case "cloud-project-update":
+        return this.cloudProjectUpdate(body);
+      case "cloud-project-list":
+        return this.cloudProjectList(String(body.userId));
+      case "cloud-project-open":
+        return this.cloudProjectOpen(String(body.userId), String(body.id));
+      case "cloud-project-delete":
+        return this.cloudProjectDelete(String(body.userId), String(body.id));
       case "schema-backup":
         return this.schemaBackup();
       case "schema-converge":
@@ -913,84 +933,158 @@ export class GalleryDO {
     });
   }
 
-  /**
-   * Keep the newest few slots per account and drop the rest. A shelf that
-   * grew without bound would be storage, and this is deliberately not that:
-   * the Project file stays canonical and the Gallery stays the place work is
-   * published.
-   */
-  private workspaceSave(body: Record<string, unknown>): Response {
+  private cloudProjectCreate(body: Record<string, unknown>): Response {
     const userId = String(body.userId);
     const id = String(body.id);
-    // Order the shelf by an insertion counter rather than by the clock: two
-    // saves in the same millisecond would otherwise fall back to comparing
-    // ids, which is to say to no order at all.
+    const count = this.sql
+      .exec<{ count: number }>(
+        "SELECT COUNT(*) AS count FROM cloud_projects WHERE user_id = ?",
+        userId,
+      )
+      .one().count;
+    if (count >= CLOUD_PROJECT_LIMIT) {
+      return Response.json(
+        { error: "project-limit", projects: this.cloudProjectRows(userId) },
+        { status: 409 },
+      );
+    }
     this.sql.exec(
-      `INSERT INTO workspace_slots
-         (id, user_id, name, saved_at, seq, schema_version, project_text)
-       VALUES (
-         ?, ?, ?, ?,
-         (SELECT COALESCE(MAX(seq), 0) + 1 FROM workspace_slots),
-         ?, ?
-       )`,
+      `INSERT INTO cloud_projects
+         (id, user_id, name, created_at, updated_at, revision,
+          schema_version, project_text)
+       VALUES (?, ?, ?, ?, ?, 1, ?, ?)`,
       id,
       userId,
       String(body.name),
-      String(body.savedAt),
+      String(body.updatedAt),
+      String(body.updatedAt),
       Number(body.schemaVersion),
       String(body.projectText),
     );
-    this.sql.exec(
-      `DELETE FROM workspace_slots
-       WHERE user_id = ?
-         AND id NOT IN (
-           SELECT id FROM workspace_slots WHERE user_id = ?
-           ORDER BY seq DESC LIMIT ?
-         )`,
-      userId,
-      userId,
-      WORKSPACE_SLOT_LIMIT,
+    return Response.json(
+      { project: this.cloudProjectOpenPayload(userId, id) },
+      { status: 201 },
     );
-    return Response.json({ id, slots: this.workspaceRows(userId) });
   }
 
-  private workspaceRows(userId: string): WorkspaceSlotSummary[] {
-    return this.sql
-      .exec<WorkspaceSlotRow>(
-        `SELECT id, name, saved_at, schema_version FROM workspace_slots
-         WHERE user_id = ? ORDER BY seq DESC LIMIT ?`,
-        userId,
-        WORKSPACE_SLOT_LIMIT,
-      )
-      .toArray()
-      .map((row) => ({
-        id: row.id,
-        name: row.name,
-        savedAt: row.saved_at,
-        schemaVersion: row.schema_version,
-      }));
-  }
-
-  private workspaceList(userId: string): Response {
-    return Response.json({ slots: this.workspaceRows(userId) });
-  }
-
-  private workspaceOpen(userId: string, id: string): Response {
-    // Scoped by account as well as id: a slot id is never a capability.
-    const row = this.sql
-      .exec<WorkspaceSlotRow & { project_text: string }>(
-        "SELECT * FROM workspace_slots WHERE id = ? AND user_id = ?",
+  private cloudProjectUpdate(body: Record<string, unknown>): Response {
+    const userId = String(body.userId);
+    const id = String(body.id);
+    const expectedRevision = Number(body.expectedRevision);
+    const current = this.sql
+      .exec<CloudProjectRow & { project_text: string }>(
+        `SELECT id, name, updated_at, revision, schema_version, project_text
+         FROM cloud_projects WHERE id = ? AND user_id = ?`,
         id,
         userId,
       )
       .toArray()[0];
-    if (!row) return Response.json({ error: "not-found" }, { status: 404 });
-    return Response.json({
+    if (!current) {
+      return Response.json({ error: "not-found" }, { status: 404 });
+    }
+    // A retried PUT whose acknowledgement was lost is already complete. This
+    // gives Save idempotency without persisting browser Session records.
+    if (
+      current.name === String(body.name) &&
+      current.schema_version === Number(body.schemaVersion) &&
+      current.project_text === String(body.projectText)
+    ) {
+      return Response.json({
+        project: this.cloudProjectOpenPayload(userId, id),
+      });
+    }
+    if (current.revision !== expectedRevision) {
+      return Response.json(
+        {
+          error: "revision-conflict",
+          project: this.cloudProjectSummary(current),
+        },
+        { status: 409 },
+      );
+    }
+    const nextRevision = current.revision + 1;
+    this.sql.exec(
+      `UPDATE cloud_projects
+       SET name = ?, updated_at = ?, revision = ?, schema_version = ?,
+           project_text = ?
+       WHERE id = ? AND user_id = ? AND revision = ?`,
+      String(body.name),
+      String(body.updatedAt),
+      nextRevision,
+      Number(body.schemaVersion),
+      String(body.projectText),
+      id,
+      userId,
+      expectedRevision,
+    );
+    return Response.json({ project: this.cloudProjectOpenPayload(userId, id) });
+  }
+
+  private cloudProjectSummary(row: CloudProjectRow): CloudProjectSummary {
+    return {
       id: row.id,
       name: row.name,
-      savedAt: row.saved_at,
+      updatedAt: row.updated_at,
+      revision: row.revision,
+      schemaVersion: row.schema_version,
+    };
+  }
+
+  private cloudProjectRows(userId: string): CloudProjectSummary[] {
+    return this.sql
+      .exec<CloudProjectRow>(
+        `SELECT id, name, updated_at, revision, schema_version
+         FROM cloud_projects
+         WHERE user_id = ? ORDER BY updated_at DESC, id DESC LIMIT ?`,
+        userId,
+        CLOUD_PROJECT_LIMIT,
+      )
+      .toArray()
+      .map((row) => this.cloudProjectSummary(row));
+  }
+
+  private cloudProjectList(userId: string): Response {
+    return Response.json({ projects: this.cloudProjectRows(userId) });
+  }
+
+  private cloudProjectOpenPayload(userId: string, id: string) {
+    const row = this.sql
+      .exec<CloudProjectRow & { project_text: string }>(
+        "SELECT * FROM cloud_projects WHERE id = ? AND user_id = ?",
+        id,
+        userId,
+      )
+      .toArray()[0];
+    if (!row) return null;
+    return {
+      id: row.id,
+      name: row.name,
+      updatedAt: row.updated_at,
+      revision: row.revision,
       schemaVersion: row.schema_version,
       projectText: row.project_text,
+    };
+  }
+
+  private cloudProjectOpen(userId: string, id: string): Response {
+    // Scoped by account as well as id: a Project id is never a capability.
+    const project = this.cloudProjectOpenPayload(userId, id);
+    if (!project) return Response.json({ error: "not-found" }, { status: 404 });
+    return Response.json({ project });
+  }
+
+  private cloudProjectDelete(userId: string, id: string): Response {
+    const existing = this.cloudProjectOpenPayload(userId, id);
+    if (!existing)
+      return Response.json({ error: "not-found" }, { status: 404 });
+    this.sql.exec(
+      "DELETE FROM cloud_projects WHERE id = ? AND user_id = ?",
+      id,
+      userId,
+    );
+    return Response.json({
+      deleted: id,
+      projects: this.cloudProjectRows(userId),
     });
   }
 
@@ -1007,8 +1101,8 @@ export class GalleryDO {
         galleryEntryVersions: this.sql
           .exec<Record<string, unknown>>("SELECT * FROM gallery_entry_versions")
           .toArray(),
-        workspaceSlots: this.sql
-          .exec<Record<string, unknown>>("SELECT * FROM workspace_slots")
+        cloudProjects: this.sql
+          .exec<Record<string, unknown>>("SELECT * FROM cloud_projects")
           .toArray(),
       },
     });
@@ -1028,8 +1122,8 @@ export class GalleryDO {
     const tables = isRecord(rawBackup.tables) ? rawBackup.tables : null;
     const galleryEntries = tableRows(tables?.galleryEntries);
     const galleryEntryVersions = tableRows(tables?.galleryEntryVersions);
-    const workspaceSlots = tableRows(tables?.workspaceSlots);
-    if (!galleryEntries || !galleryEntryVersions || !workspaceSlots) {
+    const cloudProjects = tableRows(tables?.cloudProjects);
+    if (!galleryEntries || !galleryEntryVersions || !cloudProjects) {
       return Response.json(
         { restored: false, error: "invalid-backup-tables" },
         { status: 400 },
@@ -1038,7 +1132,7 @@ export class GalleryDO {
     const retainedVersionCount = this.state.storage.transactionSync(() => {
       this.sql.exec("DELETE FROM gallery_entries");
       this.sql.exec("DELETE FROM gallery_entry_versions");
-      this.sql.exec("DELETE FROM workspace_slots");
+      this.sql.exec("DELETE FROM cloud_projects");
       for (const row of galleryEntries) {
         const values = rowValues(row, [
           "id",
@@ -1098,17 +1192,19 @@ export class GalleryDO {
       }
       deleteOrphanGalleryData(this.sql);
       pruneGalleryEntryVersions(this.sql);
-      for (const row of workspaceSlots) {
+      for (const row of cloudProjects) {
         this.sql.exec(
-          `INSERT INTO workspace_slots
-           (id, user_id, name, saved_at, seq, schema_version, project_text)
-           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO cloud_projects
+           (id, user_id, name, created_at, updated_at, revision,
+            schema_version, project_text)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
           ...rowValues(row, [
             "id",
             "user_id",
             "name",
-            "saved_at",
-            "seq",
+            "created_at",
+            "updated_at",
+            "revision",
             "schema_version",
             "project_text",
           ]),
@@ -1123,11 +1219,11 @@ export class GalleryDO {
     return Response.json({
       restored: true,
       records:
-        galleryEntries.length + retainedVersionCount + workspaceSlots.length,
+        galleryEntries.length + retainedVersionCount + cloudProjects.length,
       tables: {
         galleryEntries: galleryEntries.length,
         galleryEntryVersions: retainedVersionCount,
-        workspaceSlots: workspaceSlots.length,
+        cloudProjects: cloudProjects.length,
       },
     });
   }
@@ -1156,10 +1252,10 @@ export class GalleryDO {
           .toArray(),
       },
       {
-        table: "workspace_slots",
+        table: "cloud_projects",
         rows: this.sql
           .exec<StoredProjectRow>(
-            "SELECT id, schema_version, project_text FROM workspace_slots",
+            "SELECT id, schema_version, project_text FROM cloud_projects",
           )
           .toArray(),
       },

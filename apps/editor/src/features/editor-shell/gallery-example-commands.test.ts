@@ -86,7 +86,6 @@ describe("Gallery and example commands", () => {
     expect(input.replaceActiveProject).toHaveBeenCalledWith(
       expect.objectContaining({ id: "gallery-project" }),
       defaultViewBox,
-      { rememberPrevious: true },
     );
     expect(input.setGalleryEntryContext).toHaveBeenCalledWith({
       id: "entry-1",

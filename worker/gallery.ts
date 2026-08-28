@@ -26,13 +26,11 @@ import {
   GALLERY_MAX_PROJECT_BYTES,
   GALLERY_MAX_REJECT_REASON_LENGTH,
   GALLERY_MAX_VERSIONS_PER_ENTRY,
-  WORKSPACE_SLOT_LIMIT,
   sanitizeGalleryTags,
   shortId,
   wrapTags,
   type GalleryEntrySummary,
   type GalleryEnv,
-  type WorkspaceSlotSummary,
 } from "./gallery-do";
 
 export * from "./gallery-do";
@@ -154,15 +152,11 @@ function renderPreview(
   return renderDocumentSvg(topDocument, resolver);
 }
 
-/**
- * An account's own scratch shelf. Unlike a submission this is never seen by
- * anyone else, is not gated on quality, and holds only the newest few — it
- * exists so a check does not leave work living solely in one browser tab.
- */
-async function handleWorkspace(
+/** Private, stable Cloud Projects. Save updates a bound Project in place. */
+async function handleCloudProjects(
   request: Request,
   env: GalleryEnv,
-  slotId: string | null,
+  projectId: string | null,
 ): Promise<Response> {
   if (request.method !== "GET" && !sameOrigin(request)) {
     return Response.json({ error: "forbidden" }, { status: 403 });
@@ -171,16 +165,24 @@ async function handleWorkspace(
   if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
 
   if (request.method === "GET") {
-    const { status, payload } = slotId
-      ? await callGallery(env, "workspace-open", {
+    const { status, payload } = projectId
+      ? await callGallery(env, "cloud-project-open", {
           userId: user.id,
-          id: slotId,
+          id: projectId,
         })
-      : await callGallery(env, "workspace-list", { userId: user.id });
+      : await callGallery(env, "cloud-project-list", { userId: user.id });
     return Response.json(payload, {
       status,
       headers: { "cache-control": "no-store" },
     });
+  }
+
+  if (request.method === "DELETE" && projectId) {
+    const { status, payload } = await callGallery(env, "cloud-project-delete", {
+      userId: user.id,
+      id: projectId,
+    });
+    return Response.json(payload, { status });
   }
 
   const body = (await request.json().catch(() => null)) as {
@@ -203,11 +205,25 @@ async function handleWorkspace(
   } catch {
     return Response.json({ error: "invalid-project" }, { status: 400 });
   }
-  const { status, payload } = await callGallery(env, "workspace-save", {
+  const operation =
+    request.method === "POST" ? "cloud-project-create" : "cloud-project-update";
+  const expectedRevisionMatch = request.headers
+    .get("if-match")
+    ?.match(/^revision-(\d+)$/u);
+  if (request.method === "PUT" && !expectedRevisionMatch) {
+    return Response.json(
+      { error: "expected-revision-required" },
+      { status: 428 },
+    );
+  }
+  const { status, payload } = await callGallery(env, operation, {
     userId: user.id,
-    id: shortId(),
+    id: projectId ?? shortId(),
     name,
-    savedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    ...(expectedRevisionMatch
+      ? { expectedRevision: Number(expectedRevisionMatch[1]) }
+      : {}),
     schemaVersion: project.schemaVersion,
     projectText: serializeProject(project),
   });
@@ -419,16 +435,21 @@ export async function routeGalleryRequest(
   env: GalleryEnv,
 ): Promise<Response | null> {
   const url = new URL(request.url);
-  if (url.pathname === "/api/workspace/recent") {
+  if (url.pathname === "/api/projects") {
     if (request.method === "GET" || request.method === "POST") {
-      return handleWorkspace(request, env, null);
+      return handleCloudProjects(request, env, null);
     }
     return Response.json({ error: "Not found" }, { status: 404 });
   }
-  if (url.pathname.startsWith("/api/workspace/recent/")) {
-    const slotId = url.pathname.slice("/api/workspace/recent/".length);
-    if (request.method === "GET" && slotId.length > 0) {
-      return handleWorkspace(request, env, slotId);
+  if (url.pathname.startsWith("/api/projects/")) {
+    const projectId = url.pathname.slice("/api/projects/".length);
+    if (
+      (request.method === "GET" ||
+        request.method === "PUT" ||
+        request.method === "DELETE") &&
+      projectId.length > 0
+    ) {
+      return handleCloudProjects(request, env, projectId);
     }
     return Response.json({ error: "Not found" }, { status: 404 });
   }

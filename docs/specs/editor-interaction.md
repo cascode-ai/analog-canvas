@@ -111,12 +111,15 @@ not create a Previous Project entry because no live foreground session is being
 replaced.
 
 Project dirty detection covers `structureRevision` and every Document revision,
-not only the active Cell. **New Project** creates a new canonical Project with
+not only the active Cell, and compares the content with the last acknowledged
+Cloud baseline so Undo can return to clean. **New Project** creates a new canonical Project with
 one empty Main Cell, no SPICE source manifest entries, and no external
 subcircuit definitions; it does not mutate the previous Project into an empty
-shell. After a Project has been opened or explicitly saved/downloaded,
-**Revert to Last Saved** restores that exact formal snapshot through the same
-guard and makes the outgoing working copy the Previous Project.
+shell. Opening a Cloud Project binds its stable id and revision to the runtime
+session; importing a file does not. After a Cloud Save, **Revert to Last Saved**
+restores that acknowledged content through the same guard and makes the
+outgoing working copy the Previous Project. Export and backup never establish
+or advance this baseline.
 
 ## Cell reset lifecycle
 

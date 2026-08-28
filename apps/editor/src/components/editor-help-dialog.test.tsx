@@ -69,7 +69,7 @@ describe("EditorHelpDialog", () => {
     );
 
     for (const boundary of [
-      "files. Use <strong>File / Save Project</strong>",
+      "inputs. Use <strong>File / Save</strong>",
       "File / Refresh app</strong> when",
       "tool from <strong>Draw</strong>",
       "the left <strong>Library</strong>",

@@ -108,9 +108,10 @@ describe("editor shell", () => {
     // "Preflight" named a stage of a netlist pipeline, not the question the
     // person is asking; the toolbar carries the plain action.
     expect(markup).not.toContain("Preflight…");
-    // Check and Save lives in the File menu now — narrow windows keep a
-    // one-row menubar.
-    expect(markup).toContain('data-testid="check-and-save-button"');
+    // Formal Cloud Save has one File-menu entry; the retired snapshot action
+    // cannot return as a second control source.
+    expect(markup).toContain('data-testid="save-cloud-project"');
+    expect(markup).not.toContain("Save cloud snapshot");
     expect(markup).not.toContain("Edit Cell Interface…");
   });
 

@@ -2,14 +2,15 @@
 
 Status: `accepted`
 
-Primary owner: `packages/project-protocol` and the editor document lifecycle
+Primary owner: Worker Cloud Project storage, `packages/project-protocol`, and
+the editor document lifecycle
 
-Portable Projects use canonical schema-28 `.icproj.json`. The current-only
-model in `packages/model` validates the normalized shape;
+Project content uses canonical schema-28 JSON. A private Cloud Project is the
+formal saved resource; `.icproj.json` is portable import/export and backup.
+The current-only model in `packages/model` validates the normalized shape;
 `packages/project-protocol` owns parsing, rolling compatibility diagnostics,
-and canonical serialization. Persistence validates
-the complete current schema before open or save and writes atomically where the
-platform supports it. Schema 27 upgrades to 28 at ingestion; serialization
+and canonical serialization. Persistence validates the complete current schema
+before import or Cloud Save. Schema 27 upgrades to 28 at ingestion; serialization
 always writes schema 28. Older schemas are rejected outside the rolling
 current-and-previous compatibility window.
 
@@ -21,7 +22,7 @@ data without changing the live Project. User-saved Library examples are the
 same class of origin-local, non-authoritative convenience data: canonical
 serialized Project snapshots in their own IndexedDB store, re-validated
 through the ordinary protocol boundary before they may replace a live
-Project, and never a substitute for the downloaded `.icproj.json` file. Credentials, Agent bearer tokens,
+Project, and never a substitute for Cloud Save or an exported backup. Credentials, Agent bearer tokens,
 selection, viewport, overlays, and pending external approvals are never
 embedded in Project JSON or recovery records.
 
@@ -50,7 +51,9 @@ optional `unsavedAtSnapshot` envelope field records whether the snapshot was
 ahead of the formal save baseline. Records written before this additive field
 remain valid but have unknown save state and therefore do not trigger an
 automatic startup offer. This metadata is browser lifecycle state, never part
-of Project JSON.
+of Project JSON. The optional `cloudBinding` (`id` plus acknowledged revision)
+lets a reload continue updating the same Cloud Project; records that predate it
+restore unbound rather than guessing an identity.
 
 A rejected write (oversized, quota exceeded, storage unavailable, or failed)
 must leave every previous record readable. Storage or quota failure is visible
@@ -63,26 +66,45 @@ upgraded launch; the old key is removed only after the IndexedDB transaction
 commits. Unmigratable legacy data stays in localStorage for raw
 download/discard.
 
-## Save semantics
+## Cloud Project and Save semantics
 
-Save, Save As, Download, Open, Import, Restore, and Replace are distinct
-lifecycle outcomes; a handler must not report one as another. File System
-Access writes are progressive enhancement initiated by a user gesture; only a
-confirmed `createWritable`/`write`/`close` sequence is reported as a confirmed
-save. Everywhere else the editor falls back to a canonical Blob download
-reported as `Download requested`, not `Saved`, because the browser does not
-confirm durable download completion. Saving or downloading never clears
-recovery records; bounded retention and explicit user deletion are the only
-removal paths. File handles stay transient runtime capabilities and are never
-serialized into Project JSON or recovery records.
+The private Cloud Project API owns one current revision per stable resource:
 
-The editor file lifecycle is the single source of unsaved truth. A successful
-persistent edit marks it dirty; a confirmed file write or requested canonical
-download marks it clean; selection, view, and panel changes do neither. While
-dirty, and only while dirty, the editor registers the browser-native
-`beforeunload` guard for Back, Refresh, and tab/window close. The application
-does not synthesize history entries, customize the browser-owned warning, or
-depend on unload-time asynchronous storage as its only protection.
+```text
+POST /api/projects                 create and bind revision 1
+PUT  /api/projects/:id             update the bound Project
+If-Match: revision-N               reject stale writers
+GET  /api/projects                 list distinct Projects
+GET  /api/projects/:id             open one Project
+```
+
+Repeated Save updates the same id and does not consume another account slot.
+The first Save of an unbound New/imported/recovered Project creates a Cloud
+Project. **Save as Cloud Copy** deliberately creates and binds a new id. The
+server retains no implicit save history and never evicts another Project to
+make room. A revision mismatch or capacity limit blocks only that explicit
+Save; editing and local recovery continue.
+
+The editor session owns only the transient Cloud binding (`id` and acknowledged
+revision), the saved content baseline, and its recovery working-copy id. No
+server Session record is created. A successful Cloud acknowledgement advances
+the binding and saved baseline. If edits occurred while the request was in
+flight, the submitted snapshot is saved but the newer live content remains
+dirty. Undo back to the acknowledged content becomes clean.
+
+**Import Project File**, **Export Project File**, and **Download Backup** are
+interchange operations. They never claim to be Save and never clear Cloud
+dirty state. Export/download does not remove recovery records; bounded
+retention and explicit user deletion remain their only removal paths.
+
+The editor persistence lifecycle is the single source of unsaved truth. A
+successful persistent edit marks it dirty; only an acknowledged Cloud Save of
+the current content marks it clean. Selection, view, export, download, and
+panel changes do not. While dirty, and only while dirty, the editor registers
+the browser-native `beforeunload` guard for Back, Refresh, and tab/window close.
+The application does not synthesize history entries, customize the
+browser-owned warning, or depend on unload-time asynchronous storage as its
+only protection.
 
 Opening or replacing a Project stages and validates the complete candidate —
 read bytes, JSON/schema validation, approved-symbol validation, Project
@@ -90,7 +112,7 @@ preparation — before the live Project changes. Invalid input leaves the
 Project, selection, history, recovery, and file state untouched. Before
 replacing dirty work the editor first attempts and flushes a recovery write,
 then offers **Save and continue**, **Discard and continue**, or **Cancel**,
-defaulting to Cancel. Save cancellation or failure leaves the foreground
+defaulting to Cancel. Cloud Save failure leaves the foreground
 Project and dialog in place. Recovery failure is shown in the same dialog as
 elevated risk but never grants permission to discard.
 A successful replacement retains the outgoing Project in recent recovery and
@@ -108,8 +130,9 @@ browser Project. Inspecting or requesting approval does not mutate the live
 Project. Only an explicit human **Replace Project** action may install a valid
 candidate, and replacement terminates the old Agent session.
 
-Required validation covers canonical save/load/save byte stability, exact
-schema-version rejection, atomic-write failure, corrupt recovery,
+Required validation covers stable Cloud identity, optimistic revision
+conflict, capacity without eviction, canonical import/export stability, exact
+schema-version rejection, corrupt recovery,
 unsupported-schema retention, envelope/Project identity mismatch, retention
 ordering, quota and storage failure mapping, staged-candidate isolation, and
 human-approved replacement.
