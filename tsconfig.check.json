@@ -15,6 +15,13 @@
       "@icm/exporters": ["./packages/exporters/src/index.ts"],
       "@icm/exporters/browser": ["./packages/exporters/src/browser.ts"],
       "@icm/exporters/node": ["./packages/exporters/src/node.ts"],
+      "@icm/math-typesetting": ["./packages/math-typesetting/src/index.ts"],
+      "@icm/math-typesetting/cache": [
+        "./packages/math-typesetting/src/cache.ts"
+      ],
+      "@icm/math-typesetting/profile": [
+        "./packages/math-typesetting/src/profile.ts"
+      ],
       "@icm/model": ["./packages/model/src/index.ts"],
       "@icm/project-protocol": ["./packages/project-protocol/src/index.ts"],
       "@icm/netlist": ["./packages/netlist/src/index.ts"],
