@@ -187,7 +187,7 @@ describe("CircuitProject schema", () => {
 
   it("holds electrical objects to the Document grid while annotations position freely", () => {
     const document = createEmptyProject("project-grid", "Grid").documents[0]!;
-    // Schema 29: drafting and annotation anchors are 1-unit precise.
+    // Schema 30 retains 1-unit-precise drafting and annotation anchors.
     document.drafting!.objects.push({
       id: "draft-fine",
       kind: "text",

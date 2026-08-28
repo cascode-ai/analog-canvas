@@ -43,6 +43,12 @@ terminal mappings report stable ID, direction, Net, and their ordinary Port
 Instance; they never materialize a separate canvas object class. The Project
 index reports `structureRevision` for structural optimistic concurrency.
 
+RichText payloads use the Project's one canonical union. An editable text
+content is either ordinary styled runs or one `{kind:"math", latex, display}`
+run. Agents submit only bounded formula source and display intent through the
+existing typed edit; generated SVG, glyph paths, and formula metrics are never
+accepted as mutation data and do not add an operation or endpoint.
+
 Snapshot format `2.0` reports each placed pin's read-only `connection` with
 `contactPoint`, persistable `gridLanding`, derived `escapePath`, and `outward`.
 Route polylines and contact points may contain derived decimals. Agent

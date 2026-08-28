@@ -1,5 +1,14 @@
 import type { RichTextDocument, RichTextRun } from "./schema.js";
 
+export type RichTextMathRun = Extract<RichTextRun, { kind: "math" }>;
+
+export function soleRichTextMathRun(
+  document: RichTextDocument,
+): RichTextMathRun | undefined {
+  const run = document.runs.length === 1 ? document.runs[0] : undefined;
+  return run?.kind === "math" ? run : undefined;
+}
+
 /** Lossy plain-text projection for search and accessibility only. */
 export function flattenRichText(document: RichTextDocument): string {
   return document.runs.map(flattenRun).join("");
@@ -11,6 +20,8 @@ function flattenRun(run: RichTextRun): string {
       return run.value;
     case "line-break":
       return "\n";
+    case "math":
+      return run.latex;
     case "span":
       return run.children.map(flattenRun).join("");
     case "fraction":
@@ -36,6 +47,10 @@ export function normalizeRichText(
         ...run,
         children: normalizeRichText({ runs: run.children }).runs,
       });
+      return;
+    }
+    if (run.kind === "math") {
+      normalized.push({ ...run });
       return;
     }
     if (run.kind === "fraction") {

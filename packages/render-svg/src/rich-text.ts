@@ -93,6 +93,10 @@ function renderRun(
     }
     case "line-break":
       return "";
+    case "math":
+      throw new Error(
+        "Atomic formulas must render through the positioned formula boundary.",
+      );
     case "span":
       return renderSpan(node, ctx, state);
     case "fraction":

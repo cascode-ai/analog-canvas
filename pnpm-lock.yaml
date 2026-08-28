@@ -71,6 +71,9 @@ importers:
       "@icm/exporters":
         specifier: workspace:*
         version: link:../../packages/exporters
+      "@icm/math-typesetting":
+        specifier: workspace:*
+        version: link:../../packages/math-typesetting
       "@icm/model":
         specifier: workspace:*
         version: link:../../packages/model
@@ -92,6 +95,9 @@ importers:
       "@icm/symbols":
         specifier: workspace:*
         version: link:../../packages/symbols
+      mathlive:
+        specifier: 0.110.0
+        version: 0.110.0
       react:
         specifier: 19.2.8
         version: 19.2.8
@@ -185,6 +191,9 @@ importers:
       "@icm/devices":
         specifier: workspace:*
         version: link:../devices
+      "@icm/math-typesetting":
+        specifier: workspace:*
+        version: link:../math-typesetting
       "@icm/model":
         specifier: workspace:*
         version: link:../model
@@ -263,6 +272,9 @@ importers:
 
   packages/model:
     dependencies:
+      "@icm/math-typesetting":
+        specifier: workspace:*
+        version: link:../math-typesetting
       zod:
         specifier: 4.4.3
         version: 4.4.3
@@ -306,6 +318,9 @@ importers:
       "@icm/derived":
         specifier: workspace:*
         version: link:../derived
+      "@icm/math-typesetting":
+        specifier: workspace:*
+        version: link:../math-typesetting
       "@icm/model":
         specifier: workspace:*
         version: link:../model
@@ -348,12 +363,25 @@ importers:
         version: link:../devices
 
 packages:
+  "@arnog/colors@0.5.0":
+    resolution:
+      {
+        integrity: sha512-NB7yqrO7qvInsqJdqz6C6mDU+2oiKmbBbk3czMS0E7KkGxLRy538tEHCsB5TKqmaxxXpi6/U120TnGl8NsDePg==,
+      }
+
   "@babel/runtime@7.29.7":
     resolution:
       {
         integrity: sha512-Nq8OhGWiZIZGV6hLHoyAKLLcJihP/xFeBMGJoUrxTX2psI8dCifzLhZISFb+VWS3wFMRDmCGw5R+dOySCqPLhw==,
       }
     engines: { node: ">=6.9.0" }
+
+  "@cortex-js/compute-engine@0.58.0":
+    resolution:
+      {
+        integrity: sha512-N0+vXjVZfKwJS7ZIGvq41mojI55m5TrdDXveAXzNjzjZ9iNiNrdEzXL2EmrcP+9GCWCwTonrEeZWAIG78f3INg==,
+      }
+    engines: { node: ">=21.7.3", npm: ">=10.5.0" }
 
   "@fontsource-variable/google-sans-code@5.3.0":
     resolution:
@@ -1026,6 +1054,13 @@ packages:
       }
     engines: { node: ">=20" }
 
+  complex-esm@2.1.1-esm1:
+    resolution:
+      {
+        integrity: sha512-IShBEWHILB9s7MnfyevqNGxV0A1cfcSnewL/4uPFiSxkcQL4Mm3FxJ0pXMtCXuWLjYz3lRRyk6OfkeDZcjD6nw==,
+      }
+    engines: { node: ">=16.14.2", npm: ">=8.5.0" }
+
   convert-source-map@2.0.0:
     resolution:
       {
@@ -1056,6 +1091,12 @@ packages:
     resolution:
       {
         integrity: sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==,
+      }
+
+  decimal.js@10.6.0:
+    resolution:
+      {
+        integrity: sha512-YpgQiITW3JXGntzdUmyUR1V812Hn8T1YVXhCu+wO3OpS4eU9l4YdD3qjyiKdV6mvV29zapkMeD390UVEf2lkUg==,
       }
 
   dejavu-fonts-ttf@2.37.3:
@@ -1296,6 +1337,12 @@ packages:
     resolution:
       {
         integrity: sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ==,
+      }
+
+  mathlive@0.110.0:
+    resolution:
+      {
+        integrity: sha512-UOpJsQ6h1eeN0xZULGTl1MwUB/lZLCDuzKeHvKEh7Zra8U/rtgDNrssj5PZdJtBTIV48AfEhtv6rv47AeMOxJA==,
       }
 
   mhchemparser@4.2.1:
@@ -1726,7 +1773,15 @@ packages:
       }
 
 snapshots:
+  "@arnog/colors@0.5.0": {}
+
   "@babel/runtime@7.29.7": {}
+
+  "@cortex-js/compute-engine@0.58.0":
+    dependencies:
+      "@arnog/colors": 0.5.0
+      complex-esm: 2.1.1-esm1
+      decimal.js: 10.6.0
 
   "@fontsource-variable/google-sans-code@5.3.0": {}
 
@@ -2016,6 +2071,8 @@ snapshots:
 
   commander@14.0.3: {}
 
+  complex-esm@2.1.1-esm1: {}
+
   convert-source-map@2.0.0: {}
 
   core-js@3.50.0:
@@ -2029,6 +2086,8 @@ snapshots:
   cssesc@3.0.0: {}
 
   csstype@3.2.3: {}
+
+  decimal.js@10.6.0: {}
 
   dejavu-fonts-ttf@2.37.3: {}
 
@@ -2148,6 +2207,10 @@ snapshots:
   magic-string@0.30.21:
     dependencies:
       "@jridgewell/sourcemap-codec": 1.5.5
+
+  mathlive@0.110.0:
+    dependencies:
+      "@cortex-js/compute-engine": 0.58.0
 
   mhchemparser@4.2.1: {}
 

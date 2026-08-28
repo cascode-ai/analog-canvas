@@ -536,6 +536,83 @@
   vertical-align: baseline;
 }
 
+.rich-text-editable [data-rich-text-math] {
+  display: inline-block;
+  max-width: 100%;
+  padding: 0.08em 0.3em;
+  overflow: hidden;
+  border: 1px solid var(--icm-border-strong);
+  border-radius: var(--icm-radius-sm);
+  color: var(--icm-text-muted);
+  background: var(--icm-surface-muted);
+  font-family: "Google Sans Code Variable", monospace;
+  text-overflow: ellipsis;
+  vertical-align: baseline;
+  white-space: nowrap;
+}
+
+.rich-text-formula-popover {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.2rem 0.35rem;
+  padding: 0.25rem;
+  overflow: auto;
+  border: 1px solid var(--icm-border-strong);
+  border-radius: var(--icm-radius-sm);
+  background: #fff;
+  box-shadow: var(--icm-shadow-md);
+}
+
+.rich-text-formula-mathfield {
+  min-width: 0;
+  grid-column: 1 / -1;
+}
+
+.rich-text-formula-error {
+  grid-column: 1 / -1;
+  color: var(--icm-danger, #b42318);
+  font-size: var(--icm-font-xs);
+}
+
+.rich-text-formula-mathfield math-field {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 2.2rem;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  font-size: 1.05rem;
+}
+
+.rich-text-formula-source label {
+  display: grid;
+  grid-template-columns: auto minmax(10rem, 1fr);
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+}
+
+.rich-text-formula-source textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 2rem;
+  resize: vertical;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  font-family: "Google Sans Code Variable", monospace;
+}
+
+.rich-text-formula-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.rich-text-formula-actions button[aria-pressed="true"] {
+  color: #fff;
+  background: var(--icm-accent);
+}
+
 .rich-text-editable [data-rich-text-script-stack] > sup {
   top: -0.28em;
 }

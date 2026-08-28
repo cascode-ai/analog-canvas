@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "description": "Canonical schema-v29 Project corpus. The bounded schema-v28 reader is covered by synthesized tests rather than retained historic assets.",
+  "description": "Canonical schema-v30 Project corpus. The bounded schema-v29 reader is covered by synthesized tests rather than retained historic assets.",
   "current": [
     "fixtures/projects/minimal/project.icproj.json",
     "fixtures/projects/phase-1-manual/project.icproj.json",

@@ -5,7 +5,7 @@ Status: `accepted`
 Primary owner: `packages/model`
 
 The Project contains Documents; each Document owns revisioned electrical,
-geometric, and presentation facts. The current model is strict schema 29 and has
+geometric, and presentation facts. The current model is strict schema 30 and has
 no compatibility shape.
 
 ## Coordinate domains
@@ -111,6 +111,12 @@ source. Renderers never derive visible
 instance text from IDs or copied properties. Drafting objects are visual-only
 and cannot create connectivity.
 
+RichText has one canonical persisted authority. A document is either ordinary
+Razavi styled runs or one atomic formula run containing bounded LaTeX source
+and an explicit inline/display mode. Generated formula SVG, font paths, bounds,
+and caches are derived and are never persisted. Formula source cannot create
+connectivity or a second annotation identity.
+
 A Cell definition may additionally persist optional `presentation.cellSymbol`
 intent: a symbol-local minimum body size and unique `terminalId`-keyed visual
 side/offset placement. It is not electrical terminal data, parent-instance
@@ -162,7 +168,7 @@ ordinary Schematic edits inside one Project structural transaction. The
 Project's `structureRevision` protects this cross-Document boundary and the
 editor records it as one undoable structural commit.
 
-Persistence writes only schema 26. The rolling reader accepts schema 25 at the
-file boundary, migrates parallel Route arrays and positional attachments to
-stable legs without changing physical topology, then supplies the current
-model only; no compatibility shape enters runtime electrical derivation.
+Persistence writes only schema 30. The rolling reader accepts schema 29 at the
+file boundary and advances it without rewriting content, then supplies the
+current model only; no compatibility shape enters runtime electrical
+derivation.

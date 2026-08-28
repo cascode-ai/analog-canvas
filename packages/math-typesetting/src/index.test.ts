@@ -9,8 +9,6 @@ import {
 const baseRequest: FormulaRequest = {
   latex: String.raw`V_{OUT}`,
   display: "inline",
-  fontSize: 16,
-  color: "#111111",
   profileId: ANALOG_CANVAS_MATH_PROFILE_ID,
 };
 
@@ -61,6 +59,15 @@ describe("Analog Canvas formula typesetter", () => {
     expect(results.every((result) => result.ok)).toBe(true);
   });
 
+  it("supports the synchronous formal-renderer boundary", () => {
+    const typesetter = createFormulaTypesetter();
+    for (const latex of corpus) {
+      expect(typesetter.typesetSync({ ...baseRequest, latex })).toMatchObject({
+        ok: true,
+      });
+    }
+  });
+
   it.each(["href", "includegraphics", "newcommand", "require"])(
     "rejects the disallowed \\%s command",
     async (command) => {
@@ -86,7 +93,8 @@ describe("Analog Canvas formula typesetter", () => {
     expect(result).toEqual({
       ok: false,
       diagnostic: expect.objectContaining({
-        code: "FORMULA_PARSE_ERROR",
+        code: "FORMULA_INVALID_REQUEST",
+        message: "Formula source has unbalanced braces.",
       }),
     });
   });

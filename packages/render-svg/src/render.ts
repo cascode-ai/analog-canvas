@@ -51,6 +51,7 @@ import {
 } from "./schematic-text.js";
 import { renderPositionedOverbarScriptDocument } from "./positioned-rich-text.js";
 import { renderRichTextDocument } from "./rich-text.js";
+import { renderFormulaDocument } from "./formula.js";
 
 export interface SvgRenderOptions {
   /** Explicit render crop is a caller-owned grid rectangle. */
@@ -742,6 +743,9 @@ export function buildSvgScene(
       const rotation = routeMarkerPlacement?.rotation ?? presentation.rotation;
       const transform = `rotate(${rotation} ${position.x} ${position.y})`;
       const attributes = `data-object-id="${escapeXml(annotation.id)}" data-kind="${annotation.kind}"${attachment}`;
+      const annotationFontSize =
+        schematicTextFontSize(annotation.kind, profile) *
+        (annotation.sizeScale ?? 1);
       if (
         annotation.kind === "route-marker" &&
         annotation.markerKind === "current"
@@ -774,13 +778,31 @@ export function buildSvgScene(
           : vertical
             ? y + 4
             : y - arrow.currentLabelGap;
-        return `<g ${attributes}><g transform="${transform}"><polygon data-role="current-arrow-head" points="${tipX},${y} ${baseX},${y - halfHeadWidth} ${baseX},${y + halfHeadWidth}" fill="${profile.foreground}"/></g><text x="${markerTextX}" y="${markerTextY}" text-anchor="${textAnchor}"${schematicTextSizeAttribute("route-marker", profile, annotation.sizeScale)}>${renderAnnotationText(document, annotation, profile)}</text></g>`;
+        const formula = renderFormulaDocument(content, profile, {
+          x: markerTextX,
+          baselineY: markerTextY,
+          fontSize: annotationFontSize,
+          alignment: textAnchor,
+        });
+        const text = formula
+          ? formula
+          : `<text x="${markerTextX}" y="${markerTextY}" text-anchor="${textAnchor}"${schematicTextSizeAttribute("route-marker", profile, annotation.sizeScale)}>${renderAnnotationText(document, annotation, profile)}</text>`;
+        return `<g ${attributes}><g transform="${transform}"><polygon data-role="current-arrow-head" points="${tipX},${y} ${baseX},${y - halfHeadWidth} ${baseX},${y + halfHeadWidth}" fill="${profile.foreground}"/></g>${text}</g>`;
       }
       if (annotation.kind === "power-label") {
         // The power-rail Route is the complete supply bar. Drawing a second,
         // thinner annotation-owned bar at its endpoint creates the visible
         // terminal stub and makes hit geometry disagree with presentation.
-        return `<g ${attributes}><text x="${position.x}" y="${position.y}" text-anchor="${annotation.alignment}" transform="${transform}"${schematicTextSizeAttribute("power-label", profile, annotation.sizeScale)}>${renderAnnotationText(document, annotation, profile)}</text></g>`;
+        const formula = renderFormulaDocument(content, profile, {
+          x: position.x,
+          baselineY: position.y,
+          fontSize: annotationFontSize,
+          alignment: annotation.alignment,
+        });
+        const text = formula
+          ? `<g transform="${transform}">${formula}</g>`
+          : `<text x="${position.x}" y="${position.y}" text-anchor="${annotation.alignment}" transform="${transform}"${schematicTextSizeAttribute("power-label", profile, annotation.sizeScale)}>${renderAnnotationText(document, annotation, profile)}</text>`;
+        return `<g ${attributes}>${text}</g>`;
       }
       if (
         annotation.kind === "route-marker" &&
@@ -796,7 +818,16 @@ export function buildSvgScene(
           rotation,
         );
         const polarityStyle = `font-style:normal;font-weight:${profile.typography.plainWeight}`;
-        return `<g ${attributes}><text data-role="polarity-positive" x="${position.x + positiveOffset.x}" y="${position.y + positiveOffset.y + 4}" text-anchor="middle" font-size="${profile.typography.polarityFontSize}" style="${polarityStyle}">+</text><text data-role="polarity-negative" x="${position.x + negativeOffset.x}" y="${position.y + negativeOffset.y + 4}" text-anchor="middle" font-size="${profile.typography.polarityFontSize}" style="${polarityStyle}">−</text><text x="${position.x}" y="${position.y}" text-anchor="${annotation.alignment}"${schematicTextSizeAttribute("route-marker", profile, annotation.sizeScale)}>${renderAnnotationText(document, annotation, profile)}</text></g>`;
+        const formula = renderFormulaDocument(content, profile, {
+          x: position.x,
+          baselineY: position.y,
+          fontSize: annotationFontSize,
+          alignment: annotation.alignment,
+        });
+        const text = formula
+          ? formula
+          : `<text x="${position.x}" y="${position.y}" text-anchor="${annotation.alignment}"${schematicTextSizeAttribute("route-marker", profile, annotation.sizeScale)}>${renderAnnotationText(document, annotation, profile)}</text>`;
+        return `<g ${attributes}><text data-role="polarity-positive" x="${position.x + positiveOffset.x}" y="${position.y + positiveOffset.y + 4}" text-anchor="middle" font-size="${profile.typography.polarityFontSize}" style="${polarityStyle}">+</text><text data-role="polarity-negative" x="${position.x + negativeOffset.x}" y="${position.y + negativeOffset.y + 4}" text-anchor="middle" font-size="${profile.typography.polarityFontSize}" style="${polarityStyle}">−</text>${text}</g>`;
       }
       const emphasis = "";
       const fractionRun =
@@ -816,6 +847,15 @@ export function buildSvgScene(
             (annotation.sizeScale ?? 1),
           profile,
         });
+      }
+      const formula = renderFormulaDocument(content, profile, {
+        x: position.x,
+        baselineY: position.y,
+        fontSize: annotationFontSize,
+        alignment: annotation.alignment,
+      });
+      if (formula) {
+        return `<g ${attributes} transform="${transform}">${formula}</g>`;
       }
       return `<text ${attributes} x="${position.x}" y="${position.y}" text-anchor="${annotation.alignment}" transform="${transform}"${emphasis}${schematicTextSizeAttribute(annotation.kind, profile, annotation.sizeScale)}>${renderAnnotationText(document, annotation, profile)}</text>`;
     })
@@ -992,6 +1032,15 @@ function renderDraftText(
       defaultItalic: italic === "italic",
     },
   );
+  const formula = renderFormulaDocument(object.content, profile, {
+    x: textPosition.x,
+    baselineY,
+    fontSize,
+    alignment: object.alignment,
+    ...(object.styleOverride?.color
+      ? { color: object.styleOverride.color }
+      : {}),
+  });
   if (object.polarity) {
     const color = object.styleOverride?.color ?? profile.foreground;
     const strokeWidth =
@@ -1002,14 +1051,19 @@ function renderDraftText(
           `<line data-role="polarity-${line.role}" x1="${line.from.x}" y1="${line.from.y}" x2="${line.to.x}" y2="${line.to.y}" stroke="${color}" stroke-width="${strokeWidth}" stroke-linecap="${profile.lineCap}"/>`,
       )
       .join("");
-    const text = positioned
-      ? `<text x="${textPosition.x}" y="${baselineY}" text-anchor="start" font-size="${fontSize}" font-weight="${weight}" font-style="${italic}" fill="${color}">${positioned.tspans}</text>${positioned.decorations}`
-      : `<text x="${textPosition.x}" y="${baselineY}" text-anchor="${object.alignment}" font-size="${fontSize}" font-weight="${weight}" font-style="${italic}" fill="${color}">${renderRichTextDocument(object.content, profile, { lineOriginX: textPosition.x, fontSize })}</text>`;
+    const text = formula
+      ? formula
+      : positioned
+        ? `<text x="${textPosition.x}" y="${baselineY}" text-anchor="start" font-size="${fontSize}" font-weight="${weight}" font-style="${italic}" fill="${color}">${positioned.tspans}</text>${positioned.decorations}`
+        : `<text x="${textPosition.x}" y="${baselineY}" text-anchor="${object.alignment}" font-size="${fontSize}" font-weight="${weight}" font-style="${italic}" fill="${color}">${renderRichTextDocument(object.content, profile, { lineOriginX: textPosition.x, fontSize })}</text>`;
     return `<g data-object-id="${object.id}" data-kind="draft-text" data-polarity="${object.polarity}"${unresolved} transform="rotate(${rotation} ${position.x} ${position.y})">${markers}${text}</g>`;
   }
   // P1: the renderer consumes geometry.rotation (the single rotation truth),
   // not the raw persisted object rotation. The rotation pivot stays on the
   // resolved anchor so centered labels rotate about their center.
+  if (formula) {
+    return `<g data-object-id="${object.id}" data-kind="draft-text"${unresolved} transform="rotate(${rotation} ${position.x} ${position.y})">${formula}</g>`;
+  }
   if (positioned) {
     return `<g transform="rotate(${rotation} ${position.x} ${position.y})"><text data-object-id="${object.id}" data-kind="draft-text"${unresolved} x="${textPosition.x}" y="${baselineY}" text-anchor="start" font-size="${fontSize}" font-weight="${weight}" font-style="${italic}">${positioned.tspans}</text>${positioned.decorations}</g>`;
   }
@@ -1236,14 +1290,22 @@ function renderDraftCallout(
   const fontSize =
     typographyFontSize(object.typographyToken ?? "body", profile) *
     (object.styleOverride?.sizeScale ?? 1);
-  const content = renderRichTextDocument(object.content, profile, {
-    lineOriginX: textPosition.x,
-    fontSize,
-  });
   const weight = object.styleOverride?.weight === "bold" ? "bold" : "normal";
   const italic = object.styleOverride?.italic === true ? "italic" : "normal";
+  const formula = renderFormulaDocument(object.content, profile, {
+    x: textPosition.x,
+    baselineY: textPosition.y,
+    fontSize,
+    alignment: object.alignment,
+    ...(object.styleOverride?.color
+      ? { color: object.styleOverride.color }
+      : {}),
+  });
   // P1: renderer consumes geometry.rotation (the single rotation truth).
-  return `<g data-object-id="${object.id}" data-kind="draft-callout"${unresolved}>${leader}<text x="${textPosition.x}" y="${textPosition.y}" text-anchor="${object.alignment}" transform="rotate(${rotation} ${textPosition.x} ${textPosition.y})" font-size="${fontSize}" font-weight="${weight}" font-style="${italic}">${content}</text></g>`;
+  const text = formula
+    ? `<g transform="rotate(${rotation} ${textPosition.x} ${textPosition.y})">${formula}</g>`
+    : `<text x="${textPosition.x}" y="${textPosition.y}" text-anchor="${object.alignment}" transform="rotate(${rotation} ${textPosition.x} ${textPosition.y})" font-size="${fontSize}" font-weight="${weight}" font-style="${italic}">${renderRichTextDocument(object.content, profile, { lineOriginX: textPosition.x, fontSize })}</text>`;
+  return `<g data-object-id="${object.id}" data-kind="draft-callout"${unresolved}>${leader}${text}</g>`;
 }
 
 function renderFloatingSymbol(

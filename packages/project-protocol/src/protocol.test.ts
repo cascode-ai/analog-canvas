@@ -16,21 +16,21 @@ describe("Project protocol boundary", () => {
     });
   });
 
-  it("upgrades the previous schema to schema 29", () => {
+  it("upgrades the previous schema to schema 30", () => {
     const current = JSON.parse(
       serializeProject(createEmptyProject("protocol-project", "Protocol")),
     ) as Record<string, unknown>;
     const result = tryParseProjectWithMetadata(
       JSON.stringify({
         ...current,
-        schemaVersion: 28,
+        schemaVersion: 29,
       }),
     );
     expect(result).toMatchObject({
       ok: true,
-      sourceSchemaVersion: 28,
+      sourceSchemaVersion: 29,
       migrated: true,
-      project: { schemaVersion: 29, structureRevision: 0 },
+      project: { schemaVersion: 30, structureRevision: 0 },
     });
   });
 

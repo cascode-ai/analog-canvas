@@ -84,6 +84,7 @@ import {
 } from "../canvas/canvas-viewport";
 import { EditorCanvasSurface } from "../canvas/editor-canvas-surface";
 import { createAnnotationDragController } from "../features/text-editing/annotation-drag-controller";
+import { prepareDocumentFormulaArtifacts } from "../features/text-editing/formula-artifacts";
 import {
   createEditorFileCommands,
   type SpiceImportReport,
@@ -947,6 +948,26 @@ export function App({
   const lastGoodSceneRef = useRef<ReturnType<typeof buildSvgScene> | null>(
     null,
   );
+  const [formulaArtifactRevision, setFormulaArtifactRevision] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    void prepareDocumentFormulaArtifacts(renderedDocument)
+      .then(() => {
+        if (!cancelled) setFormulaArtifactRevision((revision) => revision + 1);
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setStatus(
+            error instanceof Error
+              ? error.message
+              : "Formula preparation failed",
+          );
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [renderedDocument]);
   const sceneState = useMemo(() => {
     const outcome = buildSceneSafely(() => {
       if (sceneCrashRequested()) {
@@ -956,7 +977,7 @@ export function App({
     }, lastGoodSceneRef.current);
     if (!outcome.degraded) lastGoodSceneRef.current = outcome.scene;
     return outcome;
-  }, [renderedDocument, resolver, viewBox]);
+  }, [formulaArtifactRevision, renderedDocument, resolver, viewBox]);
   const scene = sceneState.scene;
   useEffect(() => {
     if (sceneState.degraded) {

@@ -1,5 +1,3 @@
-import { CURRENT_PROJECT_SCHEMA_VERSION } from "@icm/model";
-
 export interface Schema28To29MigrationReport {
   /**
    * Schema 29 relaxes annotation and drafting anchors to 1-unit precision and
@@ -23,7 +21,7 @@ export function upgradeSchema28To29WithReport(
   raw: Record<string, unknown>,
 ): Schema28To29MigrationResult {
   const project = structuredClone(raw);
-  project.schemaVersion = CURRENT_PROJECT_SCHEMA_VERSION;
+  project.schemaVersion = 29;
   return { project, report: { changed: false } };
 }
 

@@ -8,6 +8,16 @@
       "development": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./profile": {
+      "development": "./src/profile.ts",
+      "types": "./dist/profile.d.ts",
+      "default": "./dist/profile.js"
+    },
+    "./cache": {
+      "development": "./src/cache.ts",
+      "types": "./dist/cache.d.ts",
+      "default": "./dist/cache.js"
     }
   },
   "scripts": {

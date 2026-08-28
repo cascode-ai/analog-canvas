@@ -1,6 +1,14 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
-import { flattenRichText, normalizeRichText } from "@icm/model";
+import {
+  flattenRichText,
+  normalizeRichText,
+  soleRichTextMathRun,
+} from "@icm/model";
+import {
+  ANALOG_CANVAS_MATH_PROFILE_ID,
+  prepareFormula,
+} from "@icm/math-typesetting/cache";
 import type { RichTextDocument, RichTextRun } from "@icm/model";
 
 export interface RichTextEditorProps {
@@ -67,6 +75,8 @@ function toEditableHtml(document: RichTextDocument): string {
         return escapeHtml(run.value);
       case "line-break":
         return "<br>";
+      case "math":
+        return `<span data-rich-text-math data-display="${run.display}" data-latex="${escapeHtml(run.latex)}" contenteditable="false">${escapeHtml(run.latex)}</span>`;
       case "fraction":
         // Editing surfaces a fraction in its slash form; committing that
         // text replaces the fraction with plain runs, which the value
@@ -117,6 +127,18 @@ function readNode(node: Node): RichTextRun[] {
   if (!isElement(node)) return [];
   const tag = node.tagName.toLowerCase();
   if (tag === "br") return [{ kind: "line-break" }];
+  if (node.hasAttribute("data-rich-text-math")) {
+    const latex = node.getAttribute("data-latex")?.trim();
+    if (!latex) return [];
+    return [
+      {
+        kind: "math",
+        latex,
+        display:
+          node.getAttribute("data-display") === "block" ? "block" : "inline",
+      },
+    ];
+  }
   const children = readChildren(node);
   if (children.length === 0 && tag !== "div" && tag !== "p") return [];
   if (tag === "strong" || tag === "b") {
@@ -193,6 +215,57 @@ function editableDocument(element: HTMLElement): RichTextDocument {
   return normalizeRichText(document);
 }
 
+function FormulaMathfield({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange(value: string): void;
+}) {
+  const hostRef = useRef<HTMLDivElement>(null);
+  const fieldRef = useRef<import("mathlive").MathfieldElement | null>(null);
+  const changeRef = useRef(onChange);
+  changeRef.current = onChange;
+
+  useEffect(() => {
+    let disposed = false;
+    let field: import("mathlive").MathfieldElement | undefined;
+    const mount = async () => {
+      const [{ MathfieldElement }] = await Promise.all([
+        import("mathlive"),
+        import("mathlive/fonts.css"),
+      ]);
+      if (disposed || !hostRef.current) return;
+      // Vite owns the font URLs emitted by the CSS import above. Disable
+      // MathLive's fallback loader, whose module-relative `/fonts` guess does
+      // not exist in a bundled application.
+      MathfieldElement.fontsDirectory = null;
+      field = new MathfieldElement();
+      field.value = value;
+      field.setAttribute("aria-label", "Formula editor");
+      field.setAttribute("math-virtual-keyboard-policy", "manual");
+      field.addEventListener("input", () => changeRef.current(field!.value));
+      hostRef.current.replaceChildren(field);
+      fieldRef.current = field;
+      field.focus();
+    };
+    void mount();
+    return () => {
+      disposed = true;
+      fieldRef.current = null;
+      field?.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (fieldRef.current && fieldRef.current.value !== value) {
+      fieldRef.current.value = value;
+    }
+  }, [value]);
+
+  return <div className="rich-text-formula-mathfield" ref={hostRef} />;
+}
+
 export function RichTextEditor({
   targetKey,
   content,
@@ -211,6 +284,15 @@ export function RichTextEditor({
   const editableRef = useRef<HTMLDivElement>(null);
   const sourceInputRef = useRef<HTMLInputElement>(null);
   const selectionRangeRef = useRef<Range | null>(null);
+  const existingFormula = soleRichTextMathRun(content);
+  const [formulaOpen, setFormulaOpen] = useState(false);
+  const [formulaDraft, setFormulaDraft] = useState(
+    existingFormula?.latex ?? "",
+  );
+  const [formulaDisplay, setFormulaDisplay] = useState<"inline" | "block">(
+    existingFormula?.display ?? "inline",
+  );
+  const [formulaError, setFormulaError] = useState<string | null>(null);
 
   useEffect(() => {
     if (sourceOnly && sourceInputRef.current) {
@@ -329,6 +411,39 @@ export function RichTextEditor({
     document.execCommand("insertText", false, symbol);
     rememberSelection();
     sync();
+  };
+
+  const openFormulaEditor = (): void => {
+    if (disabled) return;
+    const selection = window.getSelection()?.toString().trim();
+    const formula = soleRichTextMathRun(content);
+    setFormulaDraft(formula?.latex ?? selection ?? "V_{OUT}");
+    setFormulaDisplay(formula?.display ?? "inline");
+    setFormulaError(null);
+    setFormulaOpen(true);
+  };
+
+  const applyFormula = async (): Promise<void> => {
+    const latex = formulaDraft.trim();
+    if (!latex) return;
+    const validation = await prepareFormula({
+      latex,
+      display: formulaDisplay,
+      profileId: ANALOG_CANVAS_MATH_PROFILE_ID,
+    });
+    if (!validation.ok) {
+      setFormulaError(validation.diagnostic.message);
+      return;
+    }
+    const next: RichTextDocument = {
+      runs: [{ kind: "math", latex, display: formulaDisplay }],
+    };
+    onChange(next);
+    if (editableRef.current) {
+      editableRef.current.innerHTML = toEditableHtml(next);
+    }
+    setFormulaOpen(false);
+    setFormulaError(null);
   };
 
   return (
@@ -465,6 +580,16 @@ export function RichTextEditor({
                 ))}
               </div>
             </details>
+            <button
+              type="button"
+              aria-label="Insert formula"
+              aria-pressed={formulaOpen}
+              disabled={disabled}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={openFormulaEditor}
+            >
+              ƒx
+            </button>
             <span className="rich-text-toolbar-separator" />
           </>
         ) : null}
@@ -520,6 +645,53 @@ export function RichTextEditor({
           </button>
         ) : null}
       </div>
+      {formulaOpen && !sourceOnly ? (
+        <div
+          className="rich-text-formula-popover"
+          role="dialog"
+          aria-label="Formula"
+        >
+          <FormulaMathfield value={formulaDraft} onChange={setFormulaDraft} />
+          {formulaError ? (
+            <div className="rich-text-formula-error" role="alert">
+              {formulaError}
+            </div>
+          ) : null}
+          <div className="rich-text-formula-source">
+            <label>
+              LaTeX
+              <textarea
+                value={formulaDraft}
+                aria-label="Formula LaTeX source"
+                spellCheck={false}
+                onChange={(event) => setFormulaDraft(event.target.value)}
+              />
+            </label>
+          </div>
+          <div className="rich-text-formula-actions">
+            <button
+              type="button"
+              aria-pressed={formulaDisplay === "inline"}
+              onClick={() => setFormulaDisplay("inline")}
+            >
+              Inline
+            </button>
+            <button
+              type="button"
+              aria-pressed={formulaDisplay === "block"}
+              onClick={() => setFormulaDisplay("block")}
+            >
+              Display
+            </button>
+            <button type="button" onClick={() => void applyFormula()}>
+              Insert
+            </button>
+            <button type="button" onClick={() => setFormulaOpen(false)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : null}
       {sourceOnly ? (
         <input
           ref={sourceInputRef}

@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@icm/derived": "workspace:*",
+    "@icm/math-typesetting": "workspace:*",
     "@icm/model": "workspace:*",
     "@icm/symbols": "workspace:*"
   }

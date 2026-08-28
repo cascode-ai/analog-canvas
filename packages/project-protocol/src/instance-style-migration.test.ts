@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import { CURRENT_PROJECT_SCHEMA_VERSION } from "@icm/model";
 import { createEmptyProject } from "@icm/model";
 import { serializeProject } from "./save.js";
 
@@ -17,7 +16,6 @@ describe("schema 28 to 29 migration (instance style override)", () => {
     ) as Record<string, unknown>;
     const v28 = { ...current, schemaVersion: 28 };
     const upgraded = upgradeSchema28To29(v28);
-    expect(upgraded.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
     expect(upgraded.schemaVersion).toBe(29);
   });
 
@@ -29,17 +27,16 @@ describe("schema 28 to 29 migration (instance style override)", () => {
     expect(report.changed).toBe(false);
   });
 
-  it("tryParseProjectWithMetadata migrates schema 28 to 29", () => {
+  it("does not keep schema 28 in the rolling read window", () => {
     const current = JSON.parse(
       serializeProject(createEmptyProject("test", "Test")),
     ) as Record<string, unknown>;
     const v28 = JSON.stringify({ ...current, schemaVersion: 28 });
     const result = tryParseProjectWithMetadata(v28);
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.sourceSchemaVersion).toBe(28);
-    expect(result.migrated).toBe(true);
-    expect(result.project.schemaVersion).toBe(29);
+    expect(result).toMatchObject({
+      ok: false,
+      diagnostics: [{ code: "UNSUPPORTED_SCHEMA_VERSION" }],
+    });
   });
 
   it("round-trips instance color overrides through canonical project JSON", () => {
@@ -67,7 +64,7 @@ describe("schema 28 to 29 migration (instance style override)", () => {
     expect(serializeProject(parsed)).toBe(serialized);
   });
 
-  it("schema 28 projects with existing instance data are valid after migration", () => {
+  it("keeps the historical transform independently usable", () => {
     const current = JSON.parse(
       serializeProject(createEmptyProject("test", "Test")),
     ) as Record<string, unknown>;
@@ -84,8 +81,7 @@ describe("schema 28 to 29 migration (instance style override)", () => {
         netlist: { reference: "R1", parameters: {} },
       },
     ];
-    const v28 = JSON.stringify({ ...current, schemaVersion: 28 });
-    const result = tryParseProjectWithMetadata(v28);
-    expect(result.ok).toBe(true);
+    const v28 = { ...current, schemaVersion: 28 };
+    expect(upgradeSchema28To29(v28).schemaVersion).toBe(29);
   });
 });

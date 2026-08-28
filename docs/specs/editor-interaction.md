@@ -335,13 +335,21 @@ label is one visual deletion: the label removal is planned once, so the atomic
 transaction cannot reject a duplicated annotation removal. Drafting text has
 no electrical meaning.
 
+The floating RichText editor has one formula action for editable text content.
+It opens a MathLive math field plus the exact LaTeX source, lets the author
+choose inline or display intent, validates against the bounded Analog Canvas
+math profile, and replaces the current RichText document with one atomic
+formula only after validation succeeds. Ordinary bold, italic, script,
+overbar, alignment, multiline, and symbol controls remain the same RichText
+system; formulas do not create an Additional Text or Annotation side channel.
+
 ## Files, recovery, and replacement
 
 Open, demo load, restore, and human-approved staged import replace the entire
 Project through one replacement boundary; they are not Edit Engine
 transactions. Replacement cancels pending recovery for the outgoing Project
-and terminates its Agent session. A complete schema-28 Project may be upgraded
-at the read boundary and then enters the editor only as schema-29; migrated
+and terminates its Agent session. A complete schema-29 Project may be upgraded
+at the read boundary and then enters the editor only as schema-30; migrated
 files are marked as needing save.
 
 Selection, viewport, active tool, previews, Agent tokens, and approval UI are

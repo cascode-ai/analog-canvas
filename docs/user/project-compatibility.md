@@ -1,6 +1,6 @@
 # Project File Compatibility
 
-The released Project schema version is `29`. It retains schematic-only
+The released Project schema version is `30`. It retains schematic-only
 hierarchy integrity, a Project structural revision, stable formal Cell ports,
 and definition-level Cell symbol presentation. It also has one typed Instance
 netlist authority, formal Cell parameters, and Project-local external
@@ -19,15 +19,15 @@ drafting objects position at 1-unit integer precision, while Instance
 placements, route bends, and Junctions stay aligned to the Document grid. An
 Instance may carry an optional `styleOverride` with independent foreground and
 background colors; when absent, document style defaults remain authoritative.
-A canonical v29 file can be opened, saved, reopened, and saved again without
+A canonical v30 file can be opened, saved, reopened, and saved again without
 byte drift.
 
-Schema v28 is accepted through a bounded upgrade to v29. Fine-grid annotation
-and drafting coordinates are a validation relaxation, and instance style is
-optional, so the upgrade preserves all existing circuit and drawing content
-and stamps the current version. The next save writes v29. The original file is
-never overwritten silently. Schema v27 and older, and versions newer than v29,
-are rejected by the interactive project-file boundary.
+Schema v29 is accepted through a bounded upgrade to v30. Schema v30 adds one
+optional atomic formula form to RichText, so the upgrade preserves all existing
+circuit and drawing content and stamps the current version. The next save
+writes v30. The original file is never overwritten silently. Schema v28 and
+older, and versions newer than v30, are rejected by the interactive
+project-file boundary.
 
 The canonical-current corpus at
 [`fixtures/projects/compatibility-corpus.json`](../../fixtures/projects/compatibility-corpus.json)
@@ -39,7 +39,7 @@ Retired fields such as first-class
 
 An incompatible Project is rejected before it can replace the current browser
 Project. Conversion, when needed, is an explicit external operation that must
-produce and validate a complete v29 candidate before a human chooses to load it.
+produce and validate a complete v30 candidate before a human chooses to load it.
 
 The editor never silently merges duplicate canonical Ground (`0`) or VDD Nets.
 Duplicate folded Net names are invalid and remain diagnostics until the author

@@ -1,4 +1,9 @@
 import type { RichTextDocument, RichTextRun } from "@icm/model";
+import {
+  ANALOG_CANVAS_MATH_PROFILE_ID,
+  CANONICAL_FORMULA_FONT_SIZE,
+  cachedFormulaResult,
+} from "@icm/math-typesetting/cache";
 
 import type { SchematicStyleProfile } from "./style-profile.js";
 
@@ -260,6 +265,31 @@ function measureRun(run: RichTextRun, metrics: RichTextMetrics): Line[] {
     return [
       { width: 0, height: metrics.fontSize * metrics.lineHeight },
       { width: 0, height: metrics.fontSize * metrics.lineHeight },
+    ];
+  }
+  if (run.kind === "math") {
+    const result = cachedFormulaResult({
+      latex: run.latex,
+      display: run.display,
+      profileId: ANALOG_CANVAS_MATH_PROFILE_ID,
+    });
+    if (!result) {
+      return [
+        {
+          width: Math.max(1, run.latex.length * metrics.fontSize * 0.6),
+          height: metrics.fontSize * metrics.lineHeight,
+        },
+      ];
+    }
+    if (!result.ok) {
+      throw new Error(`Cannot measure formula: ${result.diagnostic.message}`);
+    }
+    const scale = metrics.fontSize / CANONICAL_FORMULA_FONT_SIZE;
+    return [
+      {
+        width: result.artifact.width * scale,
+        height: result.artifact.height * scale,
+      },
     ];
   }
   if (run.kind === "span") {

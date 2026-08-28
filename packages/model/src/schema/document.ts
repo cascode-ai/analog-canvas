@@ -447,7 +447,7 @@ export const SchematicDocumentSchema = SchematicDocumentBaseSchema.superRefine(
         context,
       ),
     );
-    // Schema 29: annotations and drafting objects position at 1-unit
+    // Schema 30: annotations and drafting objects position at 1-unit
     // precision (their point schemas already enforce integers). The Document
     // grid remains the hard electrical contract above — instance placements,
     // route bends, and junctions stay grid-aligned so pins and wires always

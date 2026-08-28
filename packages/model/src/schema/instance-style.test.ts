@@ -123,13 +123,13 @@ describe("InstanceSchema with styleOverride", () => {
 });
 
 describe("CircuitProject schema version", () => {
-  it("current schema version is 29", () => {
-    expect(CURRENT_PROJECT_SCHEMA_VERSION).toBe(29);
+  it("current schema version is 30", () => {
+    expect(CURRENT_PROJECT_SCHEMA_VERSION).toBe(30);
   });
 
-  it("createEmptyProject produces schema version 29", () => {
+  it("createEmptyProject produces schema version 30", () => {
     const project = createEmptyProject("test", "Test");
-    expect(project.schemaVersion).toBe(29);
+    expect(project.schemaVersion).toBe(30);
   });
 
   it("validates a project with styleOverride on an instance", () => {

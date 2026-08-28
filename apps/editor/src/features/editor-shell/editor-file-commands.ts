@@ -56,9 +56,15 @@ export function createEditorFileCommands({
   setStatus,
 }: EditorFileCommandDependencies) {
   const exportSvg = (): void => {
-    const artifact = createSvgExportArtifact(document, resolver, project.name);
-    requestBrowserDownload(artifact, project.name);
-    setStatus(artifact.report);
+    setStatus("Preparing SVG export");
+    void createSvgExportArtifact(document, resolver, project.name)
+      .then((artifact) => {
+        requestBrowserDownload(artifact, project.name);
+        setStatus(artifact.report);
+      })
+      .catch((error: unknown) => {
+        setStatus(error instanceof Error ? error.message : "Export failed");
+      });
   };
 
   const exportDesignNetlist = (

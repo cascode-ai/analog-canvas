@@ -2,17 +2,17 @@
 
 Status: `accepted`
 
-Current Project schema: `29`
+Current Project schema: `30`
 
 Primary owners: `packages/model` (current shape) and
 `packages/project-protocol` (file boundary)
 
 An `.icproj.json` file is canonical JSON for one complete `CircuitProject`.
-`@icm/project-protocol` exposes `parseProject`. It accepts schemas 28 and 29.
-Schema 29 relaxes annotation and drafting anchors to 1-unit precision and adds
-optional per-instance appearance overrides; both changes are backward-compatible,
-so schema 28 upgrades by a version stamp. The protocol supplies only schema 29
-in memory and writes only schema 29. Older project files are rejected.
+`@icm/project-protocol` exposes `parseProject`. It accepts schemas 29 and 30.
+Schema 30 adds an optional atomic formula form to canonical RichText. Existing
+schema-29 content is unchanged, so schema 29 upgrades by a version stamp. The
+protocol supplies only schema 30 in memory and writes only schema 30. Older
+project files are rejected.
 
 ## Current authorities
 
@@ -54,6 +54,10 @@ in memory and writes only schema 29. Older project files are rejected.
   never synthesize instance text from an internal ID. Bound `net-name` and
   `cell-terminal-name` annotations may carry a RichText `formatOverride` only
   when its flattened text equals the semantic Net or terminal name.
+- A RichText document is either ordinary styled text runs or one atomic
+  formula run containing bounded LaTeX source and `inline`/`block` display
+  intent. Typeset SVG paths and metrics are derived artifacts, never Project
+  content.
 - `Document.presentation.cellSymbol` is optional definition-level block intent:
   a minimum body size and stable formal-terminal side/offset placements.
   Symbol geometry remains derived and caller Instances never persist a copy.
@@ -63,8 +67,8 @@ in memory and writes only schema 29. Older project files are rejected.
 ## Read and write
 
 ```text
-import text -> parse JSON -> require Project schema 28 or 29
--> converge to schema 29 -> strict schema-29 validation -> install unbound
+import text -> parse JSON -> require Project schema 29 or 30
+-> converge to schema 30 -> strict schema-30 validation -> install unbound
 export -> strict validation -> canonical key ordering -> Blob download
 ```
 
@@ -75,7 +79,7 @@ after explicit human approval in the editor.
 A migrated imported file is marked dirty. The editor never overwrites a source
 selected through the browser file input; the user may Save it as a Cloud
 Project or explicitly export upgraded bytes. Browser recovery records may be
-canonicalized to v29 only after a successful validated write.
+canonicalized to v30 only after a successful validated write.
 
 Project entry does not repair duplicate canonical supply Nets (`0` or `VDD`).
 Duplicate folded Net names are invalid input and remain a blocking diagnostic
@@ -84,7 +88,7 @@ until the author explicitly renames or merges the Nets.
 Canonical serialization ends with one newline and is byte-stable across
 serialize/parse/serialize. The current corpus is listed in
 `fixtures/projects/compatibility-corpus.json`; its accepted entries must all be
-already canonical Project schema 29. The rejected corpus names expected
+already canonical Project schema 30. The rejected corpus names expected
 validation failures.
 
 Viewport, selection, undo history, canvas overlays, Agent credentials,

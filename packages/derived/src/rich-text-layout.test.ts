@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import type { RichTextDocument } from "@icm/model";
+import {
+  ANALOG_CANVAS_MATH_PROFILE_ID,
+  CANONICAL_FORMULA_FONT_SIZE,
+  prepareFormula,
+} from "@icm/math-typesetting/cache";
 
 import {
   containsFractionRun,
@@ -189,5 +194,34 @@ describe("shared rich-text layout", () => {
     // The boost is a multiplier, so any profile's subscript scale keeps the
     // 30% proportion rather than a fixed pixel offset.
     expect(fractionPartScale(0.5)).toBeCloseTo(0.65, 6);
+  });
+
+  it("uses path-renderer metrics for an atomic formula", async () => {
+    const metrics = richTextMetrics(razaviTextbookProfile);
+    const request = {
+      latex: String.raw`\frac{g_m}{1+s/\omega_p}`,
+      display: "inline" as const,
+      profileId: ANALOG_CANVAS_MATH_PROFILE_ID,
+    };
+    const prepared = await prepareFormula(request);
+    expect(prepared.ok).toBe(true);
+    if (!prepared.ok) return;
+    const layout = measureRichTextDocument(
+      {
+        runs: [
+          {
+            kind: "math",
+            latex: request.latex,
+            display: request.display,
+          },
+        ],
+      },
+      metrics,
+    );
+
+    const scale = metrics.fontSize / CANONICAL_FORMULA_FONT_SIZE;
+    expect(layout.width).toBeCloseTo(prepared.artifact.width * scale);
+    expect(layout.height).toBeCloseTo(prepared.artifact.height * scale);
+    expect(layout.lineWidths).toEqual([layout.width]);
   });
 });

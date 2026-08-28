@@ -78,4 +78,57 @@ describe("canonical RichText helpers", () => {
     };
     expect(flattenRichText(content)).toBe("V_{IN} = \\frac{1}{2}");
   });
+
+  it("accepts an atomic formula without interpreting it as styled text", () => {
+    const content: RichTextDocument = {
+      runs: [
+        {
+          kind: "math",
+          latex: String.raw`A_v=-g_m(r_o\parallel R_D)`,
+          display: "inline",
+        },
+      ],
+    };
+
+    expect(RichTextDocumentSchema.safeParse(content).success).toBe(true);
+    expect(flattenRichText(content)).toBe(
+      String.raw`A_v=-g_m(r_o\parallel R_D)`,
+    );
+    expect(normalizeRichText(content)).toEqual(content);
+  });
+
+  it("rejects ambiguous mixed formula and styled-text documents", () => {
+    expect(
+      RichTextDocumentSchema.safeParse({
+        runs: [
+          { kind: "text", value: "Gain: " },
+          { kind: "math", latex: "A_v", display: "inline" },
+        ],
+      }).success,
+    ).toBe(false);
+  });
+
+  it("bounds formula source and requires an explicit display mode", () => {
+    expect(
+      RichTextDocumentSchema.safeParse({
+        runs: [{ kind: "math", latex: "", display: "inline" }],
+      }).success,
+    ).toBe(false);
+    expect(
+      RichTextDocumentSchema.safeParse({
+        runs: [{ kind: "math", latex: "V_{OUT}" }],
+      }).success,
+    ).toBe(false);
+    expect(
+      RichTextDocumentSchema.safeParse({
+        runs: [
+          {
+            kind: "math",
+            latex: String.raw`\href{https://example.com}{V}`,
+            display: "inline",
+          },
+        ],
+      }).success,
+    ).toBe(false);
+  });
 });

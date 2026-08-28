@@ -182,6 +182,88 @@ test("adds formatted drafting text and undo/redo restores it", async ({
   await expect(page.getByTestId("revision")).toHaveText("6");
 });
 
+test("authors one validated formula through the canonical text editor", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await clickDrawTool(page, "text");
+
+  await page.getByRole("button", { name: "Insert formula" }).click();
+  await expect(page.getByRole("dialog", { name: "Formula" })).toBeVisible();
+  await expect(
+    page.locator('math-field[aria-label="Formula editor"]'),
+  ).toBeVisible();
+
+  const source = page.getByRole("textbox", { name: "Formula LaTeX source" });
+  await source.fill(String.raw`A_v=\frac{g_m}{1+s/\omega_p}`);
+  await page.getByRole("button", { name: "Display" }).click();
+  await page
+    .getByRole("dialog", { name: "Formula" })
+    .getByRole("button", { name: "Insert", exact: true })
+    .click();
+  await expect(
+    page.getByTestId("canvas-text-editor").locator("[data-rich-text-math]"),
+  ).toHaveAttribute("data-latex", String.raw`A_v=\frac{g_m}{1+s/\omega_p}`);
+  await page.getByRole("button", { name: "Apply text changes" }).click();
+
+  const formula = page.locator(
+    '[data-kind="draft-text"] [data-role="formula"]',
+  );
+  await expect(formula).toBeVisible();
+  await expect(formula.locator("path").first()).toBeVisible();
+  await expect(page.locator("foreignObject", { has: formula })).toHaveCount(0);
+
+  const project = JSON.parse(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  );
+  const text = project.documents[0].drafting.objects.find(
+    (object: { kind: string }) => object.kind === "text",
+  );
+  expect(text.content).toEqual({
+    runs: [
+      {
+        kind: "math",
+        latex: String.raw`A_v=\frac{g_m}{1+s/\omega_p}`,
+        display: "block",
+      },
+    ],
+  });
+
+  const svg = (await downloadBytes(page, "File", "Export SVG")).toString(
+    "utf8",
+  );
+  expect(svg).toContain('data-role="formula"');
+  expect(svg).toContain("<path");
+  expect(svg).not.toContain("<foreignObject");
+
+  const pdf = await downloadBytes(page, "File", "Export PDF");
+  expect(pdf.subarray(0, 5).toString("ascii")).toBe("%PDF-");
+  expect(pdf.toString("latin1")).not.toContain("/Subtype /Image");
+});
+
+test("keeps unsafe formula source out of the Project", async ({ page }) => {
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await clickDrawTool(page, "text");
+  await page.getByRole("button", { name: "Insert formula" }).click();
+  await page
+    .getByRole("textbox", { name: "Formula LaTeX source" })
+    .fill(String.raw`\href{https://example.com}{V}`);
+  await page
+    .getByRole("dialog", { name: "Formula" })
+    .getByRole("button", { name: "Insert", exact: true })
+    .click();
+
+  await expect(page.getByRole("alert")).toContainText(
+    "command is not available",
+  );
+  await expect(page.getByRole("dialog", { name: "Formula" })).toBeVisible();
+  await expect(page.locator('[data-role="formula"]')).toHaveCount(0);
+});
+
 test("snaps quick Text creation after a non-grid viewport zoom", async ({
   page,
 }) => {
@@ -1223,7 +1305,7 @@ test("annotation grid pitch frees drawings from the device grid", async ({
       };
     }>;
   };
-  expect(saved.schemaVersion).toBe(29);
+  expect(saved.schemaVersion).toBe(30);
   const document = saved.documents[0]!;
   const rectangle = document.drafting?.objects.find(
     (object) => object.kind === "rectangle",

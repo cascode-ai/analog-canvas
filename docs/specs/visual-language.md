@@ -75,6 +75,16 @@ remain upright. Notes and figure captions are never parsed implicitly. The
 persisted annotation string remains unchanged, and the same composed formal
 SVG scene feeds SVG, PNG, and PDF export.
 
+An authored formula is the atomic alternative to ordinary styled RichText,
+not another text object type. Its persisted facts are bounded LaTeX source and
+`inline`/`block` display intent. The `analog-canvas-math-v1` profile supports
+the reviewed base, AMS, and cases command sets and rejects external resources,
+HTML/style injection, package loading, and dynamic command definitions. The
+typesetter emits standalone path-only SVG with deterministic width, height,
+baseline, and source identity. Formula SVG is embedded into the same formal
+scene used by canvas, SVG, PNG, and vector PDF; it is never rasterized or
+persisted.
+
 Derived visual diagnostics cover unplaced or unresolved symbols, symbol and
 label overlap, short route segments, ambiguous Junction dots, unsatisfied
 layout constraints, and optional export-page bounds. Diagnostics never mutate
@@ -104,6 +114,8 @@ active symbol variant's visible geometry and clusters repeated overlaps.
 - Selection, hit targets, grid, drag preview, diagnostics, and flightlines are
   absent from formal SVG export.
 - SVG is derived output and never becomes connectivity or persistence truth.
+- Formula source is persistence truth; generated glyph paths and formula
+  metrics are transient derived output.
 - Razavi formal output scales geometry and strokes together and emits no
   `vector-effect="non-scaling-stroke"`.
 - Annotation attachment moves with an edited instance while its offset and

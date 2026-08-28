@@ -3,6 +3,7 @@ import { printDesignNetlist } from "@icm/netlist";
 import type { DesignNetlistIR, NetlistFormat } from "@icm/netlist";
 import type { SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
+import { prepareDocumentFormulaArtifacts } from "../text-editing/formula-artifacts";
 
 export interface EditorExportArtifact {
   bytes: BlobPart;
@@ -15,11 +16,12 @@ export type DesignNetlistExportPlan =
   | { status: "blocked"; message: string }
   | { status: "ready"; artifact: EditorExportArtifact };
 
-export function createSvgExportArtifact(
+export async function createSvgExportArtifact(
   document: SchematicDocument,
   resolver: SymbolResolver,
   projectName: string,
-): EditorExportArtifact {
+): Promise<EditorExportArtifact> {
+  await prepareDocumentFormulaArtifacts(document);
   const source = createFormalExportSource(document, resolver, {
     title: projectName,
   });
@@ -76,6 +78,7 @@ export async function createVisualExportArtifact(
 ): Promise<EditorExportArtifact> {
   const { exportFormalArtifactsInBrowser, rasterizeFormalSvgInBrowser } =
     await import("@icm/exporters/browser");
+  await prepareDocumentFormulaArtifacts(document);
   const source = createFormalExportSource(document, resolver, {
     title: projectName,
   });

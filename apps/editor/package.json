@@ -14,6 +14,7 @@
     "@icm/derived": "workspace:*",
     "@icm/edit-engine": "workspace:*",
     "@icm/exporters": "workspace:*",
+    "@icm/math-typesetting": "workspace:*",
     "@icm/model": "workspace:*",
     "@icm/netlist": "workspace:*",
     "@icm/project-protocol": "workspace:*",
@@ -21,6 +22,7 @@
     "@icm/simulation": "workspace:*",
     "@icm/spice": "workspace:*",
     "@icm/symbols": "workspace:*",
+    "mathlive": "0.110.0",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },

@@ -1,6 +1,10 @@
 import { createEmptyDocument } from "@icm/model";
 import type { RichTextRun } from "@icm/model";
 import { resolveSchematicStyleProfile } from "@icm/derived";
+import {
+  ANALOG_CANVAS_MATH_PROFILE_ID,
+  prepareFormula,
+} from "@icm/math-typesetting/cache";
 import { describe, expect, it } from "vitest";
 
 import { renderDocumentSvg } from "./render.js";
@@ -53,6 +57,44 @@ describe("drafting layer rendering", () => {
     const svg = renderDocumentSvg(document, resolver);
     expect(svg).toContain("a&lt;b&gt;&amp;c");
     expect(svg).not.toContain("a<b>&c");
+  });
+
+  it("renders an atomic formula as aligned vector paths", async () => {
+    const document = createEmptyDocument("doc", "Formula");
+    document.drafting = {
+      objects: [
+        {
+          id: "formula-1",
+          kind: "text",
+          locked: false,
+          zIndex: 0,
+          anchor: { kind: "free", position: { x: 100, y: 100 } },
+          content: {
+            runs: [
+              {
+                kind: "math",
+                latex: String.raw`A_v=\frac{g_m}{1+s/\omega_p}`,
+                display: "inline",
+              },
+            ],
+          },
+          alignment: "middle",
+          rotation: 0,
+        },
+      ],
+    };
+
+    await prepareFormula({
+      latex: String.raw`A_v=\frac{g_m}{1+s/\omega_p}`,
+      display: "inline",
+      profileId: ANALOG_CANVAS_MATH_PROFILE_ID,
+    });
+    const svg = renderDocumentSvg(document, resolver);
+    expect(svg).toContain('data-object-id="formula-1"');
+    expect(svg).toContain('data-role="formula"');
+    expect(svg).toContain("data-icm-formula=");
+    expect(svg).toContain("<path");
+    expect(svg).not.toContain("<foreignObject");
   });
 
   it.each([

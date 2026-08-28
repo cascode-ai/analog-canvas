@@ -17,6 +17,7 @@ import {
   upgradeSchema25To26WithReport,
   upgradeSchema26To27,
   upgradeSchema27To28,
+  upgradeSchema28To29,
 } from "./index.js";
 
 class MemoryStorage implements ProjectStorage {
@@ -173,15 +174,17 @@ describe("Project persistence", () => {
 
     const migrated = parseProjectWithMetadata(
       JSON.stringify(
-        upgradeSchema27To28(
-          upgradeSchema26To27(upgradeSchema25To26(direct.project)),
+        upgradeSchema28To29(
+          upgradeSchema27To28(
+            upgradeSchema26To27(upgradeSchema25To26(direct.project)),
+          ),
         ),
       ),
     );
     expect(migrated).toMatchObject({
-      sourceSchemaVersion: 28,
+      sourceSchemaVersion: 29,
       migrated: true,
-      project: { schemaVersion: 29 },
+      project: { schemaVersion: 30 },
     });
     const migratedDocument = migrated.project.documents[0]!;
     expect(migratedDocument.netlist?.terminals).toMatchObject([
@@ -322,13 +325,17 @@ describe("Project persistence", () => {
     // replay the complete history before the current boundary validates it.
     const parsed = parseProjectWithMetadata(
       JSON.stringify(
-        upgradeSchema27To28(upgradeSchema26To27(upgradeSchema25To26(source))),
+        upgradeSchema28To29(
+          upgradeSchema27To28(
+            upgradeSchema26To27(upgradeSchema25To26(source)),
+          ),
+        ),
       ),
     );
     expect(parsed).toMatchObject({
-      sourceSchemaVersion: 28,
+      sourceSchemaVersion: 29,
       migrated: true,
-      project: { schemaVersion: 29 },
+      project: { schemaVersion: 30 },
     });
     const route = parsed.project.documents[0]!.routes[0]!;
     const annotation = parsed.project.documents[0]!.annotations[0]!;
@@ -346,10 +353,10 @@ describe("Project persistence", () => {
 
   it("rejects schemas outside the current-and-previous window", () => {
     const project = createEmptyProject("project-test", "Test Project");
-    for (const schemaVersion of [23, 24, 25, 26, 27, 30, 99]) {
+    for (const schemaVersion of [23, 24, 25, 26, 27, 28, 31, 99]) {
       expect(() =>
         parseProject(JSON.stringify({ ...project, schemaVersion })),
-      ).toThrow(/must be 28 or 29/);
+      ).toThrow(/must be 29 or 30/);
     }
   });
 });

@@ -17,6 +17,7 @@ import { parseProject, serializeProject } from "@icm/project-protocol";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
 import { importSpiceSources } from "@icm/spice";
 import type { SymbolResolver } from "@icm/symbols";
+import { prepareDocumentFormulaArtifacts } from "../features/text-editing/formula-artifacts";
 
 type StoredCandidate = {
   project: CircuitProject;
@@ -152,6 +153,7 @@ export class BrowserAgentFileHost {
           "DOCUMENT_NOT_FOUND",
           "Document is not present in this Project",
         );
+      await prepareDocumentFormulaArtifacts(document);
       const source = createFormalExportSource(
         document,
         this.options.getResolver(),
