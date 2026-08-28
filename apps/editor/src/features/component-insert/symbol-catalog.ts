@@ -2,7 +2,6 @@ import {
   expandedDeviceCatalogEntry,
   expandedDeviceSymbols,
   EXTENDED_DEVICE_CATEGORY,
-  HIGH_VOLTAGE_DEVICE_SUBCATEGORY,
   razaviProductSymbols,
 } from "@icm/symbols";
 import type { SymbolDefinition } from "@icm/symbols";
@@ -22,7 +21,6 @@ import { TIMING_UI_ENABLED } from "../simulation/timing-ui";
  */
 interface CatalogSection {
   readonly category: string;
-  readonly subcategory?: string;
 }
 
 const CATALOG_SECTIONS: readonly CatalogSection[] = [
@@ -35,26 +33,24 @@ const CATALOG_SECTIONS: readonly CatalogSection[] = [
   { category: "Logic Gates" },
   { category: "Signal Flow" },
   { category: ANNOTATION_CATEGORY },
-  {
-    category: EXTENDED_DEVICE_CATEGORY,
-    subcategory: HIGH_VOLTAGE_DEVICE_SUBCATEGORY,
-  },
+  { category: EXTENDED_DEVICE_CATEGORY },
 ];
 
 export interface ComponentCatalogGroup {
   category: string;
-  subcategory?: string;
   symbols: SymbolDefinition[];
 }
 
 export function symbolCategory(symbolId: string): string {
   if (isAnnotationPaletteSymbol(symbolId)) return ANNOTATION_CATEGORY;
+  // Keep the two diode tiles in the Extended Devices UI group, not at the
+  // front of the everyday transistor palette.
+  if (["diode", "zener-diode"].includes(symbolId)) {
+    return EXTENDED_DEVICE_CATEGORY;
+  }
   const expanded = expandedDeviceCatalogEntry(symbolId);
   if (expanded) return expanded.category;
-  // The diode sits with its semiconductor family, not the passives.
-  if (
-    ["nmos", "pmos", "npn", "pnp", "diode", "zener-diode"].includes(symbolId)
-  ) {
+  if (["nmos", "pmos", "npn", "pnp"].includes(symbolId)) {
     return "Transistors";
   }
   if (
@@ -120,10 +116,6 @@ export function symbolCategory(symbolId: string): string {
     return "Switches";
   }
   return "Power and Ports";
-}
-
-export function symbolSubcategory(symbolId: string): string | undefined {
-  return expandedDeviceCatalogEntry(symbolId)?.subcategory;
 }
 
 /**
@@ -237,14 +229,9 @@ export function componentCatalog(
       return left.name.localeCompare(right.name);
     });
 
-  return CATALOG_SECTIONS.map(({ category, ...location }) => ({
+  return CATALOG_SECTIONS.map(({ category }) => ({
     category,
-    ...location,
-    symbols: symbols.filter(
-      (symbol) =>
-        symbolCategory(symbol.id) === category &&
-        symbolSubcategory(symbol.id) === location.subcategory,
-    ),
+    symbols: symbols.filter((symbol) => symbolCategory(symbol.id) === category),
   })).filter((group) => group.symbols.length > 0);
 }
 

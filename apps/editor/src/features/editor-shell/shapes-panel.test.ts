@@ -32,7 +32,7 @@ describe("shapes quick-place", () => {
     expect(
       groups.map((group) => [group.category, group.symbols.length]),
     ).toEqual([
-      ["Transistors", 6],
+      ["Transistors", 4],
       ["Passives", 7],
       ["Power and Ports", 5],
       ["Sources", 3],
@@ -41,7 +41,7 @@ describe("shapes quick-place", () => {
       ["Logic Gates", 10],
       ["Signal Flow", 5],
       ["Annotations", 7],
-      ["Extended Devices", 2],
+      ["Extended Devices", 4],
     ]);
     const categoryTestIds = [
       "transistors",
@@ -80,9 +80,7 @@ describe("shapes quick-place", () => {
     expect(markup).toContain('aria-label="Place Comparator (unmarked)"');
     expect(markup).toContain('aria-label="Place N-channel DMOS"');
     expect(markup).toContain('aria-label="Place P-channel DMOS"');
-    expect(markup).toContain(
-      '<div class="shapes-subcategory-label">High-voltage devices</div>',
-    );
+    expect(markup).not.toContain("High-voltage devices");
     expect(markup).toContain(">V Src</span>");
     expect(markup).toContain(">Pulse Src</span>");
     expect(markup).toContain(">Cap</span>");

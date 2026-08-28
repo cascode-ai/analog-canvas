@@ -1229,6 +1229,7 @@ test("shows the complete foldable categorized Library, quick-places a device, an
 }) => {
   await page.setViewportSize({ width: 1024, height: 720 });
   await page.goto("/editor");
+  await awaitEditorReady(page);
   const panel = page.getByTestId("shapes-library-panel");
   const canvas = page.getByTestId("schematic-canvas");
   const libraryChips = panel.locator('[data-testid^="shapes-chip-"]');
@@ -1242,9 +1243,9 @@ test("shows the complete foldable categorized Library, quick-places a device, an
   const transistorChips = transistorCategory.locator(
     '[data-testid^="shapes-chip-"]',
   );
-  // NMOS, PMOS, NPN, PNP, and the ordinary and Zener diodes that belong with
-  // their semiconductor family.
-  await expect(transistorChips).toHaveCount(6);
+  // Keep the everyday transistor palette compact; the two diode tiles live
+  // in Extended Devices below.
+  await expect(transistorChips).toHaveCount(4);
   const transistorGrid = transistorCategory.locator(".shapes-grid");
   // Tiles keep a fixed square size; a wider panel fits more of them per row
   // instead of stretching each tile.
@@ -1268,7 +1269,7 @@ test("shows the complete foldable categorized Library, quick-places a device, an
           ),
         ).size,
     ),
-  ).toBe(Math.ceil(6 / columns));
+  ).toBe(Math.ceil(4 / columns));
   expect(
     await transistorGrid.evaluate((element) => {
       const gridBounds = element.getBoundingClientRect();
@@ -1372,11 +1373,15 @@ test("shows the complete foldable categorized Library, quick-places a device, an
   await expect(page.getByTestId("shapes-chip-buffer")).toBeAttached();
   await expect(page.getByTestId("shapes-chip-delay-cell")).toBeAttached();
   await expect(page.getByTestId("shapes-chip-d-flip-flop")).toBeAttached();
+  const extendedCategory = page.getByTestId("shapes-category-extended-devices");
   await expect(
-    page
-      .getByTestId("shapes-category-extended-devices")
-      .getByText("High-voltage devices", { exact: true }),
+    extendedCategory.locator('[data-testid^="shapes-chip-"]'),
+  ).toHaveCount(4);
+  await expect(extendedCategory.getByTestId("shapes-chip-diode")).toBeVisible();
+  await expect(
+    extendedCategory.getByTestId("shapes-chip-zener-diode"),
   ).toBeVisible();
+  await expect(extendedCategory).not.toContainText("High-voltage devices");
   await expect(
     panel.getByRole("button", { name: "Place Independent Voltage Source" }),
   ).toBeAttached();
@@ -1521,6 +1526,7 @@ test("keeps a usable canvas while toggling Library at the narrow breakpoint", as
 }) => {
   await page.setViewportSize({ width: 720, height: 720 });
   await page.goto("/editor");
+  await awaitEditorReady(page);
 
   const chrome = page.locator(".app-chrome-main");
   // The analytics readout lives in the statusbar now; the top bar ends

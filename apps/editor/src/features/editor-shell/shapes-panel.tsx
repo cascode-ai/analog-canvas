@@ -220,11 +220,6 @@ export function ShapesPanel({
                       {group.symbols.length}
                     </span>
                   </summary>
-                  {group.subcategory ? (
-                    <div className="shapes-subcategory-label">
-                      {group.subcategory}
-                    </div>
-                  ) : null}
                   <div className="shapes-grid">
                     {group.symbols.map((symbol) => (
                       <button

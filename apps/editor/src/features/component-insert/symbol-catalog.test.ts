@@ -7,7 +7,6 @@ import {
   libraryDescription,
   libraryDisplayName,
   symbolCategory,
-  symbolSubcategory,
 } from "./symbol-catalog";
 
 describe("component insertion catalog", () => {
@@ -52,15 +51,14 @@ describe("component insertion catalog", () => {
     expect(symbolCategory("xor-gate")).toBe("Logic Gates");
     expect(symbolCategory("xnor-gate")).toBe("Logic Gates");
     expect(symbolCategory("npn")).toBe("Transistors");
-    expect(symbolCategory("diode")).toBe("Transistors");
-    expect(symbolCategory("zener-diode")).toBe("Transistors");
+    expect(symbolCategory("diode")).toBe("Extended Devices");
+    expect(symbolCategory("zener-diode")).toBe("Extended Devices");
     expect(symbolCategory("ideal-switch")).toBe("Switches");
     expect(symbolCategory("closed-switch")).toBe("Switches");
     expect(symbolCategory("ndmos")).toBe("Extended Devices");
     expect(symbolCategory("pdmos")).toBe("Extended Devices");
     expect(symbolCategory("annotation-arrow")).toBe("Annotations");
     expect(symbolCategory("annotation-polarity-both")).toBe("Annotations");
-    expect(symbolSubcategory("ndmos")).toBe("High-voltage devices");
   });
 
   it("orders annotations as drawing tools, the polarity label, then signs", () => {
@@ -128,17 +126,18 @@ describe("component insertion catalog", () => {
     ).toEqual([]);
   });
 
-  it("offers N- and P-channel DMOS in the high-voltage expanded library", () => {
-    const groups = componentCatalog("razavi-textbook-v1", "dmos");
-    expect(groups).toHaveLength(1);
-    expect(groups[0]).toMatchObject({
-      category: "Extended Devices",
-      subcategory: "High-voltage devices",
-    });
-    expect(groups[0]?.symbols.map((symbol) => symbol.id)).toEqual([
+  it("keeps diode and DMOS tiles in one undivided expanded library", () => {
+    const extended = componentCatalog("razavi-textbook-v1", "").find(
+      (group) => group.category === "Extended Devices",
+    );
+
+    expect(extended?.symbols.map((symbol) => symbol.id)).toEqual([
+      "diode",
+      "zener-diode",
       "ndmos",
       "pdmos",
     ]);
+    expect(extended).not.toHaveProperty("subcategory");
   });
 
   it("describes the filled Cell Pin as an independent authoring object", () => {
@@ -191,7 +190,13 @@ describe("reach order inside a category", () => {
 
     // Alphabetical order separated NMOS from PMOS with a bipolar between them,
     // and the supply Port from its Rail.
-    expect(ids("Transistors").slice(0, 2)).toEqual(["nmos", "pmos"]);
+    expect(ids("Transistors")).toEqual(["nmos", "pmos", "npn", "pnp"]);
+    expect(ids("Extended Devices")).toEqual([
+      "diode",
+      "zener-diode",
+      "ndmos",
+      "pdmos",
+    ]);
     const power = ids("Power and Ports");
     expect(power.indexOf("vdd-port")).toBeLessThan(power.indexOf("vdd"));
   });
