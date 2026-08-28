@@ -356,7 +356,13 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
       options.setStatus(plan.message);
       return;
     }
-    if (plan.kind === "unchanged") return;
+    if (plan.kind === "unchanged") {
+      // The draft can differ from the baseline (whitespace, a new row with a
+      // blank value) while producing no persisted change; without a message
+      // the still-visible Apply button reads as broken.
+      options.setStatus("No additional-parameter changes to apply");
+      return;
+    }
     if (!options.transact([plan.edit]).ok) return;
     const baseline = additionalParameterDraft
       .filter((entry) => entry.name.trim() && entry.value.trim())
@@ -739,6 +745,18 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
                 : presentationChanged || formatOverrideChanged
                   ? [presentationEdit]
                   : [];
+          if (
+            netLabelEdits === null &&
+            !boundRoute &&
+            annotationNetEdits === undefined
+          ) {
+            // No planner owns this label (not route-anchored, not a
+            // power-label): say so instead of leaving Apply visibly inert.
+            options.setStatus(
+              "This label cannot rename its Net — edit the name from a wire on that Net",
+            );
+            return;
+          }
           if (netLabelEdits && transactNamedNet(netLabelEdits)) {
             setTextEditing(null);
           }
@@ -796,7 +814,10 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
       }
     }
     const proposal = proposeTextEditingCommit(options.document, textEditing);
-    if (proposal.kind === "blocked") return;
+    if (proposal.kind === "blocked") {
+      options.setStatus("This text can no longer be edited");
+      return;
+    }
     if (proposal.kind === "delete" && textEditing.owner === "annotation") {
       const annotation = options.document.annotations.find(
         (candidate) => candidate.id === textEditing.id,
@@ -820,7 +841,10 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     ) {
       const content = proposal.edit.annotation.content ?? { runs: [] };
       const name = flattenRichText(content).trim();
-      if (!name) return;
+      if (!name) {
+        options.setStatus("Cell Pin name cannot be empty");
+        return;
+      }
       if (!options.commitCellPinAnnotation(proposal.edit.annotation, name))
         return;
       setTextEditing(null);

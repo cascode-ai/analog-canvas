@@ -103,6 +103,53 @@ describe("property edit planner", () => {
     );
   });
 
+  it("surfaces a rejected named-net plan on the status bar instead of failing silently", () => {
+    const input = routedFixture();
+    input.document.connectivityEvidence.push(
+      {
+        id: "claim-a",
+        kind: "name-claim",
+        netId: "net",
+        name: "vdd",
+        scope: "local",
+        powerDomain: "vdd",
+        owner: { kind: "explicit-net-property" },
+      },
+      {
+        id: "claim-b",
+        kind: "name-claim",
+        netId: "net",
+        name: "vdd",
+        scope: "local",
+        powerDomain: "ground",
+        owner: { kind: "explicit-net-property" },
+      },
+    );
+    const planner = createPropertyEditPlanner(input);
+    const edits = planner.netLabelEditsForRoute(
+      input.document.routes[0]!,
+      "vdd",
+    );
+    expect(edits).toBeNull();
+    expect(input.setStatus).toHaveBeenCalledWith(
+      "Cannot join named Nets with incompatible power roles",
+    );
+  });
+
+  it("reports an unresolved wire geometry instead of failing silently", () => {
+    const input = routedFixture();
+    input.routeGeometryRecords = [];
+    const planner = createPropertyEditPlanner(input);
+    const edits = planner.netLabelEditsForRoute(
+      input.document.routes[0]!,
+      "bias",
+    );
+    expect(edits).toBeNull();
+    expect(input.setStatus).toHaveBeenCalledWith(
+      "Net Label position could not be resolved for this wire",
+    );
+  });
+
   it("reports a stale Power Label binding without emitting edits", () => {
     const input = fixture();
     const annotation: Annotation = {

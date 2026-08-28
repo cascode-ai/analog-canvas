@@ -76,7 +76,10 @@ export function createPropertyEditPlanner({
     },
   ): SchematicEdit[] | null => {
     const net = document.nets.find((candidate) => candidate.id === route.netId);
-    if (!net) return null;
+    if (!net) {
+      setStatus(`Wire references missing Net ${route.netId}`);
+      return null;
+    }
     const existingLabel = netLabelForRoute(route);
     const name = rawName.trim();
     if (!name) {
@@ -109,12 +112,21 @@ export function createPropertyEditPlanner({
         ),
       owner: { kind: "net-label", annotationId: labelId },
     });
-    if (!namedNetPlan.ok) return null;
+    // A rejected plan (name collision, power-domain conflict) must reach the
+    // status bar: this planner also backs the text editor's Apply, where a
+    // silent null leaves the edit box open with no visible reaction.
+    if (!namedNetPlan.ok) {
+      setStatus(namedNetPlan.message);
+      return null;
+    }
     const targetNetId = namedNetPlan.netId;
     const geometry = routeGeometryRecords.find(
       ({ route: candidate }) => candidate.id === route.id,
     )?.geometry;
-    if (!geometry) return null;
+    if (!geometry) {
+      setStatus("Net Label position could not be resolved for this wire");
+      return null;
+    }
     const segment = Math.max(
       0,
       Math.floor((geometry.centerline.length - 1) / 2),
