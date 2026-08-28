@@ -259,7 +259,7 @@ test("refresh restores the circuit when the session started from a boot-target U
     .toBeNull();
 });
 
-test("keeps quick-start shortcuts in the corner until the first component is inserted", async ({
+test("keeps quick-start shortcuts in the upper-right corner until the first component is inserted", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -294,9 +294,39 @@ test("keeps quick-start shortcuts in the corner until the first component is ins
   expect(
     await quickStart.evaluate((element) => {
       const style = getComputedStyle(element);
-      return { top: style.top, left: style.left, transform: style.transform };
+      const bounds = element.getBoundingClientRect();
+      const canvasBounds = element.parentElement?.getBoundingClientRect();
+      if (!canvasBounds) throw new Error("Canvas panel is not measurable");
+      return {
+        top: style.top,
+        right: style.right,
+        rightGap: Math.round(canvasBounds.right - bounds.right),
+        transform: style.transform,
+      };
     }),
-  ).toEqual({ top: "12px", left: "12px", transform: "none" });
+  ).toEqual({
+    top: "12px",
+    right: "12px",
+    rightGap: 12,
+    transform: "none",
+  });
+
+  const initialViewport = page.viewportSize();
+  if (!initialViewport) throw new Error("Viewport is not measurable");
+  await page.setViewportSize({ width: 720, height: 720 });
+  const quickStartBox = await quickStart.boundingBox();
+  const canvasPanelBox = await page.locator(".canvas-panel").boundingBox();
+  const propertiesBox = await page
+    .getByRole("complementary", { name: "Properties" })
+    .boundingBox();
+  if (!quickStartBox || !canvasPanelBox || !propertiesBox) {
+    throw new Error("Narrow editor chrome is not measurable");
+  }
+  expect(
+    Math.round(propertiesBox.x - (quickStartBox.x + quickStartBox.width)),
+  ).toBe(12);
+  expect(quickStartBox.x).toBeGreaterThanOrEqual(canvasPanelBox.x + 11.5);
+  await page.setViewportSize(initialViewport);
 
   await page.keyboard.press("i");
   const dialog = page.getByRole("dialog", { name: "Insert Component" });

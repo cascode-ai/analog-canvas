@@ -42,7 +42,7 @@
   position: absolute;
   z-index: 3;
   top: var(--icm-space-3);
-  left: var(--icm-space-3);
+  right: var(--icm-space-3);
   display: grid;
   gap: var(--icm-space-2);
   width: max-content;
@@ -124,6 +124,13 @@
   font: inherit;
   font-size: var(--icm-font-xs);
   font-weight: 650;
+}
+
+@media (max-width: 860px) {
+  .canvas-shortcut-menu {
+    right: calc(var(--icm-props-collapsed) + var(--icm-space-3));
+    max-width: calc(100% - var(--icm-props-collapsed) - var(--icm-space-6));
+  }
 }
 
 .canvas-controls {
