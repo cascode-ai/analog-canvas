@@ -2,6 +2,7 @@ import { jsPDF } from "jspdf";
 
 import type { FormalExportSource, RasterExport } from "./index.js";
 import { DEFAULT_EXPORT_SCALE, EXPORT_VERSION } from "./index.js";
+import { normalizeFormalSvgForSvg2Pdf } from "./svg2pdf-compat.js";
 
 function loadImage(url: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -68,9 +69,10 @@ function formalSvgElement(source: FormalExportSource): {
   const host = document.createElement("div");
   host.setAttribute("aria-hidden", "true");
   host.style.cssText =
-    "position:fixed;left:-100000px;top:0;visibility:hidden;pointer-events:none;";
+    "position:fixed;left:-100000px;top:0;pointer-events:none;";
   host.append(svg);
   document.body.append(host);
+  normalizeFormalSvgForSvg2Pdf(svg);
   return { host, svg };
 }
 

@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 import type { Locator, Page } from "@playwright/test";
 import { resolve } from "node:path";
+import { inflateSync } from "node:zlib";
 import { createEmptyProject } from "@icm/model";
 
 import { createRoutingDemoProject } from "../src/demos/routing-demo.js";
@@ -16,6 +17,64 @@ import {
   readRecoveryRecords,
   recoveryProjectTexts,
 } from "./editor-fixtures.js";
+
+interface PdfTextRun {
+  fontSize: number;
+  text: string;
+  x: number;
+  y: number;
+}
+
+function pdfTextRuns(pdf: Buffer): PdfTextRun[] {
+  const streamStartMarker = Buffer.from("stream\n", "ascii");
+  const streamEndMarker = Buffer.from("\nendstream", "ascii");
+  const dictionaryStartMarker = Buffer.from("<<", "ascii");
+  const streams: string[] = [];
+  let cursor = 0;
+  while (cursor < pdf.length) {
+    const streamStart = pdf.indexOf(streamStartMarker, cursor);
+    if (streamStart < 0) break;
+    const streamEnd = pdf.indexOf(
+      streamEndMarker,
+      streamStart + streamStartMarker.length,
+    );
+    if (streamEnd < 0) break;
+    const dictionaryStart = pdf.lastIndexOf(dictionaryStartMarker, streamStart);
+    const dictionary = pdf
+      .subarray(dictionaryStart, streamStart)
+      .toString("ascii");
+    const bytes = pdf.subarray(
+      streamStart + streamStartMarker.length,
+      streamEnd,
+    );
+    if (dictionary.includes("/FlateDecode")) {
+      streams.push(inflateSync(bytes).toString("latin1"));
+    }
+    cursor = streamEnd + streamEndMarker.length;
+  }
+
+  const runs: PdfTextRun[] = [];
+  const textBlock = /BT\s+([\s\S]*?)\s+ET/gu;
+  const font = /\/F\d+\s+([\d.]+)\s+Tf/u;
+  const matrix =
+    /[-\d.]+\s+[-\d.]+\s+[-\d.]+\s+[-\d.]+\s+([-\d.]+)\s+([-\d.]+)\s+Tm/u;
+  const text = /\(([^)]*)\)\s+Tj/u;
+  for (const stream of streams) {
+    for (const block of stream.matchAll(textBlock)) {
+      const fontMatch = font.exec(block[1]!);
+      const matrixMatch = matrix.exec(block[1]!);
+      const textMatch = text.exec(block[1]!);
+      if (!fontMatch || !matrixMatch || !textMatch) continue;
+      runs.push({
+        fontSize: Number(fontMatch[1]),
+        x: Number(matrixMatch[1]),
+        y: Number(matrixMatch[2]),
+        text: textMatch[1]!,
+      });
+    }
+  }
+  return runs;
+}
 
 function markRoutingDemoNetsImported(
   project: ReturnType<typeof createRoutingDemoProject>,
@@ -3564,9 +3623,8 @@ test("requires warning review before exporting generated NoConnect nodes", async
 test("exports one formal visual scene as Project, SVG, PNG, and PDF", async ({
   page,
 }) => {
-  await page.goto("/editor");
-  await placeComponent(page, "resistor", { x: 420, y: 240 });
-  await page.keyboard.press("Escape");
+  await page.goto("/editor?example=common-source-amplifier");
+  await awaitEditorReady(page);
 
   const projectBytes = await downloadBytes(
     page,
@@ -3578,6 +3636,8 @@ test("exports one formal visual scene as Project, SVG, PNG, and PDF", async ({
     "utf8",
   );
   expect(svg).toContain('data-layer="formal"');
+  expect(svg).toContain('data-text-run="subscript"');
+  expect(svg).toContain("baseline-shift=");
   expect(svg).not.toMatch(/selection|route-hit|editor-overlay/u);
 
   const png = await downloadBytes(page, "File", "Export PNG");
@@ -3589,6 +3649,33 @@ test("exports one formal visual scene as Project, SVG, PNG, and PDF", async ({
   // retain the formal SVG as PDF paths/text, so it cannot contain an image XObject.
   expect(pdfText).not.toContain("/Subtype /Image");
   expect(pdfText).toContain("/Type /Font");
+
+  const textRuns = pdfTextRuns(pdf);
+  for (const [baseText, scriptText] of [
+    ["I", "out"],
+    ["C", "GS"],
+    ["C", "GD"],
+    ["M", "1"],
+    ["R", "D"],
+    ["R", "S"],
+    ["V", "in"],
+    ["V", "DD"],
+  ]) {
+    const scriptIndex = textRuns.findIndex(
+      (run, index) =>
+        index > 0 &&
+        run.text.trim() === scriptText &&
+        textRuns[index - 1]!.text === baseText,
+    );
+    expect(scriptIndex, `${baseText}_${scriptText} is present`).toBeGreaterThan(
+      0,
+    );
+    const base = textRuns[scriptIndex - 1]!;
+    const script = textRuns[scriptIndex]!;
+    expect(script.fontSize).toBeCloseTo(base.fontSize * 0.76, 2);
+    expect(script.x).toBeGreaterThan(base.x);
+    expect(script.y).toBeGreaterThan(base.y);
+  }
 });
 
 test("exports structural SPICE and Spectre netlists while exposing instance authoring", async ({

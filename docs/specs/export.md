@@ -27,6 +27,14 @@ and text; it never embeds the page-cover PNG used by the PNG artifact. The
 original SVG is unchanged. Export filenames are normalized and all three
 formats use the same base name.
 
+The browser converter operates on a temporary SVG clone. Before conversion it
+must expand renderer constructs that `svg2pdf.js` does not implement directly:
+percentage `tspan` font sizes become computed pixel sizes, `baseline-shift`
+becomes an equivalent explicit baseline displacement, empty fraction-reset
+spans are carried to the following visible run, and text decorations are
+materialized as vector strokes. This compatibility pass must not rewrite the
+downloaded canonical SVG or flatten PDF text into a page image.
+
 Node/headless export retains a high-resolution raster-PDF fallback for release
 tooling because the browser vector converter requires a live DOM. It is not the
 interactive editor's user-facing PDF path.
@@ -40,7 +48,9 @@ fallback.
 - parse the SVG viewBox and reject invalid bounds;
 - check PNG signature and dimensions against viewBox times scale;
 - reopen browser PDF, check one page and page bounds, assert it contains no
-  page-cover image XObject, and visually compare it with the SVG fixture;
+  page-cover image XObject, assert representative rich-text runs retain their
+  nonzero scaled fonts and displaced baselines, and visually compare a rendered
+  PDF page with the SVG fixture;
 - assert formal SVG has no editor-only layers.
 
 ## Agent File Resource
