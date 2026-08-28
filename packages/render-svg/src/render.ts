@@ -70,9 +70,13 @@ function renderAnnotationText(
   annotation: SchematicDocument["annotations"][number],
   profile: SchematicStyleProfile,
 ): string {
+  const fontSize =
+    schematicTextFontSize(annotation.kind, profile) *
+    (annotation.sizeScale ?? 1);
   return renderRichTextDocument(
     resolveAnnotationText(document, annotation),
     profile,
+    { fontSize },
   );
 }
 
@@ -114,7 +118,7 @@ function renderStackedFractionAnnotation(
     options.position.y +
     fontSize * partScale * fractionGeometry.denominatorBaselineDropEm;
   const partStyle = `font-style:normal;font-weight:${profile.typography.mathWeight}`;
-  return `<g ${options.attributes}><text data-role="fraction-numerator" x="${centerX}" y="${numeratorY}" text-anchor="middle" font-size="${partFont}" style="${partStyle}">${renderRichTextDocument(fraction.numerator, profile, { defaultBold: true })}</text><line data-role="fraction-bar" x1="${centerX - halfWidth}" y1="${barY}" x2="${centerX + halfWidth}" y2="${barY}" stroke="${profile.foreground}" stroke-width="${profile.strokes.annotation}"/><text data-role="fraction-denominator" x="${centerX}" y="${denominatorY}" text-anchor="middle" font-size="${partFont}" style="${partStyle}">${renderRichTextDocument(fraction.denominator, profile, { defaultBold: true })}</text></g>`;
+  return `<g ${options.attributes}><text data-role="fraction-numerator" x="${centerX}" y="${numeratorY}" text-anchor="middle" font-size="${partFont}" style="${partStyle}">${renderRichTextDocument(fraction.numerator, profile, { defaultBold: true, fontSize: partFont })}</text><line data-role="fraction-bar" x1="${centerX - halfWidth}" y1="${barY}" x2="${centerX + halfWidth}" y2="${barY}" stroke="${profile.foreground}" stroke-width="${profile.strokes.annotation}"/><text data-role="fraction-denominator" x="${centerX}" y="${denominatorY}" text-anchor="middle" font-size="${partFont}" style="${partStyle}">${renderRichTextDocument(fraction.denominator, profile, { defaultBold: true, fontSize: partFont })}</text></g>`;
 }
 
 function escapeXml(value: string): string {
@@ -376,7 +380,7 @@ export function renderVisiblePinNames(
               ],
             }
           : { runs: [{ kind: "text" as const, value: displayName }] };
-      return `<text data-pin-name="${escapeXml(pin.name)}" x="${x}" y="${y}" text-anchor="${alignment}"${sizeAttribute}>${renderRichTextDocument(content, profile)}</text>`;
+      return `<text data-pin-name="${escapeXml(pin.name)}" x="${x}" y="${y}" text-anchor="${alignment}"${sizeAttribute}>${renderRichTextDocument(content, profile, { fontSize: schematicTextFontSize("pin-name", profile) })}</text>`;
     })
     .join("");
 }
@@ -967,7 +971,7 @@ function renderDraftText(
       .join("");
     const text = positioned
       ? `<text x="${textPosition.x}" y="${baselineY}" text-anchor="start" font-size="${fontSize}" font-weight="${weight}" font-style="${italic}" fill="${color}">${positioned.tspans}</text>${positioned.decorations}`
-      : `<text x="${textPosition.x}" y="${baselineY}" text-anchor="${object.alignment}" font-size="${fontSize}" font-weight="${weight}" font-style="${italic}" fill="${color}">${renderRichTextDocument(object.content, profile, { lineOriginX: textPosition.x })}</text>`;
+      : `<text x="${textPosition.x}" y="${baselineY}" text-anchor="${object.alignment}" font-size="${fontSize}" font-weight="${weight}" font-style="${italic}" fill="${color}">${renderRichTextDocument(object.content, profile, { lineOriginX: textPosition.x, fontSize })}</text>`;
     return `<g data-object-id="${object.id}" data-kind="draft-text" data-polarity="${object.polarity}"${unresolved} transform="rotate(${rotation} ${position.x} ${position.y})">${markers}${text}</g>`;
   }
   // P1: the renderer consumes geometry.rotation (the single rotation truth),
@@ -978,6 +982,7 @@ function renderDraftText(
   }
   const content = renderRichTextDocument(object.content, profile, {
     lineOriginX: textPosition.x,
+    fontSize,
   });
   return `<text data-object-id="${object.id}" data-kind="draft-text"${unresolved} x="${textPosition.x}" y="${baselineY}" text-anchor="${object.alignment}" transform="rotate(${rotation} ${position.x} ${position.y})" font-size="${fontSize}" font-weight="${weight}" font-style="${italic}">${content}</text>`;
 }
@@ -1200,6 +1205,7 @@ function renderDraftCallout(
     (object.styleOverride?.sizeScale ?? 1);
   const content = renderRichTextDocument(object.content, profile, {
     lineOriginX: textPosition.x,
+    fontSize,
   });
   const weight = object.styleOverride?.weight === "bold" ? "bold" : "normal";
   const italic = object.styleOverride?.italic === true ? "italic" : "normal";
@@ -1247,5 +1253,5 @@ export function renderDocumentSvg(
   const profile = resolveDocumentStyleProfile(document.presentation);
   const title = escapeXml(options.title ?? document.name);
   const { x, y, width, height } = scene.viewBox;
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${x} ${y} ${width} ${height}" role="img" aria-labelledby="title" data-style-profile="${profile.id}"><title id="title">${title}</title><rect x="${x}" y="${y}" width="${width}" height="${height}" fill="${profile.background}"/><style>text{fill:${profile.foreground};font-family:${profile.typography.fontFamily};font-size:${profile.typography.annotationFontSize}px}</style>${scene.formalBody}</svg>\n`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${x} ${y} ${width} ${height}" role="img" aria-labelledby="title" data-style-profile="${profile.id}"><title id="title">${title}</title><rect x="${x}" y="${y}" width="${width}" height="${height}" fill="${profile.background}"/><style>svg{font-size:${profile.typography.annotationFontSize}px}text{fill:${profile.foreground};font-family:${profile.typography.fontFamily}}</style>${scene.formalBody}</svg>\n`;
 }

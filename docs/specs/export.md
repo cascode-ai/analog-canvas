@@ -27,13 +27,18 @@ and text; it never embeds the page-cover PNG used by the PNG artifact. The
 original SVG is unchanged. Export filenames are normalized and all three
 formats use the same base name.
 
-The browser converter operates on a temporary SVG clone. Before conversion it
-must expand renderer constructs that `svg2pdf.js` does not implement directly:
-percentage `tspan` font sizes become computed pixel sizes, `baseline-shift`
-becomes an equivalent explicit baseline displacement, empty fraction-reset
-spans are carried to the following visible run, and text decorations are
-materialized as vector strokes. This compatibility pass must not rewrite the
-downloaded canonical SVG or flatten PDF text into a page image.
+Canonical SVG resolves script typography before serialization: subscript and
+superscript runs use numeric font sizes and explicit baseline displacement,
+and the next visible run restores the parent baseline. Formal SVG must not
+delegate script placement to `baseline-shift` or percentage `font-size`, whose
+support is inconsistent in Office-class SVG importers. This keeps searchable,
+editable SVG text while making its geometry portable beyond browser engines.
+
+The browser PDF converter still operates on a temporary SVG clone. It
+materializes text decorations as vector strokes and defensively expands any
+legacy relative text constructs before conversion. This compatibility pass
+must not rewrite the downloaded canonical SVG or flatten PDF text into a page
+image.
 
 Node/headless export retains a high-resolution raster-PDF fallback for release
 tooling because the browser vector converter requires a live DOM. It is not the
@@ -51,6 +56,9 @@ fallback.
   page-cover image XObject, assert representative rich-text runs retain their
   nonzero scaled fonts and displaced baselines, and visually compare a rendered
   PDF page with the SVG fixture;
+- assert canonical formal SVG contains no `baseline-shift` or percentage
+  `font-size`, and that a visible run following a script restores its parent
+  baseline;
 - assert formal SVG has no editor-only layers.
 
 ## Agent File Resource

@@ -60,6 +60,10 @@ describe("current rendering contract", () => {
     expect(svg).toContain("font-style:italic;font-weight:700");
     expect(svg).toContain('data-text-run="subscript"');
     expect(svg).toContain("font-style:normal;font-weight:700");
+    expect(svg).not.toContain("baseline-shift");
+    expect(svg).not.toMatch(/font-size="[\d.]+%"/u);
+    expect(svg).toContain("<style>svg{font-size:");
+    expect(svg).not.toMatch(/text\{[^}]*font-size:/u);
   });
 
   it("keeps north and south hierarchy pin names clear of the Cell body edge", () => {
@@ -365,8 +369,9 @@ describe("current rendering contract", () => {
       'style="font-style:italic;font-weight:700">V<tspan data-text-run="subscript"',
     );
     expect(svg).toContain(
-      'data-text-run="subscript" dx="0.046em" font-size="76%" baseline-shift="-0.28em" style="font-style:normal;font-weight:700">DD',
+      'data-text-run="subscript" dx="0.528455" dy="3.216685" font-size="11.48816px" style="font-style:normal;font-weight:700">DD',
     );
+    expect(svg).not.toContain("baseline-shift");
   });
 
   it("does not interpret a BJT base route as a MOS bulk connection", () => {

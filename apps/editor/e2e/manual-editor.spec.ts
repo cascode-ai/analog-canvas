@@ -3676,7 +3676,8 @@ test("exports one formal visual scene as Project, SVG, PNG, and PDF", async ({
   );
   expect(svg).toContain('data-layer="formal"');
   expect(svg).toContain('data-text-run="subscript"');
-  expect(svg).toContain("baseline-shift=");
+  expect(svg).not.toContain("baseline-shift=");
+  expect(svg).not.toMatch(/font-size="[\d.]+%"/u);
   expect(svg).not.toMatch(/selection|route-hit|editor-overlay/u);
 
   const png = await downloadBytes(page, "File", "Export PNG");

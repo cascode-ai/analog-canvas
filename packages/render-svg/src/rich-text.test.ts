@@ -81,7 +81,7 @@ describe("renderRichTextDocument", () => {
     expect(svg).not.toContain("letter-spacing");
   });
 
-  it("renders subscript and superscript with scaled size and baseline shift", () => {
+  it("renders scripts with portable numeric size and baseline movement", () => {
     const svg = renderRichTextDocument(
       {
         runs: [
@@ -99,13 +99,17 @@ describe("renderRichTextDocument", () => {
         ],
       },
       razaviTextbookProfile,
+      { fontSize: 20 },
     );
     expect(svg).toContain('data-text-run="subscript"');
     expect(svg).toContain('data-text-run="superscript"');
-    // Authority-calibrated subscript scale and attachment.
-    expect(svg).toContain('font-size="76%"');
-    expect(svg).toContain('baseline-shift="-0.28em"');
-    expect(svg).toContain('dx="0.046em"');
+    // Resolve relative typography before export so Office-class SVG
+    // importers do not need to implement baseline-shift or percentage sizes.
+    expect(svg).toContain('font-size="15.2px"');
+    expect(svg).toContain('dx="0.6992" dy="4.256"');
+    expect(svg).toContain('dy="-8.512"');
+    expect(svg).not.toContain("baseline-shift");
+    expect(svg).not.toContain('font-size="76%"');
   });
 
   it("keeps a script upright when it occurs inside bold italic text", () => {
@@ -133,10 +137,34 @@ describe("renderRichTextDocument", () => {
         ],
       },
       razaviTextbookProfile,
+      { fontSize: 20 },
     );
     expect(svg).toContain(
-      'data-text-run="subscript" dx="0.046em" font-size="76%" baseline-shift="-0.28em" style="font-style:normal;font-weight:700">out</tspan>',
+      'data-text-run="subscript" dx="0.6992" dy="4.256" font-size="15.2px" style="font-style:normal;font-weight:700">out</tspan>',
     );
+  });
+
+  it("restores the parent baseline on the next visible run", () => {
+    const svg = renderRichTextDocument(
+      {
+        runs: [
+          { kind: "text", value: "V" },
+          {
+            kind: "span",
+            style: "subscript",
+            children: [{ kind: "text", value: "in" }],
+          },
+          { kind: "text", value: " + V" },
+        ],
+      },
+      razaviTextbookProfile,
+      { fontSize: 20 },
+    );
+
+    expect(svg).toContain(
+      '<tspan data-text-run="baseline-reset" dy="-4.256"> + V</tspan>',
+    );
+    expect(svg).not.toContain("baseline-shift");
   });
 
   it("renders a line break", () => {
@@ -149,12 +177,12 @@ describe("renderRichTextDocument", () => {
         ],
       },
       razaviTextbookProfile,
-      { lineOriginX: 240 },
+      { lineOriginX: 240, fontSize: 20 },
     );
     expect(svg).toContain('data-text-run="line-break"');
     expect(svg).toContain('x="240"');
     expect(svg).not.toContain('x="0"');
-    expect(svg).toContain('dy="1em">line2</tspan>');
+    expect(svg).toContain('dy="20">line2</tspan>');
   });
 });
 
