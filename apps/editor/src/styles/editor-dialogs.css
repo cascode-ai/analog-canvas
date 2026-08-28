@@ -114,8 +114,8 @@
 /* The Insert dialog is a one-glance speed picker: every candidate tiles into
    one flat grid, and a click or Enter starts placement immediately. */
 .insert-component-dialog {
-  display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  display: flex;
+  flex-direction: column;
   gap: 0.8rem;
   width: min(46rem, calc(100vw - 2.5rem));
   max-height: calc(100dvh - 2.5rem);
@@ -182,7 +182,32 @@
   box-shadow: 0 0 0 3px var(--icm-accent-soft);
 }
 
+.insert-category-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.insert-category-chip {
+  min-height: 0;
+  padding: 0.22rem 0.6rem;
+  border: 1px solid var(--icm-border);
+  border-radius: 999px;
+  color: var(--icm-text-muted);
+  background: var(--icm-surface-muted);
+  box-shadow: none;
+  font-size: var(--icm-font-xs);
+  font-weight: 600;
+}
+
+.insert-category-chip[aria-pressed="true"] {
+  border-color: var(--icm-accent);
+  color: var(--icm-accent);
+  background: var(--icm-accent-soft);
+}
+
 .insert-tile-grid {
+  flex: 1 1 auto;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(6.4rem, 1fr));
   align-content: start;

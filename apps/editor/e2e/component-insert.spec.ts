@@ -289,11 +289,49 @@ test("keeps quick-start shortcuts in the corner until the first component is ins
   await page.keyboard.press("i");
   const reopened = page.getByRole("dialog", { name: "Insert Component" });
   await expect(reopened.locator(".insert-tile-grid")).toBeVisible();
-  // Recent picks float to the front of the flat grid.
+  // The grid reads in Library order — transistors first — not recency, even
+  // though a resistor was just placed.
   await expect(reopened.getByRole("option").first()).toHaveAttribute(
     "data-testid",
-    "insert-component-resistor",
+    "insert-component-nmos",
   );
+});
+
+test("category chips multi-select which kinds the quick pick shows", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await page.keyboard.press("i");
+  const dialog = page.getByRole("dialog", { name: "Insert Component" });
+  await expect(dialog.getByTestId("insert-component-nmos")).toBeVisible();
+
+  // Hiding one category removes only its tiles.
+  await dialog.getByTestId("insert-category-transistors").click();
+  await expect(dialog.getByTestId("insert-component-nmos")).toHaveCount(0);
+  await expect(dialog.getByTestId("insert-component-resistor")).toBeVisible();
+
+  // The filter is a free multi-select, not a single choice.
+  await dialog.getByTestId("insert-category-passives").click();
+  await expect(dialog.getByTestId("insert-component-resistor")).toHaveCount(0);
+  await expect(dialog.getByTestId("insert-component-and-gate")).toBeVisible();
+
+  // Toggling back restores the tiles, and typing still filters afterwards.
+  await dialog.getByTestId("insert-category-transistors").click();
+  await expect(dialog.getByTestId("insert-component-nmos")).toBeVisible();
+  await dialog.getByLabel("Component search").fill("nmos");
+  await expect(dialog.getByTestId("insert-component-resistor")).toHaveCount(0);
+  await expect(dialog.getByTestId("insert-component-nmos")).toBeVisible();
+
+  // Reopening resets to everything shown.
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await page.keyboard.press("i");
+  await expect(dialog.getByTestId("insert-category-passives")).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await expect(dialog.getByTestId("insert-component-resistor")).toBeVisible();
 });
 
 test("groups and places high-voltage DMOS from Extended Devices", async ({

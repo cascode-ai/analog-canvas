@@ -34,6 +34,19 @@ describe("InsertComponentDialog", () => {
     );
     expect(markup).not.toContain("<h3");
     expect(markup).not.toContain("<h4");
+    // Library order: transistors lead, categories stay together, and the
+    // category filter chips render in the same order, all shown by default.
+    const nmos = markup.indexOf('data-testid="insert-component-nmos"');
+    const resistor = markup.indexOf('data-testid="insert-component-resistor"');
+    const arrow = markup.indexOf(
+      'data-testid="insert-component-annotation-arrow"',
+    );
+    expect(nmos).toBeGreaterThan(-1);
+    expect(nmos).toBeLessThan(resistor);
+    expect(resistor).toBeLessThan(arrow);
+    expect(markup).toContain('data-testid="insert-category-transistors"');
+    expect(markup).toContain('data-testid="insert-category-annotations"');
+    expect(markup).not.toContain('aria-pressed="false"');
     // Per-device setup moved to post-placement Properties: the quick pick
     // carries no parameter, reference, rotation, or rail-name fields.
     expect(markup).not.toContain('aria-label="Component w"');

@@ -42,22 +42,30 @@ interface InsertChoice {
   readonly key: string;
   readonly kind: "symbol" | "cell" | "external-subcircuit";
   readonly symbol: SymbolDefinition;
+  readonly category: string;
   readonly childDocumentId?: string;
   readonly cellName?: string;
   readonly definitionId?: string;
   readonly masterName?: string;
 }
 
+const CELLS_CATEGORY = "Cells";
+const EXTERNAL_CATEGORY = "External masters";
+
+function categorySlug(category: string): string {
+  return category.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+}
+
 /**
  * The I picker is a one-glance speed surface: every candidate tiles into one
- * flat grid and a click or Enter starts placement immediately. Per-device
- * setup (parameters, reference text, value display, supply names) lives in
- * the Properties panel after placement, not here.
+ * flat grid in the Library's category order and a click or Enter starts
+ * placement immediately. Per-device setup (parameters, reference text, value
+ * display, supply names) lives in the Properties panel after placement, not
+ * here.
  */
 export function InsertComponentDialog({
   open,
   styleProfileId,
-  recentSymbolIds,
   cells,
   externalDefinitions = [],
   scope = "all",
@@ -72,8 +80,28 @@ export function InsertComponentDialog({
     : "Insert Component";
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [hiddenCategories, setHiddenCategories] = useState<ReadonlySet<string>>(
+    new Set(),
+  );
   const inputRef = useRef<HTMLInputElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
+
+  // The filter row lists every category the full catalog offers, in the same
+  // order the Library sidebar uses, independent of the current search text.
+  const availableCategories = useMemo<string[]>(() => {
+    const categories = cellsOnly
+      ? []
+      : componentCatalog(styleProfileId, "", []).map((group) => group.category);
+    return [
+      ...categories.filter(
+        (category, index) => categories.indexOf(category) === index,
+      ),
+      ...(cells.length > 0 ? [CELLS_CATEGORY] : []),
+      ...(!cellsOnly && externalDefinitions.length > 0
+        ? [EXTERNAL_CATEGORY]
+        : []),
+    ];
+  }, [cells.length, cellsOnly, externalDefinitions.length, styleProfileId]);
 
   const choices = useMemo<InsertChoice[]>(() => {
     const normalized = query.trim().toLowerCase();
@@ -89,6 +117,7 @@ export function InsertComponentDialog({
         key: `cell:${cell.childDocumentId}`,
         kind: "cell",
         symbol: cell.symbol,
+        category: CELLS_CATEGORY,
         childDocumentId: cell.childDocumentId,
         cellName: cell.cellName,
       }));
@@ -104,36 +133,31 @@ export function InsertComponentDialog({
         key: `external:${definition.definitionId}`,
         kind: "external-subcircuit",
         symbol: definition.symbol,
+        category: EXTERNAL_CATEGORY,
         definitionId: definition.definitionId,
         masterName: definition.masterName,
       }));
-    // The catalog ranks recents within each category; the flat grid hoists
-    // them to the very front so the last few picks are always the first tiles.
-    const recentRank = new Map(
-      recentSymbolIds.map((symbolId, index) => [symbolId, index] as const),
-    );
+    // Library order, not recency: the grid reads exactly like the sidebar —
+    // transistors first, categories together — so positions stay learnable.
     const symbolChoices = cellsOnly
       ? []
-      : componentCatalog(styleProfileId, query, recentSymbolIds)
-          .flatMap((group) =>
-            group.symbols.map<InsertChoice>((symbol) => ({
-              key: symbol.id,
-              kind: "symbol",
-              symbol,
-            })),
-          )
-          .sort(
-            (left, right) =>
-              (recentRank.get(left.symbol.id) ?? Number.POSITIVE_INFINITY) -
-              (recentRank.get(right.symbol.id) ?? Number.POSITIVE_INFINITY),
-          );
-    return [...symbolChoices, ...cellChoices, ...externalChoices];
+      : componentCatalog(styleProfileId, query, []).flatMap((group) =>
+          group.symbols.map<InsertChoice>((symbol) => ({
+            key: symbol.id,
+            kind: "symbol",
+            symbol,
+            category: group.category,
+          })),
+        );
+    return [...symbolChoices, ...cellChoices, ...externalChoices].filter(
+      (choice) => !hiddenCategories.has(choice.category),
+    );
   }, [
     cellsOnly,
     cells,
     externalDefinitions,
+    hiddenCategories,
     query,
-    recentSymbolIds,
     styleProfileId,
   ]);
 
@@ -144,9 +168,22 @@ export function InsertComponentDialog({
     if (!open) return;
     setQuery("");
     setSelectedId(initialSelectionId);
+    // A quick pick always reopens showing everything.
+    setHiddenCategories(new Set());
     const frame = requestAnimationFrame(() => inputRef.current?.focus());
     return () => cancelAnimationFrame(frame);
   }, [initialSelectionId, open]);
+
+  const toggleCategory = (category: string): void => {
+    setHiddenCategories((current) => {
+      const next = new Set(current);
+      if (next.has(category)) next.delete(category);
+      else next.add(category);
+      return next;
+    });
+    // Typing keeps working right after a toggle.
+    inputRef.current?.focus();
+  };
 
   useEffect(() => {
     if (choices.length === 0) {
@@ -363,6 +400,32 @@ export function InsertComponentDialog({
           placeholder={`Search ${pickerNoun.toLowerCase()}s`}
           onChange={(event) => setQuery(event.currentTarget.value)}
         />
+
+        {availableCategories.length > 1 ? (
+          <div
+            className="insert-category-filter"
+            role="group"
+            aria-label={`${pickerNoun} categories`}
+          >
+            {availableCategories.map((category) => (
+              <button
+                type="button"
+                key={category}
+                className="insert-category-chip"
+                aria-pressed={!hiddenCategories.has(category)}
+                data-testid={`insert-category-${categorySlug(category)}`}
+                title={
+                  hiddenCategories.has(category)
+                    ? `Show ${category}`
+                    : `Hide ${category}`
+                }
+                onClick={() => toggleCategory(category)}
+              >
+                {category}
+              </button>
+            ))}
+          </div>
+        ) : null}
 
         <div
           ref={gridRef}
