@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { CURRENT_PROJECT_SCHEMA_VERSION } from "@icm/model";
 
+import { CLOUD_PROJECT_LIMIT } from "../src/features/editor-shell/cloud-projects";
 import {
   chooseComponent,
   downloadBytes,
@@ -105,7 +106,9 @@ test("Cloud Save updates one binding while local export stays interchange", asyn
   await page.keyboard.press("Control+s");
   await expect.poll(() => cloud.stored()?.revision).toBe(2);
   const reopenedMenu = await openMenu(page, "File");
-  await expect(reopenedMenu.getByText("Cloud Projects (1/3)")).toBeVisible();
+  await expect(
+    reopenedMenu.getByText(`Cloud Projects (1/${CLOUD_PROJECT_LIMIT})`),
+  ).toBeVisible();
   await expect(
     reopenedMenu.getByRole("button", { name: "Save", exact: true }),
   ).toHaveCount(1);

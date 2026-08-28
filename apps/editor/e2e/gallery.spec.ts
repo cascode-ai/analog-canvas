@@ -10,6 +10,7 @@ import { serializeProject } from "@icm/project-protocol";
 import { hierarchicalSymbolId } from "@icm/symbols";
 
 import { chooseComponent, clickCommand, openMenu } from "./editor-fixtures.js";
+import { CLOUD_PROJECT_LIMIT } from "../src/features/editor-shell/cloud-projects";
 
 const ENTRY = {
   id: "g-ring",
@@ -1006,7 +1007,9 @@ test("Cloud Save updates one stable private Project", async ({ page }) => {
   expect(storedProjectText).toContain("nmos");
 
   const reopenedMenu = await openMenu(page, "File");
-  await expect(reopenedMenu.getByText("Cloud Projects (1/3)")).toBeVisible();
+  await expect(
+    reopenedMenu.getByText(`Cloud Projects (1/${CLOUD_PROJECT_LIMIT})`),
+  ).toBeVisible();
   await expect(
     reopenedMenu.getByTestId("cloud-project-cloud-1"),
   ).toBeDisabled();
