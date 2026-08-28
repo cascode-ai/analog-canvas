@@ -1185,14 +1185,16 @@ describe("Razavi symbol catalog", () => {
       expect.arrayContaining([
         expect.objectContaining({ kind: "circle", radius: 10.755814 }),
         expect.objectContaining({
-          kind: "line",
-          from: { x: -4, y: 4 },
-          to: { x: -4, y: -4 },
-        }),
-        expect.objectContaining({
-          kind: "line",
-          from: { x: -4, y: -4 },
-          to: { x: 4, y: -4 },
+          kind: "polyline",
+          points: [
+            { x: 4, y: 7 },
+            { x: 4, y: 4 },
+            { x: -4, y: 4 },
+            { x: -4, y: -4 },
+            { x: 4, y: -4 },
+            { x: 4, y: -7 },
+          ],
+          style: expect.objectContaining({ lineJoin: "miter" }),
         }),
       ]),
     );

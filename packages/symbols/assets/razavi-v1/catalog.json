@@ -1037,7 +1037,7 @@
       "automaticMappings": [],
       "manualOnlyReason": "Pulse semantics require authored timing parameters and must not replace imported DC voltage sources automatically.",
       "assetPath": "pulse-voltage-source.symbol.json",
-      "assetHash": "6fd7e349e50a2661f602077753387f6d865b84b4d03360027c16f7116976df29",
+      "assetHash": "d4b8d3f7960c8e771bd552d571a80803ce2c1f5ffa1e51e95064dc59bda3a019",
       "visualAuthority": {
         "kind": "razavi-reference-v1",
         "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
@@ -1053,7 +1053,7 @@
         "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
         "referencePath": "fixtures/visual-reference/razavi-reference-v1/data-converters-clock-pulse-vector-source.json",
         "converterPath": "scripts/generate-razavi-peripheral-assets.mjs",
-        "converterVersion": 2
+        "converterVersion": 3
       }
     },
     {

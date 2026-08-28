@@ -42,6 +42,11 @@ function line(from, to, style = normal) {
   return { kind: "line", from: clean(from), to: clean(to), style };
 }
 
+function polyline(points, style = normal) {
+  const clean = (point) => ({ x: rounded(point.x), y: rounded(point.y) });
+  return { kind: "polyline", points: points.map(clean), style };
+}
+
 function sourcePins() {
   return [
     {
@@ -112,11 +117,17 @@ function pulseVoltageSource(measurement) {
     pins: sourcePins(),
     primitives: [
       { kind: "circle", center: { x: 0, y: 0 }, radius, style: normal },
-      line({ x: -7, y: 4 }, { x: -4, y: 4 }),
-      line({ x: -4, y: 4 }, { x: -4, y: -4 }),
-      line({ x: -4, y: -4 }, { x: 4, y: -4 }),
-      line({ x: 4, y: -4 }, { x: 4, y: 4 }),
-      line({ x: 4, y: 4 }, { x: 7, y: 4 }),
+      // One continuous path preserves sharp mitered corners at every scale.
+      // These points are the horizontal pulse glyph rotated 90 degrees
+      // counter-clockwise in screen coordinates.
+      polyline([
+        { x: 4, y: 7 },
+        { x: 4, y: 4 },
+        { x: -4, y: 4 },
+        { x: -4, y: -4 },
+        { x: 4, y: -4 },
+        { x: 4, y: -7 },
+      ]),
       line({ x: 0, y: -radius }, { x: 0, y: -20 }),
       line({ x: 0, y: radius }, { x: 0, y: 20 }),
     ],
@@ -295,7 +306,7 @@ for (const symbol of symbols) {
           referencePath:
             "fixtures/visual-reference/razavi-reference-v1/data-converters-clock-pulse-vector-source.json",
           converterPath: "scripts/generate-razavi-peripheral-assets.mjs",
-          converterVersion: 2,
+          converterVersion: 3,
         }
       : {
           kind: "razavi-raster-reference",

@@ -51,79 +51,33 @@
       }
     },
     {
-      "kind": "line",
-      "from": {
-        "x": -7,
-        "y": 4
-      },
-      "to": {
-        "x": -4,
-        "y": 4
-      },
-      "style": {
-        "strokeRole": "normal",
-        "lineCap": "butt",
-        "lineJoin": "miter"
-      }
-    },
-    {
-      "kind": "line",
-      "from": {
-        "x": -4,
-        "y": 4
-      },
-      "to": {
-        "x": -4,
-        "y": -4
-      },
-      "style": {
-        "strokeRole": "normal",
-        "lineCap": "butt",
-        "lineJoin": "miter"
-      }
-    },
-    {
-      "kind": "line",
-      "from": {
-        "x": -4,
-        "y": -4
-      },
-      "to": {
-        "x": 4,
-        "y": -4
-      },
-      "style": {
-        "strokeRole": "normal",
-        "lineCap": "butt",
-        "lineJoin": "miter"
-      }
-    },
-    {
-      "kind": "line",
-      "from": {
-        "x": 4,
-        "y": -4
-      },
-      "to": {
-        "x": 4,
-        "y": 4
-      },
-      "style": {
-        "strokeRole": "normal",
-        "lineCap": "butt",
-        "lineJoin": "miter"
-      }
-    },
-    {
-      "kind": "line",
-      "from": {
-        "x": 4,
-        "y": 4
-      },
-      "to": {
-        "x": 7,
-        "y": 4
-      },
+      "kind": "polyline",
+      "points": [
+        {
+          "x": 4,
+          "y": 7
+        },
+        {
+          "x": 4,
+          "y": 4
+        },
+        {
+          "x": -4,
+          "y": 4
+        },
+        {
+          "x": -4,
+          "y": -4
+        },
+        {
+          "x": 4,
+          "y": -4
+        },
+        {
+          "x": 4,
+          "y": -7
+        }
+      ],
       "style": {
         "strokeRole": "normal",
         "lineCap": "butt",
