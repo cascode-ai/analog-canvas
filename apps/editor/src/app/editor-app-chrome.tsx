@@ -1,5 +1,6 @@
 import type { ComponentProps, RefObject } from "react";
 
+import { BugReportLink } from "../components/bug-report-link";
 import { DrawingToolbar } from "../features/editor-shell/drawing-toolbar";
 import { EditorTestTelemetry } from "../features/editor-shell/editor-test-telemetry";
 import { FileCommandMenu } from "../features/editor-shell/file-command-menu";
@@ -20,6 +21,7 @@ interface ResetAction {
 
 export interface EditorAppChromeProps {
   projectName: string;
+  projectSchemaVersion: number;
   projectNameDraft: string | null;
   hasUnsavedWork: boolean;
   documentName: string;
@@ -57,6 +59,7 @@ export interface EditorAppChromeProps {
 /** Persistent command chrome above the document workspace. */
 export function EditorAppChrome({
   projectName,
+  projectSchemaVersion,
   projectNameDraft,
   hasUnsavedWork,
   documentName,
@@ -288,6 +291,11 @@ export function EditorAppChrome({
           </div>
         </nav>
         <div className="app-chrome-actions">
+          <BugReportLink
+            testId="editor-report-bug"
+            surface="Editor"
+            projectSchemaVersion={projectSchemaVersion}
+          />
           <button
             type="button"
             className="menubar-help"

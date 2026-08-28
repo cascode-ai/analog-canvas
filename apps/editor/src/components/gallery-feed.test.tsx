@@ -66,6 +66,8 @@ describe("GalleryFeed", () => {
     expect(markup).toContain('data-testid="gallery-feed"');
     expect(markup).toContain("Analog Canvas");
     expect(markup).toContain('data-testid="gallery-new-circuit"');
+    expect(markup).toContain('data-testid="gallery-report-bug"');
+    expect(markup).toContain("Report bug");
     expect(markup).toContain('href="/editor"');
     expect(markup).toContain("Presented by");
     expect(markup).toContain('href="https://tokenzhang.com"');

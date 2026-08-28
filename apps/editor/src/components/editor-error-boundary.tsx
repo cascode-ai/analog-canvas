@@ -1,6 +1,8 @@
 import { Component } from "react";
 import type { ErrorInfo, ReactNode } from "react";
 
+import { BugReportLink } from "./bug-report-link";
+
 export interface EditorErrorBoundaryProps {
   children: ReactNode;
 }
@@ -72,9 +74,15 @@ export function EditorCrashScreen({
         <p>
           <code>{message}</code>
         </p>
-        <button type="button" onClick={onReload}>
-          Reload editor
-        </button>
+        <div className="editor-crash-actions">
+          <button type="button" onClick={onReload}>
+            Reload editor
+          </button>
+          <BugReportLink
+            testId="crash-report-bug"
+            surface="Unexpected problem screen"
+          />
+        </div>
         <p className="editor-crash-note">
           After reloading, use File / Recover Local Work… if your latest changes
           are missing.

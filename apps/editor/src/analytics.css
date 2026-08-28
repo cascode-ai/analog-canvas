@@ -131,6 +131,10 @@ html.light .analytics-shell {
   align-items: center;
 }
 
+.analytics-top-bar-right {
+  gap: 0.8rem;
+}
+
 .analytics-theme-switch {
   width: 2.7rem;
   height: 2.7rem;
@@ -211,6 +215,21 @@ html.light .analytics-shell {
 
 .analytics-home:hover {
   color: var(--analytics-ink);
+}
+
+.analytics-bug-report {
+  height: auto;
+  padding: 0.35rem 0.2rem;
+  border: 0;
+  color: var(--analytics-ink-soft);
+  background: transparent;
+  font-size: 0.9rem;
+}
+
+.analytics-bug-report:hover {
+  border-color: transparent;
+  color: var(--analytics-ink);
+  background: transparent;
 }
 
 .analytics-error {

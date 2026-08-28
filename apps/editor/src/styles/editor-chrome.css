@@ -815,6 +815,16 @@
   overflow-wrap: anywhere;
 }
 
+.editor-crash-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--icm-space-2);
+}
+
+.editor-crash-actions > * {
+  min-height: var(--icm-control-h-lg);
+}
+
 .editor-crash-note {
   color: #5f6b7a;
   font-size: var(--icm-font-sm);

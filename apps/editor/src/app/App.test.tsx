@@ -157,6 +157,8 @@ describe("editor shell", () => {
     expect(markup).toContain('aria-haspopup="dialog"');
     // About folded into Help: one entry, not two saying the same thing.
     expect(markup).not.toContain(">About</button>");
+    expect(markup).toContain('data-testid="editor-report-bug"');
+    expect(markup).toContain("Report bug");
     expect(markup).toContain(">Help</button>");
     expect(markup).toContain('class="app-chrome-actions"');
     expect(markup).toContain("Presented by");

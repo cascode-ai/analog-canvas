@@ -6,6 +6,7 @@ import {
   WORLD_BOUNDS,
   type FeatureCollection,
 } from "../lib/world-map";
+import { BugReportLink } from "./bug-report-link";
 
 type DayRow = { date: string; pv: number; uv: number };
 type BreakdownRow = { pv?: number; uv?: number; count?: number };
@@ -208,6 +209,11 @@ export function AnalyticsPage() {
           </button>
         </div>
         <div className="analytics-top-bar-right">
+          <BugReportLink
+            className="analytics-bug-report"
+            testId="analytics-report-bug"
+            surface="Analytics"
+          />
           <a className="analytics-home" href="/">
             ← Back to editor
           </a>

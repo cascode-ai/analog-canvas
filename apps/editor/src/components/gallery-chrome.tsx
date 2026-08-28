@@ -1,4 +1,5 @@
 import { AccountMenu } from "./account";
+import { BugReportLink } from "./bug-report-link";
 
 /**
  * The one gallery site header, shared by the feed and every gallery
@@ -65,6 +66,7 @@ export function GalleryChrome({
       </div>
       <nav className="gallery-actions">
         <AccountMenu />
+        <BugReportLink testId="gallery-report-bug" surface={subtitle} />
         <a
           className="gallery-open-editor"
           href="/editor?new=1"
