@@ -862,7 +862,7 @@ function appendOctilinear(
  * need. Only the authored path wants the wider reading, so it is folded in
  * here rather than in the shared normalizer.
  */
-function cancelDoubledBackLegs(
+export function cancelDoubledBackLegs(
   points: readonly Point[],
   modes: readonly SegmentMode[],
 ): { points: Point[]; segmentModes: SegmentMode[] } {

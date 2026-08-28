@@ -279,7 +279,11 @@ export function moveRouteSegment(
           { x: target.x, y: points[1]!.y },
           points[1]!,
         ];
-    const mode = modes[0] ?? "manual";
+    // Dragging a derived escape lead authors real wire geometry: the moved
+    // leg leaves the pin axis and the new endpoint stubs arrive across it,
+    // so nothing here may stay "escape" or commit validation rejects it.
+    const sourceMode = modes[0] ?? "manual";
+    const mode = sourceMode === "escape" ? "manual" : sourceMode;
     const normalized = normalizeRouteGeometry(moved, [mode, mode, mode]);
     return {
       waypoints: normalized.points.slice(1, -1),
@@ -296,7 +300,8 @@ export function moveRouteSegment(
       points[1]!.x = target.x;
       points.splice(1, 0, { x: target.x, y: fixedEndpoint.y });
     }
-    modes.splice(0, 1, modes[0]!, modes[0]!);
+    const stubMode = modes[0] === "escape" ? "manual" : modes[0]!;
+    modes.splice(0, 1, stubMode, stubMode);
   } else if (segmentIndex === lastSegmentIndex) {
     const fixedEndpoint = points.at(-1)!;
     if (horizontal) {
@@ -306,7 +311,9 @@ export function moveRouteSegment(
       points[segmentIndex]!.x = target.x;
       points.splice(-1, 0, { x: target.x, y: fixedEndpoint.y });
     }
-    modes.splice(segmentIndex, 1, modes[segmentIndex]!, modes[segmentIndex]!);
+    const stubMode =
+      modes[segmentIndex] === "escape" ? "manual" : modes[segmentIndex]!;
+    modes.splice(segmentIndex, 1, stubMode, stubMode);
   } else if (horizontal) {
     points[segmentIndex]!.y = target.y;
     points[segmentIndex + 1]!.y = target.y;

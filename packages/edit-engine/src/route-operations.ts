@@ -1,3 +1,4 @@
+import { cancelDoubledBackLegs } from "./routing-planner.js";
 import {
   reflectOrientation,
   routeBends,
@@ -219,9 +220,14 @@ function routeEditPathFromGeometry(
   };
 }
 
-/** Every stored step must advance; heading itself is unconstrained. */
+/**
+ * Every stored step must advance; heading itself is unconstrained. Fewer
+ * than two points is a collapsed conductor, not a Route — the vacuous
+ * "every segment" reading let a fully collapsed stretch slip past this
+ * guard and die later inside the Route factory with an internal message.
+ */
 function isSegmentGeometryUsable(points: readonly Point[]): boolean {
-  return polylineSatisfiesConstraint(points, "any-angle");
+  return points.length >= 2 && polylineSatisfiesConstraint(points, "any-angle");
 }
 
 function normalizeProposal(
@@ -229,7 +235,18 @@ function normalizeProposal(
   points: readonly Point[],
   modes: readonly SegmentMode[],
 ): RouteStretchProposal {
-  const normalized = normalizeRouteGeometry(points, modes);
+  let normalized = normalizeRouteGeometry(points, modes);
+  // A stretch can slide a bend back over its neighbor, leaving a leg that
+  // retraces the previous one. The shared normalizer deliberately keeps
+  // anti-parallel collinear steps (crossing detection needs them), so the
+  // stretch family cancels them here — except across protected legs, whose
+  // geometry must survive byte-for-byte.
+  if (!normalized.segmentModes.some(protectedMode)) {
+    normalized = cancelDoubledBackLegs(
+      normalized.points,
+      normalized.segmentModes,
+    );
+  }
   // Any heading is legal geometry (ADR 0039); only a degenerate segment is
   // not, and normalizeRouteGeometry already removes zero-length steps.
   if (!isSegmentGeometryUsable(normalized.points)) {
@@ -242,6 +259,27 @@ function normalizeProposal(
     waypoints: normalized.points.slice(1, -1),
     segmentModes: normalized.segmentModes,
   };
+}
+
+/**
+ * A rail must stay one straight axis-aligned conductor; a boundary stretch
+ * that would bend it fails here with a named plan-time error instead of a
+ * raw geometry rejection at commit.
+ */
+function assertPowerRailStaysStraight(
+  route: SchematicDocument["routes"][number],
+  first: Point,
+  last: Point,
+  waypoints: readonly Point[],
+): void {
+  if (route.presentation !== "power-rail") return;
+  const straight =
+    waypoints.length === 0 && (first.x === last.x || first.y === last.y);
+  if (!straight) {
+    throw new Error(
+      `Power rail ${route.id} would bend; move the whole rail or detach the tap first`,
+    );
+  }
 }
 
 function stretchRouteEndpoint(
@@ -275,6 +313,29 @@ function stretchRouteEndpoint(
   // generic branch below only handles an existing diagonal or future heading.
   if (originallyVertical || originallyHorizontal) {
     if (points.length > 2) {
+      const alignedMove = originallyVertical
+        ? movedPoint.x === neighbor.x
+        : movedPoint.y === neighbor.y;
+      const secondModeIndex = side === "from" ? 1 : modes.length - 2;
+      // Sliding the neighbor rewrites the SECOND leg. When that leg is
+      // locked or trunk it must survive byte-for-byte, so the moved
+      // endpoint elbows back through the original endpoint instead and
+      // the whole established path stays untouched.
+      if (!alignedMove && protectedMode(modes[secondModeIndex])) {
+        const corner = originallyVertical
+          ? { x: movedPoint.x, y: originalPoint.y }
+          : { x: originalPoint.x, y: movedPoint.y };
+        const inserted =
+          side === "from"
+            ? [corner, { ...originalPoint }]
+            : [{ ...originalPoint }, corner];
+        const insertIndex = side === "from" ? 1 : points.length - 1;
+        points.splice(insertIndex, 0, ...inserted);
+        const modeIndex = side === "from" ? 0 : modes.length - 1;
+        const mode = modes[modeIndex]!;
+        modes.splice(modeIndex, 1, mode, mode, mode);
+        return;
+      }
       if (originallyVertical) neighbor.x = movedPoint.x;
       else neighbor.y = movedPoint.y;
       return;
@@ -439,11 +500,14 @@ function smoothedBoundaryProposal(
   stretched: RouteStretchProposal,
   smoothing: BoundarySmoothing,
   resolver: SymbolResolver,
+  /**
+   * Bend count of the stretched path BEFORE fold-back cancellation. A
+   * cancelled double-back still means the stretch degraded the shape, so
+   * the complexity trigger reads the raw count.
+   */
+  stretchedRawBendCount: number = stretched.waypoints.length,
 ): RouteStretchProposal {
-  if (
-    route.presentation === "power-rail" ||
-    route.presentation === "bulk-dashed"
-  ) {
+  if (route.presentation === "power-rail") {
     return stretched;
   }
   if (stretched.segmentModes.some((mode) => protectedMode(mode))) {
@@ -543,22 +607,50 @@ function smoothedBoundaryProposal(
     ...stretched.waypoints,
     best.points.at(-1)!,
   ];
+  // A rigid turn re-aims the pins but the stretch kept the old leg axes:
+  // an escape end leg that no longer leaves its pin outward can never pass
+  // commit validation, so a stale lead forces the rebuild.
+  const escapeLegStale = (
+    mode: SegmentMode | undefined,
+    anchor: Point,
+    next: Point | undefined,
+    outward: Point | null,
+  ): boolean => {
+    if (mode !== "escape" || !outward || !next) return false;
+    const dir = { x: next.x - anchor.x, y: next.y - anchor.y };
+    return dir.x * outward.x + dir.y * outward.y <= 0;
+  };
+  const escapeStale =
+    escapeLegStale(
+      stretched.segmentModes[0],
+      stretchedFull[0]!,
+      stretchedFull[1],
+      from.outward,
+    ) ||
+    escapeLegStale(
+      stretched.segmentModes.at(-1),
+      stretchedFull.at(-1)!,
+      stretchedFull.at(-2),
+      to.outward,
+    );
   const stretchedCrossings = bodyCrossings(
     stretchedFull,
     smoothing.movedBodies,
   );
-  const grewComplexity = stretched.waypoints.length > originalBendCount;
+  const grewComplexity = stretchedRawBendCount > originalBendCount;
   // A wrap-around stretch shows up as sheer length: substantially longer
   // than the minimal landing-to-landing path means the old shape has gone
   // stale for the new positions.
   const lengthDegraded =
     pathLength(stretchedFull) > pathLength(best.points) * 1.5 + 20;
   const rebuild =
-    best.crossings <= stretchedCrossings &&
-    ((grewComplexity && fresh.waypoints.length < stretched.waypoints.length) ||
-      best.crossings < stretchedCrossings ||
-      lengthDegraded) &&
-    fresh.waypoints.length <= Math.max(stretched.waypoints.length, 1);
+    escapeStale ||
+    (best.crossings <= stretchedCrossings &&
+      ((grewComplexity &&
+        fresh.waypoints.length < stretched.waypoints.length) ||
+        best.crossings < stretchedCrossings ||
+        lengthDegraded) &&
+      fresh.waypoints.length <= Math.max(stretched.waypoints.length, 1));
   return rebuild ? fresh : stretched;
 }
 
@@ -999,6 +1091,7 @@ export function proposeLocalStretch(
         normalizeProposal(route.id, points, modes),
         smoothing,
         resolver,
+        normalizeRouteGeometry(points, modes).points.length - 2,
       ),
     );
   }
@@ -1186,16 +1279,21 @@ export function proposeGroupMove(
         leads,
       );
     }
-    proposals.set(
-      route.id,
-      smoothedBoundaryProposal(
-        route,
-        original.points.length - 2,
-        normalizeProposal(route.id, points, modes),
-        smoothing,
-        resolver,
-      ),
+    const stretchedProposal = smoothedBoundaryProposal(
+      route,
+      original.points.length - 2,
+      normalizeProposal(route.id, points, modes),
+      smoothing,
+      resolver,
+      normalizeRouteGeometry(points, modes).points.length - 2,
     );
+    assertPowerRailStaysStraight(
+      route,
+      points[0]!,
+      points.at(-1)!,
+      stretchedProposal.waypoints,
+    );
+    proposals.set(route.id, stretchedProposal);
   }
   const internalRouteIds = internalSelection.routeIds;
   const internallyMovedObjectIds = new Set<string>([
@@ -1478,16 +1576,21 @@ function proposeRigidBodyMove(
         transform.point(to),
       );
     }
-    proposals.set(
-      route.id,
-      smoothedBoundaryProposal(
-        route,
-        original.points.length - 2,
-        normalizeProposal(route.id, points, modes),
-        smoothing,
-        resolver,
-      ),
+    const stretchedProposal = smoothedBoundaryProposal(
+      route,
+      original.points.length - 2,
+      normalizeProposal(route.id, points, modes),
+      smoothing,
+      resolver,
+      normalizeRouteGeometry(points, modes).points.length - 2,
     );
+    assertPowerRailStaysStraight(
+      route,
+      points[0]!,
+      points.at(-1)!,
+      stretchedProposal.waypoints,
+    );
+    proposals.set(route.id, stretchedProposal);
   }
 
   const turnedObjectIds = new Set<string>([
