@@ -9,6 +9,7 @@ export type ToolIconName =
   | "rectangle"
   | "circle"
   | "style"
+  | "simulation"
   | "rotate"
   | "mirror-horizontal"
   | "mirror-vertical"
@@ -84,6 +85,12 @@ export function ToolIcon({ name }: { name: ToolIconName }) {
           <path d="M3 7h14M3 13h14" {...common} />
           <circle cx="7.5" cy="7" r="2" fill="currentColor" />
           <circle cx="12.5" cy="13" r="2" fill="currentColor" />
+        </>
+      ) : null}
+      {name === "simulation" ? (
+        <>
+          <path d="M2.5 12h3V7h4v6h4V5h4" {...common} />
+          <path d="M2.5 16.5h15" {...common} />
         </>
       ) : null}
       {name === "rotate" ? (

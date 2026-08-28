@@ -199,10 +199,9 @@ describe("editor shell", () => {
       <App project={project} timingUiEnabled={false} />,
     );
 
-    expect(localMarkup).toContain('data-testid="timing-simulation-panel"');
-    expect(productionMarkup).not.toContain(
-      'data-testid="timing-simulation-panel"',
-    );
+    expect(localMarkup).toContain('title="Digital Simulation"');
+    expect(productionMarkup).not.toContain('title="Digital Simulation"');
+    expect(localMarkup).not.toContain('data-testid="timing-simulation-panel"');
   });
 
   it("links to first-party visitor analytics without crowding editor commands", () => {

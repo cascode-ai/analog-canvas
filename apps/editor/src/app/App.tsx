@@ -19,6 +19,7 @@ import {
   type WireSource,
 } from "@icm/edit-engine";
 import {
+  computeNetHighlight,
   deriveNetConnectivity,
   deriveRoutingAffectedClosure,
   resolveDraftingObjectGeometry,
@@ -905,6 +906,20 @@ export function App({
   );
   const [highlightedNetOrigin, setHighlightedNetOrigin] =
     useState<HighlightedNetOrigin | null>(null);
+  const [simulationWindowOpen, setSimulationWindowOpen] = useState(false);
+  const [simulationPickNetsActive, setSimulationPickNetsActive] =
+    useState(false);
+  const [simulationHoverNetId, setSimulationHoverNetId] = useState<
+    string | null
+  >(null);
+  const [simulationSavedNetIds, setSimulationSavedNetIds] = useState<
+    Set<string>
+  >(() => new Set());
+  useEffect(() => {
+    setSimulationPickNetsActive(false);
+    setSimulationHoverNetId(null);
+    setSimulationSavedNetIds(new Set());
+  }, [document.id]);
   const routeCounter = useRef(0);
   const canvasDragSessionRef = useRef<CanvasDragSession | null>(null);
   /**
@@ -1139,6 +1154,55 @@ export function App({
     wireSource,
     bulkDrawInstanceId,
   });
+  const simulationPickHighlight = useMemo(
+    () =>
+      simulationPickNetsActive && simulationHoverNetId
+        ? computeNetHighlight(
+            projectConnectivityIndex,
+            document.id,
+            simulationHoverNetId,
+            undefined,
+            documentStack,
+          )
+        : undefined,
+    [
+      document.id,
+      documentStack,
+      projectConnectivityIndex,
+      simulationHoverNetId,
+      simulationPickNetsActive,
+    ],
+  );
+  const canonicalSimulationNetId = (netId: string): string | null => {
+    const group =
+      logicalNets.byBaseNetId.get(netId) ??
+      logicalNets.groups.find((candidate) => candidate.id === netId);
+    return group?.baseNetIds[0] ?? null;
+  };
+  const toggleSimulationSavedNet = (netId: string): void => {
+    const baseNetId = canonicalSimulationNetId(netId);
+    if (!baseNetId) {
+      setStatus(`Could not resolve Net ${netId}`);
+      return;
+    }
+    const group = logicalNets.byBaseNetId.get(baseNetId);
+    setSimulationSavedNetIds((current) => {
+      const next = new Set(current);
+      if (next.has(baseNetId)) next.delete(baseNetId);
+      else next.add(baseNetId);
+      return next;
+    });
+    setStatus(`Toggled saved Net ${group?.name ?? baseNetId}`);
+  };
+  const setSimulationPickMode = (active: boolean): void => {
+    setSimulationPickNetsActive(active);
+    if (!active) setSimulationHoverNetId(null);
+    setStatus(
+      active
+        ? "Pick Nets: click a wire, label, junction, or connected pin · Esc exits"
+        : "Finished picking simulation Nets",
+    );
+  };
   const {
     enabled: cellSymbolLayoutEnabled,
     layout: selectedCellSymbolLayout,
@@ -2773,6 +2837,11 @@ export function App({
         setSearchOpen(true);
         return;
       }
+      if (event.key === "Escape" && simulationPickNetsActive) {
+        event.preventDefault();
+        setSimulationPickMode(false);
+        return;
+      }
       if (event.key === "Escape" && searchOpen) {
         event.preventDefault();
         closeSearch();
@@ -3190,6 +3259,19 @@ export function App({
             setDocumentSettingsOpen((open) => !open);
             setSelectionOpen(true);
           },
+          ...(timingUiEnabled
+            ? {
+                simulation: {
+                  open: simulationWindowOpen,
+                  onToggle: () => {
+                    setSimulationWindowOpen((open) => {
+                      if (open) setSimulationPickMode(false);
+                      return !open;
+                    });
+                  },
+                },
+              }
+            : {}),
         }}
         hierarchyToolbar={{
           documents: project.documents,
@@ -4020,6 +4102,7 @@ export function App({
               : "",
             projectedMovePreviewDocument ? "semantic-move-preview" : "",
             panPreview ? "pan-mode" : "",
+            simulationPickNetsActive ? "simulation-net-pick-active" : "",
           ]
             .filter(Boolean)
             .join(" ")}
@@ -4043,7 +4126,9 @@ export function App({
               : null
           }
           netHighlight={{
-            highlight: highlightedNet,
+            highlight: simulationPickNetsActive
+              ? simulationPickHighlight
+              : highlightedNet,
             document,
             resolver,
             routeGeometryRecords,
@@ -4134,6 +4219,7 @@ export function App({
                 : null,
               wouldMoveIds,
               onInstanceClick: (instance, additive) => {
+                if (simulationPickNetsActive) return;
                 if (suppressInstanceClick.current) {
                   suppressInstanceClick.current = false;
                   return;
@@ -4146,6 +4232,11 @@ export function App({
                 else inspectInstance(instance.id);
               },
               onInstancePointerDown: (event, instance) => {
+                if (simulationPickNetsActive) {
+                  event.stopPropagation();
+                  event.preventDefault();
+                  return;
+                }
                 // While R is armed the click turns the part rather than
                 // picking it up, so the gesture reads as "rotate that one".
                 if (rotateArmedInstance(instance.id)) {
@@ -4161,15 +4252,42 @@ export function App({
                 }
                 setCanvasContextMenu({ x: clientX, y: clientY });
               },
-              onRoutePointerDown: handleRoutePointerDown,
-              onAnnotationPointerDown: beginAnnotationDrag,
+              onRoutePointerDown: (event, routeId) => {
+                if (simulationPickNetsActive) {
+                  event.stopPropagation();
+                  event.preventDefault();
+                  const route = document.routes.find(
+                    (candidate) => candidate.id === routeId,
+                  );
+                  if (route) toggleSimulationSavedNet(route.netId);
+                  return;
+                }
+                handleRoutePointerDown(event, routeId);
+              },
+              onAnnotationPointerDown: (event, annotation) => {
+                if (simulationPickNetsActive && annotation.netId) {
+                  event.stopPropagation();
+                  event.preventDefault();
+                  toggleSimulationSavedNet(annotation.netId);
+                  return;
+                }
+                beginAnnotationDrag(event, annotation);
+              },
               onAnnotationEdit: beginAnnotationTextEditing,
+              onNetPointerEnter: (netId) => {
+                if (simulationPickNetsActive) setSimulationHoverNetId(netId);
+              },
+              onNetPointerLeave: () => {
+                if (simulationPickNetsActive) setSimulationHoverNetId(null);
+              },
             },
             endpoints: {
               document,
               endpoints: wiringEndpoints,
               tool,
-              selectedRoute,
+              selectedRoute: simulationPickNetsActive
+                ? undefined
+                : selectedRoute,
               selectedRouteSegmentIndex,
               selectedEndpoint,
               supplementalJunctionIds: supplementalSelection.junctionIds,
@@ -4182,10 +4300,30 @@ export function App({
               },
               onPowerRailStretch: beginRouteStretch,
               onJunctionSelect: (candidate) => {
+                if (simulationPickNetsActive) {
+                  if (candidate.netId)
+                    toggleSimulationSavedNet(candidate.netId);
+                  return;
+                }
                 selectEndpoint(candidate);
                 setStatus(`Selected ${endpointTestId(candidate.endpoint)}`);
               },
-              onWireEndpoint: handleWireEndpoint,
+              onWireEndpoint: (event, candidate) => {
+                if (simulationPickNetsActive) {
+                  event.stopPropagation();
+                  event.preventDefault();
+                  if (candidate.netId)
+                    toggleSimulationSavedNet(candidate.netId);
+                  return;
+                }
+                handleWireEndpoint(event, candidate);
+              },
+              onNetPointerEnter: (netId) => {
+                if (simulationPickNetsActive) setSimulationHoverNetId(netId);
+              },
+              onNetPointerLeave: () => {
+                if (simulationPickNetsActive) setSimulationHoverNetId(null);
+              },
             },
           }}
           draftingHitTargets={{
@@ -4309,6 +4447,16 @@ export function App({
         <TimingSimulationPanel
           key={document.id}
           document={document}
+          open={simulationWindowOpen}
+          savedNetIds={simulationSavedNetIds}
+          pickNetsActive={simulationPickNetsActive}
+          onOpenChange={(open) => {
+            setSimulationWindowOpen(open);
+            if (!open) setSimulationPickMode(false);
+          }}
+          onPickNetsChange={setSimulationPickMode}
+          onToggleSavedNet={toggleSimulationSavedNet}
+          onSetSavedNets={(netIds) => setSimulationSavedNetIds(new Set(netIds))}
           onStatus={setStatus}
           onPlaceOnCanvas={(result) => {
             const grid = document.presentation.grid;

@@ -89,31 +89,55 @@ function markRoutingDemoNetsImported(
   }
 }
 
-test("exposes local timing tools and opens the saved-node picker", async ({
+test("opens one digital simulation window and picks a Net from the canvas", async ({
   page,
 }) => {
+  const project = createRoutingDemoProject();
+  project.documents[0]!.routes = [
+    createRoutePath({
+      id: "route-simulation-pick",
+      netId: "net-h",
+      start: { kind: "terminal", instanceId: "A", pinName: "P" },
+      end: { kind: "terminal", instanceId: "B", pinName: "P" },
+      bends: [],
+      modes: ["manual"],
+    }),
+  ];
   await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "digital-simulation-pick.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
 
   await expect(
-    page.getByLabel("Place Pulse Voltage Source", { exact: true }),
+    page.getByLabel("Place Digital Clock", { exact: true }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Timing" }).click();
+  await page.getByRole("button", { name: "Simulation", exact: true }).click();
 
-  const picker = page.locator("details.timing-node-picker");
-  await picker.locator("summary").click();
-  const menu = picker.locator(".timing-node-picker-menu");
-  await expect(menu).toBeVisible();
-  await expect(menu).toContainText("No Nets in this Cell.");
-
-  const menuReceivesPointerEvents = await menu.evaluate((element) => {
-    const bounds = element.getBoundingClientRect();
-    const hit = document.elementFromPoint(
-      bounds.left + bounds.width / 2,
-      bounds.top + bounds.height / 2,
-    );
-    return hit !== null && element.contains(hit);
+  const simulation = page.getByRole("dialog", {
+    name: "Digital Simulation",
   });
-  expect(menuReceivesPointerEvents).toBe(true);
+  await expect(simulation).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(1);
+  await expect(simulation.locator("details")).toHaveCount(0);
+
+  await simulation.getByRole("button", { name: "Pick Nets" }).click();
+  await expect(page.locator(".schematic-canvas")).toHaveClass(
+    /simulation-net-pick-active/u,
+  );
+  await page
+    .getByTestId("route-hit-route-simulation-pick")
+    .dispatchEvent("pointerdown", {
+      button: 0,
+      pointerId: 1,
+      pointerType: "mouse",
+    });
+  await expect(simulation.getByLabel("Saved Nets")).toContainText("HORIZONTAL");
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".schematic-canvas")).not.toHaveClass(
+    /simulation-net-pick-active/u,
+  );
 });
 
 test("opens netlist preflight and navigates its canonical finding", async ({

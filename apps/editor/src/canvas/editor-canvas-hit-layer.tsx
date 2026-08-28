@@ -66,6 +66,8 @@ interface SelectionHitTargetProps {
     annotation: Annotation,
   ) => void;
   onAnnotationEdit: (annotation: Annotation) => void;
+  onNetPointerEnter?: (netId: string) => void;
+  onNetPointerLeave?: () => void;
 }
 
 interface EndpointHitTargetProps {
@@ -89,6 +91,8 @@ interface EndpointHitTargetProps {
     event: ReactPointerEvent<SVGCircleElement>,
     endpoint: WireSource,
   ) => void;
+  onNetPointerEnter?: (netId: string) => void;
+  onNetPointerLeave?: () => void;
 }
 
 export function EditorCanvasHitLayer({
@@ -126,6 +130,8 @@ function SelectionHitTargets({
   onRoutePointerDown,
   onAnnotationPointerDown,
   onAnnotationEdit,
+  onNetPointerEnter,
+  onNetPointerLeave,
   children,
 }: SelectionHitTargetProps & { children: ReactNode }) {
   return (
@@ -187,6 +193,8 @@ function SelectionHitTargets({
           }
           points={serializePolylinePoints(geometry.centerline)}
           onPointerDown={(event) => onRoutePointerDown(event, route.id)}
+          onPointerEnter={() => onNetPointerEnter?.(route.netId)}
+          onPointerLeave={() => onNetPointerLeave?.()}
           onClick={(event) => event.stopPropagation()}
         />
       ))}
@@ -232,6 +240,10 @@ function SelectionHitTargets({
               onPointerDown={(event) =>
                 onAnnotationPointerDown(event, annotation)
               }
+              onPointerEnter={() =>
+                annotation.netId && onNetPointerEnter?.(annotation.netId)
+              }
+              onPointerLeave={() => onNetPointerLeave?.()}
               pointerEvents={tool === "wire" ? "none" : undefined}
               onDoubleClick={(event) => {
                 event.stopPropagation();
@@ -257,6 +269,8 @@ function EndpointHitTargets({
   onPowerRailStretch,
   onJunctionSelect,
   onWireEndpoint,
+  onNetPointerEnter,
+  onNetPointerLeave,
 }: EndpointHitTargetProps) {
   const powerRailEnds =
     selectedRoute?.presentation === "power-rail"
@@ -328,6 +342,10 @@ function EndpointHitTargets({
           }
           onWireEndpoint(event, candidate);
         }}
+        onPointerEnter={() =>
+          candidate.netId && onNetPointerEnter?.(candidate.netId)
+        }
+        onPointerLeave={() => onNetPointerLeave?.()}
       />
     );
   });

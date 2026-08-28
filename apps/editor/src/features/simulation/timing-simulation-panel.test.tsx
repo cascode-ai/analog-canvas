@@ -5,36 +5,51 @@ import { describe, expect, it } from "vitest";
 import { TimingSimulationPanel } from "./timing-simulation-panel";
 
 describe("TimingSimulationPanel", () => {
-  it("starts as a zero-layout collapsed launcher", () => {
+  const callbacks = {
+    onOpenChange: () => undefined,
+    onPickNetsChange: () => undefined,
+    onToggleSavedNet: () => undefined,
+    onSetSavedNets: () => undefined,
+    onPlaceOnCanvas: () => undefined,
+    onStatus: () => undefined,
+  };
+
+  it("renders nothing while the toolbar-owned window is closed", () => {
     const markup = renderToStaticMarkup(
       <TimingSimulationPanel
         document={createEmptyDocument("main", "Main")}
-        onPlaceOnCanvas={() => undefined}
-        onStatus={() => undefined}
+        open={false}
+        savedNetIds={new Set()}
+        pickNetsActive={false}
+        {...callbacks}
       />,
     );
-    expect(markup).toContain('class="timing-panel collapsed"');
-    expect(markup).toContain("Timing");
-    expect(markup).not.toContain("Simulation stop time");
+    expect(markup).toBe("");
   });
 
-  it("exposes saved-node selection, run, export, and optional canvas placement", () => {
+  it("keeps setup, saved Nets, waveforms, export, and placement in one flat window", () => {
     const document = createEmptyDocument("main", "Clock divider");
     document.nets.push({ id: "clock", terminals: [] });
     const markup = renderToStaticMarkup(
       <TimingSimulationPanel
         document={document}
-        defaultOpen
-        onPlaceOnCanvas={() => undefined}
-        onStatus={() => undefined}
+        open
+        savedNetIds={new Set(["clock"])}
+        pickNetsActive={false}
+        {...callbacks}
       />,
     );
 
     expect(markup).toContain('data-testid="timing-simulation-panel"');
-    expect(markup).toContain("Saved nodes (0)");
+    expect(markup).toContain('role="dialog"');
+    expect(markup).toContain("Digital Simulation");
+    expect(markup).toContain("Saved Nets");
+    expect(markup).toContain("Pick Nets");
+    expect(markup).toContain("Run Simulation");
     expect(markup).toContain("Export SVG");
     expect(markup).toContain("Export PNG");
     expect(markup).toContain("Place on Canvas");
     expect(markup).toContain("Temporary results");
+    expect(markup).not.toContain("<details");
   });
 });

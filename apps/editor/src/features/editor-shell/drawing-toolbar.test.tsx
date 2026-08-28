@@ -13,6 +13,7 @@ describe("DrawingToolbar", () => {
         documentSettingsOpen
         undo={{ enabled: true, execute: vi.fn() }}
         redo={{ enabled: true, execute: vi.fn() }}
+        simulation={{ open: true, onToggle: vi.fn() }}
         onToggleExamples={vi.fn()}
         onToggleLibrary={vi.fn()}
         onInsert={vi.fn()}
@@ -28,5 +29,7 @@ describe("DrawingToolbar", () => {
     expect(markup).toContain('aria-pressed="true"');
     expect(markup).toContain("Insert component (I)");
     expect(markup).toContain("Document settings");
+    expect(markup).toContain('data-testid="digital-simulation-toggle"');
+    expect(markup).toContain("Digital Simulation");
   });
 });

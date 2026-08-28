@@ -1,95 +1,93 @@
-/* Local-development digital timing controls and Razavi-style traces. */
+/* Local-development Digital Simulation tool window and waveform viewer. */
 
-.timing-panel {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  min-height: 190px;
-  max-height: min(34dvh, 310px);
-  border-top: 1px solid var(--icm-border-strong);
-  background: var(--icm-surface);
-  /* The saved-node picker opens above the header into the canvas area. */
-  overflow: visible;
-}
-
-.timing-panel.collapsed {
-  display: block;
-  min-height: 0;
-  height: 0;
-  border-top: 0;
-  overflow: visible;
-}
-
-.timing-panel.collapsed .timing-panel-header {
+.digital-simulation-window {
   position: fixed;
-  right: calc(var(--icm-props-collapsed) + var(--icm-space-2));
-  bottom: var(--icm-statusbar-h);
-  z-index: 19;
-  width: auto;
-  min-height: 30px;
-  padding: 2px var(--icm-space-2);
+  top: 96px;
+  left: max(270px, calc(50vw - 380px));
+  z-index: 28;
+  display: grid;
+  grid-template-rows: auto auto auto minmax(160px, 1fr) auto;
+  width: min(760px, calc(100vw - 300px));
+  min-width: 560px;
+  height: min(430px, calc(100dvh - 150px));
+  min-height: 300px;
   border: 1px solid var(--icm-border-strong);
-  border-bottom: 0;
-  border-radius: var(--icm-radius-sm) var(--icm-radius-sm) 0 0;
-  box-shadow: var(--icm-shadow-sm);
+  border-radius: var(--icm-radius-md);
+  color: var(--icm-text);
+  background: var(--icm-surface);
+  box-shadow: var(--icm-shadow-md);
+  resize: both;
+  overflow: hidden;
 }
 
-.timing-panel.collapsed .timing-run-state {
-  display: none;
-}
-
-.timing-panel-header {
+.digital-simulation-header {
   display: flex;
   align-items: center;
   gap: var(--icm-space-2);
-  min-height: 34px;
-  padding: 3px var(--icm-space-3);
+  min-height: 36px;
+  padding: 4px var(--icm-space-2) 4px var(--icm-space-3);
   border-bottom: 1px solid var(--icm-border);
   background: var(--icm-surface-muted);
+  cursor: move;
+  user-select: none;
+  touch-action: none;
 }
 
-.timing-panel-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  min-width: 78px;
-  border-color: transparent;
-  background: transparent;
-  font-weight: 650;
+.digital-simulation-header strong {
+  font-size: var(--icm-font-sm);
 }
 
-.timing-run-state {
+.digital-simulation-header button {
+  min-width: 28px;
+  min-height: 26px;
+  margin-left: auto;
+  padding: 0;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.simulation-run-state {
   color: var(--icm-text-muted);
   font-size: var(--icm-font-xs);
   white-space: nowrap;
 }
 
-.timing-run-state.stale {
+.simulation-run-state.stale {
   color: var(--icm-warning);
 }
 
-.timing-panel-actions {
+.digital-simulation-controls,
+.digital-simulation-footer,
+.simulation-saved-nets {
   display: flex;
   align-items: center;
   gap: var(--icm-space-1);
-  min-width: 0;
-  margin-left: auto;
+  padding: var(--icm-space-2);
 }
 
-.timing-panel-actions button,
-.timing-node-picker > summary,
-.timing-stop-time input {
-  min-height: 26px;
+.digital-simulation-controls {
+  border-bottom: 1px solid var(--icm-border);
+  overflow-x: auto;
+}
+
+.digital-simulation-controls button,
+.digital-simulation-controls select,
+.digital-simulation-controls input,
+.digital-simulation-footer button {
+  min-height: 28px;
   padding: 3px 8px;
   font-size: var(--icm-font-sm);
+  white-space: nowrap;
 }
 
-.timing-panel-actions .primary {
+.digital-simulation-controls .primary,
+.digital-simulation-controls button.active {
   border-color: var(--icm-accent);
   color: #fff;
   background: var(--icm-accent);
 }
 
-.timing-stop-time {
+.simulation-stop-time {
   display: flex;
   align-items: center;
   gap: 5px;
@@ -97,123 +95,86 @@
   font-size: var(--icm-font-xs);
 }
 
-.timing-stop-time input {
-  width: 72px;
-  border: 1px solid var(--icm-border-strong);
-  border-radius: var(--icm-radius-sm);
-  color: var(--icm-text);
-  background: var(--icm-surface);
+.simulation-stop-time input {
+  width: 74px;
 }
 
-.timing-node-picker {
-  position: relative;
+.simulation-saved-nets {
+  min-height: 38px;
+  border-bottom: 1px solid var(--icm-border);
+  overflow-x: auto;
 }
 
-.timing-node-picker > summary {
-  display: flex;
-  align-items: center;
-  border: 1px solid var(--icm-border-strong);
-  border-radius: var(--icm-radius-sm);
-  background: var(--icm-surface);
-  cursor: pointer;
-  list-style: none;
+.simulation-saved-nets > span,
+.simulation-saved-nets small {
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
   white-space: nowrap;
 }
 
-.timing-node-picker-menu {
-  position: absolute;
-  right: 0;
-  bottom: calc(100% + 7px);
-  z-index: 30;
+.simulation-saved-nets button {
+  min-height: 24px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--icm-surface-muted);
+  font-size: var(--icm-font-xs);
+  white-space: nowrap;
+}
+
+.digital-simulation-body {
   display: grid;
-  gap: 4px;
-  width: min(380px, 72vw);
-  max-height: 310px;
-  padding: var(--icm-space-2);
-  border: 1px solid var(--icm-border-strong);
-  border-radius: var(--icm-radius-md);
-  background: var(--icm-surface);
-  box-shadow: var(--icm-shadow-md);
-  overflow: auto;
-}
-
-.timing-node-picker-menu label {
-  display: grid;
-  grid-template-columns: auto minmax(90px, 1fr) minmax(80px, auto);
-  align-items: center;
-  gap: var(--icm-space-2);
-  padding: 4px;
-  border-radius: var(--icm-radius-sm);
-}
-
-.timing-node-picker-menu label:hover {
-  background: var(--icm-surface-hover);
-}
-
-.timing-node-picker-menu code {
-  color: var(--icm-text-muted);
-  font: 10px/1.2 var(--font-mono);
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.timing-node-picker-actions {
-  display: flex;
-  gap: var(--icm-space-1);
-  padding-bottom: 4px;
-  border-bottom: 1px solid var(--icm-border);
-}
-
-.timing-panel-body {
-  display: flex;
   min-height: 0;
+  background: #fff;
   overflow: auto;
 }
 
 .timing-waveform-preview {
-  flex: 1 1 auto;
   min-width: 620px;
-  padding: 8px 16px;
-  background: #fff;
+  min-height: 160px;
+  padding: 10px 16px;
 }
 
 .timing-waveform-preview svg {
   display: block;
   width: 100%;
   height: 100%;
-  min-height: 130px;
+  min-height: 150px;
 }
 
-.timing-panel-empty {
+.simulation-empty {
   display: grid;
-  flex: 1;
   place-items: center;
-  min-height: 130px;
+  min-height: 160px;
   color: var(--icm-text-muted);
   font-size: var(--icm-font-sm);
 }
 
-.timing-diagnostics {
-  flex: 0 0 min(310px, 30vw);
-  padding: var(--icm-space-2);
-  border-left: 1px solid var(--icm-border);
+.simulation-diagnostics {
+  margin: 0;
+  padding: var(--icm-space-2) var(--icm-space-4);
+  border-top: 1px solid var(--icm-border);
   color: var(--icm-text-muted);
+  background: var(--icm-surface);
   font-size: var(--icm-font-xs);
-  overflow: auto;
 }
 
-.timing-diagnostics ul {
-  margin: 8px 0;
-  padding-left: 20px;
+.digital-simulation-footer {
+  justify-content: flex-end;
+  border-top: 1px solid var(--icm-border);
+  background: var(--icm-surface-muted);
 }
 
-@media (max-width: 920px) {
-  .timing-panel-actions button:not(.primary),
-  .timing-run-state {
-    display: none;
-  }
+.schematic-canvas.simulation-net-pick-active .route-hit,
+.schematic-canvas.simulation-net-pick-active .endpoint-hit,
+.schematic-canvas.simulation-net-pick-active .annotation-text-hit {
+  cursor: crosshair;
+}
 
-  .timing-panel {
-    max-height: 28dvh;
+@media (max-width: 760px) {
+  .digital-simulation-window {
+    right: 8px;
+    left: 8px;
+    width: auto;
+    min-width: 0;
   }
 }
