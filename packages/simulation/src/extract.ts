@@ -22,7 +22,7 @@ export interface DigitalDff {
   readonly dNetId: string;
   readonly clockNetId: string;
   readonly qNetId: string;
-  readonly qBarNetId: string;
+  readonly qBarNetId?: string;
   readonly initialQ: LogicValue;
 }
 
@@ -153,8 +153,8 @@ function extractDff(
   const dNetId = pinNet(instance, "D", netIdByTerminal, diagnostics);
   const clockNetId = pinNet(instance, "CK", netIdByTerminal, diagnostics);
   const qNetId = pinNet(instance, "Q", netIdByTerminal, diagnostics);
-  const qBarNetId = pinNet(instance, "QBAR", netIdByTerminal, diagnostics);
-  if (!dNetId || !clockNetId || !qNetId || !qBarNetId) return null;
+  const qBarNetId = netIdByTerminal.get(`${instance.id}\u0000QBAR`);
+  if (!dNetId || !clockNetId || !qNetId) return null;
   const authoredInitial = instance.netlist?.parameters.initialQ?.trim();
   const profileInitial = profile.initialStateByInstanceId?.[instance.id];
   const initialQ =
@@ -167,7 +167,7 @@ function extractDff(
     dNetId,
     clockNetId,
     qNetId,
-    qBarNetId,
+    ...(qBarNetId ? { qBarNetId } : {}),
     initialQ,
   };
 }

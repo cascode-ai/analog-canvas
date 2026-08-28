@@ -18,7 +18,6 @@
     "@icm/netlist": "workspace:*",
     "@icm/project-protocol": "workspace:*",
     "@icm/render-svg": "workspace:*",
-    "@icm/simulation": "workspace:*",
     "@icm/spice": "workspace:*",
     "@icm/symbols": "workspace:*",
     "react": "19.2.8",

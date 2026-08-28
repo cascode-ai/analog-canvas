@@ -11,7 +11,6 @@
 @import "./editor-dialogs.css";
 @import "./editor-canvas-state.css";
 @import "./editor-agent.css";
-@import "./editor-simulation.css";
 @import "./editor-accessibility.css";
 @import "../features/editor-shell/publish-gallery-dialog.css";
 @import "../components/version-history-dialog.css";

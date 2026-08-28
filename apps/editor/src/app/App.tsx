@@ -89,8 +89,6 @@ import {
   type SpiceImportReport,
 } from "../features/editor-shell/editor-file-commands";
 import { EditorStatusbar } from "../features/editor-shell/editor-statusbar";
-import { TimingSimulationPanel } from "../features/simulation/timing-simulation-panel";
-import { waveformDraftingObjects } from "../features/simulation/timing-waveform";
 import { useCellSymbolLayout } from "../features/hierarchy/use-cell-symbol-layout";
 import {
   cellInsertLaunch,
@@ -3871,38 +3869,6 @@ export function App({
           }}
         />
       </div>
-      <TimingSimulationPanel
-        key={document.id}
-        document={document}
-        onStatus={setStatus}
-        onPlaceOnCanvas={(result) => {
-          const grid = document.presentation.grid;
-          const origin = {
-            x: snapCoordinate(viewBox.x + viewBox.width * 0.08, grid),
-            y: snapCoordinate(viewBox.y + viewBox.height * 0.08, grid),
-          };
-          const objects = waveformDraftingObjects(
-            result,
-            origin,
-            grid,
-            (prefix) => {
-              uniqueSuffixCounter.current += 1;
-              return `${prefix}-${uniqueSuffixCounter.current}`;
-            },
-          );
-          const placed = transact(
-            objects.map((object) => ({
-              kind: "upsert_drafting_object" as const,
-              object,
-            })),
-          );
-          if (placed.ok) {
-            setStatus(
-              `Placed a static vector timing snapshot with ${result.traces.length} trace${result.traces.length === 1 ? "" : "s"}`,
-            );
-          }
-        }}
-      />
       <EditorStatusbar
         visitStats={visitStats}
         status={status}

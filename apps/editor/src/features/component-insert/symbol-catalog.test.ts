@@ -98,6 +98,17 @@ describe("component insertion catalog", () => {
     expect(symbols[0]?.pins.map((pin) => pin.name)).toEqual(["P1", "P2"]);
   });
 
+  it("keeps the Pulse Source out of the editor palette", () => {
+    expect(
+      findPaletteSymbol("razavi-textbook-v1", "pulse-voltage-source"),
+    ).toBeUndefined();
+    expect(
+      flattenComponentCatalog(
+        componentCatalog("razavi-textbook-v1", "pulse voltage source"),
+      ),
+    ).toEqual([]);
+  });
+
   it("offers N- and P-channel DMOS in the high-voltage expanded library", () => {
     const groups = componentCatalog("razavi-textbook-v1", "dmos");
     expect(groups).toHaveLength(1);

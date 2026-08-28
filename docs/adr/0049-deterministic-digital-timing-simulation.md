@@ -4,7 +4,7 @@ Status: `accepted`
 
 Date: `2026-08-28`
 
-Owners: `packages/simulation`, `apps/editor`, `packages/devices`, `packages/netlist`
+Owners: `packages/simulation`, `packages/devices`, `packages/netlist`
 
 ## Context
 
@@ -28,12 +28,12 @@ Buffer, two-input logic gates, and a D flip-flop. Unsupported components emit a
 diagnostic instead of acquiring guessed behavior. A Pulse Source's negative
 terminal must connect to Ground; its positive terminal drives the logical Net.
 
-Saved nodes are observation selections, not electrical probes. The browser
-keeps the selections and run result in the active panel session. Changing the
-Document marks an existing run stale. SVG and PNG export serialize the current
-temporary result. “Place on Canvas” is the explicit persistence boundary: it
-converts the run to ordinary editable vector drafting objects and does not
-store an executable result cache in Project JSON.
+Saved nodes are observation selections in the run profile, not electrical
+probes. Simulation results remain derived data and are not stored in Project
+JSON. This delivery deliberately exposes no timing-simulation controls,
+waveform presentation, export, or canvas-placement workflow in the editor GUI.
+The Pulse Source remains a resolvable symbol and device contract for project
+compatibility and programmatic use, but it is hidden from the editor palette.
 
 Razavi Figure 20.54 governs presentation only: stacked square traces, signal
 labels, dashed timing guides, and a horizontal time axis. It cannot establish
@@ -44,16 +44,18 @@ logic values, event ordering, or clock semantics.
 - Identical Document/profile inputs produce identical traces.
 - The simulation layer can grow without making the editor or netlist exporter
   its execution engine.
-- A placed waveform is a static drawing and does not silently refresh after
-  circuit edits.
+- Existing projects containing Pulse Sources remain loadable even though new
+  Pulse Sources cannot be authored through the editor palette.
+- An unused DFF `QBAR` output may remain unconnected; `D`, `CK`, and `Q` remain
+  required for the supported rising-edge behavior.
 - Gate delay, setup/hold timing, metastability, hierarchy, and analog threshold
   conversion remain out of scope for this first block.
 
 ## Validation
 
 - Unit tests cover four-state logic, Pulse-to-gate propagation, DFF division,
-  logical-Net equivalence, waveform SVG generation, and vector placement.
+  optional `QBAR`, and logical-Net equivalence.
 - Device and netlist tests cover the two-terminal Pulse Source defaults and
   SPICE/Spectre `PULSE` output.
-- Browser validation covers panel layout, collapse behavior, catalog exposure,
-  and console cleanliness.
+- Editor catalog tests verify that Pulse Source and simulation controls are not
+  exposed through the GUI.

@@ -11,9 +11,10 @@ The first supported set is:
 - four-state `0`, `1`, `X`, and `Z` driver resolution.
 
 Simulation time is an integer number of picoseconds. Saved Net IDs select
-traces to return; they do not change circuit connectivity. Browser run results
-are intentionally temporary. The editor may export them or explicitly convert
-them into static vector drafting objects.
+traces to return; they do not change circuit connectivity. The simulation
+package and Pulse Source contracts remain available to code and project
+compatibility, but this delivery does not expose simulation controls or Pulse
+Source authoring in the editor GUI.
 
 This package does not model analog thresholds, propagation delay, setup/hold
 windows, metastability, or transistor-level behavior.

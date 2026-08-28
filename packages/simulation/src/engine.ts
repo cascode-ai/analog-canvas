@@ -130,11 +130,13 @@ export function simulateDigitalDocument({
 
   for (const dff of circuit.dffs) {
     setDriver(dff.qNetId, `${dff.instanceId}\u0000Q`, dff.initialQ);
-    setDriver(
-      dff.qBarNetId,
-      `${dff.instanceId}\u0000QBAR`,
-      complement(dff.initialQ),
-    );
+    if (dff.qBarNetId) {
+      setDriver(
+        dff.qBarNetId,
+        `${dff.instanceId}\u0000QBAR`,
+        complement(dff.initialQ),
+      );
+    }
   }
 
   const events: ScheduledDriverEvent[] = [];
@@ -243,7 +245,9 @@ export function simulateDigitalDocument({
     });
     for (const { dff, q } of captures) {
       setDriver(dff.qNetId, `${dff.instanceId}\u0000Q`, q);
-      setDriver(dff.qBarNetId, `${dff.instanceId}\u0000QBAR`, complement(q));
+      if (dff.qBarNetId) {
+        setDriver(dff.qBarNetId, `${dff.instanceId}\u0000QBAR`, complement(q));
+      }
     }
     completed = settle(timePs);
     record(timePs);

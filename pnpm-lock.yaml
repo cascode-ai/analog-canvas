@@ -83,9 +83,6 @@ importers:
       "@icm/render-svg":
         specifier: workspace:*
         version: link:../../packages/render-svg
-      "@icm/simulation":
-        specifier: workspace:*
-        version: link:../../packages/simulation
       "@icm/spice":
         specifier: workspace:*
         version: link:../../packages/spice

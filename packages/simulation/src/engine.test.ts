@@ -144,6 +144,43 @@ describe("digital event simulation", () => {
     ]);
   });
 
+  it("allows the unused QBAR output to remain unconnected", () => {
+    const document = createEmptyDocument("doc", "DFF with unused QBAR");
+    document.instances.push(
+      instance("VCLK", "pulse-voltage-source", pulseParameters()),
+      instance("FF", "d-flip-flop"),
+      instance("GND", "ground"),
+    );
+    connect(document, "clock-and-data", [
+      { instanceId: "VCLK", pinName: "+" },
+      { instanceId: "FF", pinName: "CK" },
+      { instanceId: "FF", pinName: "D" },
+    ]);
+    connect(document, "q", [{ instanceId: "FF", pinName: "Q" }]);
+    connect(document, "ground", [
+      { instanceId: "VCLK", pinName: "-" },
+      { instanceId: "GND", pinName: "0" },
+    ]);
+
+    const result = simulateDigitalDocument({
+      document,
+      profile: {
+        stopTimePs: 11_000,
+        savedNetIds: ["clock-and-data", "q"],
+        initialStateByInstanceId: { FF: "0" },
+      },
+    });
+
+    expect(result.completed).toBe(true);
+    expect(result.diagnostics).toEqual([]);
+    expect(
+      result.traces.find((trace) => trace.netId === "q")?.transitions,
+    ).toEqual([
+      { timePs: 0, value: "0" },
+      { timePs: 1_000, value: "1" },
+    ]);
+  });
+
   it("folds saved Base Nets through explicit logical equivalence", () => {
     const document = createEmptyDocument("doc", "Equivalent probes");
     document.nets.push(
