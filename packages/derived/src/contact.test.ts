@@ -111,6 +111,23 @@ describe("contactRequiresJunctionDot", () => {
     expect(dotAt(document, { x: 0, y: 0 })).toBe(false);
   });
 
+  it("dots a parked endpoint riding another conductor's interior", () => {
+    // The branch ends ON the through wire without the model splitting it —
+    // the through arms still count, so the visual T carries its dot.
+    const teed = documentWith([
+      { id: "through", from: { x: -60, y: 0 }, to: { x: 60, y: 0 } },
+      { id: "branch", from: { x: 0, y: 60 }, to: { x: 0, y: 0 } },
+    ]);
+    expect(dotAt(teed, { x: 0, y: 0 })).toBe(true);
+
+    // A collinear park is one continuous line, not a branch: no dot.
+    const inline = documentWith([
+      { id: "through", from: { x: -60, y: 0 }, to: { x: 60, y: 0 } },
+      { id: "tail", from: { x: -120, y: 0 }, to: { x: 0, y: 0 } },
+    ]);
+    expect(dotAt(inline, { x: 0, y: 0 })).toBe(false);
+  });
+
   it("dots a three-way route branch", () => {
     const document = documentWith([
       { id: "left", from: { x: -60, y: 0 }, to: { x: 0, y: 0 } },

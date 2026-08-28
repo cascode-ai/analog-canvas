@@ -129,6 +129,53 @@ function inverseAxisDirection(direction: Point): Point {
   };
 }
 
+/**
+ * Directions of a same-Net conductor whose interior runs through `point`.
+ * A route the model never split still reads as one continuous wire under a
+ * parked endpoint, so the visual branch needs its two through arms counted.
+ * Pure crossings stay out: with no endpoint at the point there is no contact
+ * to attach these directions to.
+ */
+function routeThroughDirections(
+  centerline: readonly Point[],
+  point: Point,
+): Point[] {
+  for (let index = 1; index < centerline.length - 1; index += 1) {
+    const vertex = centerline[index]!;
+    if (vertex.x === point.x && vertex.y === point.y) {
+      return [
+        {
+          x: Math.sign(centerline[index - 1]!.x - point.x),
+          y: Math.sign(centerline[index - 1]!.y - point.y),
+        },
+        {
+          x: Math.sign(centerline[index + 1]!.x - point.x),
+          y: Math.sign(centerline[index + 1]!.y - point.y),
+        },
+      ];
+    }
+  }
+  for (let index = 0; index < centerline.length - 1; index += 1) {
+    const from = centerline[index]!;
+    const to = centerline[index + 1]!;
+    const cross =
+      (to.x - from.x) * (point.y - from.y) -
+      (to.y - from.y) * (point.x - from.x);
+    if (cross !== 0) continue;
+    const dot =
+      (point.x - from.x) * (to.x - from.x) +
+      (point.y - from.y) * (to.y - from.y);
+    const length =
+      (to.x - from.x) * (to.x - from.x) + (to.y - from.y) * (to.y - from.y);
+    if (dot <= 0 || dot >= length) continue;
+    return [
+      { x: Math.sign(from.x - point.x), y: Math.sign(from.y - point.y) },
+      { x: Math.sign(to.x - point.x), y: Math.sign(to.y - point.y) },
+    ];
+  }
+  return [];
+}
+
 function routeEndpointDirections(
   route: SchematicDocument["routes"][number],
   centerline: readonly Point[],
@@ -160,16 +207,25 @@ function contactIncidents(
 ): ContactIncident[] {
   const incidents: ContactIncident[] = [];
   const explicitEndpointKeys = new Set(endpoints.map(endpointKey));
+  const point = endpoints
+    .map((endpoint) => resolveEndpointPoint(document, resolver, endpoint))
+    .find((candidate) => candidate !== null);
   for (const route of document.routes) {
     if (route.netId !== netId) continue;
     const centerline = geometry.routes.get(route.id)?.centerline;
     if (!centerline) continue;
-    for (const direction of routeEndpointDirections(
+    const endpointDirections = routeEndpointDirections(
       route,
       centerline,
       explicitEndpointKeys,
-    )) {
+    );
+    for (const direction of endpointDirections) {
       incidents.push({ kind: "route", objectId: route.id, direction });
+    }
+    if (endpointDirections.length === 0 && point) {
+      for (const direction of routeThroughDirections(centerline, point)) {
+        incidents.push({ kind: "route", objectId: route.id, direction });
+      }
     }
   }
   for (const endpoint of endpoints) {
