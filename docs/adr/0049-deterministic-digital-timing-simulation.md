@@ -30,10 +30,12 @@ terminal must connect to Ground; its positive terminal drives the logical Net.
 
 Saved nodes are observation selections in the run profile, not electrical
 probes. Simulation results remain derived data and are not stored in Project
-JSON. This delivery deliberately exposes no timing-simulation controls,
-waveform presentation, export, or canvas-placement workflow in the editor GUI.
-The Pulse Source remains a resolvable symbol and device contract for project
-compatibility and programmatic use, but it is hidden from the editor palette.
+JSON. The local development editor exposes timing controls, waveform
+presentation and export, optional canvas placement, and Pulse Source authoring
+behind `VITE_ICM_TIMING_UI`. The default is enabled for local development and
+disabled for production; the Cloudflare workflow also sets `disabled`
+explicitly. The simulation layer and project compatibility never depend on
+this presentation flag.
 
 Razavi Figure 20.54 governs presentation only: stacked square traces, signal
 labels, dashed timing guides, and a horizontal time axis. It cannot establish
@@ -44,8 +46,8 @@ logic values, event ordering, or clock semantics.
 - Identical Document/profile inputs produce identical traces.
 - The simulation layer can grow without making the editor or netlist exporter
   its execution engine.
-- Existing projects containing Pulse Sources remain loadable even though new
-  Pulse Sources cannot be authored through the editor palette.
+- Existing projects containing Pulse Sources remain loadable in every build;
+  the local development palette also supports authoring new Pulse Sources.
 - An unused DFF `QBAR` output may remain unconnected; `D`, `CK`, and `Q` remain
   required for the supported rising-edge behavior.
 - Gate delay, setup/hold timing, metastability, hierarchy, and analog threshold
@@ -57,5 +59,5 @@ logic values, event ordering, or clock semantics.
   optional `QBAR`, and logical-Net equivalence.
 - Device and netlist tests cover the two-terminal Pulse Source defaults and
   SPICE/Spectre `PULSE` output.
-- Editor catalog tests verify that Pulse Source and simulation controls are not
-  exposed through the GUI.
+- Editor and browser tests cover the local timing controls and Pulse Source;
+  flag tests and the deployment workflow protect the production-hidden state.

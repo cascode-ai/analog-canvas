@@ -89,15 +89,31 @@ function markRoutingDemoNetsImported(
   }
 }
 
-test("keeps digital timing controls out of the editor GUI", async ({
+test("exposes local timing tools and opens the saved-node picker", async ({
   page,
 }) => {
   await page.goto("/editor");
 
-  await expect(page.getByRole("button", { name: "Timing" })).toHaveCount(0);
   await expect(
     page.getByLabel("Place Pulse Voltage Source", { exact: true }),
-  ).toHaveCount(0);
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Timing" }).click();
+
+  const picker = page.locator("details.timing-node-picker");
+  await picker.locator("summary").click();
+  const menu = picker.locator(".timing-node-picker-menu");
+  await expect(menu).toBeVisible();
+  await expect(menu).toContainText("No Nets in this Cell.");
+
+  const menuReceivesPointerEvents = await menu.evaluate((element) => {
+    const bounds = element.getBoundingClientRect();
+    const hit = document.elementFromPoint(
+      bounds.left + bounds.width / 2,
+      bounds.top + bounds.height / 2,
+    );
+    return hit !== null && element.contains(hit);
+  });
+  expect(menuReceivesPointerEvents).toBe(true);
 });
 
 test("opens netlist preflight and navigates its canonical finding", async ({

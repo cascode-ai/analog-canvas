@@ -83,6 +83,9 @@ importers:
       "@icm/render-svg":
         specifier: workspace:*
         version: link:../../packages/render-svg
+      "@icm/simulation":
+        specifier: workspace:*
+        version: link:../../packages/simulation
       "@icm/spice":
         specifier: workspace:*
         version: link:../../packages/spice
@@ -304,6 +307,15 @@ importers:
         specifier: workspace:*
         version: link:../symbols
 
+  packages/simulation:
+    dependencies:
+      "@icm/derived":
+        specifier: workspace:*
+        version: link:../derived
+      "@icm/model":
+        specifier: workspace:*
+        version: link:../model
+
   packages/spice:
     dependencies:
       "@icm/model":
@@ -315,15 +327,6 @@ importers:
       zod:
         specifier: 4.4.3
         version: 4.4.3
-
-  packages/simulation:
-    dependencies:
-      "@icm/derived":
-        specifier: workspace:*
-        version: link:../derived
-      "@icm/model":
-        specifier: workspace:*
-        version: link:../model
 
   packages/symbols:
     dependencies:

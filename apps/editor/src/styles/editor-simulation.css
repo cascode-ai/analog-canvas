@@ -1,0 +1,219 @@
+/* Local-development digital timing controls and Razavi-style traces. */
+
+.timing-panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 190px;
+  max-height: min(34dvh, 310px);
+  border-top: 1px solid var(--icm-border-strong);
+  background: var(--icm-surface);
+  /* The saved-node picker opens above the header into the canvas area. */
+  overflow: visible;
+}
+
+.timing-panel.collapsed {
+  display: block;
+  min-height: 0;
+  height: 0;
+  border-top: 0;
+  overflow: visible;
+}
+
+.timing-panel.collapsed .timing-panel-header {
+  position: fixed;
+  right: calc(var(--icm-props-collapsed) + var(--icm-space-2));
+  bottom: var(--icm-statusbar-h);
+  z-index: 19;
+  width: auto;
+  min-height: 30px;
+  padding: 2px var(--icm-space-2);
+  border: 1px solid var(--icm-border-strong);
+  border-bottom: 0;
+  border-radius: var(--icm-radius-sm) var(--icm-radius-sm) 0 0;
+  box-shadow: var(--icm-shadow-sm);
+}
+
+.timing-panel.collapsed .timing-run-state {
+  display: none;
+}
+
+.timing-panel-header {
+  display: flex;
+  align-items: center;
+  gap: var(--icm-space-2);
+  min-height: 34px;
+  padding: 3px var(--icm-space-3);
+  border-bottom: 1px solid var(--icm-border);
+  background: var(--icm-surface-muted);
+}
+
+.timing-panel-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 78px;
+  border-color: transparent;
+  background: transparent;
+  font-weight: 650;
+}
+
+.timing-run-state {
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+  white-space: nowrap;
+}
+
+.timing-run-state.stale {
+  color: var(--icm-warning);
+}
+
+.timing-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--icm-space-1);
+  min-width: 0;
+  margin-left: auto;
+}
+
+.timing-panel-actions button,
+.timing-node-picker > summary,
+.timing-stop-time input {
+  min-height: 26px;
+  padding: 3px 8px;
+  font-size: var(--icm-font-sm);
+}
+
+.timing-panel-actions .primary {
+  border-color: var(--icm-accent);
+  color: #fff;
+  background: var(--icm-accent);
+}
+
+.timing-stop-time {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+}
+
+.timing-stop-time input {
+  width: 72px;
+  border: 1px solid var(--icm-border-strong);
+  border-radius: var(--icm-radius-sm);
+  color: var(--icm-text);
+  background: var(--icm-surface);
+}
+
+.timing-node-picker {
+  position: relative;
+}
+
+.timing-node-picker > summary {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--icm-border-strong);
+  border-radius: var(--icm-radius-sm);
+  background: var(--icm-surface);
+  cursor: pointer;
+  list-style: none;
+  white-space: nowrap;
+}
+
+.timing-node-picker-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 7px);
+  z-index: 30;
+  display: grid;
+  gap: 4px;
+  width: min(380px, 72vw);
+  max-height: 310px;
+  padding: var(--icm-space-2);
+  border: 1px solid var(--icm-border-strong);
+  border-radius: var(--icm-radius-md);
+  background: var(--icm-surface);
+  box-shadow: var(--icm-shadow-md);
+  overflow: auto;
+}
+
+.timing-node-picker-menu label {
+  display: grid;
+  grid-template-columns: auto minmax(90px, 1fr) minmax(80px, auto);
+  align-items: center;
+  gap: var(--icm-space-2);
+  padding: 4px;
+  border-radius: var(--icm-radius-sm);
+}
+
+.timing-node-picker-menu label:hover {
+  background: var(--icm-surface-hover);
+}
+
+.timing-node-picker-menu code {
+  color: var(--icm-text-muted);
+  font: 10px/1.2 var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.timing-node-picker-actions {
+  display: flex;
+  gap: var(--icm-space-1);
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--icm-border);
+}
+
+.timing-panel-body {
+  display: flex;
+  min-height: 0;
+  overflow: auto;
+}
+
+.timing-waveform-preview {
+  flex: 1 1 auto;
+  min-width: 620px;
+  padding: 8px 16px;
+  background: #fff;
+}
+
+.timing-waveform-preview svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 130px;
+}
+
+.timing-panel-empty {
+  display: grid;
+  flex: 1;
+  place-items: center;
+  min-height: 130px;
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-sm);
+}
+
+.timing-diagnostics {
+  flex: 0 0 min(310px, 30vw);
+  padding: var(--icm-space-2);
+  border-left: 1px solid var(--icm-border);
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+  overflow: auto;
+}
+
+.timing-diagnostics ul {
+  margin: 8px 0;
+  padding-left: 20px;
+}
+
+@media (max-width: 920px) {
+  .timing-panel-actions button:not(.primary),
+  .timing-run-state {
+    display: none;
+  }
+
+  .timing-panel {
+    max-height: 28dvh;
+  }
+}

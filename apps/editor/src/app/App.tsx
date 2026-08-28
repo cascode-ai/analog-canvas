@@ -89,6 +89,9 @@ import {
   type SpiceImportReport,
 } from "../features/editor-shell/editor-file-commands";
 import { EditorStatusbar } from "../features/editor-shell/editor-statusbar";
+import { TimingSimulationPanel } from "../features/simulation/timing-simulation-panel";
+import { TIMING_UI_ENABLED } from "../features/simulation/timing-ui";
+import { waveformDraftingObjects } from "../features/simulation/timing-waveform";
 import { useCellSymbolLayout } from "../features/hierarchy/use-cell-symbol-layout";
 import {
   cellInsertLaunch,
@@ -283,6 +286,8 @@ export interface AppProps {
   visitStats?: { pv: number; uv: number } | null;
   /** Test/staging seam; production defaults to a human-only editor. */
   publicAgentUiEnabled?: boolean;
+  /** Test/staging seam; production Cloudflare builds keep timing tools hidden. */
+  timingUiEnabled?: boolean;
   /** `/g/<id>` deep link: load this gallery entry after boot. */
   initialGalleryEntryId?: string | null;
 }
@@ -291,6 +296,7 @@ export function App({
   project: initialProject,
   visitStats,
   publicAgentUiEnabled = PUBLIC_AGENT_UI_ENABLED,
+  timingUiEnabled = TIMING_UI_ENABLED,
   initialGalleryEntryId = null,
 }: AppProps) {
   const [preparedInitialProject] = useState(
@@ -3993,6 +3999,40 @@ export function App({
           }}
         />
       </div>
+      {timingUiEnabled ? (
+        <TimingSimulationPanel
+          key={document.id}
+          document={document}
+          onStatus={setStatus}
+          onPlaceOnCanvas={(result) => {
+            const grid = document.presentation.grid;
+            const origin = {
+              x: snapCoordinate(viewBox.x + viewBox.width * 0.08, grid),
+              y: snapCoordinate(viewBox.y + viewBox.height * 0.08, grid),
+            };
+            const objects = waveformDraftingObjects(
+              result,
+              origin,
+              grid,
+              (prefix) => {
+                uniqueSuffixCounter.current += 1;
+                return `${prefix}-${uniqueSuffixCounter.current}`;
+              },
+            );
+            const placed = transact(
+              objects.map((object) => ({
+                kind: "upsert_drafting_object" as const,
+                object,
+              })),
+            );
+            if (placed.ok) {
+              setStatus(
+                `Placed a static vector timing snapshot with ${result.traces.length} trace${result.traces.length === 1 ? "" : "s"}`,
+              );
+            }
+          }}
+        />
+      ) : null}
       <EditorStatusbar
         visitStats={visitStats}
         status={status}

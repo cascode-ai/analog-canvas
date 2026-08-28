@@ -98,13 +98,29 @@ describe("component insertion catalog", () => {
     expect(symbols[0]?.pins.map((pin) => pin.name)).toEqual(["P1", "P2"]);
   });
 
-  it("keeps the Pulse Source out of the editor palette", () => {
+  it("offers Pulse Source locally but can remove it with the production flag", () => {
     expect(
       findPaletteSymbol("razavi-textbook-v1", "pulse-voltage-source"),
-    ).toBeUndefined();
+    )?.toMatchObject({
+      id: "pulse-voltage-source",
+      pins: [{ name: "+" }, { name: "-" }],
+    });
     expect(
       flattenComponentCatalog(
         componentCatalog("razavi-textbook-v1", "pulse voltage source"),
+      ),
+    ).toHaveLength(1);
+    expect(
+      findPaletteSymbol("razavi-textbook-v1", "pulse-voltage-source", false),
+    ).toBeUndefined();
+    expect(
+      flattenComponentCatalog(
+        componentCatalog(
+          "razavi-textbook-v1",
+          "pulse voltage source",
+          [],
+          false,
+        ),
       ),
     ).toEqual([]);
   });

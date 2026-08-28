@@ -13,6 +13,7 @@ import {
   isAnnotationPaletteSymbol,
 } from "./annotation-preview-symbols";
 import { vddRailPreviewSymbol } from "./vdd-rail-preview-symbol";
+import { TIMING_UI_ENABLED } from "../simulation/timing-ui";
 
 /**
  * Reach order rather than taxonomy order: the devices placed most often in a
@@ -129,8 +130,6 @@ const LIBRARY_DESCRIPTIONS: Readonly<Record<string, string>> = {
   "port-filled": "An independent Cell Pin with a solid appearance",
 };
 
-const HIDDEN_PALETTE_SYMBOL_IDS = new Set(["pulse-voltage-source"]);
-
 export function libraryDisplayName(symbolId: string, fallback: string): string {
   return LIBRARY_DISPLAY_NAMES[symbolId] ?? fallback;
 }
@@ -139,13 +138,19 @@ export function libraryDescription(symbolId: string): string | undefined {
   return LIBRARY_DESCRIPTIONS[symbolId];
 }
 
-export function paletteSymbols(_styleProfileId: string): SymbolDefinition[] {
-  return [
+export function paletteSymbols(
+  _styleProfileId: string,
+  timingUiEnabled = TIMING_UI_ENABLED,
+): SymbolDefinition[] {
+  const symbols = [
     vddRailPreviewSymbol,
     ...razaviProductSymbols,
     ...annotationPreviewSymbols,
     ...expandedDeviceSymbols,
-  ].filter((symbol) => !HIDDEN_PALETTE_SYMBOL_IDS.has(symbol.id));
+  ];
+  return timingUiEnabled
+    ? symbols
+    : symbols.filter((symbol) => symbol.id !== "pulse-voltage-source");
 }
 
 /**
@@ -188,12 +193,13 @@ export function componentCatalog(
   styleProfileId: string,
   query: string,
   recentSymbolIds: readonly string[] = [],
+  timingUiEnabled = TIMING_UI_ENABLED,
 ): ComponentCatalogGroup[] {
   const normalizedQuery = query.trim().toLowerCase();
   const recentRank = new Map(
     recentSymbolIds.map((symbolId, index) => [symbolId, index]),
   );
-  const symbols = paletteSymbols(styleProfileId)
+  const symbols = paletteSymbols(styleProfileId, timingUiEnabled)
     .filter(
       (symbol) =>
         normalizedQuery.length === 0 ||
@@ -223,8 +229,9 @@ export function componentCatalog(
 export function findPaletteSymbol(
   styleProfileId: string,
   symbolId: string,
+  timingUiEnabled = TIMING_UI_ENABLED,
 ): SymbolDefinition | undefined {
-  return paletteSymbols(styleProfileId).find(
+  return paletteSymbols(styleProfileId, timingUiEnabled).find(
     (symbol) => symbol.id === symbolId,
   );
 }
