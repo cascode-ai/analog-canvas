@@ -634,7 +634,10 @@ export function useProjectFileLifecycle({
             session.workingCopyId === recovery.workingCopyId &&
             session.latest?.review === "valid" &&
             session.latest.unsavedAtSnapshot === true &&
-            session.latest.recordId !== dismissedStartupRecoveryRecordId,
+            session.latest.recordId !== dismissedStartupRecoveryRecordId &&
+            // Tiny sketches are not worth a banner; the manual Recover menu
+            // still lists every snapshot.
+            session.latest.meaningfulContent,
         ) ?? null)
       : null;
   const canRestoreStartupCloudProject =

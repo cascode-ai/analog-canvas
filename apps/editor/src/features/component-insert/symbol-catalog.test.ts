@@ -50,7 +50,7 @@ describe("component insertion catalog", () => {
     expect(symbolCategory("xor-gate")).toBe("Logic Gates");
     expect(symbolCategory("xnor-gate")).toBe("Logic Gates");
     expect(symbolCategory("npn")).toBe("Transistors");
-    expect(symbolCategory("diode")).toBe("Passives");
+    expect(symbolCategory("diode")).toBe("Transistors");
     expect(symbolCategory("ideal-switch")).toBe("Switches");
     expect(symbolCategory("closed-switch")).toBe("Switches");
     expect(symbolCategory("ndmos")).toBe("Extended Devices");

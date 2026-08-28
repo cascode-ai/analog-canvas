@@ -49,7 +49,8 @@ export function symbolCategory(symbolId: string): string {
   if (isAnnotationPaletteSymbol(symbolId)) return ANNOTATION_CATEGORY;
   const expanded = expandedDeviceCatalogEntry(symbolId);
   if (expanded) return expanded.category;
-  if (["nmos", "pmos", "npn", "pnp"].includes(symbolId)) {
+  // The diode sits with its semiconductor family, not the passives.
+  if (["nmos", "pmos", "npn", "pnp", "diode"].includes(symbolId)) {
     return "Transistors";
   }
   if (
@@ -61,7 +62,6 @@ export function symbolCategory(symbolId: string): string {
       "inductor-compact",
       "inductor",
       "variable-inductor",
-      "diode",
     ].includes(symbolId)
   ) {
     return "Passives";
@@ -156,6 +156,9 @@ export function paletteSymbols(_styleProfileId: string): SymbolDefinition[] {
 const SYMBOL_ORDER: readonly string[] = [
   "nmos",
   "pmos",
+  "npn",
+  "pnp",
+  "diode",
   "ndmos",
   "pdmos",
   "vdd-port",

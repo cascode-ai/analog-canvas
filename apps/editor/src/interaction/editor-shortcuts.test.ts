@@ -8,6 +8,7 @@ import type {
 
 const baseContext: EditorShortcutContext = {
   isTyping: false,
+  hasAuthoredContent: true,
   interactionMode: "idle",
   hasRoutedMarkerSelection: false,
   canRotate: false,
@@ -396,5 +397,47 @@ describe("editor shortcut contract", () => {
     expect(
       resolve("q", { propertiesOpen: true, interactionMode: "drawing" }),
     ).toEqual({ kind: "blocked-interaction-command", command: "Properties" });
+  });
+});
+
+describe("blank-circuit refresh", () => {
+  it("lets the browser refresh when nothing is authored", () => {
+    const empty = { ...baseContext, hasAuthoredContent: false };
+    expect(
+      resolveEditorShortcut(
+        {
+          key: "F5",
+          ctrlKey: false,
+          metaKey: false,
+          altKey: false,
+          shiftKey: false,
+        },
+        empty,
+      ),
+    ).toBeNull();
+    expect(
+      resolveEditorShortcut(
+        {
+          key: "r",
+          ctrlKey: true,
+          metaKey: false,
+          altKey: false,
+          shiftKey: false,
+        },
+        empty,
+      ),
+    ).toBeNull();
+    expect(
+      resolveEditorShortcut(
+        {
+          key: "F5",
+          ctrlKey: false,
+          metaKey: false,
+          altKey: false,
+          shiftKey: false,
+        },
+        baseContext,
+      ),
+    ).toEqual({ kind: "block-browser-refresh" });
   });
 });

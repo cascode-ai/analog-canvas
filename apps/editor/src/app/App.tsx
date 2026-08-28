@@ -170,6 +170,7 @@ import {
 import { useDocumentController } from "../document/document-controller";
 import { useProjectFileLifecycle } from "../document/use-project-file-lifecycle";
 import { useUnsavedWorkGuard } from "../document/use-unsaved-work-guard";
+import { projectHasMeaningfulContent } from "../document/project-content";
 import {
   draftingDragOrigin,
   translateDraftingObject,
@@ -669,7 +670,9 @@ export function App({
       return nextDocument;
     },
   });
-  const allowNextBrowserUnload = useUnsavedWorkGuard(isDirtyWork());
+  const allowNextBrowserUnload = useUnsavedWorkGuard(
+    isDirtyWork() && projectHasMeaningfulContent(project),
+  );
   const startupCloudRestoreAttemptedRef = useRef(false);
   const hasExplicitBootTarget =
     initialGalleryEntryId !== null ||
@@ -2594,6 +2597,7 @@ export function App({
       const currentInteraction = getCurrentInteractionState();
       const shortcut = resolveEditorShortcut(event, {
         isTyping: isTypingTarget(event.target),
+        hasAuthoredContent: projectHasMeaningfulContent(project),
         interactionMode: currentInteraction.kind,
         hasRoutedMarkerSelection: Boolean(
           selectedAnnotation && isRoutedMarker(selectedAnnotation),

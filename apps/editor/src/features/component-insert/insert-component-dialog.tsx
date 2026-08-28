@@ -174,6 +174,13 @@ export function InsertComponentDialog({
     return () => cancelAnimationFrame(frame);
   }, [initialSelectionId, open]);
 
+  const clearAllCategories = (): void => {
+    // Start from zero: hide everything, then chips turn kinds back on one by
+    // one.
+    setHiddenCategories(new Set(availableCategories));
+    inputRef.current?.focus();
+  };
+
   const toggleCategory = (category: string): void => {
     setHiddenCategories((current) => {
       const next = new Set(current);
@@ -407,6 +414,15 @@ export function InsertComponentDialog({
             role="group"
             aria-label={`${pickerNoun} categories`}
           >
+            <button
+              type="button"
+              className="insert-category-chip insert-category-clear"
+              data-testid="insert-category-clear"
+              title="Hide every category, then pick the ones to show"
+              onClick={clearAllCategories}
+            >
+              Clear all
+            </button>
             {availableCategories.map((category) => (
               <button
                 type="button"

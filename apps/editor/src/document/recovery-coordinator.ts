@@ -19,6 +19,7 @@
 // session's records. Storage failures only change coordinator state and user
 // messaging, never Project content.
 
+import { projectTextHasMeaningfulContent } from "./project-content";
 import { useEffect, useRef, useState } from "react";
 
 import { serializeProject } from "@icm/project-protocol";
@@ -60,6 +61,8 @@ export interface RecoveryGenerationSummary {
   revision: number | null;
   /** `null` means the field predates this additive recovery metadata. */
   unsavedAtSnapshot: boolean | null;
+  /** Whether the snapshot clears the meaningful-content threshold. */
+  meaningfulContent: boolean;
 }
 
 export interface RecoveryStageOptions {
@@ -179,6 +182,9 @@ function summarizeGeneration(
     revision:
       review.status === "valid" ? (readTopRevision(record) ?? null) : null,
     unsavedAtSnapshot: record.unsavedAtSnapshot ?? null,
+    meaningfulContent:
+      review.status === "valid" &&
+      projectTextHasMeaningfulContent(record.projectText),
   };
 }
 

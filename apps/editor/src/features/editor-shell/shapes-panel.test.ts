@@ -32,8 +32,8 @@ describe("shapes quick-place", () => {
     expect(
       groups.map((group) => [group.category, group.symbols.length]),
     ).toEqual([
-      ["Transistors", 4],
-      ["Passives", 8],
+      ["Transistors", 5],
+      ["Passives", 7],
       ["Power and Ports", 5],
       ["Sources", 2],
       ["Switches", 2],

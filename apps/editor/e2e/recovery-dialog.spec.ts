@@ -84,6 +84,8 @@ test("startup recovery is visible after reload and restore forks a working copy"
   page,
 }) => {
   await page.goto("/editor");
+  // One lone component is below the meaningful-content threshold: the
+  // reload must stay banner-free.
   await chooseComponent(page, "resistor");
   await page
     .getByTestId("schematic-canvas")
@@ -93,16 +95,32 @@ test("startup recovery is visible after reload and restore forks a working copy"
   await expect
     .poll(() => recoveryProjectTexts(page))
     .toContain('"revision": 1');
-
   await page.reload();
   const banner = page.getByTestId("startup-recovery-banner");
+  await expect(page.getByTestId("schematic-canvas")).toBeVisible();
+  await expect(banner).toHaveCount(0);
+
+  // Three objects clear the threshold and the banner offers the restore.
+  for (const x of [360, 470, 580]) {
+    await chooseComponent(page, "resistor");
+    await page
+      .getByTestId("schematic-canvas")
+      .click({ position: { x, y: 330 } });
+    await page.keyboard.press("Escape");
+  }
+  await expect(page.getByTestId("revision")).toHaveText("3");
+  await expect
+    .poll(() => recoveryProjectTexts(page))
+    .toContain('"revision": 3');
+
+  await page.reload();
   await expect(banner).toBeVisible();
   await expect(banner).toContainText("New Circuit");
   await banner.getByRole("button", { name: "Restore" }).click();
   await expect(banner).toBeHidden();
-  await expect(page.getByTestId("revision")).toHaveText("1");
+  await expect(page.getByTestId("revision")).toHaveText("3");
   await expect(page.getByTestId("status")).toContainText(
-    "Restored recovery revision 1",
+    "Restored recovery revision 3",
   );
 });
 
