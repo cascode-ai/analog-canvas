@@ -101,7 +101,7 @@ describe("component insertion catalog", () => {
     expect(symbols[0]?.pins.map((pin) => pin.name)).toEqual(["P1", "P2"]);
   });
 
-  it("offers Pulse Source locally but can remove it with the production flag", () => {
+  it("offers Digital Clock locally but can remove it with the production flag", () => {
     expect(
       findPaletteSymbol("razavi-textbook-v1", "pulse-voltage-source"),
     )?.toMatchObject({
@@ -110,7 +110,7 @@ describe("component insertion catalog", () => {
     });
     expect(
       flattenComponentCatalog(
-        componentCatalog("razavi-textbook-v1", "pulse voltage source"),
+        componentCatalog("razavi-textbook-v1", "digital clock"),
       ),
     ).toHaveLength(1);
     expect(
@@ -118,12 +118,7 @@ describe("component insertion catalog", () => {
     ).toBeUndefined();
     expect(
       flattenComponentCatalog(
-        componentCatalog(
-          "razavi-textbook-v1",
-          "pulse voltage source",
-          [],
-          false,
-        ),
+        componentCatalog("razavi-textbook-v1", "digital clock", [], false),
       ),
     ).toEqual([]);
   });

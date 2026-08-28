@@ -41,6 +41,14 @@ const PULSE_PARAMETER_NAMES = [
   "width",
   "period",
 ] as const;
+const DIGITAL_CLOCK_AUTHORING_PARAMETER_NAMES = [
+  "dutyCycle",
+  "initial",
+] as const;
+const ALL_CLOCK_PARAMETER_NAMES = [
+  ...PULSE_PARAMETER_NAMES,
+  ...DIGITAL_CLOCK_AUTHORING_PARAMETER_NAMES,
+] as const;
 
 function isPulseSource(instance: DesignNetlistInstance): boolean {
   return parameter(instance.parameters, "period") !== undefined;
@@ -84,7 +92,7 @@ function spiceInstance(instance: DesignNetlistInstance): string[] {
             `PULSE(${PULSE_PARAMETER_NAMES.map((name) =>
               parameter(instance.parameters, name)!,
             ).join(" ")})`,
-            ...assignments(instance.parameters, PULSE_PARAMETER_NAMES),
+            ...assignments(instance.parameters, ALL_CLOCK_PARAMETER_NAMES),
           ]
         : [
             instance.reference,
@@ -197,7 +205,7 @@ function spectreInstance(instance: DesignNetlistInstance): string {
             ...PULSE_PARAMETER_NAMES.slice(2).map(
               (name) => `${name}=${parameter(instance.parameters, name)!}`,
             ),
-            ...assignments(instance.parameters, PULSE_PARAMETER_NAMES),
+            ...assignments(instance.parameters, ALL_CLOCK_PARAMETER_NAMES),
           ]
         : [
             `dc=${parameter(instance.parameters, "dc")!}`,

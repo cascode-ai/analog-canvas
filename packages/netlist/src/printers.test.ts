@@ -144,7 +144,7 @@ describe("design netlist printers", () => {
     });
   });
 
-  it("prints a two-terminal Pulse Source in both supported dialects", () => {
+  it("prints Digital Clock compatibility fields in both supported dialects", () => {
     const ir = structuralIr();
     ir.cells[1]!.instances.push(
       device("vclock", "VCLOCK", "voltage-source", ["vin", "0"], null, [
@@ -155,6 +155,8 @@ describe("design netlist printers", () => {
         ["fall", "1ps"],
         ["width", "5ns"],
         ["period", "10ns"],
+        ["dutyCycle", "50"],
+        ["initial", "0"],
       ]),
     );
 
@@ -164,6 +166,8 @@ describe("design netlist printers", () => {
     expect(printSpectreNetlist(ir)).toContain(
       "VCLOCK (vin 0) vsource type=pulse val0=0 val1=1 delay=1ns rise=1ps fall=1ps width=5ns period=10ns",
     );
+    expect(printSpiceNetlist(ir)).not.toContain("dutyCycle=");
+    expect(printSpectreNetlist(ir)).not.toContain("initial=");
   });
 
   it("prints a voltage-controlled switch as its four-node S card", () => {

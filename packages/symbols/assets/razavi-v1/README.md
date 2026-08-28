@@ -14,7 +14,7 @@ The product set is exactly the reviewed, Reference-calibrated entries:
 
 - `nmos`, `pmos`, and `ground`;
 - `voltage-source`, `pulse-voltage-source`, `current-source`; the two-terminal
-  Pulse Source composes the calibrated independent voltage-source body with
+  Digital Clock composes the calibrated independent voltage-source body with
   the Figure 16.8 clock-pulse mark and owns its timing semantics separately;
 - `resistor`, `capacitor`, `inductor-compact`, their adjustable siblings
   `variable-resistor`, `variable-capacitor`, and `variable-inductor` (the base

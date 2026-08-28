@@ -68,7 +68,7 @@ describe("shapes quick-place", () => {
     expect(markup.match(/class="shapes-category" open=""/g)).toHaveLength(10);
     expect(markup.match(/class="shapes-category-header"/g)).toHaveLength(10);
     expect(markup).toContain('aria-label="Place Independent Voltage Source"');
-    expect(markup).toContain('aria-label="Place Pulse Voltage Source"');
+    expect(markup).toContain('aria-label="Place Digital Clock"');
     expect(markup).toContain('title="Place Capacitor"');
     expect(markup).toContain('aria-label="Place Zener"');
     expect(markup).toContain('aria-label="Place Variable Resistor"');
@@ -82,7 +82,7 @@ describe("shapes quick-place", () => {
     expect(markup).toContain('aria-label="Place P-channel DMOS"');
     expect(markup).not.toContain("High-voltage devices");
     expect(markup).toContain(">V Src</span>");
-    expect(markup).toContain(">Pulse Src</span>");
+    expect(markup).toContain(">Clock</span>");
     expect(markup).toContain(">Cap</span>");
     expect(markup).toContain(">Var Res</span>");
     expect(markup).toContain(">Inv</span>");

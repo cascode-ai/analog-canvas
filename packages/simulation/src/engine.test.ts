@@ -41,6 +41,66 @@ function pulseParameters(): Record<string, string> {
 }
 
 describe("digital event simulation", () => {
+  it("runs a Digital Clock from Period, Duty cycle, and Initial level", () => {
+    const document = createEmptyDocument("doc", "Digital clock");
+    document.instances.push(
+      instance("CLK", "pulse-voltage-source", {
+        period: "8ns",
+        dutyCycle: "25",
+        initial: "0",
+      }),
+      instance("GND", "ground"),
+    );
+    connect(document, "clock", [{ instanceId: "CLK", pinName: "+" }]);
+    connect(document, "ground", [
+      { instanceId: "CLK", pinName: "-" },
+      { instanceId: "GND", pinName: "0" },
+    ]);
+
+    const result = simulateDigitalDocument({
+      document,
+      profile: { stopTimePs: 16_000, savedNetIds: ["clock"] },
+    });
+
+    expect(result.completed).toBe(true);
+    expect(result.traces[0]?.transitions).toEqual([
+      { timePs: 0, value: "0" },
+      { timePs: 6_000, value: "1" },
+      { timePs: 8_000, value: "0" },
+      { timePs: 14_000, value: "1" },
+      { timePs: 16_000, value: "0" },
+    ]);
+  });
+
+  it("honors a high Initial level without exposing phase or delay", () => {
+    const document = createEmptyDocument("doc", "High-first clock");
+    document.instances.push(
+      instance("CLK", "pulse-voltage-source", {
+        period: "8ns",
+        dutyCycle: "25",
+        initial: "1",
+      }),
+      instance("GND", "ground"),
+    );
+    connect(document, "clock", [{ instanceId: "CLK", pinName: "+" }]);
+    connect(document, "ground", [
+      { instanceId: "CLK", pinName: "-" },
+      { instanceId: "GND", pinName: "0" },
+    ]);
+
+    const result = simulateDigitalDocument({
+      document,
+      profile: { stopTimePs: 10_000, savedNetIds: ["clock"] },
+    });
+
+    expect(result.traces[0]?.transitions).toEqual([
+      { timePs: 0, value: "1" },
+      { timePs: 2_000, value: "0" },
+      { timePs: 8_000, value: "1" },
+      { timePs: 10_000, value: "0" },
+    ]);
+  });
+
   it("propagates a Pulse Source through a combinational gate", () => {
     const document = createEmptyDocument("doc", "Pulse inverter");
     document.instances.push(

@@ -112,7 +112,7 @@ function pulseVoltageSource(measurement) {
   return {
     schemaVersion: 1,
     id: "pulse-voltage-source",
-    name: "Pulse Voltage Source",
+    name: "Digital Clock",
     viewBox: { x: -24, y: -24, width: 39, height: 48 },
     pins: sourcePins(),
     primitives: [
@@ -306,7 +306,7 @@ for (const symbol of symbols) {
           referencePath:
             "fixtures/visual-reference/razavi-reference-v1/data-converters-clock-pulse-vector-source.json",
           converterPath: "scripts/generate-razavi-peripheral-assets.mjs",
-          converterVersion: 3,
+          converterVersion: 4,
         }
       : {
           kind: "razavi-raster-reference",

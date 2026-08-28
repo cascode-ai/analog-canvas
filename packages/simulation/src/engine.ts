@@ -6,6 +6,7 @@ import type {
   SimulationDiagnostic,
 } from "./contract.js";
 import { extractDigitalCircuit, type DigitalGate } from "./extract.js";
+import { digitalSimulationInputFingerprint } from "./fingerprint.js";
 import {
   logicAnd,
   logicNot,
@@ -56,6 +57,7 @@ export function simulateDigitalDocument({
   profile,
 }: DigitalSimulationRequest): DigitalSimulationResult {
   const diagnostics: SimulationDiagnostic[] = [];
+  const inputFingerprint = digitalSimulationInputFingerprint(document);
   if (
     !Number.isSafeInteger(profile.stopTimePs) ||
     profile.stopTimePs <= 0 ||
@@ -66,6 +68,7 @@ export function simulateDigitalDocument({
     return {
       documentId: document.id,
       documentRevision: document.revision,
+      inputFingerprint,
       stopTimePs: profile.stopTimePs,
       traces: [],
       diagnostics: [
@@ -150,6 +153,22 @@ export function simulateDigitalDocument({
       value: source.initialValue,
       order: eventOrder++,
     });
+    if (source.kind === "digital-clock") {
+      let value: "0" | "1" = source.initialValue;
+      let timePs = value === "1" ? source.highTimePs : source.lowTimePs;
+      while (timePs <= profile.stopTimePs) {
+        value = complement(value) as "0" | "1";
+        events.push({
+          timePs,
+          driverId,
+          netId: source.outputNetId,
+          value,
+          order: eventOrder++,
+        });
+        timePs += value === "1" ? source.highTimePs : source.lowTimePs;
+      }
+      continue;
+    }
     const firstActive = source.initialValue === "0" ? "1" : "0";
     for (
       let cycleStart = source.delayPs;
@@ -257,6 +276,7 @@ export function simulateDigitalDocument({
   return {
     documentId: document.id,
     documentRevision: document.revision,
+    inputFingerprint,
     stopTimePs: profile.stopTimePs,
     traces: [...traceByNetId.values()],
     diagnostics,

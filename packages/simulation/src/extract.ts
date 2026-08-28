@@ -26,15 +26,26 @@ export interface DigitalDff {
   readonly initialQ: LogicValue;
 }
 
-export interface DigitalPulseSource {
+interface DigitalSourceBase {
   readonly instanceId: string;
   readonly outputNetId: string;
   readonly referenceNetId: string;
   readonly initialValue: "0" | "1";
-  readonly delayPs: number;
   readonly periodPs: number;
   readonly highTimePs: number;
 }
+
+export type DigitalPulseSource = DigitalSourceBase &
+  (
+    | {
+        readonly kind: "digital-clock";
+        readonly lowTimePs: number;
+      }
+    | {
+        readonly kind: "legacy-pulse";
+        readonly delayPs: number;
+      }
+  );
 
 export interface ExtractedDigitalCircuit {
   readonly logicalNets: readonly {
@@ -186,7 +197,7 @@ function extractPulse(
     diagnostics.push({
       code: "SIM_SHORTED_SOURCE",
       severity: "error",
-      message: `Pulse source ${instance.id} has both terminals on the same logical Net`,
+      message: `Digital Clock ${instance.id} has both terminals on the same logical Net`,
       objectIds: [instance.id, outputNetId],
     });
     return null;
@@ -195,30 +206,55 @@ function extractPulse(
     diagnostics.push({
       code: "SIM_REFERENCE_NOT_GROUND",
       severity: "error",
-      message: `Pulse source ${instance.id} negative terminal must connect to Ground`,
+      message: `Digital Clock ${instance.id} negative terminal must connect to Ground`,
       objectIds: [instance.id, referenceNetId],
     });
     return null;
   }
   const parameters = instance.netlist?.parameters ?? {};
   const periodPs = parseTimePs(parameters.period, 10_000);
+  const digitalClock =
+    parameters.dutyCycle !== undefined || parameters.initial !== undefined;
+  if (digitalClock) {
+    const dutyCycle = Number(parameters.dutyCycle ?? "50");
+    const initialValue = parameters.initial === "1" ? "1" : "0";
+    const highTimePs = Math.round(((periodPs ?? 0) * dutyCycle) / 100);
+    if (
+      periodPs === null ||
+      !Number.isFinite(dutyCycle) ||
+      dutyCycle <= 0 ||
+      dutyCycle >= 100 ||
+      highTimePs <= 0 ||
+      highTimePs >= periodPs
+    ) {
+      diagnostics.push({
+        code: "SIM_INVALID_PARAMETER",
+        severity: "error",
+        message: `Digital Clock ${instance.id} requires a positive period and duty cycle between 0 and 100 percent`,
+        objectIds: [instance.id],
+      });
+      return null;
+    }
+    return {
+      kind: "digital-clock",
+      instanceId: instance.id,
+      outputNetId,
+      referenceNetId,
+      initialValue,
+      periodPs,
+      highTimePs,
+      lowTimePs: periodPs - highTimePs,
+    };
+  }
   const delayPs = parseTimePs(parameters.delay, 1_000, true);
   const widthPs = parseTimePs(parameters.width, -1);
-  const dutyCycle = Number(parameters.dutyCycle ?? "50");
-  const initialValue = parameters.initial === "1" ? "1" : "0";
-  const highTimePs =
-    widthPs === null
-      ? null
-      : widthPs > 0
-        ? widthPs
-        : Math.max(1, Math.round(((periodPs ?? 0) * dutyCycle) / 100));
+  const highTimePs = widthPs;
   if (
     periodPs === null ||
     delayPs === null ||
     highTimePs === null ||
-    highTimePs >= periodPs ||
-    ((widthPs ?? -1) <= 0 &&
-      (!Number.isFinite(dutyCycle) || dutyCycle <= 0 || dutyCycle >= 100))
+    highTimePs <= 0 ||
+    highTimePs >= periodPs
   ) {
     diagnostics.push({
       code: "SIM_INVALID_PARAMETER",
@@ -229,10 +265,11 @@ function extractPulse(
     return null;
   }
   return {
+    kind: "legacy-pulse",
     instanceId: instance.id,
     outputNetId,
     referenceNetId,
-    initialValue,
+    initialValue: "0",
     delayPs,
     periodPs,
     highTimePs,

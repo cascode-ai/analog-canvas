@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { resolveDocumentLogicalNets } from "@icm/derived";
 import type { SchematicDocument } from "@icm/model";
 import {
+  digitalSimulationInputFingerprint,
   simulateDigitalDocument,
   type DigitalSimulationResult,
 } from "@icm/simulation";
@@ -69,7 +70,8 @@ export function TimingSimulationPanel({
   );
   const waveformSvg = result ? timingWaveformSvg(result) : null;
   const stale =
-    result !== null && result.documentRevision !== document.revision;
+    result !== null &&
+    result.inputFingerprint !== digitalSimulationInputFingerprint(document);
 
   const toggleSavedNet = (netId: string): void => {
     setSavedNetIds((current) => {

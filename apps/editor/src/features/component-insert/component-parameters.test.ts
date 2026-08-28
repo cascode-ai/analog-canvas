@@ -6,6 +6,7 @@ import {
   effectiveComponentParameterValue,
   externalMosComponentParameters,
   initialComponentParameterValues,
+  updateComponentParameterValues,
 } from "./component-parameters";
 import { deviceDescriptor } from "@icm/devices";
 
@@ -76,5 +77,74 @@ describe("component parameter catalogue", () => {
     expect(effectiveComponentParameterValue(instance, parameter)).toBe("1u");
     instance.netlist = { reference: "M1", parameters: { w: "3u" } };
     expect(effectiveComponentParameterValue(instance, parameter)).toBe("3u");
+  });
+
+  it("authors a flat Digital Clock profile while keeping synchronized SPICE fields", () => {
+    const parameters = componentParameters("pulse-voltage-source");
+    expect(
+      parameters
+        .filter((parameter) => !parameter.compatibilityOnly)
+        .map(({ key }) => key),
+    ).toEqual(["period", "dutyCycle", "initial"]);
+    expect(initialComponentParameterValues("pulse-voltage-source")).toEqual({
+      period: "10ns",
+      dutyCycle: "50",
+      initial: "0",
+      low: "0",
+      high: "1",
+      delay: "5ns",
+      rise: "1ps",
+      fall: "1ps",
+      width: "5ns",
+    });
+
+    expect(
+      updateComponentParameterValues(
+        "pulse-voltage-source",
+        initialComponentParameterValues("pulse-voltage-source"),
+        "dutyCycle",
+        "25",
+      ),
+    ).toMatchObject({
+      dutyCycle: "25",
+      low: "0",
+      high: "1",
+      delay: "7500ps",
+      width: "2500ps",
+    });
+    expect(
+      updateComponentParameterValues(
+        "pulse-voltage-source",
+        initialComponentParameterValues("pulse-voltage-source"),
+        "initial",
+        "1",
+      ),
+    ).toMatchObject({
+      initial: "1",
+      low: "1",
+      high: "0",
+      delay: "5000ps",
+      width: "5000ps",
+    });
+  });
+
+  it("derives Digital Clock controls when opening a legacy Pulse Source", () => {
+    const instance: Instance = {
+      id: "V1",
+      symbolId: "pulse-voltage-source",
+      placement: null,
+      netlist: {
+        reference: "V1",
+        parameters: { period: "8ns", width: "2ns", low: "0" },
+      },
+    };
+    const byKey = new Map(
+      componentParameters(instance.symbolId).map((parameter) => [
+        parameter.key,
+        effectiveComponentParameterValue(instance, parameter),
+      ]),
+    );
+    expect(byKey.get("dutyCycle")).toBe("25");
+    expect(byKey.get("initial")).toBe("0");
   });
 });

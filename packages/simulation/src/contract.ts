@@ -45,6 +45,7 @@ export interface SimulationDiagnostic {
 export interface DigitalSimulationResult {
   readonly documentId: string;
   readonly documentRevision: number;
+  readonly inputFingerprint: string;
   readonly stopTimePs: number;
   readonly traces: readonly DigitalTrace[];
   readonly diagnostics: readonly SimulationDiagnostic[];

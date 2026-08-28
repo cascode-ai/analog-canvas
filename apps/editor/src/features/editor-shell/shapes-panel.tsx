@@ -52,7 +52,7 @@ const COMPACT_LIBRARY_LABELS: Readonly<Record<string, string>> = {
   pdmos: "PDMOS",
   port: "Pin",
   "port-filled": "Pin \u2022",
-  "pulse-voltage-source": "Pulse Src",
+  "pulse-voltage-source": "Clock",
   resistor: "Res",
   "variable-capacitor": "Var Cap",
   "variable-inductor": "Var Ind",

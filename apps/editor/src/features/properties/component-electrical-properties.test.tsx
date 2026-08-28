@@ -24,6 +24,13 @@ describe("component electrical properties", () => {
             placeholder: "1u",
             help: "Total gate width",
           },
+          {
+            key: "compatibility",
+            label: "Compatibility field",
+            placeholder: "hidden",
+            help: "Netlist compatibility only",
+            compatibilityOnly: true,
+          },
         ]}
         parameterValues={{ w: "2u", nf: "2" }}
         firstInputRef={createRef<HTMLInputElement>()}
@@ -47,5 +54,6 @@ describe("component electrical properties", () => {
     expect(markup).toContain("Finger width 1u");
     expect(markup).toContain('aria-label="Additional parameter name 1"');
     expect(markup).toContain("Apply parameters");
+    expect(markup).not.toContain("Component compatibility field");
   });
 });

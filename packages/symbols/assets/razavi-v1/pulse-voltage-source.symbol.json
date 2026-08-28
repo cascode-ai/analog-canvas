@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "pulse-voltage-source",
-  "name": "Pulse Voltage Source",
+  "name": "Digital Clock",
   "viewBox": {
     "x": -24,
     "y": -24,

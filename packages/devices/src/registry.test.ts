@@ -135,20 +135,46 @@ describe("built-in device registry", () => {
     });
   });
 
-  it("defines a complete two-terminal Pulse Source protocol", () => {
+  it("defines a Digital Clock authoring profile over the two-terminal pulse protocol", () => {
     expect(deviceDescriptor("pulse-voltage-source")).toMatchObject({
       deviceClass: "voltage-source",
       referencePrefix: "V",
       pinOrder: ["+", "-"],
       targetPolicy: "builtin",
       parameters: [
-        { name: "low", defaultValue: "0" },
-        { name: "high", defaultValue: "1" },
-        { name: "delay", defaultValue: "1ns" },
-        { name: "rise", defaultValue: "1ps" },
-        { name: "fall", defaultValue: "1ps" },
-        { name: "width", defaultValue: "5ns" },
         { name: "period", defaultValue: "10ns" },
+        { name: "dutyCycle", defaultValue: "50" },
+        { name: "initial", defaultValue: "0" },
+        {
+          name: "low",
+          defaultValue: "0",
+          authoringVisibility: "compatibility",
+        },
+        {
+          name: "high",
+          defaultValue: "1",
+          authoringVisibility: "compatibility",
+        },
+        {
+          name: "delay",
+          defaultValue: "5ns",
+          authoringVisibility: "compatibility",
+        },
+        {
+          name: "rise",
+          defaultValue: "1ps",
+          authoringVisibility: "compatibility",
+        },
+        {
+          name: "fall",
+          defaultValue: "1ps",
+          authoringVisibility: "compatibility",
+        },
+        {
+          name: "width",
+          defaultValue: "5ns",
+          authoringVisibility: "compatibility",
+        },
       ],
     });
   });

@@ -957,7 +957,7 @@ export const agentRazaviAuthoringCatalog = {
     },
     {
       symbolId: "pulse-voltage-source",
-      name: "Pulse Voltage Source",
+      name: "Digital Clock",
       category: "source",
       defaultVariantId: null,
       labelVisibility: "shown",

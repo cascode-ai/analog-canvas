@@ -12,6 +12,7 @@ import {
 const result: DigitalSimulationResult = {
   documentId: "main",
   documentRevision: 4,
+  inputFingerprint: "test-fingerprint",
   stopTimePs: 20_000,
   completed: true,
   diagnostics: [],

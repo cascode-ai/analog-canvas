@@ -93,6 +93,7 @@ import {
 import { EditorStatusbar } from "../features/editor-shell/editor-statusbar";
 import { TimingSimulationPanel } from "../features/simulation/timing-simulation-panel";
 import { TIMING_UI_ENABLED } from "../features/simulation/timing-ui";
+import { updateComponentParameterValues } from "../features/component-insert/component-parameters";
 import { waveformDraftingObjects } from "../features/simulation/timing-waveform";
 import { useCellSymbolLayout } from "../features/hierarchy/use-cell-symbol-layout";
 import {
@@ -3769,10 +3770,12 @@ export function App({
                     onParameterChange: (key, value) =>
                       updateInstancePropertyDraft((current) => ({
                         ...current,
-                        parameters: {
-                          ...current.parameters,
-                          [key]: value,
-                        },
+                        parameters: updateComponentParameterValues(
+                          selectedInstance.symbolId,
+                          current.parameters,
+                          key,
+                          value,
+                        ),
                       })),
                     onReferenceVisibilityChange: (checked) =>
                       setReferenceLabelsVisible([selectedInstance.id], checked),

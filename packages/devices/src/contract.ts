@@ -21,6 +21,11 @@ export interface DeviceParameterDefinition {
   readonly placeholder: string;
   readonly help: string;
   /**
+   * Compatibility parameters remain persisted and exported but are not part
+   * of the ordinary component authoring surface. An absent value is primary.
+   */
+  readonly authoringVisibility?: "primary" | "compatibility";
+  /**
    * Value a newly placed instance starts with. It is written into the typed
    * netlist like any authored value — the schematic and the exported netlist
    * must never disagree — so a device that needs geometry to be meaningful

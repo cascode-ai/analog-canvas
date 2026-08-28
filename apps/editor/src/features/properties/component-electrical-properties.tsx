@@ -50,6 +50,9 @@ export function ComponentElectricalProperties({
   onAdditionalParametersCancel: () => void;
 }) {
   const fingerWidth = derivedFingerWidth(parameterValues.w, parameterValues.nf);
+  const primaryParameters = parameters.filter(
+    (parameter) => !parameter.compatibilityOnly,
+  );
   return (
     <div
       className="property-card property-electrical-section"
@@ -57,7 +60,7 @@ export function ComponentElectricalProperties({
     >
       <div className="property-section-heading">Parameters</div>
       <div className="component-parameter-grid">
-        {parameters.map((parameter, index) => (
+        {primaryParameters.map((parameter, index) => (
           <label key={parameter.key} title={parameter.help}>
             <span className="property-parameter-name">
               {parameter.label}
