@@ -110,6 +110,35 @@ describe("direct-contact transform lifecycle", () => {
     );
   });
 
+  it("materializes a Route when alignment pulls a direct contact apart", () => {
+    // align_instances rewrites placements exactly like move_instance, so the
+    // direct-contact reconcile gate must run for it too (audit finding #2).
+    // Aligning both bodies to x=200 moves the mirrored pins in opposite
+    // directions: A.P lands at (210,300), B.P at (190,300).
+    const document = fixture();
+    const result = executeTransaction(
+      document,
+      transaction(document, [
+        {
+          kind: "align_instances",
+          instanceIds: ["A", "B"],
+          axis: "x",
+          coordinate: 200,
+        },
+      ]),
+      context,
+    );
+    if (!result.ok) throw new Error(result.error.message);
+    expect(result.document.routes).toHaveLength(1);
+    const route = result.document.routes[0]!;
+    expect(route.netId).toBe("net-contact");
+    expect(
+      new Set([endpointKey(route.start), endpointKey(routeEnd(route))]),
+    ).toEqual(
+      new Set([endpointKey(terminal("A")), endpointKey(terminal("B"))]),
+    );
+  });
+
   it("keeps a jointly moved direct contact route-free", () => {
     const document = fixture();
     const result = executeTransaction(

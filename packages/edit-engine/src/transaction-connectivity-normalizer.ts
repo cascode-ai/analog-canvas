@@ -9,6 +9,10 @@ import {
 } from "@icm/derived";
 import type { SymbolResolver } from "@icm/symbols";
 
+import {
+  physicalContactPointKey,
+  type PhysicalContactLicense,
+} from "./transaction-connectivity.js";
 import { endpointOwnerNetId } from "./transaction-routing.js";
 
 export type PhysicalContactOperation =
@@ -71,17 +75,20 @@ function visibleEndpoints(
  * The transaction applies it and asks again, so route splits and Net merges
  * are always evaluated against fresh geometry instead of stale segment IDs.
  *
- * Only contacts incident to an object changed by the transaction are
- * normalized. Route-interior crossings are deliberately absent. This module
- * handles direct endpoint contacts and explicit Junction-on-route contacts;
- * snapped pin-to-route attachment remains a typed gesture intent.
+ * Only contacts the transaction licensed are normalized. Route-interior
+ * crossings are deliberately absent. This module handles direct endpoint
+ * contacts and explicit Junction-on-route contacts; snapped pin-to-route
+ * attachment remains a typed gesture intent.
  */
 export function nextPhysicalContactOperation(
   document: SchematicDocument,
   resolver: SymbolResolver,
-  changedObjectIds: ReadonlySet<string>,
+  license: PhysicalContactLicense,
   suppressedEndpointKeys: ReadonlySet<string> = new Set(),
 ): PhysicalContactOperation | null {
+  const endpointLicensed = (endpoint: RouteEndpoint): boolean =>
+    license.objectIds.has(endpointObjectId(endpoint)) ||
+    license.endpointKeys.has(endpointKey(endpoint));
   const endpoints = visibleEndpoints(document, resolver).filter(
     (endpoint) => !suppressedEndpointKeys.has(endpointKey(endpoint)),
   );
@@ -104,8 +111,8 @@ export function nextPhysicalContactOperation(
       const right = positioned[rightIndex]!;
       if (!samePoint(left.point, right.point)) continue;
       if (
-        !changedObjectIds.has(endpointObjectId(left.endpoint)) &&
-        !changedObjectIds.has(endpointObjectId(right.endpoint))
+        !endpointLicensed(left.endpoint) &&
+        !endpointLicensed(right.endpoint)
       ) {
         continue;
       }
@@ -128,7 +135,7 @@ export function nextPhysicalContactOperation(
     // by contrast, are explicit topology objects: a Junction on a conductor
     // is unambiguously a physical contact and is normalized here.
     if (endpoint.kind !== "junction") continue;
-    const endpointChanged = changedObjectIds.has(endpointObjectId(endpoint));
+    const junctionLicensed = endpointLicensed(endpoint);
     for (const address of findRouteSegmentsAtPoint(geometry, point)) {
       const route = document.routes.find(
         (candidate) => candidate.id === address.routeId,
@@ -146,7 +153,14 @@ export function nextPhysicalContactOperation(
       // that lead can short pins inside the symbol and destabilize the Route
       // whenever the symbol moves.
       if (segment.mode === "escape") continue;
-      if (!endpointChanged && !changedObjectIds.has(route.id)) continue;
+      // A wholesale license (introduced conductor) bonds anywhere along the
+      // Route; a typed attach only bonds at the exact point it named.
+      const routeLicensed =
+        license.objectIds.has(route.id) ||
+        license.routePoints
+          .get(route.id)
+          ?.has(physicalContactPointKey(point)) === true;
+      if (!junctionLicensed && !routeLicensed) continue;
       if (
         routeEndpoints(route).some(
           (candidate) => endpointKey(candidate) === endpointKey(endpoint),

@@ -470,15 +470,30 @@ export function createSelectionMoveController({
         );
         if (instance?.placement) instance.placement.position = move.position;
       }
-      const contactEdits: readonly SchematicEdit[] =
+      // The snap target point is a float projection and can carry dust
+      // (29.999999999999996) that the integer Point schema rejects, killing
+      // the whole move at release. The endpoint's own resolved contact point
+      // in the projected document is grid-exact by construction — attach
+      // there, exactly like placement does.
+      const attachContact =
         movingElectrical?.kind === "endpoint" &&
         targetElectrical?.kind === "route"
+          ? resolveEndpointConnection(
+              projected,
+              resolver,
+              movingElectrical.endpoint,
+            )
+          : null;
+      const contactEdits: readonly SchematicEdit[] =
+        movingElectrical?.kind === "endpoint" &&
+        targetElectrical?.kind === "route" &&
+        attachContact
           ? proposeEndpointRouteAttachment(
               projected,
               movingElectrical.endpoint,
               movingElectrical.netId,
               targetElectrical.routeId,
-              electricalMatch!.target.point,
+              attachContact.contactPoint,
               targetElectrical.segmentIndex,
               `move-${nextRoutingSuffix()}`,
             ).edits

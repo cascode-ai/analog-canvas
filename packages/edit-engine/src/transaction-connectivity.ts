@@ -280,8 +280,7 @@ export function uniquePhysicalContactId(
 }
 
 /**
- * Objects whose exact endpoint contacts this transaction may normalize
- * into electrical connections.
+ * The contacts this transaction may normalize into electrical connections.
  *
  * Only geometry the transaction INTRODUCES bonds: a placed instance, an
  * explicit Junction, a drawn power rail, a typed attach. Moving,
@@ -290,34 +289,72 @@ export function uniquePhysicalContactId(
  * rejected by a merge it never asked for). A transform that parks pins
  * on foreign conductors leaves them visually coincident but electrically
  * separate, exactly like a Crossing.
+ *
+ * The license is deliberately tiered: introduced objects bond at every
+ * contact they make, but a typed attach names one endpoint and one exact
+ * conductor point, and bonds nothing beyond them — the instance's other
+ * pins and the rest of the conductor stay inert.
  */
-export function physicalContactObjectIdsForTransaction(
+export type PhysicalContactLicense = {
+  /** Objects the transaction introduces; every contact they make bonds. */
+  readonly objectIds: Set<string>;
+  /** Endpoints a typed attach names; only that pin or Junction bonds. */
+  readonly endpointKeys: Set<string>;
+  /** Exact conductor points a typed attach names, keyed by Route ID. */
+  readonly routePoints: Map<string, Set<string>>;
+};
+
+export function physicalContactPointKey(point: Point): string {
+  return `${point.x},${point.y}`;
+}
+
+function addLicensedRoutePoint(
+  license: PhysicalContactLicense,
+  routeId: string,
+  point: Point,
+): void {
+  const points = license.routePoints.get(routeId) ?? new Set<string>();
+  points.add(physicalContactPointKey(point));
+  license.routePoints.set(routeId, points);
+}
+
+export function physicalContactLicenseForTransaction(
   transaction: EditTransaction,
-): Set<string> {
-  const result = new Set<string>();
+): PhysicalContactLicense {
+  const result: PhysicalContactLicense = {
+    objectIds: new Set(),
+    endpointKeys: new Set(),
+    routePoints: new Map(),
+  };
   for (const edit of transaction.edits) {
     switch (edit.kind) {
       case "add_instance":
-        result.add(edit.instance.id);
+        result.objectIds.add(edit.instance.id);
         break;
       case "place_instance":
-        result.add(edit.instanceId);
+        result.objectIds.add(edit.instanceId);
         break;
       case "add_junction":
-        result.add(edit.junctionId);
+        result.objectIds.add(edit.junctionId);
         break;
       case "attach_endpoint_to_route":
-        result.add(
-          edit.endpoint.kind === "terminal"
-            ? edit.endpoint.instanceId
-            : edit.endpoint.junctionId,
-        );
-        result.add(edit.routeId);
+        result.endpointKeys.add(endpointKey(edit.endpoint));
+        // The attach splits the conductor at the named point; whether a
+        // caller reuses the original Route ID for a split product must not
+        // change what bonds, so the point is licensed under every ID the
+        // edit can leave it on.
+        for (const routeId of [
+          edit.routeId,
+          edit.firstRouteId,
+          edit.secondRouteId,
+        ]) {
+          addLicensedRoutePoint(result, routeId, edit.point);
+        }
         break;
       case "add_power_rail":
-        result.add(edit.routeId);
-        result.add(edit.startJunctionId);
-        result.add(edit.endJunctionId);
+        result.objectIds.add(edit.routeId);
+        result.objectIds.add(edit.startJunctionId);
+        result.objectIds.add(edit.endJunctionId);
         break;
     }
   }

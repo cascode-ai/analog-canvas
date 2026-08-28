@@ -39,7 +39,7 @@ import { applyRouteTopologyEdit } from "./transaction-route-topology.js";
 import { applyPresentationLayoutEdit } from "./transaction-presentation-layout.js";
 import {
   mergeBaseNets,
-  physicalContactObjectIdsForTransaction,
+  physicalContactLicenseForTransaction,
   preferredPhysicalMergeTarget,
   pruneUnreachableLocalNet,
   reconcileMaterializedMosBulkBindings,
@@ -160,7 +160,11 @@ export function executeTransaction(
       edit.kind === "rotate_instance" ||
       edit.kind === "mirror_instance"
         ? [edit.instanceId]
-        : [],
+        : // Alignment rewrites placements exactly like a move; leaving it out
+          // of the follow set let aligned instances shear their routes.
+          edit.kind === "align_instances"
+          ? edit.instanceIds
+          : [],
     ),
   );
   let geometryChanged = false;
@@ -481,7 +485,12 @@ export function executeTransaction(
       (edit) =>
         edit.kind === "move_instance" ||
         edit.kind === "rotate_instance" ||
-        edit.kind === "mirror_instance",
+        edit.kind === "mirror_instance" ||
+        // Any edit that rewrites a placement or junction position can pull a
+        // zero-length direct contact apart; alignment and junction moves were
+        // missing here, leaving invisible connectivity behind.
+        edit.kind === "align_instances" ||
+        edit.kind === "move_junction",
     )
   ) {
     const directContact = reconcileTransformDirectContacts(
@@ -501,8 +510,8 @@ export function executeTransaction(
     // Keep geometry incidence separate from the broader transaction diff.
     // Net merges retarget many Routes for bookkeeping, but that must not turn
     // an otherwise local edit into a whole-document geometry repair.
-    const physicalContactObjectIds =
-      physicalContactObjectIdsForTransaction(transaction);
+    const physicalContactLicense =
+      physicalContactLicenseForTransaction(transaction);
     const suppressedPhysicalEndpointKeys = new Set(
       transaction.edits.flatMap((edit) =>
         edit.kind === "disconnect_endpoint" ? [endpointKey(edit.endpoint)] : [],
@@ -522,7 +531,7 @@ export function executeTransaction(
       const operation = nextPhysicalContactOperation(
         draft,
         resolver,
-        physicalContactObjectIds,
+        physicalContactLicense,
         suppressedPhysicalEndpointKeys,
       );
       if (!operation) break;
@@ -708,8 +717,25 @@ export function executeTransaction(
         changedObjectIds.add(routeId);
         changedRouteIds.add(routeId);
       }
-      physicalContactObjectIds.add(split.first.id);
-      physicalContactObjectIds.add(split.second.id);
+      // Split products inherit only the license the split consumed: a
+      // conductor this transaction introduced stays licensed end to end,
+      // and a typed attach point stays licensed wherever it now lies — but
+      // a split forced by a licensed Junction must not open the rest of
+      // the conductor to unrelated parked geometry.
+      if (physicalContactLicense.objectIds.has(route.id)) {
+        physicalContactLicense.objectIds.add(split.first.id);
+        physicalContactLicense.objectIds.add(split.second.id);
+      }
+      const licensedPoints = physicalContactLicense.routePoints.get(route.id);
+      if (licensedPoints) {
+        for (const productId of [split.first.id, split.second.id]) {
+          const points =
+            physicalContactLicense.routePoints.get(productId) ??
+            new Set<string>();
+          for (const point of licensedPoints) points.add(point);
+          physicalContactLicense.routePoints.set(productId, points);
+        }
+      }
       changedObjectIds.add(route.netId);
       connectivityChanged = true;
       geometryChanged = true;
