@@ -32,9 +32,9 @@ describe("shapes quick-place", () => {
     expect(
       groups.map((group) => [group.category, group.symbols.length]),
     ).toEqual([
-      ["Transistors", 5],
+      ["Transistors", 6],
       ["Passives", 7],
-      ["Power and Ports", 6],
+      ["Power and Ports", 5],
       ["Sources", 3],
       ["Switches", 2],
       ["Analog Blocks", 6],
@@ -70,7 +70,7 @@ describe("shapes quick-place", () => {
     expect(markup).toContain('aria-label="Place Independent Voltage Source"');
     expect(markup).toContain('aria-label="Place Pulse Voltage Source"');
     expect(markup).toContain('title="Place Capacitor"');
-    expect(markup).toContain('aria-label="Place Zener Diode"');
+    expect(markup).toContain('aria-label="Place Zener"');
     expect(markup).toContain('aria-label="Place Variable Resistor"');
     expect(markup).toContain('aria-label="Place Inverter"');
     expect(markup).toContain('aria-label="Place Buffer"');

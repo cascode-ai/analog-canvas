@@ -5,6 +5,7 @@ import {
   findPaletteSymbol,
   flattenComponentCatalog,
   libraryDescription,
+  libraryDisplayName,
   symbolCategory,
   symbolSubcategory,
 } from "./symbol-catalog";
@@ -52,6 +53,7 @@ describe("component insertion catalog", () => {
     expect(symbolCategory("xnor-gate")).toBe("Logic Gates");
     expect(symbolCategory("npn")).toBe("Transistors");
     expect(symbolCategory("diode")).toBe("Transistors");
+    expect(symbolCategory("zener-diode")).toBe("Transistors");
     expect(symbolCategory("ideal-switch")).toBe("Switches");
     expect(symbolCategory("closed-switch")).toBe("Switches");
     expect(symbolCategory("ndmos")).toBe("Extended Devices");
@@ -140,6 +142,7 @@ describe("component insertion catalog", () => {
   });
 
   it("describes the filled Cell Pin as an independent authoring object", () => {
+    expect(libraryDisplayName("zener-diode", "Zener Diode")).toBe("Zener");
     expect(libraryDescription("port-filled")).toBe(
       "An independent Cell Pin with a solid appearance",
     );

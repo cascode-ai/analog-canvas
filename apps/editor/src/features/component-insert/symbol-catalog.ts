@@ -52,7 +52,9 @@ export function symbolCategory(symbolId: string): string {
   const expanded = expandedDeviceCatalogEntry(symbolId);
   if (expanded) return expanded.category;
   // The diode sits with its semiconductor family, not the passives.
-  if (["nmos", "pmos", "npn", "pnp", "diode"].includes(symbolId)) {
+  if (
+    ["nmos", "pmos", "npn", "pnp", "diode", "zener-diode"].includes(symbolId)
+  ) {
     return "Transistors";
   }
   if (
@@ -130,6 +132,7 @@ export function symbolSubcategory(symbolId: string): string | undefined {
 const LIBRARY_DISPLAY_NAMES: Readonly<Record<string, string>> = {
   port: "Cell Pin",
   "port-filled": "Cell Pin (filled)",
+  "zener-diode": "Zener",
 };
 
 /** One line saying what an entry does, where the name alone leaves a doubt. */
@@ -172,6 +175,7 @@ const SYMBOL_ORDER: readonly string[] = [
   "npn",
   "pnp",
   "diode",
+  "zener-diode",
   "ndmos",
   "pdmos",
   "vdd-port",

@@ -1208,8 +1208,9 @@ test("shows the complete foldable categorized Library, quick-places a device, an
   const transistorChips = transistorCategory.locator(
     '[data-testid^="shapes-chip-"]',
   );
-  // NMOS, PMOS, NPN, PNP, and the diode that belongs with them.
-  await expect(transistorChips).toHaveCount(5);
+  // NMOS, PMOS, NPN, PNP, and the ordinary and Zener diodes that belong with
+  // their semiconductor family.
+  await expect(transistorChips).toHaveCount(6);
   const transistorGrid = transistorCategory.locator(".shapes-grid");
   // Tiles keep a fixed square size; a wider panel fits more of them per row
   // instead of stretching each tile.
@@ -1233,7 +1234,7 @@ test("shows the complete foldable categorized Library, quick-places a device, an
           ),
         ).size,
     ),
-  ).toBe(Math.ceil(4 / columns));
+  ).toBe(Math.ceil(6 / columns));
   expect(
     await transistorGrid.evaluate((element) => {
       const gridBounds = element.getBoundingClientRect();
