@@ -131,4 +131,45 @@ describe("routing affected closure", () => {
     expect(closure.electricalAnnotationIds).toEqual(["label"]);
     expect(closure.protectedObjectIds).toEqual(["label", "route"]);
   });
+
+  it("keeps an unselected dangling Route outside an explicit Instance selection", () => {
+    const document = createEmptyDocument("main", "Main");
+    document.instances.push({
+      id: "M1",
+      symbolId: "nmos",
+      placement: null,
+    });
+    document.nets.push({
+      id: "signal",
+      terminals: [{ instanceId: "M1", pinName: "G" }],
+    });
+    document.junctions.push({
+      id: "J1",
+      netId: "signal",
+      position: { x: 0, y: 0 },
+    });
+    document.routes.push(
+      createRoutePath({
+        id: "dangling",
+        netId: "signal",
+        start: { kind: "terminal", instanceId: "M1", pinName: "G" },
+        end: { kind: "junction", junctionId: "J1" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+
+    expect(
+      deriveRoutingAffectedClosure(
+        document,
+        { instanceIds: ["M1"], routeIds: [], junctionIds: [] },
+        { includeImplicitInstanceRoutes: false },
+      ),
+    ).toMatchObject({
+      instances: ["M1"],
+      internalRoutes: [],
+      internalJunctions: [],
+      boundaryRoutes: ["dangling"],
+    });
+  });
 });

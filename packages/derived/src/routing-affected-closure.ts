@@ -21,6 +21,16 @@ export interface RoutingAffectedClosure {
   readonly protectedObjectIds: readonly string[];
 }
 
+export interface RoutingAffectedClosureOptions {
+  /**
+   * Expand selected Instances to Route components whose terminal endpoints
+   * are all selected. Move/delete use that connected-subgraph behavior. An
+   * explicit clipboard selection disables it so unselected Wire never enters
+   * a copy merely because it ends at a selected part.
+   */
+  readonly includeImplicitInstanceRoutes?: boolean;
+}
+
 function stable(values: Iterable<string>): string[] {
   return [...new Set(values)].sort((left, right) =>
     left.localeCompare(right, "en"),
@@ -61,6 +71,7 @@ function isInside(
 export function deriveRoutingAffectedClosure(
   document: SchematicDocument,
   seed: RoutingSelectionSeed,
+  options: RoutingAffectedClosureOptions = {},
 ): RoutingAffectedClosure {
   const knownInstances = new Set(document.instances.map((item) => item.id));
   const knownJunctions = new Set(document.junctions.map((item) => item.id));
@@ -69,7 +80,10 @@ export function deriveRoutingAffectedClosure(
     seed.instanceIds.filter((id) => knownInstances.has(id)),
   );
   const instanceIds = new Set(instances);
-  const internal = deriveInternalGroupSelection(document, instances);
+  const internal =
+    options.includeImplicitInstanceRoutes === false
+      ? { netIds: [], routeIds: [], junctionIds: [] }
+      : deriveInternalGroupSelection(document, instances);
   const internalRouteIds = new Set(internal.routeIds);
   const internalJunctionIds = new Set(internal.junctionIds);
 

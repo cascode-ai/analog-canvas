@@ -14,6 +14,10 @@ export interface RoutingCopyCapture {
   readonly boundaryTerminalKeys: readonly string[];
 }
 
+export interface RoutingCopyCaptureOptions {
+  readonly includeImplicitInstanceRoutes?: boolean;
+}
+
 function stable(values: Iterable<string>): string[] {
   return [...new Set(values)].sort((left, right) =>
     left.localeCompare(right, "en"),
@@ -29,8 +33,9 @@ function stable(values: Iterable<string>): string[] {
 export function captureRoutingCopyFragment(
   document: SchematicDocument,
   seed: RoutingSelectionSeed,
+  options: RoutingCopyCaptureOptions = {},
 ): RoutingCopyCapture {
-  const affected = deriveRoutingAffectedClosure(document, seed);
+  const affected = deriveRoutingAffectedClosure(document, seed, options);
   const selectedInstances = new Set(affected.instances);
   const selectedAnnotations = new Set([
     ...(seed.annotationIds ?? []),
@@ -38,6 +43,7 @@ export function captureRoutingCopyFragment(
   ]);
   const internalNetIds = stable(
     document.nets.flatMap((net) =>
+      options.includeImplicitInstanceRoutes !== false &&
       net.terminals.length > 0 &&
       net.terminals.every((terminal) =>
         selectedInstances.has(terminal.instanceId),

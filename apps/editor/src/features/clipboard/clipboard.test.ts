@@ -263,6 +263,63 @@ describe("schematic clipboard", () => {
     expect(() => buildSvgScene(repeatedPreview, resolver)).not.toThrow();
   });
 
+  it("copies only an explicitly selected Instance when its dangling Wire is not selected", () => {
+    const document = createEmptyDocument("document-main", "Clipboard");
+    document.instances.push({
+      id: "M1",
+      symbolId: "nmos",
+      placement: {
+        position: { x: 100, y: 100 },
+        rotation: 0,
+        mirror: "none",
+      },
+    });
+    document.nets.push({
+      id: "signal",
+      terminals: [{ instanceId: "M1", pinName: "G" }],
+    });
+    document.junctions.push({
+      id: "J1",
+      netId: "signal",
+      position: { x: 20, y: 100 },
+    });
+    document.routes.push(
+      createRoutePath({
+        id: "dangling",
+        netId: "signal",
+        start: { kind: "terminal", instanceId: "M1", pinName: "G" },
+        end: { kind: "junction", junctionId: "J1" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+
+    const instanceOnly = copySelection(document, ["M1"], [], {
+      routeIds: [],
+      junctionIds: [],
+      annotationIds: [],
+    });
+    expect(instanceOnly).toMatchObject({
+      instances: [{ id: "M1" }],
+      nets: [],
+      routes: [],
+      junctions: [],
+    });
+
+    const explicitSubgraph = copySelection(document, ["M1"], [], {
+      routeIds: ["dangling"],
+      junctionIds: ["J1"],
+      annotationIds: [],
+    });
+    expect(explicitSubgraph?.nets.map((net) => net.id)).toEqual(["signal"]);
+    expect(explicitSubgraph?.routes.map((route) => route.id)).toEqual([
+      "dangling",
+    ]);
+    expect(explicitSubgraph?.junctions.map((junction) => junction.id)).toEqual([
+      "J1",
+    ]);
+  });
+
   it("creates an isolated translated document for a copy-placement ghost", () => {
     const document = createEmptyDocument("document-main", "Preview");
     document.instances.push({

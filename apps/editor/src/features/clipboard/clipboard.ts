@@ -71,6 +71,13 @@ export interface PasteProposal {
   operationPlan: RoutingOperationPlan;
 }
 
+/** Electrical objects the person explicitly included in the visual selection. */
+export interface ExplicitCopyRoutingSelection {
+  routeIds: readonly string[];
+  junctionIds: readonly string[];
+  annotationIds: readonly string[];
+}
+
 /**
  * Compile the transient copy-placement commands into the same ordered
  * instance edits used by ordinary canvas rotation and reflection.  Keeping
@@ -525,6 +532,7 @@ export function copySelection(
   document: SchematicDocument,
   instanceIds: readonly string[],
   draftingIds: readonly string[] = [],
+  routingSelection?: ExplicitCopyRoutingSelection,
 ): SchematicClipboard | null {
   const selectedIds = new Set(instanceIds);
   const instances = document.instances.filter((instance) =>
@@ -537,12 +545,34 @@ export function copySelection(
   // A drawing-only selection is a complete copy: notes and callouts are
   // worth duplicating on their own, and requiring a part alongside them made
   // C look broken to anyone who had only selected a piece of text.
-  if (instances.length === 0 && draftingObjects.length === 0) return null;
-  const capture = captureRoutingCopyFragment(document, {
-    instanceIds,
-    routeIds: [],
-    junctionIds: [],
-  });
+  const hasExplicitRoutingSelection = Boolean(
+    routingSelection &&
+    (routingSelection.routeIds.length > 0 ||
+      routingSelection.junctionIds.length > 0 ||
+      routingSelection.annotationIds.length > 0),
+  );
+  if (
+    instances.length === 0 &&
+    draftingObjects.length === 0 &&
+    !hasExplicitRoutingSelection
+  ) {
+    return null;
+  }
+  const capture = captureRoutingCopyFragment(
+    document,
+    {
+      instanceIds,
+      routeIds: routingSelection?.routeIds ?? [],
+      junctionIds: routingSelection?.junctionIds ?? [],
+      annotationIds: routingSelection?.annotationIds ?? [],
+    },
+    {
+      // Supplying the visual routing selection is an explicit copy contract:
+      // only those Routes travel. Legacy/programmatic callers that omit it
+      // retain connected-subgraph capture.
+      includeImplicitInstanceRoutes: routingSelection === undefined,
+    },
+  );
   const netIds = new Set(capture.clonedNetIds);
   const internalNetIds = new Set(capture.internalNetIds);
   const routeIds = new Set(capture.affected.internalRoutes);

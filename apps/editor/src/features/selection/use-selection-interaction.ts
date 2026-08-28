@@ -1092,6 +1092,11 @@ export function useSelectionInteraction(
       options.document,
       options.selectedIds,
       options.visualSelection.draftingIds,
+      {
+        routeIds: options.visualSelection.routeIds,
+        junctionIds: options.visualSelection.junctionIds,
+        annotationIds: options.visualSelection.annotationIds,
+      },
     );
     if (!copied) {
       options.setStatus("Select something to copy");

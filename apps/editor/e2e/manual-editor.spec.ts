@@ -1609,6 +1609,29 @@ test("connects copied multi-pin groups through a manually bent wire", async ({
   await expect(page.getByTestId("active-tool")).toHaveText("wire");
 });
 
+test("copies one explicitly selected transistor without its dangling Wire", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "nmos", { x: 320, y: 260 });
+  await clickDrawTool(page, "wire");
+  await page.getByTestId("terminal-M1-G").click();
+  await page
+    .getByTestId("schematic-canvas")
+    .dblclick({ position: { x: 160, y: 260 } });
+  await page.keyboard.press("Escape");
+  await expect(page.locator('[data-layer="routes"] polyline')).toHaveCount(1);
+
+  // Clicking only the Instance is an exact visual selection. The unselected
+  // dangling Route must remain on the original instead of entering the copy
+  // through electrical-closure expansion.
+  await page.getByTestId("hit-M1").click();
+  await copySelectionAt(page, { x: 560, y: 260 });
+
+  await expect(page.getByTestId("instance-count")).toHaveText("2");
+  await expect(page.locator('[data-layer="routes"] polyline')).toHaveCount(1);
+});
+
 test("moves a selected wire segment and deletes a connected component safely", async ({
   page,
 }) => {
