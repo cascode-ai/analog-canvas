@@ -26,8 +26,11 @@ import {
   type ResolvedDocumentRoutingGeometry,
 } from "@icm/derived";
 import {
+  bridgeStretchedSegment,
   moveRouteSegment,
   normalizeRouteGeometry,
+  usablePinAxis,
+  type PinAxis,
   type RouteEditPath,
   type SegmentMode,
 } from "./route-geometry-edit.js";
@@ -248,6 +251,12 @@ function stretchRouteEndpoint(
   side: "from" | "to",
   originalPoint: Point,
   movedPoint: Point,
+  /**
+   * The leads of the Route's two endpoints, in Route order. Supplied where the
+   * caller knows them so a stretched single segment can meet both pins along
+   * their own leads instead of arriving across one of them.
+   */
+  leads?: { from: PinAxis; to: PinAxis; grid: number },
 ): void {
   const segmentMode = side === "from" ? modes[0] : modes.at(-1);
   if (protectedMode(segmentMode)) {
@@ -274,6 +283,25 @@ function stretchRouteEndpoint(
       ? movedPoint.x === neighbor.x
       : movedPoint.y === neighbor.y;
     if (stillAligned) return;
+    const modeIndex = side === "from" ? 0 : modes.length - 1;
+    const mode = modes[modeIndex]!;
+    if (leads) {
+      const bends = bridgeStretchedSegment(
+        points[0]!,
+        points[1]!,
+        leads.from,
+        leads.to,
+        originallyVertical,
+        leads.grid,
+      );
+      points.splice(1, 0, ...bends);
+      modes.splice(
+        0,
+        1,
+        ...new Array<SegmentMode>(bends.length + 1).fill(mode),
+      );
+      return;
+    }
     const insertIndex = side === "from" ? 1 : points.length - 1;
     points.splice(
       insertIndex,
@@ -282,8 +310,6 @@ function stretchRouteEndpoint(
         ? { x: neighbor.x, y: movedPoint.y }
         : { x: movedPoint.x, y: neighbor.y },
     );
-    const modeIndex = side === "from" ? 0 : modes.length - 1;
-    const mode = modes[modeIndex]!;
     modes.splice(modeIndex, 1, mode, mode);
     return;
   }
@@ -443,6 +469,19 @@ function smoothedBoundaryProposal(
   } else {
     candidates.push([a, { x: b.x, y: a.y }, b]);
     candidates.push([a, { x: a.x, y: b.y }, b]);
+    // One corner can only align with one of the two leads. Where both pins
+    // point along the same axis, every single-corner shape has to arrive
+    // across one of them and lay the wire over that symbol, so the two-corner
+    // shapes are offered as well and scored on the same terms.
+    const grid = smoothing.movedDocument.presentation.grid;
+    const between = (left: number, right: number): number =>
+      grid > 0
+        ? Math.round((left + right) / 2 / grid) * grid
+        : (left + right) / 2;
+    const crossbarY = between(a.y, b.y);
+    const crossbarX = between(a.x, b.x);
+    candidates.push([a, { x: a.x, y: crossbarY }, { x: b.x, y: crossbarY }, b]);
+    candidates.push([a, { x: crossbarX, y: a.y }, { x: crossbarX, y: b.y }, b]);
   }
 
   const escapeAxis = (connection: EndpointConnection): "x" | "y" | null =>
@@ -976,6 +1015,32 @@ export function proposeGroupStretch(
   return proposeGroupMove(document, resolver, moves).routes;
 }
 
+/**
+ * Lead axes for a Route whose whole body is one segment, read from the
+ * post-move document so the pins are where the drag left them. Longer Routes
+ * already turn before each pin and need no bridge.
+ */
+function stretchedSegmentLeads(
+  movedDocument: SchematicDocument,
+  resolver: SymbolResolver,
+  route: SchematicDocument["routes"][number],
+  pointCount: number,
+): { from: PinAxis; to: PinAxis; grid: number } | undefined {
+  if (pointCount !== 2) return undefined;
+  const from = resolveEndpointConnection(movedDocument, resolver, route.start);
+  const to = resolveEndpointConnection(
+    movedDocument,
+    resolver,
+    routeEnd(route),
+  );
+  if (!from || !to) return undefined;
+  return {
+    from: usablePinAxis(from.outward, from.contactPoint, to.contactPoint),
+    to: usablePinAxis(to.outward, to.contactPoint, from.contactPoint),
+    grid: movedDocument.presentation.grid,
+  };
+}
+
 export function proposeGroupMove(
   document: SchematicDocument,
   resolver: SymbolResolver,
@@ -1091,19 +1156,35 @@ export function proposeGroupMove(
     if (!original) throw new Error(`Route ${route.id} has unresolved geometry`);
     const points = original.points.map((point) => ({ ...point }));
     const modes = [...original.segmentModes];
+    const leads = stretchedSegmentLeads(
+      movedDocument,
+      resolver,
+      route,
+      original.points.length,
+    );
     if (resolvedFromDelta) {
       const from = original.points[0]!;
-      stretchRouteEndpoint(route.id, points, modes, "from", from, {
-        x: from.x + resolvedFromDelta.x,
-        y: from.y + resolvedFromDelta.y,
-      });
+      stretchRouteEndpoint(
+        route.id,
+        points,
+        modes,
+        "from",
+        from,
+        { x: from.x + resolvedFromDelta.x, y: from.y + resolvedFromDelta.y },
+        leads,
+      );
     }
     if (toDelta) {
       const to = original.points.at(-1)!;
-      stretchRouteEndpoint(route.id, points, modes, "to", to, {
-        x: to.x + toDelta.x,
-        y: to.y + toDelta.y,
-      });
+      stretchRouteEndpoint(
+        route.id,
+        points,
+        modes,
+        "to",
+        to,
+        { x: to.x + toDelta.x, y: to.y + toDelta.y },
+        leads,
+      );
     }
     proposals.set(
       route.id,

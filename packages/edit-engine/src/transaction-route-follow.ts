@@ -13,7 +13,11 @@ import {
 import type { SymbolResolver } from "@icm/symbols";
 
 import type { SchematicEdit } from "./edit-schema.js";
-import { normalizeRouteGeometry } from "./route-geometry-edit.js";
+import {
+  bridgeStretchedSegment,
+  normalizeRouteGeometry,
+  usablePinAxis,
+} from "./route-geometry-edit.js";
 import { rebuildRoutePath } from "./route-leg-mutation.js";
 import { resolveRouteEditPath } from "./route-operations.js";
 import { pointOnSegment } from "./transaction-routing.js";
@@ -317,17 +321,25 @@ export function applyInstancesRouteFollow(
       newFrom.contactPoint.x !== newTo.contactPoint.x &&
       newFrom.contactPoint.y !== newTo.contactPoint.y
     ) {
-      const originallyVertical =
-        original.points[0]!.x === original.points[1]!.x;
-      points.splice(
-        1,
-        0,
-        originallyVertical
-          ? { x: newFrom.contactPoint.x, y: newTo.contactPoint.y }
-          : { x: newTo.contactPoint.x, y: newFrom.contactPoint.y },
+      const bends = bridgeStretchedSegment(
+        newFrom.contactPoint,
+        newTo.contactPoint,
+        usablePinAxis(
+          newFrom.outward,
+          newFrom.contactPoint,
+          newTo.contactPoint,
+        ),
+        usablePinAxis(newTo.outward, newTo.contactPoint, newFrom.contactPoint),
+        original.points[0]!.x === original.points[1]!.x,
+        draft.presentation.grid,
       );
       const mode = modes[0] ?? "manual";
-      modes.splice(0, 1, mode, mode);
+      points.splice(1, 0, ...bends);
+      modes.splice(
+        0,
+        1,
+        ...new Array<SegmentMode>(bends.length + 1).fill(mode),
+      );
     }
 
     const normalized = normalizeRouteGeometry(points, modes);

@@ -1228,11 +1228,17 @@ describe("routing Edit Engine", () => {
     const plan = proposeGroupMoveEdits(routed.document, resolver, [
       { instanceId: "A", position: { x: 160, y: 320 } },
     ]);
+    // B holds an east/west lead like A, so a single corner would have to turn
+    // up out of A's lead or in across B's. The crossbar keeps both ends on
+    // their own leads and leaves B's contact point where it was.
     expect(plan.preview.routes).toEqual([
       {
         routeId: "route-h",
-        waypoints: [{ x: 170, y: 300 }],
-        segmentModes: ["manual", "manual"],
+        waypoints: [
+          { x: 310, y: 320 },
+          { x: 310, y: 300 },
+        ],
+        segmentModes: ["manual", "manual", "manual"],
       },
     ]);
     const moved = executeTransaction(
@@ -1250,7 +1256,8 @@ describe("routing Edit Engine", () => {
       )?.centerline,
     ).toEqual([
       { x: 170, y: 320 },
-      { x: 170, y: 300 },
+      { x: 310, y: 320 },
+      { x: 310, y: 300 },
       { x: 450, y: 300 },
     ]);
   });
@@ -1477,9 +1484,13 @@ describe("routing Edit Engine", () => {
         resolver,
         moved.document.routes.find((route) => route.id === "route-h")!,
       )?.centerline,
+      // A and B both carry east/west leads, so the stretched segment leaves A
+      // along its lead and arrives at B along B's rather than turning up into
+      // B's side, which would have laid the wire across the port artwork.
     ).toEqual([
       { x: 170, y: 320 },
-      { x: 450, y: 320 },
+      { x: 310, y: 320 },
+      { x: 310, y: 300 },
       { x: 450, y: 300 },
     ]);
     expect(
@@ -1511,7 +1522,8 @@ describe("routing Edit Engine", () => {
       )?.centerline,
     ).toEqual([
       { x: 160, y: 330 },
-      { x: 450, y: 330 },
+      { x: 310, y: 330 },
+      { x: 310, y: 300 },
       { x: 450, y: 300 },
     ]);
     expect(
@@ -1544,7 +1556,8 @@ describe("routing Edit Engine", () => {
       )?.centerline,
     ).toEqual([
       { x: 160, y: 310 },
-      { x: 450, y: 310 },
+      { x: 310, y: 310 },
+      { x: 310, y: 300 },
       { x: 450, y: 300 },
     ]);
     expect(

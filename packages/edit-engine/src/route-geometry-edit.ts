@@ -326,3 +326,71 @@ export function moveRouteSegment(
 }
 
 /** Adds an explicit orthogonal jog to the selected unprotected segment. */
+
+export type PinAxis = "horizontal" | "vertical" | null;
+
+/**
+ * The axis a pin's lead is drawn along, reported only when following it also
+ * carries the wire toward the other end. A pin whose lead points away from
+ * where the wire has to go needs an escape stub rather than a corner, which
+ * is beyond what a stretch may invent, so it reports no axis and leaves the
+ * heading to the fallback.
+ */
+export function usablePinAxis(
+  outward: Point | null,
+  self: Point,
+  other: Point,
+): PinAxis {
+  if (!outward) return null;
+  const toward =
+    (other.x - self.x) * outward.x + (other.y - self.y) * outward.y;
+  if (toward <= 0) return null;
+  if (outward.x !== 0 && outward.y === 0) return "horizontal";
+  if (outward.y !== 0 && outward.x === 0) return "vertical";
+  return null;
+}
+
+/**
+ * Bends that keep a stretched single segment meeting both pins along their
+ * own leads.
+ *
+ * A one-segment Route is adjacent to both endpoints at once, so it is the
+ * only shape where following the moved end can spoil the end that stayed
+ * put. A pin is drawn with its lead along the outward direction; a wire that
+ * arrives across that axis lands on the side of the symbol and runs over its
+ * artwork instead of meeting the lead. One corner can serve only one end, so
+ * pins whose axes are parallel get two corners and a crossbar between them.
+ * Either axis may be unusable — a Junction has no lead, and a lead pointing
+ * away from the other end cannot be followed — and then the usable one
+ * decides; with neither, the segment keeps its original heading.
+ */
+export function bridgeStretchedSegment(
+  from: Point,
+  to: Point,
+  fromAxis: PinAxis,
+  toAxis: PinAxis,
+  originallyVertical: boolean,
+  grid: number,
+): Point[] {
+  const snap = (value: number): number =>
+    grid > 0 ? Math.round(value / grid) * grid : value;
+  if (fromAxis === "vertical" && toAxis === "vertical") {
+    const crossbar = snap((from.y + to.y) / 2);
+    return [
+      { x: from.x, y: crossbar },
+      { x: to.x, y: crossbar },
+    ];
+  }
+  if (fromAxis === "horizontal" && toAxis === "horizontal") {
+    const crossbar = snap((from.x + to.x) / 2);
+    return [
+      { x: crossbar, y: from.y },
+      { x: crossbar, y: to.y },
+    ];
+  }
+  const leavesVertically =
+    fromAxis === "vertical" ||
+    toAxis === "horizontal" ||
+    (fromAxis === null && toAxis === null && originallyVertical);
+  return [leavesVertically ? { x: from.x, y: to.y } : { x: to.x, y: from.y }];
+}
