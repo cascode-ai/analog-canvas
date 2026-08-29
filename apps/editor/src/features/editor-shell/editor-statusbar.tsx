@@ -28,6 +28,7 @@ export function EditorStatusbar({
   gridDotsVisible,
   annotationGrid,
   drawAngleMode,
+  wheelBehavior,
   zoomPercent,
   onToggleWireOptions,
   onWireRoutingModeChange,
@@ -36,6 +37,7 @@ export function EditorStatusbar({
   onOpenAnalytics,
   onAnnotationGridChange,
   onDrawAngleModeChange,
+  onWheelBehaviorChange,
   onZoomOut,
   onZoomIn,
   onFitView,
@@ -52,6 +54,7 @@ export function EditorStatusbar({
   gridDotsVisible: boolean;
   annotationGrid: 1 | 5 | 10;
   drawAngleMode: "free" | "45" | "orthogonal";
+  wheelBehavior: "auto" | "zoom" | "pan";
   zoomPercent: number;
   onToggleWireOptions: () => void;
   onWireRoutingModeChange: (mode: WireRoutingMode) => void;
@@ -60,6 +63,7 @@ export function EditorStatusbar({
   onOpenAnalytics: () => void;
   onAnnotationGridChange: (pitch: 1 | 5 | 10) => void;
   onDrawAngleModeChange: (mode: "free" | "45" | "orthogonal") => void;
+  onWheelBehaviorChange: (behavior: "auto" | "zoom" | "pan") => void;
   onZoomOut: () => void;
   onZoomIn: () => void;
   onFitView: () => void;
@@ -196,6 +200,21 @@ export function EditorStatusbar({
           <option value="free">Free</option>
           <option value="45">45°</option>
           <option value="orthogonal">Ortho</option>
+        </select>
+        <select
+          aria-label="Scroll wheel"
+          data-testid="wheel-behavior-select"
+          title="What a plain scroll does. Auto reads the device from the event: a mouse wheel zooms, a trackpad pans. Pick one explicitly if your device is read wrongly. Pinch and Cmd+scroll always zoom."
+          value={wheelBehavior}
+          onChange={(event) =>
+            onWheelBehaviorChange(
+              event.currentTarget.value as "auto" | "zoom" | "pan",
+            )
+          }
+        >
+          <option value="auto">Scroll: Auto</option>
+          <option value="zoom">Scroll: Zoom</option>
+          <option value="pan">Scroll: Pan</option>
         </select>
         <button
           type="button"

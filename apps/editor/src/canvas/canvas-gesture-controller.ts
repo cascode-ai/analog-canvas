@@ -70,6 +70,8 @@ export interface CanvasGestureControllerDependencies {
       svg: SVGSVGElement,
     ) => DerivedPoint;
     logicalRadiusForPixels: (svg: SVGSVGElement, pixels: number) => number;
+    /** Live read: the person can change it between two wheel events. */
+    wheelBehavior: () => WheelBehavior;
   };
   gestureSession: {
     boxPreview: BoxPreview | null;
@@ -155,31 +157,42 @@ interface WheelSourceShape {
 }
 
 /**
- * Chromium and WebKit stamp a physical wheel detent as wheelDeltaY = n*120
- * regardless of pointer-acceleration, while macOS acceleration can shrink
- * the same detent's deltaY below the small-step threshold — which made a
- * slowly turned mouse wheel read as a trackpad and pan instead of zoom. A
- * trackpad event keeps wheelDeltaY = -3 * deltaY, so a detent-quantized
- * value that breaks that ratio is a mouse wheel — decisively enough to
- * override even recent trackpad evidence.
+ * What a wheel event proves about the device that produced it.
+ *
+ * The DOM never names the device, so this reports evidence rather than a
+ * guess: "unknown" is a real answer, and the caller decides what a
+ * device-less event should do. Nothing here infers a source from how large
+ * a delta happens to be — a high-resolution or slowly turned wheel emits
+ * exactly the small values a trackpad does.
  */
-export function wheelEventIsMouseDetent(event: WheelSourceShape): boolean {
-  const wheelDeltaY = event.wheelDeltaY;
-  return (
-    event.deltaX === 0 &&
-    typeof wheelDeltaY === "number" &&
-    wheelDeltaY !== 0 &&
-    wheelDeltaY % 120 === 0 &&
-    Math.abs(wheelDeltaY) !== 3 * Math.abs(event.deltaY)
-  );
-}
+export type WheelSource = "mouse" | "trackpad" | "unknown";
 
-export function wheelEventLooksLikeTrackpad(event: WheelSourceShape): boolean {
-  if (event.deltaMode !== 0) return false;
-  if (event.deltaX !== 0) return true;
-  if (wheelEventIsMouseDetent(event)) return false;
-  if (!Number.isInteger(event.deltaY)) return true;
-  return Math.abs(event.deltaY) > 0 && Math.abs(event.deltaY) < 40;
+/**
+ * How the wheel should be read. "auto" trusts the evidence above; the two
+ * explicit values exist because no evidence is available in every browser,
+ * and a person who knows their own device should never be at the mercy of
+ * a guess.
+ */
+export type WheelBehavior = "auto" | "zoom" | "pan";
+
+export function classifyWheelSource(event: WheelSourceShape): WheelSource {
+  // Firefox and older engines report a wheel in lines or pages; a precise
+  // surface always reports pixels.
+  if (event.deltaMode !== 0) return "mouse";
+  // Chromium and WebKit carry the raw platform value alongside the
+  // normalized one. A precise surface keeps the fixed 3:1 pixel ratio,
+  // while a physical detent is quantized to multiples of 120 and breaks
+  // that ratio however much pointer acceleration shrinks its deltaY.
+  const wheelDeltaY = event.wheelDeltaY;
+  if (typeof wheelDeltaY === "number" && wheelDeltaY !== 0) {
+    if (Math.abs(wheelDeltaY) === 3 * Math.abs(event.deltaY)) return "trackpad";
+    if (wheelDeltaY % 120 === 0) return "mouse";
+  }
+  // Two axes at once is a surface, not a wheel.
+  if (event.deltaX !== 0) return "trackpad";
+  // Sub-pixel precision comes from momentum, which a detent cannot produce.
+  if (!Number.isInteger(event.deltaY)) return "trackpad";
+  return "unknown";
 }
 
 const TRACKPAD_EVIDENCE_WINDOW_MS = 1500;
@@ -196,6 +209,7 @@ export function createCanvasGestureController({
     pointFromClient,
     rawPointFromClient,
     logicalRadiusForPixels,
+    wheelBehavior,
   },
   gestureSession: {
     boxPreview,
@@ -310,17 +324,19 @@ export function createCanvasGestureController({
       );
       return;
     }
-    if (wheelEventLooksLikeTrackpad(event)) {
-      lastTrackpadWheelAt = event.timeStamp;
-    }
-    // Momentum tails of a trackpad flick can degrade into clean integer
-    // steps, so recent trackpad evidence keeps the pan interpretation — but
-    // a detent-quantized mouse wheel must zoom even inside that window: the
-    // mouse's only axis always earns the zoom.
+    const source = classifyWheelSource(event);
+    if (source === "trackpad") lastTrackpadWheelAt = event.timeStamp;
+    if (source === "mouse") lastTrackpadWheelAt = Number.NEGATIVE_INFINITY;
+    // An explicit preference is the whole answer; "auto" reads the evidence
+    // and, where a browser offers none, keeps the momentum tail of a recent
+    // trackpad gesture panning before falling back to the wheel's zoom.
     const trackpad =
-      event.deltaMode === 0 &&
-      !wheelEventIsMouseDetent(event) &&
-      event.timeStamp - lastTrackpadWheelAt < TRACKPAD_EVIDENCE_WINDOW_MS;
+      wheelBehavior() === "pan" ||
+      (wheelBehavior() === "auto" &&
+        (source === "trackpad" ||
+          (source === "unknown" &&
+            event.timeStamp - lastTrackpadWheelAt <
+              TRACKPAD_EVIDENCE_WINDOW_MS)));
     if (!trackpad) {
       if (event.shiftKey) {
         if (deltaY === 0) return;

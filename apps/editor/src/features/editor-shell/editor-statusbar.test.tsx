@@ -17,6 +17,8 @@ describe("editor statusbar", () => {
         recoveryLabel="Saved locally"
         gridDotsVisible
         drawAngleMode="free"
+        wheelBehavior="auto"
+        onWheelBehaviorChange={vi.fn()}
         onDrawAngleModeChange={vi.fn()}
         annotationGrid={5}
         zoomPercent={100}

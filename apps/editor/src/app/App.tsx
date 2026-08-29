@@ -82,7 +82,10 @@ import {
 } from "../features/wiring/use-wire-interaction";
 import { closestPointOnSegment } from "../canvas/canvas-geometry";
 import type { BoxPreview, PanPreview } from "../canvas/canvas-gesture-model";
-import { createCanvasGestureController } from "../canvas/canvas-gesture-controller";
+import {
+  createCanvasGestureController,
+  type WheelBehavior,
+} from "../canvas/canvas-gesture-controller";
 import { createEditorCanvasEventHandlers } from "../canvas/editor-canvas-event-handlers";
 import {
   canvasPointFromClient,
@@ -522,6 +525,21 @@ export function App({
     const stored = window.localStorage.getItem("icm.draw-angle.v1");
     return stored === "45" || stored === "orthogonal" ? stored : "free";
   });
+  const [wheelBehavior, setWheelBehaviorState] = useState<WheelBehavior>(() => {
+    if (typeof window === "undefined") return "auto";
+    const stored = window.localStorage.getItem("icm.wheel-behavior.v1");
+    return stored === "zoom" || stored === "pan" ? stored : "auto";
+  });
+  const wheelBehaviorRef = useRef(wheelBehavior);
+  wheelBehaviorRef.current = wheelBehavior;
+  const setWheelBehavior = (behavior: WheelBehavior): void => {
+    setWheelBehaviorState(behavior);
+    try {
+      window.localStorage.setItem("icm.wheel-behavior.v1", behavior);
+    } catch {
+      // Storage may be unavailable; the choice still applies to this session.
+    }
+  };
   const setDrawAngleMode = (mode: DrawAngleMode): void => {
     setDrawAngleModeState(mode);
     try {
@@ -2324,6 +2342,7 @@ export function App({
       rawPointFromClient: (clientX, clientY, svg) =>
         pointFromClient(clientX, clientY, svg, false),
       logicalRadiusForPixels,
+      wheelBehavior: () => wheelBehaviorRef.current,
     },
     gestureSession: {
       boxPreview,
@@ -5030,6 +5049,8 @@ export function App({
         onAnnotationGridChange={setAnnotationGrid}
         drawAngleMode={drawAngleMode}
         onDrawAngleModeChange={setDrawAngleMode}
+        wheelBehavior={wheelBehavior}
+        onWheelBehaviorChange={setWheelBehavior}
         zoomPercent={zoomPercent}
         onToggleWireOptions={() => setWireOptionsOpen((open) => !open)}
         onWireRoutingModeChange={setWireRoutingMode}
