@@ -189,6 +189,7 @@ describe("clipboard audit batch", () => {
           lineStyle: "dashed",
         },
       ],
+      draftingGroups: [],
     };
     const rotated = orientClipboard(clipboard, [
       { kind: "rotate", deltaDegrees: 90 },

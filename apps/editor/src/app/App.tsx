@@ -48,7 +48,6 @@ import type {
   SchematicDocument,
 } from "@icm/model";
 import { buildSvgScene } from "@icm/render-svg";
-import type { DigitalSimulationResult } from "@icm/simulation";
 import { renderCrashRequested, sceneCrashRequested } from "./crash-test-hooks";
 import { buildSceneSafely } from "./scene-safety";
 import {
@@ -101,7 +100,10 @@ import { EditorStatusbar } from "../features/editor-shell/editor-statusbar";
 import { TimingSimulationPanel } from "../features/simulation/timing-simulation-panel";
 import { TIMING_UI_ENABLED } from "../features/simulation/timing-ui";
 import { updateComponentParameterValues } from "../features/component-insert/component-parameters";
-import { waveformDraftingObjects } from "../features/simulation/timing-waveform";
+import {
+  waveformDraftingObjects,
+  type TimingWaveformLayout,
+} from "../features/simulation/timing-waveform";
 import { useCellSymbolLayout } from "../features/hierarchy/use-cell-symbol-layout";
 import {
   cellInsertLaunch,
@@ -293,7 +295,7 @@ import type { SnapAnchor, SnapGuideLine, SnapResult } from "../snap/engine";
 interface PendingWaveformPlacement {
   groupId: string;
   objects: DraftingObject[];
-  result: DigitalSimulationResult;
+  traceCount: number;
 }
 
 const DEFAULT_VIEWBOX: GridRect = { x: 0, y: 0, width: 960, height: 640 };
@@ -3091,11 +3093,10 @@ export function App({
     return () => window.removeEventListener("keydown", onKeyDown, true);
   });
 
-  const beginWaveformPlacement = (result: DigitalSimulationResult): void => {
+  const beginWaveformPlacement = (layout: TimingWaveformLayout): void => {
     const objects = waveformDraftingObjects(
-      result,
+      layout,
       { x: 0, y: 0 },
-      document.presentation.grid,
       (prefix) => {
         uniqueSuffixCounter.current += 1;
         return `${prefix}-${uniqueSuffixCounter.current}`;
@@ -3104,7 +3105,11 @@ export function App({
     uniqueSuffixCounter.current += 1;
     const groupId = `waveform-group-${uniqueSuffixCounter.current}`;
     setSimulationPickMode(false);
-    setPendingWaveformPlacement({ groupId, objects, result });
+    setPendingWaveformPlacement({
+      groupId,
+      objects,
+      traceCount: layout.rows.length,
+    });
     const pointer = lastCanvasPointRef.current;
     setWaveformPlacementPoint(
       pointer
@@ -3149,7 +3154,7 @@ export function App({
     setPendingWaveformPlacement(null);
     setWaveformPlacementPoint(null);
     setStatus(
-      `Placed a grouped timing snapshot with ${pendingWaveformPlacement.result.traces.length} trace${pendingWaveformPlacement.result.traces.length === 1 ? "" : "s"}`,
+      `Placed a grouped timing snapshot with ${pendingWaveformPlacement.traceCount} trace${pendingWaveformPlacement.traceCount === 1 ? "" : "s"}`,
     );
   };
 

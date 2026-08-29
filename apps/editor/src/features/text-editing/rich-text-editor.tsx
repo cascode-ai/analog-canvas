@@ -31,6 +31,8 @@ export interface RichTextEditorProps {
    */
   sourceOnly?: boolean;
   multiline?: boolean;
+  compact?: boolean;
+  deleteLabel?: string;
   onChange(content: RichTextDocument): void;
   onSizeChange(sizeScale: number): void;
   onAlignmentChange(alignment: "start" | "middle" | "end"): void;
@@ -424,6 +426,8 @@ export function RichTextEditor({
   alignment,
   sourceOnly = false,
   multiline = true,
+  compact = false,
+  deleteLabel = "Delete",
   onChange,
   onSizeChange,
   onAlignmentChange,
@@ -615,7 +619,7 @@ export function RichTextEditor({
   return (
     <div
       ref={shellRef}
-      className="rich-text-editor-shell"
+      className={`rich-text-editor-shell${compact ? " compact" : ""}`}
       onPointerDown={(event) => event.stopPropagation()}
     >
       <div
@@ -673,40 +677,42 @@ export function RichTextEditor({
             <span className="rich-text-toolbar-separator" />
           </>
         ) : null}
-        {(
-          [
-            ["start", "Align left"],
-            ["middle", "Align center"],
-            ["end", "Align right"],
-          ] as const
-        ).map(([value, label]) => (
-          <button
-            key={value}
-            type="button"
-            aria-label={label}
-            aria-pressed={alignment === value}
-            disabled={disabled}
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() => onAlignmentChange(value)}
-          >
-            <svg
-              className="rich-text-align-icon"
-              viewBox="0 0 16 16"
-              aria-hidden="true"
-            >
-              <path
-                d={
-                  value === "start"
-                    ? "M1 3h14M1 6h9M1 9h14M1 12h7"
-                    : value === "middle"
-                      ? "M1 3h14M3.5 6h9M1 9h14M4.5 12h7"
-                      : "M1 3h14M6 6h9M1 9h14M8 12h7"
-                }
-              />
-            </svg>
-          </button>
-        ))}
-        {!sourceOnly ? (
+        {!compact
+          ? (
+              [
+                ["start", "Align left"],
+                ["middle", "Align center"],
+                ["end", "Align right"],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                aria-label={label}
+                aria-pressed={alignment === value}
+                disabled={disabled}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => onAlignmentChange(value)}
+              >
+                <svg
+                  className="rich-text-align-icon"
+                  viewBox="0 0 16 16"
+                  aria-hidden="true"
+                >
+                  <path
+                    d={
+                      value === "start"
+                        ? "M1 3h14M1 6h9M1 9h14M1 12h7"
+                        : value === "middle"
+                          ? "M1 3h14M3.5 6h9M1 9h14M4.5 12h7"
+                          : "M1 3h14M6 6h9M1 9h14M8 12h7"
+                    }
+                  />
+                </svg>
+              </button>
+            ))
+          : null}
+        {!sourceOnly && !compact ? (
           <>
             <details className="rich-text-symbol-menu">
               <summary aria-label="Insert circuit symbol">Ω</summary>
@@ -760,28 +766,36 @@ export function RichTextEditor({
             <span className="rich-text-toolbar-separator" />
           </>
         ) : null}
-        <button
-          type="button"
-          aria-label="Decrease text size"
-          disabled={disabled || sizeScale <= 0.5}
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={() =>
-            onSizeChange(Math.max(0.5, Math.round((sizeScale - 0.1) * 10) / 10))
-          }
-        >
-          A-
-        </button>
-        <button
-          type="button"
-          aria-label="Increase text size"
-          disabled={disabled || sizeScale >= 3}
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={() =>
-            onSizeChange(Math.min(3, Math.round((sizeScale + 0.1) * 10) / 10))
-          }
-        >
-          A+
-        </button>
+        {!compact ? (
+          <>
+            <button
+              type="button"
+              aria-label="Decrease text size"
+              disabled={disabled || sizeScale <= 0.5}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() =>
+                onSizeChange(
+                  Math.max(0.5, Math.round((sizeScale - 0.1) * 10) / 10),
+                )
+              }
+            >
+              A-
+            </button>
+            <button
+              type="button"
+              aria-label="Increase text size"
+              disabled={disabled || sizeScale >= 3}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() =>
+                onSizeChange(
+                  Math.min(3, Math.round((sizeScale + 0.1) * 10) / 10),
+                )
+              }
+            >
+              A+
+            </button>
+          </>
+        ) : null}
         <button
           type="button"
           aria-label="Apply text changes"
@@ -793,12 +807,12 @@ export function RichTextEditor({
         </button>
         <button
           type="button"
-          aria-label="Delete text"
+          aria-label={`${deleteLabel} text`}
           disabled={disabled}
           onMouseDown={(event) => event.preventDefault()}
           onClick={onDelete}
         >
-          Delete
+          {deleteLabel}
         </button>
         {onReverseCurrentArrow ? (
           <button
@@ -967,7 +981,7 @@ export function RichTextEditor({
           // Follow the content's script: RTL text edits right-to-left.
           dir="auto"
           aria-label="Canvas text editor"
-          aria-multiline="true"
+          aria-multiline={multiline}
           style={{
             fontSize: `${15.116 * sizeScale}px`,
             // Mirror the committed alignment so centered labels edit centered.

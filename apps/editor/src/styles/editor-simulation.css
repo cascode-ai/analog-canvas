@@ -99,6 +99,7 @@
 }
 
 .digital-simulation-workspace {
+  position: relative;
   display: grid;
   grid-template-columns: 220px minmax(0, 1fr);
   min-height: 0;
@@ -182,25 +183,86 @@
   white-space: nowrap;
 }
 
-.simulation-saved-net label {
+.simulation-waveform-name {
   display: grid;
-  gap: 3px;
-}
-
-.simulation-saved-net input {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 5px;
+  align-items: center;
   width: 100%;
   min-width: 0;
-  height: 24px;
-  padding: 2px 6px;
+  min-height: 36px;
+  padding: 4px 6px;
+  color: var(--icm-text);
+  background: var(--icm-surface-muted);
   font-size: var(--icm-font-xs);
+  text-align: left;
 }
 
-.simulation-saved-net button {
+.simulation-waveform-name small {
+  grid-column: 1 / -1;
+}
+
+.simulation-waveform-name > span:not([aria-hidden]) {
+  overflow: hidden;
+  font-family: "DejaVu Sans", Arial, "Helvetica Neue", Helvetica, sans-serif;
+  font-style: italic;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.simulation-saved-net-header > button {
   flex: 0 0 24px;
   min-height: 24px;
   padding: 0;
   font-size: var(--icm-font-xs);
   white-space: nowrap;
+}
+
+.simulation-waveform-label-editor {
+  position: absolute;
+  z-index: 3;
+  top: 10px;
+  right: 10px;
+  left: 10px;
+  display: grid;
+  gap: var(--icm-space-2);
+  padding: var(--icm-space-2);
+  border: 1px solid var(--icm-border-strong);
+  border-radius: var(--icm-radius-md);
+  background: var(--icm-surface);
+  box-shadow: var(--icm-shadow-md);
+}
+
+.simulation-waveform-label-editor > header {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--icm-space-2);
+}
+
+.simulation-waveform-label-editor > header > div {
+  display: grid;
+  gap: 2px;
+}
+
+.simulation-waveform-label-editor > header small {
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+}
+
+.simulation-waveform-label-editor > header button {
+  min-width: 28px;
+  min-height: 26px;
+  margin-left: auto;
+  padding: 0;
+}
+
+.simulation-waveform-label-editor .rich-text-editor-shell {
+  box-shadow: none;
+}
+
+.simulation-waveform-label-editor .rich-text-floating-toolbar {
+  flex-wrap: wrap;
 }
 
 .digital-simulation-body {

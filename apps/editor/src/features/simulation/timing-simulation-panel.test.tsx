@@ -47,8 +47,8 @@ describe("TimingSimulationPanel", () => {
     expect(markup).toContain('<aside class="simulation-saved-nets"');
     expect(markup).toContain('class="simulation-saved-net-list" role="list"');
     expect(markup).toContain('role="listitem"');
-    expect(markup).toContain('aria-label="Waveform name for clock"');
-    expect(markup).toContain('value="clock"');
+    expect(markup).toContain('aria-label="Edit waveform name for clock"');
+    expect(markup).toContain(">clock</span>");
     expect(markup).toContain("Names below only affect waveform labels.");
     expect(markup).toContain("Pick Nets");
     expect(markup).toContain("Run Simulation");

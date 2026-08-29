@@ -2,14 +2,23 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 
 import { resolveDocumentLogicalNets } from "@icm/derived";
-import type { SchematicDocument } from "@icm/model";
+import { flattenRichText } from "@icm/model";
+import type { RichTextDocument, SchematicDocument } from "@icm/model";
 import {
   digitalSimulationInputFingerprint,
   simulateDigitalDocument,
   type DigitalSimulationResult,
 } from "@icm/simulation";
 
-import { parseSimulationTimePs, timingWaveformSvg } from "./timing-waveform";
+import { RichTextEditor } from "../text-editing/rich-text-editor";
+import {
+  createTimingWaveformDiagram,
+  defaultWaveformLabelDocument,
+  layoutTimingWaveformDiagram,
+  parseSimulationTimePs,
+  timingWaveformSvg,
+  type TimingWaveformLayout,
+} from "./timing-waveform";
 
 export interface TimingSimulationPanelProps {
   document: SchematicDocument;
@@ -20,7 +29,7 @@ export interface TimingSimulationPanelProps {
   onPickNetsChange: (active: boolean) => void;
   onToggleSavedNet: (netId: string) => void;
   onSetSavedNets: (netIds: readonly string[]) => void;
-  onPlaceOnCanvas: (result: DigitalSimulationResult) => void;
+  onPlaceOnCanvas: (layout: TimingWaveformLayout) => void;
   onStatus: (message: string) => void;
 }
 
@@ -75,7 +84,14 @@ export function TimingSimulationPanel({
 }: TimingSimulationPanelProps) {
   const [stopTime, setStopTime] = useState("40ns");
   const [result, setResult] = useState<DigitalSimulationResult | null>(null);
-  const [netAliases, setNetAliases] = useState<Record<string, string>>({});
+  const [netAliases, setNetAliases] = useState<
+    Record<string, RichTextDocument>
+  >({});
+  const [labelEditor, setLabelEditor] = useState<{
+    baseNetId: string;
+    netName: string;
+    draft: RichTextDocument;
+  } | null>(null);
   const [position, setPosition] = useState<{
     left: number;
     top: number;
@@ -101,19 +117,25 @@ export function TimingSimulationPanel({
         : retained;
     });
   }, [savedNetIds]);
-  const displayResult = useMemo(() => {
-    if (!result) return null;
-    return {
-      ...result,
-      traces: result.traces.map((trace) => {
-        const alias = trace.baseNetIds
-          .map((baseNetId) => netAliases[baseNetId]?.trim())
-          .find((candidate): candidate is string => Boolean(candidate));
-        return alias ? { ...trace, name: alias } : trace;
-      }),
-    };
-  }, [netAliases, result]);
-  const waveformSvg = displayResult ? timingWaveformSvg(displayResult) : null;
+  useEffect(() => {
+    if (labelEditor && !savedNetIds.has(labelEditor.baseNetId)) {
+      setLabelEditor(null);
+    }
+  }, [labelEditor, savedNetIds]);
+  const waveformDiagram = useMemo(
+    () => (result ? createTimingWaveformDiagram(result, netAliases) : null),
+    [netAliases, result],
+  );
+  const waveformLayout = useMemo(
+    () =>
+      waveformDiagram
+        ? layoutTimingWaveformDiagram(waveformDiagram, document.presentation)
+        : null,
+    [document.presentation, waveformDiagram],
+  );
+  const waveformSvg = waveformLayout
+    ? timingWaveformSvg(waveformLayout, document.presentation)
+    : null;
   const stale =
     result !== null &&
     result.inputFingerprint !== digitalSimulationInputFingerprint(document);
@@ -280,6 +302,61 @@ export function TimingSimulationPanel({
       </div>
 
       <div className="digital-simulation-workspace">
+        {labelEditor ? (
+          <section
+            className="simulation-waveform-label-editor"
+            aria-label={`Edit waveform name for ${labelEditor.netName}`}
+          >
+            <header>
+              <div>
+                <strong>Waveform name</strong>
+                <small>Display only · Net {labelEditor.netName}</small>
+              </div>
+              <button
+                type="button"
+                aria-label="Close waveform name editor"
+                onClick={() => setLabelEditor(null)}
+              >
+                ×
+              </button>
+            </header>
+            <RichTextEditor
+              targetKey={`waveform-${labelEditor.baseNetId}`}
+              content={labelEditor.draft}
+              sizeScale={1}
+              alignment="start"
+              multiline={false}
+              compact
+              deleteLabel="Reset"
+              onChange={(draft) =>
+                setLabelEditor((current) =>
+                  current ? { ...current, draft } : current,
+                )
+              }
+              onSizeChange={() => undefined}
+              onAlignmentChange={() => undefined}
+              onCommit={() => {
+                const { baseNetId, draft } = labelEditor;
+                setNetAliases((current) => {
+                  const next = { ...current };
+                  if (flattenRichText(draft).trim()) next[baseNetId] = draft;
+                  else delete next[baseNetId];
+                  return next;
+                });
+                setLabelEditor(null);
+              }}
+              onDelete={() => {
+                const { baseNetId } = labelEditor;
+                setNetAliases((current) => {
+                  const next = { ...current };
+                  delete next[baseNetId];
+                  return next;
+                });
+                setLabelEditor(null);
+              }}
+            />
+          </section>
+        ) : null}
         <aside className="simulation-saved-nets" aria-label="Saved Nets">
           <div className="simulation-saved-nets-heading">
             <span>Saved Nets</span>
@@ -294,7 +371,8 @@ export function TimingSimulationPanel({
                 candidate.baseNetIds.includes(baseNetId),
               );
               const netName = net?.name ?? baseNetId;
-              const waveformName = netAliases[baseNetId] ?? netName;
+              const waveformName =
+                netAliases[baseNetId] ?? defaultWaveformLabelDocument(netName);
               return (
                 <div
                   className="simulation-saved-net"
@@ -318,30 +396,23 @@ export function TimingSimulationPanel({
                       <span aria-hidden="true">×</span>
                     </button>
                   </div>
-                  <label>
+                  <button
+                    type="button"
+                    className="simulation-waveform-name"
+                    aria-label={`Edit waveform name for ${netName}`}
+                    title={`Edit waveform display name for Net ${netName}`}
+                    onClick={() =>
+                      setLabelEditor({
+                        baseNetId,
+                        netName,
+                        draft: waveformName,
+                      })
+                    }
+                  >
                     <small>Waveform name</small>
-                    <input
-                      aria-label={`Waveform name for ${netName}`}
-                      title={`Waveform display name for Net ${netName}`}
-                      value={waveformName}
-                      onChange={(event) => {
-                        const alias = event.currentTarget.value;
-                        setNetAliases((current) => ({
-                          ...current,
-                          [baseNetId]: alias,
-                        }));
-                      }}
-                      onBlur={() => {
-                        setNetAliases((current) => {
-                          const alias = current[baseNetId]?.trim();
-                          if (alias) return { ...current, [baseNetId]: alias };
-                          const next = { ...current };
-                          delete next[baseNetId];
-                          return next;
-                        });
-                      }}
-                    />
-                  </label>
+                    <span>{flattenRichText(waveformName)}</span>
+                    <span aria-hidden="true">✎</span>
+                  </button>
                 </div>
               );
             })}
@@ -403,7 +474,7 @@ export function TimingSimulationPanel({
         <button
           type="button"
           disabled={!result || result.traces.length === 0 || stale}
-          onClick={() => displayResult && onPlaceOnCanvas(displayResult)}
+          onClick={() => waveformLayout && onPlaceOnCanvas(waveformLayout)}
         >
           Place on Canvas
         </button>

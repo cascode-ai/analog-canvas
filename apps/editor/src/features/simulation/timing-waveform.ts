@@ -1,14 +1,25 @@
 import {
-  defaultDraftTextDocument,
-  snapGridPoint,
+  measureRichTextDocument,
+  resolveDocumentStyleProfile,
+  richTextMetrics,
+} from "@icm/derived";
+import {
+  createEmptyDocument,
+  flattenRichText,
   type DraftingObject,
   type GridPoint,
+  type RichTextDocument,
+  type SchematicDocument,
 } from "@icm/model";
+import { renderDocumentSvg } from "@icm/render-svg";
 import type {
   DigitalSimulationResult,
   DigitalTrace,
   LogicValue,
 } from "@icm/simulation";
+import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
+
+const waveformResolver = new InMemorySymbolResolver(builtInSymbols);
 
 const TIME_SCALE_PS: Readonly<Record<string, number>> = {
   ps: 1,
@@ -81,14 +92,6 @@ export function traceStepPoints(
   return points;
 }
 
-function escapeXml(value: string): string {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
-}
-
 function guideTimes(result: DigitalSimulationResult): number[] {
   return [
     ...new Set(
@@ -103,89 +106,192 @@ function guideTimes(result: DigitalSimulationResult): number[] {
     .slice(0, 24);
 }
 
-export function timingWaveformSvg(result: DigitalSimulationResult): string {
-  const width = 900;
-  const labelWidth = 120;
-  const plotLeft = 140;
-  const plotWidth = 700;
-  const rowHeight = 54;
-  const traceAmplitude = 24;
-  const topPadding = 28;
-  const axisY = topPadding + result.traces.length * rowHeight + 18;
-  const height = axisY + 40;
-  const guides = guideTimes(result)
-    .map((timePs) => {
-      const x = plotLeft + (timePs / result.stopTimePs) * plotWidth;
-      return `<line class="guide" x1="${x}" y1="${topPadding - 8}" x2="${x}" y2="${axisY - 8}" />`;
-    })
-    .join("");
-  const traces = result.traces
-    .map((trace, index) => {
-      const top = topPadding + index * rowHeight;
-      const points = traceStepPoints(
+/** Waveform labels default to full-size Razavi bold italic text. */
+export function defaultWaveformLabelDocument(value: string): RichTextDocument {
+  return {
+    runs: [
+      {
+        kind: "span",
+        style: "italic",
+        children: [
+          {
+            kind: "span",
+            style: "bold",
+            children: [{ kind: "text", value }],
+          },
+        ],
+      },
+    ],
+  };
+}
+
+export interface TimingWaveformDiagramRow {
+  trace: DigitalTrace;
+  label: RichTextDocument;
+}
+
+export interface TimingWaveformDiagram {
+  result: DigitalSimulationResult;
+  rows: TimingWaveformDiagramRow[];
+}
+
+interface WaveformTextLayout {
+  content: RichTextDocument;
+  position: GridPoint;
+  alignment: "start" | "middle" | "end";
+}
+
+export interface TimingWaveformLayout {
+  diagram: TimingWaveformDiagram;
+  width: number;
+  height: number;
+  title: WaveformTextLayout;
+  rows: Array<{
+    label: WaveformTextLayout;
+    points: GridPoint[];
+  }>;
+  guides: Array<{ from: GridPoint; to: GridPoint }>;
+  axis: { from: GridPoint; to: GridPoint };
+  stopTimeLabel: WaveformTextLayout;
+  timeSymbol: WaveformTextLayout;
+}
+
+export function createTimingWaveformDiagram(
+  result: DigitalSimulationResult,
+  aliases: Readonly<Record<string, RichTextDocument>> = {},
+): TimingWaveformDiagram {
+  return {
+    result,
+    rows: result.traces.map((trace) => {
+      const alias = trace.baseNetIds
+        .map((baseNetId) => aliases[baseNetId])
+        .find(
+          (candidate): candidate is RichTextDocument =>
+            candidate !== undefined && flattenRichText(candidate).trim() !== "",
+        );
+      return {
         trace,
-        result.stopTimePs,
+        label: alias ?? defaultWaveformLabelDocument(trace.name),
+      };
+    }),
+  };
+}
+
+function integerPoint(point: { x: number; y: number }): GridPoint {
+  return { x: Math.round(point.x), y: Math.round(point.y) };
+}
+
+export function layoutTimingWaveformDiagram(
+  diagram: TimingWaveformDiagram,
+  presentation: SchematicDocument["presentation"],
+): TimingWaveformLayout {
+  const profile = resolveDocumentStyleProfile(presentation);
+  const metrics = richTextMetrics(profile, "label");
+  const maximumLabelWidth = Math.max(
+    20,
+    ...diagram.rows.map((row) =>
+      Math.ceil(measureRichTextDocument(row.label, metrics).width),
+    ),
+  );
+  const leftPadding = 20;
+  const labelGap = Math.max(12, Math.ceil(profile.typography.labelGap * 2));
+  const plotLeft = leftPadding + maximumLabelWidth + labelGap;
+  const plotWidth = 520;
+  const rowHeight = 50;
+  const amplitude = 20;
+  const topPadding = 44;
+  const axisY = topPadding + diagram.rows.length * rowHeight + 10;
+  const axis = {
+    from: integerPoint({ x: plotLeft - 10, y: axisY }),
+    to: integerPoint({ x: plotLeft + plotWidth + 20, y: axisY }),
+  };
+  const rows = diagram.rows.map((row, index) => {
+    const top = topPadding + index * rowHeight;
+    return {
+      label: {
+        content: row.label,
+        position: integerPoint({ x: plotLeft - labelGap, y: top + 18 }),
+        alignment: "end" as const,
+      },
+      points: traceStepPoints(
+        row.trace,
+        diagram.result.stopTimePs,
         plotLeft,
         plotWidth,
         top,
-        traceAmplitude,
-      )
-        .map((point) => `${point.x},${point.y}`)
-        .join(" ");
-      return `<text class="label" x="${labelWidth}" y="${top + 18}" text-anchor="end">${escapeXml(trace.name)}</text><polyline class="trace" points="${points}" />`;
-    })
-    .join("");
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="Digital timing waveform"><defs><marker id="time-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#111"/></marker></defs><rect width="100%" height="100%" fill="#fff"/><style>.trace{fill:none;stroke:#111;stroke-width:3;stroke-linejoin:miter;stroke-linecap:square}.guide{stroke:#666;stroke-width:1.2;stroke-dasharray:5 5}.label,.time-label{fill:#111;font-family:'DejaVu Sans',Arial,'Helvetica Neue',Helvetica,sans-serif;font-size:15.116px;font-style:italic;font-weight:700}.time-label{font-size:15.116px}</style>${guides}${traces}<line x1="${plotLeft - 12}" y1="${axisY}" x2="${plotLeft + plotWidth + 16}" y2="${axisY}" stroke="#111" stroke-width="2" marker-end="url(#time-arrow)"/><text class="time-label" x="${plotLeft + plotWidth}" y="${axisY + 28}" text-anchor="end">${escapeXml(formatSimulationTime(result.stopTimePs))}</text><text class="label" x="${plotLeft + plotWidth + 28}" y="${axisY + 8}">t</text></svg>`;
+        amplitude,
+      ).map(integerPoint),
+    };
+  });
+  const guides = guideTimes(diagram.result).map((timePs) => {
+    const x = plotLeft + (timePs / diagram.result.stopTimePs) * plotWidth;
+    return {
+      from: integerPoint({ x, y: topPadding - 10 }),
+      to: integerPoint({ x, y: axisY - 10 }),
+    };
+  });
+  return {
+    diagram,
+    width: axis.to.x + 48,
+    height: axisY + 42,
+    title: {
+      content: defaultWaveformLabelDocument(
+        `Digital timing · ${formatSimulationTime(diagram.result.stopTimePs)}`,
+      ),
+      position: { x: leftPadding, y: 20 },
+      alignment: "start",
+    },
+    rows,
+    guides,
+    axis,
+    stopTimeLabel: {
+      content: defaultWaveformLabelDocument(
+        formatSimulationTime(diagram.result.stopTimePs),
+      ),
+      position: { x: plotLeft + plotWidth, y: axisY + 28 },
+      alignment: "end",
+    },
+    timeSymbol: {
+      content: defaultWaveformLabelDocument("t"),
+      position: { x: axis.to.x + 10, y: axisY + 8 },
+      alignment: "start",
+    },
+  };
 }
 
 function free(position: GridPoint) {
   return { kind: "free" as const, position };
 }
 
+function translated(point: GridPoint, origin: GridPoint): GridPoint {
+  return { x: point.x + origin.x, y: point.y + origin.y };
+}
+
 export function waveformDraftingObjects(
-  result: DigitalSimulationResult,
+  layout: TimingWaveformLayout,
   origin: GridPoint,
-  grid: number,
   nextId: (prefix: string) => string,
 ): DraftingObject[] {
   const objects: DraftingObject[] = [];
-  const labelX = origin.x;
-  const plotLeft = origin.x + 100;
-  const plotWidth = 400;
-  const rowHeight = 50;
-  const amplitude = 20;
-  const topPadding = 40;
-  const snap = (point: { x: number; y: number }) => snapGridPoint(point, grid);
-  const addText = (value: string, position: GridPoint, token: "label") => {
+  const addText = (text: WaveformTextLayout) => {
+    const position = translated(text.position, origin);
     objects.push({
       id: nextId("waveform-text"),
       kind: "text",
       locked: false,
       zIndex: 0,
       anchor: free(position),
-      content: defaultDraftTextDocument(value),
-      alignment: "start",
+      content: text.content,
+      alignment: text.alignment,
       rotation: 0,
-      typographyToken: token,
+      typographyToken: "label",
     });
   };
 
-  addText(
-    `Digital timing · ${formatSimulationTime(result.stopTimePs)}`,
-    snap({ x: labelX, y: origin.y }),
-    "label",
-  );
-  result.traces.forEach((trace, index) => {
-    const top = origin.y + topPadding + index * rowHeight;
-    const points = traceStepPoints(
-      trace,
-      result.stopTimePs,
-      plotLeft,
-      plotWidth,
-      top,
-      amplitude,
-    ).map(snap);
-    addText(trace.name, snap({ x: labelX, y: top + amplitude }), "label");
+  addText(layout.title);
+  layout.rows.forEach((row) => {
+    addText(row.label);
+    const points = row.points.map((point) => translated(point, origin));
     if (points.length >= 2) {
       objects.push({
         id: nextId("waveform-trace"),
@@ -200,11 +306,9 @@ export function waveformDraftingObjects(
     }
   });
 
-  const axisY = origin.y + topPadding + result.traces.length * rowHeight + 10;
-  for (const timePs of guideTimes(result).slice(0, 12)) {
-    const x = plotLeft + (timePs / result.stopTimePs) * plotWidth;
-    const from = snap({ x, y: origin.y + topPadding - 10 });
-    const to = snap({ x, y: axisY - 10 });
+  layout.guides.forEach((guide) => {
+    const from = translated(guide.from, origin);
+    const to = translated(guide.to, origin);
     objects.push({
       id: nextId("waveform-guide"),
       kind: "construction-line",
@@ -215,9 +319,9 @@ export function waveformDraftingObjects(
       lineStyle: "dashed",
       styleOverride: { strokeScale: 0.75 },
     });
-  }
-  const axisStart = snap({ x: plotLeft - 10, y: axisY });
-  const axisEnd = snap({ x: plotLeft + plotWidth + 20, y: axisY });
+  });
+  const axisStart = translated(layout.axis.from, origin);
+  const axisEnd = translated(layout.axis.to, origin);
   objects.push({
     id: nextId("waveform-time-axis"),
     kind: "arrow",
@@ -228,6 +332,29 @@ export function waveformDraftingObjects(
     to: free(axisEnd),
     styleOverride: { arrowHead: "filled", strokeScale: 1.25 },
   });
-  addText("t", snap({ x: axisEnd.x + 10, y: axisEnd.y + 10 }), "label");
+  addText(layout.stopTimeLabel);
+  addText(layout.timeSymbol);
   return objects;
+}
+
+/** Preview and export use the exact drafting objects later placed on canvas. */
+export function timingWaveformSvg(
+  layout: TimingWaveformLayout,
+  presentation: SchematicDocument["presentation"],
+): string {
+  const document = createEmptyDocument("digital-waveform", "Digital waveform");
+  document.presentation = { ...presentation };
+  let suffix = 0;
+  document.drafting = {
+    objects: waveformDraftingObjects(
+      layout,
+      { x: 0, y: 0 },
+      (prefix) => `${prefix}-${++suffix}`,
+    ),
+  };
+  return renderDocumentSvg(document, waveformResolver, {
+    bounds: { x: 0, y: 0, width: layout.width, height: layout.height },
+    margin: 0,
+    title: "Digital timing waveform",
+  });
 }

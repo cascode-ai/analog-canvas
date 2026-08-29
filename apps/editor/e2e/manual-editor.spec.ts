@@ -207,12 +207,29 @@ test("opens one digital simulation window and picks a Net from the canvas", asyn
 
   await simulation.getByRole("button", { name: "Clear" }).click();
   await simulation.getByLabel("Add saved Net").selectOption("clock");
-  const waveformName = simulation.getByLabel("Waveform name for CK");
-  await expect(waveformName).toHaveValue("CK");
-  await waveformName.fill("");
-  await waveformName.press("Tab");
-  await expect(waveformName).toHaveValue("CK");
-  await waveformName.fill("CLK_ALIAS");
+  const waveformName = simulation.getByRole("button", {
+    name: "Edit waveform name for CK",
+  });
+  await expect(waveformName).toContainText("CK");
+  await waveformName.click();
+  const labelEditor = simulation.getByRole("region", {
+    name: "Edit waveform name for CK",
+  });
+  const labelEditable = labelEditor.getByRole("textbox", {
+    name: "Canvas text editor",
+  });
+  await expect(labelEditor.getByRole("button", { name: "Bold" })).toBeVisible();
+  await expect(
+    labelEditor.getByRole("button", { name: "Subscript" }),
+  ).toBeVisible();
+  await labelEditable.fill("");
+  await labelEditor.getByRole("button", { name: "Apply text changes" }).click();
+  await expect(waveformName).toContainText("CK");
+  await waveformName.click();
+  await labelEditor
+    .getByRole("textbox", { name: "Canvas text editor" })
+    .fill("CLK_ALIAS");
+  await labelEditor.getByRole("button", { name: "Apply text changes" }).click();
   await expect(
     simulation.locator(".simulation-saved-net-source"),
   ).toContainText("CK");
@@ -220,14 +237,12 @@ test("opens one digital simulation window and picks a Net from the canvas", asyn
   const waveformPreview = simulation.getByTestId("timing-waveform-preview");
   await expect(waveformPreview).toBeVisible();
   await expect(waveformPreview).toContainText("CLK_ALIAS");
-  await expect(waveformPreview.locator("text").first()).toHaveCSS(
-    "font-weight",
-    "700",
-  );
-  await expect(waveformPreview.locator("text").first()).toHaveCSS(
-    "font-style",
-    "italic",
-  );
+  const razaviTitleRun = waveformPreview
+    .locator("text")
+    .first()
+    .locator("tspan tspan");
+  await expect(razaviTitleRun).toHaveCSS("font-weight", "700");
+  await expect(razaviTitleRun).toHaveCSS("font-style", "italic");
 
   const placeSnapshot = async (xRatio: number, yRatio: number) => {
     await simulation.getByRole("button", { name: "Place on Canvas" }).click();
