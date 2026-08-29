@@ -1455,6 +1455,7 @@
               "bjt",
               "voltage-source",
               "current-source",
+              "switch",
               "net-marker"
             ]
           },
