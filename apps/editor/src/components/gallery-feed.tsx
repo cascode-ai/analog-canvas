@@ -258,22 +258,48 @@ function HeartIcon({ filled }: { filled: boolean }) {
 }
 
 /**
+ * One search string against one circuit. The query arrives normalized
+ * (trimmed, lowercased); fields answer case-insensitively. A tag counts as
+ * content, so a query matching a tag matches the circuits that carry it.
+ */
+export function galleryEntryMatchesQuery(
+  entry: Pick<GalleryFeedEntry, "name" | "author" | "description" | "tags">,
+  normalizedQuery: string,
+): boolean {
+  if (!normalizedQuery) return true;
+  return [entry.name, entry.author, entry.description, ...(entry.tags ?? [])]
+    .filter((field): field is string => Boolean(field))
+    .some((field) => field.toLowerCase().includes(normalizedQuery));
+}
+
+/**
  * The wall's size, said only when the server has said it: a pre-totals API
- * or a still-loading feed renders nothing rather than a guess. With a
- * filter on, the same number means "matching", and the label says so.
+ * or a still-loading feed renders nothing rather than a guess. "Filtered"
+ * names the server-side narrowing; "match" belongs to the text query, whose
+ * clause counts VISIBLE tiles (true at every instant by construction) and
+ * says "so far" until the feed is exhausted.
  */
 export function GalleryCountPanel({
   total,
   filtered = false,
+  search = null,
 }: {
   total: number | null;
   filtered?: boolean;
+  search?: { visible: number; settled: boolean } | null;
 }) {
   if (total === null) return null;
   const noun = total === 1 ? "circuit" : "circuits";
+  const base = `${total.toLocaleString()} ${filtered ? `filtered ${noun}` : noun}`;
+  const clause = search
+    ? ` · ${search.visible} ${search.visible === 1 ? "match" : "matches"}${
+        search.settled ? "" : " so far"
+      }`
+    : "";
   return (
     <span className="gallery-count-panel" data-testid="gallery-count-panel">
-      {total.toLocaleString()} {filtered ? `matching ${noun}` : noun}
+      {base}
+      {clause}
     </span>
   );
 }
@@ -361,10 +387,9 @@ export function GalleryFeed({
       ? "shelf"
       : "gallery",
   );
-  // Twenty-odd tags wrapped to three rows and pushed the wall below the fold.
-  // A filter narrows the row to what the reader is looking for, and the rest
-  // stay one click away rather than always on screen.
-  const [tagQuery, setTagQuery] = useState("");
+  // One box, two levels: the query narrows the tag row to reachable chips,
+  // and filters the wall itself by name, author, description, and tags.
+  const [searchQuery, setSearchQuery] = useState("");
   const [showAllTags, setShowAllTags] = useState(false);
   const [isOwner, setIsOwner] = useState(false);
   const [ownerBusy, setOwnerBusy] = useState<string | null>(null);
@@ -660,10 +685,15 @@ export function GalleryFeed({
 
   const entries = state.entries;
 
-  const normalizedTagQuery = tagQuery.trim().toLowerCase();
-  const matchingTags = normalizedTagQuery
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase();
+  const visibleEntries = normalizedSearchQuery
+    ? entries.filter((entry) =>
+        galleryEntryMatchesQuery(entry, normalizedSearchQuery),
+      )
+    : entries;
+  const matchingTags = normalizedSearchQuery
     ? tagOptions.filter((option) =>
-        option.tag.toLowerCase().includes(normalizedTagQuery),
+        option.tag.toLowerCase().includes(normalizedSearchQuery),
       )
     : tagOptions;
   const everyTagSelected =
@@ -673,7 +703,7 @@ export function GalleryFeed({
   // every tag on, the pressed "Any tag" control is that reason, and pinning
   // all of them open would undo the collapse entirely.
   const visibleTags =
-    showAllTags || normalizedTagQuery
+    showAllTags || normalizedSearchQuery
       ? matchingTags
       : matchingTags.filter(
           (option, index) =>
@@ -726,6 +756,15 @@ export function GalleryFeed({
           <GalleryCountPanel
             total={state.total}
             filtered={author !== null || selectedTags.length > 0}
+            search={
+              normalizedSearchQuery
+                ? {
+                    visible: visibleEntries.length,
+                    settled:
+                      state.nextCursor === null && state.status === "ready",
+                  }
+                : null
+            }
           />
         ) : null}
       </div>
@@ -733,42 +772,44 @@ export function GalleryFeed({
 
       {view === "gallery" ? (
         <>
-          {tagOptions.length > 0 ? (
+          {tagOptions.length > 0 || entries.length > 0 ? (
             <div className="gallery-tag-bar" data-testid="gallery-tag-bar">
               <input
                 className="gallery-tag-search"
-                data-testid="gallery-tag-search"
+                data-testid="gallery-search"
                 type="search"
-                value={tagQuery}
-                placeholder="Filter tags"
-                aria-label="Filter tags"
-                onChange={(event) => setTagQuery(event.currentTarget.value)}
+                value={searchQuery}
+                placeholder="Name, author, tag…"
+                aria-label="Search circuits"
+                onChange={(event) => setSearchQuery(event.currentTarget.value)}
               />
               {/* Tags select as a union, so turning every one on is not "no
                   filter" — it is "carrying at least one tag", which drops the
                   untagged circuits. The control is named for what it does, and
                   sits with the filter box so it is reachable without first
                   expanding the row. */}
-              <button
-                type="button"
-                className="gallery-tag-option gallery-tag-any"
-                data-testid="gallery-tags-any"
-                aria-pressed={everyTagSelected}
-                title={
-                  everyTagSelected
-                    ? "Stop filtering by tag"
-                    : "Show only circuits that carry at least one tag"
-                }
-                onClick={() => {
-                  const next = everyTagSelected
-                    ? []
-                    : tagOptions.map((option) => option.tag);
-                  setSelectedTags(next);
-                  syncQuery(author, next);
-                }}
-              >
-                Any tag
-              </button>
+              {tagOptions.length > 0 ? (
+                <button
+                  type="button"
+                  className="gallery-tag-option gallery-tag-any"
+                  data-testid="gallery-tags-any"
+                  aria-pressed={everyTagSelected}
+                  title={
+                    everyTagSelected
+                      ? "Stop filtering by tag"
+                      : "Show only circuits that carry at least one tag"
+                  }
+                  onClick={() => {
+                    const next = everyTagSelected
+                      ? []
+                      : tagOptions.map((option) => option.tag);
+                    setSelectedTags(next);
+                    syncQuery(author, next);
+                  }}
+                >
+                  Any tag
+                </button>
+              ) : null}
               {visibleTags.map(({ tag, count }) => (
                 <button
                   key={tag}
@@ -795,7 +836,7 @@ export function GalleryFeed({
                   Show {hiddenTagCount} more
                 </button>
               ) : null}
-              {showAllTags && !normalizedTagQuery ? (
+              {showAllTags && !normalizedSearchQuery ? (
                 <button
                   type="button"
                   className="gallery-tag-option gallery-tag-more"
@@ -804,14 +845,6 @@ export function GalleryFeed({
                 >
                   Show fewer
                 </button>
-              ) : null}
-              {normalizedTagQuery && matchingTags.length === 0 ? (
-                <span
-                  className="gallery-tag-empty"
-                  data-testid="gallery-tags-empty"
-                >
-                  No tag matches “{tagQuery.trim()}”
-                </span>
               ) : null}
               {selectedTags.length > 0 && !everyTagSelected ? (
                 <button
@@ -854,7 +887,7 @@ export function GalleryFeed({
               <Masonry
                 aria-label="Published circuits"
                 items={[
-                  ...entries.map((entry) => ({
+                  ...visibleEntries.map((entry) => ({
                     key: entry.id,
                     node: (
                       <div className="gallery-tile-wrap">
@@ -979,33 +1012,40 @@ export function GalleryFeed({
                     ),
                   })),
                   ...(entries.length === 0 && author === null
-                    ? bundledTiles().map((tile) => ({
-                        key: `bundled-${tile.id}`,
-                        node: (
-                          <a
-                            className="gallery-tile gallery-tile-bundled"
-                            href={`/editor?example=${tile.id}`}
-                            data-testid={`gallery-bundled-${tile.id}`}
-                          >
-                            <span
-                              className="gallery-tile-preview"
-                              // Server-free preview: our own renderer's escaped SVG output.
-                              dangerouslySetInnerHTML={{ __html: tile.svg }}
-                            />
-                            <span className="gallery-tile-copy">
-                              <span className="gallery-tile-kicker">
-                                Built-in example
+                    ? bundledTiles()
+                        .filter((tile) =>
+                          galleryEntryMatchesQuery(
+                            { ...tile, author: "", tags: [] },
+                            normalizedSearchQuery,
+                          ),
+                        )
+                        .map((tile) => ({
+                          key: `bundled-${tile.id}`,
+                          node: (
+                            <a
+                              className="gallery-tile gallery-tile-bundled"
+                              href={`/editor?example=${tile.id}`}
+                              data-testid={`gallery-bundled-${tile.id}`}
+                            >
+                              <span
+                                className="gallery-tile-preview"
+                                // Server-free preview: our own renderer's escaped SVG output.
+                                dangerouslySetInnerHTML={{ __html: tile.svg }}
+                              />
+                              <span className="gallery-tile-copy">
+                                <span className="gallery-tile-kicker">
+                                  Built-in example
+                                </span>
+                                <span className="gallery-tile-name">
+                                  {tile.name}
+                                </span>
+                                <span className="gallery-tile-description">
+                                  {tile.description}
+                                </span>
                               </span>
-                              <span className="gallery-tile-name">
-                                {tile.name}
-                              </span>
-                              <span className="gallery-tile-description">
-                                {tile.description}
-                              </span>
-                            </span>
-                          </a>
-                        ),
-                      }))
+                            </a>
+                          ),
+                        }))
                     : []),
                 ]}
               />
@@ -1016,6 +1056,30 @@ export function GalleryFeed({
                 >
                   No public circuits by {author} yet.
                 </p>
+              ) : null}
+              {/* Two empty states, because only one of them is a verdict:
+                  while the cursor chain is unexhausted the true sentence is
+                  "nothing in what has loaded", not "nothing". The sentinel
+                  below keeps pulling pages whenever the thin wall leaves it
+                  in view, so the pending state resolves itself. */}
+              {normalizedSearchQuery &&
+              visibleEntries.length === 0 &&
+              entries.length > 0 ? (
+                state.nextCursor !== null ? (
+                  <p
+                    className="gallery-status"
+                    data-testid="gallery-search-pending"
+                  >
+                    No matches yet — searching older circuits…
+                  </p>
+                ) : (
+                  <p
+                    className="gallery-status"
+                    data-testid="gallery-search-empty"
+                  >
+                    No circuits match “{searchQuery.trim()}”.
+                  </p>
+                )
               ) : null}
             </section>
           )}

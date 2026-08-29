@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import {
+  galleryEntryMatchesQuery,
   GalleryCountPanel,
   GalleryFeed,
   loadGalleryFeed,
@@ -72,6 +73,33 @@ describe("loadGalleryFeed", () => {
   });
 });
 
+describe("galleryEntryMatchesQuery", () => {
+  // The caller normalizes the query (trim + lowercase); fields match
+  // case-insensitively on their side.
+  const entry = {
+    name: "Ring Oscillator",
+    author: "Mei Chen",
+    description: "Three-stage loop",
+    tags: ["clocking"],
+  };
+  it("reaches name, author, description, and tags, case-insensitively", () => {
+    expect(galleryEntryMatchesQuery(entry, "ring")).toBe(true);
+    expect(galleryEntryMatchesQuery(entry, "mei")).toBe(true);
+    expect(galleryEntryMatchesQuery(entry, "three-stage")).toBe(true);
+    expect(galleryEntryMatchesQuery(entry, "clock")).toBe(true);
+    expect(galleryEntryMatchesQuery(entry, "zzz")).toBe(false);
+  });
+  it("treats an empty query as no filter and missing fields as absent", () => {
+    expect(galleryEntryMatchesQuery(entry, "")).toBe(true);
+    expect(
+      galleryEntryMatchesQuery(
+        { name: "R1", author: "", description: "" },
+        "clock",
+      ),
+    ).toBe(false);
+  });
+});
+
 describe("GalleryCountPanel", () => {
   it("shows the wall size, marks a filtered count, and hides an unknown one", () => {
     const render = (total: number | null, filtered = false) =>
@@ -81,10 +109,29 @@ describe("GalleryCountPanel", () => {
     expect(render(1280)).toContain(`${(1280).toLocaleString()} circuits`);
     expect(render(1)).toContain("1 circuit");
     expect(render(1)).not.toContain("circuits");
-    expect(render(3, true)).toContain("3 matching circuits");
-    expect(render(1, true)).toContain("1 matching circuit");
+    // "Filtered" names the state; "match" belongs to the text query alone.
+    expect(render(3, true)).toContain("3 filtered circuits");
+    expect(render(1, true)).toContain("1 filtered circuit");
     // No total (older API, still loading): say nothing rather than guess.
     expect(render(null)).toBe("");
+  });
+
+  it("adds a visible-match clause while a search narrows the wall", () => {
+    const render = (visible: number, settled: boolean) =>
+      renderToStaticMarkup(
+        createElement(GalleryCountPanel, {
+          total: 128,
+          filtered: false,
+          search: { visible, settled },
+        }),
+      );
+    // Mid-fetch the clause says it may still grow; settled it stops saying so.
+    expect(render(3, false)).toContain("128 circuits · 3 matches so far");
+    expect(render(3, true)).toContain("128 circuits · 3 matches");
+    expect(render(3, true)).not.toContain("so far");
+    expect(render(1, true)).toContain("· 1 match");
+    expect(render(1, true)).not.toContain("1 matches");
+    expect(render(0, false)).toContain("· 0 matches so far");
   });
 });
 

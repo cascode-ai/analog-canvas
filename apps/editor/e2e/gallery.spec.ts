@@ -623,21 +623,142 @@ test("the tag row filters, collapses, and keeps a selection visible", async ({
   await expect(page.getByTestId("gallery-tag-option-ldo")).toHaveCount(0);
 
   // Filtering reaches a tag the collapsed row does not show.
-  await page.getByTestId("gallery-tag-search").fill("ld");
+  await page.getByTestId("gallery-search").fill("ld");
   await expect(page.getByTestId("gallery-tag-option-ldo")).toBeVisible();
   await expect(page.getByTestId("gallery-tag-option-amplifier")).toHaveCount(0);
 
   // A selected tag survives clearing the filter and re-collapsing: the row
   // may never hide the reason the wall is filtered.
   await page.getByTestId("gallery-tag-option-ldo").click();
-  await page.getByTestId("gallery-tag-search").fill("");
+  await page.getByTestId("gallery-search").fill("");
   await expect(page.getByTestId("gallery-tag-option-ldo")).toBeVisible();
   await expect(page.getByTestId("gallery-tags-clear")).toContainText(
     "Clear 1 selected",
   );
 
-  await page.getByTestId("gallery-tag-search").fill("zzz");
-  await expect(page.getByTestId("gallery-tags-empty")).toBeVisible();
+  await page.getByTestId("gallery-search").fill("zzz");
+  await expect(page.getByTestId("gallery-search-empty")).toBeVisible();
+});
+
+test("the search box reaches authors, names, and descriptions", async ({
+  page,
+}) => {
+  const walled = [
+    {
+      id: "s1",
+      name: "Ring Oscillator",
+      author: "mei",
+      description: "Three-stage loop",
+      createdAt: "2026-08-21T10:00:00.000Z",
+      schemaVersion: 23,
+      tags: ["amplifier"],
+    },
+    {
+      id: "s2",
+      name: "Folded Cascode",
+      author: "arash",
+      description: "",
+      createdAt: "2026-08-20T10:00:00.000Z",
+      schemaVersion: 23,
+      tags: [],
+    },
+  ];
+  await page.route(galleryListUrl, (route) =>
+    route.fulfill({ json: { entries: walled, nextCursor: null, total: 2 } }),
+  );
+  await page.route("**/api/gallery/tags", (route) =>
+    route.fulfill({ json: { tags: [{ tag: "amplifier", count: 1 }] } }),
+  );
+  await page.route("**/api/gallery/*/preview.svg*", (route) =>
+    route.fulfill({
+      contentType: "image/svg+xml",
+      body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10" fill="#fff"/></svg>',
+    }),
+  );
+  await page.goto("/");
+
+  const box = page.getByTestId("gallery-search");
+  await expect(box).toHaveAttribute("placeholder", "Name, author, tag…");
+  await expect(box).toHaveAttribute("aria-label", "Search circuits");
+
+  await box.fill("mei");
+  await expect(page.getByTestId("gallery-tile-s1")).toBeVisible();
+  await expect(page.getByTestId("gallery-tile-s2")).toHaveCount(0);
+  await expect(page.getByTestId("gallery-count-panel")).toHaveText(
+    "2 circuits · 1 match",
+  );
+
+  await box.fill("cascode");
+  await expect(page.getByTestId("gallery-tile-s2")).toBeVisible();
+  await expect(page.getByTestId("gallery-tile-s1")).toHaveCount(0);
+
+  await box.fill("three-stage");
+  await expect(page.getByTestId("gallery-tile-s1")).toBeVisible();
+
+  await box.fill("zzz");
+  await expect(page.getByTestId("gallery-tile-s1")).toHaveCount(0);
+  await expect(page.getByTestId("gallery-search-empty")).toHaveText(
+    "No circuits match “zzz”.",
+  );
+  await expect(page.getByTestId("gallery-count-panel")).toHaveText(
+    "2 circuits · 0 matches",
+  );
+
+  await box.fill("");
+  await expect(page.getByTestId("gallery-tile-s1")).toBeVisible();
+  await expect(page.getByTestId("gallery-tile-s2")).toBeVisible();
+  await expect(page.getByTestId("gallery-count-panel")).toHaveText(
+    "2 circuits",
+  );
+});
+
+test("an unfinished feed says it is still searching, not that nothing matches", async ({
+  page,
+}) => {
+  await page.route(galleryListUrl, (route) => {
+    const url = new URL(route.request().url());
+    if (url.searchParams.get("cursor")) {
+      // Hold the tail of the feed open: the fetch never resolves, so the
+      // feed stays legitimately incomplete for the whole assertion window.
+      return;
+    }
+    return route.fulfill({
+      json: {
+        entries: [
+          {
+            id: "s1",
+            name: "Ring Oscillator",
+            author: "mei",
+            description: "",
+            createdAt: "2026-08-21T10:00:00.000Z",
+            schemaVersion: 23,
+          },
+        ],
+        nextCursor: "2026-08-20T00:00:00.000Z|older",
+        total: 40,
+      },
+    });
+  });
+  await page.route("**/api/gallery/tags", (route) =>
+    route.fulfill({ json: { tags: [] } }),
+  );
+  await page.route("**/api/gallery/*/preview.svg*", (route) =>
+    route.fulfill({
+      contentType: "image/svg+xml",
+      body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10" fill="#fff"/></svg>',
+    }),
+  );
+  await page.goto("/");
+  await expect(page.getByTestId("gallery-tile-s1")).toBeVisible();
+
+  await page.getByTestId("gallery-search").fill("zzz");
+  await expect(page.getByTestId("gallery-search-pending")).toHaveText(
+    "No matches yet — searching older circuits…",
+  );
+  await expect(page.getByTestId("gallery-search-empty")).toHaveCount(0);
+  await expect(page.getByTestId("gallery-count-panel")).toHaveText(
+    "40 circuits · 0 matches so far",
+  );
 });
 
 test("the wall states how many circuits the gallery holds", async ({
