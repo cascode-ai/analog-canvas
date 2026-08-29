@@ -14,6 +14,10 @@
       "@icm/edit-engine": ["./packages/edit-engine/src/index.ts"],
       "@icm/exporters": ["./packages/exporters/src/index.ts"],
       "@icm/exporters/browser": ["./packages/exporters/src/browser.ts"],
+      "@icm/exporters/browser-pdf": ["./packages/exporters/src/browser-pdf.ts"],
+      "@icm/exporters/browser-raster": [
+        "./packages/exporters/src/browser-raster.ts"
+      ],
       "@icm/exporters/node": ["./packages/exporters/src/node.ts"],
       "@icm/math-typesetting": ["./packages/math-typesetting/src/index.ts"],
       "@icm/math-typesetting/cache": [
