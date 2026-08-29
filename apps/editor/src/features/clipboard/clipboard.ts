@@ -26,6 +26,7 @@ import type {
   RouteBranch,
   RouteEndpoint,
   SchematicDocument,
+  VisualAnchor,
 } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 import {
@@ -590,9 +591,15 @@ export function clipboardPreviewDocument(
 export function copyWholeDocument(
   document: SchematicDocument,
 ): SchematicClipboard | null {
-  if (document.instances.length === 0 && document.routes.length === 0) {
+  const draftingObjects = document.drafting?.objects ?? [];
+  if (
+    document.instances.length === 0 &&
+    document.routes.length === 0 &&
+    draftingObjects.length === 0
+  ) {
     return null;
   }
+  const draftingIds = new Set(draftingObjects.map((object) => object.id));
   const netIds = new Set<string>([
     ...document.nets.flatMap((net) =>
       net.terminals.length > 0 ? [net.id] : [],
@@ -648,8 +655,12 @@ export function copyWholeDocument(
         ? evidence.memberNetIds.every((netId) => netIds.has(netId))
         : netIds.has(evidence.netId),
     ),
-    draftingObjects: [],
-    draftingGroups: [],
+    draftingObjects,
+    draftingGroups: document.layoutGroups.filter(
+      (group) =>
+        group.objectIds.length > 0 &&
+        group.objectIds.every((objectId) => draftingIds.has(objectId)),
+    ),
   });
 }
 
@@ -901,6 +912,63 @@ function movePoint(point: Point, offset: Point): Point {
   return { x: point.x + offset.x, y: point.y + offset.y };
 }
 
+function remapPastedVisualAnchor(
+  anchor: VisualAnchor,
+  objectIds: ReadonlyMap<string, string>,
+  routeIds: ReadonlyMap<string, string>,
+  legIds: ReadonlyMap<string, string>,
+  offset: Point,
+  translateFree = false,
+): VisualAnchor {
+  if (anchor.kind === "free") {
+    return translateFree
+      ? { ...anchor, position: movePoint(anchor.position, offset) }
+      : anchor;
+  }
+  if (anchor.kind === "object") {
+    return {
+      ...anchor,
+      objectId: objectIds.get(anchor.objectId) ?? anchor.objectId,
+      fallbackPosition: movePoint(anchor.fallbackPosition, offset),
+    };
+  }
+  return {
+    ...anchor,
+    routeId: routeIds.get(anchor.routeId) ?? anchor.routeId,
+    legId: legIds.get(anchor.legId) ?? anchor.legId,
+    fallbackPosition: movePoint(anchor.fallbackPosition, offset),
+  };
+}
+
+function remapPastedDraftingAnchors(
+  object: DraftingObject,
+  objectIds: ReadonlyMap<string, string>,
+  routeIds: ReadonlyMap<string, string>,
+  legIds: ReadonlyMap<string, string>,
+  offset: Point,
+): DraftingObject {
+  const clone = structuredClone(object);
+  const remap = (anchor: VisualAnchor): VisualAnchor =>
+    remapPastedVisualAnchor(anchor, objectIds, routeIds, legIds, offset);
+  clone.anchor = remap(clone.anchor);
+  if (clone.kind === "arrow") {
+    clone.from = remap(clone.from);
+    clone.to = remap(clone.to);
+  } else if (clone.kind === "leader" || clone.kind === "callout") {
+    // translateDraftingObject moves the primary anchor, while the leader tip
+    // is independent geometry and still needs the paste offset here.
+    clone.target = remapPastedVisualAnchor(
+      clone.target,
+      objectIds,
+      routeIds,
+      legIds,
+      offset,
+      true,
+    );
+  }
+  return clone;
+}
+
 function mapEndpoint(
   endpoint: RouteEndpoint,
   instanceIds: ReadonlyMap<string, string>,
@@ -1085,6 +1153,12 @@ export function proposePaste(
     ...routeIds,
     ...junctionIds,
   ]);
+  const draftingIds = new Map(
+    clipboard.draftingObjects.map((object) => [
+      object.id,
+      uniqueCopyId(object.id, sequence, occupied),
+    ]),
+  );
   const edits: SchematicEdit[] = clipboard.instances.map(
     (instance): SchematicEdit => ({
       kind: "add_instance",
@@ -1432,14 +1506,25 @@ export function proposePaste(
   });
   // Drafting objects carry no connectivity, so a copy is the object itself
   // under a fresh id, shifted by the same placement offset as everything else.
-  const draftingIds = new Map<string, string>();
+  const pastedAnchorObjectIds = new Map([...objectIds, ...draftingIds]);
+  const pastedLegIds = new Map(Object.entries(idRemap.legs));
   for (const object of clipboard.draftingObjects) {
-    const id = uniqueCopyId(object.id, sequence, occupied);
-    draftingIds.set(object.id, id);
+    const id = draftingIds.get(object.id)!;
+    const translated = translateDraftingObject(
+      object,
+      offset,
+      document.presentation.grid,
+    );
     edits.push({
       kind: "upsert_drafting_object",
       object: {
-        ...translateDraftingObject(object, offset, document.presentation.grid),
+        ...remapPastedDraftingAnchors(
+          translated,
+          pastedAnchorObjectIds,
+          routeIds,
+          pastedLegIds,
+          offset,
+        ),
         id,
       },
     });

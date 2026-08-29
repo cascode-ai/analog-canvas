@@ -914,6 +914,209 @@ describe("schematic clipboard", () => {
 });
 
 describe("copyWholeDocument", () => {
+  it("keeps standalone drafting geometry and its layout group", () => {
+    const document = createEmptyDocument("document-main", "Drafting scene");
+    document.drafting = {
+      objects: [
+        {
+          id: "scene-rectangle",
+          kind: "rectangle",
+          locked: false,
+          zIndex: 0,
+          anchor: { kind: "free", position: { x: 40, y: 30 } },
+          center: { x: 40, y: 30 },
+          width: 80,
+          height: 40,
+          rotation: 0,
+          lineStyle: "solid",
+        },
+        {
+          id: "scene-arrow",
+          kind: "arrow",
+          locked: false,
+          zIndex: 1,
+          anchor: { kind: "free", position: { x: 0, y: 0 } },
+          from: { kind: "free", position: { x: 0, y: 0 } },
+          to: { kind: "free", position: { x: 80, y: 0 } },
+        },
+        {
+          id: "scene-leader",
+          kind: "leader",
+          locked: false,
+          zIndex: 2,
+          anchor: { kind: "free", position: { x: 0, y: 20 } },
+          target: { kind: "free", position: { x: 80, y: 20 } },
+        },
+      ],
+    };
+    document.layoutGroups.push({
+      id: "scene-drafting-group",
+      kind: "custom",
+      objectIds: ["scene-rectangle", "scene-arrow", "scene-leader"],
+      locked: false,
+    });
+
+    const clipboard = copyWholeDocument(document);
+    expect(clipboard?.draftingObjects.map((object) => object.kind)).toEqual([
+      "rectangle",
+      "arrow",
+      "leader",
+    ]);
+    expect(clipboard?.draftingGroups).toEqual([document.layoutGroups[0]]);
+    expect(clipboardPlacementAnchor(clipboard!)).toEqual({ x: 40, y: 30 });
+
+    const target = createEmptyDocument("target", "Target");
+    const proposal = proposePaste(target, clipboard!, { x: 100, y: 50 }, 1);
+    const pastedObjects = proposal.edits.flatMap((edit) =>
+      edit.kind === "upsert_drafting_object" ? [edit.object] : [],
+    );
+    expect(pastedObjects).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "scene-rectangle-copy-1",
+          kind: "rectangle",
+          center: { x: 140, y: 80 },
+        }),
+        expect.objectContaining({
+          id: "scene-arrow-copy-1",
+          kind: "arrow",
+          from: { kind: "free", position: { x: 100, y: 50 } },
+          to: { kind: "free", position: { x: 180, y: 50 } },
+        }),
+        expect.objectContaining({
+          id: "scene-leader-copy-1",
+          kind: "leader",
+          anchor: { kind: "free", position: { x: 100, y: 70 } },
+          target: { kind: "free", position: { x: 180, y: 70 } },
+        }),
+      ]),
+    );
+    expect(
+      proposal.edits.find((edit) => edit.kind === "set_layout_group"),
+    ).toMatchObject({
+      group: {
+        objectIds: [
+          "scene-rectangle-copy-1",
+          "scene-arrow-copy-1",
+          "scene-leader-copy-1",
+        ],
+      },
+    });
+  });
+
+  it("retargets drafting anchors to copied Instances and Route legs", () => {
+    const document = createEmptyDocument("document-main", "Anchored drafting");
+    document.instances.push({
+      id: "R1",
+      symbolId: "resistor",
+      placement: {
+        position: { x: 20, y: 20 },
+        rotation: 0,
+        mirror: "none",
+      },
+    });
+    document.nets.push({ id: "net-guide", terminals: [] });
+    document.junctions.push(
+      {
+        id: "guide-start",
+        netId: "net-guide",
+        position: { x: 40, y: 40 },
+        role: "route-anchor",
+      },
+      {
+        id: "guide-end",
+        netId: "net-guide",
+        position: { x: 100, y: 40 },
+        role: "route-anchor",
+      },
+    );
+    const route = createRoutePath({
+      id: "guide-route",
+      netId: "net-guide",
+      start: { kind: "junction", junctionId: "guide-start" },
+      end: { kind: "junction", junctionId: "guide-end" },
+      bends: [],
+      modes: ["manual"],
+    });
+    document.routes.push(route);
+    document.drafting = {
+      objects: [
+        {
+          id: "anchored-arrow",
+          kind: "arrow",
+          locked: false,
+          zIndex: 0,
+          anchor: {
+            kind: "object",
+            objectId: "R1",
+            localOffset: { x: 0, y: 0 },
+            fallbackPosition: { x: 20, y: 20 },
+          },
+          from: {
+            kind: "object",
+            objectId: "R1",
+            localOffset: { x: 0, y: 0 },
+            fallbackPosition: { x: 20, y: 20 },
+          },
+          to: {
+            kind: "route",
+            routeId: route.id,
+            legId: route.legs[0]!.id,
+            t: 0.5,
+            normalOffset: 0,
+            direction: "forward",
+            orientation: "follow",
+            fallbackPosition: { x: 70, y: 40 },
+          },
+        },
+      ],
+    };
+
+    const clipboard = copyWholeDocument(document)!;
+    const proposal = proposePaste(
+      createEmptyDocument("target", "Target"),
+      clipboard,
+      { x: 100, y: 50 },
+      1,
+    );
+    const pastedRoute = proposal.edits.find(
+      (edit) => edit.kind === "set_route_path",
+    );
+    const pastedArrow = proposal.edits.find(
+      (edit) =>
+        edit.kind === "upsert_drafting_object" &&
+        edit.object.id === "anchored-arrow-copy-1",
+    );
+    expect(pastedRoute?.kind).toBe("set_route_path");
+    expect(pastedArrow).toMatchObject({
+      kind: "upsert_drafting_object",
+      object: {
+        anchor: {
+          kind: "object",
+          objectId: "R1-copy-1",
+          fallbackPosition: { x: 120, y: 70 },
+        },
+        from: {
+          kind: "object",
+          objectId: "R1-copy-1",
+          fallbackPosition: { x: 120, y: 70 },
+        },
+        to: {
+          kind: "route",
+          routeId:
+            pastedRoute?.kind === "set_route_path"
+              ? pastedRoute.route.id
+              : undefined,
+          legId:
+            pastedRoute?.kind === "set_route_path"
+              ? pastedRoute.route.legs[0]!.id
+              : undefined,
+          fallbackPosition: { x: 170, y: 90 },
+        },
+      },
+    });
+  });
+
   it("keeps a Power Rail that no device is wired to yet", () => {
     const document = createEmptyDocument("document-main", "Main");
     document.nets.push({

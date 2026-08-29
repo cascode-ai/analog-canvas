@@ -60,6 +60,39 @@ describe("Gallery and example commands", () => {
     expect(input.beginCopyPlacement).not.toHaveBeenCalled();
   });
 
+  it("starts placement for a drawing-only Gallery Project", () => {
+    const input = dependencies();
+    const imported = createEmptyProject("imported", "Drawing");
+    imported.documents[0]!.drafting = {
+      objects: [
+        {
+          id: "gallery-rectangle",
+          kind: "rectangle",
+          locked: false,
+          zIndex: 0,
+          anchor: { kind: "free", position: { x: 60, y: 40 } },
+          center: { x: 60, y: 40 },
+          width: 80,
+          height: 40,
+          rotation: 0,
+          lineStyle: "solid",
+        },
+      ],
+    };
+    const commands = createGalleryExampleCommands(input);
+
+    expect(commands.beginProjectImportPlacement(imported, "Drawing")).toBe(
+      true,
+    );
+    expect(input.beginCopyPlacement).toHaveBeenCalledWith(
+      expect.objectContaining({
+        draftingObjects: imported.documents[0]!.drafting.objects,
+      }),
+      { x: 60, y: 40 },
+    );
+    expect(input.replaceActiveProject).not.toHaveBeenCalled();
+  });
+
   it("opens a Gallery Project and records the live entry context", async () => {
     const project = createEmptyProject("gallery-project", "Project fallback");
     const fetchImpl = vi.fn<typeof fetch>(async () =>
