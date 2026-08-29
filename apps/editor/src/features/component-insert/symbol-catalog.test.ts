@@ -101,7 +101,7 @@ describe("component insertion catalog", () => {
     expect(symbols[0]?.pins.map((pin) => pin.name)).toEqual(["P1", "P2"]);
   });
 
-  it("offers Digital Clock locally but can remove it with the production flag", () => {
+  it("offers Digital Clock as a searchable built-in source", () => {
     expect(
       findPaletteSymbol("razavi-textbook-v1", "pulse-voltage-source"),
     )?.toMatchObject({
@@ -113,14 +113,6 @@ describe("component insertion catalog", () => {
         componentCatalog("razavi-textbook-v1", "digital clock"),
       ),
     ).toHaveLength(1);
-    expect(
-      findPaletteSymbol("razavi-textbook-v1", "pulse-voltage-source", false),
-    ).toBeUndefined();
-    expect(
-      flattenComponentCatalog(
-        componentCatalog("razavi-textbook-v1", "digital clock", [], false),
-      ),
-    ).toEqual([]);
   });
 
   it("keeps adjustable passives, diodes, and DMOS in one extended library", () => {

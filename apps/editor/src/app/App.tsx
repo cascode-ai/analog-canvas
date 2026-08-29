@@ -98,7 +98,6 @@ import {
 } from "../features/editor-shell/editor-file-commands";
 import { EditorStatusbar } from "../features/editor-shell/editor-statusbar";
 import { TimingSimulationPanel } from "../features/simulation/timing-simulation-panel";
-import { TIMING_UI_ENABLED } from "../features/simulation/timing-ui";
 import { updateComponentParameterValues } from "../features/component-insert/component-parameters";
 import {
   waveformDraftingObjects,
@@ -322,8 +321,6 @@ export interface AppProps {
   visitStats?: { pv: number; uv: number } | null;
   /** Test/staging seam; production defaults to a human-only editor. */
   publicAgentUiEnabled?: boolean;
-  /** Test/staging seam; production Cloudflare builds keep timing tools hidden. */
-  timingUiEnabled?: boolean;
   /** `/g/<id>` deep link: load this gallery entry after boot. */
   initialGalleryEntryId?: string | null;
 }
@@ -332,7 +329,6 @@ export function App({
   project: initialProject,
   visitStats,
   publicAgentUiEnabled = PUBLIC_AGENT_UI_ENABLED,
-  timingUiEnabled = TIMING_UI_ENABLED,
   initialGalleryEntryId = null,
 }: AppProps) {
   const [preparedInitialProject] = useState(
@@ -3554,19 +3550,15 @@ export function App({
             setDocumentSettingsOpen((open) => !open);
             setSelectionOpen(true);
           },
-          ...(timingUiEnabled
-            ? {
-                simulation: {
-                  open: simulationWindowOpen,
-                  onToggle: () => {
-                    setSimulationWindowOpen((open) => {
-                      if (open) setSimulationPickMode(false);
-                      return !open;
-                    });
-                  },
-                },
-              }
-            : {}),
+          simulation: {
+            open: simulationWindowOpen,
+            onToggle: () => {
+              setSimulationWindowOpen((open) => {
+                if (open) setSimulationPickMode(false);
+                return !open;
+              });
+            },
+          },
         }}
         hierarchyToolbar={{
           documents: project.documents,
@@ -4781,24 +4773,22 @@ export function App({
           />
         ) : null}
       </div>
-      {timingUiEnabled ? (
-        <TimingSimulationPanel
-          key={document.id}
-          document={document}
-          open={simulationWindowOpen}
-          savedNetIds={simulationSavedNetIds}
-          pickNetsActive={simulationPickNetsActive}
-          onOpenChange={(open) => {
-            setSimulationWindowOpen(open);
-            if (!open) setSimulationPickMode(false);
-          }}
-          onPickNetsChange={setSimulationPickMode}
-          onToggleSavedNet={toggleSimulationSavedNet}
-          onSetSavedNets={(netIds) => setSimulationSavedNetIds(new Set(netIds))}
-          onStatus={setStatus}
-          onPlaceOnCanvas={beginWaveformPlacement}
-        />
-      ) : null}
+      <TimingSimulationPanel
+        key={document.id}
+        document={document}
+        open={simulationWindowOpen}
+        savedNetIds={simulationSavedNetIds}
+        pickNetsActive={simulationPickNetsActive}
+        onOpenChange={(open) => {
+          setSimulationWindowOpen(open);
+          if (!open) setSimulationPickMode(false);
+        }}
+        onPickNetsChange={setSimulationPickMode}
+        onToggleSavedNet={toggleSimulationSavedNet}
+        onSetSavedNets={(netIds) => setSimulationSavedNetIds(new Set(netIds))}
+        onStatus={setStatus}
+        onPlaceOnCanvas={beginWaveformPlacement}
+      />
       <EditorStatusbar
         visitStats={visitStats}
         status={status}

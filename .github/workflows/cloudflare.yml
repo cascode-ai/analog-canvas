@@ -34,10 +34,6 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @icm/editor... build
-        env:
-          # Timing simulation remains a localhost development surface until
-          # its interaction and presentation contracts are ready to publish.
-          VITE_ICM_TIMING_UI: disabled
       - run: pnpm dlx wrangler@4.120.1 deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

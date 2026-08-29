@@ -4,6 +4,9 @@ Status: `accepted`
 
 Date: `2026-08-28`
 
+Amended: `2026-08-29` to publish the accepted interaction in every editor
+build after its release gates passed.
+
 Owners: `packages/simulation`, `packages/devices`, `packages/netlist`
 
 ## Context
@@ -30,12 +33,11 @@ terminal must connect to Ground; its positive terminal drives the logical Net.
 
 Saved nodes are observation selections in the run profile, not electrical
 probes. Simulation results remain derived data and are not stored in Project
-JSON. The local development editor exposes timing controls, waveform
-presentation and export, optional canvas placement, and Pulse Source authoring
-behind `VITE_ICM_TIMING_UI`. The default is enabled for local development and
-disabled for production; the Cloudflare workflow also sets `disabled`
-explicitly. The simulation layer and project compatibility never depend on
-this presentation flag.
+JSON. Every editor build exposes Digital Clock authoring and one Digital
+Simulation window containing timing controls, saved-Net selection, waveform
+presentation and export, and optional canvas placement. Production and local
+builds use the same interaction path; there is no deployment-specific timing
+UI flag.
 
 Razavi Figure 20.54 governs presentation only: stacked square traces, signal
 labels, dashed timing guides, and a horizontal time axis. It cannot establish
@@ -47,7 +49,7 @@ logic values, event ordering, or clock semantics.
 - The simulation layer can grow without making the editor or netlist exporter
   its execution engine.
 - Existing projects containing Pulse Sources remain loadable in every build;
-  the local development palette also supports authoring new Pulse Sources.
+  every editor palette supports authoring new Digital Clocks.
 - An unused DFF `QBAR` output may remain unconnected; `D`, `CK`, and `Q` remain
   required for the supported rising-edge behavior.
 - Gate delay, setup/hold timing, metastability, hierarchy, and analog threshold
@@ -59,5 +61,5 @@ logic values, event ordering, or clock semantics.
   optional `QBAR`, and logical-Net equivalence.
 - Device and netlist tests cover the two-terminal Pulse Source defaults and
   SPICE/Spectre `PULSE` output.
-- Editor and browser tests cover the local timing controls and Pulse Source;
-  flag tests and the deployment workflow protect the production-hidden state.
+- Editor and browser tests cover the shared timing controls, Digital Clock,
+  waveform export, and optional canvas placement used by every deployment.

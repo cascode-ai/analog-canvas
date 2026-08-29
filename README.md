@@ -21,8 +21,12 @@ edit model.
   and child Cells.
 - **Projects and interchange:** save a private Cloud Project, import/export
   canonical `.icproj.json`, import structural `.cir`, `.sp`, and `.spi` files, and export
-  deterministic structural SPICE or Spectre. Analog Canvas does not supply
-  simulation, PDKs, device models, corners, stimuli, or analyses.
+  deterministic structural SPICE or Spectre.
+- **Digital timing simulation:** drive supported logic with a Digital Clock,
+  save Nets for observation, inspect and export deterministic waveforms, and
+  optionally place grouped waveform snapshots on the canvas. This bounded
+  digital layer does not supply analog simulation, PDKs, device models,
+  corners, or transistor-level analyses.
 - **Publication-ready output:** the web editor's SVG and PDF exports remain
   vector graphics; PNG is rendered at 3× raster scale.
 - **Community publishing:** signed-in users can publish selected circuits with
