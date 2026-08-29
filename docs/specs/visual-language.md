@@ -80,8 +80,11 @@ not another text object type. Its persisted facts are bounded LaTeX source and
 `inline`/`block` display intent. The `analog-canvas-math-v1` profile supports
 the reviewed base, AMS, and cases command sets and rejects external resources,
 HTML/style injection, package loading, and dynamic command definitions. The
-typesetter emits standalone path-only SVG with deterministic width, height,
-baseline, and source identity. Formula SVG is embedded into the same formal
+formal profile recognizes MathLive's `\differentialD` source as an upright
+differential operator, so source produced by the editor preview remains valid
+without rewriting the persisted LaTeX. The typesetter emits standalone
+path-only SVG with deterministic width, height, baseline, and source identity.
+Formula SVG is embedded into the same formal
 scene used by canvas, SVG, PNG, and vector PDF; it is never rasterized or
 persisted.
 

@@ -20,6 +20,7 @@ const corpus = [
   String.raw`A_v=-g_m(r_o\parallel R_D)`,
   String.raw`\Delta V=\frac{I}{C}\Delta t`,
   String.raw`\frac{\mathrm{d}y}{\mathrm{d}x}`,
+  String.raw`\int_0^1\frac{1}{\sqrt{1+\cos^2x}}\differentialD x`,
   String.raw`\prod_{k=0}^{N-1}a_k`,
   String.raw`\iint_{\Omega}f(x,y)\,\mathrm{d}x\,\mathrm{d}y`,
   String.raw`\lim_{s\to0}H(s)`,

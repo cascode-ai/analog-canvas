@@ -3,6 +3,7 @@ import { RegisterHTMLHandler } from "@mathjax/src/js/handlers/html.js";
 import { TeX } from "@mathjax/src/js/input/tex.js";
 import "@mathjax/src/js/input/tex/ams/AmsConfiguration.js";
 import "@mathjax/src/js/input/tex/cases/CasesConfiguration.js";
+import "@mathjax/src/js/input/tex/configmacros/ConfigMacrosConfiguration.js";
 import { mathjax } from "@mathjax/src/js/mathjax.js";
 import { SVG } from "@mathjax/src/js/output/svg.js";
 import {
@@ -98,7 +99,12 @@ export interface FormulaTypesetter {
 export function createFormulaTypesetter(): FormulaTypesetter {
   const adaptor = liteAdaptor();
   RegisterHTMLHandler(adaptor);
-  const input = new TeX({ packages: ["base", "ams", "cases"] });
+  const input = new TeX({
+    packages: ["base", "ams", "cases", "configmacros"],
+    macros: {
+      differentialD: String.raw`\mathrm{d}`,
+    },
+  });
   const output = new SVG({ fontCache: "none" });
   const document = mathjax.document("", {
     InputJax: input,

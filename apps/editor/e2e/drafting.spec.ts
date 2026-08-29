@@ -305,7 +305,8 @@ test("authors one validated formula through the canonical text editor", async ({
   await page.getByRole("button", { name: "Insert Square root" }).click();
   await expect(source).toHaveValue(/\\sqrt/u);
 
-  await source.fill(String.raw`A_v=\frac{g_m}{1+s/\omega_p}`);
+  const normalizedDifferential = String.raw`\int_0^1\frac{1}{\sqrt{1+\cos^2x}}\differentialD x`;
+  await source.fill(normalizedDifferential);
   await page.getByRole("button", { name: "Display" }).click();
   await page
     .getByRole("dialog", { name: "Formula" })
@@ -313,7 +314,7 @@ test("authors one validated formula through the canonical text editor", async ({
     .click();
   await expect(
     page.getByTestId("canvas-text-editor").locator("[data-rich-text-math]"),
-  ).toHaveAttribute("data-latex", String.raw`A_v=\frac{g_m}{1+s/\omega_p}`);
+  ).toHaveAttribute("data-latex", normalizedDifferential);
   await page.getByRole("button", { name: "Apply text changes" }).click();
 
   const formula = page.locator(
@@ -335,7 +336,7 @@ test("authors one validated formula through the canonical text editor", async ({
     runs: [
       {
         kind: "math",
-        latex: String.raw`A_v=\frac{g_m}{1+s/\omega_p}`,
+        latex: normalizedDifferential,
         display: "block",
       },
     ],
