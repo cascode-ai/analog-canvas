@@ -266,6 +266,12 @@ test("opens one digital simulation window and picks a Net from the canvas", asyn
     await expect(canvas).not.toHaveClass(/waveform-placement-active/u);
   };
 
+  // The opened project lands auto-fitted, tighter than the camera this
+  // flow was scripted for; two zoom-out steps restore comparable room so
+  // both snapshots and their scale handle stay fully on screen.
+  for (let zoomStep = 0; zoomStep < 2; zoomStep += 1) {
+    await page.getByRole("button", { name: "Zoom out" }).click();
+  }
   await placeSnapshot(0.7, 0.72);
   const draftingHits = page.locator('[data-testid^="drafting-hit-"]');
   const selectedDraftingHits = page.locator(
