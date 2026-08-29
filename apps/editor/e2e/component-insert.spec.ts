@@ -73,6 +73,34 @@ test("blocks destructive browser refresh shortcuts and uses the stronger grid", 
     "data-refresh-guard",
     "alive",
   );
+  await page.keyboard.press("Escape");
+
+  // Once an equally safe copy exists — here the exported Project file, the
+  // same stamp a gallery publish leaves — the guards stand down: refresh is
+  // no longer intercepted and File > New Project proceeds without the
+  // unsaved-changes dialog.
+  const download = page.waitForEvent("download");
+  await clickCommand(page, "File", "Export Project File…");
+  await download;
+  await page
+    .getByTestId("status")
+    .click({ trial: true })
+    .catch(() => {});
+  await page.keyboard.press("Escape");
+  await page
+    .getByTestId("schematic-canvas")
+    .click({ position: { x: 60, y: 60 } });
+  await page.keyboard.press("Control+r");
+  await expect(page.getByTestId("status")).not.toHaveText(
+    "Refresh blocked to protect the current circuit",
+  );
+  await clickCommand(page, "File", "New Project");
+  await expect(
+    page.getByRole("dialog", { name: "Unsaved changes" }),
+  ).toHaveCount(0);
+  await expect(page.locator('[data-canvas-hit-kind="instance"]')).toHaveCount(
+    0,
+  );
 });
 
 test("mirrors component and copy placement previews before their commits", async ({

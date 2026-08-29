@@ -191,7 +191,6 @@ import {
 import { useDocumentController } from "../document/document-controller";
 import { useProjectFileLifecycle } from "../document/use-project-file-lifecycle";
 import { useUnsavedWorkGuard } from "../document/use-unsaved-work-guard";
-import { projectHasMeaningfulContent } from "../document/project-content";
 import {
   draftingDragOrigin,
   translateDraftingObject,
@@ -678,6 +677,8 @@ export function App({
     restoreAfterRefresh,
     setRecoveryDialogOpen,
     isDirtyWork,
+    hasUnsafeWork,
+    noteProjectSnapshotSafe,
     replaceActiveProject,
     saveProjectToCloud,
     exportProjectFile,
@@ -736,9 +737,7 @@ export function App({
       return nextDocument;
     },
   });
-  const allowNextBrowserUnload = useUnsavedWorkGuard(
-    isDirtyWork() && projectHasMeaningfulContent(project),
-  );
+  const allowNextBrowserUnload = useUnsavedWorkGuard(hasUnsafeWork());
   const startupCloudRestoreAttemptedRef = useRef(false);
   const hasExplicitBootTarget =
     initialGalleryEntryId !== null ||
@@ -3020,7 +3019,7 @@ export function App({
       const currentInteraction = getCurrentInteractionState();
       const shortcut = resolveEditorShortcut(event, {
         isTyping: isTypingTarget(event.target),
-        hasAuthoredContent: projectHasMeaningfulContent(project),
+        hasUnsavedWork: hasUnsafeWork(),
         interactionMode: currentInteraction.kind,
         hasRoutedMarkerSelection: Boolean(
           selectedAnnotation && isRoutedMarker(selectedAnnotation),
@@ -3805,6 +3804,9 @@ export function App({
                     }
                   : {}),
                 onPublished: ({ id, name, updated, previewRevision }) => {
+                  // The gallery now holds these exact bytes: leaving or
+                  // refreshing loses nothing until the next edit.
+                  noteProjectSnapshotSafe();
                   void primeGalleryPreview(id, previewRevision);
                   announceGalleryChange({
                     entryId: id,

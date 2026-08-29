@@ -8,7 +8,7 @@ import type {
 
 const baseContext: EditorShortcutContext = {
   isTyping: false,
-  hasAuthoredContent: true,
+  hasUnsavedWork: true,
   interactionMode: "idle",
   hasRoutedMarkerSelection: false,
   canRotate: false,
@@ -408,7 +408,7 @@ describe("editor shortcut contract", () => {
 
 describe("blank-circuit refresh", () => {
   it("lets the browser refresh when nothing is authored", () => {
-    const empty = { ...baseContext, hasAuthoredContent: false };
+    const empty = { ...baseContext, hasUnsavedWork: false };
     expect(
       resolveEditorShortcut(
         {

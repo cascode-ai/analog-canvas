@@ -20,6 +20,7 @@ import {
   stageProjectFile,
 } from "./project-file-service";
 import { projectChangeToken } from "./project-session-lifecycle";
+import { projectHasMeaningfulContent } from "./project-content";
 import {
   CLOUD_PROJECT_LIMIT,
   openCloudProject,
@@ -113,6 +114,8 @@ export function useProjectFileLifecycle({
   const saveInFlightRef = useRef<Promise<CloudProjectSaveOutcome> | null>(null);
   const liveProjectRef = useRef(project);
   liveProjectRef.current = project;
+  /** Change token of the last snapshot published or exported; see hasUnsafeWork. */
+  const safeSnapshotTokenRef = useRef<string | null>(null);
   const [persistenceState, setPersistenceState] =
     useState<PersistenceState>("unbound");
   const [cloudBinding, setCloudBinding] = useState<CloudProjectBinding | null>(
@@ -144,6 +147,28 @@ export function useProjectFileLifecycle({
     );
   }
 
+  /**
+   * The one predicate every leave/replace/refresh guard shares: there is
+   * meaningful drawing, the persistence state says it has not reached the
+   * Cloud, AND no equally safe copy of exactly these bytes exists anywhere
+   * else. Publishing to the gallery or exporting the Project file stamps
+   * the current snapshot safe — the drawing is recoverable from there, so
+   * prompting again would be crying wolf.
+   */
+  function hasUnsafeWork(): boolean {
+    if (!isDirtyWork()) return false;
+    const live = liveProjectRef.current;
+    if (!projectHasMeaningfulContent(live)) return false;
+    return (
+      safeSnapshotTokenRef.current === null ||
+      projectChangeToken(live) !== safeSnapshotTokenRef.current
+    );
+  }
+
+  function noteProjectSnapshotSafe(): void {
+    safeSnapshotTokenRef.current = projectChangeToken(liveProjectRef.current);
+  }
+
   function replaceActiveProject(
     nextProject: CircuitProject,
     nextViewBox: GridRect = defaultViewBox,
@@ -157,6 +182,7 @@ export function useProjectFileLifecycle({
       recovery.noteFormalFileHint(options.formalFileHint);
     }
     const prepared = materializeRazaviProjectBulkConnections(nextProject);
+    safeSnapshotTokenRef.current = null;
     const nextDocument = installProject(prepared.project, nextViewBox);
     const nextPersistenceState =
       options.persistenceState ??
@@ -262,6 +288,8 @@ export function useProjectFileLifecycle({
       setStatus(`Export failed: ${outcome.message}`);
       return;
     }
+    // The bytes now live in a local file: leaving no longer loses them.
+    noteProjectSnapshotSafe();
     recovery.noteFormalFileHint({
       name: outcome.fileName,
       lastDownloadRequestedAt: new Date().toISOString(),
@@ -292,7 +320,7 @@ export function useProjectFileLifecycle({
     intent: string,
     perform: () => void | Promise<void>,
   ): Promise<void> {
-    if (!isDirtyWork()) {
+    if (!hasUnsafeWork()) {
       await perform();
       return;
     }
@@ -663,6 +691,8 @@ export function useProjectFileLifecycle({
     restoreAfterRefresh,
     setRecoveryDialogOpen,
     isDirtyWork,
+    hasUnsafeWork,
+    noteProjectSnapshotSafe,
     replaceActiveProject,
     saveProjectToCloud,
     exportProjectFile,

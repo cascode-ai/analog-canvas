@@ -12,7 +12,7 @@ export interface EditorShortcutKey {
 export interface EditorShortcutContext {
   isTyping: boolean;
   /** Blank circuits let the browser refresh; there is nothing to protect. */
-  hasAuthoredContent: boolean;
+  hasUnsavedWork: boolean;
   interactionMode: InteractionMode;
   hasRoutedMarkerSelection: boolean;
   canRotate: boolean;
@@ -78,24 +78,18 @@ export function resolveEditorShortcut(
     return { kind: "toggle-wire-options" };
   }
   if (event.key === "F5") {
-    return context.hasAuthoredContent
-      ? { kind: "block-browser-refresh" }
-      : null;
+    return context.hasUnsavedWork ? { kind: "block-browser-refresh" } : null;
   }
   if (commandModifier && key === "r") {
     if (context.isTyping) {
-      return context.hasAuthoredContent
-        ? { kind: "block-browser-refresh" }
-        : null;
+      return context.hasUnsavedWork ? { kind: "block-browser-refresh" } : null;
     }
     if (context.canMirror)
       return {
         kind: "run-command",
         command: { id: "transform.mirror", direction: "top-bottom" },
       };
-    return context.hasAuthoredContent
-      ? { kind: "block-browser-refresh" }
-      : null;
+    return context.hasUnsavedWork ? { kind: "block-browser-refresh" } : null;
   }
   if (commandModifier && key === "d") {
     if (context.isTyping) return { kind: "block-browser-bookmark" };
