@@ -122,5 +122,6 @@
       }
     }
   ],
-  "variants": []
+  "variants": [],
+  "labelVisibility": "hidden"
 }

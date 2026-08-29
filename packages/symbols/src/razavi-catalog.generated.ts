@@ -328,7 +328,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Behavioral summing node; structural netlists need an explicit implementation mapping.",
     assetPath: "adder.symbol.json",
     assetHash:
-      "69973ee3d2e41d98faf892b7214c2b8c7cccb27446c6a342d4b1c54be613f89b",
+      "1845d267b1cfd2d791e92dae5e57f099727365c2d4c5d151d25239480736c3eb",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -350,7 +350,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Behavioral mixing node; structural netlists need an explicit implementation mapping.",
     assetPath: "multiplier.symbol.json",
     assetHash:
-      "5d6215b95bf56494770f20255be4ceb70b51cf7ac660b36657b58476cc46d321",
+      "cda435fcc278d4bb9a794e1a9e419b39a9659474398be1b8cd3cef3b1fec2289",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -372,7 +372,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Behavioral s-domain block; structural netlists need an explicit implementation mapping.",
     assetPath: "integrator.symbol.json",
     assetHash:
-      "a330c262993b8d8ad4716eabaf32d2fa3bb9aea534abb73a4bd8c82386be5f3e",
+      "b2c7cea5fe953dd5066c66eba8ebe92a2bd6790bc8e083fdf129480924e6fab4",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -394,7 +394,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Behavioral z-domain block; structural netlists need an explicit implementation mapping.",
     assetPath: "unit-delay.symbol.json",
     assetHash:
-      "9c6038e68a3a7feda8e47b476fcd498f16b51d5d9c0e101e486a472ec675d59d",
+      "cd38d7dc54dfc7ee259e892963b66fac8aa5fcde38d625016acd5f830ae08cbf",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -416,7 +416,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Behavioral quantization block; structural netlists need an explicit implementation mapping.",
     assetPath: "quantizer.symbol.json",
     assetHash:
-      "8395934c657d3b56be05dc80eb67c7ac8c5f08bae9ec14b4c884259a3c179a93",
+      "5a45c801fb7f880e47f17cc257f3cd7df7a841a7eb26a3689e9b347cc9f09fa1",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -2962,6 +2962,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       },
     ],
     variants: [],
+    labelVisibility: "hidden",
   },
   {
     schemaVersion: 1,
@@ -3110,6 +3111,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       },
     ],
     variants: [],
+    labelVisibility: "hidden",
   },
   {
     schemaVersion: 1,
@@ -3251,6 +3253,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       },
     ],
     variants: [],
+    labelVisibility: "hidden",
   },
   {
     schemaVersion: 1,
@@ -3409,6 +3412,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       },
     ],
     variants: [],
+    labelVisibility: "hidden",
   },
   {
     schemaVersion: 1,
@@ -3535,6 +3539,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       },
     ],
     variants: [],
+    labelVisibility: "hidden",
   },
   {
     schemaVersion: 1,

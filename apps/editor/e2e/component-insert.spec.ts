@@ -463,6 +463,29 @@ test("groups and places high-voltage DMOS from Extended Devices", async ({
   await expect.poll(() => recoveryProjectTexts(page)).toContain('"w": "1u"');
 });
 
+test("a signal-flow block lands with no designator on it", async ({ page }) => {
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  const panel = page.getByTestId("shapes-library-panel");
+  if ((await panel.getAttribute("data-open")) !== "true") {
+    await page.getByTestId("library-toggle").click();
+  }
+
+  const chip = page.getByTestId("shapes-chip-adder");
+  await chip.scrollIntoViewIfNeeded();
+  await chip.click();
+  const canvas = page.getByTestId("schematic-canvas");
+  await canvas.click({ position: { x: 300, y: 200 } });
+  await expect(page.getByTestId("revision")).toHaveText("1");
+
+  // A summing junction is read by its shape; a diagram full of X1, X2, X3
+  // says nothing a reader needs.
+  await expect(canvas.locator('[data-kind="instance-label"]')).toHaveCount(0);
+  await expect(canvas.locator("text")).toHaveCount(0);
+  // Nor is one announced: the internal id stays bookkeeping.
+  await expect(page.getByTestId("status")).not.toContainText("X1");
+});
+
 test("groups drafting tools and editable polarity labels under Annotations", async ({
   page,
 }) => {

@@ -203,4 +203,40 @@ describe("reach order inside a category", () => {
     const power = ids("Power and Ports");
     expect(power.indexOf("vdd-port")).toBeLessThan(power.indexOf("vdd"));
   });
+
+  it("orders passives the way they are taught, not alphabetically", () => {
+    const groups = componentCatalog("razavi-textbook-v1", "");
+    const passives = groups
+      .find((group) => group.category === "Passives")!
+      .symbols.map((symbol) => symbol.id);
+    // Resistor, capacitor, inductor — alphabetical put the capacitor first
+    // and stranded the resistor behind both inductors.
+    expect(passives).toEqual([
+      "resistor",
+      "capacitor",
+      "inductor-compact",
+      "inductor",
+    ]);
+  });
+
+  it("orders logic gates by family rather than by name", () => {
+    const groups = componentCatalog("razavi-textbook-v1", "");
+    const gates = groups
+      .find((group) => group.category === "Logic Gates")!
+      .symbols.map((symbol) => symbol.id);
+    // The two single-input gates lead, the combinational family follows in
+    // its own order, and the sequential blocks sit last.
+    expect(gates).toEqual([
+      "inverter",
+      "buffer",
+      "and-gate",
+      "or-gate",
+      "nand-gate",
+      "nor-gate",
+      "xor-gate",
+      "xnor-gate",
+      "d-flip-flop",
+      "delay-cell",
+    ]);
+  });
 });

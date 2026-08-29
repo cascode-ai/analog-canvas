@@ -137,5 +137,6 @@
       }
     }
   ],
-  "variants": []
+  "variants": [],
+  "labelVisibility": "hidden"
 }

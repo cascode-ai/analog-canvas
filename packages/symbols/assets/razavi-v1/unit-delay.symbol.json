@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "unit-delay",
-  "name": "Unit Delay (z⁻¹)",
+  "name": "Unit Delay (z\u207b\u00b9)",
   "viewBox": {
     "x": -44,
     "y": -24,
@@ -154,5 +154,6 @@
       }
     }
   ],
-  "variants": []
+  "variants": [],
+  "labelVisibility": "hidden"
 }

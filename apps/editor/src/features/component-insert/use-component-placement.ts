@@ -278,12 +278,20 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
     if (!committed) return;
     options.selectOnly("instance", [id]);
     options.setComponentPreviewPoint(position);
+    // A block that carries no designator is not announced by one either: its
+    // internal id is bookkeeping, and naming it here would put the very "X1"
+    // back in front of the person that the drawing deliberately leaves out.
+    const named =
+      options.resolver.resolve(symbolId)?.definition.labelVisibility ===
+      "hidden"
+        ? symbolId
+        : `${id} (${symbolId})`;
     options.setStatus(
       contact.ambiguous
-        ? `Added ${id} (${symbolId}); overlapping pins are ambiguous, wire explicitly · click to place another · Esc exits`
+        ? `Added ${named}; overlapping pins are ambiguous, wire explicitly · click to place another · Esc exits`
         : contact.matched
-          ? `Added ${id} (${symbolId}) and connected its contacted pin · click to place another · Esc exits`
-          : `Added ${id} (${symbolId}) · click to place another · Esc exits`,
+          ? `Added ${named} and connected its contacted pin · click to place another · Esc exits`
+          : `Added ${named} · click to place another · Esc exits`,
     );
   };
 

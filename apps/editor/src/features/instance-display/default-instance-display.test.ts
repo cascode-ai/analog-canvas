@@ -119,3 +119,61 @@ describe("default instance display annotations", () => {
     ).toEqual([]);
   });
 });
+
+describe("blocks that carry no designator", () => {
+  const styleProfile = (document: ReturnType<typeof createEmptyDocument>) =>
+    resolveSchematicStyleProfile(document.presentation.styleProfileId);
+
+  it("places a signal-flow block with no designator label", () => {
+    // A summing junction or a 1/s block is read by its shape, and a diagram
+    // full of X1, X2, X3 says nothing a reader needs.
+    for (const symbolId of [
+      "adder",
+      "multiplier",
+      "integrator",
+      "unit-delay",
+      "quantizer",
+    ]) {
+      const document = createEmptyDocument("main", "Main");
+      const instance = {
+        id: `${symbolId}-1`,
+        symbolId,
+        placement: {
+          position: { x: 100, y: 100 },
+          rotation: 0 as const,
+          mirror: "none" as const,
+        },
+      };
+      expect(
+        defaultInstanceDisplayAnnotations(
+          document,
+          instance,
+          resolver,
+          styleProfile(document),
+          {},
+        ),
+        symbolId,
+      ).toEqual([]);
+    }
+  });
+
+  it("still labels an ordinary device", () => {
+    const document = createEmptyDocument("main", "Main");
+    const annotations = defaultInstanceDisplayAnnotations(
+      document,
+      {
+        id: "R1",
+        symbolId: "resistor",
+        placement: {
+          position: { x: 100, y: 100 },
+          rotation: 0 as const,
+          mirror: "none" as const,
+        },
+      },
+      resolver,
+      styleProfile(document),
+      {},
+    );
+    expect(annotations.length).toBeGreaterThan(0);
+  });
+});

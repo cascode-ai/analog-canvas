@@ -170,6 +170,23 @@ const SYMBOL_ORDER: readonly string[] = [
   "pmos",
   "npn",
   "pnp",
+  // Passives in the order they are taught and reached for, not alphabetical.
+  "resistor",
+  "capacitor",
+  "inductor-compact",
+  "inductor",
+  // Logic gates likewise: the two single-input gates, then the combinational
+  // family, then the sequential blocks that are reached for least often.
+  "inverter",
+  "buffer",
+  "and-gate",
+  "or-gate",
+  "nand-gate",
+  "nor-gate",
+  "xor-gate",
+  "xnor-gate",
+  "d-flip-flop",
+  "delay-cell",
   "variable-resistor",
   "variable-capacitor",
   "variable-inductor",

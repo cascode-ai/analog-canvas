@@ -144,5 +144,6 @@
       }
     }
   ],
-  "variants": []
+  "variants": [],
+  "labelVisibility": "hidden"
 }
