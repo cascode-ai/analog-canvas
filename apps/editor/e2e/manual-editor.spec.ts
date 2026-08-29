@@ -3245,6 +3245,26 @@ test("selects and moves multiple instances while viewport gestures stay transien
 
   const canvas = page.getByTestId("schematic-canvas");
   const beforeViewBox = await canvas.getAttribute("viewBox");
+  await page.evaluate(() => {
+    const formal = document.querySelector('[data-layer="formal"]');
+    const host = formal?.parentElement;
+    if (!host) throw new Error("Formal scene host is unavailable");
+    const state = { mutations: 0, observer: null as MutationObserver | null };
+    state.observer = new MutationObserver((records) => {
+      state.mutations += records.length;
+    });
+    state.observer.observe(host, {
+      attributes: true,
+      characterData: true,
+      childList: true,
+      subtree: true,
+    });
+    (
+      window as unknown as {
+        __formalSceneMutationState?: typeof state;
+      }
+    ).__formalSceneMutationState = state;
+  });
   await closeSelectionShelf(page);
   await canvas.hover({ position: { x: 320, y: 350 } });
   await page.mouse.wheel(0, -120);
@@ -3258,6 +3278,22 @@ test("selects and moves multiple instances while viewport gestures stay transien
   await page.mouse.move(canvasBox.x + 750, canvasBox.y + 390, { steps: 3 });
   await page.mouse.up({ button: "middle" });
   await expect(page.getByTestId("revision")).toHaveText("3");
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const state = (
+          window as unknown as {
+            __formalSceneMutationState?: {
+              mutations: number;
+              observer: MutationObserver;
+            };
+          }
+        ).__formalSceneMutationState;
+        state?.observer.disconnect();
+        return state?.mutations ?? -1;
+      }),
+    )
+    .toBe(0);
 
   await page.keyboard.press("r");
   await expect(page.getByTestId("revision")).toHaveText("4");

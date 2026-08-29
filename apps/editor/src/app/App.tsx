@@ -1041,8 +1041,10 @@ export function App({
   useEffect(() => {
     let cancelled = false;
     void prepareDocumentFormulaArtifacts(renderedDocument)
-      .then(() => {
-        if (!cancelled) setFormulaArtifactRevision((revision) => revision + 1);
+      .then((preparedNewArtifact) => {
+        if (!cancelled && preparedNewArtifact) {
+          setFormulaArtifactRevision((revision) => revision + 1);
+        }
       })
       .catch((error: unknown) => {
         if (!cancelled) {
@@ -1062,22 +1064,15 @@ export function App({
       if (sceneCrashRequested()) {
         throw new Error("scene build crashed (test hook)");
       }
-      // The scene contract validates integer grid bounds; the camera itself
-      // may sit between grid lines mid-gesture, so hand the builder an
-      // outward integer envelope of the viewport instead.
-      const sceneX = Math.floor(viewBox.x);
-      const sceneY = Math.floor(viewBox.y);
-      const sceneBounds = {
-        x: sceneX,
-        y: sceneY,
-        width: Math.max(1, Math.ceil(viewBox.x + viewBox.width) - sceneX),
-        height: Math.max(1, Math.ceil(viewBox.y + viewBox.height) - sceneY),
-      };
-      return buildSvgScene(renderedDocument, resolver, { bounds: sceneBounds });
+      // Camera state belongs to the outer SVG viewBox. The formal body is
+      // camera-independent; rebuilding it during pan/zoom repeats all route,
+      // symbol, text, and drafting derivation without changing one visible
+      // object.
+      return buildSvgScene(renderedDocument, resolver);
     }, lastGoodSceneRef.current);
     if (!outcome.degraded) lastGoodSceneRef.current = outcome.scene;
     return outcome;
-  }, [formulaArtifactRevision, renderedDocument, resolver, viewBox]);
+  }, [formulaArtifactRevision, renderedDocument, resolver]);
   const scene = sceneState.scene;
   useEffect(() => {
     if (sceneState.degraded) {
@@ -1112,7 +1107,6 @@ export function App({
             copyPlacement.sequence,
           ),
           resolver,
-          { bounds: viewBox },
         ),
         error: null,
       };
@@ -1125,7 +1119,7 @@ export function App({
             : "Copy preview could not be rendered",
       };
     }
-  }, [copyPlacement, document, resolver, viewBox]);
+  }, [copyPlacement, document, resolver]);
   useEffect(() => {
     if (copyPreviewState.error) {
       setStatus(`Copy preview unavailable — ${copyPreviewState.error}`);

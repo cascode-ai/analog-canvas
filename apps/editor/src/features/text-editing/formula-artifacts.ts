@@ -1,5 +1,6 @@
 import {
   ANALOG_CANVAS_MATH_PROFILE_ID,
+  cachedFormulaResult,
   formulaSourceHash,
   prepareFormula,
 } from "@icm/math-typesetting/cache";
@@ -45,14 +46,17 @@ export function formulaRequestsForDocument(document: SchematicDocument) {
 
 export async function prepareDocumentFormulaArtifacts(
   document: SchematicDocument,
-): Promise<void> {
-  const results = await Promise.all(
-    formulaRequestsForDocument(document).map(prepareFormula),
+): Promise<boolean> {
+  const requests = formulaRequestsForDocument(document);
+  const preparedNewArtifact = requests.some(
+    (request) => cachedFormulaResult(request) === undefined,
   );
+  const results = await Promise.all(requests.map(prepareFormula));
   const failure = results.find((result) => !result.ok);
   if (failure && !failure.ok) {
     throw new Error(
       `Formula preparation failed: ${failure.diagnostic.message}`,
     );
   }
+  return preparedNewArtifact;
 }
