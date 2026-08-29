@@ -1129,25 +1129,28 @@ describe("gallery submissions", () => {
   it("rate-limits ordinary submitters per day; curators are exempt", async () => {
     const env = environment();
 
-    // Ordinary submissions (limit enforced) exhaust the day, without
-    // touching a different submitter.
-    async function submitDirect(hash: string): Promise<number> {
+    // The quota counts the account's own entries for the day, so it is
+    // driven through the real submission route rather than a synthetic key.
+    async function submitDirect(
+      ownerUserId: string,
+      day: string,
+    ): Promise<number> {
       const response = await env.GALLERY.getByName("gallery").fetch(
         "https://gallery/submit",
         {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
-            day: "2026-08-22",
-            submitterHash: hash,
+            day,
             enforceLimit: true,
             entry: {
               id: crypto.randomUUID(),
               name: "Quota",
               author: "",
               description: "",
-              created_at: "2026-08-22T00:00:00.000Z",
+              created_at: `${day}T00:00:00.000Z`,
               schema_version: 21,
+              owner_user_id: ownerUserId,
               project_text: projectText(),
               svg_text: "<svg/>",
             },
@@ -1157,10 +1160,12 @@ describe("gallery submissions", () => {
       return response.status;
     }
     for (let index = 0; index < GALLERY_DAILY_SUBMISSION_LIMIT; index += 1) {
-      expect(await submitDirect("hash-a")).toBe(200);
+      expect(await submitDirect("account-a", "2026-08-22")).toBe(200);
     }
-    expect(await submitDirect("hash-a")).toBe(429);
-    expect(await submitDirect("hash-b")).toBe(200);
+    expect(await submitDirect("account-a", "2026-08-22")).toBe(429);
+    // A different account is untouched, and so is the same account tomorrow.
+    expect(await submitDirect("account-b", "2026-08-22")).toBe(200);
+    expect(await submitDirect("account-a", "2026-08-23")).toBe(200);
 
     // A curator is exempt: more than the limit, all accepted.
     const adminCookie = await adminOf(env);
@@ -1175,65 +1180,109 @@ describe("gallery submissions", () => {
 });
 
 describe("the daily publish quota", () => {
-  const countsByHash = (env: Harness): Map<string, number> =>
-    new Map(
-      env.gallerySql
-        .exec<{
-          submitter_hash: string;
-          count: number;
-        }>("SELECT submitter_hash, count FROM gallery_submissions")
-        .toArray()
-        .map((row) => [row.submitter_hash, row.count]),
-    );
+  const entryCount = (env: Harness): number =>
+    env.gallerySql
+      .exec<{ count: number }>("SELECT COUNT(*) AS count FROM gallery_entries")
+      .one().count;
 
-  it("counts per account, so one address does not spend everyone's allowance", async () => {
-    const env = environment();
-    const first = await signIn(env.authDurable, "first@example.com");
-    const second = await signIn(env.authDurable, "second@example.com");
-
-    // Two members behind one shared exit — a campus or an office.
-    await submitOne(env, "From first", { cookie: first, ip: "203.0.113.7" });
-    await submitOne(env, "From second", { cookie: second, ip: "203.0.113.7" });
-
-    const shared = countsByHash(env);
-    expect(shared.size).toBe(2);
-    expect([...shared.values()]).toEqual([1, 1]);
-
-    // One member from two addresses — switching networks is not a fresh
-    // allowance, which is what keying on the address used to permit.
-    await submitOne(env, "Roaming", { cookie: first, ip: "198.51.100.2" });
-    const roamed = countsByHash(env);
-    expect(roamed.size).toBe(2);
-    expect([...roamed.values()].sort()).toEqual([1, 2]);
-  });
-
-  it("refuses the submission past the limit and leaves the count where it was", async () => {
+  it("counts an account's own entries, so removing work returns the allowance", async () => {
     const env = environment();
     const cookie = await makerOf(env);
+    const first = await submitOne(env, "First", { cookie });
+    await submitOne(env, "Second", { cookie });
+    expect(entryCount(env)).toBe(2);
 
-    await submitOne(env, "First", { cookie });
-    const hash = [...countsByHash(env).keys()][0]!;
-    env.gallerySql.exec(
-      "UPDATE gallery_submissions SET count = ? WHERE submitter_hash = ?",
-      GALLERY_DAILY_SUBMISSION_LIMIT,
-      hash,
-    );
-
-    const refused = await route(
+    // Deleting is meant to give the slot back: the quota bounds what stands
+    // on the wall, not how many times someone may change their mind.
+    const removed = await route(
       env,
-      submissionRequest(
-        {
-          name: "One too many",
-          description: "d",
-          projectText: projectText("One too many"),
-        },
-        { cookie },
-      ),
+      new Request(`${ORIGIN}/api/gallery/${first}`, {
+        method: "DELETE",
+        headers: { Origin: ORIGIN, Cookie: cookie },
+      }),
     );
-    expect(refused.status).toBe(429);
-    expect((await refused.json()).error).toBe("rate-limited");
-    // A refused publish must not spend a slot of its own.
-    expect(countsByHash(env).get(hash)).toBe(GALLERY_DAILY_SUBMISSION_LIMIT);
+    expect(removed.status).toBe(200);
+    expect(entryCount(env)).toBe(1);
+  });
+
+  it("keeps one account's day separate from another's and from tomorrow", async () => {
+    const env = environment();
+    const mine = await makerOf(env);
+    const theirs = await signIn(env.authDurable, "other@example.com");
+    // Two members behind one shared exit no longer share an allowance: the
+    // quota keys on the account, not the address it arrived from.
+    await submitOne(env, "Mine", { cookie: mine, ip: "203.0.113.7" });
+    await submitOne(env, "Theirs", { cookie: theirs, ip: "203.0.113.7" });
+
+    const owners = env.gallerySql
+      .exec<{
+        owner_user_id: string | null;
+      }>("SELECT owner_user_id FROM gallery_entries")
+      .toArray()
+      .map((row) => row.owner_user_id);
+    expect(new Set(owners).size).toBe(2);
+  });
+
+  it("has no separate counter table left to drift from the entries", () => {
+    const env = environment();
+    const tables = env.gallerySql
+      .exec<{
+        name: string;
+      }>("SELECT name FROM sqlite_master WHERE type = 'table'")
+      .toArray()
+      .map((row) => row.name);
+    expect(tables).not.toContain("gallery_submissions");
+  });
+});
+
+describe("an author removes their own entry", () => {
+  it("deletes it outright, without withdrawing it first", async () => {
+    const env = environment();
+    const cookie = await makerOf(env);
+    const id = await submitOne(env, "Mine to remove", { cookie });
+
+    const removed = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/${id}`, {
+        method: "DELETE",
+        headers: { Origin: ORIGIN, Cookie: cookie },
+      }),
+    );
+    expect(removed.status).toBe(200);
+    expect((await removed.json()).deleted).toBe(true);
+
+    const gone = await route(env, new Request(`${ORIGIN}/api/gallery/${id}`));
+    expect(gone.status).toBe(404);
+  });
+
+  it("refuses a stranger and an anonymous visitor", async () => {
+    const env = environment();
+    const owner = await makerOf(env);
+    const id = await submitOne(env, "Not yours", { cookie: owner });
+    const stranger = await signIn(env.authDurable, "stranger@example.com");
+
+    const byStranger = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/${id}`, {
+        method: "DELETE",
+        headers: { Origin: ORIGIN, Cookie: stranger },
+      }),
+    );
+    expect(byStranger.status).toBe(401);
+
+    const anonymous = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/${id}`, {
+        method: "DELETE",
+        headers: { Origin: ORIGIN },
+      }),
+    );
+    expect(anonymous.status).toBe(401);
+
+    // Still standing after both refusals.
+    expect(
+      (await route(env, new Request(`${ORIGIN}/api/gallery/${id}`))).status,
+    ).toBe(200);
   });
 });
 

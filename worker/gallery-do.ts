@@ -340,13 +340,13 @@ export class GalleryDO {
       ON gallery_likes(entry_id)
     `);
     this.sql.exec(`
-      CREATE TABLE IF NOT EXISTS gallery_submissions (
-        day TEXT NOT NULL,
-        submitter_hash TEXT NOT NULL,
-        count INTEGER NOT NULL,
-        PRIMARY KEY (day, submitter_hash)
-      ) WITHOUT ROWID
+      CREATE INDEX IF NOT EXISTS idx_gallery_entries_owner_created
+      ON gallery_entries(owner_user_id, created_at)
     `);
+    // The daily quota used to live in its own counter table, which survived
+    // deletion and so could not be given back. It now counts the entries
+    // themselves; the old table is dropped rather than left to accumulate.
+    this.sql.exec("DROP TABLE IF EXISTS gallery_submissions");
     this.sql.exec(`
       CREATE TABLE IF NOT EXISTS gallery_entry_versions (
         id TEXT PRIMARY KEY,
@@ -496,7 +496,7 @@ export class GalleryDO {
       case "reject":
         return this.reject(body);
       case "delete":
-        return this.delete(String(body.id));
+        return this.delete(String(body.id), body.requireRecycled !== false);
       case "recycled":
         return this.recycled();
       case "rejected":
@@ -618,31 +618,29 @@ export class GalleryDO {
     const entry = body.entry as EntryRow;
     const previewRevision = sha256Hex(entry.svg_text);
     const day = String(body.day);
-    const submitterHash = String(body.submitterHash);
     // The daily quota is anti-garbage protection for ordinary submitters;
     // admin and moderator sessions are exempt (they curate).
+    //
+    // It counts the account's own entries for the day rather than a separate
+    // tally, so deleting work gives the allowance back. That is deliberate:
+    // the quota exists to bound how much a stranger can dump on the wall at
+    // once, not to ration how many times someone may change their mind.
     const enforceLimit = body.enforceLimit !== false;
     const outcome = this.state.storage.transactionSync(() => {
       if (enforceLimit) {
-        const used =
-          this.sql
-            .exec<{
-              count: number;
-            }>(
-              "SELECT count FROM gallery_submissions WHERE day = ? AND submitter_hash = ?",
-              day,
-              submitterHash,
-            )
-            .toArray()[0]?.count ?? 0;
+        const used = this.sql
+          .exec<{
+            count: number;
+          }>(
+            `SELECT COUNT(*) AS count FROM gallery_entries
+             WHERE owner_user_id = ? AND substr(created_at, 1, 10) = ?`,
+            entry.owner_user_id ?? "",
+            day,
+          )
+          .one().count;
         if (used >= GALLERY_DAILY_SUBMISSION_LIMIT) {
           return { status: "rate-limited" as const };
         }
-        this.sql.exec(
-          `INSERT INTO gallery_submissions(day, submitter_hash, count) VALUES (?, ?, 1)
-           ON CONFLICT(day, submitter_hash) DO UPDATE SET count = count + 1`,
-          day,
-          submitterHash,
-        );
       }
       entry.id = this.freeEntryId();
       this.sql.exec(
@@ -1496,12 +1494,20 @@ export class GalleryDO {
     return Response.json({ id, status: "rejected" });
   }
 
-  private delete(id: string): Response {
+  /**
+   * Remove an entry and everything hanging off it.
+   *
+   * A curator deletes out of the recycle bin, so the two-step stands for
+   * them. An author deleting their own work has already decided, and asking
+   * them to withdraw first would only be ceremony, so that path passes
+   * `requireRecycled: false`.
+   */
+  private delete(id: string, requireRecycled: boolean): Response {
     const row = this.sql
       .exec<EntryRow>("SELECT * FROM gallery_entries WHERE id = ?", id)
       .toArray()[0];
     if (!row) return Response.json({ error: "not-found" }, { status: 404 });
-    if (row.status !== "recycled") {
+    if (requireRecycled && row.status !== "recycled") {
       return Response.json({ error: "not-recycled" }, { status: 409 });
     }
     this.state.storage.transactionSync(() => {

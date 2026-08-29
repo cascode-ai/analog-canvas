@@ -120,26 +120,6 @@ async function entryManager(
   };
 }
 
-/**
- * The daily quota counts per account, not per address. Publishing already
- * requires signing in, so the account is the honest unit: one campus or office
- * exit used to spend one allowance between everyone behind it, and a submitter
- * could reset their own by changing networks.
- *
- * Still hashed, so the counter table holds no identifier of its own. The
- * prefix differs from the retired address-keyed one, so a stale row from the
- * old scheme can never be read as an account's count.
- */
-async function submitterHash(userId: string): Promise<string> {
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(`gallery-account:${userId}`),
-  );
-  return [...new Uint8Array(digest)]
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
-}
-
 function fieldText(value: unknown, maxLength: number): string | null {
   if (value === undefined || value === null) return "";
   if (typeof value !== "string") return null;
@@ -385,7 +365,6 @@ async function handleSubmission(
     previewRevision?: string;
   }>(env, "submit", {
     day: now.toISOString().slice(0, 10),
-    submitterHash: await submitterHash(user.id),
     enforceLimit: !privileged,
     entry: {
       // The id is drawn inside the Durable Object, which is the only place
@@ -920,11 +899,27 @@ export async function routeGalleryRequest(
     return Response.json(payload, { status });
   }
   if (segments.length === 1 && request.method === "DELETE") {
-    if (!(await isAdmin(request, env))) {
-      return Response.json({ error: "unauthorized" }, { status: 401 });
+    if (!sameOrigin(request)) {
+      return Response.json({ error: "forbidden" }, { status: 403 });
+    }
+    // An author owns their own work: removing it is theirs to do, not a
+    // favour to ask a curator for. The daily quota counts entries that still
+    // exist, so deleting gives the allowance back — that is the point.
+    const admin = await isAdmin(request, env);
+    if (!admin) {
+      const access = await entryManager(request, env, segments[0]!);
+      if (!access.found) {
+        return Response.json({ error: "not-found" }, { status: 404 });
+      }
+      if (!access.owner) {
+        return Response.json({ error: "unauthorized" }, { status: 401 });
+      }
     }
     const { status, payload } = await callGallery(env, "delete", {
       id: segments[0],
+      // The curator's bin keeps its withdraw-then-empty step; an author
+      // removing their own entry does it in one.
+      requireRecycled: admin,
     });
     return Response.json(payload, { status });
   }

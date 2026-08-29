@@ -1145,3 +1145,15 @@
 .gallery-tag-any {
   font-weight: 600;
 }
+
+/* Deleting is irreversible, so it reads as the weightier of the two author
+   actions without shouting from a closed menu. */
+.gallery-owner-danger-action {
+  color: var(--icm-error);
+}
+
+/* Deleting is irreversible, so it reads as the weightier action on the card
+   without shouting over Open and Version history. */
+.mine-card-delete {
+  color: var(--icm-error);
+}

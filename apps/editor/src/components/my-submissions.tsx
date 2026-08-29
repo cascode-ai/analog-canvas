@@ -50,6 +50,26 @@ export async function loadMySubmissions(
 }
 
 /** Owner lifecycle action; the worker checks ownership per entry. */
+/**
+ * Remove one of your own entries for good. The daily publish quota counts the
+ * entries that still stand, so deleting hands the slot straight back — an
+ * author is not rationed on changing their mind.
+ */
+export async function deleteMyEntry(
+  id: string,
+  fetchLike: typeof fetch = fetch,
+): Promise<boolean> {
+  try {
+    const response = await fetchLike(`/api/gallery/${id}`, {
+      method: "DELETE",
+      credentials: "same-origin",
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
 export async function setMyEntryRecycled(
   id: string,
   action: "recycle" | "restore",
@@ -121,6 +141,27 @@ export function MySubmissions() {
     await reload();
   }
 
+  async function remove(entry: MineEntry): Promise<void> {
+    if (
+      !window.confirm(
+        `Delete "${entry.name}" permanently? This cannot be undone.`,
+      )
+    ) {
+      return;
+    }
+    setBusy(entry.id);
+    setNotice(null);
+    const ok = await deleteMyEntry(entry.id);
+    setBusy(null);
+    if (!ok) {
+      setNotice(`Could not delete "${entry.name}".`);
+      return;
+    }
+    setNotice(`Deleted "${entry.name}".`);
+    announceGalleryChange({ entryId: entry.id });
+    await reload();
+  }
+
   return (
     <main className="review-shell" data-testid="mine-page">
       <GalleryChrome subtitle="My submissions" />
@@ -180,6 +221,18 @@ export function MySubmissions() {
                       onClick={() => setHistoryFor(entry)}
                     >
                       Version history
+                    </button>
+                    {/* Withdrawing hides an entry and keeps it; deleting is
+                        the author saying they are done with it, and returns
+                        the day's publish slot. */}
+                    <button
+                      type="button"
+                      className="account-link mine-card-delete"
+                      data-testid={`mine-delete-${entry.id}`}
+                      disabled={busy === entry.id}
+                      onClick={() => void remove(entry)}
+                    >
+                      Delete
                     </button>
                     {entry.status === "recycled" && !entry.rejectReason ? (
                       <button

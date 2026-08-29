@@ -1533,6 +1533,66 @@ test("post-publication moderation has rejected work but no approval queue", asyn
   await expect(page.getByText("Nothing waiting for review")).toHaveCount(0);
 });
 
+test("an author deletes their own entry from My submissions", async ({
+  page,
+}) => {
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      json: {
+        user: {
+          id: "u7",
+          displayName: "Maker",
+          email: "maker@example.com",
+          provider: "email",
+          role: "user",
+          isAdmin: false,
+        },
+      },
+    }),
+  );
+  let live = true;
+  await page.route("**/api/gallery/mine", (route) =>
+    route.fulfill({
+      json: {
+        entries: live
+          ? [
+              {
+                id: "mine-9",
+                name: "Draft I regret",
+                createdAt: "2026-08-29T09:00:00.000Z",
+                status: "public",
+                rejectReason: null,
+              },
+            ]
+          : [],
+      },
+    }),
+  );
+  const methods: string[] = [];
+  await page.route("**/api/gallery/mine-9", (route) => {
+    if (route.request().method() !== "DELETE") return route.fallback();
+    methods.push("DELETE");
+    live = false;
+    return route.fulfill({ json: { id: "mine-9", deleted: true } });
+  });
+
+  await page.goto("/mine");
+  const remove = page.getByTestId("mine-delete-mine-9");
+  await expect(remove).toBeVisible();
+
+  // Irreversible, so it asks first; declining leaves the entry alone.
+  page.once("dialog", (dialog) => void dialog.dismiss());
+  await remove.click();
+  expect(methods).toHaveLength(0);
+  await expect(remove).toBeVisible();
+
+  page.once("dialog", (dialog) => void dialog.accept());
+  await remove.click();
+  await expect(page.getByTestId("mine-notice")).toContainText("Deleted");
+  await expect(page.getByTestId("mine-delete-mine-9")).toHaveCount(0);
+  expect(methods).toEqual(["DELETE"]);
+});
+
 test("/mine wears the site chrome and links every entry back to the editor", async ({
   page,
 }) => {
