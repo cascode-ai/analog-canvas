@@ -33,6 +33,14 @@ export interface PolarityAnnotationInsertRequest {
   initialRotation: 0 | 90 | 180 | 270;
 }
 
+export interface DraftTextAnnotationInsertRequest {
+  kind: "drafting-text";
+  symbolId: string;
+  symbolName: string;
+  text: string;
+  initialRotation: 0 | 90 | 180 | 270;
+}
+
 export interface CellInsertRequest {
   kind: "cell";
   symbolId: string;
@@ -65,4 +73,5 @@ export type ComponentInsertRequest =
   | ExternalSubcircuitInsertRequest
   | VddRailInsertRequest
   | DrawingToolInsertRequest
-  | PolarityAnnotationInsertRequest;
+  | PolarityAnnotationInsertRequest
+  | DraftTextAnnotationInsertRequest;

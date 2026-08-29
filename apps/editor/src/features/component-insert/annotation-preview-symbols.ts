@@ -24,6 +24,10 @@ const polarityBySymbolId = {
   "annotation-text-minus": "negative",
 } as const satisfies Readonly<Record<string, PolarityAnnotationKind>>;
 
+const textPresetBySymbolId = {
+  "annotation-ellipsis": "...",
+} as const satisfies Readonly<Record<string, string>>;
+
 export function annotationDrawingTool(
   symbolId: string,
 ): DrawingTool | undefined {
@@ -36,6 +40,10 @@ export function annotationPolarity(
   return polarityBySymbolId[symbolId as keyof typeof polarityBySymbolId];
 }
 
+export function annotationTextPreset(symbolId: string): string | undefined {
+  return textPresetBySymbolId[symbolId as keyof typeof textPresetBySymbolId];
+}
+
 /** True for a lone + or −: a polarity mark with no centre text to write. */
 export function isBarePolaritySign(symbolId: string): boolean {
   const polarity = annotationPolarity(symbolId);
@@ -44,7 +52,9 @@ export function isBarePolaritySign(symbolId: string): boolean {
 
 export function isAnnotationPaletteSymbol(symbolId: string): boolean {
   return Boolean(
-    annotationDrawingTool(symbolId) ?? annotationPolarity(symbolId),
+    annotationDrawingTool(symbolId) ??
+    annotationPolarity(symbolId) ??
+    annotationTextPreset(symbolId),
   );
 }
 
@@ -188,6 +198,23 @@ const annotationTextMinus = {
   primitives: minusStrokes(0),
 } satisfies SymbolDefinition;
 
+// Catalog-only artwork. Placement uses the canonical DraftText renderer with
+// content "...", so its dots and selection bounds are exactly those of the
+// current default label font rather than a second symbol geometry contract.
+const annotationEllipsis = {
+  ...shared,
+  id: "annotation-ellipsis",
+  name: "Three dots",
+  viewBox: { x: -12, y: -8, width: 24, height: 16 },
+  primitives: [-6, 0, 6].map((x) => ({
+    kind: "circle" as const,
+    center: { x, y: 0 },
+    radius: 1.25,
+    fill: "foreground" as const,
+    stroke: "none" as const,
+  })),
+} satisfies SymbolDefinition;
+
 /**
  * Editor-only catalog artwork. These definitions never enter the electrical
  * SymbolResolver: drawing entries activate an existing tool, while polarity
@@ -201,4 +228,5 @@ export const annotationPreviewSymbols: readonly SymbolDefinition[] = [
   annotationPolarityBoth,
   annotationTextPlus,
   annotationTextMinus,
+  annotationEllipsis,
 ];

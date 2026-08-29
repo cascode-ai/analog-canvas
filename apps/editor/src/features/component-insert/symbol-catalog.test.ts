@@ -62,9 +62,10 @@ describe("component insertion catalog", () => {
     expect(symbolCategory("pdmos")).toBe("Extended Devices");
     expect(symbolCategory("annotation-arrow")).toBe("Annotations");
     expect(symbolCategory("annotation-polarity-both")).toBe("Annotations");
+    expect(symbolCategory("annotation-ellipsis")).toBe("Annotations");
   });
 
-  it("orders annotations as drawing tools, the polarity label, then signs", () => {
+  it("orders annotations as drawing tools, polarity marks, then three dots", () => {
     const groups = componentCatalog("razavi-textbook-v1", "");
     const annotations = groups.find(
       (group) => group.category === "Annotations",
@@ -78,6 +79,7 @@ describe("component insertion catalog", () => {
       "annotation-polarity-both",
       "annotation-text-plus",
       "annotation-text-minus",
+      "annotation-ellipsis",
     ]);
     expect(groups.at(-1)?.category).toBe("Extended Devices");
   });

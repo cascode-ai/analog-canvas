@@ -615,16 +615,14 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
     position: Point,
     placementRequest: PendingComponentPlacement,
   ): void => {
-    if (
-      placementRequest.kind !== "drafting-text" ||
-      !placementRequest.polarity
-    ) {
-      return;
-    }
+    if (placementRequest.kind !== "drafting-text") return;
     // A lone + or − has no centre to write in, so it lands as the canonical
     // empty document — the same shape an emptied polarity label keeps.
-    const bare = placementRequest.polarity !== "both";
-    let id = options.nextId("polarity");
+    const bare =
+      Boolean(placementRequest.polarity) &&
+      placementRequest.polarity !== "both";
+    const preset = placementRequest.text;
+    let id = options.nextId(placementRequest.polarity ? "polarity" : "text");
     while (
       options.document.drafting?.objects.some((object) => object.id === id)
     ) {
@@ -638,7 +636,9 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
       anchor: { kind: "free", position },
       content: bare
         ? { runs: [{ kind: "line-break" as const }] }
-        : defaultDraftTextDocument("V_x"),
+        : preset
+          ? { runs: [{ kind: "text" as const, value: preset }] }
+          : defaultDraftTextDocument("V_x"),
       alignment: "middle",
       rotation: options.componentPlacementRotation,
       typographyToken: "label",
@@ -651,6 +651,10 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
     }
     options.cancelAllTransientInteraction();
     options.selectOnly("drafting", [object.id]);
+    if (preset) {
+      options.setStatus(`Added ${placementRequest.symbolId}`);
+      return;
+    }
     if (bare) {
       options.setStatus(`Added ${placementRequest.polarity} polarity mark`);
       return;
@@ -722,20 +726,32 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
             showValue: false,
             polarity: request.polarity,
           }
-        : request.kind === "symbol" &&
-            (request.symbolId === "port" || request.symbolId === "port-filled")
+        : request.kind === "drafting-text"
           ? {
-              kind: "cell-pin",
+              kind: "drafting-text",
               symbolId: request.symbolId,
               parameters: {},
               initialRotation: request.initialRotation,
               showReference: false,
               referenceText: null,
               showValue: false,
-              direction: request.portDirection ?? "passive",
-              ...(request.portName ? { portName: request.portName } : {}),
+              text: request.text,
             }
-          : request;
+          : request.kind === "symbol" &&
+              (request.symbolId === "port" ||
+                request.symbolId === "port-filled")
+            ? {
+                kind: "cell-pin",
+                symbolId: request.symbolId,
+                parameters: {},
+                initialRotation: request.initialRotation,
+                showReference: false,
+                referenceText: null,
+                showValue: false,
+                direction: request.portDirection ?? "passive",
+                ...(request.portName ? { portName: request.portName } : {}),
+              }
+            : request;
     options.beginComponentPlacement(pendingRequest);
     options.setStatus(
       request.kind === "polarity-annotation"

@@ -553,7 +553,7 @@ test("groups drafting tools and editable polarity labels under Annotations", asy
 
   const annotations = page.getByTestId("shapes-category-annotations");
   await expect(annotations).toBeVisible();
-  await expect(annotations.locator(".shapes-category-count")).toHaveText("7");
+  await expect(annotations.locator(".shapes-category-count")).toHaveText("8");
   // Drawing tools lead; the polarity label and the standalone sign texts
   // close the category. The one-sign-with-text variants no longer exist.
   expect(
@@ -570,6 +570,7 @@ test("groups drafting tools and editable polarity labels under Annotations", asy
     "shapes-chip-annotation-polarity-both",
     "shapes-chip-annotation-text-plus",
     "shapes-chip-annotation-text-minus",
+    "shapes-chip-annotation-ellipsis",
   ]);
 
   // The Library entries reuse the authoritative toolbar tools rather than
@@ -657,6 +658,31 @@ test("groups drafting tools and editable polarity labels under Annotations", asy
   expect(
     await armOf(loneMinus.locator('[data-role="polarity-negative"]')),
   ).toBe(await armOf(polarity.locator('[data-role="polarity-negative"]')));
+
+  // Three dots use the canonical DraftText path. That makes each dot exactly
+  // the current default font's period glyph and reuses the same generic text
+  // selection frame instead of a symbol-specific box.
+  await page.keyboard.press("i");
+  await dialog.getByLabel("Component search").fill("three dots");
+  await dialog.getByTestId("insert-component-annotation-ellipsis").click();
+  await canvas.hover({ position: { x: 700, y: 260 } });
+  await page.keyboard.press("r");
+  await canvas.click({ position: { x: 700, y: 260 } });
+  const ellipsis = canvas.locator('[data-kind="draft-text"]').filter({
+    hasText: "...",
+  });
+  await expect(ellipsis).toBeVisible();
+  await expect(ellipsis).toHaveText("...");
+  await expect(ellipsis).toHaveAttribute("transform", /rotate\(90\b/u);
+  await expect(
+    canvas.locator('[data-testid^="drafting-hit-text-"]'),
+  ).toHaveClass(/hit-target annotation-text-hit selected/u);
+  await expect
+    .poll(() => recoveryProjectTexts(page))
+    .toContain('"kind": "text"');
+  await expect
+    .poll(() => recoveryProjectTexts(page))
+    .toContain('"value": "..."');
 });
 
 test("places a vertical Power Rail from I and renames it on the canvas", async ({

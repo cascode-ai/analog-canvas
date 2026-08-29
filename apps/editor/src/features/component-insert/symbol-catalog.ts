@@ -210,7 +210,7 @@ const SYMBOL_ORDER: readonly string[] = [
   "discrete-time-integrator",
   "quantizer",
   // Annotations: drawing tools first (toolbar order), then the polarity
-  // label, and the standalone sign texts last.
+  // label, standalone signs, and fixed decorative marks last.
   "annotation-arrow",
   "annotation-line",
   "annotation-rectangle",
@@ -218,6 +218,7 @@ const SYMBOL_ORDER: readonly string[] = [
   "annotation-polarity-both",
   "annotation-text-plus",
   "annotation-text-minus",
+  "annotation-ellipsis",
 ];
 
 function symbolRank(symbolId: string): number {

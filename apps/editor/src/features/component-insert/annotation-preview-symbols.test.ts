@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   annotationPolarity,
+  annotationTextPreset,
   isAnnotationPaletteSymbol,
   isBarePolaritySign,
 } from "./annotation-preview-symbols";
@@ -53,6 +54,9 @@ describe("polarity annotations", () => {
     expect(isBarePolaritySign("annotation-text-plus")).toBe(true);
     expect(isBarePolaritySign("annotation-polarity-both")).toBe(false);
     expect(isAnnotationPaletteSymbol("annotation-text-minus")).toBe(true);
+    expect(isAnnotationPaletteSymbol("annotation-ellipsis")).toBe(true);
+    expect(annotationPolarity("annotation-ellipsis")).toBeUndefined();
+    expect(annotationTextPreset("annotation-ellipsis")).toBe("...");
   });
 
   it("draws a lone sign at exactly the size the pair draws it", () => {

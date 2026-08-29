@@ -32,6 +32,9 @@ describe("InsertComponentDialog", () => {
     expect(markup).toContain(
       'data-testid="insert-component-annotation-polarity-both"',
     );
+    expect(markup).toContain(
+      'data-testid="insert-component-annotation-ellipsis"',
+    );
     expect(markup).not.toContain("<h3");
     expect(markup).not.toContain("<h4");
     // Library order: transistors lead, categories stay together, and the

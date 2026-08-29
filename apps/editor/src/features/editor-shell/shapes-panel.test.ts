@@ -20,7 +20,7 @@ describe("shapes quick-place", () => {
       }),
     );
 
-    expect(symbols).toHaveLength(55);
+    expect(symbols).toHaveLength(56);
     expect(markup).toContain("All devices");
     expect(markup.match(/data-testid="shapes-chip-/g)).toHaveLength(
       symbols.length,
@@ -40,7 +40,7 @@ describe("shapes quick-place", () => {
       ["Analog Blocks", 6],
       ["Logic Gates", 10],
       ["Signal Flow", 6],
-      ["Annotations", 7],
+      ["Annotations", 8],
       ["Extended Devices", 7],
     ]);
     const categoryTestIds = [
@@ -157,6 +157,13 @@ describe("shapes quick-place", () => {
       symbolId: "annotation-text-minus",
       symbolName: "Minus sign",
       polarity: "negative",
+      initialRotation: 0,
+    });
+    expect(quickPlaceRequest("razavi", "annotation-ellipsis")).toEqual({
+      kind: "drafting-text",
+      symbolId: "annotation-ellipsis",
+      symbolName: "Three dots",
+      text: "...",
       initialRotation: 0,
     });
     expect(quickPlaceRequest("razavi", "annotation-polarity-positive")).toBe(

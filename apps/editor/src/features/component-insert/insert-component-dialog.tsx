@@ -6,6 +6,7 @@ import { initialComponentParameterValues } from "./component-parameters";
 import {
   annotationDrawingTool,
   annotationPolarity,
+  annotationTextPreset,
 } from "./annotation-preview-symbols";
 import { componentCatalog, libraryDisplayName } from "./symbol-catalog";
 import type { ComponentInsertRequest } from "./component-insert-request";
@@ -264,6 +265,18 @@ export function InsertComponentDialog({
         symbolId,
         symbolName: choice.symbol.name,
         polarity,
+        initialRotation: 0,
+      });
+      return;
+    }
+    const textPreset =
+      choice.kind === "symbol" ? annotationTextPreset(symbolId) : undefined;
+    if (textPreset) {
+      onApply({
+        kind: "drafting-text",
+        symbolId,
+        symbolName: choice.symbol.name,
+        text: textPreset,
         initialRotation: 0,
       });
       return;
