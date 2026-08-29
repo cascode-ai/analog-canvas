@@ -40,6 +40,20 @@ async function loadedJavaScriptContains(page, needle) {
   return contents.some((content) => content.includes(needle));
 }
 
+async function loadedJavaScriptPathContains(page, needle) {
+  return page.evaluate(
+    (expected) =>
+      performance
+        .getEntriesByType("resource")
+        .some(
+          (entry) =>
+            new URL(entry.name).pathname.endsWith(".js") &&
+            new URL(entry.name).pathname.includes(expected),
+        ),
+    needle,
+  );
+}
+
 async function loadedStylesheetContains(page, needle) {
   const paths = await page.evaluate(() =>
     performance
@@ -71,6 +85,8 @@ async function main() {
   let editorCodeLoaded = false;
   let galleryEditorStylesLoaded = true;
   let editorStylesLoaded = false;
+  let galleryPdfRuntimeLoaded = true;
+  let editorPdfRuntimeLoaded = true;
   try {
     server = await preview({
       root: editorRoot,
@@ -102,6 +118,10 @@ async function main() {
       page,
       ".schematic-canvas",
     );
+    galleryPdfRuntimeLoaded = await loadedJavaScriptPathContains(
+      page,
+      "browser-pdf-",
+    );
     await page.goto(new URL("editor", url).href, {
       waitUntil: "networkidle",
     });
@@ -112,6 +132,10 @@ async function main() {
     editorStylesLoaded = await loadedStylesheetContains(
       page,
       ".schematic-canvas",
+    );
+    editorPdfRuntimeLoaded = await loadedJavaScriptPathContains(
+      page,
+      "browser-pdf-",
     );
     mounted = true;
     // Browser recovery is Project data and must never leak into the PWA
@@ -151,6 +175,8 @@ async function main() {
     editorCodeLoaded,
     galleryEditorStylesLoaded,
     editorStylesLoaded,
+    galleryPdfRuntimeLoaded,
+    editorPdfRuntimeLoaded,
   };
 
   if (check) {
@@ -177,6 +203,9 @@ async function main() {
   }
   if (!report.editorStylesLoaded) {
     throw new Error("Editor route did not load its editor stylesheet");
+  }
+  if (report.galleryPdfRuntimeLoaded || report.editorPdfRuntimeLoaded) {
+    throw new Error("PDF runtime loaded before a PDF export was requested");
   }
   if (report.consoleErrors.length > 0) {
     throw new Error(

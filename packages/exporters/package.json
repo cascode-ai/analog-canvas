@@ -14,6 +14,16 @@
       "types": "./dist/browser.d.ts",
       "default": "./dist/browser.js"
     },
+    "./browser-raster": {
+      "development": "./src/browser-raster.ts",
+      "types": "./dist/browser-raster.d.ts",
+      "default": "./dist/browser-raster.js"
+    },
+    "./browser-pdf": {
+      "development": "./src/browser-pdf.ts",
+      "types": "./dist/browser-pdf.d.ts",
+      "default": "./dist/browser-pdf.js"
+    },
     "./node": {
       "types": "./dist/node.d.ts",
       "default": "./dist/node.js"

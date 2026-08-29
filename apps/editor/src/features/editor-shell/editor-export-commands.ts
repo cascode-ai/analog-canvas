@@ -76,13 +76,13 @@ export async function createVisualExportArtifact(
   resolver: SymbolResolver,
   projectName: string,
 ): Promise<EditorExportArtifact> {
-  const { exportFormalArtifactsInBrowser, rasterizeFormalSvgInBrowser } =
-    await import("@icm/exporters/browser");
   await prepareDocumentFormulaArtifacts(document);
   const source = createFormalExportSource(document, resolver, {
     title: projectName,
   });
   if (format === "png") {
+    const { rasterizeFormalSvgInBrowser } =
+      await import("@icm/exporters/browser-raster");
     const png = await rasterizeFormalSvgInBrowser(source);
     return {
       bytes: png.bytes as BlobPart,
@@ -91,7 +91,9 @@ export async function createVisualExportArtifact(
       report: `Exported PNG revision ${document.revision}`,
     };
   }
-  const { pdf } = await exportFormalArtifactsInBrowser(source);
+  const { vectorizeFormalSvgInBrowser } =
+    await import("@icm/exporters/browser-pdf");
+  const pdf = await vectorizeFormalSvgInBrowser(source);
   return {
     bytes: pdf as BlobPart,
     mediaType: "application/pdf",

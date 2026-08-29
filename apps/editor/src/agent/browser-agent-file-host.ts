@@ -9,10 +9,6 @@ import {
   type AgentFileResourceResponse,
 } from "@icm/agent-adapter";
 import { createFormalExportSource } from "@icm/exporters";
-import {
-  exportFormalArtifactsInBrowser,
-  rasterizeFormalSvgInBrowser,
-} from "@icm/exporters/browser";
 import { parseProject, serializeProject } from "@icm/project-protocol";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
 import { importSpiceSources } from "@icm/spice";
@@ -168,6 +164,8 @@ export class BrowserAgentFileHost {
         );
       }
       if (request.artifact === "png") {
+        const { rasterizeFormalSvgInBrowser } =
+          await import("@icm/exporters/browser-raster");
         const png = await rasterizeFormalSvgInBrowser(source);
         return this.artifactResponse(
           request,
@@ -176,7 +174,9 @@ export class BrowserAgentFileHost {
           png.bytes,
         );
       }
-      const { pdf } = await exportFormalArtifactsInBrowser(source);
+      const { vectorizeFormalSvgInBrowser } =
+        await import("@icm/exporters/browser-pdf");
+      const pdf = await vectorizeFormalSvgInBrowser(source);
       return this.artifactResponse(
         request,
         "schematic.pdf",

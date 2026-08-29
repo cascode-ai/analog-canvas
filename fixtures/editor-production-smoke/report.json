@@ -6,5 +6,7 @@
   "galleryEditorCodeLoaded": false,
   "editorCodeLoaded": true,
   "galleryEditorStylesLoaded": false,
-  "editorStylesLoaded": true
+  "editorStylesLoaded": true,
+  "galleryPdfRuntimeLoaded": false,
+  "editorPdfRuntimeLoaded": false
 }
