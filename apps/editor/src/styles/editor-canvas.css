@@ -41,7 +41,9 @@
    SVG wrapper. Supply that wrapper's canonical schematic typography here so
    canvas labels and free text cannot fall back to the surrounding UI font. */
 .schematic-canvas text {
-  font-family: "DejaVu Sans", Arial, "Helvetica Neue", Helvetica, sans-serif;
+  font-family:
+    "ICM Round Period", "DejaVu Sans", Arial, "Helvetica Neue", Helvetica,
+    sans-serif;
 }
 
 /*
@@ -438,7 +440,9 @@
   color: var(--icm-text);
   background: rgb(255 255 255 / 99%);
   box-shadow: var(--icm-shadow-md);
-  font-family: "DejaVu Sans", Arial, "Helvetica Neue", Helvetica, sans-serif;
+  font-family:
+    "ICM Round Period", "DejaVu Sans", Arial, "Helvetica Neue", Helvetica,
+    sans-serif;
 }
 
 .canvas-grid-dot {

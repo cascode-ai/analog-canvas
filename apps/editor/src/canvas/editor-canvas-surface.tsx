@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { ComponentProps, SVGProps } from "react";
+import { schematicRoundPeriodFontFaceCss } from "@icm/derived";
 
 import {
   CanvasGridOverlay,
@@ -201,6 +202,7 @@ export function EditorCanvasSurface({
         viewBox={viewBox}
         {...eventHandlers}
       >
+        <style>{schematicRoundPeriodFontFaceCss}</style>
         <CanvasGridOverlay {...grid} />
         <g dangerouslySetInnerHTML={sceneInnerHtml} />
         {cellSymbolLayout ? (

@@ -62,7 +62,7 @@ describe("current rendering contract", () => {
     expect(svg).toContain("font-style:normal;font-weight:700");
     expect(svg).not.toContain("baseline-shift");
     expect(svg).not.toMatch(/font-size="[\d.]+%"/u);
-    expect(svg).toContain("<style>svg{font-size:");
+    expect(svg).toContain("svg{font-size:");
     expect(svg).not.toMatch(/text\{[^}]*font-size:/u);
   });
 
@@ -170,7 +170,11 @@ describe("current rendering contract", () => {
 
     expect(svg).toContain('data-pin-name="V_in"');
     expect(svg).toContain(">V_in</text>");
-    expect(svg).not.toContain("font-style:italic");
+    const pinText = svg.match(
+      /<text data-pin-name="V_in"[^>]*>.*?<\/text>/u,
+    )?.[0];
+    expect(pinText).toBeDefined();
+    expect(pinText).not.toContain("font-style:italic");
   });
 
   it("renders an explicit pin display name without changing electrical identity", () => {

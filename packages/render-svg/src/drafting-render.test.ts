@@ -16,6 +16,30 @@ import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 
 describe("drafting layer rendering", () => {
+  it("embeds the round full-stop face without changing canonical text", () => {
+    const document = createEmptyDocument("doc", "Punctuation");
+    document.drafting = {
+      objects: [
+        {
+          id: "period-note",
+          kind: "text",
+          locked: false,
+          zIndex: 0,
+          anchor: { kind: "free", position: { x: 100, y: 100 } },
+          content: { runs: [{ kind: "text", value: "Gain." }] },
+          alignment: "start",
+          rotation: 0,
+        },
+      ],
+    };
+
+    const svg = renderDocumentSvg(document, resolver);
+    expect(svg).toContain("Gain.");
+    expect(svg).toContain('font-family:"ICM Round Period"');
+    expect(svg).toContain("unicode-range:U+002E");
+    expect(svg).toContain("font-family:'ICM Round Period','DejaVu Sans',Arial");
+  });
+
   it("renders a DraftText object in a data-layer=drafting group", () => {
     const document = createEmptyDocument("doc", "Drafting");
     document.drafting = {

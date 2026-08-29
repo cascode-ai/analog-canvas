@@ -1,6 +1,7 @@
 import type { SymbolStrokeRole } from "@icm/symbols";
 
 import { razaviPeripheralGeometry } from "./razavi-peripheral-geometry.generated.js";
+import { withSchematicRoundPeriodFont } from "./schematic-font.js";
 
 export interface SchematicStyleProfile {
   readonly id: "razavi-textbook-v1";
@@ -54,7 +55,9 @@ export interface SchematicTypography {
 
 /** The one typography system shared by all presentation profiles. */
 export const globalSchematicTypography: SchematicTypography = {
-  fontFamily: "'DejaVu Sans',Arial,'Helvetica Neue',Helvetica,sans-serif",
+  fontFamily: withSchematicRoundPeriodFont(
+    "'DejaVu Sans',Arial,'Helvetica Neue',Helvetica,sans-serif",
+  ),
   mathWeight: 700,
   mathStyle: "italic",
   plainWeight: 400,

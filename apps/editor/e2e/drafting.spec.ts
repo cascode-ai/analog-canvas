@@ -112,7 +112,18 @@ test("adds formatted drafting text and undo/redo restores it", async ({
   await expect(
     page.getByRole("button", { name: "Insert fraction" }),
   ).toHaveCount(0);
-  await expect(draftInput).toHaveCSS("font-family", /DejaVu Sans.*Arial/u);
+  await expect(draftInput).toHaveCSS(
+    "font-family",
+    /ICM Round Period.*DejaVu Sans.*Arial/u,
+  );
+  await expect
+    .poll(() =>
+      page.evaluate(async () => {
+        const faces = await document.fonts.load('15px "ICM Round Period"', ".");
+        return faces.some((face) => face.status === "loaded");
+      }),
+    )
+    .toBe(true);
   await expectForeignObjectContentsContained(
     page.getByTestId("canvas-text-editor"),
   );
@@ -148,7 +159,7 @@ test("adds formatted drafting text and undo/redo restores it", async ({
   await expect(page.locator('[data-layer="drafting"]')).toContainText("Vin");
   await expect(page.locator('[data-kind="draft-text"]')).toHaveCSS(
     "font-family",
-    /DejaVu Sans.*Arial/u,
+    /ICM Round Period.*DejaVu Sans.*Arial/u,
   );
   await expect(page.getByTestId("revision")).toHaveText("2");
 

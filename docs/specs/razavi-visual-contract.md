@@ -168,7 +168,7 @@ lineJoin: miter
 miterLimit: 4
 formalStrokeScaling: "geometry-and-strokes"
 typography:
-  fontFamily: "'DejaVu Sans', Arial, 'Helvetica Neue', Helvetica, sans-serif"
+  fontFamily: "'ICM Round Period', 'DejaVu Sans', Arial, 'Helvetica Neue', Helvetica, sans-serif"
   mathWeight: 700
   mathStyle: italic
   plainWeight: 400
