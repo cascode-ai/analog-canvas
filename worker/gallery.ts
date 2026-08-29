@@ -120,14 +120,20 @@ async function entryManager(
   };
 }
 
-async function submitterHash(request: Request): Promise<string> {
-  const ip =
-    request.headers.get("CF-Connecting-IP") ??
-    request.headers.get("X-Forwarded-For") ??
-    "unknown";
+/**
+ * The daily quota counts per account, not per address. Publishing already
+ * requires signing in, so the account is the honest unit: one campus or office
+ * exit used to spend one allowance between everyone behind it, and a submitter
+ * could reset their own by changing networks.
+ *
+ * Still hashed, so the counter table holds no identifier of its own. The
+ * prefix differs from the retired address-keyed one, so a stale row from the
+ * old scheme can never be read as an account's count.
+ */
+async function submitterHash(userId: string): Promise<string> {
   const digest = await crypto.subtle.digest(
     "SHA-256",
-    new TextEncoder().encode(`gallery:${ip}`),
+    new TextEncoder().encode(`gallery-account:${userId}`),
   );
   return [...new Uint8Array(digest)]
     .map((byte) => byte.toString(16).padStart(2, "0"))
@@ -379,7 +385,7 @@ async function handleSubmission(
     previewRevision?: string;
   }>(env, "submit", {
     day: now.toISOString().slice(0, 10),
-    submitterHash: await submitterHash(request),
+    submitterHash: await submitterHash(user.id),
     enforceLimit: !privileged,
     entry: {
       // The id is drawn inside the Durable Object, which is the only place

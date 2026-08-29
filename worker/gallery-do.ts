@@ -115,7 +115,13 @@ interface StoredProjectRow {
 export const GALLERY_MAX_NAME_LENGTH = 120;
 export const GALLERY_MAX_AUTHOR_LENGTH = 40;
 export const GALLERY_MAX_DESCRIPTION_LENGTH = 300;
-export const GALLERY_DAILY_SUBMISSION_LIMIT = 10;
+/**
+ * Publishes one address may make in a UTC day. Anti-garbage protection, not a
+ * pace limit: ten stopped an ordinary afternoon of posting a chapter's worth
+ * of figures, and the quota counts by IP, so one shared campus or office exit
+ * spends it for everyone behind it.
+ */
+export const GALLERY_DAILY_SUBMISSION_LIMIT = 100;
 export const GALLERY_MAX_TAGS = 5;
 export const GALLERY_MAX_TAG_LENGTH = 24;
 /** How many previous states each Gallery entry retains. */

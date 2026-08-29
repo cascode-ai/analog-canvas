@@ -1174,6 +1174,69 @@ describe("gallery submissions", () => {
   });
 });
 
+describe("the daily publish quota", () => {
+  const countsByHash = (env: Harness): Map<string, number> =>
+    new Map(
+      env.gallerySql
+        .exec<{
+          submitter_hash: string;
+          count: number;
+        }>("SELECT submitter_hash, count FROM gallery_submissions")
+        .toArray()
+        .map((row) => [row.submitter_hash, row.count]),
+    );
+
+  it("counts per account, so one address does not spend everyone's allowance", async () => {
+    const env = environment();
+    const first = await signIn(env.authDurable, "first@example.com");
+    const second = await signIn(env.authDurable, "second@example.com");
+
+    // Two members behind one shared exit — a campus or an office.
+    await submitOne(env, "From first", { cookie: first, ip: "203.0.113.7" });
+    await submitOne(env, "From second", { cookie: second, ip: "203.0.113.7" });
+
+    const shared = countsByHash(env);
+    expect(shared.size).toBe(2);
+    expect([...shared.values()]).toEqual([1, 1]);
+
+    // One member from two addresses — switching networks is not a fresh
+    // allowance, which is what keying on the address used to permit.
+    await submitOne(env, "Roaming", { cookie: first, ip: "198.51.100.2" });
+    const roamed = countsByHash(env);
+    expect(roamed.size).toBe(2);
+    expect([...roamed.values()].sort()).toEqual([1, 2]);
+  });
+
+  it("refuses the submission past the limit and leaves the count where it was", async () => {
+    const env = environment();
+    const cookie = await makerOf(env);
+
+    await submitOne(env, "First", { cookie });
+    const hash = [...countsByHash(env).keys()][0]!;
+    env.gallerySql.exec(
+      "UPDATE gallery_submissions SET count = ? WHERE submitter_hash = ?",
+      GALLERY_DAILY_SUBMISSION_LIMIT,
+      hash,
+    );
+
+    const refused = await route(
+      env,
+      submissionRequest(
+        {
+          name: "One too many",
+          description: "d",
+          projectText: projectText("One too many"),
+        },
+        { cookie },
+      ),
+    );
+    expect(refused.status).toBe(429);
+    expect((await refused.json()).error).toBe("rate-limited");
+    // A refused publish must not spend a slot of its own.
+    expect(countsByHash(env).get(hash)).toBe(GALLERY_DAILY_SUBMISSION_LIMIT);
+  });
+});
+
 describe("direct publishing (the review queue is retired)", () => {
   it("publishes for every role: quality checks are advisory, never a gate", async () => {
     const env = environment();
