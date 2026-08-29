@@ -22,8 +22,7 @@ labels, bulk placement, and delete behavior unsafe to extend independently.
 
 ## Decision
 
-Project schema 16 separates persisted semantic label bindings. The sole
-**schema-16 in-memory Project shape** has:
+The persisted model separates semantic label bindings:
 
 - `instance-designator` projects only `Instance.netlist.reference`;
 - `instance-schematic-name` projects only `Instance.schematicName`;
@@ -94,20 +93,8 @@ remain electrical changes.
 
 ### Negative or limiting
 
-- Schema 16 consumes the rolling migration slot and replaces the old v14-to-v15
-  reader.
-- Existing reference labels migrate according to their prior rendered value;
-  projects older than schema 15 are no longer supported at this boundary.
-- Persistent trash, auto-routing, PDK setup, simulation and layout remain out
-  of scope.
-
-## Compatibility and migration
-
-The reader accepts schema 15 and schema 16 only. A direct v15-to-v16 adapter
-maps every `instance-reference` binding to `instance-schematic-name` when its
-target Instance has a schematic alias, otherwise to `instance-designator`.
-That rule preserves the actual schema-15 projection while yielding one strict
-schema-16 runtime model. Serialization emits schema 16 only.
+- Persistent trash, automatic global routing, PDK setup, analog simulation,
+  and layout remain out of scope.
 
 ## Validation
 

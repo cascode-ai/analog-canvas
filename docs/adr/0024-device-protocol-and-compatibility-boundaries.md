@@ -150,7 +150,6 @@ do not constitute a historic fixture collection.
 
 ## Related documents
 
-- [`0022-current-protocol-baseline.md`](0022-current-protocol-baseline.md)
 - [`0023-rolling-previous-project-compatibility.md`](0023-rolling-previous-project-compatibility.md)
 - [`../specs/schematic-model.md`](../specs/schematic-model.md)
 - [`../specs/project-file-format.md`](../specs/project-file-format.md)

@@ -1,78 +1,59 @@
-# 0039 - Any-Angle Route Authoring
+# 0039 - One Route protocol with any-angle authoring
 
 Status: `accepted`
 
 Date: `2026-08-22`
 
-Owners: `derived geometry, edit engine, editor, Agent API`
+Owners: `packages/model`, `packages/derived`, `packages/edit-engine`,
+`apps/editor`
 
 ## Context
 
-[ADR 0028](0028-octilinear-route-geometry-protocol.md) established one Route
-geometry protocol and made segment heading geometry rather than topology. It
-recorded that the derived segment-geometry kernel "is generic enough for a
-future explicitly approved arbitrary-angle policy", and listed
-"arbitrary-angle authoring is intentionally not exposed yet" as its one
-limiting consequence.
-
-The repository owner has now asked for arbitrary-angle wires, stating that the
-octilinear restriction is too limiting and that write validation should not
-enforce it. This ADR is that explicit approval.
+Route heading is geometry, not topology. Separate orthogonal, diagonal, and
+free-angle persisted Route types would make connectivity, Junction, selection,
+rendering, and editing disagree about the same conductor.
 
 ## Decision
 
-Segment heading is not a validity rule. Write validation accepts any Route
-whose segments are non-zero; `orthogonal`, `octilinear`, and the new `free`
-mode remain transient authoring policies chosen per command, exactly as ADR
-0028 framed them.
+There is exactly one persisted Route/Net/Junction protocol. The shared segment
+geometry kernel owns projection, containment, intersection, collinearity, and
+direction for every non-zero segment. Segment heading is not a Project-validity
+rule.
 
-`WireRoutingMode` gains `free`, which compiles an authored click to the
-straight line that reaches it. The middle-click corner cycle ends on it, so
-any angle is reachable without opening the Wire options.
+`orthogonal`, `octilinear`, and `free` are transient authoring constraints.
+Orthogonal remains the default; octilinear admits horizontal, vertical, and
+±45-degree segments; free reaches the authored point directly. Switching a
+constraint affects only the unresolved Wire leg, and Backspace removes the
+latest authored step. Existing committed geometry is not silently normalized.
 
-Direct manipulation follows: a segment drag and an endpoint move reject only
-degenerate geometry. The tidying elbow that an endpoint move inserts stays
-limited to legs that were already octilinear, so a diagonal is stretched
-rather than given a corner.
+Direct manipulation rejects only degenerate ordinary Route geometry. A
+`power-rail` remains the deliberate exception: one non-zero, axis-aligned
+straight segment. A Crossing remains disconnected without an explicit
+Junction. `bulk-dashed` remains ordinary Route geometry with its own
+presentation.
 
-Unchanged: `power-rail` remains one straight axis-aligned run, a Crossing is
-still not a Junction, and `@icm/agent-routing` keeps the stricter octilinear
-contract ADR 0008 gives that Agent-side helper — it snaps and validates what
-an Agent supplies and is not the model's invariant.
+The Agent-local RouteGraph helper may enforce a stricter octilinear input
+contract without changing the persisted model or the interactive editor.
 
 ## Consequences
 
-### Positive
-
-- A wire can land at whatever angle reaches its endpoint.
-- The geometry kernel needed no change: projection, containment,
-  intersection, collinearity, and unit direction were already angle-agnostic,
-  so crossing detection, hit testing, and rendering follow for free.
-
-### Negative or limiting
-
-- Orthogonal drawings remain the default, so a document's look is now a
-  function of authoring discipline rather than of validation.
-- A free-angle Route cannot be expressed through the Agent RouteGraph helper
-  until ADR 0008's contract is revisited.
-
-## Compatibility and migration
-
-The persisted Route shape is unchanged and every existing document stays
-valid: this widens what validation accepts and never rewrites geometry. No
-Project-version advancement is required.
+- Every authoring mode uses the same connectivity and render consumers.
+- Arbitrary-angle Routes can be selected, split, labeled, crossed, and moved
+  without a compatibility shape.
+- Visual regularity remains an authoring choice rather than a write-time
+  electrical constraint.
 
 ## Validation
 
-- transaction acceptance of an arbitrary-angle ordinary Route, and continued
-  rejection of a degenerate one;
-- continued rejection of a non-straight `power-rail`;
-- wire compilation for `free`, and the middle-click corner cycle reaching it.
+- Edit Engine tests accept non-zero arbitrary-angle ordinary Routes and reject
+  degenerate geometry.
+- Power-rail tests retain the straight axis-aligned invariant.
+- Browser tests cover Wire mode switching and authored-step undo.
 
 ## Related documents
 
-- [ADR 0028](0028-octilinear-route-geometry-protocol.md) — superseded on its
-  authoring clause only
 - [ADR 0008](0008-agent-local-route-tree-expander.md)
+- [ADR 0014](0014-resolved-route-geometry.md)
+- [ADR 0047](0047-stable-route-leg-model.md)
 - [connectivity and routing spec](../specs/connectivity-and-routing.md)
 - [editor interaction spec](../specs/editor-interaction.md)

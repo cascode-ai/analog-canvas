@@ -12,7 +12,7 @@ objects live in `drafting.objects` and cannot create connectivity.
 The renderer consumes only persisted RichText. It never synthesizes an
 Instance reference from an ID, parses a second text syntax, or uses an empty
 label as a suppressor. Retired plain-string/figure-caption annotation shapes
-are invalid under current schema 9; no migration reader remains.
+are not part of the accepted RichText authority.
 
 Object-relative and route-relative anchors keep a fallback position so deletion
 of a visual target does not lose text. The fallback is presentation recovery,

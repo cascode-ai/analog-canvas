@@ -1,4 +1,4 @@
-# ADR 0049: Deterministic digital timing simulation is a separate layer
+# ADR 0050: Deterministic digital timing simulation is a separate layer
 
 Status: `accepted`
 
@@ -61,3 +61,8 @@ logic values, event ordering, or clock semantics.
   SPICE/Spectre `PULSE` output.
 - Editor and browser tests cover the local timing controls and Pulse Source;
   flag tests and the deployment workflow protect the production-hidden state.
+
+## Related documents
+
+- [Digital timing simulation specification](../specs/digital-timing-simulation.md)
+- [Deterministic netlist export](../specs/netlist-export.md)

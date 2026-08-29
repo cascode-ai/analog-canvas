@@ -169,7 +169,6 @@ updated to schema 26.
 
 ## Related documents
 
-- [ADR 0028](0028-octilinear-route-geometry-protocol.md)
 - [ADR 0039](0039-any-angle-route-authoring.md)
 - [ADR 0041](0041-physical-cut-and-endpoint-readiness.md)
 - Local execution plan:

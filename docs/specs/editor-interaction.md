@@ -254,6 +254,12 @@ deletion plan, so Route/Junction/attachment cleanup does not require a second
 Delete press. Formal Cell Pins retain their Project-level interface update,
 but its Document edits come from that same deletion plan.
 
+A copied Cell Pin always receives a fresh Instance and terminal identity. Its
+name and direction are preserved; an equal name is legal and affects only the
+read-only Formal Port projection. Copying a completely selected physical Net
+may clone that Net and its internal Routes. A selection boundary never creates
+shared identity from text and never guesses a new electrical connection.
+
 The planner authors the resulting geometry for every planned Route in the
 same transaction. Engine instance-follow remains the safe single-instance
 fallback, not a second progressive planner for a group gesture. Marquee Route

@@ -24,15 +24,17 @@ When documents disagree, resolve the conflict explicitly rather than silently
 choosing one:
 
 ```text
-accepted ADR or approved normative spec
+approved current normative spec
+→ active ADR rationale not restated by that spec
 → current overall product plan
 → current roadmap phase
 → implementation and tests
 ```
 
 Implementation and tests are evidence, but they do not silently redefine an
-approved contract. Update the relevant spec or ADR when behavior intentionally
-changes.
+approved contract. Update the relevant spec when behavior intentionally
+changes. ADR schema numbers and migration examples record their acceptance
+context and never override the current file-format specification.
 
 ## Start in the right place
 

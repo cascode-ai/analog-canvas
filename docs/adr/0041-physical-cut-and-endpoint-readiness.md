@@ -54,9 +54,9 @@ Evidence edits.
   representative, not persistent identity. Agent Snapshot clients refresh all
   Net IDs after any revision change.
 
-This supersedes only ADR 0035's clauses that require a normal cut to retain
-imported membership. `remove_route_geometry` remains the explicit
-presentation-only operation and imported routing guidance remains derived.
+`remove_route_geometry` remains the explicit presentation-only operation and
+imported routing guidance remains derived. A normal cut always changes physical
+connectivity, including for imported Nets.
 
 ## Alternatives considered
 
@@ -112,7 +112,6 @@ revision fence rather than adding a field.
 
 ## Related documents
 
-- [ADR 0035](0035-imported-net-routing-guidance.md)
 - [ADR 0040](0040-connectivity-evidence.md)
 - [Connectivity and routing](../specs/connectivity-and-routing.md)
 - [Agent Circuit API](../specs/agent-api.md)

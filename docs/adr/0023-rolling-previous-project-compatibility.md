@@ -4,108 +4,49 @@ Status: `accepted`
 
 Date: `2026-08-17`
 
-Owners: `packages/model`, editor Project file and recovery boundaries
+Owners: `packages/model`, `packages/project-protocol`, editor persistence
 
 ## Context
 
-ADR 0022 established one schema-11 Project shape and rejected every other
-version. That kept legacy shapes out of runtime, but also prevented a schema-10
-user file from opening even though schema 11 only adds the RichText `fraction`
-run and every valid schema-10 value remains valid after advancing its version.
-
-The retired schema-1-to-8 registry accumulated sequential migration code,
-tests, and historic Project assets. Restoring an unbounded chain would recreate
-that maintenance and misuse risk. Keeping a Project in an old in-memory mode
-would instead make every editor and renderer a multi-version consumer.
+Keeping every historical Project shape readable would retain an unbounded
+migration registry and make compatibility a permanent runtime concern. Reading
+only the current shape would make each additive schema release strand files
+from the immediately preceding release.
 
 ## Decision
 
-The Project reader supports a rolling two-version window: the current Project
-schema and exactly one explicitly named previous schema. Both produce the sole
-current `CircuitProject` shape. Validation and serialization remain current
-only; no compatibility-shaped Project enters the editor or is written back.
+The Project file boundary supports exactly the current schema and one explicitly
+named previous schema. Both produce the sole current `CircuitProject` shape.
+`@icm/model` validates only that current shape; canonical serialization and
+Cloud storage write only the current schema.
 
-Schema 10 upgrades directly to schema 11 by changing only `schemaVersion`, then
-validating the complete result against `CircuitProjectSchema`. User-authored
-RichText is preserved exactly; slash text is not guessed or re-projected into a
-fraction. Once loaded, the Project has all schema-11 capabilities, including
-authoring and persisting new fraction runs.
+Each release replaces the one direct previous-to-current transform and its
+focused tests. Transforms must be deterministic and semantics-preserving;
+ambiguous electrical data is rejected rather than inferred. Older and future
+versions are unsupported.
 
-The read boundary reports the source schema and whether migration occurred.
-Opening a migrated formal file marks it as needing save and never silently
-overwrites the user's source. App-owned browser recovery may store canonical
-schema-11 text after successful migration, but must compare a stored envelope
-against the source version encoded in its text before doing so.
-
-When the current schema advances, the previous-version constant, direct
-adapter, and focused tests must be replaced together. They are not appended to
-an accumulating registry. Versions older than the rolling window and all future
-versions remain unsupported. A future non-additive adapter may perform only
-deterministic, semantics-preserving rewrites; ambiguous electrical data is
-rejected rather than inferred.
-
-## Alternatives considered
-
-### Restore the sequential migration registry
-
-- Benefits: users could skip arbitrarily many releases.
-- Costs: retains every historic transformation and compatibility asset and
-  expands the supported-state matrix indefinitely.
-- Reason not selected: the product currently promises only previous-version
-  compatibility and needs one current runtime contract.
-
-### Continue rejecting schema 10
-
-- Benefits: no reader change.
-- Costs: rejects structurally compatible user data at the release boundary.
-- Reason not selected: the schema-10-to-11 transformation is deterministic and
-  lossless.
-
-### Keep schema 10 live after open
-
-- Benefits: avoids an immediate version rewrite.
-- Costs: every edit, render, recovery, and export path must understand multiple
-  Project shapes.
-- Reason not selected: compatibility belongs at ingestion, not throughout the
-  application.
+The read result reports its source version and whether migration occurred.
+Opening a migrated user file marks the working copy as needing save and never
+overwrites the source implicitly. Browser recovery and Cloud/Gallery ingestion
+use the same bounded protocol boundary rather than maintaining private
+migration chains.
 
 ## Consequences
 
-### Positive
-
-- Schema-10 Projects open without retaining a schema-10 model or fixture set.
-- Migrated Projects immediately receive all schema-11 authoring capabilities.
-- Formal files change only after an explicit save.
-- The supported compatibility surface stays bounded and reviewable.
-
-### Negative or limiting
-
-- A user who skips more than one Project schema release cannot upgrade directly.
-- Each schema release must deliberately replace and validate the direct adapter.
-- General RichText fraction insertion remains a separate editor feature; this
-  decision supplies the model capability but does not add that UI.
-
-## Compatibility and migration
-
-Canonical repository fixtures remain schema 11. Focused tests synthesize a
-schema-10 input from a minimal current Project, prove content preservation and
-the direct upgrade, then add a schema-11 fraction and prove save/reopen
-stability. No historic Project asset is retained as a production input.
-
-This decision supersedes only ADR 0022's clauses that reject every older
-Project and prohibit a compatibility reader. ADR 0022's sole current
-schema-11 in-memory Project shape and all unrelated Port, edit-union, and credential decisions
-remain accepted.
+- Runtime packages consume one Project shape.
+- A user can cross one schema release without carrying all historical adapters.
+- Every schema advancement deliberately replaces, rather than appends to, the
+  compatibility surface.
+- Skipping more than one schema release requires an external conversion.
 
 ## Validation
 
-- focused model parsing, preservation, fraction round-trip, and rejection tests;
-- staged file-open migration metadata and diagnostics tests;
-- browser recovery envelope and canonical-storage migration tests;
-- current documentation drift, type, and branch validation.
+- Protocol tests exercise the named previous version, current serialization,
+  migrated-file metadata, and older/future rejection.
+- Recovery, Cloud Save, Gallery, and staged file-open tests use the shared
+  parser.
 
 ## Related documents
 
-- [`0022-current-protocol-baseline.md`](0022-current-protocol-baseline.md)
 - [`../specs/project-file-format.md`](../specs/project-file-format.md)
 - [`../specs/persistence-and-recovery.md`](../specs/persistence-and-recovery.md)

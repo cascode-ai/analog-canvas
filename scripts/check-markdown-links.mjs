@@ -1,9 +1,10 @@
 import { access, readdir, readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { basename, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const markdownRoots = [resolve(root, "README.md"), resolve(root, "docs")];
+const adrRoot = resolve(root, "docs", "adr");
 const markdownLink = /\]\(([^)]+)\)/gu;
 
 async function exists(path) {
@@ -53,8 +54,34 @@ for (const file of files) {
   }
 }
 
+const adrIndex = await readFile(resolve(adrRoot, "README.md"), "utf8");
+const adrFiles = (await collectMarkdown(adrRoot)).filter((file) =>
+  /^\d{4}-.+\.md$/u.test(basename(file)),
+);
+const adrByNumber = new Map();
+for (const file of adrFiles) {
+  const name = basename(file);
+  const number = name.slice(0, 4);
+  const prior = adrByNumber.get(number);
+  if (prior) failures.push(`duplicate ADR ${number}: ${prior}, ${name}`);
+  else adrByNumber.set(number, name);
+
+  const text = await readFile(file, "utf8");
+  const titleNumber = /^#\s+(?:ADR\s+)?(\d{4})(?:\s|:|-)/mu.exec(text)?.[1];
+  if (titleNumber !== number) {
+    failures.push(`${name} title must identify ADR ${number}`);
+  }
+  const status = /^Status:\s*`?(accepted|proposed)`?\s*$/imu.exec(text)?.[1];
+  if (!status) {
+    failures.push(`${name} must have Status: accepted or proposed`);
+  }
+  if (!adrIndex.includes(`(${name})`)) {
+    failures.push(`${name} is missing from docs/adr/README.md`);
+  }
+}
+
 if (failures.length > 0) {
-  console.error("Broken local Markdown links:");
+  console.error("Documentation contract failures:");
   for (const failure of failures) console.error(`- ${failure}`);
   process.exitCode = 1;
 } else {

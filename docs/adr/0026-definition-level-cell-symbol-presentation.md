@@ -2,9 +2,6 @@
 
 Status: `accepted`
 
-Current-version note: ADR 0030 supersedes this ADR's schema-version and active
-migration statements. Readers now operate on the sole **schema-16 in-memory Project shape**.
-
 Date: `2026-08-18`
 
 Owners: `packages/model`, `packages/project-protocol`, `packages/symbols`,
@@ -22,13 +19,11 @@ Instance, Route, and renderer authorities already retained by ADR 0025.
 
 ## Decision
 
-Advance the Project format to schema 13. A Cell Document may persist optional
+A Cell Document may persist optional
 `presentation.cellSymbol` intent containing a minimum body size and unique
 stable-terminal `side`/grid-offset placements. Electrical terminal direction
 remains separate from visual side. The child canvas Port marker position does not
 determine the parent-block pin position.
-
-All readers return the sole schema-13 in-memory Project shape.
 
 `@icm/symbols` deterministically derives the rectangular block, pin anchors,
 and leads from formal terminals and this intent. Unspecified inputs default
@@ -77,22 +72,11 @@ no logical Net membership.
 - Generated hierarchy artwork is Razavi-compatible only where the reference
   manifest has no hierarchy-block witness.
 
-## Compatibility and migration
-
-The rolling compatibility reader replaces the schema-11-to-12 adapter with a
-direct schema-12-to-13 adapter. The adapter only advances `schemaVersion`; an
-absent optional `cellSymbol` selects automatic geometry. Schema 11 becomes
-unsupported. Canonical fixtures and saved output are schema 13.
-
-This ADR supersedes ADR 0025 only where it names schema 12 as current or its
-schema-11-to-12 migration as the active compatibility adapter. ADR 0025's
-Document/Instance/ordinary-Port hierarchy model remains accepted.
-
 ## Validation
 
 - strict intent, unknown-terminal, duplicate-terminal, and duplicate-slot
   schema tests;
-- direct v12-to-v13 parse/save/reopen tests;
+- current/previous parse, save, and reopen tests;
 - deterministic geometry tests for direction, explicit placement, long names,
   and grid alignment;
 - Project transaction and Agent parity tests, including caller Route follow.

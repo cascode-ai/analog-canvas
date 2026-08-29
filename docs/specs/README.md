@@ -20,6 +20,7 @@ against. They describe required behavior and invariants, not task history.
 | [`persistence-and-recovery.md`](persistence-and-recovery.md) | accepted | Atomic save, AppData cache/session/recovery, migrations                                  |
 | [`export.md`](export.md)                                     | accepted | Formal SVG source and derived PNG/PDF contracts                                          |
 | [`netlist-export.md`](netlist-export.md)                     | accepted | Deterministic structural SPICE/Spectre export and diagnostics                            |
+| [`digital-timing-simulation.md`](digital-timing-simulation.md) | accepted | Internal deterministic event layer and production-hidden local tooling                   |
 | [`performance.md`](performance.md)                           | accepted | Representative workloads and release budgets                                             |
 | [`editor-interaction.md`](editor-interaction.md)             | accepted | Direct manipulation, manual authoring, gestures, and automation boundary                 |
 | [`web-agent-session.md`](web-agent-session.md)               | accepted | Browser-authoritative relay: scopes, transport, events, errors, threat                   |
@@ -31,7 +32,9 @@ create empty files only to mirror this table. Start from
 
 ## Specification Rules
 
-- State status, version, owners, consumers, and related ADRs.
+- State status and ownership. State a version only for an independently
+  versioned contract, and link related ADRs when architectural rationale is
+  required.
 - Define invariants and failure behavior, not only successful examples.
 - Include at least one valid example and one rejected example.
 - Distinguish persisted data, transient data, and derived data.

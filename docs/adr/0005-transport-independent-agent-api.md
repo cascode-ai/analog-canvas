@@ -1,4 +1,4 @@
-# ADR 0005: Agent Circuit API without MCP
+# ADR 0005: Transport-independent Agent Circuit API
 
 Status: `accepted`
 

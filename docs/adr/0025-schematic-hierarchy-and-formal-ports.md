@@ -36,8 +36,6 @@ schematic-only product boundary.
 
 ## Decision
 
-All readers return the sole schema-12 in-memory Project shape.
-
 ### Schema 12 is schematic-only
 
 Advance the Project format to schema 12. Keep `CircuitProject.documents` and
@@ -207,7 +205,6 @@ current, preserving the rolling N-1 policy.
 
 ## Related documents
 
-- [`0022-current-protocol-baseline.md`](0022-current-protocol-baseline.md)
 - [`0023-rolling-previous-project-compatibility.md`](0023-rolling-previous-project-compatibility.md)
 - [`0024-device-protocol-and-compatibility-boundaries.md`](0024-device-protocol-and-compatibility-boundaries.md)
 - [`../specs/schematic-model.md`](../specs/schematic-model.md)

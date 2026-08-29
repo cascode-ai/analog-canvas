@@ -30,15 +30,9 @@ to alter those interactions.
 
 ## Decision
 
-### One schema-14 runtime shape and one direct migration
+### One persisted electrical authority
 
-The next Project schema is **14**. `@icm/model` validates only that shape.
-`@icm/project-protocol` accepts schema 14 and exactly schema 13, transforms a
-schema-13 input directly to schema 14, then validates it. It serializes only
-schema 14. There is no schema-13 runtime mode, sequential migration registry,
-dual writer, fallback read, or compatibility alias.
-
-Schema 14 is introduced once for all of these persistently related facts:
+The Project model applies these related facts together:
 
 - remove `Instance.properties`;
 - move source-only ordered terminal mapping to
@@ -48,10 +42,6 @@ Schema 14 is introduced once for all of these persistently related facts:
 - replace name-only external hierarchy binding with an explicit, stable
   external definition reference while retaining a distinct unresolved import
   state.
-
-This batching is deliberate: it avoids consuming the rolling N-1 window with
-several externally visible schema versions for one netlist-authoring program.
-It does not license unrelated schema work.
 
 ### Persisted electrical authority
 
@@ -201,22 +191,6 @@ routes, geometry, or import provenance as substitute electrical facts.
 - External black-box interface authoring is Project-local; it is not a PDK or
   model-library mechanism.
 
-## Compatibility and migration
-
-This ADR supersedes ADR 0026 only where it says schema 13 is current and names
-the schema-12-to-13 adapter as the active rolling adapter. It supersedes ADR
-0024 only where that ADR names schema 11/current device parameter storage or
-the associated previous-version adapter. ADR 0025's ordinary Port Instance,
-Document-as-Cell, structural transaction, and derived Cell-symbol decisions
-remain accepted.
-
-The implementation target must update the current model, Project file, and
-persistence specifications with exact schema-14 examples; until then their
-schema-13 wording describes the running release rather than a competing target
-contract. Canonical fixtures become schema 14 only with the migration code and
-focused tests. Existing GUI workflows retain their visible behavior through
-the adapter.
-
 ## Validation
 
 - a checked migration-corpus audit with key-by-key disposition;
@@ -234,7 +208,6 @@ the adapter.
 
 ## Related documents
 
-- [`0022-current-protocol-baseline.md`](0022-current-protocol-baseline.md)
 - [`0023-rolling-previous-project-compatibility.md`](0023-rolling-previous-project-compatibility.md)
 - [`0024-device-protocol-and-compatibility-boundaries.md`](0024-device-protocol-and-compatibility-boundaries.md)
 - [`0025-schematic-hierarchy-and-formal-ports.md`](0025-schematic-hierarchy-and-formal-ports.md)

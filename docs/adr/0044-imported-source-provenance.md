@@ -40,10 +40,9 @@ external-subcircuit bindings rather than device-model bindings.
 
 No Project schema, UI preference, or new Net object is introduced.
 
-This supersedes ADR 0040 only where it made SPICE source identity an input to
-Logical-Net equivalence, and ADR 0041 only where it retained non-owner source
-Evidence on the primary split component alone. Their naming, physical-cut,
-and endpoint-readiness decisions otherwise remain unchanged.
+Source provenance is copied to every physical component created by a cut,
+while non-owner electrical Evidence follows the physical-cut rules. Naming,
+physical-cut, and endpoint-readiness decisions remain independent.
 
 ## Consequences
 
@@ -67,7 +66,6 @@ and endpoint-readiness decisions otherwise remain unchanged.
 
 ## Related documents
 
-- [ADR 0035](0035-imported-net-routing-guidance.md)
 - [ADR 0040](0040-connectivity-evidence.md)
 - [ADR 0041](0041-physical-cut-and-endpoint-readiness.md)
 - [Connectivity and routing](../specs/connectivity-and-routing.md)

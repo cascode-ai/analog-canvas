@@ -62,11 +62,9 @@ The product gains an **Agent-side MCP adapter** as a new local stdio process,
   conflicts with this repository's zod v4 single-version policy, and the
   implemented subset is small, frozen, and fully covered by protocol tests.
 
-This partially supersedes ADR 0005/0016 in exactly one respect: the product now
-ships an Agent-side MCP entry point. Their surviving judgments — the domain
-service stays transport-independent, the API is not an MCP server, there is no
-second mutation engine, no server-side MCP deployment — remain in force.
-MCP is not a fifth Circuit operation.
+This preserves the transport-independent domain service and
+browser-authoritative session boundaries: MCP is an Agent-side adapter, not a
+second mutation engine, server-side MCP deployment, or fifth Circuit operation.
 
 ## Alternatives considered
 

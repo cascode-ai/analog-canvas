@@ -20,5 +20,8 @@ This is the default reading set for product work.
 5. [`../agent/workflow.md`](../agent/workflow.md) — required Agent execution
    and visual review loop.
 
+For internal or local-development digital timing work only, also read
+[`../specs/digital-timing-simulation.md`](../specs/digital-timing-simulation.md).
+
 Read a targeted roadmap, plan, or user guide only when the current task needs
 its acceptance boundary or user-facing behavior.

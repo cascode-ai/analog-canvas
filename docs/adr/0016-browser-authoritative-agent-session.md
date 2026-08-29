@@ -174,7 +174,7 @@ lifecycle events, not transport recovery.
 
 ## Related documents
 
-- [`0005-agent-api-without-mcp.md`](0005-agent-api-without-mcp.md)
+- [`0005-transport-independent-agent-api.md`](0005-transport-independent-agent-api.md)
 - [`0007-snapshot-driven-agent-workflow.md`](0007-snapshot-driven-agent-workflow.md)
 - [`../specs/agent-api.md`](../specs/agent-api.md)
 - [`../specs/web-agent-session.md`](../specs/web-agent-session.md)

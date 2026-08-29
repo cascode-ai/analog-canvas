@@ -95,12 +95,13 @@ Source-bound/imported MOS instances remain governed by their fourth-node
 evidence and are never guessed. Legacy persisted `supply-default` bindings are
 readable compatibility data, not a current authoring policy.
 
-A `power-rail` Route is valid only on an explicit named Net whose persisted
-`powerDomain` is `vdd`. Rail authoring creates or reuses that name in the
-current Document, preserves an existing explicit scope, and otherwise creates
-a local Net. It adds two route-anchor Junctions, the rail Route, and one
-net-name-bound RichText power label. It creates no VDD Instance. Branch wires
-on the same Net use ordinary wire presentation and explicit contact evidence.
+A `power-rail` Route is valid only on a Base Net with an explicit persisted
+name claim whose `powerDomain` is `vdd`. Rail authoring creates or reuses that
+name in the current Document, preserves an existing explicit scope, and
+otherwise creates a local Net. It adds two route-anchor Junctions, the rail
+Route, and one net-name-bound RichText power label. It creates no VDD Instance.
+Branch wires on the same Net use ordinary wire presentation and explicit
+contact evidence.
 The two rail endpoints remain directly resizable along the rail axis; moving
 the rail translates its full connected component, including tap Junctions,
 without splitting the rail into independent pieces.

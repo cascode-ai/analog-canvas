@@ -152,13 +152,14 @@ atomic, browser-editor lifecycle edits planned by `cell-reset-planner.ts`:
 `reset_cell_placement` returns Instances to the tray and removes placement
 geometry/intent, and `reset_cell_body` removes non-interface content while
 retaining formal terminals and their marker/Net projection. Each advances the
-Document revision once and is restored by one Undo. The retired Agent product
+Document revision once and is restored by one Undo. The public Agent surface
 categorizes these guarded UI lifecycle edits as unsupported.
 
 `upsert_connectivity_evidence` and `remove_connectivity_evidence` are the only
-atomic writers for the schema-25 evidence list. Upsert replaces evidence with
-the same ID or inserts a new record after checking the shared Document object
-namespace; final Document validation checks every Net and owner reference.
+atomic writers for the current connectivity-evidence list. Upsert replaces
+evidence with the same ID or inserts a new record after checking the shared
+Document object namespace; final Document validation checks every Net and
+owner reference.
 Removing an Instance, Net Label, Junction, or Route also removes only
 `name-claim` evidence that names that object as its owner. A source-unbacked
 legacy Net-property projection shadowed by that owner retires with it; an
@@ -172,7 +173,7 @@ of evidence-bearing candidates is deferred to the transaction boundary so
 ordered edits can still remove or replace their evidence atomically; evidence
 explicitly upserted by that transaction remains subject to final validation.
 Reset Cell Body previews and removes non-interface evidence while retaining
-assertions whose complete Net and owner closure survives. The retired Agent
+assertions whose complete Net and owner closure survives. The public Agent
 surface classifies both evidence edits as unsupported.
 
 `hierarchy-planner.ts` is the shared pure orchestration boundary above these

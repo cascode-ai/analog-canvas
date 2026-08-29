@@ -19,10 +19,7 @@ describe("Agent session protocol documentation", () => {
     const sessionDays = DEFAULT_AGENT_SESSION_LIMITS.sessionTtlMs / 86_400_000;
     const resultMinutes =
       DEFAULT_AGENT_SESSION_LIMITS.resultCacheTtlMs / 60_000;
-    const documents = [
-      "docs/adr/0022-current-protocol-baseline.md",
-      "docs/specs/web-agent-session.md",
-    ];
+    const documents = ["docs/specs/web-agent-session.md"];
 
     for (const relativePath of documents) {
       const text = readRepositoryText(relativePath);
