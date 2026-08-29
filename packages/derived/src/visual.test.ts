@@ -1,5 +1,9 @@
 import { createEmptyDocument, createRoutePath } from "@icm/model";
-import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
+import {
+  InMemorySymbolResolver,
+  builtInSymbols,
+  type SymbolResolver,
+} from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -11,6 +15,39 @@ import {
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 
 describe("visual quality diagnostics", () => {
+  it("reuses default diagnostics for one immutable revision", () => {
+    const document = createEmptyDocument("cached", "Cached diagnostics");
+    document.instances.push({
+      id: "R1",
+      symbolId: "resistor",
+      placement: {
+        position: { x: 100, y: 100 },
+        rotation: 0,
+        mirror: "none",
+      },
+    });
+    let resolveCalls = 0;
+    const countingResolver: SymbolResolver = {
+      resolve(symbolId, variantId) {
+        resolveCalls += 1;
+        return resolver.resolve(symbolId, variantId);
+      },
+    };
+
+    const first = diagnoseVisualQuality(document, countingResolver);
+    const callsAfterFirst = resolveCalls;
+    const second = diagnoseVisualQuality(document, countingResolver);
+
+    expect(callsAfterFirst).toBeGreaterThan(0);
+    expect(resolveCalls).toBe(callsAfterFirst);
+    expect(second).toBe(first);
+
+    document.revision += 1;
+    const revised = diagnoseVisualQuality(document, countingResolver);
+    expect(resolveCalls).toBeGreaterThan(callsAfterFirst);
+    expect(revised).not.toBe(first);
+  });
+
   it("reports unplaced, overlap, and alignment defects deterministically", () => {
     const document = createEmptyDocument("doc", "Visual diagnostics");
     document.instances = [

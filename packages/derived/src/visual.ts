@@ -41,6 +41,18 @@ export interface VisualDiagnosticOptions {
   pageBounds?: Rect;
 }
 
+interface CachedVisualDiagnostics {
+  revision: number;
+  resolver: SymbolResolver;
+  diagnostics: readonly VisualDiagnostic[];
+}
+
+/** Derived-only default diagnostic cache, invalidated by revision/resolver. */
+const visualDiagnosticCache = new WeakMap<
+  SchematicDocument,
+  CachedVisualDiagnostics
+>();
+
 function rectanglesOverlap(left: Rect, right: Rect): boolean {
   return (
     left.x < right.x + right.width &&
@@ -585,6 +597,15 @@ export function diagnoseVisualQuality(
   resolver: SymbolResolver,
   options: VisualDiagnosticOptions = {},
 ): readonly VisualDiagnostic[] {
+  const cacheEligible =
+    options.minimumSegmentLength === undefined &&
+    options.pageBounds === undefined;
+  const cached = cacheEligible
+    ? visualDiagnosticCache.get(document)
+    : undefined;
+  if (cached?.revision === document.revision && cached.resolver === resolver) {
+    return cached.diagnostics;
+  }
   const diagnostics: VisualDiagnostic[] = [];
   const minimumSegmentLength =
     options.minimumSegmentLength ?? document.presentation.grid;
@@ -787,12 +808,20 @@ export function diagnoseVisualQuality(
     boundsById,
     routingGeometry,
   );
-  return diagnostics.sort((left, right) =>
+  const ordered = diagnostics.sort((left, right) =>
     `${left.code}\0${left.objectIds.join("\0")}`.localeCompare(
       `${right.code}\0${right.objectIds.join("\0")}`,
       "en",
     ),
   );
+  if (cacheEligible) {
+    visualDiagnosticCache.set(document, {
+      revision: document.revision,
+      resolver,
+      diagnostics: ordered,
+    });
+  }
+  return ordered;
 }
 
 export function hasBlockingVisualDiagnostics(
