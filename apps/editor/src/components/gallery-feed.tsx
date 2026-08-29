@@ -48,6 +48,12 @@ export interface GalleryFeedState {
 }
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
+/**
+ * How many tags the bar shows before it offers the rest. One row at a typical
+ * desktop width; the wall is what the reader came for, so the tags stay a
+ * header rather than becoming the page.
+ */
+const COLLAPSED_TAG_COUNT = 10;
 const OWNER_REJECT_REASONS = [
   "too ugly",
   "circuit incorrect",
@@ -329,6 +335,11 @@ export function GalleryFeed({
       ? "shelf"
       : "gallery",
   );
+  // Twenty-odd tags wrapped to three rows and pushed the wall below the fold.
+  // A filter narrows the row to what the reader is looking for, and the rest
+  // stay one click away rather than always on screen.
+  const [tagQuery, setTagQuery] = useState("");
+  const [showAllTags, setShowAllTags] = useState(false);
   const [isOwner, setIsOwner] = useState(false);
   const [ownerBusy, setOwnerBusy] = useState<string | null>(null);
   const [ownerNotice, setOwnerNotice] = useState<string | null>(null);
@@ -618,6 +629,23 @@ export function GalleryFeed({
 
   const entries = state.entries;
 
+  const normalizedTagQuery = tagQuery.trim().toLowerCase();
+  const matchingTags = normalizedTagQuery
+    ? tagOptions.filter((option) =>
+        option.tag.toLowerCase().includes(normalizedTagQuery),
+      )
+    : tagOptions;
+  // A selected tag always stays visible, so collapsing or filtering can never
+  // hide the reason the wall is showing what it is.
+  const visibleTags =
+    showAllTags || normalizedTagQuery
+      ? matchingTags
+      : matchingTags.filter(
+          (option, index) =>
+            index < COLLAPSED_TAG_COUNT || selectedTags.includes(option.tag),
+        );
+  const hiddenTagCount = matchingTags.length - visibleTags.length;
+
   return (
     <main className="gallery-shell" data-testid="gallery-feed">
       <GalleryChrome
@@ -657,7 +685,16 @@ export function GalleryFeed({
         <>
           {tagOptions.length > 0 ? (
             <div className="gallery-tag-bar" data-testid="gallery-tag-bar">
-              {tagOptions.map(({ tag, count }) => (
+              <input
+                className="gallery-tag-search"
+                data-testid="gallery-tag-search"
+                type="search"
+                value={tagQuery}
+                placeholder="Filter tags"
+                aria-label="Filter tags"
+                onChange={(event) => setTagQuery(event.currentTarget.value)}
+              />
+              {visibleTags.map(({ tag, count }) => (
                 <button
                   key={tag}
                   type="button"
@@ -673,6 +710,34 @@ export function GalleryFeed({
                   {tag} <span>{count}</span>
                 </button>
               ))}
+              {hiddenTagCount > 0 ? (
+                <button
+                  type="button"
+                  className="gallery-tag-option gallery-tag-more"
+                  data-testid="gallery-tags-show-all"
+                  onClick={() => setShowAllTags(true)}
+                >
+                  Show {hiddenTagCount} more
+                </button>
+              ) : null}
+              {showAllTags && !normalizedTagQuery ? (
+                <button
+                  type="button"
+                  className="gallery-tag-option gallery-tag-more"
+                  data-testid="gallery-tags-show-fewer"
+                  onClick={() => setShowAllTags(false)}
+                >
+                  Show fewer
+                </button>
+              ) : null}
+              {normalizedTagQuery && matchingTags.length === 0 ? (
+                <span
+                  className="gallery-tag-empty"
+                  data-testid="gallery-tags-empty"
+                >
+                  No tag matches “{tagQuery.trim()}”
+                </span>
+              ) : null}
               {selectedTags.length > 0 ? (
                 <button
                   type="button"
@@ -683,7 +748,7 @@ export function GalleryFeed({
                     syncQuery(author, []);
                   }}
                 >
-                  Clear tags
+                  Clear {selectedTags.length} selected
                 </button>
               ) : null}
             </div>

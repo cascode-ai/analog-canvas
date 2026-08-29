@@ -475,6 +475,92 @@ test("clicking a byline filters the wall to that author, clearable", async ({
   await expect(page).not.toHaveURL(/author=/);
 });
 
+test("the tag row filters, collapses, and keeps a selection visible", async ({
+  page,
+}) => {
+  // Enough tags that the row would wrap over several lines unfiltered, which
+  // is what pushed the wall itself below the fold.
+  const tags = [
+    "amplifier",
+    "oscillator",
+    "comparator",
+    "dcdc",
+    "power",
+    "differential",
+    "ota",
+    "pll",
+    "vtc",
+    "adc",
+    "bandgap",
+    "cmfb",
+    "current mirror",
+    "ldo",
+  ];
+  await page.route("**/api/gallery**", (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/gallery/tags") {
+      return route.fulfill({
+        json: { tags: tags.map((tag, index) => ({ tag, count: index + 1 })) },
+      });
+    }
+    if (url.pathname !== "/api/gallery") return route.fallback();
+    return route.fulfill({
+      json: {
+        entries: [
+          {
+            id: "t-one",
+            name: "Circuit",
+            author: "tz",
+            description: "",
+            createdAt: "2026-08-22T10:00:00.000Z",
+            schemaVersion: 23,
+            tags: ["ldo"],
+          },
+        ],
+        nextCursor: null,
+      },
+    });
+  });
+  await page.route("**/api/gallery/*/preview.svg", (route) =>
+    route.fulfill({
+      contentType: "image/svg+xml",
+      body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 6"><rect width="10" height="6" fill="#fff"/></svg>',
+    }),
+  );
+
+  await page.goto("/");
+  const bar = page.getByTestId("gallery-tag-bar");
+  await expect(page.getByTestId("gallery-tag-option-amplifier")).toBeVisible();
+
+  // Collapsed: the tail is offered rather than shown.
+  const collapsed = await bar.getByRole("button").count();
+  await expect(page.getByTestId("gallery-tags-show-all")).toBeVisible();
+  await expect(page.getByTestId("gallery-tag-option-ldo")).toHaveCount(0);
+
+  await page.getByTestId("gallery-tags-show-all").click();
+  await expect(page.getByTestId("gallery-tag-option-ldo")).toBeVisible();
+  expect(await bar.getByRole("button").count()).toBeGreaterThan(collapsed);
+  await page.getByTestId("gallery-tags-show-fewer").click();
+  await expect(page.getByTestId("gallery-tag-option-ldo")).toHaveCount(0);
+
+  // Filtering reaches a tag the collapsed row does not show.
+  await page.getByTestId("gallery-tag-search").fill("ld");
+  await expect(page.getByTestId("gallery-tag-option-ldo")).toBeVisible();
+  await expect(page.getByTestId("gallery-tag-option-amplifier")).toHaveCount(0);
+
+  // A selected tag survives clearing the filter and re-collapsing: the row
+  // may never hide the reason the wall is filtered.
+  await page.getByTestId("gallery-tag-option-ldo").click();
+  await page.getByTestId("gallery-tag-search").fill("");
+  await expect(page.getByTestId("gallery-tag-option-ldo")).toBeVisible();
+  await expect(page.getByTestId("gallery-tags-clear")).toContainText(
+    "Clear 1 selected",
+  );
+
+  await page.getByTestId("gallery-tag-search").fill("zzz");
+  await expect(page.getByTestId("gallery-tags-empty")).toBeVisible();
+});
+
 test("the tag menu multi-selects and tile tags join the selection", async ({
   page,
 }) => {

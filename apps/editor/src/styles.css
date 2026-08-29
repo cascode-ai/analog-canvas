@@ -485,7 +485,10 @@ body {
   }
 
   .gallery-actions .account-name {
-    max-width: 8rem;
+    /* Wide enough for an ordinary two-part display name; the header still
+       holds one row at this width. Anything longer ellipsizes, which only
+       works because the chip stays out of the row's shared flex rule. */
+    max-width: 10rem;
   }
 }
 

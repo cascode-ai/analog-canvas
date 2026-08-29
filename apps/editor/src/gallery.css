@@ -39,7 +39,6 @@
 
 .gallery-actions .account-owner-badge,
 .gallery-actions .account-link,
-.gallery-actions .account-name,
 .gallery-actions .account-signout,
 .gallery-actions .account-signin summary,
 .gallery-open-editor {
@@ -81,11 +80,18 @@
 
 .account-name {
   font-weight: 600;
-  /* The chip is one line always: a long display name ellipsizes instead
-     of wrapping inside the fixed-height control (inline-block, not the
-     shared inline-flex, so text-overflow can apply). */
+  /* The chip is one line always: a long display name ellipsizes instead of
+     wrapping inside the fixed-height control. It stays inline-block on
+     purpose — text-overflow does nothing on a flex container, so the header
+     row's shared inline-flex rule deliberately skips this one control, and a
+     name that outgrows the chip would otherwise be cut mid-letter. */
   display: inline-block;
-  max-width: 11rem;
+  box-sizing: border-box;
+  height: var(--icm-control-h);
+  /* A flex item will not shrink below its content without this, which is how
+     the chip ended up narrower than its own max-width and clipped anyway. */
+  min-width: 0;
+  max-width: 14rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1096,4 +1102,34 @@
 .shelf-tile-delete:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+/* The tag row is a header, not the page: a filter narrows it, and the tail
+   stays one click away instead of wrapping over three rows. */
+.gallery-tag-search {
+  flex: 0 0 auto;
+  width: 9rem;
+  padding: 5px 12px;
+  border: 1px solid var(--icm-border);
+  border-radius: 999px;
+  background: var(--icm-surface);
+  color: var(--icm-text);
+  font: inherit;
+  font-size: 12px;
+}
+
+.gallery-tag-search:focus-visible {
+  outline: 2px solid var(--icm-accent);
+  outline-offset: 1px;
+}
+
+.gallery-tag-more {
+  font-weight: 600;
+  color: var(--icm-accent);
+}
+
+.gallery-tag-empty {
+  align-self: center;
+  color: var(--icm-text-muted);
+  font-size: 12px;
 }
