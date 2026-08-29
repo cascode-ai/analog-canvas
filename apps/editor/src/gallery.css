@@ -95,6 +95,12 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  /* The line box is the whole content box, so the name sits on the row's
+     centre line. The shared control rule this one opts out of also zeroed
+     these; with the 6px back, a 26px line inside a 14px content box pushed
+     the name 6px below every other control in the header. */
+  padding-top: 0;
+  padding-bottom: 0;
   line-height: calc(var(--icm-control-h) - 2px);
 }
 

@@ -475,6 +475,85 @@ test("clicking a byline filters the wall to that author, clearable", async ({
   await expect(page).not.toHaveURL(/author=/);
 });
 
+test("the account chip sits on the header line and ellipsizes a long name", async ({
+  page,
+}) => {
+  await page.route("**/api/auth/providers", (route) =>
+    route.fulfill({ json: { github: true, google: false, email: false } }),
+  );
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      json: {
+        user: {
+          id: "u1",
+          displayName: "Zhishuai Zhang",
+          email: "z@example.com",
+          provider: "github",
+          role: "user",
+          isAdmin: false,
+        },
+      },
+    }),
+  );
+  await page.route("**/api/gallery**", (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/gallery/tags") {
+      return route.fulfill({ json: { tags: [] } });
+    }
+    if (url.pathname !== "/api/gallery") return route.fallback();
+    return route.fulfill({ json: { entries: [], nextCursor: null } });
+  });
+
+  await page.setViewportSize({ width: 760, height: 720 });
+  await page.goto("/");
+  const chip = page.getByTestId("account-name");
+  await expect(chip).toBeVisible();
+
+  // The name rides the same centre line as every other control in the row.
+  // Zeroed vertical padding is what puts it there: the chip opts out of the
+  // row's shared control rule so its ellipsis works, and that rule was also
+  // what kept its line box the full height of the control.
+  const centred = await chip.evaluate((element) => {
+    const box = element.getBoundingClientRect();
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    const text = range.getBoundingClientRect();
+    return text.top + text.height / 2 - (box.top + box.height / 2);
+  });
+  expect(Math.abs(centred)).toBeLessThanOrEqual(1);
+
+  const newCircuit = page.getByTestId("gallery-new-circuit");
+  const chipBox = (await chip.boundingBox())!;
+  const buttonBox = (await newCircuit.boundingBox())!;
+  expect(
+    Math.abs(
+      chipBox.y + chipBox.height / 2 - (buttonBox.y + buttonBox.height / 2),
+    ),
+  ).toBeLessThanOrEqual(1);
+
+  // An ordinary two-part name fits whole at this width.
+  expect(
+    await chip.evaluate(
+      (element) => element.scrollWidth <= element.clientWidth,
+    ),
+  ).toBe(true);
+
+  // A name that cannot fit ends in an ellipsis rather than a sliced letter,
+  // which only holds while the chip is not a flex container.
+  const overflowing = await chip.evaluate((element) => {
+    element.textContent = "A Considerably Longer Display Name";
+    const style = getComputedStyle(element);
+    return {
+      clipped: element.scrollWidth > element.clientWidth,
+      textOverflow: style.textOverflow,
+      display: style.display,
+    };
+  });
+  expect(overflowing.clipped).toBe(true);
+  expect(overflowing.textOverflow).toBe("ellipsis");
+  expect(overflowing.display).not.toContain("flex");
+});
+
 test("the tag row filters, collapses, and keeps a selection visible", async ({
   page,
 }) => {
