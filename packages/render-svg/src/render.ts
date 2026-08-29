@@ -310,6 +310,48 @@ function instanceTransform(
   return `translate(${placement.position.x} ${placement.position.y}) rotate(${placement.rotation})${mirror}`;
 }
 
+/**
+ * The symbol artwork of the named instances as bare geometry: no colour of
+ * our choosing, no pin names, no formula text.
+ *
+ * A caller that wants to mark a component by tracing the component's own
+ * lines — rather than by drawing a box around it — paints this layer beneath
+ * the scene and styles it entirely in CSS. Leaving the markup unstyled is the
+ * point: the copy in the scene above keeps whatever colour the instance
+ * overrides to, so marking a component never repaints it.
+ */
+export function renderInstanceOutlineGeometry(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  instanceIds: readonly string[],
+  profile: SchematicStyleProfile = razaviTextbookProfile,
+): string {
+  const wanted = new Set(instanceIds);
+  return document.instances
+    .filter(
+      (instance) => wanted.has(instance.id) && instance.placement !== null,
+    )
+    .map((instance) => {
+      const resolved = resolver.resolve(
+        instance.symbolId,
+        instance.symbolVariantId,
+      );
+      // Decoration must not take the canvas down: the scene is the layer
+      // that decides what an unresolved symbol means.
+      if (!resolved) return "";
+      const primitives = renderSymbolDefinitionBody(
+        resolved.definition,
+        resolved.variant?.hiddenPrimitiveParts,
+        resolved.variant?.additionalPrimitives,
+        profile,
+        undefined,
+        instance.signalFlowParameters,
+      );
+      return `<g data-object-id="${escapeXml(instance.id)}"><g transform="${instanceTransform(instance)}">${primitives}</g></g>`;
+    })
+    .join("");
+}
+
 function transformedDirection(
   direction: "north" | "east" | "south" | "west",
   placement: NonNullable<SchematicDocument["instances"][number]["placement"]>,

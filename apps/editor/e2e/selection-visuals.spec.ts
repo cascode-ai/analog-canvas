@@ -12,7 +12,7 @@ async function placeComponent(
   await page.keyboard.press("Escape");
 }
 
-test("selection tints the device and marks carried wires as would-move", async ({
+test("selection traces the device and marks carried wires as would-move", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -34,14 +34,38 @@ test("selection tints the device and marks carried wires as would-move", async (
 
   await instances.nth(0).click();
   await expect(instances.nth(0)).toHaveClass(/hit-target selected/);
-  // The dashed bounding box is gone; the selection is a tinted body.
-  const dash = await instances
-    .nth(0)
-    .evaluate((element) => getComputedStyle(element).strokeDasharray);
-  expect(dash === "none" || dash === "").toBeTruthy();
+  // Nothing is drawn around the device: the hit rectangle carries the click,
+  // never the mark. Selection shows as a halo tracing the symbol's own lines.
+  const box = await instances.nth(0).evaluate((element) => {
+    const style = getComputedStyle(element);
+    return { fill: style.fill, stroke: style.stroke };
+  });
+  expect(box.fill).toBe("rgba(0, 0, 0, 0)");
+  expect(box.stroke).toBe("rgba(0, 0, 0, 0)");
+
+  const halo = page.getByTestId("selection-halo-selected");
+  await expect(halo).toBeAttached();
+  await expect(halo.locator(`[data-object-id="${ids[0]}"]`)).toBeAttached();
+  await expect(halo.locator(`[data-object-id="${ids[1]}"]`)).toHaveCount(0);
+
   // The attached wire would travel with a drag, so it carries the
   // would-move tint while staying unselected.
   await expect(page.locator('[data-canvas-hit-kind="route"]')).toHaveClass(
     /would-move|selected/,
   );
+});
+
+test("an instance label is not marked a second time beside its device", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "resistor", { x: 300, y: 220 });
+  const instance = page.locator('[data-canvas-hit-kind="instance"]').first();
+  await instance.click();
+
+  // The label rides along with the device it names, and the device's halo
+  // already says so. Boxing the label too would read as a second object
+  // having been selected.
+  const label = page.locator('[data-canvas-hit-kind="annotation"]').first();
+  await expect(label).toHaveClass(/hit-target annotation-text-hit$/);
 });

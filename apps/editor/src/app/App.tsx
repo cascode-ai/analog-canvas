@@ -4578,6 +4578,13 @@ export function App({
           eventHandlers={canvasEventHandlers}
           grid={{ visible: gridDotsVisible, viewBox }}
           sceneInnerHtml={sceneInnerHtml}
+          selectionHalo={{
+            document,
+            resolver,
+            styleProfile,
+            selectedInstanceIds: selectedIds,
+            wouldMoveIds,
+          }}
           cellSymbolLayout={
             selectedCellSymbolLayout
               ? {
