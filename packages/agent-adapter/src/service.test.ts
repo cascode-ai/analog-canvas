@@ -6,7 +6,11 @@ import { resolveDocumentRoutingGeometry } from "@icm/derived";
 import { createEmptyDocument } from "@icm/model";
 import { parseProject } from "@icm/project-protocol";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
-import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
+import {
+  InMemorySymbolResolver,
+  builtInSymbols,
+  type SymbolResolver,
+} from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
 import { agentCircuitOpenApi } from "./openapi.js";
@@ -81,12 +85,13 @@ function fixtureDocument(): SchematicDocument {
 function serviceFixture(
   permissions: AgentPermissions = allPermissions,
   limits: Parameters<typeof createAgentCircuitService>[0]["limits"] = {},
+  symbolResolver: SymbolResolver = resolver,
 ) {
   let project = fixtureProject();
   let document = structuredClone(project.documents[0]!);
   const service = createAgentCircuitService({
     agentId: "agent-test",
-    resolver,
+    resolver: symbolResolver,
     permissions,
     limits,
     store: {
@@ -352,6 +357,62 @@ describe("current Agent Circuit API service", () => {
       operation: "snapshot",
       error: { code: "SNAPSHOT_TOO_LARGE" },
     });
+  });
+
+  it("reuses one unchanged Snapshot and invalidates it after a commit", () => {
+    let resolveCalls = 0;
+    const countingResolver: SymbolResolver = {
+      resolve(symbolId, variantId) {
+        resolveCalls += 1;
+        return resolver.resolve(symbolId, variantId);
+      },
+    };
+    const fixture = serviceFixture(allPermissions, {}, countingResolver);
+    const snapshotRequest = (requestId: string) => ({
+      apiVersion: "2.0" as const,
+      requestId,
+      operation: "snapshot" as const,
+      documentId: fixture.getDocument().id,
+    });
+
+    const first = fixture.service.handle(snapshotRequest("snapshot-first"));
+    const callsAfterFirst = resolveCalls;
+    const second = fixture.service.handle(snapshotRequest("snapshot-second"));
+
+    expect(callsAfterFirst).toBeGreaterThan(0);
+    expect(resolveCalls).toBe(callsAfterFirst);
+    expect(second).toMatchObject({ ok: true, revision: 0 });
+    if (
+      !first.ok ||
+      first.operation !== "snapshot" ||
+      !second.ok ||
+      second.operation !== "snapshot"
+    ) {
+      return;
+    }
+    expect(second.snapshot).toEqual(first.snapshot);
+
+    const committed = fixture.service.handle({
+      apiVersion: "2.0",
+      requestId: "move-before-snapshot",
+      operation: "transact",
+      documentId: fixture.getDocument().id,
+      transactionId: "move-before-snapshot",
+      expectedRevision: fixture.getDocument().revision,
+      edits: [
+        {
+          kind: "move_instance",
+          instanceId: "M1",
+          position: { x: 180, y: 220 },
+        },
+      ],
+    });
+    expect(committed).toMatchObject({ ok: true, applied: true, revision: 1 });
+    const callsAfterCommit = resolveCalls;
+
+    const after = fixture.service.handle(snapshotRequest("snapshot-after"));
+    expect(after).toMatchObject({ ok: true, revision: 1 });
+    expect(resolveCalls).toBeGreaterThan(callsAfterCommit);
   });
 
   it("keeps Agent instance authoring identical to direct Edit Engine execution", () => {

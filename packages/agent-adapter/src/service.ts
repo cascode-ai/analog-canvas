@@ -36,6 +36,7 @@ import type {
   AgentFileResourceCapability,
   AgentPermissions,
   AgentRenderRequest,
+  AgentSessionSnapshot,
   AgentTransactRequest,
 } from "./schema.js";
 import {
@@ -250,6 +251,15 @@ export function createAgentCircuitService(
 ): AgentCircuitService {
   const limits = { ...DEFAULT_AGENT_LIMITS, ...options.limits };
   const history: AgentDiff[] = [];
+  let snapshotCache:
+    | {
+        project: CircuitProject | undefined;
+        document: SchematicDocument;
+        resolver: SymbolResolver;
+        includeSourceSpans: boolean;
+        snapshot: AgentSessionSnapshot;
+      }
+    | undefined;
   const response = (input: unknown): AgentCircuitResponse =>
     AgentCircuitResponseSchema.parse(input);
   const useHost = "host" in options;
@@ -351,12 +361,27 @@ export function createAgentCircuitService(
             document.revision,
           );
         }
-        const snapshot = buildAgentSessionSnapshot({
-          ...(project ? { project } : {}),
+        const cachedSnapshot = snapshotCache;
+        const snapshot =
+          cachedSnapshot !== undefined &&
+          cachedSnapshot.project === project &&
+          cachedSnapshot.document === document &&
+          cachedSnapshot.resolver === resolver &&
+          cachedSnapshot.includeSourceSpans === includeSourceSpans
+            ? cachedSnapshot.snapshot
+            : buildAgentSessionSnapshot({
+                ...(project ? { project } : {}),
+                document,
+                resolver,
+                includeSourceSpans,
+              });
+        snapshotCache = {
+          project,
           document,
           resolver,
           includeSourceSpans,
-        });
+          snapshot,
+        };
         if (snapshot.byteLength > limits.maxSnapshotBytes) {
           return fail(
             "snapshot",
