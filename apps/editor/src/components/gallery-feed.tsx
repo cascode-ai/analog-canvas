@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { TilePreview } from "./tile-preview";
 import "../styles/gallery-entry.css";
 
 import { renderDocumentSvg } from "@icm/render-svg";
@@ -722,16 +723,14 @@ export function GalleryFeed({
                           href={`/g/${entry.id}`}
                           data-testid={`gallery-tile-${entry.id}`}
                         >
-                          <span className="gallery-tile-preview">
-                            <img
-                              src={galleryPreviewUrl(
-                                entry.id,
-                                entry.previewRevision,
-                              )}
-                              alt={`Preview of ${entry.name}`}
-                              loading="lazy"
-                            />
-                          </span>
+                          <TilePreview
+                            key={`${entry.id}-${entry.previewRevision}`}
+                            src={galleryPreviewUrl(
+                              entry.id,
+                              entry.previewRevision,
+                            )}
+                            alt={`Preview of ${entry.name}`}
+                          />
                           <span className="gallery-tile-copy">
                             <span className="gallery-tile-name">
                               {entry.name}

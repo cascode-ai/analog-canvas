@@ -687,6 +687,38 @@ describe("private Cloud Projects", () => {
     expect(anonymous.status).toBe(401);
   });
 
+  it("backfills a thumbnail for a shelf saved before previews existed", async () => {
+    const env = environment();
+    const cookie = await makerOf(env);
+    const created = await route(env, saveRequest(cookie, "Legacy"));
+    const { project } = (await created.json()) as {
+      project: { id: string; revision: number };
+    };
+    // Simulate a row from before stored previews.
+    env.gallerySql.exec(
+      "UPDATE cloud_projects SET preview_svg = '' WHERE id = ?",
+      project.id,
+    );
+
+    const preview = await route(
+      env,
+      new Request(
+        `${ORIGIN}/api/projects/${project.id}/preview.svg?v=${project.revision}`,
+        { headers: cookieHeaders(cookie) },
+      ),
+    );
+    expect(preview.status).toBe(200);
+    expect(await preview.text()).toContain("<svg");
+    // And it sticks: the row now carries the rendered bytes.
+    const row = env.gallerySql
+      .exec<{ preview_svg: string }>(
+        "SELECT preview_svg FROM cloud_projects WHERE id = ?",
+        project.id,
+      )
+      .toArray()[0]!;
+    expect(row.preview_svg).toContain("<svg");
+  });
+
   it("updates one stable Project with optimistic revision checking", async () => {
     const env = environment();
     const cookie = await makerOf(env);

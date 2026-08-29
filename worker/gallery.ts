@@ -263,7 +263,46 @@ async function handleCloudProjectPreview(
     previewSvg?: string;
     revision?: number;
   }>(env, "cloud-project-preview", { userId: user.id, id: projectId });
-  if (status !== 200 || !payload.previewSvg) {
+  if (status !== 200) {
+    return Response.json(
+      { error: "not-found" },
+      { status: 404, headers: { "cache-control": "no-store" } },
+    );
+  }
+  if (!payload.previewSvg) {
+    // Shelves saved before previews existed have empty thumbnails; render
+    // one from the stored Project now and keep it for next time.
+    const opened = await callGallery<{
+      project?: { projectText?: string; revision?: number };
+    }>(env, "cloud-project-open", { userId: user.id, id: projectId });
+    const projectText = opened.payload.project?.projectText;
+    if (opened.status === 200 && typeof projectText === "string") {
+      try {
+        const project = parseProject(projectText);
+        const rendered = renderPreview(
+          project,
+          createProjectSymbolResolver(project, builtInSymbols),
+        );
+        if (rendered) {
+          payload.previewSvg = rendered;
+          const openedRevision = opened.payload.project?.revision;
+          if (typeof openedRevision === "number") {
+            payload.revision = openedRevision;
+          }
+          await callGallery(env, "cloud-project-preview-store", {
+            userId: user.id,
+            id: projectId,
+            revision: opened.payload.project?.revision,
+            previewSvg: rendered,
+          });
+        }
+      } catch {
+        // The renderer cannot draw this Project; the shelf shows its
+        // placeholder tile instead.
+      }
+    }
+  }
+  if (!payload.previewSvg) {
     return Response.json(
       { error: "not-found" },
       { status: 404, headers: { "cache-control": "no-store" } },

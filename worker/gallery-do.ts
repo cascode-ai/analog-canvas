@@ -528,6 +528,13 @@ export class GalleryDO {
         return this.cloudProjectDelete(String(body.userId), String(body.id));
       case "cloud-project-preview":
         return this.cloudProjectPreview(String(body.userId), String(body.id));
+      case "cloud-project-preview-store":
+        return this.cloudProjectPreviewStore(
+          String(body.userId),
+          String(body.id),
+          Number(body.revision),
+          String(body.previewSvg),
+        );
       case "schema-backup":
         return this.schemaBackup();
       case "schema-converge":
@@ -1074,6 +1081,31 @@ export class GalleryDO {
       previewSvg: row.preview_svg,
       revision: row.revision,
     });
+  }
+
+  /**
+   * Lazy backfill for shelves saved before previews existed: store the
+   * rendered thumbnail only while the row still has none at the same
+   * revision, so a save racing this write always wins.
+   */
+  private cloudProjectPreviewStore(
+    userId: string,
+    id: string,
+    revision: number,
+    previewSvg: string,
+  ): Response {
+    if (!previewSvg || !Number.isInteger(revision)) {
+      return Response.json({ error: "invalid-fields" }, { status: 400 });
+    }
+    this.sql.exec(
+      `UPDATE cloud_projects SET preview_svg = ?
+        WHERE user_id = ? AND id = ? AND revision = ? AND preview_svg = ''`,
+      previewSvg,
+      userId,
+      id,
+      revision,
+    );
+    return Response.json({ ok: true });
   }
 
   private cloudProjectOpenPayload(userId: string, id: string) {

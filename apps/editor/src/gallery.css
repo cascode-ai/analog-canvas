@@ -935,6 +935,21 @@
   padding: 10px;
 }
 
+/* Missing thumbnail: a quiet schematic squiggle on the muted surface,
+   never the browser's broken-image glyph. */
+.gallery-tile-preview-missing {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 3 / 2;
+  color: var(--icm-border);
+  background: var(--icm-chrome-bg);
+}
+
+.gallery-tile-placeholder {
+  width: 40%;
+  max-width: 9rem;
+}
+
 .gallery-tile-preview img,
 .gallery-tile-preview svg {
   display: block;

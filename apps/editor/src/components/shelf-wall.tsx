@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { TilePreview } from "./tile-preview";
 
 import {
   CLOUD_PROJECT_LIMIT,
@@ -127,13 +128,11 @@ export function ShelfWall() {
                 href={shelfProjectHref(project.id)}
                 data-testid={`shelf-tile-${project.id}`}
               >
-                <span className="gallery-tile-preview">
-                  <img
-                    src={cloudProjectPreviewUrl(project.id, project.revision)}
-                    alt={`Preview of ${project.name}`}
-                    loading="lazy"
-                  />
-                </span>
+                <TilePreview
+                  key={`${project.id}-${project.revision}`}
+                  src={cloudProjectPreviewUrl(project.id, project.revision)}
+                  alt={`Preview of ${project.name}`}
+                />
                 <span className="gallery-tile-copy">
                   <span className="gallery-tile-name">{project.name}</span>
                   <span className="gallery-tile-meta">
