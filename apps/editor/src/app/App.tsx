@@ -2296,6 +2296,25 @@ export function App({
       completeDrag: completeCellSymbolLayoutDrag,
     },
   });
+
+  // Every opened schematic lands fitted — shelf, gallery, examples,
+  // imports, and recoveries alike — exactly as if F were pressed once the
+  // new document's content bounds exist. An empty project keeps the
+  // default camera.
+  const pendingAutoFitRef = useRef(false);
+  const autoFitProjectRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (autoFitProjectRef.current !== projectSessionId) {
+      autoFitProjectRef.current = projectSessionId;
+      pendingAutoFitRef.current = true;
+    }
+  }, [projectSessionId]);
+  const autoFitBounds = contentScene?.viewBox ?? null;
+  useEffect(() => {
+    if (!pendingAutoFitRef.current || !autoFitBounds) return;
+    pendingAutoFitRef.current = false;
+    fitView();
+  }, [autoFitBounds, projectSessionId]);
   /**
    * The canvas element and the docks floating over it. Fit reads this at the
    * moment it runs, so a panel opened since the last fit is accounted for.

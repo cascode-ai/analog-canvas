@@ -140,6 +140,26 @@ export interface CanvasGestureControllerDependencies {
   };
 }
 
+/**
+ * Wheel-source inference. Trackpads scroll in pixel mode with a horizontal
+ * component, fractional deltas, or gentle sub-detent steps; a discrete
+ * mouse wheel reports line/page mode or large integer vertical detents.
+ * Heuristic by necessity — the DOM never names the device.
+ */
+export function wheelEventLooksLikeTrackpad(event: {
+  deltaMode: number;
+  deltaX: number;
+  deltaY: number;
+}): boolean {
+  if (event.deltaMode !== 0) return false;
+  if (event.deltaX !== 0) return true;
+  if (!Number.isInteger(event.deltaY)) return true;
+  return Math.abs(event.deltaY) > 0 && Math.abs(event.deltaY) < 40;
+}
+
+const TRACKPAD_EVIDENCE_WINDOW_MS = 1500;
+let lastTrackpadWheelAt = Number.NEGATIVE_INFINITY;
+
 /** Own viewport gestures and canvas-background pointer progression. */
 export function createCanvasGestureController({
   model: { document, resolver, routeGeometryRecords, styleProfile },
@@ -242,11 +262,12 @@ export function createCanvasGestureController({
     setViewBox((current) => zoomCameraAtAnchor(current, factor, anchor));
   };
 
-  // Trackpad map: two-finger scroll pans in every direction; pinch (which
-  // browsers deliver as ctrl+wheel) and Cmd+scroll zoom at the cursor;
-  // Shift turns a mouse's vertical-only wheel into horizontal panning.
-  // Attached as a non-passive native listener so preventDefault actually
-  // stops browser page zoom and history-swipe navigation.
+  // Wheel map by device. A trackpad two-finger scroll pans in every
+  // direction; a mouse wheel zooms at the cursor (its only axis earns the
+  // richer gesture). Pinch — delivered as ctrl+wheel — and Cmd+scroll zoom
+  // on both. Shift+wheel pans horizontally. Attached as a non-passive
+  // native listener so preventDefault actually stops browser page zoom
+  // and history-swipe navigation.
   const handleWheel = (event: WheelEvent, element: SVGSVGElement): void => {
     event.preventDefault();
     const bounds = element.getBoundingClientRect();
@@ -258,6 +279,32 @@ export function createCanvasGestureController({
     if (event.ctrlKey || event.metaKey) {
       zoomAtClientPoint(
         Math.exp(deltaY * 0.01),
+        event.clientX,
+        event.clientY,
+        element,
+      );
+      return;
+    }
+    if (wheelEventLooksLikeTrackpad(event)) {
+      lastTrackpadWheelAt = event.timeStamp;
+    }
+    // Momentum tails of a trackpad flick can degrade into clean integer
+    // steps, so recent trackpad evidence keeps the pan interpretation.
+    const trackpad =
+      event.deltaMode === 0 &&
+      event.timeStamp - lastTrackpadWheelAt < TRACKPAD_EVIDENCE_WINDOW_MS;
+    if (!trackpad) {
+      if (event.shiftKey) {
+        if (deltaY === 0) return;
+        setViewBox((current) => ({
+          ...current,
+          x: current.x + (deltaY * current.width) / bounds.width,
+        }));
+        return;
+      }
+      if (deltaY === 0) return;
+      zoomAtClientPoint(
+        Math.exp(deltaY * 0.0012),
         event.clientX,
         event.clientY,
         element,
