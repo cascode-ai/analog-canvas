@@ -4578,6 +4578,13 @@ export function App({
           eventHandlers={canvasEventHandlers}
           grid={{ visible: gridDotsVisible, viewBox }}
           sceneInnerHtml={sceneInnerHtml}
+          selectionHalo={{
+            document,
+            resolver,
+            styleProfile,
+            selectedInstanceIds: selectedIds,
+            wouldMoveIds,
+          }}
           cellSymbolLayout={
             selectedCellSymbolLayout
               ? {
@@ -4720,6 +4727,10 @@ export function App({
                 beginMoveFromSelection(event, instance.id);
               },
               onInstanceContextMenu: (instance, clientX, clientY) => {
+                // macOS fires contextmenu for Ctrl+left-press; while that
+                // press is driving a drag session (the Ctrl+drag detach
+                // move), the menu must not pop over it.
+                if (canvasDragSessionRef.current !== null) return;
                 openVisualContextMenu(
                   "instance",
                   instance.id,

@@ -129,7 +129,7 @@ export function resolveEditorShortcut(
   }
 
   if (interactionActive) {
-    if (event.ctrlKey && key === "a") {
+    if (commandModifier && key === "a") {
       return { kind: "blocked-interaction-command", command: "Select All" };
     }
     if (plain && key === "c") {
@@ -233,7 +233,9 @@ export function resolveEditorShortcut(
     return command ? { kind: "blocked-interaction-command", command } : null;
   }
 
-  if (event.ctrlKey && key === "a") {
+  // Select All answers to both command modifiers: macOS presses Cmd+A, and
+  // an unbound meta chord would fall through to the browser's DOM selection.
+  if (commandModifier && key === "a") {
     return { kind: "run-command", command: { id: "selection.select-all" } };
   }
 

@@ -84,13 +84,44 @@
   color: var(--icm-text-muted);
 }
 
-/* Selection highlights the device itself rather than boxing it: a soft
-   accent wash plus a solid outline. would-move marks everything a drag on
-   the selection would carry, so the whole moving body reads at a glance. */
+/* Selection traces the component's own lines instead of boxing it: the halo
+   layer paints a copy of the symbol artwork beneath the scene, so the hit
+   rectangle stays invisible and carries nothing but the cursor. Annotation
+   text has no artwork to trace and keeps the wash. would-move marks
+   everything a drag on the selection would carry, so the whole moving body
+   reads at a glance. */
 .hit-target.selected {
+  cursor: move;
+}
+
+.hit-target.annotation-text-hit.selected {
   fill: rgb(var(--icm-accent-rgb) / 13%);
   stroke: rgb(var(--icm-accent-rgb) / 60%);
-  cursor: move;
+}
+
+/* A thick accent stroke under every line of the component. The halo is drawn
+   below the scene, so a per-instance colour override still shows through on
+   top unchanged — a highlight that recoloured the strokes would have erased
+   the colour the person deliberately set.
+   non-scaling-stroke keeps the halo a constant width on screen. A halo that
+   scaled with the drawing would swell when zoomed in and thin away to nothing
+   when zoomed out, which is exactly when a whole-schematic view needs it. */
+.selection-halo {
+  pointer-events: none;
+}
+
+.selection-halo * {
+  fill: none;
+  stroke: rgb(var(--icm-accent-rgb) / 42%);
+  stroke-width: 7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.selection-halo-body--would-move * {
+  stroke: rgb(var(--icm-accent-rgb) / 18%);
+  stroke-width: 6;
 }
 
 .wire-under-symbol-overlay .wire-under-symbol-paint {
@@ -110,7 +141,7 @@
   pointer-events: stroke;
 }
 
-.hit-target.would-move {
+.hit-target.annotation-text-hit.would-move {
   fill: rgb(var(--icm-accent-rgb) / 7%);
   stroke: rgb(var(--icm-accent-rgb) / 28%);
 }

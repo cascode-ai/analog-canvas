@@ -236,6 +236,17 @@ function SelectionHitTargets({
           const selected =
             selectedAnnotationId === annotation.id ||
             supplementalAnnotationIds.includes(annotation.id);
+          // An instance label belongs to the component it names rather than
+          // standing beside it, so it needs no would-move tint of its own once
+          // that component carries a halo — the tint only repeated what the
+          // halo already said, as a box next to a device that had none.
+          // A label the person selected in its own right still marks itself:
+          // suppressing that would answer a deliberate click with nothing.
+          const carriedByMarkedOwner =
+            annotation.kind === "instance-label" &&
+            annotation.anchor.kind === "object" &&
+            (selectedInstanceIds.includes(annotation.anchor.objectId) ||
+              wouldMoveIds.has(annotation.anchor.objectId));
           return (
             <rect
               key={`annotation-hit-${annotation.id}`}
@@ -246,7 +257,7 @@ function SelectionHitTargets({
               className={
                 selected
                   ? "hit-target annotation-text-hit selected"
-                  : wouldMoveIds.has(annotation.id)
+                  : wouldMoveIds.has(annotation.id) && !carriedByMarkedOwner
                     ? "hit-target annotation-text-hit would-move"
                     : "hit-target annotation-text-hit"
               }

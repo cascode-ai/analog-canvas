@@ -16,6 +16,7 @@ import {
   createRoutingOperationPlan,
   executeTransaction,
   gateRoutingOperationPlan,
+  planRoutedTerminalDetachment,
   planRoutingDeletion,
   planRoutingTransform,
   type RoutingOperationIntent,
@@ -40,6 +41,38 @@ import {
 } from "./selection-move-plan";
 
 type TransactionResult = { ok: boolean; revision: number };
+
+/**
+ * Preview projection of the detach edits: apply the planned Junction stubs
+ * and re-anchored routes to a document clone so the drag ghost shows the
+ * wires already staying put. The real edits still commit atomically as the
+ * move transaction's prefix.
+ */
+function projectDetachedDocument(
+  document: SchematicDocument,
+  edits: readonly SchematicEdit[],
+): SchematicDocument {
+  if (edits.length === 0) return document;
+  const next = structuredClone(document) as SchematicDocument & {
+    junctions: SchematicDocument["junctions"][number][];
+    routes: SchematicDocument["routes"][number][];
+  };
+  for (const edit of edits) {
+    if (edit.kind === "add_junction") {
+      next.junctions.push({
+        id: edit.junctionId,
+        netId: edit.netId,
+        position: edit.position,
+      });
+    } else if (edit.kind === "set_route_path") {
+      const index = next.routes.findIndex(
+        (candidate) => candidate.id === edit.route.id,
+      );
+      if (index >= 0) next.routes[index] = edit.route;
+    }
+  }
+  return next;
+}
 
 interface ResolvedInstanceMove {
   snap: SnapResult;
@@ -197,6 +230,8 @@ export function useSelectionInteraction(
   options: UseSelectionInteractionOptions,
 ) {
   const commandMoveSessionRef = useRef<CommandMoveSession | null>(null);
+  /** Uniquifies Junction ids minted by successive Ctrl+drag detach moves. */
+  const detachSequenceRef = useRef(0);
   const transactConnectivity = (
     intent: RoutingOperationIntent,
     edits: readonly SchematicEdit[],
@@ -646,25 +681,57 @@ export function useSelectionInteraction(
       event.shiftKey || event.ctrlKey || event.metaKey;
     options.suppressInstanceClickRef.current =
       hitTarget.getAttribute("data-canvas-hit-kind") === "instance";
-    if (hasSelectionModifier) {
+    // Ctrl-drag follows Virtuoso: the drag moves ONLY the part, leaving its
+    // wires exactly where they are (they re-anchor onto Junction stubs and
+    // stay on the Net, so the missing path shows as a flightline). Cmd
+    // serves the same role because macOS browsers convert Ctrl+left-press
+    // into a right-button press before the page ever sees it. A plain
+    // modifier-click without a drag keeps its toggle-selection meaning.
+    const detachDrag = (event.ctrlKey || event.metaKey) && !event.shiftKey;
+    if (hasSelectionModifier && !detachDrag) {
       selectInstance(instanceId, true);
       options.setStatus(`Selected ${instanceId}`);
       return;
     }
-    const movingSelection: VisualSelection = options.selectedIds.includes(
-      instanceId,
-    )
-      ? options.visualSelection
-      : {
-          instanceIds: [instanceId],
-          routeIds: [],
-          junctionIds: [],
-          annotationIds: [],
-          draftingIds: [],
-        };
+    let detachEdits: SchematicEdit[] = [];
+    let previewBaseDocument = options.document;
+    if (detachDrag) {
+      try {
+        detachSequenceRef.current += 1;
+        detachEdits = planRoutedTerminalDetachment(
+          options.document,
+          options.resolver,
+          new Set([instanceId]),
+          detachSequenceRef.current,
+        );
+      } catch (error) {
+        options.setStatus(
+          error instanceof Error ? error.message : "Detach move failed",
+        );
+        return;
+      }
+      previewBaseDocument = projectDetachedDocument(
+        options.document,
+        detachEdits,
+      );
+    }
+    const movingSelection: VisualSelection =
+      !detachDrag && options.selectedIds.includes(instanceId)
+        ? options.visualSelection
+        : {
+            instanceIds: [instanceId],
+            routeIds: [],
+            junctionIds: [],
+            annotationIds: [],
+            draftingIds: [],
+          };
     const movePlan = planSelectionMove(options.document, movingSelection);
     const movingIds = movePlan.instanceIds;
-    if (!options.selectedIds.includes(instanceId))
+    // A detach drag defers selection: a threshold-crossing drag selects the
+    // moved part on finish, while a mere modifier-click keeps its
+    // toggle-selection meaning (pre-selecting here would make that toggle
+    // deselect what it just selected).
+    if (!detachDrag && !options.selectedIds.includes(instanceId))
       selectInstance(instanceId, false);
     if (movingIds.length === 0) return;
     options.canvasDragSessionRef.current?.cancel();
@@ -717,7 +784,7 @@ export function useSelectionInteraction(
         lastSnap,
       );
       const document = projectInstanceMove(
-        options.document,
+        previewBaseDocument,
         resolved.moves,
         preview.movePlan,
       );
@@ -781,11 +848,28 @@ export function useSelectionInteraction(
             suppressSnap,
             projection.resolved.snap,
             {
-              document: options.document,
-              prefixEdits: [],
+              // The detached projection, so the commit's routing transform
+              // plans against the topology the prefix edits will create —
+              // otherwise it would re-stretch the wires the detach just
+              // anchored in place.
+              document: previewBaseDocument,
+              prefixEdits: detachEdits,
               resolvedMove: projection.resolved,
             },
           );
+          if (detachDrag) {
+            selectInstance(instanceId, false);
+          }
+          if (detachEdits.length > 0) {
+            options.setStatus(
+              `Moved ${instanceId} without its wires — reconnect via the flightlines`,
+            );
+          }
+        } else if (detachDrag) {
+          // The drag never crossed the threshold: keep the plain
+          // ctrl-click toggle-selection meaning.
+          selectInstance(instanceId, true);
+          options.setStatus(`Selected ${instanceId}`);
         }
       },
       onCancel: () => {

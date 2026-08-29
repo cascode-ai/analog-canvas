@@ -13,6 +13,7 @@ import {
 import { EditorCanvasHitLayer } from "./editor-canvas-hit-layer";
 import { EditorCellSymbolLayoutOverlay } from "./editor-cell-symbol-layout-overlay";
 import { EditorRouteHandles } from "./editor-route-handles";
+import { EditorSelectionHalo } from "./editor-selection-halo";
 import {
   EditorDraftingHandles,
   EditorDraftingHitTargets,
@@ -47,6 +48,7 @@ export interface EditorCanvasSurfaceProps {
   ) => void;
   grid: ComponentProps<typeof CanvasGridOverlay>;
   sceneInnerHtml: { __html: string };
+  selectionHalo: ComponentProps<typeof EditorSelectionHalo>;
   cellSymbolLayout: ComponentProps<typeof EditorCellSymbolLayoutOverlay> | null;
   netHighlight: ComponentProps<typeof NetHighlightOverlay>;
   wireUnderSymbol: ComponentProps<typeof WireUnderSymbolOverlay>;
@@ -99,6 +101,7 @@ export function EditorCanvasSurface({
   onPinch,
   grid,
   sceneInnerHtml,
+  selectionHalo,
   cellSymbolLayout,
   netHighlight,
   wireUnderSymbol,
@@ -204,6 +207,7 @@ export function EditorCanvasSurface({
       >
         <style>{schematicRoundPeriodFontFaceCss}</style>
         <CanvasGridOverlay {...grid} />
+        <EditorSelectionHalo {...selectionHalo} />
         <g dangerouslySetInnerHTML={sceneInnerHtml} />
         {cellSymbolLayout ? (
           <EditorCellSymbolLayoutOverlay {...cellSymbolLayout} />
