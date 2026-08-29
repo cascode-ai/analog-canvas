@@ -236,11 +236,13 @@ function SelectionHitTargets({
           const selected =
             selectedAnnotationId === annotation.id ||
             supplementalAnnotationIds.includes(annotation.id);
-          // An instance label belongs to its component rather than standing
-          // beside it. Once the component carries a halo the label is already
-          // spoken for, and a second mark on the label would read as a
-          // separate object having been selected.
-          const ownerMarked =
+          // An instance label belongs to the component it names rather than
+          // standing beside it, so it needs no would-move tint of its own once
+          // that component carries a halo — the tint only repeated what the
+          // halo already said, as a box next to a device that had none.
+          // A label the person selected in its own right still marks itself:
+          // suppressing that would answer a deliberate click with nothing.
+          const carriedByMarkedOwner =
             annotation.kind === "instance-label" &&
             annotation.anchor.kind === "object" &&
             (selectedInstanceIds.includes(annotation.anchor.objectId) ||
@@ -253,13 +255,11 @@ function SelectionHitTargets({
               data-canvas-hit-id={annotation.id}
               data-drag-object-id={annotation.id}
               className={
-                ownerMarked
-                  ? "hit-target annotation-text-hit"
-                  : selected
-                    ? "hit-target annotation-text-hit selected"
-                    : wouldMoveIds.has(annotation.id)
-                      ? "hit-target annotation-text-hit would-move"
-                      : "hit-target annotation-text-hit"
+                selected
+                  ? "hit-target annotation-text-hit selected"
+                  : wouldMoveIds.has(annotation.id) && !carriedByMarkedOwner
+                    ? "hit-target annotation-text-hit would-move"
+                    : "hit-target annotation-text-hit"
               }
               {...hitBox}
               onClick={(event) => event.stopPropagation()}

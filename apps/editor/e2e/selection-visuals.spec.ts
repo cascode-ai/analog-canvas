@@ -55,17 +55,23 @@ test("selection traces the device and marks carried wires as would-move", async 
   );
 });
 
-test("an instance label is not marked a second time beside its device", async ({
+test("an instance label is not tinted a second time beside its device", async ({
   page,
 }) => {
   await page.goto("/editor");
   await placeComponent(page, "resistor", { x: 300, y: 220 });
   const instance = page.locator('[data-canvas-hit-kind="instance"]').first();
+  const label = page.locator('[data-canvas-hit-kind="annotation"]').first();
   await instance.click();
 
-  // The label rides along with the device it names, and the device's halo
-  // already says so. Boxing the label too would read as a second object
-  // having been selected.
-  const label = page.locator('[data-canvas-hit-kind="annotation"]').first();
+  // The label rides along with the device it names, and the halo already says
+  // so. A would-move box on the label repeated that next to a device wearing
+  // no box at all.
   await expect(label).toHaveClass(/hit-target annotation-text-hit$/);
+
+  // Selecting the label in its own right is a different thing to say, and it
+  // still marks itself: answering a deliberate click with nothing would be
+  // worse than the tint this test removes.
+  await label.click({ modifiers: ["Shift"], force: true });
+  await expect(label).toHaveClass(/selected/);
 });
