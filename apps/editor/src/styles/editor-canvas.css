@@ -414,11 +414,11 @@
    from formal SVG/export, but uses the same RichText AST as formal rendering. */
 .rich-text-editor-shell {
   display: grid;
-  gap: 0.15rem;
+  gap: 0.35rem;
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
-  padding: 0.2rem;
+  padding: 0.4rem;
   overflow: visible;
   border: 1px solid var(--icm-border-strong);
   border-radius: var(--icm-radius-md);
@@ -439,9 +439,9 @@
   box-sizing: border-box;
   width: 100%;
   max-width: 100%;
-  gap: 0.15rem;
-  min-height: 1.9rem;
-  padding: 0.15rem;
+  gap: 0.2rem;
+  min-height: 2.15rem;
+  padding: 0.25rem;
   border: 1px solid var(--icm-border);
   border-radius: var(--icm-radius-md);
   background: var(--icm-surface);
@@ -530,8 +530,8 @@
   box-sizing: border-box;
   max-width: 100%;
   overflow-y: visible;
-  min-height: 1.35rem;
-  padding: 0.1rem 0.25rem;
+  min-height: 2rem;
+  padding: 0.35rem 0.5rem;
   border: 1px solid var(--icm-accent);
   border-radius: 0.2rem;
   outline: 0;
@@ -706,6 +706,65 @@
 }
 
 .rich-text-formula-keyboard button:hover {
+  border-color: var(--icm-accent);
+  background: var(--icm-accent-tint);
+}
+
+.rich-text-formula-more {
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  background: var(--icm-surface-muted);
+}
+
+.rich-text-formula-more > summary {
+  padding: 0.35rem 0.45rem;
+  color: var(--icm-text-muted);
+  cursor: pointer;
+  font-size: var(--icm-font-xs);
+  font-weight: 600;
+  list-style-position: inside;
+}
+
+.rich-text-formula-more[open] > summary {
+  border-bottom: 1px solid var(--icm-border);
+}
+
+.rich-text-formula-more-groups {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.45rem;
+}
+
+.rich-text-formula-more-groups section {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.rich-text-formula-more-groups h4 {
+  margin: 0;
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+  font-weight: 600;
+}
+
+.rich-text-formula-more-grid {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(2rem, 1fr));
+  gap: 0.18rem;
+}
+
+.rich-text-formula-more-grid button {
+  min-width: 0;
+  min-height: 1.8rem;
+  padding: 0.15rem;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  background: #fff;
+  font-family: "DejaVu Sans", Arial, sans-serif;
+  font-size: var(--icm-font-sm);
+}
+
+.rich-text-formula-more-grid button:hover {
   border-color: var(--icm-accent);
   background: var(--icm-accent-tint);
 }

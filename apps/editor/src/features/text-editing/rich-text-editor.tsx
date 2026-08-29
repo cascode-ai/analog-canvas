@@ -320,22 +320,100 @@ const FORMULA_KEYCAPS = [
   { label: "xⁿ", title: "Superscript", latex: "^{#0}" },
   { label: "a⁄b", title: "Fraction", latex: "\\frac{#0}{#0}" },
   { label: "√x", title: "Square root", latex: "\\sqrt{#0}" },
+  { label: "ⁿ√x", title: "Nth root", latex: "\\sqrt[#0]{#0}" },
   { label: "x̅", title: "Overbar", latex: "\\overline{#0}" },
+  { label: "x̂", title: "Hat", latex: "\\hat{#0}" },
+  { label: "x⃗", title: "Vector", latex: "\\vec{#0}" },
   { label: "|x|", title: "Absolute value", latex: "\\left|#0\\right|" },
-  { label: "∫", title: "Integral", latex: "\\int_{#0}^{#0}" },
+  { label: "{x}", title: "Braces", latex: "\\left\\{#0\\right\\}" },
+  {
+    label: "dy⁄dx",
+    title: "Derivative",
+    latex: "\\frac{\\mathrm{d}#0}{\\mathrm{d}#0}",
+  },
+  {
+    label: "∂y⁄∂x",
+    title: "Partial derivative",
+    latex: "\\frac{\\partial #0}{\\partial #0}",
+  },
   { label: "Σ", title: "Summation", latex: "\\sum_{#0}^{#0}" },
-  { label: "+", title: "Plus", latex: "+" },
-  { label: "−", title: "Minus", latex: "-" },
-  { label: "×", title: "Multiply", latex: "\\times" },
-  { label: "÷", title: "Divide", latex: "\\div" },
-  { label: "=", title: "Equals", latex: "=" },
-  { label: "(", title: "Open parenthesis", latex: "(" },
-  { label: ")", title: "Close parenthesis", latex: ")" },
-  { label: "π", title: "Pi", latex: "\\pi" },
-  { label: "ω", title: "Omega", latex: "\\omega" },
-  { label: "μ", title: "Mu", latex: "\\mu" },
-  { label: "Δ", title: "Delta", latex: "\\Delta" },
-  { label: "→", title: "Right arrow", latex: "\\rightarrow" },
+  { label: "Π", title: "Product", latex: "\\prod_{#0}^{#0}" },
+  { label: "∫", title: "Integral", latex: "\\int_{#0}^{#0}" },
+  { label: "∬", title: "Double integral", latex: "\\iint_{#0}" },
+  { label: "lim", title: "Limit", latex: "\\lim_{#0 \\to #0}" },
+  {
+    label: "[ ]₂×₂",
+    title: "Two by two matrix",
+    latex: "\\begin{bmatrix}#0&#0\\\\#0&#0\\end{bmatrix}",
+  },
+  {
+    label: "{⋯",
+    title: "Cases",
+    latex: "\\begin{cases}#0&#0\\\\#0&#0\\end{cases}",
+  },
+  { label: "∞", title: "Infinity", latex: "\\infty" },
+] as const;
+
+const FORMULA_MORE_GROUPS = [
+  {
+    title: "Greek",
+    items: [
+      ["α", "Alpha", "\\alpha"],
+      ["β", "Beta", "\\beta"],
+      ["γ", "Gamma", "\\gamma"],
+      ["δ", "Delta lowercase", "\\delta"],
+      ["ε", "Epsilon", "\\epsilon"],
+      ["θ", "Theta", "\\theta"],
+      ["λ", "Lambda", "\\lambda"],
+      ["μ", "Mu", "\\mu"],
+      ["π", "Pi", "\\pi"],
+      ["ρ", "Rho", "\\rho"],
+      ["σ", "Sigma lowercase", "\\sigma"],
+      ["τ", "Tau", "\\tau"],
+      ["φ", "Phi", "\\phi"],
+      ["ω", "Omega lowercase", "\\omega"],
+      ["Δ", "Delta", "\\Delta"],
+      ["Ω", "Omega", "\\Omega"],
+    ],
+  },
+  {
+    title: "Relations & operators",
+    items: [
+      ["±", "Plus or minus", "\\pm"],
+      ["∓", "Minus or plus", "\\mp"],
+      ["×", "Multiply", "\\times"],
+      ["÷", "Divide", "\\div"],
+      ["·", "Centered dot", "\\cdot"],
+      ["≠", "Not equal", "\\neq"],
+      ["≈", "Approximately equal", "\\approx"],
+      ["≤", "Less than or equal", "\\leq"],
+      ["≥", "Greater than or equal", "\\geq"],
+      ["∝", "Proportional to", "\\propto"],
+      ["∠", "Angle", "\\angle"],
+      ["∥", "Parallel", "\\parallel"],
+      ["⊥", "Perpendicular", "\\perp"],
+      ["→", "Right arrow", "\\rightarrow"],
+      ["↔", "Left right arrow", "\\leftrightarrow"],
+      ["⇒", "Implies", "\\Rightarrow"],
+    ],
+  },
+  {
+    title: "Functions & accents",
+    items: [
+      ["sin", "Sine", "\\sin(#0)"],
+      ["cos", "Cosine", "\\cos(#0)"],
+      ["tan", "Tangent", "\\tan(#0)"],
+      ["ln", "Natural logarithm", "\\ln(#0)"],
+      ["log", "Logarithm", "\\log_{#0}(#0)"],
+      ["exp", "Exponential", "\\exp(#0)"],
+      ["Re", "Real part", "\\operatorname{Re}(#0)"],
+      ["Im", "Imaginary part", "\\operatorname{Im}(#0)"],
+      ["ẋ", "Dot accent", "\\dot{#0}"],
+      ["ẍ", "Double dot accent", "\\ddot{#0}"],
+      ["x̃", "Tilde accent", "\\tilde{#0}"],
+      ["⟨x⟩", "Angle brackets", "\\left\\langle#0\\right\\rangle"],
+    ],
+  },
 ] as const;
 
 export function RichTextEditor({
@@ -785,6 +863,36 @@ export function RichTextEditor({
                 </button>
               ))}
             </div>
+            <details className="rich-text-formula-more">
+              <summary>More symbols</summary>
+              <div className="rich-text-formula-more-groups">
+                {FORMULA_MORE_GROUPS.map((group) => (
+                  <section key={group.title}>
+                    <h4>{group.title}</h4>
+                    <div
+                      className="rich-text-formula-more-grid"
+                      role="toolbar"
+                      aria-label={group.title}
+                    >
+                      {group.items.map(([label, title, latex]) => (
+                        <button
+                          key={title}
+                          type="button"
+                          aria-label={`Insert ${title}`}
+                          title={title}
+                          onPointerDown={(event) => event.preventDefault()}
+                          onClick={() =>
+                            formulaMathfieldRef.current?.insert(latex)
+                          }
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            </details>
             <label className="rich-text-formula-source">
               <span>LaTeX source</span>
               <textarea

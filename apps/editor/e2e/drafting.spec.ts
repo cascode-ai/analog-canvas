@@ -235,12 +235,58 @@ test("authors one validated formula through the canonical text editor", async ({
   expect(editorLayout.keyboardToggleDisplay).toBe("none");
   expect(editorLayout.virtualKeyboardVisible).toBe(false);
 
-  await page.getByRole("button", { name: "Insert Square root" }).click();
+  const formulaKeyboard = page.getByRole("toolbar", {
+    name: "Formula keyboard",
+  });
+  await expect(formulaKeyboard.getByRole("button")).toHaveCount(20);
+  const keyRowCount = await formulaKeyboard
+    .getByRole("button")
+    .evaluateAll(
+      (buttons) =>
+        new Set(
+          buttons.map((button) =>
+            Math.round(button.getBoundingClientRect().top),
+          ),
+        ).size,
+    );
+  expect(keyRowCount).toBe(2);
   await expect(
-    page.getByRole("textbox", { name: "Formula LaTeX source" }),
-  ).toHaveValue(/\\sqrt/u);
+    formulaKeyboard.getByRole("button", { name: "Insert Product" }),
+  ).toBeVisible();
+  await expect(
+    formulaKeyboard.getByRole("button", { name: "Insert Derivative" }),
+  ).toBeVisible();
+  await expect(
+    formulaKeyboard.getByRole("button", { name: "Insert Plus" }),
+  ).toHaveCount(0);
+  await expect(
+    formulaKeyboard.getByRole("button", { name: "Insert Equals" }),
+  ).toHaveCount(0);
 
   const source = page.getByRole("textbox", { name: "Formula LaTeX source" });
+  await page.locator('math-field[aria-label="Formula editor"]').click();
+  await page.keyboard.type("a+b-c=(d)");
+  await expect(source).toHaveValue(/a\+b-c=/u);
+  await expect(source).toHaveValue(/\\left\(d\\right\)/u);
+  await formulaKeyboard.getByRole("button", { name: "Insert Product" }).click();
+  await formulaKeyboard
+    .getByRole("button", { name: "Insert Derivative" })
+    .click();
+  await expect(source).toHaveValue(/\\prod/u);
+  await expect(source).toHaveValue(/\\mathrm\{d\}/u);
+
+  const moreSymbols = page.getByText("More symbols", { exact: true });
+  await expect(page.getByRole("toolbar", { name: "Greek" })).not.toBeVisible();
+  await moreSymbols.click();
+  await page.getByRole("button", { name: "Insert Omega", exact: true }).click();
+  await expect(
+    page.getByRole("textbox", { name: "Formula LaTeX source" }),
+  ).toHaveValue(/\\Omega/u);
+  await moreSymbols.click();
+
+  await page.getByRole("button", { name: "Insert Square root" }).click();
+  await expect(source).toHaveValue(/\\sqrt/u);
+
   await source.fill(String.raw`A_v=\frac{g_m}{1+s/\omega_p}`);
   await page.getByRole("button", { name: "Display" }).click();
   await page

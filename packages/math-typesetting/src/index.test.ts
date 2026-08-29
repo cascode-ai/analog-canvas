@@ -19,6 +19,10 @@ const corpus = [
   String.raw`\frac{g_m r_o}{1+s/\omega_p}`,
   String.raw`A_v=-g_m(r_o\parallel R_D)`,
   String.raw`\Delta V=\frac{I}{C}\Delta t`,
+  String.raw`\frac{\mathrm{d}y}{\mathrm{d}x}`,
+  String.raw`\prod_{k=0}^{N-1}a_k`,
+  String.raw`\iint_{\Omega}f(x,y)\,\mathrm{d}x\,\mathrm{d}y`,
+  String.raw`\lim_{s\to0}H(s)`,
   String.raw`\begin{bmatrix}1 & 0 \\ 0 & 1\end{bmatrix}`,
   String.raw`\begin{cases}V_{OH},&x>0\\V_{OL},&x\leq0\end{cases}`,
 ];
