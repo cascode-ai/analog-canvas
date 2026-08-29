@@ -54,21 +54,29 @@ function resolve(
 const command = (value: object) => ({ kind: "run-command", command: value });
 
 describe("editor shortcut contract", () => {
-  it("maps history and file chord shortcuts without stealing copy/paste chords", () => {
+  it("maps history and file chords on either command modifier without stealing copy/paste chords", () => {
     expect(resolve("u")).toEqual(command({ id: "history.undo" }));
     expect(resolve("u", {}, { shiftKey: true })).toEqual(
       command({ id: "history.redo" }),
     );
-    expect(resolve("z", {}, { ctrlKey: true })).toEqual(
-      command({ id: "history.undo" }),
-    );
-    expect(resolve("z", {}, { ctrlKey: true, shiftKey: true })).toEqual(
-      command({ id: "history.redo" }),
-    );
-    expect(resolve("s", {}, { ctrlKey: true })).toEqual({ kind: "save" });
-    expect(resolve("s", {}, { metaKey: true })).toBeNull();
-    expect(resolve("c", {}, { ctrlKey: true })).toBeNull();
-    expect(resolve("v", {}, { ctrlKey: true })).toBeNull();
+    // macOS presses Cmd where Windows presses Ctrl; a ctrl-only binding
+    // leaves these chords to the browser there (Save Page, Open File,
+    // history navigation), so meta is bound identically.
+    for (const modifiers of [{ ctrlKey: true }, { metaKey: true }]) {
+      expect(resolve("z", {}, modifiers)).toEqual(
+        command({ id: "history.undo" }),
+      );
+      expect(resolve("z", {}, { ...modifiers, shiftKey: true })).toEqual(
+        command({ id: "history.redo" }),
+      );
+      expect(resolve("y", {}, modifiers)).toEqual(
+        command({ id: "history.redo" }),
+      );
+      expect(resolve("s", {}, modifiers)).toEqual({ kind: "save" });
+      expect(resolve("o", {}, modifiers)).toEqual({ kind: "open" });
+      expect(resolve("c", {}, modifiers)).toBeNull();
+      expect(resolve("v", {}, modifiers)).toBeNull();
+    }
   });
 
   it("arbitrates browser refresh chords before blocking their defaults", () => {
@@ -396,6 +404,7 @@ describe("editor shortcut contract", () => {
       expect(resolve(value, { isTyping: true })).toBeNull();
     }
     expect(resolve("s", { isTyping: true }, { ctrlKey: true })).toBeNull();
+    expect(resolve("s", { isTyping: true }, { metaKey: true })).toBeNull();
   });
 
   it("keeps typing suppressed with the Properties dock open, and Q blocked while interacting", () => {

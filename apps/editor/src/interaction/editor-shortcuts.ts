@@ -109,17 +109,20 @@ export function resolveEditorShortcut(
       command: { id: event.shiftKey ? "history.redo" : "history.undo" },
     };
   }
-  if (event.ctrlKey && key === "z") {
+  // History and file chords answer to both command modifiers: macOS presses
+  // Cmd where Windows presses Ctrl, and an unbound meta chord would fall
+  // through to the browser (Save Page, Open File, history navigation).
+  if (commandModifier && key === "z") {
     return {
       kind: "run-command",
       command: { id: event.shiftKey ? "history.redo" : "history.undo" },
     };
   }
-  if (event.ctrlKey && key === "y") {
+  if (commandModifier && key === "y") {
     return { kind: "run-command", command: { id: "history.redo" } };
   }
-  if (event.ctrlKey && key === "s") return { kind: "save" };
-  if (event.ctrlKey && key === "o") return { kind: "open" };
+  if (commandModifier && key === "s") return { kind: "save" };
+  if (commandModifier && key === "o") return { kind: "open" };
 
   if (event.key === "Escape") {
     return { kind: "run-command", command: { id: "editor.cancel" } };
