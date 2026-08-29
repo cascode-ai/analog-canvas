@@ -252,8 +252,13 @@ describe("editor shortcut contract", () => {
     expect(resolve("e", {}, { shiftKey: true })).toBeNull();
   });
 
-  it("gives Ctrl+A selection precedence over the plain Arrow shortcut", () => {
+  it("gives Ctrl+A and Cmd+A selection precedence over the plain Arrow shortcut", () => {
     expect(resolve("a", {}, { ctrlKey: true })).toEqual(
+      command({ id: "selection.select-all" }),
+    );
+    // macOS sends Cmd+A for select-all; leaving meta unbound hands the chord
+    // to the browser's DOM selection and the schematic selection never moves.
+    expect(resolve("a", {}, { metaKey: true })).toEqual(
       command({ id: "selection.select-all" }),
     );
   });
@@ -341,6 +346,12 @@ describe("editor shortcut contract", () => {
       command({ id: "tool.activate", tool: "wire" }),
     );
     expect(resolve("f", active)).toEqual(command({ id: "view.fit" }));
+    for (const modifiers of [{ ctrlKey: true }, { metaKey: true }]) {
+      expect(resolve("a", active, modifiers)).toEqual({
+        kind: "blocked-interaction-command",
+        command: "Select All",
+      });
+    }
   });
 
   it("does not rotate a stale selection underneath another active tool", () => {
