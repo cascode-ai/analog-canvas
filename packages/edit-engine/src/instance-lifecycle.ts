@@ -82,7 +82,14 @@ function instancesById(
   return document.instances.filter((instance) => selected.has(instance.id));
 }
 
-function planRoutedTerminalDetachment(
+/**
+ * Re-anchors every routed wire leaving the selected instances onto a fresh
+ * Junction at its landing, leaving the wires' geometry untouched. Net
+ * membership is intentionally preserved: the terminals stay electrically
+ * connected and the missing physical path shows up as a flightline, so a
+ * detach-move (Ctrl+drag) cannot silently change connectivity.
+ */
+export function planRoutedTerminalDetachment(
   document: SchematicDocument,
   resolver: SymbolResolver,
   selected: ReadonlySet<string>,
