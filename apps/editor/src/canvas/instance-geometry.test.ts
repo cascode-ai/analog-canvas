@@ -43,4 +43,15 @@ describe("selection geometry", () => {
     expect(bounds!.width).toBeCloseTo(localBounds.height);
     expect(bounds!.height).toBeCloseTo(localBounds.width);
   });
+
+  it("uses the reviewed DFF artwork envelope instead of source-crop whitespace", () => {
+    const resolved = resolver.resolve("d-flip-flop");
+    expect(resolved).toBeDefined();
+    expect(visibleSymbolLocalBounds(resolved!)).toEqual({
+      x: -42,
+      y: -27,
+      width: 84,
+      height: 54,
+    });
+  });
 });

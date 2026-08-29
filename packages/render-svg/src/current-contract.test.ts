@@ -215,6 +215,8 @@ describe("current rendering contract", () => {
     );
 
     expect(svg).toContain('data-pin-name="QBAR"');
+    expect(svg).toContain('data-text-run="overbar"');
+    expect(svg).toContain("text-decoration:overline");
     expect(svg).toContain(">Q</tspan>");
     expect(svg).not.toContain(">QBAR</text>");
     expect(svg).toContain("font-style:italic;font-weight:700");

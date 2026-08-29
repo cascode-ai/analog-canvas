@@ -283,8 +283,8 @@ describe("Razavi symbol catalog", () => {
     });
     expect(
       dff.primitives.filter((primitive) => primitive.kind === "line"),
-    ).toHaveLength(5);
-    expect(dff.viewBox).toEqual({ x: -55, y: -30, width: 110, height: 60 });
+    ).toHaveLength(4);
+    expect(dff.viewBox).toEqual({ x: -42, y: -27, width: 84, height: 54 });
     expect(dff.pins.map((pin) => pin.at)).toEqual([
       { x: -40, y: -10 },
       { x: -40, y: 10 },
@@ -298,11 +298,9 @@ describe("Razavi symbol catalog", () => {
       kind: "path",
       data: "M -25.000855 -25.0 L 25.000855 -25.0 L 25.000855 25.0 L -25.000855 25.0 Z",
     });
-    expect(dff.primitives.at(-1)).toMatchObject({
-      kind: "line",
-      from: { x: 13.687, y: 4.24947 },
-      to: { x: 22.354168, y: 4.24947 },
-    });
+    expect(
+      dff.primitives.some((primitive) => primitive.part === "pin-name-overbar"),
+    ).toBe(false);
   });
 
   it("keeps the page-331 Delay Cell proportions and source glyph outlines", () => {

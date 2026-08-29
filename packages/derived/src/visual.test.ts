@@ -1,4 +1,4 @@
-import { createEmptyDocument } from "@icm/model";
+import { createEmptyDocument, createRoutePath } from "@icm/model";
 import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
@@ -154,5 +154,43 @@ describe("visual quality diagnostics", () => {
         (item) => item.code === "VISUAL_SYMBOL_OVERLAP",
       ),
     ).toBe(true);
+  });
+
+  it("does not treat a one-grid DFF pin escape as wire-through-symbol", () => {
+    const document = createEmptyDocument("doc", "DFF pin escape");
+    document.instances.push({
+      id: "U1",
+      symbolId: "d-flip-flop",
+      placement: {
+        position: { x: 100, y: 100 },
+        rotation: 0,
+        mirror: "none",
+      },
+    });
+    document.nets.push({
+      id: "n-d",
+      terminals: [{ instanceId: "U1", pinName: "D" }],
+    });
+    document.junctions.push({
+      id: "j-d",
+      netId: "n-d",
+      position: { x: 50, y: 120 },
+    });
+    document.routes.push(
+      createRoutePath({
+        id: "route-d",
+        netId: "n-d",
+        start: { kind: "terminal", instanceId: "U1", pinName: "D" },
+        end: { kind: "junction", junctionId: "j-d" },
+        bends: [{ x: 50, y: 90 }],
+        modes: ["manual", "manual"],
+      }),
+    );
+
+    expect(
+      diagnoseVisualQuality(document, resolver).filter(
+        (item) => item.code === "VISUAL_WIRE_THROUGH_SYMBOL",
+      ),
+    ).toEqual([]);
   });
 });

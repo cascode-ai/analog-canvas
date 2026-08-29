@@ -368,23 +368,33 @@ export function renderVisiblePinNames(
         pin.presentation.textSizeScale,
       );
       const displayName = pin.presentation.displayName ?? pin.name;
-      const content = definition.hierarchicalBlock
+      const mathSymbolRuns: RichTextRun[] = [
+        {
+          kind: "span",
+          style: "italic",
+          children: [
+            {
+              kind: "span",
+              style: "bold",
+              children: [{ kind: "text", value: displayName }],
+            },
+          ],
+        },
+      ];
+      const content: RichTextDocument = definition.hierarchicalBlock
         ? semanticTextDocument(displayName, "formal-port")
         : pin.presentation.textStyle === "math-symbol"
           ? {
-              runs: [
-                {
-                  kind: "span" as const,
-                  style: "italic" as const,
-                  children: [
-                    {
-                      kind: "span" as const,
-                      style: "bold" as const,
-                      children: [{ kind: "text" as const, value: displayName }],
-                    },
-                  ],
-                },
-              ],
+              runs:
+                pin.role === "output-complement"
+                  ? [
+                      {
+                        kind: "span",
+                        style: "overbar",
+                        children: mathSymbolRuns,
+                      },
+                    ]
+                  : mathSymbolRuns,
             }
           : { runs: [{ kind: "text" as const, value: displayName }] };
       const colorStyle = foregroundOverride

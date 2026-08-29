@@ -363,7 +363,7 @@
         "figure": "16.23(a)"
       },
       "extractPath": "d-flip-flop-vector-source.json",
-      "extractSha256": "7c2a8ec481fb5145af3a6b1fd99c0f28430ea278694b446d54364e2ffe407a43",
+      "extractSha256": "e4998a1a3a55bf9ce223eab734ed9b3e68bc0a6d74470c8414e3657e317def78",
       "rasterPath": "d-flip-flop-reference.png",
       "rasterSha256": "b3a7caab14b71944766da26cac934902a96fa7a304b4963cbb43ac49fe97fa2e",
       "scope": [

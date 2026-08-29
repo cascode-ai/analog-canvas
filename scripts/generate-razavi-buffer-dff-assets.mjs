@@ -55,6 +55,20 @@ for (const definition of definitions.values()) {
   normalizeLogicPortLeads(definition);
 }
 
+const dff = definitions.get("d-flip-flop");
+if (!dff) fail("missing normalized d-flip-flop definition");
+// Pin names remain upright in world space while Symbol primitives rotate with
+// the body. The PDF's Q-bar therefore belongs to the complementary pin label,
+// not the rotating artwork. Remove only the evidence-tagged source stroke;
+// renderVisiblePinNames recreates it from the output-complement role.
+dff.primitives = dff.primitives.filter(
+  (primitive) => primitive.part !== "pin-name-overbar",
+);
+// The source crop carries generous whitespace. Runtime selection and visual
+// diagnostics fall back to viewBox for path-backed symbols, so retain only
+// stroke-safe clearance around the +/-40 pins and +/-25 body.
+dff.viewBox = { x: -42, y: -27, width: 84, height: 54 };
+
 const assetSources = new Map();
 for (const symbolId of symbolIds) {
   assetSources.set(
@@ -117,7 +131,7 @@ for (const symbolId of symbolIds) {
       "fixtures/visual-reference/razavi-reference-v1/manifest.json",
     referencePath: `fixtures/visual-reference/razavi-reference-v1/${symbolId}-vector-source.json`,
     converterPath: "scripts/generate-razavi-buffer-dff-assets.mjs",
-    converterVersion: 2,
+    converterVersion: symbolId === "d-flip-flop" ? 3 : 2,
   };
 }
 const catalogSource = normalize(

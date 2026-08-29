@@ -10,6 +10,8 @@ function expectDffPinNames(markup: string): void {
   expect(markup).toContain('data-pin-name="CK"');
   expect(markup).toContain('data-pin-name="Q"');
   expect(markup).toContain('data-pin-name="QBAR"');
+  expect(markup).toContain('data-text-run="overbar"');
+  expect(markup).toContain("text-decoration:overline");
   expect(markup).toContain("font-style:italic;font-weight:700");
   expect(markup).not.toContain(">QBAR</");
 }
@@ -25,20 +27,23 @@ describe("SymbolArtwork pin-name previews", () => {
     expectDffPinNames(markup);
   });
 
-  it("keeps visible pin names in a rotated placement preview", () => {
-    const markup = renderToStaticMarkup(
-      <svg>
-        <ComponentPlacementPreview
-          styleProfileId="razavi-textbook-v1"
-          symbolId={dff.id}
-          symbol={dff}
-          position={{ x: 100, y: 80 }}
-          rotation={90}
-        />
-      </svg>,
-    );
+  it.each([0, 90, 180, 270] as const)(
+    "keeps visible pin names and Q-bar upright at %d degrees",
+    (rotation) => {
+      const markup = renderToStaticMarkup(
+        <svg>
+          <ComponentPlacementPreview
+            styleProfileId="razavi-textbook-v1"
+            symbolId={dff.id}
+            symbol={dff}
+            position={{ x: 100, y: 80 }}
+            rotation={rotation}
+          />
+        </svg>,
+      );
 
-    expectDffPinNames(markup);
-    expect(markup).toContain('transform="translate(100 80)"');
-  });
+      expectDffPinNames(markup);
+      expect(markup).toContain('transform="translate(100 80)"');
+    },
+  );
 });

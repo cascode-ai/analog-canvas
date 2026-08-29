@@ -260,7 +260,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Behavioral logic symbol; structural SPICE realization requires an explicit subcircuit or PDK mapping.",
     assetPath: "d-flip-flop.symbol.json",
     assetHash:
-      "2a3739a35bda4502424bd1b319604a6f93de5e25217b93549aa12c2b32342bb2",
+      "e39f752861f8f344b462b432a7ce0bbc58fa4174e5977377249390c5a015b629",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -279,7 +279,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       referencePath:
         "fixtures/visual-reference/razavi-reference-v1/d-flip-flop-vector-source.json",
       converterPath: "scripts/generate-razavi-buffer-dff-assets.mjs",
-      converterVersion: 2,
+      converterVersion: 3,
     },
   },
   {
@@ -2457,10 +2457,10 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
     id: "d-flip-flop",
     name: "D Flip-Flop",
     viewBox: {
-      x: -55,
-      y: -30,
-      width: 110,
-      height: 60,
+      x: -42,
+      y: -27,
+      width: 84,
+      height: 54,
     },
     pins: [
       {
@@ -2597,22 +2597,6 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         to: {
           x: 40,
           y: 10,
-        },
-        style: {
-          strokeRole: "normal",
-          lineCap: "butt",
-          lineJoin: "miter",
-        },
-      },
-      {
-        kind: "line",
-        from: {
-          x: 13.687,
-          y: 4.24947,
-        },
-        to: {
-          x: 22.354168,
-          y: 4.24947,
         },
         style: {
           strokeRole: "normal",

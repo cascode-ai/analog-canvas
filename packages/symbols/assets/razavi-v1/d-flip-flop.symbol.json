@@ -3,10 +3,10 @@
   "id": "d-flip-flop",
   "name": "D Flip-Flop",
   "viewBox": {
-    "x": -55,
-    "y": -30,
-    "width": 110,
-    "height": 60
+    "x": -42,
+    "y": -27,
+    "width": 84,
+    "height": 54
   },
   "pins": [
     {
@@ -143,22 +143,6 @@
       "to": {
         "x": 40,
         "y": 10
-      },
-      "style": {
-        "strokeRole": "normal",
-        "lineCap": "butt",
-        "lineJoin": "miter"
-      }
-    },
-    {
-      "kind": "line",
-      "from": {
-        "x": 13.687,
-        "y": 4.24947
-      },
-      "to": {
-        "x": 22.354168,
-        "y": 4.24947
       },
       "style": {
         "strokeRole": "normal",

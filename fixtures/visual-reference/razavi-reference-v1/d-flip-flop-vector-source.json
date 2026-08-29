@@ -281,6 +281,7 @@
         },
         {
           "kind": "line",
+          "part": "pin-name-overbar",
           "from": {
             "x": 13.687,
             "y": 4.24947
@@ -301,7 +302,7 @@
   },
   "derivation": {
     "pinExtension": "native leads extend collinearly to the existing x=+/-40 electrical anchors",
-    "semantics": "pin identity is reconstructed explicitly; only visual geometry comes from PDF vectors"
+    "semantics": "pin identity is reconstructed explicitly; the extracted Q-bar stroke is renderer-owned so it stays attached to the upright complementary-output label through rotation; only visual geometry comes from PDF vectors"
   },
   "rasterWitness": {
     "kind": "source-pdf-crop",
