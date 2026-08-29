@@ -4046,6 +4046,9 @@ test("edits a formula-capable Signal Flow block with undo, redo, and Reset defau
   const minimumHeight = properties.getByLabel("Signal flow minimum height");
   await expect(minimumWidth).toHaveAttribute("placeholder", "Auto");
   await expect(minimumHeight).toHaveAttribute("placeholder", "Auto");
+  // A freshly placed block carries its own formula in the field, ready to
+  // be edited in place instead of retyped.
+  await expect(formula).toHaveValue(symbol.formulaPresentation!.defaultFormula);
 
   const formalScene = page.locator('[data-layer="formal"]');
   const renderedFormula = formalScene.locator(
@@ -4090,7 +4093,9 @@ test("edits a formula-capable Signal Flow block with undo, redo, and Reset defau
   await expect(frame).toHaveAttribute("height", "80");
 
   await properties.getByRole("button", { name: "Reset defaults" }).click();
-  await expect(formula).toHaveValue("");
+  // Reset restores the Symbol's own formula as editable text, not an empty
+  // box: the default is the starting point for the next edit.
+  await expect(formula).toHaveValue(symbol.formulaPresentation!.defaultFormula);
   await expect(coefficient).toHaveValue("");
   await expect(minimumWidth).toHaveValue("");
   await expect(minimumHeight).toHaveValue("");

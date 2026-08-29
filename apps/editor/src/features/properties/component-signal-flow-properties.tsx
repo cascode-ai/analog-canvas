@@ -24,11 +24,16 @@ function normalizedParameters(
   bodyWidth: string,
   bodyHeight: string,
   supportsCoefficient: boolean,
+  defaultFormula: string,
 ): SignalFlowParameters | null {
   const next: SignalFlowParameters = {};
   const formulaValue = formula.trim();
   const coefficientValue = coefficient.trim();
-  if (formulaValue) next.formula = formulaValue;
+  // The field shows the Symbol's own formula so it can be edited in place;
+  // matching that default (or clearing the field) means "no override", not
+  // a stored copy of the default.
+  if (formulaValue && formulaValue !== defaultFormula)
+    next.formula = formulaValue;
   if (supportsCoefficient && coefficientValue)
     next.coefficient = coefficientValue;
   const width = normalizedDimension(bodyWidth, 20, 1000);
@@ -67,7 +72,7 @@ export function ComponentSignalFlowProperties({
   onChange: (parameters: SignalFlowParameters | null) => boolean;
 }) {
   const [formula, setFormula] = useState(
-    instance.signalFlowParameters?.formula ?? "",
+    instance.signalFlowParameters?.formula ?? presentation.defaultFormula,
   );
   const [coefficient, setCoefficient] = useState(
     instance.signalFlowParameters?.coefficient ?? "",
@@ -84,12 +89,19 @@ export function ComponentSignalFlowProperties({
 
   // A transaction, undo/redo, or another selection can replace the instance.
   useEffect(() => {
-    setFormula(instance.signalFlowParameters?.formula ?? "");
+    setFormula(
+      instance.signalFlowParameters?.formula ?? presentation.defaultFormula,
+    );
     setCoefficient(instance.signalFlowParameters?.coefficient ?? "");
     setBodyWidth(instance.signalFlowParameters?.bodyWidth?.toString() ?? "");
     setBodyHeight(instance.signalFlowParameters?.bodyHeight?.toString() ?? "");
     committedParameters.current = instance.signalFlowParameters;
-  }, [instance.id, instance.signalFlowParameters, revision]);
+  }, [
+    instance.id,
+    instance.signalFlowParameters,
+    presentation.defaultFormula,
+    revision,
+  ]);
 
   const commit = () => {
     const next = normalizedParameters(
@@ -98,10 +110,14 @@ export function ComponentSignalFlowProperties({
       bodyWidth,
       bodyHeight,
       presentation.supportsCoefficient,
+      presentation.defaultFormula,
     );
     if (sameParameters(committedParameters.current, next)) return;
     if (onChange(next)) {
       committedParameters.current = next ?? undefined;
+      // Show what the block actually renders: clearing the field falls back
+      // to the Symbol's own formula rather than leaving an empty box.
+      setFormula(next?.formula ?? presentation.defaultFormula);
       setBodyWidth(next?.bodyWidth?.toString() ?? "");
       setBodyHeight(next?.bodyHeight?.toString() ?? "");
     }
@@ -109,7 +125,7 @@ export function ComponentSignalFlowProperties({
   const resetDefaults = () => {
     if (committedParameters.current !== undefined && onChange(null)) {
       committedParameters.current = undefined;
-      setFormula("");
+      setFormula(presentation.defaultFormula);
       setCoefficient("");
       setBodyWidth("");
       setBodyHeight("");

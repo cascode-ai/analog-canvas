@@ -2,7 +2,11 @@ import { createEmptyDocument } from "@icm/model";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
+import type { SchematicDocument } from "@icm/model";
+
 import { ComponentSignalFlowProperties } from "./component-signal-flow-properties";
+
+type Instance = SchematicDocument["instances"][number];
 
 const presentation = {
   defaultFormula: "z^-1/(1-z^-1)",
@@ -54,5 +58,29 @@ describe("Signal Flow properties", () => {
     expect(markup).toContain('value="60"');
     expect(markup).toContain("Reset defaults");
     expect(markup).toContain("does not change SPICE");
+  });
+
+  it("pre-fills the Symbol's own formula so it can be edited in place", () => {
+    const instance: Instance = {
+      id: "B2",
+      symbolId: "custom-formula-block",
+      placement: null,
+    };
+    const markup = renderToStaticMarkup(
+      <ComponentSignalFlowProperties
+        instance={instance}
+        presentation={presentation}
+        revision={1}
+        onChange={vi.fn()}
+      />,
+    );
+
+    // Without an override the field carries the default as a real value,
+    // not only as placeholder text: the default is the starting point for
+    // editing rather than something the author has to retype.
+    const formulaInput =
+      /<input[^>]*aria-label="Signal flow formula"[^>]*>/u.exec(markup)?.[0];
+    expect(formulaInput).toBeDefined();
+    expect(formulaInput).toContain('value="z^-1/(1-z^-1)"');
   });
 });
