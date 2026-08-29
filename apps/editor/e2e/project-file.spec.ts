@@ -252,7 +252,7 @@ test("replacement guard offers cancel, discard, and Cloud Save", async ({
     name: "Unsaved changes",
   });
   await dialog.getByRole("button", { name: "Stay" }).click();
-  await expect(page.getByTestId("revision")).toHaveText("1");
+  await expect(page.getByTestId("revision")).toHaveText("3");
 
   await input.evaluate((element) => ((element as HTMLInputElement).value = ""));
   await input.setInputFiles(replacement);
