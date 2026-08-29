@@ -146,13 +146,38 @@ export interface CanvasGestureControllerDependencies {
  * mouse wheel reports line/page mode or large integer vertical detents.
  * Heuristic by necessity — the DOM never names the device.
  */
-export function wheelEventLooksLikeTrackpad(event: {
+interface WheelSourceShape {
   deltaMode: number;
   deltaX: number;
   deltaY: number;
-}): boolean {
+  /** Non-standard, Chromium/WebKit only; absent on Firefox. */
+  wheelDeltaY?: number;
+}
+
+/**
+ * Chromium and WebKit stamp a physical wheel detent as wheelDeltaY = n*120
+ * regardless of pointer-acceleration, while macOS acceleration can shrink
+ * the same detent's deltaY below the small-step threshold — which made a
+ * slowly turned mouse wheel read as a trackpad and pan instead of zoom. A
+ * trackpad event keeps wheelDeltaY = -3 * deltaY, so a detent-quantized
+ * value that breaks that ratio is a mouse wheel — decisively enough to
+ * override even recent trackpad evidence.
+ */
+export function wheelEventIsMouseDetent(event: WheelSourceShape): boolean {
+  const wheelDeltaY = event.wheelDeltaY;
+  return (
+    event.deltaX === 0 &&
+    typeof wheelDeltaY === "number" &&
+    wheelDeltaY !== 0 &&
+    wheelDeltaY % 120 === 0 &&
+    Math.abs(wheelDeltaY) !== 3 * Math.abs(event.deltaY)
+  );
+}
+
+export function wheelEventLooksLikeTrackpad(event: WheelSourceShape): boolean {
   if (event.deltaMode !== 0) return false;
   if (event.deltaX !== 0) return true;
+  if (wheelEventIsMouseDetent(event)) return false;
   if (!Number.isInteger(event.deltaY)) return true;
   return Math.abs(event.deltaY) > 0 && Math.abs(event.deltaY) < 40;
 }
@@ -289,9 +314,12 @@ export function createCanvasGestureController({
       lastTrackpadWheelAt = event.timeStamp;
     }
     // Momentum tails of a trackpad flick can degrade into clean integer
-    // steps, so recent trackpad evidence keeps the pan interpretation.
+    // steps, so recent trackpad evidence keeps the pan interpretation — but
+    // a detent-quantized mouse wheel must zoom even inside that window: the
+    // mouse's only axis always earns the zoom.
     const trackpad =
       event.deltaMode === 0 &&
+      !wheelEventIsMouseDetent(event) &&
       event.timeStamp - lastTrackpadWheelAt < TRACKPAD_EVIDENCE_WINDOW_MS;
     if (!trackpad) {
       if (event.shiftKey) {
