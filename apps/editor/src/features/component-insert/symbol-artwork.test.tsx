@@ -66,6 +66,8 @@ describe("SymbolArtwork pin-name previews", () => {
     expect(pinNameY(threeQuarterTurn, "D")).toBeCloseTo(21.916336);
     expect(pinNameY(threeQuarterTurn, "CK")).toBeCloseTo(21.916336);
     expect(pinNameY(threeQuarterTurn, "Q")).toBeCloseTo(-13.916336);
-    expect(pinNameY(threeQuarterTurn, "QBAR")).toBeCloseTo(-13.916336);
+    // Q-bar's overline faces the north body edge at 270 degrees, so its
+    // baseline needs one additional decoration clearance inside the body.
+    expect(pinNameY(threeQuarterTurn, "QBAR")).toBeCloseTo(-12.271536);
   });
 });

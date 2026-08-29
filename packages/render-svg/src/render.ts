@@ -367,9 +367,17 @@ export function renderVisiblePinNames(
         !definition.hierarchicalBlock && outward.y !== 0
           ? pinFontSize * 0.3
           : 0;
+      // An overbar extends above the glyph box reported for the label. When a
+      // complemented output is on a north-facing edge, that decoration faces
+      // the body border, so reserve its own cap-height clearance instead of
+      // treating Q and Q-bar as having identical ink bounds.
+      const outwardOverbarInset =
+        pin.role === "output-complement" && outward.y < 0
+          ? pinFontSize * 0.16
+          : 0;
       const y =
         anchor.y -
-        outward.y * (distance + verticalInkInset) +
+        outward.y * (distance + verticalInkInset + outwardOverbarInset) +
         4 -
         outward.y * hierarchyVerticalInset;
       const alignment =
