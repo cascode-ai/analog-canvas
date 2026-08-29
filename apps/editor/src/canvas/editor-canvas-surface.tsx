@@ -33,6 +33,17 @@ export interface EditorCanvasSurfaceProps {
    * zoom (pinch) or history-swipe navigation (horizontal scroll).
    */
   onWheel: (event: WheelEvent, element: SVGSVGElement) => void;
+  /**
+   * Cursor-anchored zoom for Safari's proprietary trackpad gesture events
+   * (gesturestart/gesturechange), which Safari fires INSTEAD of ctrl+wheel
+   * for pinches. factor < 1 zooms in.
+   */
+  onPinch: (
+    factor: number,
+    clientX: number,
+    clientY: number,
+    element: SVGSVGElement,
+  ) => void;
   grid: ComponentProps<typeof CanvasGridOverlay>;
   sceneInnerHtml: { __html: string };
   cellSymbolLayout: ComponentProps<typeof EditorCellSymbolLayoutOverlay> | null;
@@ -84,6 +95,7 @@ export function EditorCanvasSurface({
   viewBox,
   eventHandlers,
   onWheel,
+  onPinch,
   grid,
   sceneInnerHtml,
   cellSymbolLayout,
@@ -102,8 +114,10 @@ export function EditorCanvasSurface({
 }: EditorCanvasSurfaceProps) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const onWheelRef = useRef(onWheel);
+  const onPinchRef = useRef(onPinch);
   useEffect(() => {
     onWheelRef.current = onWheel;
+    onPinchRef.current = onPinch;
   });
   useEffect(() => {
     const svg = svgRef.current;
@@ -124,7 +138,37 @@ export function EditorCanvasSurface({
       onWheelRef.current(event, svg);
     };
     svg.addEventListener("wheel", listener, { passive: false });
-    return () => svg.removeEventListener("wheel", listener);
+    // Safari delivers trackpad pinches through its own gesture events (no
+    // ctrl+wheel); track the running scale and hand ratios to the shared
+    // cursor-anchored zoom. Other browsers simply never fire these.
+    type SafariGestureEvent = Event & {
+      scale?: number;
+      clientX: number;
+      clientY: number;
+    };
+    let lastScale = 1;
+    const gestureStart = (event: Event) => {
+      event.preventDefault();
+      lastScale = (event as SafariGestureEvent).scale ?? 1;
+    };
+    const gestureChange = (event: Event) => {
+      event.preventDefault();
+      const gesture = event as SafariGestureEvent;
+      if (!gesture.scale || gesture.scale <= 0 || lastScale <= 0) return;
+      const factor = lastScale / gesture.scale;
+      lastScale = gesture.scale;
+      onPinchRef.current(factor, gesture.clientX, gesture.clientY, svg);
+    };
+    const gestureEnd = (event: Event) => event.preventDefault();
+    svg.addEventListener("gesturestart", gestureStart, { passive: false });
+    svg.addEventListener("gesturechange", gestureChange, { passive: false });
+    svg.addEventListener("gestureend", gestureEnd, { passive: false });
+    return () => {
+      svg.removeEventListener("wheel", listener);
+      svg.removeEventListener("gesturestart", gestureStart);
+      svg.removeEventListener("gesturechange", gestureChange);
+      svg.removeEventListener("gestureend", gestureEnd);
+    };
   }, []);
   return (
     <section className="canvas-panel">

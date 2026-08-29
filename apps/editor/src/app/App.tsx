@@ -2173,6 +2173,7 @@ export function App({
     fitView,
     zoomViewAtCenter,
     handleWheel,
+    zoomAtClientPoint,
     beginCanvasGesture,
     continueCanvasGesture,
     finishCanvasGesture,
@@ -4316,6 +4317,7 @@ export function App({
         <EditorCanvasSurface
           empty={canvasIsEmpty}
           onWheel={handleWheel}
+          onPinch={zoomAtClientPoint}
           className={[
             "schematic-canvas",
             tool === "wire" ? "wire-mode" : "",

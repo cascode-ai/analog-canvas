@@ -226,10 +226,27 @@ export function createCanvasGestureController({
     );
   };
 
-  // Trackpad map: horizontal scroll pans, vertical scroll zooms at the
-  // cursor, pinch (ctrl/meta+wheel) zooms at the cursor, Shift+scroll pans
-  // both axes. Attached as a non-passive native listener so preventDefault
-  // actually stops browser page zoom and history-swipe navigation.
+  /** Cursor-anchored zoom shared by wheel, pinch, and Safari gestures. */
+  const zoomAtClientPoint = (
+    factor: number,
+    clientX: number,
+    clientY: number,
+    element: SVGSVGElement,
+  ): void => {
+    const bounds = element.getBoundingClientRect();
+    if (bounds.width <= 0 || bounds.height <= 0) return;
+    const anchor = {
+      x: (clientX - bounds.left) / bounds.width,
+      y: (clientY - bounds.top) / bounds.height,
+    };
+    setViewBox((current) => zoomCameraAtAnchor(current, factor, anchor));
+  };
+
+  // Trackpad map: two-finger scroll pans in every direction; pinch (which
+  // browsers deliver as ctrl+wheel) and Cmd+scroll zoom at the cursor;
+  // Shift turns a mouse's vertical-only wheel into horizontal panning.
+  // Attached as a non-passive native listener so preventDefault actually
+  // stops browser page zoom and history-swipe navigation.
   const handleWheel = (event: WheelEvent, element: SVGSVGElement): void => {
     event.preventDefault();
     const bounds = element.getBoundingClientRect();
@@ -238,34 +255,23 @@ export function createCanvasGestureController({
       event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? bounds.height : 1;
     const deltaX = event.deltaX * unit;
     const deltaY = event.deltaY * unit;
-    const anchor = {
-      x: (event.clientX - bounds.left) / bounds.width,
-      y: (event.clientY - bounds.top) / bounds.height,
-    };
     if (event.ctrlKey || event.metaKey) {
-      const factor = Math.exp(deltaY * 0.01);
-      setViewBox((current) => zoomCameraAtAnchor(current, factor, anchor));
+      zoomAtClientPoint(
+        Math.exp(deltaY * 0.01),
+        event.clientX,
+        event.clientY,
+        element,
+      );
       return;
     }
-    if (event.shiftKey) {
-      setViewBox((current) => ({
-        ...current,
-        x: current.x + (deltaX * current.width) / bounds.width,
-        y: current.y + (deltaY * current.height) / bounds.height,
-      }));
-      return;
-    }
-    const factor = deltaY === 0 ? 1 : Math.exp(deltaY * 0.0012);
-    setViewBox((current) => {
-      const panned =
-        deltaX === 0
-          ? current
-          : {
-              ...current,
-              x: current.x + (deltaX * current.width) / bounds.width,
-            };
-      return factor === 1 ? panned : zoomCameraAtAnchor(panned, factor, anchor);
-    });
+    const panX = event.shiftKey && deltaX === 0 ? deltaY : deltaX;
+    const panY = event.shiftKey && deltaX === 0 ? 0 : deltaY;
+    if (panX === 0 && panY === 0) return;
+    setViewBox((current) => ({
+      ...current,
+      x: current.x + (panX * current.width) / bounds.width,
+      y: current.y + (panY * current.height) / bounds.height,
+    }));
   };
 
   const begin = (event: ReactPointerEvent<SVGSVGElement>): void => {
@@ -502,6 +508,7 @@ export function createCanvasGestureController({
     fitView,
     zoomViewAtCenter,
     handleWheel,
+    zoomAtClientPoint,
     beginCanvasGesture: begin,
     continueCanvasGesture: continueGesture,
     finishCanvasGesture: finish,
