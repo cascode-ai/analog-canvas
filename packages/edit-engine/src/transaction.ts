@@ -167,9 +167,11 @@ export function executeTransaction(
           edit.kind === "align_instances"
           ? edit.instanceIds
           : // Signal Flow parameters resize the body, which carries the
-            // pins with it: the incident Routes have to re-derive their
-            // leads exactly as they do for a move.
-            edit.kind === "set_instance_signal_flow_parameters"
+            // pins with it, and a symbol swap replaces the pin geometry
+            // outright: the incident Routes have to re-derive their leads
+            // exactly as they do for a move.
+            edit.kind === "set_instance_signal_flow_parameters" ||
+              edit.kind === "set_instance_symbol"
             ? [edit.instanceId]
             : [],
     ),
@@ -509,7 +511,8 @@ export function executeTransaction(
         // moves, and a Signal Flow resize that carries the pins outward.
         edit.kind === "align_instances" ||
         edit.kind === "move_junction" ||
-        edit.kind === "set_instance_signal_flow_parameters",
+        edit.kind === "set_instance_signal_flow_parameters" ||
+        edit.kind === "set_instance_symbol",
     )
   ) {
     const directContact = reconcileTransformDirectContacts(

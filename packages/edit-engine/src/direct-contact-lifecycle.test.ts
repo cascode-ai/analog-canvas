@@ -811,6 +811,22 @@ describe("signal-flow resize direct contacts", () => {
     return document;
   }
 
+  it("materializes a Route when a symbol swap moves the pin away", () => {
+    // Swapping to a narrower block moves the output pin inward; the
+    // abutting Cell Pin stays put, so the contact needs a conductor.
+    const document = abutting();
+    const result = executeTransaction(
+      document,
+      transaction(document, [
+        { kind: "set_instance_symbol", instanceId: "SF", symbolId: "buffer" },
+      ]),
+      context,
+    );
+    if (!result.ok) throw new Error(result.error.message);
+    expect(result.document.routes).toHaveLength(1);
+    expect(result.document.routes[0]!.netId).toBe("net-sf");
+  });
+
   it("materializes a Route when a wider body pulls the contact apart", () => {
     const document = abutting();
     const result = executeTransaction(
