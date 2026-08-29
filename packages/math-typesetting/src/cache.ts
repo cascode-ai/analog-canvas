@@ -1,3 +1,4 @@
+import { BoundedLruCache } from "./bounded-lru.js";
 import {
   ANALOG_CANVAS_MATH_PROFILE_ID,
   validateFormulaSource,
@@ -64,7 +65,34 @@ export function validateFormulaRequest(
   return validateFormulaSource(request.latex);
 }
 
-const artifacts = new Map<string, FormulaTypesetResult>();
+const FORMULA_ARTIFACT_CACHE_MAX_ENTRIES = 128;
+const FORMULA_ARTIFACT_CACHE_MAX_BYTES = 16 * 1024 * 1024;
+
+function formulaResultBytes(key: string, result: FormulaTypesetResult): number {
+  const fixedObjectEstimate = 128;
+  if (result.ok) {
+    return (
+      fixedObjectEstimate +
+      2 *
+        (key.length +
+          result.artifact.sourceHash.length +
+          result.artifact.svg.length)
+    );
+  }
+  return (
+    fixedObjectEstimate +
+    2 *
+      (key.length +
+        result.diagnostic.message.length +
+        (result.diagnostic.command?.length ?? 0))
+  );
+}
+
+const artifacts = new BoundedLruCache<string, FormulaTypesetResult>({
+  maxEntries: FORMULA_ARTIFACT_CACHE_MAX_ENTRIES,
+  maxBytes: FORMULA_ARTIFACT_CACHE_MAX_BYTES,
+  sizeOf: formulaResultBytes,
+});
 const pending = new Map<string, Promise<FormulaTypesetResult>>();
 
 export function cachedFormulaResult(
@@ -86,9 +114,9 @@ export async function prepareFormula(
     .then(({ typesetFormulaSync }) => typesetFormulaSync(request))
     .then((result) => {
       artifacts.set(key, result);
-      pending.delete(key);
       return result;
-    });
+    })
+    .finally(() => pending.delete(key));
   pending.set(key, task);
   return task;
 }
