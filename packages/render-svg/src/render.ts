@@ -355,9 +355,21 @@ export function renderVisiblePinNames(
         definition.hierarchicalBlock && outward.y !== 0
           ? hierarchyVerticalPinNameInset
           : 0;
+      // SVG text y is a baseline, not an ink edge. Keep the established
+      // baseline correction, then move non-hierarchical north/south labels
+      // inward by a font-relative cap-height margin. This keeps both rows of
+      // a quarter-turned DFF clear of the body without pretending symmetric
+      // baselines have symmetric glyph bounds.
+      const pinFontSize =
+        schematicTextFontSize("pin-name", profile) *
+        (pin.presentation.textSizeScale ?? 1);
+      const verticalInkInset =
+        !definition.hierarchicalBlock && outward.y !== 0
+          ? pinFontSize * 0.3
+          : 0;
       const y =
         anchor.y -
-        outward.y * distance +
+        outward.y * (distance + verticalInkInset) +
         4 -
         outward.y * hierarchyVerticalInset;
       const alignment =

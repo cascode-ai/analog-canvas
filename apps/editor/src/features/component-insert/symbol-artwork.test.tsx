@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { requireRazaviCatalogSymbol } from "@icm/symbols";
 
 import { ComponentPlacementPreview } from "./component-placement-preview";
-import { SymbolArtwork } from "./symbol-artwork";
+import { renderSymbolPreviewPinNames, SymbolArtwork } from "./symbol-artwork";
 
 function expectDffPinNames(markup: string): void {
   expect(markup).toContain('data-pin-name="D"');
@@ -14,6 +14,14 @@ function expectDffPinNames(markup: string): void {
   expect(markup).toContain("text-decoration:overline");
   expect(markup).toContain("font-style:italic;font-weight:700");
   expect(markup).not.toContain(">QBAR</");
+}
+
+function pinNameY(markup: string, pinName: string): number {
+  const match = markup.match(
+    new RegExp(`data-pin-name="${pinName}"[^>]* y="([^"]+)"`, "u"),
+  );
+  if (!match?.[1]) throw new Error(`Missing ${pinName} pin-name y coordinate`);
+  return Number(match[1]);
 }
 
 describe("SymbolArtwork pin-name previews", () => {
@@ -46,4 +54,18 @@ describe("SymbolArtwork pin-name previews", () => {
       expect(markup).toContain('transform="translate(100 80)"');
     },
   );
+
+  it("keeps rotated DFF pin-name baselines symmetric inside opposite edges", () => {
+    const quarterTurn = renderSymbolPreviewPinNames(dff, [], 90);
+    expect(pinNameY(quarterTurn, "D")).toBeCloseTo(-13.916336);
+    expect(pinNameY(quarterTurn, "CK")).toBeCloseTo(-13.916336);
+    expect(pinNameY(quarterTurn, "Q")).toBeCloseTo(21.916336);
+    expect(pinNameY(quarterTurn, "QBAR")).toBeCloseTo(21.916336);
+
+    const threeQuarterTurn = renderSymbolPreviewPinNames(dff, [], 270);
+    expect(pinNameY(threeQuarterTurn, "D")).toBeCloseTo(21.916336);
+    expect(pinNameY(threeQuarterTurn, "CK")).toBeCloseTo(21.916336);
+    expect(pinNameY(threeQuarterTurn, "Q")).toBeCloseTo(-13.916336);
+    expect(pinNameY(threeQuarterTurn, "QBAR")).toBeCloseTo(-13.916336);
+  });
 });
