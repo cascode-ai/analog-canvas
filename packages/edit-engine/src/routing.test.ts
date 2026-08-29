@@ -778,6 +778,121 @@ describe("routing Edit Engine", () => {
     ]);
   });
 
+  it("drags a junction-tapped slanted leg by its dominant axis and restores orthogonality", () => {
+    // The reported shelf circuit: a tap Junction on a horizontal net, and a
+    // nearly vertical leg (Δx = 40, Δy ≈ 130) dropping to a pin. Dragging
+    // that leg sideways must slide the Junction along its host wire, land
+    // the leg vertical at the target x, and dogleg into the unmoved pin —
+    // repairing the slant instead of refusing the drag.
+    const document = documentFixture();
+    document.junctions.push({
+      id: "junction-tap",
+      netId: "net-h",
+      position: { x: 300, y: 300 },
+    });
+    document.routes.push(
+      createRoutePath({
+        id: "route-host-a",
+        netId: "net-h",
+        start: terminal("A"),
+        end: { kind: "junction", junctionId: "junction-tap" },
+        bends: [],
+        modes: ["manual"],
+      }),
+      createRoutePath({
+        id: "route-host-b",
+        netId: "net-h",
+        start: { kind: "junction", junctionId: "junction-tap" },
+        end: terminal("B"),
+        bends: [],
+        modes: ["manual"],
+      }),
+      createRoutePath({
+        id: "route-slant",
+        netId: "net-h",
+        start: { kind: "junction", junctionId: "junction-tap" },
+        end: terminal("E"),
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    const plan = proposeWireSegmentMove(document, resolver, "route-slant", 0, {
+      x: 260,
+      y: 370,
+    });
+    const moved = executeTransaction(
+      document,
+      transaction(document.id, 0, plan.edits),
+      context,
+    );
+    expect(moved.ok).toBe(true);
+    if (!moved.ok) return;
+    expect(
+      moved.document.junctions.find(
+        (junction) => junction.id === "junction-tap",
+      )?.position,
+    ).toEqual({ x: 260, y: 300 });
+    for (const route of moved.document.routes) {
+      expect(
+        resolveRouteGeometry(moved.document, resolver, route)?.centerline,
+      ).toSatisfy((points: Array<{ x: number; y: number }>) =>
+        isOrthogonal(points),
+      );
+    }
+  });
+
+  it("doglegs a slanted leg between two pins at the dragged coordinate", () => {
+    // Both endpoints hard (pins), horizontal-dominant slant: the connector
+    // must become orthogonal through the dragged y, with jogs at the
+    // unmoved pins.
+    const document = documentFixture();
+    document.routes.push(
+      createRoutePath({
+        id: "route-slant-2",
+        netId: "net-h",
+        start: terminal("A"),
+        end: terminal("E"),
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    const before = resolveRouteGeometry(
+      document,
+      resolver,
+      document.routes.find((route) => route.id === "route-slant-2")!,
+    )!.centerline;
+    const slantIndex = before.findIndex(
+      (point, index) =>
+        index + 1 < before.length &&
+        point.x !== before[index + 1]!.x &&
+        point.y !== before[index + 1]!.y,
+    );
+    expect(slantIndex).toBeGreaterThanOrEqual(0);
+    const plan = proposeWireSegmentMove(
+      document,
+      resolver,
+      "route-slant-2",
+      slantIndex,
+      { x: 240, y: 360 },
+    );
+    const moved = executeTransaction(
+      document,
+      transaction(document.id, 0, plan.edits),
+      context,
+    );
+    expect(moved.ok).toBe(true);
+    if (!moved.ok) return;
+    const centerline = resolveRouteGeometry(
+      moved.document,
+      resolver,
+      moved.document.routes.find((route) => route.id === "route-slant-2")!,
+    )?.centerline;
+    expect(centerline).toSatisfy((points: Array<{ x: number; y: number }>) =>
+      isOrthogonal(points),
+    );
+    expect(centerline?.some((point) => point.y === 360)).toBe(true);
+  });
+
   it("authors every planned internal Route so group geometry is order-independent", () => {
     const document = documentFixture();
     const routed = executeTransaction(

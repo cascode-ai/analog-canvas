@@ -232,13 +232,9 @@ export function moveRouteSegment(
   const to = points[segmentIndex + 1]!;
   const horizontal = from.y === to.y;
   const vertical = from.x === to.x;
+  const slanted = !horizontal && !vertical;
   const diagonal =
-    !horizontal &&
-    !vertical &&
-    Math.abs(to.x - from.x) === Math.abs(to.y - from.y);
-  if (!horizontal && !vertical && !diagonal) {
-    throw new Error("Route segment move requires octilinear geometry");
-  }
+    slanted && Math.abs(to.x - from.x) === Math.abs(to.y - from.y);
   const lastSegmentIndex = points.length - 2;
 
   // A diagonal segment has one perpendicular degree of freedom.  Express its
@@ -257,6 +253,33 @@ export function moveRouteSegment(
     if (!isOctilinear(normalized.points)) {
       throw new Error(
         "Diagonal segment move would make geometry non-octilinear",
+      );
+    }
+    return {
+      waypoints: normalized.points.slice(1, -1),
+      segmentModes: normalized.segmentModes,
+    };
+  }
+
+  // A slanted leg outside the 45-degree family should never survive an
+  // edit, so its drag both moves and repairs it: the leg is replaced by an
+  // orthogonal Z along its dominant axis through the dragged coordinate,
+  // with perpendicular jogs at the unmoved endpoints. Model geometry can
+  // hold such a leg (an imported or auto-laid-out file), and refusing the
+  // drag would leave no mouse-only way to fix it.
+  if (slanted) {
+    const axis: "x" | "y" =
+      Math.abs(to.y - from.y) > Math.abs(to.x - from.x) ? "x" : "y";
+    const coordinate = target[axis];
+    const shiftedFrom = { ...from, [axis]: coordinate };
+    const shiftedTo = { ...to, [axis]: coordinate };
+    const mode = modes[segmentIndex] ?? "manual";
+    points.splice(segmentIndex + 1, 0, shiftedFrom, shiftedTo);
+    modes.splice(segmentIndex, 1, mode, mode, mode);
+    const normalized = normalizeRouteGeometry(points, modes);
+    if (!isOctilinear(normalized.points)) {
+      throw new Error(
+        "Slanted segment move would make geometry non-octilinear",
       );
     }
     return {

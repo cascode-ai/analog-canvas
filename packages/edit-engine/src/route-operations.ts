@@ -787,7 +787,12 @@ export function proposeWireSegmentDrag(
   const toPoint = selectedPolyline.points[segmentIndex + 1]!;
   const horizontal = fromPoint.y === toPoint.y;
   const vertical = fromPoint.x === toPoint.x;
-  const diagonal = !horizontal && !vertical;
+  const slanted = !horizontal && !vertical;
+  // Only an exact 45-degree leg keeps its perpendicular-offset drag; any
+  // other slant is repaired by the dominant-axis path below.
+  const diagonal =
+    slanted &&
+    Math.abs(toPoint.x - fromPoint.x) === Math.abs(toPoint.y - fromPoint.y);
   if (horizontal && vertical) {
     throw new Error(`Route ${routeId} segment is degenerate`);
   }
@@ -890,7 +895,15 @@ export function proposeWireSegmentDrag(
     };
   }
 
-  const axis: "x" | "y" = horizontal ? "y" : "x";
+  // A slanted (non-45) leg is dragged along its dominant axis: a nearly
+  // vertical leg moves horizontally like a vertical one, and the planned
+  // geometry lands orthogonal, so the drag repairs the slant it touches.
+  const axis: "x" | "y" =
+    horizontal ||
+    (slanted &&
+      Math.abs(toPoint.x - fromPoint.x) > Math.abs(toPoint.y - fromPoint.y))
+      ? "y"
+      : "x";
   const coordinate = target[axis];
   const movedJunctions = new Map<string, Point>();
   for (const anchorId of [leftAnchorId, rightAnchorId]) {
