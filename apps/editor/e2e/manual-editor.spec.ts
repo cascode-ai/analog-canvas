@@ -1232,6 +1232,59 @@ test("authors components and connectivity manually from an empty canvas", async 
   await expect(page.locator('[data-layer="routes"] polyline')).toHaveCount(0);
 });
 
+test("resizes a loose Wire from either endpoint without redrawing it", async ({
+  page,
+}) => {
+  const project = createEmptyProject("loose-wire-resize", "Loose Wire Resize");
+  const document = project.documents[0]!;
+  document.nets.push({ id: "net-loose", terminals: [] });
+  document.junctions.push(
+    {
+      id: "junction-loose-start",
+      netId: "net-loose",
+      position: { x: 200, y: 240 },
+      role: "route-anchor",
+    },
+    {
+      id: "junction-loose-end",
+      netId: "net-loose",
+      position: { x: 440, y: 240 },
+      role: "route-anchor",
+    },
+  );
+  document.routes.push(
+    createRoutePath({
+      id: "route-loose",
+      netId: "net-loose",
+      start: { kind: "junction", junctionId: "junction-loose-start" },
+      end: { kind: "junction", junctionId: "junction-loose-end" },
+      bends: [],
+      modes: ["manual"],
+    }),
+  );
+
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "loose-wire-resize.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await clickRoute(page, "route-loose");
+
+  const before = await readRoutePoints(page, "route-loose");
+  await dragBy(page.getByTestId("route-endpoint-handle-route-loose-end"), {
+    x: 80,
+    y: 0,
+  });
+  await expect(page.getByTestId("status")).toContainText(
+    "Resized wire route-loose",
+  );
+  const after = await readRoutePoints(page, "route-loose");
+  expect(after[0]).toEqual(before[0]);
+  expect(after.at(-1)!.x).toBeGreaterThan(before.at(-1)!.x);
+  expect(after.at(-1)!.y).toBe(before.at(-1)!.y);
+});
+
 test("connects one MOS Gate to Drain without false contact ambiguity", async ({
   page,
 }) => {
@@ -3062,12 +3115,20 @@ test("property edits commit on blank click and Escape instead of vanishing", asy
   await expect(page.getByLabel("Component value")).toHaveValue("47k");
 });
 
-test("canvas text editor commits on Escape and on an outside click", async ({
+test("canvas text editor cancels explicitly and commits on Escape or outside click", async ({
   page,
 }) => {
   await page.goto("/editor");
   await placeComponent(page, "resistor", { x: 420, y: 280 });
   const rendered = page.locator('[data-object-id="instance-label-R1"]');
+
+  await page.getByTestId("annotation-hit-instance-label-R1").dblclick();
+  await page.keyboard.press("Control+a");
+  await page.keyboard.type("RA");
+  await page.getByRole("button", { name: "Cancel text changes" }).click();
+  await expect(rendered).toContainText("R1");
+  await expect(page.getByTestId("canvas-text-editor")).toHaveCount(0);
+  await expect(page.getByTestId("revision")).toHaveText("1");
 
   await page.getByTestId("annotation-hit-instance-label-R1").dblclick();
   await page.keyboard.press("Control+a");

@@ -1140,8 +1140,9 @@ test("carries a manual Value through placement and Q property editing", async ({
   const schematicLabel = page.getByLabel("Component schematic label");
   await expect(schematicLabel).toHaveValue("R1");
   await schematicLabel.fill("Input resistor");
-  await schematicLabel.press("Tab");
+  await schematicLabel.press("Enter");
   await expect(page.getByTestId("revision")).toHaveText("5");
+  await expect(schematicLabel).toHaveValue("Input resistor");
   await page
     .locator("summary")
     .filter({ hasText: "Advanced parameters" })

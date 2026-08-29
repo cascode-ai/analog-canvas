@@ -34,6 +34,7 @@ import {
   proposeLooseRouteTranslation,
   proposePowerRailEndpointResize,
   proposePowerRailTranslation,
+  proposeRouteEndpointMove,
   proposeWireIntent,
   proposeVisualRouteDeletion,
   proposeWireSegmentMove,
@@ -674,6 +675,68 @@ describe("routing Edit Engine", () => {
       context,
     );
     expect(moved.ok).toBe(true);
+  });
+
+  it("resizes a Junction-backed Route end through the shared Junction planner", () => {
+    const document = createEmptyDocument("route-resize", "Route resize");
+    document.nets.push({ id: "net-1", terminals: [] });
+    document.junctions.push(
+      {
+        id: "j1",
+        netId: "net-1",
+        position: { x: 0, y: 20 },
+        role: "route-anchor",
+      },
+      {
+        id: "j2",
+        netId: "net-1",
+        position: { x: 100, y: 20 },
+        role: "route-anchor",
+      },
+    );
+    document.routes.push(
+      createRoutePath({
+        id: "route-1",
+        netId: "net-1",
+        start: { kind: "junction", junctionId: "j1" },
+        end: { kind: "junction", junctionId: "j2" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+
+    const plan = proposeRouteEndpointMove(
+      document,
+      resolver,
+      "route-1",
+      "end",
+      { x: 140, y: 20 },
+    );
+    expect(plan.edits).toEqual([
+      {
+        kind: "move_junction",
+        junctionId: "j2",
+        position: { x: 140, y: 20 },
+      },
+      expect.objectContaining({ kind: "set_route_path" }),
+    ]);
+    const resized = executeTransaction(
+      document,
+      transaction(document.id, 0, plan.edits),
+      context,
+    );
+    expect(resized.ok).toBe(true);
+    if (!resized.ok) return;
+    expect(
+      resolveRouteGeometry(
+        resized.document,
+        resolver,
+        resized.document.routes[0]!,
+      )?.centerline,
+    ).toEqual([
+      { x: 0, y: 20 },
+      { x: 140, y: 20 },
+    ]);
   });
 
   it("moves a three-way Junction with its dragged segment", () => {

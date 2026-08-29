@@ -493,6 +493,48 @@ export function proposeLooseRouteTranslation(
 }
 
 /**
+ * Move one grid-backed Route endpoint through the same Junction translation
+ * contract used by segment, group, and rail edits. Terminal endpoints remain
+ * electrically anchored to their symbols; callers must disconnect them before
+ * they can become free geometry.
+ */
+export function proposeRouteEndpointMove(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  routeId: string,
+  side: "start" | "end",
+  point: Point,
+): RouteEditPlan {
+  const route = document.routes.find((candidate) => candidate.id === routeId);
+  if (!route) throw new Error(`Route not found: ${routeId}`);
+  const endpoint = side === "start" ? route.start : routeEnd(route);
+  if (endpoint.kind !== "junction") {
+    throw new Error("A terminal-connected wire end is electrically anchored");
+  }
+  const junction = document.junctions.find(
+    (candidate) => candidate.id === endpoint.junctionId,
+  );
+  if (!junction) throw new Error(`Junction not found: ${endpoint.junctionId}`);
+  if (junction.position.x === point.x && junction.position.y === point.y) {
+    return { routeId, edits: [] };
+  }
+  const proposal = proposeJunctionGroupTranslation(document, resolver, [
+    { junctionId: junction.id, position: point },
+  ]);
+  return {
+    routeId,
+    preview: proposal,
+    edits: [
+      ...proposal.junctions.map((move): SchematicEdit => ({
+        kind: "move_junction",
+        ...move,
+      })),
+      ...routeEdits(document, proposal.routes),
+    ],
+  };
+}
+
+/**
  * Translate every fragment and Junction belonging to one visually continuous
  * VDD rail. Ordinary branch wires are not translated wholesale: they are
  * reshaped around the moved rail Junction instead.

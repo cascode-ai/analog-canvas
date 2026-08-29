@@ -7,7 +7,12 @@ import {
   type ResolvedRouteGeometry,
 } from "@icm/derived";
 import type { WireSource } from "@icm/edit-engine";
-import type { Annotation, RouteBranch, SchematicDocument } from "@icm/model";
+import {
+  routeEnd,
+  type Annotation,
+  type RouteBranch,
+  type SchematicDocument,
+} from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
 import {
@@ -21,7 +26,11 @@ import { serializePolylinePoints } from "./canvas-geometry";
 type Instance = SchematicDocument["instances"][number];
 type Route = SchematicDocument["routes"][number];
 type StyleProfile = ReturnType<typeof resolveDocumentStyleProfile>;
-type StretchIntent = "resize-power-rail-start" | "resize-power-rail-end";
+type StretchIntent =
+  | "resize-power-rail-start"
+  | "resize-power-rail-end"
+  | "resize-route-start"
+  | "resize-route-end";
 type RouteGeometryRecord = {
   route: RouteBranch;
   geometry: ResolvedRouteGeometry;
@@ -85,7 +94,7 @@ interface EndpointHitTargetProps {
   supplementalJunctionIds: readonly string[];
   endpointLabel: (endpoint: WireSource["endpoint"]) => string;
   onEndpointActions: (endpoint: WireSource) => void;
-  onPowerRailStretch: (
+  onRouteStretch: (
     event: ReactPointerEvent<SVGCircleElement>,
     routeId: string,
     segmentIndex: number,
@@ -281,12 +290,23 @@ function EndpointHitTargets({
   supplementalJunctionIds,
   endpointLabel,
   onEndpointActions,
-  onPowerRailStretch,
+  onRouteStretch,
   onJunctionSelect,
   onWireEndpoint,
   onNetPointerEnter,
   onNetPointerLeave,
 }: EndpointHitTargetProps) {
+  const selectedRouteEnd = selectedRoute ? routeEnd(selectedRoute) : null;
+  const selectedRouteStartJunctionId =
+    selectedRoute?.presentation !== "power-rail" &&
+    selectedRoute?.start.kind === "junction"
+      ? selectedRoute.start.junctionId
+      : null;
+  const selectedRouteEndJunctionId =
+    selectedRoute?.presentation !== "power-rail" &&
+    selectedRouteEnd?.kind === "junction"
+      ? selectedRouteEnd.junctionId
+      : null;
   const powerRailEnds =
     selectedRoute?.presentation === "power-rail"
       ? (derivePowerRailComponent(document, selectedRoute.id)
@@ -309,6 +329,14 @@ function EndpointHitTargets({
             (junction) => junction.id === candidateJunctionId,
           )
         : -1;
+    const selectedRouteEndSide =
+      candidateJunctionId !== null &&
+      candidateJunctionId === selectedRouteStartJunctionId
+        ? "start"
+        : candidateJunctionId !== null &&
+            candidateJunctionId === selectedRouteEndJunctionId
+          ? "end"
+          : null;
     const label = endpointLabel(candidate.endpoint);
     return (
       <circle
@@ -340,13 +368,30 @@ function EndpointHitTargets({
         }}
         onPointerDown={(event) => {
           if (tool === "pointer" && selectedRoute && powerRailEndIndex >= 0) {
-            onPowerRailStretch(
+            onRouteStretch(
               event,
               selectedRoute.id,
               selectedRouteSegmentIndex ?? 0,
               powerRailEndIndex === 0
                 ? "resize-power-rail-start"
                 : "resize-power-rail-end",
+            );
+            return;
+          }
+          if (
+            tool === "pointer" &&
+            selectedRoute &&
+            selectedRouteEndSide !== null
+          ) {
+            onRouteStretch(
+              event,
+              selectedRoute.id,
+              selectedRouteEndSide === "start"
+                ? 0
+                : selectedRoute.legs.length - 1,
+              selectedRouteEndSide === "start"
+                ? "resize-route-start"
+                : "resize-route-end",
             );
             return;
           }

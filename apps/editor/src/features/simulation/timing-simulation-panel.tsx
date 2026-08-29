@@ -345,6 +345,7 @@ export function TimingSimulationPanel({
                 });
                 setLabelEditor(null);
               }}
+              onCancel={() => setLabelEditor(null)}
               onDelete={() => {
                 const { baseNetId } = labelEditor;
                 setNetAliases((current) => {

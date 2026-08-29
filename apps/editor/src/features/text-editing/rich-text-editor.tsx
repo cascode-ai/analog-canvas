@@ -37,6 +37,7 @@ export interface RichTextEditorProps {
   onSizeChange(sizeScale: number): void;
   onAlignmentChange(alignment: "start" | "middle" | "end"): void;
   onCommit(): void;
+  onCancel(): void;
   onDelete(): void;
   onReverseCurrentArrow?(): void;
   onLayoutHeightChange?(height: number): void;
@@ -432,6 +433,7 @@ export function RichTextEditor({
   onSizeChange,
   onAlignmentChange,
   onCommit,
+  onCancel,
   onDelete,
   onReverseCurrentArrow,
   onLayoutHeightChange,
@@ -807,6 +809,14 @@ export function RichTextEditor({
         </button>
         <button
           type="button"
+          aria-label="Cancel text changes"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={onCancel}
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
           aria-label={`${deleteLabel} text`}
           disabled={disabled}
           onMouseDown={(event) => event.preventDefault()}
@@ -999,7 +1009,6 @@ export function RichTextEditor({
           onKeyDown={(event) => {
             if (event.key === "Escape") {
               event.preventDefault();
-              // Escape saves the session, matching click-away and Enter.
               onCommit();
             } else if (event.key === "Enter" && event.shiftKey && multiline) {
               // Enter finishes the text everywhere; a deliberate modifier is

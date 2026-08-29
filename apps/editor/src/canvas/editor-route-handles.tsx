@@ -4,7 +4,7 @@ import {
   derivePowerRailComponent,
   type ResolvedRouteGeometry,
 } from "@icm/derived";
-import type { RouteBranch, SchematicDocument } from "@icm/model";
+import { routeEnd, type RouteBranch, type SchematicDocument } from "@icm/model";
 
 import type { RouteStretchPreview } from "../features/wiring/use-wire-interaction";
 import { looseRouteAnchorIds } from "../features/wiring/route-interaction-geometry";
@@ -65,6 +65,22 @@ export function EditorRouteHandles({
             ? left.position.y - right.position.y
             : left.position.x - right.position.x,
         );
+      const ordinaryRouteEnds = powerRail
+        ? []
+        : ([route.start, routeEnd(route)] as const).flatMap(
+            (endpoint, index) =>
+              endpoint.kind === "junction"
+                ? [
+                    {
+                      side: index === 0 ? ("start" as const) : ("end" as const),
+                      point:
+                        index === 0
+                          ? geometry.centerline[0]!
+                          : geometry.centerline.at(-1)!,
+                    },
+                  ]
+                : [],
+          );
       const routeCenter = centerOfBounds(polylineBounds(geometry.centerline));
       const preview =
         routeStretchPreview?.routeId === route.id
@@ -129,6 +145,28 @@ export function EditorRouteHandles({
                   index === 0
                     ? "resize-power-rail-start"
                     : "resize-power-rail-end",
+                )
+              }
+              pointerEvents={pointerEvents}
+            />
+          ))}
+          {ordinaryRouteEnds.map(({ side, point }) => (
+            <circle
+              key={`route-endpoint-handle-${route.id}-${side}`}
+              data-testid={`route-endpoint-handle-${route.id}-${side}`}
+              data-canvas-hit-kind="handle"
+              data-canvas-hit-id={`route-endpoint-handle-${route.id}-${side}`}
+              aria-label={`Resize wire ${side}`}
+              className="route-handle route-endpoint-handle"
+              cx={point.x}
+              cy={point.y}
+              r="5"
+              onPointerDown={(event) =>
+                onHandlePointerDown(
+                  event,
+                  route.id,
+                  side === "start" ? 0 : geometry.centerline.length - 2,
+                  side === "start" ? "resize-route-start" : "resize-route-end",
                 )
               }
               pointerEvents={pointerEvents}

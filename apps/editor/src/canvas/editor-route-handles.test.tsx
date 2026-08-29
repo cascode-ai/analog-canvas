@@ -58,6 +58,10 @@ describe("editor route handles", () => {
     );
 
     expect(markup).toContain('data-testid="route-handle-route-1"');
+    expect(markup).toContain(
+      'data-testid="route-endpoint-handle-route-1-start"',
+    );
+    expect(markup).toContain('data-testid="route-endpoint-handle-route-1-end"');
     expect(markup).toContain('cx="50"');
     expect(markup).toContain('cy="20.5"');
   });

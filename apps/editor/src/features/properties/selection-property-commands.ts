@@ -179,14 +179,14 @@ export function createSelectionPropertyCommands({
     }
   };
 
-  const updateSelectedSchematicName = (value: string): void => {
-    if (!selectedInstance) return;
+  const updateSelectedSchematicName = (value: string): boolean => {
+    if (!selectedInstance) return false;
     const content = defaultDraftTextDocument(value.trim());
     if (
       JSON.stringify(selectedInstance.schematicName ?? null) ===
       JSON.stringify(content)
     ) {
-      return;
+      return true;
     }
     if (
       transact([
@@ -198,17 +198,19 @@ export function createSelectionPropertyCommands({
       ]).ok
     ) {
       setStatus(`Renamed schematic label to ${value.trim()}`);
+      return true;
     }
+    return false;
   };
 
-  const updateSelectedReference = (value: string): void => {
-    if (!selectedInstance?.netlist) return;
+  const updateSelectedReference = (value: string): boolean => {
+    if (!selectedInstance?.netlist) return false;
     const reference = value.trim();
     if (!reference) {
       setStatus("Netlist reference cannot be empty");
-      return;
+      return false;
     }
-    if (reference === selectedInstance.netlist.reference) return;
+    if (reference === selectedInstance.netlist.reference) return true;
     if (
       transact([
         {
@@ -219,7 +221,9 @@ export function createSelectionPropertyCommands({
       ]).ok
     ) {
       setStatus(`Set netlist reference to ${reference}`);
+      return true;
     }
+    return false;
   };
 
   const deleteSelectedAnnotation = (): void => {

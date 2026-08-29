@@ -14,6 +14,7 @@ import {
   proposeLooseRouteTranslation,
   proposePowerRailEndpointResize,
   proposePowerRailTranslation,
+  proposeRouteEndpointMove,
   proposeWireSegmentMove,
   proposeWireCommitThroughContacts,
   type SchematicEdit,
@@ -62,7 +63,9 @@ export interface RouteStretchPreview {
     | "move-loose-route"
     | "move-power-rail"
     | "resize-power-rail-start"
-    | "resize-power-rail-end";
+    | "resize-power-rail-end"
+    | "resize-route-start"
+    | "resize-route-end";
   start: Point;
   point: Point;
 }
@@ -490,6 +493,24 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
         );
         if (result.ok)
           options.setStatus(`Resized Power Rail ${record.route.id}`);
+      } else if (
+        preview.intent === "resize-route-start" ||
+        preview.intent === "resize-route-end"
+      ) {
+        const proposal = proposeRouteEndpointMove(
+          options.document,
+          options.resolver,
+          record.route.id,
+          preview.intent === "resize-route-start" ? "start" : "end",
+          {
+            x: snapCoordinate(point.x, options.document.presentation.grid),
+            y: snapCoordinate(point.y, options.document.presentation.grid),
+          },
+        );
+        const result = transactProposal(
+          proposalFor("route-geometry", proposal.edits),
+        );
+        if (result.ok) options.setStatus(`Resized wire ${record.route.id}`);
       } else {
         const grid = options.document.presentation.grid;
         const planAt = (at: Point) =>
@@ -554,16 +575,41 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
       intent === "resize-power-rail-end"
         ? derivePowerRailComponent(options.document, routeId)
         : null;
+    const routeEndpoint =
+      intent === "resize-route-start"
+        ? record.route.start
+        : intent === "resize-route-end"
+          ? routeEnd(record.route)
+          : null;
+    const routeEndpointJunctionId =
+      routeEndpoint?.kind === "junction" ? routeEndpoint.junctionId : null;
+    const routeEndpointRouteIds = routeEndpointJunctionId
+      ? options.document.routes
+          .filter((candidate) => {
+            const end = routeEnd(candidate);
+            return (
+              (candidate.start.kind === "junction" &&
+                candidate.start.junctionId === routeEndpointJunctionId) ||
+              (end.kind === "junction" &&
+                end.junctionId === routeEndpointJunctionId)
+            );
+          })
+          .map((candidate) => candidate.id)
+      : [];
     const anchorIds =
       intent === "move-loose-route"
         ? (looseRouteAnchorIds(options.document, record.route) ?? [])
-        : (powerRail?.junctionIds ?? []);
+        : routeEndpointJunctionId
+          ? [routeEndpointJunctionId]
+          : (powerRail?.junctionIds ?? []);
     const translatedRouteIds =
       intent === "move-power-rail" ||
       intent === "resize-power-rail-start" ||
       intent === "resize-power-rail-end"
         ? (powerRail?.routeIds ?? [routeId])
-        : [routeId];
+        : routeEndpointRouteIds.length > 0
+          ? routeEndpointRouteIds
+          : [routeId];
     let visual: ReturnType<typeof startCanvasDragVisual> | null = null;
     const dragVisual = () =>
       (visual ??= startCanvasDragVisual(svg, [
@@ -594,19 +640,31 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
         }
         if (
           intent === "resize-power-rail-start" ||
-          intent === "resize-power-rail-end"
+          intent === "resize-power-rail-end" ||
+          intent === "resize-route-start" ||
+          intent === "resize-route-end"
         ) {
           try {
-            const plan = proposePowerRailEndpointResize(
-              options.document,
-              options.resolver,
-              routeId,
-              intent === "resize-power-rail-start" ? "start" : "end",
-              {
-                x: snapCoordinate(point.x, options.document.presentation.grid),
-                y: snapCoordinate(point.y, options.document.presentation.grid),
-              },
-            );
+            const snapped = {
+              x: snapCoordinate(point.x, options.document.presentation.grid),
+              y: snapCoordinate(point.y, options.document.presentation.grid),
+            };
+            const plan =
+              intent === "resize-route-start" || intent === "resize-route-end"
+                ? proposeRouteEndpointMove(
+                    options.document,
+                    options.resolver,
+                    routeId,
+                    intent === "resize-route-start" ? "start" : "end",
+                    snapped,
+                  )
+                : proposePowerRailEndpointResize(
+                    options.document,
+                    options.resolver,
+                    routeId,
+                    intent === "resize-power-rail-start" ? "start" : "end",
+                    snapped,
+                  );
             const movedJunctions = new Map(
               plan.preview?.junctions.map((junction) => [
                 junction.junctionId,
@@ -636,7 +694,7 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
               ]);
             }
           } catch {
-            // Keep the last valid rail preview; commit reports the error.
+            // Keep the last valid endpoint preview; commit reports the error.
           }
           return;
         }

@@ -22,7 +22,7 @@ function emptyEndpointProps(document = createEmptyDocument("cell", "Cell")) {
     supplementalJunctionIds: [],
     endpointLabel: vi.fn(),
     onEndpointActions: vi.fn(),
-    onPowerRailStretch: vi.fn(),
+    onRouteStretch: vi.fn(),
     onJunctionSelect: vi.fn(),
     onWireEndpoint: vi.fn(),
   };

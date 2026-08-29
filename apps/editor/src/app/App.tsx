@@ -3038,7 +3038,8 @@ export function App({
       if (event.key === "Escape" && textEditing) {
         event.preventDefault();
         // Escape commits the session; emptying the text still deletes the
-        // annotation, matching the Apply button.
+        // annotation, matching the Apply button. Explicit cancellation stays
+        // available through the editor's Cancel action.
         commitTextEditing();
         return;
       }
@@ -4666,7 +4667,7 @@ export function App({
                   `Endpoint actions: ${endpointTestId(candidate.endpoint)}`,
                 );
               },
-              onPowerRailStretch: beginRouteStretch,
+              onRouteStretch: beginRouteStretch,
               onJunctionSelect: (candidate) => {
                 if (simulationPickNetsActive) {
                   if (candidate.netId)
@@ -4791,6 +4792,10 @@ export function App({
             textEditingLocked,
             onTextUpdate: updateTextEditing,
             onTextCommit: commitTextEditing,
+            onTextCancel: () => {
+              clearTextEditing();
+              setStatus("Cancelled text changes");
+            },
             onTextDelete: deleteTextEditing,
             ...(editingAnnotation &&
             isRoutedMarker(editingAnnotation) &&

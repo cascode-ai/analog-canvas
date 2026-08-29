@@ -87,6 +87,7 @@ export function EditorInteractionPreviews({
   textEditingLocked,
   onTextUpdate,
   onTextCommit,
+  onTextCancel,
   onTextDelete,
   onReverseCurrentArrow,
 }: {
@@ -104,6 +105,7 @@ export function EditorInteractionPreviews({
   textEditingLocked: boolean;
   onTextUpdate: CanvasTextEditorOverlayProps["onUpdate"];
   onTextCommit: () => void;
+  onTextCancel: () => void;
   onTextDelete: () => void;
   onReverseCurrentArrow?: () => void;
 }) {
@@ -151,6 +153,7 @@ export function EditorInteractionPreviews({
           disabled={textEditingLocked}
           onUpdate={onTextUpdate}
           onCommit={onTextCommit}
+          onCancel={onTextCancel}
           onDelete={onTextDelete}
           {...(onReverseCurrentArrow ? { onReverseCurrentArrow } : {})}
         />

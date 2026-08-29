@@ -54,6 +54,7 @@ describe("editor transient preview overlays", () => {
           textEditingLocked={false}
           onTextUpdate={vi.fn()}
           onTextCommit={vi.fn()}
+          onTextCancel={vi.fn()}
           onTextDelete={vi.fn()}
         />
       </svg>,

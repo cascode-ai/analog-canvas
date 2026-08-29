@@ -1,3 +1,5 @@
+import type { FocusEvent, KeyboardEvent } from "react";
+
 import { defaultDraftTextDocument, flattenRichText } from "@icm/model";
 import type { SchematicDocument } from "@icm/model";
 
@@ -10,6 +12,34 @@ export interface ComponentModelTargetView {
   suggestions: readonly string[];
   listId?: string;
   externalSubcircuit: boolean;
+}
+
+function commitIdentityInput(
+  event: FocusEvent<HTMLInputElement>,
+  savedValue: string,
+  commit: (value: string) => boolean | void,
+): void {
+  if (commit(event.currentTarget.value) === false) {
+    event.currentTarget.value = savedValue;
+  }
+}
+
+function handleIdentityInputKeyDown(
+  event: KeyboardEvent<HTMLInputElement>,
+  savedValue: string,
+): void {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.blur();
+    return;
+  }
+  if (event.key === "Escape") {
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.value = savedValue;
+    event.currentTarget.blur();
+  }
 }
 
 export function componentTargetDescription(
@@ -55,10 +85,17 @@ export function ComponentIdentityProperties({
   capacitorPlateRows: readonly CapacitorPlatePropertyRow[] | null;
   modelTarget: ComponentModelTargetView | null;
   onMarkerNameChange: (value: string) => void;
-  onSchematicNameChange: (value: string) => void;
-  onReferenceChange: (value: string) => void;
+  onSchematicNameChange: (value: string) => boolean | void;
+  onReferenceChange: (value: string) => boolean | void;
   onModelTargetChange: (value: string) => void;
 }) {
+  const schematicLabel = flattenRichText(
+    instance.schematicName ??
+      defaultDraftTextDocument(
+        instance.schematicReference ?? instance.netlist?.reference ?? "",
+      ),
+  );
+  const netlistReference = instance.netlist?.reference ?? "";
   return (
     <>
       <div
@@ -92,17 +129,17 @@ export function ComponentIdentityProperties({
                   dir="auto"
                   key={`${instance.id}-${revision}-schematic-label`}
                   aria-label="Component schematic label"
-                  defaultValue={flattenRichText(
-                    instance.schematicName ??
-                      defaultDraftTextDocument(
-                        instance.schematicReference ??
-                          instance.netlist?.reference ??
-                          "",
-                      ),
-                  )}
+                  defaultValue={schematicLabel}
                   placeholder="Schematic label"
                   onBlur={(event) =>
-                    onSchematicNameChange(event.currentTarget.value)
+                    commitIdentityInput(
+                      event,
+                      schematicLabel,
+                      onSchematicNameChange,
+                    )
+                  }
+                  onKeyDown={(event) =>
+                    handleIdentityInputKeyDown(event, schematicLabel)
                   }
                 />
               </dd>
@@ -116,9 +153,16 @@ export function ComponentIdentityProperties({
                   dir="auto"
                   key={`${instance.id}-${revision}-netlist-reference`}
                   aria-label="Component netlist reference"
-                  defaultValue={instance.netlist.reference}
+                  defaultValue={netlistReference}
                   onBlur={(event) =>
-                    onReferenceChange(event.currentTarget.value)
+                    commitIdentityInput(
+                      event,
+                      netlistReference,
+                      onReferenceChange,
+                    )
+                  }
+                  onKeyDown={(event) =>
+                    handleIdentityInputKeyDown(event, netlistReference)
                   }
                 />
               </dd>

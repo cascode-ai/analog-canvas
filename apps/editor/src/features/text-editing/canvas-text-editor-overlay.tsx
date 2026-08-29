@@ -22,6 +22,7 @@ export interface CanvasTextEditorOverlayProps {
   disabled: boolean;
   onUpdate(change: TextEditingUpdate): void;
   onCommit(): void;
+  onCancel(): void;
   onDelete(): void;
   onReverseCurrentArrow?(): void;
 }
@@ -119,6 +120,7 @@ export function CanvasTextEditorOverlay({
   disabled,
   onUpdate,
   onCommit,
+  onCancel,
   onDelete,
   onReverseCurrentArrow,
 }: CanvasTextEditorOverlayProps) {
@@ -211,6 +213,7 @@ export function CanvasTextEditorOverlay({
           onSizeChange={(sizeScale) => onUpdate({ sizeScale })}
           onAlignmentChange={(alignment) => onUpdate({ alignment })}
           onCommit={onCommit}
+          onCancel={onCancel}
           onDelete={onDelete}
           onLayoutHeightChange={handleLayoutHeightChange}
           {...(onReverseCurrentArrow ? { onReverseCurrentArrow } : {})}
