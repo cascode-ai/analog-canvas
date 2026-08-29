@@ -4130,8 +4130,10 @@ test("retains recovery across export but honors explicit discard on replacement"
   page,
 }) => {
   await page.goto("/editor");
-  await placeComponent(page, "resistor", { x: 360, y: 220 });
-  await expect(page.getByTestId("revision")).toHaveText("1");
+  for (const x of [280, 360, 440]) {
+    await placeComponent(page, "resistor", { x, y: 220 });
+  }
+  await expect(page.getByTestId("revision")).toHaveText("3");
 
   // Saving downloads the formal Project but never clears the browser
   // recovery copies; waiting past the debounce proves they survive.
@@ -4139,16 +4141,18 @@ test("retains recovery across export but honors explicit discard on replacement"
   await page.waitForTimeout(500);
   await expect
     .poll(() => recoveryProjectTexts(page))
-    .toContain('"revision": 1');
+    .toContain('"revision": 3');
 
-  await placeComponent(page, "resistor", { x: 500, y: 220 });
-  await expect(page.getByTestId("revision")).toHaveText("2");
-  // Let the debounced recovery write for revision 2 settle before replacing;
+  // A fresh edit invalidates the export's safe stamp, so the replacement
+  // below prompts again.
+  await placeComponent(page, "resistor", { x: 520, y: 220 });
+  await expect(page.getByTestId("revision")).toHaveText("4");
+  // Let the debounced recovery write for revision 4 settle before replacing;
   // a replacement inside the window intentionally drops only the pending
   // write (stale-write protection), never the stored one.
   await expect
     .poll(() => recoveryProjectTexts(page))
-    .toContain('"revision": 2');
+    .toContain('"revision": 4');
   await page
     .getByTestId("project-file")
     .setInputFiles(

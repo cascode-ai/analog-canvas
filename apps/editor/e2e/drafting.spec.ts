@@ -763,10 +763,8 @@ test("drafting content and anchor survive save and reopen", async ({
     mimeType: "application/json",
     buffer: projectBytes,
   });
-  await page
-    .getByRole("dialog", { name: "Unsaved changes" })
-    .getByRole("button", { name: "Continue without saving" })
-    .click();
+  // One drafting object sits under the guard's meaningful-content
+  // threshold, so the replacement proceeds without a prompt.
   await expect(page.getByTestId("status")).toContainText(
     "Opened saved-drafting.icproj.json",
   );

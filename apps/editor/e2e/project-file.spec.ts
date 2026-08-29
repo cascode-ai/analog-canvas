@@ -147,11 +147,14 @@ test("Gallery navigation uses the replacement decision without a second browser 
   page,
 }) => {
   await page.goto("/editor");
-  await chooseComponent(page, "resistor");
-  await page
-    .getByTestId("schematic-canvas")
-    .click({ position: { x: 360, y: 230 } });
-  await page.keyboard.press("Escape");
+  // The guard protects meaningful drawings: three authored objects.
+  for (const x of [300, 380, 460]) {
+    await chooseComponent(page, "resistor");
+    await page
+      .getByTestId("schematic-canvas")
+      .click({ position: { x, y: 230 } });
+    await page.keyboard.press("Escape");
+  }
   await page.getByRole("link", { name: "Back to the gallery" }).click();
   const guard = page.getByRole("dialog", {
     name: "Unsaved changes",
@@ -230,11 +233,14 @@ test("replacement guard offers cancel, discard, and Cloud Save", async ({
     });
   });
   await page.goto("/editor");
-  await chooseComponent(page, "resistor");
-  await page
-    .getByTestId("schematic-canvas")
-    .click({ position: { x: 360, y: 230 } });
-  await page.keyboard.press("Escape");
+  // The guard protects meaningful drawings: three authored objects.
+  for (const x of [300, 380, 460]) {
+    await chooseComponent(page, "resistor");
+    await page
+      .getByTestId("schematic-canvas")
+      .click({ position: { x, y: 230 } });
+    await page.keyboard.press("Escape");
+  }
 
   const input = page.getByTestId("project-file");
   const replacement = resolve(
@@ -264,11 +270,14 @@ test("discarding a dirty replacement does not leave a second project stack", asy
   page,
 }) => {
   await page.goto("/editor");
-  await chooseComponent(page, "resistor");
-  await page
-    .getByTestId("schematic-canvas")
-    .click({ position: { x: 360, y: 230 } });
-  await page.keyboard.press("Escape");
+  // The guard protects meaningful drawings: three authored objects.
+  for (const x of [300, 380, 460]) {
+    await chooseComponent(page, "resistor");
+    await page
+      .getByTestId("schematic-canvas")
+      .click({ position: { x, y: 230 } });
+    await page.keyboard.press("Escape");
+  }
   let fileMenu = await openMenu(page, "File");
   await fileMenu.getByRole("button", { name: "New Project" }).click();
   const dialog = page.getByRole("dialog", {
@@ -297,11 +306,15 @@ test("reverts to the last acknowledged Cloud revision", async ({ page }) => {
   await fileMenu.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByTestId("project-unsaved-indicator")).toHaveCount(0);
 
-  await chooseComponent(page, "resistor");
-  await page
-    .getByTestId("schematic-canvas")
-    .click({ position: { x: 500, y: 230 } });
-  await page.keyboard.press("Escape");
+  // Two more parts push the drawing over the guard's meaningful-content
+  // threshold while staying unsaved.
+  for (const x of [500, 560]) {
+    await chooseComponent(page, "resistor");
+    await page
+      .getByTestId("schematic-canvas")
+      .click({ position: { x, y: 230 } });
+    await page.keyboard.press("Escape");
+  }
   fileMenu = await openMenu(page, "File");
   await fileMenu.getByRole("button", { name: "Revert to Last Saved" }).click();
   await page
@@ -310,6 +323,7 @@ test("reverts to the last acknowledged Cloud revision", async ({ page }) => {
     .click();
   await expect(page.getByTestId("hit-R1")).toHaveCount(1);
   await expect(page.getByTestId("hit-R2")).toHaveCount(0);
+  await expect(page.getByTestId("hit-R3")).toHaveCount(0);
 });
 
 test("the circuit name drives Cloud Save and portable export", async ({

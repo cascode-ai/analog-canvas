@@ -128,14 +128,17 @@ test("a damaged latest copy restores the previous generation", async ({
   page,
 }) => {
   await page.goto("/editor");
-  await chooseComponent(page, "resistor");
-  await page
-    .getByTestId("schematic-canvas")
-    .click({ position: { x: 360, y: 230 } });
-  await page.keyboard.press("Escape");
+  // Three authored objects: enough for the replacement guard to engage.
+  for (const x of [300, 380, 460]) {
+    await chooseComponent(page, "resistor");
+    await page
+      .getByTestId("schematic-canvas")
+      .click({ position: { x, y: 230 } });
+    await page.keyboard.press("Escape");
+  }
   await expect
     .poll(() => recoveryProjectTexts(page))
-    .toContain('"revision": 1');
+    .toContain('"revision": 3');
 
   // Place one more edit so a valid previous generation exists, then corrupt
   // the latest record's Project text in place.

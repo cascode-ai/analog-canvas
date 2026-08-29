@@ -1671,11 +1671,13 @@ test("the Examples panel guards dirty work before opening an entry", async ({
   );
 
   await page.goto("/editor");
-  await chooseComponent(page, "resistor");
-  await page
-    .getByTestId("schematic-canvas")
-    .click({ position: { x: 360, y: 230 } });
-  await page.keyboard.press("Escape");
+  for (const x of [300, 380, 460]) {
+    await chooseComponent(page, "resistor");
+    await page
+      .getByTestId("schematic-canvas")
+      .click({ position: { x, y: 230 } });
+    await page.keyboard.press("Escape");
+  }
   await expect(page.getByTestId("hit-R1")).toHaveCount(1);
   await page.getByTestId("examples-toggle").click();
   const panel = page.getByTestId("examples-panel");
