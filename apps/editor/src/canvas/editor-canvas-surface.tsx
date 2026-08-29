@@ -108,7 +108,21 @@ export function EditorCanvasSurface({
   useEffect(() => {
     const svg = svgRef.current;
     if (!svg) return;
-    const listener = (event: WheelEvent) => onWheelRef.current(event, svg);
+    const listener = (event: WheelEvent) => {
+      // The editor lives inside this SVG through a foreignObject, but it owns
+      // ordinary document scrolling. React's delegated onWheel handler runs
+      // too late to protect it from this non-passive native canvas listener,
+      // which otherwise prevents the default scroll and zooms the camera.
+      const targetsTextEditor = event
+        .composedPath()
+        .some(
+          (target) =>
+            target instanceof Element &&
+            target.matches('[data-testid="canvas-text-editor"]'),
+        );
+      if (targetsTextEditor) return;
+      onWheelRef.current(event, svg);
+    };
     svg.addEventListener("wheel", listener, { passive: false });
     return () => svg.removeEventListener("wheel", listener);
   }, []);

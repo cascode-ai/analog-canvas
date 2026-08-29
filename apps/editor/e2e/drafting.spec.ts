@@ -278,6 +278,24 @@ test("authors one validated formula through the canonical text editor", async ({
   const moreSymbols = page.getByText("More symbols", { exact: true });
   await expect(page.getByRole("toolbar", { name: "Greek" })).not.toBeVisible();
   await moreSymbols.click();
+  const formulaScroll = page.getByTestId("formula-scroll-region");
+  const canvasViewBoxBeforeFormulaScroll = await page
+    .getByTestId("schematic-canvas")
+    .getAttribute("viewBox");
+  const scrollExtent = await formulaScroll.evaluate((element) => ({
+    clientHeight: element.clientHeight,
+    scrollHeight: element.scrollHeight,
+  }));
+  expect(scrollExtent.scrollHeight).toBeGreaterThan(scrollExtent.clientHeight);
+  await formulaScroll.hover();
+  await page.mouse.wheel(0, 240);
+  await expect
+    .poll(() => formulaScroll.evaluate((element) => element.scrollTop))
+    .toBeGreaterThan(0);
+  await expect(page.getByTestId("schematic-canvas")).toHaveAttribute(
+    "viewBox",
+    canvasViewBoxBeforeFormulaScroll!,
+  );
   await page.getByRole("button", { name: "Insert Omega", exact: true }).click();
   await expect(
     page.getByRole("textbox", { name: "Formula LaTeX source" }),
