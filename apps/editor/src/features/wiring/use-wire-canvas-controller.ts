@@ -310,6 +310,17 @@ export function useWireCanvasController({
       return;
     }
     if (tool !== "pointer") {
+      // The middle button never places or taps: while the wire tool is up it
+      // cycles the corner shape (matching the canvas-background gesture), and
+      // other buttons leave the conductor untouched so right-click keeps
+      // cancelling through the context-menu path.
+      if (event.button === 1 && tool === "wire") {
+        event.stopPropagation();
+        event.preventDefault();
+        cycleWireCornerShape();
+        return;
+      }
+      if (event.button !== 0) return;
       handleWireRoutePointerDown(event, routeId, hitTarget);
       return;
     }

@@ -84,3 +84,36 @@ test("clicking a junction dot selects it and Delete disconnects the tap", async 
     3,
   );
 });
+
+test("middle click cycles the wire corner and never commits the wire", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "resistor", { x: 260, y: 200 });
+  await placeComponent(page, "resistor", { x: 460, y: 420 });
+  const ids = await instanceIds(page);
+  await page.keyboard.press("w");
+  await page.getByTestId(`terminal-${ids[0]}-2`).click();
+
+  // Drafting toward the second pin: middle over bare canvas cycles the
+  // corner shape instead of placing a point.
+  await page.mouse.move(360, 320);
+  await page.mouse.down({ button: "middle" });
+  await page.mouse.up({ button: "middle" });
+  await expect(page.getByTestId("status")).toContainText("Wire corner:");
+  await expect(page.locator('[data-canvas-hit-kind="route"]')).toHaveCount(0);
+
+  // Middle directly over the destination endpoint's snap circle is the
+  // reported hazard: it must cycle again, not commit the wire.
+  const destination = page.getByTestId(`terminal-${ids[1]}-1`);
+  const box = (await destination.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down({ button: "middle" });
+  await page.mouse.up({ button: "middle" });
+  await expect(page.getByTestId("status")).toContainText("Wire corner:");
+  await expect(page.locator('[data-canvas-hit-kind="route"]')).toHaveCount(0);
+
+  // The primary button still commits.
+  await destination.click();
+  await expect(page.locator('[data-canvas-hit-kind="route"]')).toHaveCount(1);
+});

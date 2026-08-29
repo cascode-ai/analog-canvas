@@ -4684,6 +4684,14 @@ export function App({
                     toggleSimulationSavedNet(candidate.netId);
                   return;
                 }
+                // Middle press over an endpoint cycles the wire corner just
+                // like over bare canvas; it must never commit the wire.
+                if (event.button === 1 && tool === "wire") {
+                  event.stopPropagation();
+                  event.preventDefault();
+                  cycleWireCornerShape();
+                  return;
+                }
                 handleWireEndpoint(event, candidate);
               },
               onNetPointerEnter: (netId) => {

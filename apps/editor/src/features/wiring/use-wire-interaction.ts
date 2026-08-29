@@ -260,6 +260,10 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
     event: ReactPointerEvent<SVGCircleElement>,
     candidate: WireSource,
   ): void => {
+    // Only the primary button starts or commits on an endpoint. A middle
+    // press bubbles to the canvas gesture (corner cycling) unless the caller
+    // intercepted it; right-click keeps cancelling via the context menu.
+    if (event.button !== 0) return;
     event.stopPropagation();
     if (event.altKey) {
       options.setStatus("Snap suppressed while Alt is held");
@@ -685,6 +689,7 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
     routeId: string,
     hitTarget: SVGElement = event.currentTarget,
   ): void => {
+    if (event.button !== 0) return;
     event.stopPropagation();
     if (event.altKey) {
       options.setStatus("Snap suppressed while Alt is held");
