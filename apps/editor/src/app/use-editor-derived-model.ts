@@ -282,12 +282,16 @@ export function useEditorDerivedModel({
       ),
     [liveDiagnosticSnapshot],
   );
-  const searchResults = useMemo(
+  const projectSearchIndex = useMemo(
     () =>
       buildProjectSearchIndex(project, {
         connectivityIndex: projectConnectivityIndex,
-      }).search(searchQuery),
-    [project, projectConnectivityIndex, searchQuery],
+      }),
+    [project, projectConnectivityIndex],
+  );
+  const searchResults = useMemo(
+    () => projectSearchIndex.search(searchQuery),
+    [projectSearchIndex, searchQuery],
   );
   const flightlines = useMemo(
     () => [
