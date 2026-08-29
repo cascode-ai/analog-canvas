@@ -57,7 +57,7 @@ export function createAnnotationDragController({
     event: ReactPointerEvent<SVGElement>,
     hitTarget: SVGElement,
   ) => boolean;
-  selectAnnotation: (id: string) => void;
+  selectAnnotation: (id: string, additive: boolean) => void;
   clearSelectedEndpoint: () => void;
   transact: (edits: SchematicEdit[]) => TransactionResult;
   setStatus: (status: string) => void;
@@ -70,13 +70,14 @@ export function createAnnotationDragController({
     if (event.button !== 0) return;
     if (onCompositeMove(event, hitTarget)) return;
     event.stopPropagation();
-    selectAnnotation(annotation.id);
+    const additiveSelection = event.shiftKey || event.ctrlKey || event.metaKey;
+    selectAnnotation(annotation.id, additiveSelection);
     clearSelectedEndpoint();
     if (annotation.locked) {
       setStatus("Selected locked annotation");
       return;
     }
-    if (event.shiftKey || event.ctrlKey || event.metaKey) {
+    if (additiveSelection) {
       setStatus(`Selected annotation ${annotation.id}`);
       return;
     }

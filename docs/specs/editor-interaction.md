@@ -274,8 +274,16 @@ never highlight or select labels outside the dragged rectangle.
 
 The six visual alignment commands — left, horizontal center, right, top,
 vertical center, and bottom — share one editor command and one alignment
-planner. The Edit menu and the device context menu are presentation surfaces
-for that same command; neither owns a separate alignment behavior.
+planner. The Edit menu and the shared canvas context menu are presentation
+surfaces for that same command; neither owns a separate alignment behavior.
+
+Instances, schematic annotation text, and DraftText use the same click
+selection entry point: a plain click replaces the selection, while
+`Shift`/`Ctrl`-click toggles that object without discarding other selected
+kinds. Right-clicking an already-selected one preserves the complete mixed
+selection and opens the shared context menu; right-clicking an unselected one
+selects it first. Device-swap choices appear only when the complete selection
+contains exactly one Instance.
 
 Placed Instances, explicitly selected schematic annotations, and explicitly
 selected free or object-anchored DraftText are eligible participants. An

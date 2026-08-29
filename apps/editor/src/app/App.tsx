@@ -249,7 +249,10 @@ import {
 import { createSelectionMoveController } from "../features/selection/selection-move-controller";
 import { createSelectionTransformController } from "../features/selection/selection-transform-controller";
 import { EDGE_ALIGNMENT_MODES } from "../features/selection/align-selection";
-import type { VisualSelection } from "../features/selection/visual-selection";
+import type {
+  VisualSelection,
+  VisualSelectionKind,
+} from "../features/selection/visual-selection";
 import {
   planSelectionMove,
   type SchematicMoveIntent,
@@ -467,6 +470,7 @@ export function App({
     replace: replaceSelection,
     replaceKind: replaceSelectionKind,
     selectOnly,
+    selectObject: selectVisualObject,
     selectInstance: updateInstanceSelection,
     clearKinds: clearSelectionKinds,
     reset: resetSelection,
@@ -1260,8 +1264,44 @@ export function App({
     },
     commitCellPinAnnotation: editCellTerminalAnnotation,
   });
+  function selectedVisualIds(kind: VisualSelectionKind): readonly string[] {
+    switch (kind) {
+      case "instance":
+        return visualSelection.instanceIds;
+      case "route":
+        return visualSelection.routeIds;
+      case "junction":
+        return visualSelection.junctionIds;
+      case "annotation":
+        return visualSelection.annotationIds;
+      case "drafting":
+        return visualSelection.draftingIds;
+    }
+  }
+
+  function openVisualContextMenu(
+    kind: VisualSelectionKind,
+    id: string,
+    clientX: number,
+    clientY: number,
+  ): void {
+    if (!selectedVisualIds(kind).includes(id)) {
+      selectVisualObject(kind, id, false);
+    }
+    setCanvasContextMenu({ x: clientX, y: clientY });
+  }
+
+  const selectedVisualObjectCount = Object.values(visualSelection).reduce(
+    (count, ids) => count + ids.length,
+    0,
+  );
   const deviceVariantCandidates = useMemo(() => {
-    if (!canvasContextMenu || selectedIds.length !== 1 || !selectedInstance) {
+    if (
+      !canvasContextMenu ||
+      selectedVisualObjectCount !== 1 ||
+      selectedIds.length !== 1 ||
+      !selectedInstance
+    ) {
       return [];
     }
     const resolved = resolver.resolve(
@@ -1283,6 +1323,7 @@ export function App({
       .map((symbol) => ({ symbolId: symbol.id, name: symbol.name }));
   }, [
     canvasContextMenu,
+    selectedVisualObjectCount,
     selectedIds,
     selectedInstance,
     resolver,
@@ -1952,7 +1993,8 @@ export function App({
       }
       return true;
     },
-    selectAnnotation: (id) => selectOnly("annotation", [id]),
+    selectAnnotation: (id, additive) =>
+      selectVisualObject("annotation", id, additive),
     clearSelectedEndpoint: () => setSelectedEndpoint(null),
     transact,
     setStatus,
@@ -2721,8 +2763,8 @@ export function App({
   // Single entry point for selecting a drafting object. Editing is opened
   // separately (double-click/Enter) so selection and text caret ownership do
   // not fight drag gestures.
-  function selectDraftingObject(id: string): void {
-    selectOnly("drafting", [id]);
+  function selectDraftingObject(id: string, additive = false): void {
+    selectVisualObject("drafting", id, additive);
     setDraftingInspectorSegment(null);
     setDraftingTangentInput(null);
     setDraftingBearingInput(null);
@@ -4175,13 +4217,22 @@ export function App({
                 beginMoveFromSelection(event, instance.id);
               },
               onInstanceContextMenu: (instance, clientX, clientY) => {
-                if (!selectedIds.includes(instance.id)) {
-                  selectInstanceFromSelection(instance.id, false);
-                }
-                setCanvasContextMenu({ x: clientX, y: clientY });
+                openVisualContextMenu(
+                  "instance",
+                  instance.id,
+                  clientX,
+                  clientY,
+                );
               },
               onRoutePointerDown: handleRoutePointerDown,
               onAnnotationPointerDown: beginAnnotationDrag,
+              onAnnotationContextMenu: (annotation, clientX, clientY) =>
+                openVisualContextMenu(
+                  "annotation",
+                  annotation.id,
+                  clientX,
+                  clientY,
+                ),
               onAnnotationEdit: beginAnnotationTextEditing,
             },
             endpoints: {
@@ -4217,7 +4268,10 @@ export function App({
               if (draggable) beginDraftingDrag(event, object);
               else {
                 event.stopPropagation();
-                selectDraftingObject(object.id);
+                selectDraftingObject(
+                  object.id,
+                  event.shiftKey || event.ctrlKey || event.metaKey,
+                );
               }
             },
             onConstructionLineEdit: (event, object) => {
@@ -4243,6 +4297,8 @@ export function App({
               );
             },
             onTextEdit: beginDraftingTextEditing,
+            onTextContextMenu: (object, clientX, clientY) =>
+              openVisualContextMenu("drafting", object.id, clientX, clientY),
           }}
           draftingHandles={{
             document,

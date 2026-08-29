@@ -1,10 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import {
-  chooseComponent,
-  clickCommand,
-  clickDrawTool,
-} from "./editor-fixtures";
+import { chooseComponent, clickDrawTool } from "./editor-fixtures";
 
 async function placeComponent(
   page: Page,
@@ -62,7 +58,7 @@ test("right-click on a multi-selection aligns bbox edges", async ({ page }) => {
   expect(boxes[0]).toBe(boxes[1]);
 });
 
-test("Edit alignment accepts one device and one drafting text selection", async ({
+test("drafting text shares device additive selection and context alignment", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -72,14 +68,54 @@ test("Edit alignment accepts one device and one drafting text selection", async 
   await input.fill("BIAS");
   await page.getByRole("button", { name: "Apply text changes" }).click();
 
-  // Select All includes the device, its follower label, and DraftText. The
-  // follower must be removed from the independent alignment participant set.
-  await page.keyboard.press("ControlOrMeta+A");
+  const instance = page.locator('[data-canvas-hit-kind="instance"]').first();
+  const text = page.locator('[data-canvas-hit-kind="drafting"]').first();
 
-  await clickCommand(page, "Edit", "Align left");
+  await page.keyboard.press("ControlOrMeta+A");
+  await expect(instance).toHaveClass(/selected/);
+  await expect(text).toHaveClass(/selected/);
+  await page.keyboard.press("ControlOrMeta+D");
+
+  // The same objects can then be composed explicitly through the shared
+  // additive click behavior.
+  await instance.click();
+  await expect(instance).toHaveClass(/selected/);
+  await text.click({ modifiers: ["Shift"] });
+  await expect(instance).toHaveClass(/selected/);
+  await expect(text).toHaveClass(/selected/);
+
+  // Right-clicking an already-selected text keeps the mixed selection and
+  // opens the same command surface as a device, without device-only variants.
+  await text.click({ button: "right" });
+  const menu = page.getByTestId("canvas-context-menu");
+  await expect(menu).toContainText("Align");
+  await expect(menu).not.toContainText("Swap device");
+  await page.getByTestId("context-align-left").click();
   await expect(page.getByTestId("status")).toContainText(
     "Aligned 2 selected objects",
   );
+});
+
+test("device annotation shares device additive selection and context menu", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "resistor", { x: 300, y: 220 });
+  const instance = page.locator('[data-canvas-hit-kind="instance"]').first();
+  const annotation = page
+    .locator('[data-canvas-hit-kind="annotation"]')
+    .first();
+
+  await instance.click();
+  await annotation.click({ modifiers: ["Shift"], force: true });
+  await expect(instance).toHaveClass(/selected/);
+  await expect(annotation).toHaveClass(/selected/);
+
+  await annotation.click({ button: "right", force: true });
+  const menu = page.getByTestId("canvas-context-menu");
+  await expect(menu).toBeVisible();
+  await expect(menu).not.toContainText("Swap device");
+  await expect(menu.getByRole("menuitem", { name: "Delete" })).toBeEnabled();
 });
 
 test("toolbar undo and redo buttons follow history state", async ({ page }) => {

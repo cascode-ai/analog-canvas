@@ -89,7 +89,7 @@ export function createDraftingDragController({
     event: ReactPointerEvent<SVGElement>,
     hitTarget: SVGElement,
   ) => boolean;
-  selectDraftingObject: (id: string) => void;
+  selectDraftingObject: (id: string, additive?: boolean) => void;
   setInspectorSegment: (segment: { objectId: string; index: number }) => void;
   clearTangentInput: () => void;
   setHandlePreview: (preview: DraftingHandlePreview | null) => void;
@@ -103,15 +103,16 @@ export function createDraftingDragController({
   ): void => {
     if (event.button !== 0 || object.locked) return;
     if (onCompositeMove(event, hitTarget)) return;
+    const additiveSelection = event.shiftKey || event.ctrlKey || event.metaKey;
     const origin = draftingDragOrigin(object);
     if (!origin) {
-      selectDraftingObject(object.id);
+      selectDraftingObject(object.id, additiveSelection);
       setStatus("This anchored drawing moves with its attachment");
       return;
     }
     event.stopPropagation();
-    if (event.shiftKey || event.ctrlKey || event.metaKey) {
-      selectDraftingObject(object.id);
+    if (additiveSelection) {
+      selectDraftingObject(object.id, true);
       setStatus(`Selected drawing ${object.id}`);
       return;
     }

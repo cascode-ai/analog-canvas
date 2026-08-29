@@ -49,6 +49,7 @@ function emptySelectionProps(document = createEmptyDocument("cell", "Cell")) {
     onInstanceContextMenu: vi.fn(),
     onRoutePointerDown: vi.fn(),
     onAnnotationPointerDown: vi.fn(),
+    onAnnotationContextMenu: vi.fn(),
     onAnnotationEdit: vi.fn(),
   };
 }

@@ -65,6 +65,11 @@ interface SelectionHitTargetProps {
     event: ReactPointerEvent<SVGRectElement>,
     annotation: Annotation,
   ) => void;
+  onAnnotationContextMenu: (
+    annotation: Annotation,
+    clientX: number,
+    clientY: number,
+  ) => void;
   onAnnotationEdit: (annotation: Annotation) => void;
 }
 
@@ -125,6 +130,7 @@ function SelectionHitTargets({
   onInstanceContextMenu,
   onRoutePointerDown,
   onAnnotationPointerDown,
+  onAnnotationContextMenu,
   onAnnotationEdit,
   children,
 }: SelectionHitTargetProps & { children: ReactNode }) {
@@ -232,6 +238,15 @@ function SelectionHitTargets({
               onPointerDown={(event) =>
                 onAnnotationPointerDown(event, annotation)
               }
+              onContextMenu={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onAnnotationContextMenu(
+                  annotation,
+                  event.clientX,
+                  event.clientY,
+                );
+              }}
               pointerEvents={tool === "wire" ? "none" : undefined}
               onDoubleClick={(event) => {
                 event.stopPropagation();

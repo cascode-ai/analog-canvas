@@ -24,7 +24,8 @@ describe("selectionReducer", () => {
 
   it("toggles additive instance selection while preserving mixed marquee kinds", () => {
     const added = selectionReducer(mixedSelection, {
-      type: "select-instance",
+      type: "select-object",
+      kind: "instance",
       id: "M2",
       additive: true,
     });
@@ -34,11 +35,32 @@ describe("selectionReducer", () => {
     });
     expect(
       selectionReducer(added, {
-        type: "select-instance",
+        type: "select-object",
+        kind: "instance",
         id: "M1",
         additive: true,
       }).instanceIds,
     ).toEqual(["M2"]);
+  });
+
+  it("toggles annotations and drafting objects without clearing mixed selection", () => {
+    const withoutAnnotation = selectionReducer(mixedSelection, {
+      type: "select-object",
+      kind: "annotation",
+      id: "annotation-1",
+      additive: true,
+    });
+    expect(withoutAnnotation.annotationIds).toEqual([]);
+    expect(withoutAnnotation.instanceIds).toEqual(["M1"]);
+
+    const withDrafting = selectionReducer(withoutAnnotation, {
+      type: "select-object",
+      kind: "drafting",
+      id: "drawing-2",
+      additive: true,
+    });
+    expect(withDrafting.draftingIds).toEqual(["drawing-1", "drawing-2"]);
+    expect(withDrafting.routeIds).toEqual(["route-1"]);
   });
 
   it("preserves and normalizes intentional mixed selection", () => {
