@@ -561,6 +561,73 @@ test("the tag row filters, collapses, and keeps a selection visible", async ({
   await expect(page.getByTestId("gallery-tags-empty")).toBeVisible();
 });
 
+test("Any tag selects every tag as one union and takes it back", async ({
+  page,
+}) => {
+  const listQueries: string[] = [];
+  const tags = ["amplifier", "adc", "pll"];
+  await page.route("**/api/gallery**", (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/gallery/tags") {
+      return route.fulfill({
+        json: { tags: tags.map((tag, i) => ({ tag, count: i + 1 })) },
+      });
+    }
+    if (url.pathname !== "/api/gallery") return route.fallback();
+    const selected = (url.searchParams.get("tags") ?? "")
+      .split(",")
+      .filter(Boolean);
+    listQueries.push(selected.join(","));
+    const all = [
+      { id: "t-amp", tags: ["amplifier"] },
+      { id: "t-pll", tags: ["pll"] },
+      // Untagged work is exactly what "Any tag" leaves out, which is why the
+      // control is not called "select all".
+      { id: "t-bare", tags: [] as string[] },
+    ];
+    const entries = all
+      .filter(
+        (entry) =>
+          selected.length === 0 ||
+          entry.tags.some((tag) => selected.includes(tag)),
+      )
+      .map((entry) => ({
+        id: entry.id,
+        name: `Circuit ${entry.id}`,
+        author: "tz",
+        description: "",
+        createdAt: "2026-08-22T10:00:00.000Z",
+        schemaVersion: 23,
+        tags: entry.tags,
+      }));
+    return route.fulfill({ json: { entries, nextCursor: null } });
+  });
+  await page.route("**/api/gallery/*/preview.svg", (route) =>
+    route.fulfill({
+      contentType: "image/svg+xml",
+      body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 6"><rect width="10" height="6" fill="#fff"/></svg>',
+    }),
+  );
+
+  await page.goto("/");
+  await expect(page.getByTestId("gallery-tile-t-bare")).toBeVisible();
+  const any = page.getByTestId("gallery-tags-any");
+  await expect(any).toHaveAttribute("aria-pressed", "false");
+
+  await any.click();
+  await expect(any).toHaveAttribute("aria-pressed", "true");
+  // Every tag rides in the query as one union, and the untagged circuit goes.
+  await expect(page.getByTestId("gallery-tile-t-amp")).toBeVisible();
+  await expect(page.getByTestId("gallery-tile-t-bare")).toHaveCount(0);
+  expect(listQueries).toContain("amplifier,adc,pll");
+  // With everything on there is nothing partial left to clear.
+  await expect(page.getByTestId("gallery-tags-clear")).toHaveCount(0);
+
+  await any.click();
+  await expect(any).toHaveAttribute("aria-pressed", "false");
+  await expect(page.getByTestId("gallery-tile-t-bare")).toBeVisible();
+});
+
 test("the tag menu multi-selects and tile tags join the selection", async ({
   page,
 }) => {

@@ -1133,3 +1133,9 @@
   color: var(--icm-text-muted);
   font-size: 12px;
 }
+
+/* "Any tag" is a filter, not a reset: pressed, it means the wall is showing
+   only circuits that carry at least one tag. */
+.gallery-tag-any {
+  font-weight: 600;
+}

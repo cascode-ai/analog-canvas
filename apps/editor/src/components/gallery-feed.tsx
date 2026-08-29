@@ -635,14 +635,19 @@ export function GalleryFeed({
         option.tag.toLowerCase().includes(normalizedTagQuery),
       )
     : tagOptions;
-  // A selected tag always stays visible, so collapsing or filtering can never
-  // hide the reason the wall is showing what it is.
+  const everyTagSelected =
+    tagOptions.length > 0 && selectedTags.length === tagOptions.length;
+  // A selected tag stays visible while the collapsed row would otherwise hide
+  // it, so collapsing can never conceal the reason the wall is filtered. With
+  // every tag on, the pressed "Any tag" control is that reason, and pinning
+  // all of them open would undo the collapse entirely.
   const visibleTags =
     showAllTags || normalizedTagQuery
       ? matchingTags
       : matchingTags.filter(
           (option, index) =>
-            index < COLLAPSED_TAG_COUNT || selectedTags.includes(option.tag),
+            index < COLLAPSED_TAG_COUNT ||
+            (!everyTagSelected && selectedTags.includes(option.tag)),
         );
   const hiddenTagCount = matchingTags.length - visibleTags.length;
 
@@ -694,6 +699,31 @@ export function GalleryFeed({
                 aria-label="Filter tags"
                 onChange={(event) => setTagQuery(event.currentTarget.value)}
               />
+              {/* Tags select as a union, so turning every one on is not "no
+                  filter" — it is "carrying at least one tag", which drops the
+                  untagged circuits. The control is named for what it does, and
+                  sits with the filter box so it is reachable without first
+                  expanding the row. */}
+              <button
+                type="button"
+                className="gallery-tag-option gallery-tag-any"
+                data-testid="gallery-tags-any"
+                aria-pressed={everyTagSelected}
+                title={
+                  everyTagSelected
+                    ? "Stop filtering by tag"
+                    : "Show only circuits that carry at least one tag"
+                }
+                onClick={() => {
+                  const next = everyTagSelected
+                    ? []
+                    : tagOptions.map((option) => option.tag);
+                  setSelectedTags(next);
+                  syncQuery(author, next);
+                }}
+              >
+                Any tag
+              </button>
               {visibleTags.map(({ tag, count }) => (
                 <button
                   key={tag}
@@ -738,7 +768,7 @@ export function GalleryFeed({
                   No tag matches “{tagQuery.trim()}”
                 </span>
               ) : null}
-              {selectedTags.length > 0 ? (
+              {selectedTags.length > 0 && !everyTagSelected ? (
                 <button
                   type="button"
                   className="gallery-tag-option gallery-tag-clear"
