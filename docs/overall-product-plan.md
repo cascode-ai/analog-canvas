@@ -3,8 +3,7 @@
 Analog Canvas is a local-first schematic editor. A human edits a circuit in the
 browser, while an authorized Agent may inspect and modify the same live Project
 through typed, revision-checked requests. The product is an editor and a
-structural circuit tool with a bounded deterministic digital timing layer; it
-is not an analog or transistor-level simulator, version-control service, or
+structural circuit tool; it is not a simulator, version-control service, or
 general browser-automation service.
 
 ## Product boundary
@@ -30,7 +29,6 @@ The authoritative sources are deliberately separate:
 | Visual construction and acceptance   | Razavi reference manifest and [visual contract](specs/razavi-visual-contract.md) |
 | SPICE import                         | `@icm/spice` transient Circuit IR                                                |
 | Design-netlist export                | `@icm/netlist` transient DesignNetlistIR                                         |
-| Digital timing execution             | `@icm/simulation` over current Document and run profile                          |
 | Browser Agent session                | accepted [web-session spec](specs/web-agent-session.md)                          |
 
 ## System shape
@@ -44,7 +42,6 @@ human UI / authorized Agent
             ▼
        Project and Document model
         ├─ derived connectivity and diagnostics
-        ├─ derived digital timing traces
         ├─ SVG/PNG/PDF formal export
         ├─ structural SPICE/Spectre export
         └─ explicit Cloud Save / portable Project interchange

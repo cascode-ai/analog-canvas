@@ -12,9 +12,10 @@ The first supported set is:
 
 Simulation time is an integer number of picoseconds. Saved Net IDs select
 traces to return; they do not change circuit connectivity. Browser run results
-are intentionally temporary. Every editor build exposes Digital Clock
-authoring and one Digital Simulation window for setup, saved Nets, waveform
-viewing and export, and optional canvas placement.
+are intentionally temporary. The local development editor exposes the timing
+panel, waveform export, optional canvas placement, and Digital Clock authoring;
+Cloudflare production builds explicitly keep that experimental UI hidden.
+The simulation package and project compatibility do not depend on the UI flag.
 
 This package does not model analog thresholds, propagation delay, setup/hold
 windows, metastability, or transistor-level behavior.

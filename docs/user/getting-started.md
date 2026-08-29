@@ -53,23 +53,6 @@ palette-first manual authoring; no Project file needs to be opened first.
 - Use `Ctrl`+mouse wheel to zoom around the cursor and middle-button drag to
   pan. View changes do not increment the Document revision.
 
-## Simulate digital timing
-
-Place a two-terminal **Digital Clock**, connect its negative terminal to
-Ground, and set its Period, Duty cycle, and Initial level in Properties. The
-first simulation block supports Buffer, inverter, two-input AND/OR/NAND/NOR/
-XOR/XNOR gates, and rising-edge D flip-flops in addition to the clock source.
-Unsupported devices are reported instead of receiving guessed behavior.
-
-Choose **Simulation** in the top toolbar to open the single Digital Simulation
-window. Use **Pick Nets** and click anywhere along a connected wire, Net label,
-or port to add an observed Net; `Esc` ends picking. A saved Net's waveform name
-can be edited without changing its electrical name. Set the duration and run
-the simulation to inspect the stacked traces. The same window can export SVG
-or PNG, or start **Place on Canvas** to create a grouped, scalable waveform
-snapshot. Run results remain temporary unless exported or placed; they are not
-stored as simulation data in the Project file.
-
 ## Save and recover
 
 **File / Save** (or `Ctrl+S`) saves the current content to one private Cloud

@@ -190,12 +190,18 @@ describe("editor shell", () => {
     expect(markup).not.toContain("Approve Agent file import");
   });
 
-  it("always exposes Digital Simulation while keeping its window closed", () => {
-    const project = createEmptyProject("digital-simulation", "Simulation");
-    const markup = renderToStaticMarkup(<App project={project} />);
+  it("keeps the timing surface behind its deployment flag", () => {
+    const project = createEmptyProject("timing-flag", "Timing Flag");
+    const localMarkup = renderToStaticMarkup(
+      <App project={project} timingUiEnabled />,
+    );
+    const productionMarkup = renderToStaticMarkup(
+      <App project={project} timingUiEnabled={false} />,
+    );
 
-    expect(markup).toContain('title="Digital Simulation"');
-    expect(markup).not.toContain('data-testid="timing-simulation-panel"');
+    expect(localMarkup).toContain('title="Digital Simulation"');
+    expect(productionMarkup).not.toContain('title="Digital Simulation"');
+    expect(localMarkup).not.toContain('data-testid="timing-simulation-panel"');
   });
 
   it("links to first-party visitor analytics without crowding editor commands", () => {
