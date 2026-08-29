@@ -17,6 +17,7 @@ export function ComponentElectricalProperties({
   referenceVisible,
   valueVisible,
   valueAvailable,
+  referenceLabelRenderable,
   additionalParameters,
   additionalParametersChanged,
   onParameterChange,
@@ -35,6 +36,12 @@ export function ComponentElectricalProperties({
   referenceVisible: boolean;
   valueVisible: boolean;
   valueAvailable: boolean;
+  /**
+   * Whether this Symbol can draw a reference label at all. A Symbol that
+   * declares `labelVisibility: "hidden"` — a summing junction, a 1/s block,
+   * Ground — never shows one, so the toggle cannot do anything.
+   */
+  referenceLabelRenderable: boolean;
   additionalParameters: readonly AdditionalParameterDraft[];
   additionalParametersChanged: boolean;
   onParameterChange: (key: string, value: string) => void;
@@ -53,6 +60,14 @@ export function ComponentElectricalProperties({
   const primaryParameters = parameters.filter(
     (parameter) => !parameter.compatibilityOnly,
   );
+  // A toggle that cannot change the drawing is not an option, it is a dead
+  // control: schematic-only glyphs neither draw a reference nor carry a
+  // value, and a Symbol with no parameters and no netlist has nothing left
+  // for this card to say.
+  const displayable = referenceLabelRenderable || valueAvailable;
+  if (primaryParameters.length === 0 && !displayable && !instance.netlist) {
+    return null;
+  }
   return (
     <div
       className="property-card property-electrical-section"
@@ -85,33 +100,37 @@ export function ComponentElectricalProperties({
           Finger width {fingerWidth} · W = FW × NF
         </p>
       ) : null}
-      <div className="property-display-card">
-        <div className="property-section-heading">Display</div>
-        <div
-          className="display-toggle-row"
-          aria-label="Component display toggles"
-        >
-          <DisplayToggle
-            label={
-              instance.symbolId === "port" ||
-              instance.symbolId === "port-filled"
-                ? "Port label"
-                : "Reference"
-            }
-            checked={referenceVisible}
-            onChange={onReferenceVisibilityChange}
-          />
-          <DisplayToggle
-            label="Value"
-            checked={valueVisible}
-            disabled={!valueAvailable}
-            help={
-              valueAvailable ? undefined : "Set the device parameters first"
-            }
-            onChange={onValueVisibilityChange}
-          />
+      {displayable ? (
+        <div className="property-display-card">
+          <div className="property-section-heading">Display</div>
+          <div
+            className="display-toggle-row"
+            aria-label="Component display toggles"
+          >
+            {referenceLabelRenderable ? (
+              <DisplayToggle
+                label={
+                  instance.symbolId === "port" ||
+                  instance.symbolId === "port-filled"
+                    ? "Port label"
+                    : "Reference"
+                }
+                checked={referenceVisible}
+                onChange={onReferenceVisibilityChange}
+              />
+            ) : null}
+            <DisplayToggle
+              label="Value"
+              checked={valueVisible}
+              disabled={!valueAvailable}
+              help={
+                valueAvailable ? undefined : "Set the device parameters first"
+              }
+              onChange={onValueVisibilityChange}
+            />
+          </div>
         </div>
-      </div>
+      ) : null}
       {instance.netlist ? (
         <details className="property-details property-details-inline">
           <summary>

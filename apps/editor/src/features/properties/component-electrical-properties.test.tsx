@@ -37,6 +37,7 @@ describe("component electrical properties", () => {
         referenceVisible
         valueVisible
         valueAvailable
+        referenceLabelRenderable
         additionalParameters={[
           { id: "extra", originalName: "ad", name: "ad", value: "1p" },
         ]}
@@ -55,5 +56,73 @@ describe("component electrical properties", () => {
     expect(markup).toContain('aria-label="Additional parameter name 1"');
     expect(markup).toContain("Apply parameters");
     expect(markup).not.toContain("Component compatibility field");
+  });
+
+  it("says nothing at all for a Symbol that has neither parameters nor a drawable label", () => {
+    const document = createEmptyDocument("cell", "Cell");
+    const instance: (typeof document.instances)[number] = {
+      id: "X2",
+      symbolId: "adder",
+      placement: null,
+    };
+    const markup = renderToStaticMarkup(
+      <ComponentElectricalProperties
+        instance={instance}
+        parameters={[]}
+        parameterValues={{}}
+        firstInputRef={createRef<HTMLInputElement>()}
+        referenceVisible={false}
+        valueVisible={false}
+        valueAvailable={false}
+        referenceLabelRenderable={false}
+        additionalParameters={[]}
+        additionalParametersChanged={false}
+        onParameterChange={vi.fn()}
+        onReferenceVisibilityChange={vi.fn()}
+        onValueVisibilityChange={vi.fn()}
+        onAdditionalParameterChange={vi.fn()}
+        onAdditionalParameterRemove={vi.fn()}
+        onAdditionalParameterAdd={vi.fn()}
+        onAdditionalParametersApply={vi.fn()}
+        onAdditionalParametersCancel={vi.fn()}
+      />,
+    );
+    // A summing junction draws no reference and carries no value: the card
+    // would hold two controls that cannot change anything.
+    expect(markup).toBe("");
+  });
+
+  it("keeps the Value toggle alone when only the reference is undrawable", () => {
+    const document = createEmptyDocument("cell", "Cell");
+    const instance: (typeof document.instances)[number] = {
+      id: "GND1",
+      symbolId: "ground",
+      placement: null,
+      netlist: { reference: "GND1", parameters: {} },
+    };
+    const markup = renderToStaticMarkup(
+      <ComponentElectricalProperties
+        instance={instance}
+        parameters={[]}
+        parameterValues={{}}
+        firstInputRef={createRef<HTMLInputElement>()}
+        referenceVisible={false}
+        valueVisible={false}
+        valueAvailable
+        referenceLabelRenderable={false}
+        additionalParameters={[]}
+        additionalParametersChanged={false}
+        onParameterChange={vi.fn()}
+        onReferenceVisibilityChange={vi.fn()}
+        onValueVisibilityChange={vi.fn()}
+        onAdditionalParameterChange={vi.fn()}
+        onAdditionalParameterRemove={vi.fn()}
+        onAdditionalParameterAdd={vi.fn()}
+        onAdditionalParametersApply={vi.fn()}
+        onAdditionalParametersCancel={vi.fn()}
+      />,
+    );
+    expect(markup).toContain("Value");
+    expect(markup).not.toContain(">Reference<");
   });
 });

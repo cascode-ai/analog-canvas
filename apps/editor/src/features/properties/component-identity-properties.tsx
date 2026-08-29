@@ -37,6 +37,7 @@ export function ComponentIdentityProperties({
   revision,
   cellName,
   formalTerminalSelected,
+  schematicLabelEditable,
   portNet,
   targetDescription,
   capacitorPlateRows,
@@ -50,6 +51,12 @@ export function ComponentIdentityProperties({
   revision: number;
   cellName: string;
   formalTerminalSelected: boolean;
+  /**
+   * Whether a schematic label can appear on this Symbol at all. A Symbol
+   * that declares `labelVisibility: "hidden"` never draws one, so offering
+   * the field would invite an edit the drawing cannot show.
+   */
+  schematicLabelEditable: boolean;
   portNet: { id: string; logicalName: string; supply: boolean } | null;
   targetDescription: string | null;
   capacitorPlateRows: readonly CapacitorPlatePropertyRow[] | null;
@@ -84,7 +91,7 @@ export function ComponentIdentityProperties({
                 />
               </dd>
             </div>
-          ) : !formalTerminalSelected ? (
+          ) : !formalTerminalSelected && schematicLabelEditable ? (
             <div>
               <dt>Schematic label</dt>
               <dd>

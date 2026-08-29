@@ -2683,6 +2683,37 @@ test("L edits a selected route Net Label without opening Properties", async ({
   ).toHaveCount(0);
 });
 
+test("Properties offers no dead label controls for a schematic-only block", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "adder", { x: 300, y: 200 });
+  await placeComponent(page, "resistor", { x: 520, y: 200 });
+  await openSelectionShelf(page);
+  const properties = page.getByRole("complementary", { name: "Properties" });
+  const labelField = properties.getByLabel("Component schematic label");
+  const parametersCard = properties.getByLabel(
+    "Component parameters and display",
+  );
+
+  // A summing junction hides its designator on the canvas, so the panel
+  // offers neither the label field nor the display toggles that could
+  // never change the drawing. Identity facts and Appearance remain.
+  await page.locator('[data-canvas-hit-kind="instance"]').first().click();
+  await expect(properties.getByText("Symbol")).toBeVisible();
+  await expect(labelField).toHaveCount(0);
+  await expect(parametersCard).toHaveCount(0);
+  await expect(properties.getByText("Line / foreground")).toBeVisible();
+
+  // An ordinary device keeps both.
+  await page.getByTestId("hit-R1").click();
+  await expect(labelField).toHaveCount(1);
+  await expect(parametersCard).toHaveCount(1);
+  await expect(properties.getByLabel("Component display toggles")).toHaveCount(
+    1,
+  );
+});
+
 test("Properties toggles reference label visibility for one or many components", async ({
   page,
 }) => {

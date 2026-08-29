@@ -1480,6 +1480,14 @@ export function App({
   };
   // Formula capability is owned by the resolved SymbolDefinition, never by a
   // symbol-id allowlist or any electrical/netlist descriptor.
+  // A Symbol that hides its label never draws a reference: the label field
+  // and the Reference toggle would be edits the drawing cannot show.
+  const selectedLabelRenderable = selectedInstance
+    ? resolver.resolve(
+        selectedInstance.symbolId,
+        selectedInstance.symbolVariantId,
+      )?.definition.labelVisibility !== "hidden"
+    : true;
   const selectedSignalFlowPresentation = selectedInstance
     ? resolver.resolve(
         selectedInstance.symbolId,
@@ -4110,6 +4118,7 @@ export function App({
                     revision: document.revision,
                     cellName: document.netlist?.name ?? document.name,
                     formalTerminalSelected: Boolean(selectedFormalTerminal),
+                    schematicLabelEditable: selectedLabelRenderable,
                     portNet: selectedPortNet
                       ? {
                           id: selectedPortNet.id,
@@ -4203,6 +4212,7 @@ export function App({
                       selectedInstanceValue !== null &&
                       selectedInstanceValue.visible !== false,
                     valueAvailable: selectedInstanceValueAvailable,
+                    referenceLabelRenderable: selectedLabelRenderable,
                     additionalParameters: additionalParameterDraft,
                     additionalParametersChanged:
                       additionalParameterDraftChanges,

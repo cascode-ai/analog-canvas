@@ -39,6 +39,7 @@ describe("component identity properties", () => {
         revision={0}
         cellName="Cell"
         formalTerminalSelected={false}
+        schematicLabelEditable
         portNet={{ id: "net", logicalName: "VDD", supply: true }}
         targetDescription={null}
         capacitorPlateRows={null}
@@ -56,5 +57,35 @@ describe("component identity properties", () => {
     );
     expect(markup).toContain('aria-label="Supply name"');
     expect(markup).toContain("sky130_fd_pr__nfet_01v8");
+  });
+
+  it("offers no schematic label field when the Symbol never draws one", () => {
+    const document = createEmptyDocument("cell", "Cell");
+    const instance: (typeof document.instances)[number] = {
+      id: "X2",
+      symbolId: "adder",
+      placement: null,
+    };
+    const markup = renderToStaticMarkup(
+      <ComponentIdentityProperties
+        instance={instance}
+        revision={1}
+        cellName="Main"
+        formalTerminalSelected={false}
+        schematicLabelEditable={false}
+        portNet={null}
+        targetDescription={null}
+        capacitorPlateRows={null}
+        modelTarget={null}
+        onMarkerNameChange={vi.fn()}
+        onSchematicNameChange={vi.fn()}
+        onReferenceChange={vi.fn()}
+        onModelTargetChange={vi.fn()}
+      />,
+    );
+    // The Symbol and Cell stay: they answer "what am I looking at". The
+    // label input does not, because the drawing can never show its text.
+    expect(markup).toContain("Symbol");
+    expect(markup).not.toContain("Schematic label");
   });
 });
