@@ -640,6 +640,42 @@ test("the tag row filters, collapses, and keeps a selection visible", async ({
   await expect(page.getByTestId("gallery-tags-empty")).toBeVisible();
 });
 
+test("the wall states how many circuits the gallery holds", async ({
+  page,
+}) => {
+  await page.route(galleryListUrl, (route) =>
+    route.fulfill({ json: { entries: [ENTRY], nextCursor: null, total: 128 } }),
+  );
+  await page.route(`**/api/gallery/${ENTRY.id}/preview.svg*`, (route) =>
+    route.fulfill({
+      contentType: "image/svg+xml",
+      body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10" fill="#fff"/></svg>',
+    }),
+  );
+  await page.route("**/api/gallery/tags", (route) =>
+    route.fulfill({ json: { tags: [] } }),
+  );
+  await page.goto("/");
+  await expect(page.getByTestId("gallery-count-panel")).toHaveText(
+    "128 circuits",
+  );
+  // The shelf states its own count; the community total stays off it.
+  await page.getByTestId("gallery-view-shelf").click();
+  await expect(page.getByTestId("gallery-count-panel")).toHaveCount(0);
+});
+
+test("an API without totals hides the count rather than guessing", async ({
+  page,
+}) => {
+  await mockGallery(page, [ENTRY]);
+  await page.route("**/api/gallery/tags", (route) =>
+    route.fulfill({ json: { tags: [] } }),
+  );
+  await page.goto("/");
+  await expect(page.getByTestId(`gallery-tile-${ENTRY.id}`)).toBeVisible();
+  await expect(page.getByTestId("gallery-count-panel")).toHaveCount(0);
+});
+
 test("Any tag selects every tag as one union and takes it back", async ({
   page,
 }) => {

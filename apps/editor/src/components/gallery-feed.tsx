@@ -39,12 +39,15 @@ export interface GalleryFeedEntry {
 export interface GalleryFeedPage {
   entries: GalleryFeedEntry[];
   nextCursor: string | null;
+  /** Whole filtered wall's size; null while a pre-totals API answers. */
+  total: number | null;
 }
 
 export interface GalleryFeedState {
   status: "loading" | "ready" | "unavailable";
   entries: GalleryFeedEntry[];
   nextCursor: string | null;
+  total: number | null;
 }
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
@@ -254,6 +257,27 @@ function HeartIcon({ filled }: { filled: boolean }) {
   );
 }
 
+/**
+ * The wall's size, said only when the server has said it: a pre-totals API
+ * or a still-loading feed renders nothing rather than a guess. With a
+ * filter on, the same number means "matching", and the label says so.
+ */
+export function GalleryCountPanel({
+  total,
+  filtered = false,
+}: {
+  total: number | null;
+  filtered?: boolean;
+}) {
+  if (total === null) return null;
+  const noun = total === 1 ? "circuit" : "circuits";
+  return (
+    <span className="gallery-count-panel" data-testid="gallery-count-panel">
+      {total.toLocaleString()} {filtered ? `matching ${noun}` : noun}
+    </span>
+  );
+}
+
 function savedAtLabel(createdAt: string): string {
   const parsed = new Date(createdAt);
   return Number.isNaN(parsed.getTime())
@@ -305,11 +329,13 @@ export async function loadGalleryFeed(
     const payload = (await response.json()) as {
       entries?: GalleryFeedEntry[];
       nextCursor?: unknown;
+      total?: unknown;
     };
     return {
       entries: payload.entries ?? [],
       nextCursor:
         typeof payload.nextCursor === "string" ? payload.nextCursor : null,
+      total: typeof payload.total === "number" ? payload.total : null,
     };
   } catch {
     return null;
@@ -395,6 +421,7 @@ export function GalleryFeed({
     status: "loading",
     entries: [],
     nextCursor: null,
+    total: null,
   });
   const loadingMoreRef = useRef(false);
   const firstPageLoadingRef = useRef(true);
@@ -478,6 +505,7 @@ export function GalleryFeed({
         status: "loading",
         entries: [],
         nextCursor: null,
+        total: null,
       });
     }
     void loadGalleryFeed(fetch, { author, tags: selectedTags }).then((page) => {
@@ -492,6 +520,7 @@ export function GalleryFeed({
           status: "unavailable",
           entries: [],
           nextCursor: null,
+          total: null,
         });
       }
     });
@@ -528,6 +557,7 @@ export function GalleryFeed({
                 ...previous,
                 entries: [...previous.entries, ...page.entries],
                 nextCursor: page.nextCursor,
+                total: page.total ?? previous.total,
               }
             : previous,
         );
@@ -567,6 +597,7 @@ export function GalleryFeed({
       entries: previous.entries.filter(
         (candidate) => candidate.id !== entry.id,
       ),
+      total: previous.total === null ? null : previous.total - 1,
     }));
     const removedTags = new Set(entry.tags ?? []);
     if (removedTags.size > 0) {
@@ -658,31 +689,45 @@ export function GalleryFeed({
         visitStats={visitStats}
       />
 
-      <div className="gallery-view-tabs" role="tablist" aria-label="Circuits">
-        {(
-          [
-            ["gallery", "Community gallery"],
-            ["shelf", "My shelf"],
-          ] as const
-        ).map(([id, label]) => (
-          <button
-            key={id}
-            type="button"
-            role="tab"
-            className="gallery-view-tab"
-            data-testid={`gallery-view-${id}`}
-            aria-selected={view === id}
-            onClick={() => {
-              setView(id);
-              const next = new URL(window.location.href);
-              if (id === "shelf") next.searchParams.set("view", "shelf");
-              else next.searchParams.delete("view");
-              window.history.replaceState(null, "", next);
-            }}
-          >
-            {label}
-          </button>
-        ))}
+      <div className="gallery-view-tabs">
+        <div
+          className="gallery-view-tablist"
+          role="tablist"
+          aria-label="Circuits"
+        >
+          {(
+            [
+              ["gallery", "Community gallery"],
+              ["shelf", "My shelf"],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              className="gallery-view-tab"
+              data-testid={`gallery-view-${id}`}
+              aria-selected={view === id}
+              onClick={() => {
+                setView(id);
+                const next = new URL(window.location.href);
+                if (id === "shelf") next.searchParams.set("view", "shelf");
+                else next.searchParams.delete("view");
+                window.history.replaceState(null, "", next);
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        {/* The shelf states its own count ("N of 20 saved"); this one
+            describes the community wall and leaves with it. */}
+        {view === "gallery" ? (
+          <GalleryCountPanel
+            total={state.total}
+            filtered={author !== null || selectedTags.length > 0}
+          />
+        ) : null}
       </div>
       {view === "shelf" ? <ShelfWall /> : null}
 

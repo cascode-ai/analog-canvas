@@ -2,7 +2,11 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { GalleryFeed, loadGalleryFeed } from "./gallery-feed";
+import {
+  GalleryCountPanel,
+  GalleryFeed,
+  loadGalleryFeed,
+} from "./gallery-feed";
 
 function fetchReturning(payload: unknown, ok = true): typeof fetch {
   return (async () =>
@@ -49,12 +53,38 @@ describe("loadGalleryFeed", () => {
     ]);
   });
 
+  it("passes the server's total through and tolerates its absence", async () => {
+    const withTotal = await loadGalleryFeed(
+      fetchReturning({ entries: [], nextCursor: null, total: 42 }),
+    );
+    expect(withTotal?.total).toBe(42);
+    // An older worker without totals must read as "unknown", never as zero.
+    const withoutTotal = await loadGalleryFeed(fetchReturning({ entries: [] }));
+    expect(withoutTotal?.total).toBeNull();
+  });
+
   it("degrades to null on errors and non-OK responses", async () => {
     expect(await loadGalleryFeed(fetchReturning({}, false))).toBeNull();
     const throwing = (async () => {
       throw new Error("offline");
     }) as unknown as typeof fetch;
     expect(await loadGalleryFeed(throwing)).toBeNull();
+  });
+});
+
+describe("GalleryCountPanel", () => {
+  it("shows the wall size, marks a filtered count, and hides an unknown one", () => {
+    const render = (total: number | null, filtered = false) =>
+      renderToStaticMarkup(
+        createElement(GalleryCountPanel, { total, filtered }),
+      );
+    expect(render(1280)).toContain(`${(1280).toLocaleString()} circuits`);
+    expect(render(1)).toContain("1 circuit");
+    expect(render(1)).not.toContain("circuits");
+    expect(render(3, true)).toContain("3 matching circuits");
+    expect(render(1, true)).toContain("1 matching circuit");
+    // No total (older API, still loading): say nothing rather than guess.
+    expect(render(null)).toBe("");
   });
 });
 

@@ -379,6 +379,7 @@ describe("newest-first gallery feed", () => {
   ): Promise<{
     entries: { id: string; createdAt: string }[];
     nextCursor: string | null;
+    total: number;
   }> {
     const params = new URLSearchParams({ limit: "3" });
     if (cursor) params.set("cursor", cursor);
@@ -389,6 +390,7 @@ describe("newest-first gallery feed", () => {
     const payload = (await response.json()) as {
       entries: { id: string; createdAt: string }[];
       nextCursor: string | null;
+      total: number;
     };
     return payload;
   }
@@ -423,12 +425,50 @@ describe("newest-first gallery feed", () => {
   it("stops when the newest-first cursor chain is exhausted", async () => {
     const env = environment();
     const empty = await galleryPage(env);
-    expect(empty).toEqual({ entries: [], nextCursor: null });
+    expect(empty).toEqual({ entries: [], nextCursor: null, total: 0 });
 
     await wallOf(env, 2);
     const full = await galleryPage(env);
     expect(full.entries).toHaveLength(2);
     expect(full.nextCursor).toBeNull();
+  });
+
+  it("carries the whole wall's total on every page and counts the filtered set", async () => {
+    const env = environment();
+    const cookie = await adminOf(env);
+    for (let index = 0; index < 4; index += 1) {
+      await submitOne(env, `Plain ${index}`, { cookie });
+    }
+    for (let index = 0; index < 3; index += 1) {
+      const response = await route(
+        env,
+        submissionRequest(
+          {
+            name: `Tagged ${index}`,
+            description: "d",
+            tags: ["ldo"],
+            projectText: projectText(`Tagged ${index}`),
+          },
+          { cookie },
+        ),
+      );
+      expect(response.status).toBe(201);
+    }
+
+    // The client renders one page at a time; the total is the whole wall's
+    // size and must not shrink to the page or drift between pages.
+    const first = await galleryPage(env);
+    expect(first.entries).toHaveLength(3);
+    expect(first.total).toBe(7);
+    const second = await galleryPage(env, first.nextCursor!);
+    expect(second.total).toBe(7);
+
+    // With a filter on, the total counts the filtered set, not the gallery.
+    const filtered = (await (
+      await route(env, new Request(`${ORIGIN}/api/gallery?tags=ldo`))
+    ).json()) as { entries: unknown[]; total: number };
+    expect(filtered.entries).toHaveLength(3);
+    expect(filtered.total).toBe(3);
   });
 
   it("returns the same newest-first order on every read", async () => {

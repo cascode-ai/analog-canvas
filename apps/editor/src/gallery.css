@@ -1048,9 +1048,26 @@
 /* The two walls: everyone's circuits, and your own private shelf. */
 .gallery-view-tabs {
   display: flex;
+  align-items: flex-end;
   gap: 6px;
   padding: 14px 22px 0;
   border-bottom: 1px solid var(--icm-border);
+}
+
+.gallery-view-tablist {
+  display: flex;
+  gap: 6px;
+}
+
+/* The band's spare right side carries the wall's one number. Muted like
+   .shelf-count: a fact about the wall, not a control. */
+.gallery-count-panel {
+  margin-left: auto;
+  align-self: center;
+  padding-bottom: 6px;
+  color: var(--icm-text-muted);
+  font-size: 0.85rem;
+  white-space: nowrap;
 }
 
 .gallery-view-tab {

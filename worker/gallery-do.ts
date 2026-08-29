@@ -694,6 +694,17 @@ export class GalleryDO {
       conditions.push(`(${tags.map(() => "tags LIKE ?").join(" OR ")})`);
       for (const tag of tags) bindings.push(`%,${tag},%`);
     }
+    // The whole filtered wall's size, not the page's: counted before the
+    // cursor narrows the query, so every page carries the same total.
+    const total = Number(
+      this.sql
+        .exec<{ total: number }>(
+          `SELECT COUNT(*) AS total FROM gallery_entries
+           WHERE ${conditions.join(" AND ")}`,
+          ...bindings,
+        )
+        .toArray()[0]!.total,
+    );
     // The viewer id leads the bindings because its sub-select comes first.
     const viewerId = typeof body.viewerId === "string" ? body.viewerId : "";
     if (cursor) {
@@ -718,7 +729,7 @@ export class GalleryDO {
       rows.length > limit && page.length > 0
         ? `${page.at(-1)!.created_at}|${page.at(-1)!.id}`
         : null;
-    return Response.json({ entries: page.map(summaryOf), nextCursor });
+    return Response.json({ entries: page.map(summaryOf), nextCursor, total });
   }
 
   /**
