@@ -87,4 +87,194 @@ describe("deriveWireUnderSymbolWarnings", () => {
       warnings.filter((warning) => ["A", "B"].includes(warning.instanceId)),
     ).toEqual([]);
   });
+
+  function nmosFixture(
+    nmosAt: { x: number; y: number },
+    options: { gateOnNet?: boolean } = {},
+  ) {
+    const { document } = fixture({ x: 300, y: 200 });
+    document.instances.push({
+      id: "M1",
+      symbolId: "nmos",
+      placement: { position: nmosAt, rotation: 0, mirror: "none" },
+      netlist: { reference: "M1", parameters: {} },
+    });
+    if (options.gateOnNet !== false) {
+      document.nets[0]!.terminals.push({ instanceId: "M1", pinName: "G" });
+    }
+    const geometry = resolveDocumentRoutingGeometry(document, resolver);
+    const records = document.routes.flatMap((route) => {
+      const resolved = geometry.routes.get(route.id);
+      return resolved ? [{ route, geometry: resolved }] : [];
+    });
+    return { document, records };
+  }
+
+  it("exempts a wire riding the gate lead line straight through a MOS", () => {
+    // The bias-rail idiom: the y=400 run passes through M1's body exactly on
+    // the gate lead line (gate contact at x-20 of the placement), covering
+    // the contact of a gate terminal the Net declares. The span is that
+    // terminal's own connection and stays quiet.
+    const { document, records } = nmosFixture({ x: 300, y: 400 });
+    expect(
+      deriveWireUnderSymbolWarnings(document, resolver, records).filter(
+        (warning) => warning.instanceId === "M1",
+      ),
+    ).toEqual([]);
+  });
+
+  it("still flags a gate-line wire whose Net does not include the gate", () => {
+    // Same geometry, but M1's gate is not a terminal of the wire's Net: the
+    // component is merely parked on a foreign wire and looks connected
+    // without being so.
+    const { document, records } = nmosFixture(
+      { x: 300, y: 400 },
+      { gateOnNet: false },
+    );
+    expect(
+      deriveWireUnderSymbolWarnings(document, resolver, records).filter(
+        (warning) => warning.instanceId === "M1",
+      ),
+    ).not.toEqual([]);
+  });
+
+  it("still flags a wire crossing a MOS body off the lead lines", () => {
+    // Shifted 10 units, the same run crosses the body at local y=+10 where
+    // no pin lead runs horizontally.
+    const { document, records } = nmosFixture({ x: 300, y: 390 });
+    expect(
+      deriveWireUnderSymbolWarnings(document, resolver, records).filter(
+        (warning) => warning.instanceId === "M1",
+      ),
+    ).not.toEqual([]);
+  });
+
+  it("still flags a collinear span that never reaches the pin contact", () => {
+    // A stub starting inside the body on the gate line but east of the gate
+    // contact is buried, not connected.
+    const { document } = nmosFixture({ x: 300, y: 400 });
+    document.routes.length = 0;
+    document.junctions.push({
+      id: "J",
+      netId: "net-w",
+      position: { x: 305, y: 400 },
+    });
+    document.routes.push(
+      createRoutePath({
+        id: "route-stub",
+        netId: "net-w",
+        start: { kind: "junction", junctionId: "J" },
+        end: { kind: "terminal", instanceId: "B", pinName: "2" },
+        bends: [{ x: 500, y: 400 }],
+        modes: ["manual", "manual"],
+      }),
+    );
+    const geometry = resolveDocumentRoutingGeometry(document, resolver);
+    const records = document.routes.flatMap((route) => {
+      const resolved = geometry.routes.get(route.id);
+      return resolved ? [{ route, geometry: resolved }] : [];
+    });
+    const warnings = deriveWireUnderSymbolWarnings(document, resolver, records);
+    expect(
+      warnings.filter((warning) => warning.instanceId === "M1"),
+    ).not.toEqual([]);
+  });
+
+  function verticalFixture(middle: {
+    id: string;
+    symbolId: string;
+    pinNamesOnNet: readonly string[];
+  }) {
+    const document = createEmptyDocument("doc", "Axis");
+    document.instances.push(
+      {
+        id: "C",
+        symbolId: "resistor",
+        placement: {
+          position: { x: 300, y: 150 },
+          rotation: 0,
+          mirror: "none",
+        },
+        netlist: { reference: "C", parameters: {} },
+      },
+      {
+        id: "D",
+        symbolId: "resistor",
+        placement: {
+          position: { x: 300, y: 650 },
+          rotation: 0,
+          mirror: "none",
+        },
+        netlist: { reference: "D", parameters: {} },
+      },
+      {
+        id: middle.id,
+        symbolId: middle.symbolId,
+        placement: {
+          position: { x: 300, y: 400 },
+          rotation: 0,
+          mirror: "none",
+        },
+        netlist: { reference: middle.id, parameters: {} },
+      },
+    );
+    document.nets.push({
+      id: "net-v",
+      terminals: [
+        { instanceId: "C", pinName: "2" },
+        { instanceId: "D", pinName: "1" },
+        ...middle.pinNamesOnNet.map((pinName) => ({
+          instanceId: middle.id,
+          pinName,
+        })),
+      ],
+    });
+    document.routes.push(
+      createRoutePath({
+        id: "route-v",
+        netId: "net-v",
+        start: { kind: "terminal", instanceId: "C", pinName: "2" },
+        end: { kind: "terminal", instanceId: "D", pinName: "1" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    const geometry = resolveDocumentRoutingGeometry(document, resolver);
+    const records = document.routes.flatMap((route) => {
+      const resolved = geometry.routes.get(route.id);
+      return resolved ? [{ route, geometry: resolved }] : [];
+    });
+    return { document, records };
+  }
+
+  it("flags a wire tunneling between both leads of a resistor even on its pin axis", () => {
+    // The x=300 run rides both of RX's pin leads, so the wire shorts through
+    // the component while looking like a series insertion. Declaring the
+    // bonded terminals does not quiet it: two ridden leads always warn.
+    const { document, records } = verticalFixture({
+      id: "RX",
+      symbolId: "resistor",
+      pinNamesOnNet: ["1", "2"],
+    });
+    expect(
+      deriveWireUnderSymbolWarnings(document, resolver, records).filter(
+        (warning) => warning.instanceId === "RX",
+      ),
+    ).not.toEqual([]);
+  });
+
+  it("exempts a vertical wire riding a ground port's single connected lead", () => {
+    // Ground has one pin ("0", north) whose lead the x=300 run rides; with
+    // the terminal on the Net this is the port's own connection.
+    const { document, records } = verticalFixture({
+      id: "G1",
+      symbolId: "ground",
+      pinNamesOnNet: ["0"],
+    });
+    expect(
+      deriveWireUnderSymbolWarnings(document, resolver, records).filter(
+        (warning) => warning.instanceId === "G1",
+      ),
+    ).toEqual([]);
+  });
 });
