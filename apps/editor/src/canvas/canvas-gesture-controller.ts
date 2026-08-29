@@ -275,13 +275,18 @@ export function createCanvasGestureController({
   };
 
   const begin = (event: ReactPointerEvent<SVGSVGElement>): void => {
-    // Right-press on a device opens its context menu: starting the frame
-    // gesture here would capture the pointer and swallow the contextmenu
-    // event, so the frame only starts on canvas background.
+    // Visual objects own their context menu. Starting the background framing
+    // gesture on any of these hit layers would capture the pointer and swallow
+    // the later contextmenu event. Routes and endpoints keep their existing
+    // canvas behavior until they expose the shared menu themselves.
+    const contextMenuHitKind = (event.target as Element).getAttribute?.(
+      "data-canvas-hit-kind",
+    );
     if (
       event.button === 2 &&
-      (event.target as Element).getAttribute?.("data-canvas-hit-kind") ===
-        "instance"
+      (contextMenuHitKind === "instance" ||
+        contextMenuHitKind === "annotation" ||
+        contextMenuHitKind === "drafting")
     ) {
       return;
     }
