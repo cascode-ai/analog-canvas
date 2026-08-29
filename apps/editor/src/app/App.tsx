@@ -2314,8 +2314,12 @@ export function App({
   const autoFitHasContent = authoredObjectCount(project) > 0;
   useEffect(() => {
     if (!pendingAutoFitRef.current || !autoFitBounds) return;
-    if (!autoFitHasContent) return;
+    // One decision per open, taken the moment the scene bounds exist: a
+    // project that arrives with content lands fitted; an empty one keeps
+    // the default camera — and the request is spent either way, so the
+    // first authored edit never yanks the camera afterwards.
     pendingAutoFitRef.current = false;
+    if (!autoFitHasContent) return;
     // Silent: the open's own status ("Opened …", "Restored …") must
     // survive the landing fit.
     fitView({ announce: false });
