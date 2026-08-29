@@ -57,6 +57,11 @@ export interface CanvasHitControllerDependencies {
     selectEndpoint: (endpoint: WireSource) => void;
     endpointStatusLabel: (endpoint: WireSource) => string;
     setStatus: (status: string) => void;
+    /**
+     * Offer the press to an armed verb (rotate/copy/move/delete pressed
+     * before a target). Returns true when the verb consumed the hit.
+     */
+    consumeArmedVerb?: (kind: string, id: string) => boolean;
   };
 }
 
@@ -86,6 +91,7 @@ export function createCanvasHitController({
     selectEndpoint,
     endpointStatusLabel,
     setStatus,
+    consumeArmedVerb,
   },
 }: CanvasHitControllerDependencies) {
   const compositeSelectionOwnsHit = (
@@ -165,6 +171,10 @@ export function createCanvasHitController({
     const hitTarget = hit.element as SVGElement;
     event.preventDefault();
     event.stopPropagation();
+
+    // An armed verb (rotate/copy/move/delete pressed first) owns the click:
+    // the pointed-at object is acted on instead of picked up or selected.
+    if (consumeArmedVerb?.(hit.kind, hit.id)) return;
 
     if (
       !event.shiftKey &&

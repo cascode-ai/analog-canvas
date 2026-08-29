@@ -25,6 +25,7 @@ function fixture(overrides: Partial<EditorCommandContext> = {}) {
     canvasDragActive: false,
     hasClearableDraftingSelection: false,
     hasActiveNetHighlight: false,
+    hasArmedVerb: false,
     ...overrides,
   };
   const operations: EditorCommandOperations = {
@@ -47,6 +48,7 @@ function fixture(overrides: Partial<EditorCommandContext> = {}) {
     rotateMove: vi.fn(),
     rotateSelection: vi.fn(),
     armRotate: vi.fn(),
+    disarmVerb: vi.fn(),
     mirrorPlacement: vi.fn(),
     mirrorCopy: vi.fn(),
     mirrorMove: vi.fn(),
@@ -226,6 +228,7 @@ describe("editor command router", () => {
       canUndo: false,
       canRedo: false,
       hasDeletableSelection: false,
+      interactionMode: "wire",
     });
 
     expect(router.state({ id: "history.undo" }).enabled).toBe(false);
@@ -233,5 +236,28 @@ describe("editor command router", () => {
     expect(router.execute({ id: "history.redo" }).status).toBe("rejected");
     expect(router.execute({ id: "selection.delete" }).status).toBe("rejected");
     expect(operations.report).not.toHaveBeenCalled();
+  });
+
+  it("lets verb commands execute while idle with nothing selected so they can arm", () => {
+    // Cadence-style verb-first: with no selection, C / M / Delete reach their
+    // operations, whose owner arms the verb and waits for a target click.
+    const { router, operations } = fixture({
+      hasDeletableSelection: false,
+      hasMoveSelection: false,
+    });
+    expect(router.execute({ id: "selection.delete" }).status).toBe("executed");
+    expect(operations.deleteSelection).toHaveBeenCalled();
+    expect(router.execute({ id: "selection.move" }).status).toBe("executed");
+    expect(operations.beginMove).toHaveBeenCalled();
+    expect(router.execute({ id: "selection.copy" }).status).toBe("executed");
+    expect(operations.beginCopy).toHaveBeenCalled();
+  });
+
+  it("Escape disarms an armed verb before touching passive state", () => {
+    const { router, operations } = fixture({ hasArmedVerb: true });
+    expect(router.state({ id: "editor.cancel" }).enabled).toBe(true);
+    router.execute({ id: "editor.cancel" });
+    expect(operations.disarmVerb).toHaveBeenCalled();
+    expect(operations.cancelPassive).not.toHaveBeenCalled();
   });
 });

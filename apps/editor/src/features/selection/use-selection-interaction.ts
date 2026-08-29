@@ -322,16 +322,20 @@ export function useSelectionInteraction(
     return result.document;
   };
 
-  const beginKeyboardSelectionMove = (): void => {
+  const beginKeyboardSelectionMove = (
+    explicitSelection?: VisualSelection,
+  ): void => {
     if (commandMoveSessionRef.current) {
       options.setStatus(
         "Move is already active · click to place · Esc cancels",
       );
       return;
     }
+    // An explicit selection serves the armed Move verb: the pointed-at part
+    // is picked up directly, independent of the live selection state.
     const movePlan = planSelectionMove(
       options.document,
-      options.visualSelection,
+      explicitSelection ?? options.visualSelection,
     );
     if (movePlan.previewObjectIds.length === 0) {
       options.setStatus(
@@ -339,8 +343,11 @@ export function useSelectionInteraction(
       );
       return;
     }
-    const primaryInstanceId =
-      options.selectedIds.at(-1) ?? movePlan.instanceIds.at(0) ?? null;
+    const primaryInstanceId = explicitSelection
+      ? (explicitSelection.instanceIds.at(-1) ??
+        movePlan.instanceIds.at(0) ??
+        null)
+      : (options.selectedIds.at(-1) ?? movePlan.instanceIds.at(0) ?? null);
     const primary = primaryInstanceId
       ? options.document.instances.find((item) => item.id === primaryInstanceId)
       : undefined;
@@ -962,43 +969,66 @@ export function useSelectionInteraction(
     }
   };
 
-  const deleteSelection = (): void => {
-    const deletionSeed = {
-      instanceIds: [
-        ...new Set([
-          ...options.visualSelection.instanceIds,
-          ...options.selectedIds,
-        ]),
-      ],
-      routeIds: [
-        ...new Set([
-          ...options.visualSelection.routeIds,
-          ...(options.selectedRouteId ? [options.selectedRouteId] : []),
-        ]),
-      ],
-      junctionIds: [
-        ...new Set([
-          ...options.visualSelection.junctionIds,
-          ...(options.selectedEndpoint?.endpoint.kind === "junction"
-            ? [options.selectedEndpoint.endpoint.junctionId]
-            : []),
-        ]),
-      ],
-      annotationIds: [
-        ...new Set([
-          ...options.visualSelection.annotationIds,
-          ...(options.selectedAnnotationId
-            ? [options.selectedAnnotationId]
-            : []),
-        ]),
-      ],
-      draftingIds: [
-        ...new Set([
-          ...options.visualSelection.draftingIds,
-          ...(options.selectedDraftingId ? [options.selectedDraftingId] : []),
-        ]),
-      ],
-    };
+  const deleteSelection = (
+    explicitTarget?: Partial<
+      Record<
+        | "instanceIds"
+        | "routeIds"
+        | "junctionIds"
+        | "annotationIds"
+        | "draftingIds",
+        readonly string[]
+      >
+    >,
+  ): void => {
+    // An explicit target deletes exactly the pointed-at objects (the armed
+    // Delete verb), bypassing whatever the live selection happens to hold.
+    const deletionSeed = explicitTarget
+      ? {
+          instanceIds: [...(explicitTarget.instanceIds ?? [])],
+          routeIds: [...(explicitTarget.routeIds ?? [])],
+          junctionIds: [...(explicitTarget.junctionIds ?? [])],
+          annotationIds: [...(explicitTarget.annotationIds ?? [])],
+          draftingIds: [...(explicitTarget.draftingIds ?? [])],
+        }
+      : {
+          instanceIds: [
+            ...new Set([
+              ...options.visualSelection.instanceIds,
+              ...options.selectedIds,
+            ]),
+          ],
+          routeIds: [
+            ...new Set([
+              ...options.visualSelection.routeIds,
+              ...(options.selectedRouteId ? [options.selectedRouteId] : []),
+            ]),
+          ],
+          junctionIds: [
+            ...new Set([
+              ...options.visualSelection.junctionIds,
+              ...(options.selectedEndpoint?.endpoint.kind === "junction"
+                ? [options.selectedEndpoint.endpoint.junctionId]
+                : []),
+            ]),
+          ],
+          annotationIds: [
+            ...new Set([
+              ...options.visualSelection.annotationIds,
+              ...(options.selectedAnnotationId
+                ? [options.selectedAnnotationId]
+                : []),
+            ]),
+          ],
+          draftingIds: [
+            ...new Set([
+              ...options.visualSelection.draftingIds,
+              ...(options.selectedDraftingId
+                ? [options.selectedDraftingId]
+                : []),
+            ]),
+          ],
+        };
     const existingSelectionCounts = {
       instances: deletionSeed.instanceIds.filter((id) =>
         options.document.instances.some((item) => item.id === id),
@@ -1078,7 +1108,9 @@ export function useSelectionInteraction(
     }
   };
 
-  const beginCopyPlacement = (): void => {
+  const beginCopyPlacement = (
+    explicitInstanceIds?: readonly string[],
+  ): void => {
     const interactionKind = options.getInteractionState().kind;
     if (interactionKind === "copy-placement") {
       options.setStatus("Copy placement is already active · Esc cancels");
@@ -1088,16 +1120,24 @@ export function useSelectionInteraction(
       options.setStatus("Finish or cancel the active tool before copying");
       return;
     }
-    const copied = copySelection(
-      options.document,
-      options.selectedIds,
-      options.visualSelection.draftingIds,
-      {
-        routeIds: options.visualSelection.routeIds,
-        junctionIds: options.visualSelection.junctionIds,
-        annotationIds: options.visualSelection.annotationIds,
-      },
-    );
+    // Explicit ids serve the armed Copy verb: the pointed-at part is copied
+    // directly, independent of the (possibly stale) live selection state.
+    const copied = explicitInstanceIds
+      ? copySelection(options.document, explicitInstanceIds, [], {
+          routeIds: [],
+          junctionIds: [],
+          annotationIds: [],
+        })
+      : copySelection(
+          options.document,
+          options.selectedIds,
+          options.visualSelection.draftingIds,
+          {
+            routeIds: options.visualSelection.routeIds,
+            junctionIds: options.visualSelection.junctionIds,
+            annotationIds: options.visualSelection.annotationIds,
+          },
+        );
     if (!copied) {
       options.setStatus("Select something to copy");
       return;

@@ -56,6 +56,8 @@ export interface EditorCommandContext {
   canvasDragActive: boolean;
   hasClearableDraftingSelection: boolean;
   hasActiveNetHighlight: boolean;
+  /** A verb (rotate/copy/move/delete) is armed, waiting for a target click. */
+  hasArmedVerb: boolean;
 }
 
 export interface EditorCommandOperations {
@@ -79,6 +81,8 @@ export interface EditorCommandOperations {
   rotateSelection(deltaDegrees: 90 | -90): void;
   /** Wait for a part to be pointed at, then turn that one. */
   armRotate(): void;
+  /** Drop whatever verb is armed without acting on anything. */
+  disarmVerb(): void;
   mirrorPlacement(direction: ScreenFlip): void;
   mirrorCopy(direction: ScreenFlip): void;
   mirrorMove(direction: ScreenFlip): void;
@@ -174,6 +178,7 @@ export function createEditorCommandRouter(
           context.helpOpen ||
             context.canvasDragActive ||
             context.interactionMode !== "idle" ||
+            context.hasArmedVerb ||
             context.hasClearableDraftingSelection ||
             context.hasActiveNetHighlight,
         );
@@ -185,7 +190,10 @@ export function createEditorCommandRouter(
       case "selection.clear":
         return enabled();
       case "selection.delete":
-        return context.hasDeletableSelection
+        // With nothing selected while idle, Delete arms the verb (Cadence
+        // style): the next clicks delete what they point at.
+        return context.hasDeletableSelection ||
+          context.interactionMode === "idle"
           ? enabled()
           : disabled("Select an object before deleting it");
       case "selection.copy":
@@ -203,10 +211,9 @@ export function createEditorCommandRouter(
         ) {
           return disabled("Finish or cancel the active tool before moving");
         }
-        return context.hasMoveSelection ||
-          context.interactionMode === "moving-selection"
-          ? enabled(context.interactionMode === "moving-selection")
-          : disabled("Select objects before moving them");
+        // With nothing selected while idle, M arms the verb: the next click
+        // picks up the pointed-at part.
+        return enabled(context.interactionMode === "moving-selection");
       case "selection.align":
         if (context.interactionMode !== "idle") {
           return disabled("Finish or cancel the active tool before aligning");
@@ -280,6 +287,8 @@ export function createEditorCommandRouter(
           options.operations.cancelCanvasDrag();
         } else if (context.interactionMode !== "idle") {
           options.operations.cancelInteraction(context.interactionMode);
+        } else if (context.hasArmedVerb) {
+          options.operations.disarmVerb();
         } else if (context.hasClearableDraftingSelection) {
           options.operations.clearDraftingSelection();
         } else if (context.hasActiveNetHighlight) {

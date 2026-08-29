@@ -257,6 +257,7 @@ import {
   useSelectionInteraction,
 } from "../features/selection/use-selection-interaction";
 import {
+  EMPTY_VISUAL_SELECTION,
   hasVisualSelection,
   pruneVisualSelection,
 } from "../features/selection/visual-selection";
@@ -917,11 +918,16 @@ export function App({
     null,
   );
   /**
-   * R pressed with nothing selected: the next part pointed at is turned.
-   * The key means rotate whether or not something is selected yet, rather
-   * than meaning rotate sometimes and draw a rectangle the rest of the time.
+   * A verb key pressed with nothing selected arms that verb: the next
+   * object pointed at is the one acted on (Cadence-style verb-first).
+   * Rotate and Delete stay armed for repeated clicks; Copy and Move hand
+   * over to their own placement/move interactions on the first target.
    */
-  const [rotateArmed, setRotateArmed] = useState(false);
+  const [armedVerb, setArmedVerb] = useState<
+    "rotate" | "copy" | "move" | "delete" | null
+  >(null);
+  /** The click paired with an armed-verb pickup must not commit a placement. */
+  const suppressCommitClickRef = useRef(false);
   const [selectedEndpoint, setSelectedEndpoint] = useState<WireSource | null>(
     null,
   );
@@ -1767,32 +1773,83 @@ export function App({
     setStatus,
   });
 
-  /** Arm R so the next part pointed at is the one that turns. */
-  function armRotateOnNextPart(): void {
-    setRotateArmed(true);
-    setStatus("Rotate: click a part to turn it, Escape to stop");
+  /** Arm a verb so the next object pointed at is the one acted on. */
+  function armVerb(verb: "rotate" | "copy" | "move" | "delete"): void {
+    setArmedVerb(verb);
+    setStatus(
+      verb === "rotate"
+        ? "Rotate: click a part to turn it, Escape to stop"
+        : verb === "copy"
+          ? "Copy: click a part to pick up a copy · Esc cancels"
+          : verb === "move"
+            ? "Move: click a part to pick it up · Esc cancels"
+            : "Delete: click objects to delete them · Esc exits",
+    );
   }
 
-  /** Turn one part where it stands. Returns false when nothing was armed. */
-  function rotateArmedInstance(instanceId: string): boolean {
-    if (!rotateArmed) return false;
+  function disarmVerb(): void {
+    setArmedVerb(null);
+    setStatus("Cancelled");
+  }
+
+  /**
+   * Apply the armed verb to one part. Returns false when nothing was armed.
+   * Rotate and Delete remain armed for the next click; Copy and Move disarm
+   * because their own interactions (copy placement, command move) take over
+   * and own Esc from here.
+   */
+  function consumeArmedVerbOnInstance(instanceId: string): boolean {
+    if (armedVerb === null) return false;
     const instance = document.instances.find(
       (candidate) => candidate.id === instanceId,
     );
     if (!instance?.placement) return false;
-    const next = (instance.placement.rotation + 90) % 360;
-    const applied = transact([
-      {
-        kind: "rotate_instance",
-        instanceId,
-        rotation: next as 0 | 90 | 180 | 270,
-      },
-    ]);
-    if (applied.ok) {
-      setStatus(
-        `Rotated ${instanceId} to ${next}° — click another, Escape to stop`,
-      );
+    if (armedVerb === "rotate") {
+      const next = (instance.placement.rotation + 90) % 360;
+      const applied = transact([
+        {
+          kind: "rotate_instance",
+          instanceId,
+          rotation: next as 0 | 90 | 180 | 270,
+        },
+      ]);
+      if (applied.ok) {
+        setStatus(
+          `Rotated ${instanceId} to ${next}° — click another, Escape to stop`,
+        );
+      }
+      return true;
     }
+    if (armedVerb === "copy") {
+      setArmedVerb(null);
+      selectOnly("instance", [instanceId]);
+      suppressCommitClickRef.current = true;
+      beginCopyPlacementFromSelection([instanceId]);
+      return true;
+    }
+    if (armedVerb === "move") {
+      setArmedVerb(null);
+      selectOnly("instance", [instanceId]);
+      suppressCommitClickRef.current = true;
+      beginKeyboardSelectionMoveFromSelection({
+        ...EMPTY_VISUAL_SELECTION,
+        instanceIds: [instanceId],
+      });
+      return true;
+    }
+    deleteSelectionFromSelection({ instanceIds: [instanceId] });
+    setStatus(`Deleted ${instanceId} — click another, Esc exits`);
+    return true;
+  }
+
+  /** Armed Delete applied to a non-instance object; stays armed. */
+  function consumeArmedDeleteOnObject(
+    kind: "routeIds" | "junctionIds" | "annotationIds" | "draftingIds",
+    id: string,
+  ): boolean {
+    if (armedVerb !== "delete") return false;
+    deleteSelectionFromSelection({ [kind]: [id] });
+    setStatus(`Deleted ${id} — click another, Esc exits`);
     return true;
   }
   const {
@@ -2231,6 +2288,20 @@ export function App({
       selectEndpoint,
       endpointStatusLabel: (endpoint) => endpointTestId(endpoint.endpoint),
       setStatus,
+      consumeArmedVerb: (kind, id) => {
+        if (kind === "instance") return consumeArmedVerbOnInstance(id);
+        if (kind === "route") return consumeArmedDeleteOnObject("routeIds", id);
+        if (kind === "junction") {
+          return consumeArmedDeleteOnObject("junctionIds", id);
+        }
+        if (kind === "annotation") {
+          return consumeArmedDeleteOnObject("annotationIds", id);
+        }
+        if (kind === "drafting") {
+          return consumeArmedDeleteOnObject("draftingIds", id);
+        }
+        return false;
+      },
     },
   });
   const {
@@ -2557,7 +2628,7 @@ export function App({
     cancelInteraction();
     setBulkDrawInstanceId(null);
     setBoxPreview(null);
-    setRotateArmed(false);
+    setArmedVerb(null);
   }
 
   function selectEndpoint(candidate: WireSource): void {
@@ -2852,6 +2923,7 @@ export function App({
         selectedDrafting?.kind === "rectangle" ||
         selectedDrafting?.kind === "circle",
       hasActiveNetHighlight: highlightedNetOrigin !== null,
+      hasArmedVerb: armedVerb !== null,
     }),
     operations: {
       closeHelp,
@@ -2894,15 +2966,36 @@ export function App({
       },
       selectAll: selectAllObjects,
       clearSelection: clearEditorSelection,
-      deleteSelection: deleteSelectionFromSelection,
-      beginCopy: beginCopyPlacementFromSelection,
-      beginMove: beginKeyboardSelectionMoveFromSelection,
+      // Verb keys with nothing to act on arm the verb instead (Cadence
+      // style: command first, then click the target).
+      deleteSelection: () => {
+        if (hasVisualSelection(visualSelection) || selectedEndpoint !== null) {
+          deleteSelectionFromSelection();
+          return;
+        }
+        armVerb("delete");
+      },
+      beginCopy: () => {
+        if (hasVisualSelection(visualSelection)) {
+          beginCopyPlacementFromSelection();
+          return;
+        }
+        armVerb("copy");
+      },
+      beginMove: () => {
+        if (canBeginKeyboardSelectionMove()) {
+          beginKeyboardSelectionMoveFromSelection();
+          return;
+        }
+        armVerb("move");
+      },
       alignSelection,
       rotatePlacement: rotatePendingComponentFromHook,
       rotateCopy: rotatePendingCopy,
       rotateMove: rotateCommandMoveFromSelection,
       rotateSelection: rotateSelected,
-      armRotate: () => armRotateOnNextPart(),
+      armRotate: () => armVerb("rotate"),
+      disarmVerb,
       mirrorPlacement: mirrorPendingComponentFromHook,
       mirrorCopy: mirrorPendingCopy,
       mirrorMove: mirrorCommandMoveFromSelection,
@@ -3401,6 +3494,11 @@ export function App({
       },
     },
     report: setStatus,
+    consumePickupClick: () => {
+      if (!suppressCommitClickRef.current) return false;
+      suppressCommitClickRef.current = false;
+      return true;
+    },
   });
 
   return (
@@ -4606,11 +4704,16 @@ export function App({
                   event.preventDefault();
                   return;
                 }
-                // While R is armed the click turns the part rather than
-                // picking it up, so the gesture reads as "rotate that one".
-                if (rotateArmedInstance(instance.id)) {
+                // While a verb is armed the click acts on the pointed-at
+                // part (rotate it, copy it, pick it up, delete it) rather
+                // than picking it up for a plain drag.
+                if (
+                  event.button === 0 &&
+                  consumeArmedVerbOnInstance(instance.id)
+                ) {
                   event.stopPropagation();
                   event.preventDefault();
+                  suppressInstanceClick.current = true;
                   return;
                 }
                 beginMoveFromSelection(event, instance.id);
@@ -4633,6 +4736,14 @@ export function App({
                   if (route) toggleSimulationSavedNet(route.netId);
                   return;
                 }
+                if (
+                  event.button === 0 &&
+                  consumeArmedDeleteOnObject("routeIds", routeId)
+                ) {
+                  event.stopPropagation();
+                  event.preventDefault();
+                  return;
+                }
                 handleRoutePointerDown(event, routeId);
               },
               onAnnotationPointerDown: (event, annotation) => {
@@ -4640,6 +4751,14 @@ export function App({
                   event.stopPropagation();
                   event.preventDefault();
                   toggleSimulationSavedNet(annotation.netId);
+                  return;
+                }
+                if (
+                  event.button === 0 &&
+                  consumeArmedDeleteOnObject("annotationIds", annotation.id)
+                ) {
+                  event.stopPropagation();
+                  event.preventDefault();
                   return;
                 }
                 beginAnnotationDrag(event, annotation);
@@ -4683,6 +4802,15 @@ export function App({
                     toggleSimulationSavedNet(candidate.netId);
                   return;
                 }
+                if (
+                  candidate.endpoint.kind === "junction" &&
+                  consumeArmedDeleteOnObject(
+                    "junctionIds",
+                    candidate.endpoint.junctionId,
+                  )
+                ) {
+                  return;
+                }
                 selectEndpoint(candidate);
                 setStatus(`Selected ${endpointTestId(candidate.endpoint)}`);
               },
@@ -4719,6 +4847,14 @@ export function App({
             selectedDraftingId,
             supplementalDraftingIds: supplementalSelection.draftingIds,
             onPointerDown: (event, object, draggable) => {
+              if (
+                event.button === 0 &&
+                consumeArmedDeleteOnObject("draftingIds", object.id)
+              ) {
+                event.stopPropagation();
+                event.preventDefault();
+                return;
+              }
               const groupIds = draftingSelectionIds(object.id);
               if (draggable && groupIds.length > 1) {
                 if (event.shiftKey || event.ctrlKey || event.metaKey) {

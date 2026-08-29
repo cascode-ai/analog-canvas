@@ -110,6 +110,11 @@ interface CanvasEventHandlerDependencies {
     cancel: () => void;
   };
   report: (status: string) => void;
+  /**
+   * Read-and-clear flag for the click that belongs to an armed-verb pickup;
+   * true means this click already did its work on pointerdown.
+   */
+  consumePickupClick?: () => boolean;
 }
 
 /** DOM event boundary for the editor canvas; domain mutations stay injected. */
@@ -168,10 +173,22 @@ export function createEditorCanvasEventHandlers({
     cancel: cancelWire,
   },
   report: setStatus,
+  consumePickupClick,
 }: CanvasEventHandlerDependencies) {
   return {
     onClickCapture(event: CanvasMouseEvent) {
       const kind = interactionKind();
+      // The pointerdown that just picked something up (an armed Copy/Move
+      // verb consuming its target) must not also place it: its click would
+      // otherwise commit at the pickup point with zero displacement.
+      if (
+        (kind === "moving-selection" || kind === "copy-placement") &&
+        consumePickupClick?.()
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
       if (kind === "moving-selection") {
         if (event.detail === 1) {
           event.preventDefault();
