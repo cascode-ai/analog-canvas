@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import {
   EDGE_ALIGNMENT_MODES,
   type EdgeAlignmentMode,
-} from "./align-instances";
+} from "./align-selection";
 
 export interface ContextMenuAction {
   label: string;
@@ -23,7 +23,7 @@ export interface CanvasContextMenuProps {
   variants: readonly ContextMenuVariant[];
   renderVariantArtwork: (symbolId: string) => ReactNode;
   onSwapVariant: (symbolId: string) => void;
-  /** Enabled when two or more instances are selected. */
+  /** Enabled when two or more alignable visual objects are selected. */
   alignmentEnabled: boolean;
   onAlign: (mode: EdgeAlignmentMode) => void;
   actions: readonly ContextMenuAction[];
@@ -31,9 +31,9 @@ export interface CanvasContextMenuProps {
 }
 
 /**
- * Right-click menu for devices: variant swap tiles, bbox-edge alignment,
- * and the everyday transform commands. Rendered as a fixed overlay at the
- * pointer, dismissed by backdrop click or Escape.
+ * Shared right-click menu for visual selection. Device-only variant tiles are
+ * supplied only for a single selected instance; alignment and everyday
+ * commands apply to the full mixed visual selection.
  */
 export function CanvasContextMenu({
   position,

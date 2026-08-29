@@ -262,7 +262,11 @@ import {
 } from "../features/selection/visual-selection";
 import { createSelectionMoveController } from "../features/selection/selection-move-controller";
 import { createSelectionTransformController } from "../features/selection/selection-transform-controller";
-import type { VisualSelection } from "../features/selection/visual-selection";
+import { EDGE_ALIGNMENT_MODES } from "../features/selection/align-selection";
+import type {
+  VisualSelection,
+  VisualSelectionKind,
+} from "../features/selection/visual-selection";
 import {
   planSelectionMove,
   type SchematicMoveIntent,
@@ -486,6 +490,8 @@ export function App({
     replace: replaceSelection,
     replaceKind: replaceSelectionKind,
     selectOnly,
+    selectObjects: selectVisualObjects,
+    selectObject: selectVisualObject,
     selectInstance: updateInstanceSelection,
     clearKinds: clearSelectionKinds,
     reset: resetSelection,
@@ -1372,8 +1378,45 @@ export function App({
     },
     commitCellPinAnnotation: editCellTerminalAnnotation,
   });
+  function selectedVisualIds(kind: VisualSelectionKind): readonly string[] {
+    switch (kind) {
+      case "instance":
+        return visualSelection.instanceIds;
+      case "route":
+        return visualSelection.routeIds;
+      case "junction":
+        return visualSelection.junctionIds;
+      case "annotation":
+        return visualSelection.annotationIds;
+      case "drafting":
+        return visualSelection.draftingIds;
+    }
+  }
+
+  function openVisualContextMenu(
+    kind: VisualSelectionKind,
+    objectIds: string | readonly string[],
+    clientX: number,
+    clientY: number,
+  ): void {
+    const ids = typeof objectIds === "string" ? [objectIds] : objectIds;
+    if (!ids.every((id) => selectedVisualIds(kind).includes(id))) {
+      selectVisualObjects(kind, ids, false);
+    }
+    setCanvasContextMenu({ x: clientX, y: clientY });
+  }
+
+  const selectedVisualObjectCount = Object.values(visualSelection).reduce(
+    (count, ids) => count + ids.length,
+    0,
+  );
   const deviceVariantCandidates = useMemo(() => {
-    if (!canvasContextMenu || selectedIds.length !== 1 || !selectedInstance) {
+    if (
+      !canvasContextMenu ||
+      selectedVisualObjectCount !== 1 ||
+      selectedIds.length !== 1 ||
+      !selectedInstance
+    ) {
       return [];
     }
     const resolved = resolver.resolve(
@@ -1395,6 +1438,7 @@ export function App({
       .map((symbol) => ({ symbolId: symbol.id, name: symbol.name }));
   }, [
     canvasContextMenu,
+    selectedVisualObjectCount,
     selectedIds,
     selectedInstance,
     resolver,
@@ -1693,11 +1737,14 @@ export function App({
   const {
     rotate: rotateSelected,
     mirror: mirrorSelected,
-    align: alignSelectedInstances,
-    alignEdge: alignEdgeSelected,
+    align: alignSelection,
+    alignmentParticipantCount,
   } = createSelectionTransformController({
     document,
     resolver,
+    styleProfile,
+    routeGeometryRecords,
+    annotationGrid,
     selectedInstanceIds: selectedIds,
     selection: visualSelection,
     transact,
@@ -2061,7 +2108,8 @@ export function App({
       }
       return true;
     },
-    selectAnnotation: (id) => selectOnly("annotation", [id]),
+    selectAnnotation: (id, additive) =>
+      selectVisualObject("annotation", id, additive),
     clearSelectedEndpoint: () => setSelectedEndpoint(null),
     transact,
     setStatus,
@@ -2745,6 +2793,7 @@ export function App({
       hasDeletableSelection:
         hasVisualSelection(visualSelection) || selectedEndpoint !== null,
       hasMoveSelection: canBeginKeyboardSelectionMove(),
+      hasAlignableSelection: alignmentParticipantCount >= 2,
       hasRotatableSelection,
       hasMirrorableSelection,
       canTransformMove: canTransformCommandMove(),
@@ -2805,6 +2854,7 @@ export function App({
       deleteSelection: deleteSelectionFromSelection,
       beginCopy: beginCopyPlacementFromSelection,
       beginMove: beginKeyboardSelectionMoveFromSelection,
+      alignSelection,
       rotatePlacement: rotatePendingComponentFromHook,
       rotateCopy: rotatePendingCopy,
       rotateMove: rotateCommandMoveFromSelection,
@@ -2864,8 +2914,8 @@ export function App({
     return group.objectIds.filter((objectId) => draftingIds.has(objectId));
   }
 
-  function selectDraftingObject(id: string): void {
-    selectOnly("drafting", draftingSelectionIds(id));
+  function selectDraftingObject(id: string, additive = false): void {
+    selectVisualObjects("drafting", draftingSelectionIds(id), additive);
     setDraftingInspectorSegment(null);
     setDraftingTangentInput(null);
     setDraftingBearingInput(null);
@@ -3430,7 +3480,23 @@ export function App({
               direction: "top-bottom",
             }),
         }}
-        onAlign={selectedIds.length > 1 ? alignSelectedInstances : null}
+        alignmentActions={
+          alignmentParticipantCount >= 2
+            ? EDGE_ALIGNMENT_MODES.map(({ mode, label }) => {
+                const state = editorCommands.state({
+                  id: "selection.align",
+                  mode,
+                });
+                return {
+                  mode,
+                  label,
+                  enabled: state.enabled,
+                  execute: () =>
+                    editorCommands.execute({ id: "selection.align", mode }),
+                };
+              })
+            : []
+        }
         instanceTableOpen={instanceTableOpen}
         netlistPreflightOpen={netlistPreflightOpen}
         onOpenInstanceTable={() => setInstanceTableOpen(true)}
@@ -4478,10 +4544,12 @@ export function App({
                 beginMoveFromSelection(event, instance.id);
               },
               onInstanceContextMenu: (instance, clientX, clientY) => {
-                if (!selectedIds.includes(instance.id)) {
-                  selectInstanceFromSelection(instance.id, false);
-                }
-                setCanvasContextMenu({ x: clientX, y: clientY });
+                openVisualContextMenu(
+                  "instance",
+                  instance.id,
+                  clientX,
+                  clientY,
+                );
               },
               onRoutePointerDown: (event, routeId) => {
                 if (simulationPickNetsActive) {
@@ -4504,6 +4572,13 @@ export function App({
                 }
                 beginAnnotationDrag(event, annotation);
               },
+              onAnnotationContextMenu: (annotation, clientX, clientY) =>
+                openVisualContextMenu(
+                  "annotation",
+                  annotation.id,
+                  clientX,
+                  clientY,
+                ),
               onAnnotationEdit: beginAnnotationTextEditing,
               onNetPointerEnter: (netId) => {
                 if (simulationPickNetsActive) setSimulationHoverNetId(netId);
@@ -4566,7 +4641,11 @@ export function App({
             onPointerDown: (event, object, draggable) => {
               const groupIds = draftingSelectionIds(object.id);
               if (draggable && groupIds.length > 1) {
-                selectOnly("drafting", groupIds);
+                if (event.shiftKey || event.ctrlKey || event.metaKey) {
+                  selectDraftingObject(object.id, true);
+                  return;
+                }
+                selectVisualObjects("drafting", groupIds, false);
                 beginVisualSelectionMoveFromSelection(
                   event,
                   {
@@ -4581,7 +4660,10 @@ export function App({
               } else if (draggable) beginDraftingDrag(event, object);
               else {
                 event.stopPropagation();
-                selectDraftingObject(object.id);
+                selectDraftingObject(
+                  object.id,
+                  event.shiftKey || event.ctrlKey || event.metaKey,
+                );
               }
             },
             onConstructionLineEdit: (event, object) => {
@@ -4607,6 +4689,13 @@ export function App({
               );
             },
             onTextEdit: beginDraftingTextEditing,
+            onTextContextMenu: (object, clientX, clientY) =>
+              openVisualContextMenu(
+                "drafting",
+                draftingSelectionIds(object.id),
+                clientX,
+                clientY,
+              ),
           }}
           draftingHandles={{
             document,
@@ -4657,8 +4746,10 @@ export function App({
               ) : null;
             }}
             onSwapVariant={swapSelectedInstanceSymbol}
-            alignmentEnabled={selectedIds.length > 1}
-            onAlign={alignEdgeSelected}
+            alignmentEnabled={alignmentParticipantCount >= 2}
+            onAlign={(mode) =>
+              editorCommands.execute({ id: "selection.align", mode })
+            }
             actions={[
               {
                 label: "Rotate (R)",

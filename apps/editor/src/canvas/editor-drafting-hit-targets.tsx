@@ -34,6 +34,7 @@ export function EditorDraftingHitTargets({
   onConstructionLineEdit,
   onArrowEdit,
   onTextEdit,
+  onTextContextMenu,
 }: {
   document: SchematicDocument;
   resolver: SymbolResolver;
@@ -54,6 +55,11 @@ export function EditorDraftingHitTargets({
     object: Extract<DraftingObject, { kind: "arrow" }>,
   ) => void;
   onTextEdit: (object: Extract<DraftingObject, { kind: "text" }>) => void;
+  onTextContextMenu: (
+    object: Extract<DraftingObject, { kind: "text" }>,
+    clientX: number,
+    clientY: number,
+  ) => void;
 }) {
   return (document.drafting?.objects ?? []).map((object) => {
     const geometry = resolveDraftingObjectGeometry(document, resolver, object);
@@ -74,6 +80,15 @@ export function EditorDraftingHitTargets({
       "data-drag-object-id": object.id,
       onPointerDown: (event: ReactPointerEvent<SVGElement>) =>
         onPointerDown(event, object, draggable),
+      ...(object.kind === "text"
+        ? {
+            onContextMenu: (event: ReactMouseEvent<SVGElement>) => {
+              event.preventDefault();
+              event.stopPropagation();
+              onTextContextMenu(object, event.clientX, event.clientY);
+            },
+          }
+        : {}),
       pointerEvents: tool === "wire" ? ("none" as const) : undefined,
     };
     if (

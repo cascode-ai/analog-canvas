@@ -65,6 +65,11 @@ interface SelectionHitTargetProps {
     event: ReactPointerEvent<SVGRectElement>,
     annotation: Annotation,
   ) => void;
+  onAnnotationContextMenu: (
+    annotation: Annotation,
+    clientX: number,
+    clientY: number,
+  ) => void;
   onAnnotationEdit: (annotation: Annotation) => void;
   onNetPointerEnter?: (netId: string) => void;
   onNetPointerLeave?: () => void;
@@ -129,6 +134,7 @@ function SelectionHitTargets({
   onInstanceContextMenu,
   onRoutePointerDown,
   onAnnotationPointerDown,
+  onAnnotationContextMenu,
   onAnnotationEdit,
   onNetPointerEnter,
   onNetPointerLeave,
@@ -244,6 +250,15 @@ function SelectionHitTargets({
                 annotation.netId && onNetPointerEnter?.(annotation.netId)
               }
               onPointerLeave={() => onNetPointerLeave?.()}
+              onContextMenu={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onAnnotationContextMenu(
+                  annotation,
+                  event.clientX,
+                  event.clientY,
+                );
+              }}
               pointerEvents={tool === "wire" ? "none" : undefined}
               onDoubleClick={(event) => {
                 event.stopPropagation();

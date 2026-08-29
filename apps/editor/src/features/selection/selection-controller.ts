@@ -20,7 +20,12 @@ export type SelectionAction =
       kind: VisualSelectionKind;
       ids: readonly string[];
     }
-  | { type: "select-instance"; id: string; additive: boolean }
+  | {
+      type: "select-objects";
+      kind: VisualSelectionKind;
+      ids: readonly string[];
+      additive: boolean;
+    }
   | { type: "clear-kinds"; kinds: readonly VisualSelectionKind[] }
   | { type: "reset" };
 
@@ -39,17 +44,35 @@ export function selectionReducer(
         action.kind,
         action.ids,
       );
-    case "select-instance": {
+    case "select-objects": {
       if (!action.additive) {
-        return {
-          ...EMPTY_VISUAL_SELECTION,
-          instanceIds: [action.id],
-        };
+        return replaceVisualSelectionKind(
+          EMPTY_VISUAL_SELECTION,
+          action.kind,
+          action.ids,
+        );
       }
-      const instanceIds = selection.instanceIds.includes(action.id)
-        ? selection.instanceIds.filter((id) => id !== action.id)
-        : [...selection.instanceIds, action.id];
-      return normalizeVisualSelection({ ...selection, instanceIds });
+      const selectedIds = (() => {
+        switch (action.kind) {
+          case "instance":
+            return selection.instanceIds;
+          case "route":
+            return selection.routeIds;
+          case "junction":
+            return selection.junctionIds;
+          case "annotation":
+            return selection.annotationIds;
+          case "drafting":
+            return selection.draftingIds;
+        }
+      })();
+      return replaceVisualSelectionKind(
+        selection,
+        action.kind,
+        action.ids.every((id) => selectedIds.includes(id))
+          ? selectedIds.filter((id) => !action.ids.includes(id))
+          : [...selectedIds, ...action.ids],
+      );
     }
     case "clear-kinds":
       return clearVisualSelectionKinds(selection, action.kinds);
@@ -72,8 +95,20 @@ export function useSelectionController() {
       dispatch({ type: "replace-kind", kind, ids }),
     selectOnly: (kind: VisualSelectionKind, ids: readonly string[]) =>
       dispatch({ type: "select-only", kind, ids }),
+    selectObjects: (
+      kind: VisualSelectionKind,
+      ids: readonly string[],
+      additive = false,
+    ) => dispatch({ type: "select-objects", kind, ids, additive }),
+    selectObject: (kind: VisualSelectionKind, id: string, additive = false) =>
+      dispatch({ type: "select-objects", kind, ids: [id], additive }),
     selectInstance: (id: string, additive = false) =>
-      dispatch({ type: "select-instance", id, additive }),
+      dispatch({
+        type: "select-objects",
+        kind: "instance",
+        ids: [id],
+        additive,
+      }),
     clearKinds: (kinds: readonly VisualSelectionKind[]) =>
       dispatch({ type: "clear-kinds", kinds }),
     reset: () => dispatch({ type: "reset" }),

@@ -24,8 +24,9 @@ describe("selectionReducer", () => {
 
   it("toggles additive instance selection while preserving mixed marquee kinds", () => {
     const added = selectionReducer(mixedSelection, {
-      type: "select-instance",
-      id: "M2",
+      type: "select-objects",
+      kind: "instance",
+      ids: ["M2"],
       additive: true,
     });
     expect(added).toEqual({
@@ -34,11 +35,51 @@ describe("selectionReducer", () => {
     });
     expect(
       selectionReducer(added, {
-        type: "select-instance",
-        id: "M1",
+        type: "select-objects",
+        kind: "instance",
+        ids: ["M1"],
         additive: true,
       }).instanceIds,
     ).toEqual(["M2"]);
+  });
+
+  it("toggles annotations and drafting objects without clearing mixed selection", () => {
+    const withoutAnnotation = selectionReducer(mixedSelection, {
+      type: "select-objects",
+      kind: "annotation",
+      ids: ["annotation-1"],
+      additive: true,
+    });
+    expect(withoutAnnotation.annotationIds).toEqual([]);
+    expect(withoutAnnotation.instanceIds).toEqual(["M1"]);
+
+    const withDrafting = selectionReducer(withoutAnnotation, {
+      type: "select-objects",
+      kind: "drafting",
+      ids: ["drawing-2"],
+      additive: true,
+    });
+    expect(withDrafting.draftingIds).toEqual(["drawing-1", "drawing-2"]);
+    expect(withDrafting.routeIds).toEqual(["route-1"]);
+  });
+
+  it("toggles a grouped drafting selection as one additive unit", () => {
+    const added = selectionReducer(mixedSelection, {
+      type: "select-objects",
+      kind: "drafting",
+      ids: ["drawing-2", "drawing-3"],
+      additive: true,
+    });
+    expect(added.draftingIds).toEqual(["drawing-1", "drawing-2", "drawing-3"]);
+    expect(added.instanceIds).toEqual(["M1"]);
+    expect(
+      selectionReducer(added, {
+        type: "select-objects",
+        kind: "drafting",
+        ids: ["drawing-2", "drawing-3"],
+        additive: true,
+      }).draftingIds,
+    ).toEqual(["drawing-1"]);
   });
 
   it("preserves and normalizes intentional mixed selection", () => {
