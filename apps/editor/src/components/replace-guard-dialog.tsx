@@ -12,7 +12,7 @@ export interface ReplaceGuardDialogProps {
 /**
  * Outgoing dirty-work protection. Recovery is a safety copy, not permission to
  * discard the foreground Project, so every dirty replacement pauses here.
- * Defaults to Cancel; Escape cancels. Cloud Save must succeed before the
+ * Defaults to Stay; Escape stays. Cloud Save must succeed before the
  * replacement is allowed to continue.
  */
 export function ReplaceGuardDialog({
@@ -35,7 +35,7 @@ export function ReplaceGuardDialog({
       }}
     >
       <section
-        className="help-dialog"
+        className="replace-guard-dialog"
         role="dialog"
         aria-modal="true"
         aria-labelledby="replace-guard-title"
@@ -46,42 +46,67 @@ export function ReplaceGuardDialog({
           }
         }}
       >
-        <header className="help-dialog-header">
-          <div>
+        <div className="replace-guard-lede">
+          <span className="replace-guard-glyph" aria-hidden="true">
+            <svg viewBox="0 0 20 20" width="20" height="20">
+              <path
+                d="M10 3.2 18 17H2Z"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinejoin="round"
+              />
+              <line
+                x1="10"
+                y1="8.4"
+                x2="10"
+                y2="12.2"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+              />
+              <circle cx="10" cy="14.6" r="0.9" fill="currentColor" />
+            </svg>
+          </span>
+          <div className="replace-guard-copy">
             <h2 id="replace-guard-title">Unsaved changes</h2>
+            <p>
+              Continuing to <strong>{intent}</strong> will drop your latest
+              edits.
+            </p>
+            <p className="replace-guard-hint">
+              Save keeps this Project in Cloud Projects (up to 3). Prefer a
+              file? <strong>File → Export Project File…</strong> downloads
+              <code>.icproj.json</code>.
+            </p>
           </div>
-        </header>
-        <div className="help-dialog-content">
-          <p>
-            If you continue to <strong>{intent}</strong>, your latest changes
-            will not be saved.
-          </p>
-          <p>
-            <strong>Save</strong> stores this Project in Cloud Projects (up to
-            3). <strong>File / Export Project File…</strong> downloads a local
-            <code>.icproj.json</code> file.
-          </p>
-          <div className="replace-guard-actions">
-            <button
-              type="button"
-              ref={cancelRef}
-              onClick={onCancel}
-              disabled={saving}
-            >
-              Stay
-            </button>
-            <button type="button" onClick={onSaveAndContinue} disabled={saving}>
-              {saving ? "Saving to Cloud…" : "Save to Cloud and continue"}
-            </button>
-            <button
-              type="button"
-              className="danger"
-              onClick={onDiscard}
-              disabled={saving}
-            >
-              Continue without saving
-            </button>
-          </div>
+        </div>
+        <div className="replace-guard-actions">
+          <button
+            type="button"
+            className="replace-guard-discard"
+            onClick={onDiscard}
+            disabled={saving}
+          >
+            Continue without saving
+          </button>
+          <button
+            type="button"
+            className="replace-guard-stay"
+            ref={cancelRef}
+            onClick={onCancel}
+            disabled={saving}
+          >
+            Stay
+          </button>
+          <button
+            type="button"
+            className="replace-guard-save"
+            onClick={onSaveAndContinue}
+            disabled={saving}
+          >
+            {saving ? "Saving to Cloud…" : "Save to Cloud and continue"}
+          </button>
         </div>
       </section>
     </div>

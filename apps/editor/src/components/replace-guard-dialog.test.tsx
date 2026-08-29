@@ -15,7 +15,7 @@ describe("ReplaceGuardDialog", () => {
       />,
     );
     expect(html).toContain("Unsaved changes");
-    expect(html).toContain("your latest changes will not be saved");
+    expect(html).toContain("will drop your latest");
     expect(html).toContain("Cloud Projects (up to 3)");
     expect(html).toContain("Export Project File");
     expect(html).toContain(".icproj.json");

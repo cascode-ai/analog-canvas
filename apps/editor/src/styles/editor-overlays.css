@@ -66,10 +66,130 @@
   scroll-margin-top: 5.5rem;
 }
 
+/* The unsaved-changes guard: a compact decision card, not a document.
+   Hierarchy does the work — amber glyph names the stakes, the accent
+   button is the recommended way out, and the destructive path sits
+   apart on the left in quiet red. */
+.replace-guard-dialog {
+  width: min(37rem, 100%);
+  padding: 1.15rem 1.25rem 1rem;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-lg);
+  background: var(--icm-surface);
+  box-shadow: var(--icm-shadow-lg);
+}
+
+.replace-guard-lede {
+  display: flex;
+  gap: 0.85rem;
+  align-items: flex-start;
+}
+
+.replace-guard-glyph {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 2.35rem;
+  height: 2.35rem;
+  margin-top: 0.1rem;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.replace-guard-copy {
+  display: grid;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.replace-guard-copy h2 {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.3;
+}
+
+.replace-guard-copy p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--icm-text);
+}
+
+.replace-guard-hint {
+  color: var(--icm-text-muted, #787066);
+  font-size: 12px;
+}
+
+.replace-guard-hint code {
+  font-size: 11px;
+  padding: 0 0.25em;
+}
+
 .replace-guard-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.6rem;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1.1rem;
+}
+
+.replace-guard-actions button {
+  height: var(--icm-control-h);
+  padding: 0 0.85rem;
+  border-radius: var(--icm-radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.replace-guard-actions button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.replace-guard-discard {
+  margin-right: auto;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #b3261e;
+}
+
+.replace-guard-discard:hover:not(:disabled) {
+  background: rgb(179 38 30 / 8%);
+}
+
+.replace-guard-stay {
+  border: 1px solid var(--icm-border);
+  background: var(--icm-surface);
+  color: var(--icm-text);
+}
+
+.replace-guard-stay:hover:not(:disabled) {
+  background: var(--icm-surface-hover);
+}
+
+.replace-guard-save {
+  border: 1px solid var(--icm-accent);
+  background: var(--icm-accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.replace-guard-save:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+@media (max-width: 560px) {
+  .replace-guard-discard {
+    margin-right: 0;
+    order: 3;
+  }
+
+  .replace-guard-actions {
+    justify-content: flex-end;
+  }
 }
 
 .replace-guard-warning {
