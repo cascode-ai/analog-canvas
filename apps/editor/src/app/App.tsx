@@ -1040,9 +1040,15 @@ export function App({
   const [formulaArtifactRevision, setFormulaArtifactRevision] = useState(0);
   useEffect(() => {
     let cancelled = false;
+    let releaseFormulaArtifacts: () => void = () => undefined;
     void prepareDocumentFormulaArtifacts(renderedDocument)
-      .then((preparedNewArtifact) => {
-        if (!cancelled && preparedNewArtifact) {
+      .then((prepared) => {
+        if (cancelled) {
+          prepared.release();
+          return;
+        }
+        releaseFormulaArtifacts = prepared.release;
+        if (prepared.preparedNewArtifact) {
           setFormulaArtifactRevision((revision) => revision + 1);
         }
       })
@@ -1057,6 +1063,7 @@ export function App({
       });
     return () => {
       cancelled = true;
+      releaseFormulaArtifacts();
     };
   }, [renderedDocument]);
   const sceneState = useMemo(() => {

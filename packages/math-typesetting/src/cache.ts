@@ -94,6 +94,33 @@ const artifacts = new BoundedLruCache<string, FormulaTypesetResult>({
   sizeOf: formulaResultBytes,
 });
 const pending = new Map<string, Promise<FormulaTypesetResult>>();
+const retentionOwners = new Map<number, Set<string>>();
+let retentionOwnerCounter = 0;
+
+function synchronizeRetainedFormulaKeys(): void {
+  artifacts.replaceProtectedKeys(
+    [...retentionOwners.values()].flatMap((keys) => [...keys]),
+  );
+}
+
+/** Protects one active render/export working set from background LRU eviction. */
+export function retainFormulaArtifacts(
+  requests: readonly FormulaRequest[],
+): () => void {
+  const owner = ++retentionOwnerCounter;
+  retentionOwners.set(
+    owner,
+    new Set(requests.map((request) => formulaSourceHash(request))),
+  );
+  synchronizeRetainedFormulaKeys();
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    retentionOwners.delete(owner);
+    synchronizeRetainedFormulaKeys();
+  };
+}
 
 export function cachedFormulaResult(
   request: FormulaRequest,
@@ -122,6 +149,7 @@ export async function prepareFormula(
 }
 
 export function clearFormulaArtifactCacheForTests(): void {
+  retentionOwners.clear();
   artifacts.clear();
   pending.clear();
 }

@@ -149,12 +149,18 @@ export class BrowserAgentFileHost {
           "DOCUMENT_NOT_FOUND",
           "Document is not present in this Project",
         );
-      await prepareDocumentFormulaArtifacts(document);
-      const source = createFormalExportSource(
-        document,
-        this.options.getResolver(),
-        { title: this.options.getProject().name },
-      );
+      const prepared = await prepareDocumentFormulaArtifacts(document);
+      const source = (() => {
+        try {
+          return createFormalExportSource(
+            document,
+            this.options.getResolver(),
+            { title: this.options.getProject().name },
+          );
+        } finally {
+          prepared.release();
+        }
+      })();
       if (request.artifact === "svg") {
         return this.artifactResponse(
           request,

@@ -3,6 +3,7 @@ import {
   cachedFormulaResult,
   formulaSourceHash,
   prepareFormula,
+  retainFormulaArtifacts,
 } from "@icm/math-typesetting/cache";
 import { soleRichTextMathRun } from "@icm/model";
 import type { RichTextDocument, SchematicDocument } from "@icm/model";
@@ -46,17 +47,23 @@ export function formulaRequestsForDocument(document: SchematicDocument) {
 
 export async function prepareDocumentFormulaArtifacts(
   document: SchematicDocument,
-): Promise<boolean> {
+): Promise<{ preparedNewArtifact: boolean; release: () => void }> {
   const requests = formulaRequestsForDocument(document);
   const preparedNewArtifact = requests.some(
     (request) => cachedFormulaResult(request) === undefined,
   );
-  const results = await Promise.all(requests.map(prepareFormula));
-  const failure = results.find((result) => !result.ok);
-  if (failure && !failure.ok) {
-    throw new Error(
-      `Formula preparation failed: ${failure.diagnostic.message}`,
-    );
+  const release = retainFormulaArtifacts(requests);
+  try {
+    const results = await Promise.all(requests.map(prepareFormula));
+    const failure = results.find((result) => !result.ok);
+    if (failure && !failure.ok) {
+      throw new Error(
+        `Formula preparation failed: ${failure.diagnostic.message}`,
+      );
+    }
+    return { preparedNewArtifact, release };
+  } catch (error) {
+    release();
+    throw error;
   }
-  return preparedNewArtifact;
 }

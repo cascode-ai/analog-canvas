@@ -45,4 +45,20 @@ describe("BoundedLruCache", () => {
     expect(subject.get("same")).toBeUndefined();
     expect(subject.totalBytes).toBe(0);
   });
+
+  it("keeps an active working set until its protection is released", () => {
+    const subject = cache(2, 4);
+    subject.replaceProtectedKeys(["a", "b", "c"]);
+    subject.set("a", "aa");
+    subject.set("b", "bb");
+    subject.set("c", "cc");
+
+    expect(subject.size).toBe(3);
+    expect(subject.totalBytes).toBe(6);
+
+    subject.replaceProtectedKeys([]);
+    expect(subject.size).toBe(2);
+    expect(subject.totalBytes).toBe(4);
+    expect(subject.get("a")).toBeUndefined();
+  });
 });
