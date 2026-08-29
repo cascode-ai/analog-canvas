@@ -240,7 +240,7 @@ export const agentRazaviAuthoringCatalog = {
       name: "Adder",
       category: "signal-flow",
       defaultVariantId: null,
-      labelVisibility: "shown",
+      labelVisibility: "hidden",
       pins: [
         {
           name: "A",
@@ -268,7 +268,7 @@ export const agentRazaviAuthoringCatalog = {
       name: "Multiplier",
       category: "signal-flow",
       defaultVariantId: null,
-      labelVisibility: "shown",
+      labelVisibility: "hidden",
       pins: [
         {
           name: "A",
@@ -296,7 +296,7 @@ export const agentRazaviAuthoringCatalog = {
       name: "Integrator (1/s)",
       category: "signal-flow",
       defaultVariantId: null,
-      labelVisibility: "shown",
+      labelVisibility: "hidden",
       pins: [
         {
           name: "A",
@@ -318,7 +318,7 @@ export const agentRazaviAuthoringCatalog = {
       name: "Unit Delay (z⁻¹)",
       category: "signal-flow",
       defaultVariantId: null,
-      labelVisibility: "shown",
+      labelVisibility: "hidden",
       pins: [
         {
           name: "A",
@@ -340,7 +340,7 @@ export const agentRazaviAuthoringCatalog = {
       name: "Quantizer",
       category: "signal-flow",
       defaultVariantId: null,
-      labelVisibility: "shown",
+      labelVisibility: "hidden",
       pins: [
         {
           name: "A",
