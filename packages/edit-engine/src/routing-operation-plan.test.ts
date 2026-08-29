@@ -68,12 +68,14 @@ describe("RoutingOperationPlan", () => {
     ).toEqual({
       ok: false,
       message: "Routing operation is stale",
+      diagnostics: [],
     });
     expect(
       gateRoutingOperationPlan({ ...document, id: "child" }, plan),
     ).toEqual({
       ok: false,
       message: "Routing operation targets another Cell",
+      diagnostics: [],
     });
   });
 
@@ -94,5 +96,32 @@ describe("RoutingOperationPlan", () => {
       ok: false,
       diagnostics: [{ code: "ELECTRICAL_EFFECT_MISMATCH" }],
     });
+  });
+
+  it("hands the refusal's reason to the caller, not just its headline", () => {
+    // A schema refusal names the field it rejected. The gate is the last
+    // place that knows, so a caller reporting only the headline leaves the
+    // person with "Transaction result failed Document validation" and
+    // nothing to act on or report.
+    const document = createEmptyDocument("main", "Main");
+    document.nets.push({ id: "net-a", terminals: [] });
+    const plan = createRoutingOperationPlan(document, {
+      intent: "transform",
+      edits: [
+        {
+          kind: "add_junction",
+          junctionId: "J-off-grid",
+          netId: "net-a",
+          // The Document grid is 10: an off-grid Junction is refused.
+          position: { x: 3, y: 7 },
+        },
+      ],
+      diagnostics: [],
+    });
+    const gate = gateRoutingOperationPlan(document, plan);
+    expect(gate.ok).toBe(false);
+    if (gate.ok) return;
+    expect(gate.diagnostics.length).toBeGreaterThan(0);
+    expect(gate.diagnostics[0]?.message).toBeTruthy();
   });
 });

@@ -150,7 +150,15 @@ export function createEditorTransactionCommands({
       ...(resolver ? { symbolResolver: resolver } : {}),
     });
     if (!gate.ok) {
-      setStatus(gate.message);
+      // Say which rule refused, the way applyResult does for direct edits:
+      // the headline alone ("Transaction result failed Document validation")
+      // names no field and leaves nothing to report or fix.
+      const detail = gate.diagnostics[0]?.message;
+      setStatus(
+        detail && detail !== gate.message
+          ? `${gate.message} — ${detail}`
+          : gate.message,
+      );
       return null;
     }
     return transact([...gate.edits], options);

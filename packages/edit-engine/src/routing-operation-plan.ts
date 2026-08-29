@@ -377,7 +377,17 @@ export type RoutingOperationGate =
       readonly edits: readonly SchematicEdit[];
       readonly evaluated: EvaluatedRoutingOperation;
     }
-  | { readonly ok: false; readonly message: string };
+  | {
+      readonly ok: false;
+      readonly message: string;
+      /**
+       * Why it failed, in the terms the schema or planner used. The gate is
+       * the last place that knows; dropping it here left a person staring
+       * at "Transaction result failed Document validation" with nothing to
+       * act on and nothing to report.
+       */
+      readonly diagnostics: readonly EditDiagnostic[];
+    };
 
 /** Evaluate once before a UI commit; the returned edits are the evaluated plan. */
 export function gateRoutingOperationPlan(
@@ -392,7 +402,11 @@ export function gateRoutingOperationPlan(
         edits: evaluation.value.plan.edits,
         evaluated: evaluation.value,
       }
-    : { ok: false, message: evaluation.message };
+    : {
+        ok: false,
+        message: evaluation.message,
+        diagnostics: evaluation.diagnostics,
+      };
 }
 
 export function evaluateRoutingOperationPlan(
