@@ -81,6 +81,20 @@
 
 .account-name {
   font-weight: 600;
+  /* The chip is one line always: a long display name ellipsizes instead
+     of wrapping inside the fixed-height control (inline-block, not the
+     shared inline-flex, so text-overflow can apply). */
+  display: inline-block;
+  max-width: 11rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: calc(var(--icm-control-h) - 2px);
+}
+
+.account-signout,
+.account-owner-badge {
+  white-space: nowrap;
 }
 
 .account-rename-input {
@@ -584,6 +598,7 @@
   font-size: 13px;
   font-weight: 600;
   text-decoration: none;
+  white-space: nowrap;
 }
 
 .gallery-open-editor:hover {

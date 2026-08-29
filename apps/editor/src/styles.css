@@ -467,7 +467,14 @@ body {
   }
 }
 
-@media (max-width: 640px) {
+/* Below the credit group's exit the actions still crowd the brand: the
+   subtitle yields (the tab bar right underneath names the page), the bug
+   link goes icon-only, and the account chip tightens. */
+@media (max-width: 900px) {
+  .gallery-chrome .app-brand-copy {
+    display: none;
+  }
+
   .gallery-actions .bug-report-label {
     display: none;
   }
@@ -475,6 +482,26 @@ body {
   .gallery-actions .bug-report-link {
     width: var(--icm-control-h);
     padding: 0;
+  }
+
+  .gallery-actions .account-name {
+    max-width: 8rem;
+  }
+}
+
+/* Narrower still, stop squeezing one row: the chrome wraps into brand and
+   action rows with breathing room. */
+@media (max-width: 620px) {
+  .gallery-chrome {
+    flex-wrap: wrap;
+    height: auto;
+    padding-top: 6px;
+    padding-bottom: 6px;
+    row-gap: 6px;
+  }
+
+  .gallery-actions .account-name {
+    max-width: 6.5rem;
   }
 }
 
