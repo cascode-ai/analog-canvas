@@ -6,6 +6,7 @@ import { EditorTestTelemetry } from "../features/editor-shell/editor-test-teleme
 import { FileCommandMenu } from "../features/editor-shell/file-command-menu";
 import { ToolIcon } from "../features/editor-shell/tool-icon";
 import { HierarchyToolbar } from "../features/hierarchy/hierarchy-toolbar";
+import type { EdgeAlignmentMode } from "../features/selection/align-selection";
 import { dismissOpenCommandMenus } from "./editor-runtime-helpers";
 
 interface CommandAction {
@@ -17,6 +18,11 @@ interface ResetAction {
   label: string;
   enabled: boolean;
   execute: () => void;
+}
+
+interface AlignmentAction extends CommandAction {
+  mode: EdgeAlignmentMode;
+  label: string;
 }
 
 export interface EditorAppChromeProps {
@@ -40,7 +46,7 @@ export interface EditorAppChromeProps {
   rotate: CommandAction;
   mirrorLeftRight: CommandAction;
   mirrorTopBottom: CommandAction;
-  onAlign: (() => void) | null;
+  alignmentActions: readonly AlignmentAction[];
   instanceTableOpen: boolean;
   netlistPreflightOpen: boolean;
   onOpenInstanceTable: () => void;
@@ -78,7 +84,7 @@ export function EditorAppChrome({
   rotate,
   mirrorLeftRight,
   mirrorTopBottom,
-  onAlign,
+  alignmentActions,
   instanceTableOpen,
   netlistPreflightOpen,
   onOpenInstanceTable,
@@ -238,10 +244,20 @@ export function EditorAppChrome({
                 >
                   Mirror top/bottom (Ctrl+R)
                 </button>
-                {onAlign ? (
-                  <button type="button" onClick={onAlign}>
-                    Align
-                  </button>
+                {alignmentActions.length > 0 ? (
+                  <>
+                    <span className="command-group-label">Align</span>
+                    {alignmentActions.map((action) => (
+                      <button
+                        key={action.mode}
+                        type="button"
+                        onClick={action.execute}
+                        disabled={!action.enabled}
+                      >
+                        {action.label}
+                      </button>
+                    ))}
+                  </>
                 ) : null}
               </div>
             </details>

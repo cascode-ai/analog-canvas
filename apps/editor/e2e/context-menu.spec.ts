@@ -1,6 +1,10 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { chooseComponent } from "./editor-fixtures";
+import {
+  chooseComponent,
+  clickCommand,
+  clickDrawTool,
+} from "./editor-fixtures";
 
 async function placeComponent(
   page: Page,
@@ -50,12 +54,32 @@ test("right-click on a multi-selection aligns bbox edges", async ({ page }) => {
   await expect(menu).toContainText("Align");
   await page.getByTestId("context-align-left").click();
   await expect(page.getByTestId("status")).toContainText(
-    "Aligned 2 selected instances",
+    "Aligned 2 selected objects",
   );
   const boxes = await instances.evaluateAll((elements) =>
     elements.map((element) => element.getAttribute("x")),
   );
   expect(boxes[0]).toBe(boxes[1]);
+});
+
+test("Edit alignment accepts one device and one drafting text selection", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "resistor", { x: 300, y: 220 });
+  await clickDrawTool(page, "text");
+  const input = page.getByRole("textbox", { name: "Canvas text editor" });
+  await input.fill("BIAS");
+  await page.getByRole("button", { name: "Apply text changes" }).click();
+
+  // Select All includes the device, its follower label, and DraftText. The
+  // follower must be removed from the independent alignment participant set.
+  await page.keyboard.press("ControlOrMeta+A");
+
+  await clickCommand(page, "Edit", "Align left");
+  await expect(page.getByTestId("status")).toContainText(
+    "Aligned 2 selected objects",
+  );
 });
 
 test("toolbar undo and redo buttons follow history state", async ({ page }) => {

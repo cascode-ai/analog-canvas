@@ -13,6 +13,7 @@ function fixture(overrides: Partial<EditorCommandContext> = {}) {
     activeTool: "pointer",
     hasDeletableSelection: true,
     hasMoveSelection: true,
+    hasAlignableSelection: true,
     hasRotatableSelection: true,
     hasMirrorableSelection: true,
     canTransformMove: true,
@@ -40,6 +41,7 @@ function fixture(overrides: Partial<EditorCommandContext> = {}) {
     deleteSelection: vi.fn(),
     beginCopy: vi.fn(),
     beginMove: vi.fn(),
+    alignSelection: vi.fn(),
     rotatePlacement: vi.fn(),
     rotateCopy: vi.fn(),
     rotateMove: vi.fn(),
@@ -70,6 +72,21 @@ function fixture(overrides: Partial<EditorCommandContext> = {}) {
 }
 
 describe("editor command router", () => {
+  it("routes every alignment surface through one selection command", () => {
+    const { router, operations } = fixture();
+    router.execute({ id: "selection.align", mode: "left" });
+    expect(operations.alignSelection).toHaveBeenCalledWith("left");
+
+    const unavailable = fixture({ hasAlignableSelection: false });
+    expect(
+      unavailable.router.state({ id: "selection.align", mode: "top" }),
+    ).toMatchObject({ enabled: false });
+    expect(
+      unavailable.router.execute({ id: "selection.align", mode: "top" }).status,
+    ).toBe("rejected");
+    expect(unavailable.operations.alignSelection).not.toHaveBeenCalled();
+  });
+
   it("keeps the established Escape priority in one command", () => {
     const help = fixture({
       helpOpen: true,

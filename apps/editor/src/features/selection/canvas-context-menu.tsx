@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import {
   EDGE_ALIGNMENT_MODES,
   type EdgeAlignmentMode,
-} from "./align-instances";
+} from "./align-selection";
 
 export interface ContextMenuAction {
   label: string;

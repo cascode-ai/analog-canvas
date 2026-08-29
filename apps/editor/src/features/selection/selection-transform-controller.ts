@@ -1,14 +1,17 @@
 import { planRoutingTransform, type SchematicEdit } from "@icm/edit-engine";
 import { resolveDraftingObjectGeometry } from "@icm/derived";
+import type { SchematicStyleProfile } from "@icm/derived";
 import type { SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
 import { rotateDraftingObject } from "../drafting/drafting-manipulation";
 import {
-  proposeEdgeAlignmentEdits,
+  planSelectionAlignment,
+  selectionAlignmentParticipantCount,
   type EdgeAlignmentMode,
-} from "./align-instances";
+} from "./align-selection";
 import type { ScreenFlip } from "../../interaction/shortcut-orientation";
+import type { RouteGeometryRecord } from "../wiring/route-interaction-geometry";
 import type { VisualSelection } from "./visual-selection";
 
 type TransactionResult = { ok: boolean };
@@ -16,6 +19,9 @@ type TransactionResult = { ok: boolean };
 export function createSelectionTransformController({
   document,
   resolver,
+  styleProfile,
+  routeGeometryRecords,
+  annotationGrid,
   selectedInstanceIds,
   selection,
   transact,
@@ -23,6 +29,9 @@ export function createSelectionTransformController({
 }: {
   document: SchematicDocument;
   resolver: SymbolResolver;
+  styleProfile: SchematicStyleProfile;
+  routeGeometryRecords: readonly RouteGeometryRecord[];
+  annotationGrid: number;
   selectedInstanceIds: readonly string[];
   selection: VisualSelection;
   transact: (edits: SchematicEdit[]) => TransactionResult;
@@ -109,41 +118,38 @@ export function createSelectionTransformController({
       );
   };
 
-  const alignEdge = (mode: EdgeAlignmentMode): void => {
-    if (selectedInstanceIds.length < 2) {
-      setStatus("Select at least two instances to align");
+  const alignmentContext = {
+    document,
+    resolver,
+    styleProfile,
+    routeGeometryRecords,
+    annotationGrid,
+    selection,
+  };
+  const align = (mode: EdgeAlignmentMode): void => {
+    const plan = planSelectionAlignment(alignmentContext, mode);
+    if (plan.participantCount < 2) {
+      setStatus("Select at least two parts or text objects to align");
       return;
     }
-    const edits = proposeEdgeAlignmentEdits(
-      document,
-      resolver,
-      selectedInstanceIds,
-      mode,
-    );
-    if (edits.length === 0) {
+    if (plan.blockingMessage) {
+      setStatus(plan.blockingMessage);
+      return;
+    }
+    if (plan.edits.length === 0) {
       setStatus("Selection is already aligned");
       return;
     }
-    if (transact(edits).ok)
-      setStatus(`Aligned ${selectedInstanceIds.length} selected instances`);
-  };
-
-  const align = (): void => {
-    if (selectedInstanceIds.length < 2) {
-      setStatus("Select at least two instances to align");
-      return;
+    if (transact(plan.edits).ok) {
+      setStatus(`Aligned ${plan.participantCount} selected objects`);
     }
-    if (
-      transact([
-        {
-          kind: "align_instances",
-          instanceIds: [...selectedInstanceIds],
-          axis: "y",
-        },
-      ]).ok
-    )
-      setStatus(`Aligned ${selectedInstanceIds.length} selected instances`);
   };
 
-  return { rotate, mirror, align, alignEdge };
+  return {
+    rotate,
+    mirror,
+    align,
+    alignmentParticipantCount:
+      selectionAlignmentParticipantCount(alignmentContext),
+  };
 }

@@ -248,6 +248,7 @@ import {
 } from "../features/selection/visual-selection";
 import { createSelectionMoveController } from "../features/selection/selection-move-controller";
 import { createSelectionTransformController } from "../features/selection/selection-transform-controller";
+import { EDGE_ALIGNMENT_MODES } from "../features/selection/align-selection";
 import type { VisualSelection } from "../features/selection/visual-selection";
 import {
   planSelectionMove,
@@ -1580,11 +1581,14 @@ export function App({
   const {
     rotate: rotateSelected,
     mirror: mirrorSelected,
-    align: alignSelectedInstances,
-    alignEdge: alignEdgeSelected,
+    align: alignSelection,
+    alignmentParticipantCount,
   } = createSelectionTransformController({
     document,
     resolver,
+    styleProfile,
+    routeGeometryRecords,
+    annotationGrid,
     selectedInstanceIds: selectedIds,
     selection: visualSelection,
     transact,
@@ -2607,6 +2611,7 @@ export function App({
       hasDeletableSelection:
         hasVisualSelection(visualSelection) || selectedEndpoint !== null,
       hasMoveSelection: canBeginKeyboardSelectionMove(),
+      hasAlignableSelection: alignmentParticipantCount >= 2,
       hasRotatableSelection,
       hasMirrorableSelection,
       canTransformMove: canTransformCommandMove(),
@@ -2667,6 +2672,7 @@ export function App({
       deleteSelection: deleteSelectionFromSelection,
       beginCopy: beginCopyPlacementFromSelection,
       beginMove: beginKeyboardSelectionMoveFromSelection,
+      alignSelection,
       rotatePlacement: rotatePendingComponentFromHook,
       rotateCopy: rotatePendingCopy,
       rotateMove: rotateCommandMoveFromSelection,
@@ -3131,7 +3137,23 @@ export function App({
               direction: "top-bottom",
             }),
         }}
-        onAlign={selectedIds.length > 1 ? alignSelectedInstances : null}
+        alignmentActions={
+          alignmentParticipantCount >= 2
+            ? EDGE_ALIGNMENT_MODES.map(({ mode, label }) => {
+                const state = editorCommands.state({
+                  id: "selection.align",
+                  mode,
+                });
+                return {
+                  mode,
+                  label,
+                  enabled: state.enabled,
+                  execute: () =>
+                    editorCommands.execute({ id: "selection.align", mode }),
+                };
+              })
+            : []
+        }
         instanceTableOpen={instanceTableOpen}
         netlistPreflightOpen={netlistPreflightOpen}
         onOpenInstanceTable={() => setInstanceTableOpen(true)}
@@ -4269,8 +4291,10 @@ export function App({
               ) : null;
             }}
             onSwapVariant={swapSelectedInstanceSymbol}
-            alignmentEnabled={selectedIds.length > 1}
-            onAlign={alignEdgeSelected}
+            alignmentEnabled={alignmentParticipantCount >= 2}
+            onAlign={(mode) =>
+              editorCommands.execute({ id: "selection.align", mode })
+            }
             actions={[
               {
                 label: "Rotate (R)",

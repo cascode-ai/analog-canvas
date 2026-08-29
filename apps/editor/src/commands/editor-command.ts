@@ -4,6 +4,7 @@ import type {
   InteractionMode,
 } from "../interaction/interaction-state";
 import type { ScreenFlip } from "../interaction/shortcut-orientation";
+import type { EdgeAlignmentMode } from "../features/selection/align-selection";
 
 export type EditorCommandRequest =
   | { id: "editor.cancel" }
@@ -14,6 +15,7 @@ export type EditorCommandRequest =
   | { id: "selection.delete" }
   | { id: "selection.copy" }
   | { id: "selection.move" }
+  | { id: "selection.align"; mode: EdgeAlignmentMode }
   | { id: "transform.rotate"; deltaDegrees?: 90 | -90 }
   | { id: "transform.rotate-next" }
   | { id: "transform.mirror"; direction: ScreenFlip }
@@ -42,6 +44,7 @@ export interface EditorCommandContext {
   activeTool: EditorTool;
   hasDeletableSelection: boolean;
   hasMoveSelection: boolean;
+  hasAlignableSelection: boolean;
   hasRotatableSelection: boolean;
   hasMirrorableSelection: boolean;
   canTransformMove: boolean;
@@ -69,6 +72,7 @@ export interface EditorCommandOperations {
   deleteSelection(): void;
   beginCopy(): void;
   beginMove(): void;
+  alignSelection(mode: EdgeAlignmentMode): void;
   rotatePlacement(deltaDegrees: 90 | -90): void;
   rotateCopy(deltaDegrees: 90 | -90): void;
   rotateMove(deltaDegrees: 90 | -90): void;
@@ -203,6 +207,13 @@ export function createEditorCommandRouter(
           context.interactionMode === "moving-selection"
           ? enabled(context.interactionMode === "moving-selection")
           : disabled("Select objects before moving them");
+      case "selection.align":
+        if (context.interactionMode !== "idle") {
+          return disabled("Finish or cancel the active tool before aligning");
+        }
+        return context.hasAlignableSelection
+          ? enabled()
+          : disabled("Select at least two parts or text objects to align");
       case "transform.rotate": {
         const resolution = resolveTransformOwner(context, "rotate");
         return resolution.owner === "unavailable"
@@ -300,6 +311,9 @@ export function createEditorCommandRouter(
         break;
       case "selection.move":
         options.operations.beginMove();
+        break;
+      case "selection.align":
+        options.operations.alignSelection(request.mode);
         break;
       case "transform.rotate-next":
         options.operations.armRotate();
