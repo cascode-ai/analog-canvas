@@ -110,7 +110,13 @@ function clipSegmentToBox(
   to: { x: number; y: number },
   box: { x: number; y: number; width: number; height: number },
 ): { from: { x: number; y: number }; to: { x: number; y: number } } | null {
-  // Liang-Barsky parametric clip; works for any orientation.
+  // Liang-Barsky parametric clip; works for any orientation. The box is
+  // treated as OPEN along the axis a segment does not travel: a segment
+  // lying exactly on a boundary line has zero penetration depth and is a
+  // wire skimming the deflated envelope, not a buried one. Path-artwork
+  // symbols fall back to their declaration viewBox, whose padding often
+  // equals BODY_CLEARANCE, so the deflated edge lands exactly on the pin
+  // contacts — a wire cornering at a pin must stay quiet.
   const dx = to.x - from.x;
   const dy = to.y - from.y;
   let t0 = 0;
@@ -123,7 +129,7 @@ function clipSegmentToBox(
   ];
   for (const [p, q] of edges) {
     if (p === 0) {
-      if (q < 0) return null;
+      if (q <= 0) return null;
       continue;
     }
     const r = q / p;

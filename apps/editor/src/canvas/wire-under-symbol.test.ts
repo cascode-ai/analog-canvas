@@ -1,5 +1,8 @@
 import { createEmptyDocument, createRoutePath } from "@icm/model";
-import { resolveDocumentRoutingGeometry } from "@icm/derived";
+import {
+  resolveDocumentRoutingGeometry,
+  resolveEndpointConnection,
+} from "@icm/derived";
 import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
@@ -276,5 +279,73 @@ describe("deriveWireUnderSymbolWarnings", () => {
         (warning) => warning.instanceId === "G1",
       ),
     ).toEqual([]);
+  });
+
+  function rotatedResistorFixture(wireX: (contact: { x: number }) => number) {
+    // A horizontal resistor (rotation 90). Its artwork is a path primitive,
+    // so the envelope falls back to the declaration viewBox, whose padding
+    // equals the body clearance: the deflated box edges land exactly on the
+    // pin contacts.
+    const document = createEmptyDocument("doc", "Corner");
+    document.instances.push({
+      id: "RX",
+      symbolId: "resistor",
+      placement: { position: { x: 300, y: 400 }, rotation: 90, mirror: "none" },
+      netlist: { reference: "RX", parameters: {} },
+    });
+    const contact = resolveEndpointConnection(document, resolver, {
+      kind: "terminal",
+      instanceId: "RX",
+      pinName: "1",
+    })!.contactPoint;
+    const x = wireX(contact);
+    document.nets.push({ id: "net-c", terminals: [] });
+    document.junctions.push(
+      { id: "J1", netId: "net-c", position: { x, y: 500 } },
+      { id: "J2", netId: "net-c", position: { x, y: 300 } },
+    );
+    document.routes.push(
+      createRoutePath({
+        id: "route-c",
+        netId: "net-c",
+        start: { kind: "junction", junctionId: "J1" },
+        end: { kind: "junction", junctionId: "J2" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    const geometry = resolveDocumentRoutingGeometry(document, resolver);
+    const records = document.routes.flatMap((route) => {
+      const resolved = geometry.routes.get(route.id);
+      return resolved ? [{ route, geometry: resolved }] : [];
+    });
+    return { document, records };
+  }
+
+  it("stays quiet for a wire running exactly along the pin-contact edge", () => {
+    // The reported ground-to-resistor corner: a vertical wire at the left
+    // pin contact of a horizontal resistor lies exactly on the deflated box
+    // boundary. Zero penetration depth is skimming, not burial.
+    const { document, records } = rotatedResistorFixture(
+      (contact) => contact.x,
+    );
+    expect(
+      deriveWireUnderSymbolWarnings(document, resolver, records).filter(
+        (warning) => warning.instanceId === "RX",
+      ),
+    ).toEqual([]);
+  });
+
+  it("still flags a wire strictly inside the body box", () => {
+    // Six units inboard of the contact edge the same vertical wire crosses
+    // real artwork and keeps its warning.
+    const { document, records } = rotatedResistorFixture((contact) =>
+      contact.x < 300 ? contact.x + 6 : contact.x - 6,
+    );
+    expect(
+      deriveWireUnderSymbolWarnings(document, resolver, records).filter(
+        (warning) => warning.instanceId === "RX",
+      ),
+    ).not.toEqual([]);
   });
 });
