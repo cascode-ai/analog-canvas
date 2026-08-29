@@ -220,7 +220,7 @@ export function createCanvasGestureController({
     completeDrag: completeCellSymbolLayoutDrag,
   },
 }: CanvasGestureControllerDependencies) {
-  const fitView = (): void => {
+  const fitView = (options: { announce?: boolean } = {}): void => {
     const bounds = contentBounds ?? defaultViewBox;
     const grid = document.presentation.grid;
     // Below the layout's narrow breakpoint the Properties dock stops being a
@@ -237,7 +237,7 @@ export function createCanvasGestureController({
           )
         : fitCameraToBounds(bounds, grid),
     );
-    setStatus("Fit Document");
+    if (options.announce !== false) setStatus("Fit Document");
   };
 
   const zoomViewAtCenter = (factor: number): void => {

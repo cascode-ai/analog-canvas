@@ -13,11 +13,14 @@ test("an opened Project is auto-fitted to the camera", async ({ page }) => {
         "fixtures/projects/phase-3-routing/project.icproj.json",
       ),
     );
-  await expect(page.getByTestId("status")).toContainText("Fit Document");
+  // The landing fit is silent: the open's own status survives.
+  await expect(page.getByTestId("status")).toContainText("Opened");
   const canvas = page.getByTestId("schematic-canvas");
-  const afterOpen = await canvas.getAttribute("viewBox");
   // The default camera never survives an open with content.
-  expect(afterOpen).not.toBe("0 0 960 640");
+  await expect
+    .poll(async () => canvas.getAttribute("viewBox"))
+    .not.toBe("0 0 960 640");
+  const afterOpen = await canvas.getAttribute("viewBox");
   await page.keyboard.press("f");
   await expect.poll(async () => canvas.getAttribute("viewBox")).toBe(afterOpen);
 });

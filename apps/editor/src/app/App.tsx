@@ -192,6 +192,7 @@ import {
 import { useDocumentController } from "../document/document-controller";
 import { useProjectFileLifecycle } from "../document/use-project-file-lifecycle";
 import { useUnsavedWorkGuard } from "../document/use-unsaved-work-guard";
+import { authoredObjectCount } from "../document/project-content";
 import {
   draftingDragOrigin,
   translateDraftingObject,
@@ -2310,11 +2311,15 @@ export function App({
     }
   }, [projectSessionId]);
   const autoFitBounds = contentScene?.viewBox ?? null;
+  const autoFitHasContent = authoredObjectCount(project) > 0;
   useEffect(() => {
     if (!pendingAutoFitRef.current || !autoFitBounds) return;
+    if (!autoFitHasContent) return;
     pendingAutoFitRef.current = false;
-    fitView();
-  }, [autoFitBounds, projectSessionId]);
+    // Silent: the open's own status ("Opened …", "Restored …") must
+    // survive the landing fit.
+    fitView({ announce: false });
+  }, [autoFitBounds, autoFitHasContent, projectSessionId]);
   /**
    * The canvas element and the docks floating over it. Fit reads this at the
    * moment it runs, so a panel opened since the last fit is accounted for.
