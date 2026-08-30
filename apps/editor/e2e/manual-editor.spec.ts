@@ -850,10 +850,19 @@ test("command move follows the pointer and commits on one click", async ({
   await resistor.click();
   const before = await resistor.boundingBox();
   if (!before) throw new Error("Placed resistor is not measurable");
+  const symbolNode = await page
+    .locator('[data-layer="symbols"] [data-object-id="R1"]')
+    .elementHandle();
+  if (!symbolNode) throw new Error("Placed symbol is not measurable");
 
   await page.keyboard.press("m");
   await expect(page.getByTestId("status")).toContainText("Move:");
   await page.mouse.move(before.x + 40, before.y + 20);
+  expect(
+    await page
+      .locator('[data-layer="symbols"] [data-object-id="R1"]')
+      .evaluate((current, original) => current === original, symbolNode),
+  ).toBe(true);
   await page.mouse.click(before.x + 40, before.y + 20);
 
   const after = await resistor.boundingBox();
