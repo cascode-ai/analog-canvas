@@ -845,6 +845,7 @@ export function executeTransaction(
     }
   }
 
+  let coalescedEndpoints: ReadonlyMap<string, string> | undefined;
   if (resolver) {
     const affectedNetIds = affectedConductorNetIds(
       document,
@@ -872,6 +873,9 @@ export function executeTransaction(
       }
       for (const routeId of normalized.changedRouteIds) {
         changedRouteIds.add(routeId);
+      }
+      if (normalized.coalescedEndpoints.size > 0) {
+        coalescedEndpoints = normalized.coalescedEndpoints;
       }
     }
   }
@@ -1017,6 +1021,7 @@ export function executeTransaction(
       document: candidate.data,
       diff,
       diagnostics: [],
+      ...(coalescedEndpoints ? { coalescedEndpoints } : {}),
     };
   }
 
@@ -1028,5 +1033,6 @@ export function executeTransaction(
     document: candidate.data,
     diff,
     diagnostics: [],
+    ...(coalescedEndpoints ? { coalescedEndpoints } : {}),
   };
 }

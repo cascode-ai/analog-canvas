@@ -43,6 +43,12 @@ export interface AppliedTransaction {
   document: SchematicDocument;
   diff: EditDiff;
   diagnostics: readonly EditDiagnostic[];
+  /**
+   * Junction endpoints the conductor-topology normalizer folded away in this
+   * transaction, mapped to the Base Net whose conductor absorbed them.
+   * Effect validation treats these as surviving connectivity, not as loss.
+   */
+  coalescedEndpoints?: ReadonlyMap<string, string>;
 }
 
 export interface RejectedTransaction {

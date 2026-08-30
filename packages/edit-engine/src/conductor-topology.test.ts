@@ -14,6 +14,10 @@ import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
 import { normalizeSameNetConductorTopology } from "./conductor-topology.js";
+import {
+  createRoutingOperationPlan,
+  gateRoutingOperationPlan,
+} from "./routing-operation-plan.js";
 import { proposeWireIntent } from "./routing-planner.js";
 import { executeTransaction } from "./transaction.js";
 
@@ -557,5 +561,76 @@ describe("same-Net conductor topology normalization", () => {
     expect(junctionIds).toHaveLength(2);
     expect(junctionIds).toContain("left");
     expect(junctionIds).not.toContain("loose");
+  });
+
+  it("passes the connect gate when the continuation coalesces its anchor", () => {
+    // The GUI commits through the routing-operation gate. Its merge effect
+    // names the loose-end Junction; the normalizer folds that Junction away
+    // in the same transaction, and the validator must read that as the join
+    // having happened, not as a missing endpoint.
+    const document = documentWith(
+      [junction("left", 0, 0), junction("loose", 100, 0)],
+      [route("original", "left", "loose")],
+    );
+    const planned = proposeWireIntent(document, resolver, {
+      id: "continue",
+      from: {
+        kind: "endpoint",
+        endpoint: { kind: "junction", junctionId: "loose" },
+      },
+      to: { kind: "free", point: { x: 200, y: 0 } },
+    });
+    expect(typeof planned).not.toBe("string");
+    if (typeof planned === "string") return;
+    const plan = createRoutingOperationPlan(document, {
+      intent: "connect",
+      diagnostics: [],
+      edits: planned.edits,
+    });
+    const gate = gateRoutingOperationPlan(document, plan, {
+      symbolResolver: resolver,
+    });
+    expect(gate.ok).toBe(true);
+  });
+
+  it("passes a preserve gate when an edit coalesces a legacy anchor", () => {
+    // Documents saved before coalescing existed still hold degree-two
+    // route-anchor joins. The first geometry edit on such a Net folds the
+    // anchor away — structure, not an electrical change — and a
+    // preserve-effect plan must accept that instead of rejecting the edit.
+    const document = documentWith(
+      [
+        junction("left", 0, 0),
+        junction("middle", 50, 0),
+        junction("right", 100, 0),
+      ],
+      [
+        route("left-arm", "left", "middle"),
+        route("right-arm", "middle", "right"),
+      ],
+    );
+    const plan = createRoutingOperationPlan(document, {
+      intent: "route-geometry",
+      diagnostics: [],
+      edits: [
+        {
+          kind: "set_route_path",
+          route: createRoutePath({
+            id: "left-arm",
+            netId: "net-1",
+            start: { kind: "junction", junctionId: "left" },
+            end: { kind: "junction", junctionId: "middle" },
+            bends: [],
+            modes: ["manual"],
+          }),
+        },
+      ],
+    });
+    const gate = gateRoutingOperationPlan(document, plan, {
+      symbolResolver: resolver,
+    });
+    expect(gate.ok).toBe(true);
+    if (!gate.ok) return;
+    expect(gate.evaluated.finalDocument.routes).toHaveLength(1);
   });
 });

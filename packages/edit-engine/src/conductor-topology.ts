@@ -49,6 +49,12 @@ export interface ConductorTopologyNormalizationResult {
   changed: boolean;
   changedRouteIds: ReadonlySet<string>;
   changedObjectIds: ReadonlySet<string>;
+  /**
+   * Endpoint key of every Junction this pass folded away, mapped to the Base
+   * Net whose conductor absorbed it. Effect validation reads a coalesced
+   * endpoint as connectivity that survives in that Net, not as a loss.
+   */
+  coalescedEndpoints: ReadonlyMap<string, string>;
 }
 
 /**
@@ -243,6 +249,7 @@ export function normalizeSameNetConductorTopology(
 ): ConductorTopologyNormalizationResult {
   const changedRouteIds = new Set<string>();
   const changedObjectIds = new Set<string>();
+  const coalescedEndpoints = new Map<string, string>();
   let changed = false;
   const occupiedIds = new Set([
     ...document.instances.map((instance) => instance.id),
@@ -615,6 +622,10 @@ export function normalizeSameNetConductorTopology(
     }
     for (const junctionId of removedJunctionIds) {
       changedObjectIds.add(junctionId);
+      coalescedEndpoints.set(
+        endpointKey({ kind: "junction", junctionId }),
+        net.id,
+      );
     }
 
     const productIds = rebuiltRoutes.map((route) => route.id);
@@ -671,5 +682,5 @@ export function normalizeSameNetConductorTopology(
     changed = true;
   }
 
-  return { changed, changedRouteIds, changedObjectIds };
+  return { changed, changedRouteIds, changedObjectIds, coalescedEndpoints };
 }

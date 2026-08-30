@@ -1857,7 +1857,10 @@ test("reuses a free wire endpoint as a later wire source", async ({ page }) => {
   await freeEnd.click();
   await page.getByTestId("terminal-R2-1").click();
 
-  await expect(page.locator('[data-testid^="route-hit-"]')).toHaveCount(2);
+  // Continuing from a loose end extends the conductor: the two pieces
+  // coalesce into one Route and the degree-two anchor is consumed.
+  await expect(page.locator('[data-testid^="route-hit-"]')).toHaveCount(1);
+  await expect(freeEnd).toHaveCount(0);
   await expect(page.getByTestId("active-tool")).toHaveText("wire");
 });
 

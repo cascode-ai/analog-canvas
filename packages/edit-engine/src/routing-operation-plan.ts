@@ -242,20 +242,48 @@ function validateExpectedEffect(
   before: ElectricalTopologyProjection,
   after: ElectricalTopologyProjection,
   expected: ExpectedElectricalEffect,
+  coalescedEndpoints?: ReadonlyMap<string, string>,
 ): string | null {
+  // A Junction the conductor-topology normalizer folded away is surviving
+  // connectivity, not a lost endpoint: its conductor persists on the mapped
+  // Base Net. Preserve and merge effects read it through that map.
+  const coalescedOnto = (key: string): string | undefined =>
+    coalescedEndpoints?.get(key);
   switch (expected.kind) {
     case "preserve": {
-      const keys = expected.endpointKeys;
-      if (
-        !sameMapEntries(before.endpointToBaseNet, after.endpointToBaseNet, keys)
-      ) {
+      const preserved = expected.endpointKeys.every((key) => {
+        const beforeNet = before.endpointToBaseNet.get(key);
+        const afterNet = after.endpointToBaseNet.get(key);
+        if (beforeNet === afterNet) return true;
+        return afterNet === undefined && coalescedOnto(key) === beforeNet;
+      });
+      if (!preserved) {
         return "Routing operation changed endpoint Net membership outside a preserve effect";
       }
       return null;
     }
     case "merge":
       for (const group of expected.endpointGroups) {
-        if (!endpointGroupMergedBaseNet(before, after, group)) {
+        // Precise first: every member resolves — directly or through the
+        // transaction's coalesced-endpoint report — onto one Base Net. The
+        // witness fallback then covers merges whose members vanished without
+        // a report entry.
+        const resolvedNetIds = unique(
+          group.flatMap((key) => {
+            const netId =
+              after.endpointToBaseNet.get(key) ?? coalescedOnto(key);
+            return netId ? [netId] : [];
+          }),
+        );
+        const everyMemberResolved = group.every(
+          (key) =>
+            after.endpointToBaseNet.has(key) ||
+            coalescedOnto(key) !== undefined,
+        );
+        if (
+          !(everyMemberResolved && resolvedNetIds.length === 1) &&
+          !endpointGroupMergedBaseNet(before, after, group)
+        ) {
           return `Routing merge did not join endpoint group ${group.join(", ")}`;
         }
       }
@@ -516,6 +544,7 @@ export function evaluateRoutingOperationPlan(
     before,
     after,
     plan.expectedElectricalEffect,
+    result.coalescedEndpoints,
   );
   if (violation) {
     return {
