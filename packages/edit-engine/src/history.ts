@@ -1,6 +1,7 @@
 import { SchematicDocumentSchema } from "@icm/model";
 import type { SchematicDocument } from "@icm/model";
 
+import { shareEqualDocumentStructure } from "./document-structural-sharing.js";
 import {
   EditTransactionSchema,
   executeTransaction,
@@ -105,12 +106,14 @@ export class DocumentHistory {
       const before = this.#document;
       const result = executeTransaction(before, transaction, this.#context);
       if (result.ok && result.applied) {
+        const document = shareEqualDocumentStructure(before, result.document);
         this.#undoStack.push(before);
         if (this.#undoStack.length > this.#historyLimit) {
           this.#undoStack.shift();
         }
         this.#redoStack.length = 0;
-        this.#document = result.document;
+        this.#document = document;
+        return { ...result, document };
       }
       return result;
     }
@@ -149,10 +152,11 @@ export class DocumentHistory {
     }
 
     const proposedRevision = this.#document.revision + 1;
-    const restored = SchematicDocumentSchema.parse({
+    const parsedRestored = SchematicDocumentSchema.parse({
       ...structuredClone(target),
       revision: proposedRevision,
     });
+    const restored = shareEqualDocumentStructure(target, parsedRestored);
     const diff: EditDiff = {
       documentId: this.#document.id,
       fromRevision: this.#document.revision,

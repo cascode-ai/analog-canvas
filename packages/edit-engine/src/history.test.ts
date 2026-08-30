@@ -18,6 +18,34 @@ function historyFixture() {
   return new DocumentHistory(document);
 }
 
+function structuralSharingFixture() {
+  const document = createEmptyDocument("document-main", "Main");
+  document.instances.push(
+    {
+      id: "R1",
+      symbolId: "resistor",
+      placement: null,
+      netlist: {
+        reference: "R1",
+        binding: { kind: "primitive", deviceClass: "resistor" },
+        parameters: { value: "1k" },
+      },
+    },
+    {
+      id: "R2",
+      symbolId: "resistor",
+      placement: null,
+      netlist: {
+        reference: "R2",
+        binding: { kind: "primitive", deviceClass: "resistor" },
+        parameters: { value: "2k" },
+      },
+    },
+  );
+  document.nets.push({ id: "net-signal", terminals: [] });
+  return new DocumentHistory(document);
+}
+
 function transaction(revision: number, edits: unknown[], dryRun = false) {
   return {
     transactionId: `transaction-${revision}-${String((edits[0] as { kind?: string }).kind)}`,
@@ -30,6 +58,79 @@ function transaction(revision: number, edits: unknown[], dryRun = false) {
 }
 
 describe("DocumentHistory", () => {
+  it("shares unchanged model structure without sharing changed objects", () => {
+    const history = structuralSharingFixture();
+    const before = history.document;
+    const beforeR1 = before.instances[0]!;
+    const beforeR2 = before.instances[1]!;
+    const beforeR1Netlist = beforeR1.netlist!;
+
+    const result = history.transact(
+      transaction(0, [
+        {
+          kind: "place_instance",
+          instanceId: "R1",
+          placement: {
+            position: { x: 50, y: 40 },
+            rotation: 0,
+            mirror: "none",
+          },
+        },
+      ]),
+    );
+
+    expect(result).toMatchObject({ ok: true, applied: true, revision: 1 });
+    if (!result.ok) throw new Error("Expected transaction to succeed");
+    expect(result.document).toBe(history.document);
+    expect(history.document).not.toBe(before);
+    expect(history.document.instances).not.toBe(before.instances);
+    expect(history.document.instances[0]).not.toBe(beforeR1);
+    expect(history.document.instances[0]?.netlist).toBe(beforeR1Netlist);
+    expect(history.document.instances[1]).toBe(beforeR2);
+    expect(history.document.nets).toBe(before.nets);
+    expect(history.document.presentation).toBe(before.presentation);
+  });
+
+  it("reuses the exact target state objects across undo and redo", () => {
+    const history = structuralSharingFixture();
+    const initial = history.document;
+    const initialR1 = initial.instances[0]!;
+    const initialR2 = initial.instances[1]!;
+
+    const placed = history.transact(
+      transaction(0, [
+        {
+          kind: "place_instance",
+          instanceId: "R1",
+          placement: {
+            position: { x: 50, y: 40 },
+            rotation: 0,
+            mirror: "none",
+          },
+        },
+      ]),
+    );
+    if (!placed.ok) throw new Error("Expected transaction to succeed");
+    const placedR1 = placed.document.instances[0]!;
+
+    const undone = history.transact(transaction(1, [{ kind: "undo" }]));
+    expect(undone).toMatchObject({ ok: true, applied: true, revision: 2 });
+    if (!undone.ok) throw new Error("Expected undo to succeed");
+    expect(undone.document.instances[0]).toBe(initialR1);
+    expect(undone.document.instances[1]).toBe(initialR2);
+    expect(undone.document.instances[0]?.placement).toBeNull();
+
+    const redone = history.transact(transaction(2, [{ kind: "redo" }]));
+    expect(redone).toMatchObject({ ok: true, applied: true, revision: 3 });
+    if (!redone.ok) throw new Error("Expected redo to succeed");
+    expect(redone.document.instances[0]).toBe(placedR1);
+    expect(redone.document.instances[1]).toBe(initialR2);
+    expect(redone.document.instances[0]?.placement?.position).toEqual({
+      x: 50,
+      y: 40,
+    });
+  });
+
   it("clears every authored collection atomically and restores it with undo", () => {
     const document = createEmptyDocument("document-main", "Main");
     document.sourceBinding = {
