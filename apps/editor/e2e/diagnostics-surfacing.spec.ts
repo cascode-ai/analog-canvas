@@ -27,6 +27,9 @@ test("statusbar issues badge surfaces live findings and opens the workbench", as
   await expect(badge).toHaveAttribute("data-severity", "warning");
   await expect(badge).toContainText("warning");
 
+  // Warnings do not mark the canvas until the issues review is open.
+  await expect(page.locator(".diagnostic-marker")).toHaveCount(0);
+
   // The badge opens the dock with the issues section expanded.
   await badge.click();
   const issuesSection = page.locator(
@@ -36,7 +39,16 @@ test("statusbar issues badge surfaces live findings and opens the workbench", as
   const findings = page.getByTestId("project-diagnostics").locator("li button");
   await expect(findings.first()).toBeVisible();
 
+  // Review mode places a warning ring on each finding's pin.
+  const markers = page.locator(".diagnostic-marker");
+  await expect(markers).toHaveCount(2);
+  await expect(markers.first()).toHaveAttribute("data-severity", "warning");
+
   // A finding navigates: the status line reports the ERC jump.
   await findings.first().click();
   await expect(page.getByTestId("status")).toContainText("ERC");
+
+  // A marker ring navigates the same way from the canvas side.
+  await page.locator(".diagnostic-marker-hit").first().click();
+  await expect(page.getByTestId("status")).toContainText("ERC_UNCONNECTED_PIN");
 });

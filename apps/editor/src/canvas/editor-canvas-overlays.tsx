@@ -4,11 +4,13 @@ import {
   type NetHighlight,
   type ResolvedRouteGeometry,
 } from "@icm/derived";
+import type { Diagnostic } from "@icm/derived";
 import type { GridRect, RouteBranch, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
 import type { EditorTool } from "../interaction/interaction-state";
 import { serializePolylinePoints } from "./canvas-geometry";
+import type { DiagnosticMarker } from "./diagnostic-markers";
 
 export function CanvasGridOverlay({
   visible,
@@ -189,6 +191,71 @@ export function WireUnderSymbolOverlay({
               event.stopPropagation();
               event.preventDefault();
               onSelectRoute(warning.routeId);
+            }}
+            onClick={(event) => event.stopPropagation()}
+          />
+        </g>
+      ))}
+    </g>
+  );
+}
+
+/**
+ * Actionable findings placed on the canvas: an open severity-colored ring
+ * over a light halo, so the marker never occludes what it marks. Pointer-down
+ * navigates through the same jump the workbench uses; the hit circle stops
+ * propagation so markers never enter ordinary canvas hit ranking.
+ */
+export function DiagnosticMarkersOverlay({
+  markers,
+  onSelectMarker,
+}: {
+  markers: readonly DiagnosticMarker[];
+  onSelectMarker: (diagnostic: Diagnostic) => void;
+}) {
+  if (markers.length === 0) return null;
+  return (
+    <g data-testid="diagnostic-markers" className="diagnostic-markers">
+      {markers.map((marker) => (
+        <g
+          key={marker.key}
+          className="diagnostic-marker"
+          data-severity={marker.severity}
+        >
+          <circle
+            className="diagnostic-marker-halo"
+            pointerEvents="none"
+            cx={marker.point.x}
+            cy={marker.point.y}
+            r={6}
+          />
+          <circle
+            className="diagnostic-marker-ring"
+            pointerEvents="none"
+            cx={marker.point.x}
+            cy={marker.point.y}
+            r={6}
+          />
+          {marker.count > 1 ? (
+            <text
+              className="diagnostic-marker-count"
+              pointerEvents="none"
+              x={marker.point.x + 8}
+              y={marker.point.y - 6}
+            >
+              {marker.count}
+            </text>
+          ) : null}
+          <circle
+            className="diagnostic-marker-hit"
+            data-testid={`diagnostic-marker-${marker.key}`}
+            cx={marker.point.x}
+            cy={marker.point.y}
+            r={9}
+            onPointerDown={(event) => {
+              event.stopPropagation();
+              event.preventDefault();
+              onSelectMarker(marker.diagnostic);
             }}
             onClick={(event) => event.stopPropagation()}
           />

@@ -6,6 +6,7 @@ import {
   CanvasGridOverlay,
   CanvasInputPlanes,
   NetHighlightOverlay,
+  DiagnosticMarkersOverlay,
   WireUnderSymbolOverlay,
   NetLabelTetherOverlay,
   type NetLabelTether,
@@ -52,6 +53,7 @@ export interface EditorCanvasSurfaceProps {
   cellSymbolLayout: ComponentProps<typeof EditorCellSymbolLayoutOverlay> | null;
   netHighlight: ComponentProps<typeof NetHighlightOverlay>;
   wireUnderSymbol: ComponentProps<typeof WireUnderSymbolOverlay>;
+  diagnosticMarkers: ComponentProps<typeof DiagnosticMarkersOverlay>;
   netLabelTether: NetLabelTether | null;
   copyPreviewInnerHtml: { __html: string } | null;
   copyPreviewTransform: string | undefined;
@@ -106,6 +108,7 @@ export function EditorCanvasSurface({
   cellSymbolLayout,
   netHighlight,
   wireUnderSymbol,
+  diagnosticMarkers,
   netLabelTether,
   copyPreviewInnerHtml,
   copyPreviewTransform,
@@ -232,6 +235,7 @@ export function EditorCanvasSurface({
           <EditorCanvasHitLayer {...selectionHitLayer} />
           <EditorDraftingHitTargets {...draftingHitTargets} />
           <WireUnderSymbolOverlay {...wireUnderSymbol} />
+          <DiagnosticMarkersOverlay {...diagnosticMarkers} />
           <EditorDraftingHandles {...draftingHandles} />
           <EditorInteractionPreviews {...interactionPreviews} />
         </g>

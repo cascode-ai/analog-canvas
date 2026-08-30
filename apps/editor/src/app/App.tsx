@@ -79,6 +79,7 @@ import {
 } from "../canvas/canvas-drag-session";
 import { startCanvasDragVisual } from "../canvas/canvas-drag-visual";
 import { createCanvasHitController } from "../canvas/canvas-hit-controller";
+import { buildDiagnosticMarkers } from "../canvas/diagnostic-markers";
 import {
   type RouteStretchPreview,
   useWireInteraction,
@@ -1285,6 +1286,27 @@ export function App({
     [document, resolver, visibleEndpoints],
   );
   const [issuesFocusToken, setIssuesFocusToken] = useState(0);
+  const [issuesSectionOpen, setIssuesSectionOpen] = useState(false);
+  const diagnosticMarkers = useMemo(
+    () =>
+      buildDiagnosticMarkers({
+        document,
+        resolver,
+        connectivityIndex: projectConnectivityIndex,
+        electricalDiagnostics,
+        visualDiagnostics,
+        reviewOpen: selectionOpen && issuesSectionOpen,
+      }),
+    [
+      document,
+      resolver,
+      projectConnectivityIndex,
+      electricalDiagnostics,
+      visualDiagnostics,
+      selectionOpen,
+      issuesSectionOpen,
+    ],
+  );
   const issueCounts = useMemo(() => {
     let errorCount = 0;
     let warningCount = 0;
@@ -4646,6 +4668,7 @@ export function App({
                 ?.name ?? documentId,
             onSelectDiagnostic: jumpToProjectDiagnostic,
             focusRequestToken: issuesFocusToken,
+            onOpenStateChange: setIssuesSectionOpen,
           }}
           netTrace={
             highlightedTrace && highlightedTrace.hops.length > 0
@@ -4774,6 +4797,10 @@ export function App({
               selectOnly("route", [routeId]);
               setStatus("Selected a wire buried under a symbol");
             },
+          }}
+          diagnosticMarkers={{
+            markers: diagnosticMarkers,
+            onSelectMarker: jumpToProjectDiagnostic,
           }}
           netLabelTether={netLabelTether}
           copyPreviewInnerHtml={copyPreviewInnerHtml}
