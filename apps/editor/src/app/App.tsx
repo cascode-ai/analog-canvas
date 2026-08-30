@@ -1090,7 +1090,7 @@ export function App({
       releaseFormulaArtifacts();
     };
   }, [renderedDocument]);
-  const sceneState = useMemo(() => {
+  const committedSceneState = useMemo(() => {
     const outcome = buildSceneSafely(() => {
       if (sceneCrashRequested()) {
         throw new Error("scene build crashed (test hook)");
@@ -1099,11 +1099,10 @@ export function App({
       // camera-independent; rebuilding it during pan/zoom repeats all route,
       // symbol, text, and drafting derivation without changing one visible
       // object.
-      const documentConnectivity =
-        renderedDocument === document
-          ? projectConnectivityIndex.documents.get(document.id)
-          : undefined;
-      return buildSvgScene(renderedDocument, resolver, {
+      const documentConnectivity = projectConnectivityIndex.documents.get(
+        document.id,
+      );
+      return buildSvgScene(document, resolver, {
         ...(documentConnectivity
           ? {
               routingGeometry: documentConnectivity.routingGeometry,
@@ -1114,13 +1113,18 @@ export function App({
     }, lastGoodSceneRef.current);
     if (!outcome.degraded) lastGoodSceneRef.current = outcome.scene;
     return outcome;
-  }, [
-    document,
-    formulaArtifactRevision,
-    projectConnectivityIndex,
-    renderedDocument,
-    resolver,
-  ]);
+  }, [document, formulaArtifactRevision, projectConnectivityIndex, resolver]);
+  const sceneState = useMemo(() => {
+    if (renderedDocument === document) return committedSceneState;
+    const outcome = buildSceneSafely(() => {
+      if (sceneCrashRequested()) {
+        throw new Error("scene build crashed (test hook)");
+      }
+      return buildSvgScene(renderedDocument, resolver);
+    }, lastGoodSceneRef.current);
+    if (!outcome.degraded) lastGoodSceneRef.current = outcome.scene;
+    return outcome;
+  }, [committedSceneState, document, renderedDocument, resolver]);
   const scene = sceneState.scene;
   useEffect(() => {
     if (sceneState.degraded) {
@@ -2094,16 +2098,13 @@ export function App({
     (count, candidate) => count + candidate.instances.length,
     0,
   );
-  const contentScene = useMemo(() => {
-    try {
-      return buildSvgScene(document, resolver);
-    } catch {
-      // Fit view falls back to the default framing when the bounds scene
-      // cannot be built; the canvas itself renders through the guarded
-      // formal-scene pipeline above.
-      return null;
-    }
-  }, [document, resolver]);
+  // Fit and auto-fit describe committed content, never a transient move,
+  // handle, copy, or waveform preview. The committed formal scene already
+  // measured those exact bounds, so keep that single successful derivation
+  // instead of rebuilding the complete SVG solely to read its viewBox.
+  const contentSceneBounds = committedSceneState.degraded
+    ? null
+    : committedSceneState.scene.viewBox;
   const zoomPercent = Math.round((DEFAULT_VIEWBOX.width / viewBox.width) * 100);
   const canvasIsEmpty =
     document.instances.every((instance) => instance.placement === null) &&
@@ -2370,7 +2371,7 @@ export function App({
     model: { document, resolver, routeGeometryRecords, styleProfile },
     viewport: {
       defaultViewBox: DEFAULT_VIEWBOX,
-      contentBounds: contentScene?.viewBox,
+      contentBounds: contentSceneBounds,
       viewBox,
       setViewBox,
       pointFromClient: (clientX, clientY, svg) =>
@@ -2452,7 +2453,7 @@ export function App({
       pendingAutoFitRef.current = true;
     }
   }, [projectSessionId]);
-  const autoFitBounds = contentScene?.viewBox ?? null;
+  const autoFitBounds = contentSceneBounds;
   const autoFitHasContent = authoredObjectCount(project) > 0;
   useEffect(() => {
     if (!pendingAutoFitRef.current || !autoFitBounds) return;
