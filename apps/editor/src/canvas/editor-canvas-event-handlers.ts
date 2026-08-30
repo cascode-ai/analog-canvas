@@ -52,6 +52,12 @@ interface CanvasEventHandlerDependencies {
       canvas: SVGSVGElement,
     ) => void;
     clearDraftingSelection: () => void;
+    /**
+     * Whether the pressed element belongs to the current selection, so the
+     * press is about to act on that selection (drag it as one body, open its
+     * context menu) rather than replace it.
+     */
+    pressActsOnSelection: (target: Element) => boolean;
     handleCanvasHitPointerDown: (event: CanvasPointerEvent) => void;
   };
   placement: {
@@ -129,6 +135,7 @@ export function createEditorCanvasEventHandlers({
   selection: {
     commitCommandMove,
     clearDraftingSelection,
+    pressActsOnSelection,
     handleCanvasHitPointerDown,
   },
   placement: {
@@ -261,18 +268,27 @@ export function createEditorCanvasEventHandlers({
         event.stopPropagation();
         return;
       }
+      // Outline shapes are stroke-only hits, so a press "inside" one lands on
+      // the canvas; this deselect gives them plain-click-outside dismissal.
+      // It must stand down for an additive press (the click is composing a
+      // selection, not replacing one) and for a press on any member of the
+      // current selection (the press is about to drag it or open its menu).
       if (
         selectedDrafting &&
         (selectedDrafting.kind === "arrow" ||
           selectedDrafting.kind === "construction-line" ||
           selectedDrafting.kind === "rectangle" ||
           selectedDrafting.kind === "circle") &&
+        !event.shiftKey &&
+        !event.ctrlKey &&
+        !event.metaKey &&
         !target.closest(
           `[data-testid="drafting-hit-${selectedDrafting.id}"]`,
         ) &&
         !target.closest(
           `[data-testid="drafting-handles-${selectedDrafting.id}"]`,
-        )
+        ) &&
+        !pressActsOnSelection(target)
       ) {
         clearDraftingSelection();
       }

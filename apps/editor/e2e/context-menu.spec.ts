@@ -96,6 +96,55 @@ test("drafting text shares device additive selection and context alignment", asy
   );
 });
 
+test("drafting shapes join device selection from either order", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "resistor", { x: 300, y: 220 });
+  await clickDrawTool(page, "rectangle");
+  const canvas = page.getByTestId("schematic-canvas");
+  await canvas.click({ position: { x: 420, y: 180 } });
+  await canvas.click({ position: { x: 540, y: 280 } });
+  await page.keyboard.press("Escape");
+
+  const instance = page.locator('[data-canvas-hit-kind="instance"]').first();
+  const rectangle = page.getByTestId(/^drafting-hit-rectangle-/);
+
+  // Shape first, then Shift+device — the order that used to drop the shape:
+  // the outside-press deselect ran before the additive click could compose.
+  await canvas.click({ position: { x: 480, y: 180 } });
+  await expect(rectangle).toHaveClass(/selected/);
+  await instance.click({ modifiers: ["Shift"] });
+  await expect(instance).toHaveClass(/selected/);
+  await expect(rectangle).toHaveClass(/selected/);
+
+  // Right-clicking the DEVICE member must not shed the shape either: the
+  // press acts on the pair, so the shared command surface opens over both.
+  // (Shapes do not participate in edge alignment — that boundary is #384's,
+  // not this test's — so the mixed menu is asserted, not an Align action.)
+  await instance.click({ button: "right" });
+  const menu = page.getByTestId("canvas-context-menu");
+  await expect(menu).toBeVisible();
+  await expect(menu).not.toContainText("Swap device");
+  await expect(menu.getByRole("menuitem", { name: "Delete" })).toBeEnabled();
+  await expect(rectangle).toHaveClass(/selected/);
+  await expect(instance).toHaveClass(/selected/);
+  await page.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
+
+  // A plain press on empty canvas keeps its meaning: the shape deselects.
+  await canvas.click({ position: { x: 640, y: 400 } });
+  await expect(rectangle).not.toHaveClass(/selected/);
+
+  // The reverse order composes too. A shape is a stroke-only hit, so the
+  // additive click aims at its edge, not the locator's center.
+  await instance.click();
+  await expect(instance).toHaveClass(/selected/);
+  await canvas.click({ position: { x: 480, y: 180 }, modifiers: ["Shift"] });
+  await expect(instance).toHaveClass(/selected/);
+  await expect(rectangle).toHaveClass(/selected/);
+});
+
 test("device annotation shares device additive selection and context menu", async ({
   page,
 }) => {

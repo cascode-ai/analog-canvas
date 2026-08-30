@@ -3497,6 +3497,25 @@ export function App({
     selection: {
       commitCommandMove: commitCommandMoveFromSelection,
       clearDraftingSelection: () => replaceSelectionKind("drafting", []),
+      pressActsOnSelection: (target) => {
+        const hitElement = target.closest("[data-canvas-hit-kind]");
+        const kind = hitElement?.getAttribute("data-canvas-hit-kind");
+        const id = hitElement?.getAttribute("data-canvas-hit-id");
+        if (!kind || !id) return false;
+        if (kind === "drafting") {
+          return visualSelection.draftingIds.includes(id);
+        }
+        if (
+          kind === "instance" ||
+          kind === "instance-label" ||
+          kind === "annotation" ||
+          kind === "route" ||
+          kind === "junction"
+        ) {
+          return compositeSelectionOwnsHit(kind, id);
+        }
+        return false;
+      },
       handleCanvasHitPointerDown: (event) => {
         if (!simulationPickNetsActive) handleCanvasHitPointerDown(event);
       },
