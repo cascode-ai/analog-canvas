@@ -16,6 +16,7 @@ import type { Point, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
 import type { EditorTool } from "../../interaction/interaction-state";
+import { endpointSnapAnchor } from "../../snap/candidates";
 import type { SnapGuideLine } from "../../snap/engine";
 import type { VisualSelection } from "../selection/visual-selection";
 import { planSelectionMove } from "../selection/selection-move-plan";
@@ -28,6 +29,7 @@ import {
   buildWireCanvasSnapIndex,
   resolveWireCanvasSnap as resolveWireCanvasSnapModel,
   type WireCanvasSnapResult,
+  wireSnapMarkerDomId,
 } from "./wire-canvas-snap";
 
 const SNAP_CAPTURE_RADIUS_PX = 7;
@@ -188,6 +190,50 @@ export function useWireCanvasController({
     () => buildWireCanvasSnapIndex(wiringEndpoints, routeGeometryRecords),
     [routeGeometryRecords, wiringEndpoints],
   );
+  const nearbyWireMarkersRef = useRef<Set<SVGCircleElement>>(new Set());
+  const focusedWireMarkerRef = useRef<SVGCircleElement | null>(null);
+
+  const clearWireSnapMarkerClasses = (): void => {
+    for (const marker of nearbyWireMarkersRef.current) {
+      marker.classList.remove("wire-snap-nearby");
+    }
+    nearbyWireMarkersRef.current.clear();
+    focusedWireMarkerRef.current?.classList.remove("wire-snap-focused");
+    focusedWireMarkerRef.current = null;
+  };
+
+  const paintWireSnapMarkers = (
+    svg: SVGSVGElement,
+    resolved: WireCanvasSnapResult,
+  ): void => {
+    const nextNearby = new Set<SVGCircleElement>();
+    for (const anchorId of resolved.nearbyEndpointAnchorIds) {
+      const marker = svg.ownerDocument.getElementById(
+        wireSnapMarkerDomId(anchorId),
+      ) as SVGCircleElement | null;
+      if (marker && svg.contains(marker)) nextNearby.add(marker);
+    }
+    for (const marker of nearbyWireMarkersRef.current) {
+      if (!nextNearby.has(marker)) marker.classList.remove("wire-snap-nearby");
+    }
+    for (const marker of nextNearby) marker.classList.add("wire-snap-nearby");
+    nearbyWireMarkersRef.current = nextNearby;
+
+    const focusedMarker = resolved.endpoint
+      ? (svg.ownerDocument.getElementById(
+          wireSnapMarkerDomId(endpointSnapAnchor(resolved.endpoint).id),
+        ) as SVGCircleElement | null)
+      : null;
+    if (focusedWireMarkerRef.current !== focusedMarker) {
+      focusedWireMarkerRef.current?.classList.remove("wire-snap-focused");
+      focusedMarker?.classList.add("wire-snap-focused");
+      focusedWireMarkerRef.current = focusedMarker;
+    }
+  };
+
+  useEffect(() => {
+    if (tool !== "wire") clearWireSnapMarkerClasses();
+  }, [tool]);
 
   useEffect(() => {
     if (tool !== "wire" || wireSource !== null || wireDraftSteps.length > 0) {
@@ -214,8 +260,8 @@ export function useWireCanvasController({
     point: Point,
     svg: SVGSVGElement,
     suppressSnap: boolean,
-  ): WireCanvasSnapResult =>
-    resolveWireCanvasSnapModel(
+  ): WireCanvasSnapResult => {
+    const resolved = resolveWireCanvasSnapModel(
       {
         document,
         resolver,
@@ -230,6 +276,9 @@ export function useWireCanvasController({
       point,
       suppressSnap,
     );
+    paintWireSnapMarkers(svg, resolved);
+    return resolved;
+  };
 
   const cycleWireCornerShape = (): void => {
     // Auto is a real stop: vertical-first follows it so the first middle press

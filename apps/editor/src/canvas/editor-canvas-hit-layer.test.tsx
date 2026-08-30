@@ -19,6 +19,7 @@ function emptyEndpointProps(document = createEmptyDocument("cell", "Cell")) {
     selectedRoute: undefined,
     selectedRouteSegmentIndex: null,
     selectedEndpoint: null,
+    wireSource: null,
     supplementalJunctionIds: [],
     endpointLabel: vi.fn(),
     onEndpointActions: vi.fn(),
@@ -124,6 +125,50 @@ describe("editor canvas hit layer", () => {
     );
     expect(markup).toContain('data-testid="junction-j1"');
     expect(markup).toContain('class="endpoint-hit active"');
+  });
+
+  it("keeps wire candidates faint while emphasizing the wire source", () => {
+    const document = createEmptyDocument("cell", "Cell");
+    const first = {
+      endpoint: { kind: "junction" as const, junctionId: "j1" },
+      netId: "net",
+      connection: {
+        endpoint: { kind: "junction" as const, junctionId: "j1" },
+        contactPoint: { x: 10, y: 20 },
+        gridLanding: { x: 10, y: 20 },
+        escapePath: [],
+        outward: null,
+      },
+      preludeEdits: [],
+    } satisfies WireSource;
+    const second = {
+      ...first,
+      endpoint: { kind: "junction" as const, junctionId: "j2" },
+      connection: {
+        ...first.connection,
+        endpoint: { kind: "junction" as const, junctionId: "j2" },
+        contactPoint: { x: 40, y: 20 },
+        gridLanding: { x: 40, y: 20 },
+      },
+    } satisfies WireSource;
+    const markup = renderToStaticMarkup(
+      <EditorCanvasHitLayer
+        selection={emptySelectionProps(document)}
+        endpoints={{
+          ...emptyEndpointProps(document),
+          tool: "wire",
+          endpoints: [first, second],
+          wireSource: first,
+          endpointLabel: (endpoint) =>
+            endpoint.kind === "junction" ? endpoint.junctionId : "terminal",
+        }}
+      />,
+    );
+
+    expect(markup).toContain('data-testid="j1"');
+    expect(markup).toContain('class="endpoint-hit wire-candidate active"');
+    expect(markup).toContain('data-testid="j2"');
+    expect(markup).toContain('class="endpoint-hit wire-candidate"');
   });
 
   it("keeps endpoints between routes and annotations in hit order", () => {

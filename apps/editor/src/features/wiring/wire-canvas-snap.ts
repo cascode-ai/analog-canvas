@@ -145,6 +145,11 @@ export interface WireCanvasSnapResult {
   route?: { routeId: string; segmentIndex: number; point: Point };
   ambiguous?: boolean;
   guides: SnapGuideLine[];
+  nearbyEndpointAnchorIds: string[];
+}
+
+export function wireSnapMarkerDomId(anchorId: string): string {
+  return `wire-snap-marker-${encodeURIComponent(anchorId)}`;
 }
 
 /** Resolve one wire-canvas pointer to a grid, endpoint, or routed conductor. */
@@ -170,6 +175,7 @@ export function resolveWireCanvasSnap(
         y: snapCoordinate(point.y, document.presentation.grid),
       },
       guides: [],
+      nearbyEndpointAnchorIds: [],
     };
   }
   const arrival = wireSource
@@ -297,5 +303,8 @@ export function resolveWireCanvasSnap(
         }
       : {}),
     guides: resolved.guides,
+    nearbyEndpointAnchorIds: endpointTargets.map(
+      (candidate) => candidate.anchor.id,
+    ),
   };
 }

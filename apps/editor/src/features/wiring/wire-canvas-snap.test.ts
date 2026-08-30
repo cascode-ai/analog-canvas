@@ -52,7 +52,11 @@ describe("wire canvas snap", () => {
         { x: 24, y: 36 },
         true,
       ),
-    ).toEqual({ point: { x: 20, y: 40 }, guides: [] });
+    ).toEqual({
+      point: { x: 20, y: 40 },
+      guides: [],
+      nearbyEndpointAnchorIds: [],
+    });
   });
 
   it("snaps to a routed conductor and returns its segment address", () => {
@@ -179,5 +183,6 @@ describe("wire canvas snap", () => {
 
     expect(result.endpoint).toBeUndefined();
     expect(result.point).toEqual({ x: 0, y: 40 });
+    expect(result.nearbyEndpointAnchorIds).toEqual([]);
   });
 });
