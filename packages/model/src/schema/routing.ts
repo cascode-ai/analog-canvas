@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { PointSchema, StableIdSchema } from "./common.js";
+import { HexColorSchema } from "./instance.js";
 
 export const RouteEndpointSchema = z.discriminatedUnion("kind", [
   z.strictObject({
@@ -22,6 +23,10 @@ export const RoutePresentationSchema = z.enum([
   "bulk-dashed",
   "power-rail",
 ]);
+/** Optional visual overrides for one electrical Route. */
+export const RouteStyleOverrideSchema = z.strictObject({
+  color: HexColorSchema.optional(),
+});
 export const RouteLegTargetSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("bend"),
@@ -46,6 +51,8 @@ export const RouteBranchSchema = z
     legs: z.array(RouteLegSchema).min(1),
     // Electrical connectivity is always owned by `netId` and the endpoints.
     presentation: RoutePresentationSchema.optional(),
+    // Omission inherits the document style profile (Razavi defaults to black).
+    styleOverride: RouteStyleOverrideSchema.optional(),
   })
   .superRefine((route, context) => {
     for (const [index, leg] of route.legs.entries()) {

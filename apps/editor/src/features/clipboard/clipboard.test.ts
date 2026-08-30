@@ -1037,6 +1037,7 @@ describe("copyWholeDocument", () => {
       end: { kind: "junction", junctionId: "guide-end" },
       bends: [],
       modes: ["manual"],
+      styleOverride: { color: "#2244AA" },
     });
     document.routes.push(route);
     document.drafting = {
@@ -1088,6 +1089,11 @@ describe("copyWholeDocument", () => {
         edit.object.id === "anchored-arrow-copy-1",
     );
     expect(pastedRoute?.kind).toBe("set_route_path");
+    expect(
+      pastedRoute?.kind === "set_route_path"
+        ? pastedRoute.route.styleOverride
+        : undefined,
+    ).toEqual({ color: "#2244AA" });
     expect(pastedArrow).toMatchObject({
       kind: "upsert_drafting_object",
       object: {

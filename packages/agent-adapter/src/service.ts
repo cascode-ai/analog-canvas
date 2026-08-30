@@ -159,6 +159,7 @@ export function agentEditCategory(
     case "set_instance_schematic_reference":
     case "set_instance_schematic_name":
     case "set_instance_style_override":
+    case "set_route_style_override":
     case "set_instance_signal_flow_parameters":
       return "presentation";
     case "set_instance_netlist":

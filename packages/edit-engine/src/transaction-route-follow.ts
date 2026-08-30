@@ -65,6 +65,9 @@ export function splitRoute(
       bends: firstNormalized.points.slice(1, -1),
       modes: firstNormalized.segmentModes,
       ...(route.presentation ? { presentation: route.presentation } : {}),
+      ...(route.styleOverride
+        ? { styleOverride: structuredClone(route.styleOverride) }
+        : {}),
     });
     const second = createRoutePath({
       id: secondRouteId,
@@ -74,6 +77,9 @@ export function splitRoute(
       bends: secondNormalized.points.slice(1, -1),
       modes: secondNormalized.segmentModes,
       ...(route.presentation ? { presentation: route.presentation } : {}),
+      ...(route.styleOverride
+        ? { styleOverride: structuredClone(route.styleOverride) }
+        : {}),
     });
     adoptSplitIdentities(first, route, 0);
     adoptSplitIdentities(second, route, vertexIndex);
@@ -106,6 +112,9 @@ export function splitRoute(
     bends: firstNormalized.points.slice(1, -1),
     modes: firstNormalized.segmentModes,
     ...(route.presentation ? { presentation: route.presentation } : {}),
+    ...(route.styleOverride
+      ? { styleOverride: structuredClone(route.styleOverride) }
+      : {}),
   });
   const second = createRoutePath({
     id: secondRouteId,
@@ -115,6 +124,9 @@ export function splitRoute(
     bends: secondNormalized.points.slice(1, -1),
     modes: secondNormalized.segmentModes,
     ...(route.presentation ? { presentation: route.presentation } : {}),
+    ...(route.styleOverride
+      ? { styleOverride: structuredClone(route.styleOverride) }
+      : {}),
   });
   adoptSplitIdentities(first, route, 0);
   adoptSplitIdentities(second, route, segmentIndex + 1, true);

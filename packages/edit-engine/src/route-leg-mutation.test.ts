@@ -17,6 +17,7 @@ function sourceRoute() {
       { x: 80, y: 40 },
     ],
     modes: ["manual", "trunk", "manual"],
+    styleOverride: { color: "#123456" },
   });
 }
 
@@ -49,6 +50,7 @@ describe("stable Route leg mutation", () => {
     );
     expect(rebuilt.identityRemap.createdLegIds.size).toBe(0);
     expect(rebuilt.identityRemap.removedLegIds.size).toBe(0);
+    expect(rebuilt.route.styleOverride).toEqual({ color: "#123456" });
   });
 
   it("keeps the start-side leg when inserting a bend before an existing bend", () => {

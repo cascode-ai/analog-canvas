@@ -115,8 +115,11 @@ export function RouteActionsSection({
   active,
   netLabelInputRef,
   netLabel,
+  color,
+  defaultColor,
   highlightActive,
   onNetLabelChange,
+  onColorChange,
   onDeleteNetLabel,
   onAddCurrentArrow,
   onToggleHighlight,
@@ -125,8 +128,11 @@ export function RouteActionsSection({
   active: boolean;
   netLabelInputRef: Ref<HTMLInputElement>;
   netLabel: string;
+  color: string | undefined;
+  defaultColor: string;
   highlightActive: boolean;
   onNetLabelChange: (value: string) => void;
+  onColorChange: (value: string | undefined) => void;
   onDeleteNetLabel: () => void;
   onAddCurrentArrow: () => void;
   onToggleHighlight: () => void;
@@ -148,6 +154,25 @@ export function RouteActionsSection({
       <button type="button" onClick={onDeleteNetLabel}>
         Delete Net label
       </button>
+      <label>
+        Wire color
+        <span className="drawing-color-row">
+          <input
+            aria-label="Wire color"
+            type="color"
+            value={normalizeColorInput(color ?? defaultColor)}
+            onChange={(event) => onColorChange(event.currentTarget.value)}
+          />
+          <button
+            type="button"
+            disabled={!color}
+            title="Use the document wire color"
+            onClick={() => onColorChange(undefined)}
+          >
+            Auto
+          </button>
+        </span>
+      </label>
       <button type="button" onClick={onAddCurrentArrow}>
         Add current arrow
       </button>
@@ -159,6 +184,13 @@ export function RouteActionsSection({
       </button>
     </section>
   );
+}
+
+function normalizeColorInput(color: string): string {
+  const shorthand = /^#([0-9a-f])([0-9a-f])([0-9a-f])$/iu.exec(color);
+  return shorthand
+    ? `#${shorthand[1]}${shorthand[1]}${shorthand[2]}${shorthand[2]}${shorthand[3]}${shorthand[3]}`
+    : color;
 }
 
 export function EndpointActionsSection({

@@ -71,6 +71,9 @@ export function applyRouteGeometryEdit(
       if (!route.presentation && existing?.presentation) {
         route.presentation = existing.presentation;
       }
+      if (!route.styleOverride && existing?.styleOverride) {
+        route.styleOverride = structuredClone(existing.styleOverride);
+      }
       const routeError = validateRoute(draft, route, resolver);
       if (routeError) {
         return {
@@ -161,6 +164,9 @@ export function applyRouteGeometryEdit(
       });
       if (!route.presentation && existing?.presentation) {
         route.presentation = existing.presentation;
+      }
+      if (existing?.styleOverride) {
+        route.styleOverride = structuredClone(existing.styleOverride);
       }
       const routeError = validateRoute(draft, route, resolver);
       if (routeError) {

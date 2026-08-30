@@ -40,6 +40,7 @@ import { applyInstanceTransformEdit } from "./transaction-instance-transform.js"
 import { applyMosBulkEdit } from "./transaction-mos-bulk.js";
 import { applyNetPowerEdit } from "./transaction-net-power.js";
 import { applyRouteGeometryEdit } from "./transaction-route-geometry.js";
+import { applyRouteStyleOverrideEdit } from "./transaction-route-style.js";
 import { applyRouteTopologyEdit } from "./transaction-route-topology.js";
 import { applyPresentationLayoutEdit } from "./transaction-presentation-layout.js";
 import {
@@ -311,6 +312,15 @@ export function executeTransaction(
       }
       case "set_instance_style_override": {
         const outcome = applyInstanceStyleOverrideEdit(edit, {
+          draft,
+          changedObjectIds,
+          reject: rejectAt,
+        });
+        if (!outcome.ok) return outcome.rejection;
+        break;
+      }
+      case "set_route_style_override": {
+        const outcome = applyRouteStyleOverrideEdit(edit, {
           draft,
           changedObjectIds,
           reject: rejectAt,

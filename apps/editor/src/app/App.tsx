@@ -4504,8 +4504,27 @@ export function App({
             active: selectedRouteId !== null,
             netLabelInputRef: netLabelPropertyInputRef,
             netLabel: netLabelDraft,
+            color: selectedRoute?.styleOverride?.color,
+            defaultColor: styleProfile.foreground,
             highlightActive: selectedHighlightIsActive,
             onNetLabelChange: updateNetLabelDraft,
+            onColorChange: (color) => {
+              if (!selectedRoute) return;
+              const result = transact([
+                {
+                  kind: "set_route_style_override",
+                  routeId: selectedRoute.id,
+                  styleOverride: color ? { color } : null,
+                },
+              ]);
+              if (result.ok) {
+                setStatus(
+                  color
+                    ? `Updated wire color for ${selectedRoute.id}`
+                    : `Reset wire color for ${selectedRoute.id}`,
+                );
+              }
+            },
             onDeleteNetLabel: deleteSelectedRouteNetLabel,
             onAddCurrentArrow: addCurrentArrow,
             onToggleHighlight: toggleHighlightedNet,

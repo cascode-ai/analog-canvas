@@ -1358,6 +1358,9 @@ export function proposePaste(
         bends: routeBends(route).map((point) => movePoint(point, offset)),
         modes: route.legs.map((leg) => leg.mode),
         ...(route.presentation ? { presentation: route.presentation } : {}),
+        ...(route.styleOverride
+          ? { styleOverride: structuredClone(route.styleOverride) }
+          : {}),
       }),
     })),
   );

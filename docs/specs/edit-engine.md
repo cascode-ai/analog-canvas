@@ -85,7 +85,8 @@ for readability; these groups do not create separate mutation endpoints:
   `set_mos_bulk_defaults`,
   `reconcile_mos_bulk`, `clear_mos_bulk_default`;
 - explicit open terminal: `add_no_connect`, `remove_no_connect`;
-- presentation/layout: `set_presentation_style`, `set_cell_symbol_presentation`,
+- presentation/layout: `set_presentation_style`, `set_route_style_override`,
+  `set_cell_symbol_presentation`,
   `upsert_schematic_annotation`, `remove_schematic_annotation`,
   `upsert_drafting_object`, `remove_drafting_object`, `set_layout_group`,
   `remove_layout_group`, `set_layout_constraint`,

@@ -3,6 +3,7 @@ import type {
   RouteBranch,
   RouteEndpoint,
   RoutePresentation,
+  RouteStyleOverride,
   SegmentMode,
   StableId,
 } from "./schema.js";
@@ -16,6 +17,7 @@ export interface NewRoutePath {
   readonly bends: readonly GridPoint[];
   readonly modes: readonly SegmentMode[];
   readonly presentation?: RoutePresentation;
+  readonly styleOverride?: RouteStyleOverride;
 }
 
 /**
@@ -44,6 +46,9 @@ export function createRoutePath(input: NewRoutePath): RouteBranch {
       mode,
     })),
     ...(input.presentation ? { presentation: input.presentation } : {}),
+    ...(input.styleOverride
+      ? { styleOverride: structuredClone(input.styleOverride) }
+      : {}),
   };
 }
 

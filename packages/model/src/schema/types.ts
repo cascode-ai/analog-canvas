@@ -57,6 +57,9 @@ export type RouteLegTarget = z.infer<typeof Schema.RouteLegTargetSchema>;
 export type RouteLeg = z.infer<typeof Schema.RouteLegSchema>;
 export type RouteBranch = z.infer<typeof Schema.RouteBranchSchema>;
 export type RoutePresentation = z.infer<typeof Schema.RoutePresentationSchema>;
+export type RouteStyleOverride = z.infer<
+  typeof Schema.RouteStyleOverrideSchema
+>;
 export type Junction = z.infer<typeof Schema.JunctionSchema>;
 export type NoConnectEndpoint = z.infer<typeof Schema.NoConnectEndpointSchema>;
 export type NoConnect = z.infer<typeof Schema.NoConnectSchema>;

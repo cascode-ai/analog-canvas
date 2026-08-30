@@ -20,6 +20,7 @@ import {
   RouteBranchSchema,
   RouteEndpointSchema,
   RoutePresentationSchema,
+  RouteStyleOverrideSchema,
   RotationSchema,
   SegmentModeSchema,
   StableIdSchema,
@@ -204,6 +205,12 @@ export const SetCellFormalParametersEditSchema = z.strictObject({
 export const SetRoutePathEditSchema = z.strictObject({
   kind: z.literal("set_route_path"),
   route: RouteBranchSchema,
+});
+/** Replace or clear one electrical Route's visual color override. */
+export const SetRouteStyleOverrideEditSchema = z.strictObject({
+  kind: z.literal("set_route_style_override"),
+  routeId: StableIdSchema,
+  styleOverride: RouteStyleOverrideSchema.nullable(),
 });
 export const RouteOrthogonalEditSchema = z.strictObject({
   kind: z.literal("route_orthogonal"),
@@ -407,6 +414,7 @@ export const SchematicEditSchema = z.discriminatedUnion("kind", [
   ReorderCellTerminalsEditSchema,
   SetCellFormalParametersEditSchema,
   SetRoutePathEditSchema,
+  SetRouteStyleOverrideEditSchema,
   RouteOrthogonalEditSchema,
   AddJunctionEditSchema,
   AttachEndpointToRouteEditSchema,

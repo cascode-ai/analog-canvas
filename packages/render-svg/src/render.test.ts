@@ -82,6 +82,43 @@ describe("render svg", () => {
     );
   });
 
+  it("renders a Route override while an unstyled Route keeps the profile color", () => {
+    const doc = createEmptyDocument("wire-color", "Wire color");
+    doc.nets.push({ id: "net", terminals: [] });
+    doc.junctions.push(
+      { id: "J1", netId: "net", position: { x: 0, y: 0 } },
+      { id: "J2", netId: "net", position: { x: 40, y: 0 } },
+      { id: "J3", netId: "net", position: { x: 80, y: 0 } },
+    );
+    doc.routes.push(
+      createRoutePath({
+        id: "colored-wire",
+        netId: "net",
+        start: { kind: "junction", junctionId: "J1" },
+        end: { kind: "junction", junctionId: "J2" },
+        bends: [],
+        modes: ["manual"],
+        styleOverride: { color: "#CC2244" },
+      }),
+      createRoutePath({
+        id: "default-wire",
+        netId: "net",
+        start: { kind: "junction", junctionId: "J2" },
+        end: { kind: "junction", junctionId: "J3" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+
+    const scene = buildSvgScene(doc, new InMemorySymbolResolver([]));
+    expect(scene.formalBody).toContain(
+      'data-object-id="colored-wire" data-net-id="net" points="0,0 40,0" fill="none" stroke="#CC2244"',
+    );
+    expect(scene.formalBody).toContain(
+      'data-object-id="default-wire" data-net-id="net" points="40,0 80,0" fill="none" stroke="#000"',
+    );
+  });
+
   it("renders signal-flow-frame, 12pt formula, fraction line, dynamic leads, and keeps pin names", () => {
     const doc = createEmptyDocument("main", "Main");
     doc.instances.push({
