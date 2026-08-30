@@ -782,6 +782,73 @@ export function diagnoseVisualQuality(
     }
   }
 
+  // The terminal twin of the ambiguous-junction rule: a visible pin whose
+  // contact point rests on a Net it does not belong to reads as connected
+  // while the model says otherwise. A rest on the pin's own Net is the
+  // ordinary contact idiom, and a NoConnect marker is the author stating
+  // the rest is deliberate; both stay quiet.
+  const terminalNetIds = new Map<string, string>();
+  for (const net of document.nets) {
+    for (const terminal of net.terminals) {
+      terminalNetIds.set(`${terminal.instanceId}\0${terminal.pinName}`, net.id);
+    }
+  }
+  const noConnectKeys = new Set(
+    document.noConnects.map(
+      (noConnect) =>
+        `${noConnect.endpoint.instanceId}\0${noConnect.endpoint.pinName}`,
+    ),
+  );
+  for (const instance of document.instances) {
+    if (!instance.placement) continue;
+    const resolved = resolver.resolve(
+      instance.symbolId,
+      instance.symbolVariantId,
+    );
+    if (!resolved) continue;
+    for (const pin of resolved.definition.pins) {
+      if (pin.presentation.visibility === "implicit") continue;
+      if (resolved.variant?.hiddenPinNames.includes(pin.name)) continue;
+      const key = `${instance.id}\0${pin.name}`;
+      if (noConnectKeys.has(key)) continue;
+      const terminalNetId = terminalNetIds.get(key);
+      const contactPoint = resolveEndpointPoint(document, resolver, {
+        kind: "terminal",
+        instanceId: instance.id,
+        pinName: pin.name,
+      });
+      if (!contactPoint) continue;
+      for (const route of document.routes) {
+        if (route.netId === terminalNetId) continue;
+        const centerline = routingGeometry.routes.get(route.id)?.centerline;
+        if (
+          centerline
+            ?.slice(1)
+            .some((to, index) =>
+              pointOnSegment(contactPoint, centerline[index]!, to),
+            )
+        ) {
+          diagnostics.push({
+            code: "VISUAL_TERMINAL_ON_FOREIGN_ROUTE",
+            severity: "error",
+            category: "structural",
+            confidence: "high",
+            gateEligible: true,
+            message: `Terminal ${instance.id}:${pin.name} lies on unrelated route ${route.id}`,
+            objectIds: [instance.id, route.id],
+            point: contactPoint,
+            parameters: {
+              instanceId: instance.id,
+              pinName: pin.name,
+              ...(terminalNetId === undefined ? {} : { terminalNetId }),
+              routeNetId: route.netId,
+            },
+          });
+        }
+      }
+    }
+  }
+
   for (const constraint of document.constraints) {
     if (constraintViolation(document, constraint, boundsById)) {
       const violationBounds = enclosingBounds(
