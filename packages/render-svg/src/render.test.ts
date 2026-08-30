@@ -1,4 +1,8 @@
-import { createEmptyDocument } from "@icm/model";
+import { createEmptyDocument, createRoutePath } from "@icm/model";
+import {
+  deriveDocumentContactEvidence,
+  resolveDocumentRoutingGeometry,
+} from "@icm/derived";
 import { InMemorySymbolResolver } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
@@ -43,6 +47,41 @@ const definition = {
 };
 
 describe("render svg", () => {
+  it("renders identically from one shared routing read model", () => {
+    const doc = createEmptyDocument("shared", "Shared read model");
+    doc.nets.push({ id: "net", terminals: [] });
+    doc.junctions.push(
+      { id: "J1", netId: "net", position: { x: 0, y: 0 } },
+      { id: "J2", netId: "net", position: { x: 40, y: 0 } },
+    );
+    doc.routes.push(
+      createRoutePath({
+        id: "route",
+        netId: "net",
+        start: { kind: "junction", junctionId: "J1" },
+        end: { kind: "junction", junctionId: "J2" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    const resolver = new InMemorySymbolResolver([]);
+    const routingGeometry = resolveDocumentRoutingGeometry(doc, resolver);
+    const contactEvidence = deriveDocumentContactEvidence(
+      doc,
+      resolver,
+      routingGeometry,
+    );
+
+    expect(
+      buildSvgScene(doc, resolver, { routingGeometry, contactEvidence }),
+    ).toEqual(buildSvgScene(doc, resolver));
+
+    doc.revision += 1;
+    expect(() => buildSvgScene(doc, resolver, { routingGeometry })).toThrow(
+      "SVG renderer received stale routing geometry",
+    );
+  });
+
   it("renders signal-flow-frame, 12pt formula, fraction line, dynamic leads, and keeps pin names", () => {
     const doc = createEmptyDocument("main", "Main");
     doc.instances.push({

@@ -153,8 +153,10 @@ function closestRouteAnchor(
 export function captureNetLabelRouteAnchors(
   document: SchematicDocument,
   resolver: SymbolResolver,
+  routeIds?: ReadonlySet<string>,
 ): NetLabelRouteAnchor[] {
   const polylines = document.routes.flatMap((route) => {
+    if (routeIds && !routeIds.has(route.id)) return [];
     const polyline = resolveRouteEditPath(document, resolver, route);
     return polyline ? [{ route, polyline }] : [];
   });
@@ -242,10 +244,12 @@ function arcFractionAt(
 export function captureRouteMarkerAnchors(
   document: SchematicDocument,
   resolver: SymbolResolver,
+  routeIds?: ReadonlySet<string>,
 ): RouteMarkerAnchor[] {
   return document.annotations.flatMap((annotation) => {
     const attachment = routeMarkerAttachment(annotation);
     if (!attachment) return [];
+    if (routeIds && !routeIds.has(attachment.routeId)) return [];
     const route = document.routes.find(
       (candidate) => candidate.id === attachment.routeId,
     );

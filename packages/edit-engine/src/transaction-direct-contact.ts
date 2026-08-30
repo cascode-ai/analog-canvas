@@ -3,8 +3,11 @@ import type { RouteEndpoint, SchematicDocument } from "@icm/model";
 import {
   deriveDirectContactDelta,
   endpointKey,
+  isVisibleEndpoint,
   isMosBulkTerminal,
+  netEndpoints,
   resolveEndpointConnection,
+  resolveEndpointPoint,
 } from "@icm/derived";
 import type { SymbolResolver } from "@icm/symbols";
 
@@ -17,6 +20,50 @@ import {
 export interface DirectContactReconciliation {
   geometryChanged: boolean;
   changedRouteIds: readonly string[];
+}
+
+/**
+ * Cheap conservative guard for transform transactions. A lost direct contact
+ * must have contained a moved endpoint at a coordinate shared by at least one
+ * other visible endpoint before the transform. Returning true may do extra
+ * work; returning false proves the full contact-delta derivation unnecessary.
+ */
+export function transformMaySeparateDirectContact(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  instanceIds: ReadonlySet<string>,
+  junctionIds: ReadonlySet<string>,
+): boolean {
+  for (const net of document.nets) {
+    const positions = new Map<
+      string,
+      { count: number; containsTransformedEndpoint: boolean }
+    >();
+    for (const endpoint of netEndpoints(document, net)) {
+      if (!isVisibleEndpoint(document, resolver, endpoint)) continue;
+      const point = resolveEndpointPoint(document, resolver, endpoint);
+      if (!point) continue;
+      const key = `${point.x},${point.y}`;
+      const current = positions.get(key) ?? {
+        count: 0,
+        containsTransformedEndpoint: false,
+      };
+      current.count += 1;
+      current.containsTransformedEndpoint ||=
+        (endpoint.kind === "terminal" &&
+          instanceIds.has(endpoint.instanceId)) ||
+        (endpoint.kind === "junction" && junctionIds.has(endpoint.junctionId));
+      positions.set(key, current);
+    }
+    if (
+      [...positions.values()].some(
+        (entry) => entry.count > 1 && entry.containsTransformedEndpoint,
+      )
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function endpointsSharePhysicalComponent(

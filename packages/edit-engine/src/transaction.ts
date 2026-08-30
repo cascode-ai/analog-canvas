@@ -1,4 +1,4 @@
-import { SchematicDocumentSchema } from "@icm/model";
+import { routeEnd, SchematicDocumentSchema } from "@icm/model";
 import type { SchematicDocument } from "@icm/model";
 import {
   endpointKey,
@@ -25,7 +25,10 @@ import {
   applyInstancesRouteFollow,
   splitRoute,
 } from "./transaction-route-follow.js";
-import { reconcileTransformDirectContacts } from "./transaction-direct-contact.js";
+import {
+  reconcileTransformDirectContacts,
+  transformMaySeparateDirectContact,
+} from "./transaction-direct-contact.js";
 import { nextPhysicalContactOperation } from "./transaction-connectivity-normalizer.js";
 import { applyCellResetEdit } from "./transaction-cell-reset.js";
 import { applyCellInterfaceEdit } from "./transaction-cell-interface.js";
@@ -115,9 +118,6 @@ export function executeTransaction(
 
   const proposedRevision = document.revision + 1;
   const draft = structuredClone(document);
-  const originalNetContractIssueKeys = new Set(
-    validateLogicalNetContract(document).map(logicalNetContractIssueKey),
-  );
   const explicitlyAuthoredRouteIds = new Set(
     transaction.edits.flatMap((edit) =>
       edit.kind === "set_route_path" || edit.kind === "route_orthogonal"
@@ -137,25 +137,6 @@ export function executeTransaction(
       deferInto: deferredNetPruneIds,
     });
   const resolver = context.symbolResolver;
-  const originalRouteStates = new Map(
-    resolver
-      ? document.routes.map((route) => [
-          route.id,
-          {
-            points:
-              resolveRouteEditPath(document, resolver, route)?.points ?? null,
-            error: validateRoute(document, route, resolver),
-          },
-        ])
-      : [],
-  );
-  const originalNetLabelAnchors = resolver
-    ? captureNetLabelRouteAnchors(document, resolver)
-    : [];
-  const originalRouteMarkerAnchors = resolver
-    ? captureRouteMarkerAnchors(document, resolver)
-    : [];
-  const changedRouteIds = new Set<string>();
   const transformedInstanceIds = new Set(
     transaction.edits.flatMap((edit) =>
       edit.kind === "move_instance" ||
@@ -176,6 +157,59 @@ export function executeTransaction(
             : [],
     ),
   );
+  const routeValidationIds = transaction.edits.every((edit) =>
+    [
+      "noop",
+      "move_instance",
+      "rotate_instance",
+      "mirror_instance",
+      "align_instances",
+      "set_instance_signal_flow_parameters",
+    ].includes(edit.kind),
+  )
+    ? new Set(
+        document.routes.flatMap((route) =>
+          [route.start, routeEnd(route)].some(
+            (endpoint) =>
+              endpoint.kind === "terminal" &&
+              transformedInstanceIds.has(endpoint.instanceId),
+          )
+            ? [route.id]
+            : [],
+        ),
+      )
+    : undefined;
+  const originalRouteStates = new Map(
+    resolver
+      ? document.routes
+          .filter(
+            (route) =>
+              routeValidationIds === undefined ||
+              routeValidationIds.has(route.id),
+          )
+          .map((route) => {
+            const resolvedPath = resolveRouteEditPath(
+              document,
+              resolver,
+              route,
+            );
+            return [
+              route.id,
+              {
+                points: resolvedPath?.points ?? null,
+                error: validateRoute(document, route, resolver, resolvedPath),
+              },
+            ];
+          })
+      : [],
+  );
+  const originalNetLabelAnchors = resolver
+    ? captureNetLabelRouteAnchors(document, resolver, routeValidationIds)
+    : [];
+  const originalRouteMarkerAnchors = resolver
+    ? captureRouteMarkerAnchors(document, resolver, routeValidationIds)
+    : [];
+  const changedRouteIds = new Set<string>();
   let geometryChanged = false;
   let connectivityChanged = false;
 
@@ -515,16 +549,30 @@ export function executeTransaction(
         edit.kind === "set_instance_symbol",
     )
   ) {
-    const directContact = reconcileTransformDirectContacts(
-      document,
-      draft,
-      resolver,
-      transaction.transactionId,
-      changedObjectIds,
+    const movedJunctionIds = new Set(
+      transaction.edits.flatMap((edit) =>
+        edit.kind === "move_junction" ? [edit.junctionId] : [],
+      ),
     );
-    geometryChanged ||= directContact.geometryChanged;
-    for (const routeId of directContact.changedRouteIds) {
-      changedRouteIds.add(routeId);
+    if (
+      transformMaySeparateDirectContact(
+        document,
+        resolver,
+        transformedInstanceIds,
+        movedJunctionIds,
+      )
+    ) {
+      const directContact = reconcileTransformDirectContacts(
+        document,
+        draft,
+        resolver,
+        transaction.transactionId,
+        changedObjectIds,
+      );
+      geometryChanged ||= directContact.geometryChanged;
+      for (const routeId of directContact.changedRouteIds) {
+        changedRouteIds.add(routeId);
+      }
     }
   }
 
@@ -807,10 +855,17 @@ export function executeTransaction(
     draft.nets.length !== netCountBeforeDeferredPrune ||
     draft.connectivityEvidence.length !== evidenceCountBeforeDeferredPrune;
 
-  const introducedNetContractIssue = validateLogicalNetContract(draft).find(
-    (issue) =>
-      !originalNetContractIssueKeys.has(logicalNetContractIssueKey(issue)),
-  );
+  const originalNetContractIssueKeys = connectivityChanged
+    ? new Set(
+        validateLogicalNetContract(document).map(logicalNetContractIssueKey),
+      )
+    : new Set<string>();
+  const introducedNetContractIssue = connectivityChanged
+    ? validateLogicalNetContract(draft).find(
+        (issue) =>
+          !originalNetContractIssueKeys.has(logicalNetContractIssueKey(issue)),
+      )
+    : undefined;
   if (introducedNetContractIssue) {
     const message =
       introducedNetContractIssue.code === "CONFLICTING_LOGICAL_NET_SCOPE"
@@ -829,11 +884,18 @@ export function executeTransaction(
   }
 
   if (resolver) {
-    for (const route of draft.routes) {
-      const routeError = validateRoute(draft, route, resolver);
+    const routesToValidate =
+      routeValidationIds === undefined
+        ? draft.routes
+        : draft.routes.filter(
+            (route) =>
+              routeValidationIds.has(route.id) || changedRouteIds.has(route.id),
+          );
+    for (const route of routesToValidate) {
       const original = originalRouteStates.get(route.id);
-      const resolvedPoints =
-        resolveRouteEditPath(draft, resolver, route)?.points ?? null;
+      const resolvedPath = resolveRouteEditPath(draft, resolver, route);
+      const routeError = validateRoute(draft, route, resolver, resolvedPath);
+      const resolvedPoints = resolvedPath?.points ?? null;
       const resolvedGeometryChanged =
         original === undefined ||
         !sameResolvedRoutePoints(original.points, resolvedPoints);

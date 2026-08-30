@@ -38,6 +38,16 @@ export interface Crossing {
   kind: "crossing" | "overlap";
 }
 
+interface CrossingSegmentCandidate {
+  route: RouteBranch;
+  routeOrder: number;
+  segment: ResolvedRouteSegment;
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+}
+
 export function projectPointToRouteSegment(
   point: Point,
   segment: ResolvedRouteSegment,
@@ -162,44 +172,76 @@ export function deriveCrossings(
   const routes = [...document.routes].sort((left, right) =>
     left.id.localeCompare(right.id, "en"),
   );
+  const routeOrder = new Map(
+    routes.map((route, index) => [route.id, index] as const),
+  );
+  const candidates: CrossingSegmentCandidate[] = routes
+    .flatMap((route) => {
+      const geometry = routingGeometry.routes.get(route.id);
+      return (geometry?.segments ?? []).map((segment) => ({
+        route,
+        routeOrder: routeOrder.get(route.id)!,
+        segment,
+        minX: Math.min(segment.from.x, segment.to.x),
+        maxX: Math.max(segment.from.x, segment.to.x),
+        minY: Math.min(segment.from.y, segment.to.y),
+        maxY: Math.max(segment.from.y, segment.to.y),
+      }));
+    })
+    .sort(
+      (left, right) =>
+        left.minX - right.minX ||
+        left.maxX - right.maxX ||
+        left.minY - right.minY ||
+        left.routeOrder - right.routeOrder ||
+        left.segment.address.segmentIndex - right.segment.address.segmentIndex,
+    );
   const result: Crossing[] = [];
-  for (let leftIndex = 0; leftIndex < routes.length; leftIndex += 1) {
+  const sharedPointByRoutePair = new Map<string, Point | null>();
+  for (let leftIndex = 0; leftIndex < candidates.length; leftIndex += 1) {
+    const left = candidates[leftIndex]!;
     for (
       let rightIndex = leftIndex + 1;
-      rightIndex < routes.length;
+      rightIndex < candidates.length;
       rightIndex += 1
     ) {
-      const left = routes[leftIndex]!;
-      const right = routes[rightIndex]!;
-      const leftGeometry = routingGeometry.routes.get(left.id);
-      const rightGeometry = routingGeometry.routes.get(right.id);
-      if (!leftGeometry || !rightGeometry) continue;
-      const shared = sharedExplicitEndpoint(left, right);
-      const sharedPoint = shared
-        ? resolveEndpointPoint(document, resolver, shared)
-        : null;
-      for (const leftSegment of leftGeometry.segments) {
-        for (const rightSegment of rightGeometry.segments) {
-          const intersection = intersectSegments(
-            leftSegment.from,
-            leftSegment.to,
-            rightSegment.from,
-            rightSegment.to,
-          );
-          if (!intersection) continue;
-          if (sharedPoint && samePoint(sharedPoint, intersection.point)) {
-            continue;
-          }
-          result.push({
-            routeAId: left.id,
-            routeBId: right.id,
-            netAId: left.netId,
-            netBId: right.netId,
-            point: intersection.point,
-            kind: intersection.kind,
-          });
-        }
+      const right = candidates[rightIndex]!;
+      if (right.minX > left.maxX) break;
+      if (
+        left.route.id === right.route.id ||
+        right.minY > left.maxY ||
+        right.maxY < left.minY
+      ) {
+        continue;
       }
+      const intersection = intersectSegments(
+        left.segment.from,
+        left.segment.to,
+        right.segment.from,
+        right.segment.to,
+      );
+      if (!intersection) continue;
+      const routeA =
+        left.routeOrder < right.routeOrder ? left.route : right.route;
+      const routeB = routeA === left.route ? right.route : left.route;
+      const pairKey = `${routeA.id}\0${routeB.id}`;
+      let sharedPoint = sharedPointByRoutePair.get(pairKey);
+      if (sharedPoint === undefined) {
+        const shared = sharedExplicitEndpoint(routeA, routeB);
+        sharedPoint = shared
+          ? resolveEndpointPoint(document, resolver, shared)
+          : null;
+        sharedPointByRoutePair.set(pairKey, sharedPoint);
+      }
+      if (sharedPoint && samePoint(sharedPoint, intersection.point)) continue;
+      result.push({
+        routeAId: routeA.id,
+        routeBId: routeB.id,
+        netAId: routeA.netId,
+        netBId: routeB.netId,
+        point: intersection.point,
+        kind: intersection.kind,
+      });
     }
   }
   return result.sort(

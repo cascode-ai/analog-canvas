@@ -93,6 +93,12 @@ describe("Project Connectivity Index logical aliases", () => {
         evidence: "BIAS",
       },
     ]);
+    const documentIndex = buildProjectConnectivityIndex(
+      project,
+      resolver,
+    ).documents.get(document.id)!;
+    expect(documentIndex.contactEvidence.contacts).toHaveLength(4);
+    expect(documentIndex.contactEvidence.byEndpointKey.size).toBe(4);
   });
 
   it("aggregates evidence-equivalent Base Nets under every Base-Net lookup", () => {

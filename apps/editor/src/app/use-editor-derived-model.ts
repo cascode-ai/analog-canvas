@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 
 import {
-  buildProjectConnectivityIndex,
   buildProjectSearchIndex,
   deriveCrossings,
   diagnoseProjectSnapshot,
@@ -13,7 +12,11 @@ import {
   resolveEndpointConnection,
   traceHierarchyNet,
 } from "@icm/derived";
-import type { Flightline, HierarchyFrame } from "@icm/derived";
+import type {
+  Flightline,
+  HierarchyFrame,
+  ProjectConnectivityIndex,
+} from "@icm/derived";
 import type { WireSource } from "@icm/edit-engine";
 import { analyzeDesignNetlist } from "@icm/netlist";
 import type {
@@ -42,6 +45,7 @@ interface UseEditorDerivedModelOptions {
   project: CircuitProject;
   document: SchematicDocument;
   resolver: SymbolResolver;
+  projectConnectivityIndex: ProjectConnectivityIndex;
   documentStack: readonly HierarchyFrame[];
   highlightedNetOrigin: HighlightedNetOrigin | null;
   selectedHighlightNetId: string | null;
@@ -204,6 +208,7 @@ export function useEditorDerivedModel({
   project,
   document,
   resolver,
+  projectConnectivityIndex,
   documentStack,
   highlightedNetOrigin,
   selectedHighlightNetId,
@@ -213,10 +218,6 @@ export function useEditorDerivedModel({
   wireSource,
   bulkDrawInstanceId,
 }: UseEditorDerivedModelOptions) {
-  const projectConnectivityIndex = useMemo(
-    () => buildProjectConnectivityIndex(project, resolver),
-    [project, resolver],
-  );
   const documentConnectivity = projectConnectivityIndex.documents.get(
     document.id,
   );
@@ -332,8 +333,16 @@ export function useEditorDerivedModel({
     [document, documentConnectivity, resolver],
   );
   const visualDiagnostics = useMemo(
-    () => diagnoseVisualQuality(document, resolver),
-    [document, resolver],
+    () =>
+      diagnoseVisualQuality(document, resolver, {
+        ...(documentConnectivity
+          ? {
+              routingGeometry: documentConnectivity.routingGeometry,
+              contactEvidence: documentConnectivity.contactEvidence,
+            }
+          : {}),
+      }),
+    [document, documentConnectivity, resolver],
   );
   const visualDiagnosticSummary = useMemo(
     () => summarizeVisualDiagnostics(visualDiagnostics),

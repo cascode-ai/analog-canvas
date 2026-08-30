@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveRouteTap } from "./route-query.js";
+import { createEmptyDocument, createRoutePath } from "@icm/model";
+import { InMemorySymbolResolver } from "@icm/symbols";
+
+import { deriveCrossings, resolveRouteTap } from "./route-query.js";
 import type { ResolvedRouteGeometry } from "./resolved-route-geometry.js";
 
 function geometry(
@@ -49,6 +52,74 @@ function geometry(
 }
 
 describe("route queries", () => {
+  it("finds crossings and overlaps while excluding a shared explicit endpoint", () => {
+    const document = createEmptyDocument("crossings", "Crossings");
+    const junctions = [
+      ["J1", "net-a", 0, 0],
+      ["J2", "net-a", 100, 0],
+      ["J3", "net-b", 50, -50],
+      ["J4", "net-b", 50, 50],
+      ["J5", "net-c", 20, 0],
+      ["J6", "net-c", 80, 0],
+      ["J7", "net-a", 100, 50],
+    ] as const;
+    document.nets.push(
+      ...["net-a", "net-b", "net-c"].map((id) => ({
+        id,
+        terminals: [],
+      })),
+    );
+    document.junctions.push(
+      ...junctions.map(([id, netId, x, y]) => ({
+        id,
+        netId,
+        position: { x, y },
+      })),
+    );
+    const route = (id: string, netId: string, start: string, end: string) =>
+      createRoutePath({
+        id,
+        netId,
+        start: { kind: "junction", junctionId: start },
+        end: { kind: "junction", junctionId: end },
+        bends: [],
+        modes: ["manual"],
+      });
+    document.routes.push(
+      route("route-a", "net-a", "J1", "J2"),
+      route("route-b", "net-b", "J3", "J4"),
+      route("route-c", "net-c", "J5", "J6"),
+      route("route-d", "net-a", "J2", "J7"),
+    );
+
+    expect(deriveCrossings(document, new InMemorySymbolResolver([]))).toEqual([
+      {
+        routeAId: "route-a",
+        routeBId: "route-b",
+        netAId: "net-a",
+        netBId: "net-b",
+        point: { x: 50, y: 0 },
+        kind: "crossing",
+      },
+      {
+        routeAId: "route-a",
+        routeBId: "route-c",
+        netAId: "net-a",
+        netBId: "net-c",
+        point: { x: 20, y: 0 },
+        kind: "overlap",
+      },
+      {
+        routeAId: "route-b",
+        routeBId: "route-c",
+        netAId: "net-b",
+        netBId: "net-c",
+        point: { x: 50, y: 0 },
+        kind: "crossing",
+      },
+    ]);
+  });
+
   it("prefers an in-tolerance interior vertex over a closer segment projection", () => {
     expect(
       resolveRouteTap(

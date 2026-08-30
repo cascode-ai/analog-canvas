@@ -19,6 +19,7 @@ import {
   type WireSource,
 } from "@icm/edit-engine";
 import {
+  buildProjectConnectivityIndex,
   computeNetHighlight,
   deriveNetConnectivity,
   deriveRoutingAffectedClosure,
@@ -472,6 +473,10 @@ export function App({
     canvasDragSessionRef.current?.cancel();
     stageRecovery(project);
   });
+  const projectConnectivityIndex = useMemo(
+    () => buildProjectConnectivityIndex(project, resolver),
+    [project, resolver],
+  );
   const agentSemanticIntentRef = useRef<
     (request: AgentHostSemanticIntentRequest) => AgentHostSemanticIntentResult
   >(() => ({
@@ -1093,11 +1098,28 @@ export function App({
       // camera-independent; rebuilding it during pan/zoom repeats all route,
       // symbol, text, and drafting derivation without changing one visible
       // object.
-      return buildSvgScene(renderedDocument, resolver);
+      const documentConnectivity =
+        renderedDocument === document
+          ? projectConnectivityIndex.documents.get(document.id)
+          : undefined;
+      return buildSvgScene(renderedDocument, resolver, {
+        ...(documentConnectivity
+          ? {
+              routingGeometry: documentConnectivity.routingGeometry,
+              contactEvidence: documentConnectivity.contactEvidence,
+            }
+          : {}),
+      });
     }, lastGoodSceneRef.current);
     if (!outcome.degraded) lastGoodSceneRef.current = outcome.scene;
     return outcome;
-  }, [formulaArtifactRevision, renderedDocument, resolver]);
+  }, [
+    document,
+    formulaArtifactRevision,
+    projectConnectivityIndex,
+    renderedDocument,
+    resolver,
+  ]);
   const scene = sceneState.scene;
   useEffect(() => {
     if (sceneState.degraded) {
@@ -1200,7 +1222,6 @@ export function App({
     selectedEndpoint,
   });
   const {
-    projectConnectivityIndex,
     logicalNets,
     routeGeometryRecords,
     netlistAnalysis,
@@ -1223,6 +1244,7 @@ export function App({
     project,
     document,
     resolver,
+    projectConnectivityIndex,
     documentStack,
     highlightedNetOrigin,
     selectedHighlightNetId,

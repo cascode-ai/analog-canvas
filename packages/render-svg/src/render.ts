@@ -28,6 +28,7 @@ import {
 import { flattenRichText } from "@icm/model";
 import type {
   EndpointJoin,
+  DocumentContactEvidence,
   ResolvedDocumentRoutingGeometry,
   ResolvedDraftingGeometry,
   SchematicStyleProfile,
@@ -70,6 +71,10 @@ export interface SvgRenderOptions {
   bounds?: GridRect;
   margin?: number;
   title?: string;
+  /** Revision-scoped routing read model supplied by a shared caller. */
+  routingGeometry?: ResolvedDocumentRoutingGeometry;
+  /** Contact evidence paired with `routingGeometry`; never persisted. */
+  contactEvidence?: DocumentContactEvidence;
 }
 
 export interface SvgScene {
@@ -669,7 +674,15 @@ export function buildSvgScene(
   if (!Number.isInteger(margin) || margin < 0) {
     throw new Error("SVG margin must be a non-negative integer");
   }
-  const routingGeometry = resolveDocumentRoutingGeometry(document, resolver);
+  const routingGeometry =
+    options.routingGeometry ??
+    resolveDocumentRoutingGeometry(document, resolver);
+  if (
+    routingGeometry.documentId !== document.id ||
+    routingGeometry.documentRevision !== document.revision
+  ) {
+    throw new Error("SVG renderer received stale routing geometry");
+  }
   const logicalNets = resolveDocumentLogicalNets(document);
   const powerRailNetIds = new Set(
     document.routes.flatMap((route) => {
@@ -726,11 +739,9 @@ export function buildSvgScene(
     routingGeometry.endpointJoins,
     profile,
   );
-  const contactEvidence = deriveDocumentContactEvidence(
-    document,
-    resolver,
-    routingGeometry,
-  );
+  const contactEvidence =
+    options.contactEvidence ??
+    deriveDocumentContactEvidence(document, resolver, routingGeometry);
   const junctions = contactEvidence.contacts
     .filter((contact) => {
       if (

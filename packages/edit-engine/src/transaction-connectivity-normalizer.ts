@@ -86,6 +86,17 @@ export function nextPhysicalContactOperation(
   license: PhysicalContactLicense,
   suppressedEndpointKeys: ReadonlySet<string> = new Set(),
 ): PhysicalContactOperation | null {
+  // A transaction without an explicit physical-contact license cannot
+  // normalize any contact. Most geometry and presentation edits are in this
+  // category; avoid resolving every visible endpoint and comparing the whole
+  // Document only to reject every candidate below.
+  if (
+    license.objectIds.size === 0 &&
+    license.endpointKeys.size === 0 &&
+    license.routePoints.size === 0
+  ) {
+    return null;
+  }
   const endpointLicensed = (endpoint: RouteEndpoint): boolean =>
     license.objectIds.has(endpointObjectId(endpoint)) ||
     license.endpointKeys.has(endpointKey(endpoint));
@@ -101,29 +112,40 @@ export function nextPhysicalContactOperation(
     return point ? [{ endpoint, point }] : [];
   });
 
-  for (let leftIndex = 0; leftIndex < positioned.length; leftIndex += 1) {
-    const left = positioned[leftIndex]!;
-    for (
-      let rightIndex = leftIndex + 1;
-      rightIndex < positioned.length;
-      rightIndex += 1
-    ) {
-      const right = positioned[rightIndex]!;
-      if (!samePoint(left.point, right.point)) continue;
-      if (
-        !endpointLicensed(left.endpoint) &&
-        !endpointLicensed(right.endpoint)
+  const positionedByPoint = new Map<string, typeof positioned>();
+  for (const entry of positioned) {
+    const key = physicalContactPointKey(entry.point);
+    const entries = positionedByPoint.get(key) ?? [];
+    entries.push(entry);
+    positionedByPoint.set(key, entries);
+  }
+  for (const coincident of positionedByPoint.values()) {
+    if (!coincident.some(({ endpoint }) => endpointLicensed(endpoint))) {
+      continue;
+    }
+    for (let leftIndex = 0; leftIndex < coincident.length; leftIndex += 1) {
+      const left = coincident[leftIndex]!;
+      for (
+        let rightIndex = leftIndex + 1;
+        rightIndex < coincident.length;
+        rightIndex += 1
       ) {
-        continue;
+        const right = coincident[rightIndex]!;
+        if (
+          !endpointLicensed(left.endpoint) &&
+          !endpointLicensed(right.endpoint)
+        ) {
+          continue;
+        }
+        const leftOwner = endpointOwnerNetId(document, left.endpoint);
+        const rightOwner = endpointOwnerNetId(document, right.endpoint);
+        if (leftOwner !== null && leftOwner === rightOwner) continue;
+        return {
+          kind: "connect-endpoints",
+          left: left.endpoint,
+          right: right.endpoint,
+        };
       }
-      const leftOwner = endpointOwnerNetId(document, left.endpoint);
-      const rightOwner = endpointOwnerNetId(document, right.endpoint);
-      if (leftOwner !== null && leftOwner === rightOwner) continue;
-      return {
-        kind: "connect-endpoints",
-        left: left.endpoint,
-        right: right.endpoint,
-      };
     }
   }
 

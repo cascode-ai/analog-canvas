@@ -14,6 +14,7 @@ import { describe, expect, it } from "vitest";
 
 import { executeTransaction } from "./transaction.js";
 import { DocumentHistory } from "./history.js";
+import { transformMaySeparateDirectContact } from "./transaction-direct-contact.js";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 const context = { symbolResolver: resolver };
@@ -77,6 +78,33 @@ function transaction(
 }
 
 describe("direct-contact transform lifecycle", () => {
+  it("uses coincident visible endpoints as the conservative transform guard", () => {
+    const contact = fixture();
+    expect(
+      transformMaySeparateDirectContact(
+        contact,
+        resolver,
+        new Set(["A"]),
+        new Set(),
+      ),
+    ).toBe(true);
+
+    const separate = fixture();
+    separate.instances.find((instance) => instance.id === "A")!.placement = {
+      position: { x: 100, y: 300 },
+      rotation: 0,
+      mirror: "none",
+    };
+    expect(
+      transformMaySeparateDirectContact(
+        separate,
+        resolver,
+        new Set(["A"]),
+        new Set(),
+      ),
+    ).toBe(false);
+  });
+
   it("materializes an ordinary Route when one endpoint moves away", () => {
     const document = fixture();
     const result = executeTransaction(

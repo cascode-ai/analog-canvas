@@ -168,11 +168,19 @@ export function diagnoseProject(
   resolver: SymbolResolver,
   index = buildProjectConnectivityIndex(project, resolver),
 ): readonly Diagnostic[] {
-  const visual = project.documents.flatMap((document) =>
-    diagnoseVisualQuality(document, resolver).map((diagnostic) =>
+  const visual = project.documents.flatMap((document) => {
+    const documentIndex = index.documents.get(document.id);
+    return diagnoseVisualQuality(document, resolver, {
+      ...(documentIndex
+        ? {
+            routingGeometry: documentIndex.routingGeometry,
+            contactEvidence: documentIndex.contactEvidence,
+          }
+        : {}),
+    }).map((diagnostic) =>
       adaptVisualDiagnostic(diagnostic, document.id, index),
-    ),
-  );
+    );
+  });
   return mergeDiagnostics(runErcChecks(project, index, resolver), visual);
 }
 

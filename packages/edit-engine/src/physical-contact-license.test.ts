@@ -7,7 +7,9 @@ import { parseProject } from "@icm/project-protocol";
 import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
-import { executeTransaction } from "./transaction.js";
+import { EditTransactionSchema, executeTransaction } from "./transaction.js";
+import { physicalContactLicenseForTransaction } from "./transaction-connectivity.js";
+import { nextPhysicalContactOperation } from "./transaction-connectivity-normalizer.js";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 const context = { symbolResolver: resolver };
@@ -147,6 +149,30 @@ function junctionNetIds(document: SchematicDocument): Record<string, string> {
 }
 
 describe("physical contact license", () => {
+  it("does no whole-Document contact search without an explicit license", () => {
+    const document = fixture({
+      keepInstances: ["A", "B"],
+      parkedJunctionX: 250,
+    });
+    const move = transaction(document, [
+      {
+        kind: "move_instance",
+        instanceId: "A",
+        position: { x: 160, y: 300 },
+      },
+    ]);
+    const license = physicalContactLicenseForTransaction(
+      EditTransactionSchema.parse(move),
+    );
+
+    expect(license.objectIds.size).toBe(0);
+    expect(license.endpointKeys.size).toBe(0);
+    expect(license.routePoints.size).toBe(0);
+    expect(
+      nextPhysicalContactOperation(document, resolver, license),
+    ).toBeNull();
+  });
+
   it("keeps a typed attach from bonding the rest of the conductor, regardless of split ID reuse", () => {
     const endpoint: RouteEndpoint = {
       kind: "terminal",

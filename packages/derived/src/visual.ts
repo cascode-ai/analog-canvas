@@ -18,7 +18,10 @@ import {
   type ResolvedDocumentRoutingGeometry,
 } from "./resolved-route-geometry.js";
 import { resolveDocumentStyleProfile } from "./style-profile.js";
-import { deriveDocumentContactEvidence } from "./contact.js";
+import {
+  deriveDocumentContactEvidence,
+  type DocumentContactEvidence,
+} from "./contact.js";
 import { resolveAnnotationPresentation } from "./annotation-presentation.js";
 import { resolveAnnotationText } from "./annotation-text.js";
 import { pointOnSegment } from "./segment-geometry.js";
@@ -39,6 +42,10 @@ export interface VisualDiagnostic {
 export interface VisualDiagnosticOptions {
   minimumSegmentLength?: number;
   pageBounds?: Rect;
+  /** Revision-scoped routing read model supplied by a shared caller. */
+  routingGeometry?: ResolvedDocumentRoutingGeometry;
+  /** Contact evidence paired with `routingGeometry`; never persisted. */
+  contactEvidence?: DocumentContactEvidence;
 }
 
 interface CachedVisualDiagnostics {
@@ -89,11 +96,26 @@ function overlappingClusters<T extends { id: string; bounds: Rect }>(
     const rightRoot = find(right);
     if (leftRoot !== rightRoot) parents[rightRoot] = leftRoot;
   };
-  for (let left = 0; left < items.length; left += 1) {
-    for (let right = left + 1; right < items.length; right += 1) {
-      if (overlaps(items[left]!, items[right]!)) {
-        join(left, right);
-      }
+  const byLeftEdge = items
+    .map((_, index) => index)
+    .sort(
+      (left, right) =>
+        items[left]!.bounds.x - items[right]!.bounds.x || left - right,
+    );
+  for (let leftOrder = 0; leftOrder < byLeftEdge.length; leftOrder += 1) {
+    const left = byLeftEdge[leftOrder]!;
+    const leftItem = items[left]!;
+    const leftRight = leftItem.bounds.x + leftItem.bounds.width;
+    for (
+      let rightOrder = leftOrder + 1;
+      rightOrder < byLeftEdge.length;
+      rightOrder += 1
+    ) {
+      const right = byLeftEdge[rightOrder]!;
+      const rightItem = items[right]!;
+      if (rightItem.bounds.x >= leftRight) break;
+      if (!rectanglesOverlap(leftItem.bounds, rightItem.bounds)) continue;
+      if (overlaps(leftItem, rightItem)) join(left, right);
     }
   }
   const groups = new Map<number, T[]>();
@@ -398,6 +420,7 @@ function pushRoutingQualityMetrics(
   resolver: SymbolResolver,
   boundsById: Map<string, Rect>,
   routingGeometry: ResolvedDocumentRoutingGeometry,
+  contactEvidence: DocumentContactEvidence,
 ): void {
   const routeCenterlines = document.routes
     .map((route) => ({
@@ -412,12 +435,6 @@ function pushRoutingQualityMetrics(
         centerline: readonly Point[];
       } => entry.centerline !== undefined,
     );
-  const contactEvidence = deriveDocumentContactEvidence(
-    document,
-    resolver,
-    routingGeometry,
-  );
-
   // 1. Wire-through-symbol: a Route segment passes through an instance
   //    silhouette that is not one of its terminal endpoints.
   for (const { route, centerline } of routeCenterlines) {
@@ -611,7 +628,18 @@ export function diagnoseVisualQuality(
     options.minimumSegmentLength ?? document.presentation.grid;
   const bounds = instanceBounds(document, resolver);
   const boundsById = new Map(bounds.map((item) => [item.id, item.bounds]));
-  const routingGeometry = resolveDocumentRoutingGeometry(document, resolver);
+  const routingGeometry =
+    options.routingGeometry ??
+    resolveDocumentRoutingGeometry(document, resolver);
+  if (
+    routingGeometry.documentId !== document.id ||
+    routingGeometry.documentRevision !== document.revision
+  ) {
+    throw new Error("Visual diagnostics received stale routing geometry");
+  }
+  const contactEvidence =
+    options.contactEvidence ??
+    deriveDocumentContactEvidence(document, resolver, routingGeometry);
 
   for (const instance of document.instances) {
     if (!instance.placement) {
@@ -807,6 +835,7 @@ export function diagnoseVisualQuality(
     resolver,
     boundsById,
     routingGeometry,
+    contactEvidence,
   );
   const ordered = diagnostics.sort((left, right) =>
     `${left.code}\0${left.objectIds.join("\0")}`.localeCompare(

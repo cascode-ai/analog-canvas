@@ -208,6 +208,7 @@ export function validateRoute(
   document: SchematicDocument,
   route: RouteBranch,
   resolver: SymbolResolver,
+  resolvedPath?: ReturnType<typeof resolveRouteEditPath>,
 ): string | null {
   const net = document.nets.find((candidate) => candidate.id === route.netId);
   if (!net) return `Route net does not exist: ${route.netId}`;
@@ -224,7 +225,10 @@ export function validateRoute(
   if (!endpointBelongsToNet(document, net, end)) {
     return `Route to endpoint is not a member of ${route.netId}`;
   }
-  const polyline = resolveRouteEditPath(document, resolver, route);
+  const polyline =
+    resolvedPath === undefined
+      ? resolveRouteEditPath(document, resolver, route)
+      : resolvedPath;
   if (!polyline) return `Route ${route.id} has an unresolved endpoint`;
   // Segment heading is geometry, not topology (ADR 0028), and ADR 0039 grants
   // the arbitrary-angle policy that ADR 0028 anticipated. Validation therefore

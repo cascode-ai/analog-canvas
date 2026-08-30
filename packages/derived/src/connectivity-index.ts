@@ -20,6 +20,7 @@ import { directObjectLocator, type ObjectLocator } from "./object-locator.js";
 import type { ResolvedNetLabelBinding } from "./net-label.js";
 import { resolveAnnotationText } from "./annotation-text.js";
 import type { ResolvedDocumentRoutingGeometry } from "./resolved-route-geometry.js";
+import type { DocumentContactEvidence } from "./contact.js";
 import { resolveDocumentLogicalNets } from "./logical-net.js";
 
 /**
@@ -68,6 +69,7 @@ export interface DocumentConnectivityIndex {
   /** Total lookup from every Base Net id to its Logical Net record. */
   logicalNetByBaseNetId: ReadonlyMap<string, NetConnectivityRecord>;
   routingGeometry: ResolvedDocumentRoutingGeometry;
+  contactEvidence: DocumentContactEvidence;
 }
 
 export interface HierarchyEdge {
@@ -254,6 +256,7 @@ function buildDocumentIndex(
     logicalNets,
     logicalNetByBaseNetId,
     routingGeometry: connectivityContext.routingGeometry,
+    contactEvidence: connectivityContext.contacts,
   };
   documentIndexCache.set(document, {
     revision: document.revision,
