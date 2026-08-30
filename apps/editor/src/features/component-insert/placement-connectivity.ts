@@ -9,6 +9,7 @@ import {
   type SchematicEdit,
   type WireSource,
 } from "@icm/edit-engine";
+import { deviceDescriptor } from "@icm/devices";
 import {
   findRouteSegmentsAtPoint,
   resolveEndpointConnection,
@@ -137,6 +138,28 @@ function samePoint(
   return left.x === right.x && left.y === right.y;
 }
 
+function isEligibleSeriesInsertionPair(
+  instance: Instance,
+  visibleSources: readonly WireSource[],
+  contactedSources: readonly WireSource[],
+): boolean {
+  if (contactedSources.length !== 2) return false;
+  if (visibleSources.length === 2) return true;
+  const configuredPair = deviceDescriptor(
+    instance.symbolId,
+  )?.seriesInsertionPinPair;
+  if (!configuredPair) return false;
+  const contactedKeys = new Set(
+    contactedSources.map(({ endpoint }) =>
+      endpoint.kind === "terminal" ? endpoint.pinName : "",
+    ),
+  );
+  return (
+    contactedKeys.size === 2 &&
+    configuredPair.every((pinName) => contactedKeys.has(pinName))
+  );
+}
+
 /**
  * A component may acquire electrical connectivity only from an exact visible
  * pin-to-pin, pin-to-Junction, or pin-to-Route contact. Grid coincidence alone
@@ -204,12 +227,12 @@ export function proposePlacementContact(
   if (contacts.length === 0) {
     return { edits: [], matched: false, ambiguous: false };
   }
-  // Several pins of one device may land on the SAME conductor — that is the
-  // series-insertion gesture, not an ambiguity. An eligible two-terminal
-  // component with both pins on one continuous ordinary Route performs the
-  // atomic series splice; any other same-conductor multi-contact attaches
-  // every pin, cutting the Route at each contact. Only two pins claiming the
-  // exact same point remain ambiguous.
+  // Several pins of one device may land on the SAME conductor. Exactly two
+  // contacts form a series-insertion gesture only when the whole visible
+  // device is two-terminal or its Device descriptor names that pair. This is
+  // based on exact resolved pin contacts, never on symbol bounds. Any other
+  // same-conductor multi-contact remains an ordinary attachment; two pins
+  // claiming the exact same point remain ambiguous.
   const routeContactGroups = new Map<
     string,
     Array<{
@@ -234,11 +257,19 @@ export function proposePlacementContact(
       return { edits: [], matched: false, ambiguous: true };
     }
   }
-  const spliceGroup =
-    sources.length === 2 &&
-    contacts.length === 2 &&
+  const onlyRouteContactGroup =
     routeContactGroups.size === 1
       ? [...routeContactGroups.values()][0]
+      : undefined;
+  const spliceGroup =
+    contacts.length === 2 &&
+    onlyRouteContactGroup?.length === 2 &&
+    isEligibleSeriesInsertionPair(
+      instance,
+      sources,
+      onlyRouteContactGroup.map((member) => member.source),
+    )
+      ? onlyRouteContactGroup
       : undefined;
   if (spliceGroup && spliceGroup.length === 2) {
     const projected = structuredClone(document);

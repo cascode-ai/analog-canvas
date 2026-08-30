@@ -6,6 +6,7 @@ export const pnpDevice = {
   deviceClass: "bjt",
   referencePrefix: "Q",
   pinOrder: ["C", "B", "E"],
+  seriesInsertionPinPair: ["C", "E"],
   targetPolicy: "required-model",
   parameters: [],
   dialects: ["spice", "spectre"],

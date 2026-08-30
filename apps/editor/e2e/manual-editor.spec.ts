@@ -1272,6 +1272,28 @@ test("splices a two-terminal device into one wire and reconnects its halves afte
   await expect(page.locator('[data-testid^="route-hit-"]')).toHaveCount(1);
 });
 
+test("splices a transistor into a wire only through its declared D/S pin pair", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "resistor", { x: 420, y: 180 });
+  await placeComponent(page, "resistor", { x: 420, y: 460 });
+
+  await clickDrawTool(page, "wire");
+  await page.getByTestId("terminal-R1-2").click();
+  await page.getByTestId("terminal-R2-1").click();
+  await page.keyboard.press("Escape");
+  await expect(page.locator('[data-testid^="route-hit-"]')).toHaveCount(1);
+
+  // The canonical NMOS D/S pins are 10 units to the right of its placement
+  // origin. Its body overlaps the wire as well, but the exact pin pair—not
+  // the visual bounds—is what authorizes the splice.
+  await placeComponent(page, "nmos", { x: 410, y: 320 });
+  await expect(page.getByTestId("hit-M1")).toBeVisible();
+  await expect(page.locator('[data-testid^="route-hit-"]')).toHaveCount(2);
+  await expect(page.getByTestId("terminal-M1-G")).toBeVisible();
+});
+
 test("resizes a loose Wire from either endpoint without redrawing it", async ({
   page,
 }) => {

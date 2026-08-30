@@ -51,6 +51,23 @@ export function validateDeviceDescriptors(
       }
       pinNames.add(pinName);
     }
+    if (descriptor.seriesInsertionPinPair) {
+      const [first, second] = descriptor.seriesInsertionPinPair;
+      if (first === second) {
+        issues.push({
+          deviceId: descriptor.id,
+          message: "Series insertion pin pair must contain two distinct pins",
+        });
+      }
+      for (const pinName of descriptor.seriesInsertionPinPair) {
+        if (!pinNames.has(pinName)) {
+          issues.push({
+            deviceId: descriptor.id,
+            message: `Series insertion references unknown pin: ${pinName}`,
+          });
+        }
+      }
+    }
     const semanticPins = new Set<string>();
     const semanticRoles = new Set<string>();
     for (const semantic of descriptor.pinSemantics ?? []) {

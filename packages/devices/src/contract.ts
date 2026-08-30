@@ -58,6 +58,13 @@ export interface DeviceDescriptor {
   readonly mosBulkClass?: MosBulkClass;
   readonly referencePrefix: string | null;
   readonly pinOrder: readonly string[];
+  /**
+   * The two stable terminals that may replace a conductor span when both
+   * exact pin contacts land on one ordinary Route. Multi-pin devices must
+   * declare this explicitly so placement never guesses from symbol bounds or
+   * from whichever two pins happen to be near a wire.
+   */
+  readonly seriesInsertionPinPair?: readonly [string, string];
   /** Optional fixed semantics for canonical pins; pin order remains electrical authority. */
   readonly pinSemantics?: readonly DevicePinSemantic[];
   readonly targetPolicy: DeviceNetlistTargetPolicy;

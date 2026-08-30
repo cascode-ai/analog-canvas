@@ -73,12 +73,17 @@ Route transaction.
   a branch is cut, an unowned degree-two collinear Junction is removed and its
   surviving arms coalesce into one Route. Route labels, markers, layout
   references, and stable leg ownership follow the normalized conductor.
-- Placing an eligible two-terminal component with both pins on one continuous
-  ordinary Route performs one atomic series splice: the two contacts split the
-  conductor, the between-pin span is removed, and the Base Net partitions so
-  the two pins cannot remain shorted. One contacted pin remains an ordinary
-  endpoint-to-Route attachment; power rails, MOS bulk leads, locked geometry,
-  and ambiguous multi-pin contacts reject rather than guessing.
+- Placing a component with one eligible pair of exact pin contacts on one
+  continuous ordinary Route performs one atomic series splice: the two
+  contacts split the conductor, the between-pin span is removed, and the Base
+  Net partitions so the two pins cannot remain shorted. Every visible
+  two-terminal device is eligible; a multi-pin device must declare its stable
+  series-insertion pair in the Device descriptor (D/S for MOS, C/E for BJT),
+  so symbol bounds and incidental pin proximity never decide electrical
+  topology. One contacted pin remains an ordinary endpoint-to-Route
+  attachment; power rails, MOS bulk leads, locked geometry, and undeclared or
+  ambiguous multi-pin pairs never cut the conductor. Their exact contacts may
+  still use ordinary attachment semantics; visual overlap alone does nothing.
 - Moving a connected Instance stretches the attached Route while preserving
   endpoint identity.
 - `remove_route_geometry` removes presentation geometry only. The ordinary

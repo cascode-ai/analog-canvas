@@ -20,6 +20,7 @@ describe("built-in device registry", () => {
       mosBulkClass: "nmos",
       referencePrefix: "M",
       pinOrder: ["D", "G", "S", "B"],
+      seriesInsertionPinPair: ["D", "S"],
       targetPolicy: "required-model",
       parameters: [
         // W is the total width; NF divides it into fingers, so the panel can
@@ -60,6 +61,8 @@ describe("built-in device registry", () => {
       pinOrder: ["D", "G", "S", "B"],
       targetPolicy: "required-model",
     });
+    expect(deviceDescriptor("npn")?.seriesInsertionPinPair).toEqual(["C", "E"]);
+    expect(deviceDescriptor("pnp")?.seriesInsertionPinPair).toEqual(["C", "E"]);
   });
 
   it("models adjustable passives as ordinary primitives of their base class", () => {
@@ -196,6 +199,32 @@ describe("built-in device registry", () => {
       expect.arrayContaining([
         expect.objectContaining({
           message: "Only MOS devices may support bulk binding",
+        }),
+      ]),
+    );
+  });
+
+  it("rejects invalid series-insertion pin-pair declarations", () => {
+    const nmos = deviceDescriptor("nmos");
+    expect(nmos).toBeDefined();
+    if (!nmos) return;
+    expect(
+      validateDeviceDescriptors([
+        { ...nmos, seriesInsertionPinPair: ["D", "D"] },
+        {
+          ...nmos,
+          id: "unknown-series-pin",
+          symbolId: "unknown-series-pin",
+          seriesInsertionPinPair: ["D", "X"],
+        },
+      ]),
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          message: "Series insertion pin pair must contain two distinct pins",
+        }),
+        expect.objectContaining({
+          message: "Series insertion references unknown pin: X",
         }),
       ]),
     );

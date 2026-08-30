@@ -7,6 +7,7 @@ export const nmosDevice = {
   mosBulkClass: "nmos",
   referencePrefix: "M",
   pinOrder: ["D", "G", "S", "B"],
+  seriesInsertionPinPair: ["D", "S"],
   targetPolicy: "required-model",
   parameters: [
     {

@@ -851,6 +851,125 @@ describe("multi-pin placement onto one conductor", () => {
       : `${endpoint.instanceId}.${endpoint.pinName}`;
   }
 
+  it.each([
+    {
+      symbolId: "nmos",
+      id: "M1",
+      position: { x: 90, y: 100 },
+      rotation: 0 as const,
+      mirror: "none" as const,
+      pair: ["D", "S"],
+      controlPin: "G",
+    },
+    {
+      symbolId: "pmos",
+      id: "M2",
+      position: { x: 110, y: 100 },
+      rotation: 0 as const,
+      mirror: "x" as const,
+      pair: ["D", "S"],
+      controlPin: "G",
+    },
+    {
+      symbolId: "npn",
+      id: "Q1",
+      position: { x: 100, y: 100 },
+      rotation: 0 as const,
+      mirror: "none" as const,
+      pair: ["C", "E"],
+      controlPin: "B",
+    },
+    {
+      symbolId: "pnp",
+      id: "Q2",
+      position: { x: 100, y: 100 },
+      rotation: 180 as const,
+      mirror: "none" as const,
+      pair: ["C", "E"],
+      controlPin: "B",
+    },
+  ])(
+    "splices $symbolId by its declared current-path pins while leaving the control pin open",
+    ({ symbolId, id, position, rotation, mirror, pair, controlPin }) => {
+      const document = verticalWireDocument();
+      const transistor = {
+        id,
+        symbolId,
+        placement: {
+          position,
+          rotation,
+          mirror,
+        },
+      };
+
+      const proposal = proposePlacementContact(
+        document,
+        resolver,
+        transistor,
+        [],
+      );
+
+      expect(proposal).toMatchObject({
+        matched: true,
+        ambiguous: false,
+        expectedElectricalEffect: {
+          kind: "partition",
+          sourceBaseNetIds: ["n1"],
+        },
+      });
+      const committed = executeTransaction(
+        document,
+        transaction(0, [
+          { kind: "add_instance", instance: transistor },
+          ...proposal.edits,
+        ]),
+        context,
+      );
+      expect(committed.ok).toBe(true);
+      if (!committed.ok) return;
+      expect(committed.document.routes).toHaveLength(2);
+      const pinNetIds = pair.map(
+        (pinName) =>
+          committed.document.nets.find((net) =>
+            net.terminals.some(
+              (terminal) =>
+                terminal.instanceId === id && terminal.pinName === pinName,
+            ),
+          )?.id,
+      );
+      expect(pinNetIds[0]).toBeTruthy();
+      expect(pinNetIds[1]).toBeTruthy();
+      expect(pinNetIds[0]).not.toBe(pinNetIds[1]);
+      expect(
+        committed.document.nets.some((net) =>
+          net.terminals.some(
+            (terminal) =>
+              terminal.instanceId === id && terminal.pinName === controlPin,
+          ),
+        ),
+      ).toBe(false);
+    },
+  );
+
+  it("does not splice a transistor whose body overlaps a Route without two exact pin contacts", () => {
+    const document = verticalWireDocument();
+    const transistor = {
+      id: "M1",
+      symbolId: "nmos",
+      placement: {
+        // The Route passes through the Symbol body at x=100, while D/S are at
+        // x=110 and G is at x=80. Bounds overlap must not create topology.
+        position: { x: 100, y: 100 },
+        rotation: 0 as const,
+        mirror: "none" as const,
+      },
+    };
+
+    expect(proposePlacementContact(document, resolver, transistor, [])).toEqual(
+      { edits: [], matched: false, ambiguous: false },
+    );
+  });
+
   it("splices a current source dropped onto one wire into series (feedback image 6/7)", () => {
     const document = verticalWireDocument();
     // current-source pins: "+" at (0,-20), "-" at (0,20). Placed at
