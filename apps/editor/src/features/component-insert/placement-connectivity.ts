@@ -1,4 +1,5 @@
 import {
+  isEligibleSeriesInsertionPinPair,
   planDirectEndpointConnection,
   planElectricalMarkerRename,
   planEnsurePowerNet,
@@ -143,20 +144,12 @@ function isEligibleSeriesInsertionPair(
   visibleSources: readonly WireSource[],
   contactedSources: readonly WireSource[],
 ): boolean {
-  if (contactedSources.length !== 2) return false;
-  if (visibleSources.length === 2) return true;
-  const configuredPair = deviceDescriptor(
-    instance.symbolId,
-  )?.seriesInsertionPinPair;
-  if (!configuredPair) return false;
-  const contactedKeys = new Set(
+  return isEligibleSeriesInsertionPinPair(
     contactedSources.map(({ endpoint }) =>
       endpoint.kind === "terminal" ? endpoint.pinName : "",
     ),
-  );
-  return (
-    contactedKeys.size === 2 &&
-    configuredPair.every((pinName) => contactedKeys.has(pinName))
+    visibleSources.length,
+    deviceDescriptor(instance.symbolId)?.seriesInsertionPinPair,
   );
 }
 

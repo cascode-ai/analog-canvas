@@ -25,6 +25,29 @@ export interface SeriesSpliceContact {
   segmentIndex: number;
 }
 
+/**
+ * Whether exactly-two same-conductor pin contacts form the series-insertion
+ * gesture. A device whose whole visible interface is two pins qualifies
+ * outright; a multi-pin device qualifies only through its descriptor's
+ * declared series-insertion pin pair (D–S, C–E), matched by pin name. One
+ * definition serves every gesture that can drop a device onto a wire —
+ * placing and moving must agree on what "insertable" means.
+ */
+export function isEligibleSeriesInsertionPinPair(
+  contactedPinNames: readonly string[],
+  visiblePinCount: number,
+  seriesInsertionPinPair: readonly string[] | undefined,
+): boolean {
+  if (contactedPinNames.length !== 2) return false;
+  if (visiblePinCount === 2) return true;
+  if (!seriesInsertionPinPair) return false;
+  const contactedKeys = new Set(contactedPinNames);
+  return (
+    contactedKeys.size === 2 &&
+    seriesInsertionPinPair.every((pinName) => contactedKeys.has(pinName))
+  );
+}
+
 export type SeriesSplicePlan =
   | {
       ok: true;

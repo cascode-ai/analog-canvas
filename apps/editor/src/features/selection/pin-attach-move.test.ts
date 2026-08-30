@@ -18,6 +18,7 @@ import {
   createRoutingOperationPlan,
   executeTransaction,
   gateRoutingOperationPlan,
+  type ExpectedElectricalEffect,
   type RoutingOperationIntent,
   type SchematicEdit,
 } from "@icm/edit-engine";
@@ -108,6 +109,7 @@ function runMove(targetX: number) {
   const transactConnectivity = (
     intent: RoutingOperationIntent,
     edits: readonly SchematicEdit[],
+    options: { expectedElectricalEffect?: ExpectedElectricalEffect } = {},
   ) => {
     const record: (typeof transactions)[number] = { intent, edits };
     transactions.push(record);
@@ -115,6 +117,9 @@ function runMove(targetX: number) {
       intent,
       edits,
       diagnostics: [],
+      ...(options.expectedElectricalEffect
+        ? { expectedElectricalEffect: options.expectedElectricalEffect }
+        : {}),
     });
     const gate = gateRoutingOperationPlan(document, proposal, {
       symbolResolver: resolver,
@@ -232,7 +237,7 @@ describe("pin-onto-wire move snap float dust", () => {
 });
 
 describe("two-pin device moved onto one wire", () => {
-  function runTwoPinMove() {
+  function runTwoPinMove({ prewirePlus = false } = {}) {
     const seeded = routedDocument();
     // A current source rotated 90° has horizontal pins: "+" (0,-20) maps to
     // (+20,0), "-" (0,20) maps to (-20,0).
@@ -262,16 +267,80 @@ describe("two-pin device moved onto one wire", () => {
     );
     if (!added.ok) throw new Error(`seed failed: ${added.error.message}`);
     let document = added.document;
+    if (prewirePlus) {
+      // The control case wires "+" away to E before the drop: a pin that
+      // already terminates a Route is not a new contact, so the gesture
+      // must stay an ordinary attachment. E already belongs to net-h in the
+      // fixture, so the bond joins that Net and the stub route rides on it.
+      const connected = executeTransaction(
+        document,
+        {
+          transactionId: "seed-stub-wire",
+          documentId: document.id,
+          expectedRevision: document.revision,
+          actor: { kind: "human", id: "test" },
+          edits: [
+            {
+              kind: "connect_endpoints",
+              from: { kind: "terminal", instanceId: "I1", pinName: "+" },
+              to: terminal("E"),
+            },
+          ],
+        },
+        { symbolResolver: resolver },
+      );
+      if (!connected.ok) {
+        throw new Error(`stub bond failed: ${connected.error.message}`);
+      }
+      const wired = executeTransaction(
+        connected.document,
+        {
+          transactionId: "seed-stub-route",
+          documentId: connected.document.id,
+          expectedRevision: connected.document.revision,
+          actor: { kind: "human", id: "test" },
+          edits: [
+            {
+              kind: "set_route_path",
+              route: createRoutePath({
+                id: "route-stub",
+                netId: "net-h",
+                start: { kind: "terminal", instanceId: "I1", pinName: "+" },
+                end: terminal("E"),
+                bends: [
+                  { x: 200, y: 180 },
+                  { x: 200, y: 390 },
+                ],
+                modes: ["manual", "manual", "manual"],
+              }),
+            },
+          ],
+        },
+        { symbolResolver: resolver },
+      );
+      if (!wired.ok) {
+        throw new Error(`stub route failed: ${wired.error.message}`);
+      }
+      document = wired.document;
+    }
     const statuses: string[] = [];
     const results: ReturnType<typeof executeTransaction>[] = [];
+    const transactions: {
+      intent: RoutingOperationIntent;
+      edits: readonly SchematicEdit[];
+    }[] = [];
     const transactConnectivity = (
       intent: RoutingOperationIntent,
       edits: readonly SchematicEdit[],
+      options: { expectedElectricalEffect?: ExpectedElectricalEffect } = {},
     ) => {
       const proposal = createRoutingOperationPlan(document, {
         intent,
         edits,
         diagnostics: [],
+        ...(options.expectedElectricalEffect
+          ? { expectedElectricalEffect: options.expectedElectricalEffect }
+          : {}),
       });
       const gate = gateRoutingOperationPlan(document, proposal, {
         symbolResolver: resolver,
@@ -292,8 +361,10 @@ describe("two-pin device moved onto one wire", () => {
         { symbolResolver: resolver },
       );
       results.push(result);
-      if (result.ok) document = result.document;
-      else statuses.push(`${result.error.code}: ${result.error.message}`);
+      if (result.ok) {
+        document = result.document;
+        transactions.push({ intent, edits: [...gate.edits] });
+      } else statuses.push(`${result.error.code}: ${result.error.message}`);
       return { ok: result.ok };
     };
     const controller = createSelectionMoveController({
@@ -344,30 +415,68 @@ describe("two-pin device moved onto one wire", () => {
         resolvedMove: resolved,
       },
     );
-    return { document, resolved, statuses, results };
+    return { document, resolved, statuses, results, transactions };
   }
 
-  it("attaches both pins and cuts the wire into three series segments", () => {
+  it("splices the device into the wire instead of shorting it", () => {
     const { document, resolved, results } = runTwoPinMove();
     expect(resolved.snap.electricalMatch?.target.electrical?.kind).toBe(
       "route",
     );
     expect(results.some((result) => result.ok)).toBe(true);
-    const net = document.nets.find((candidate) => candidate.id === "net-h")!;
-    expect(net.terminals).toEqual(
+    // Series insertion: the span between the pins is gone, leaving one
+    // conductor on each side of the device instead of a wire through it.
+    expect(document.routes).toHaveLength(2);
+    const netOf = (pinName: string) =>
+      document.nets.find((net) =>
+        net.terminals.some(
+          (terminal) =>
+            terminal.instanceId === "I1" && terminal.pinName === pinName,
+        ),
+      );
+    const plusNet = netOf("+");
+    const minusNet = netOf("-");
+    expect(plusNet).toBeDefined();
+    expect(minusNet).toBeDefined();
+    // Two Base Nets: the pins are not shorted by the wire they landed on.
+    expect(plusNet!.id).not.toBe(minusNet!.id);
+    const throughDevice = document.routes.find((route) => {
+      const end = routeEnd(route);
+      return (
+        route.start.kind === "terminal" &&
+        route.start.instanceId === "I1" &&
+        end.kind === "terminal" &&
+        end.instanceId === "I1"
+      );
+    });
+    expect(throughDevice).toBeUndefined();
+  });
+
+  it("keeps the ordinary attachment when one pin is already wired", () => {
+    const { document, results, transactions } = runTwoPinMove({
+      prewirePlus: true,
+    });
+    expect(results.some((result) => result.ok)).toBe(true);
+    // Not a series drop: only "-" is a new contact, so nothing is cut.
+    expect(
+      transactions
+        .flatMap(({ edits }) => edits)
+        .some((edit) => edit.kind === "cut_connection"),
+    ).toBe(false);
+    // Route counts belong to commit-time canonicalization; the contract here
+    // is electrical: everything stays one conductor family on one Net.
+    const netH = document.nets.find((candidate) => candidate.id === "net-h")!;
+    expect(netH.terminals).toEqual(
       expect.arrayContaining([
+        { instanceId: "A", pinName: "P" },
+        { instanceId: "B", pinName: "P" },
         { instanceId: "I1", pinName: "+" },
         { instanceId: "I1", pinName: "-" },
       ]),
     );
-    // route-h + the two device terminals = three series segments.
-    expect(document.routes).toHaveLength(3);
-    const middle = document.routes.find(
-      (route) =>
-        route.start.kind === "terminal" &&
-        route.start.instanceId === "I1" &&
-        routeEnd(route).kind === "terminal",
+    // No partition happened: everything still shares one Base Net.
+    expect(document.routes.every((route) => route.netId === "net-h")).toBe(
+      true,
     );
-    expect(middle).toBeDefined();
   });
 });

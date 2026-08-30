@@ -57,4 +57,52 @@ describe("resolveCanvasHit", () => {
       element: first,
     });
   });
+
+  it("lets a deliberate click on visible wire beat the symbol bounding box", () => {
+    // A route hit means the pointer is on the wire's thin stroke; an instance
+    // hit only means it is inside the symbol's blank bounding box. The thin
+    // target wins in either paint order.
+    const route = element("route", "route-1");
+    const instance = element("instance", "M1");
+    expect(resolveCanvasHit([instance, route])).toMatchObject({
+      kind: "route",
+      id: "route-1",
+    });
+    expect(resolveCanvasHit([route, instance])).toMatchObject({
+      kind: "route",
+      id: "route-1",
+    });
+  });
+
+  it("lets a junction dot beat the symbol bounding box the same way", () => {
+    const junction = element("junction", "J1");
+    const instance = element("instance", "M1");
+    expect(resolveCanvasHit([instance, junction])).toMatchObject({
+      kind: "junction",
+      id: "J1",
+    });
+  });
+
+  it("keeps the symbol selectable beside wires and sticky while selected", () => {
+    // Away from any wire the instance is the only candidate.
+    const aloneInstance = element("instance", "M1");
+    expect(resolveCanvasHit([aloneInstance])).toMatchObject({
+      kind: "instance",
+      id: "M1",
+    });
+    // Under a wire the second click still cycles to the symbol.
+    const route = element("route", "route-1");
+    const instance = element("instance", "M1");
+    expect(resolveCanvasHit([instance, route], 1)).toMatchObject({
+      kind: "instance",
+      id: "M1",
+    });
+    // An already-selected symbol stays sticky across crossing wires, so a
+    // drag that starts over a wire pixel keeps moving the symbol.
+    const selectedInstance = element("instance", "M1", true);
+    expect(resolveCanvasHit([selectedInstance, route])).toMatchObject({
+      kind: "instance",
+      id: "M1",
+    });
+  });
 });

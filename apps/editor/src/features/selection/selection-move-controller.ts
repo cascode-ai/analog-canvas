@@ -1,12 +1,17 @@
 import {
+  isEligibleSeriesInsertionPinPair,
   planDirectEndpointConnection,
+  planSeriesInstanceSplice,
   proposeEndpointsRouteAttachment,
   planRoutingTransform,
   type EndpointRouteAttachmentRequest,
+  type ExpectedElectricalEffect,
   type RoutingOperationIntent,
   type SchematicEdit,
+  type SeriesSplicePlan,
   type WireSource,
 } from "@icm/edit-engine";
+import { deviceDescriptor } from "@icm/devices";
 import {
   deriveNetConnectivity,
   findRouteSegmentsAtPoint,
@@ -166,6 +171,7 @@ export function createSelectionMoveController({
   transactConnectivity: (
     intent: RoutingOperationIntent,
     edits: readonly SchematicEdit[],
+    options?: { expectedElectricalEffect?: ExpectedElectricalEffect },
   ) => TransactionResult | null;
   setStatus: (status: string) => void;
   nextRoutingSuffix: () => number;
@@ -601,8 +607,75 @@ export function createSelectionMoveController({
               targetElectrical,
             )
           : [];
-      const contactEdits: readonly SchematicEdit[] =
-        targetElectrical?.kind === "route" && attachRequests.length > 0
+      // A two-pin drop onto one wire is the series-insertion gesture, exactly
+      // as it is when placing (#432): the wire is cut between the pins
+      // instead of left shorting the device. Eligibility is the placement
+      // rule verbatim — a whole-device two-pin interface, or the device
+      // descriptor's declared pair (#435) — and anything else, including a
+      // pair the splice preconditions refuse, keeps the plain attachment.
+      const seriesSplice: Extract<SeriesSplicePlan, { ok: true }> | null =
+        (() => {
+          if (targetElectrical?.kind !== "route") return null;
+          if (attachRequests.length !== 2) return null;
+          const [first, second] = attachRequests as [
+            EndpointRouteAttachmentRequest,
+            EndpointRouteAttachmentRequest,
+          ];
+          if (
+            first.endpoint.kind !== "terminal" ||
+            second.endpoint.kind !== "terminal" ||
+            first.endpoint.instanceId !== second.endpoint.instanceId ||
+            (first.point.x === second.point.x &&
+              first.point.y === second.point.y)
+          ) {
+            return null;
+          }
+          const instance = projected.instances.find(
+            (candidate) =>
+              candidate.id ===
+              (first.endpoint as { instanceId: string }).instanceId,
+          );
+          const resolvedSymbol = instance
+            ? resolver.resolve(instance.symbolId, instance.symbolVariantId)
+            : null;
+          if (!instance || !resolvedSymbol) return null;
+          const visiblePinCount = resolvedSymbol.definition.pins.filter(
+            (pin) =>
+              !resolvedSymbol.variant?.hiddenPinNames.includes(pin.name) &&
+              pin.presentation.visibility !== "implicit",
+          ).length;
+          if (
+            !isEligibleSeriesInsertionPinPair(
+              [first.endpoint.pinName, second.endpoint.pinName],
+              visiblePinCount,
+              deviceDescriptor(instance.symbolId)?.seriesInsertionPinPair,
+            )
+          ) {
+            return null;
+          }
+          const plan = planSeriesInstanceSplice(
+            projected,
+            resolver,
+            targetElectrical.routeId,
+            [
+              {
+                endpoint: first.endpoint,
+                point: first.point,
+                segmentIndex: first.segmentIndex,
+              },
+              {
+                endpoint: second.endpoint,
+                point: second.point,
+                segmentIndex: second.segmentIndex,
+              },
+            ],
+            `move-splice-${nextRoutingSuffix()}`,
+          );
+          return plan.ok ? plan : null;
+        })();
+      const contactEdits: readonly SchematicEdit[] = seriesSplice
+        ? seriesSplice.edits
+        : targetElectrical?.kind === "route" && attachRequests.length > 0
           ? proposeEndpointsRouteAttachment(
               projected,
               resolver,
@@ -647,8 +720,16 @@ export function createSelectionMoveController({
           ...contactEdits,
           ...directEdits,
         ],
+        seriesSplice
+          ? { expectedElectricalEffect: seriesSplice.expectedElectricalEffect }
+          : undefined,
       );
-      if (result?.ok && (contactEdits.length > 0 || directEdits.length > 0)) {
+      if (result?.ok && seriesSplice) {
+        setStatus("Inserted the moved component in series into the wire");
+      } else if (
+        result?.ok &&
+        (contactEdits.length > 0 || directEdits.length > 0)
+      ) {
         setStatus("Snapped pin endpoints and connected them without a wire");
       } else if (result?.ok && directContactRejection) {
         setStatus(`Moved without connecting: ${directContactRejection}`);
