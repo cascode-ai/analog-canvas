@@ -16,6 +16,114 @@ import {
 } from "../../snap/engine";
 import { routeTapPoint } from "./route-interaction-geometry";
 
+interface IndexedEndpointTarget {
+  source: WireSource;
+  anchor: ReturnType<typeof endpointSnapAnchor>;
+}
+
+interface IndexedRouteSegment {
+  routeId: string;
+  netId: string;
+  segmentIndex: number;
+  from: Point;
+  to: Point;
+}
+
+export interface WireCanvasSnapIndex {
+  readonly cellSize: number;
+  readonly endpointTargets: readonly IndexedEndpointTarget[];
+  readonly routeSegments: readonly IndexedRouteSegment[];
+  readonly endpointBuckets: ReadonlyMap<string, readonly number[]>;
+  readonly routeBuckets: ReadonlyMap<string, readonly number[]>;
+}
+
+function bucketKey(x: number, y: number): string {
+  return `${x}:${y}`;
+}
+
+function addToBucket(
+  buckets: Map<string, number[]>,
+  key: string,
+  index: number,
+): void {
+  const bucket = buckets.get(key);
+  if (bucket) bucket.push(index);
+  else buckets.set(key, [index]);
+}
+
+function cellsForBounds(from: Point, to: Point, cellSize: number): string[] {
+  const minX = Math.floor(Math.min(from.x, to.x) / cellSize);
+  const maxX = Math.floor(Math.max(from.x, to.x) / cellSize);
+  const minY = Math.floor(Math.min(from.y, to.y) / cellSize);
+  const maxY = Math.floor(Math.max(from.y, to.y) / cellSize);
+  const cells: string[] = [];
+  for (let x = minX; x <= maxX; x += 1) {
+    for (let y = minY; y <= maxY; y += 1) cells.push(bucketKey(x, y));
+  }
+  return cells;
+}
+
+/** Stable endpoint and segment lookup, rebuilt only with derived geometry. */
+export function buildWireCanvasSnapIndex(
+  wiringEndpoints: readonly WireSource[],
+  routeGeometryRecords: WireCanvasSnapContext["routeGeometryRecords"],
+  cellSize = 100,
+): WireCanvasSnapIndex {
+  const endpointTargets = wiringEndpoints.map((source) => ({
+    source,
+    anchor: endpointSnapAnchor(source),
+  }));
+  const routeSegments = routeGeometryRecords.flatMap(({ route, geometry }) =>
+    geometry.centerline.slice(0, -1).map((from, segmentIndex) => ({
+      routeId: route.id,
+      netId: route.netId,
+      segmentIndex,
+      from,
+      to: geometry.centerline[segmentIndex + 1]!,
+    })),
+  );
+  const endpointBuckets = new Map<string, number[]>();
+  endpointTargets.forEach((target, index) => {
+    addToBucket(
+      endpointBuckets,
+      bucketKey(
+        Math.floor(target.anchor.point.x / cellSize),
+        Math.floor(target.anchor.point.y / cellSize),
+      ),
+      index,
+    );
+  });
+  const routeBuckets = new Map<string, number[]>();
+  routeSegments.forEach((segment, index) => {
+    for (const cell of cellsForBounds(segment.from, segment.to, cellSize)) {
+      addToBucket(routeBuckets, cell, index);
+    }
+  });
+  return {
+    cellSize,
+    endpointTargets,
+    routeSegments,
+    endpointBuckets,
+    routeBuckets,
+  };
+}
+
+function nearbyIndices(
+  buckets: ReadonlyMap<string, readonly number[]>,
+  point: Point,
+  tolerance: number,
+  cellSize: number,
+): number[] {
+  const cells = cellsForBounds(
+    { x: point.x - tolerance, y: point.y - tolerance },
+    { x: point.x + tolerance, y: point.y + tolerance },
+    cellSize,
+  );
+  return [
+    ...new Set(cells.flatMap((cell) => [...(buckets.get(cell) ?? [])])),
+  ].sort((left, right) => left - right);
+}
+
 export interface WireCanvasSnapContext {
   document: SchematicDocument;
   resolver: SymbolResolver;
@@ -28,6 +136,7 @@ export interface WireCanvasSnapContext {
   wireSource: WireSource | null;
   wireWaypoints: readonly Point[];
   captureTolerance: number;
+  snapIndex?: WireCanvasSnapIndex;
 }
 
 export interface WireCanvasSnapResult {
@@ -49,6 +158,7 @@ export function resolveWireCanvasSnap(
     wireSource,
     wireWaypoints,
     captureTolerance,
+    snapIndex,
   }: WireCanvasSnapContext,
   point: Point,
   suppressSnap: boolean,
@@ -65,27 +175,53 @@ export function resolveWireCanvasSnap(
   const arrival = wireSource
     ? (wireWaypoints.at(-1) ?? wireSource.connection.contactPoint)
     : null;
-  const routeTargets = routeGeometryRecords.flatMap(({ route, geometry }) =>
-    geometry.centerline.slice(0, -1).map((from, segmentIndex) => ({
-      anchor: {
-        id: `wire-route:${route.id}:${segmentIndex}`,
-        point: routeTapPoint(
-          point,
-          from,
-          geometry.centerline[segmentIndex + 1]!,
-          document.presentation.grid,
-          arrival,
-        ),
-        kind: "route" as const,
-      },
-      routeId: route.id,
-      segmentIndex,
-    })),
-  );
-  const endpointTargets = wiringEndpoints.map((source) => ({
-    source,
-    anchor: endpointSnapAnchor(source),
-  }));
+  const index =
+    snapIndex ??
+    buildWireCanvasSnapIndex(wiringEndpoints, routeGeometryRecords);
+  const routeTargets = nearbyIndices(
+    index.routeBuckets,
+    point,
+    captureTolerance,
+    index.cellSize,
+  ).flatMap((routeSegmentIndex) => {
+    const segment = index.routeSegments[routeSegmentIndex]!;
+    const tapPoint = routeTapPoint(
+      point,
+      segment.from,
+      segment.to,
+      document.presentation.grid,
+      arrival,
+    );
+    return Math.hypot(tapPoint.x - point.x, tapPoint.y - point.y) <=
+      captureTolerance
+      ? [
+          {
+            anchor: {
+              id: `wire-route:${segment.routeId}:${segment.segmentIndex}`,
+              point: tapPoint,
+              kind: "route" as const,
+            },
+            routeId: segment.routeId,
+            netId: segment.netId,
+            segmentIndex: segment.segmentIndex,
+          },
+        ]
+      : [];
+  });
+  const endpointTargets = nearbyIndices(
+    index.endpointBuckets,
+    point,
+    captureTolerance,
+    index.cellSize,
+  )
+    .map((endpointIndex) => index.endpointTargets[endpointIndex]!)
+    .filter(
+      (target) =>
+        Math.hypot(
+          target.anchor.point.x - point.x,
+          target.anchor.point.y - point.y,
+        ) <= captureTolerance,
+    );
   const activeSourceAnchorId = wireSource
     ? endpointSnapAnchor(wireSource).id
     : null;
@@ -127,8 +263,7 @@ export function resolveWireCanvasSnap(
         kind: "route" as const,
         id: candidate.anchor.id,
         point: candidate.anchor.point,
-        netId: document.routes.find((route) => route.id === candidate.routeId)!
-          .netId,
+        netId: candidate.netId,
         routeId: candidate.routeId,
         segmentIndex: candidate.segmentIndex,
       })),

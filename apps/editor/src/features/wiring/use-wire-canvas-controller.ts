@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 
 import type {
@@ -25,6 +25,7 @@ import {
 } from "./route-interaction-geometry";
 import type { RouteStretchPreview } from "./use-wire-interaction";
 import {
+  buildWireCanvasSnapIndex,
   resolveWireCanvasSnap as resolveWireCanvasSnapModel,
   type WireCanvasSnapResult,
 } from "./wire-canvas-snap";
@@ -183,6 +184,10 @@ export function useWireCanvasController({
     routingMode: WireRoutingMode;
     cornerOrder: WireCornerOrder;
   }>({ routingMode: "orthogonal", cornerOrder: "auto" });
+  const wireCanvasSnapIndex = useMemo(
+    () => buildWireCanvasSnapIndex(wiringEndpoints, routeGeometryRecords),
+    [routeGeometryRecords, wiringEndpoints],
+  );
 
   useEffect(() => {
     if (tool !== "wire" || wireSource !== null || wireDraftSteps.length > 0) {
@@ -220,6 +225,7 @@ export function useWireCanvasController({
         wireSource,
         wireWaypoints,
         captureTolerance: logicalRadiusForPixels(svg, SNAP_CAPTURE_RADIUS_PX),
+        snapIndex: wireCanvasSnapIndex,
       },
       point,
       suppressSnap,

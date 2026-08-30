@@ -9,10 +9,13 @@ import { resolveWireCanvasSnap } from "./wire-canvas-snap";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 
-function source(): WireSource {
+function source(
+  contactPoint: { x: number; y: number } = { x: 0, y: 0 },
+  instanceId = "R1",
+): WireSource {
   const endpoint = {
     kind: "terminal" as const,
-    instanceId: "R1",
+    instanceId,
     pinName: "1",
   };
   return {
@@ -20,8 +23,8 @@ function source(): WireSource {
     netId: null,
     connection: {
       endpoint,
-      contactPoint: { x: 0, y: 0 },
-      gridLanding: { x: 0, y: 0 },
+      contactPoint,
+      gridLanding: contactPoint,
       escapePath: [],
       outward: null,
     },
@@ -152,5 +155,29 @@ describe("wire canvas snap", () => {
     expect(
       resolveWireCanvasSnap(context, { x: 40, y: 10 }, false).point,
     ).toEqual({ x: 40, y: 10 });
+  });
+
+  it("does not create an axis snap from a remote electrical endpoint", () => {
+    const document = createEmptyDocument("document", "Document");
+    document.presentation.grid = 10;
+    const remote = source({ x: 1000, y: 50 }, "R2");
+
+    const result = resolveWireCanvasSnap(
+      {
+        document,
+        resolver,
+        wiringEndpoints: [remote],
+        routeGeometryRecords: [],
+        contactComponents: [],
+        wireSource: null,
+        wireWaypoints: [],
+        captureTolerance: 8,
+      },
+      { x: 2, y: 44 },
+      false,
+    );
+
+    expect(result.endpoint).toBeUndefined();
+    expect(result.point).toEqual({ x: 0, y: 40 });
   });
 });
