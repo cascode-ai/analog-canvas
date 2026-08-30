@@ -136,6 +136,7 @@ export interface WireCanvasSnapContext {
   wireSource: WireSource | null;
   wireWaypoints: readonly Point[];
   captureTolerance: number;
+  nearbyTolerance?: number;
   snapIndex?: WireCanvasSnapIndex;
 }
 
@@ -163,6 +164,7 @@ export function resolveWireCanvasSnap(
     wireSource,
     wireWaypoints,
     captureTolerance,
+    nearbyTolerance = captureTolerance,
     snapIndex,
   }: WireCanvasSnapContext,
   point: Point,
@@ -214,10 +216,10 @@ export function resolveWireCanvasSnap(
         ]
       : [];
   });
-  const endpointTargets = nearbyIndices(
+  const nearbyEndpointTargets = nearbyIndices(
     index.endpointBuckets,
     point,
-    captureTolerance,
+    nearbyTolerance,
     index.cellSize,
   )
     .map((endpointIndex) => index.endpointTargets[endpointIndex]!)
@@ -226,8 +228,15 @@ export function resolveWireCanvasSnap(
         Math.hypot(
           target.anchor.point.x - point.x,
           target.anchor.point.y - point.y,
-        ) <= captureTolerance,
+        ) <= nearbyTolerance,
     );
+  const endpointTargets = nearbyEndpointTargets.filter(
+    (target) =>
+      Math.hypot(
+        target.anchor.point.x - point.x,
+        target.anchor.point.y - point.y,
+      ) <= captureTolerance,
+  );
   const activeSourceAnchorId = wireSource
     ? endpointSnapAnchor(wireSource).id
     : null;
@@ -303,7 +312,7 @@ export function resolveWireCanvasSnap(
         }
       : {}),
     guides: resolved.guides,
-    nearbyEndpointAnchorIds: endpointTargets.map(
+    nearbyEndpointAnchorIds: nearbyEndpointTargets.map(
       (candidate) => candidate.anchor.id,
     ),
   };

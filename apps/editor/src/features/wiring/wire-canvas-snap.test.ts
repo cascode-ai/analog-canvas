@@ -185,4 +185,29 @@ describe("wire canvas snap", () => {
     expect(result.point).toEqual({ x: 0, y: 40 });
     expect(result.nearbyEndpointAnchorIds).toEqual([]);
   });
+
+  it("highlights a wider nearby area without capturing it electrically", () => {
+    const document = createEmptyDocument("document", "Document");
+    document.presentation.grid = 10;
+    const nearby = source({ x: 10, y: 0 }, "R2");
+
+    const result = resolveWireCanvasSnap(
+      {
+        document,
+        resolver,
+        wiringEndpoints: [nearby],
+        routeGeometryRecords: [],
+        contactComponents: [],
+        wireSource: null,
+        wireWaypoints: [],
+        captureTolerance: 7,
+        nearbyTolerance: 14,
+      },
+      { x: 0, y: 0 },
+      false,
+    );
+
+    expect(result.endpoint).toBeUndefined();
+    expect(result.nearbyEndpointAnchorIds).toEqual(["endpoint:terminal:R2:1"]);
+  });
 });

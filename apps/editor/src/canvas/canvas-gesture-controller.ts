@@ -534,14 +534,18 @@ export function createCanvasGestureController({
       setDraftingSnapPoint(snapped.snap);
       paintSnapGuides(snapped.guides);
     }
-    if (tool === "wire" && wireActive) {
+    if (tool === "wire") {
       const resolved = resolveWireCanvasSnap(
         rawPointFromClient(event.clientX, event.clientY, event.currentTarget),
         event.currentTarget,
         event.altKey,
       );
-      setWirePreviewPoint(resolved.point);
-      paintSnapGuides(resolved.guides);
+      if (wireActive) {
+        setWirePreviewPoint(resolved.point);
+        paintSnapGuides(resolved.guides);
+      } else {
+        paintSnapGuides([]);
+      }
     }
   };
 

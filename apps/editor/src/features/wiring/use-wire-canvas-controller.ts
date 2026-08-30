@@ -33,6 +33,7 @@ import {
 } from "./wire-canvas-snap";
 
 const SNAP_CAPTURE_RADIUS_PX = 7;
+const SNAP_HIGHLIGHT_RADIUS_PX = 14;
 const WIRE_CORNER_SHAPES = [
   {
     routingMode: "orthogonal",
@@ -271,6 +272,7 @@ export function useWireCanvasController({
         wireSource,
         wireWaypoints,
         captureTolerance: logicalRadiusForPixels(svg, SNAP_CAPTURE_RADIUS_PX),
+        nearbyTolerance: logicalRadiusForPixels(svg, SNAP_HIGHLIGHT_RADIUS_PX),
         snapIndex: wireCanvasSnapIndex,
       },
       point,
