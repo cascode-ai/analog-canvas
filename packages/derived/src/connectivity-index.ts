@@ -10,17 +10,16 @@ import type { SymbolResolver } from "@icm/symbols";
 import {
   deriveImportedRoutingGuidance,
   deriveNetConnectivity,
+  deriveNetConnectivityContext,
+  type NetConnectivityContext,
   type RoutedComponent,
 } from "./connectivity.js";
 import type { RoutingGuide } from "./routing-guidance.js";
 import { endpointKey, isVisibleEndpoint, netEndpoints } from "./endpoint.js";
 import { directObjectLocator, type ObjectLocator } from "./object-locator.js";
-import { resolveNetLabelBindings } from "./net-label.js";
+import type { ResolvedNetLabelBinding } from "./net-label.js";
 import { resolveAnnotationText } from "./annotation-text.js";
-import {
-  resolveDocumentRoutingGeometry,
-  type ResolvedDocumentRoutingGeometry,
-} from "./resolved-route-geometry.js";
+import type { ResolvedDocumentRoutingGeometry } from "./resolved-route-geometry.js";
 import { resolveDocumentLogicalNets } from "./logical-net.js";
 
 /**
@@ -193,6 +192,20 @@ function buildDocumentIndex(
     }
   }
 
+  const connectivityContext = deriveNetConnectivityContext(document, resolver);
+  const routesByNetId = new Map<string, SchematicDocument["routes"]>();
+  for (const route of document.routes) {
+    const routes = routesByNetId.get(route.netId) ?? [];
+    routes.push(route);
+    routesByNetId.set(route.netId, routes);
+  }
+  const junctionsByNetId = new Map<string, SchematicDocument["junctions"]>();
+  for (const junction of document.junctions) {
+    const junctions = junctionsByNetId.get(junction.netId) ?? [];
+    junctions.push(junction);
+    junctionsByNetId.set(junction.netId, junctions);
+  }
+
   const baseRecords = new Map<string, NetConnectivityRecord>();
   for (const net of document.nets) {
     baseRecords.set(
@@ -202,6 +215,9 @@ function buildDocumentIndex(
         resolver,
         net,
         routingGuidanceByNet.get(net.id) ?? [],
+        connectivityContext,
+        routesByNetId.get(net.id) ?? [],
+        junctionsByNetId.get(net.id) ?? [],
       ),
     );
   }
@@ -232,13 +248,12 @@ function buildDocumentIndex(
     }
   }
 
-  const routingGeometry = resolveDocumentRoutingGeometry(document, resolver);
   const index = {
     documentId: document.id,
     endpointToBaseNetId,
     logicalNets,
     logicalNetByBaseNetId,
-    routingGeometry,
+    routingGeometry: connectivityContext.routingGeometry,
   };
   documentIndexCache.set(document, {
     revision: document.revision,
@@ -277,6 +292,9 @@ function buildNetRecord(
   resolver: SymbolResolver,
   net: Net,
   routingGuidance: readonly RoutingGuide[],
+  connectivityContext: NetConnectivityContext,
+  routesForNet: SchematicDocument["routes"],
+  junctionsForNet: SchematicDocument["junctions"],
 ): NetConnectivityRecord {
   const logicalEndpoints: EndpointRef[] = [
     ...net.terminals.map((terminal) =>
@@ -292,19 +310,22 @@ function buildNetRecord(
     document,
     resolver,
     net,
+    connectivityContext,
   ).components;
 
-  const routes = document.routes
-    .filter((route) => route.netId === net.id)
+  const routes = routesForNet
     .map((route) => route.id)
     .sort((a, b) => a.localeCompare(b, "en"));
 
-  const junctions = document.junctions
-    .filter((junction) => junction.netId === net.id)
+  const junctions = junctionsForNet
     .map((junction) => junction.id)
     .sort((a, b) => a.localeCompare(b, "en"));
 
-  const virtualEdges = deriveLabelVirtualEdges(document, resolver, net);
+  const virtualEdges = deriveLabelVirtualEdges(
+    document,
+    net,
+    connectivityContext.netLabelBindingsByNetId.get(net.id) ?? [],
+  );
 
   return {
     netId: net.id,
@@ -327,14 +348,14 @@ function buildNetRecord(
  */
 function deriveLabelVirtualEdges(
   document: SchematicDocument,
-  resolver: SymbolResolver,
   net: Net,
+  bindings: readonly ResolvedNetLabelBinding[],
 ): VirtualConnectivityEdge[] {
   const groups = new Map<
     string,
     { kind: VirtualConnectivityEdge["kind"]; endpoints: EndpointRef[] }
   >();
-  for (const binding of resolveNetLabelBindings(document, resolver, net.id)) {
+  for (const binding of bindings) {
     const annotation = document.annotations.find(
       (candidate) => candidate.id === binding.annotationId,
     )!;
@@ -353,7 +374,7 @@ function deriveLabelVirtualEdges(
     if (annotation.kind !== "power-label" || annotation.netId !== net.id) {
       continue;
     }
-    const binding = resolveNetLabelBindings(document, resolver, net.id).find(
+    const binding = bindings.find(
       (candidate) => candidate.annotationId === annotation.id,
     );
     if (!binding) continue;

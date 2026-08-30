@@ -4,9 +4,11 @@ import { resolve } from "node:path";
 import { performance } from "node:perf_hooks";
 
 import { createAgentCircuitService } from "../packages/agent-adapter/dist/index.js";
+import { buildProjectConnectivityIndex } from "../packages/derived/dist/index.js";
 import {
   CircuitProjectSchema,
   createEmptyProject,
+  createRoutePath,
 } from "../packages/model/dist/index.js";
 import {
   saveProject,
@@ -26,6 +28,7 @@ const budgets = {
   renderSvg: 2000,
   agentSnapshot: 1000,
   editTransaction: 1000,
+  connectivityIndex: 1000,
   spiceImport: 2000,
   atomicSave: 1000,
 };
@@ -68,6 +71,62 @@ const project = generated.result;
 let document = project.documents[0];
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 
+const connectivityProject = createEmptyProject(
+  "connectivity-performance",
+  "Connectivity Performance",
+);
+const connectivityDocument = connectivityProject.documents[0];
+for (let index = 0; index < 200; index += 1) {
+  const netId = `net-${index}`;
+  const leftJunctionId = `J${index}-left`;
+  const rightJunctionId = `J${index}-right`;
+  const y = index * 20;
+  connectivityDocument.nets.push({ id: netId, terminals: [] });
+  connectivityDocument.junctions.push(
+    { id: leftJunctionId, netId, position: { x: 0, y } },
+    { id: rightJunctionId, netId, position: { x: 40, y } },
+  );
+  const route = createRoutePath({
+    id: `route-${index}`,
+    netId,
+    start: { kind: "junction", junctionId: leftJunctionId },
+    end: { kind: "junction", junctionId: rightJunctionId },
+    bends: [],
+    modes: ["manual"],
+  });
+  connectivityDocument.routes.push(route);
+  const annotationId = `label-${index}`;
+  connectivityDocument.annotations.push({
+    id: annotationId,
+    kind: "net-label",
+    binding: { kind: "net-name", netId },
+    netId,
+    anchor: {
+      kind: "route",
+      routeId: route.id,
+      legId: route.legs[0].id,
+      t: 0.5,
+      normalOffset: 10,
+      direction: "forward",
+      orientation: "horizontal",
+      fallbackPosition: { x: 20, y: y - 10 },
+    },
+    alignment: "middle",
+    rotation: 0,
+    locked: false,
+  });
+  connectivityDocument.connectivityEvidence.push({
+    id: `claim-${index}`,
+    kind: "name-claim",
+    netId,
+    name: `NET_${index}`,
+    owner: { kind: "net-label", annotationId },
+    scope: "local",
+  });
+}
+const validatedConnectivityProject =
+  CircuitProjectSchema.parse(connectivityProject);
+
 const serialized = await measure(() => serializeProject(project));
 const rendered = await measure(() =>
   renderDocumentSvg(document, resolver, { title: project.name }),
@@ -109,6 +168,9 @@ const edit = await measure(() =>
     ],
   }),
 );
+const connectivityIndex = await measure(() =>
+  buildProjectConnectivityIndex(validatedConnectivityProject, resolver),
+);
 const sourcePath = resolve("fixtures/spice-baseline/core.cir");
 const modelPath = resolve("fixtures/spice-baseline/models.lib");
 const imported = await measure(async () =>
@@ -135,6 +197,7 @@ const measurements = {
   renderSvg: rendered.milliseconds,
   agentSnapshot: snapshot.milliseconds,
   editTransaction: edit.milliseconds,
+  connectivityIndex: connectivityIndex.milliseconds,
   spiceImport: imported.milliseconds,
   atomicSave: saved.milliseconds,
 };
@@ -152,6 +215,12 @@ const report = {
     instances: 500,
     serializedBytes: Buffer.byteLength(serialized.result),
     svgBytes: Buffer.byteLength(rendered.result),
+  },
+  connectivityFixture: {
+    nets: connectivityDocument.nets.length,
+    routes: connectivityDocument.routes.length,
+    junctions: connectivityDocument.junctions.length,
+    annotations: connectivityDocument.annotations.length,
   },
   measurements: Object.fromEntries(
     Object.entries(measurements).map(([name, value]) => [

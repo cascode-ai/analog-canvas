@@ -1,4 +1,8 @@
-import { createEmptyDocument, createEmptyProject } from "@icm/model";
+import {
+  createEmptyDocument,
+  createEmptyProject,
+  createRoutePath,
+} from "@icm/model";
 import {
   createProjectSymbolResolver,
   hierarchicalSymbolId,
@@ -13,6 +17,84 @@ import { computeNetHighlight } from "./net-highlight.js";
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 
 describe("Project Connectivity Index logical aliases", () => {
+  it("retains label virtual edges while sharing document connectivity work", () => {
+    const project = createEmptyProject("project-labels", "Labels");
+    const document = project.documents[0]!;
+    document.nets.push({ id: "net-bias", terminals: [] });
+    document.junctions.push(
+      { id: "J1", netId: "net-bias", position: { x: 0, y: 0 } },
+      { id: "J2", netId: "net-bias", position: { x: 40, y: 0 } },
+      { id: "J3", netId: "net-bias", position: { x: 100, y: 0 } },
+      { id: "J4", netId: "net-bias", position: { x: 140, y: 0 } },
+    );
+    const routes = [
+      createRoutePath({
+        id: "route-a",
+        netId: "net-bias",
+        start: { kind: "junction", junctionId: "J1" },
+        end: { kind: "junction", junctionId: "J2" },
+        bends: [],
+        modes: ["manual"],
+      }),
+      createRoutePath({
+        id: "route-b",
+        netId: "net-bias",
+        start: { kind: "junction", junctionId: "J3" },
+        end: { kind: "junction", junctionId: "J4" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    ];
+    document.routes.push(...routes);
+    for (const [id, route] of [
+      ["label-z", routes[0]!],
+      ["label-a", routes[1]!],
+    ] as const) {
+      document.annotations.push({
+        id,
+        kind: "net-label",
+        binding: { kind: "net-name", netId: "net-bias" },
+        netId: "net-bias",
+        anchor: {
+          kind: "route",
+          routeId: route.id,
+          legId: route.legs[0]!.id,
+          t: 0.5,
+          normalOffset: 10,
+          direction: "forward",
+          orientation: "horizontal",
+          fallbackPosition: { x: 20, y: -10 },
+        },
+        alignment: "middle",
+        rotation: 0,
+        locked: false,
+      });
+      document.connectivityEvidence.push({
+        id: `claim-${id}`,
+        kind: "name-claim",
+        netId: "net-bias",
+        name: "BIAS",
+        owner: { kind: "net-label", annotationId: id },
+        scope: "local",
+      });
+    }
+
+    const record = buildProjectConnectivityIndex(project, resolver)
+      .documents.get(document.id)
+      ?.logicalNetByBaseNetId.get("net-bias");
+    expect(record?.routedComponents).toHaveLength(1);
+    expect(record?.routes).toEqual(["route-a", "route-b"]);
+    expect(record?.junctions).toEqual(["J1", "J2", "J3", "J4"]);
+    expect(record?.virtualEdges).toEqual([
+      {
+        kind: "net-label",
+        from: { kind: "junction", junctionId: "J1" },
+        to: { kind: "junction", junctionId: "J3" },
+        evidence: "BIAS",
+      },
+    ]);
+  });
+
   it("aggregates evidence-equivalent Base Nets under every Base-Net lookup", () => {
     const project = createEmptyProject("project", "Project");
     const document = project.documents[0]!;

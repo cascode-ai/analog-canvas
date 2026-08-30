@@ -13,7 +13,11 @@ import {
   resolveDocumentRoutingGeometry,
   type ResolvedDocumentRoutingGeometry,
 } from "./resolved-route-geometry.js";
-import { resolveNetLabelBindings } from "./net-label.js";
+import {
+  resolveNetLabelBinding,
+  resolveNetLabelBindings,
+  type ResolvedNetLabelBinding,
+} from "./net-label.js";
 import { resolveAnnotationText } from "./annotation-text.js";
 import { resolveDocumentLogicalNets } from "./logical-net.js";
 import {
@@ -79,6 +83,10 @@ class DisjointSet {
 export interface NetConnectivityContext {
   routingGeometry: ResolvedDocumentRoutingGeometry;
   contacts: ReturnType<typeof deriveDocumentContactEvidence>;
+  netLabelBindingsByNetId: ReadonlyMap<
+    string,
+    readonly ResolvedNetLabelBinding[]
+  >;
 }
 
 export function deriveNetConnectivityContext(
@@ -86,6 +94,24 @@ export function deriveNetConnectivityContext(
   resolver: SymbolResolver,
 ): NetConnectivityContext {
   const routingGeometry = resolveDocumentRoutingGeometry(document, resolver);
+  const netLabelBindingsByNetId = new Map<string, ResolvedNetLabelBinding[]>();
+  for (const annotation of document.annotations) {
+    const binding = resolveNetLabelBinding(
+      document,
+      resolver,
+      annotation,
+      routingGeometry,
+    );
+    if (!binding) continue;
+    const bindings = netLabelBindingsByNetId.get(binding.netId) ?? [];
+    bindings.push(binding);
+    netLabelBindingsByNetId.set(binding.netId, bindings);
+  }
+  for (const bindings of netLabelBindingsByNetId.values()) {
+    bindings.sort((left, right) =>
+      left.annotationId.localeCompare(right.annotationId, "en"),
+    );
+  }
   return {
     routingGeometry,
     contacts: deriveDocumentContactEvidence(
@@ -93,6 +119,7 @@ export function deriveNetConnectivityContext(
       resolver,
       routingGeometry,
     ),
+    netLabelBindingsByNetId,
   };
 }
 
@@ -141,12 +168,7 @@ export function deriveNetConnectivity(
   }
   const labeledEndpoints = new Map<string, string[]>();
   const netLabelBindings = context
-    ? resolveNetLabelBindings(
-        document,
-        resolver,
-        net.id,
-        context.routingGeometry,
-      )
+    ? (context.netLabelBindingsByNetId.get(net.id) ?? [])
     : resolveNetLabelBindings(document, resolver, net.id);
   for (const binding of netLabelBindings) {
     const annotation = document.annotations.find(
