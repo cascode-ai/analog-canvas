@@ -411,21 +411,6 @@
   margin-top: 0;
 }
 
-.drawing-color-row {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-
-.drawing-color-row input[type="color"] {
-  width: 2.2rem;
-  height: 1.6rem;
-  padding: 0.1rem;
-  border: 1px solid var(--icm-border);
-  border-radius: var(--icm-radius-sm);
-  background: var(--icm-surface);
-}
-
 .component-appearance-card > small {
   line-height: var(--icm-line);
 }
@@ -454,7 +439,7 @@
   gap: 0.4rem;
 }
 
-.property-section .component-color-primary-row input[type="color"] {
+.component-color-primary-row input[type="color"] {
   width: var(--icm-control-h-lg);
   height: var(--icm-control-h-lg);
   min-height: var(--icm-control-h-lg);

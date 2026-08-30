@@ -4,6 +4,7 @@ import type { SymbolResolver } from "@icm/symbols";
 
 import { normalizedBearing } from "../../canvas/canvas-geometry";
 import { ToolIcon } from "../editor-shell/tool-icon";
+import { ColorOverrideControl } from "../properties/color-override-control";
 import type {
   DraftingGeometryPatch,
   DraftingStylePatch,
@@ -14,6 +15,7 @@ export interface DraftingPropertiesPanelProps {
   document: SchematicDocument;
   resolver: SymbolResolver;
   object: DraftingObject;
+  defaultColor: string;
   inspectorSegment: { objectId: string; index: number } | null;
   tangentInput: { key: string; value: string } | null;
   bearingInput: { objectId: string; value: string } | null;
@@ -38,6 +40,7 @@ export function DraftingPropertiesPanel({
   document,
   resolver,
   object,
+  defaultColor,
   inspectorSegment,
   tangentInput,
   bearingInput,
@@ -153,28 +156,13 @@ export function DraftingPropertiesPanel({
           }}
         />
       </label>
-      <label>
-        Stroke color
-        <span className="drawing-color-row">
-          <input
-            aria-label="Stroke color"
-            type="color"
-            value={object.styleOverride?.color ?? "#1a1a1a"}
-            disabled={object.locked}
-            onChange={(event) =>
-              onStyleChange({ color: event.currentTarget.value })
-            }
-          />
-          <button
-            type="button"
-            disabled={object.locked || !object.styleOverride?.color}
-            title="Use the document ink color"
-            onClick={() => onStyleChange({ color: undefined })}
-          >
-            Auto
-          </button>
-        </span>
-      </label>
+      <ColorOverrideControl
+        label="Stroke color"
+        value={object.styleOverride?.color}
+        fallback={defaultColor}
+        disabled={object.locked}
+        onChange={(color) => onStyleChange({ color })}
+      />
       {isCircle && object.kind === "circle" ? (
         <label>
           Radius

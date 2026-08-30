@@ -1344,16 +1344,18 @@ test("Properties sets precise size, stroke width, and color per shape", async ({
   expect(size).toEqual({ width: 120, height: 48 });
 
   await properties.getByLabel("Stroke width").fill("2.5");
-  await properties.getByLabel("Stroke color").evaluate((input, value) => {
-    const element = input as HTMLInputElement;
-    const setter = Object.getOwnPropertyDescriptor(
-      HTMLInputElement.prototype,
-      "value",
-    )!.set!;
-    setter.call(element, value);
-    element.dispatchEvent(new Event("input", { bubbles: true }));
-    element.dispatchEvent(new Event("change", { bubbles: true }));
-  }, "#cc2200");
+  await properties
+    .getByLabel("Stroke color picker")
+    .evaluate((input, value) => {
+      const element = input as HTMLInputElement;
+      const setter = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )!.set!;
+      setter.call(element, value);
+      element.dispatchEvent(new Event("input", { bubbles: true }));
+      element.dispatchEvent(new Event("change", { bubbles: true }));
+    }, "#cc2200");
   await expect(rectangle).toHaveAttribute("stroke", "#cc2200");
   const rectangleStroke = Number(await rectangle.getAttribute("stroke-width"));
 
@@ -1400,7 +1402,7 @@ test("Properties sets precise size, stroke width, and color per shape", async ({
   });
   if (!resizedEdge) throw new Error("resized rectangle is not measurable");
   await page.mouse.click(resizedEdge.x, resizedEdge.y);
-  await properties.getByRole("button", { name: "Auto" }).click();
+  await properties.getByRole("button", { name: "Reset stroke color" }).click();
   const stroke = await rectangle.getAttribute("stroke");
   expect(stroke).not.toBe("#cc2200");
 });

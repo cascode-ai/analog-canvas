@@ -1,5 +1,7 @@
 import type { Ref } from "react";
 
+import { ColorOverrideControl } from "../properties/color-override-control";
+
 import { DisplayToggle } from "../component-insert/display-toggle";
 
 export function MosBulkConnectionSection({
@@ -154,25 +156,12 @@ export function RouteActionsSection({
       <button type="button" onClick={onDeleteNetLabel}>
         Delete Net label
       </button>
-      <label>
-        Wire color
-        <span className="drawing-color-row">
-          <input
-            aria-label="Wire color"
-            type="color"
-            value={normalizeColorInput(color ?? defaultColor)}
-            onChange={(event) => onColorChange(event.currentTarget.value)}
-          />
-          <button
-            type="button"
-            disabled={!color}
-            title="Use the document wire color"
-            onClick={() => onColorChange(undefined)}
-          >
-            Auto
-          </button>
-        </span>
-      </label>
+      <ColorOverrideControl
+        label="Wire color"
+        value={color}
+        fallback={defaultColor}
+        onChange={onColorChange}
+      />
       <button type="button" onClick={onAddCurrentArrow}>
         Add current arrow
       </button>
@@ -184,13 +173,6 @@ export function RouteActionsSection({
       </button>
     </section>
   );
-}
-
-function normalizeColorInput(color: string): string {
-  const shorthand = /^#([0-9a-f])([0-9a-f])([0-9a-f])$/iu.exec(color);
-  return shorthand
-    ? `#${shorthand[1]}${shorthand[1]}${shorthand[2]}${shorthand[2]}${shorthand[3]}${shorthand[3]}`
-    : color;
 }
 
 export function EndpointActionsSection({

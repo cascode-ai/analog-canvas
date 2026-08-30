@@ -1432,7 +1432,7 @@ test("colors an electrical wire and restores the Razavi default with Auto", asyn
   const wire = page.locator(
     '[data-layer="routes"] [data-object-id="route-ui-1"]',
   );
-  const color = page.getByLabel("Wire color");
+  const color = page.getByLabel("Wire color picker");
   await expect(color).toHaveValue("#000000");
   await color.evaluate((input, value) => {
     const element = input as HTMLInputElement;
@@ -1449,10 +1449,10 @@ test("colors an electrical wire and restores the Razavi default with Auto", asyn
     "Updated wire color for route-ui-1",
   );
 
-  await page.getByTitle("Use the document wire color").click();
+  await page.getByTitle("Use the document ink color").click();
   await expect(wire).toHaveAttribute("stroke", "#000");
   await expect(color).toHaveValue("#000000");
-  await expect(page.getByTitle("Use the document wire color")).toBeDisabled();
+  await expect(page.getByTitle("Use the document ink color")).toBeDisabled();
 });
 
 test("keeps Wire active for consecutive independent routes until Escape", async ({

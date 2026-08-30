@@ -28,9 +28,12 @@ describe("selection context actions", () => {
     );
     expect(markup).toContain('aria-label="Electrical Net label"');
     expect(markup).toContain('value="OUT"');
-    expect(markup).toContain('aria-label="Wire color"');
+    expect(markup).toContain('aria-label="Wire color picker"');
     expect(markup).toContain('value="#000000"');
-    expect(markup).toContain("Use the document wire color");
+    expect(markup).toContain('aria-label="Wire color custom RGB"');
+    expect(markup).toContain("Gray · #6b7280");
+    expect(markup).not.toContain("Violet");
+    expect(markup).toContain("Use the document ink color");
     expect(markup).toContain("Clear Net highlight (H)");
   });
 

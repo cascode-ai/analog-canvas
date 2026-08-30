@@ -25,13 +25,19 @@ describe("component style properties", () => {
       },
     };
     const markup = renderToStaticMarkup(
-      <ComponentStyleProperties instance={instance} onChange={vi.fn()} />,
+      <ComponentStyleProperties
+        instance={instance}
+        defaultForeground="#000000"
+        onChange={vi.fn()}
+      />,
     );
 
     expect(markup).toContain("Appearance");
     expect(markup).toContain('aria-label="Line / foreground custom RGB"');
     expect(markup).toContain('aria-label="Background / fill color picker"');
     expect(markup).toContain('aria-pressed="true"');
+    expect(markup).toContain("Gray · #6b7280");
+    expect(markup).not.toContain("Violet");
     expect(markup).toContain("Colors apply only to this component");
   });
 

@@ -4395,6 +4395,7 @@ export function App({
                   },
                   style: {
                     instance: selectedInstance,
+                    defaultForeground: styleProfile.foreground,
                     onChange: (styleOverride) => {
                       const result = transact([
                         {
@@ -4471,6 +4472,7 @@ export function App({
                   document,
                   resolver,
                   object: selectedDrafting,
+                  defaultColor: styleProfile.foreground,
                   inspectorSegment: draftingInspectorSegment,
                   tangentInput: draftingTangentInput,
                   bearingInput: draftingBearingInput,
