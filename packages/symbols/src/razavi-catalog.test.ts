@@ -165,6 +165,7 @@ describe("Razavi symbol catalog", () => {
       ["comparator-unmarked", "reviewed", "razavi-reference-v1"],
       ["current-source", "reviewed", "razavi-reference-v1"],
       ["d-flip-flop", "reviewed", "razavi-reference-v1"],
+      ["d-flip-flop-q", "reviewed", "razavi-reference-v1"],
       ["delay-cell", "reviewed", "razavi-reference-v1"],
       ["adder", "reviewed", "razavi-reference-v1"],
       ["multiplier", "reviewed", "razavi-reference-v1"],
@@ -519,7 +520,7 @@ describe("Razavi symbol catalog", () => {
   });
 
   it("uses reviewed catalog objects as the sole built-in product library", () => {
-    expect(razaviCatalogSymbols).toHaveLength(49);
+    expect(razaviCatalogSymbols).toHaveLength(50);
     for (const catalogSymbol of razaviProductSymbols) {
       expect(
         builtInSymbols.find((symbol) => symbol.id === catalogSymbol.id),
@@ -539,6 +540,7 @@ describe("Razavi symbol catalog", () => {
       "comparator-unmarked",
       "current-source",
       "d-flip-flop",
+      "d-flip-flop-q",
       "delay-cell",
       "adder",
       "multiplier",
@@ -1619,6 +1621,7 @@ describe("logic-library port leads", () => {
     "and-gate",
     "buffer",
     "d-flip-flop",
+    "d-flip-flop-q",
     "delay-cell",
     "inverter",
     "nand-gate",

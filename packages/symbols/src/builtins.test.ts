@@ -16,6 +16,7 @@ const PRODUCT_IDS = [
   "comparator-unmarked",
   "current-source",
   "d-flip-flop",
+  "d-flip-flop-q",
   "delay-cell",
   "adder",
   "multiplier",

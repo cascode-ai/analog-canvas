@@ -53,9 +53,11 @@ export interface RazaviSymbolCatalogEntry {
          * Derived from another reviewed Symbol rather than from the reference
          * itself, so its visual authority is that Symbol's. The converter
          * states the one transformation it applies and its `:check` gate
-         * keeps the pair from drifting apart.
+         * keeps the pair from drifting apart. `derived-input-swap` exchanges
+         * a marked differential pair; `derived-output-drop` leaves an output
+         * unbrought-out, for a part that exists in both widths.
          */
-        kind: "derived-input-swap";
+        kind: "derived-input-swap" | "derived-output-drop";
         sourceSymbolId: string;
         converterPath: string;
         converterVersion: number;

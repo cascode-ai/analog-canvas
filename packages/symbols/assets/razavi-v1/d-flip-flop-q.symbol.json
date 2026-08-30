@@ -1,0 +1,122 @@
+{
+  "schemaVersion": 1,
+  "id": "d-flip-flop-q",
+  "name": "D Flip-Flop (Q)",
+  "viewBox": {
+    "x": -42,
+    "y": -27,
+    "width": 84,
+    "height": 54
+  },
+  "pins": [
+    {
+      "name": "D",
+      "role": "input",
+      "at": {
+        "x": -40,
+        "y": -10
+      },
+      "direction": "west",
+      "presentation": {
+        "visibility": "visible",
+        "leadLength": 15,
+        "showName": true,
+        "textStyle": "math-symbol",
+        "textSizeScale": 0.68
+      }
+    },
+    {
+      "name": "CK",
+      "role": "clock",
+      "at": {
+        "x": -40,
+        "y": 10
+      },
+      "direction": "west",
+      "presentation": {
+        "visibility": "visible",
+        "leadLength": 15,
+        "showName": true,
+        "textStyle": "math-symbol",
+        "textSizeScale": 0.68
+      }
+    },
+    {
+      "name": "Q",
+      "role": "output",
+      "at": {
+        "x": 40,
+        "y": -10
+      },
+      "direction": "east",
+      "presentation": {
+        "visibility": "visible",
+        "leadLength": 15,
+        "showName": true,
+        "textStyle": "math-symbol",
+        "textSizeScale": 0.68
+      }
+    }
+  ],
+  "primitives": [
+    {
+      "kind": "line",
+      "from": {
+        "x": -40,
+        "y": -10
+      },
+      "to": {
+        "x": -25.000855,
+        "y": -10
+      },
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "butt",
+        "lineJoin": "miter"
+      }
+    },
+    {
+      "kind": "line",
+      "from": {
+        "x": -40,
+        "y": 10
+      },
+      "to": {
+        "x": -25.000855,
+        "y": 10
+      },
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "butt",
+        "lineJoin": "miter"
+      }
+    },
+    {
+      "kind": "path",
+      "data": "M -25.000855 -25.0 L 25.000855 -25.0 L 25.000855 25.0 L -25.000855 25.0 Z",
+      "style": {
+        "strokeRole": "emphasis",
+        "lineCap": "butt",
+        "lineJoin": "miter",
+        "miterLimit": 4
+      }
+    },
+    {
+      "kind": "line",
+      "from": {
+        "x": 25.000855,
+        "y": -10
+      },
+      "to": {
+        "x": 40,
+        "y": -10
+      },
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "butt",
+        "lineJoin": "miter"
+      }
+    }
+  ],
+  "variants": []
+}

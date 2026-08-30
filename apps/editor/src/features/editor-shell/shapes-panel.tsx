@@ -29,6 +29,7 @@ const COMPACT_LIBRARY_LABELS: Readonly<Record<string, string>> = {
   "closed-switch": "Closed",
   "current-source": "I Src",
   "d-flip-flop": "DFF",
+  "d-flip-flop-q": "DFQ",
   "ideal-switch": "Open",
   // "Voltage-Controlled Switch" overflows the tile; the SPICE letter is what
   // a reader is looking for anyway.

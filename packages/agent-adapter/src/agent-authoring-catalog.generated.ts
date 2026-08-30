@@ -214,6 +214,34 @@ export const agentRazaviAuthoringCatalog = {
       variants: [],
     },
     {
+      symbolId: "d-flip-flop-q",
+      name: "D Flip-Flop (Q)",
+      category: "logic",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      pins: [
+        {
+          name: "D",
+          role: "input",
+          direction: "west",
+          visibility: "visible",
+        },
+        {
+          name: "CK",
+          role: "clock",
+          direction: "west",
+          visibility: "visible",
+        },
+        {
+          name: "Q",
+          role: "output",
+          direction: "east",
+          visibility: "visible",
+        },
+      ],
+      variants: [],
+    },
+    {
       symbolId: "delay-cell",
       name: "Delay Cell",
       category: "logic",

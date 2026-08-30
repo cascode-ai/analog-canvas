@@ -283,6 +283,37 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     },
   },
   {
+    symbolId: "d-flip-flop-q",
+    name: "D Flip-Flop (Q)",
+    category: "logic",
+    reviewStatus: "reviewed",
+    pinOrder: ["D", "CK", "Q"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Behavioral logic symbol; structural SPICE realization requires an explicit subcircuit or PDK mapping.",
+    assetPath: "d-flip-flop-q.symbol.json",
+    assetHash:
+      "66b2a796af3409f0ec55fe56be57d8a52997f07a6fe0bac472fdb025bbe8e979",
+    visualAuthority: {
+      kind: "razavi-reference-v1",
+      referenceManifestPath:
+        "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      referencePaths: [
+        "fixtures/visual-reference/razavi-reference-v1/d-flip-flop-vector-source.json",
+        "fixtures/visual-reference/razavi-reference-v1/d-flip-flop-reference.png",
+      ],
+      calibrationPath:
+        "fixtures/visual-reference/razavi-reference-v1/buffer-dff-geometry.json",
+    },
+    generation: {
+      kind: "derived-output-drop",
+      sourceSymbolId: "d-flip-flop",
+      converterPath: "scripts/generate-razavi-buffer-dff-assets.mjs",
+      converterVersion: 1,
+    },
+  },
+  {
     symbolId: "delay-cell",
     name: "Delay Cell",
     category: "logic",
@@ -2631,6 +2662,128 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         to: {
           x: 40,
           y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "d-flip-flop-q",
+    name: "D Flip-Flop (Q)",
+    viewBox: {
+      x: -42,
+      y: -27,
+      width: 84,
+      height: 54,
+    },
+    pins: [
+      {
+        name: "D",
+        role: "input",
+        at: {
+          x: -40,
+          y: -10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 15,
+          showName: true,
+          textStyle: "math-symbol",
+          textSizeScale: 0.68,
+        },
+      },
+      {
+        name: "CK",
+        role: "clock",
+        at: {
+          x: -40,
+          y: 10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 15,
+          showName: true,
+          textStyle: "math-symbol",
+          textSizeScale: 0.68,
+        },
+      },
+      {
+        name: "Q",
+        role: "output",
+        at: {
+          x: 40,
+          y: -10,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 15,
+          showName: true,
+          textStyle: "math-symbol",
+          textSizeScale: 0.68,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -40,
+          y: -10,
+        },
+        to: {
+          x: -25.000855,
+          y: -10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -40,
+          y: 10,
+        },
+        to: {
+          x: -25.000855,
+          y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M -25.000855 -25.0 L 25.000855 -25.0 L 25.000855 25.0 L -25.000855 25.0 Z",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 25.000855,
+          y: -10,
+        },
+        to: {
+          x: 40,
+          y: -10,
         },
         style: {
           strokeRole: "normal",

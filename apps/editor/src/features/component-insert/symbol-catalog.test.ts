@@ -260,6 +260,7 @@ describe("reach order inside a category", () => {
       "xor-gate",
       "xnor-gate",
       "d-flip-flop",
+      "d-flip-flop-q",
       "delay-cell",
     ]);
   });

@@ -230,6 +230,33 @@
       }
     },
     {
+      "symbolId": "d-flip-flop-q",
+      "name": "D Flip-Flop (Q)",
+      "category": "logic",
+      "reviewStatus": "reviewed",
+      "pinOrder": ["D", "CK", "Q"],
+      "palette": true,
+      "automaticMappings": [],
+      "manualOnlyReason": "Behavioral logic symbol; structural SPICE realization requires an explicit subcircuit or PDK mapping.",
+      "assetPath": "d-flip-flop-q.symbol.json",
+      "assetHash": "66b2a796af3409f0ec55fe56be57d8a52997f07a6fe0bac472fdb025bbe8e979",
+      "visualAuthority": {
+        "kind": "razavi-reference-v1",
+        "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+        "referencePaths": [
+          "fixtures/visual-reference/razavi-reference-v1/d-flip-flop-vector-source.json",
+          "fixtures/visual-reference/razavi-reference-v1/d-flip-flop-reference.png"
+        ],
+        "calibrationPath": "fixtures/visual-reference/razavi-reference-v1/buffer-dff-geometry.json"
+      },
+      "generation": {
+        "kind": "derived-output-drop",
+        "sourceSymbolId": "d-flip-flop",
+        "converterPath": "scripts/generate-razavi-buffer-dff-assets.mjs",
+        "converterVersion": 1
+      }
+    },
+    {
       "symbolId": "delay-cell",
       "name": "Delay Cell",
       "category": "logic",
