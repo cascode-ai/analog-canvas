@@ -151,20 +151,7 @@ export function buildInstanceAnchors(
 ): SnapAnchor[] {
   const geometryAnchors = document.instances.flatMap((instance) => {
     if (!instanceIds.has(instance.id) || !instance.placement) return [];
-    const resolved = resolver.resolve(
-      instance.symbolId,
-      instance.symbolVariantId,
-    );
-    if (!resolved) return [];
-    const bounds = instanceVisibleHitBox(instance, resolved);
-    return [
-      {
-        id: `instance:${instance.id}:origin`,
-        point: instance.placement.position,
-        kind: "instance-center" as const,
-      },
-      ...(bounds ? boundsAnchors(`instance:${instance.id}`, bounds) : []),
-    ];
+    return buildInstanceGeometryAnchors(instance, resolver);
   });
   const electricalAnchors = visibleEndpoints
     .filter(
@@ -176,6 +163,27 @@ export function buildInstanceAnchors(
   return [...geometryAnchors, ...electricalAnchors];
 }
 
+function buildInstanceGeometryAnchors(
+  instance: SchematicDocument["instances"][number],
+  resolver: SymbolResolver,
+): SnapAnchor[] {
+  if (!instance.placement) return [];
+  const resolved = resolver.resolve(
+    instance.symbolId,
+    instance.symbolVariantId,
+  );
+  if (!resolved) return [];
+  const bounds = instanceVisibleHitBox(instance, resolved);
+  return [
+    {
+      id: `instance:${instance.id}:origin`,
+      point: instance.placement.position,
+      kind: "instance-center" as const,
+    },
+    ...(bounds ? boundsAnchors(`instance:${instance.id}`, bounds) : []),
+  ];
+}
+
 export function buildSceneSnapTargets(
   document: SchematicDocument,
   resolver: SymbolResolver,
@@ -183,32 +191,74 @@ export function buildSceneSnapTargets(
   excludedInstanceIds: ReadonlySet<string> = new Set(),
   excludedDraftingIds: ReadonlySet<string> = new Set(),
 ): SnapAnchor[] {
-  const staticInstanceIds = new Set(
-    document.instances
-      .filter((instance) => !excludedInstanceIds.has(instance.id))
-      .map((instance) => instance.id),
+  return sceneSnapTargetsExcluding(
+    buildSceneSnapTargetIndex(document, resolver, visibleEndpoints),
+    excludedInstanceIds,
+    excludedDraftingIds,
   );
-  const instanceAnchors = buildInstanceAnchors(
-    document,
-    resolver,
-    [],
-    staticInstanceIds,
+}
+
+interface IndexedSceneSnapTarget {
+  anchor: SnapAnchor;
+  instanceId?: string;
+  draftingId?: string;
+}
+
+/**
+ * Revision-scoped snap geometry. Building visible bounds and drafting anchor
+ * geometry is comparatively expensive, while a drag changes only its
+ * exclusion set. The editor therefore builds this index once per Document
+ * revision and filters the already-resolved anchors during pointer movement.
+ */
+export interface SceneSnapTargetIndex {
+  readonly targets: readonly IndexedSceneSnapTarget[];
+}
+
+export function buildSceneSnapTargetIndex(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  visibleEndpoints: readonly WireSource[],
+): SceneSnapTargetIndex {
+  const targets: IndexedSceneSnapTarget[] = [];
+  for (const instance of document.instances) {
+    for (const anchor of buildInstanceGeometryAnchors(instance, resolver)) {
+      targets.push({ anchor, instanceId: instance.id });
+    }
+  }
+  for (const source of visibleEndpoints) {
+    targets.push({
+      anchor: endpointSnapAnchor(source),
+      ...(source.endpoint.kind === "terminal"
+        ? { instanceId: source.endpoint.instanceId }
+        : {}),
+    });
+  }
+  for (const object of document.drafting?.objects ?? []) {
+    for (const [index, point] of draftingGeometryPoints(
+      document,
+      resolver,
+      object,
+    ).entries()) {
+      const anchor: SnapAnchor = {
+        id: `drafting:${object.id}:${index}`,
+        point,
+        kind: "drafting",
+      };
+      targets.push({ anchor, draftingId: object.id });
+    }
+  }
+  return { targets };
+}
+
+export function sceneSnapTargetsExcluding(
+  index: SceneSnapTargetIndex,
+  excludedInstanceIds: ReadonlySet<string> = new Set(),
+  excludedDraftingIds: ReadonlySet<string> = new Set(),
+): SnapAnchor[] {
+  return index.targets.flatMap((target) =>
+    (target.instanceId && excludedInstanceIds.has(target.instanceId)) ||
+    (target.draftingId && excludedDraftingIds.has(target.draftingId))
+      ? []
+      : [target.anchor],
   );
-  const endpointAnchors = visibleEndpoints
-    .filter(
-      (source) =>
-        source.endpoint.kind !== "terminal" ||
-        !excludedInstanceIds.has(source.endpoint.instanceId),
-    )
-    .map(endpointSnapAnchor);
-  const draftingIds = new Set(
-    (document.drafting?.objects ?? [])
-      .filter((object) => !excludedDraftingIds.has(object.id))
-      .map((object) => object.id),
-  );
-  return [
-    ...instanceAnchors,
-    ...endpointAnchors,
-    ...buildDraftingAnchors(document, resolver, draftingIds),
-  ];
 }

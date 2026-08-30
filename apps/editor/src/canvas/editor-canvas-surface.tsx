@@ -54,6 +54,7 @@ export interface EditorCanvasSurfaceProps {
   wireUnderSymbol: ComponentProps<typeof WireUnderSymbolOverlay>;
   netLabelTether: NetLabelTether | null;
   copyPreviewInnerHtml: { __html: string } | null;
+  copyPreviewTransform: string | undefined;
   inputPlanes: ComponentProps<typeof CanvasInputPlanes>;
   placementPreview: ComponentProps<typeof EditorPlacementPreview>;
   wiring: ComponentProps<typeof EditorWiringOverlay>;
@@ -107,6 +108,7 @@ export function EditorCanvasSurface({
   wireUnderSymbol,
   netLabelTether,
   copyPreviewInnerHtml,
+  copyPreviewTransform,
   inputPlanes,
   placementPreview,
   wiring,
@@ -218,6 +220,7 @@ export function EditorCanvasSurface({
           <g
             data-testid="copy-placement-preview"
             className="copy-placement-preview"
+            transform={copyPreviewTransform}
             dangerouslySetInnerHTML={copyPreviewInnerHtml}
           />
         ) : null}

@@ -30,6 +30,8 @@ import { closestPointOnSegment } from "../../canvas/canvas-geometry";
 import {
   buildInstanceAnchors,
   buildSceneSnapTargets,
+  sceneSnapTargetsExcluding,
+  type SceneSnapTargetIndex,
 } from "../../snap/candidates";
 import {
   resolveTranslationSnap,
@@ -59,6 +61,7 @@ export function createSelectionMoveController({
   visibleEndpoints,
   routeGeometryRecords,
   contactComponents,
+  sceneSnapTargetIndex,
   transactConnectivity,
   setStatus,
   nextRoutingSuffix,
@@ -68,6 +71,7 @@ export function createSelectionMoveController({
   visibleEndpoints: readonly WireSource[];
   routeGeometryRecords: readonly RouteGeometryRecord[];
   contactComponents: readonly RoutedComponent[];
+  sceneSnapTargetIndex?: SceneSnapTargetIndex;
   transactConnectivity: (
     intent: RoutingOperationIntent,
     edits: readonly SchematicEdit[],
@@ -356,12 +360,15 @@ export function createSelectionMoveController({
               });
           });
         });
-    const staticTargets = buildSceneSnapTargets(
-      sourceDocument,
-      resolver,
-      sourceVisibleEndpoints,
-      movingIds,
-    );
+    const staticTargets =
+      !projectedDocument && sceneSnapTargetIndex
+        ? sceneSnapTargetsExcluding(sceneSnapTargetIndex, movingIds)
+        : buildSceneSnapTargets(
+            sourceDocument,
+            resolver,
+            sourceVisibleEndpoints,
+            movingIds,
+          );
     let snap: SnapResult = suppressSnap
       ? { delta: rawDelta, guides: [] }
       : resolveTranslationSnap(

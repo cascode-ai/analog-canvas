@@ -4,7 +4,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildRectangleEdgeSnapAnchors,
+  buildSceneSnapTargetIndex,
   buildSceneSnapTargets,
+  sceneSnapTargetsExcluding,
 } from "./candidates";
 
 function expectPointsCloseTo(
@@ -40,6 +42,48 @@ describe("snap candidate builder", () => {
 
     expect(targets.some((target) => target.id.startsWith("instance:R1:"))).toBe(
       false,
+    );
+  });
+
+  it("reuses revision-scoped geometry while preserving exclusion semantics", () => {
+    const document = createEmptyDocument("doc", "Snap");
+    document.instances.push(
+      {
+        id: "R1",
+        symbolId: "resistor",
+        placement: {
+          position: { x: 100, y: 100 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+      {
+        id: "R2",
+        symbolId: "resistor",
+        placement: {
+          position: { x: 200, y: 100 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+    );
+    const resolver = new InMemorySymbolResolver(builtInSymbols);
+    const index = buildSceneSnapTargetIndex(document, resolver, []);
+
+    const indexed = sceneSnapTargetsExcluding(index, new Set(["R1"]));
+    const rebuilt = buildSceneSnapTargets(
+      document,
+      resolver,
+      [],
+      new Set(["R1"]),
+    );
+
+    expect(indexed).toEqual(rebuilt);
+    expect(indexed.some((target) => target.id.startsWith("instance:R1:"))).toBe(
+      false,
+    );
+    expect(indexed.some((target) => target.id.startsWith("instance:R2:"))).toBe(
+      true,
     );
   });
 

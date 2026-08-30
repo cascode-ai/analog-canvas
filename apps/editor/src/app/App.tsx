@@ -291,6 +291,7 @@ import type { ScreenFlip } from "../interaction/shortcut-orientation";
 import {
   buildDraftingAnchors,
   buildInstanceAnchors,
+  buildSceneSnapTargetIndex,
   buildSceneSnapTargets,
 } from "../snap/candidates";
 import {
@@ -1135,20 +1136,16 @@ export function App({
   // so re-renders with unchanged scene content leave the DOM subtree alone.
   const sceneInnerHtml = useMemo(() => ({ __html: scene.formalBody }), [scene]);
   const copyPreviewState = useMemo(() => {
-    if (!copyPlacement || !copyPlacement.previewPoint) {
+    if (!copyPlacement) {
       return { scene: null, error: null };
     }
-    const offset = {
-      x: copyPlacement.previewPoint.x - copyPlacement.anchor.x,
-      y: copyPlacement.previewPoint.y - copyPlacement.anchor.y,
-    };
     try {
       return {
         scene: buildSvgScene(
           clipboardPreviewDocument(
             document,
             copyPlacement.clipboard,
-            offset,
+            { x: 0, y: 0 },
             copyPlacement.orientationOperations,
             resolver,
             copyPlacement.sequence,
@@ -1166,7 +1163,13 @@ export function App({
             : "Copy preview could not be rendered",
       };
     }
-  }, [copyPlacement, document, resolver]);
+  }, [
+    copyPlacement?.clipboard,
+    copyPlacement?.orientationOperations,
+    copyPlacement?.sequence,
+    document,
+    resolver,
+  ]);
   useEffect(() => {
     if (copyPreviewState.error) {
       setStatus(`Copy preview unavailable — ${copyPreviewState.error}`);
@@ -1174,11 +1177,16 @@ export function App({
   }, [copyPreviewState.error]);
   const copyPreviewInnerHtml = useMemo(
     () =>
-      copyPreviewState.scene === null
+      copyPreviewState.scene === null || !copyPlacement?.previewPoint
         ? null
         : { __html: copyPreviewState.scene.formalBody },
-    [copyPreviewState.scene],
+    [copyPlacement?.previewPoint, copyPreviewState.scene],
   );
+  const copyPreviewTransform = copyPlacement?.previewPoint
+    ? `translate(${copyPlacement.previewPoint.x - copyPlacement.anchor.x} ${
+        copyPlacement.previewPoint.y - copyPlacement.anchor.y
+      })`
+    : undefined;
   const unplaced = document.instances.filter(
     (instance) => instance.placement === null,
   );
@@ -1254,6 +1262,10 @@ export function App({
     wireSource,
     bulkDrawInstanceId,
   });
+  const sceneSnapTargetIndex = useMemo(
+    () => buildSceneSnapTargetIndex(document, resolver, visibleEndpoints),
+    [document, resolver, visibleEndpoints],
+  );
   const simulationPickHighlight = useMemo(
     () =>
       simulationPickNetsActive && simulationHoverNetId
@@ -1793,6 +1805,7 @@ export function App({
     visibleEndpoints,
     routeGeometryRecords,
     contactComponents,
+    sceneSnapTargetIndex,
     transactConnectivity,
     setStatus,
     nextRoutingSuffix,
@@ -4659,6 +4672,7 @@ export function App({
           }}
           netLabelTether={netLabelTether}
           copyPreviewInnerHtml={copyPreviewInnerHtml}
+          copyPreviewTransform={copyPreviewTransform}
           inputPlanes={{
             tool,
             viewBox,
