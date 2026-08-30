@@ -833,10 +833,13 @@ describe("multi-pin placement onto one conductor", () => {
       : `${endpoint.instanceId}.${endpoint.pinName}`;
   }
 
-  it("attaches both pins of a current source dropped onto one wire (feedback image 6/7)", () => {
+  it("splices a current source dropped onto one wire into series (feedback image 6/7)", () => {
     const document = verticalWireDocument();
     // current-source pins: "+" at (0,-20), "-" at (0,20). Placed at
     // (100,100), both pins land on R1's interior: (100,80) and (100,120).
+    // The eligible two-terminal drop is one atomic series splice: both pins
+    // attach, the between-pin span is removed, and the Base Net partitions
+    // so the device is never left shorted.
     const source = {
       id: "I1",
       symbolId: "current-source",
@@ -859,33 +862,23 @@ describe("multi-pin placement onto one conductor", () => {
     );
     expect(committed.ok).toBe(true);
     if (!committed.ok) return;
-    // The wire is cut into three series segments through the device:
-    // J1 -> "+", "+" -> "-", "-" -> J2.
-    expect(committed.document.routes).toHaveLength(3);
     const spans = committed.document.routes.map(
       (route) =>
         `${endpointName(route.start)}->${endpointName(routeEnd(route))}`,
     );
-    expect(new Set(spans)).toEqual(
-      new Set(["J1->I1.+", "I1.+->I1.-", "I1.-->J2"]),
+    expect(new Set(spans)).toEqual(new Set(["J1->I1.+", "I1.-->J2"]));
+    const pinNets = ["+", "-"].map(
+      (pinName) =>
+        committed.document.nets.find((net) =>
+          net.terminals.some(
+            (terminal) =>
+              terminal.instanceId === "I1" && terminal.pinName === pinName,
+          ),
+        )?.id,
     );
-    // Both pins joined the wire's Net.
-    const net = committed.document.nets.find(
-      (candidate) => candidate.id === "n1",
-    )!;
-    expect(net.terminals).toEqual(
-      expect.arrayContaining([
-        { instanceId: "I1", pinName: "+" },
-        { instanceId: "I1", pinName: "-" },
-      ]),
-    );
-    // The series-insertion workflow: the middle segment between the pins is
-    // its own Route and can be deleted on its own.
-    const middle = committed.document.routes.find(
-      (route) =>
-        route.start.kind === "terminal" && routeEnd(route).kind === "terminal",
-    );
-    expect(middle).toBeDefined();
+    expect(pinNets[0]).toBeTruthy();
+    expect(pinNets[1]).toBeTruthy();
+    expect(pinNets[0]).not.toBe(pinNets[1]);
   });
 
   it("keeps rejecting one pin that touches two disconnected conductors", () => {
