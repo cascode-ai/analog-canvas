@@ -2019,6 +2019,10 @@ test("moves internal wiring with a selected group and copies the routed subgraph
     "1",
   );
   const before = await readRoutePoints(page, "route-ui-1");
+  const routeNode = await page
+    .locator('[data-layer="routes"] [data-object-id="route-ui-1"]')
+    .elementHandle();
+  if (!routeNode) throw new Error("Internal route is not measurable");
   const firstBefore = await page.getByTestId("hit-R1").boundingBox();
   await dragRouteSegment(
     page,
@@ -2034,6 +2038,11 @@ test("moves internal wiring with a selected group and copies the routed subgraph
         /semantic-move-preview/u,
       );
       await expect(page.getByTestId("revision")).toHaveText("4");
+      expect(
+        await page
+          .locator('[data-layer="routes"] [data-object-id="route-ui-1"]')
+          .evaluate((current, original) => current === original, routeNode),
+      ).toBe(true);
     },
   );
   const after = await readRoutePoints(page, "route-ui-1");

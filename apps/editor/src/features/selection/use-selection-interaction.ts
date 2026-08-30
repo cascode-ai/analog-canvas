@@ -11,7 +11,7 @@ import {
   proposePaste,
 } from "../clipboard/clipboard";
 import type { SchematicClipboard } from "../clipboard/clipboard";
-import { endpointKey } from "@icm/derived";
+import { endpointKey, resolveDocumentRoutingGeometry } from "@icm/derived";
 import {
   createRoutingOperationPlan,
   executeTransaction,
@@ -79,13 +79,20 @@ interface ResolvedInstanceMove {
   moves: { instanceId: string; position: Point }[];
 }
 
-interface MoveProjectionCache {
+interface MoveProjectionInput {
   screenPoint: Point;
   suppressSnap: boolean;
   tolerance: number;
   sourceRevision: number;
   resolved: ResolvedInstanceMove;
+}
+
+interface MoveProjectionCache extends MoveProjectionInput {
   document: SchematicDocument;
+}
+
+interface DirectMoveProjectionCache extends MoveProjectionInput {
+  routePoints: ReadonlyMap<string, readonly Point[]>;
 }
 
 export interface InstanceMovePreview {
@@ -119,13 +126,13 @@ export interface ProjectedInstanceMove {
   resolvedMove?: ResolvedInstanceMove;
 }
 
-const isSameMoveProjectionInput = (
-  cached: MoveProjectionCache | null,
+const isSameMoveProjectionInput = <T extends MoveProjectionInput>(
+  cached: T | null,
   screenPoint: Point,
   suppressSnap: boolean,
   tolerance: number,
   sourceRevision: number,
-): cached is MoveProjectionCache =>
+): cached is T =>
   cached !== null &&
   // PointerEvent keeps sub-pixel coordinates while its following MouseEvent
   // rounds them to integers. Treat that browser precision loss as the same
@@ -355,6 +362,94 @@ export function useSelectionInteraction(
     );
     if (!result.ok) throw new Error(result.error.message);
     return result.document;
+  };
+
+  /**
+   * Lightweight geometry for the live pointer path. The routing planner stays
+   * authoritative, but applying its three translation edit kinds to a shallow
+   * projection avoids a full schema transaction and formal SVG render on every
+   * animation frame. Commit still runs the normal typed transaction.
+   */
+  const projectInstanceMoveVisual = (
+    sourceDocument: SchematicDocument,
+    moves: readonly { instanceId: string; position: Point }[],
+    movePlan: SelectionMovePlan,
+  ): ReadonlyMap<string, readonly Point[]> => {
+    const first = moves[0];
+    const original = first
+      ? sourceDocument.instances.find((item) => item.id === first.instanceId)
+          ?.placement?.position
+      : undefined;
+    const delta =
+      first && original
+        ? { x: first.position.x - original.x, y: first.position.y - original.y }
+        : { x: 0, y: 0 };
+    const plan = planRoutingTransform(
+      sourceDocument,
+      options.resolver,
+      {
+        instanceIds: movePlan.instanceIds,
+        routeIds: movePlan.translatedRouteIds,
+        junctionIds: movePlan.translatedJunctionIds,
+      },
+      { kind: "translate", delta },
+    );
+    const blocking = plan.diagnostics.find((item) => item.severity === "error");
+    if (blocking) throw new Error(blocking.message);
+
+    const movedInstances = new Map(
+      plan.edits.flatMap((edit) =>
+        edit.kind === "move_instance"
+          ? [[edit.instanceId, edit.position] as const]
+          : [],
+      ),
+    );
+    const movedJunctions = new Map(
+      plan.edits.flatMap((edit) =>
+        edit.kind === "move_junction"
+          ? [[edit.junctionId, edit.position] as const]
+          : [],
+      ),
+    );
+    const changedRoutes = new Map(
+      plan.edits.flatMap((edit) =>
+        edit.kind === "set_route_path"
+          ? [[edit.route.id, edit.route] as const]
+          : [],
+      ),
+    );
+    const projected: SchematicDocument = {
+      ...sourceDocument,
+      instances: sourceDocument.instances.map((instance) => {
+        const position = movedInstances.get(instance.id);
+        return position && instance.placement
+          ? {
+              ...instance,
+              placement: { ...instance.placement, position },
+            }
+          : instance;
+      }),
+      junctions: sourceDocument.junctions.map((junction) => {
+        const position = movedJunctions.get(junction.id);
+        return position ? { ...junction, position } : junction;
+      }),
+      routes: sourceDocument.routes.map(
+        (route) => changedRoutes.get(route.id) ?? route,
+      ),
+    };
+    const geometry = resolveDocumentRoutingGeometry(
+      projected,
+      options.resolver,
+    );
+    return new Map(
+      [
+        ...plan.affected.internalRoutes,
+        ...plan.affected.boundaryRoutes,
+      ].flatMap((routeId) => {
+        const route = geometry.routes.get(routeId);
+        return route ? [[routeId, route.centerline] as const] : [];
+      }),
+    );
   };
 
   const beginKeyboardSelectionMove = (
@@ -759,12 +854,16 @@ export function useSelectionInteraction(
     options.setProjectedMovePreview(null);
     const tolerance = options.logicalRadiusForPixels(svg, 7);
     let lastSnap: SnapResult | undefined;
-    let lastProjection: MoveProjectionCache | null = null;
+    let lastProjection: MoveProjectionCache | DirectMoveProjectionCache | null =
+      null;
+    let movingVisual: ReturnType<typeof startCanvasDragVisual> | null = null;
+    let boundaryRouteVisual: ReturnType<typeof startCanvasDragVisual> | null =
+      null;
     const resolveProjection = (
       point: Point,
       screenPoint: Point,
       suppressSnap: boolean,
-    ): MoveProjectionCache => {
+    ): MoveProjectionCache | DirectMoveProjectionCache => {
       if (
         isSameMoveProjectionInput(
           lastProjection,
@@ -783,20 +882,31 @@ export function useSelectionInteraction(
         suppressSnap,
         lastSnap,
       );
-      const document = projectInstanceMove(
-        previewBaseDocument,
-        resolved.moves,
-        preview.movePlan,
-      );
       lastSnap = resolved.snap;
-      lastProjection = {
+      const input = {
         screenPoint: { ...screenPoint },
         suppressSnap,
         tolerance,
         sourceRevision: options.document.revision,
         resolved,
-        document,
       };
+      lastProjection = detachDrag
+        ? {
+            ...input,
+            document: projectInstanceMove(
+              previewBaseDocument,
+              resolved.moves,
+              preview.movePlan,
+            ),
+          }
+        : {
+            ...input,
+            routePoints: projectInstanceMoveVisual(
+              options.document,
+              resolved.moves,
+              preview.movePlan,
+            ),
+          };
       return lastProjection;
     };
     options.canvasDragSessionRef.current = startCanvasDragSession({
@@ -812,9 +922,41 @@ export function useSelectionInteraction(
             Boolean(client.altKey),
           );
           options.snapGuides(projection.resolved.snap.guides);
-          options.setProjectedMovePreview(projection.document);
+          if ("document" in projection) {
+            options.setProjectedMovePreview(projection.document);
+          } else {
+            movingVisual ??= startCanvasDragVisual(
+              svg,
+              preview.movePlan.previewObjectIds.filter(
+                (objectId) =>
+                  !preview.movePlan.translatedRouteIds.includes(objectId),
+              ),
+            );
+            boundaryRouteVisual ??= startCanvasDragVisual(svg, [
+              ...projection.routePoints.keys(),
+            ]);
+            const primary = projection.resolved.moves.find(
+              (move) => move.instanceId === preview.primaryInstanceId,
+            );
+            const original =
+              preview.originalPositions[preview.primaryInstanceId];
+            if (primary && original) {
+              movingVisual.translate({
+                x: primary.position.x - original.x,
+                y: primary.position.y - original.y,
+              });
+            }
+            for (const [routeId, points] of projection.routePoints) {
+              boundaryRouteVisual.setObjectPolyline(routeId, points);
+            }
+            // Keep the established semantic-preview class without replacing
+            // the formal scene: this is the exact same base Document object.
+            options.setProjectedMovePreview(options.document);
+          }
         } catch (error) {
           lastProjection = null;
+          movingVisual?.restore();
+          boundaryRouteVisual?.restore();
           options.setProjectedMovePreview(null);
           options.setStatus(
             error instanceof Error ? error.message : "Move preview failed",
@@ -828,7 +970,7 @@ export function useSelectionInteraction(
         if (dragged) {
           const point = options.pointFromClient(client.x, client.y, svg, false);
           const suppressSnap = Boolean(client.altKey);
-          let projection: MoveProjectionCache;
+          let projection: MoveProjectionCache | DirectMoveProjectionCache;
           try {
             projection = resolveProjection(
               point,
@@ -841,6 +983,8 @@ export function useSelectionInteraction(
             );
             return;
           }
+          movingVisual?.restore();
+          boundaryRouteVisual?.restore();
           options.completeInstanceMove(
             preview,
             point,
@@ -874,6 +1018,8 @@ export function useSelectionInteraction(
       },
       onCancel: () => {
         options.canvasDragSessionRef.current = null;
+        movingVisual?.restore();
+        boundaryRouteVisual?.restore();
         options.setProjectedMovePreview(null);
         options.snapGuides([]);
       },
