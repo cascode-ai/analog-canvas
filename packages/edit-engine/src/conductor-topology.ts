@@ -338,15 +338,27 @@ export function normalizeSameNetConductorTopology(
     }
     const collapsibleJunctionIds = new Set<string>();
     for (const junction of junctions) {
+      const role = junction.role ?? "branch";
       if (
-        (junction.role ?? "branch") !== "branch" ||
+        (role !== "branch" && role !== "route-anchor") ||
         protectedIds.has(junction.id) ||
         options.preserveJunctionIds?.has(junction.id)
       ) {
         continue;
       }
       const incident = incidentByPoint.get(pointKey(junction.position)) ?? [];
-      if (collinearContinuation(junction.position, incident)) {
+      if (role === "branch") {
+        if (collinearContinuation(junction.position, incident)) {
+          collapsibleJunctionIds.add(junction.id);
+        }
+        continue;
+      }
+      // A degree-two route-anchor is no longer a loose end: its two arms are
+      // one continuous conductor, joined collinearly (the join point
+      // disappears) or at a corner (the join becomes an interior bend).
+      // Collapsing it makes segmentation follow the drawing, not the stroke
+      // history — the W-tool continuation repro.
+      if (incident.length === 2) {
         collapsibleJunctionIds.add(junction.id);
       }
     }

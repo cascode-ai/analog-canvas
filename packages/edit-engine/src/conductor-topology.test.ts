@@ -6,6 +6,7 @@ import {
 import {
   createEmptyDocument,
   createRoutePath,
+  routeBends,
   routeEnd,
   type SchematicDocument,
 } from "@icm/model";
@@ -13,6 +14,7 @@ import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
 import { normalizeSameNetConductorTopology } from "./conductor-topology.js";
+import { proposeWireIntent } from "./routing-planner.js";
 import { executeTransaction } from "./transaction.js";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
@@ -177,6 +179,97 @@ describe("same-Net conductor topology normalization", () => {
         endpointKey(routeEnd(document.routes[0]!)),
       ]),
     ).toEqual(new Set(["junction:left", "junction:right"]));
+  });
+
+  it("coalesces a collinear continuation drawn from a loose end (user repro)", () => {
+    // The W-tool repro from the feedback doc: continue a wire from its loose
+    // end and the two collinear pieces share a degree-two route-anchor
+    // Junction. A degree-two anchor is no longer a loose end — the pieces
+    // must become one Route.
+    const document = documentWith(
+      [
+        junction("left", 0, 0),
+        junction("middle", 50, 0),
+        junction("right", 100, 0),
+      ],
+      [
+        route("left-arm", "left", "middle"),
+        route("right-arm", "middle", "right"),
+      ],
+    );
+
+    const result = normalizeSameNetConductorTopology(document, resolver);
+
+    expect(result.changed).toBe(true);
+    expect(document.routes).toHaveLength(1);
+    expect(document.junctions.map((candidate) => candidate.id)).toEqual([
+      "left",
+      "right",
+    ]);
+    expect(
+      new Set([
+        endpointKey(document.routes[0]!.start),
+        endpointKey(routeEnd(document.routes[0]!)),
+      ]),
+    ).toEqual(new Set(["junction:left", "junction:right"]));
+  });
+
+  it("folds a degree-two route-anchor corner into an interior bend", () => {
+    const document = documentWith(
+      [
+        junction("left", 0, 0),
+        junction("corner", 50, 0),
+        junction("down", 50, 50),
+      ],
+      [route("first", "left", "corner"), route("second", "corner", "down")],
+    );
+
+    const result = normalizeSameNetConductorTopology(document, resolver);
+
+    expect(result.changed).toBe(true);
+    expect(document.routes).toHaveLength(1);
+    expect(routeBends(document.routes[0]!)).toEqual([{ x: 50, y: 0 }]);
+    expect(document.junctions.map((candidate) => candidate.id)).toEqual([
+      "left",
+      "down",
+    ]);
+  });
+
+  it("keeps a lone loose wire and its degree-one anchors untouched", () => {
+    const document = documentWith(
+      [junction("left", 0, 0), junction("right", 100, 0)],
+      [route("only", "left", "right")],
+    );
+
+    const result = normalizeSameNetConductorTopology(document, resolver);
+
+    expect(result.changed).toBe(false);
+    expect(document.routes).toHaveLength(1);
+    expect(document.junctions).toHaveLength(2);
+  });
+
+  it("preserves a degree-two anchor authored in the same transaction", () => {
+    const document = documentWith(
+      [
+        junction("left", 0, 0),
+        junction("middle", 50, 0),
+        junction("right", 100, 0),
+      ],
+      [
+        route("left-arm", "left", "middle"),
+        route("right-arm", "middle", "right"),
+      ],
+    );
+
+    const result = normalizeSameNetConductorTopology(
+      document,
+      resolver,
+      undefined,
+      { preserveJunctionIds: new Set(["middle"]) },
+    );
+
+    expect(result.changed).toBe(false);
+    expect(document.routes).toHaveLength(2);
   });
 
   it("deduplicates coincident Route coverage", () => {
@@ -425,5 +518,44 @@ describe("same-Net conductor topology normalization", () => {
     expect(result.document.junctions.some(({ id }) => id === "middle")).toBe(
       false,
     );
+  });
+
+  it("extends the conductor when W continues from a loose end", () => {
+    // The reliable user repro, run through the real wire gesture: draw onto
+    // an existing wire from its loose end. One conductor must come out.
+    const document = documentWith(
+      [junction("left", 0, 0), junction("loose", 100, 0)],
+      [route("original", "left", "loose")],
+    );
+    const planned = proposeWireIntent(document, resolver, {
+      id: "continue",
+      from: {
+        kind: "endpoint",
+        endpoint: { kind: "junction", junctionId: "loose" },
+      },
+      to: { kind: "free", point: { x: 200, y: 0 } },
+    });
+    expect(typeof planned).not.toBe("string");
+    if (typeof planned === "string") return;
+    const result = executeTransaction(
+      document,
+      {
+        transactionId: "w-continuation",
+        documentId: document.id,
+        expectedRevision: document.revision,
+        actor: { kind: "human", id: "test" },
+        edits: planned.edits,
+      },
+      { symbolResolver: resolver },
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.document.routes).toHaveLength(1);
+    const survivor = result.document.routes[0]!;
+    expect(routeBends(survivor)).toEqual([]);
+    const junctionIds = result.document.junctions.map(({ id }) => id);
+    expect(junctionIds).toHaveLength(2);
+    expect(junctionIds).toContain("left");
+    expect(junctionIds).not.toContain("loose");
   });
 });

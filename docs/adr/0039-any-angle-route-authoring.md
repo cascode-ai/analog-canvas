@@ -44,9 +44,9 @@ Commit-time same-Net conductor-topology canonicalization, introduced with the
 conductor-topology normalization change (2026-08-30), is a deliberate,
 specified exception at the structure level: on the Nets a transaction
 touched, the Edit Engine may union duplicate collinear coverage, materialize
-true branch vertices, and remove unowned degree-two collinear Junctions,
-preserving the resolved centerline point set and electrical membership
-exactly. The visible drawing and the Net are unchanged; only the partition of
+true branch vertices, and remove unowned degree-two Junctions (collinear
+branch joins and route-anchor joins alike), preserving the resolved
+centerline point set and electrical membership exactly. The visible drawing and the Net are unchanged; only the partition of
 that drawing into Route objects is canonical. The rule and its exclusions are
 normative in
 [connectivity and routing](../specs/connectivity-and-routing.md).

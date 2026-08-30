@@ -16,7 +16,10 @@ drift as parallel arrays. Junctions are explicit branch/route anchors. A
 perpendicular geometric crossing does not create electrical contact by itself.
 Collinear same-Net overlap is never canonical persisted geometry: the Edit
 Engine unions the covered conductor, materializes true branch vertices, and
-removes redundant degree-two collinear Junctions. An explicit cross-Net Wire
+removes redundant degree-two Junctions — an unowned collinear branch join
+disappears, and a degree-two route-anchor is no longer a loose end, so its
+two arms coalesce into one Route whether they continue straight or fold into
+an interior bend. An explicit cross-Net Wire
 connection merges compatible Base Nets before the same normalization; passive
 transforms never silently merge different Nets. Power-rail, MOS bulk, and
 locked presentations retain their own authored geometry and do not participate
@@ -71,8 +74,10 @@ Route transaction.
   because it changes the selected Route's identity and geometry.
 - Route splitting is reversible topology, not permanent stroke history. When
   a branch is cut, an unowned degree-two collinear Junction is removed and its
-  surviving arms coalesce into one Route. Route labels, markers, layout
-  references, and stable leg ownership follow the normalized conductor.
+  surviving arms coalesce into one Route; a Wire continued from a loose end
+  extends the existing conductor the same way instead of leaving two pieces
+  joined by an invisible anchor. Route labels, markers, layout references, and
+  stable leg ownership follow the normalized conductor.
 - Placing a component with one eligible pair of exact pin contacts on one
   continuous ordinary Route performs one atomic series splice: the two
   contacts split the conductor, the between-pin span is removed, and the Base
@@ -225,8 +230,8 @@ overlap.
 - Route normalization removes duplicate and collinear interior points without
   changing endpoint identity.
 - Same-Net conductor normalization unions duplicate coverage, preserves every
-  true branch/contact vertex, and removes unowned degree-two collinear
-  Junctions.
+  true branch/contact vertex, and removes unowned degree-two Junctions —
+  collinear branch joins and route-anchor joins alike.
 - A failed multi-edit transaction changes nothing; a successful one advances
   revision once.
 - GUI and Agent use the same planners, transaction engine, derived geometry,
