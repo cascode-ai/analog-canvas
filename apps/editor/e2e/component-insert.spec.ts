@@ -1509,10 +1509,12 @@ test("shows the complete foldable categorized Library, quick-places a device, an
     page
       .getByTestId("shapes-category-logic-gates")
       .locator('[data-testid^="shapes-chip-"]'),
-  ).toHaveCount(10);
+  ).toHaveCount(11);
   await expect(page.getByTestId("shapes-chip-buffer")).toBeAttached();
   await expect(page.getByTestId("shapes-chip-delay-cell")).toBeAttached();
   await expect(page.getByTestId("shapes-chip-d-flip-flop")).toBeAttached();
+  // The Q-only flip-flop is its own part, so it browses beside its source.
+  await expect(page.getByTestId("shapes-chip-d-flip-flop-q")).toBeAttached();
   const extendedCategory = page.getByTestId("shapes-category-extended-devices");
   await expect(
     extendedCategory.locator('[data-testid^="shapes-chip-"]'),
