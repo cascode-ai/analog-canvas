@@ -1,13 +1,15 @@
 import {
   planDirectEndpointConnection,
-  proposeEndpointRouteAttachment,
+  proposeEndpointsRouteAttachment,
   planRoutingTransform,
+  type EndpointRouteAttachmentRequest,
   type RoutingOperationIntent,
   type SchematicEdit,
   type WireSource,
 } from "@icm/edit-engine";
 import {
   deriveNetConnectivity,
+  findRouteSegmentsAtPoint,
   isMosBulkTerminal,
   isVisibleEndpoint,
   resolveDocumentRoutingGeometry,
@@ -54,6 +56,95 @@ import type {
 import type { SelectionMovePlan } from "./selection-move-plan";
 
 type TransactionResult = { ok: boolean };
+
+/**
+ * The pins the snapped move actually lands on the matched conductor.
+ *
+ * The snap match names one moving pin, but the drop-a-device-into-a-wire
+ * gesture lands every series pin of the device on the same Route; the
+ * explicit snap intent covers the whole device, so every visible pin of the
+ * matched instance whose contact lies on that Route attaches. Other selected
+ * instances and other conductors are untouched — a plain transform still
+ * never bonds. Falls back to the single matched endpoint when nothing beyond
+ * it qualifies, so degenerate matches keep their previous behavior.
+ */
+function routeAttachRequestsForMovedPins(
+  projected: SchematicDocument,
+  resolver: SymbolResolver,
+  moving: { endpoint: RouteEndpoint; netId: string | null },
+  target: { routeId: string; segmentIndex: number },
+): EndpointRouteAttachmentRequest[] {
+  const fallback = (): EndpointRouteAttachmentRequest[] => {
+    const connection = resolveEndpointConnection(
+      projected,
+      resolver,
+      moving.endpoint,
+    );
+    return connection
+      ? [
+          {
+            endpoint: moving.endpoint,
+            endpointNetId: moving.netId,
+            point: connection.contactPoint,
+            segmentIndex: target.segmentIndex,
+          },
+        ]
+      : [];
+  };
+  if (moving.endpoint.kind !== "terminal") return fallback();
+  const movingInstanceId = moving.endpoint.instanceId;
+  const instance = projected.instances.find(
+    (candidate) => candidate.id === movingInstanceId,
+  );
+  const resolved = instance
+    ? resolver.resolve(instance.symbolId, instance.symbolVariantId)
+    : null;
+  if (!instance || !resolved) return fallback();
+  const geometry = resolveDocumentRoutingGeometry(projected, resolver);
+  const requests: EndpointRouteAttachmentRequest[] = [];
+  for (const pin of resolved.definition.pins) {
+    if (resolved.variant?.hiddenPinNames.includes(pin.name)) continue;
+    if (pin.presentation.visibility === "implicit") continue;
+    const endpoint: RouteEndpoint = {
+      kind: "terminal",
+      instanceId: instance.id,
+      pinName: pin.name,
+    };
+    // A pin that already terminates a Route is attached; splitting at a
+    // Route end would only create degenerate geometry.
+    const alreadyAttached = projected.routes.some((route) =>
+      routeEndpoints(route).some(
+        (candidate) =>
+          candidate.kind === "terminal" &&
+          candidate.instanceId === instance.id &&
+          candidate.pinName === pin.name,
+      ),
+    );
+    if (alreadyAttached) continue;
+    const connection = resolveEndpointConnection(projected, resolver, endpoint);
+    if (!connection) continue;
+    const address = findRouteSegmentsAtPoint(
+      geometry,
+      connection.contactPoint,
+    ).find((candidate) => candidate.routeId === target.routeId);
+    if (!address) continue;
+    const netId =
+      projected.nets.find((net) =>
+        net.terminals.some(
+          (terminal) =>
+            terminal.instanceId === instance.id &&
+            terminal.pinName === pin.name,
+        ),
+      )?.id ?? null;
+    requests.push({
+      endpoint,
+      endpointNetId: netId,
+      point: connection.contactPoint,
+      segmentIndex: address.segmentIndex,
+    });
+  }
+  return requests.length > 0 ? requests : fallback();
+}
 
 export function createSelectionMoveController({
   document,
@@ -497,29 +588,26 @@ export function createSelectionMoveController({
       }
       // The snap target point is a float projection and can carry dust
       // (29.999999999999996) that the integer Point schema rejects, killing
-      // the whole move at release. The endpoint's own resolved contact point
+      // the whole move at release. Each endpoint's own resolved contact point
       // in the projected document is grid-exact by construction — attach
       // there, exactly like placement does.
-      const attachContact =
+      const attachRequests: readonly EndpointRouteAttachmentRequest[] =
         movingElectrical?.kind === "endpoint" &&
         targetElectrical?.kind === "route"
-          ? resolveEndpointConnection(
+          ? routeAttachRequestsForMovedPins(
               projected,
               resolver,
-              movingElectrical.endpoint,
+              movingElectrical,
+              targetElectrical,
             )
-          : null;
+          : [];
       const contactEdits: readonly SchematicEdit[] =
-        movingElectrical?.kind === "endpoint" &&
-        targetElectrical?.kind === "route" &&
-        attachContact
-          ? proposeEndpointRouteAttachment(
+        targetElectrical?.kind === "route" && attachRequests.length > 0
+          ? proposeEndpointsRouteAttachment(
               projected,
-              movingElectrical.endpoint,
-              movingElectrical.netId,
+              resolver,
               targetElectrical.routeId,
-              attachContact.contactPoint,
-              targetElectrical.segmentIndex,
+              attachRequests,
               `move-${nextRoutingSuffix()}`,
             ).edits
           : [];

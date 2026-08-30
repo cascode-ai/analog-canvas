@@ -8,6 +8,7 @@ import { resolve } from "node:path";
 
 import {
   createRoutePath,
+  routeEnd,
   type RouteEndpoint,
   type SchematicDocument,
 } from "@icm/model";
@@ -227,5 +228,146 @@ describe("pin-onto-wire move snap float dust", () => {
     expect(statuses.some((s) => s.includes("Snapped pin endpoints"))).toBe(
       true,
     );
+  });
+});
+
+describe("two-pin device moved onto one wire", () => {
+  function runTwoPinMove() {
+    const seeded = routedDocument();
+    // A current source rotated 90° has horizontal pins: "+" (0,-20) maps to
+    // (+20,0), "-" (0,20) maps to (-20,0).
+    const added = executeTransaction(
+      seeded,
+      {
+        transactionId: "seed-current-source",
+        documentId: seeded.id,
+        expectedRevision: seeded.revision,
+        actor: { kind: "human", id: "test" },
+        edits: [
+          {
+            kind: "add_instance",
+            instance: {
+              id: "I1",
+              symbolId: "current-source",
+              placement: {
+                position: { x: 50, y: 180 },
+                rotation: 90,
+                mirror: "none",
+              },
+            },
+          },
+        ],
+      },
+      { symbolResolver: resolver },
+    );
+    if (!added.ok) throw new Error(`seed failed: ${added.error.message}`);
+    let document = added.document;
+    const statuses: string[] = [];
+    const results: ReturnType<typeof executeTransaction>[] = [];
+    const transactConnectivity = (
+      intent: RoutingOperationIntent,
+      edits: readonly SchematicEdit[],
+    ) => {
+      const proposal = createRoutingOperationPlan(document, {
+        intent,
+        edits,
+        diagnostics: [],
+      });
+      const gate = gateRoutingOperationPlan(document, proposal, {
+        symbolResolver: resolver,
+      });
+      if (!gate.ok) {
+        statuses.push(gate.message);
+        return null;
+      }
+      const result = executeTransaction(
+        document,
+        {
+          transactionId: "two-pin-move-commit",
+          documentId: document.id,
+          expectedRevision: document.revision,
+          actor: { kind: "human", id: "test" },
+          edits: [...gate.edits],
+        },
+        { symbolResolver: resolver },
+      );
+      results.push(result);
+      if (result.ok) document = result.document;
+      else statuses.push(`${result.error.code}: ${result.error.message}`);
+      return { ok: result.ok };
+    };
+    const controller = createSelectionMoveController({
+      document,
+      resolver,
+      visibleEndpoints: [],
+      routeGeometryRecords: [],
+      contactComponents: [],
+      transactConnectivity,
+      setStatus: (status) => statuses.push(status),
+      nextRoutingSuffix: () => 7,
+    });
+    const movePlan = planSelectionMove(document, {
+      instanceIds: ["I1"],
+      routeIds: [],
+      junctionIds: [],
+      annotationIds: [],
+      draftingIds: [],
+    });
+    const preview = {
+      instanceIds: movePlan.instanceIds,
+      primaryInstanceId: "I1",
+      originalPositions: { I1: { x: 50, y: 180 } },
+      pointerStart: { x: 500, y: 500 },
+      movePlan,
+    };
+    // Drop the device body onto route-h: pins land at (30,300) and (70,300),
+    // both strictly inside the wire span (0,300)-(110,300).
+    const position = { x: 500, y: 500 + 120 };
+    const tolerance = 7;
+    const resolved = controller.resolveInstanceMove(
+      preview,
+      position,
+      tolerance,
+      false,
+      undefined,
+      document,
+    );
+    controller.completeInstanceMove(
+      preview,
+      position,
+      tolerance,
+      false,
+      resolved.snap,
+      {
+        document,
+        prefixEdits: [],
+        resolvedMove: resolved,
+      },
+    );
+    return { document, resolved, statuses, results };
+  }
+
+  it("attaches both pins and cuts the wire into three series segments", () => {
+    const { document, resolved, results } = runTwoPinMove();
+    expect(resolved.snap.electricalMatch?.target.electrical?.kind).toBe(
+      "route",
+    );
+    expect(results.some((result) => result.ok)).toBe(true);
+    const net = document.nets.find((candidate) => candidate.id === "net-h")!;
+    expect(net.terminals).toEqual(
+      expect.arrayContaining([
+        { instanceId: "I1", pinName: "+" },
+        { instanceId: "I1", pinName: "-" },
+      ]),
+    );
+    // route-h + the two device terminals = three series segments.
+    expect(document.routes).toHaveLength(3);
+    const middle = document.routes.find(
+      (route) =>
+        route.start.kind === "terminal" &&
+        route.start.instanceId === "I1" &&
+        routeEnd(route).kind === "terminal",
+    );
+    expect(middle).toBeDefined();
   });
 });

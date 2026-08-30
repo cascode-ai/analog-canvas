@@ -3,6 +3,7 @@ import {
   planElectricalMarkerRename,
   planEnsurePowerNet,
   proposeEndpointRouteAttachment,
+  proposeEndpointsRouteAttachment,
   type SchematicEdit,
   type WireSource,
 } from "@icm/edit-engine";
@@ -138,6 +139,8 @@ function samePoint(
  * pin-to-pin, pin-to-Junction, or pin-to-Route contact. Grid coincidence alone
  * is deliberately insufficient. Multiple independent contacts commit
  * together; multiple disconnected conductors at one point remain ambiguous.
+ * Several pins landing on one conductor at distinct points are the
+ * series-insertion drop and attach together, cutting the Route at each pin.
  */
 export function proposePlacementContact(
   document: SchematicDocument,
@@ -197,11 +200,33 @@ export function proposePlacementContact(
   if (contacts.length === 0) {
     return { edits: [], matched: false, ambiguous: false };
   }
-  const routeIds = contacts.flatMap((contact) =>
-    contact.target.route ? [contact.target.route.routeId] : [],
-  );
-  if (new Set(routeIds).size !== routeIds.length) {
-    return { edits: [], matched: false, ambiguous: true };
+  // Several pins of one device may land on the SAME conductor — that is the
+  // series-insertion gesture, not an ambiguity. Group those contacts per
+  // Route and attach them together; only two pins claiming the exact same
+  // point remain ambiguous.
+  const routeContactGroups = new Map<
+    string,
+    Array<{
+      source: WireSource;
+      route: NonNullable<ElectricalContactTarget["route"]>;
+    }>
+  >();
+  for (const contact of contacts) {
+    const route = contact.target.route;
+    if (!route || contact.target.endpoint) continue;
+    routeContactGroups.set(route.routeId, [
+      ...(routeContactGroups.get(route.routeId) ?? []),
+      { source: contact.source, route },
+    ]);
+  }
+  for (const group of routeContactGroups.values()) {
+    const pointKeys = group.map(
+      (member) =>
+        `${member.source.connection.contactPoint.x},${member.source.connection.contactPoint.y}`,
+    );
+    if (new Set(pointKeys).size !== pointKeys.length) {
+      return { edits: [], matched: false, ambiguous: true };
+    }
   }
   const power =
     POWER_CONNECTION_BY_SYMBOL[
@@ -247,17 +272,34 @@ export function proposePlacementContact(
       }
       netId = target.endpoint.netId ?? newNetId;
     } else if (target.route) {
-      edits.push(
-        ...proposeEndpointRouteAttachment(
-          document,
-          source.endpoint,
-          null,
-          target.route.routeId,
-          source.connection.contactPoint,
-          target.route.segmentIndex,
-          `contact-${instance.id.toLowerCase()}-${source.endpoint.kind === "terminal" ? source.endpoint.pinName.toLowerCase() : "pin"}`,
-        ).edits,
-      );
+      const group = routeContactGroups.get(target.route.routeId) ?? [];
+      if (group[0]?.source === source) {
+        edits.push(
+          ...(group.length === 1
+            ? proposeEndpointRouteAttachment(
+                document,
+                source.endpoint,
+                null,
+                target.route.routeId,
+                source.connection.contactPoint,
+                target.route.segmentIndex,
+                `contact-${instance.id.toLowerCase()}-${source.endpoint.kind === "terminal" ? source.endpoint.pinName.toLowerCase() : "pin"}`,
+              )
+            : proposeEndpointsRouteAttachment(
+                document,
+                resolver,
+                target.route.routeId,
+                group.map((member) => ({
+                  endpoint: member.source.endpoint,
+                  endpointNetId: null,
+                  point: member.source.connection.contactPoint,
+                  segmentIndex: member.route.segmentIndex,
+                })),
+                `contact-${instance.id.toLowerCase()}`,
+              )
+          ).edits,
+        );
+      }
       if (power) powerNetId = target.route.netId;
       if (power) powerCandidateState = "existing";
       netId = target.route.netId;

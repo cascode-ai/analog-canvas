@@ -1,4 +1,4 @@
-import { createRoutePath } from "@icm/model";
+import { createRoutePath, routeEnd, type RouteEndpoint } from "@icm/model";
 import { executeTransaction, planInstanceDeletion } from "@icm/edit-engine";
 import { resolveDocumentLogicalNets } from "@icm/derived";
 import { createEmptyDocument, transformPoint } from "@icm/model";
@@ -727,5 +727,163 @@ describe("naming a supply marker", () => {
       return logical.byBaseNetId.get(net.id)?.id;
     };
     expect(logicalIdOf("VDD1")).toBe(logicalIdOf("VDD2"));
+  });
+});
+
+describe("multi-pin placement onto one conductor", () => {
+  function verticalWireDocument() {
+    const document = createEmptyDocument("main", "Main");
+    document.nets.push({ id: "n1", terminals: [] });
+    document.junctions.push(
+      {
+        id: "J1",
+        netId: "n1",
+        position: { x: 100, y: 0 },
+        role: "route-anchor",
+      },
+      {
+        id: "J2",
+        netId: "n1",
+        position: { x: 100, y: 200 },
+        role: "route-anchor",
+      },
+    );
+    document.routes.push(
+      createRoutePath({
+        id: "R1",
+        netId: "n1",
+        start: { kind: "junction", junctionId: "J1" },
+        end: { kind: "junction", junctionId: "J2" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    return document;
+  }
+
+  function endpointName(endpoint: RouteEndpoint): string {
+    return endpoint.kind === "junction"
+      ? endpoint.junctionId
+      : `${endpoint.instanceId}.${endpoint.pinName}`;
+  }
+
+  it("attaches both pins of a current source dropped onto one wire (feedback image 6/7)", () => {
+    const document = verticalWireDocument();
+    // current-source pins: "+" at (0,-20), "-" at (0,20). Placed at
+    // (100,100), both pins land on R1's interior: (100,80) and (100,120).
+    const source = {
+      id: "I1",
+      symbolId: "current-source",
+      placement: {
+        position: { x: 100, y: 100 },
+        rotation: 0 as const,
+        mirror: "none" as const,
+      },
+    };
+    const proposal = proposePlacementContact(document, resolver, source, []);
+    expect(proposal.ambiguous).toBe(false);
+    expect(proposal.matched).toBe(true);
+    const committed = executeTransaction(
+      document,
+      transaction(0, [
+        { kind: "add_instance", instance: source },
+        ...proposal.edits,
+      ]),
+      context,
+    );
+    expect(committed.ok).toBe(true);
+    if (!committed.ok) return;
+    // The wire is cut into three series segments through the device:
+    // J1 -> "+", "+" -> "-", "-" -> J2.
+    expect(committed.document.routes).toHaveLength(3);
+    const spans = committed.document.routes.map(
+      (route) =>
+        `${endpointName(route.start)}->${endpointName(routeEnd(route))}`,
+    );
+    expect(new Set(spans)).toEqual(
+      new Set(["J1->I1.+", "I1.+->I1.-", "I1.-->J2"]),
+    );
+    // Both pins joined the wire's Net.
+    const net = committed.document.nets.find(
+      (candidate) => candidate.id === "n1",
+    )!;
+    expect(net.terminals).toEqual(
+      expect.arrayContaining([
+        { instanceId: "I1", pinName: "+" },
+        { instanceId: "I1", pinName: "-" },
+      ]),
+    );
+    // The series-insertion workflow: the middle segment between the pins is
+    // its own Route and can be deleted on its own.
+    const middle = committed.document.routes.find(
+      (route) =>
+        route.start.kind === "terminal" && routeEnd(route).kind === "terminal",
+    );
+    expect(middle).toBeDefined();
+  });
+
+  it("keeps rejecting one pin that touches two disconnected conductors", () => {
+    const document = createEmptyDocument("main", "Main");
+    document.nets.push(
+      { id: "n1", terminals: [] },
+      { id: "n2", terminals: [] },
+    );
+    document.junctions.push(
+      {
+        id: "J1",
+        netId: "n1",
+        position: { x: 100, y: 0 },
+        role: "route-anchor",
+      },
+      {
+        id: "J2",
+        netId: "n1",
+        position: { x: 100, y: 200 },
+        role: "route-anchor",
+      },
+      {
+        id: "J3",
+        netId: "n2",
+        position: { x: 0, y: 80 },
+        role: "route-anchor",
+      },
+      {
+        id: "J4",
+        netId: "n2",
+        position: { x: 200, y: 80 },
+        role: "route-anchor",
+      },
+    );
+    document.routes.push(
+      createRoutePath({
+        id: "R1",
+        netId: "n1",
+        start: { kind: "junction", junctionId: "J1" },
+        end: { kind: "junction", junctionId: "J2" },
+        bends: [],
+        modes: ["manual"],
+      }),
+      createRoutePath({
+        id: "R2",
+        netId: "n2",
+        start: { kind: "junction", junctionId: "J3" },
+        end: { kind: "junction", junctionId: "J4" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    // "+" pin lands at (100,80): the crossing of two disconnected conductors.
+    const source = {
+      id: "I1",
+      symbolId: "current-source",
+      placement: {
+        position: { x: 100, y: 100 },
+        rotation: 0 as const,
+        mirror: "none" as const,
+      },
+    };
+    const proposal = proposePlacementContact(document, resolver, source, []);
+    expect(proposal).toMatchObject({ matched: false, ambiguous: true });
+    expect(proposal.edits).toHaveLength(0);
   });
 });

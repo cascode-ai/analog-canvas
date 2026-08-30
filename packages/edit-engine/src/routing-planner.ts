@@ -5,6 +5,7 @@ import {
   isMosBulkTerminal,
   pointOnSegment,
   resolveEndpointConnection,
+  resolveRouteGeometry,
   segmentLength,
   type EndpointConnection,
   type EndpointRoutingGeometry,
@@ -142,6 +143,123 @@ export function proposeEndpointRouteAttachment(
     secondRouteId: routeIds[1],
   });
   return { netId: route.netId, routeIds, edits };
+}
+
+export interface EndpointRouteAttachmentRequest {
+  endpoint: RouteEndpoint;
+  endpointNetId: string | null;
+  point: Point;
+  segmentIndex: number;
+}
+
+export interface EndpointsRouteAttachmentProposal {
+  netId: string;
+  /** Final Route segments in start-to-end order after every attach. */
+  routeIds: readonly string[];
+  edits: SchematicEdit[];
+}
+
+/**
+ * Attach several real endpoints to one Route in one transaction.
+ *
+ * The device-into-wire gesture lands more than one pin on the same conductor,
+ * and each pin must become a real Route endpoint. Attaches are emitted
+ * far-to-near along the Route: every attach splits the current start-side
+ * piece, and the start side of a split retains its Route id and original leg
+ * identity, so each later edit can address the leg it computed against the
+ * original Route.
+ */
+export function proposeEndpointsRouteAttachment(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  routeId: string,
+  requests: readonly EndpointRouteAttachmentRequest[],
+  suffix: string,
+): EndpointsRouteAttachmentProposal {
+  if (requests.length === 0) {
+    throw new Error("Route attachment requires at least one endpoint");
+  }
+  if (requests.length === 1) {
+    const only = requests[0]!;
+    return proposeEndpointRouteAttachment(
+      document,
+      only.endpoint,
+      only.endpointNetId,
+      routeId,
+      only.point,
+      only.segmentIndex,
+      suffix,
+    );
+  }
+  const route = document.routes.find((candidate) => candidate.id === routeId);
+  if (!route) throw new Error(`Route not found: ${routeId}`);
+  const centerline = resolveRouteGeometry(
+    document,
+    resolver,
+    route,
+  )?.centerline;
+  if (!centerline) {
+    throw new Error(`Route has an unresolved endpoint: ${routeId}`);
+  }
+  const ordered = requests
+    .map((request) => {
+      const leg = route.legs[request.segmentIndex];
+      if (!leg) {
+        throw new Error(
+          `Route leg index is out of range: ${request.segmentIndex}`,
+        );
+      }
+      const offset = pathOffsetAtPoint(centerline, request.point);
+      if (offset === null) {
+        throw new Error(`Attachment point is not on Route ${routeId}`);
+      }
+      return { request, legId: leg.id, offset };
+    })
+    .sort((left, right) => right.offset - left.offset);
+  for (let index = 1; index < ordered.length; index += 1) {
+    if (ordered[index]!.offset === ordered[index - 1]!.offset) {
+      throw new Error("Two endpoints cannot attach at the same Route point");
+    }
+  }
+  const edits: SchematicEdit[] = [];
+  const mergedNetIds = new Set<string>();
+  for (const { request } of ordered) {
+    if (
+      request.endpointNetId &&
+      request.endpointNetId !== route.netId &&
+      !mergedNetIds.has(request.endpointNetId)
+    ) {
+      mergedNetIds.add(request.endpointNetId);
+      edits.push({
+        kind: "merge_nets",
+        targetNetId: route.netId,
+        sourceNetId: request.endpointNetId,
+      });
+    }
+  }
+  let currentRouteId = route.id;
+  const tailRouteIds: string[] = [];
+  ordered.forEach((entry, index) => {
+    const marker = `${suffix}-p${index + 1}`;
+    const firstRouteId = `${route.id}-a-${marker}`;
+    const secondRouteId = `${route.id}-b-${marker}`;
+    edits.push({
+      kind: "attach_endpoint_to_route",
+      endpoint: entry.request.endpoint,
+      routeId: currentRouteId,
+      point: entry.request.point,
+      legId: entry.legId,
+      firstRouteId,
+      secondRouteId,
+    });
+    tailRouteIds.push(secondRouteId);
+    currentRouteId = firstRouteId;
+  });
+  return {
+    netId: route.netId,
+    routeIds: [currentRouteId, ...tailRouteIds.reverse()],
+    edits,
+  };
 }
 
 export type WireIntentAnchor =
