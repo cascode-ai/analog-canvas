@@ -455,9 +455,11 @@
   white-space: nowrap;
 }
 
-.component-color-primary-row button {
+.component-color-control .component-color-primary-row button {
+  width: auto;
   min-height: var(--icm-control-h-lg);
   margin: 0;
+  padding: 0.45rem 0.55rem;
 }
 
 .component-color-presets {
@@ -466,9 +468,10 @@
   gap: 0.3rem;
 }
 
-.component-color-swatch {
+.component-color-control .component-color-swatch {
   display: grid;
   place-items: center;
+  width: 100%;
   min-width: 0;
   min-height: 1.65rem;
   margin: 0;

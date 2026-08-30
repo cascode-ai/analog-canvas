@@ -1434,6 +1434,17 @@ test("colors an electrical wire and restores the Razavi default with Auto", asyn
   );
   const color = page.getByLabel("Wire color picker");
   await expect(color).toHaveValue("#000000");
+  const presets = page.getByLabel("Wire color presets");
+  await expect
+    .poll(async () => (await presets.boundingBox())?.width ?? 0)
+    .toBeGreaterThan(200);
+  const swatchWidths = await presets
+    .locator(".component-color-swatch span")
+    .evaluateAll((swatches) =>
+      swatches.map((swatch) => swatch.getBoundingClientRect().width),
+    );
+  expect(swatchWidths).toHaveLength(8);
+  expect(Math.min(...swatchWidths)).toBeGreaterThanOrEqual(16);
   await color.evaluate((input, value) => {
     const element = input as HTMLInputElement;
     const setter = Object.getOwnPropertyDescriptor(
