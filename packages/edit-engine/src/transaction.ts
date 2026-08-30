@@ -6,6 +6,10 @@ import {
   validateLogicalNetContract,
 } from "@icm/derived";
 import { EditTransactionSchema, type EditTransaction } from "./edit-schema.js";
+import {
+  affectedConductorNetIds,
+  normalizeSameNetConductorTopology,
+} from "./conductor-topology.js";
 import { resolveRouteEditPath } from "./route-operations.js";
 import {
   followNetLabelsOnChangedRoutes,
@@ -837,6 +841,37 @@ export function executeTransaction(
           "INVALID_RESULT",
           "Physical contact normalization did not converge",
         );
+      }
+    }
+  }
+
+  if (resolver) {
+    const affectedNetIds = affectedConductorNetIds(
+      document,
+      draft,
+      changedObjectIds,
+      changedRouteIds,
+      transformedInstanceIds,
+    );
+    const normalized = normalizeSameNetConductorTopology(
+      draft,
+      resolver,
+      affectedNetIds,
+      {
+        preserveJunctionIds: new Set(
+          transaction.edits.flatMap((edit) =>
+            edit.kind === "add_junction" ? [edit.junctionId] : [],
+          ),
+        ),
+      },
+    );
+    if (normalized.changed) {
+      geometryChanged = true;
+      for (const objectId of normalized.changedObjectIds) {
+        changedObjectIds.add(objectId);
+      }
+      for (const routeId of normalized.changedRouteIds) {
+        changedRouteIds.add(routeId);
       }
     }
   }

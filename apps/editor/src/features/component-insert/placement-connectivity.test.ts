@@ -44,6 +44,72 @@ function transaction(expectedRevision: number, edits: unknown[]) {
 }
 
 describe("component placement electrical contacts", () => {
+  it("splices a two-pin component into one contacted Route", () => {
+    const document = createEmptyDocument("main", "Main");
+    document.nets.push({ id: "net-signal", terminals: [] });
+    document.junctions.push(
+      {
+        id: "top",
+        netId: "net-signal",
+        position: { x: 0, y: 0 },
+        role: "route-anchor",
+      },
+      {
+        id: "bottom",
+        netId: "net-signal",
+        position: { x: 0, y: 100 },
+        role: "route-anchor",
+      },
+    );
+    document.routes.push(
+      createRoutePath({
+        id: "trunk",
+        netId: "net-signal",
+        start: { kind: "junction", junctionId: "top" },
+        end: { kind: "junction", junctionId: "bottom" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    const resistor = {
+      id: "R1",
+      symbolId: "resistor",
+      placement: {
+        position: { x: 0, y: 50 },
+        rotation: 0 as const,
+        mirror: "none" as const,
+      },
+    };
+
+    const proposal = proposePlacementContact(document, resolver, resistor, []);
+
+    expect(proposal).toMatchObject({ matched: true, ambiguous: false });
+    const result = executeTransaction(
+      document,
+      transaction(document.revision, [
+        { kind: "add_instance", instance: resistor },
+        ...proposal.edits,
+      ]),
+      context,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.document.routes).toHaveLength(2);
+    expect(result.document.nets).toHaveLength(2);
+    const pinNets = ["1", "2"].map(
+      (pinName) =>
+        result.document.nets.find((net) =>
+          net.terminals.some(
+            (terminal) =>
+              terminal.instanceId === "R1" && terminal.pinName === pinName,
+          ),
+        )?.id,
+    );
+    expect(pinNets[0]).toBeTruthy();
+    expect(pinNets[1]).toBeTruthy();
+    expect(pinNets[0]).not.toBe(pinNets[1]);
+  });
+
   it("does not let a legacy VDD marker use generic component placement", () => {
     const document = createEmptyDocument("main", "Main");
     const vdd = {

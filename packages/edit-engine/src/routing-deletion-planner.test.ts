@@ -86,10 +86,10 @@ describe("routing deletion planner", () => {
     if (result.ok) {
       expect(
         result.evaluated.finalDocument.routes.map((route) => route.id),
-      ).toEqual(["left", "right"]);
+      ).toEqual(["left"]);
       expect(
         result.evaluated.finalDocument.junctions.map((item) => item.id),
-      ).toContain("C");
+      ).toEqual(["L", "R"]);
     }
   });
 });

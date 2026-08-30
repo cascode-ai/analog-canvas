@@ -3,7 +3,11 @@ import { useEffect, useRef, useState } from "react";
 import { createEmptyProject, createId } from "@icm/model";
 import type { CircuitProject, GridRect, SchematicDocument } from "@icm/model";
 import { serializeProject } from "@icm/project-protocol";
-import { builtInSymbols, findUnsupportedProjectSymbolIds } from "@icm/symbols";
+import {
+  builtInSymbols,
+  findUnsupportedProjectSymbolIds,
+  InMemorySymbolResolver,
+} from "@icm/symbols";
 
 import { materializeRazaviProjectBulkConnections } from "../presentation/razavi-presentation";
 import type {
@@ -21,6 +25,7 @@ import {
 } from "./project-file-service";
 import { projectChangeToken } from "./project-session-lifecycle";
 import { projectHasMeaningfulContent } from "./project-content";
+import { normalizeImportedProjectConductors } from "./project-conductor-normalization";
 import {
   CLOUD_PROJECT_LIMIT,
   openCloudProject,
@@ -36,6 +41,8 @@ import {
 } from "./cloud-project-session";
 
 export const REFRESH_RESTORE_STORAGE_KEY = "icm.restore-after-refresh.v1";
+
+const projectImportSymbolResolver = new InMemorySymbolResolver(builtInSymbols);
 
 export interface SavedProjectBaseline {
   project: CircuitProject;
@@ -516,21 +523,30 @@ export function useProjectFileLifecycle({
       );
       return;
     }
+    const normalized = normalizeImportedProjectConductors(
+      staged.project,
+      projectImportSymbolResolver,
+    );
+    const openedProject = normalized.project;
+    const normalizedDocumentCount = normalized.changedDocumentIds.length;
     const performOpen = () => {
-      replaceActiveProject(staged.project, defaultViewBox, {
+      replaceActiveProject(openedProject, defaultViewBox, {
         source: "opened-file",
         formalFileHint: { name: staged.fileName },
-        persistenceState: staged.migrated ? "dirty" : "unbound",
+        persistenceState:
+          staged.migrated || normalizedDocumentCount > 0 ? "dirty" : "unbound",
       });
       setStatus(
         staged.migrated
-          ? `Imported and upgraded ${staged.fileName} from schema ${staged.sourceSchemaVersion} to schema ${staged.project.schemaVersion} — save to Cloud or export to keep the upgrade`
-          : `Opened ${staged.fileName} at revision ${staged.topDocumentRevision}`,
+          ? `Imported and upgraded ${staged.fileName} from schema ${staged.sourceSchemaVersion} to schema ${openedProject.schemaVersion}${normalizedDocumentCount > 0 ? ` and normalized Wire topology in ${normalizedDocumentCount} Cell${normalizedDocumentCount === 1 ? "" : "s"}` : ""} — save to Cloud or export to keep the upgrade`
+          : normalizedDocumentCount > 0
+            ? `Opened ${staged.fileName} and normalized Wire topology in ${normalizedDocumentCount} Cell${normalizedDocumentCount === 1 ? "" : "s"} — save to Cloud or export to keep the repair`
+            : `Opened ${staged.fileName} at revision ${staged.topDocumentRevision}`,
       );
     };
     if (
       options.allowExactCurrentReplacement &&
-      serializeProject(staged.project) === serializeProject(project)
+      serializeProject(openedProject) === serializeProject(project)
     ) {
       performOpen();
       return;

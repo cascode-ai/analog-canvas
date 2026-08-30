@@ -12,8 +12,23 @@ A Route belongs to one Net and connects terminal or Junction endpoints. Its
 canonical path is one `start` endpoint followed by ordered legs. Non-final
 legs end at stable, dot-free bends; the final leg ends at the other endpoint.
 Each leg owns its mode and stable `legId`, so geometry and behavior cannot
-drift as parallel arrays. Junctions are explicit branch/route anchors.
-Geometric crossing or overlap does not create electrical contact.
+drift as parallel arrays. Junctions are explicit branch/route anchors. A
+perpendicular geometric crossing does not create electrical contact by itself.
+Collinear same-Net overlap is never canonical persisted geometry: the Edit
+Engine unions the covered conductor, materializes true branch vertices, and
+removes redundant degree-two collinear Junctions. An explicit cross-Net Wire
+connection merges compatible Base Nets before the same normalization; passive
+transforms never silently merge different Nets. Power-rail, MOS bulk, and
+locked presentations retain their own authored geometry and do not participate
+in ordinary-Wire coverage union. When differently colored ordinary Routes
+overlap, the Route contributing the most coverage to a normalized path owns
+its style; stable Route identity breaks a tie.
+
+Opening a portable Project file runs the same normalization over an imported
+copy so legacy overlap is repaired immediately and the result is marked dirty
+for an explicit Cloud Save or Project export. Cloud opens, recovery, and the
+project-protocol parser remain exact: they never rewrite stored geometry as a
+read side effect.
 
 Route centerlines are one geometry protocol. Normal interactive Routes may use
 horizontal, vertical, or ±45-degree segments; orthogonal is the default
@@ -54,6 +69,16 @@ Route transaction.
   a transform does not, and a mere route-interior crossing remains
   disconnected. Pin-to-route attachment remains a snapped typed intent
   because it changes the selected Route's identity and geometry.
+- Route splitting is reversible topology, not permanent stroke history. When
+  a branch is cut, an unowned degree-two collinear Junction is removed and its
+  surviving arms coalesce into one Route. Route labels, markers, layout
+  references, and stable leg ownership follow the normalized conductor.
+- Placing an eligible two-terminal component with both pins on one continuous
+  ordinary Route performs one atomic series splice: the two contacts split the
+  conductor, the between-pin span is removed, and the Base Net partitions so
+  the two pins cannot remain shorted. One contacted pin remains an ordinary
+  endpoint-to-Route attachment; power rails, MOS bulk leads, locked geometry,
+  and ambiguous multi-pin contacts reject rather than guessing.
 - Moving a connected Instance stretches the attached Route while preserving
   endpoint identity.
 - `remove_route_geometry` removes presentation geometry only. The ordinary
@@ -169,7 +194,9 @@ coincident contacts; consumers do not infer contact independently from pixels
 or bounds. The transaction connectivity normalizer is the corresponding write
 boundary: it derives gained endpoint and explicit Junction-on-route contacts
 from exact resolved geometry and commits them through the ordinary Base-Net and
-Route mutations.
+Route mutations. The conductor-topology normalizer is the complementary write
+boundary for same-Net Route coverage: readers never compensate for overlapping
+persisted segments or a missing T vertex.
 
 Route queries (tap, nearest segment, crossings) and attachment placement are
 read-only derived modules. Route normalization, constraint-aware authoring, segment
@@ -192,6 +219,9 @@ overlap.
 - A terminal belongs to at most one Net.
 - Route normalization removes duplicate and collinear interior points without
   changing endpoint identity.
+- Same-Net conductor normalization unions duplicate coverage, preserves every
+  true branch/contact vertex, and removes unowned degree-two collinear
+  Junctions.
 - A failed multi-edit transaction changes nothing; a successful one advances
   revision once.
 - GUI and Agent use the same planners, transaction engine, derived geometry,

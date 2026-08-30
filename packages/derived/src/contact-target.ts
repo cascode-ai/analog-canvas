@@ -4,6 +4,8 @@ import type { SymbolResolver } from "@icm/symbols";
 import { endpointKey } from "./endpoint.js";
 import { deriveVisibleConnectivity } from "./connectivity.js";
 import type { RoutedComponent } from "./connectivity.js";
+import { resolveDocumentRoutingGeometry } from "./resolved-route-geometry.js";
+import { unitDirection } from "./segment-geometry.js";
 
 export type ElectricalContactCandidate =
   | {
@@ -60,17 +62,51 @@ export function resolveElectricalContactTargets(
       routeComponents.set(routeId, component.id);
     }
   }
+  const routingGeometry = resolveDocumentRoutingGeometry(document, resolver);
+  const collinearSignature = (
+    candidate: Extract<ElectricalContactCandidate, { kind: "route" }>,
+  ): string | null => {
+    const segment = routingGeometry.routes
+      .get(candidate.routeId)
+      ?.segments.find(
+        (entry) => entry.address.segmentIndex === candidate.segmentIndex,
+      );
+    const direction = segment ? unitDirection(segment.from, segment.to) : null;
+    if (!direction) return null;
+    const canonical =
+      direction.x < 0 || (direction.x === 0 && direction.y < 0)
+        ? { x: -direction.x, y: -direction.y }
+        : direction;
+    return [
+      candidate.netId,
+      candidate.point.x,
+      candidate.point.y,
+      canonical.x.toFixed(9),
+      canonical.y.toFixed(9),
+    ].join(":");
+  };
+  const collinearCounts = new Map<string, number>();
+  for (const candidate of candidates) {
+    if (candidate.kind !== "route") continue;
+    const signature = collinearSignature(candidate);
+    if (!signature) continue;
+    collinearCounts.set(signature, (collinearCounts.get(signature) ?? 0) + 1);
+  }
   const grouped = new Map<string, ElectricalContactCandidate[]>();
   for (const candidate of candidates) {
+    const signature =
+      candidate.kind === "route" ? collinearSignature(candidate) : null;
     const componentId =
       candidate.kind === "endpoint"
         ? endpointComponents.get(endpointKey(candidate.endpoint))
         : routeComponents.get(candidate.routeId);
     const conductorId =
-      componentId ??
-      (candidate.kind === "endpoint"
-        ? `endpoint:${endpointKey(candidate.endpoint)}`
-        : `route:${candidate.routeId}`);
+      signature && (collinearCounts.get(signature) ?? 0) > 1
+        ? `collinear:${signature}`
+        : (componentId ??
+          (candidate.kind === "endpoint"
+            ? `endpoint:${endpointKey(candidate.endpoint)}`
+            : `route:${candidate.routeId}`));
     grouped.set(conductorId, [...(grouped.get(conductorId) ?? []), candidate]);
   }
   return [...grouped.entries()]

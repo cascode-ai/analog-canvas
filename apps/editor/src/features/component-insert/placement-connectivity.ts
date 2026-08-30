@@ -2,6 +2,7 @@ import {
   planDirectEndpointConnection,
   planElectricalMarkerRename,
   planEnsurePowerNet,
+  planSeriesInstanceSplice,
   proposeEndpointRouteAttachment,
   proposeEndpointsRouteAttachment,
   type SchematicEdit,
@@ -154,7 +155,8 @@ export function proposePlacementContact(
   }> = [];
   let ambiguous = false;
   const routingGeometry = resolveDocumentRoutingGeometry(document, resolver);
-  for (const source of newInstanceEndpoints(document, resolver, instance)) {
+  const sources = newInstanceEndpoints(document, resolver, instance);
+  for (const source of sources) {
     const candidates: ElectricalContactCandidate[] = targets
       .filter((target) =>
         samePoint(
@@ -201,9 +203,11 @@ export function proposePlacementContact(
     return { edits: [], matched: false, ambiguous: false };
   }
   // Several pins of one device may land on the SAME conductor — that is the
-  // series-insertion gesture, not an ambiguity. Group those contacts per
-  // Route and attach them together; only two pins claiming the exact same
-  // point remain ambiguous.
+  // series-insertion gesture, not an ambiguity. An eligible two-terminal
+  // component with both pins on one continuous ordinary Route performs the
+  // atomic series splice; any other same-conductor multi-contact attaches
+  // every pin, cutting the Route at each contact. Only two pins claiming the
+  // exact same point remain ambiguous.
   const routeContactGroups = new Map<
     string,
     Array<{
@@ -227,6 +231,51 @@ export function proposePlacementContact(
     if (new Set(pointKeys).size !== pointKeys.length) {
       return { edits: [], matched: false, ambiguous: true };
     }
+  }
+  const spliceGroup =
+    sources.length === 2 &&
+    contacts.length === 2 &&
+    routeContactGroups.size === 1
+      ? [...routeContactGroups.values()][0]
+      : undefined;
+  if (spliceGroup && spliceGroup.length === 2) {
+    const projected = structuredClone(document);
+    projected.instances = [
+      ...projected.instances.filter(
+        (candidate) => candidate.id !== instance.id,
+      ),
+      structuredClone(instance),
+    ];
+    const splice = planSeriesInstanceSplice(
+      projected,
+      resolver,
+      spliceGroup[0]!.route.routeId,
+      [
+        {
+          endpoint: spliceGroup[0]!.source.endpoint,
+          point: spliceGroup[0]!.source.connection.contactPoint,
+          segmentIndex: spliceGroup[0]!.route.segmentIndex,
+        },
+        {
+          endpoint: spliceGroup[1]!.source.endpoint,
+          point: spliceGroup[1]!.source.connection.contactPoint,
+          segmentIndex: spliceGroup[1]!.route.segmentIndex,
+        },
+      ],
+      `splice-${instance.id.toLowerCase()}`,
+    );
+    return splice.ok
+      ? {
+          edits: splice.edits,
+          matched: true,
+          ambiguous: false,
+        }
+      : {
+          edits: [],
+          matched: false,
+          ambiguous: false,
+          rejected: splice.message,
+        };
   }
   const power =
     POWER_CONNECTION_BY_SYMBOL[

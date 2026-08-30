@@ -409,12 +409,8 @@ describe("collectVisualRouteDeletion", () => {
     expect(result).toMatchObject({
       ok: true,
       document: {
-        routes: [{ id: "route-left" }, { id: "route-right" }],
-        junctions: [
-          { id: "junction-center" },
-          { id: "junction-left" },
-          { id: "junction-right" },
-        ],
+        routes: [{ id: "route-left" }],
+        junctions: [{ id: "junction-left" }, { id: "junction-right" }],
       },
     });
   });

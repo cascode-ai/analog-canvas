@@ -1,7 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { CURRENT_PROJECT_SCHEMA_VERSION } from "@icm/model";
+import {
+  createEmptyProject,
+  createRoutePath,
+  CURRENT_PROJECT_SCHEMA_VERSION,
+} from "@icm/model";
 
 import { CLOUD_PROJECT_LIMIT } from "../src/features/editor-shell/cloud-projects";
 import {
@@ -197,6 +201,73 @@ test("imports and upgrades a portable Project before explicit export", async ({
     ),
   ) as { schemaVersion: number };
   expect(exported.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
+});
+
+test("normalizes legacy overlapping Wire topology on Project import", async ({
+  page,
+}) => {
+  const source = createEmptyProject("legacy-overlap", "Legacy overlap");
+  const document = source.documents[0]!;
+  document.sourceStatus = "in-sync";
+  document.nets.push({ id: "net", terminals: [] });
+  document.junctions.push(
+    {
+      id: "left",
+      netId: "net",
+      position: { x: 0, y: 0 },
+      role: "route-anchor",
+    },
+    {
+      id: "right",
+      netId: "net",
+      position: { x: 100, y: 0 },
+      role: "route-anchor",
+    },
+    {
+      id: "top",
+      netId: "net",
+      position: { x: 50, y: 50 },
+      role: "route-anchor",
+    },
+  );
+  document.routes.push(
+    createRoutePath({
+      id: "trunk",
+      netId: "net",
+      start: { kind: "junction", junctionId: "left" },
+      end: { kind: "junction", junctionId: "right" },
+      bends: [],
+      modes: ["manual"],
+    }),
+    createRoutePath({
+      id: "overlapping-branch",
+      netId: "net",
+      start: { kind: "junction", junctionId: "top" },
+      end: { kind: "junction", junctionId: "right" },
+      bends: [{ x: 50, y: 0 }],
+      modes: ["manual", "manual"],
+    }),
+  );
+
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "legacy-overlap.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(source)),
+  });
+  await expect(page.getByTestId("status")).toContainText(
+    "normalized Wire topology in 1 Cell",
+  );
+  const exported = JSON.parse(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  ) as typeof source;
+  expect(exported.documents[0]).toMatchObject({
+    revision: 1,
+    sourceStatus: "geometry-only-changed",
+  });
+  expect(exported.documents[0]!.routes).toHaveLength(3);
 });
 
 test("rejects invalid imports without replacing live or recovered work", async ({
