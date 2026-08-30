@@ -16,6 +16,7 @@ import type { SymbolResolver } from "@icm/symbols";
 import type { SchematicEdit } from "./edit-schema.js";
 import { resolveRouteEditPath } from "./route-operations.js";
 import { proposeEndpointRouteAttachment } from "./routing-planner.js";
+import type { ExpectedElectricalEffect } from "./routing-operation-plan.js";
 import { executeTransaction } from "./transaction.js";
 
 export interface SeriesSpliceContact {
@@ -29,6 +30,7 @@ export type SeriesSplicePlan =
       ok: true;
       routeId: string;
       removedSpanRouteId: string;
+      expectedElectricalEffect: ExpectedElectricalEffect;
       edits: readonly SchematicEdit[];
     }
   | { ok: false; message: string };
@@ -215,6 +217,11 @@ export function planSeriesInstanceSplice(
     ok: true,
     routeId,
     removedSpanRouteId: removedSpan.id,
+    expectedElectricalEffect: {
+      kind: "partition",
+      sourceBaseNetIds: [route.netId],
+      cutRouteIds: [removedSpan.id],
+    },
     edits: [
       ...first.edits,
       ...second.edits,

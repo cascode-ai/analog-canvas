@@ -8,6 +8,7 @@ import type {
   ProjectTransaction,
   ProjectTransactionResult,
   SchematicEdit,
+  ExpectedElectricalEffect,
   RoutingOperationIntent,
 } from "@icm/edit-engine";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
@@ -18,6 +19,10 @@ import type { InteractionMode } from "../interaction/interaction-state";
 interface TransactionOptions {
   completesWireSession?: boolean;
   preserveInteraction?: boolean;
+}
+
+interface ConnectivityTransactionOptions extends TransactionOptions {
+  expectedElectricalEffect?: ExpectedElectricalEffect;
 }
 
 export interface EditorTransactionCommandDependencies {
@@ -139,12 +144,15 @@ export function createEditorTransactionCommands({
   const transactConnectivity = (
     intent: RoutingOperationIntent,
     edits: readonly SchematicEdit[],
-    options: TransactionOptions = {},
+    options: ConnectivityTransactionOptions = {},
   ): EditTransactionResult | null => {
     const proposal = createRoutingOperationPlan(document, {
       intent,
       edits,
       diagnostics: [],
+      ...(options.expectedElectricalEffect
+        ? { expectedElectricalEffect: options.expectedElectricalEffect }
+        : {}),
     });
     const gate = gateRoutingOperationPlan(document, proposal, {
       ...(resolver ? { symbolResolver: resolver } : {}),

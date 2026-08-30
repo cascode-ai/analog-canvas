@@ -66,6 +66,11 @@ describe("series component splice", () => {
 
     expect(plan.ok).toBe(true);
     if (!plan.ok) return;
+    expect(plan.expectedElectricalEffect).toEqual({
+      kind: "partition",
+      sourceBaseNetIds: ["net-1"],
+      cutRouteIds: [plan.removedSpanRouteId],
+    });
     const result = executeTransaction(
       document,
       {

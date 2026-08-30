@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import type {
+  ExpectedElectricalEffect,
   RoutingOperationIntent,
   ProjectStructureEdit,
   SchematicEdit,
@@ -89,7 +90,10 @@ export interface UseComponentPlacementOptions {
   transactConnectivity: (
     intent: RoutingOperationIntent,
     edits: readonly SchematicEdit[],
-    options?: { preserveInteraction?: boolean },
+    options?: {
+      preserveInteraction?: boolean;
+      expectedElectricalEffect?: ExpectedElectricalEffect;
+    },
   ) => TransactionResult | null;
   transactProject: (
     transactionId: string,
@@ -273,6 +277,9 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
     const committed = Boolean(
       options.transactConnectivity("connect", placementEdits, {
         preserveInteraction: true,
+        ...(contact.expectedElectricalEffect
+          ? { expectedElectricalEffect: contact.expectedElectricalEffect }
+          : {}),
       })?.ok,
     );
     if (!committed) return;

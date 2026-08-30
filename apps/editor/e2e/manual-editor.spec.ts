@@ -1241,6 +1241,37 @@ test("authors components and connectivity manually from an empty canvas", async 
   await expect(page.locator('[data-layer="routes"] polyline')).toHaveCount(0);
 });
 
+test("splices a two-terminal device into one wire and reconnects its halves after deletion", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "resistor", { x: 420, y: 180 });
+  await placeComponent(page, "resistor", { x: 420, y: 460 });
+
+  await clickDrawTool(page, "wire");
+  await page.getByTestId("terminal-R1-2").click();
+  await page.getByTestId("terminal-R2-1").click();
+  await page.keyboard.press("Escape");
+  await expect(page.locator('[data-testid^="route-hit-"]')).toHaveCount(1);
+
+  await placeComponent(page, "resistor", { x: 420, y: 320 });
+  await expect(page.getByTestId("hit-R3")).toBeVisible();
+  await expect(page.locator('[data-testid^="route-hit-"]')).toHaveCount(2);
+
+  await page.keyboard.press("Delete");
+  await expect(page.getByTestId("hit-R3")).toHaveCount(0);
+  await expect(page.locator('[data-testid^="route-hit-"]')).toHaveCount(2);
+  const openEnds = page.locator('[data-testid^="junction-"]');
+  await expect(openEnds).toHaveCount(2);
+
+  await clickDrawTool(page, "wire");
+  await openEnds.nth(0).click();
+  await openEnds.nth(1).click();
+  await expect(page.getByTestId("status")).toContainText("Committed route");
+  await page.keyboard.press("Escape");
+  await expect(page.locator('[data-testid^="route-hit-"]')).toHaveCount(1);
+});
+
 test("resizes a loose Wire from either endpoint without redrawing it", async ({
   page,
 }) => {

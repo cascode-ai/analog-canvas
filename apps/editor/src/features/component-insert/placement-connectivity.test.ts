@@ -1,5 +1,10 @@
 import { createRoutePath, routeEnd, type RouteEndpoint } from "@icm/model";
-import { executeTransaction, planInstanceDeletion } from "@icm/edit-engine";
+import {
+  createRoutingOperationPlan,
+  executeTransaction,
+  gateRoutingOperationPlan,
+  planInstanceDeletion,
+} from "@icm/edit-engine";
 import { resolveDocumentLogicalNets } from "@icm/derived";
 import { createEmptyDocument, transformPoint } from "@icm/model";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
@@ -84,6 +89,19 @@ describe("component placement electrical contacts", () => {
     const proposal = proposePlacementContact(document, resolver, resistor, []);
 
     expect(proposal).toMatchObject({ matched: true, ambiguous: false });
+    expect(proposal.expectedElectricalEffect).toMatchObject({
+      kind: "partition",
+      sourceBaseNetIds: ["net-signal"],
+    });
+    const operation = createRoutingOperationPlan(document, {
+      intent: "connect",
+      edits: [{ kind: "add_instance", instance: resistor }, ...proposal.edits],
+      diagnostics: [],
+      expectedElectricalEffect: proposal.expectedElectricalEffect!,
+    });
+    expect(gateRoutingOperationPlan(document, operation, context).ok).toBe(
+      true,
+    );
     const result = executeTransaction(
       document,
       transaction(document.revision, [

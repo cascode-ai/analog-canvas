@@ -186,6 +186,56 @@ function sameMapEntries(
   return keys.every((key) => before.get(key) === after.get(key));
 }
 
+/**
+ * A successful conductor merge may immediately canonicalize away the exact
+ * degree-two Junctions named by the Wire gesture. In that case the original
+ * endpoint identities are no longer valid witnesses even though their two
+ * source conductors now share one Base Net. Fall back to surviving endpoints
+ * from each source Base Net so effect validation follows electrical identity,
+ * not temporary segmentation anchors.
+ */
+function endpointGroupMergedBaseNet(
+  before: ElectricalTopologyProjection,
+  after: ElectricalTopologyProjection,
+  endpointKeys: readonly string[],
+): string | null {
+  const directNetIds = unique(
+    endpointKeys.flatMap((key) => {
+      const netId = after.endpointToBaseNet.get(key);
+      return netId ? [netId] : [];
+    }),
+  );
+  if (
+    directNetIds.length === 1 &&
+    endpointKeys.every((key) => after.endpointToBaseNet.has(key))
+  ) {
+    return directNetIds[0]!;
+  }
+
+  const sourceBaseNetIds = unique(
+    endpointKeys.flatMap((key) => {
+      const netId = before.endpointToBaseNet.get(key);
+      return netId ? [netId] : [];
+    }),
+  );
+  if (sourceBaseNetIds.length === 0) return null;
+
+  const survivingNetIds: string[] = [];
+  for (const sourceBaseNetId of sourceBaseNetIds) {
+    const witnesses = unique(
+      [...before.endpointToBaseNet.entries()].flatMap(([key, netId]) => {
+        if (netId !== sourceBaseNetId) return [];
+        const survivingNetId = after.endpointToBaseNet.get(key);
+        return survivingNetId ? [survivingNetId] : [];
+      }),
+    );
+    if (witnesses.length === 0) return null;
+    survivingNetIds.push(...witnesses);
+  }
+  const merged = unique(survivingNetIds);
+  return merged.length === 1 ? merged[0]! : null;
+}
+
 function validateExpectedEffect(
   beforeDocument: SchematicDocument,
   afterDocument: SchematicDocument,
@@ -205,16 +255,7 @@ function validateExpectedEffect(
     }
     case "merge":
       for (const group of expected.endpointGroups) {
-        const netIds = unique(
-          group.flatMap((key) => {
-            const netId = after.endpointToBaseNet.get(key);
-            return netId ? [netId] : [];
-          }),
-        );
-        if (
-          netIds.length !== 1 ||
-          group.some((key) => !after.endpointToBaseNet.has(key))
-        ) {
+        if (!endpointGroupMergedBaseNet(before, after, group)) {
           return `Routing merge did not join endpoint group ${group.join(", ")}`;
         }
       }

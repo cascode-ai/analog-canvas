@@ -1,4 +1,5 @@
-import { createEmptyDocument } from "@icm/model";
+import { createEmptyDocument, createRoutePath } from "@icm/model";
+import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -6,6 +7,9 @@ import {
   evaluateRoutingOperationPlan,
   gateRoutingOperationPlan,
 } from "./routing-operation-plan.js";
+import { proposeWireIntent } from "./routing-planner.js";
+
+const resolver = new InMemorySymbolResolver(builtInSymbols);
 
 function twoNetDocument() {
   const document = createEmptyDocument("main", "Main");
@@ -52,6 +56,67 @@ describe("RoutingOperationPlan", () => {
       ok: true,
       edits: plan.edits,
     });
+  });
+
+  it("accepts a merge after canonicalization retires its temporary Junction endpoints", () => {
+    const document = createEmptyDocument("main", "Main");
+    document.nets.push(
+      { id: "net-left", terminals: [] },
+      { id: "net-right", terminals: [] },
+    );
+    document.junctions.push(
+      { id: "left-outer", netId: "net-left", position: { x: 0, y: 0 } },
+      { id: "left-open", netId: "net-left", position: { x: 40, y: 0 } },
+      { id: "right-open", netId: "net-right", position: { x: 60, y: 0 } },
+      { id: "right-outer", netId: "net-right", position: { x: 100, y: 0 } },
+    );
+    document.routes.push(
+      createRoutePath({
+        id: "left",
+        netId: "net-left",
+        start: { kind: "junction", junctionId: "left-outer" },
+        end: { kind: "junction", junctionId: "left-open" },
+        bends: [],
+        modes: ["manual"],
+      }),
+      createRoutePath({
+        id: "right",
+        netId: "net-right",
+        start: { kind: "junction", junctionId: "right-open" },
+        end: { kind: "junction", junctionId: "right-outer" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    const wire = proposeWireIntent(document, resolver, {
+      id: "reconnect",
+      from: {
+        kind: "endpoint",
+        endpoint: { kind: "junction", junctionId: "left-open" },
+      },
+      to: {
+        kind: "endpoint",
+        endpoint: { kind: "junction", junctionId: "right-open" },
+      },
+    });
+    expect(typeof wire).not.toBe("string");
+    if (typeof wire === "string") return;
+    const plan = createRoutingOperationPlan(document, {
+      intent: "connect",
+      diagnostics: [],
+      edits: wire.edits,
+    });
+
+    const gate = gateRoutingOperationPlan(document, plan, {
+      symbolResolver: resolver,
+    });
+    expect(gate.ok).toBe(true);
+    if (!gate.ok) return;
+    expect(gate.evaluated.finalDocument.nets).toHaveLength(1);
+    expect(gate.evaluated.finalDocument.routes).toHaveLength(1);
+    expect(
+      gate.evaluated.finalDocument.junctions.map((junction) => junction.id),
+    ).toEqual(["left-outer", "right-outer"]);
   });
 
   it("rejects stale and cross-Cell plans before evaluation", () => {

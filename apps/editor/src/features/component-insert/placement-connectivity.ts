@@ -5,6 +5,7 @@ import {
   planSeriesInstanceSplice,
   proposeEndpointRouteAttachment,
   proposeEndpointsRouteAttachment,
+  type ExpectedElectricalEffect,
   type SchematicEdit,
   type WireSource,
 } from "@icm/edit-engine";
@@ -56,6 +57,7 @@ export interface PlacementContactProposal {
   powerNetId?: string;
   powerEndpoint?: RouteEndpoint;
   netId?: string;
+  expectedElectricalEffect?: ExpectedElectricalEffect;
 }
 
 function standalonePowerNetId(
@@ -269,6 +271,7 @@ export function proposePlacementContact(
           edits: splice.edits,
           matched: true,
           ambiguous: false,
+          expectedElectricalEffect: splice.expectedElectricalEffect,
         }
       : {
           edits: [],
