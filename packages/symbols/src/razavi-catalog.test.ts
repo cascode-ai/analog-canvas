@@ -324,6 +324,41 @@ describe("Razavi symbol catalog", () => {
     ).toBe(false);
   });
 
+  it("puts the Q-only flip-flop's output on the body centre line", () => {
+    const dff = requireRazaviCatalogSymbol("d-flip-flop");
+    const q = requireRazaviCatalogSymbol("d-flip-flop-q");
+
+    expect(q.pins.map((pin) => pin.name)).toEqual(["D", "CK", "Q"]);
+    // With no complement to pair with, an output left at the pair's height
+    // reads as lopsided and hangs its name beside an empty corner. The body
+    // spans -25..25, so the centre line is y = 0.
+    expect(q.pins.map((pin) => pin.at)).toEqual([
+      { x: -40, y: -10 },
+      { x: -40, y: 10 },
+      { x: 40, y: 0 },
+    ]);
+    const outputLead = q.primitives.find(
+      (primitive) => primitive.kind === "line" && primitive.to.x === 40,
+    );
+    expect(outputLead).toMatchObject({
+      from: { y: 0 },
+      to: { x: 40, y: 0 },
+    });
+
+    // Deriving the sibling must not reshape the reviewed part it came from.
+    expect(dff.pins.map((pin) => pin.at)).toEqual([
+      { x: -40, y: -10 },
+      { x: -40, y: 10 },
+      { x: 40, y: -10 },
+      { x: 40, y: 10 },
+    ]);
+    // Same body, one fewer wire: the two must read as the same block.
+    expect(q.viewBox).toEqual(dff.viewBox);
+    expect(q.primitives.find((primitive) => primitive.kind === "path")).toEqual(
+      dff.primitives.find((primitive) => primitive.kind === "path"),
+    );
+  });
+
   it("keeps the page-331 Delay Cell proportions and source glyph outlines", () => {
     const delayCell = requireRazaviCatalogSymbol("delay-cell");
     expect(delayCell.pins.map((pin) => pin.name)).toEqual(["A", "Y"]);

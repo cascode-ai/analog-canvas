@@ -294,7 +294,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Behavioral logic symbol; structural SPICE realization requires an explicit subcircuit or PDK mapping.",
     assetPath: "d-flip-flop-q.symbol.json",
     assetHash:
-      "66b2a796af3409f0ec55fe56be57d8a52997f07a6fe0bac472fdb025bbe8e979",
+      "ca7d19af2d62a52d470c0cf0102b66c283bdaae28b4be129852b112ecd00fd8c",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -2720,7 +2720,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         role: "output",
         at: {
           x: 40,
-          y: -10,
+          y: 0,
         },
         direction: "east",
         presentation: {
@@ -2779,11 +2779,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         from: {
           x: 25.000855,
-          y: -10,
+          y: 0,
         },
         to: {
           x: 40,
-          y: -10,
+          y: 0,
         },
         style: {
           strokeRole: "normal",

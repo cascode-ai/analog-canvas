@@ -84,9 +84,12 @@ dff.viewBox = { x: -42, y: -27, width: 84, height: 54 };
 const qOnly = structuredClone(dff);
 qOnly.id = Q_ONLY_ID;
 qOnly.name = "D Flip-Flop (Q)";
-const complement = dff.pins.find((pin) => pin.role === "output-complement");
+// Work on the clone's own objects throughout. Filtering the source's arrays
+// would share its pins and primitives with the sibling, and the edits below
+// would then reach back and reshape the reviewed flip-flop itself.
+const complement = qOnly.pins.find((pin) => pin.role === "output-complement");
 if (!complement) fail("d-flip-flop lost its complementary output pin");
-qOnly.pins = dff.pins.filter((pin) => pin !== complement);
+qOnly.pins = qOnly.pins.filter((pin) => pin !== complement);
 // Drop the lead that ran to the pin that no longer exists. Matching on the
 // endpoint keeps this correct if the body is ever re-extracted at different
 // coordinates; matching on an index would not.
@@ -95,13 +98,30 @@ const touchesComplement = (primitive) =>
   [primitive.from, primitive.to].some(
     (point) => point.x === complement.at.x && point.y === complement.at.y,
   );
-const leadCount = dff.primitives.filter(touchesComplement).length;
+const leadCount = qOnly.primitives.filter(touchesComplement).length;
 if (leadCount !== 1) {
   fail(`expected one complementary lead to remove, found ${leadCount}`);
 }
-qOnly.primitives = dff.primitives.filter(
+qOnly.primitives = qOnly.primitives.filter(
   (primitive) => !touchesComplement(primitive),
 );
+// With only one output left, keeping it where the pair used to sit leaves the
+// body lopsided and the Q label riding high against an empty corner. Razavi
+// draws the single-output flip-flop with Q on the body's centre line, so the
+// pin and its lead move there and the name follows the pin.
+const output = qOnly.pins.find((pin) => pin.role === "output");
+if (!output) fail("d-flip-flop-q lost its output pin");
+const outputLead = qOnly.primitives.find(
+  (primitive) =>
+    primitive.kind === "line" &&
+    [primitive.from, primitive.to].some(
+      (point) => point.x === output.at.x && point.y === output.at.y,
+    ),
+);
+if (!outputLead) fail("d-flip-flop-q lost the lead to its output");
+outputLead.from.y = 0;
+outputLead.to.y = 0;
+output.at = { ...output.at, y: 0 };
 // The body is unchanged, so the frame stays identical to its source: the two
 // parts must read as the same block with one fewer wire, not as two drawings.
 definitions.set(Q_ONLY_ID, qOnly);

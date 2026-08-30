@@ -46,7 +46,7 @@
       "role": "output",
       "at": {
         "x": 40,
-        "y": -10
+        "y": 0
       },
       "direction": "east",
       "presentation": {
@@ -105,11 +105,11 @@
       "kind": "line",
       "from": {
         "x": 25.000855,
-        "y": -10
+        "y": 0
       },
       "to": {
         "x": 40,
-        "y": -10
+        "y": 0
       },
       "style": {
         "strokeRole": "normal",
