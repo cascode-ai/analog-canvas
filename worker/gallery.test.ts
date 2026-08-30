@@ -1245,6 +1245,131 @@ describe("the daily publish quota", () => {
     expect(entryCount(env)).toBe(1);
   });
 
+  /**
+   * Spend the day's whole allowance for one member, leaving them holding a
+   * public entry of their own that the lifecycle routes can act on.
+   *
+   * The filler entries go straight to the Durable Object: the quota is
+   * counted there, and a hundred trips through the full route would only
+   * re-test rendering.
+   */
+  async function dayAtTheLimit(env: Harness): Promise<{
+    cookie: string;
+    owner: string;
+    day: string;
+    mine: string;
+  }> {
+    const cookie = await makerOf(env);
+    const mine = await submitOne(env, "Second thoughts", { cookie });
+    const seed = env.gallerySql
+      .exec<{
+        owner_user_id: string;
+        created_at: string;
+      }>(
+        "SELECT owner_user_id, created_at FROM gallery_entries WHERE id = ?",
+        mine,
+      )
+      .one();
+    const owner = seed.owner_user_id;
+    const day = seed.created_at.slice(0, 10);
+    for (let index = 1; index < GALLERY_DAILY_SUBMISSION_LIMIT; index += 1) {
+      expect(await submitDirect(env, owner, day)).toBe(200);
+    }
+    expect(await submitDirect(env, owner, day)).toBe(429);
+    return { cookie, owner, day, mine };
+  }
+
+  async function submitDirect(
+    env: Harness,
+    ownerUserId: string,
+    day: string,
+  ): Promise<number> {
+    const response = await env.GALLERY.getByName("gallery").fetch(
+      "https://gallery/submit",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          day,
+          enforceLimit: true,
+          entry: {
+            id: "",
+            name: "Quota",
+            author: "",
+            description: "",
+            created_at: `${day}T00:00:00.000Z`,
+            schema_version: CURRENT_PROJECT_SCHEMA_VERSION,
+            owner_user_id: ownerUserId,
+            project_text: projectText(),
+            svg_text: "<svg/>",
+          },
+        }),
+      },
+    );
+    return response.status;
+  }
+
+  function lifecycle(
+    env: Harness,
+    id: string,
+    action: "recycle" | "restore",
+    cookie: string,
+  ) {
+    return route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/${id}/${action}`, {
+        method: "POST",
+        headers: { Origin: ORIGIN, Cookie: cookie },
+      }),
+    );
+  }
+
+  it("returns the allowance the moment work is withdrawn to the bin", async () => {
+    const env = environment();
+    const { cookie, owner, day, mine } = await dayAtTheLimit(env);
+
+    // Withdrawing is changing your mind, not publishing again. The entry
+    // stops standing on the wall, so it stops spending the day's allowance
+    // — waiting for a curator to empty the bin would ration the second
+    // thought, which is the one thing this quota is not for.
+    expect((await lifecycle(env, mine, "recycle", cookie)).status).toBe(200);
+    expect(await submitDirect(env, owner, day)).toBe(200);
+  });
+
+  it("spends the allowance again when the author restores from the bin", async () => {
+    const env = environment();
+    const { cookie, owner, day, mine } = await dayAtTheLimit(env);
+    expect((await lifecycle(env, mine, "recycle", cookie)).status).toBe(200);
+
+    // Coming back out of the bin is publishing it again, so the slot the
+    // withdrawal released is spent once more and the day is full.
+    expect((await lifecycle(env, mine, "restore", cookie)).status).toBe(200);
+    expect(await submitDirect(env, owner, day)).toBe(429);
+  });
+
+  it("keeps spending it when a curator rejects the work", async () => {
+    const env = environment();
+    const { owner, day, mine } = await dayAtTheLimit(env);
+
+    // A rejection is the wall's owner turning work away, not the author
+    // changing their mind, so it earns no refund. Refunding it would mean
+    // the harder a curator works the more that account may publish.
+    const rejected = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/${mine}/reject`, {
+        method: "POST",
+        headers: {
+          Origin: ORIGIN,
+          Cookie: await adminOf(env),
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ reason: "Not a circuit." }),
+      }),
+    );
+    expect(rejected.status).toBe(200);
+    expect(await submitDirect(env, owner, day)).toBe(429);
+  });
+
   it("keeps one account's day separate from another's and from tomorrow", async () => {
     const env = environment();
     const mine = await makerOf(env);

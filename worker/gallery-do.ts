@@ -622,9 +622,22 @@ export class GalleryDO {
     // admin and moderator sessions are exempt (they curate).
     //
     // It counts the account's own entries for the day rather than a separate
-    // tally, so deleting work gives the allowance back. That is deliberate:
-    // the quota exists to bound how much a stranger can dump on the wall at
-    // once, not to ration how many times someone may change their mind.
+    // tally, so taking work down gives the allowance back. That is
+    // deliberate: the quota exists to bound how much a stranger can dump on
+    // the wall at once, not to ration how many times someone may change
+    // their mind.
+    //
+    // Withdrawing to the recycle bin therefore counts as taking it down, the
+    // same as deleting. The entry has left the wall; making the author wait
+    // for a curator to empty the bin would ration the second thought rather
+    // than the dumping. Restoring it publishes it again, and the slot is
+    // spent again with it.
+    //
+    // 'recycled' is the whole exemption, and 'rejected' is deliberately not
+    // in it: a rejection is the wall's owner turning work away, not the
+    // author changing their mind. Refunding it would mean the harder a
+    // curator works the more that account may publish, which points the
+    // quota away from the submitter it exists to bound.
     const enforceLimit = body.enforceLimit !== false;
     const outcome = this.state.storage.transactionSync(() => {
       if (enforceLimit) {
@@ -633,7 +646,8 @@ export class GalleryDO {
             count: number;
           }>(
             `SELECT COUNT(*) AS count FROM gallery_entries
-             WHERE owner_user_id = ? AND substr(created_at, 1, 10) = ?`,
+             WHERE owner_user_id = ? AND substr(created_at, 1, 10) = ?
+               AND status <> 'recycled'`,
             entry.owner_user_id ?? "",
             day,
           )
