@@ -139,6 +139,41 @@ describe("selection inspector details", () => {
     expect(markup).toContain("Issues (1)");
   });
 
+  it("expands the issues section when a focus request token arrives", () => {
+    const markup = renderToStaticMarkup(
+      <ProjectDiagnosticsSection
+        snapshot={{
+          source: "live",
+          projectId: "project-fixture",
+          documentRevisions: [{ documentId: "document-child", revision: 7 }],
+          diagnostics: [ercDiagnostic],
+        }}
+        documentLabel={() => "Main Cell"}
+        onSelectDiagnostic={() => undefined}
+        focusRequestToken={1}
+      />,
+    );
+    // A warning alone does not auto-open the section; the statusbar badge's
+    // focus request must.
+    expect(markup).toContain("<details open");
+  });
+
+  it("keeps a warning-only issues section collapsed without a focus request", () => {
+    const markup = renderToStaticMarkup(
+      <ProjectDiagnosticsSection
+        snapshot={{
+          source: "live",
+          projectId: "project-fixture",
+          documentRevisions: [{ documentId: "document-child", revision: 7 }],
+          diagnostics: [ercDiagnostic],
+        }}
+        documentLabel={() => "Main Cell"}
+        onSelectDiagnostic={() => undefined}
+      />,
+    );
+    expect(markup).not.toContain("<details open");
+  });
+
   it("renders concrete, navigable hierarchy Net hops", () => {
     const trace: HierarchyNetTrace = {
       primary: {

@@ -15,6 +15,37 @@ function toolLabel(
   return tool.charAt(0).toUpperCase() + tool.slice(1);
 }
 
+function issuesBadge(issues: { errorCount: number; warningCount: number }): {
+  severity: "error" | "warning" | "none";
+  label: string;
+  title: string;
+} {
+  const plural = (count: number, noun: string) =>
+    `${count} ${noun}${count === 1 ? "" : "s"}`;
+  if (issues.errorCount > 0) {
+    return {
+      severity: "error",
+      label:
+        issues.warningCount > 0
+          ? `${plural(issues.errorCount, "error")}, ${plural(issues.warningCount, "warning")}`
+          : plural(issues.errorCount, "error"),
+      title: "Action required — open the issues list",
+    };
+  }
+  if (issues.warningCount > 0) {
+    return {
+      severity: "warning",
+      label: plural(issues.warningCount, "warning"),
+      title: "Review findings — open the issues list",
+    };
+  }
+  return {
+    severity: "none",
+    label: "No issues",
+    title: "Open the issues list",
+  };
+}
+
 export function EditorStatusbar({
   visitStats,
   status,
@@ -30,6 +61,7 @@ export function EditorStatusbar({
   drawAngleMode,
   wheelBehavior,
   zoomPercent,
+  issues,
   onToggleWireOptions,
   onWireRoutingModeChange,
   onWireCornerOrderChange,
@@ -56,6 +88,7 @@ export function EditorStatusbar({
   drawAngleMode: "free" | "45" | "orthogonal";
   wheelBehavior: "auto" | "zoom" | "pan";
   zoomPercent: number;
+  issues?: { errorCount: number; warningCount: number; onOpen: () => void };
   onToggleWireOptions: () => void;
   onWireRoutingModeChange: (mode: WireRoutingMode) => void;
   onWireCornerOrderChange: (order: WireCornerOrder) => void;
@@ -132,6 +165,24 @@ export function EditorStatusbar({
             {recoveryLabel}
           </output>
         ) : null}
+        {issues
+          ? (() => {
+              const badge = issuesBadge(issues);
+              return (
+                <button
+                  type="button"
+                  className="statusbar-issues"
+                  data-testid="statusbar-issues"
+                  data-severity={badge.severity}
+                  title={badge.title}
+                  aria-label={`${badge.label}. ${badge.title}`}
+                  onClick={issues.onOpen}
+                >
+                  {badge.label}
+                </button>
+              );
+            })()
+          : null}
       </div>
       {visitStats ? (
         <a

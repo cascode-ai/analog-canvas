@@ -11,7 +11,7 @@ import type {
   LiveDiagnosticSnapshot,
   VisualDiagnostic,
 } from "@icm/derived";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { SpiceDiagnostic } from "@icm/spice";
 
 import type { EditorTool } from "../../interaction/interaction-state";
@@ -136,6 +136,11 @@ export interface ProjectDiagnosticsSectionProps {
   snapshot: LiveDiagnosticSnapshot;
   documentLabel(documentId: string): string;
   onSelectDiagnostic(diagnostic: Diagnostic): void;
+  /**
+   * Increment to expand and reveal the issues section from outside — the
+   * statusbar badge's click. The section stays user-collapsible afterwards.
+   */
+  focusRequestToken?: number;
 }
 
 export interface NetTraceSectionProps {
@@ -242,11 +247,29 @@ export function ProjectDiagnosticsSection({
   snapshot,
   documentLabel,
   onSelectDiagnostic,
+  focusRequestToken = 0,
 }: ProjectDiagnosticsSectionProps) {
   const diagnostics = snapshot.diagnostics;
   const [severityFilter, setSeverityFilter] =
     useState<DiagnosticSeverityFilter>("all");
   const [showObservations, setShowObservations] = useState(false);
+  const [sectionOpen, setSectionOpen] = useState(
+    () =>
+      focusRequestToken > 0 ||
+      diagnostics.some(
+        (diagnostic) =>
+          diagnostic.severity === "error" &&
+          diagnosticPresentationGroup(diagnostic) === "actionable",
+      ),
+  );
+  const [handledFocusToken, setHandledFocusToken] = useState(focusRequestToken);
+  const sectionRef = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    if (focusRequestToken <= handledFocusToken) return;
+    setHandledFocusToken(focusRequestToken);
+    setSectionOpen(true);
+    sectionRef.current?.scrollIntoView({ block: "nearest" });
+  }, [focusRequestToken, handledFocusToken]);
   const observationCount = diagnostics.filter(
     (diagnostic) => diagnosticPresentationGroup(diagnostic) === "observation",
   ).length;
@@ -271,12 +294,23 @@ export function ProjectDiagnosticsSection({
   const hasBlockingIssue = availableDiagnostics.some(
     (diagnostic) => diagnostic.severity === "error",
   );
+  const previousBlockingRef = useRef(hasBlockingIssue);
+  useEffect(() => {
+    // Preserve the pre-existing behavior: a blocking issue APPEARING opens
+    // the section; the user can still collapse it afterwards.
+    if (hasBlockingIssue && !previousBlockingRef.current) setSectionOpen(true);
+    previousBlockingRef.current = hasBlockingIssue;
+  }, [hasBlockingIssue]);
   return (
     <section
       aria-label="Project diagnostics"
       className="diagnostics erc-diagnostics"
     >
-      <details open={hasBlockingIssue || undefined}>
+      <details
+        ref={sectionRef}
+        open={sectionOpen || undefined}
+        onToggle={(event) => setSectionOpen(event.currentTarget.open)}
+      >
         <summary>
           <h2>Issues ({availableDiagnostics.length})</h2>
           <span>{hasBlockingIssue ? "Action required" : "Review"}</span>

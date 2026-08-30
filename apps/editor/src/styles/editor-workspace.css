@@ -535,6 +535,31 @@
   line-height: var(--icm-line-tight);
 }
 
+/* Persistent findings entry point. Same chip language as the tool label; the
+   severity recolors it, and the zero state stays quiet but clickable. */
+.statusbar-issues {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  border: 0;
+  border-radius: 999px;
+  color: var(--icm-text-muted);
+  background: var(--icm-surface-muted);
+  font-size: var(--icm-font-xs);
+  font-weight: 600;
+  line-height: var(--icm-line-tight);
+  cursor: pointer;
+}
+
+.statusbar-issues[data-severity="warning"] {
+  color: var(--icm-warning);
+  background: color-mix(in srgb, var(--icm-warning) 14%, transparent);
+}
+
+.statusbar-issues[data-severity="error"] {
+  color: var(--icm-danger, #b42318);
+  background: color-mix(in srgb, var(--icm-danger, #b42318) 12%, transparent);
+}
+
 /* The gallery panel shows circuits, not just their names, and the reader
    chooses how many fit per row. */
 .shapes-example-list {

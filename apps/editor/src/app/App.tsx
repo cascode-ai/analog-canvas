@@ -24,6 +24,7 @@ import {
   annotationOwningInstanceId,
   deriveNetConnectivity,
   deriveRoutingAffectedClosure,
+  diagnosticPresentationGroup,
   resolveDraftingObjectGeometry,
   displayableInstanceValue,
   resolveMosBulkConnection,
@@ -1283,6 +1284,24 @@ export function App({
     () => buildSceneSnapTargetIndex(document, resolver, visibleEndpoints),
     [document, resolver, visibleEndpoints],
   );
+  const [issuesFocusToken, setIssuesFocusToken] = useState(0);
+  const issueCounts = useMemo(() => {
+    let errorCount = 0;
+    let warningCount = 0;
+    for (const diagnostic of liveDiagnosticSnapshot.diagnostics) {
+      if (diagnosticPresentationGroup(diagnostic) !== "actionable") continue;
+      if (diagnostic.severity === "error") errorCount += 1;
+      else if (diagnostic.severity === "warning") warningCount += 1;
+    }
+    return { errorCount, warningCount };
+  }, [liveDiagnosticSnapshot]);
+  const openIssuesPanel = (): void => {
+    // Narrow layouts have room for one side panel — same rule as the dock
+    // toggle, but this entry point always OPENS.
+    if (compactLayout) setCompactLibraryPanelOpen(false);
+    setSelectionOpen(true);
+    setIssuesFocusToken((token) => token + 1);
+  };
   const simulationPickHighlight = useMemo(
     () =>
       simulationPickNetsActive && simulationHoverNetId
@@ -4626,6 +4645,7 @@ export function App({
               project.documents.find((candidate) => candidate.id === documentId)
                 ?.name ?? documentId,
             onSelectDiagnostic: jumpToProjectDiagnostic,
+            focusRequestToken: issuesFocusToken,
           }}
           netTrace={
             highlightedTrace && highlightedTrace.hops.length > 0
@@ -5190,6 +5210,11 @@ export function App({
         wheelBehavior={wheelBehavior}
         onWheelBehaviorChange={setWheelBehavior}
         zoomPercent={zoomPercent}
+        issues={{
+          errorCount: issueCounts.errorCount,
+          warningCount: issueCounts.warningCount,
+          onOpen: openIssuesPanel,
+        }}
         onToggleWireOptions={() => setWireOptionsOpen((open) => !open)}
         onWireRoutingModeChange={setWireRoutingMode}
         onWireCornerOrderChange={setWireCornerOrder}

@@ -38,4 +38,73 @@ describe("editor statusbar", () => {
     expect(markup).toContain('aria-label="Current zoom"');
     expect(markup).toContain('aria-label="Annotation grid"');
   });
+
+  function statusbarWithIssues(issues: {
+    errorCount: number;
+    warningCount: number;
+    onOpen(): void;
+  }) {
+    return renderToStaticMarkup(
+      <EditorStatusbar
+        status="Ready"
+        tool="pointer"
+        vddRailMode={false}
+        pendingSymbolId={null}
+        wireOptionsOpen={false}
+        wireRoutingMode="orthogonal"
+        wireCornerOrder="auto"
+        recoveryLabel={null}
+        gridDotsVisible
+        drawAngleMode="free"
+        wheelBehavior="auto"
+        onWheelBehaviorChange={vi.fn()}
+        onDrawAngleModeChange={vi.fn()}
+        annotationGrid={5}
+        zoomPercent={100}
+        issues={issues}
+        onToggleWireOptions={vi.fn()}
+        onWireRoutingModeChange={vi.fn()}
+        onWireCornerOrderChange={vi.fn()}
+        onToggleGridDots={vi.fn()}
+        onOpenAnalytics={vi.fn()}
+        onAnnotationGridChange={vi.fn()}
+        onZoomOut={vi.fn()}
+        onZoomIn={vi.fn()}
+        onFitView={vi.fn()}
+      />,
+    );
+  }
+
+  it("shows an error-severity issues badge with combined counts", () => {
+    const markup = statusbarWithIssues({
+      errorCount: 2,
+      warningCount: 1,
+      onOpen: vi.fn(),
+    });
+    expect(markup).toContain('data-testid="statusbar-issues"');
+    expect(markup).toContain('data-severity="error"');
+    expect(markup).toContain("2 errors, 1 warning");
+    expect(markup).toContain("Action required");
+  });
+
+  it("shows a warning-severity issues badge without errors", () => {
+    const markup = statusbarWithIssues({
+      errorCount: 0,
+      warningCount: 3,
+      onOpen: vi.fn(),
+    });
+    expect(markup).toContain('data-severity="warning"');
+    expect(markup).toContain("3 warnings");
+  });
+
+  it("keeps a quiet zero-state badge as the discoverable entry point", () => {
+    const markup = statusbarWithIssues({
+      errorCount: 0,
+      warningCount: 0,
+      onOpen: vi.fn(),
+    });
+    expect(markup).toContain('data-testid="statusbar-issues"');
+    expect(markup).toContain('data-severity="none"');
+    expect(markup).toContain("No issues");
+  });
 });
