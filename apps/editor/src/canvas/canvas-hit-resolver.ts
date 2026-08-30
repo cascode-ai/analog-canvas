@@ -14,11 +14,17 @@ export interface CanvasHit {
   element: Element;
 }
 
+// Thin electrical targets outrank the symbol's blank bounding box: a route
+// or junction hit means the pointer is on the wire stroke or the dot itself,
+// while an instance hit only means it is somewhere inside the hit rectangle.
+// A deliberate click on visible wire beside or under a body therefore selects
+// the wire; the symbol stays one cycle-click away, and a selected symbol's
+// stickiness bonus keeps drags over crossing wires on the symbol.
 const KIND_PRIORITY: Record<CanvasHitKind, number> = {
   handle: 70,
+  route: 62,
+  junction: 61,
   instance: 60,
-  route: 55,
-  junction: 50,
   annotation: 45,
   "instance-label": 44,
   drafting: 40,
