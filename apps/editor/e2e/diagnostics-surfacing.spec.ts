@@ -48,7 +48,16 @@ test("statusbar issues badge surfaces live findings and opens the workbench", as
   await findings.first().click();
   await expect(page.getByTestId("status")).toContainText("ERC");
 
-  // A marker ring navigates the same way from the canvas side.
-  await page.locator(".diagnostic-marker-hit").first().click();
+  // A marker ring navigates the same way from the canvas side. The hit is
+  // the ring band only — the centre stays click-through for the pin — so
+  // aim for the top of the band (screen coordinates, ~15% down the box).
+  const ringBox = (await page
+    .locator(".diagnostic-marker-hit")
+    .first()
+    .boundingBox())!;
+  await page.mouse.click(
+    ringBox.x + ringBox.width / 2,
+    ringBox.y + ringBox.height * 0.15,
+  );
   await expect(page.getByTestId("status")).toContainText("ERC_UNCONNECTED_PIN");
 });

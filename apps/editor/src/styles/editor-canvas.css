@@ -183,11 +183,14 @@
   fill: var(--icm-warning, #b54708);
 }
 
+/* Ring-band hit only (an annulus path): the marker's centre stays
+   click-through, so the pin or junction it rings remains directly clickable
+   (and right-clickable) — the marker never captures what it annotates. */
 .diagnostic-markers .diagnostic-marker-hit {
   fill: transparent;
   stroke: none;
   cursor: pointer;
-  pointer-events: all;
+  pointer-events: fill;
 }
 
 .hit-target.annotation-text-hit.would-move {

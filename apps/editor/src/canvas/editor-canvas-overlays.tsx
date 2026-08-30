@@ -200,11 +200,25 @@ export function WireUnderSymbolOverlay({
   );
 }
 
+/** An annulus path: ring-band hit area whose centre stays click-through. */
+function ringBandPath(
+  cx: number,
+  cy: number,
+  outer: number,
+  inner: number,
+): string {
+  const circle = (r: number, sweep: 0 | 1) =>
+    `M ${cx - r},${cy} a ${r},${r} 0 1,${sweep} ${2 * r},0 a ${r},${r} 0 1,${sweep} ${-2 * r},0`;
+  return `${circle(outer, 0)} ${circle(inner, 1)}`;
+}
+
 /**
  * Actionable findings placed on the canvas: an open severity-colored ring
  * over a light halo, so the marker never occludes what it marks. Pointer-down
- * navigates through the same jump the workbench uses; the hit circle stops
- * propagation so markers never enter ordinary canvas hit ranking.
+ * on the ring band navigates through the same jump the workbench uses and
+ * stops propagation, so markers never enter ordinary canvas hit ranking —
+ * while the band's open centre keeps the pin or junction it rings directly
+ * clickable (and right-clickable).
  */
 export function DiagnosticMarkersOverlay({
   markers,
@@ -246,13 +260,13 @@ export function DiagnosticMarkersOverlay({
               {marker.count}
             </text>
           ) : null}
-          <circle
+          <path
             className="diagnostic-marker-hit"
             data-testid={`diagnostic-marker-${marker.key}`}
-            cx={marker.point.x}
-            cy={marker.point.y}
-            r={9}
+            d={ringBandPath(marker.point.x, marker.point.y, 8.5, 3)}
+            fillRule="evenodd"
             onPointerDown={(event) => {
+              if (event.button !== 0) return;
               event.stopPropagation();
               event.preventDefault();
               onSelectMarker(marker.diagnostic);
