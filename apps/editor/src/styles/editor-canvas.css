@@ -294,27 +294,9 @@
   vector-effect: non-scaling-stroke;
 }
 
-.endpoint-hit.wire-candidate {
+.endpoint-hit.active {
   fill: var(--icm-surface);
-  fill-opacity: 0.22;
   stroke: var(--icm-accent);
-  stroke-opacity: 0.3;
-  stroke-width: 1;
-}
-
-.endpoint-hit.wire-candidate.wire-snap-nearby {
-  fill-opacity: 0.7;
-  stroke-opacity: 0.8;
-  stroke-width: 1.25;
-}
-
-.endpoint-hit.active,
-.endpoint-hit.wire-candidate:hover,
-.endpoint-hit.wire-candidate.wire-snap-focused {
-  fill: var(--icm-surface);
-  fill-opacity: 1;
-  stroke: var(--icm-accent);
-  stroke-opacity: 1;
   stroke-width: 1.5;
 }
 

@@ -2,7 +2,6 @@ import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
 
 import {
   derivePowerRailComponent,
-  endpointKey,
   isSchematicAnnotationVisible,
   resolveDocumentStyleProfile,
   type ResolvedRouteGeometry,
@@ -22,8 +21,6 @@ import {
   instanceHitBox,
 } from "../features/wiring/route-interaction-geometry";
 import type { EditorTool } from "../interaction/interaction-state";
-import { endpointSnapAnchor } from "../snap/candidates";
-import { wireSnapMarkerDomId } from "../features/wiring/wire-canvas-snap";
 import { serializePolylinePoints } from "./canvas-geometry";
 
 type Instance = SchematicDocument["instances"][number];
@@ -94,7 +91,6 @@ interface EndpointHitTargetProps {
   selectedRoute: Route | undefined;
   selectedRouteSegmentIndex: number | null;
   selectedEndpoint: WireSource | null;
-  wireSource: WireSource | null;
   supplementalJunctionIds: readonly string[];
   endpointLabel: (endpoint: WireSource["endpoint"]) => string;
   onEndpointActions: (endpoint: WireSource) => void;
@@ -302,7 +298,6 @@ function EndpointHitTargets({
   selectedRoute,
   selectedRouteSegmentIndex,
   selectedEndpoint,
-  wireSource,
   supplementalJunctionIds,
   endpointLabel,
   onEndpointActions,
@@ -354,37 +349,25 @@ function EndpointHitTargets({
           ? "end"
           : null;
     const label = endpointLabel(candidate.endpoint);
-    const anchorId = endpointSnapAnchor(candidate).id;
-    const selected =
-      selectedEndpoint !== null &&
-      endpointKey(selectedEndpoint.endpoint) ===
-        endpointKey(candidate.endpoint);
-    const isWireSource =
-      wireSource !== null &&
-      endpointKey(wireSource.endpoint) === endpointKey(candidate.endpoint);
-    const active =
-      isWireSource ||
-      selected ||
-      (candidateJunctionId !== null &&
-        supplementalJunctionIds.includes(candidateJunctionId));
     return (
       <circle
         key={`${candidate.netId}:${label}`}
-        id={wireSnapMarkerDomId(anchorId)}
         data-testid={label}
-        data-wire-snap-anchor-id={anchorId}
         data-canvas-hit-kind={
           candidate.endpoint.kind === "junction" ? "junction" : undefined
         }
         data-canvas-hit-id={candidateJunctionId ?? undefined}
         data-drag-object-id={candidateJunctionId ?? undefined}
-        className={[
-          "endpoint-hit",
-          tool === "wire" ? "wire-candidate" : "",
-          active ? "active" : "",
-        ]
-          .filter(Boolean)
-          .join(" ")}
+        className={
+          tool === "wire" ||
+          (candidateJunctionId !== null &&
+            supplementalJunctionIds.includes(candidateJunctionId)) ||
+          (selectedEndpoint?.endpoint.kind === "junction" &&
+            candidateJunctionId !== null &&
+            selectedEndpoint.endpoint.junctionId === candidateJunctionId)
+            ? "endpoint-hit active"
+            : "endpoint-hit"
+        }
         cx={candidate.connection.contactPoint.x}
         cy={candidate.connection.contactPoint.y}
         r={4}

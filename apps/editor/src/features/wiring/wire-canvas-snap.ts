@@ -136,7 +136,6 @@ export interface WireCanvasSnapContext {
   wireSource: WireSource | null;
   wireWaypoints: readonly Point[];
   captureTolerance: number;
-  nearbyTolerance?: number;
   snapIndex?: WireCanvasSnapIndex;
 }
 
@@ -146,11 +145,6 @@ export interface WireCanvasSnapResult {
   route?: { routeId: string; segmentIndex: number; point: Point };
   ambiguous?: boolean;
   guides: SnapGuideLine[];
-  nearbyEndpointAnchorIds: string[];
-}
-
-export function wireSnapMarkerDomId(anchorId: string): string {
-  return `wire-snap-marker-${encodeURIComponent(anchorId)}`;
 }
 
 /** Resolve one wire-canvas pointer to a grid, endpoint, or routed conductor. */
@@ -164,7 +158,6 @@ export function resolveWireCanvasSnap(
     wireSource,
     wireWaypoints,
     captureTolerance,
-    nearbyTolerance = captureTolerance,
     snapIndex,
   }: WireCanvasSnapContext,
   point: Point,
@@ -177,7 +170,6 @@ export function resolveWireCanvasSnap(
         y: snapCoordinate(point.y, document.presentation.grid),
       },
       guides: [],
-      nearbyEndpointAnchorIds: [],
     };
   }
   const arrival = wireSource
@@ -216,10 +208,10 @@ export function resolveWireCanvasSnap(
         ]
       : [];
   });
-  const nearbyEndpointTargets = nearbyIndices(
+  const endpointTargets = nearbyIndices(
     index.endpointBuckets,
     point,
-    nearbyTolerance,
+    captureTolerance,
     index.cellSize,
   )
     .map((endpointIndex) => index.endpointTargets[endpointIndex]!)
@@ -228,15 +220,8 @@ export function resolveWireCanvasSnap(
         Math.hypot(
           target.anchor.point.x - point.x,
           target.anchor.point.y - point.y,
-        ) <= nearbyTolerance,
+        ) <= captureTolerance,
     );
-  const endpointTargets = nearbyEndpointTargets.filter(
-    (target) =>
-      Math.hypot(
-        target.anchor.point.x - point.x,
-        target.anchor.point.y - point.y,
-      ) <= captureTolerance,
-  );
   const activeSourceAnchorId = wireSource
     ? endpointSnapAnchor(wireSource).id
     : null;
@@ -312,8 +297,5 @@ export function resolveWireCanvasSnap(
         }
       : {}),
     guides: resolved.guides,
-    nearbyEndpointAnchorIds: nearbyEndpointTargets.map(
-      (candidate) => candidate.anchor.id,
-    ),
   };
 }

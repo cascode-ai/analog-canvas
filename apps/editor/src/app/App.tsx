@@ -4855,7 +4855,6 @@ export function App({
                 : selectedRoute,
               selectedRouteSegmentIndex,
               selectedEndpoint,
-              wireSource,
               supplementalJunctionIds: supplementalSelection.junctionIds,
               endpointLabel: endpointTestId,
               onEndpointActions: (candidate) => {
