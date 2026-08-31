@@ -70,19 +70,22 @@ describe("legacy Project loading (#446)", () => {
     { length: CURRENT_PROJECT_SCHEMA_VERSION - OLDEST_CHAINED_VERSION },
     (_, index) => OLDEST_CHAINED_VERSION + index,
   );
-  it.each(versions)("loads a minimal v%i project through the chain", (version) => {
-    const result = tryParseProjectWithMetadata(minimalProjectAt(version));
-    expect(
-      result.ok,
-      result.ok
-        ? ""
-        : `refused: ${result.diagnostics.map((d) => `${d.code} ${d.message}`).join("; ")}`,
-    ).toBe(true);
-    if (!result.ok) return;
-    expect(result.sourceSchemaVersion).toBe(version);
-    expect(result.migrated).toBe(true);
-    expect(result.project.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
-  });
+  it.each(versions)(
+    "loads a minimal v%i project through the chain",
+    (version) => {
+      const result = tryParseProjectWithMetadata(minimalProjectAt(version));
+      expect(
+        result.ok,
+        result.ok
+          ? ""
+          : `refused: ${result.diagnostics.map((d) => `${d.code} ${d.message}`).join("; ")}`,
+      ).toBe(true);
+      if (!result.ok) return;
+      expect(result.sourceSchemaVersion).toBe(version);
+      expect(result.migrated).toBe(true);
+      expect(result.project.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
+    },
+  );
 
   it("still refuses versions older than the chain start", () => {
     const result = tryParseProjectWithMetadata(minimalProjectAt(23));

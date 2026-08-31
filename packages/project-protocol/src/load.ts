@@ -12,9 +12,35 @@ import {
 } from "./diagnostics.js";
 import {
   ProjectMigrationError,
+  upgradeSchema24To25,
+  upgradeSchema25To26,
+  upgradeSchema26To27,
+  upgradeSchema27To28,
+  upgradeSchema28To29,
+  upgradeSchema29To30,
+  upgradeSchema30To31,
   upgradeSchema31To32,
 } from "./previous-to-current.js";
-import { PREVIOUS_PROJECT_SCHEMA_VERSION } from "./version.js";
+import { OLDEST_SUPPORTED_PROJECT_SCHEMA_VERSION } from "./version.js";
+
+/**
+ * One upgrade step per historical version, oldest first: entry N carries a
+ * Project from schemaVersion OLDEST + N to OLDEST + N + 1. A file loads by
+ * running every step from its own version to the current one, so the whole
+ * window stays honest as long as this chain stays contiguous.
+ */
+const UPGRADE_CHAIN: ReadonlyArray<
+  (raw: Record<string, unknown>) => Record<string, unknown>
+> = [
+  upgradeSchema24To25,
+  upgradeSchema25To26,
+  upgradeSchema26To27,
+  upgradeSchema27To28,
+  upgradeSchema28To29,
+  upgradeSchema29To30,
+  upgradeSchema30To31,
+  upgradeSchema31To32,
+];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -87,17 +113,16 @@ export function tryParseProjectWithMetadata(
 
   const sourceSchemaVersion = parsed.schemaVersion as number;
   const migrated = sourceSchemaVersion !== CURRENT_PROJECT_SCHEMA_VERSION;
-  const supported = new Set([
-    PREVIOUS_PROJECT_SCHEMA_VERSION,
-    CURRENT_PROJECT_SCHEMA_VERSION,
-  ]);
-  if (!supported.has(sourceSchemaVersion)) {
+  if (
+    sourceSchemaVersion < OLDEST_SUPPORTED_PROJECT_SCHEMA_VERSION ||
+    sourceSchemaVersion > CURRENT_PROJECT_SCHEMA_VERSION
+  ) {
     return {
       ok: false,
       diagnostics: [
         {
           code: "UNSUPPORTED_SCHEMA_VERSION",
-          message: `Project schemaVersion must be ${PREVIOUS_PROJECT_SCHEMA_VERSION} or ${CURRENT_PROJECT_SCHEMA_VERSION}`,
+          message: `Project schemaVersion must be between ${OLDEST_SUPPORTED_PROJECT_SCHEMA_VERSION} and ${CURRENT_PROJECT_SCHEMA_VERSION}`,
           path: ["schemaVersion"],
         },
       ],
@@ -106,10 +131,17 @@ export function tryParseProjectWithMetadata(
 
   let current: Record<string, unknown>;
   try {
-    current =
-      sourceSchemaVersion === PREVIOUS_PROJECT_SCHEMA_VERSION
-        ? upgradeSchema31To32(parsed)
-        : parsed;
+    current = parsed;
+    for (
+      let version = sourceSchemaVersion;
+      version < CURRENT_PROJECT_SCHEMA_VERSION;
+      version += 1
+    ) {
+      current =
+        UPGRADE_CHAIN[version - OLDEST_SUPPORTED_PROJECT_SCHEMA_VERSION]!(
+          current,
+        );
+    }
   } catch (error) {
     if (error instanceof ProjectMigrationError) {
       return {
