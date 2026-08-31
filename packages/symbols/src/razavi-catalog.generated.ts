@@ -1366,7 +1366,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: ["spice:S"],
     assetPath: "voltage-controlled-switch.symbol.json",
     assetHash:
-      "0fe2629e4289b7eb341ec6df29c0356d1bc27e5802a3db2fe45d5d1a28f435eb",
+      "c7a243285745643126ab4e90220d55b82408bd63219cc2fabe6d8a53e93dd85b",
   },
   {
     symbolId: "voltage-source",
@@ -7795,7 +7795,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "CP",
         role: "passive",
         at: {
-          x: -30,
+          x: -20,
           y: 20,
         },
         direction: "west",
@@ -7808,7 +7808,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "CN",
         role: "passive",
         at: {
-          x: 30,
+          x: 20,
           y: 20,
         },
         direction: "east",
@@ -7900,7 +7900,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -30,
+          x: -20,
           y: 20,
         },
         to: {
@@ -7920,7 +7920,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 20,
         },
         to: {
-          x: 30,
+          x: 20,
           y: 20,
         },
         style: {
