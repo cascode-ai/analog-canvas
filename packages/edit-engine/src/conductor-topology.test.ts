@@ -18,7 +18,10 @@ import {
   createRoutingOperationPlan,
   gateRoutingOperationPlan,
 } from "./routing-operation-plan.js";
-import { proposeWireIntent } from "./routing-planner.js";
+import {
+  proposeWireIntent,
+  proposeWireSegmentMove,
+} from "./routing-planner.js";
 import { executeTransaction } from "./transaction.js";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
@@ -237,6 +240,89 @@ describe("same-Net conductor topology normalization", () => {
       "left",
       "down",
     ]);
+  });
+
+  it("folds an unprotected degree-two branch corner and keeps its middle segment editable", () => {
+    // A Junction's role records how it was authored, not permanent topology.
+    // Once a former branch has only two ordinary-Wire arms, the conductor
+    // must become one Route even when the surviving arms turn a corner.
+    const document = documentWith(
+      [
+        junction("left", 0, 0),
+        junction("former-branch", 50, 0, "branch"),
+        junction("right", 100, 50),
+      ],
+      [
+        route("first", "left", "former-branch"),
+        route("second", "former-branch", "right", [{ x: 50, y: 50 }]),
+      ],
+    );
+
+    const normalized = normalizeSameNetConductorTopology(document, resolver);
+
+    expect(normalized.changed).toBe(true);
+    expect(document.routes).toHaveLength(1);
+    expect(document.junctions.some(({ id }) => id === "former-branch")).toBe(
+      false,
+    );
+    expect(routeBends(document.routes[0]!)).toEqual([
+      { x: 50, y: 0 },
+      { x: 50, y: 50 },
+    ]);
+
+    const move = proposeWireSegmentMove(
+      document,
+      resolver,
+      document.routes[0]!.id,
+      1,
+      { x: 60, y: 20 },
+    );
+    const moved = executeTransaction(
+      document,
+      {
+        transactionId: "move-coalesced-middle-segment",
+        documentId: document.id,
+        expectedRevision: document.revision,
+        actor: { kind: "human", id: "test" },
+        dryRun: false,
+        edits: move.edits,
+      },
+      { symbolResolver: resolver },
+    );
+    expect(moved.ok).toBe(true);
+    if (!moved.ok) return;
+    expect(routeBends(moved.document.routes[0]!)).toEqual([
+      { x: 60, y: 0 },
+      { x: 60, y: 50 },
+    ]);
+  });
+
+  it("retains an externally owned degree-two branch corner", () => {
+    const document = documentWith(
+      [
+        junction("left", 0, 0),
+        junction("owned-corner", 50, 0, "branch"),
+        junction("bottom", 50, 50),
+      ],
+      [
+        route("horizontal", "left", "owned-corner"),
+        route("vertical", "owned-corner", "bottom"),
+      ],
+    );
+    document.layoutGroups.push({
+      id: "group",
+      kind: "custom",
+      objectIds: ["owned-corner"],
+      locked: false,
+    });
+
+    const result = normalizeSameNetConductorTopology(document, resolver);
+
+    expect(result.changed).toBe(false);
+    expect(document.routes).toHaveLength(2);
+    expect(document.junctions.some(({ id }) => id === "owned-corner")).toBe(
+      true,
+    );
   });
 
   it("keeps a lone loose wire and its degree-one anchors untouched", () => {

@@ -244,7 +244,7 @@ describe("resolved route geometry", () => {
     ]);
   });
 
-  it("aggregates deterministic route order and degree-two route-anchor joins", () => {
+  it("aggregates deterministic route order and degree-two Junction joins", () => {
     const schematic = document("route-anchor");
     schematic.junctions.push(
       { id: "left", netId: "n", position: { x: 0, y: 0 } },
@@ -279,7 +279,7 @@ describe("resolved route geometry", () => {
     expect([...geometry.routes.keys()]).toEqual(["a-left", "z-right"]);
     expect(geometry.endpointJoins).toEqual([
       {
-        kind: "route-anchor-miter",
+        kind: "junction-miter",
         junctionId: "anchor",
         at: { x: 100, y: 0 },
         directions: [
@@ -288,5 +288,49 @@ describe("resolved route geometry", () => {
         ],
       },
     ]);
+  });
+
+  it("bridges a retained degree-two branch corner without treating it as a visible branch", () => {
+    const schematic = document("branch-corner");
+    schematic.junctions.push(
+      { id: "left", netId: "n", position: { x: 0, y: 0 } },
+      {
+        id: "corner",
+        netId: "n",
+        position: { x: 100, y: 0 },
+        role: "branch",
+      },
+      { id: "bottom", netId: "n", position: { x: 100, y: 100 } },
+    );
+    schematic.routes.push(
+      createRoutePath({
+        id: "horizontal",
+        netId: "n",
+        start: { kind: "junction", junctionId: "left" },
+        end: { kind: "junction", junctionId: "corner" },
+        bends: [],
+        modes: ["manual"],
+      }),
+      createRoutePath({
+        id: "vertical",
+        netId: "n",
+        start: { kind: "junction", junctionId: "corner" },
+        end: { kind: "junction", junctionId: "bottom" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+
+    expect(
+      resolveDocumentRoutingGeometry(schematic, resolver).endpointJoins,
+    ).toContainEqual({
+      kind: "junction-miter",
+      junctionId: "corner",
+      at: { x: 100, y: 0 },
+      directions: [
+        { x: -1, y: 0 },
+        { x: 0, y: 1 },
+      ],
+    });
   });
 });

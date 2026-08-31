@@ -14,20 +14,19 @@ Implementation status: `implemented` (R10, 2026-08-17)
 At the time of this decision there was no single resolved geometry for a Route.
 The stored centerline,
 manual path, Agent escape, local/group stretch, the SVG renderer's private
-terminal and route-anchor miter bridges (`packages/render-svg/src/render.ts`
-`renderTerminalMiterBridges` at `:85` and `renderRouteAnchorMiterBridges` at
-`:133`), editor hit targets, segment drag handles, route-marker attachment, and
+terminal and Junction miter bridges (`packages/render-svg/src/render.ts`),
+editor hit targets, segment drag handles, route-marker attachment, and
 visual diagnostics each compute or assume slightly different geometry. The
 roadmap (§4.3.2, §5.3) identifies this as the second core problem: the same Wire
 is seen differently by different consumers, which is why direct-Pin corners and
-degree-2 route-anchor joins can show seams or interactive disagreement.
+degree-2 Junction joins can show seams or interactive disagreement.
 
 Two behaviors must be preserved verbatim and are pinned by existing tests:
 terminal miter bridges close the anti-alias seam at a direct Pin corner without
 adding route geometry (`render.test.ts` "bridges direct terminal corners"), and
-a degree-2 route-anchor join renders as one continuous dotless wire even when
-stored as two Routes (`render.test.ts` "bridges a reconnected dotless
-route-anchor").
+a retained degree-2 Junction join renders as one continuous dotless wire even
+when stored as two Routes (`render.test.ts` "bridges a retained dotless
+degree-two branch corner").
 
 ## Decision
 
@@ -43,7 +42,7 @@ persisted.
 interface ResolvedRouteGeometry {
   routeId: string;
   netId: string;
-  centerline: readonly Point[];          // strictly [from, …waypoints, to]
+  centerline: readonly Point[]; // strictly [from, …waypoints, to]
   segments: readonly ResolvedRouteSegment[];
   vertices: readonly ResolvedRouteVertex[];
   endpointJoins: readonly EndpointJoin[]; // terminal miter recipes
@@ -63,10 +62,10 @@ interface ResolvedRouteVertex {
 }
 
 interface EndpointJoin {
-  kind: "terminal-miter" | "route-anchor-miter";
+  kind: "terminal-miter" | "junction-miter";
   at: Point;
   // terminal joins carry pinOutward + routeDirection;
-  // route-anchor joins carry junctionId + the two incident directions.
+  // Junction joins carry junctionId + the two incident directions.
 }
 ```
 
@@ -77,8 +76,8 @@ interface EndpointJoin {
   bend control; Agent escape is an authoring helper, not stored extra points).
 - `endpointJoins` carry exactly the miter bridge strokes the renderer currently
   computes privately: the terminal bridge that closes the direct-Pin corner
-  seam, and the degree-2 route-anchor bridge that renders two stored Routes as
-  one continuous dotless wire. Moving the bridges out of the renderer does not
+  seam, and the degree-2 Junction bridge that renders two stored Routes as one
+  continuous dotless wire. Moving the bridges out of the renderer does not
   add waypoints, change topology, or persist extra points.
 - A segment address is revision-scoped and positional. It is never persisted as
   an identity across split, insertion, normalization, or stretch.
@@ -114,8 +113,9 @@ R10 deliberately keeps the revision-scoped positional `RouteSegmentAddress`.
 It does not introduce synthetic stable IDs or an attachment-remap protocol:
 after a structural edit, existing marker recovery follows the persisted anchor
 and fallback semantics. `EndpointJoin` remains a raw recipe; the renderer
-resolves profile-specific stroke overlap. Document-level route-anchor joins are
-exposed by the document routing-geometry aggregate carried by ADR 0013's index.
+resolves profile-specific stroke overlap. Document-level retained Junction
+joins are exposed by the document routing-geometry aggregate carried by ADR
+0013's index.
 
 ## Alternatives considered
 
@@ -139,7 +139,7 @@ exposed by the document routing-geometry aggregate carried by ADR 0013's index.
 ### Positive
 
 - Render, hit, drag, marker, export, and diagnostics share one geometry.
-- Direct-Pin corners and degree-2 route-anchor joins are seam-free across all
+- Direct-Pin corners and retained degree-2 Junction joins are seam-free across all
   outputs, not just SVG.
 - Marker attachment and segment identity become stable across edits.
 
@@ -160,7 +160,7 @@ stretch planning.
 - Characterization tests pin centerline, endpoint joins, route tap, and
   attachment behavior.
 - Edit Engine tests pin plan preview/commit parity and orthogonal mutation.
-- SVG renderer tests retain the terminal and route-anchor miter seam behavior.
+- SVG renderer tests retain the terminal and Junction miter seam behavior.
 - Negative test: `centerline` is unchanged by adding/removing a terminal bridge.
 
 ## Related documents
