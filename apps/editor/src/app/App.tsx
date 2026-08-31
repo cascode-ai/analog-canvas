@@ -440,6 +440,9 @@ export function App({
 
   const [recoveryFailureDismissed, setRecoveryFailureDismissed] =
     useState(false);
+  // Feature name whose on-demand chunk vanished under a redeploy; the banner
+  // offers the refresh that restores the current circuit.
+  const [chunkLoadFailure, setChunkLoadFailure] = useState<string | null>(null);
   const {
     state: recoveryState,
     sessions: recoverySessions,
@@ -3143,6 +3146,7 @@ export function App({
       setImportReviewOpen,
       setSelectionOpen,
       setStatus,
+      onChunkLoadFailure: setChunkLoadFailure,
     });
 
   // Single entry point for selecting a drafting object. Editing is opened
@@ -3876,6 +3880,14 @@ export function App({
       <EditorDialogLayer
         help={
           helpOpen ? { closeButtonRef: helpCloseRef, onClose: closeHelp } : null
+        }
+        chunkLoadFailure={
+          chunkLoadFailure === null
+            ? null
+            : {
+                feature: chunkLoadFailure,
+                onDismiss: () => setChunkLoadFailure(null),
+              }
         }
         recoveryFailure={
           (recoveryState === "quota-exceeded" ||

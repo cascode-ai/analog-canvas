@@ -6,6 +6,7 @@ import type { SymbolResolver } from "@icm/symbols";
 import {
   createVisualExportArtifact,
   createSvgExportArtifact,
+  describeExportFailure,
   planDesignNetlistExport,
   requestBrowserDownload,
 } from "./editor-export-commands";
@@ -37,6 +38,8 @@ export interface EditorFileCommandDependencies {
   setImportReviewOpen: (open: boolean) => void;
   setSelectionOpen: (open: boolean) => void;
   setStatus: (status: string) => void;
+  /** Raise the refresh banner when an on-demand chunk has gone missing. */
+  onChunkLoadFailure?: (feature: string) => void;
 }
 
 /** File import/export commands and their user-facing gate/status policy. */
@@ -54,6 +57,7 @@ export function createEditorFileCommands({
   setImportReviewOpen,
   setSelectionOpen,
   setStatus,
+  onChunkLoadFailure,
 }: EditorFileCommandDependencies) {
   const exportSvg = (): void => {
     setStatus("Preparing SVG export");
@@ -99,7 +103,9 @@ export function createEditorFileCommands({
       requestBrowserDownload(artifact, project.name);
       setStatus(artifact.report);
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Export failed");
+      const failure = describeExportFailure(error);
+      setStatus(failure.status);
+      if (failure.chunkFeature) onChunkLoadFailure?.(failure.chunkFeature);
     }
   };
 
