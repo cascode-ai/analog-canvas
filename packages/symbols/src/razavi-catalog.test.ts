@@ -430,10 +430,7 @@ describe("Razavi symbol catalog", () => {
           to.x * from.y -
           to.y * from.x,
       ) / Math.hypot(to.y - from.y, to.x - from.x);
-    for (const symbolId of [
-      "opamp-differential",
-      "opamp-differential-crossed",
-    ]) {
+    for (const symbolId of ["opamp-differential"]) {
       const symbol = requireRazaviCatalogSymbol(symbolId);
       expect(symbol.pins).toEqual(
         expect.arrayContaining([
@@ -599,7 +596,6 @@ describe("Razavi symbol catalog", () => {
       "npn",
       "opamp",
       "opamp-differential",
-      "opamp-differential-crossed",
       "or-gate",
       "pmos",
       "pnp",

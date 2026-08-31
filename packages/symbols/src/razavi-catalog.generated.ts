@@ -973,7 +973,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     category: "analog-block",
     reviewStatus: "reviewed",
     pinOrder: ["IN+", "IN-", "OUT+", "OUT-"],
-    palette: true,
+    palette: false,
     automaticMappings: [],
     manualOnlyReason:
       "Output-polarity sibling of opamp-differential; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
