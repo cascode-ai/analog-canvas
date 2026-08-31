@@ -407,36 +407,6 @@ export function App({
       setGalleryRefreshSignal((previous) => previous + 1);
     });
   }, [visibleLibraryPanelOpen]);
-  useEffect(() => {
-    if (!visibleLibraryPanelOpen) return;
-    let cancelled = false;
-    const generation = ++galleryLoadGenerationRef.current;
-    void (async () => {
-      try {
-        const response = await fetch("/api/gallery?limit=60", {
-          credentials: "same-origin",
-        });
-        if (!response.ok) return;
-        const payload = (await response.json()) as {
-          entries?: {
-            id: string;
-            name: string;
-            author: string;
-            description: string;
-            previewRevision?: string;
-          }[];
-        };
-        if (!cancelled && generation === galleryLoadGenerationRef.current) {
-          setGalleryExamples(payload.entries ?? []);
-        }
-      } catch {
-        // Unreachable worker (offline dev): the bundled list stands in.
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [visibleLibraryPanelOpen, galleryRefreshSignal]);
 
   const [recoveryFailureDismissed, setRecoveryFailureDismissed] =
     useState(false);
@@ -633,16 +603,6 @@ export function App({
   }, [activeProjectId]);
   // The Examples panel reads the same community gallery as the landing
   // feed; null means unreachable, so the bundled list stands in.
-  const [galleryExamples, setGalleryExamples] = useState<
-    | readonly {
-        id: string;
-        name: string;
-        author: string;
-        description: string;
-        previewRevision?: string;
-      }[]
-    | null
-  >(null);
   const [publishGates, setPublishGates] = useState<SubmissionGateReport | null>(
     null,
   );
@@ -4199,7 +4159,6 @@ export function App({
         ) : (
           <ExamplesPanel
             open={visibleLibraryPanelOpen}
-            galleryExamples={galleryExamples}
             onOpenGalleryExample={(id) => void insertGalleryEntryById(id)}
             onOpenExample={openLibraryExample}
           />
