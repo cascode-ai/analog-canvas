@@ -7,9 +7,12 @@
  * comes from nextReference() — an allocator that only avoids the
  * netlist.reference domain. The document-level schema additionally requires
  * schematicReference to be unique across instances (case-insensitively).
- * Ordinary edits can part the two domains: `set_instance_schematic_reference`
- * renames only the visible designator, leaving netlist.reference behind.
- * After that, the lowest free netlist reference can equal an occupied
+ * Ordinary edits can part the two domains, in either direction:
+ * `set_instance_schematic_reference` (Agent API) renames only the visible
+ * designator, leaving netlist.reference behind; the properties panel's
+ * Netlist reference field (`set_instance_reference`) moves only
+ * netlist.reference, leaving the visible designator behind. After either,
+ * the lowest free netlist reference can equal an occupied
  * schematicReference, and every subsequent placement of that prefix assembles
  * a duplicate — rejected at commit as INVALID_RESULT with
  * "Duplicate schematic instance reference: <ref>". The user-visible headline
@@ -19,7 +22,7 @@
  */
 import { executeTransaction } from "@icm/edit-engine";
 import type { SchematicEdit } from "@icm/edit-engine";
-import { createEmptyDocument } from "@icm/model";
+import { createEmptyDocument, createEmptyProject } from "@icm/model";
 import type { Instance, SchematicDocument } from "@icm/model";
 import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
@@ -28,6 +31,7 @@ import {
   initialInstanceNetlist,
   nextInstanceDesignator,
 } from "../netlist-export/netlist-authoring";
+import { createSelectionPropertyCommands } from "../properties/selection-property-commands";
 import { defaultRazaviSymbolVariantId } from "../../presentation/razavi-presentation";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
@@ -159,5 +163,60 @@ describe("placement reference allocation", () => {
       result.ok,
       `placement was refused: ${!result.ok ? result.diagnostics[0]?.message : ""}`,
     ).toBe(true);
+  });
+
+  it("places an nmos after the properties panel renumbers a netlist reference", () => {
+    // The GUI's actual domain-splitting entry: the properties panel's
+    // Netlist reference field moves only netlist.reference and leaves the
+    // visible designator behind. Drive the split through the same producer
+    // the panel uses, so this breaks if that producer changes shape.
+    let document = createEmptyDocument("issue-394-gui", "Issue 394 GUI");
+
+    const m1 = assemblePlacedNmos(document, 100, 100);
+    document = transact(document, [{ kind: "add_instance", instance: m1 }]);
+
+    const commands = createSelectionPropertyCommands({
+      project: createEmptyProject("issue-394-gui", "Issue 394 GUI"),
+      document,
+      resolver,
+      selectedInstance: document.instances.find(
+        (instance) => instance.id === "M1",
+      ),
+      selectedInstanceIsMos: true,
+      selectedAnnotation: null,
+      commitStructure: () => false,
+      transact: (edits) => {
+        document = transact(document, [...edits]);
+        return { ok: true };
+      },
+      replaceAnnotationSelection: () => {},
+      setStatus: () => {},
+    });
+    expect(commands.updateSelectedReference("M9")).toBe(true);
+    // The split state the panel leaves behind: label M1, reference M9.
+    const renumbered = document.instances.find(
+      (instance) => instance.id === "M1",
+    );
+    expect(renumbered?.schematicReference).toBe("M1");
+    expect(renumbered?.netlist?.reference).toBe("M9");
+
+    const next = assemblePlacedNmos(document, 200, 100);
+    const result = executeTransaction(
+      document,
+      {
+        transactionId: "ref-alloc-gui-final",
+        documentId: document.id,
+        expectedRevision: document.revision,
+        actor: { kind: "human", id: "test" },
+        edits: [{ kind: "add_instance", instance: next }],
+      },
+      { symbolResolver: resolver },
+    );
+
+    expect(
+      result.ok,
+      `placement was refused: ${!result.ok ? result.diagnostics[0]?.message : ""}`,
+    ).toBe(true);
+    expect(next.schematicReference).toBe("M2");
   });
 });
