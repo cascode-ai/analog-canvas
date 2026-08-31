@@ -125,6 +125,20 @@ export const GALLERY_MAX_DESCRIPTION_LENGTH = 300;
  * campus or office exit spent the allowance for everyone behind it.
  */
 export const GALLERY_DAILY_SUBMISSION_LIMIT = 100;
+/**
+ * Recycle-bin retention. The quota deliberately refunds a withdrawal
+ * (recycling counts as taking work down), which leaves publish->recycle
+ * cycling bounded only by request rate while every cycle stores a full
+ * project_text/svg_text row. The per-account cap closes that
+ * write-amplification channel without touching the quota semantics: from
+ * entry 26 onward net storage growth is zero regardless of cycling rate,
+ * and the rule is one an author can state — the bin holds their 25 most
+ * recent withdrawals. Deliberately no age expiry: a clock destroys work on
+ * a schedule the author cannot reason about, and against the burst threat
+ * it was the weaker half anyway. An author always held the stronger right
+ * of deleting their own entry outright in one step.
+ */
+export const GALLERY_RECYCLED_KEEP_PER_ACCOUNT = 25;
 export const GALLERY_MAX_TAGS = 5;
 export const GALLERY_MAX_TAG_LENGTH = 24;
 /** How many previous states each Gallery entry retains. */
@@ -682,6 +696,7 @@ export class GalleryDO {
         entry.netlistable ?? 0,
         previewRevision,
       );
+      this.sweepRecycledRows(entry.owner_user_id ?? "");
       return { status: "stored" as const };
     });
     if (outcome.status === "rate-limited") {
@@ -975,6 +990,8 @@ export class GalleryDO {
         ...summaryOf(row),
         status: row.status,
         rejectReason: row.reject_reason,
+        // When it was withdrawn. Not a deadline: nothing expires by time.
+        recycledAt: row.recycled_at,
       })),
     });
   }
@@ -1520,12 +1537,17 @@ export class GalleryDO {
         id,
       );
     } else {
-      this.sql.exec(
-        "UPDATE gallery_entries SET status = ?, recycled_at = ? WHERE id = ?",
-        status,
-        status === "recycled" ? at : null,
-        id,
-      );
+      this.state.storage.transactionSync(() => {
+        this.sql.exec(
+          "UPDATE gallery_entries SET status = ?, recycled_at = ? WHERE id = ?",
+          status,
+          status === "recycled" ? at : null,
+          id,
+        );
+        if (status === "recycled") {
+          this.sweepRecycledRows(row.owner_user_id ?? "");
+        }
+      });
     }
     return Response.json({ id, status });
   }
@@ -1569,14 +1591,38 @@ export class GalleryDO {
       return Response.json({ error: "not-recycled" }, { status: 409 });
     }
     this.state.storage.transactionSync(() => {
-      this.sql.exec(
-        "DELETE FROM gallery_entry_versions WHERE entry_id = ?",
-        id,
-      );
-      this.sql.exec("DELETE FROM gallery_likes WHERE entry_id = ?", id);
-      this.sql.exec("DELETE FROM gallery_entries WHERE id = ?", id);
+      this.hardDeleteEntryRows(id);
     });
     return Response.json({ id, deleted: true });
+  }
+
+  /** Remove one entry and everything hanging off it. Callers own the transaction. */
+  private hardDeleteEntryRows(id: string): void {
+    this.sql.exec("DELETE FROM gallery_entry_versions WHERE entry_id = ?", id);
+    this.sql.exec("DELETE FROM gallery_likes WHERE entry_id = ?", id);
+    this.sql.exec("DELETE FROM gallery_entries WHERE id = ?", id);
+  }
+
+  /**
+   * Lazy retention sweep, run inside the submission and recycle write
+   * transactions — no alarms, no scheduled work. Keeps the newest
+   * {@link GALLERY_RECYCLED_KEEP_PER_ACCOUNT} recycled rows for the writing
+   * account; anonymous/legacy rows share one unowned bucket and are exempt
+   * from the cap. The cap is the whole policy — nothing expires by time.
+   */
+  private sweepRecycledRows(ownerUserId: string): void {
+    if (ownerUserId === "") return;
+    const overflow = this.sql
+      .exec<{ id: string }>(
+        `SELECT id FROM gallery_entries
+         WHERE status = 'recycled' AND owner_user_id = ?
+         ORDER BY recycled_at DESC, id DESC
+         LIMIT -1 OFFSET ?`,
+        ownerUserId,
+        GALLERY_RECYCLED_KEEP_PER_ACCOUNT,
+      )
+      .toArray();
+    for (const row of overflow) this.hardDeleteEntryRows(row.id);
   }
 
   private recycled(): Response {
