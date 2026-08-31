@@ -124,4 +124,40 @@ describe("placement reference allocation", () => {
       `placement was refused: ${!result.ok ? result.diagnostics[0]?.message : ""}`,
     ).toBe(true);
   });
+
+  it("places an nmos after a rename alone parts the domains — no delete needed", () => {
+    let document = createEmptyDocument("issue-394-rename", "Issue 394 rename");
+
+    // Place M1, then rename its visible designator to "M2". The rename is
+    // valid — no other instance shows M2 — but netlist.reference stays "M1",
+    // so the allocator's lowest free netlist reference is now "M2": exactly
+    // the designator the canvas already shows.
+    const m1 = assemblePlacedNmos(document, 100, 100);
+    document = transact(document, [{ kind: "add_instance", instance: m1 }]);
+    document = transact(document, [
+      {
+        kind: "set_instance_schematic_reference",
+        instanceId: "M1",
+        reference: "M2",
+      },
+    ]);
+
+    const next = assemblePlacedNmos(document, 200, 100);
+    const result = executeTransaction(
+      document,
+      {
+        transactionId: "ref-alloc-rename-final",
+        documentId: document.id,
+        expectedRevision: document.revision,
+        actor: { kind: "human", id: "test" },
+        edits: [{ kind: "add_instance", instance: next }],
+      },
+      { symbolResolver: resolver },
+    );
+
+    expect(
+      result.ok,
+      `placement was refused: ${!result.ok ? result.diagnostics[0]?.message : ""}`,
+    ).toBe(true);
+  });
 });
