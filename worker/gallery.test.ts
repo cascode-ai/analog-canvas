@@ -3190,24 +3190,7 @@ describe("recycle bin retention", () => {
     expect(remaining.at(-1)).toBe("bin-26");
   });
 
-  it("expires recycled rows past the retention window, any account", async () => {
-    const env = environment();
-    seedRecycled(env, "bin-old", "someone", "2026-07-01T00:00:00.000Z");
-    seedRecycled(env, "bin-young", "someone", "2026-08-29T00:00:00.000Z");
-    seedRecycled(env, "bin-legacy", "", "2026-06-01T00:00:00.000Z");
-    expect(await submitFor(env, "someone", "2026-08-31")).toBe(200);
-    const all = env.gallerySql
-      .exec<{ id: string }>(
-        "SELECT id FROM gallery_entries WHERE status = 'recycled'",
-      )
-      .toArray()
-      .map((row) => row.id);
-    expect(all).not.toContain("bin-old");
-    expect(all).not.toContain("bin-legacy");
-    expect(all).toContain("bin-young");
-  });
-
-  it("leaves an anonymous-owner backlog alone below the age window", async () => {
+  it("leaves an anonymous-owner backlog alone, the cap being per account", async () => {
     const env = environment();
     for (let index = 0; index < 30; index += 1) {
       seedRecycled(
@@ -3224,12 +3207,12 @@ describe("recycle bin retention", () => {
          WHERE status = 'recycled' AND owner_user_id = ''`,
       )
       .one().count;
-    // No per-account cap for the anonymous bucket - only age expiry applies,
-    // and none of these rows is old enough.
+    // The anonymous bucket is cap-exempt: these rows have no account whose
+    // newest 25 could be identified, so nothing evicts them.
     expect(legacy).toBe(30);
   });
 
-  it("reports the retention deadline to the author's submissions view", async () => {
+  it("tells the author when an entry was withdrawn, not when it dies", async () => {
     const env = environment();
     seedRecycled(env, "bin-mine", "author", "2026-08-30T12:00:00.000Z");
     const response = await env.GALLERY.getByName("gallery").fetch(

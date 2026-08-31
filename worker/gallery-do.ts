@@ -990,7 +990,7 @@ export class GalleryDO {
         ...summaryOf(row),
         status: row.status,
         rejectReason: row.reject_reason,
-        // The author's bin view shows when a withdrawn entry will expire.
+        // When it was withdrawn. Not a deadline: nothing expires by time.
         recycledAt: row.recycled_at,
       })),
     });

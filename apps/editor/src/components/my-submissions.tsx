@@ -35,6 +35,18 @@ export interface MineEntry {
  */
 export const RECYCLED_KEEP_COUNT = 25;
 
+/**
+ * What a withdrawn entry's card says about how long it stays in the bin. The
+ * answer is not a date, so the sentence names the rule that decides it: newer
+ * withdrawals are what push an entry out, and nothing else does.
+ */
+export function recycledRetentionNote(wasRejected: boolean): string {
+  const lead = wasRejected
+    ? "Removed after rejection. Only the Owner can restore it."
+    : "Not shown in the Gallery. Restore republishes it.";
+  return `${lead} Kept while it is among your ${RECYCLED_KEEP_COUNT} most recent withdrawals.`;
+}
+
 type MineState =
   | { status: "loading" }
   | { status: "signed-out" }
@@ -306,10 +318,7 @@ export function MySubmissions() {
                   ) : null}
                   {entry.status === "recycled" ? (
                     <p className="mine-reason">
-                      {entry.rejectReason
-                        ? "Removed after rejection. Only the Owner can restore it."
-                        : "Not shown in the Gallery. Restore republishes it."}
-                      {` Kept while it is among your ${RECYCLED_KEEP_COUNT} most recent withdrawals.`}
+                      {recycledRetentionNote(Boolean(entry.rejectReason))}
                     </p>
                   ) : null}
                 </div>
