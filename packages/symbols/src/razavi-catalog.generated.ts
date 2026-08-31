@@ -1647,6 +1647,40 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       converterVersion: 1,
     },
   },
+  {
+    symbolId: "adc",
+    name: "Analog-to-Digital Converter",
+    category: "analog-block",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "The reference draws converter internals, never a block standing for one on a sheet. Drawn here as the arrow a data path is read through.",
+    pinOrder: ["IN", "OUT"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "A converter block stands for a subsystem; SPICE has no primitive for one.",
+    assetPath: "adc.symbol.json",
+    assetHash:
+      "27855e5142d4ae54d83562ac76952e98ba1d4234c188801a73efc8358a4ae09c",
+  },
+  {
+    symbolId: "dac",
+    name: "Digital-to-Analog Converter",
+    category: "analog-block",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "The reference draws converter internals, never a block standing for one on a sheet. Drawn here as the ADC's mirror so a signal chain reads in both directions.",
+    pinOrder: ["IN", "OUT"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "A converter block stands for a subsystem; SPICE has no primitive for one.",
+    assetPath: "dac.symbol.json",
+    assetHash:
+      "4be7f9a855d6055575402bd783a27e10152097b1a85c31e487479ed4612b8d16",
+  },
 ];
 
 export const razaviSemanticPrimitives: readonly RazaviSemanticPrimitiveEntry[] =
@@ -9448,5 +9482,235 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       },
     ],
     variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "adc",
+    name: "Analog-to-Digital Converter",
+    viewBox: {
+      x: -34,
+      y: -19,
+      width: 68,
+      height: 38,
+    },
+    pins: [
+      {
+        name: "IN",
+        role: "input",
+        at: {
+          x: -30,
+          y: 0,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 5,
+        },
+      },
+      {
+        name: "OUT",
+        role: "output",
+        at: {
+          x: 30,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 5,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: 0,
+        },
+        to: {
+          x: -25,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polygon",
+        points: [
+          {
+            x: 25,
+            y: -15,
+          },
+          {
+            x: -15,
+            y: -15,
+          },
+          {
+            x: -25,
+            y: 0,
+          },
+          {
+            x: -15,
+            y: 15,
+          },
+          {
+            x: 25,
+            y: 15,
+          },
+        ],
+        fill: "none",
+        stroke: "foreground",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 25,
+          y: 0,
+        },
+        to: {
+          x: 30,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [],
+    formulaPresentation: {
+      defaultFormula: "ADC",
+      supportsCoefficient: false,
+      center: {
+        x: 2.41,
+        y: 0,
+      },
+      fontSize: 12,
+    },
+  },
+  {
+    schemaVersion: 1,
+    id: "dac",
+    name: "Digital-to-Analog Converter",
+    viewBox: {
+      x: -34,
+      y: -19,
+      width: 68,
+      height: 38,
+    },
+    pins: [
+      {
+        name: "IN",
+        role: "input",
+        at: {
+          x: -30,
+          y: 0,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 5,
+        },
+      },
+      {
+        name: "OUT",
+        role: "output",
+        at: {
+          x: 30,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 5,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: 0,
+        },
+        to: {
+          x: -25,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polygon",
+        points: [
+          {
+            x: -25,
+            y: -15,
+          },
+          {
+            x: 15,
+            y: -15,
+          },
+          {
+            x: 25,
+            y: 0,
+          },
+          {
+            x: 15,
+            y: 15,
+          },
+          {
+            x: -25,
+            y: 15,
+          },
+        ],
+        fill: "none",
+        stroke: "foreground",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 25,
+          y: 0,
+        },
+        to: {
+          x: 30,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [],
+    formulaPresentation: {
+      defaultFormula: "DAC",
+      supportsCoefficient: false,
+      center: {
+        x: -2.41,
+        y: 0,
+      },
+      fontSize: 12,
+    },
   },
 ];

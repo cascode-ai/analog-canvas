@@ -69,6 +69,8 @@ export function symbolCategory(symbolId: string): string {
   }
   if (
     [
+      "adc",
+      "dac",
       "opamp",
       "opamp-lettered",
       "voltage-amplifier-lettered",
