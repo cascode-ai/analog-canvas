@@ -1,4 +1,4 @@
-import type { SchematicDocument } from "@icm/model";
+import { routeEndpoints, type SchematicDocument } from "@icm/model";
 import {
   deriveElectricalTopologyProjection,
   endpointKey,
@@ -395,11 +395,33 @@ export function expectedElectricalEffectForOperation(
   edits: readonly SchematicEdit[],
 ): ExpectedElectricalEffect {
   if (intent === "connect" || intent === "attach-to-route") {
-    const groups = edits.flatMap((edit) =>
-      edit.kind === "connect_endpoints"
-        ? [[endpointKey(edit.from), endpointKey(edit.to)]]
-        : [],
-    );
+    const groups = edits.flatMap((edit) => {
+      if (edit.kind === "connect_endpoints") {
+        return [[endpointKey(edit.from), endpointKey(edit.to)]];
+      }
+      // Attaching an endpoint to a Route is the other way this operation
+      // joins Nets: the endpoint becomes the common node of the two Route
+      // halves, so it ends up sharing that conductor's Net. Deriving merge
+      // only from connect_endpoints left every attach declaring "preserve"
+      // while performing a join, and the gate refused the gesture — a pin
+      // dragged onto a wire simply would not land.
+      if (edit.kind === "attach_endpoint_to_route") {
+        const route = document.routes.find(
+          (candidate) => candidate.id === edit.routeId,
+        );
+        return route
+          ? [
+              [
+                endpointKey(edit.endpoint),
+                ...routeEndpoints(route).map((endpoint) =>
+                  endpointKey(endpoint),
+                ),
+              ],
+            ]
+          : [];
+      }
+      return [];
+    });
     return groups.length > 0
       ? { kind: "merge", endpointGroups: groups }
       : { kind: "preserve", endpointKeys: existingEndpointKeys(document) };
