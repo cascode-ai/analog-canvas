@@ -117,3 +117,107 @@ test("middle click cycles the wire corner and never commits the wire", async ({
   await destination.click();
   await expect(page.locator('[data-canvas-hit-kind="route"]')).toHaveCount(1);
 });
+
+test("dragging a wire's end onto another wire joins them into one net", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  const canvas = page.getByTestId("schematic-canvas");
+
+  // A horizontal wire, then a separate vertical one clear above it. A wire
+  // drawn on free grid points finishes on Enter, not on the second click.
+  await canvas.click({ position: { x: 600, y: 500 } });
+  await page.keyboard.press("w");
+  await canvas.click({ position: { x: 240, y: 320 } });
+  await canvas.click({ position: { x: 480, y: 320 } });
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("w");
+  await canvas.click({ position: { x: 360, y: 160 } });
+  await canvas.click({ position: { x: 360, y: 240 } });
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Escape");
+  await expect(page.locator('[data-canvas-hit-kind="route"]')).toHaveCount(2);
+  await expect(page.getByTestId("statusbar-issues")).toHaveText("No issues");
+
+  // Drag the vertical wire down so its lower end comes to rest on the
+  // horizontal one. This is the gesture that used to leave two nets touching
+  // at a point, with an ambiguous-junction error the author could not clear.
+  // The travel is measured from what is actually rendered rather than assumed
+  // from the click coordinates, so page scale cannot leave the end just shy.
+  const routes = page.locator('[data-canvas-hit-kind="route"]');
+  const drawn = await routes.evaluateAll((elements) =>
+    elements.map((element) => {
+      const points = (element.getAttribute("points") ?? "")
+        .trim()
+        .split(/\s+/u)
+        .map((pair) => pair.split(",").map(Number));
+      const xs = points.map((point) => point[0]!);
+      const ys = points.map((point) => point[1]!);
+      return {
+        minX: Math.min(...xs),
+        maxX: Math.max(...xs),
+        minY: Math.min(...ys),
+        maxY: Math.max(...ys),
+      };
+    }),
+  );
+  const horizontal = drawn.find((route) => route.maxX - route.minX > 0)!;
+  const vertical = drawn.find((route) => route.maxY - route.minY > 0)!;
+  // Drawn coordinates are document units; the drag is in screen pixels, so
+  // derive the scale from a span that is known in both.
+  const horizontalBox = (await routes
+    .nth(drawn.indexOf(horizontal))
+    .boundingBox())!;
+  const verticalBox = (await routes
+    .nth(drawn.indexOf(vertical))
+    .boundingBox())!;
+  const scale = horizontalBox.width / (horizontal.maxX - horizontal.minX);
+  const travel = (horizontal.minY - vertical.maxY) * scale;
+  const grabX = verticalBox.x + verticalBox.width / 2;
+  const grabY = verticalBox.y + verticalBox.height / 2;
+  await page.mouse.move(grabX, grabY);
+  await page.mouse.down();
+  await page.mouse.move(grabX, grabY + travel / 2, { steps: 6 });
+  await page.mouse.move(grabX, grabY + travel, { steps: 6 });
+  await page.mouse.up();
+
+  // The landing tapped the horizontal wire: it splits, and a junction dot
+  // marks the connection — exactly what drawing the same wire would produce.
+  await expect(page.locator('[data-canvas-hit-kind="route"]')).toHaveCount(3);
+  await expect(page.locator('g[data-layer="junctions"] circle')).toHaveCount(1);
+  // Drawing and model agree, so there is nothing ambiguous left to report.
+  await expect(page.getByTestId("statusbar-issues")).toHaveText("No issues");
+});
+
+test("a power rail drawn across the tops of wires connects to them", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  const canvas = page.getByTestId("schematic-canvas");
+  await canvas.click({ position: { x: 600, y: 500 } });
+
+  // Two wires standing side by side with their upper ends level.
+  for (const x of [300, 460]) {
+    await page.keyboard.press("w");
+    await canvas.click({ position: { x, y: 400 } });
+    await canvas.click({ position: { x, y: 280 } });
+    await page.keyboard.press("Enter");
+    await page.keyboard.press("Escape");
+  }
+  await expect(page.locator('[data-canvas-hit-kind="route"]')).toHaveCount(2);
+
+  // A VDD rail laid across both tops. This used to refuse outright with
+  // "That edit would have changed which Nets these objects belong to" — the
+  // mirror of the rail-end-on-wire case, and just as deliberate a gesture.
+  await chooseComponent(page, "vdd");
+  await canvas.click({ position: { x: 240, y: 280 } });
+  await canvas.click({ position: { x: 520, y: 280 } });
+
+  await expect(page.getByTestId("status")).toContainText("Added VDD rail");
+  // The rail tapped both wires on the way across, so it arrives split into
+  // three pieces — two wires plus three rail segments — rather than lying
+  // over them as one unconnected conductor.
+  await expect(page.locator('[data-canvas-hit-kind="route"]')).toHaveCount(5);
+  await expect(page.getByTestId("statusbar-issues")).toHaveText("No issues");
+});
