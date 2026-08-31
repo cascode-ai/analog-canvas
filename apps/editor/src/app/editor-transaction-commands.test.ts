@@ -2,7 +2,10 @@ import { createEmptyProject } from "@icm/model";
 import { describe, expect, it, vi } from "vitest";
 
 import type { InteractionMode } from "../interaction/interaction-state";
-import { createEditorTransactionCommands } from "./editor-transaction-commands";
+import {
+  createEditorTransactionCommands,
+  plainRoutingRefusal,
+} from "./editor-transaction-commands";
 
 function dependencies() {
   const project = createEmptyProject("project", "Project");
@@ -111,6 +114,31 @@ describe("editor transaction commands", () => {
     expect(input.cancelAllTransientInteraction).toHaveBeenCalledOnce();
     expect(input.setStatus).toHaveBeenCalledWith(
       "INTERNAL_ERROR: wrapper failed — operation cancelled; circuit unchanged",
+    );
+  });
+});
+
+describe("routing refusals shown to a person", () => {
+  it("restates electrical invariants as what the drawing refused to do", () => {
+    const preserve = plainRoutingRefusal(
+      "Routing operation changed endpoint Net membership outside a preserve effect",
+    );
+    // The invariant's own vocabulary never survives to the status bar.
+    expect(preserve).not.toContain("preserve effect");
+    expect(preserve).not.toContain("endpoint Net membership");
+    expect(preserve).toContain("Nets");
+    expect(
+      plainRoutingRefusal("Routing merge did not join endpoint group a, b"),
+    ).not.toContain("endpoint group");
+    expect(
+      plainRoutingRefusal("Routing partition retained a Route declared as cut"),
+    ).not.toContain("partition");
+  });
+
+  it("passes an unrecognized refusal through unchanged", () => {
+    // An honest technical sentence beats a vague friendly one.
+    expect(plainRoutingRefusal("Route route-1 contains a locked segment")).toBe(
+      "Route route-1 contains a locked segment",
     );
   });
 });

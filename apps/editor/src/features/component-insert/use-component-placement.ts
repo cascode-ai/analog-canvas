@@ -617,19 +617,29 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
     while (idsExist(`VDD${sequence}`)) sequence += 1;
     const instanceId = `VDD${sequence}`;
     const routeId = `route-${instanceId.toLowerCase()}-rail`;
-    const railPlan = planVddRailEdits(options.document, {
-      instanceId,
-      start,
-      end,
-      netName: options.vddRailNetName ?? "VDD",
-    });
+    const railPlan = planVddRailEdits(
+      options.document,
+      {
+        instanceId,
+        start,
+        end,
+        netName: options.vddRailNetName ?? "VDD",
+      },
+      options.resolver,
+    );
     if (!railPlan.ok) {
       options.setStatus(
         `Cannot add ${options.vddRailNetName ?? "VDD"} rail: ${railPlan.message}`,
       );
       return;
     }
-    const result = options.transactConnectivity("connect", [...railPlan.edits]);
+    const result = options.transactConnectivity(
+      "connect",
+      [...railPlan.edits],
+      railPlan.expectedElectricalEffect
+        ? { expectedElectricalEffect: railPlan.expectedElectricalEffect }
+        : {},
+    );
     if (!result?.ok) return;
     options.selectOnly("route", [routeId]);
     options.completeVddRailPlacement();

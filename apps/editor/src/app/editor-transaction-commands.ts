@@ -45,6 +45,30 @@ export interface EditorTransactionCommandDependencies {
  * boundary owns only transaction envelopes, status messages, connectivity
  * gating, and the rule that an unrelated commit cancels a transient tool.
  */
+/**
+ * Restate an electrical-invariant refusal in the words of the drawing.
+ *
+ * The routing gate names the invariant it defends ("outside a preserve
+ * effect"), which is the right vocabulary for a planner and the wrong one for
+ * the person holding the mouse. Unknown refusals pass through unchanged: an
+ * honest technical sentence beats a vague friendly one.
+ */
+export function plainRoutingRefusal(message: string): string {
+  if (message.includes("outside a preserve effect")) {
+    return "That edit would have changed which Nets these objects belong to, so it was not applied. Connect them explicitly — end a wire on the conductor, or give both the same Net Label.";
+  }
+  if (message.includes("Routing merge did not join")) {
+    return "The objects this edit should have connected did not end up on one Net, so it was not applied.";
+  }
+  if (message.includes("Routing partition retained")) {
+    return "The conductor this edit should have cut is still whole, so it was not applied.";
+  }
+  if (message.includes("Routing removal retained")) {
+    return "Something this edit should have removed is still connected, so it was not applied.";
+  }
+  return message;
+}
+
 export function createEditorTransactionCommands({
   project,
   document,
@@ -160,13 +184,16 @@ export function createEditorTransactionCommands({
     if (!gate.ok) {
       // Say which rule refused, the way applyResult does for direct edits:
       // the headline alone ("Transaction result failed Document validation")
-      // names no field and leaves nothing to report or fix.
+      // names no field and leaves nothing to report or fix. The electrical
+      // invariants speak in their own vocabulary, though, and a person who
+      // just drew a wire cannot act on "outside a preserve effect" — those
+      // are restated as what the editor refused to do to their circuit.
       const detail = gate.diagnostics[0]?.message;
-      setStatus(
+      const raw =
         detail && detail !== gate.message
           ? `${gate.message} — ${detail}`
-          : gate.message,
-      );
+          : gate.message;
+      setStatus(plainRoutingRefusal(raw));
       return null;
     }
     return transact([...gate.edits], options);

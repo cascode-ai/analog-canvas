@@ -712,6 +712,30 @@ test("constructs VDD as a drawn dotless power rail", async ({ page }) => {
   await expect(canvas.getByText("VDD", { exact: true })).toHaveCount(0);
 });
 
+test("a rail ending on a wire joins it, and says so in plain words", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  // One horizontal wire out of a resistor pin, drawn the ordinary way.
+  await placeComponent(page, "resistor", { x: 300, y: 200 });
+  await clickDrawTool(page, "wire");
+  await page.getByTestId("terminal-R1-2").click();
+  const canvas = page.getByTestId("schematic-canvas");
+  await canvas.dblclick({ position: { x: 600, y: 300 } });
+  await page.keyboard.press("Escape");
+  await expect(page.locator('[data-layer="routes"] polyline')).toHaveCount(1);
+
+  // A rail drawn down onto that wire ENDS on it, which connects — the same
+  // gesture as dropping a pin on a wire. It used to be refused with the
+  // routing gate's own vocabulary.
+  await page.getByTestId("shapes-chip-vdd").click();
+  await canvas.click({ position: { x: 500, y: 180 } });
+  await canvas.click({ position: { x: 500, y: 300 } });
+  await expect(page.getByTestId("status")).toContainText("Added VDD rail");
+  await expect(page.getByTestId("status")).not.toContainText("preserve effect");
+  await expect(page.getByTestId("route-hit-route-vdd1-rail")).toHaveCount(1);
+});
+
 test("keeps a tapped VDD rail movable and stretchable as one supply bar", async ({
   page,
 }) => {

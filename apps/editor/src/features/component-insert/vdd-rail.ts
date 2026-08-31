@@ -1,6 +1,17 @@
-import type { SchematicEdit } from "@icm/edit-engine";
-import { resolveDocumentLogicalNets } from "@icm/derived";
-import { foldNetName, type Point, type SchematicDocument } from "@icm/model";
+import type { ExpectedElectricalEffect, SchematicEdit } from "@icm/edit-engine";
+import {
+  endpointKey,
+  findRouteSegmentsAtPoint,
+  resolveDocumentLogicalNets,
+  resolveDocumentRoutingGeometry,
+} from "@icm/derived";
+import {
+  foldNetName,
+  routeEnd,
+  type Point,
+  type SchematicDocument,
+} from "@icm/model";
+import type { SymbolResolver } from "@icm/symbols";
 
 import { planInitialMosBulkDefault } from "./mos-bulk-defaults";
 
@@ -14,8 +25,60 @@ export interface VddRailConstruction {
 }
 
 export type VddRailPlan =
-  | { ok: true; netId: string; edits: readonly SchematicEdit[] }
+  | {
+      ok: true;
+      netId: string;
+      edits: readonly SchematicEdit[];
+      /**
+       * Present only when an end of the rail lands on an existing conductor,
+       * which is the one case where placing a rail joins two Base Nets.
+       */
+      expectedElectricalEffect?: ExpectedElectricalEffect;
+    }
   | { ok: false; message: string };
+
+/**
+ * The Net merges a drawn rail performs, declared from geometry.
+ *
+ * A rail END that lands on an existing conductor connects to it, exactly as a
+ * pin dropped on a wire does. A rail that merely CROSSES a wire touches it at
+ * an interior point of both and connects nothing — the crossing invariant —
+ * so only the two rail ends are considered, and each is paired with the
+ * conductor it terminates on. Without this declaration the operation reads as
+ * "preserve" and the routing gate refuses the very connection the gesture
+ * asked for.
+ */
+function railEndpointMergeEffect(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  construction: { start: Point; end: Point },
+  junctionIds: { startJunctionId: string; endJunctionId: string },
+): ExpectedElectricalEffect | undefined {
+  const geometry = resolveDocumentRoutingGeometry(document, resolver);
+  const groups = (
+    [
+      [construction.start, junctionIds.startJunctionId],
+      [construction.end, junctionIds.endJunctionId],
+    ] as const
+  ).flatMap(([point, junctionId]) => {
+    const partners = findRouteSegmentsAtPoint(geometry, point).flatMap(
+      (address) => {
+        const route = document.routes.find(
+          (candidate) => candidate.id === address.routeId,
+        );
+        return route
+          ? [endpointKey(route.start), endpointKey(routeEnd(route))]
+          : [];
+      },
+    );
+    return partners.length > 0
+      ? [[endpointKey({ kind: "junction", junctionId }), ...new Set(partners)]]
+      : [];
+  });
+  return groups.length > 0
+    ? { kind: "merge", endpointGroups: groups }
+    : undefined;
+}
 
 /**
  * Constrain a snapped pointer to one straight Power Rail axis. The dominant
@@ -71,6 +134,7 @@ export function constructVddRailEdits({
 export function planVddRailEdits(
   document: SchematicDocument,
   construction: VddRailConstruction,
+  resolver?: SymbolResolver,
 ): VddRailPlan {
   const netName = construction.netName?.trim() || "VDD";
   const requested = construction.netId
@@ -101,9 +165,17 @@ export function planVddRailEdits(
   }
   const netId =
     target?.id ?? `net-power-${construction.instanceId.toLowerCase()}`;
+  const key = construction.instanceId.toLowerCase();
+  const mergeEffect = resolver
+    ? railEndpointMergeEffect(document, resolver, construction, {
+        startJunctionId: `junction-${key}-start`,
+        endJunctionId: `junction-${key}-end`,
+      })
+    : undefined;
   return {
     ok: true,
     netId,
+    ...(mergeEffect ? { expectedElectricalEffect: mergeEffect } : {}),
     edits: [
       ...constructVddRailEdits({
         ...construction,

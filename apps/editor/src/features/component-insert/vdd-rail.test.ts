@@ -1,13 +1,19 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import {
   createRoutingOperationPlan,
   evaluateRoutingOperationPlan,
+  gateRoutingOperationPlan,
   executeTransaction,
   proposeVisualRouteDeletion,
 } from "@icm/edit-engine";
 import { resolveDocumentLogicalNets } from "@icm/derived";
-import { createEmptyDocument } from "@icm/model";
+import { createEmptyDocument, createRoutePath } from "@icm/model";
+import type { SchematicDocument } from "@icm/model";
+import { parseProject } from "@icm/project-protocol";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 
 import {
@@ -343,5 +349,137 @@ describe("drawn VDD rail construction", () => {
         { kind: "reconcile_mos_bulk" },
       ],
     });
+  });
+});
+
+describe("a drawn rail meeting an existing wire", () => {
+  /**
+   * The routing fixture's ports, repositioned so route-h spans exactly
+   * (0,300) → (110,300): an ordinary conductor with real pin endpoints.
+   */
+  function documentWithWire(): SchematicDocument {
+    const document = parseProject(
+      readFileSync(
+        resolve(
+          process.cwd(),
+          "fixtures/projects/phase-3-routing/project.icproj.json",
+        ),
+        "utf8",
+      ),
+    ).documents[0]!;
+    document.instances.find((instance) => instance.id === "A")!.placement = {
+      position: { x: -10, y: 300 },
+      rotation: 0,
+      mirror: "none",
+    };
+    document.instances.find((instance) => instance.id === "B")!.placement = {
+      position: { x: 120, y: 300 },
+      rotation: 0,
+      mirror: "x",
+    };
+    const wired = executeTransaction(
+      document,
+      {
+        transactionId: "seed-route",
+        documentId: document.id,
+        expectedRevision: 0,
+        actor: { kind: "human", id: "test" },
+        edits: [
+          {
+            kind: "set_route_path",
+            route: createRoutePath({
+              id: "route-h",
+              netId: "net-h",
+              start: { kind: "terminal", instanceId: "A", pinName: "P" },
+              end: { kind: "terminal", instanceId: "B", pinName: "P" },
+              bends: [],
+              modes: ["manual"],
+            }),
+          },
+        ],
+      },
+      { symbolResolver: resolver },
+    );
+    if (!wired.ok) throw new Error(wired.error.message);
+    return wired.document;
+  }
+
+  /** Drive the rail exactly as the editor does: plan, gate, then commit. */
+  function drawRail(
+    document: SchematicDocument,
+    start: { x: number; y: number },
+    end: { x: number; y: number },
+  ) {
+    const plan = planVddRailEdits(
+      document,
+      { instanceId: "VDD1", start, end },
+      resolver,
+    );
+    if (!plan.ok) throw new Error(plan.message);
+    const operation = createRoutingOperationPlan(document, {
+      intent: "connect",
+      diagnostics: [],
+      edits: plan.edits,
+      ...(plan.expectedElectricalEffect
+        ? { expectedElectricalEffect: plan.expectedElectricalEffect }
+        : {}),
+    });
+    const evaluated = gateRoutingOperationPlan(document, operation, {
+      symbolResolver: resolver,
+    });
+    if (!evaluated.ok) return { gate: evaluated, document: null };
+    const result = executeTransaction(
+      document,
+      {
+        transactionId: "draw-rail",
+        documentId: document.id,
+        expectedRevision: document.revision,
+        actor: { kind: "human", id: "test" },
+        edits: [...evaluated.edits],
+      },
+      { symbolResolver: resolver },
+    );
+    if (!result.ok) throw new Error(result.error.message);
+    return { gate: evaluated, document: result.document };
+  }
+
+  const wireNetId = (document: SchematicDocument) =>
+    document.nets.find((net) =>
+      net.terminals.some((terminal) => terminal.instanceId === "A"),
+    )?.id;
+
+  it("connects when the rail ENDPOINT lands on the wire", () => {
+    // The rail runs down from above and stops exactly on the wire.
+    const { gate, document } = drawRail(
+      documentWithWire(),
+      { x: 50, y: 200 },
+      { x: 50, y: 300 },
+    );
+    expect(gate.ok).toBe(true);
+    if (!document) return;
+    const railEnd = document.junctions.find(
+      (junction) => junction.id === "junction-vdd1-end",
+    );
+    expect(railEnd).toBeDefined();
+    // One conductor family: the wire's pins and the rail's endpoint share a
+    // Base Net, exactly as a pin dropped onto a wire does.
+    expect(railEnd!.netId).toBe(wireNetId(document));
+  });
+
+  it("keeps a rail that CROSSES the wire electrically separate", () => {
+    // Same gesture, but the rail passes through and continues below: a
+    // crossing is not a connection and must never become one.
+    const { gate, document } = drawRail(
+      documentWithWire(),
+      { x: 50, y: 200 },
+      { x: 50, y: 400 },
+    );
+    expect(gate.ok).toBe(true);
+    if (!document) return;
+    const railEnd = document.junctions.find(
+      (junction) => junction.id === "junction-vdd1-end",
+    );
+    expect(railEnd!.netId).toBe("net-power-vdd1");
+    expect(railEnd!.netId).not.toBe(wireNetId(document));
   });
 });
