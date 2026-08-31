@@ -73,8 +73,12 @@ test("shows the hierarchy row only once there is a hierarchy", async ({
   // A flat Project has nothing to navigate, so the row stays out of the way
   // and the first Cell is created from Edit.
   const toolbar = page.locator('.toolbar-row[aria-label="Document hierarchy"]');
+  // A negative count can succeed before the code-split editor route mounts.
+  // Use the always-present Edit command as the positive startup anchor first.
+  await expect(page.getByTestId("edit-manage-cells")).toHaveCount(1, {
+    timeout: 15_000,
+  });
   await expect(toolbar).toHaveCount(0);
-  await expect(page.getByTestId("edit-manage-cells")).toHaveCount(1);
 
   await createCell(page, "FirstStage");
   await expect(toolbar).toHaveCount(1);
