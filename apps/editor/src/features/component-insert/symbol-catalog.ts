@@ -70,6 +70,8 @@ export function symbolCategory(symbolId: string): string {
   if (
     [
       "opamp",
+      "opamp-lettered",
+      "voltage-amplifier-lettered",
       "opamp-differential",
       "opamp-differential-crossed",
       "voltage-amplifier",

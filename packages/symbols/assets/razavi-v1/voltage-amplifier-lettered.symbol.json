@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 1,
+  "id": "voltage-amplifier-lettered",
+  "name": "Voltage Amplifier (lettered)",
+  "viewBox": {
+    "x": -44,
+    "y": -28,
+    "width": 88,
+    "height": 56
+  },
+  "pins": [
+    {
+      "name": "IN",
+      "role": "input",
+      "at": {
+        "x": -40,
+        "y": 0
+      },
+      "direction": "west",
+      "presentation": {
+        "visibility": "visible",
+        "leadLength": 20
+      }
+    },
+    {
+      "name": "OUT",
+      "role": "output",
+      "at": {
+        "x": 40,
+        "y": 0
+      },
+      "direction": "east",
+      "presentation": {
+        "visibility": "visible",
+        "leadLength": 20
+      }
+    }
+  ],
+  "primitives": [
+    {
+      "kind": "line",
+      "from": {
+        "x": -40,
+        "y": 0
+      },
+      "to": {
+        "x": -23.63,
+        "y": 0
+      },
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "butt",
+        "lineJoin": "miter"
+      }
+    },
+    {
+      "kind": "path",
+      "data": "M -23.63 -28.62 L -23.63 28.62 L 23.63 0 Z",
+      "style": {
+        "strokeRole": "emphasis",
+        "lineCap": "butt",
+        "lineJoin": "miter"
+      }
+    },
+    {
+      "kind": "line",
+      "from": {
+        "x": 23.63,
+        "y": 0
+      },
+      "to": {
+        "x": 40,
+        "y": 0
+      },
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "butt",
+        "lineJoin": "miter"
+      }
+    }
+  ],
+  "variants": [],
+  "formulaPresentation": {
+    "defaultFormula": "A",
+    "supportsCoefficient": false,
+    "center": {
+      "x": -7.88,
+      "y": 0
+    },
+    "fontSize": 16
+  }
+}

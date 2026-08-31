@@ -185,6 +185,8 @@ describe("Razavi symbol catalog", () => {
       ["nor-gate", "reviewed", "razavi-reference-v1"],
       ["npn", "reviewed", "razavi-reference-v1"],
       ["opamp", "reviewed", "razavi-reference-v1"],
+      ["opamp-lettered", "reviewed", "razavi-reference-v1"],
+      ["opamp-lettered-inputs-swapped", "reviewed", "razavi-reference-v1"],
       ["opamp-inputs-swapped", "reviewed", "razavi-reference-v1"],
       ["opamp-differential", "reviewed", "razavi-reference-v1"],
       ["opamp-differential-inputs-swapped", "reviewed", "razavi-reference-v1"],
@@ -207,6 +209,7 @@ describe("Razavi symbol catalog", () => {
       ["variable-resistor", "reviewed", "razavi-reference-v1"],
       ["vdd-port", "reviewed", "razavi-reference-v1"],
       ["voltage-amplifier", "reviewed", "razavi-reference-v1"],
+      ["voltage-amplifier-lettered", "reviewed", "razavi-reference-v1"],
       ["pulse-voltage-source", "reviewed", "razavi-reference-v1"],
       ["voltage-controlled-switch", "reviewed", "house"],
       ["voltage-source", "reviewed", "razavi-reference-v1"],
@@ -555,7 +558,7 @@ describe("Razavi symbol catalog", () => {
   });
 
   it("uses reviewed catalog objects as the sole built-in product library", () => {
-    expect(razaviCatalogSymbols).toHaveLength(53);
+    expect(razaviCatalogSymbols).toHaveLength(56);
     for (const catalogSymbol of razaviProductSymbols) {
       expect(
         builtInSymbols.find((symbol) => symbol.id === catalogSymbol.id),
@@ -595,6 +598,7 @@ describe("Razavi symbol catalog", () => {
       "nor-gate",
       "npn",
       "opamp",
+      "opamp-lettered",
       "opamp-differential",
       "or-gate",
       "pmos",
@@ -609,6 +613,7 @@ describe("Razavi symbol catalog", () => {
       "variable-resistor",
       "vdd-port",
       "voltage-amplifier",
+      "voltage-amplifier-lettered",
       "pulse-voltage-source",
       "voltage-controlled-switch",
       "voltage-source",
@@ -864,6 +869,7 @@ describe("Razavi symbol catalog", () => {
       "npn",
       "pnp",
       "voltage-amplifier",
+      "voltage-amplifier-lettered",
       "port",
       "port-filled",
       "ground",

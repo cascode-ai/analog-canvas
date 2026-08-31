@@ -720,6 +720,60 @@
       }
     },
     {
+      "symbolId": "opamp-lettered",
+      "name": "Operational Amplifier (lettered)",
+      "category": "analog-block",
+      "reviewStatus": "reviewed",
+      "pinOrder": ["IN+", "IN-", "OUT"],
+      "palette": true,
+      "automaticMappings": [],
+      "manualOnlyReason": "Three-terminal textbook op-amp; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
+      "assetPath": "opamp-lettered.symbol.json",
+      "assetHash": "34cd7cee859a88ae014b847e64fdf13ed99f3627bd63200967169ab362f3c361",
+      "visualAuthority": {
+        "kind": "razavi-reference-v1",
+        "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+        "referencePaths": [
+          "fixtures/visual-reference/razavi-reference-v1/opamp-vector-source.json",
+          "fixtures/visual-reference/razavi-reference-v1/opamp-reference.png"
+        ],
+        "calibrationPath": "fixtures/visual-reference/razavi-reference-v1/opamp-geometry.json"
+      },
+      "generation": {
+        "kind": "derived-lettered-body",
+        "sourceSymbolId": "opamp",
+        "converterPath": "scripts/generate-lettered-amplifiers.mjs",
+        "converterVersion": 1
+      }
+    },
+    {
+      "symbolId": "opamp-lettered-inputs-swapped",
+      "name": "Operational Amplifier (lettered) (swapped inputs)",
+      "category": "analog-block",
+      "reviewStatus": "reviewed",
+      "pinOrder": ["IN+", "IN-", "OUT"],
+      "palette": false,
+      "automaticMappings": [],
+      "manualOnlyReason": "Three-terminal textbook op-amp; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
+      "assetPath": "opamp-lettered-inputs-swapped.symbol.json",
+      "assetHash": "8a838affc0df69edbefa36c4e4e37ed63ab3dd772942f79a801719f3a6de8ae8",
+      "visualAuthority": {
+        "kind": "razavi-reference-v1",
+        "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+        "referencePaths": [
+          "fixtures/visual-reference/razavi-reference-v1/opamp-vector-source.json",
+          "fixtures/visual-reference/razavi-reference-v1/opamp-reference.png"
+        ],
+        "calibrationPath": "fixtures/visual-reference/razavi-reference-v1/opamp-geometry.json"
+      },
+      "generation": {
+        "kind": "derived-input-swap",
+        "sourceSymbolId": "opamp-lettered",
+        "converterPath": "scripts/generate-input-swapped-amplifiers.mjs",
+        "converterVersion": 1
+      }
+    },
+    {
       "symbolId": "opamp-inputs-swapped",
       "name": "Operational Amplifier (swapped inputs)",
       "category": "analog-block",
@@ -1124,6 +1178,33 @@
         "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
         "referencePath": "fixtures/visual-reference/razavi-reference-v1/voltage-amplifier-vector-source.json",
         "converterPath": "scripts/generate-razavi-common-assets.mjs",
+        "converterVersion": 1
+      }
+    },
+    {
+      "symbolId": "voltage-amplifier-lettered",
+      "name": "Voltage Amplifier (lettered)",
+      "category": "analog-block",
+      "reviewStatus": "reviewed",
+      "pinOrder": ["IN", "OUT"],
+      "palette": true,
+      "automaticMappings": [],
+      "manualOnlyReason": "Textbook gain block has implicit reference nodes and no exact primitive SPICE terminal contract.",
+      "assetPath": "voltage-amplifier-lettered.symbol.json",
+      "assetHash": "b243d887263879131fc7c6eefefc8d5f1ecadeb3f11b51541ec7aa133b0e0db9",
+      "visualAuthority": {
+        "kind": "razavi-reference-v1",
+        "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+        "referencePaths": [
+          "fixtures/visual-reference/razavi-reference-v1/voltage-amplifier-vector-source.json",
+          "fixtures/visual-reference/razavi-reference-v1/voltage-amplifier-reference.png"
+        ],
+        "calibrationPath": "fixtures/visual-reference/razavi-reference-v1/common-symbol-geometry.json"
+      },
+      "generation": {
+        "kind": "derived-lettered-body",
+        "sourceSymbolId": "voltage-amplifier",
+        "converterPath": "scripts/generate-lettered-amplifiers.mjs",
         "converterVersion": 1
       }
     },

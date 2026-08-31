@@ -119,8 +119,14 @@ export const SymbolPrimitiveSchema = z.discriminatedUnion("kind", [
 export const SymbolFormulaPresentationSchema = z.strictObject({
   /** Canonical source text used when the instance has no formula override. */
   defaultFormula: z.string().min(1).max(256),
-  /** Whether the editor may prepend an independent coefficient to the formula. */
-  supportsCoefficient: z.literal(true),
+  /**
+   * Whether the editor may prepend an independent coefficient to the formula.
+   * True for the transfer-function blocks, where `k·H(s)` is the notation.
+   * False for a body letter such as an amplifier's gain mark, which names the
+   * stage rather than scaling it: offering a coefficient there would advertise
+   * an operation the drawing does not mean.
+   */
+  supportsCoefficient: z.boolean(),
   /** Symbol-local visual center for the renderer-owned formula. */
   center: SymbolGeometryPointSchema,
   fontSize: z.number().finite().positive(),
@@ -178,9 +184,18 @@ export const SymbolDefinitionSchema = z
     // A derived subcircuit container may legitimately expose an empty formal
     // interface before ports are authored in its child Cell.
     hierarchicalBlock: z.literal(true).optional(),
-    // Formula-capable Signal Flow blocks own only their frame and electrical
-    // pins in primitive geometry. The renderer projects this presentation
-    // contract so instance formula/coefficient edits never change identity.
+    // One editable text inside the body, owned by the Instance. The Symbol
+    // says where it sits and what it says by default; the Instance overrides
+    // the text through `signalFlowParameters.formula`, so two copies of one
+    // part on a sheet read differently without becoming different parts. The
+    // renderer projects it, so an edit never changes Symbol identity.
+    //
+    // Any Symbol may declare it — the Signal Flow blocks named the field and
+    // came first, the lettered amplifiers followed, and a converter block
+    // labelled ADC or DAC needs nothing new. The default is a string, not a
+    // character: declare `defaultFormula: "ADC"`, a `center` in symbol-local
+    // geometry, a `fontSize`, and `supportsCoefficient: false` unless the
+    // text really is a transfer function something may scale.
     formulaPresentation: SymbolFormulaPresentationSchema.optional(),
   })
   .superRefine((symbol, context) => {

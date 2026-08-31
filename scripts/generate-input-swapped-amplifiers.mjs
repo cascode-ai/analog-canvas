@@ -31,6 +31,7 @@ const hash = (value) => createHash("sha256").update(value).digest("hex");
 /** Sources, in catalog order. Each must carry a marked differential pair. */
 const SOURCE_IDS = [
   "opamp",
+  "opamp-lettered",
   "comparator",
   "opamp-differential",
   "opamp-differential-crossed",

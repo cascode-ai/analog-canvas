@@ -55,9 +55,14 @@ export interface RazaviSymbolCatalogEntry {
          * states the one transformation it applies and its `:check` gate
          * keeps the pair from drifting apart. `derived-input-swap` exchanges
          * a marked differential pair; `derived-output-drop` leaves an output
-         * unbrought-out, for a part that exists in both widths.
+         * unbrought-out, for a part that exists in both widths;
+         * `derived-lettered-body` adds the body letter an amplifier is named
+         * by, whose text each Instance then owns.
          */
-        kind: "derived-input-swap" | "derived-output-drop";
+        kind:
+          | "derived-input-swap"
+          | "derived-output-drop"
+          | "derived-lettered-body";
         sourceSymbolId: string;
         converterPath: string;
         converterVersion: number;

@@ -36,11 +36,13 @@ const COMPACT_LIBRARY_LABELS: Readonly<Record<string, string>> = {
   // "Voltage-Controlled Switch" overflows the tile; the SPICE letter is what
   // a reader is looking for anyway.
   "voltage-controlled-switch": "S Switch",
+  "voltage-amplifier-lettered": "V Amp A",
   inductor: "Ind L",
   "inductor-compact": "Ind",
   ndmos: "NDMOS",
   npn: "NPN",
   opamp: "OpAmp",
+  "opamp-lettered": "OpAmp A",
   "opamp-differential": "FD Amp",
   "opamp-differential-crossed": "FD Amp X",
   "and-gate": "AND",
