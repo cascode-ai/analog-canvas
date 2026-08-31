@@ -207,6 +207,8 @@ export function EditorCanvasSurface({
         data-testid="schematic-canvas"
         role="img"
         aria-label="Schematic canvas"
+        aria-keyshortcuts="ArrowLeft ArrowRight ArrowUp ArrowDown"
+        tabIndex={0}
         viewBox={viewBox}
         {...eventHandlers}
       >

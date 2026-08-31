@@ -239,6 +239,23 @@ describe("editor shortcut contract", () => {
     expect(resolve("x")).toBeNull();
   });
 
+  it("maps unmodified arrow keys to camera pan commands", () => {
+    expect(resolve("ArrowLeft")).toEqual(
+      command({ id: "view.pan", direction: "left" }),
+    );
+    expect(resolve("ArrowRight")).toEqual(
+      command({ id: "view.pan", direction: "right" }),
+    );
+    expect(resolve("ArrowUp", { interactionMode: "wire" })).toEqual(
+      command({ id: "view.pan", direction: "up" }),
+    );
+    expect(resolve("ArrowDown", { interactionMode: "drawing" })).toEqual(
+      command({ id: "view.pan", direction: "down" }),
+    );
+    expect(resolve("ArrowLeft", {}, { shiftKey: true })).toBeNull();
+    expect(resolve("ArrowRight", { isTyping: true })).toBeNull();
+  });
+
   it("opens Wire options with F3 only while Wire owns the canvas", () => {
     expect(resolve("F3")).toBeNull();
     expect(resolve("F3", { interactionMode: "wire" })).toEqual({

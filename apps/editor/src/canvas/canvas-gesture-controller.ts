@@ -32,7 +32,9 @@ import { normalizedRect } from "./canvas-geometry";
 import {
   fitCameraToBounds,
   fitCameraToVisibleBounds,
+  panCameraByScreenPixels,
   zoomCameraAtAnchor,
+  type CameraPanDirection,
   type CameraRectInput,
   type CanvasInsets,
 } from "./fit-view";
@@ -40,6 +42,7 @@ import {
 // A stiff middle button drifts under the hand; keep a larger slop than an
 // ordinary drag so a click can still cycle the active wire corner.
 const PAN_START_DISTANCE_PX = 10;
+export const KEYBOARD_PAN_STEP_PX = 48;
 const DRAFTING_SNAP_CAPTURE_RADIUS_PX = 7;
 
 type SetViewBox = (
@@ -282,6 +285,21 @@ export function createCanvasGestureController({
   const zoomViewAtCenter = (factor: number): void => {
     setViewBox((current) =>
       zoomCameraAtAnchor(current, factor, { x: 0.5, y: 0.5 }),
+    );
+  };
+
+  const panView = (direction: CameraPanDirection): void => {
+    const viewport = measureCanvasView?.()?.viewport ?? {
+      width: defaultViewBox.width,
+      height: defaultViewBox.height,
+    };
+    setViewBox((current) =>
+      panCameraByScreenPixels(
+        current,
+        direction,
+        KEYBOARD_PAN_STEP_PX,
+        viewport,
+      ),
     );
   };
 
@@ -602,6 +620,7 @@ export function createCanvasGestureController({
 
   return {
     fitView,
+    panView,
     zoomViewAtCenter,
     handleWheel,
     zoomAtClientPoint,

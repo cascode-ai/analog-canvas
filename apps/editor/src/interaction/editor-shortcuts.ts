@@ -128,6 +128,28 @@ export function resolveEditorShortcut(
     return { kind: "run-command", command: { id: "editor.cancel" } };
   }
 
+  if (
+    !event.ctrlKey &&
+    !event.metaKey &&
+    !event.altKey &&
+    !event.shiftKey &&
+    (event.key === "ArrowLeft" ||
+      event.key === "ArrowRight" ||
+      event.key === "ArrowUp" ||
+      event.key === "ArrowDown")
+  ) {
+    const directions = {
+      ArrowLeft: "left",
+      ArrowRight: "right",
+      ArrowUp: "up",
+      ArrowDown: "down",
+    } as const;
+    return {
+      kind: "run-command",
+      command: { id: "view.pan", direction: directions[event.key] },
+    };
+  }
+
   if (interactionActive) {
     if (commandModifier && key === "a") {
       return { kind: "blocked-interaction-command", command: "Select All" };

@@ -2417,6 +2417,7 @@ export function App({
   });
   const {
     fitView,
+    panView,
     zoomViewAtCenter,
     handleWheel,
     zoomAtClientPoint,
@@ -3125,6 +3126,7 @@ export function App({
       addText: addPlainText,
       openProperties,
       closeProperties,
+      panView,
       fitView,
       report: setStatus,
     },
