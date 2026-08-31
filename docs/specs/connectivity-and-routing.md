@@ -110,6 +110,8 @@ Route transaction.
   Routes and terminal membership are not copied, so copied boundary pins are
   open. A selected Cell Pin, supply marker, or Net-label owner retains its own
   naming evidence and rejoins a Logical Net only through `name + scope`.
+  Imported `net-name-hint` and `spice-source` provenance may travel with a
+  copied Base Net but never rejoins it by source spelling or source identity.
   Implicit MOS bulk binding remains the explicit Cell-policy exception.
 - Delete is one graph operation: selected Route geometry dominates incidental
   marquee Junction dots; Junction-only deletion owns its incident arms; Route

@@ -73,12 +73,23 @@ function addNameClaim(
   scope: "local" | "global",
   powerDomain?: "vdd" | "ground",
 ): void {
+  const annotationId = `test-net-label-${netId}`;
+  document.annotations.push({
+    id: annotationId,
+    kind: powerDomain ? "power-label" : "net-label",
+    binding: { kind: "net-name", netId },
+    netId,
+    anchor: { kind: "free", position: { x: 0, y: 0 } },
+    alignment: "start",
+    rotation: 0,
+    locked: false,
+  });
   document.connectivityEvidence.push({
     id: `claim-${netId}`,
     kind: "name-claim",
     netId,
     name,
-    owner: { kind: "explicit-net-property" },
+    owner: { kind: "net-label", annotationId },
     scope,
     ...(powerDomain ? { powerDomain } : {}),
   });
@@ -2104,12 +2115,7 @@ describe("routing Edit Engine", () => {
 
   it("does not derive flightlines across separately drawn named global Net markers", () => {
     const document = documentFixture();
-    const globalNet = document.nets.find((net) => net.id === "net-h")!;
-    const nameClaim = document.connectivityEvidence.find(
-      (evidence) =>
-        evidence.kind === "name-claim" && evidence.netId === globalNet.id,
-    );
-    if (nameClaim?.kind === "name-claim") nameClaim.scope = "global";
+    addNameClaim(document, "net-h", "HORIZONTAL", "global");
 
     expect(deriveFlightlines(document, resolver)).not.toContainEqual(
       expect.objectContaining({ netId: "net-h" }),
@@ -2267,6 +2273,8 @@ describe("routing Edit Engine", () => {
 
   it("rejects a Junction dot that would join conflicting crossing Nets", () => {
     const document = documentFixture();
+    addNameClaim(document, "net-h", "HORIZONTAL", "local");
+    addNameClaim(document, "net-v", "VERTICAL", "local");
     document.routes = [
       createRoutePath({
         id: "route-h",
@@ -2712,6 +2720,15 @@ describe("routing Edit Engine", () => {
 
   it("physically splits an imported Net while preserving non-electrical source provenance on every component", () => {
     const document = documentFixture();
+    // Keep formal Port names distinct so the assertion isolates source
+    // provenance. Equal Port names are independently authoritative and would
+    // intentionally keep these Base Nets in one Logical Net after the cut.
+    document.netlist!.terminals.find(
+      (terminal) => terminal.id === "cell-terminal-b",
+    )!.name = "P2";
+    document.netlist!.terminals.find(
+      (terminal) => terminal.id === "cell-terminal-e",
+    )!.name = "P5";
     document.connectivityEvidence.push({
       id: "source-net-h",
       kind: "spice-source",

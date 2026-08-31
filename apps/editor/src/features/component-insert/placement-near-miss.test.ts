@@ -131,7 +131,7 @@ describe("placement near misses", () => {
       netId: "net-vdd",
       name: "VDD",
       scope: "global",
-      owner: { kind: "explicit-net-property" },
+      owner: { kind: "net-label", annotationId: "test-net-label-1" },
     });
     const misses = findPlacementNearMisses(
       document,

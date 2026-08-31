@@ -54,9 +54,10 @@ class DisjointSet {
 
 function ownerKey(
   owner: {
-    kind: "net-label" | "power-marker" | "explicit-net-property";
+    kind: "net-label" | "power-marker" | "global-declaration";
     annotationId?: string;
     objectId?: string;
+    sourceNetId?: string;
   },
   netId: string,
 ): string {
@@ -65,8 +66,8 @@ function ownerKey(
       return `net-label:${owner.annotationId}`;
     case "power-marker":
       return `power-marker:${owner.objectId}`;
-    case "explicit-net-property":
-      return `explicit-net-property:${netId}`;
+    case "global-declaration":
+      return `global-declaration:${owner.sourceNetId}:${netId}`;
   }
 }
 

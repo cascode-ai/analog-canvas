@@ -44,9 +44,9 @@ There is no generic persisted equivalence edge. Schema 33 removes
 `explicit-equivalence` from `ConnectivityEvidence`, the Logical-Net resolver,
 typed edits, deletion/reset handling, simulation, and Clipboard transport.
 
-This decision does not settle the separate authoring policy for
-`explicit-net-property`. It remains a typed name source used by current import
-and naming paths, but it cannot express an unnamed or arbitrary Base-Net union.
+This decision did not settle the separate authoring policy for
+`explicit-net-property`; ADR 0052 subsequently retires it from the current
+schema and separates electrical name authority from source-name provenance.
 
 ## Alternatives considered
 
@@ -101,8 +101,8 @@ author to replace it with physical topology, owner-addressed Net Labels, or
 hierarchy terminals. The migration never silently drops the edge, merges Base
 Nets, or invents a name.
 
-Canonical schema-33 validation rejects the retired record. Current fixtures,
-Agent schemas, MCP resources, and saved examples use schema 33.
+Canonical schema-33 validation rejects the retired record. Schema 34 and its
+current fixtures additionally apply ADR 0052's Net-name authority contract.
 
 ## Validation
 
@@ -122,3 +122,4 @@ Agent schemas, MCP resources, and saved examples use schema 33.
 - [Project File Format](../specs/project-file-format.md)
 - [ADR 0041](0041-physical-cut-and-endpoint-readiness.md)
 - [ADR 0044](0044-imported-source-provenance.md)
+- [ADR 0052](0052-net-name-authority-and-source-provenance.md)

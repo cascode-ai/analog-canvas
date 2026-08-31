@@ -260,13 +260,10 @@
       "connectivityEvidence": [
         {
           "id": "connectivity-evidence-b1565547153d949f",
-          "kind": "name-claim",
-          "name": "VDD",
+          "kind": "net-name-hint",
           "netId": "net-global-vdd",
-          "owner": {
-            "kind": "explicit-net-property"
-          },
-          "scope": "global"
+          "origin": "legacy-explicit-net-property",
+          "sourceName": "VDD"
         },
         {
           "id": "connectivity-evidence-4f697832b597ca42",
@@ -274,7 +271,8 @@
           "name": "0",
           "netId": "net-contact-gnd11",
           "owner": {
-            "kind": "explicit-net-property"
+            "kind": "power-marker",
+            "objectId": "GND11"
           },
           "powerDomain": "ground",
           "scope": "global"
@@ -801,7 +799,7 @@
   "externalSubcircuitDefinitions": [],
   "id": "project-main",
   "name": "New Circuit",
-  "schemaVersion": 33,
+  "schemaVersion": 34,
   "source": {
     "dialect": "none",
     "entry": null,

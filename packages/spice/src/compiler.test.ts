@@ -79,8 +79,15 @@ Q2 collector base emitter QPREF
     expect(imported.project?.documents[0]?.connectivityEvidence).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
+          kind: "net-name-hint",
+          origin: "spice-import",
+        }),
+        expect.objectContaining({
           kind: "name-claim",
-          owner: { kind: "explicit-net-property" },
+          owner: {
+            kind: "global-declaration",
+            sourceNetId: expect.any(String),
+          },
         }),
         expect.objectContaining({ kind: "spice-source" }),
       ]),

@@ -319,7 +319,7 @@ describe("drawn VDD rail construction", () => {
       kind: "name-claim",
       netId: "net-port-avdd",
       name: "AVDD",
-      owner: { kind: "explicit-net-property" },
+      owner: { kind: "net-label", annotationId: "test-net-label-1" },
       scope: "global",
       powerDomain: "vdd",
     });

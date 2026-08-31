@@ -101,7 +101,7 @@ describe("power Net planner", () => {
       kind: "name-claim",
       netId: "net-tail",
       name: "TAIL",
-      owner: { kind: "explicit-net-property" },
+      owner: { kind: "net-label", annotationId: "test-net-label-1" },
       scope: "local",
     });
 
@@ -157,7 +157,7 @@ describe("power Net planner", () => {
       kind: "name-claim",
       netId: "net-avdd",
       name: "AVDD",
-      owner: { kind: "explicit-net-property" },
+      owner: { kind: "net-label", annotationId: "test-net-label-2" },
       scope: "global",
       powerDomain: "vdd",
     });

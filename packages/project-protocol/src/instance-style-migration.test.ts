@@ -24,8 +24,12 @@ import {
   upgradeSchema32To33,
   upgradeSchema32To33WithReport,
 } from "./transforms/explicit-equivalence.js";
+import {
+  upgradeSchema33To34,
+  upgradeSchema33To34WithReport,
+} from "./transforms/net-name-provenance.js";
 
-describe("schema migrations through ownerless Net equivalence retirement", () => {
+describe("schema migrations through hidden Net-name retirement", () => {
   it("keeps each retained historical transform independently usable", () => {
     const current = JSON.parse(
       serializeProject(createEmptyProject("test", "Test")),
@@ -35,13 +39,15 @@ describe("schema migrations through ownerless Net equivalence retirement", () =>
     const v31 = upgradeSchema30To31(v30);
     const v32 = upgradeSchema31To32(v31);
     const v33 = upgradeSchema32To33(v32);
+    const v34 = upgradeSchema33To34(v33);
 
     expect(v29.schemaVersion).toBe(29);
     expect(v30.schemaVersion).toBe(30);
     expect(v31.schemaVersion).toBe(31);
     expect(v32.schemaVersion).toBe(32);
-    expect(v33.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
     expect(v33.schemaVersion).toBe(33);
+    expect(v34.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
+    expect(v34.schemaVersion).toBe(34);
   });
 
   it("reports non-rewriting 28→29 through 32→33 upgrades as unchanged", () => {
@@ -60,9 +66,12 @@ describe("schema migrations through ownerless Net equivalence retirement", () =>
     expect(
       upgradeSchema32To33WithReport({ schemaVersion: 32 }).report.changed,
     ).toBe(false);
+    expect(
+      upgradeSchema33To34WithReport({ schemaVersion: 33 }).report.changed,
+    ).toBe(false);
   });
 
-  it("migrates schema 31 through 33 at the project boundary", () => {
+  it("migrates schema 31 through 34 at the project boundary", () => {
     const current = JSON.parse(
       serializeProject(createEmptyProject("test", "Test")),
     ) as Record<string, unknown>;
@@ -73,7 +82,7 @@ describe("schema migrations through ownerless Net equivalence retirement", () =>
     if (!result.ok) return;
     expect(result.sourceSchemaVersion).toBe(31);
     expect(result.migrated).toBe(true);
-    expect(result.project.schemaVersion).toBe(33);
+    expect(result.project.schemaVersion).toBe(34);
   });
 
   it("keeps schema 30 loadable through the upgrade chain", () => {

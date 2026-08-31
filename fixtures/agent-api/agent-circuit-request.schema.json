@@ -12095,11 +12095,15 @@
                   "properties": {
                     "kind": {
                       "type": "string",
-                      "const": "explicit-net-property"
+                      "const": "global-declaration"
+                    },
+                    "sourceNetId": {
+                      "$ref": "#/$defs/__schema1"
                     }
                   },
                   "required": [
-                    "kind"
+                    "kind",
+                    "sourceNetId"
                   ],
                   "additionalProperties": false
                 }
@@ -12155,6 +12159,41 @@
             "kind",
             "netId",
             "sourceNetId"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/__schema1"
+            },
+            "kind": {
+              "type": "string",
+              "const": "net-name-hint"
+            },
+            "netId": {
+              "$ref": "#/$defs/__schema1"
+            },
+            "sourceName": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "origin": {
+              "type": "string",
+              "enum": [
+                "spice-import",
+                "legacy-explicit-net-property"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "netId",
+            "sourceName",
+            "origin"
           ],
           "additionalProperties": false
         }

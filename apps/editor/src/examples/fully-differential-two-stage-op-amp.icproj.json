@@ -556,7 +556,8 @@
           "name": "0",
           "netId": "net-contact-gnd1",
           "owner": {
-            "kind": "explicit-net-property"
+            "kind": "power-marker",
+            "objectId": "GND3"
           },
           "powerDomain": "ground",
           "scope": "global"
@@ -567,50 +568,39 @@
           "name": "VDD",
           "netId": "net-power-vdd1",
           "owner": {
-            "kind": "explicit-net-property"
+            "kind": "power-marker",
+            "objectId": "route-vdd1-rail-a-20"
           },
           "powerDomain": "vdd",
           "scope": "local"
         },
         {
           "id": "connectivity-evidence-8a0159c1e72c6548",
-          "kind": "name-claim",
-          "name": "Vin+",
+          "kind": "net-name-hint",
           "netId": "net-ui-34",
-          "owner": {
-            "kind": "explicit-net-property"
-          },
-          "scope": "local"
+          "origin": "legacy-explicit-net-property",
+          "sourceName": "Vin+"
         },
         {
           "id": "connectivity-evidence-a6dbb475386fd957",
-          "kind": "name-claim",
-          "name": "Vin-",
+          "kind": "net-name-hint",
           "netId": "net-ui-35",
-          "owner": {
-            "kind": "explicit-net-property"
-          },
-          "scope": "local"
+          "origin": "legacy-explicit-net-property",
+          "sourceName": "Vin-"
         },
         {
           "id": "connectivity-evidence-5c4484a1dd737a3a",
-          "kind": "name-claim",
-          "name": "Vout1",
+          "kind": "net-name-hint",
           "netId": "net-port-p3",
-          "owner": {
-            "kind": "explicit-net-property"
-          },
-          "scope": "local"
+          "origin": "legacy-explicit-net-property",
+          "sourceName": "Vout1"
         },
         {
           "id": "connectivity-evidence-4e3ad162be9bacee",
-          "kind": "name-claim",
-          "name": "Vout2",
+          "kind": "net-name-hint",
           "netId": "net-port-p4",
-          "owner": {
-            "kind": "explicit-net-property"
-          },
-          "scope": "local"
+          "origin": "legacy-explicit-net-property",
+          "sourceName": "Vout2"
         },
         {
           "id": "connectivity-evidence-362a0827f36de02c",
@@ -2521,7 +2511,7 @@
   "externalSubcircuitDefinitions": [],
   "id": "project-main",
   "name": "New Circuit",
-  "schemaVersion": 33,
+  "schemaVersion": 34,
   "source": {
     "dialect": "none",
     "entry": null,

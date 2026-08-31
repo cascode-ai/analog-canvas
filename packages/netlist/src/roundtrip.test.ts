@@ -17,12 +17,29 @@ function claimNet(
   name: string,
   scope: "local" | "global" = "local",
 ): void {
+  const labelId = deriveStableId(
+    "fixture-net-label",
+    document.id,
+    netId,
+    name,
+    scope,
+  );
+  document.annotations.push({
+    id: labelId,
+    kind: "net-label",
+    binding: { kind: "net-name", netId },
+    netId,
+    anchor: { kind: "free", position: { x: 0, y: 0 } },
+    alignment: "start",
+    rotation: 0,
+    locked: false,
+  });
   document.connectivityEvidence.push({
     id: deriveStableId("fixture-net-name", document.id, netId),
     kind: "name-claim",
     netId,
     name,
-    owner: { kind: "explicit-net-property" },
+    owner: { kind: "net-label", annotationId: labelId },
     scope,
   });
 }
@@ -118,8 +135,8 @@ function structuralProject(): CircuitProject {
       terminals: [{ instanceId: "I1", pinName: "-" }],
     },
   );
-  claimNet(top, "top-net-vin", "internal_vin");
-  claimNet(top, "top-net-vout", "internal_vout");
+  claimNet(top, "top-net-vin", "VIN");
+  claimNet(top, "top-net-vout", "VOUT");
   claimNet(top, "top-net-vdd", "VDD", "global");
   claimNet(top, "top-net-ground", "0", "global");
 
@@ -187,8 +204,8 @@ function structuralProject(): CircuitProject {
       ],
     },
   );
-  claimNet(leaf, "leaf-net-a", "leaf_internal_a");
-  claimNet(leaf, "leaf-net-b", "leaf_internal_b");
+  claimNet(leaf, "leaf-net-a", "A");
+  claimNet(leaf, "leaf-net-b", "B");
   leaf.noConnects.push({
     id: "leaf-r1-open",
     endpoint: { kind: "terminal", instanceId: "R1", pinName: "2" },

@@ -408,11 +408,34 @@ describe("semantic authoring", () => {
       netId: "net-a",
       name: "SIGNAL",
       scope: "local",
-      owner: { kind: "explicit-net-property" },
+      owner: { kind: "net-label", annotationId: "test-net-label-1" },
+    });
+    document.annotations.push({
+      id: "test-net-label-1",
+      kind: "net-label",
+      binding: { kind: "net-name", netId: "net-a" },
+      netId: "net-a",
+      anchor: { kind: "free", position: { x: 0, y: 0 } },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
     });
     const named = executeTransaction(
       document,
       transaction([
+        {
+          kind: "upsert_schematic_annotation",
+          annotation: {
+            id: "test-net-label-2",
+            kind: "net-label",
+            binding: { kind: "net-name", netId: "net-b" },
+            netId: "net-b",
+            anchor: { kind: "free", position: { x: 20, y: 0 } },
+            alignment: "start",
+            rotation: 0,
+            locked: false,
+          },
+        },
         {
           kind: "upsert_connectivity_evidence",
           evidence: {
@@ -421,7 +444,7 @@ describe("semantic authoring", () => {
             netId: "net-b",
             name: "signal",
             scope: "local",
-            owner: { kind: "explicit-net-property" },
+            owner: { kind: "net-label", annotationId: "test-net-label-2" },
           },
         },
       ]),

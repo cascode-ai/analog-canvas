@@ -113,7 +113,7 @@ describe("property edit planner", () => {
         name: "vdd",
         scope: "local",
         powerDomain: "vdd",
-        owner: { kind: "explicit-net-property" },
+        owner: { kind: "net-label", annotationId: "test-net-label-1" },
       },
       {
         id: "claim-b",
@@ -122,7 +122,7 @@ describe("property edit planner", () => {
         name: "vdd",
         scope: "local",
         powerDomain: "ground",
-        owner: { kind: "explicit-net-property" },
+        owner: { kind: "net-label", annotationId: "test-net-label-2" },
       },
     );
     const planner = createPropertyEditPlanner(input);

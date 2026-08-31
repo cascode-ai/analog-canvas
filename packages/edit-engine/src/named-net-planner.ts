@@ -86,23 +86,6 @@ export function planEnsureNamedNet(
     (item) => item.id === evidence.id,
   );
   const edits: SchematicEdit[] = [];
-  // An imported explicit-property claim remains owner-addressed evidence.
-  // Editing a visible owner adopts it so one physical Net does not retain two
-  // contradictory names. Other label/Port owners remain independently owned.
-  for (const item of document.connectivityEvidence) {
-    if (
-      item.id !== evidence.id &&
-      item.kind === "name-claim" &&
-      item.netId === candidate.id &&
-      item.owner.kind === "explicit-net-property" &&
-      item.name !== name
-    ) {
-      edits.push({
-        kind: "upsert_connectivity_evidence",
-        evidence: { ...item, name },
-      });
-    }
-  }
   if (JSON.stringify(existingEvidence) !== JSON.stringify(evidence)) {
     edits.push({ kind: "upsert_connectivity_evidence", evidence });
   }

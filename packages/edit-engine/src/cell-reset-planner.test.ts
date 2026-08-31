@@ -53,11 +53,10 @@ function fixture() {
     },
     {
       id: "claim-body",
-      kind: "name-claim",
+      kind: "net-name-hint",
       netId: "net-body",
-      name: "BODY",
-      owner: { kind: "explicit-net-property" },
-      scope: "local",
+      sourceName: "BODY",
+      origin: "legacy-explicit-net-property",
     },
     {
       id: "claim-route",

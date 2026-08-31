@@ -126,7 +126,7 @@ describe("Project Connectivity Index logical aliases", () => {
         kind: "name-claim",
         netId: "net-a",
         name: "BIAS",
-        owner: { kind: "explicit-net-property" },
+        owner: { kind: "net-label", annotationId: "test-net-label-1" },
         scope: "local",
       },
       {
@@ -134,7 +134,7 @@ describe("Project Connectivity Index logical aliases", () => {
         kind: "name-claim",
         netId: "net-b",
         name: "bias",
-        owner: { kind: "explicit-net-property" },
+        owner: { kind: "net-label", annotationId: "test-net-label-2" },
         scope: "local",
       },
     );
@@ -163,7 +163,7 @@ describe("Project Connectivity Index logical aliases", () => {
     ).toHaveLength(2);
   });
 
-  it("creates hierarchy edges only for uniquely connected projected pins", () => {
+  it("creates one hierarchy edge for same-name Pins resolved to one Logical Net", () => {
     const project = createEmptyProject("project-hierarchy", "Hierarchy");
     const parent = project.documents[0]!;
     const child = createEmptyDocument("child", "Child");
@@ -269,6 +269,11 @@ describe("Project Connectivity Index logical aliases", () => {
         parentPinName: "OUT",
         childTerminalName: "OUT",
         childNetId: "net-out",
+      }),
+      expect.objectContaining({
+        parentPinName: "VIN",
+        childTerminalName: "VIN",
+        childNetId: "net-vin-a",
       }),
       expect.objectContaining({
         parentPinName: "VSS",

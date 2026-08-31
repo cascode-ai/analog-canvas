@@ -814,7 +814,7 @@ export function copySelection(
       if (!netIds.has(evidence.netId)) return false;
       if (evidence.kind !== "name-claim") return true;
       switch (evidence.owner.kind) {
-        case "explicit-net-property":
+        case "global-declaration":
           return true;
         case "net-label":
           return annotationIds.has(evidence.owner.annotationId);
@@ -1456,7 +1456,7 @@ export function proposePaste(
               annotationIds.get(clone.owner.objectId) ??
               clone.owner.objectId;
             break;
-          case "explicit-net-property":
+          case "global-declaration":
             break;
         }
       }

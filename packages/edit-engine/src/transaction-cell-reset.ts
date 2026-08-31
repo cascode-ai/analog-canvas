@@ -108,7 +108,7 @@ export function applyCellResetEdit(
         if (!interfaceNetIds.has(evidence.netId)) return false;
         if (evidence.kind !== "name-claim") return true;
         switch (evidence.owner.kind) {
-          case "explicit-net-property":
+          case "global-declaration":
             return true;
           case "net-label":
             return retainedAnnotationIds.has(evidence.owner.annotationId);

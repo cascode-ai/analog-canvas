@@ -253,7 +253,7 @@ describe("digital event simulation", () => {
         kind: "name-claim",
         netId: "left",
         name: "SIGNAL",
-        owner: { kind: "explicit-net-property" },
+        owner: { kind: "net-label", annotationId: "test-net-label-1" },
         scope: "local",
       },
       {
@@ -261,7 +261,7 @@ describe("digital event simulation", () => {
         kind: "name-claim",
         netId: "right",
         name: "signal",
-        owner: { kind: "explicit-net-property" },
+        owner: { kind: "net-label", annotationId: "test-net-label-2" },
         scope: "local",
       },
     );

@@ -86,7 +86,7 @@ describe("direct endpoint connection planner", () => {
         name: "AVDD",
         scope: "global",
         powerDomain: "vdd",
-        owner: { kind: "explicit-net-property" },
+        owner: { kind: "net-label", annotationId: "test-net-label-1" },
       },
       {
         id: "claim-b",
@@ -95,7 +95,7 @@ describe("direct endpoint connection planner", () => {
         name: "DVDD",
         scope: "global",
         powerDomain: "vdd",
-        owner: { kind: "explicit-net-property" },
+        owner: { kind: "net-label", annotationId: "test-net-label-2" },
       },
     );
 
