@@ -26,8 +26,8 @@ Evidence edits.
 ## Decision
 
 - `cut_connection` always partitions the affected Base Net by explicit Routes
-  and confirmed coincident endpoint contacts. Logical name, global, import, or
-  explicit-equivalence Evidence never suppresses the physical split.
+  and confirmed coincident endpoint contacts. Logical name, global, or import
+  Evidence never suppresses the physical split.
 - A confirmed coincident endpoint contact is a derived zero-length physical
   connection, not a persisted object. If a completed move/rotate/mirror
   transaction separates it, the Edit Engine expands the lost contact into one
@@ -112,6 +112,6 @@ revision fence rather than adding a field.
 
 ## Related documents
 
-- [ADR 0040](0040-connectivity-evidence.md)
+- [ADR 0051](0051-owner-explainable-logical-nets.md)
 - [Connectivity and routing](../specs/connectivity-and-routing.md)
 - [Agent Circuit API](../specs/agent-api.md)

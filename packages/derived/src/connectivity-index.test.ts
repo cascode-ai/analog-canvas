@@ -101,7 +101,7 @@ describe("Project Connectivity Index logical aliases", () => {
     expect(documentIndex.contactEvidence.byEndpointKey.size).toBe(4);
   });
 
-  it("aggregates evidence-equivalent Base Nets under every Base-Net lookup", () => {
+  it("aggregates matching-name Base Nets under every Base-Net lookup", () => {
     const project = createEmptyProject("project", "Project");
     const document = project.documents[0]!;
     document.instances.push(

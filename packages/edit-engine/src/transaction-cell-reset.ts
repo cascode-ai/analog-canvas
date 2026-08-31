@@ -105,11 +105,6 @@ export function applyCellResetEdit(
         retainedAnnotations.map((annotation) => annotation.id),
       );
       const retainedEvidence = draft.connectivityEvidence.filter((evidence) => {
-        if (evidence.kind === "explicit-equivalence") {
-          return evidence.memberNetIds.every((netId) =>
-            interfaceNetIds.has(netId),
-          );
-        }
         if (!interfaceNetIds.has(evidence.netId)) return false;
         if (evidence.kind !== "name-claim") return true;
         switch (evidence.owner.kind) {

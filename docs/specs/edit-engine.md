@@ -178,8 +178,8 @@ imported node name remains while its Base Net still has structural reachability.
 Evidence describes a Base Net but is not itself Net reachability. When the last
 terminal, Route/Junction, formal interface, Annotation, layout reference, or
 materialized MOS binding disappears, cleanup removes the Base Net together with
-its Net-property and SPICE-source evidence and trims explicit-equivalence
-membership. The Document source binding remains as import provenance. Cleanup
+its Net-property and SPICE-source evidence. The Document source binding remains
+as import provenance. Cleanup
 of evidence-bearing candidates is deferred to the transaction boundary so
 ordered edits can still remove or replace their evidence atomically; evidence
 explicitly upserted by that transaction remains subject to final validation.

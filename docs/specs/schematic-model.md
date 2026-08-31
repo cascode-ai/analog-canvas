@@ -5,7 +5,7 @@ Status: `accepted`
 Primary owner: `packages/model`
 
 The Project contains Documents; each Document owns revisioned electrical,
-geometric, and presentation facts. The current model is strict schema 32 and has
+geometric, and presentation facts. The current model is strict schema 33 and has
 no compatibility shape.
 
 ## Coordinate domains
@@ -35,10 +35,11 @@ migration. Invalid coordinates are rejected with their data path.
   `CellTerminal.name` and has no visible schematic reference.
 - A Base Net owns physical terminal membership only. A terminal is
   `{instanceId, pinName}` and belongs to at most one Base Net.
-- `ConnectivityEvidence` records owner-addressed names, SPICE source identity,
-  and explicit equivalence. The pure Logical-Net resolver is the only place
-  these facts are folded. Conflicting name, scope, or power claims remain
-  explicit errors; no claim type silently wins.
+- `ConnectivityEvidence` records typed name claims and SPICE source identity
+  for one Base Net at a time. The pure Logical-Net resolver joins distinct
+  Base Nets only through matching folded names in the same scope. Conflicting
+  name, scope, or power claims remain explicit errors; no claim type silently
+  wins. There is no generic persisted equivalence edge.
 - `Route` owns editable geometry for one Net and connects terminal or Junction
   endpoints only.
 - `Junction` owns explicit branch/anchor geometry.
@@ -178,7 +179,8 @@ ordinary Schematic edits inside one Project structural transaction. The
 Project's `structureRevision` protects this cross-Document boundary and the
 editor records it as one undoable structural commit.
 
-Persistence writes only schema 32. The rolling reader accepts schema 31 at the
-file boundary and advances it without rewriting content, then supplies the
-current model only; no compatibility shape enters runtime electrical
-derivation. Retained 29→30 and 30→31 adapters are maintenance-only.
+Persistence writes only schema 33. The reader carries every schema in its
+explicit 24→33 upgrade chain forward, then supplies the current model only; no
+compatibility shape enters runtime electrical derivation. The 32→33 step
+changes only the version stamp when ownerless equivalence is absent and rejects
+an occurrence rather than guessing replacement connectivity.

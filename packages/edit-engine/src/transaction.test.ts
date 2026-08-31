@@ -1218,12 +1218,11 @@ describe("Edit Transaction envelope", () => {
     );
   });
 
-  it("retargets every connectivity evidence reference when Nets merge", () => {
+  it("retargets name and source evidence when Nets merge", () => {
     const document = createEmptyDocument("document-main", "Main");
     document.nets.push(
       { id: "net-target", terminals: [] },
       { id: "net-source", terminals: [] },
-      { id: "net-peer", terminals: [] },
     );
     document.connectivityEvidence.push(
       {
@@ -1245,16 +1244,6 @@ describe("Edit Transaction envelope", () => {
         kind: "spice-source",
         netId: "net-source",
         sourceNetId: "spice-source",
-      },
-      {
-        id: "equivalence-retained",
-        kind: "explicit-equivalence",
-        memberNetIds: ["net-source", "net-peer"],
-      },
-      {
-        id: "equivalence-collapsed",
-        kind: "explicit-equivalence",
-        memberNetIds: ["net-target", "net-source"],
       },
     );
 
@@ -1282,10 +1271,6 @@ describe("Edit Transaction envelope", () => {
           sourceNetId: "spice-source",
         },
         expect.objectContaining({ id: "claim-source", netId: "net-target" }),
-        expect.objectContaining({
-          id: "equivalence-retained",
-          memberNetIds: ["net-target", "net-peer"],
-        }),
       ]),
     );
     expect(
@@ -1820,58 +1805,6 @@ describe("Edit Transaction envelope", () => {
       document: {
         nets: [{ id: "net-a" }],
         connectivityEvidence: [{ id: "claim-source-name" }, { id: "source-a" }],
-      },
-    });
-  });
-
-  it("trims explicit equivalence when one member Net becomes unreachable", () => {
-    const document = createEmptyDocument("document-main", "Main");
-    document.nets.push(
-      { id: "net-a", terminals: [] },
-      { id: "net-b", terminals: [] },
-      { id: "net-c", terminals: [] },
-    );
-    document.annotations.push({
-      id: "label-a",
-      kind: "net-label",
-      binding: { kind: "net-name", netId: "net-a" },
-      netId: "net-a",
-      anchor: { kind: "free", position: { x: 0, y: 0 } },
-      alignment: "start",
-      rotation: 0,
-      locked: false,
-    });
-    document.connectivityEvidence.push(
-      {
-        id: "claim-label-a",
-        kind: "name-claim",
-        netId: "net-a",
-        name: "A",
-        owner: { kind: "net-label", annotationId: "label-a" },
-        scope: "local",
-      },
-      {
-        id: "equivalence-abc",
-        kind: "explicit-equivalence",
-        memberNetIds: ["net-a", "net-b", "net-c"],
-      },
-    );
-
-    const result = executeTransaction(document, {
-      ...transaction(),
-      edits: [{ kind: "remove_schematic_annotation", annotationId: "label-a" }],
-    });
-
-    expect(result).toMatchObject({
-      ok: true,
-      document: {
-        nets: [{ id: "net-b" }, { id: "net-c" }],
-        connectivityEvidence: [
-          {
-            id: "equivalence-abc",
-            memberNetIds: ["net-b", "net-c"],
-          },
-        ],
       },
     });
   });

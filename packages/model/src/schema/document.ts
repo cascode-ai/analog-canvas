@@ -481,27 +481,6 @@ export const SchematicDocumentSchema = SchematicDocumentBaseSchema.superRefine(
       document.connectivityEvidence ?? []
     ).entries()) {
       const evidencePath = ["connectivityEvidence", evidenceIndex] as const;
-      if (evidence.kind === "explicit-equivalence") {
-        const seenMembers = new Set<string>();
-        for (const [memberIndex, netId] of evidence.memberNetIds.entries()) {
-          if (!netIds.has(netId)) {
-            context.addIssue({
-              code: "custom",
-              message: `Connectivity evidence references an unknown Net: ${netId}`,
-              path: [...evidencePath, "memberNetIds", memberIndex],
-            });
-          }
-          if (seenMembers.has(netId)) {
-            context.addIssue({
-              code: "custom",
-              message: `Duplicate explicit-equivalence member: ${netId}`,
-              path: [...evidencePath, "memberNetIds", memberIndex],
-            });
-          }
-          seenMembers.add(netId);
-        }
-        continue;
-      }
       if (!netIds.has(evidence.netId)) {
         context.addIssue({
           code: "custom",

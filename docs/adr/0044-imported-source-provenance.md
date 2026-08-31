@@ -66,6 +66,6 @@ physical-cut, and endpoint-readiness decisions remain independent.
 
 ## Related documents
 
-- [ADR 0040](0040-connectivity-evidence.md)
+- [ADR 0051](0051-owner-explainable-logical-nets.md)
 - [ADR 0041](0041-physical-cut-and-endpoint-readiness.md)
 - [Connectivity and routing](../specs/connectivity-and-routing.md)

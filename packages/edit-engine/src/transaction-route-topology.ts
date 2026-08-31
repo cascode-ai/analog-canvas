@@ -713,10 +713,8 @@ export function applyRouteTopologyEdit(
                 (annotation.binding?.kind === "net-name" &&
                   annotation.binding.netId === preparedNet.id),
             ) ||
-            draft.connectivityEvidence.some((evidence) =>
-              evidence.kind === "explicit-equivalence"
-                ? evidence.memberNetIds.includes(preparedNet.id)
-                : evidence.netId === preparedNet.id,
+            draft.connectivityEvidence.some(
+              (evidence) => evidence.netId === preparedNet.id,
             );
           if (alreadyReferenced) {
             return rejectAt(

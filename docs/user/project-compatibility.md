@@ -1,6 +1,6 @@
 # Project File Compatibility
 
-The released Project schema version is `32`. It retains schematic-only
+The released Project schema version is `33`. It retains schematic-only
 hierarchy integrity, a Project structural revision, stable formal Cell ports,
 and definition-level Cell symbol presentation. It also has one typed Instance
 netlist authority, formal Cell parameters, and Project-local external
@@ -28,18 +28,17 @@ An Instance may also carry optional schematic-only `signalFlowParameters`
 netlist/SPICE parameters. Width and height are optional 10-unit-grid minimums:
 the shared Transfer Function renderer expands beyond them when 12-unit formula
 text, a fraction, or a coefficient needs more room, and never clips or shrinks
-the formula to satisfy an undersized request. A canonical v32 file can be
+the formula to satisfy an undersized request. A canonical v33 file can be
 opened, saved, reopened, and saved again without byte drift.
 
-Schema v31 is accepted through a bounded upgrade to v32. Schema v31 added the
-optional Signal Flow presentation metadata; schema v32 adds optional
-`Annotation.textColor`. The 31→32 upgrade preserves all existing circuit and
-drawing content, materializes no color field, and stamps the current version.
-The next save writes v32. Retained 29→30 and 30→31 adapters remain available to
-controlled historical maintenance paths, but schema v30 is not in the
-interactive rolling window. The original file is never overwritten silently.
-Schema v30 and older, and versions newer than v32, are rejected by the
-interactive project-file boundary.
+Schemas v24 through v32 are accepted through the explicit chained upgrades.
+Schema v32 adds optional `Annotation.textColor`; schema v33 removes the
+ownerless `explicit-equivalence` record. A v32 file without that record changes
+only its version stamp. A file containing it is rejected at the exact evidence
+path because the editor cannot safely guess whether the intended replacement
+was a wire, Label, Alias, or hierarchy terminal. The original file is never
+overwritten silently. Schemas older than v24 and versions newer than v33 are
+rejected by the project-file boundary.
 
 The canonical-current corpus at
 [`fixtures/projects/compatibility-corpus.json`](../../fixtures/projects/compatibility-corpus.json)
@@ -51,7 +50,7 @@ Retired fields such as first-class
 
 An incompatible Project is rejected before it can replace the current browser
 Project. Conversion, when needed, is an explicit external operation that must
-produce and validate a complete v32 candidate before a human chooses to load it.
+produce and validate a complete v33 candidate before a human chooses to load it.
 
 The editor never silently merges duplicate canonical Ground (`0`) or VDD Nets.
 Duplicate folded Net names are invalid and remain diagnostics until the author

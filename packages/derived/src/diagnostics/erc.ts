@@ -296,7 +296,7 @@ export function runErcChecks(
           severity: "error",
           confidence: "high",
           gateEligible: true,
-          message: `One physical or explicitly equivalent Net has conflicting name markers`,
+          message: `One Logical Net has conflicting name markers`,
           primary: directObjectLocator(document.id, "net", primaryId!),
           related: relatedIds.map((netId) =>
             directObjectLocator(document.id, "net", netId),

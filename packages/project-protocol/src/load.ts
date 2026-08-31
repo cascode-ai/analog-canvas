@@ -20,6 +20,7 @@ import {
   upgradeSchema29To30,
   upgradeSchema30To31,
   upgradeSchema31To32,
+  upgradeSchema32To33,
 } from "./previous-to-current.js";
 import { OLDEST_SUPPORTED_PROJECT_SCHEMA_VERSION } from "./version.js";
 
@@ -40,6 +41,7 @@ const UPGRADE_CHAIN: ReadonlyArray<
   upgradeSchema29To30,
   upgradeSchema30To31,
   upgradeSchema31To32,
+  upgradeSchema32To33,
 ];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
