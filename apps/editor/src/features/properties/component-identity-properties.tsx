@@ -1,6 +1,5 @@
 import type { FocusEvent, KeyboardEvent } from "react";
 
-import { defaultDraftTextDocument, flattenRichText } from "@icm/model";
 import type { SchematicDocument } from "@icm/model";
 
 import type { CapacitorPlatePropertyRow } from "./capacitor-plate-properties";
@@ -67,13 +66,11 @@ export function ComponentIdentityProperties({
   revision,
   cellName,
   formalTerminalSelected,
-  schematicLabelEditable,
   portNet,
   targetDescription,
   capacitorPlateRows,
   modelTarget,
   onMarkerNameChange,
-  onSchematicNameChange,
   onReferenceChange,
   onModelTargetChange,
 }: {
@@ -81,28 +78,15 @@ export function ComponentIdentityProperties({
   revision: number;
   cellName: string;
   formalTerminalSelected: boolean;
-  /**
-   * Whether a schematic label can appear on this Symbol at all. A Symbol
-   * that declares `labelVisibility: "hidden"` never draws one, so offering
-   * the field would invite an edit the drawing cannot show.
-   */
-  schematicLabelEditable: boolean;
   portNet: { id: string; logicalName: string; supply: boolean } | null;
   targetDescription: string | null;
   capacitorPlateRows: readonly CapacitorPlatePropertyRow[] | null;
   modelTarget: ComponentModelTargetView | null;
   onMarkerNameChange: (value: string) => void;
-  onSchematicNameChange: (value: string) => boolean | void;
   onReferenceChange: (value: string) => boolean | void;
   onModelTargetChange: (value: string) => void;
 }) {
-  const schematicLabel = flattenRichText(
-    instance.schematicName ??
-      defaultDraftTextDocument(
-        instance.schematicReference ?? instance.netlist?.reference ?? "",
-      ),
-  );
-  const netlistReference = instance.netlist?.reference ?? "";
+  const reference = instance.reference ?? "";
   return (
     <>
       <div
@@ -128,48 +112,21 @@ export function ComponentIdentityProperties({
                 />
               </dd>
             </div>
-          ) : !formalTerminalSelected && schematicLabelEditable ? (
-            <div>
-              <dt>Schematic label</dt>
-              <dd>
-                <input
-                  dir="auto"
-                  key={`${instance.id}-${revision}-schematic-label`}
-                  aria-label="Component schematic label"
-                  defaultValue={schematicLabel}
-                  placeholder="Schematic label"
-                  onBlur={(event) =>
-                    commitIdentityInput(
-                      event,
-                      schematicLabel,
-                      onSchematicNameChange,
-                    )
-                  }
-                  onKeyDown={(event) =>
-                    handleIdentityInputKeyDown(event, schematicLabel)
-                  }
-                />
-              </dd>
-            </div>
           ) : null}
-          {instance.netlist ? (
+          {instance.reference ? (
             <div>
-              <dt>Netlist reference</dt>
+              <dt>Reference</dt>
               <dd>
                 <input
                   dir="auto"
-                  key={`${instance.id}-${revision}-netlist-reference`}
-                  aria-label="Component netlist reference"
-                  defaultValue={netlistReference}
+                  key={`${instance.id}-${revision}-reference`}
+                  aria-label="Component reference"
+                  defaultValue={reference}
                   onBlur={(event) =>
-                    commitIdentityInput(
-                      event,
-                      netlistReference,
-                      onReferenceChange,
-                    )
+                    commitIdentityInput(event, reference, onReferenceChange)
                   }
                   onKeyDown={(event) =>
-                    handleIdentityInputKeyDown(event, netlistReference)
+                    handleIdentityInputKeyDown(event, reference)
                   }
                 />
               </dd>

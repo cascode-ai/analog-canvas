@@ -175,7 +175,7 @@ For each important multi-terminal Net, be able to state briefly:
 
 ## Labels and text
 
-- Keep instance names, values, Net labels, and power labels attached to their
+- Keep Instance References, values, Net labels, and power labels attached to their
   intended objects.
 - Move text locally before disturbing a clear electrical arrangement.
 - Keep labels out of terminal escape lanes, branch points, and narrow corridors.

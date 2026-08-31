@@ -14,8 +14,8 @@ describe("component identity properties", () => {
       id: "R1",
       symbolId: "resistor",
       placement: null,
+      reference: "R1",
       netlist: {
-        reference: "R1",
         parameters: {},
         binding: { kind: "primitive", deviceClass: "resistor" },
       },
@@ -31,7 +31,8 @@ describe("component identity properties", () => {
       id: "M1",
       symbolId: "nmos",
       placement: null,
-      netlist: { reference: "M1", parameters: {} },
+      reference: "M1",
+      netlist: { parameters: {} },
     };
     const markup = renderToStaticMarkup(
       <ComponentIdentityProperties
@@ -39,7 +40,6 @@ describe("component identity properties", () => {
         revision={0}
         cellName="Cell"
         formalTerminalSelected={false}
-        schematicLabelEditable
         portNet={{ id: "net", logicalName: "VDD", supply: true }}
         targetDescription={null}
         capacitorPlateRows={null}
@@ -50,7 +50,6 @@ describe("component identity properties", () => {
           externalSubcircuit: false,
         }}
         onMarkerNameChange={vi.fn()}
-        onSchematicNameChange={vi.fn()}
         onReferenceChange={vi.fn()}
         onModelTargetChange={vi.fn()}
       />,
@@ -59,7 +58,7 @@ describe("component identity properties", () => {
     expect(markup).toContain("sky130_fd_pr__nfet_01v8");
   });
 
-  it("offers no schematic label field when the Symbol never draws one", () => {
+  it("offers no Reference field when the object has no authored Reference", () => {
     const document = createEmptyDocument("cell", "Cell");
     const instance: (typeof document.instances)[number] = {
       id: "X2",
@@ -72,20 +71,16 @@ describe("component identity properties", () => {
         revision={1}
         cellName="Main"
         formalTerminalSelected={false}
-        schematicLabelEditable={false}
         portNet={null}
         targetDescription={null}
         capacitorPlateRows={null}
         modelTarget={null}
         onMarkerNameChange={vi.fn()}
-        onSchematicNameChange={vi.fn()}
         onReferenceChange={vi.fn()}
         onModelTargetChange={vi.fn()}
       />,
     );
-    // The Symbol and Cell stay: they answer "what am I looking at". The
-    // label input does not, because the drawing can never show its text.
     expect(markup).toContain("Symbol");
-    expect(markup).not.toContain("Schematic label");
+    expect(markup).not.toContain('aria-label="Component reference"');
   });
 });

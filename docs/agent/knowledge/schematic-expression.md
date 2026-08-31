@@ -34,7 +34,7 @@ not create hierarchy only to hide an unresolved layout problem.
 
 ## Labels and interface markers
 
-- Keep instance names, values, and Net labels readable and attached to the
+- Keep Instance References, values, and Net labels readable and attached to the
   intended object.
 - Move label text within a small local area before moving the electrical object.
 - Prefer a label or an ordinary `port` / `port-filled` Instance over a long
@@ -65,6 +65,6 @@ Perform a final boundary inventory: map every `Document.netlist.terminals`
 entry to its Net and parent block pin, and verify every placed `port` or
 `port-filled` Instance through its ordinary pin `P`. Perform the same check for
 each shared Net represented by disconnected labeled branches. Then remove
-redundant text and check that no label overlaps a symbol, instance name, wire,
+redundant text and check that no label overlaps a symbol, Instance Reference, wire,
 or neighboring label. Boundary completeness and low label density are joint
 goals.

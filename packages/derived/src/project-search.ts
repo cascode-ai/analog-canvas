@@ -97,7 +97,7 @@ function collectCandidates(
       const label = instanceLabel(
         instance.id,
         instance.symbolId,
-        instance.netlist?.reference,
+        instance.reference,
       );
       candidates.push({
         locator,
@@ -111,7 +111,7 @@ function collectCandidates(
         field: "symbol",
         value: instance.symbolId.toLowerCase(),
       });
-      const reference = instance.netlist?.reference;
+      const reference = instance.reference;
       if (reference) {
         candidates.push({
           locator,

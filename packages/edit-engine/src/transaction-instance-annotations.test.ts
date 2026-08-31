@@ -23,12 +23,13 @@ function documentWithDraggedLabel(): {
     id: "R1",
     symbolId: "resistor",
     placement: { position: { x: 200, y: 100 }, rotation: 0, mirror: "none" },
-    netlist: { reference: "R_ESR", parameters: {} },
+    reference: "R_ESR",
+    netlist: { parameters: {} },
   });
   const annotation: Annotation = {
     id: "label-r1",
     kind: "instance-label",
-    binding: { kind: "instance-designator", instanceId: "R1" },
+    binding: { kind: "instance-reference", instanceId: "R1" },
     anchor: {
       kind: "object",
       objectId: "R1",
@@ -59,7 +60,8 @@ describe("adaptive presentation label reflow", () => {
         rotation: 0,
         mirror: "none",
       },
-      netlist: { reference: "X1", parameters: {} },
+      reference: "X1",
+      netlist: { parameters: {} },
     };
     document.instances.push(instance);
     const resolved = resolver.resolve("unit-delay");
@@ -78,7 +80,7 @@ describe("adaptive presentation label reflow", () => {
     const annotation: Annotation = {
       id: "label-b1",
       kind: "instance-label",
-      binding: { kind: "instance-designator", instanceId: "B1" },
+      binding: { kind: "instance-reference", instanceId: "B1" },
       anchor: {
         kind: "object",
         objectId: "B1",

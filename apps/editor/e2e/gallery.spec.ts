@@ -38,7 +38,8 @@ function hierarchicalPublishProject() {
         rotation: 0,
         mirror: "none",
       },
-      netlist: { reference: "R1", parameters: {} },
+      reference: "R1",
+      netlist: { parameters: {} },
     },
     {
       id: "R2",
@@ -48,7 +49,8 @@ function hierarchicalPublishProject() {
         rotation: 0,
         mirror: "none",
       },
-      netlist: { reference: "R2", parameters: {} },
+      reference: "R2",
+      netlist: { parameters: {} },
     },
     {
       id: "XU0",
@@ -58,8 +60,8 @@ function hierarchicalPublishProject() {
         rotation: 0,
         mirror: "none",
       },
+      reference: "XU0",
       netlist: {
-        reference: "XU0",
         parameters: {},
         binding: { kind: "subcircuit", childDocumentId: child.id },
       },

@@ -589,7 +589,7 @@ plan 中的 `completed` 仅表示该 target 自己声明的窄范围工作结束
 | `ERC_NO_CONNECT_CONFLICT`       | error                | endpoint 同时有 Net/Route 和 NoConnect                              |
 | `ERC_MISSING_MODEL`             | error                | binding evidence 为 missing                                         |
 | `ERC_UNSUPPORTED_MODEL`         | warning/error policy | 模型存在但产品没有受审 Symbol/语义映射                              |
-| `ERC_DUPLICATE_INSTANCE_NAME`   | error                | 同 Document 的显示/SPICE instance name 规范化后重复                 |
+| `ERC_DUPLICATE_INSTANCE_REFERENCE` | error             | 同 Document 的 Instance Reference 规范化后重复                     |
 | `ERC_DUPLICATE_NET_NAME`        | error                | 不同 Net 使用规范化后相同名称，且没有显式 merge 关系                |
 | `ERC_PORT_COUNT_MISMATCH`       | error                | parent instance pins 与 child ports 数量不同                        |
 | `ERC_PORT_NAME_MISMATCH`        | error                | 已冻结接口映射与 child ports 不一致                                 |

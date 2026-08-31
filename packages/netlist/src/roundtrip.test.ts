@@ -75,8 +75,8 @@ function structuralProject(): CircuitProject {
       id: "I1",
       symbolId: "current-source",
       placement: null,
+      reference: "I1",
       netlist: {
-        reference: "I1",
         binding: { kind: "primitive", deviceClass: "current-source" },
         parameters: { dc: "10u" },
       },
@@ -85,8 +85,8 @@ function structuralProject(): CircuitProject {
       id: "X1",
       symbolId: "leaf-symbol",
       placement: null,
+      reference: "X1",
       netlist: {
-        reference: "X1",
         binding: { kind: "subcircuit", childDocumentId: "leaf" },
         parameters: { scale: "2" },
       },
@@ -95,8 +95,8 @@ function structuralProject(): CircuitProject {
       id: "X2",
       symbolId: "external-symbol",
       placement: null,
+      reference: "X2",
       netlist: {
-        reference: "X2",
         binding: {
           kind: "external-subcircuit",
           definitionId: "external-master",
@@ -168,8 +168,8 @@ function structuralProject(): CircuitProject {
       id: "C1",
       symbolId: "capacitor",
       placement: null,
+      reference: "C1",
       netlist: {
-        reference: "C1",
         binding: { kind: "primitive", deviceClass: "capacitor" },
         parameters: { value: "2p" },
       },
@@ -178,8 +178,8 @@ function structuralProject(): CircuitProject {
       id: "R1",
       symbolId: "resistor",
       placement: null,
+      reference: "R1",
       netlist: {
-        reference: "R1",
         binding: { kind: "primitive", deviceClass: "resistor" },
         parameters: { value: "1k" },
       },

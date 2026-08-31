@@ -4,11 +4,7 @@ import {
   referenceIssuesForInstance,
   type ReferenceIssue,
 } from "@icm/devices";
-import {
-  flattenRichText,
-  type CircuitProject,
-  type InstanceNetlistBinding,
-} from "@icm/model";
+import { type CircuitProject, type InstanceNetlistBinding } from "@icm/model";
 
 import type { ProjectConnectivityIndex } from "./connectivity-index.js";
 import { findHierarchyPaths } from "./hierarchy-navigation.js";
@@ -25,7 +21,6 @@ export interface ProjectInstanceRow {
   readonly documentName: string;
   readonly instanceId: string;
   readonly reference?: string;
-  readonly schematicName?: string;
   readonly masterName?: string;
   readonly symbolId: string;
   readonly deviceClass?: string;
@@ -50,7 +45,6 @@ function rowMatches(row: ProjectInstanceRow, query: string): boolean {
     row.documentId,
     row.instanceId,
     row.reference,
-    row.schematicName,
     row.masterName,
     row.symbolId,
     row.deviceClass,
@@ -109,12 +103,7 @@ export function buildProjectInstanceIndex(
           documentId: document.id,
           documentName: document.netlist?.name ?? document.name,
           instanceId: instance.id,
-          ...(instance.netlist?.reference
-            ? { reference: instance.netlist.reference }
-            : {}),
-          ...(instance.schematicName
-            ? { schematicName: flattenRichText(instance.schematicName) }
-            : {}),
+          ...(instance.reference ? { reference: instance.reference } : {}),
           ...(masterName ? { masterName } : {}),
           symbolId: instance.symbolId,
           ...(descriptor ? { deviceClass: descriptor.deviceClass } : {}),

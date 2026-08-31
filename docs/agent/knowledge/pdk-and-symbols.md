@@ -36,7 +36,7 @@ device.
 
 ## Counterevidence and failure modes
 
-Text such as `nfet`, a transistor-like instance name, or a four-terminal count
+Text such as `nfet`, a transistor-like Instance Reference, or a four-terminal count
 alone does not prove pin order or bulk semantics. Do not discard source model or
 parameters after normalization. An explicit mapping to a generic visual block
 is still resolved knowledge and should not emit an unresolved-symbol warning.

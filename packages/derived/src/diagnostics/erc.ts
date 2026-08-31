@@ -99,14 +99,14 @@ export function runErcChecks(
           confidence: "high",
           gateEligible: true,
           message: missingExternalMaster
-            ? `Instance ${instance.id} external master ${instance.importProvenance.name} is missing`
-            : `Instance ${instance.id} binding ${instance.importProvenance.kind}:${instance.importProvenance.name} is missing`,
+            ? `Instance ${instance.id} external master ${instance.importProvenance.sourceMasterName} is missing`
+            : `Instance ${instance.id} binding ${instance.importProvenance.kind}:${instance.importProvenance.sourceMasterName} is missing`,
           primary: directObjectLocator(document.id, "instance", instance.id),
           related: [],
           parameters: {
             instanceId: instance.id,
             bindingKind: instance.importProvenance.kind,
-            bindingName: instance.importProvenance.name,
+            bindingName: instance.importProvenance.sourceMasterName,
           },
         });
       } else if (instance.importProvenance?.status === "unsupported") {
@@ -117,13 +117,13 @@ export function runErcChecks(
           severity: "warning",
           confidence: "high",
           gateEligible: false,
-          message: `Instance ${instance.id} binding ${instance.importProvenance.kind}:${instance.importProvenance.name} is unsupported by the reviewed symbol catalog`,
+          message: `Instance ${instance.id} binding ${instance.importProvenance.kind}:${instance.importProvenance.sourceMasterName} is unsupported by the reviewed symbol catalog`,
           primary: directObjectLocator(document.id, "instance", instance.id),
           related: [],
           parameters: {
             instanceId: instance.id,
             bindingKind: instance.importProvenance.kind,
-            bindingName: instance.importProvenance.name,
+            bindingName: instance.importProvenance.sourceMasterName,
           },
         });
       }
@@ -252,37 +252,36 @@ export function runErcChecks(
       }
     }
 
-    // ERC_DUPLICATE_INSTANCE_NAME
-    const instancesByName = new Map<string, string[]>();
+    // ERC_DUPLICATE_INSTANCE_REFERENCE
+    const instancesByReference = new Map<string, string[]>();
     for (const instance of document.instances) {
-      const spiceName = instance.netlist?.reference;
-      const name = (
-        typeof spiceName === "string" && spiceName.length > 0
-          ? spiceName
+      const reference = (
+        typeof instance.reference === "string" && instance.reference.length > 0
+          ? instance.reference
           : instance.id
       ).toLowerCase();
-      const group = instancesByName.get(name) ?? [];
+      const group = instancesByReference.get(reference) ?? [];
       group.push(instance.id);
-      instancesByName.set(name, group);
+      instancesByReference.set(reference, group);
     }
-    for (const [name, ids] of instancesByName) {
+    for (const [reference, ids] of instancesByReference) {
       if (ids.length < 2) continue;
       const [primaryId, ...restIds] = [...ids].sort((a, b) =>
         a.localeCompare(b, "en"),
       );
       diagnostics.push({
-        id: `erc:dup-instance:${document.id}:${name}`,
+        id: `erc:dup-instance-reference:${document.id}:${reference}`,
         domain: "erc",
-        code: "ERC_DUPLICATE_INSTANCE_NAME",
+        code: "ERC_DUPLICATE_INSTANCE_REFERENCE",
         severity: "error",
         confidence: "high",
         gateEligible: true,
-        message: `Instance name "${name}" is used by ${ids.length} instances in document ${document.id}`,
+        message: `Instance Reference "${reference}" is used by ${ids.length} instances in document ${document.id}`,
         primary: directObjectLocator(document.id, "instance", primaryId!),
         related: restIds.map((objectId) =>
           directObjectLocator(document.id, "instance", objectId),
         ),
-        parameters: { name, count: ids.length },
+        parameters: { reference, count: ids.length },
       });
     }
 

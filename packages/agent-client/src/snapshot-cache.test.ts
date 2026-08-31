@@ -69,7 +69,7 @@ describe("snapshot cache", () => {
     after.document.instances.push({
       ...after.document.instances[1]!,
       id: "instance-3",
-      name: "R2",
+      reference: "R2",
     });
     after.document.nets[0]!.name = "VoutX";
     const changed = changedObjectIds(before, after);

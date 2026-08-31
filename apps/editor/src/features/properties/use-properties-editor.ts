@@ -640,24 +640,27 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
         (boundAnnotation.sizeScale ?? 1) !== textEditing.sizeScale ||
         boundAnnotation.alignment !== textEditing.alignment;
       const formatOverrideAllowed =
+        boundAnnotation.binding.kind === "instance-reference" ||
         boundAnnotation.binding.kind === "net-name" ||
         boundAnnotation.binding.kind === "cell-terminal-name";
       const { formatOverride: _currentOverride, ...annotationWithoutOverride } =
         boundAnnotation;
       const semanticContent =
-        boundAnnotation.binding.kind === "cell-terminal-name"
-          ? semanticTextDocument(name, "formal-port")
-          : boundAnnotation.binding.kind === "net-name"
-            ? semanticTextDocument(
-                name,
-                boundAnnotation.kind === "power-label"
-                  ? "power-label"
-                  : "net-label",
-              )
-            : resolveAnnotationText(
-                options.document,
-                annotationWithoutOverride,
-              );
+        boundAnnotation.binding.kind === "instance-reference"
+          ? semanticTextDocument(name, "instance-label")
+          : boundAnnotation.binding.kind === "cell-terminal-name"
+            ? semanticTextDocument(name, "formal-port")
+            : boundAnnotation.binding.kind === "net-name"
+              ? semanticTextDocument(
+                  name,
+                  boundAnnotation.kind === "power-label"
+                    ? "power-label"
+                    : "net-label",
+                )
+              : resolveAnnotationText(
+                  options.document,
+                  annotationWithoutOverride,
+                );
       const nextFormatOverride = formatOverrideAllowed
         ? JSON.stringify(semanticContent) ===
           JSON.stringify(textEditing.content)
@@ -673,21 +676,6 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
           alignment: textEditing.alignment,
         },
       };
-      const instanceReferenceBinding =
-        boundAnnotation.binding.kind === "instance-schematic-name"
-          ? boundAnnotation.binding
-          : undefined;
-      const schematicNameInstance = instanceReferenceBinding
-        ? options.document.instances.find(
-            (candidate) => candidate.id === instanceReferenceBinding.instanceId,
-          )
-        : undefined;
-      const schematicNameSourceChanged =
-        instanceReferenceBinding !== undefined &&
-        JSON.stringify(
-          schematicNameInstance?.schematicName ??
-            resolveAnnotationText(options.document, boundAnnotation),
-        ) !== JSON.stringify(textEditing.content);
       const formatOverrideChanged =
         JSON.stringify(boundAnnotation.formatOverride ?? null) !==
         JSON.stringify(nextFormatOverride ?? null);
@@ -695,11 +683,7 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
         options.setStatus("Bound electrical names cannot be empty");
         return;
       }
-      if (
-        name === currentName &&
-        !schematicNameSourceChanged &&
-        !formatOverrideChanged
-      ) {
+      if (name === currentName && !formatOverrideChanged) {
         if (presentationChanged && !options.transact([presentationEdit]).ok) {
           return;
         }
@@ -780,23 +764,29 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
             setTextEditing(null);
           }
           return;
-        case "instance-schematic-name":
-          if (!schematicNameSourceChanged && !presentationChanged) {
+        case "instance-reference":
+          if (
+            name === currentName &&
+            !presentationChanged &&
+            !formatOverrideChanged
+          ) {
             setTextEditing(null);
             return;
           }
           if (
             options.transact([
-              ...(schematicNameSourceChanged
+              ...(name !== currentName
                 ? [
                     {
-                      kind: "set_instance_schematic_name" as const,
+                      kind: "set_instance_reference" as const,
                       instanceId: boundAnnotation.binding.instanceId,
-                      content: textEditing.content,
+                      reference: name,
                     },
                   ]
                 : []),
-              ...(presentationChanged ? [presentationEdit] : []),
+              ...(presentationChanged || formatOverrideChanged
+                ? [presentationEdit]
+                : []),
             ]).ok
           ) {
             setTextEditing(null);
@@ -804,12 +794,6 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
           return;
         case "instance-value":
           options.setStatus("Edit component values in Properties");
-          return;
-        case "instance-designator":
-          options.setStatus("Netlist reference is edited in Properties");
-          return;
-        case "instance-master-name":
-          options.setStatus("Master names are defined by the instance binding");
           return;
       }
     }

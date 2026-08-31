@@ -40,8 +40,8 @@ describe("hierarchy navigation", () => {
       id,
       symbolId: "dual",
       placement: null,
+      reference: id,
       netlist: {
-        reference: id,
         parameters: {},
         binding: {
           kind: "subcircuit" as const,

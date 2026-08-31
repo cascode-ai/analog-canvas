@@ -50,8 +50,8 @@ describe("editor session project helpers", () => {
         id: "Xstable",
         symbolId: "hierarchical-gain-cell",
         placement: null,
+        reference: "X1",
         netlist: {
-          reference: "X1",
           parameters: {},
           binding: {
             kind: "subcircuit",

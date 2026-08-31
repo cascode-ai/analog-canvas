@@ -15,13 +15,15 @@ function twoResistors() {
       id: "inst-1",
       symbolId: "resistor",
       placement: { position: { x: 100, y: 100 }, rotation: 0, mirror: "none" },
-      netlist: { reference: "R1", parameters: {} },
+      reference: "R1",
+      netlist: { parameters: {} },
     },
     {
       id: "inst-2",
       symbolId: "resistor",
       placement: { position: { x: 300, y: 100 }, rotation: 0, mirror: "none" },
-      netlist: { reference: "R2", parameters: {} },
+      reference: "R2",
+      netlist: { parameters: {} },
     },
   );
   return document;

@@ -158,10 +158,6 @@ import {
   useEditorDerivedModel,
 } from "./use-editor-derived-model";
 import {
-  netlistReferenceMatchesPlacement,
-  nextInstanceDesignator,
-} from "../features/netlist-export/netlist-authoring";
-import {
   quickPlaceRequest,
   ShapesPanel,
 } from "../features/editor-shell/shapes-panel";
@@ -1373,7 +1369,6 @@ export function App({
     referenceLabelVisibilityEdits,
     valueVisibilityEdits,
     updateSelectedModelTarget,
-    updateSelectedSchematicName,
     updateSelectedReference,
     deleteSelectedAnnotation,
     reverseSelectedCurrentArrow,
@@ -4318,7 +4313,6 @@ export function App({
                     revision: document.revision,
                     cellName: document.netlist?.name ?? document.name,
                     formalTerminalSelected: Boolean(selectedFormalTerminal),
-                    schematicLabelEditable: selectedLabelRenderable,
                     portNet: selectedPortNet
                       ? {
                           id: selectedPortNet.id,
@@ -4372,7 +4366,6 @@ export function App({
                         : null,
                     onMarkerNameChange: (value) =>
                       commitElectricalMarkerName(selectedInstance.id, value),
-                    onSchematicNameChange: updateSelectedSchematicName,
                     onReferenceChange: updateSelectedReference,
                     onModelTargetChange: updateSelectedModelTarget,
                   },

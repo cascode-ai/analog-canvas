@@ -12,8 +12,12 @@ import {
 describe("schema 31 to 32 migration (Annotation text color)", () => {
   const schema31Project = (): Record<string, unknown> => {
     const project = createEmptyProject("text-color", "Text color");
-    const document = project.documents[0]!;
-    document.instances.push({
+    const raw = JSON.parse(serializeProject(project)) as Record<
+      string,
+      unknown
+    >;
+    const document = (raw.documents as Record<string, unknown>[])[0]!;
+    (document.instances as unknown[]).push({
       id: "R1",
       symbolId: "resistor",
       placement: {
@@ -25,7 +29,7 @@ describe("schema 31 to 32 migration (Annotation text color)", () => {
       styleOverride: { foreground: "#DC2626", background: "#FFFFFF" },
       signalFlowParameters: { formula: "z^-1", bodyWidth: 80 },
     });
-    document.annotations.push(
+    (document.annotations as unknown[]).push(
       {
         id: "label-R1",
         kind: "instance-label",
@@ -63,10 +67,8 @@ describe("schema 31 to 32 migration (Annotation text color)", () => {
         locked: false,
       },
     );
-    return {
-      ...(JSON.parse(serializeProject(project)) as Record<string, unknown>),
-      schemaVersion: 31,
-    };
+    raw.schemaVersion = 31;
+    return raw;
   };
 
   it("changes only the version stamp", () => {
@@ -86,7 +88,7 @@ describe("schema 31 to 32 migration (Annotation text color)", () => {
 
     expect(result.sourceSchemaVersion).toBe(31);
     expect(result.migrated).toBe(true);
-    expect(result.project.schemaVersion).toBe(34);
+    expect(result.project.schemaVersion).toBe(35);
     expect(result.project.documents[0]!.instances[0]).toMatchObject({
       styleOverride: {
         foreground: "#DC2626",

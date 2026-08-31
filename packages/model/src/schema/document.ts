@@ -283,20 +283,7 @@ export const SchematicDocumentSchema = SchematicDocumentBaseSchema.superRefine(
         }
       }
     }
-    const netlistReferences = new Set<string>();
-    for (const [instanceIndex, instance] of document.instances.entries()) {
-      const reference = instance.netlist?.reference.toLowerCase();
-      if (!reference) continue;
-      if (netlistReferences.has(reference)) {
-        context.addIssue({
-          code: "custom",
-          message: `Duplicate netlist instance reference: ${instance.netlist!.reference}`,
-          path: ["instances", instanceIndex, "netlist", "reference"],
-        });
-      }
-      netlistReferences.add(reference);
-    }
-    const schematicReferences = new Set<string>();
+    const instanceReferences = new Set<string>();
     const formalPortInstanceIds = new Set(
       (document.netlist?.terminals ?? []).flatMap(
         (terminal) => terminal.interfaceInstanceIds,
@@ -315,25 +302,36 @@ export const SchematicDocumentSchema = SchematicDocumentBaseSchema.superRefine(
       }
       if (
         formalPortInstanceIds.has(instance.id) &&
-        instance.schematicReference !== undefined
+        instance.reference !== undefined
       ) {
         context.addIssue({
           code: "custom",
           message:
-            "A formal Cell Pin is identified by its Cell terminal name, not a schematic reference",
-          path: ["instances", instanceIndex, "schematicReference"],
+            "A formal Cell Pin is identified by its Cell terminal name, not an Instance reference",
+          path: ["instances", instanceIndex, "reference"],
         });
       }
-      const reference = instance.schematicReference?.toLowerCase();
-      if (!reference) continue;
-      if (schematicReferences.has(reference)) {
+      if (
+        (instance.symbolId === "ground" || instance.symbolId === "vdd-port") &&
+        instance.reference !== undefined
+      ) {
         context.addIssue({
           code: "custom",
-          message: `Duplicate schematic instance reference: ${instance.schematicReference}`,
-          path: ["instances", instanceIndex, "schematicReference"],
+          message:
+            "A power marker is identified by its visible Net name, not an Instance reference",
+          path: ["instances", instanceIndex, "reference"],
         });
       }
-      schematicReferences.add(reference);
+      const reference = instance.reference?.toLowerCase();
+      if (!reference) continue;
+      if (instanceReferences.has(reference)) {
+        context.addIssue({
+          code: "custom",
+          message: `Duplicate Instance reference: ${instance.reference}`,
+          path: ["instances", instanceIndex, "reference"],
+        });
+      }
+      instanceReferences.add(reference);
     }
     for (const [
       annotationIndex,
@@ -341,8 +339,7 @@ export const SchematicDocumentSchema = SchematicDocumentBaseSchema.superRefine(
     ] of document.annotations.entries()) {
       const binding = annotation.binding;
       if (
-        (binding?.kind === "instance-designator" ||
-          binding?.kind === "instance-schematic-name") &&
+        binding?.kind === "instance-reference" &&
         formalPortInstanceIds.has(binding.instanceId)
       ) {
         context.addIssue({
@@ -369,21 +366,30 @@ export const SchematicDocumentSchema = SchematicDocumentBaseSchema.superRefine(
                 evidence.owner.objectId === annotation.id))),
       );
       const semanticContent =
-        binding.kind === "cell-terminal-name"
+        binding.kind === "instance-reference"
           ? semanticTextDocument(
-              document.netlist?.terminals.find(
-                (terminal) => terminal.id === binding.terminalId,
-              )?.name ?? "",
-              "formal-port",
+              document.instances.find(
+                (instance) => instance.id === binding.instanceId,
+              )?.reference ?? "",
+              "instance-label",
             )
-          : binding.kind === "net-name"
+          : binding.kind === "cell-terminal-name"
             ? semanticTextDocument(
-                (annotationNameClaim?.kind === "name-claim"
-                  ? annotationNameClaim.name
-                  : undefined) ?? "",
-                annotation.kind === "power-label" ? "power-label" : "net-label",
+                document.netlist?.terminals.find(
+                  (terminal) => terminal.id === binding.terminalId,
+                )?.name ?? "",
+                "formal-port",
               )
-            : null;
+            : binding.kind === "net-name"
+              ? semanticTextDocument(
+                  (annotationNameClaim?.kind === "name-claim"
+                    ? annotationNameClaim.name
+                    : undefined) ?? "",
+                  annotation.kind === "power-label"
+                    ? "power-label"
+                    : "net-label",
+                )
+              : null;
       if (
         semanticContent &&
         flattenRichText(annotation.formatOverride) !==

@@ -17,19 +17,22 @@ function fixture(resistorAt: { x: number; y: number }) {
       id: "A",
       symbolId: "resistor",
       placement: { position: { x: 100, y: 300 }, rotation: 0, mirror: "none" },
-      netlist: { reference: "A", parameters: {} },
+      reference: "A",
+      netlist: { parameters: {} },
     },
     {
       id: "B",
       symbolId: "resistor",
       placement: { position: { x: 500, y: 300 }, rotation: 0, mirror: "none" },
-      netlist: { reference: "B", parameters: {} },
+      reference: "B",
+      netlist: { parameters: {} },
     },
     {
       id: "RX",
       symbolId: "resistor",
       placement: { position: resistorAt, rotation: 0, mirror: "none" },
-      netlist: { reference: "RX", parameters: {} },
+      reference: "RX",
+      netlist: { parameters: {} },
     },
   );
   document.nets.push({
@@ -100,7 +103,8 @@ describe("deriveWireUnderSymbolWarnings", () => {
       id: "M1",
       symbolId: "nmos",
       placement: { position: nmosAt, rotation: 0, mirror: "none" },
-      netlist: { reference: "M1", parameters: {} },
+      reference: "M1",
+      netlist: { parameters: {} },
     });
     if (options.gateOnNet !== false) {
       document.nets[0]!.terminals.push({ instanceId: "M1", pinName: "G" });
@@ -198,7 +202,8 @@ describe("deriveWireUnderSymbolWarnings", () => {
           rotation: 0,
           mirror: "none",
         },
-        netlist: { reference: "C", parameters: {} },
+        reference: "C",
+        netlist: { parameters: {} },
       },
       {
         id: "D",
@@ -208,7 +213,8 @@ describe("deriveWireUnderSymbolWarnings", () => {
           rotation: 0,
           mirror: "none",
         },
-        netlist: { reference: "D", parameters: {} },
+        reference: "D",
+        netlist: { parameters: {} },
       },
       {
         id: middle.id,
@@ -218,7 +224,8 @@ describe("deriveWireUnderSymbolWarnings", () => {
           rotation: 0,
           mirror: "none",
         },
-        netlist: { reference: middle.id, parameters: {} },
+        reference: middle.id,
+        netlist: { parameters: {} },
       },
     );
     document.nets.push({
@@ -291,7 +298,8 @@ describe("deriveWireUnderSymbolWarnings", () => {
       id: "RX",
       symbolId: "resistor",
       placement: { position: { x: 300, y: 400 }, rotation: 90, mirror: "none" },
-      netlist: { reference: "RX", parameters: {} },
+      reference: "RX",
+      netlist: { parameters: {} },
     });
     const contact = resolveEndpointConnection(document, resolver, {
       kind: "terminal",

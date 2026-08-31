@@ -36,7 +36,7 @@ describe("authoring helper compilation", () => {
       {
         kind: "place-component",
         symbol: "capacitor",
-        name: "C1",
+        reference: "C1",
         position: { x: 600, y: 300 },
         parameters: { c: "1p" },
       },
@@ -46,7 +46,7 @@ describe("authoring helper compilation", () => {
     expect(edit?.kind).toBe("add_instance");
     if (edit?.kind === "add_instance") {
       expect(edit.instance.symbolId).toBe("capacitor");
-      expect(edit.instance.netlist?.reference).toBe("C1");
+      expect(edit.instance.reference).toBe("C1");
       expect(edit.instance.netlist?.parameters).toEqual({ c: "1p" });
       expect(edit.instance.placement).toEqual({
         position: { x: 600, y: 300 },
@@ -63,7 +63,7 @@ describe("authoring helper compilation", () => {
         {
           kind: "place-component",
           symbol: "vdd",
-          name: "V1",
+          reference: "V1",
           position: { x: 0, y: 0 },
         },
       ],
@@ -74,7 +74,7 @@ describe("authoring helper compilation", () => {
         {
           kind: "place-component",
           symbol: "some-pdk-nmos",
-          name: "M9",
+          reference: "M9",
           position: { x: 0, y: 0 },
         },
       ],
@@ -82,13 +82,13 @@ describe("authoring helper compilation", () => {
     );
   });
 
-  it("rejects duplicate instance names", () => {
+  it("rejects duplicate Instance References", () => {
     expectCompileError(
       [
         {
           kind: "place-component",
           symbol: "resistor",
-          name: "M1",
+          reference: "M1",
           position: { x: 0, y: 0 },
         },
       ],
@@ -316,7 +316,7 @@ describe("authoring helper compilation", () => {
     const [transaction] = compile([
       {
         kind: "move",
-        target: { kind: "instance", name: "M1" },
+        target: { kind: "instance", reference: "M1" },
         position: { x: 10, y: 20 },
       },
       {
@@ -329,7 +329,11 @@ describe("authoring helper compilation", () => {
         target: { kind: "instance", id: "instance-2" },
         rotation: 90,
       },
-      { kind: "mirror", target: { kind: "instance", name: "M1" }, mirror: "x" },
+      {
+        kind: "mirror",
+        target: { kind: "instance", reference: "M1" },
+        mirror: "x",
+      },
     ]);
     expect(transaction?.edits).toEqual([
       {
@@ -347,9 +351,13 @@ describe("authoring helper compilation", () => {
     ]);
   });
 
-  it("compiles instance rename as a typed reference edit", () => {
+  it("compiles set-reference as a typed reference edit", () => {
     const [transaction] = compile([
-      { kind: "rename", target: { kind: "instance", name: "M1" }, name: "MN0" },
+      {
+        kind: "set-reference",
+        target: { kind: "instance", reference: "M1" },
+        reference: "MN0",
+      },
     ]);
     const edit = transaction?.edits?.[0];
     expect(edit).toEqual({
@@ -357,48 +365,13 @@ describe("authoring helper compilation", () => {
       instanceId: "instance-1",
       reference: "MN0",
     });
-    expect(() =>
-      compile([
-        {
-          kind: "rename",
-          target: { kind: "net", name: "Vout" },
-          name: "Vfb",
-        },
-      ]),
-    ).toThrow(/marker-owned/);
-  });
-
-  it("rejects Agent Net rename instead of exposing marker evidence", () => {
-    const snapshot = testSnapshot();
-    snapshot.document.nets.push({
-      id: "net-bias",
-      name: "BIAS",
-      scope: "local",
-      powerDomain: "none",
-      terminals: [],
-      routeIds: [],
-      junctionIds: [],
-    });
-
-    expect(() =>
-      compile(
-        [
-          {
-            kind: "rename",
-            target: { kind: "net", name: "Vout" },
-            name: "bias",
-          },
-        ],
-        snapshot,
-      ),
-    ).toThrow(/marker-owned/);
   });
 
   it("compiles set-property and rejects spice.* keys", () => {
     const [transaction] = compile([
       {
         kind: "set-property",
-        target: { kind: "instance", name: "M1" },
+        target: { kind: "instance", reference: "M1" },
         set: { w: "4u" },
         unset: ["note"],
       },
@@ -413,7 +386,7 @@ describe("authoring helper compilation", () => {
       [
         {
           kind: "set-property",
-          target: { kind: "instance", name: "M1" },
+          target: { kind: "instance", reference: "M1" },
           set: { "spice.model": "nch" },
         },
       ],
@@ -518,8 +491,8 @@ describe("authoring helper compilation", () => {
       {
         kind: "arrange",
         instances: [
-          { kind: "instance", name: "M1" },
-          { kind: "instance", name: "R1" },
+          { kind: "instance", reference: "M1" },
+          { kind: "instance", reference: "R1" },
         ],
         axis: "x",
         coordinate: 240,
@@ -535,7 +508,7 @@ describe("authoring helper compilation", () => {
 
   it("compiles delete for supported kinds and refuses nets", () => {
     const [transaction] = compile([
-      { kind: "delete", target: { kind: "instance", name: "R1" } },
+      { kind: "delete", target: { kind: "instance", reference: "R1" } },
       { kind: "delete", target: { kind: "route", id: "route-1" } },
       { kind: "delete", target: { kind: "annotation", id: "label-1" } },
     ]);
@@ -554,12 +527,12 @@ describe("authoring helper compilation", () => {
     const transactions = compile([
       {
         kind: "move",
-        target: { kind: "instance", name: "M1" },
+        target: { kind: "instance", reference: "M1" },
         position: { x: 0, y: 0 },
       },
       {
         kind: "rotate",
-        target: { kind: "instance", name: "M1" },
+        target: { kind: "instance", reference: "M1" },
         rotation: 90,
       },
       {
@@ -569,7 +542,7 @@ describe("authoring helper compilation", () => {
       },
       {
         kind: "move",
-        target: { kind: "instance", name: "R1" },
+        target: { kind: "instance", reference: "R1" },
         position: { x: 1, y: 1 },
       },
     ]);
@@ -587,10 +560,13 @@ describe("authoring helper compilation", () => {
       [
         {
           kind: "move",
-          target: { kind: "instance", name: "M1" },
+          target: { kind: "instance", reference: "M1" },
           position: { x: 0, y: 0 },
         },
-        { kind: "rotate", target: { kind: "instance", name: "M1" } },
+        {
+          kind: "rotate",
+          target: { kind: "instance", reference: "M1" },
+        },
       ],
       "rotation",
     );

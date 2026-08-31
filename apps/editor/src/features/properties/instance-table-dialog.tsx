@@ -34,9 +34,6 @@ function referenceIssueLabel(row: ProjectInstanceRow): string {
       if (issue.code === "WRONG_REFERENCE_PREFIX") {
         return "Wrong reference prefix";
       }
-      if (issue.code === "UNEXPECTED_REFERENCE") {
-        return "Reference not permitted";
-      }
       return "Reference required";
     })
     .join("; ");
@@ -198,7 +195,6 @@ export function InstanceTableDialog({
                 <th aria-label="Selection" />
                 <th>ID</th>
                 <th>Reference</th>
-                <th>Alias</th>
                 <th>Master</th>
                 <th>Symbol</th>
                 <th>Cell</th>
@@ -231,7 +227,6 @@ export function InstanceTableDialog({
                     </button>
                   </td>
                   <td>{row.reference ?? "—"}</td>
-                  <td>{row.schematicName ?? "—"}</td>
                   <td>{row.masterName ?? "—"}</td>
                   <td>{row.symbolId}</td>
                   <td>{row.documentName}</td>

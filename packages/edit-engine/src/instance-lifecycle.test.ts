@@ -24,8 +24,8 @@ function lifecycleDocument() {
         rotation: 0,
         mirror: "none",
       },
+      reference: "R1",
       netlist: {
-        reference: "R1",
         binding: { kind: "primitive", deviceClass: "resistor" },
         parameters: { resistance: "10k" },
       },
@@ -66,7 +66,7 @@ function lifecycleDocument() {
     {
       id: "label-r1",
       kind: "instance-label",
-      binding: { kind: "instance-schematic-name", instanceId: "R1" },
+      binding: { kind: "instance-reference", instanceId: "R1" },
       anchor: {
         kind: "object",
         objectId: "R1",
@@ -243,7 +243,8 @@ describe("Instance lifecycle planning", () => {
           {
             id: "R1",
             placement: null,
-            netlist: { reference: "R1", parameters: { resistance: "10k" } },
+            reference: "R1",
+            netlist: { parameters: { resistance: "10k" } },
           },
           { id: "R2" },
         ],

@@ -9,33 +9,28 @@ import { describe, expect, it } from "vitest";
 import { resolveAnnotationText } from "./annotation-text.js";
 
 describe("bound annotation text", () => {
-  it("uses RichText schematicName for the default label and keeps the designator separate", () => {
+  it("projects one Reference and keeps RichText formatting in the annotation", () => {
     const document = createEmptyDocument("document-main", "Main");
+    const formattedReference = {
+      runs: [
+        {
+          kind: "span" as const,
+          style: "bold" as const,
+          children: [{ kind: "text" as const, value: "M_INTERNAL" }],
+        },
+      ],
+    };
     document.instances.push({
       id: "M1",
       symbolId: "nmos",
       placement: null,
-      schematicReference: "M_SCHEMATIC",
-      netlist: { reference: "M_INTERNAL", parameters: {} },
-      schematicName: {
-        runs: [
-          {
-            kind: "span",
-            style: "bold",
-            children: [{ kind: "text", value: "M" }],
-          },
-          {
-            kind: "span",
-            style: "overbar",
-            children: [{ kind: "text", value: "1" }],
-          },
-        ],
-      },
+      reference: "M_INTERNAL",
+      netlist: { parameters: {} },
     });
     const annotation: Annotation = {
       id: "instance-label-M1",
       kind: "instance-label" as const,
-      binding: { kind: "instance-designator" as const, instanceId: "M1" },
+      binding: { kind: "instance-reference" as const, instanceId: "M1" },
       anchor: { kind: "free" as const, position: { x: 0, y: 0 } },
       alignment: "start" as const,
       rotation: 0 as const,
@@ -48,26 +43,25 @@ describe("bound annotation text", () => {
     expect(
       resolveAnnotationText(document, {
         ...annotation,
-        binding: { kind: "instance-schematic-name", instanceId: "M1" },
+        formatOverride: formattedReference,
       }),
-    ).toEqual(document.instances[0]!.schematicName);
-    expect(document.instances[0]!.netlist!.reference).toBe("M_INTERNAL");
+    ).toEqual(formattedReference);
   });
 
-  it("falls back from an unmaterialized schematic label without exposing the object ID", () => {
+  it("never falls back from a missing Reference to object identity", () => {
     const document = createEmptyDocument("document-main", "Main");
     document.instances.push({
       id: "opaque-object-id",
       symbolId: "resistor",
       placement: null,
-      schematicReference: "R7",
-      netlist: { reference: "R_NETLIST", parameters: {} },
+      reference: "R7",
+      netlist: { parameters: {} },
     });
     const annotation = {
       id: "instance-label-R7",
       kind: "instance-label" as const,
       binding: {
-        kind: "instance-schematic-name" as const,
+        kind: "instance-reference" as const,
         instanceId: "opaque-object-id",
       },
       anchor: { kind: "free" as const, position: { x: 0, y: 0 } },
@@ -78,9 +72,9 @@ describe("bound annotation text", () => {
     expect(resolveAnnotationText(document, annotation)).toEqual(
       semanticTextDocument("R7", "instance-label"),
     );
-    delete document.instances[0]!.schematicReference;
+    delete document.instances[0]!.reference;
     expect(resolveAnnotationText(document, annotation)).toEqual(
-      semanticTextDocument("R_NETLIST", "instance-label"),
+      semanticTextDocument("", "instance-label"),
     );
   });
 
@@ -195,25 +189,12 @@ describe("bound annotation text", () => {
     expect(annotation.anchor).toEqual(before);
   });
 
-  it("projects a master name without falling back to the internal object ID", () => {
+  it("keeps a visible master label as ordinary attached text", () => {
     const document = createEmptyDocument("document-main", "Main");
-    document.instances.push({
-      id: "opaque-object-id",
-      symbolId: "nmos",
-      placement: null,
-      netlist: {
-        reference: "M1",
-        binding: { kind: "model", deviceClass: "mos", name: "sky130_nfet" },
-        parameters: {},
-      },
-    });
     const annotation = {
       id: "master-M1",
       kind: "instance-label" as const,
-      binding: {
-        kind: "instance-master-name" as const,
-        instanceId: "opaque-object-id",
-      },
+      content: semanticTextDocument("sky130_nfet", "instance-label"),
       anchor: { kind: "free" as const, position: { x: 0, y: 0 } },
       alignment: "start" as const,
       rotation: 0 as const,

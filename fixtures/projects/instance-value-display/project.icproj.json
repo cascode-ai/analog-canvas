@@ -821,8 +821,7 @@
             "parameters": {
               "l": "1u",
               "w": "20u"
-            },
-            "reference": "M1"
+            }
           },
           "placement": {
             "mirror": "none",
@@ -832,7 +831,7 @@
             },
             "rotation": 0
           },
-          "schematicReference": "M1",
+          "reference": "M1",
           "symbolId": "nmos",
           "symbolVariantId": "textbook-3terminal"
         },
@@ -846,8 +845,7 @@
             "parameters": {
               "l": "1u",
               "w": "40u"
-            },
-            "reference": "M2"
+            }
           },
           "placement": {
             "mirror": "none",
@@ -857,7 +855,7 @@
             },
             "rotation": 0
           },
-          "schematicReference": "M2",
+          "reference": "M2",
           "symbolId": "pmos",
           "symbolVariantId": "textbook-3terminal"
         },
@@ -870,8 +868,7 @@
             },
             "parameters": {
               "value": "10k"
-            },
-            "reference": "R1"
+            }
           },
           "placement": {
             "mirror": "none",
@@ -881,7 +878,7 @@
             },
             "rotation": 0
           },
-          "schematicReference": "R1",
+          "reference": "R1",
           "symbolId": "resistor"
         },
         {
@@ -893,8 +890,7 @@
             },
             "parameters": {
               "value": "22k"
-            },
-            "reference": "R2"
+            }
           },
           "placement": {
             "mirror": "none",
@@ -904,7 +900,7 @@
             },
             "rotation": 0
           },
-          "schematicReference": "R2",
+          "reference": "R2",
           "symbolId": "resistor"
         },
         {
@@ -916,8 +912,7 @@
             },
             "parameters": {
               "value": "2p"
-            },
-            "reference": "C1"
+            }
           },
           "placement": {
             "mirror": "none",
@@ -927,7 +922,7 @@
             },
             "rotation": 90
           },
-          "schematicReference": "C1",
+          "reference": "C1",
           "symbolId": "capacitor"
         },
         {
@@ -939,8 +934,7 @@
             },
             "parameters": {
               "value": "3n"
-            },
-            "reference": "L1"
+            }
           },
           "placement": {
             "mirror": "none",
@@ -950,7 +944,7 @@
             },
             "rotation": 0
           },
-          "schematicReference": "L1",
+          "reference": "L1",
           "symbolId": "inductor"
         },
         {
@@ -962,8 +956,7 @@
             },
             "parameters": {
               "dc": "1.8"
-            },
-            "reference": "V1"
+            }
           },
           "placement": {
             "mirror": "none",
@@ -973,7 +966,7 @@
             },
             "rotation": 0
           },
-          "schematicReference": "V1",
+          "reference": "V1",
           "symbolId": "voltage-source"
         },
         {
@@ -985,8 +978,7 @@
             },
             "parameters": {
               "dc": "100u"
-            },
-            "reference": "I1"
+            }
           },
           "placement": {
             "mirror": "none",
@@ -996,7 +988,7 @@
             },
             "rotation": 0
           },
-          "schematicReference": "I1",
+          "reference": "I1",
           "symbolId": "current-source"
         },
         {
@@ -1009,8 +1001,7 @@
             "parameters": {
               "l": "0.5u",
               "w": "10u"
-            },
-            "reference": "M3"
+            }
           },
           "placement": {
             "mirror": "x",
@@ -1020,7 +1011,7 @@
             },
             "rotation": 0
           },
-          "schematicReference": "M3",
+          "reference": "M3",
           "symbolId": "nmos",
           "symbolVariantId": "textbook-3terminal"
         }
@@ -1048,7 +1039,7 @@
   "externalSubcircuitDefinitions": [],
   "id": "instance-value-display",
   "name": "Instance Value Display",
-  "schemaVersion": 34,
+  "schemaVersion": 35,
   "source": {
     "dialect": "none",
     "entry": null,

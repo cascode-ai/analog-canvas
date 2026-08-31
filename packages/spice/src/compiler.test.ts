@@ -94,7 +94,7 @@ Q2 collector base emitter QPREF
     );
     expect(
       imported.project?.documents[0]?.instances.map((instance) => [
-        instance.netlist?.reference,
+        instance.reference,
         instance.symbolId,
         instance.importProvenance,
       ]),
@@ -104,7 +104,7 @@ Q2 collector base emitter QPREF
         "diode",
         expect.objectContaining({
           kind: "model",
-          name: "DREF",
+          sourceMasterName: "DREF",
           status: "resolved",
           modelType: "d",
         }),
@@ -114,7 +114,7 @@ Q2 collector base emitter QPREF
         "npn",
         expect.objectContaining({
           kind: "model",
-          name: "QNREF",
+          sourceMasterName: "QNREF",
           status: "resolved",
           modelType: "npn",
         }),
@@ -124,7 +124,7 @@ Q2 collector base emitter QPREF
         "pnp",
         expect.objectContaining({
           kind: "model",
-          name: "QPREF",
+          sourceMasterName: "QPREF",
           status: "resolved",
           modelType: "pnp",
         }),
@@ -227,7 +227,7 @@ Q2 collector base emitter QPREF
     expect(
       imported.project?.documents[0]?.instances
         .filter((instance) => instance.symbolId === "inductor-compact")
-        .map((instance) => instance.netlist?.reference),
+        .map((instance) => instance.reference),
     ).toEqual(["L1", "L2"]);
   });
 
@@ -254,7 +254,7 @@ Q2 collector base emitter QPREF
     expect(
       document.instances
         .filter((instance) => cellPinInstanceIds.has(instance.id))
-        .every((instance) => instance.schematicReference === undefined),
+        .every((instance) => instance.reference === undefined),
     ).toBe(true);
     expect(
       document.instances
@@ -275,7 +275,7 @@ Q2 collector base emitter QPREF
     ).toEqual(["nmos", "pmos"]);
     expect(document.instances[0]!.importProvenance).toMatchObject({
       kind: "opaque",
-      name: "sky130_fd_pr__nfet_01v8",
+      sourceMasterName: "sky130_fd_pr__nfet_01v8",
       status: "resolved",
       sourceTarget: "external-subcircuit:sky130_fd_pr__nfet_01v8",
       symbolMappingRegistryId: "sky130-nfet-four-terminal",
@@ -286,8 +286,8 @@ Q2 collector base emitter QPREF
         { sourcePosition: 3, pinName: "B" },
       ],
     });
+    expect(document.instances[0]!.reference).toBe("XM1");
     expect(document.instances[0]!.netlist).toEqual({
-      reference: "XM1",
       binding: expect.objectContaining({ kind: "external-subcircuit" }),
       parameters: { l: "1.0", w: "96", nf: "12" },
     });
@@ -340,7 +340,7 @@ Q2 collector base emitter QPREF
     );
     const document = imported.project!.documents[0]!;
     const instance = document.instances.find(
-      (candidate) => candidate.netlist?.reference === "XM1",
+      (candidate) => candidate.reference === "XM1",
     )!;
     expect(instance).toMatchObject({
       netlist: expect.objectContaining({
@@ -392,7 +392,7 @@ Q2 collector base emitter QPREF
           (instance) =>
             instance.netlist?.binding?.kind === "external-subcircuit",
         )
-        .every((instance) => instance.netlist?.reference?.startsWith("X")),
+        .every((instance) => instance.reference?.startsWith("X")),
     ).toBe(true);
   });
 });

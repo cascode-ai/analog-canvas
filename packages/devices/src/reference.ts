@@ -13,10 +13,7 @@ export const hierarchyReferencePolicy: ReferencePolicy = {
 
 export interface ReferenceIssue {
   readonly code:
-    | "MISSING_REFERENCE"
-    | "UNEXPECTED_REFERENCE"
-    | "WRONG_REFERENCE_PREFIX"
-    | "DUPLICATE_REFERENCE";
+    "MISSING_REFERENCE" | "WRONG_REFERENCE_PREFIX" | "DUPLICATE_REFERENCE";
   readonly instanceId: string;
   readonly reference?: string;
   readonly otherInstanceId?: string;
@@ -82,7 +79,7 @@ export function createReferenceIndex(
   for (const instance of document.instances) {
     const policy = referencePolicyForInstance(instance);
     policyByInstanceId.set(instance.id, policy);
-    const reference = instance.netlist?.reference;
+    const reference = instance.reference;
     if (reference) {
       const foldedReference = reference.toLowerCase();
       const instances = byReference.get(foldedReference) ?? [];
@@ -90,13 +87,6 @@ export function createReferenceIndex(
       byReference.set(foldedReference, instances);
     }
     if (policy.kind === "none") {
-      if (reference) {
-        issues.push({
-          code: "UNEXPECTED_REFERENCE",
-          instanceId: instance.id,
-          reference,
-        });
-      }
       continue;
     }
     if (!reference) {

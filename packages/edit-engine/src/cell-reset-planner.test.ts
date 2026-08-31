@@ -27,9 +27,8 @@ function fixture() {
         rotation: 0,
         mirror: "none",
       },
-      schematicReference: "R1",
+      reference: "R1",
       netlist: {
-        reference: "R1",
         binding: { kind: "primitive", deviceClass: "resistor" },
         parameters: {},
       },
@@ -109,8 +108,8 @@ function fixture() {
     id: "X1",
     symbolId: "hierarchical-child",
     placement: null,
+    reference: "X1",
     netlist: {
-      reference: "X1",
       parameters: {},
       binding: { kind: "subcircuit", childDocumentId: child.id },
     },

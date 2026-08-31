@@ -101,7 +101,7 @@ describe("schema 33 to 34 migration (Net name provenance)", () => {
     );
   });
 
-  it("loads schema 33 through the canonical schema 34 validator", () => {
+  it("loads schema 33 through the canonical schema 35 validator", () => {
     const result = tryParseProjectWithMetadata(
       JSON.stringify(schema33Project()),
     );
@@ -109,7 +109,7 @@ describe("schema 33 to 34 migration (Net name provenance)", () => {
       ok: true,
       sourceSchemaVersion: 33,
       migrated: true,
-      project: { schemaVersion: 34 },
+      project: { schemaVersion: 35 },
     });
   });
 });

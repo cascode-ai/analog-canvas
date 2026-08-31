@@ -532,7 +532,7 @@ describe("stars and thumbs", () => {
     sketch.documents[0]!.instances.push({
       id: "S1",
       symbolId: "ideal-switch",
-      schematicReference: "S1",
+      reference: "S1",
       placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
     });
     const sketchId = await submitOne(env, "Sketch", {
@@ -1593,7 +1593,7 @@ function wiredProjectText(name = "Wired", secondResistorX = 200): string {
         rotation: 0,
         mirror: "none",
       },
-      netlist: { reference: "R1", parameters: {} },
+      reference: "R1", netlist: { parameters: {} },
     },
     {
       id: "R2",
@@ -1603,7 +1603,7 @@ function wiredProjectText(name = "Wired", secondResistorX = 200): string {
         rotation: 0,
         mirror: "none",
       },
-      netlist: { reference: "R2", parameters: {} },
+      reference: "R2", netlist: { parameters: {} },
     },
   ];
   document.nets = [
@@ -1637,8 +1637,8 @@ function hierarchicalProjectText(name = "Hierarchical"): string {
       rotation: 0,
       mirror: "none",
     },
+    reference: "XU0",
     netlist: {
-      reference: "XU0",
       parameters: {},
       binding: { kind: "subcircuit", childDocumentId: child.id },
     },

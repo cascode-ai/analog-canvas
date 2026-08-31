@@ -38,8 +38,7 @@ major boundaries exist.
 - [`0026-definition-level-cell-symbol-presentation.md`](0026-definition-level-cell-symbol-presentation.md) — definition-level Cell symbol intent
 - [`0027-stage-1-netlist-authoring-protocol.md`](0027-stage-1-netlist-authoring-protocol.md) — typed netlist authoring facts
 - [`0029-external-subcircuit-definition-protocol.md`](0029-external-subcircuit-definition-protocol.md) — external subcircuit definitions
-- [`0030-instance-identity-and-placement-lifecycle.md`](0030-instance-identity-and-placement-lifecycle.md) — Instance identity and placement
-- [`0033-schematic-identity-and-richtext-presentation.md`](0033-schematic-identity-and-richtext-presentation.md) — distinct schematic identities and RichText presentation
+- [`0054-single-instance-reference-authority.md`](0054-single-instance-reference-authority.md) — one authored Instance Reference across canvas, copy, Agent, and export
 - [`0036-named-power-and-mos-bulk-semantics.md`](0036-named-power-and-mos-bulk-semantics.md) — named power and MOS bulk policy
 - [`0038-document-style-overrides.md`](0038-document-style-overrides.md) — Document style overrides
 - [`0046-independent-cell-pins-and-formal-port-projection.md`](0046-independent-cell-pins-and-formal-port-projection.md) — independent Cell Pins and derived Formal Ports

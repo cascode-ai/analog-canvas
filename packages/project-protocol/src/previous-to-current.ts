@@ -82,3 +82,11 @@ export type {
   Schema33To34MigrationReport,
   Schema33To34MigrationResult,
 } from "./transforms/net-name-provenance.js";
+export {
+  upgradeSchema34To35,
+  upgradeSchema34To35WithReport,
+} from "./transforms/instance-reference.js";
+export type {
+  Schema34To35MigrationReport,
+  Schema34To35MigrationResult,
+} from "./transforms/instance-reference.js";

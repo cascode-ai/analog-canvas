@@ -14,9 +14,10 @@ The insertion UI lists exact reviewed Symbol IDs plus the current Project's
 eligible Cell definitions in a dynamic **Cells** section. A Cell selection
 uses the same cursor preview, grid snap, rotation, mirror, and cancellation
 state as a Symbol; its commit factory alone differs, creating one typed
-subcircuit Instance through a Project structural transaction. `Xn` remains the
-internal netlist reference; the canvas has one object-anchored Cell-name
-annotation in the ordinary reference-label position. Both `port` and
+subcircuit Instance through a Project structural transaction. `Xn` is its sole
+Instance Reference and is both displayed and emitted. A separate visible
+Cell/master label, when present, is ordinary literal attached text with no
+identity or hierarchy authority. Both `port` and
 `port-filled` remain manually reachable artwork for one concept: **Cell Pin**.
 Terminal `P` participates in ordinary snap, wire, move/stretch, and selection
 behavior. Placement atomically creates the Instance, Base Net membership, and
@@ -49,7 +50,7 @@ drafting object.
 
 There is no separate Cell Interface authoring surface. A child Cell Pin shows
 only its object-anchored terminal-name annotation in the normal Reference slot;
-its stable Instance ID is not drawn and it has no schematic Reference. Normal
+its stable Instance ID is not drawn and it has no Instance Reference. Normal
 Properties own direction. Annotation rename changes only that declaration.
 Caller reconciliation compares the formal name projection before and after:
 it does nothing while the old-name group survives and never merges caller
@@ -350,15 +351,14 @@ without requiring an Alt cycle.
 
 Every visible editable label is one persisted RichText annotation. Component
 insertion uses one default-display policy: ordinary instances receive an
-`instance-schematic-name` label, which uses RichText `schematicName` and
-otherwise falls back only to `schematicReference` or `netlist.reference`.
+`instance-reference` label, which projects only `Instance.reference`.
 Internal Cells and external subcircuits additionally receive their
-Cell/master presentation; a Cell Pin receives only an object-anchored
+Cell/master presentation as attached literal text; a Cell Pin receives only an object-anchored
 `cell-terminal-name`; and parameter values use `instance-value` when requested
 and displayable.
-`instance-designator` is an explicitly requested, read-only network-ID
-projection, never the default editable label. Properties exposes one
-Schematic label field; RichText canvas editing materializes `schematicName`.
+Properties and character editing of the bound canvas label both rename the one
+Instance Reference. Same-text RichText formatting stays in the Annotation and
+ordinary attached literal text never becomes a Reference.
 For a Cell Pin, a character edit renames the terminal while a formatting-only
 edit persists a same-text annotation `formatOverride`. Properties exposes the
 Cell Pin name and direction. Net naming remains a Net Label operation.
@@ -410,7 +410,7 @@ Project through one replacement boundary; they are not Edit Engine
 transactions. Replacement cancels pending recovery for the outgoing Project
 and terminates its Agent session. A complete Project covered by the schema
 24→33 upgrade chain may be upgraded at the read boundary and then enters the
-editor only as schema-34; migrated files are marked as needing save.
+editor only as schema-35; migrated files are marked as needing save.
 
 Selection, viewport, active tool, previews, Agent tokens, and approval UI are
 transient and never enter Project JSON. Recovery is scheduled only after a

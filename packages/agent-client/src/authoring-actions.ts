@@ -20,11 +20,26 @@ const RotationInputSchema = z.union([
 ]);
 const MirrorInputSchema = z.enum(["none", "x"]);
 
-/** Reference an existing object by stable ID or by its snapshot name. */
-export const ObjectRefSchema = z
+/** Reference an Instance by stable object ID or authored Reference. */
+export const InstanceRefSchema = z
+  .strictObject({
+    kind: z.literal("instance"),
+    id: z.string().min(1).optional(),
+    reference: z.string().min(1).optional(),
+  })
+  .superRefine((ref, context) => {
+    if ((ref.id === undefined) === (ref.reference === undefined)) {
+      context.addIssue({
+        code: "custom",
+        message: "Provide exactly one of id or reference",
+      });
+    }
+  });
+
+/** Reference a non-Instance object by stable ID or its domain name. */
+const NamedObjectRefSchema = z
   .strictObject({
     kind: z.enum([
-      "instance",
       "net",
       "route",
       "junction",
@@ -43,13 +58,13 @@ export const ObjectRefSchema = z
       });
     }
   });
+export const ObjectRefSchema = z.union([
+  InstanceRefSchema,
+  NamedObjectRefSchema,
+]);
 export type ObjectRef = z.infer<typeof ObjectRefSchema>;
 
-const InstanceRefSchema = ObjectRefSchema.refine(
-  (ref) => ref.kind === "instance",
-  { message: "Expected an instance reference" },
-);
-const NetRefSchema = ObjectRefSchema.refine((ref) => ref.kind === "net", {
+const NetRefSchema = NamedObjectRefSchema.refine((ref) => ref.kind === "net", {
   message: "Expected a net reference",
 });
 
@@ -79,8 +94,8 @@ export const AuthoringActionSchema = z.discriminatedUnion("kind", [
     kind: z.literal("place-component"),
     /** Reviewed built-in Razavi symbol ID from the authoring catalog. */
     symbol: z.string().min(1),
-    /** Netlist reference; also the name the next Snapshot reports. */
-    name: z.string().min(1).max(128),
+    /** The sole authored Instance Reference. */
+    reference: z.string().min(1).max(128),
     position: PointInputSchema,
     rotation: RotationInputSchema.optional(),
     mirror: MirrorInputSchema.optional(),
@@ -111,7 +126,7 @@ export const AuthoringActionSchema = z.discriminatedUnion("kind", [
     kind: z.literal("move"),
     target: z.union([
       InstanceRefSchema,
-      ObjectRefSchema.refine((ref) => ref.kind === "junction", {
+      NamedObjectRefSchema.refine((ref) => ref.kind === "junction", {
         message: "Expected a junction reference",
       }),
     ]),
@@ -128,9 +143,9 @@ export const AuthoringActionSchema = z.discriminatedUnion("kind", [
     mirror: MirrorInputSchema,
   }),
   z.strictObject({
-    kind: z.literal("rename"),
-    target: z.union([InstanceRefSchema, NetRefSchema]),
-    name: z.string().min(1).max(256),
+    kind: z.literal("set-reference"),
+    target: InstanceRefSchema,
+    reference: z.string().min(1).max(128),
   }),
   z.strictObject({
     kind: z.literal("set-property"),
@@ -149,10 +164,10 @@ export const AuthoringActionSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("edit-text"),
     target: z.union([
-      ObjectRefSchema.refine((ref) => ref.kind === "annotation", {
+      NamedObjectRefSchema.refine((ref) => ref.kind === "annotation", {
         message: "Expected an annotation reference",
       }),
-      ObjectRefSchema.refine((ref) => ref.kind === "drafting", {
+      NamedObjectRefSchema.refine((ref) => ref.kind === "drafting", {
         message: "Expected a drafting reference",
       }),
     ]),

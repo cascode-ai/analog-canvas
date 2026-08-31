@@ -9,7 +9,7 @@ or serial branches supported by connectivity or parameters.
   count, bit, weight, or tap variation;
 - adjacent elements form a serial ladder or repeated shunt/tap relationship;
 - switch controls or formal boundary terminals provide an ordering independent
-  of instance names;
+  of Instance References;
 - boundary Nets reveal shared top/bottom plates, references, terminations, or
   output summing nodes.
 

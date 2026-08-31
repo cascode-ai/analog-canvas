@@ -17,7 +17,8 @@ function makeDocument(): SchematicDocument {
       rotation: 0,
       mirror: "none",
     },
-    netlist: { reference: "R1", parameters: {} },
+    reference: "R1",
+    netlist: { parameters: {} },
   });
   return doc;
 }
@@ -264,7 +265,8 @@ describe("set_instance_style_override edit", () => {
         rotation: 0,
         mirror: "none",
       },
-      netlist: { reference: "C1", parameters: {} },
+      reference: "C1",
+      netlist: { parameters: {} },
     });
     const result = executeTransaction(
       doc,

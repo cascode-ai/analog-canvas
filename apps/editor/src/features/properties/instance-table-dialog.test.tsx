@@ -13,7 +13,8 @@ describe("InstanceTableDialog", () => {
       id: "M1",
       symbolId: "nmos",
       placement: null,
-      netlist: { reference: "M1", parameters: { l: "60n" } },
+      reference: "M1",
+      netlist: { parameters: { l: "60n" } },
     });
 
     const markup = renderToStaticMarkup(

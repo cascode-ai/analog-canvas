@@ -32,8 +32,8 @@ describe("current rendering contract", () => {
         rotation: 0,
         mirror: "none",
       },
+      reference: "X1",
       netlist: {
-        reference: "X1",
         parameters: {},
         binding: {
           kind: "subcircuit",
@@ -42,7 +42,7 @@ describe("current rendering contract", () => {
       },
       importProvenance: {
         kind: "subcircuit",
-        name: child.netlist!.name,
+        sourceMasterName: child.netlist!.name,
         sourceTarget: `cell:${child.id}`,
         terminalMapping: [{ sourcePosition: 0, pinName: "VGS1" }],
       },
@@ -99,8 +99,8 @@ describe("current rendering contract", () => {
         rotation: 0,
         mirror: "none",
       },
+      reference: "X1",
       netlist: {
-        reference: "X1",
         parameters: {},
         binding: {
           kind: "subcircuit",
@@ -109,7 +109,7 @@ describe("current rendering contract", () => {
       },
       importProvenance: {
         kind: "subcircuit",
-        name: child.netlist!.name,
+        sourceMasterName: child.netlist!.name,
         sourceTarget: `cell:${child.id}`,
         terminalMapping: [
           { sourcePosition: 0, pinName: "TOP" },

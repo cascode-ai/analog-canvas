@@ -186,8 +186,8 @@ describe("property edit planner", () => {
         rotation: 0,
         mirror: "none",
       },
+      reference: "R1",
       netlist: {
-        reference: "R1",
         parameters: { value: "1k" },
       },
     });

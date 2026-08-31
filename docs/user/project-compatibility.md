@@ -1,12 +1,14 @@
 # Project File Compatibility
 
-The released Project schema version is `34`. It retains schematic-only
+The released Project schema version is `35`. It retains schematic-only
 hierarchy integrity, a Project structural revision, stable formal Cell ports,
 and definition-level Cell symbol presentation. It also has one typed Instance
 netlist authority, formal Cell parameters, and Project-local external
 subcircuit definitions with stable ordered terminal identities and directions.
-Every ordinary Instance has one RichText schematic label, initially derived
-from its internal schematic or netlist reference until the user edits it. A
+Every ordinary Instance has at most one authored `reference`; an emitting
+Instance requires it, displays it through a live `instance-reference`
+Annotation, and emits the same token. Descriptive attached RichText is an
+ordinary literal Annotation with no identity or emission authority. A
 Cell Pin is identified by its own stable terminal identity and displays its
 Port Name, such as `Vout`; `port` and `port-filled` are only hollow and filled
 artwork variants for that independent interface declaration.
@@ -20,7 +22,7 @@ placements, route bends, and Junctions stay aligned to the Document grid. An
 Instance may carry an optional `styleOverride` with independent foreground and
 background colors; when absent, document style defaults remain authoritative.
 Each Annotation may independently carry an optional presentation-only
-`textColor`. An instance reference or value with Automatic text color inherits
+`textColor`. An Instance Reference or value with Automatic text color inherits
 its owning Instance foreground; other annotations inherit the document
 foreground. Drafting text keeps its separate drawing-object color override.
 An Instance may also carry optional schematic-only `signalFlowParameters`

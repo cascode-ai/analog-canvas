@@ -81,8 +81,8 @@ describe("CircuitProject schema", () => {
       id: "R1",
       symbolId: "resistor",
       placement: null,
+      reference: "R1",
       netlist: {
-        reference: "R1",
         binding: { kind: "primitive", deviceClass: "resistor" },
         parameters: { value: "10k" },
       },
@@ -114,8 +114,8 @@ describe("CircuitProject schema", () => {
       id: "X1",
       symbolId: "generic-block-2",
       placement: null,
+      reference: "X1",
       netlist: {
-        reference: "X1",
         binding: {
           kind: "external-subcircuit",
           definitionId: "external-opamp",
@@ -145,7 +145,7 @@ describe("CircuitProject schema", () => {
     document.instances.push({
       id: "port-object",
       symbolId: "port",
-      schematicReference: "P1",
+      reference: "P1",
       placement: null,
     });
     document.nets.push({
@@ -168,13 +168,13 @@ describe("CircuitProject schema", () => {
     };
 
     expect(SchematicDocumentSchema.safeParse(document).success).toBe(false);
-    delete document.instances[0]!.schematicReference;
+    delete document.instances[0]!.reference;
     expect(SchematicDocumentSchema.safeParse(document).success).toBe(true);
     document.annotations.push({
       id: "label-port",
       kind: "instance-label",
       binding: {
-        kind: "instance-schematic-name",
+        kind: "instance-reference",
         instanceId: "port-object",
       },
       anchor: { kind: "free", position: { x: 0, y: 0 } },
@@ -204,6 +204,23 @@ describe("CircuitProject schema", () => {
     expect(SchematicDocumentSchema.safeParse(document).success).toBe(false);
   });
 
+  it("rejects a fabricated Instance Reference on a power marker", () => {
+    const document = createEmptyProject(
+      "power-marker-reference",
+      "Power Marker",
+    ).documents[0]!;
+    document.instances.push({
+      id: "vdd-marker",
+      symbolId: "vdd-port",
+      reference: "VDD1",
+      placement: null,
+    });
+
+    expect(SchematicDocumentSchema.safeParse(document).success).toBe(false);
+    delete document.instances[0]!.reference;
+    expect(SchematicDocumentSchema.safeParse(document).success).toBe(true);
+  });
+
   it("holds electrical objects to the Document grid while annotations position freely", () => {
     const document = createEmptyProject("project-grid", "Grid").documents[0]!;
     // Schema 32 retains 1-unit-precise drafting and annotation anchors.
@@ -224,7 +241,7 @@ describe("CircuitProject schema", () => {
     document.instances.push({
       id: "R1",
       symbolId: "resistor",
-      schematicReference: "R1",
+      reference: "R1",
       placement: { position: { x: 15, y: 20 }, rotation: 0, mirror: "none" },
     });
     const result = SchematicDocumentSchema.safeParse(document);
@@ -256,8 +273,8 @@ describe("CircuitProject schema", () => {
       id: "X1",
       symbolId: "hierarchical-child",
       placement: null,
+      reference: "X1",
       netlist: {
-        reference: "X1",
         parameters: {},
         binding: {
           kind: "subcircuit",
@@ -281,8 +298,8 @@ describe("CircuitProject schema", () => {
       id: "XBACK",
       symbolId: "hierarchical-main",
       placement: null,
+      reference: "XBACK",
       netlist: {
-        reference: "XBACK",
         parameters: {},
         binding: {
           kind: "subcircuit",

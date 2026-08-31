@@ -22,7 +22,8 @@ describe("instance style override rendering", () => {
         rotation: 0,
         mirror: "none",
       },
-      netlist: { reference: "R1", parameters: {} },
+      reference: "R1",
+      netlist: { parameters: {} },
       styleOverride: { foreground: "#FF0000" },
     });
     const svg = renderDocumentSvg(doc, resolver);
@@ -41,7 +42,8 @@ describe("instance style override rendering", () => {
         rotation: 0,
         mirror: "none",
       },
-      netlist: { reference: "R1", parameters: {} },
+      reference: "R1",
+      netlist: { parameters: {} },
       styleOverride: { background: "#EEEEEE" },
     });
     const svg = renderDocumentSvg(doc, resolver);
@@ -61,7 +63,8 @@ describe("instance style override rendering", () => {
         rotation: 0,
         mirror: "none",
       },
-      netlist: { reference: "R1", parameters: {} },
+      reference: "R1",
+      netlist: { parameters: {} },
       styleOverride: { foreground: "#FF0000", background: "#EEEEEE" },
     });
     const svg = renderDocumentSvg(doc, resolver);
@@ -80,7 +83,8 @@ describe("instance style override rendering", () => {
         rotation: 0,
         mirror: "none",
       },
-      netlist: { reference: "R1", parameters: {} },
+      reference: "R1",
+      netlist: { parameters: {} },
     });
     const svg = renderDocumentSvg(doc, resolver);
     expect(svg).not.toContain('data-role="instance-background"');
@@ -99,7 +103,8 @@ describe("instance style override rendering", () => {
         rotation: 0,
         mirror: "none",
       },
-      netlist: { reference: "U1", parameters: {} },
+      reference: "U1",
+      netlist: { parameters: {} },
       styleOverride: { foreground: "#FF0000" },
     });
     const svg = renderDocumentSvg(doc, resolver);
@@ -113,21 +118,20 @@ describe("instance style override rendering", () => {
     doc.instances.push({
       id: "inst-1",
       symbolId: "resistor",
-      schematicReference: "R1",
-      schematicName: { runs: [{ kind: "text", value: "R1" }] },
+      reference: "R1",
       placement: {
         position: { x: 100, y: 100 },
         rotation: 0,
         mirror: "none",
       },
-      netlist: { reference: "R1", parameters: { value: "10k" } },
+      netlist: { parameters: { value: "10k" } },
       styleOverride: { foreground: "#FF0000" },
     });
     doc.annotations.push(
       {
         id: "label-1",
         kind: "instance-label",
-        binding: { kind: "instance-schematic-name", instanceId: "inst-1" },
+        binding: { kind: "instance-reference", instanceId: "inst-1" },
         anchor: {
           kind: "object",
           objectId: "inst-1",
@@ -164,20 +168,20 @@ describe("instance style override rendering", () => {
     doc.instances.push({
       id: "inst-1",
       symbolId: "resistor",
-      schematicReference: "R1",
+      reference: "R1",
       placement: {
         position: { x: 100, y: 100 },
         rotation: 0,
         mirror: "none",
       },
-      netlist: { reference: "R1", parameters: { value: "10k" } },
+      netlist: { parameters: { value: "10k" } },
       styleOverride: { foreground: "#FF0000" },
     });
     doc.annotations.push(
       {
         id: "label-1",
         kind: "instance-label",
-        binding: { kind: "instance-schematic-name", instanceId: "inst-1" },
+        binding: { kind: "instance-reference", instanceId: "inst-1" },
         anchor: {
           kind: "object",
           objectId: "inst-1",
@@ -326,7 +330,7 @@ describe("instance style override rendering", () => {
       {
         id: "bound-instance",
         symbolId: "resistor",
-        schematicReference: "R1",
+        reference: "R1",
         placement: {
           position: { x: 100, y: 100 },
           rotation: 0,
@@ -349,7 +353,7 @@ describe("instance style override rendering", () => {
       id: "label-1",
       kind: "instance-label",
       binding: {
-        kind: "instance-designator",
+        kind: "instance-reference",
         instanceId: "bound-instance",
       },
       anchor: {
@@ -457,7 +461,6 @@ describe("instance style override rendering", () => {
         rotation: 0,
         mirror: "none",
       },
-      netlist: { reference: "V1", parameters: {} },
       styleOverride: { foreground: "#FF0000" },
     });
     const svg = renderDocumentSvg(doc, resolver);
@@ -475,7 +478,8 @@ describe("instance style override rendering", () => {
         rotation: 0,
         mirror: "none",
       },
-      netlist: { reference: "R1", parameters: {} },
+      reference: "R1",
+      netlist: { parameters: {} },
       styleOverride: { foreground: "#FF0000", background: "#EEEEEE" },
     });
     const scene = buildSvgScene(doc, resolver);
@@ -498,7 +502,8 @@ describe("instance style override rendering", () => {
         rotation: 0,
         mirror: "none",
       },
-      netlist: { reference: "R1", parameters: {} },
+      reference: "R1",
+      netlist: { parameters: {} },
       styleOverride: { foreground: "#FF0000", background: "#EEEEEE" },
     });
     const scene = buildSvgScene(doc, resolver);
@@ -535,7 +540,8 @@ describe("instance style override rendering", () => {
           rotation: 0,
           mirror: "none",
         },
-        netlist: { reference: "R1", parameters: {} },
+        reference: "R1",
+        netlist: { parameters: {} },
         ...(styleOverride ? { styleOverride } : {}),
       });
       return doc;

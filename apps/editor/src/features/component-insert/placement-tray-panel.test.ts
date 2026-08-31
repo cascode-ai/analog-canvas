@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { placementTrayIdentity } from "./placement-tray-panel";
 
 describe("placement tray panel", () => {
-  it("combines reference and formal Cell Pin identity without losing symbol kind", () => {
+  it("uses formal Cell Pin identity without inventing a Reference", () => {
     const document = createEmptyDocument("cell", "Cell");
     const instance = {
       id: "pin-instance",
@@ -14,7 +14,6 @@ describe("placement tray panel", () => {
         rotation: 0 as const,
         mirror: "none" as const,
       },
-      schematicReference: "P1",
     };
     document.instances.push(instance);
     document.netlist = {
@@ -31,6 +30,6 @@ describe("placement tray panel", () => {
       formalParameters: [],
     };
 
-    expect(placementTrayIdentity(document, instance)).toBe("P1 · VIN · port");
+    expect(placementTrayIdentity(document, instance)).toBe("VIN · port");
   });
 });

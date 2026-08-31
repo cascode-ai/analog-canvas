@@ -15,69 +15,39 @@ function referencePrefix(symbolId: string): string {
   return policy.kind === "required" ? policy.prefix : "X";
 }
 
-/**
- * Prefixes used for on-canvas placement labels. Schematic-only markers keep
- * their label prefixes here; real devices inherit the reviewed netlist
- * reference prefix so a placed label and its netlist reference agree.
- */
-const placementPrefixOverrides: Record<string, string> = {
+/** Prefixes used only to allocate stable object IDs for schematic markers. */
+const instanceIdPrefixOverrides: Record<string, string> = {
   ground: "GND",
   port: "P",
   "port-filled": "P",
   "vdd-port": "VDD",
 };
 
-export function placementReferencePrefix(symbolId: string): string {
-  return placementPrefixOverrides[symbolId] ?? referencePrefix(symbolId);
+export function instanceIdPrefix(symbolId: string): string {
+  return instanceIdPrefixOverrides[symbolId] ?? referencePrefix(symbolId);
 }
 
-/**
- * Lowest unused per-prefix schematic Reference. Internal IDs and netlist
- * references are separate authorities, so allocation scans all three domains
- * without letting one silently overwrite another.
- */
-export function nextInstanceDesignator(
+/** Allocate object identity without consulting the authored Reference domain. */
+export function nextInstanceId(
   document: SchematicDocument,
   symbolId: string,
 ): string {
-  const prefix = placementReferencePrefix(symbolId);
-  const used = new Set<string>();
-  for (const instance of document.instances) {
-    used.add(instance.id.toLowerCase());
-    if (instance.schematicReference) {
-      used.add(instance.schematicReference.toLowerCase());
-    }
-    if (instance.netlist?.reference) {
-      used.add(instance.netlist.reference.toLowerCase());
-    }
-  }
+  const prefix = instanceIdPrefix(symbolId);
+  const used = new Set(
+    document.instances.map((instance) => instance.id.toLowerCase()),
+  );
   let index = 1;
   while (used.has(`${prefix}${index}`.toLowerCase())) index += 1;
   return `${prefix}${index}`;
 }
 
-/**
- * Whether the placement label prefix equals the netlist reference prefix, so
- * one designator can serve as both the instance id and its netlist reference.
- */
-export function netlistReferenceMatchesPlacement(symbolId: string): boolean {
-  const netlistPrefix = deviceDescriptor(symbolId)?.referencePrefix;
-  if (!netlistPrefix) return false;
-  return (
-    netlistPrefix.toLowerCase() ===
-    placementReferencePrefix(symbolId).toLowerCase()
-  );
-}
-
 export function nextInstanceReference(
   document: SchematicDocument,
   symbolId: string,
-): string {
-  return (
-    nextReference(
-      createReferenceIndex(document),
-      referencePolicyForSymbol(symbolId),
-    ) ?? ""
+): string | undefined {
+  return nextReference(
+    createReferenceIndex(document),
+    referencePolicyForSymbol(symbolId),
   );
 }
 
@@ -109,41 +79,14 @@ function defaultBinding(symbolId: string): InstanceNetlistBinding | undefined {
   return undefined;
 }
 
-/**
- * Designators already visible on the canvas: every instance id and schematic
- * reference, case-folded. The reference index consults only the
- * netlist.reference domain, but a freshly allocated reference is promoted to
- * the placed instance's schematicReference — which the Document schema
- * requires to be unique across instances. A rename can part the two domains
- * (schematicReference moves, netlist.reference stays), so allocation must
- * avoid the visible domains too, exactly as nextInstanceDesignator does.
- */
-function reservedVisibleReferences(document: SchematicDocument): Set<string> {
-  const reserved = new Set<string>();
-  for (const instance of document.instances) {
-    reserved.add(instance.id.toLowerCase());
-    if (instance.schematicReference) {
-      reserved.add(instance.schematicReference.toLowerCase());
-    }
-  }
-  return reserved;
-}
-
 export function initialInstanceNetlist(
-  document: SchematicDocument,
   symbolId: string,
   parameterValues: Readonly<Record<string, string>>,
-  reference?: string,
 ): InstanceNetlistData | undefined {
   const policy = referencePolicyForSymbol(symbolId);
   if (policy.kind === "none") return undefined;
   const binding = defaultBinding(symbolId);
   return {
-    reference:
-      reference ??
-      nextReference(createReferenceIndex(document), policy, {
-        reservedReferences: reservedVisibleReferences(document),
-      })!,
     ...(binding ? { binding } : {}),
     parameters: rawParameters(parameterValues),
   };

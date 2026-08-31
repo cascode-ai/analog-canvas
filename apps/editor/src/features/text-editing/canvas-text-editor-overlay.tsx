@@ -204,7 +204,7 @@ export function CanvasTextEditorOverlay({
           alignment={session.alignment}
           sourceOnly={
             session.bound &&
-            session.bindingKind !== "instance-schematic-name" &&
+            session.bindingKind !== "instance-reference" &&
             session.bindingKind !== "net-name" &&
             session.bindingKind !== "cell-terminal-name"
           }

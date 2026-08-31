@@ -9,8 +9,8 @@ function historyFixture() {
     id: "R1",
     symbolId: "resistor",
     placement: null,
+    reference: "R1",
     netlist: {
-      reference: "R1",
       binding: { kind: "primitive", deviceClass: "resistor" },
       parameters: {},
     },
@@ -25,8 +25,8 @@ function structuralSharingFixture() {
       id: "R1",
       symbolId: "resistor",
       placement: null,
+      reference: "R1",
       netlist: {
-        reference: "R1",
         binding: { kind: "primitive", deviceClass: "resistor" },
         parameters: { value: "1k" },
       },
@@ -35,8 +35,8 @@ function structuralSharingFixture() {
       id: "R2",
       symbolId: "resistor",
       placement: null,
+      reference: "R2",
       netlist: {
-        reference: "R2",
         binding: { kind: "primitive", deviceClass: "resistor" },
         parameters: { value: "2k" },
       },
@@ -357,8 +357,8 @@ describe("DocumentHistory", () => {
       id: "R1",
       symbolId: "resistor",
       placement: null,
+      reference: "R1",
       netlist: {
-        reference: "R1",
         binding: { kind: "primitive", deviceClass: "resistor" },
         parameters: {},
       },

@@ -106,9 +106,7 @@ export function planReferenceRenumber(
       document.instances
         .filter((instance) => !selectedIds.has(instance.id))
         .flatMap((instance) =>
-          instance.netlist?.reference
-            ? [folded(instance.netlist.reference)]
-            : [],
+          instance.reference ? [folded(instance.reference)] : [],
         ),
     );
     const groups = new Map<
@@ -137,7 +135,7 @@ export function planReferenceRenumber(
       let nextSuffix = Math.max(1, options.startAt ?? 1);
       const retained = new Set<string>();
       for (const instance of ordered) {
-        const current = instance.netlist!.reference;
+        const current = instance.reference!;
         const target = { documentId: document.id, instanceId: instance.id };
         const validCurrent =
           options.policy === "fill-gaps" &&

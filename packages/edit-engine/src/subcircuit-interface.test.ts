@@ -61,8 +61,8 @@ describe("subcircuit interface proposals", () => {
       id: "X1",
       symbolId: "external-ota",
       placement: null,
+      reference: "X1",
       netlist: {
-        reference: "X1",
         binding: { kind: "external-subcircuit", definitionId: "external-ota" },
         parameters: {},
       },
@@ -107,8 +107,8 @@ describe("subcircuit interface proposals", () => {
       id: "X1",
       symbolId: externalSubcircuitSymbolId("external-ota"),
       placement: null,
+      reference: "X1",
       netlist: {
-        reference: "X1",
         binding: { kind: "external-subcircuit", definitionId: "external-ota" },
         parameters: {},
       },
@@ -144,8 +144,8 @@ describe("subcircuit interface proposals", () => {
       id: "X1",
       symbolId: externalSubcircuitSymbolId("external-ota"),
       placement: null,
+      reference: "X1",
       netlist: {
-        reference: "X1",
         binding: { kind: "external-subcircuit", definitionId: "external-ota" },
         parameters: {},
       },

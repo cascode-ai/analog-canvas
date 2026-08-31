@@ -17,8 +17,8 @@
             "objectId": "R1"
           },
           "binding": {
-            "instanceId": "R1",
-            "kind": "instance-schematic-name"
+            "kind": "instance-reference",
+            "instanceId": "R1"
           },
           "id": "instance-label-R1",
           "kind": "instance-label",
@@ -40,8 +40,8 @@
             "objectId": "M3"
           },
           "binding": {
-            "instanceId": "M3",
-            "kind": "instance-schematic-name"
+            "kind": "instance-reference",
+            "instanceId": "M3"
           },
           "id": "instance-label-M1-copy-1",
           "kind": "instance-label",
@@ -63,8 +63,8 @@
             "objectId": "M4"
           },
           "binding": {
-            "instanceId": "M4",
-            "kind": "instance-schematic-name"
+            "kind": "instance-reference",
+            "instanceId": "M4"
           },
           "id": "instance-label-M2-copy-1",
           "kind": "instance-label",
@@ -86,8 +86,8 @@
             "objectId": "C1"
           },
           "binding": {
-            "instanceId": "C1",
-            "kind": "instance-schematic-name"
+            "kind": "instance-reference",
+            "instanceId": "C1"
           },
           "id": "instance-label-C1",
           "kind": "instance-label",
@@ -109,8 +109,8 @@
             "objectId": "C2"
           },
           "binding": {
-            "instanceId": "C2",
-            "kind": "instance-schematic-name"
+            "kind": "instance-reference",
+            "instanceId": "C2"
           },
           "id": "instance-label-C2",
           "kind": "instance-label",
@@ -132,8 +132,8 @@
             "objectId": "C3"
           },
           "binding": {
-            "instanceId": "C3",
-            "kind": "instance-schematic-name"
+            "kind": "instance-reference",
+            "instanceId": "C3"
           },
           "id": "instance-label-C3",
           "kind": "instance-label",
@@ -155,8 +155,8 @@
             "objectId": "C4"
           },
           "binding": {
-            "instanceId": "C4",
-            "kind": "instance-schematic-name"
+            "kind": "instance-reference",
+            "instanceId": "C4"
           },
           "id": "instance-label-C4",
           "kind": "instance-label",
@@ -178,8 +178,8 @@
             "objectId": "C5"
           },
           "binding": {
-            "instanceId": "C5",
-            "kind": "instance-schematic-name"
+            "kind": "instance-reference",
+            "instanceId": "C5"
           },
           "id": "instance-label-C5",
           "kind": "instance-label",
@@ -201,8 +201,8 @@
             "objectId": "M5"
           },
           "binding": {
-            "instanceId": "M5",
-            "kind": "instance-schematic-name"
+            "kind": "instance-reference",
+            "instanceId": "M5"
           },
           "id": "instance-label-M5",
           "kind": "instance-label",
@@ -224,8 +224,8 @@
             "objectId": "M6"
           },
           "binding": {
-            "instanceId": "M6",
-            "kind": "instance-schematic-name"
+            "kind": "instance-reference",
+            "instanceId": "M6"
           },
           "id": "instance-label-M6",
           "kind": "instance-label",
@@ -247,8 +247,8 @@
             "objectId": "M7"
           },
           "binding": {
-            "instanceId": "M7",
-            "kind": "instance-schematic-name"
+            "kind": "instance-reference",
+            "instanceId": "M7"
           },
           "id": "instance-label-M7",
           "kind": "instance-label",
@@ -270,8 +270,8 @@
             "objectId": "M8"
           },
           "binding": {
-            "instanceId": "M8",
-            "kind": "instance-schematic-name"
+            "kind": "instance-reference",
+            "instanceId": "M8"
           },
           "id": "instance-label-M8",
           "kind": "instance-label",
@@ -293,8 +293,8 @@
             "objectId": "M9"
           },
           "binding": {
-            "instanceId": "M9",
-            "kind": "instance-schematic-name"
+            "kind": "instance-reference",
+            "instanceId": "M9"
           },
           "id": "instance-label-M9",
           "kind": "instance-label",
@@ -316,8 +316,8 @@
             "objectId": "M10"
           },
           "binding": {
-            "instanceId": "M10",
-            "kind": "instance-schematic-name"
+            "kind": "instance-reference",
+            "instanceId": "M10"
           },
           "id": "instance-label-M10",
           "kind": "instance-label",
@@ -339,8 +339,8 @@
             "objectId": "M11"
           },
           "binding": {
-            "instanceId": "M11",
-            "kind": "instance-schematic-name"
+            "kind": "instance-reference",
+            "instanceId": "M11"
           },
           "id": "instance-label-M11",
           "kind": "instance-label",
@@ -362,8 +362,8 @@
             "objectId": "C6"
           },
           "binding": {
-            "instanceId": "C6",
-            "kind": "instance-schematic-name"
+            "kind": "instance-reference",
+            "instanceId": "C6"
           },
           "id": "instance-label-C6",
           "kind": "instance-label",
@@ -488,8 +488,8 @@
             "objectId": "R2"
           },
           "binding": {
-            "instanceId": "R2",
-            "kind": "instance-schematic-name"
+            "kind": "instance-reference",
+            "instanceId": "R2"
           },
           "id": "instance-label-R2",
           "kind": "instance-label",
@@ -511,8 +511,8 @@
             "objectId": "X1"
           },
           "binding": {
-            "instanceId": "X1",
-            "kind": "instance-schematic-name"
+            "kind": "instance-reference",
+            "instanceId": "X1"
           },
           "id": "instance-label-X1",
           "kind": "instance-label",
@@ -1398,8 +1398,7 @@
               "deviceClass": "resistor",
               "kind": "primitive"
             },
-            "parameters": {},
-            "reference": "R1"
+            "parameters": {}
           },
           "placement": {
             "mirror": "x",
@@ -1409,8 +1408,8 @@
             },
             "rotation": 90
           },
-          "schematicReference": "R1",
-          "symbolId": "resistor"
+          "symbolId": "resistor",
+          "reference": "R1"
         },
         {
           "id": "M3",
@@ -1424,8 +1423,7 @@
               "m": "1",
               "nf": "1",
               "w": "1u"
-            },
-            "reference": "M3"
+            }
           },
           "placement": {
             "mirror": "none",
@@ -1435,9 +1433,9 @@
             },
             "rotation": 0
           },
-          "schematicReference": "M3",
           "symbolId": "pmos",
-          "symbolVariantId": "textbook-3terminal"
+          "symbolVariantId": "textbook-3terminal",
+          "reference": "M3"
         },
         {
           "id": "M4",
@@ -1447,8 +1445,7 @@
               "m": "1",
               "nf": "1",
               "w": "1u"
-            },
-            "reference": "M4"
+            }
           },
           "placement": {
             "mirror": "none",
@@ -1458,9 +1455,9 @@
             },
             "rotation": 0
           },
-          "schematicReference": "M4",
           "symbolId": "nmos",
-          "symbolVariantId": "textbook-3terminal"
+          "symbolVariantId": "textbook-3terminal",
+          "reference": "M4"
         },
         {
           "id": "C1",
@@ -1469,8 +1466,7 @@
               "deviceClass": "capacitor",
               "kind": "primitive"
             },
-            "parameters": {},
-            "reference": "C1"
+            "parameters": {}
           },
           "placement": {
             "mirror": "none",
@@ -1480,8 +1476,8 @@
             },
             "rotation": 0
           },
-          "schematicReference": "C1",
-          "symbolId": "capacitor"
+          "symbolId": "capacitor",
+          "reference": "C1"
         },
         {
           "id": "C2",
@@ -1490,8 +1486,7 @@
               "deviceClass": "capacitor",
               "kind": "primitive"
             },
-            "parameters": {},
-            "reference": "C2"
+            "parameters": {}
           },
           "placement": {
             "mirror": "none",
@@ -1501,8 +1496,8 @@
             },
             "rotation": 0
           },
-          "schematicReference": "C2",
-          "symbolId": "capacitor"
+          "symbolId": "capacitor",
+          "reference": "C2"
         },
         {
           "id": "C3",
@@ -1511,8 +1506,7 @@
               "deviceClass": "capacitor",
               "kind": "primitive"
             },
-            "parameters": {},
-            "reference": "C3"
+            "parameters": {}
           },
           "placement": {
             "mirror": "none",
@@ -1522,8 +1516,8 @@
             },
             "rotation": 0
           },
-          "schematicReference": "C3",
-          "symbolId": "capacitor"
+          "symbolId": "capacitor",
+          "reference": "C3"
         },
         {
           "id": "C4",
@@ -1532,8 +1526,7 @@
               "deviceClass": "capacitor",
               "kind": "primitive"
             },
-            "parameters": {},
-            "reference": "C4"
+            "parameters": {}
           },
           "placement": {
             "mirror": "none",
@@ -1543,8 +1536,8 @@
             },
             "rotation": 0
           },
-          "schematicReference": "C4",
-          "symbolId": "capacitor"
+          "symbolId": "capacitor",
+          "reference": "C4"
         },
         {
           "id": "C5",
@@ -1553,8 +1546,7 @@
               "deviceClass": "capacitor",
               "kind": "primitive"
             },
-            "parameters": {},
-            "reference": "C5"
+            "parameters": {}
           },
           "placement": {
             "mirror": "none",
@@ -1564,8 +1556,8 @@
             },
             "rotation": 0
           },
-          "schematicReference": "C5",
-          "symbolId": "capacitor"
+          "symbolId": "capacitor",
+          "reference": "C5"
         },
         {
           "id": "M5",
@@ -1579,8 +1571,7 @@
               "m": "1",
               "nf": "1",
               "w": "1u"
-            },
-            "reference": "M5"
+            }
           },
           "placement": {
             "mirror": "none",
@@ -1590,9 +1581,9 @@
             },
             "rotation": 0
           },
-          "schematicReference": "M5",
           "symbolId": "pmos",
-          "symbolVariantId": "textbook-3terminal"
+          "symbolVariantId": "textbook-3terminal",
+          "reference": "M5"
         },
         {
           "id": "M6",
@@ -1606,8 +1597,7 @@
               "m": "1",
               "nf": "1",
               "w": "1u"
-            },
-            "reference": "M6"
+            }
           },
           "placement": {
             "mirror": "none",
@@ -1617,9 +1607,9 @@
             },
             "rotation": 0
           },
-          "schematicReference": "M6",
           "symbolId": "pmos",
-          "symbolVariantId": "textbook-3terminal"
+          "symbolVariantId": "textbook-3terminal",
+          "reference": "M6"
         },
         {
           "id": "M7",
@@ -1633,8 +1623,7 @@
               "m": "1",
               "nf": "1",
               "w": "1u"
-            },
-            "reference": "M7"
+            }
           },
           "placement": {
             "mirror": "none",
@@ -1644,9 +1633,9 @@
             },
             "rotation": 0
           },
-          "schematicReference": "M7",
           "symbolId": "pmos",
-          "symbolVariantId": "textbook-3terminal"
+          "symbolVariantId": "textbook-3terminal",
+          "reference": "M7"
         },
         {
           "id": "M8",
@@ -1660,8 +1649,7 @@
               "m": "1",
               "nf": "1",
               "w": "1u"
-            },
-            "reference": "M8"
+            }
           },
           "placement": {
             "mirror": "none",
@@ -1671,9 +1659,9 @@
             },
             "rotation": 0
           },
-          "schematicReference": "M8",
           "symbolId": "pmos",
-          "symbolVariantId": "textbook-3terminal"
+          "symbolVariantId": "textbook-3terminal",
+          "reference": "M8"
         },
         {
           "id": "M9",
@@ -1687,8 +1675,7 @@
               "m": "1",
               "nf": "1",
               "w": "1u"
-            },
-            "reference": "M9"
+            }
           },
           "placement": {
             "mirror": "none",
@@ -1698,9 +1685,9 @@
             },
             "rotation": 0
           },
-          "schematicReference": "M9",
           "symbolId": "pmos",
-          "symbolVariantId": "textbook-3terminal"
+          "symbolVariantId": "textbook-3terminal",
+          "reference": "M9"
         },
         {
           "id": "X2",
@@ -1712,8 +1699,8 @@
             },
             "rotation": 0
           },
-          "schematicReference": "X2",
-          "symbolId": "and-gate"
+          "symbolId": "and-gate",
+          "reference": "X2"
         },
         {
           "id": "M10",
@@ -1727,8 +1714,7 @@
               "m": "1",
               "nf": "1",
               "w": "1u"
-            },
-            "reference": "M10"
+            }
           },
           "placement": {
             "mirror": "none",
@@ -1738,9 +1724,9 @@
             },
             "rotation": 0
           },
-          "schematicReference": "M10",
           "symbolId": "pmos",
-          "symbolVariantId": "textbook-3terminal"
+          "symbolVariantId": "textbook-3terminal",
+          "reference": "M10"
         },
         {
           "id": "M11",
@@ -1750,8 +1736,7 @@
               "m": "1",
               "nf": "1",
               "w": "1u"
-            },
-            "reference": "M11"
+            }
           },
           "placement": {
             "mirror": "none",
@@ -1761,9 +1746,9 @@
             },
             "rotation": 0
           },
-          "schematicReference": "M11",
           "symbolId": "nmos",
-          "symbolVariantId": "textbook-3terminal"
+          "symbolVariantId": "textbook-3terminal",
+          "reference": "M11"
         },
         {
           "id": "C6",
@@ -1772,8 +1757,7 @@
               "deviceClass": "capacitor",
               "kind": "primitive"
             },
-            "parameters": {},
-            "reference": "C6"
+            "parameters": {}
           },
           "placement": {
             "mirror": "none",
@@ -1783,8 +1767,8 @@
             },
             "rotation": 0
           },
-          "schematicReference": "C6",
-          "symbolId": "capacitor"
+          "symbolId": "capacitor",
+          "reference": "C6"
         },
         {
           "id": "X3",
@@ -1796,8 +1780,8 @@
             },
             "rotation": 0
           },
-          "schematicReference": "X3",
-          "symbolId": "nor-gate"
+          "symbolId": "nor-gate",
+          "reference": "X3"
         },
         {
           "id": "X4",
@@ -1809,8 +1793,8 @@
             },
             "rotation": 0
           },
-          "schematicReference": "X4",
-          "symbolId": "and-gate"
+          "symbolId": "and-gate",
+          "reference": "X4"
         },
         {
           "id": "VDD1",
@@ -1822,7 +1806,6 @@
             },
             "rotation": 0
           },
-          "schematicReference": "VDD1",
           "symbolId": "vdd-port"
         },
         {
@@ -1835,7 +1818,6 @@
             },
             "rotation": 0
           },
-          "schematicReference": "VDD2",
           "symbolId": "vdd-port"
         },
         {
@@ -1848,7 +1830,6 @@
             },
             "rotation": 180
           },
-          "schematicReference": "VDD3",
           "symbolId": "vdd-port"
         },
         {
@@ -1861,7 +1842,6 @@
             },
             "rotation": 180
           },
-          "schematicReference": "VDD4",
           "symbolId": "vdd-port"
         },
         {
@@ -1871,8 +1851,7 @@
               "deviceClass": "resistor",
               "kind": "primitive"
             },
-            "parameters": {},
-            "reference": "R2"
+            "parameters": {}
           },
           "placement": {
             "mirror": "none",
@@ -1882,8 +1861,8 @@
             },
             "rotation": 90
           },
-          "schematicReference": "R2",
-          "symbolId": "resistor"
+          "symbolId": "resistor",
+          "reference": "R2"
         },
         {
           "id": "X5",
@@ -1895,8 +1874,8 @@
             },
             "rotation": 0
           },
-          "schematicReference": "X5",
-          "symbolId": "inverter"
+          "symbolId": "inverter",
+          "reference": "X5"
         },
         {
           "id": "P1",
@@ -1932,8 +1911,8 @@
             },
             "rotation": 0
           },
-          "schematicReference": "X1",
-          "symbolId": "nor-gate"
+          "symbolId": "nor-gate",
+          "reference": "X1"
         },
         {
           "id": "P3",
@@ -3609,7 +3588,7 @@
   "externalSubcircuitDefinitions": [],
   "id": "project-main",
   "name": "deadtime",
-  "schemaVersion": 34,
+  "schemaVersion": 35,
   "source": {
     "dialect": "none",
     "entry": null,

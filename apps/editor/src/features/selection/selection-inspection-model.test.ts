@@ -27,8 +27,8 @@ describe("selection inspection model", () => {
         rotation: 0,
         mirror: "none",
       },
+      reference: "X1",
       netlist: {
-        reference: "X1",
         parameters: {},
         binding: { kind: "subcircuit", childDocumentId: child.id },
       },

@@ -45,10 +45,10 @@ The Project model applies these related facts together:
 
 ### Persisted electrical authority
 
-For an emitting Instance, `netlist.reference`, `netlist.binding`, and
-`netlist.parameters` are the only persisted netlist identity, target, and raw
-parameter authorities. `Instance.id` remains an internal stable object ID; it
-is not a netlist reference and is not renamed by numbering.
+For an emitting Instance, `Instance.reference`, `netlist.binding`, and
+`netlist.parameters` are the persisted Reference, target, and raw-parameter
+authorities. `Instance.id` remains an internal stable object ID; it is not a
+Reference and is not renamed by numbering.
 
 `Instance.netlist.binding` has exactly these target states:
 
@@ -98,10 +98,11 @@ annotation content == current canonical slot projection  -> canonical projection
 otherwise                                                -> presentation-only attached text
 ```
 
-Canvas text editing continues to edit presentation only; a hand-edited string
-that happens to look like a legal reference never mutates
-`netlist.reference`. Insert, the Properties Reference field, and the shared
-reference planner are the semantic reference writers. Parameter changes update
+An `instance-reference` annotation is a live projection: character editing
+renames `Instance.reference`, while same-text RichText formatting remains an
+Annotation override. Ordinary attached literal text stays presentation-only.
+Insert, Properties, canvas Reference editing, and the shared reference planner
+are semantic writers of the same field. Parameter changes update
 only labels that still match the prior canonical Value projection. Existing
 free text, styling, anchors, visibility, and the explicit Show Value behavior
 remain intact. This decision adds no persistent `managed`, `detached`, or

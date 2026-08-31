@@ -12,7 +12,8 @@ describe("component electrical properties", () => {
       id: "M1",
       symbolId: "nmos",
       placement: null,
-      netlist: { reference: "M1", parameters: {} },
+      reference: "M1",
+      netlist: { parameters: {} },
     };
     const markup = renderToStaticMarkup(
       <ComponentElectricalProperties
@@ -98,7 +99,8 @@ describe("component electrical properties", () => {
       id: "GND1",
       symbolId: "ground",
       placement: null,
-      netlist: { reference: "GND1", parameters: {} },
+      reference: "GND1",
+      netlist: { parameters: {} },
     };
     const markup = renderToStaticMarkup(
       <ComponentElectricalProperties

@@ -8,7 +8,6 @@ import {
   StableIdSchema,
 } from "./common.js";
 import { SourceSpanSchema } from "./source.js";
-import { RichTextDocumentSchema } from "./rich-text.js";
 
 /**
  * Optional per-instance visual style override. When absent, the instance
@@ -97,7 +96,6 @@ export const InstanceTerminalMappingSchema = z.strictObject({
   pinName: z.string().min(1).max(128),
 });
 export const InstanceNetlistDataSchema = z.strictObject({
-  reference: NetlistIdentifierSchema,
   binding: InstanceNetlistBindingSchema.optional(),
   parameters: z
     .record(NetlistParameterNameSchema, NetlistParameterValueSchema)
@@ -113,7 +111,8 @@ export const InstanceNetlistDataSchema = z.strictObject({
  */
 export const InstanceImportProvenanceSchema = z.strictObject({
   kind: z.enum(["primitive", "model", "subcircuit", "opaque"]),
-  name: z.string().min(1),
+  /** Source spelling of the bound master; evidence, never Instance identity. */
+  sourceMasterName: z.string().min(1),
   sourceTarget: z.string().min(1).max(1024),
   // External source evidence can preserve a target spelling whose resolution
   // status is unavailable; current importers write status when it is known.
@@ -140,18 +139,12 @@ export const InstanceSchema = z
     mosBulkBinding: MosBulkBindingSchema.optional(),
     placement: PlacementSchema.nullable(),
     /**
-     * Internal, stable schematic reference used for lifecycle and as an
-     * initial label fallback. It is intentionally separate from the optional
-     * emitted SPICE/Spectre designator and is never an object identity.
+     * The sole authored Instance reference. It is the ordinary canvas
+     * designator and, for an emitting Instance, the emitted SPICE/Spectre
+     * reference. It is never an object identity or a master/model name.
      */
-    schematicReference: NetlistIdentifierSchema.optional(),
+    reference: NetlistIdentifierSchema.optional(),
     netlist: InstanceNetlistDataSchema.optional(),
-    /**
-     * User-owned RichText schematic label. This is the default visible label;
-     * it may be repeated, formatted, and changed without modifying the
-     * electrical/export identity.
-     */
-    schematicName: RichTextDocumentSchema.optional(),
     /**
      * Optional per-instance color override. When absent, the instance renders
      * with document profile defaults (backward compatible). `foreground`
@@ -167,6 +160,13 @@ export const InstanceSchema = z
     signalFlowParameters: SignalFlowParametersSchema.optional(),
   })
   .superRefine((instance, context) => {
+    if (instance.netlist && !instance.reference) {
+      context.addIssue({
+        code: "custom",
+        path: ["reference"],
+        message: "An emitting Instance requires one authored reference",
+      });
+    }
     const terminals = instance.importProvenance?.terminalMapping;
     if (!terminals) return;
     const positions = new Set<number>();

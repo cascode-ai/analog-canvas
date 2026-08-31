@@ -16,14 +16,46 @@
             },
             "objectId": "M1"
           },
-          "binding": {
-            "instanceId": "M1",
-            "kind": "instance-schematic-name"
-          },
           "id": "instance-label-M1",
           "kind": "instance-label",
           "locked": false,
-          "rotation": 0
+          "rotation": 0,
+          "content": {
+            "runs": [
+              {
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "kind": "text",
+                        "value": "M"
+                      }
+                    ],
+                    "kind": "span",
+                    "style": "bold"
+                  }
+                ],
+                "kind": "span",
+                "style": "italic"
+              },
+              {
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "kind": "text",
+                        "value": "3"
+                      }
+                    ],
+                    "kind": "span",
+                    "style": "bold"
+                  }
+                ],
+                "kind": "span",
+                "style": "subscript"
+              }
+            ]
+          }
         },
         {
           "alignment": "start",
@@ -39,14 +71,46 @@
             },
             "objectId": "M2"
           },
-          "binding": {
-            "instanceId": "M2",
-            "kind": "instance-schematic-name"
-          },
           "id": "instance-label-M2",
           "kind": "instance-label",
           "locked": false,
-          "rotation": 0
+          "rotation": 0,
+          "content": {
+            "runs": [
+              {
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "kind": "text",
+                        "value": "M"
+                      }
+                    ],
+                    "kind": "span",
+                    "style": "bold"
+                  }
+                ],
+                "kind": "span",
+                "style": "italic"
+              },
+              {
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "kind": "text",
+                        "value": "1"
+                      }
+                    ],
+                    "kind": "span",
+                    "style": "bold"
+                  }
+                ],
+                "kind": "span",
+                "style": "subscript"
+              }
+            ]
+          }
         },
         {
           "alignment": "start",
@@ -86,14 +150,46 @@
             },
             "objectId": "M3"
           },
-          "binding": {
-            "instanceId": "M3",
-            "kind": "instance-schematic-name"
-          },
           "id": "instance-label-M3",
           "kind": "instance-label",
           "locked": false,
-          "rotation": 0
+          "rotation": 0,
+          "content": {
+            "runs": [
+              {
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "kind": "text",
+                        "value": "M"
+                      }
+                    ],
+                    "kind": "span",
+                    "style": "bold"
+                  }
+                ],
+                "kind": "span",
+                "style": "italic"
+              },
+              {
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "kind": "text",
+                        "value": "4"
+                      }
+                    ],
+                    "kind": "span",
+                    "style": "bold"
+                  }
+                ],
+                "kind": "span",
+                "style": "subscript"
+              }
+            ]
+          }
         },
         {
           "alignment": "end",
@@ -109,14 +205,46 @@
             },
             "objectId": "M4"
           },
-          "binding": {
-            "instanceId": "M4",
-            "kind": "instance-schematic-name"
-          },
           "id": "instance-label-M3-copy-1",
           "kind": "instance-label",
           "locked": false,
-          "rotation": 0
+          "rotation": 0,
+          "content": {
+            "runs": [
+              {
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "kind": "text",
+                        "value": "M"
+                      }
+                    ],
+                    "kind": "span",
+                    "style": "bold"
+                  }
+                ],
+                "kind": "span",
+                "style": "italic"
+              },
+              {
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "kind": "text",
+                        "value": "2"
+                      }
+                    ],
+                    "kind": "span",
+                    "style": "bold"
+                  }
+                ],
+                "kind": "span",
+                "style": "subscript"
+              }
+            ]
+          }
         },
         {
           "alignment": "start",
@@ -180,14 +308,46 @@
             },
             "objectId": "I1"
           },
-          "binding": {
-            "instanceId": "I1",
-            "kind": "instance-schematic-name"
-          },
           "id": "instance-label-I1",
           "kind": "instance-label",
           "locked": false,
-          "rotation": 0
+          "rotation": 0,
+          "content": {
+            "runs": [
+              {
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "kind": "text",
+                        "value": "I"
+                      }
+                    ],
+                    "kind": "span",
+                    "style": "bold"
+                  }
+                ],
+                "kind": "span",
+                "style": "italic"
+              },
+              {
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "kind": "text",
+                        "value": "ss"
+                      }
+                    ],
+                    "kind": "span",
+                    "style": "bold"
+                  }
+                ],
+                "kind": "span",
+                "style": "subscript"
+              }
+            ]
+          }
         }
       ],
       "connectivityEvidence": [
@@ -234,8 +394,7 @@
               "m": "1",
               "nf": "1",
               "w": "1u"
-            },
-            "reference": "M1"
+            }
           },
           "placement": {
             "mirror": "none",
@@ -245,45 +404,9 @@
             },
             "rotation": 0
           },
-          "schematicName": {
-            "runs": [
-              {
-                "children": [
-                  {
-                    "children": [
-                      {
-                        "kind": "text",
-                        "value": "M"
-                      }
-                    ],
-                    "kind": "span",
-                    "style": "bold"
-                  }
-                ],
-                "kind": "span",
-                "style": "italic"
-              },
-              {
-                "children": [
-                  {
-                    "children": [
-                      {
-                        "kind": "text",
-                        "value": "3"
-                      }
-                    ],
-                    "kind": "span",
-                    "style": "bold"
-                  }
-                ],
-                "kind": "span",
-                "style": "subscript"
-              }
-            ]
-          },
-          "schematicReference": "M1",
           "symbolId": "nmos",
-          "symbolVariantId": "textbook-3terminal"
+          "symbolVariantId": "textbook-3terminal",
+          "reference": "M1"
         },
         {
           "id": "M2",
@@ -297,8 +420,7 @@
               "m": "1",
               "nf": "1",
               "w": "1u"
-            },
-            "reference": "M2"
+            }
           },
           "placement": {
             "mirror": "none",
@@ -308,45 +430,9 @@
             },
             "rotation": 0
           },
-          "schematicName": {
-            "runs": [
-              {
-                "children": [
-                  {
-                    "children": [
-                      {
-                        "kind": "text",
-                        "value": "M"
-                      }
-                    ],
-                    "kind": "span",
-                    "style": "bold"
-                  }
-                ],
-                "kind": "span",
-                "style": "italic"
-              },
-              {
-                "children": [
-                  {
-                    "children": [
-                      {
-                        "kind": "text",
-                        "value": "1"
-                      }
-                    ],
-                    "kind": "span",
-                    "style": "bold"
-                  }
-                ],
-                "kind": "span",
-                "style": "subscript"
-              }
-            ]
-          },
-          "schematicReference": "M2",
           "symbolId": "nmos",
-          "symbolVariantId": "textbook-3terminal"
+          "symbolVariantId": "textbook-3terminal",
+          "reference": "M2"
         },
         {
           "id": "P2",
@@ -372,8 +458,7 @@
               "m": "1",
               "nf": "1",
               "w": "1u"
-            },
-            "reference": "M3"
+            }
           },
           "placement": {
             "mirror": "x",
@@ -383,45 +468,9 @@
             },
             "rotation": 0
           },
-          "schematicName": {
-            "runs": [
-              {
-                "children": [
-                  {
-                    "children": [
-                      {
-                        "kind": "text",
-                        "value": "M"
-                      }
-                    ],
-                    "kind": "span",
-                    "style": "bold"
-                  }
-                ],
-                "kind": "span",
-                "style": "italic"
-              },
-              {
-                "children": [
-                  {
-                    "children": [
-                      {
-                        "kind": "text",
-                        "value": "4"
-                      }
-                    ],
-                    "kind": "span",
-                    "style": "bold"
-                  }
-                ],
-                "kind": "span",
-                "style": "subscript"
-              }
-            ]
-          },
-          "schematicReference": "M3",
           "symbolId": "nmos",
-          "symbolVariantId": "textbook-3terminal"
+          "symbolVariantId": "textbook-3terminal",
+          "reference": "M3"
         },
         {
           "id": "P1",
@@ -447,8 +496,7 @@
               "m": "1",
               "nf": "1",
               "w": "1u"
-            },
-            "reference": "M4"
+            }
           },
           "placement": {
             "mirror": "x",
@@ -458,45 +506,9 @@
             },
             "rotation": 0
           },
-          "schematicName": {
-            "runs": [
-              {
-                "children": [
-                  {
-                    "children": [
-                      {
-                        "kind": "text",
-                        "value": "M"
-                      }
-                    ],
-                    "kind": "span",
-                    "style": "bold"
-                  }
-                ],
-                "kind": "span",
-                "style": "italic"
-              },
-              {
-                "children": [
-                  {
-                    "children": [
-                      {
-                        "kind": "text",
-                        "value": "2"
-                      }
-                    ],
-                    "kind": "span",
-                    "style": "bold"
-                  }
-                ],
-                "kind": "span",
-                "style": "subscript"
-              }
-            ]
-          },
-          "schematicReference": "M4",
           "symbolId": "nmos",
-          "symbolVariantId": "textbook-3terminal"
+          "symbolVariantId": "textbook-3terminal",
+          "reference": "M4"
         },
         {
           "id": "P3",
@@ -517,8 +529,7 @@
               "deviceClass": "current-source",
               "kind": "primitive"
             },
-            "parameters": {},
-            "reference": "I1"
+            "parameters": {}
           },
           "placement": {
             "mirror": "none",
@@ -528,44 +539,8 @@
             },
             "rotation": 0
           },
-          "schematicName": {
-            "runs": [
-              {
-                "children": [
-                  {
-                    "children": [
-                      {
-                        "kind": "text",
-                        "value": "I"
-                      }
-                    ],
-                    "kind": "span",
-                    "style": "bold"
-                  }
-                ],
-                "kind": "span",
-                "style": "italic"
-              },
-              {
-                "children": [
-                  {
-                    "children": [
-                      {
-                        "kind": "text",
-                        "value": "ss"
-                      }
-                    ],
-                    "kind": "span",
-                    "style": "bold"
-                  }
-                ],
-                "kind": "span",
-                "style": "subscript"
-              }
-            ]
-          },
-          "schematicReference": "I1",
-          "symbolId": "current-source"
+          "symbolId": "current-source",
+          "reference": "I1"
         },
         {
           "id": "P4",
@@ -589,7 +564,6 @@
             },
             "rotation": 0
           },
-          "schematicReference": "GND1",
           "symbolId": "ground"
         }
       ],
@@ -1372,7 +1346,7 @@
   "externalSubcircuitDefinitions": [],
   "id": "project-6c056e6c-b17b-4a66-aab9-06d0b380b437",
   "name": "Figure 17.19(b)",
-  "schemaVersion": 34,
+  "schemaVersion": 35,
   "source": {
     "dialect": "none",
     "entry": null,

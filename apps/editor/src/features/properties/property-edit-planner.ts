@@ -295,8 +295,7 @@ export function createPropertyEditPlanner({
     if (!instance) return { edits: [], invalidPosition: false };
     const edits: SchematicEdit[] = [];
     const baseNetlist =
-      instance.netlist ??
-      initialInstanceNetlist(document, instance.symbolId, {});
+      instance.netlist ?? initialInstanceNetlist(instance.symbolId, {});
     if (baseNetlist) {
       const netlistParameters = { ...baseNetlist.parameters };
       const set: Record<string, string> = {};

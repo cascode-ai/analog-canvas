@@ -22,19 +22,22 @@ function fixture() {
       id: "R1",
       symbolId: "resistor",
       placement: { position: { x: 100, y: 100 }, rotation: 0, mirror: "none" },
-      netlist: { reference: "R1", parameters: {} },
+      reference: "R1",
+      netlist: { parameters: {} },
     },
     {
       id: "R2",
       symbolId: "resistor",
       placement: { position: { x: 240, y: 180 }, rotation: 0, mirror: "none" },
-      netlist: { reference: "R2", parameters: {} },
+      reference: "R2",
+      netlist: { parameters: {} },
     },
     {
       id: "R3",
       symbolId: "resistor",
       placement: { position: { x: 300, y: 140 }, rotation: 0, mirror: "none" },
-      netlist: { reference: "R3", parameters: {} },
+      reference: "R3",
+      netlist: { parameters: {} },
     },
   );
   return document;

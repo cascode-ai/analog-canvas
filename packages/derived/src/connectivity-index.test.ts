@@ -237,8 +237,8 @@ describe("Project Connectivity Index logical aliases", () => {
       id: "X1",
       symbolId: hierarchicalSymbolId(child.netlist!.name),
       placement: null,
+      reference: "X1",
       netlist: {
-        reference: "X1",
         parameters: {},
         binding: { kind: "subcircuit", childDocumentId: child.id },
       },

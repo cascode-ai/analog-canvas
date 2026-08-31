@@ -104,8 +104,8 @@ describe("semantic authoring", () => {
         rotation: 0,
         mirror: "none",
       },
+      reference: "XM1",
       netlist: {
-        reference: "XM1",
         parameters: {},
         binding: {
           kind: "model",
@@ -115,7 +115,7 @@ describe("semantic authoring", () => {
       },
       importProvenance: {
         kind: "model",
-        name: "sky130_fd_pr__nfet_01v8",
+        sourceMasterName: "sky130_fd_pr__nfet_01v8",
         sourceTarget: "model:sky130_fd_pr__nfet_01v8",
         terminalMapping: [
           { sourcePosition: 0, pinName: "P1" },
@@ -195,8 +195,8 @@ describe("semantic authoring", () => {
           {
             id: "XM1",
             symbolId: "nmos",
+            reference: "XM1",
             netlist: {
-              reference: "XM1",
               parameters: {},
               binding: {
                 kind: "model",

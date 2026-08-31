@@ -394,7 +394,7 @@ export function planSetMosModelTarget(
     const symbolId = verified.symbolId;
     const reference =
       instance.netlist.binding?.kind === "external-subcircuit"
-        ? instance.netlist.reference
+        ? instance.reference!
         : nextReference(
             createReferenceIndex(document),
             hierarchyReferencePolicy,
@@ -407,16 +407,19 @@ export function planSetMosModelTarget(
         symbolId,
       });
     }
-    const netlist = {
-      ...instance.netlist,
-      reference,
-      binding: {
-        kind: "external-subcircuit" as const,
-        definitionId: definition.id,
-      },
+    const binding = {
+      kind: "external-subcircuit" as const,
+      definitionId: definition.id,
     };
-    if (JSON.stringify(instance.netlist) !== JSON.stringify(netlist)) {
-      documentEdits.push({ kind: "set_instance_netlist", instanceId, netlist });
+    if (
+      JSON.stringify(instance.netlist.binding ?? null) !==
+        JSON.stringify(binding) ||
+      instance.reference !== reference
+    ) {
+      documentEdits.push({
+        kind: "bulk_patch_instance_netlist",
+        assignments: [{ instanceId, reference, binding }],
+      });
     }
     if (documentEdits.length === 0) return [];
     return [
@@ -438,21 +441,23 @@ export function planSetMosModelTarget(
         createReferenceIndex(document),
         referencePolicyForSymbol(symbolId),
       )!
-    : instance.netlist.reference;
+    : instance.reference!;
   const binding = normalizedName
     ? ({ kind: "model", deviceClass: "mos", name: normalizedName } as const)
     : undefined;
-  const netlist = {
-    reference,
-    parameters: { ...instance.netlist.parameters },
-    ...(binding ? { binding } : {}),
-  };
   const documentEdits: DocumentEdits = [];
   if (instance.symbolId !== symbolId) {
     documentEdits.push({ kind: "set_instance_symbol", instanceId, symbolId });
   }
-  if (JSON.stringify(instance.netlist) !== JSON.stringify(netlist)) {
-    documentEdits.push({ kind: "set_instance_netlist", instanceId, netlist });
+  if (
+    JSON.stringify(instance.netlist.binding ?? null) !==
+      JSON.stringify(binding ?? null) ||
+    instance.reference !== reference
+  ) {
+    documentEdits.push({
+      kind: "bulk_patch_instance_netlist",
+      assignments: [{ instanceId, reference, binding: binding ?? null }],
+    });
   }
   return documentEdits.length > 0
     ? [transactDocument(project, documentId, documentEdits)]
@@ -472,10 +477,9 @@ export function createHierarchyInstance(
   return {
     id,
     symbolId: hierarchicalSymbolId(child.netlist.name),
-    schematicReference: reference,
+    reference: reference,
     placement,
     netlist: {
-      reference,
       parameters: {},
       binding: {
         kind: "subcircuit",
@@ -501,10 +505,9 @@ export function createExternalSubcircuitInstance(
   return {
     id,
     symbolId: mapping?.symbolId ?? externalSubcircuitSymbolId(definition.id),
-    schematicReference: reference,
+    reference: reference,
     placement,
     netlist: {
-      reference,
       parameters: {},
       binding: { kind: "external-subcircuit", definitionId: definition.id },
     },

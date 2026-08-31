@@ -56,8 +56,8 @@ function resistorProject(parameters: Record<string, string>) {
     id: "R1",
     symbolId: "resistor",
     placement: null,
+    reference: "R1",
     netlist: {
-      reference: "R1",
       binding: { kind: "primitive", deviceClass: "resistor" },
       parameters,
     },
@@ -162,8 +162,8 @@ describe("current formal cell interface", () => {
         id: "R1",
         symbolId: "resistor",
         placement: null,
+        reference: "R1",
         netlist: {
-          reference: "R1",
           binding: { kind: "primitive", deviceClass: "resistor" },
           parameters: { value: "1k" },
         },
@@ -217,8 +217,8 @@ describe("current formal cell interface", () => {
       id: "R1",
       symbolId: "resistor",
       placement: null,
+      reference: "R1",
       netlist: {
-        reference: "R1",
         binding: { kind: "primitive", deviceClass: "resistor" },
         parameters: { value: "10k" },
       },
@@ -256,8 +256,8 @@ describe("current formal cell interface", () => {
       id: "R1",
       symbolId: "resistor",
       placement: null,
+      reference: "R1",
       netlist: {
-        reference: "R1",
         binding: { kind: "primitive", deviceClass: "resistor" },
         parameters: { value: "10k" },
       },
@@ -515,8 +515,8 @@ describe("current formal cell interface", () => {
       id: "X1",
       symbolId: "external-ota-symbol",
       placement: null,
+      reference: "X1",
       netlist: {
-        reference: "X1",
         binding: { kind: "external-subcircuit", definitionId: "external-ota" },
         parameters: {},
       },
@@ -577,8 +577,8 @@ describe("current formal cell interface", () => {
       id: "X1",
       symbolId: "external-gain-symbol",
       placement: null,
+      reference: "X1",
       netlist: {
-        reference: "X1",
         binding: { kind: "external-subcircuit", definitionId: "external-gain" },
         parameters: {},
       },
@@ -617,8 +617,8 @@ describe("current formal cell interface", () => {
       id: "X1",
       symbolId: "external-library-symbol",
       placement: null,
+      reference: "X1",
       netlist: {
-        reference: "X1",
         binding: {
           kind: "external-subcircuit",
           definitionId: "external-library",
@@ -660,8 +660,8 @@ describe("current formal cell interface", () => {
       id: "X1",
       symbolId: "external-order-symbol",
       placement: null,
+      reference: "X1",
       netlist: {
-        reference: "X1",
         binding: {
           kind: "external-subcircuit",
           definitionId: "external-order",
@@ -711,8 +711,8 @@ describe("current formal cell interface", () => {
       id: "XM1",
       symbolId: "nmos",
       placement: null,
+      reference: "XM1",
       netlist: {
-        reference: "XM1",
         binding: {
           kind: "external-subcircuit",
           definitionId: "sky130-nfet",
@@ -758,8 +758,8 @@ describe("voltage-controlled switch", () => {
       id: "S1",
       symbolId: "voltage-controlled-switch",
       placement: null,
+      reference: "S1",
       netlist: {
-        reference: "S1",
         binding: { kind: "model", deviceClass: "switch", name: "SW_RLY" },
         parameters: {},
       },
