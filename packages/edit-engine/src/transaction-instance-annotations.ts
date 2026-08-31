@@ -1,4 +1,8 @@
-import { inverseTransformPoint, transformPoint } from "@icm/model";
+import {
+  inverseTransformPoint,
+  rewriteRichTextPlainText,
+  transformPoint,
+} from "@icm/model";
 import type {
   Annotation,
   Orientation,
@@ -190,8 +194,10 @@ export function refreshInstanceValueAnnotation(
 }
 
 /**
- * Mark the live Reference projection changed after the authored Reference
- * changes. Literal object-anchored annotations remain independent text.
+ * Re-project every live Reference annotation after the authored Reference
+ * changes. Its RichText tree remains an independently editable presentation,
+ * so a same-text override follows the semantic name without losing styles.
+ * Literal object-anchored annotations remain independent text.
  */
 export function refreshInstanceReferenceAnnotation(
   draft: SchematicDocument,
@@ -214,14 +220,18 @@ export function refreshInstanceReferenceAnnotation(
   for (const annotation of draft.annotations) {
     if (
       annotation.kind !== "instance-label" ||
-      annotation.anchor.kind !== "object" ||
-      annotation.anchor.objectId !== instanceId
+      annotation.binding?.kind !== "instance-reference" ||
+      annotation.binding.instanceId !== instanceId
     ) {
       continue;
     }
-    if (annotation.binding?.kind === "instance-reference") {
-      changedObjectIds.add(annotation.id);
+    if (annotation.formatOverride) {
+      annotation.formatOverride = rewriteRichTextPlainText(
+        annotation.formatOverride,
+        nextReference,
+      );
     }
+    changedObjectIds.add(annotation.id);
   }
 }
 

@@ -16,66 +16,11 @@
             },
             "objectId": "M1"
           },
-          "id": "instance-label-M1",
-          "kind": "instance-label",
-          "locked": false,
-          "rotation": 0,
-          "content": {
-            "runs": [
-              {
-                "children": [
-                  {
-                    "children": [
-                      {
-                        "kind": "text",
-                        "value": "M"
-                      }
-                    ],
-                    "kind": "span",
-                    "style": "bold"
-                  }
-                ],
-                "kind": "span",
-                "style": "italic"
-              },
-              {
-                "children": [
-                  {
-                    "children": [
-                      {
-                        "kind": "text",
-                        "value": "3"
-                      }
-                    ],
-                    "kind": "span",
-                    "style": "bold"
-                  }
-                ],
-                "kind": "span",
-                "style": "subscript"
-              }
-            ]
-          }
-        },
-        {
-          "alignment": "start",
-          "anchor": {
-            "fallbackPosition": {
-              "x": 335,
-              "y": 275
-            },
-            "kind": "object",
-            "localOffset": {
-              "x": 15,
-              "y": 5
-            },
-            "objectId": "M2"
+          "binding": {
+            "instanceId": "M1",
+            "kind": "instance-reference"
           },
-          "id": "instance-label-M2",
-          "kind": "instance-label",
-          "locked": false,
-          "rotation": 0,
-          "content": {
+          "formatOverride": {
             "runs": [
               {
                 "children": [
@@ -110,7 +55,70 @@
                 "style": "subscript"
               }
             ]
-          }
+          },
+          "id": "instance-label-M1",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "start",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 335,
+              "y": 275
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": 15,
+              "y": 5
+            },
+            "objectId": "M2"
+          },
+          "binding": {
+            "instanceId": "M2",
+            "kind": "instance-reference"
+          },
+          "formatOverride": {
+            "runs": [
+              {
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "kind": "text",
+                        "value": "M"
+                      }
+                    ],
+                    "kind": "span",
+                    "style": "bold"
+                  }
+                ],
+                "kind": "span",
+                "style": "italic"
+              },
+              {
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "kind": "text",
+                        "value": "2"
+                      }
+                    ],
+                    "kind": "span",
+                    "style": "bold"
+                  }
+                ],
+                "kind": "span",
+                "style": "subscript"
+              }
+            ]
+          },
+          "id": "instance-label-M2",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
         },
         {
           "alignment": "start",
@@ -150,11 +158,70 @@
             },
             "objectId": "M3"
           },
+          "binding": {
+            "instanceId": "M3",
+            "kind": "instance-reference"
+          },
+          "formatOverride": {
+            "runs": [
+              {
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "kind": "text",
+                        "value": "M"
+                      }
+                    ],
+                    "kind": "span",
+                    "style": "bold"
+                  }
+                ],
+                "kind": "span",
+                "style": "italic"
+              },
+              {
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "kind": "text",
+                        "value": "3"
+                      }
+                    ],
+                    "kind": "span",
+                    "style": "bold"
+                  }
+                ],
+                "kind": "span",
+                "style": "subscript"
+              }
+            ]
+          },
           "id": "instance-label-M3",
           "kind": "instance-label",
           "locked": false,
-          "rotation": 0,
-          "content": {
+          "rotation": 0
+        },
+        {
+          "alignment": "end",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 435,
+              "y": 275
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": -15,
+              "y": 5
+            },
+            "objectId": "M4"
+          },
+          "binding": {
+            "instanceId": "M4",
+            "kind": "instance-reference"
+          },
+          "formatOverride": {
             "runs": [
               {
                 "children": [
@@ -189,62 +256,11 @@
                 "style": "subscript"
               }
             ]
-          }
-        },
-        {
-          "alignment": "end",
-          "anchor": {
-            "fallbackPosition": {
-              "x": 435,
-              "y": 275
-            },
-            "kind": "object",
-            "localOffset": {
-              "x": -15,
-              "y": 5
-            },
-            "objectId": "M4"
           },
           "id": "instance-label-M3-copy-1",
           "kind": "instance-label",
           "locked": false,
-          "rotation": 0,
-          "content": {
-            "runs": [
-              {
-                "children": [
-                  {
-                    "children": [
-                      {
-                        "kind": "text",
-                        "value": "M"
-                      }
-                    ],
-                    "kind": "span",
-                    "style": "bold"
-                  }
-                ],
-                "kind": "span",
-                "style": "italic"
-              },
-              {
-                "children": [
-                  {
-                    "children": [
-                      {
-                        "kind": "text",
-                        "value": "2"
-                      }
-                    ],
-                    "kind": "span",
-                    "style": "bold"
-                  }
-                ],
-                "kind": "span",
-                "style": "subscript"
-              }
-            ]
-          }
+          "rotation": 0
         },
         {
           "alignment": "start",
@@ -308,10 +324,6 @@
             },
             "objectId": "I1"
           },
-          "id": "instance-label-I1",
-          "kind": "instance-label",
-          "locked": false,
-          "rotation": 0,
           "content": {
             "runs": [
               {
@@ -347,7 +359,11 @@
                 "style": "subscript"
               }
             ]
-          }
+          },
+          "id": "instance-label-I1",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
         }
       ],
       "connectivityEvidence": [
@@ -404,9 +420,9 @@
             },
             "rotation": 0
           },
+          "reference": "M1",
           "symbolId": "nmos",
-          "symbolVariantId": "textbook-3terminal",
-          "reference": "M1"
+          "symbolVariantId": "textbook-3terminal"
         },
         {
           "id": "M2",
@@ -430,9 +446,9 @@
             },
             "rotation": 0
           },
+          "reference": "M2",
           "symbolId": "nmos",
-          "symbolVariantId": "textbook-3terminal",
-          "reference": "M2"
+          "symbolVariantId": "textbook-3terminal"
         },
         {
           "id": "P2",
@@ -468,9 +484,9 @@
             },
             "rotation": 0
           },
+          "reference": "M3",
           "symbolId": "nmos",
-          "symbolVariantId": "textbook-3terminal",
-          "reference": "M3"
+          "symbolVariantId": "textbook-3terminal"
         },
         {
           "id": "P1",
@@ -506,9 +522,9 @@
             },
             "rotation": 0
           },
+          "reference": "M4",
           "symbolId": "nmos",
-          "symbolVariantId": "textbook-3terminal",
-          "reference": "M4"
+          "symbolVariantId": "textbook-3terminal"
         },
         {
           "id": "P3",
@@ -539,8 +555,8 @@
             },
             "rotation": 0
           },
-          "symbolId": "current-source",
-          "reference": "I1"
+          "reference": "I1",
+          "symbolId": "current-source"
         },
         {
           "id": "P4",
@@ -1346,7 +1362,7 @@
   "externalSubcircuitDefinitions": [],
   "id": "project-6c056e6c-b17b-4a66-aab9-06d0b380b437",
   "name": "Figure 17.19(b)",
-  "schemaVersion": 35,
+  "schemaVersion": 36,
   "source": {
     "dialect": "none",
     "entry": null,

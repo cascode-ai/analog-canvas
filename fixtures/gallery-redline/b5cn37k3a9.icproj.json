@@ -17,8 +17,8 @@
             "objectId": "Q1"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "Q1"
+            "instanceId": "Q1",
+            "kind": "instance-reference"
           },
           "id": "instance-label-Q1",
           "kind": "instance-label",
@@ -40,8 +40,8 @@
             "objectId": "Q2"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "Q2"
+            "instanceId": "Q2",
+            "kind": "instance-reference"
           },
           "id": "instance-label-Q2",
           "kind": "instance-label",
@@ -63,8 +63,8 @@
             "objectId": "R1"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "R1"
+            "instanceId": "R1",
+            "kind": "instance-reference"
           },
           "id": "instance-label-R1",
           "kind": "instance-label",
@@ -86,8 +86,8 @@
             "objectId": "R2"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "R2"
+            "instanceId": "R2",
+            "kind": "instance-reference"
           },
           "id": "instance-label-R2",
           "kind": "instance-label",
@@ -109,8 +109,8 @@
             "objectId": "R3"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "R3"
+            "instanceId": "R3",
+            "kind": "instance-reference"
           },
           "id": "instance-label-R3",
           "kind": "instance-label",
@@ -132,8 +132,8 @@
             "objectId": "Q3"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "Q3"
+            "instanceId": "Q3",
+            "kind": "instance-reference"
           },
           "id": "instance-label-Q1-copy-1",
           "kind": "instance-label",
@@ -155,8 +155,8 @@
             "objectId": "I1"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "I1"
+            "instanceId": "I1",
+            "kind": "instance-reference"
           },
           "id": "instance-label-I1",
           "kind": "instance-label",
@@ -178,8 +178,8 @@
             "objectId": "M1"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "M1"
+            "instanceId": "M1",
+            "kind": "instance-reference"
           },
           "id": "instance-label-M1",
           "kind": "instance-label",
@@ -256,8 +256,8 @@
             },
             "rotation": 0
           },
-          "symbolId": "npn",
-          "reference": "Q1"
+          "reference": "Q1",
+          "symbolId": "npn"
         },
         {
           "id": "Q2",
@@ -272,8 +272,8 @@
             },
             "rotation": 180
           },
-          "symbolId": "pnp",
-          "reference": "Q2"
+          "reference": "Q2",
+          "symbolId": "pnp"
         },
         {
           "id": "R1",
@@ -292,8 +292,8 @@
             },
             "rotation": 0
           },
-          "symbolId": "resistor",
-          "reference": "R1"
+          "reference": "R1",
+          "symbolId": "resistor"
         },
         {
           "id": "R2",
@@ -312,8 +312,8 @@
             },
             "rotation": 0
           },
-          "symbolId": "resistor",
-          "reference": "R2"
+          "reference": "R2",
+          "symbolId": "resistor"
         },
         {
           "id": "R3",
@@ -332,8 +332,8 @@
             },
             "rotation": 0
           },
-          "symbolId": "resistor",
-          "reference": "R3"
+          "reference": "R3",
+          "symbolId": "resistor"
         },
         {
           "id": "Q3",
@@ -348,8 +348,8 @@
             },
             "rotation": 0
           },
-          "symbolId": "npn",
-          "reference": "Q3"
+          "reference": "Q3",
+          "symbolId": "npn"
         },
         {
           "id": "I1",
@@ -368,8 +368,8 @@
             },
             "rotation": 0
           },
-          "symbolId": "current-source",
-          "reference": "I1"
+          "reference": "I1",
+          "symbolId": "current-source"
         },
         {
           "id": "M1",
@@ -393,9 +393,9 @@
             },
             "rotation": 180
           },
+          "reference": "M1",
           "symbolId": "nmos",
-          "symbolVariantId": "textbook-3terminal",
-          "reference": "M1"
+          "symbolVariantId": "textbook-3terminal"
         },
         {
           "id": "VDD1",
@@ -1141,7 +1141,7 @@
   "externalSubcircuitDefinitions": [],
   "id": "project-main",
   "name": "widlar",
-  "schemaVersion": 35,
+  "schemaVersion": 36,
   "source": {
     "dialect": "none",
     "entry": null,

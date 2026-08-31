@@ -16,7 +16,11 @@
             },
             "objectId": "M1"
           },
-          "content": {
+          "binding": {
+            "instanceId": "M1",
+            "kind": "instance-reference"
+          },
+          "formatOverride": {
             "runs": [
               {
                 "children": [
@@ -125,7 +129,11 @@
             },
             "objectId": "M2"
           },
-          "content": {
+          "binding": {
+            "instanceId": "M2",
+            "kind": "instance-reference"
+          },
+          "formatOverride": {
             "runs": [
               {
                 "children": [
@@ -180,7 +188,11 @@
             },
             "objectId": "R1"
           },
-          "content": {
+          "binding": {
+            "instanceId": "R1",
+            "kind": "instance-reference"
+          },
+          "formatOverride": {
             "runs": [
               {
                 "children": [
@@ -268,7 +280,11 @@
             },
             "objectId": "R2"
           },
-          "content": {
+          "binding": {
+            "instanceId": "R2",
+            "kind": "instance-reference"
+          },
+          "formatOverride": {
             "runs": [
               {
                 "children": [
@@ -356,7 +372,11 @@
             },
             "objectId": "C1"
           },
-          "content": {
+          "binding": {
+            "instanceId": "C1",
+            "kind": "instance-reference"
+          },
+          "formatOverride": {
             "runs": [
               {
                 "children": [
@@ -444,7 +464,11 @@
             },
             "objectId": "L1"
           },
-          "content": {
+          "binding": {
+            "instanceId": "L1",
+            "kind": "instance-reference"
+          },
+          "formatOverride": {
             "runs": [
               {
                 "children": [
@@ -532,7 +556,11 @@
             },
             "objectId": "V1"
           },
-          "content": {
+          "binding": {
+            "instanceId": "V1",
+            "kind": "instance-reference"
+          },
+          "formatOverride": {
             "runs": [
               {
                 "children": [
@@ -620,7 +648,11 @@
             },
             "objectId": "I1"
           },
-          "content": {
+          "binding": {
+            "instanceId": "I1",
+            "kind": "instance-reference"
+          },
+          "formatOverride": {
             "runs": [
               {
                 "children": [
@@ -708,7 +740,11 @@
             },
             "objectId": "M3"
           },
-          "content": {
+          "binding": {
+            "instanceId": "M3",
+            "kind": "instance-reference"
+          },
+          "formatOverride": {
             "runs": [
               {
                 "children": [
@@ -1039,7 +1075,7 @@
   "externalSubcircuitDefinitions": [],
   "id": "instance-value-display",
   "name": "Instance Value Display",
-  "schemaVersion": 35,
+  "schemaVersion": 36,
   "source": {
     "dialect": "none",
     "entry": null,

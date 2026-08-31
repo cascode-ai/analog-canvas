@@ -90,3 +90,11 @@ export type {
   Schema34To35MigrationReport,
   Schema34To35MigrationResult,
 } from "./transforms/instance-reference.js";
+export {
+  upgradeSchema35To36,
+  upgradeSchema35To36WithReport,
+} from "./transforms/instance-reference-annotation.js";
+export type {
+  Schema35To36MigrationReport,
+  Schema35To36MigrationResult,
+} from "./transforms/instance-reference-annotation.js";

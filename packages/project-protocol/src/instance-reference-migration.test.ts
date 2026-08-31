@@ -1,4 +1,8 @@
-import { createEmptyProject, flattenRichText } from "@icm/model";
+import {
+  createEmptyProject,
+  CURRENT_PROJECT_SCHEMA_VERSION,
+  flattenRichText,
+} from "@icm/model";
 import { describe, expect, it } from "vitest";
 
 import { parseProjectWithMetadata } from "./load.js";
@@ -136,14 +140,14 @@ describe("schema 34 to 35 Instance Reference migration", () => {
     expect(
       parseProjectWithMetadata(JSON.stringify(result.project)).project
         .schemaVersion,
-    ).toBe(35);
+    ).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
   });
 
   it("loads schema 34 through the contiguous chain into the strict current schema", () => {
     const parsed = parseProjectWithMetadata(JSON.stringify(schema34Project()));
     expect(parsed.sourceSchemaVersion).toBe(34);
     expect(parsed.migrated).toBe(true);
-    expect(parsed.project.schemaVersion).toBe(35);
+    expect(parsed.project.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
     expect(parsed.project.documents[0]!.instances[0]).toMatchObject({
       id: "opaque-mos",
       reference: "M7",

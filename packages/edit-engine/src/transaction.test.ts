@@ -2198,6 +2198,44 @@ describe("Edit Transaction envelope", () => {
     );
   });
 
+  it("renames a mapped Reference RichText projection without losing its styles", () => {
+    const document = documentWithInstance();
+    document.annotations.push({
+      id: "instance-label-M1",
+      kind: "instance-label",
+      binding: { kind: "instance-reference", instanceId: "M1" },
+      formatOverride: semanticTextDocument("M1", "instance-label"),
+      anchor: {
+        kind: "object",
+        objectId: "M1",
+        localOffset: { x: 0, y: -20 },
+        fallbackPosition: { x: 0, y: -20 },
+      },
+      alignment: "middle",
+      rotation: 0,
+      locked: false,
+    });
+
+    const renamed = executeTransaction(document, {
+      ...transaction(),
+      edits: [
+        { kind: "set_instance_reference", instanceId: "M1", reference: "M21" },
+      ],
+    });
+
+    expect(renamed).toMatchObject({ ok: true });
+    if (!renamed.ok) return;
+    expect(renamed.document.instances[0]!.reference).toBe("M21");
+    const presentation = renamed.document.annotations[0]!.formatOverride!;
+    expect(flattenRichText(presentation)).toBe("M21");
+    expect(presentation.runs[0]).toEqual(
+      semanticTextDocument("M1", "instance-label").runs[0],
+    );
+    expect(presentation.runs[1]).toEqual(
+      semanticTextDocument("M21", "instance-label").runs[1],
+    );
+  });
+
   it("applies a bounded bulk netlist patch atomically", () => {
     const document = documentWithInstance();
     document.instances.push({

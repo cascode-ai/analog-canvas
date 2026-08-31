@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createEmptyProject } from "@icm/model";
+import { createEmptyProject, CURRENT_PROJECT_SCHEMA_VERSION } from "@icm/model";
 
 import { tryParseProjectWithMetadata } from "./load.js";
 import { serializeProject } from "./save.js";
@@ -55,7 +55,7 @@ describe("schema 32 to 33 migration (ownerless Net equivalence)", () => {
     });
   });
 
-  it("loads an ordinary schema-32 Project through canonical schema 35", () => {
+  it("loads an ordinary schema-32 Project through the canonical schema", () => {
     const result = tryParseProjectWithMetadata(
       JSON.stringify(schema32Project()),
     );
@@ -64,7 +64,7 @@ describe("schema 32 to 33 migration (ownerless Net equivalence)", () => {
       ok: true,
       sourceSchemaVersion: 32,
       migrated: true,
-      project: { schemaVersion: 35 },
+      project: { schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION },
     });
   });
 
@@ -85,7 +85,7 @@ describe("schema 32 to 33 migration (ownerless Net equivalence)", () => {
     });
   });
 
-  it("does not admit the retired record in a current schema-35 Project", () => {
+  it("does not admit the retired record in a current Project", () => {
     const current = schema32Project();
     current.schemaVersion = 34;
     addOwnerlessEquivalence(current);

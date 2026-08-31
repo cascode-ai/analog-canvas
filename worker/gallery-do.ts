@@ -30,6 +30,7 @@ import {
   upgradeSchema32To33WithReport,
   upgradeSchema33To34WithReport,
   upgradeSchema34To35WithReport,
+  upgradeSchema35To36WithReport,
 } from "@icm/project-protocol";
 import { renderDocumentSvg } from "@icm/render-svg";
 import {
@@ -1394,7 +1395,8 @@ export class GalleryDO {
         | ReturnType<typeof upgradeSchema31To32WithReport>["report"]
         | ReturnType<typeof upgradeSchema32To33WithReport>["report"]
         | ReturnType<typeof upgradeSchema33To34WithReport>["report"]
-        | ReturnType<typeof upgradeSchema34To35WithReport>["report"];
+        | ReturnType<typeof upgradeSchema34To35WithReport>["report"]
+        | ReturnType<typeof upgradeSchema35To36WithReport>["report"];
     }> = [];
     for (const source of sources) {
       const versions: Record<string, number> = {};
@@ -1476,6 +1478,15 @@ export class GalleryDO {
           }
           if (lifted.schemaVersion === 34) {
             const migration = upgradeSchema34To35WithReport(lifted);
+            lifted = migration.project;
+            migrationReports.push({
+              table: source.table,
+              id: row.id,
+              report: migration.report,
+            });
+          }
+          if (lifted.schemaVersion === 35) {
+            const migration = upgradeSchema35To36WithReport(lifted);
             lifted = migration.project;
             migrationReports.push({
               table: source.table,

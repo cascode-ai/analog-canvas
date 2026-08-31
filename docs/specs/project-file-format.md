@@ -2,14 +2,14 @@
 
 Status: `accepted`
 
-Current Project schema: `35`
+Current Project schema: `36`
 
 Primary owners: `packages/model` (current shape) and
 `packages/project-protocol` (file boundary)
 
 An `.icproj.json` file is canonical JSON for one complete `CircuitProject`.
 `@icm/project-protocol` exposes `parseProject`. The file boundary accepts every
-schema covered by its explicit 24→35 upgrade chain. Schema 32 added optional
+schema covered by its explicit 24→36 upgrade chain. Schema 32 added optional
 presentation-only `Annotation.textColor`; schema 33 removes ownerless
 `explicit-equivalence` connectivity. The 32→33 adapter advances the version
 stamp only when that retired record is absent. If one exists, it rejects at the
@@ -22,9 +22,11 @@ power owner when possible. Schema 35 unifies canvas and emitted Instance
 References: the 34→35 adapter moves one selected value to
 `Instance.reference`, materializes distinct descriptive RichText as an
 attached literal Annotation, converts ordinary default labels to
-`instance-reference`, and removes fabricated marker references. The public file
-boundary supplies only schema 35 in memory and writes only schema 35; versions
-older than 24 or newer than 35 are rejected.
+`instance-reference`, and removes fabricated marker references. Schema 36
+repairs reference-shaped labels that schema 35 accidentally materialized as
+literal text and preserves their RichText as a mapped same-text presentation.
+The public file boundary supplies only schema 36 in memory and writes only
+schema 36; versions older than 24 or newer than 36 are rejected.
 
 ## Current authorities
 
@@ -73,10 +75,11 @@ older than 24 or newer than 35 are rejected.
   ID. `Annotation.textColor`
   is an independent presentation override; when absent, instance reference and
   value annotations inherit their owning Instance foreground, while other
-  annotations inherit the Document foreground. Bound `net-name` and
-  `instance-reference`, `net-name`, and `cell-terminal-name` annotations may
+  annotations inherit the Document foreground. Bound `instance-reference`,
+  `net-name`, and `cell-terminal-name` annotations may
   carry a RichText `formatOverride` only when its flattened text equals the
-  semantic Reference, Net, or terminal name.
+  semantic Reference, Net, or terminal name. Reference allocation and rename
+  update that same-text projection atomically without discarding its styling.
 - A RichText document is either ordinary styled text runs or one atomic
   formula run containing bounded LaTeX source and `inline`/`block` display
   intent. Typeset SVG paths and metrics are derived artifacts, never Project
@@ -90,8 +93,8 @@ older than 24 or newer than 35 are rejected.
 ## Read and write
 
 ```text
-import text -> parse JSON -> require Project schema 24 through 35
--> converge to schema 35 -> strict schema-35 validation -> install unbound
+import text -> parse JSON -> require Project schema 24 through 36
+-> converge to schema 36 -> strict schema-36 validation -> install unbound
 export -> strict validation -> canonical key ordering -> Blob download
 ```
 
@@ -102,7 +105,7 @@ after explicit human approval in the editor.
 A migrated imported file is marked dirty. The editor never overwrites a source
 selected through the browser file input; the user may Save it as a Cloud
 Project or explicitly export upgraded bytes. Browser recovery records may be
-canonicalized to v35 only after a successful validated write.
+canonicalized to v36 only after a successful validated write.
 
 Project entry does not physically merge Base Nets. Matching authoritative names
 resolve as one Logical Net; conflicting claims remain a blocking diagnostic.
@@ -111,7 +114,7 @@ Repeated source-name hints are valid provenance and never imply connectivity.
 Canonical serialization ends with one newline and is byte-stable across
 serialize/parse/serialize. The current corpus is listed in
 `fixtures/projects/compatibility-corpus.json`; its accepted entries must all be
-already canonical Project schema 35. The rejected corpus names expected
+already canonical Project schema 36. The rejected corpus names expected
 validation failures.
 
 Viewport, selection, undo history, canvas overlays, Agent credentials,

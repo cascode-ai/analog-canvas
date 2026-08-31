@@ -1,4 +1,4 @@
-import { createEmptyProject } from "@icm/model";
+import { createEmptyProject, CURRENT_PROJECT_SCHEMA_VERSION } from "@icm/model";
 import { describe, expect, it } from "vitest";
 
 import { tryParseProjectWithMetadata } from "./load.js";
@@ -101,7 +101,7 @@ describe("schema 33 to 34 migration (Net name provenance)", () => {
     );
   });
 
-  it("loads schema 33 through the canonical schema 35 validator", () => {
+  it("loads schema 33 through the canonical current validator", () => {
     const result = tryParseProjectWithMetadata(
       JSON.stringify(schema33Project()),
     );
@@ -109,7 +109,7 @@ describe("schema 33 to 34 migration (Net name provenance)", () => {
       ok: true,
       sourceSchemaVersion: 33,
       migrated: true,
-      project: { schemaVersion: 35 },
+      project: { schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION },
     });
   });
 });

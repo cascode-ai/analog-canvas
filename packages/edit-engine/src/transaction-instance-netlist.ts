@@ -223,6 +223,8 @@ export function applyInstanceNetlistEdit(
           ),
         };
       }
+      const before: SchematicDocument["instances"][number] =
+        structuredClone(instance);
       instance.reference = edit.reference;
       const failure = referencePolicyFailure(draft, instance.id);
       if (failure) {
@@ -231,14 +233,12 @@ export function applyInstanceNetlistEdit(
           rejection: reject("EDIT_PRECONDITION", failure, [], [instance.id]),
         };
       }
-      for (const annotation of draft.annotations) {
-        if (
-          annotation.binding?.kind === "instance-reference" &&
-          annotation.binding.instanceId === instance.id
-        ) {
-          changedObjectIds.add(annotation.id);
-        }
-      }
+      refreshInstanceReferenceAnnotation(
+        draft,
+        before,
+        instance.id,
+        changedObjectIds,
+      );
       return { ok: true, connectivityChanged: false };
     }
     case "set_instance_binding": {

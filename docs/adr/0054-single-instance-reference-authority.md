@@ -89,6 +89,9 @@ parameters, connectivity, or attached annotations.
   hidden Instance identity protocol.
 - Object IDs may still be human-shaped in existing files, but no consumer may
   infer Reference semantics from them.
+- Schema 36 closes the Gallery composition gap: a mapped Reference Annotation
+  owns independent RichText presentation, while Reference allocation and
+  rename rewrite its same-text projection atomically and preserve styling.
 
 ## Validation
 
