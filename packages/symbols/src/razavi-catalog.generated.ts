@@ -114,7 +114,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Two-terminal Razavi switch; SPICE S has a four-terminal control contract.",
     assetPath: "closed-switch.symbol.json",
     assetHash:
-      "b28f94edb706cc30d505eb0e26cdbb98e815c8c5a2838312df0f148aa6ed525a",
+      "96208e1fc730ce7ce199df0001be3efcb20f7bb9c08e86de5af5115d8ad6dccf",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -590,7 +590,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Two-terminal Razavi switch; SPICE S has a four-terminal control contract.",
     assetPath: "ideal-switch.symbol.json",
     assetHash:
-      "953a05399eae5ecbedf4f237020bac864f46b94621082065e60f555226d0bce2",
+      "913c542255bf8a82b5b3d7cd0a30bfdd527b0c863c38780435d3edfcb293c6cd",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1366,7 +1366,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     automaticMappings: ["spice:S"],
     assetPath: "voltage-controlled-switch.symbol.json",
     assetHash:
-      "017dca36a916932614666b12f91785e8edf7848c1751cc30157ecdae94200db0",
+      "0fe2629e4289b7eb341ec6df29c0356d1bc27e5802a3db2fe45d5d1a28f435eb",
   },
   {
     symbolId: "voltage-source",
@@ -1849,7 +1849,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "1",
         role: "passive",
         at: {
-          x: -30,
+          x: -20,
           y: 0,
         },
         direction: "west",
@@ -1862,7 +1862,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "2",
         role: "passive",
         at: {
-          x: 30,
+          x: 20,
           y: 0,
         },
         direction: "east",
@@ -1876,7 +1876,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -30,
+          x: -20,
           y: 0,
         },
         to: {
@@ -1942,7 +1942,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 0,
         },
         to: {
-          x: 30,
+          x: 20,
           y: 0,
         },
         style: {
@@ -4091,7 +4091,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "1",
         role: "passive",
         at: {
-          x: -30,
+          x: -20,
           y: 0,
         },
         direction: "west",
@@ -4104,7 +4104,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "2",
         role: "passive",
         at: {
-          x: 30,
+          x: 20,
           y: 0,
         },
         direction: "east",
@@ -4118,7 +4118,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -30,
+          x: -20,
           y: 0,
         },
         to: {
@@ -4184,7 +4184,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 0,
         },
         to: {
-          x: 30,
+          x: 20,
           y: 0,
         },
         style: {
@@ -7769,7 +7769,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "P",
         role: "passive",
         at: {
-          x: -30,
+          x: -20,
           y: -10,
         },
         direction: "west",
@@ -7782,7 +7782,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "N",
         role: "passive",
         at: {
-          x: 30,
+          x: 20,
           y: -10,
         },
         direction: "east",
@@ -7822,7 +7822,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -30,
+          x: -20,
           y: -10,
         },
         to: {
@@ -7888,7 +7888,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: -10,
         },
         to: {
-          x: 30,
+          x: 20,
           y: -10,
         },
         style: {

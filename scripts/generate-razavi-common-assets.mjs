@@ -6,6 +6,20 @@ import { fileURLToPath } from "node:url";
 import { format } from "prettier";
 
 import { loadRazaviReferenceAuthority } from "./lib/razavi-reference-authority.mjs";
+import { normalizeSwitchLeads } from "./lib/normalize-switch-leads.mjs";
+
+/**
+ * Switch leads came off the page at 15 to 26 units, so a switch sat further
+ * from its wire than a logic gate does and the gap read as a stub the grid
+ * could not explain. These take the same one-cell normalization the logic
+ * ports took in f13355ea: bodies untouched, anchors back on the grid.
+ *
+ * voltage-controlled-switch is deliberately absent: it is house-authored
+ * (#364) with no generator behind it, so listing it here would be a rule
+ * that never runs. Its through-path anchors carry the same one-cell lead,
+ * held by the catalog test rather than by this pass.
+ */
+const ONE_CELL_LEAD_SYMBOLS = new Set(["closed-switch", "ideal-switch"]);
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const referenceRoot = resolve(
@@ -64,6 +78,7 @@ for (const [symbolId, name, category, pinOrder, automaticMappings] of entries) {
     fail(`evidence contract mismatch for ${symbolId}`);
   }
   delete symbol.aliases;
+  if (ONE_CELL_LEAD_SYMBOLS.has(symbolId)) normalizeSwitchLeads(symbol);
   const assetPath = resolve(assetRoot, `${symbolId}.symbol.json`);
   const assetSource = normalize(
     await format(JSON.stringify(symbol, null, 2), { parser: "json" }),

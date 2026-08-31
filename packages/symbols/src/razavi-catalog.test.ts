@@ -1213,7 +1213,7 @@ describe("Razavi symbol catalog", () => {
     expect(voltageAmplifier.pins.map((pin) => pin.at.x)).toEqual([-40, 40]);
     const idealSwitch = requireRazaviCatalogSymbol("ideal-switch");
     expect(idealSwitch.name).toBe("Open Switch");
-    expect(idealSwitch.pins.map((pin) => pin.at.x)).toEqual([-30, 30]);
+    expect(idealSwitch.pins.map((pin) => pin.at.x)).toEqual([-20, 20]);
     expect(idealSwitch.primitives).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -1229,13 +1229,13 @@ describe("Razavi symbol catalog", () => {
         }),
         expect.objectContaining({
           kind: "line",
-          from: { x: -30, y: 0 },
+          from: { x: -20, y: 0 },
           to: { x: -12.726917, y: 0 },
         }),
         expect.objectContaining({
           kind: "line",
           from: { x: 14.403348, y: 0 },
-          to: { x: 30, y: 0 },
+          to: { x: 20, y: 0 },
         }),
       ]),
     );
@@ -1279,7 +1279,7 @@ describe("Razavi symbol catalog", () => {
         window: { width: 96, height: 48, minX: -20, minY: -8 },
       },
     });
-    expect(closedSwitch.pins.map((pin) => pin.at.x)).toEqual([-30, 30]);
+    expect(closedSwitch.pins.map((pin) => pin.at.x)).toEqual([-20, 20]);
     expect(closedSwitch.primitives).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -1302,13 +1302,13 @@ describe("Razavi symbol catalog", () => {
         }),
         expect.objectContaining({
           kind: "line",
-          from: { x: -30, y: 0 },
+          from: { x: -20, y: 0 },
           to: { x: -13.562064, y: 0 },
         }),
         expect.objectContaining({
           kind: "line",
           from: { x: 13.562064, y: 0 },
-          to: { x: 30, y: 0 },
+          to: { x: 20, y: 0 },
         }),
       ]),
     );
@@ -1678,6 +1678,77 @@ describe("logic-gate and comparator family", () => {
       kind: "circle",
       radius: norBubble?.kind === "circle" ? norBubble.radius : undefined,
     });
+  });
+});
+
+describe("switch port leads", () => {
+  /**
+   * Switches take a different normalization from the logic family. The logic
+   * helper snaps the connection point outward, so a body contact on a
+   * half-grid keeps a 1.5-cell lead — deliberate there, and the library is
+   * full of the 15s it yields. A switch body contacts at roughly ±13, and
+   * rounding outward left its anchor at ±30 with a stub the grid could not
+   * explain. These round to the nearest cell and step one out.
+   */
+  const throughPath: Array<[string, string]> = [
+    ["closed-switch", "1"],
+    ["closed-switch", "2"],
+    ["ideal-switch", "1"],
+    ["ideal-switch", "2"],
+    ["voltage-controlled-switch", "P"],
+    ["voltage-controlled-switch", "N"],
+  ];
+
+  it("anchors every through-path terminal one cell from the body", () => {
+    for (const [symbolId, pinName] of throughPath) {
+      const symbol = requireRazaviCatalogSymbol(symbolId);
+      const pin = symbol.pins.find((candidate) => candidate.name === pinName);
+      expect(pin, `${symbolId}.${pinName}`).toBeDefined();
+      if (!pin) continue;
+      expect(Math.abs(pin.at.x), `${symbolId}.${pinName} anchor`).toBe(20);
+      expect(
+        pin.presentation.leadLength,
+        `${symbolId}.${pinName} declared lead`,
+      ).toBe(10);
+
+      const attached = symbol.primitives.filter(
+        (primitive) =>
+          primitive.kind === "line" &&
+          ((primitive.from.x === pin.at.x && primitive.from.y === pin.at.y) ||
+            (primitive.to.x === pin.at.x && primitive.to.y === pin.at.y)),
+      );
+      expect(attached, `${symbolId}.${pinName} lead count`).toHaveLength(1);
+      const lead = attached[0];
+      if (!lead || lead.kind !== "line") continue;
+      // The declared length is the grid promise; the drawn segment runs from
+      // the anchor to wherever the calibrated body actually begins, so it is
+      // shorter. What must never happen again is the drawn lead exceeding the
+      // promise, which is the stub the report was about.
+      const drawn = Math.hypot(
+        lead.to.x - lead.from.x,
+        lead.to.y - lead.from.y,
+      );
+      const declared = pin.presentation.leadLength;
+      expect(declared, `${symbolId}.${pinName} declares a lead`).toBeDefined();
+      expect(drawn, `${symbolId}.${pinName} drawn lead`).toBeLessThanOrEqual(
+        declared ?? 0,
+      );
+    }
+  });
+
+  it("leaves the control rail whole", () => {
+    // CP/CN are the two ends of ONE horizontal control line, split by the gap
+    // at ±4 that the dashed coupling crosses. Pulling them to ±10 by the same
+    // formula would cut that line into two stubs and stop it reading as a
+    // rail, so they keep their reach. Recorded as a decision, not an
+    // oversight: if the drawing is ever revisited, this is the reason.
+    const symbol = requireRazaviCatalogSymbol("voltage-controlled-switch");
+    for (const pinName of ["CP", "CN"]) {
+      const pin = symbol.pins.find((candidate) => candidate.name === pinName);
+      expect(pin, pinName).toBeDefined();
+      if (!pin) continue;
+      expect(Math.abs(pin.at.x), `${pinName} anchor`).toBe(30);
+    }
   });
 });
 
