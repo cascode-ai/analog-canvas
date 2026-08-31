@@ -182,15 +182,15 @@ describe("bound annotation text", () => {
 
     const before = structuredClone(annotation.anchor);
     expect(flattenRichText(resolveAnnotationText(document, annotation))).toBe(
-      "Vin,cm",
+      "V_{in,cm}",
     );
     expect(flattenRichText(resolveAnnotationText(document, annotation))).toBe(
-      "Vin,cm",
+      "V_{in,cm}",
     );
     const claim = document.connectivityEvidence[0];
     if (claim?.kind === "name-claim") claim.name = "V_{refp}";
     expect(flattenRichText(resolveAnnotationText(document, annotation))).toBe(
-      "Vrefp",
+      "V_{refp}",
     );
     expect(annotation.anchor).toEqual(before);
   });
@@ -221,7 +221,7 @@ describe("bound annotation text", () => {
     };
 
     expect(flattenRichText(resolveAnnotationText(document, annotation))).toBe(
-      "sky130nfet",
+      "sky130_nfet",
     );
   });
 });

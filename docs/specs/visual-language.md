@@ -73,11 +73,14 @@ has no electrical meaning.
 
 Under `razavi-textbook-v1`, instance identifiers and recognized voltage,
 current, power, and pin labels are composed into deterministic SVG
-`<tspan>` runs. An explicit underscore selects the subscript; otherwise an
-instance designator or leading `V`/`I` is the base. Trailing `+` and `-` signs
-remain upright. Notes and figure captions are never parsed implicitly. The
-persisted annotation string remains unchanged, and the same composed formal
-SVG scene feeds SVG, PNG, and PDF export.
+`<tspan>` runs. The leading symbol is the base and the remaining identifier
+defaults to its subscript; trailing `+` and `-` signs remain upright. This is a
+style compiler, not an input grammar: underscores, braces, carets, backslashes,
+letter case, and every other authored character remain literal. Users change
+ordinary RichText formatting through the explicit toolbar, while only the
+explicit Formula editor interprets LaTeX syntax. The persisted semantic name
+and the flattened RichText projection therefore remain identical, and the same
+composed formal SVG scene feeds SVG, PNG, and PDF export.
 
 An authored formula is the atomic alternative to ordinary styled RichText,
 not another text object type. Its persisted facts are bounded LaTeX source and

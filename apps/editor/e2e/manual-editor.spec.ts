@@ -2520,6 +2520,37 @@ test("edits instance, electrical Net, and free text with bounded label handles",
   expect(afterBox?.x).not.toBe(beforeBox.x);
 });
 
+test("keeps punctuation literal when formatting a bound Net label", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "resistor", { x: 280, y: 180 });
+  await placeComponent(page, "resistor", { x: 480, y: 180 });
+  await clickDrawTool(page, "wire");
+  await page.getByTestId("terminal-R1-2").click();
+  await page.getByTestId("terminal-R2-1").click();
+  await page.keyboard.press("Escape");
+
+  await clickRoute(page, "route-ui-1", 0.5, 0);
+  await openSelectionShelf(page);
+  await page
+    .getByRole("textbox", { name: "Electrical Net label" })
+    .fill("A1_wi");
+  const label = page.getByTestId("annotation-hit-net-label-route-ui-1");
+  await label.dblclick();
+  const editor = page.getByRole("textbox", { name: "Canvas text editor" });
+  await editor.press("ControlOrMeta+A");
+  await page.getByRole("button", { name: "Italic" }).click();
+  await page.getByRole("button", { name: "Apply text changes" }).click();
+
+  await expect(page.locator('[data-layer="annotations"]')).toContainText(
+    "A1_wi",
+  );
+  await expect(page.getByTestId("status")).not.toContainText(
+    "Could not update Cell structure",
+  );
+});
+
 test("keeps literal text line breaks and overbars visible while editing", async ({
   page,
 }) => {
