@@ -37,7 +37,7 @@ describe("CircuitProject schema", () => {
     expect(CircuitProjectJsonSchema).toMatchObject({ type: "object" });
   });
 
-  it("rejects hidden Net naming domains", () => {
+  it("rejects the retired hidden electrical Net-name owner", () => {
     const document = createEmptyDocument("document", "Document");
     document.nets.push({ id: "net-out", terminals: [] });
     const candidate = {
@@ -50,7 +50,6 @@ describe("CircuitProject schema", () => {
           name: "OUT",
           owner: { kind: "explicit-net-property" },
           scope: "local",
-          localDomainId: "gallery-occurrence-1",
         },
       ],
     };
@@ -426,12 +425,11 @@ describe("CircuitProject schema", () => {
         sourceNetId: "source-a",
       },
       {
-        id: "claim-a-conflict",
-        kind: "name-claim",
+        id: "hint-a",
+        kind: "net-name-hint",
         netId: "net-a",
-        name: "ALIAS",
-        owner: { kind: "explicit-net-property" },
-        scope: "local",
+        sourceName: "ALIAS",
+        origin: "spice-import",
       },
     );
     expect(SchematicDocumentSchema.safeParse(document).success).toBe(true);
@@ -485,13 +483,25 @@ describe("CircuitProject schema", () => {
     );
     document.connectivityEvidence[0] = {
       id: "claim-a",
+      kind: "net-name-hint",
+      netId: "net-a",
+      sourceName: "A",
+      origin: "legacy-explicit-net-property",
+    };
+    expect(SchematicDocumentSchema.safeParse(document).success).toBe(true);
+    const retired = structuredClone(document) as unknown as Record<
+      string,
+      unknown
+    >;
+    (retired.connectivityEvidence as unknown[])[0] = {
+      id: "claim-a",
       kind: "name-claim",
       netId: "net-a",
       name: "A",
       owner: { kind: "explicit-net-property" },
       scope: "local",
     };
-    expect(SchematicDocumentSchema.safeParse(document).success).toBe(true);
+    expect(SchematicDocumentSchema.safeParse(retired).success).toBe(false);
   });
 
   it("accepts a rail label format override whose power claim is owned by the label itself", () => {

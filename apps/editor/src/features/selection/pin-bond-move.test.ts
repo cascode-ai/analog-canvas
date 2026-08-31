@@ -35,6 +35,49 @@ function fixtureDocument(): SchematicDocument {
       "utf8",
     ),
   ).documents[0]!;
+  // This case exercises two visible names, not the legacy source-name hints
+  // carried by the routing fixture. Only visible owners are allowed to block
+  // an otherwise physical merge.
+  document.annotations.push(
+    {
+      id: "label-horizontal",
+      kind: "net-label",
+      netId: "net-h",
+      binding: { kind: "net-name", netId: "net-h" },
+      anchor: { kind: "free", position: { x: 0, y: 0 } },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    },
+    {
+      id: "label-vertical",
+      kind: "net-label",
+      netId: "net-v",
+      binding: { kind: "net-name", netId: "net-v" },
+      anchor: { kind: "free", position: { x: 0, y: 10 } },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    },
+  );
+  document.connectivityEvidence.push(
+    {
+      id: "claim-horizontal",
+      kind: "name-claim",
+      netId: "net-h",
+      name: "HORIZONTAL",
+      owner: { kind: "net-label", annotationId: "label-horizontal" },
+      scope: "local",
+    },
+    {
+      id: "claim-vertical",
+      kind: "name-claim",
+      netId: "net-v",
+      name: "VERTICAL",
+      owner: { kind: "net-label", annotationId: "label-vertical" },
+      scope: "local",
+    },
+  );
   // C: pin contact at (0,200) — the bond target on net-v.
   document.instances.find((i) => i.id === "C")!.placement = {
     position: { x: -10, y: 200 },

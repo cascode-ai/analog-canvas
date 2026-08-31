@@ -110,7 +110,7 @@ export function planCellReset(
         if (!interfaceNetIds.has(evidence.netId)) return [];
         if (evidence.kind !== "name-claim") return [evidence.id];
         switch (evidence.owner.kind) {
-          case "explicit-net-property":
+          case "global-declaration":
             return [evidence.id];
           case "net-label":
             return retainedAnnotationIds.has(evidence.owner.annotationId)

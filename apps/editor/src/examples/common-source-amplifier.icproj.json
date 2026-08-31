@@ -435,7 +435,8 @@
           "name": "0",
           "netId": "net-global-0",
           "owner": {
-            "kind": "explicit-net-property"
+            "kind": "power-marker",
+            "objectId": "GND5-copy-2"
           },
           "powerDomain": "ground",
           "scope": "global"
@@ -446,7 +447,8 @@
           "name": "VDD",
           "netId": "net-power-vdd7",
           "owner": {
-            "kind": "explicit-net-property"
+            "kind": "power-marker",
+            "objectId": "route-vdd7-rail-a-21"
           },
           "powerDomain": "vdd",
           "scope": "global"
@@ -1380,7 +1382,7 @@
   "externalSubcircuitDefinitions": [],
   "id": "project-main",
   "name": "New Circuit",
-  "schemaVersion": 33,
+  "schemaVersion": 34,
   "source": {
     "dialect": "none",
     "entry": null,

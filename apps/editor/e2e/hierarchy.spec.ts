@@ -586,7 +586,9 @@ test("allows distinct Cell Pins to expose one internal contact", async ({
 
   await page.getByTestId("shapes-chip-port").click();
   await canvas.click({ position: { x: 240, y: 200 } });
-  await expect(page.getByTestId("status")).toContainText("Added Cell Pin Vin2");
+  // The existing Port is the visible current Net name, so a second Cell Pin
+  // placed on the same contact adopts it while retaining independent identity.
+  await expect(page.getByTestId("status")).toContainText("Added Cell Pin Vin");
   await page.keyboard.press("Escape");
 
   await expect(page.getByTestId("hit-P1")).toBeVisible();

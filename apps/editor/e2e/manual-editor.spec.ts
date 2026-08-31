@@ -152,7 +152,17 @@ test("opens one digital simulation window and picks a Net from the canvas", asyn
     netId: "clock",
     name: "CK",
     scope: "local",
-    owner: { kind: "explicit-net-property" },
+    owner: { kind: "net-label", annotationId: "test-net-label-1" },
+  });
+  project.documents[0]!.annotations.push({
+    id: "test-net-label-1",
+    kind: "net-label",
+    netId: "clock",
+    binding: { kind: "net-name", netId: "clock" },
+    anchor: { kind: "free", position: { x: 700, y: 160 } },
+    alignment: "middle",
+    rotation: 0,
+    locked: false,
   });
   await page.goto("/editor");
   await page.getByTestId("project-file").setInputFiles({
@@ -3800,8 +3810,8 @@ test("deletes imported Net Labels with non-editor ids", async ({ page }) => {
     page.getByRole("textbox", { name: "Electrical Net label" }),
   ).toHaveValue("");
 
-  // The label was selected alongside the Route. Its deleted annotation id
-  // must not poison the following atomic Wire deletion.
+  // The label was selected alongside the Route. Its deletion must not poison
+  // the following atomic Wire deletion or leave a hidden electrical name.
   await page.keyboard.press("Delete");
   await expect(page.getByTestId("route-hit-route-imported-h")).toHaveCount(0);
   await expect(page.getByTestId("status")).toContainText(
@@ -3817,13 +3827,8 @@ test("deletes imported Net Labels with non-editor ids", async ({ page }) => {
   const savedDocument = JSON.parse(savedWithoutLabel.toString("utf8"))
     .documents[0];
   expect(savedDocument.annotations).toHaveLength(0);
-  expect(savedDocument.connectivityEvidence).toContainEqual(
-    expect.objectContaining({
-      kind: "name-claim",
-      netId: "net-h",
-      name: "HORIZONTAL",
-      owner: { kind: "explicit-net-property" },
-    }),
+  expect(savedDocument.connectivityEvidence).not.toContainEqual(
+    expect.objectContaining({ kind: "name-claim", netId: "net-h" }),
   );
   await page.getByTestId("project-file").setInputFiles({
     name: "legacy-net-label-reopened.icproj.json",
@@ -3905,6 +3910,9 @@ test("places a Ground pin onto a canonical Route and keeps real split topology",
   const document = project.documents[0]!;
   const horizontalNet = document.nets.find((net) => net.id === "net-h");
   if (!horizontalNet) throw new Error("Routing demo is missing net-h");
+  for (const terminal of document.netlist?.terminals ?? []) {
+    if (terminal.netId === horizontalNet.id) terminal.name = "0";
+  }
   for (const evidence of document.connectivityEvidence) {
     if (evidence.kind === "name-claim" && evidence.netId === horizontalNet.id) {
       evidence.name = "0";
@@ -4209,8 +4217,18 @@ test("requires warning review before exporting generated NoConnect nodes", async
     kind: "name-claim",
     netId: "net-in",
     name: "IN",
-    owner: { kind: "explicit-net-property" },
+    owner: { kind: "net-label", annotationId: "test-net-label-3" },
     scope: "local",
+  });
+  document.annotations.push({
+    id: "test-net-label-3",
+    kind: "net-label",
+    netId: "net-in",
+    binding: { kind: "net-name", netId: "net-in" },
+    anchor: { kind: "free", position: { x: 0, y: 0 } },
+    alignment: "start",
+    rotation: 0,
+    locked: false,
   });
   document.noConnects.push({
     id: "r1-open",

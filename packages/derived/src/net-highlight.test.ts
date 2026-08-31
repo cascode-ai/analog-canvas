@@ -46,7 +46,7 @@ describe("Net highlight", () => {
       name: "VDD",
       scope: "global",
       powerDomain: "vdd",
-      owner: { kind: "explicit-net-property" },
+      owner: { kind: "net-label", annotationId: "test-net-label-1" },
     });
     const child = createEmptyDocument("child", "Child");
     child.nets.push({
@@ -61,7 +61,7 @@ describe("Net highlight", () => {
       name: "vdd",
       scope: "global",
       powerDomain: "vdd",
-      owner: { kind: "explicit-net-property" },
+      owner: { kind: "net-label", annotationId: "test-net-label-2" },
     });
     project.documents.push(child);
 
@@ -127,7 +127,7 @@ describe("Net highlight", () => {
         kind: "name-claim",
         netId: "net-a",
         name: "SIGNAL",
-        owner: { kind: "explicit-net-property" },
+        owner: { kind: "net-label", annotationId: "test-net-label-3" },
         scope: "local",
       },
       {
@@ -135,7 +135,7 @@ describe("Net highlight", () => {
         kind: "name-claim",
         netId: "net-b",
         name: "signal",
-        owner: { kind: "explicit-net-property" },
+        owner: { kind: "net-label", annotationId: "test-net-label-4" },
         scope: "local",
       },
     );
@@ -280,7 +280,7 @@ describe("Net highlight", () => {
     ).toBe(false);
   });
 
-  it("does not trace between independent same-name child Cell Pins", () => {
+  it("traces same-name child Cell Pins through their shared formal port", () => {
     const project = createEmptyProject("project", "Project", "top");
     const top = project.documents[0]!;
     const child = createEmptyDocument("child", "Child");
@@ -347,7 +347,10 @@ describe("Net highlight", () => {
         highlight.documentId,
         highlight.netId,
       ]),
-    ).toEqual([["child", "net-vin-a"]]);
-    expect(trace?.hops).toEqual([]);
+    ).toEqual([
+      ["child", "net-vin-a"],
+      ["top", "net-parent"],
+    ]);
+    expect(trace?.hops).toHaveLength(2);
   });
 });

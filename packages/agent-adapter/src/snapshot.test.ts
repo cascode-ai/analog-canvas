@@ -129,7 +129,7 @@ describe("Agent Document Snapshot", () => {
       name: "VDD",
       scope: "global",
       powerDomain: "vdd",
-      owner: { kind: "explicit-net-property" },
+      owner: { kind: "net-label", annotationId: "test-net-label-1" },
     });
     const snapshot = buildAgentSessionSnapshot({ document, resolver });
     expect(snapshot.document.nets).toContainEqual(

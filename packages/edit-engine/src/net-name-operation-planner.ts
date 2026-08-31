@@ -209,30 +209,20 @@ export function planLogicalNetRename(
   const groupNetIds = new Set(group.baseNetIds);
   const claims = document.connectivityEvidence.filter(
     (evidence): evidence is NameClaim =>
-      evidence.kind === "name-claim" && groupNetIds.has(evidence.netId),
+      evidence.kind === "name-claim" &&
+      evidence.owner.kind !== "global-declaration" &&
+      groupNetIds.has(evidence.netId),
   );
   const edits: SchematicEdit[] = claims.map((evidence): SchematicEdit => ({
     kind: "upsert_connectivity_evidence",
     evidence: { ...evidence, name: requestedName, scope },
   }));
   if (claims.length === 0) {
-    const netId = group.baseNetIds[0]!;
-    edits.push({
-      kind: "upsert_connectivity_evidence",
-      evidence: {
-        id: deriveStableId(
-          "connectivity-evidence",
-          document.id,
-          "net-name",
-          netId,
-        ),
-        kind: "name-claim",
-        netId,
-        name: requestedName,
-        scope,
-        owner: { kind: "explicit-net-property" },
-      },
-    });
+    return {
+      status: "rejected",
+      message:
+        "This Net has no editable visible name owner; rename its Cell Pin or add a Net Label",
+    };
   }
   return {
     status: "ready",

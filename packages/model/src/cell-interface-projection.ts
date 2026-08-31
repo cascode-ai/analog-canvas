@@ -48,8 +48,9 @@ interface MutablePortGroup {
 /**
  * Project independently authored Cell Pins into the formal interface consumed
  * by hierarchy symbols and netlist export. Equal folded names share one
- * transient formal port, but the source declarations and their Base Nets are
- * never rewritten or merged.
+ * transient formal port. The source declarations and their Base Nets are never
+ * rewritten or physically merged; the Logical-Net resolver interprets their
+ * shared Port name as electrical identity.
  */
 export function projectCellInterface(
   netlist: CellNetlistInterface | undefined,

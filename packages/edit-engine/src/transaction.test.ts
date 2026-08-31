@@ -668,7 +668,7 @@ describe("Edit Transaction envelope", () => {
       name: "VDD",
       scope: "global",
       powerDomain: "vdd",
-      owner: { kind: "explicit-net-property" },
+      owner: { kind: "net-label", annotationId: "test-net-label-1" },
     });
     const result = executeTransaction(
       document,
@@ -684,7 +684,7 @@ describe("Edit Transaction envelope", () => {
               name: "0",
               scope: "global",
               powerDomain: "ground",
-              owner: { kind: "explicit-net-property" },
+              owner: { kind: "net-label", annotationId: "test-net-label-2" },
             },
           },
         ],
@@ -1160,11 +1160,10 @@ describe("Edit Transaction envelope", () => {
     document.connectivityEvidence.push(
       {
         id: "claim-imported-bus",
-        kind: "name-claim",
+        kind: "net-name-hint",
         netId: "net-imported-bus",
-        name: "BUS",
-        owner: { kind: "explicit-net-property" },
-        scope: "local",
+        sourceName: "BUS",
+        origin: "spice-import",
       },
       {
         id: "source-imported-bus",
@@ -1205,9 +1204,9 @@ describe("Edit Transaction envelope", () => {
     expect(result.document.connectivityEvidence).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          kind: "name-claim",
+          kind: "net-name-hint",
           netId: "net-imported-bus",
-          name: "BUS",
+          sourceName: "BUS",
         }),
         expect.objectContaining({
           kind: "spice-source",
@@ -1236,7 +1235,7 @@ describe("Edit Transaction envelope", () => {
         kind: "name-claim",
         netId: "net-source",
         name: "SOURCE",
-        owner: { kind: "explicit-net-property" },
+        owner: { kind: "net-label", annotationId: "test-net-label-4" },
         scope: "local",
       },
       {
@@ -1246,6 +1245,16 @@ describe("Edit Transaction envelope", () => {
         sourceNetId: "spice-source",
       },
     );
+    document.annotations.push({
+      id: "test-net-label-4",
+      kind: "net-label",
+      binding: { kind: "net-name", netId: "net-source" },
+      netId: "net-source",
+      anchor: { kind: "free", position: { x: 0, y: 0 } },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    });
 
     const result = executeTransaction(document, {
       ...transaction(),
@@ -1283,7 +1292,7 @@ describe("Edit Transaction envelope", () => {
     ).toHaveLength(1);
   });
 
-  it("upserts and removes explicit Connectivity Evidence with final-Net GC", () => {
+  it("upserts and removes Net-name provenance with final-Net GC", () => {
     const document = createEmptyDocument("document-main", "Main");
     document.nets.push({
       id: "net-evidence",
@@ -1297,12 +1306,11 @@ describe("Edit Transaction envelope", () => {
         {
           kind: "upsert_connectivity_evidence",
           evidence: {
-            id: "claim-evidence",
-            kind: "name-claim",
+            id: "hint-evidence",
+            kind: "net-name-hint",
             netId: "net-evidence",
-            name: "BIAS",
-            owner: { kind: "explicit-net-property" },
-            scope: "local",
+            sourceName: "BIAS",
+            origin: "legacy-explicit-net-property",
           },
         },
       ],
@@ -1310,9 +1318,9 @@ describe("Edit Transaction envelope", () => {
     expect(added).toMatchObject({
       ok: true,
       document: {
-        connectivityEvidence: [{ id: "claim-evidence", netId: "net-evidence" }],
+        connectivityEvidence: [{ id: "hint-evidence", netId: "net-evidence" }],
       },
-      diff: { changedObjectIds: ["claim-evidence"] },
+      diff: { changedObjectIds: ["hint-evidence"] },
     });
     if (!added.ok) return;
 
@@ -1321,14 +1329,14 @@ describe("Edit Transaction envelope", () => {
       edits: [
         {
           kind: "remove_connectivity_evidence",
-          evidenceId: "claim-evidence",
+          evidenceId: "hint-evidence",
         },
       ],
     });
     expect(removed).toMatchObject({
       ok: true,
       document: { nets: [], connectivityEvidence: [] },
-      diff: { changedObjectIds: ["claim-evidence", "net-evidence"] },
+      diff: { changedObjectIds: ["hint-evidence", "net-evidence"] },
     });
   });
 
@@ -1502,12 +1510,10 @@ describe("Edit Transaction envelope", () => {
     document.connectivityEvidence.push(
       {
         id: "claim-vdd-legacy-projection",
-        kind: "name-claim",
+        kind: "net-name-hint",
         netId: "net-power-vdd1",
-        name: "VDD",
-        owner: { kind: "explicit-net-property" },
-        scope: "global",
-        powerDomain: "vdd",
+        sourceName: "VDD",
+        origin: "legacy-explicit-net-property",
       },
       {
         id: "claim-vdd-1",
@@ -1725,11 +1731,10 @@ describe("Edit Transaction envelope", () => {
       },
       {
         id: "claim-property",
-        kind: "name-claim",
+        kind: "net-name-hint",
         netId: "net-a",
-        name: "A",
-        owner: { kind: "explicit-net-property" },
-        scope: "local",
+        sourceName: "A",
+        origin: "legacy-explicit-net-property",
       },
     );
 
@@ -1781,11 +1786,10 @@ describe("Edit Transaction envelope", () => {
       },
       {
         id: "claim-source-name",
-        kind: "name-claim",
+        kind: "net-name-hint",
         netId: "net-a",
-        name: "A",
-        owner: { kind: "explicit-net-property" },
-        scope: "local",
+        sourceName: "A",
+        origin: "spice-import",
       },
       {
         id: "source-a",
@@ -1862,7 +1866,7 @@ describe("Edit Transaction envelope", () => {
               name: "VDD",
               scope: "local",
               powerDomain: "vdd",
-              owner: { kind: "explicit-net-property" },
+              owner: { kind: "power-marker", objectId: "vdd-rail-start" },
             },
           },
         ],

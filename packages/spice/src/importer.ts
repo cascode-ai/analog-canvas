@@ -395,20 +395,40 @@ function importDocument(
     connectivityEvidence: cell.nets.flatMap((net) => [
       ...(net.name
         ? [
-            {
-              id: deriveStableId(
-                "connectivity-evidence",
-                documentId,
-                "explicit-net-property",
-                net.id,
-                net.name,
-              ),
-              kind: "name-claim" as const,
-              netId: net.id,
-              name: net.name,
-              owner: { kind: "explicit-net-property" as const },
-              scope: net.scope,
-            },
+            net.scope === "global"
+              ? {
+                  id: deriveStableId(
+                    "connectivity-evidence",
+                    documentId,
+                    "global-declaration",
+                    net.id,
+                    net.name,
+                  ),
+                  kind: "name-claim" as const,
+                  netId: net.id,
+                  name: net.name,
+                  owner: {
+                    kind: "global-declaration" as const,
+                    sourceNetId: net.id,
+                  },
+                  scope: "global" as const,
+                  ...(net.name === "0"
+                    ? { powerDomain: "ground" as const }
+                    : {}),
+                }
+              : {
+                  id: deriveStableId(
+                    "connectivity-evidence",
+                    documentId,
+                    "net-name-hint",
+                    net.id,
+                    net.name,
+                  ),
+                  kind: "net-name-hint" as const,
+                  netId: net.id,
+                  sourceName: net.name,
+                  origin: "spice-import" as const,
+                },
           ]
         : []),
       ...[net.id].map((sourceNetId) => ({

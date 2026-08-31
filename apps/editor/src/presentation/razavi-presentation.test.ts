@@ -197,7 +197,7 @@ describe("Razavi hidden bulk policy", () => {
         name: "0",
         scope: "global",
         powerDomain: "ground",
-        owner: { kind: "explicit-net-property" },
+        owner: { kind: "net-label", annotationId: "test-net-label-1" },
       },
       {
         id: "ground-b-claim",
@@ -206,7 +206,7 @@ describe("Razavi hidden bulk policy", () => {
         name: "0",
         scope: "global",
         powerDomain: "ground",
-        owner: { kind: "explicit-net-property" },
+        owner: { kind: "net-label", annotationId: "test-net-label-2" },
       },
     );
 

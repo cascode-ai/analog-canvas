@@ -538,6 +538,20 @@ export const SchematicDocumentSchema = SchematicDocumentBaseSchema.superRefine(
             path: [...evidencePath, "owner", "objectId"],
           });
         }
+      } else if (owner.kind === "global-declaration") {
+        const sourceMatchesNet = document.connectivityEvidence.some(
+          (candidate) =>
+            candidate.kind === "spice-source" &&
+            candidate.netId === evidence.netId &&
+            candidate.sourceNetId === owner.sourceNetId,
+        );
+        if (!sourceMatchesNet) {
+          context.addIssue({
+            code: "custom",
+            message: `Global declaration has no matching SPICE source owner: ${owner.sourceNetId}`,
+            path: [...evidencePath, "owner", "sourceNetId"],
+          });
+        }
       }
     }
 

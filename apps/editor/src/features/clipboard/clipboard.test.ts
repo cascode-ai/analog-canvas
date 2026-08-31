@@ -205,7 +205,7 @@ describe("schematic clipboard", () => {
       netId: "net-signal",
       name: "SIGNAL",
       scope: "local",
-      owner: { kind: "explicit-net-property" },
+      owner: { kind: "net-label", annotationId: "label-signal" },
     });
     document.routes.push(
       createRoutePath({
@@ -217,8 +217,18 @@ describe("schematic clipboard", () => {
         modes: ["manual", "manual"],
       }),
     );
+    document.annotations.push({
+      id: "label-signal",
+      kind: "net-label",
+      binding: { kind: "net-name", netId: "net-signal" },
+      netId: "net-signal",
+      anchor: { kind: "free", position: { x: 170, y: 80 } },
+      alignment: "middle",
+      rotation: 0,
+      locked: false,
+    });
 
-    const copied = copySelection(document, ["R1", "R2"]);
+    const copied = copySelection(document, ["R1", "R2", "label-signal"]);
     expect(copied?.routes).toHaveLength(1);
     const proposal = proposePaste(document, copied!, { x: 20, y: 20 }, 1);
     const result = executeTransaction(
@@ -418,19 +428,17 @@ describe("schematic clipboard", () => {
     document.connectivityEvidence.push(
       {
         id: "claim-r1",
-        kind: "name-claim",
+        kind: "net-name-hint",
         netId: "net-r1",
-        name: "N1",
-        scope: "local",
-        owner: { kind: "explicit-net-property" },
+        sourceName: "N1",
+        origin: "legacy-explicit-net-property",
       },
       {
         id: "claim-r2",
-        kind: "name-claim",
+        kind: "net-name-hint",
         netId: "net-r2",
-        name: "N2",
-        scope: "local",
-        owner: { kind: "explicit-net-property" },
+        sourceName: "N2",
+        origin: "legacy-explicit-net-property",
       },
     );
     document.mosBulkDefaults = { nmosNetId: "net-r2" };
@@ -1228,7 +1236,7 @@ describe("captureDocumentComposition", () => {
     });
   });
 
-  it("joins repeated local names in the target Document while tracking composition occurrences separately", () => {
+  it("keeps repeated imported local names separate while explicit globals still join", () => {
     const source = createEmptyDocument("source-document", "Source");
     source.instances.push(
       {
@@ -1267,28 +1275,32 @@ describe("captureDocumentComposition", () => {
     source.connectivityEvidence.push(
       {
         id: "claim-out-a",
-        kind: "name-claim",
+        kind: "net-name-hint",
         netId: "net-out-a",
-        name: "OUT",
-        owner: { kind: "explicit-net-property" },
-        scope: "local",
+        sourceName: "OUT",
+        origin: "spice-import",
       },
       {
         id: "claim-out-b",
-        kind: "name-claim",
+        kind: "net-name-hint",
         netId: "net-out-b",
-        name: "out",
-        owner: { kind: "explicit-net-property" },
-        scope: "local",
+        sourceName: "out",
+        origin: "spice-import",
       },
       {
         id: "claim-vdd",
         kind: "name-claim",
         netId: "net-vdd",
         name: "VDD",
-        owner: { kind: "explicit-net-property" },
+        owner: { kind: "global-declaration", sourceNetId: "source-vdd" },
         scope: "global",
         powerDomain: "vdd",
+      },
+      {
+        id: "source-vdd",
+        kind: "spice-source",
+        netId: "net-vdd",
+        sourceNetId: "source-vdd",
       },
     );
     const fragment = captureDocumentComposition(source)!;
@@ -1343,15 +1355,17 @@ describe("captureDocumentComposition", () => {
     expect(firstProposal.compositionOccurrence?.id).not.toBe(
       secondProposal.compositionOccurrence?.id,
     );
+    const resolved = resolveDocumentLogicalNets(second.document);
     expect(
-      resolveDocumentLogicalNets(second.document)
-        .groups.filter((group) => group.name?.toLowerCase() === "out")
-        .map((group) => group.baseNetIds.length),
-    ).toEqual([4]);
+      resolved.groups.filter((group) =>
+        group.baseNetIds.some((netId) => netId.includes("net-out")),
+      ),
+    ).toHaveLength(4);
     expect(
-      resolveDocumentLogicalNets(second.document).groups.find(
-        (group) => group.name === "VDD",
-      )?.baseNetIds,
+      resolved.groups.some((group) => group.name?.toLowerCase() === "out"),
+    ).toBe(false);
+    expect(
+      resolved.groups.find((group) => group.name === "VDD")?.baseNetIds,
     ).toHaveLength(2);
   });
 
@@ -1651,7 +1665,7 @@ describe("captureDocumentComposition", () => {
       kind: "name-claim",
       netId: "net-vdd",
       name: "VDD",
-      owner: { kind: "explicit-net-property" },
+      owner: { kind: "power-marker", objectId: "rail-vdd" },
       scope: "global",
       powerDomain: "vdd",
     });

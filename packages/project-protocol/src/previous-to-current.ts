@@ -74,3 +74,11 @@ export type {
   Schema32To33MigrationReport,
   Schema32To33MigrationResult,
 } from "./transforms/explicit-equivalence.js";
+export {
+  upgradeSchema33To34,
+  upgradeSchema33To34WithReport,
+} from "./transforms/net-name-provenance.js";
+export type {
+  Schema33To34MigrationReport,
+  Schema33To34MigrationResult,
+} from "./transforms/net-name-provenance.js";

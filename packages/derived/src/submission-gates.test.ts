@@ -182,7 +182,7 @@ describe("evaluateSubmissionGates", () => {
       netId: "gate-net",
       name: "CLK",
       scope: "local",
-      owner: { kind: "explicit-net-property" },
+      owner: { kind: "net-label", annotationId: "test-net-label-1" },
     });
     expect(failureCodes(target)).toEqual(["floating-endpoints"]);
   });

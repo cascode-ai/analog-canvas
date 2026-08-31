@@ -26,6 +26,7 @@ import {
   upgradeSchema29To30,
   upgradeSchema30To31,
   upgradeSchema31To32,
+  upgradeSchema32To33,
 } from "./index.js";
 
 class MemoryStorage implements ProjectStorage {
@@ -204,12 +205,14 @@ describe("Project persistence", () => {
 
     const migrated = parseProjectWithMetadata(
       JSON.stringify(
-        upgradeSchema31To32(
-          upgradeSchema30To31(
-            upgradeSchema29To30(
-              upgradeSchema28To29(
-                upgradeSchema27To28(
-                  upgradeSchema26To27(upgradeSchema25To26(direct.project)),
+        upgradeSchema32To33(
+          upgradeSchema31To32(
+            upgradeSchema30To31(
+              upgradeSchema29To30(
+                upgradeSchema28To29(
+                  upgradeSchema27To28(
+                    upgradeSchema26To27(upgradeSchema25To26(direct.project)),
+                  ),
                 ),
               ),
             ),
@@ -361,12 +364,14 @@ describe("Project persistence", () => {
     // replay the complete history before the current boundary validates it.
     const parsed = parseProjectWithMetadata(
       JSON.stringify(
-        upgradeSchema31To32(
-          upgradeSchema30To31(
-            upgradeSchema29To30(
-              upgradeSchema28To29(
-                upgradeSchema27To28(
-                  upgradeSchema26To27(upgradeSchema25To26(source)),
+        upgradeSchema32To33(
+          upgradeSchema31To32(
+            upgradeSchema30To31(
+              upgradeSchema29To30(
+                upgradeSchema28To29(
+                  upgradeSchema27To28(
+                    upgradeSchema26To27(upgradeSchema25To26(source)),
+                  ),
                 ),
               ),
             ),
@@ -395,10 +400,10 @@ describe("Project persistence", () => {
 
   it("rejects schemas outside the supported chain window", () => {
     const project = createEmptyProject("project-test", "Test Project");
-    for (const schemaVersion of [1, 22, 23, 34, 99]) {
+    for (const schemaVersion of [1, 22, 23, 35, 99]) {
       expect(() =>
         parseProject(JSON.stringify({ ...project, schemaVersion })),
-      ).toThrow(/must be between 24 and 33/);
+      ).toThrow(/must be between 24 and 34/);
     }
   });
 });

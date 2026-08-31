@@ -1151,7 +1151,7 @@
   "externalSubcircuitDefinitions": [],
   "id": "project-main",
   "name": "widlar",
-  "schemaVersion": 33,
+  "schemaVersion": 34,
   "source": {
     "dialect": "none",
     "entry": null,
