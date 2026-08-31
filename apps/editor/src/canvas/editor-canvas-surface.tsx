@@ -208,7 +208,7 @@ export function EditorCanvasSurface({
         role="img"
         aria-label="Schematic canvas"
         aria-keyshortcuts="ArrowLeft ArrowRight ArrowUp ArrowDown"
-        tabIndex={0}
+        tabIndex={-1}
         viewBox={viewBox}
         {...eventHandlers}
       >

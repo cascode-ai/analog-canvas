@@ -29,6 +29,12 @@
   -webkit-user-select: none;
 }
 
+/* Focus exists only to hand global shortcuts back from a prior input. The
+   canvas is not a form control and must never gain a browser-drawn frame. */
+.schematic-canvas:focus {
+  outline: none;
+}
+
 /* The inline text editor is the one place canvas text is really edited;
    restore selection inside it so caret and range editing keep working. */
 .canvas-text-editor-overlay,
