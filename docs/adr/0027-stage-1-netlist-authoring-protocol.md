@@ -208,7 +208,7 @@ routes, geometry, or import provenance as substitute electrical facts.
 
 ## Related documents
 
-- [`0023-rolling-previous-project-compatibility.md`](0023-rolling-previous-project-compatibility.md)
+- [`0053-chain-carried-project-compatibility.md`](0053-chain-carried-project-compatibility.md)
 - [`0024-device-protocol-and-compatibility-boundaries.md`](0024-device-protocol-and-compatibility-boundaries.md)
 - [`0025-schematic-hierarchy-and-formal-ports.md`](0025-schematic-hierarchy-and-formal-ports.md)
 - [`0026-definition-level-cell-symbol-presentation.md`](0026-definition-level-cell-symbol-presentation.md)

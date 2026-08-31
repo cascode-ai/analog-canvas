@@ -17,7 +17,7 @@ major boundaries exist.
 - [`0012-pdf-vector-evidence-for-razavi-assets.md`](0012-pdf-vector-evidence-for-razavi-assets.md) — scoped PDF vector evidence
 - [`0017-deterministic-design-netlist-boundary.md`](0017-deterministic-design-netlist-boundary.md) — deterministic design-netlist boundary
 - [`0021-coordinate-domains-and-grid-normalization.md`](0021-coordinate-domains-and-grid-normalization.md) — coordinate domains and grid normalization
-- [`0023-rolling-previous-project-compatibility.md`](0023-rolling-previous-project-compatibility.md) — bounded current/previous Project compatibility
+- [`0053-chain-carried-project-compatibility.md`](0053-chain-carried-project-compatibility.md) — chain-carried Project compatibility with a floored upgrade chain
 - [`0024-device-protocol-and-compatibility-boundaries.md`](0024-device-protocol-and-compatibility-boundaries.md) — device protocol boundaries
 - [`0049-cloud-project-save-boundary.md`](0049-cloud-project-save-boundary.md) — stable Cloud Project Save
 - [`0050-deterministic-digital-timing-simulation.md`](0050-deterministic-digital-timing-simulation.md) — internal timing layer with production-hidden tooling

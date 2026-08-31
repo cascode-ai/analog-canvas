@@ -110,6 +110,6 @@ remain electrical changes.
 - [Project file format](../specs/project-file-format.md)
 - [Schematic model](../specs/schematic-model.md)
 - [Schematic Edit Engine](../specs/edit-engine.md)
-- [ADR 0023](0023-rolling-previous-project-compatibility.md)
+- [ADR 0053](0053-chain-carried-project-compatibility.md)
 - [ADR 0027](0027-stage-1-netlist-authoring-protocol.md)
 - [ADR 0029](0029-external-subcircuit-definition-protocol.md)

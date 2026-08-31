@@ -84,6 +84,6 @@ no logical Net membership.
 ## Related documents
 
 - [`0025-schematic-hierarchy-and-formal-ports.md`](0025-schematic-hierarchy-and-formal-ports.md)
-- [`0023-rolling-previous-project-compatibility.md`](0023-rolling-previous-project-compatibility.md)
+- [`0053-chain-carried-project-compatibility.md`](0053-chain-carried-project-compatibility.md)
 - [`../specs/schematic-model.md`](../specs/schematic-model.md)
 - [`../specs/edit-engine.md`](../specs/edit-engine.md)
