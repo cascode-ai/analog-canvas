@@ -148,7 +148,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Textbook comparator block; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "comparator.symbol.json",
     assetHash:
-      "af71a4819813b3d325d43e5d654d4f0599967c53cd2e66490310436b0b0643cb",
+      "075dd7ad2013a208999ea11adcea164c5bf25796e899ee634333ea81a7223039",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -173,7 +173,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Textbook comparator block; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "comparator-inputs-swapped.symbol.json",
     assetHash:
-      "2347fb5e02a6b024ec9b758d51a80766e8665ad269616200575777a5fec9fce8",
+      "20625bbd6ee271d697840e965a3a731131e8518129e7df3e67f97c1f48765fbf",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -503,7 +503,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Behavioral quantization block; structural netlists need an explicit implementation mapping.",
     assetPath: "quantizer.symbol.json",
     assetHash:
-      "8eb283cbf258a09b50dad8ce3aabe96025d860e1235084e23788a7110b76ca82",
+      "c0a2302385f7059d3016f34d849da63bf6db652383953107f5362305b2de83dc",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -2148,7 +2148,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       },
       {
         kind: "path",
-        data: "M -8 7 L 0 7 L 0 -7 L 8 -7",
+        data: "M -15 7 L -7 7 L -7 -7 L 1 -7",
         style: {
           strokeRole: "normal",
           lineCap: "butt",
@@ -2319,7 +2319,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       },
       {
         kind: "path",
-        data: "M -8 7 L 0 7 L 0 -7 L 8 -7",
+        data: "M -15 7 L -7 7 L -7 -7 L 1 -7",
         style: {
           strokeRole: "normal",
           lineCap: "butt",
@@ -3830,7 +3830,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "path",
         part: "body",
-        data: "M -20 -13 L 20 -13 L 20 13 L -20 13 Z",
+        data: "M -20 -20 L 20 -20 L 20 20 L -20 20 Z",
         style: {
           strokeRole: "emphasis",
           lineCap: "butt",
@@ -3861,35 +3861,35 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         points: [
           {
             x: -14,
-            y: 8,
+            y: 15,
           },
           {
             x: -7,
-            y: 8,
+            y: 15,
           },
           {
             x: -7,
-            y: 3,
+            y: 5,
           },
           {
             x: 0,
-            y: 3,
+            y: 5,
           },
           {
             x: 0,
-            y: -2,
+            y: -5,
           },
           {
             x: 7,
-            y: -2,
+            y: -5,
           },
           {
             x: 7,
-            y: -7,
+            y: -15,
           },
           {
             x: 14,
-            y: -7,
+            y: -15,
           },
         ],
         style: {

@@ -194,20 +194,28 @@ function quantizerBlock() {
     pins: horizontalPins(-40, 40),
     primitives: [
       lead({ x: -40, y: 0 }, { x: -20, y: 0 }, "input-a-lead"),
-      bodyPath(-20, -13, 20, 13),
+      // Square, not the integrator's 40x26. The quantizer body carries a
+      // transfer characteristic rather than a line of formula text, and a
+      // plot needs comparable room on both axes; the width and pin span stay
+      // family-standard so the leads and grid alignment are untouched.
+      bodyPath(-20, -20, 20, 20),
       lead({ x: 20, y: 0 }, { x: 40, y: 0 }, "output-y-lead"),
       {
         kind: "polyline",
         part: "quantizer-staircase",
+        // Four 7-wide treads and three 10-tall risers: the staircase already
+        // spanned the body's full usable width, so squaring the body means
+        // growing it vertically. It keeps ~5-6 units of margin on every side
+        // and is centred on y = 0 (the old points sat half a unit high).
         points: [
-          { x: -14, y: 8 },
-          { x: -7, y: 8 },
-          { x: -7, y: 3 },
-          { x: 0, y: 3 },
-          { x: 0, y: -2 },
-          { x: 7, y: -2 },
-          { x: 7, y: -7 },
-          { x: 14, y: -7 },
+          { x: -14, y: 15 },
+          { x: -7, y: 15 },
+          { x: -7, y: 5 },
+          { x: 0, y: 5 },
+          { x: 0, y: -5 },
+          { x: 7, y: -5 },
+          { x: 7, y: -15 },
+          { x: 14, y: -15 },
         ],
         style: { strokeRole: "normal", lineCap: "round", lineJoin: "round" },
       },

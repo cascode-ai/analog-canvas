@@ -734,6 +734,56 @@ describe("Razavi symbol catalog", () => {
     );
   });
 
+  it("draws the quantizer on a square body with its staircase inset evenly", () => {
+    // The body holds a transfer characteristic, so it needs the same room on
+    // both axes; it is not the integrator's wide-and-short formula box it was
+    // provisionally derived from. Assert the shape, not the size, so a later
+    // resize cannot flatten it again.
+    const symbol = requireRazaviCatalogSymbol("quantizer");
+    const body = symbol.primitives.find(
+      (primitive) => primitive.part === "body",
+    );
+    const staircase = symbol.primitives.find(
+      (primitive) => primitive.part === "quantizer-staircase",
+    );
+    if (
+      !body ||
+      body.kind !== "path" ||
+      !staircase ||
+      staircase.kind !== "polyline"
+    ) {
+      throw new Error("Quantizer body or staircase is missing");
+    }
+    const extent = (points: readonly { x: number; y: number }[]) => {
+      const xs = points.map((point) => point.x);
+      const ys = points.map((point) => point.y);
+      return {
+        left: Math.min(...xs),
+        right: Math.max(...xs),
+        top: Math.min(...ys),
+        bottom: Math.max(...ys),
+      };
+    };
+    const bodyExtent = extent(pathPoints(body.data));
+    expect(bodyExtent.right - bodyExtent.left).toBe(
+      bodyExtent.bottom - bodyExtent.top,
+    );
+
+    // The staircase reads as a plot inside a frame, so every margin stays
+    // comparable — a bare "it fits" check would let it drift into a corner.
+    const stairExtent = extent(staircase.points);
+    const margins = [
+      stairExtent.left - bodyExtent.left,
+      bodyExtent.right - stairExtent.right,
+      stairExtent.top - bodyExtent.top,
+      bodyExtent.bottom - stairExtent.bottom,
+    ];
+    for (const margin of margins) {
+      expect(margin).toBeGreaterThanOrEqual(4);
+    }
+    expect(Math.max(...margins) - Math.min(...margins)).toBeLessThanOrEqual(2);
+  });
+
   it("keeps the variable resistor electrically two-terminal with one diagonal adjustment arrow", () => {
     const symbol = requireRazaviCatalogSymbol("variable-resistor");
 
@@ -1569,7 +1619,93 @@ describe("logic-gate and comparator family", () => {
     ).toHaveLength(3);
     expect(glyphCentreX).toBeCloseTo(bodyCentreX, 0);
     expect(glyphCentreX).toBe(-10);
-    expect(markedGlyphCentreX).toBe(0);
+    expect(markedGlyphCentreX).toBe(-7);
+  });
+
+  it("keeps the hysteresis glyph clear of the body and the polarity marks", () => {
+    // The glyph is our own drawing inside a traced body: the triangle and the
+    // +/- marks come from the Figure 8.26 op-amp and may not move, so the
+    // glyph is the only piece with freedom. Assert the conclusion — visible
+    // white space on every side — rather than one position, so a later nudge
+    // cannot quietly park it against the apex again. Painted half-widths sum
+    // to 2.0 (emphasis 2.4, normal 1.6), so 3 units of centre-line clearance
+    // is the narrowest gap that still reads as separated.
+    const MIN_CLEARANCE = 3;
+    const distanceToSegment = (
+      point: { x: number; y: number },
+      from: { x: number; y: number },
+      to: { x: number; y: number },
+    ) => {
+      const dx = to.x - from.x;
+      const dy = to.y - from.y;
+      const lengthSquared = dx * dx + dy * dy;
+      const t =
+        lengthSquared === 0
+          ? 0
+          : Math.max(
+              0,
+              Math.min(
+                1,
+                ((point.x - from.x) * dx + (point.y - from.y) * dy) /
+                  lengthSquared,
+              ),
+            );
+      return Math.hypot(
+        point.x - (from.x + t * dx),
+        point.y - (from.y + t * dy),
+      );
+    };
+    const segmentDistance = (
+      a: readonly { x: number; y: number }[],
+      b: readonly { x: number; y: number }[],
+    ) =>
+      Math.min(
+        ...a.map((point) => distanceToSegment(point, b[0]!, b[1]!)),
+        ...b.map((point) => distanceToSegment(point, a[0]!, a[1]!)),
+      );
+
+    for (const symbolId of ["comparator", "comparator-unmarked"]) {
+      const symbol = requireRazaviCatalogSymbol(symbolId);
+      const glyph = symbol.primitives.find(
+        (primitive) => primitive.part === "hysteresis-step",
+      );
+      const body = symbol.primitives.find(
+        (primitive) =>
+          primitive.kind === "path" && primitive.part !== "hysteresis-step",
+      );
+      if (!glyph || glyph.kind !== "path" || !body || body.kind !== "path") {
+        throw new Error(`${symbolId} is missing its body or hysteresis glyph`);
+      }
+      const glyphPoints = pathPoints(glyph.data);
+      const bodyPoints = pathPoints(body.data);
+      const obstacles: Array<readonly { x: number; y: number }[]> = [
+        // The triangle closes back to its first point, apex edges included.
+        ...bodyPoints.map((point, index) => [
+          point,
+          bodyPoints[(index + 1) % bodyPoints.length]!,
+        ]),
+        // Polarity marks, when this variant draws them.
+        ...symbol.primitives.flatMap((primitive) =>
+          primitive.kind === "line" &&
+          Math.abs(primitive.from.y) > 10 &&
+          Math.abs(primitive.to.y) > 10
+            ? [[primitive.from, primitive.to] as const]
+            : [],
+        ),
+      ];
+      const glyphSegments = glyphPoints
+        .slice(0, -1)
+        .map((point, index) => [point, glyphPoints[index + 1]!] as const);
+
+      for (const obstacle of obstacles) {
+        for (const segment of glyphSegments) {
+          expect(
+            segmentDistance(segment, obstacle),
+            `${symbolId} hysteresis glyph crowds ${JSON.stringify(obstacle)}`,
+          ).toBeGreaterThanOrEqual(MIN_CLEARANCE);
+        }
+      }
+    }
   });
 
   it("draws a negation bubble only on inverting shapes", () => {
