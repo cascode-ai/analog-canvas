@@ -17,13 +17,11 @@ test("a Symbol with no designator leaves no invisible hit target behind", async 
   await page.keyboard.press("Escape");
 
   await expect(page.getByTestId("hit-X1")).toBeVisible();
-  await expect(
-    page.locator('[data-canvas-hit-kind="annotation"]'),
-  ).toHaveCount(0);
+  await expect(page.locator('[data-canvas-hit-kind="annotation"]')).toHaveCount(
+    0,
+  );
   // Nor an empty glyph in the drawing itself.
-  await expect(
-    page.locator('[data-layer="annotations"] text'),
-  ).toHaveCount(0);
+  await expect(page.locator('[data-layer="annotations"] text')).toHaveCount(0);
 });
 
 // The two-terminal switches were the visible case: they now carry a device

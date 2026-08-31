@@ -17,6 +17,8 @@ export { variableInductorDevice } from "./variable-inductor.js";
 export { variableResistorDevice } from "./variable-resistor.js";
 export { closedSwitchDevice } from "./closed-switch.js";
 export { idealSwitchDevice } from "./ideal-switch.js";
+export { simpleSwitchDevice } from "./simple-switch.js";
+export { spdtSwitchDevice } from "./spdt-switch.js";
 export { voltageControlledSwitchDevice } from "./voltage-controlled-switch.js";
 export { vddPortDevice } from "./vdd-port.js";
 export { voltageSourceDevice } from "./voltage-source.js";
