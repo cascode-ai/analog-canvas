@@ -28,11 +28,7 @@ export function ComponentStyleProperties({
   return (
     <div className="property-card component-appearance-card">
       <div className="property-section-heading">Appearance</div>
-      <small>
-        Colors apply only to this component. Reference and value text inherit
-        the line color when their own text color remains Auto. Wires and
-        document defaults stay unchanged.
-      </small>
+      <small>Colors apply to this component only.</small>
       <ColorOverrideControl
         label="Line / foreground"
         value={instance.styleOverride?.foreground}
