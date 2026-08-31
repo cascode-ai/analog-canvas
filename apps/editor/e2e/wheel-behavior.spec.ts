@@ -80,6 +80,7 @@ test("arrow keys pan the camera by one stable screen-space step", async ({
   await canvas.click({
     position: { x: bounds!.width - 12, y: bounds!.height - 12 },
   });
+  await expect(canvas).toHaveCSS("outline-style", "none");
 
   const readViewBox = async () =>
     (await canvas.getAttribute("viewBox"))!.split(" ").map(Number) as [
