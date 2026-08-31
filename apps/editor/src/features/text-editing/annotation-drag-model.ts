@@ -1,4 +1,7 @@
-import type { ResolvedRouteGeometry } from "@icm/derived";
+import {
+  resolveAnchorTargetPosition,
+  type ResolvedRouteGeometry,
+} from "@icm/derived";
 import type {
   Annotation,
   DerivedPoint,
@@ -169,18 +172,23 @@ export function draggedAnnotationAtPosition(
 
   const position = constrainAnnotationPosition(context, annotation, candidate);
   if (annotation.anchor.kind === "object") {
-    const anchor = annotation.anchor;
-    const instance = document.instances.find(
-      (item) => item.id === anchor.objectId,
+    // Rendering resolves an object anchor as target position + localOffset, so
+    // localOffset is what a drag has to carry. Ask the resolver's own lookup
+    // rather than only for an Instance: a power rail's label hangs off its
+    // Junction, and a drafting label off its rectangle, and updating just
+    // fallbackPosition would leave both rendering where they already were.
+    const target = resolveAnchorTargetPosition(
+      document,
+      annotation.anchor.objectId,
     );
-    if (instance?.placement) {
+    if (target) {
       return {
         ...annotation,
         anchor: {
           ...annotation.anchor,
           localOffset: {
-            x: position.x - instance.placement.position.x,
-            y: position.y - instance.placement.position.y,
+            x: position.x - target.x,
+            y: position.y - target.y,
           },
           fallbackPosition: position,
         },

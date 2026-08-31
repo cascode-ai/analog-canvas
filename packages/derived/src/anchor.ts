@@ -64,7 +64,7 @@ function resolveObjectAnchor(
   document: SchematicDocument,
   anchor: Extract<VisualAnchor, { kind: "object" }>,
 ): ResolvedAnchor {
-  const target = findObjectPlacement(document, anchor.objectId);
+  const target = resolveAnchorTargetPosition(document, anchor.objectId);
   if (!target) {
     return {
       position: anchor.fallbackPosition,
@@ -161,7 +161,13 @@ function unresolvedRoute(
  * Junction. A DraftingObject is intentionally not a valid V1 anchor target
  * (ADR 0010: no drafting-to-drafting attachment).
  */
-function findObjectPlacement(
+/**
+ * The position an `object` anchor hangs off. Exported because anchor
+ * resolution is not the only caller: a drag that rewrites localOffset must
+ * measure against the same target this resolves, or the two disagree and the
+ * dragged label renders back where it started.
+ */
+export function resolveAnchorTargetPosition(
   document: SchematicDocument,
   objectId: string,
 ): GridPoint | null {
