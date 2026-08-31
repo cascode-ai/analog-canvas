@@ -100,8 +100,8 @@ parameters, connectivity, or attached annotations.
 
 ## Related documents
 
-- [`0010-text-annotation-drafting-schema.md`](0010-text-annotation-drafting-schema.md)
 - [`0027-stage-1-netlist-authoring-protocol.md`](0027-stage-1-netlist-authoring-protocol.md)
-- [`0046-independent-cell-pins-and-formal-port-projection.md`](0046-independent-cell-pins-and-formal-port-projection.md)
+- [`0025-schematic-hierarchy-and-formal-ports.md`](0025-schematic-hierarchy-and-formal-ports.md)
 - [`../specs/schematic-model.md`](../specs/schematic-model.md)
+- [`../specs/editor-interaction.md`](../specs/editor-interaction.md)
 - [`../specs/project-file-format.md`](../specs/project-file-format.md)

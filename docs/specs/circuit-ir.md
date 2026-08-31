@@ -2,8 +2,6 @@
 
 Status: `accepted`
 
-Version: `1.2-spice-baseline`
-
 Primary owner: `packages/spice`
 
 ## Purpose

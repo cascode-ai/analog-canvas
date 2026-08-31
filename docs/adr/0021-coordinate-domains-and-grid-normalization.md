@@ -109,5 +109,5 @@ and measurement geometry cannot be mistaken for persisted page coordinates.
 - [`../specs/schematic-model.md`](../specs/schematic-model.md)
 - [`../specs/edit-engine.md`](../specs/edit-engine.md)
 - [`../specs/editor-interaction.md`](../specs/editor-interaction.md)
-- [`0010-text-annotation-drafting-schema.md`](0010-text-annotation-drafting-schema.md)
+- [`0054-single-instance-reference-authority.md`](0054-single-instance-reference-authority.md)
 - [`0014-resolved-route-geometry.md`](0014-resolved-route-geometry.md)

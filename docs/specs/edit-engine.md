@@ -2,8 +2,6 @@
 
 Status: `accepted`
 
-Version: `1.13`
-
 Primary owner: `packages/edit-engine`
 
 Related ADRs: [`0013-project-connectivity-index.md`](../adr/0013-project-connectivity-index.md),

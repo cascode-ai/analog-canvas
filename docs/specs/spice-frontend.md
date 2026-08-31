@@ -2,8 +2,6 @@
 
 Status: `accepted`
 
-Version: `2.0-ngspice-46-core`
-
 Primary owner: `packages/spice`
 
 ## Purpose

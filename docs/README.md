@@ -36,6 +36,14 @@ approved contract. Update the relevant spec when behavior intentionally
 changes. ADR schema numbers and migration examples record their acceptance
 context and never override the current file-format specification.
 
+When current behavior and a specification differ, first characterize the
+executable behavior and its user-visible consequences. If the behavior is an
+accidental violation, repair the implementation and retain the rule. If it is a
+deliberate, coherent evolution, update the normative specification and record
+an ADR only when an architectural boundary changed. A reasonable outcome does
+not by itself bless duplicated or ad hoc implementation; code structure is
+reviewed separately from the accepted behavior.
+
 ## Start in the right place
 
 - To use the product: [getting started](user/getting-started.md).

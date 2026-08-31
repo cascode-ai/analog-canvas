@@ -50,6 +50,6 @@ visually optimal result.
 
 - [`0014-resolved-route-geometry.md`](0014-resolved-route-geometry.md)
 - [`0041-physical-cut-and-endpoint-readiness.md`](0041-physical-cut-and-endpoint-readiness.md)
-- [`0047-stable-route-leg-model.md`](0047-stable-route-leg-model.md)
+- [`0014-resolved-route-geometry.md`](0014-resolved-route-geometry.md)
 - [`0048-routing-operation-plan.md`](0048-routing-operation-plan.md)
 - [`../specs/edit-engine.md`](../specs/edit-engine.md)
