@@ -26,7 +26,68 @@
       "apps/editor/src/features/search/**",
       "apps/editor/src/features/selection/**",
       "apps/editor/src/features/text-editing/**",
-      "apps/editor/src/features/wiring/**"
+      "apps/editor/src/features/wiring/**",
+      "apps/editor/e2e/drafting.spec.ts",
+      "apps/editor/e2e/instance-table.spec.ts",
+      "apps/editor/e2e/manual-editor.spec.ts"
+    ],
+    "editorCommands": [
+      "apps/editor/src/app/editor-transaction-commands*",
+      "apps/editor/src/commands/**",
+      "apps/editor/src/interaction/editor-shortcuts*",
+      "apps/editor/src/features/selection/canvas-context-menu*",
+      "apps/editor/src/features/selection/selection-context-actions*",
+      "apps/editor/e2e/context-menu.spec.ts",
+      "apps/editor/e2e/verb-first.spec.ts"
+    ],
+    "editorDiagnostics": [
+      "apps/editor/src/canvas/diagnostic-markers*",
+      "apps/editor/src/canvas/editor-canvas-overlays*",
+      "apps/editor/src/features/editor-shell/editor-statusbar*",
+      "apps/editor/src/features/selection/selection-inspector-details*",
+      "apps/editor/e2e/diagnostics-surfacing.spec.ts"
+    ],
+    "editorRuntimeSafety": [
+      "apps/editor/src/app/crash-test-hooks.ts",
+      "apps/editor/src/app/editor-runtime-helpers.ts",
+      "apps/editor/src/app/lazy-editor-dialogs.ts",
+      "apps/editor/src/components/chunk-load-fallback.tsx",
+      "apps/editor/src/components/editor-error-boundary.tsx",
+      "apps/editor/src/components/editor-help-dialog.tsx",
+      "apps/editor/src/styles/editor-chrome.css",
+      "apps/editor/e2e/chrome-isolation.spec.ts",
+      "apps/editor/e2e/runtime-crash-safety.spec.ts"
+    ],
+    "editorSelection": [
+      "apps/editor/src/canvas/editor-canvas-hit-layer*",
+      "apps/editor/src/canvas/editor-canvas-overlays*",
+      "apps/editor/src/canvas/editor-selection-halo*",
+      "apps/editor/src/features/selection/**",
+      "apps/editor/e2e/detach-move.spec.ts",
+      "apps/editor/e2e/net-highlight.spec.ts",
+      "apps/editor/e2e/overlap-warning.spec.ts",
+      "apps/editor/e2e/selection-visuals.spec.ts"
+    ],
+    "editorViewport": [
+      "apps/editor/src/canvas/canvas-gesture-controller*",
+      "apps/editor/src/canvas/canvas-viewport*",
+      "apps/editor/src/canvas/editor-canvas-surface.tsx",
+      "apps/editor/src/canvas/fit-view*",
+      "apps/editor/e2e/wheel-behavior.spec.ts"
+    ],
+    "editorWiring": [
+      "apps/editor/src/canvas/editor-wiring-overlay*",
+      "apps/editor/src/features/wiring/**",
+      "apps/editor/e2e/wiring-semantics.spec.ts"
+    ],
+    "placementNearMiss": [
+      "apps/editor/src/features/component-insert/placement-near-miss*",
+      "apps/editor/e2e/placement-near-miss.spec.ts"
+    ],
+    "thinTargetHit": [
+      "apps/editor/src/canvas/canvas-hit-controller.ts",
+      "apps/editor/src/canvas/canvas-hit-resolver*",
+      "apps/editor/e2e/thin-target-hit.spec.ts"
     ],
     "componentInsert": [
       "apps/editor/src/features/component-insert/**",
@@ -43,7 +104,10 @@
     ],
     "projectPersistence": [
       "apps/editor/src/document/**",
+      "apps/editor/e2e/auto-fit.spec.ts",
       "apps/editor/e2e/project-file.spec.ts",
+      "apps/editor/e2e/recovery-dialog.spec.ts",
+      "apps/editor/e2e/recovery-hardening.spec.ts",
       "packages/model/**",
       "packages/project-protocol/**"
     ],
@@ -187,6 +251,7 @@
       ],
       "ci": {
         "e2eArgs": [
+          "apps/editor/e2e/auto-fit.spec.ts",
           "apps/editor/e2e/project-file.spec.ts",
           "apps/editor/e2e/recovery-dialog.spec.ts",
           "apps/editor/e2e/recovery-hardening.spec.ts"
@@ -232,6 +297,126 @@
       }
     },
     {
+      "id": "editor-commands-browser",
+      "stage": "affected",
+      "groups": ["editorCommands"],
+      "description": "Validate verb-first commands and contextual editor actions.",
+      "command": [
+        "pnpm",
+        "test:e2e:local",
+        "apps/editor/e2e/context-menu.spec.ts",
+        "apps/editor/e2e/verb-first.spec.ts"
+      ],
+      "ci": {
+        "e2eArgs": [
+          "apps/editor/e2e/context-menu.spec.ts",
+          "apps/editor/e2e/verb-first.spec.ts"
+        ]
+      }
+    },
+    {
+      "id": "editor-diagnostics-browser",
+      "stage": "affected",
+      "groups": ["editorDiagnostics"],
+      "description": "Validate diagnostic badges, markers, and workbench navigation.",
+      "command": [
+        "pnpm",
+        "test:e2e:local",
+        "apps/editor/e2e/diagnostics-surfacing.spec.ts"
+      ],
+      "ci": {
+        "e2eArgs": ["apps/editor/e2e/diagnostics-surfacing.spec.ts"]
+      }
+    },
+    {
+      "id": "editor-runtime-safety-browser",
+      "stage": "affected",
+      "groups": ["editorRuntimeSafety"],
+      "description": "Validate editor chrome isolation and scoped crash recovery.",
+      "command": [
+        "pnpm",
+        "test:e2e:local",
+        "apps/editor/e2e/chrome-isolation.spec.ts",
+        "apps/editor/e2e/runtime-crash-safety.spec.ts"
+      ],
+      "ci": {
+        "e2eArgs": [
+          "apps/editor/e2e/chrome-isolation.spec.ts",
+          "apps/editor/e2e/runtime-crash-safety.spec.ts"
+        ]
+      }
+    },
+    {
+      "id": "editor-selection-browser",
+      "stage": "affected",
+      "groups": ["editorSelection"],
+      "description": "Validate selection, move, highlight, and overlap workflows.",
+      "command": [
+        "pnpm",
+        "test:e2e:local",
+        "apps/editor/e2e/detach-move.spec.ts",
+        "apps/editor/e2e/net-highlight.spec.ts",
+        "apps/editor/e2e/overlap-warning.spec.ts",
+        "apps/editor/e2e/selection-visuals.spec.ts"
+      ],
+      "ci": {
+        "e2eArgs": [
+          "apps/editor/e2e/detach-move.spec.ts",
+          "apps/editor/e2e/net-highlight.spec.ts",
+          "apps/editor/e2e/overlap-warning.spec.ts",
+          "apps/editor/e2e/selection-visuals.spec.ts"
+        ]
+      }
+    },
+    {
+      "id": "editor-viewport-browser",
+      "stage": "affected",
+      "groups": ["editorViewport"],
+      "description": "Validate camera fitting and wheel interaction behavior.",
+      "command": [
+        "pnpm",
+        "test:e2e:local",
+        "apps/editor/e2e/wheel-behavior.spec.ts"
+      ],
+      "ci": { "e2eArgs": ["apps/editor/e2e/wheel-behavior.spec.ts"] }
+    },
+    {
+      "id": "editor-wiring-browser",
+      "stage": "affected",
+      "groups": ["editorWiring"],
+      "description": "Validate browser-authoritative wire editing semantics.",
+      "command": [
+        "pnpm",
+        "test:e2e:local",
+        "apps/editor/e2e/wiring-semantics.spec.ts"
+      ],
+      "ci": { "e2eArgs": ["apps/editor/e2e/wiring-semantics.spec.ts"] }
+    },
+    {
+      "id": "placement-near-miss-browser",
+      "stage": "affected",
+      "groups": ["placementNearMiss"],
+      "description": "Validate near-miss feedback for component placement.",
+      "command": [
+        "pnpm",
+        "test:e2e:local",
+        "apps/editor/e2e/placement-near-miss.spec.ts"
+      ],
+      "ci": { "e2eArgs": ["apps/editor/e2e/placement-near-miss.spec.ts"] }
+    },
+    {
+      "id": "thin-target-hit-browser",
+      "stage": "affected",
+      "groups": ["thinTargetHit"],
+      "description": "Validate visible thin-target precedence during canvas hit testing.",
+      "command": [
+        "pnpm",
+        "test:e2e:local",
+        "apps/editor/e2e/thin-target-hit.spec.ts"
+      ],
+      "ci": { "e2eArgs": ["apps/editor/e2e/thin-target-hit.spec.ts"] }
+    },
+    {
       "id": "release-verification",
       "stage": "affected",
       "groups": ["release"],
@@ -251,7 +436,28 @@
       "stage": "final",
       "groups": ["highRisk"],
       "description": "Canonical complete gate for shared-core and production-boundary changes.",
-      "command": ["pnpm", "ci:check"]
+      "command": ["pnpm", "ci:check"],
+      "supersedes": [
+        "documentation-links",
+        "static-contracts",
+        "workspace-unit",
+        "component-insert-browser",
+        "hierarchy-browser",
+        "project-file-browser",
+        "gallery-browser",
+        "agent-browser",
+        "editor-browser",
+        "editor-commands-browser",
+        "editor-diagnostics-browser",
+        "editor-runtime-safety-browser",
+        "editor-selection-browser",
+        "editor-viewport-browser",
+        "editor-wiring-browser",
+        "placement-near-miss-browser",
+        "thin-target-hit-browser",
+        "release-verification",
+        "branch-verification"
+      ]
     }
   ],
   "fullFallback": {

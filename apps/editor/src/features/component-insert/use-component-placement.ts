@@ -63,6 +63,10 @@ import type { PendingComponentPlacement } from "../../interaction/interaction-st
 import type { DrawingTool } from "../../interaction/interaction-state";
 
 type TransactionResult = { ok: boolean; revision: number };
+import {
+  describePlacementNearMiss,
+  findPlacementNearMisses,
+} from "./placement-near-miss";
 
 function nextCellPinName(document: SchematicDocument): string {
   const occupiedNames = new Set(
@@ -293,12 +297,27 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
       "hidden"
         ? symbolId
         : `${id} (${symbolId})`;
+    // Nothing connected, but something was close: a part dropped a square
+    // short of a wire looks joined and is not. Say so once, in the line the
+    // person is already reading. It reports; it never connects.
+    const nearMiss = contact.matched
+      ? null
+      : describePlacementNearMiss(
+          findPlacementNearMisses(
+            projectedDocument,
+            options.resolver,
+            instance,
+          ),
+          id,
+        );
     options.setStatus(
       contact.ambiguous
         ? `Added ${named}; overlapping pins are ambiguous, wire explicitly · click to place another · Esc exits`
         : contact.matched
           ? `Added ${named} and connected its contacted pin · click to place another · Esc exits`
-          : `Added ${named} · click to place another · Esc exits`,
+          : nearMiss
+            ? `Added ${named} · ${nearMiss} · click to place another · Esc exits`
+            : `Added ${named} · click to place another · Esc exits`,
     );
   };
 

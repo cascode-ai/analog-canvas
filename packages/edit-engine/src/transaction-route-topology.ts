@@ -699,18 +699,38 @@ export function applyRouteTopologyEdit(
             "Two unconnected endpoints require newNetId",
           );
         }
-        if (draft.nets.some((net) => net.id === edit.newNetId)) {
-          return rejectAt(
-            "EDIT_PRECONDITION",
-            `Net already exists: ${edit.newNetId}`,
-          );
+        const preparedNet = draft.nets.find((net) => net.id === edit.newNetId);
+        if (preparedNet) {
+          const alreadyReferenced =
+            preparedNet.terminals.length > 0 ||
+            draft.routes.some((route) => route.netId === preparedNet.id) ||
+            draft.junctions.some(
+              (junction) => junction.netId === preparedNet.id,
+            ) ||
+            draft.annotations.some(
+              (annotation) =>
+                annotation.netId === preparedNet.id ||
+                (annotation.binding?.kind === "net-name" &&
+                  annotation.binding.netId === preparedNet.id),
+            ) ||
+            draft.connectivityEvidence.some(
+              (evidence) => evidence.netId === preparedNet.id,
+            );
+          if (alreadyReferenced) {
+            return rejectAt(
+              "EDIT_PRECONDITION",
+              `Prepared Base Net is already populated: ${edit.newNetId}`,
+            );
+          }
+          netId = preparedNet.id;
+        } else {
+          netId = edit.newNetId;
+          draft.nets.push({
+            id: netId,
+            terminals: [],
+          });
+          changedObjectIds.add(netId);
         }
-        netId = edit.newNetId;
-        draft.nets.push({
-          id: netId,
-          terminals: [],
-        });
-        changedObjectIds.add(netId);
       }
       addEndpointToNet(draft, netId, edit.from);
       addEndpointToNet(draft, netId, edit.to);

@@ -20,6 +20,7 @@ const PRODUCT_IDS = [
   "delay-cell",
   "adder",
   "multiplier",
+  "transconductance",
   "integrator",
   "unit-delay",
   "discrete-time-integrator",

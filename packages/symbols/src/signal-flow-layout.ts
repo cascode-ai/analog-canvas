@@ -39,6 +39,7 @@ export interface SignalFlowFormulaLayout {
 
 export interface AdaptiveSignalFlowBlockLayout {
   readonly formula: SignalFlowFormulaLayout;
+  readonly shape: "rectangle" | "right-tapered-trapezoid";
   readonly body: { x: number; y: number; width: number; height: number };
   readonly pinSpan: number;
   readonly bounds: { x: number; y: number; width: number; height: number };
@@ -59,19 +60,58 @@ const unicodeSuperscripts: Readonly<Record<string, string>> = {
   "⁻": "-",
 };
 
+const unicodeSubscripts: Readonly<Record<string, string>> = {
+  "₀": "0",
+  "₁": "1",
+  "₂": "2",
+  "₃": "3",
+  "₄": "4",
+  "₅": "5",
+  "₆": "6",
+  "₇": "7",
+  "₈": "8",
+  "₉": "9",
+  "₊": "+",
+  "₋": "-",
+  ₐ: "a",
+  ₑ: "e",
+  ₕ: "h",
+  ᵢ: "i",
+  ⱼ: "j",
+  ₖ: "k",
+  ₗ: "l",
+  ₘ: "m",
+  ₙ: "n",
+  ₒ: "o",
+  ₚ: "p",
+  ᵣ: "r",
+  ₛ: "s",
+  ₜ: "t",
+  ᵤ: "u",
+  ᵥ: "v",
+  ₓ: "x",
+};
+
 /** Normalise visual Unicode spellings without mutating persisted input. */
 export function normalizeSignalFlowFormula(value: string): string {
   let normalized = "";
-  let inSuperscript = false;
+  let script: "super" | "sub" | null = null;
   for (const character of value.normalize("NFC")) {
-    const mapped = unicodeSuperscripts[character];
-    if (mapped !== undefined) {
-      if (!inSuperscript) normalized += "^";
-      normalized += mapped;
-      inSuperscript = true;
+    const superscript = unicodeSuperscripts[character];
+    if (superscript !== undefined) {
+      if (script !== "super") normalized += "^";
+      normalized += superscript;
+      script = "super";
       continue;
     }
-    inSuperscript = false;
+    const subscript = unicodeSubscripts[character];
+    if (subscript !== undefined) {
+      if (script !== "sub") normalized += "_";
+      normalized += subscript;
+      script = "sub";
+      continue;
+    }
+    script = null;
     normalized += character === "−" ? "-" : character;
   }
   return normalized;
@@ -111,9 +151,16 @@ export function parseSignalFlowFraction(
 
 function visualCharacterCount(value: string): number {
   // Superscript markers are syntax, but every visible glyph—including
-  // parentheses—must reserve space. Counting a superscript at full width is
-  // intentionally conservative because the renderer later scales it to 70%.
-  return normalizeSignalFlowFormula(value).replaceAll("^", "").length;
+  // parentheses—must reserve space. One underscore is accepted as compact
+  // subscript syntax (g_m); multiple underscores remain literal so existing
+  // names such as very_long_formula keep their authored presentation.
+  const normalized = normalizeSignalFlowFormula(value);
+  const underscoreCount = [...normalized].filter(
+    (character) => character === "_",
+  ).length;
+  const visible =
+    underscoreCount === 1 ? normalized.replaceAll("_", "") : normalized;
+  return visible.replaceAll("^", "").length;
 }
 
 /** Stable conservative text metric used consistently by every renderer. */
@@ -226,6 +273,7 @@ export function resolveAdaptiveSignalFlowBlockLayout(
   const pinSpan = snapUp(width / 2 + frame.leadLength, 10);
   return {
     formula,
+    shape: frame.shape ?? "rectangle",
     body,
     pinSpan,
     bounds: {

@@ -37,11 +37,16 @@ function lead(from, to, part) {
   };
 }
 
-function box(left, top, right, bottom) {
+function bodyPath(left, top, right, bottom, shape = "rectangle") {
+  const taper = (bottom - top) / 4;
+  const data =
+    shape === "right-tapered-trapezoid"
+      ? `M ${left} ${top} L ${right} ${top + taper} L ${right} ${bottom - taper} L ${left} ${bottom} Z`
+      : `M ${left} ${top} L ${right} ${top} L ${right} ${bottom} L ${left} ${bottom} Z`;
   return {
     kind: "path",
     part: "body",
-    data: `M ${left} ${top} L ${right} ${top} L ${right} ${bottom} L ${left} ${bottom} Z`,
+    data,
     style: {
       strokeRole: "emphasis",
       lineCap: "butt",
@@ -123,21 +128,41 @@ function circleBlock(id, name, glyphPrimitives) {
   };
 }
 
-const transferFunctionPresentation = (defaultFormula) => ({
+const transferFunctionPresentation = (
+  defaultFormula,
+  {
+    shape = "rectangle",
+    minBodyWidth = 40,
+    minBodyHeight = 30,
+    horizontalPadding = 8,
+  } = {},
+) => ({
   defaultFormula,
   supportsCoefficient: true,
   center: { x: 0, y: 0 },
   fontSize: 12,
   adaptiveFrame: {
-    minBodyWidth: 40,
-    minBodyHeight: 30,
-    horizontalPadding: 8,
+    ...(shape === "rectangle" ? {} : { shape }),
+    minBodyWidth,
+    minBodyHeight,
+    horizontalPadding,
     verticalPadding: 4,
     leadLength: 20,
   },
 });
 
-function formulaBlock({ id, name, viewBox, pinSpan, body, defaultFormula }) {
+function formulaBlock({
+  id,
+  name,
+  viewBox,
+  pinSpan,
+  body,
+  defaultFormula,
+  shape = "rectangle",
+  minBodyWidth = 40,
+  minBodyHeight = 30,
+  horizontalPadding = 8,
+}) {
   return {
     schemaVersion: 1,
     id,
@@ -146,10 +171,15 @@ function formulaBlock({ id, name, viewBox, pinSpan, body, defaultFormula }) {
     pins: horizontalPins(-pinSpan, pinSpan),
     primitives: [
       lead({ x: -pinSpan, y: 0 }, { x: body.left, y: 0 }, "input-a-lead"),
-      box(body.left, body.top, body.right, body.bottom),
+      bodyPath(body.left, body.top, body.right, body.bottom, shape),
       lead({ x: body.right, y: 0 }, { x: pinSpan, y: 0 }, "output-y-lead"),
     ],
-    formulaPresentation: transferFunctionPresentation(defaultFormula),
+    formulaPresentation: transferFunctionPresentation(defaultFormula, {
+      shape,
+      minBodyWidth,
+      minBodyHeight,
+      horizontalPadding,
+    }),
     variants: [],
     labelVisibility: "hidden",
   };
@@ -164,7 +194,7 @@ function quantizerBlock() {
     pins: horizontalPins(-40, 40),
     primitives: [
       lead({ x: -40, y: 0 }, { x: -20, y: 0 }, "input-a-lead"),
-      box(-20, -13, 20, 13),
+      bodyPath(-20, -13, 20, 13),
       lead({ x: 20, y: 0 }, { x: 40, y: 0 }, "output-y-lead"),
       {
         kind: "polyline",
@@ -220,6 +250,18 @@ const definitions = {
       style: { strokeRole: "normal", lineCap: "round", lineJoin: "round" },
     },
   ]),
+  transconductance: formulaBlock({
+    id: "transconductance",
+    name: "Transconductance (+gₘ)",
+    viewBox: { x: -44, y: -39, width: 88, height: 78 },
+    pinSpan: 40,
+    body: { left: -20, top: -35, right: 20, bottom: 35 },
+    defaultFormula: "+g_m",
+    shape: "right-tapered-trapezoid",
+    minBodyWidth: 40,
+    minBodyHeight: 70,
+    horizontalPadding: 4,
+  }),
   integrator: formulaBlock({
     id: "integrator",
     name: "Integrator (1/s)",
@@ -340,7 +382,11 @@ const bodyBounds = (definition) => {
     const xs = values.filter((_, index) => index % 2 === 0);
     const ys = values.filter((_, index) => index % 2 === 1);
     return {
-      kind: "sharp-rectangle",
+      kind:
+        definition.formulaPresentation?.adaptiveFrame?.shape ===
+        "right-tapered-trapezoid"
+          ? "right-tapered-trapezoid"
+          : "sharp-rectangle",
       width: Math.max(...xs) - Math.min(...xs),
       height: Math.max(...ys) - Math.min(...ys),
     };
@@ -446,6 +492,8 @@ const manualOnlyReasons = {
     "Behavioral summing node; structural netlists need an explicit implementation mapping.",
   multiplier:
     "Behavioral mixing node; structural netlists need an explicit implementation mapping.",
+  transconductance:
+    "Behavioral transconductance block; structural netlists need an explicit implementation mapping.",
   integrator:
     "Behavioral s-domain block; structural netlists need an explicit implementation mapping.",
   "unit-delay":
@@ -458,6 +506,7 @@ const manualOnlyReasons = {
 const signalFlowOrder = [
   "adder",
   "multiplier",
+  "transconductance",
   "integrator",
   "unit-delay",
   "discrete-time-integrator",

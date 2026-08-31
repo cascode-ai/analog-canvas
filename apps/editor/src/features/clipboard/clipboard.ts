@@ -8,9 +8,11 @@ import {
   captureRoutingCopyFragment,
   createRoutingOperationPlan,
   executeTransaction,
+  gridAlignmentDiagnostics,
   type OperationIdRemap,
   type RoutingOperationPlan,
 } from "@icm/edit-engine";
+import { resolveMosBulkConnection } from "@icm/derived";
 import { translateDraftingObject } from "@icm/edit-engine";
 import type { SchematicEdit } from "@icm/edit-engine";
 import type {
@@ -19,6 +21,7 @@ import type {
   ConnectivityEvidence,
   DraftingObject,
   Instance,
+  LayoutConstraint,
   LayoutGroup,
   Net,
   NoConnect,
@@ -45,8 +48,14 @@ import {
 } from "../../interaction/shortcut-orientation";
 
 export interface SchematicClipboard {
+  intent: "clone-selection" | "compose-document";
+  sourceDocumentId: string;
+  sourceGrid: number;
   instances: Instance[];
   cellTerminals: CellNetlistTerminal[];
+  formalParameters: NonNullable<
+    SchematicDocument["netlist"]
+  >["formalParameters"];
   /**
    * Nets entirely inside the copied selection. They are duplicated when the
    * copy is committed.
@@ -63,8 +72,10 @@ export interface SchematicClipboard {
    * thing a copy needs when nothing electrical is selected.
    */
   draftingObjects: DraftingObject[];
-  /** Layout groups wholly contained in the copied drafting selection. */
-  draftingGroups: LayoutGroup[];
+  /** Layout ownership records wholly contained in the copied closure. */
+  layoutGroups: LayoutGroup[];
+  /** Layout constraints wholly contained in the copied closure. */
+  constraints: LayoutConstraint[];
 }
 
 export interface PasteProposal {
@@ -72,6 +83,17 @@ export interface PasteProposal {
   instanceIds: string[];
   errors: string[];
   idRemap: OperationIdRemap;
+  /**
+   * Non-electrical provenance for this one flattened Document insertion.
+   * It can identify two imports of the same source without changing target
+   * Net naming, topology, or Evidence resolution.
+   */
+  compositionOccurrence?: {
+    id: string;
+    sourceDocumentId: string;
+    targetDocumentId: string;
+    objectIdRemap: OperationIdRemap;
+  };
   operationPlan: RoutingOperationPlan;
 }
 
@@ -448,17 +470,18 @@ function fallbackClipboardPreviewDocument(
     // references to objects deliberately omitted from the ghost and makes the
     // renderer reject otherwise valid clipboard content.
     netlist:
-      clipboard.cellTerminals.length > 0
+      clipboard.cellTerminals.length > 0 ||
+      clipboard.formalParameters.length > 0
         ? {
             name: base.netlist?.name ?? base.name,
-            formalParameters: [],
+            formalParameters: structuredClone(clipboard.formalParameters),
             terminals: structuredClone(clipboard.cellTerminals),
           }
         : undefined,
     mosBulkDefaults: undefined,
     connectivityEvidence: structuredClone(clipboard.connectivityEvidence),
-    layoutGroups: structuredClone(clipboard.draftingGroups),
-    constraints: [],
+    layoutGroups: structuredClone(clipboard.layoutGroups),
+    constraints: structuredClone(clipboard.constraints),
   };
 }
 
@@ -509,6 +532,11 @@ export function clipboardPreviewDocument(
             edit.kind === "set_layout_group" ? [edit.group.id] : [],
           ),
         );
+        const constraintIds = new Set(
+          proposal.edits.flatMap((edit) =>
+            edit.kind === "set_layout_constraint" ? [edit.constraint.id] : [],
+          ),
+        );
         const instances = result.document.instances.filter((instance) =>
           instanceIds.has(instance.id),
         );
@@ -523,6 +551,7 @@ export function clipboardPreviewDocument(
             terminal.interfaceInstanceIds.some((id) => instanceIds.has(id)),
           ) ?? [];
         const netIds = new Set([
+          ...Object.values(proposal.idRemap.nets),
           ...routes.map((route) => route.netId),
           ...annotations.flatMap((annotation) =>
             annotation.netId ? [annotation.netId] : [],
@@ -537,8 +566,12 @@ export function clipboardPreviewDocument(
           ),
         ]);
         const previewClipboard: SchematicClipboard = structuredClone({
+          intent: oriented.intent,
+          sourceDocumentId: base.id,
+          sourceGrid: base.presentation.grid,
           instances,
           cellTerminals,
+          formalParameters: oriented.formalParameters,
           nets: result.document.nets
             .filter((net) => netIds.has(net.id))
             .map((net) => ({
@@ -563,8 +596,11 @@ export function clipboardPreviewDocument(
           draftingObjects: (result.document.drafting?.objects ?? []).filter(
             (object) => draftingIds.has(object.id),
           ),
-          draftingGroups: result.document.layoutGroups.filter((group) =>
+          layoutGroups: result.document.layoutGroups.filter((group) =>
             layoutGroupIds.has(group.id),
+          ),
+          constraints: result.document.constraints.filter((constraint) =>
+            constraintIds.has(constraint.id),
           ),
         });
         return fallbackClipboardPreviewDocument(
@@ -588,79 +624,72 @@ export function clipboardPreviewDocument(
  * yet wired to a device, would otherwise be dropped along with its rail
  * geometry and label.
  */
-export function copyWholeDocument(
+export function captureDocumentComposition(
   document: SchematicDocument,
 ): SchematicClipboard | null {
   const draftingObjects = document.drafting?.objects ?? [];
   if (
     document.instances.length === 0 &&
     document.routes.length === 0 &&
+    document.junctions.length === 0 &&
+    document.annotations.length === 0 &&
     draftingObjects.length === 0
   ) {
     return null;
   }
-  const draftingIds = new Set(draftingObjects.map((object) => object.id));
-  const netIds = new Set<string>([
-    ...document.nets.flatMap((net) =>
-      net.terminals.length > 0 ? [net.id] : [],
-    ),
-    ...document.routes.map((route) => route.netId),
-    ...document.junctions.map((junction) => junction.netId),
-    ...document.annotations.flatMap((annotation) => [
-      ...(annotation.netId ? [annotation.netId] : []),
-      ...(annotation.binding?.kind === "net-name"
-        ? [annotation.binding.netId]
-        : []),
-    ]),
-    ...(document.netlist?.terminals.map((terminal) => terminal.netId) ?? []),
-    ...document.instances.flatMap((instance) =>
-      instance.mosBulkBinding ? [instance.mosBulkBinding.netId] : [],
-    ),
-    ...(document.mosBulkDefaults?.nmosNetId
-      ? [document.mosBulkDefaults.nmosNetId]
-      : []),
-    ...(document.mosBulkDefaults?.pmosNetId
-      ? [document.mosBulkDefaults.pmosNetId]
-      : []),
-  ]);
-  // Explicit equivalence is an intentional connectivity edge, so retain its
-  // complete member set when any member is otherwise reachable.
-  let expanded = true;
-  while (expanded) {
-    expanded = false;
-    for (const evidence of document.connectivityEvidence) {
-      if (
-        evidence.kind !== "explicit-equivalence" ||
-        !evidence.memberNetIds.some((netId) => netIds.has(netId))
-      ) {
-        continue;
-      }
-      for (const netId of evidence.memberNetIds) {
-        if (netIds.has(netId)) continue;
-        netIds.add(netId);
-        expanded = true;
-      }
+  const instances = structuredClone(document.instances);
+  const nets = structuredClone(document.nets);
+  const copiedInstancesById = new Map(
+    instances.map((instance) => [instance.id, instance]),
+  );
+  const copiedNetsById = new Map(nets.map((net) => [net.id, net]));
+  // A Cell default is context, not portable ownership. Close the composition
+  // snapshot by materializing any still-derived source default; proposePaste
+  // will then convert every policy binding to an instance-owned override.
+  for (const sourceInstance of document.instances) {
+    const resolution = resolveMosBulkConnection(document, sourceInstance);
+    if (
+      resolution?.status !== "cell-default" ||
+      resolution.materialized ||
+      !resolution.net
+    ) {
+      continue;
+    }
+    const copiedInstance = copiedInstancesById.get(sourceInstance.id);
+    const copiedNet = copiedNetsById.get(resolution.net.id);
+    if (!copiedInstance || !copiedNet) continue;
+    copiedInstance.mosBulkBinding = {
+      origin: "cell-default",
+      netId: copiedNet.id,
+    };
+    if (
+      !copiedNet.terminals.some(
+        (terminal) =>
+          terminal.instanceId === copiedInstance.id && terminal.pinName === "B",
+      )
+    ) {
+      copiedNet.terminals.push({
+        instanceId: copiedInstance.id,
+        pinName: "B",
+      });
     }
   }
   return structuredClone({
-    instances: document.instances,
+    intent: "compose-document",
+    sourceDocumentId: document.id,
+    sourceGrid: document.presentation.grid,
+    instances,
     cellTerminals: document.netlist?.terminals ?? [],
-    nets: document.nets.filter((net) => netIds.has(net.id)),
+    formalParameters: document.netlist?.formalParameters ?? [],
+    nets,
     routes: document.routes,
     junctions: document.junctions,
     annotations: document.annotations,
     noConnects: document.noConnects,
-    connectivityEvidence: document.connectivityEvidence.filter((evidence) =>
-      evidence.kind === "explicit-equivalence"
-        ? evidence.memberNetIds.every((netId) => netIds.has(netId))
-        : netIds.has(evidence.netId),
-    ),
+    connectivityEvidence: document.connectivityEvidence,
     draftingObjects,
-    draftingGroups: document.layoutGroups.filter(
-      (group) =>
-        group.objectIds.length > 0 &&
-        group.objectIds.every((objectId) => draftingIds.has(objectId)),
-    ),
+    layoutGroups: document.layoutGroups,
+    constraints: document.constraints,
   });
 }
 
@@ -677,11 +706,6 @@ export function copySelection(
   const selectedDrafting = new Set(draftingIds);
   const draftingObjects = (document.drafting?.objects ?? []).filter((object) =>
     selectedDrafting.has(object.id),
-  );
-  const draftingGroups = document.layoutGroups.filter(
-    (group) =>
-      group.objectIds.length > 0 &&
-      group.objectIds.every((objectId) => selectedDrafting.has(objectId)),
   );
   // A drawing-only selection is a complete copy: notes and callouts are
   // worth duplicating on their own, and requiring a part alongside them made
@@ -733,7 +757,26 @@ export function copySelection(
         routeIds.has(annotation.anchor.routeId)),
   );
   const annotationIds = new Set(annotations.map((annotation) => annotation.id));
+  const copiedLayoutObjectIds = new Set<string>([
+    ...selectedIds,
+    ...netIds,
+    ...routeIds,
+    ...junctionIds,
+    ...annotationIds,
+    ...selectedDrafting,
+  ]);
+  const layoutGroups = document.layoutGroups.filter((group) =>
+    group.objectIds.every((objectId) => copiedLayoutObjectIds.has(objectId)),
+  );
+  const constraints = document.constraints.filter((constraint) =>
+    constraint.objectIds.every((objectId) =>
+      copiedLayoutObjectIds.has(objectId),
+    ),
+  );
   return structuredClone({
+    intent: "clone-selection",
+    sourceDocumentId: document.id,
+    sourceGrid: document.presentation.grid,
     instances,
     cellTerminals:
       document.netlist?.terminals.flatMap((terminal) => {
@@ -744,6 +787,7 @@ export function copySelection(
           ? [{ ...terminal, interfaceInstanceIds }]
           : [];
       }) ?? [],
+    formalParameters: [],
     nets: document.nets
       .filter((net) => netIds.has(net.id))
       .map((net) => ({
@@ -767,13 +811,10 @@ export function copySelection(
         selectedIds.has(noConnect.endpoint.instanceId),
     ),
     connectivityEvidence: document.connectivityEvidence.filter((evidence) => {
-      if (evidence.kind === "explicit-equivalence") {
-        return evidence.memberNetIds.every((netId) => netIds.has(netId));
-      }
       if (!netIds.has(evidence.netId)) return false;
       if (evidence.kind !== "name-claim") return true;
       switch (evidence.owner.kind) {
-        case "explicit-net-property":
+        case "global-declaration":
           return true;
         case "net-label":
           return annotationIds.has(evidence.owner.annotationId);
@@ -785,7 +826,8 @@ export function copySelection(
       }
     }),
     draftingObjects,
-    draftingGroups,
+    layoutGroups,
+    constraints,
   });
 }
 
@@ -815,8 +857,10 @@ function pastedInstanceId(
   nextReference: string | undefined,
   sequence: number,
   occupied: Set<string>,
+  forceRemap = false,
 ): string {
   if (
+    !forceRemap &&
     nextReference !== undefined &&
     source.id === source.netlist?.reference &&
     !occupied.has(nextReference)
@@ -836,9 +880,14 @@ function pastedSchematicReference(
   nextNetlistReference: string | undefined,
   sequence: number,
   reserved: Set<string>,
+  preserveIfAvailable = false,
 ): string | undefined {
   const current = source.schematicReference;
   if (!current) return undefined;
+  if (preserveIfAvailable && !reserved.has(current.toLowerCase())) {
+    reserved.add(current.toLowerCase());
+    return current;
+  }
   // Only a freshly allocated netlist reference may be adopted verbatim.
   // Falling back to the pasted object id was wrong for a device with no
   // netlist block — an ideal switch, say — because that id is a copy id, so
@@ -1009,6 +1058,14 @@ export function proposePaste(
       ...(document.drafting?.objects ?? []),
     ].map((object) => object.id),
   );
+  const compositionOccurrenceId =
+    clipboard.intent === "compose-document"
+      ? uniqueCopyId(
+          `composition-${clipboard.sourceDocumentId}`,
+          sequence,
+          occupied,
+        )
+      : undefined;
   const referenceIndex = createReferenceIndex(document);
   const reservedReferences = new Set<string>();
   const occupiedReferences = new Set(
@@ -1043,6 +1100,14 @@ export function proposePaste(
   const instanceReferences = new Map(
     clipboard.instances.flatMap((instance) => {
       if (!instance.netlist) return [];
+      if (
+        clipboard.intent === "compose-document" &&
+        !occupiedReferences.has(instance.netlist.reference.toLowerCase()) &&
+        !reservedReferences.has(instance.netlist.reference.toLowerCase())
+      ) {
+        reservedReferences.add(instance.netlist.reference.toLowerCase());
+        return [[instance.id, instance.netlist.reference] as const];
+      }
       const policy = referencePolicyForInstance(instance);
       if (policy.kind === "none") {
         const reference = nextMarkerReference(instance.netlist.reference);
@@ -1071,6 +1136,7 @@ export function proposePaste(
         instanceReferences.get(instance.id),
         sequence,
         occupied,
+        clipboard.intent === "compose-document",
       ),
     ]),
   );
@@ -1091,6 +1157,7 @@ export function proposePaste(
         instanceReferences.get(instance.id),
         sequence,
         reservedSchematicReferences,
+        clipboard.intent === "compose-document",
       );
       return reference ? [[instance.id, reference] as const] : [];
     }),
@@ -1126,6 +1193,18 @@ export function proposePaste(
       uniqueCopyId(evidence.id, sequence, occupied),
     ]),
   );
+  const layoutGroupIds = new Map(
+    clipboard.layoutGroups.map((group) => [
+      group.id,
+      uniqueCopyId(group.id, sequence, occupied),
+    ]),
+  );
+  const constraintIds = new Map(
+    clipboard.constraints.map((constraint) => [
+      constraint.id,
+      uniqueCopyId(constraint.id, sequence, occupied),
+    ]),
+  );
   const errors: string[] = [];
   const terminalIds = new Map(
     clipboard.cellTerminals.map((terminal) => [
@@ -1147,20 +1226,63 @@ export function proposePaste(
       );
     }
   }
-  const objectIds = new Map<string, string>([
-    ...instanceIds,
-    ...netIds,
-    ...routeIds,
-    ...junctionIds,
-  ]);
   const draftingIds = new Map(
     clipboard.draftingObjects.map((object) => [
       object.id,
       uniqueCopyId(object.id, sequence, occupied),
     ]),
   );
-  const edits: SchematicEdit[] = clipboard.instances.map(
-    (instance): SchematicEdit => ({
+  const objectIds = new Map<string, string>([
+    ...instanceIds,
+    ...netIds,
+    ...routeIds,
+    ...junctionIds,
+    ...annotationIds,
+    ...draftingIds,
+  ]);
+  const interfaceEdits: SchematicEdit[] = [];
+  const sourceNeedsCellInterface =
+    clipboard.cellTerminals.length > 0 || clipboard.formalParameters.length > 0;
+  if (sourceNeedsCellInterface && !document.netlist) {
+    if (clipboard.intent === "compose-document") {
+      interfaceEdits.push({
+        kind: "create_cell_interface",
+        name: document.name,
+      });
+    } else {
+      errors.push("Target Document has no formal Cell interface");
+    }
+  }
+  if (
+    clipboard.intent === "compose-document" &&
+    clipboard.formalParameters.length > 0
+  ) {
+    const merged = structuredClone(document.netlist?.formalParameters ?? []);
+    const byName = new Map(
+      merged.map((parameter) => [parameter.name.toLowerCase(), parameter]),
+    );
+    for (const parameter of clipboard.formalParameters) {
+      const existing = byName.get(parameter.name.toLowerCase());
+      if (existing) {
+        if (existing.defaultValue !== parameter.defaultValue) {
+          errors.push(
+            `Cell formal parameter conflict: ${parameter.name} has incompatible defaults`,
+          );
+        }
+        continue;
+      }
+      const copy = structuredClone(parameter);
+      merged.push(copy);
+      byName.set(copy.name.toLowerCase(), copy);
+    }
+    interfaceEdits.push({
+      kind: "set_cell_formal_parameters",
+      formalParameters: merged,
+    });
+  }
+  const edits: SchematicEdit[] = [
+    ...interfaceEdits,
+    ...clipboard.instances.map((instance): SchematicEdit => ({
       kind: "add_instance",
       instance: {
         ...structuredClone(instance),
@@ -1182,6 +1304,9 @@ export function proposePaste(
           ? {
               mosBulkBinding: {
                 ...instance.mosBulkBinding,
+                ...(clipboard.intent === "compose-document"
+                  ? { origin: "instance-override" as const }
+                  : {}),
                 netId:
                   netIds.get(instance.mosBulkBinding.netId) ??
                   instance.mosBulkBinding.netId,
@@ -1195,7 +1320,13 @@ export function proposePaste(
             }
           : null,
       },
-    }),
+    })),
+  ];
+  edits.push(
+    ...[...new Set(netIds.values())].map((netId): SchematicEdit => ({
+      kind: "create_base_net",
+      netId,
+    })),
   );
 
   for (const terminal of clipboard.cellTerminals) {
@@ -1293,23 +1424,14 @@ export function proposePaste(
       };
     }),
   );
-  const availableNetIds = new Set([
-    ...document.nets.map((net) => net.id),
-    ...clipboard.nets
-      .filter((net) => net.terminals.length > 0)
-      .map((net) => netIds.get(net.id)!),
-  ]);
   edits.push(
     ...clipboard.junctions.map((junction): SchematicEdit => {
       const netId = netIds.get(junction.netId)!;
-      const createNet = !availableNetIds.has(netId);
-      availableNetIds.add(netId);
       return {
         kind: "add_junction",
         junctionId: junctionIds.get(junction.id)!,
         netId,
         position: movePoint(junction.position, offset),
-        ...(createNet ? { createNet: true } : {}),
       };
     }),
   );
@@ -1320,28 +1442,22 @@ export function proposePaste(
     ...clipboard.connectivityEvidence.map((evidence): SchematicEdit => {
       const clone = structuredClone(evidence);
       clone.id = evidenceIds.get(evidence.id)!;
-      if (clone.kind === "explicit-equivalence") {
-        clone.memberNetIds = clone.memberNetIds.map(
-          (netId) => netIds.get(netId) ?? netId,
-        );
-      } else {
-        clone.netId = netIds.get(clone.netId) ?? clone.netId;
-        if (clone.kind === "name-claim") {
-          switch (clone.owner.kind) {
-            case "net-label":
-              clone.owner.annotationId =
-                annotationIds.get(clone.owner.annotationId) ??
-                clone.owner.annotationId;
-              break;
-            case "power-marker":
-              clone.owner.objectId =
-                objectIds.get(clone.owner.objectId) ??
-                annotationIds.get(clone.owner.objectId) ??
-                clone.owner.objectId;
-              break;
-            case "explicit-net-property":
-              break;
-          }
+      clone.netId = netIds.get(clone.netId) ?? clone.netId;
+      if (clone.kind === "name-claim") {
+        switch (clone.owner.kind) {
+          case "net-label":
+            clone.owner.annotationId =
+              annotationIds.get(clone.owner.annotationId) ??
+              clone.owner.annotationId;
+            break;
+          case "power-marker":
+            clone.owner.objectId =
+              objectIds.get(clone.owner.objectId) ??
+              annotationIds.get(clone.owner.objectId) ??
+              clone.owner.objectId;
+            break;
+          case "global-declaration":
+            break;
         }
       }
       return { kind: "upsert_connectivity_evidence", evidence: clone };
@@ -1481,32 +1597,12 @@ export function proposePaste(
     junctions: Object.fromEntries(junctionIds),
     annotations: Object.fromEntries(annotationIds),
     evidence: Object.fromEntries(evidenceIds),
+    noConnects: Object.fromEntries(noConnectIds),
+    draftingObjects: Object.fromEntries(draftingIds),
+    layoutGroups: Object.fromEntries(layoutGroupIds),
+    constraints: Object.fromEntries(constraintIds),
+    cellTerminals: Object.fromEntries(terminalIds),
   };
-  const operationPlan = createRoutingOperationPlan(document, {
-    intent: "clone",
-    affected: {
-      instances: clipboard.instances.map((item) => item.id),
-      internalRoutes: clipboard.routes.map((item) => item.id),
-      boundaryRoutes: [],
-      externalRoutes: [],
-      internalJunctions: clipboard.junctions.map((item) => item.id),
-      boundaryJunctions: [],
-      electricalAnnotationIds: clipboard.annotations.map((item) => item.id),
-      protectedObjectIds: [],
-    },
-    expectedElectricalEffect: {
-      kind: "clone",
-      mapping: idRemap.instances,
-      boundaryPolicy: "disconnect",
-    },
-    idRemap,
-    edits,
-    diagnostics: errors.map((message) => ({
-      code: "ROUTING_CLONE_SOURCE_UNAVAILABLE",
-      severity: "error" as const,
-      message,
-    })),
-  });
   // Drafting objects carry no connectivity, so a copy is the object itself
   // under a fresh id, shifted by the same placement offset as everything else.
   const pastedAnchorObjectIds = new Map([...objectIds, ...draftingIds]);
@@ -1516,7 +1612,7 @@ export function proposePaste(
     const translated = translateDraftingObject(
       object,
       offset,
-      document.presentation.grid,
+      clipboard.intent === "compose-document" ? 1 : document.presentation.grid,
     );
     edits.push({
       kind: "upsert_drafting_object",
@@ -1532,27 +1628,106 @@ export function proposePaste(
       },
     });
   }
-  for (const group of clipboard.draftingGroups) {
-    const objectIds = group.objectIds.flatMap((objectId) => {
-      const mapped = draftingIds.get(objectId);
-      return mapped ? [mapped] : [];
+  for (const group of clipboard.layoutGroups) {
+    const mappedObjectIds = group.objectIds.flatMap((objectId) => {
+      const mapped = objectIds.get(objectId);
+      if (!mapped) {
+        errors.push(
+          `Layout group ${group.id} references unavailable object ${objectId}`,
+        );
+        return [];
+      }
+      return [mapped];
     });
-    if (objectIds.length === 0) continue;
+    if (mappedObjectIds.length !== group.objectIds.length) continue;
     edits.push({
       kind: "set_layout_group",
       group: {
         ...structuredClone(group),
-        id: uniqueCopyId(group.id, sequence, occupied),
-        objectIds,
+        id: layoutGroupIds.get(group.id)!,
+        objectIds: mappedObjectIds,
       },
     });
   }
+  for (const constraint of clipboard.constraints) {
+    const mappedObjectIds = constraint.objectIds.flatMap((objectId) => {
+      const mapped = objectIds.get(objectId);
+      if (!mapped) {
+        errors.push(
+          `Layout constraint ${constraint.id} references unavailable object ${objectId}`,
+        );
+        return [];
+      }
+      return [mapped];
+    });
+    if (mappedObjectIds.length !== constraint.objectIds.length) continue;
+    edits.push({
+      kind: "set_layout_constraint",
+      constraint: {
+        ...structuredClone(constraint),
+        id: constraintIds.get(constraint.id)!,
+        objectIds: mappedObjectIds,
+      },
+    });
+  }
+  if (clipboard.intent === "compose-document") {
+    const gridErrors = edits.flatMap((edit) =>
+      gridAlignmentDiagnostics(edit, document.presentation.grid),
+    );
+    if (gridErrors.length > 0) {
+      errors.push(
+        `Source geometry is incompatible with target grid ${document.presentation.grid}; composition does not rescale or snap electrical geometry`,
+      );
+    }
+  }
+  const operationPlan = createRoutingOperationPlan(document, {
+    intent: clipboard.intent === "compose-document" ? "compose" : "clone",
+    affected: {
+      instances: clipboard.instances.map((item) => item.id),
+      internalRoutes: clipboard.routes.map((item) => item.id),
+      boundaryRoutes: [],
+      externalRoutes: [],
+      internalJunctions: clipboard.junctions.map((item) => item.id),
+      boundaryJunctions: [],
+      electricalAnnotationIds: clipboard.annotations.map((item) => item.id),
+      protectedObjectIds: [],
+    },
+    expectedElectricalEffect:
+      clipboard.intent === "compose-document"
+        ? {
+            kind: "compose",
+            mapping: idRemap.instances,
+            boundaryPolicy: "preserve-target-physical",
+          }
+        : {
+            kind: "clone",
+            mapping: idRemap.instances,
+            boundaryPolicy: "disconnect",
+          },
+    idRemap,
+    edits,
+    diagnostics: errors.map((message) => ({
+      code: "ROUTING_CLONE_SOURCE_UNAVAILABLE",
+      severity: "error" as const,
+      message,
+    })),
+  });
 
   return {
     edits,
     instanceIds: [...instanceIds.values()],
     errors,
     idRemap,
+    ...(compositionOccurrenceId
+      ? {
+          compositionOccurrence: {
+            id: compositionOccurrenceId,
+            sourceDocumentId: clipboard.sourceDocumentId,
+            targetDocumentId: document.id,
+            objectIdRemap: idRemap,
+          },
+        }
+      : {}),
     operationPlan,
   };
 }

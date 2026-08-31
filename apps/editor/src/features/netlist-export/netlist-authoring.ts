@@ -109,6 +109,26 @@ function defaultBinding(symbolId: string): InstanceNetlistBinding | undefined {
   return undefined;
 }
 
+/**
+ * Designators already visible on the canvas: every instance id and schematic
+ * reference, case-folded. The reference index consults only the
+ * netlist.reference domain, but a freshly allocated reference is promoted to
+ * the placed instance's schematicReference — which the Document schema
+ * requires to be unique across instances. A rename can part the two domains
+ * (schematicReference moves, netlist.reference stays), so allocation must
+ * avoid the visible domains too, exactly as nextInstanceDesignator does.
+ */
+function reservedVisibleReferences(document: SchematicDocument): Set<string> {
+  const reserved = new Set<string>();
+  for (const instance of document.instances) {
+    reserved.add(instance.id.toLowerCase());
+    if (instance.schematicReference) {
+      reserved.add(instance.schematicReference.toLowerCase());
+    }
+  }
+  return reserved;
+}
+
 export function initialInstanceNetlist(
   document: SchematicDocument,
   symbolId: string,
@@ -120,7 +140,10 @@ export function initialInstanceNetlist(
   const binding = defaultBinding(symbolId);
   return {
     reference:
-      reference ?? nextReference(createReferenceIndex(document), policy)!,
+      reference ??
+      nextReference(createReferenceIndex(document), policy, {
+        reservedReferences: reservedVisibleReferences(document),
+      })!,
     ...(binding ? { binding } : {}),
     parameters: rawParameters(parameterValues),
   };

@@ -29,6 +29,7 @@ describe("SymbolArtwork pin-name previews", () => {
   const formulaSymbol = [
     "adder",
     "multiplier",
+    "transconductance",
     "integrator",
     "unit-delay",
     "discrete-time-integrator",
@@ -43,6 +44,30 @@ describe("SymbolArtwork pin-name previews", () => {
     );
 
     expectDffPinNames(markup);
+  });
+
+  it("renders the transconductance trapezoid and subscript formula in Library and placement previews", () => {
+    const symbol = requireRazaviCatalogSymbol("transconductance");
+    const artwork = renderToStaticMarkup(
+      <SymbolArtwork symbol={symbol} className="test-artwork" />,
+    );
+    const placement = renderToStaticMarkup(
+      <svg>
+        <ComponentPlacementPreview
+          styleProfileId="razavi-textbook-v1"
+          symbolId={symbol.id}
+          symbol={symbol}
+          position={{ x: 100, y: 80 }}
+          rotation={0}
+        />
+      </svg>,
+    );
+
+    for (const markup of [artwork, placement]) {
+      expect(markup).toContain('data-role="signal-flow-frame"');
+      expect(markup).toContain('data-role="formula-subscript"');
+      expect(markup).toContain('points="-20,-35 20,-17.5 20,17.5 -20,35"');
+    }
   });
 
   it("renders a definition-owned default formula in Library and placement previews", () => {

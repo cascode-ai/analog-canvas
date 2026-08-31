@@ -33,7 +33,7 @@ describe("capacitor plate Properties projection", () => {
       kind: "name-claim",
       netId: "net-out",
       name: "OUT",
-      owner: { kind: "explicit-net-property" },
+      owner: { kind: "net-label", annotationId: "test-net-label-1" },
       scope: "local",
     });
 

@@ -36,41 +36,25 @@ function retargetConnectivityEvidence(
   targetNetId: string,
   changedObjectIds: Set<string>,
 ): void {
-  const retainedEvidence: typeof draft.connectivityEvidence = [];
   for (const evidence of draft.connectivityEvidence) {
-    if (evidence.kind === "explicit-equivalence") {
-      const memberNetIds = [
-        ...new Set(
-          evidence.memberNetIds.map((netId) =>
-            netId === sourceNetId ? targetNetId : netId,
-          ),
-        ),
-      ];
-      if (memberNetIds.length < 2) {
-        changedObjectIds.add(evidence.id);
-        continue;
-      }
-      if (
-        memberNetIds.length !== evidence.memberNetIds.length ||
-        memberNetIds.some(
-          (netId, index) => netId !== evidence.memberNetIds[index],
-        )
-      ) {
-        evidence.memberNetIds = memberNetIds;
-        changedObjectIds.add(evidence.id);
-      }
-    } else if (evidence.netId === sourceNetId) {
+    if (evidence.netId === sourceNetId) {
       evidence.netId = targetNetId;
       changedObjectIds.add(evidence.id);
     }
-    retainedEvidence.push(evidence);
   }
-  const seenSpiceSources = new Set<string>();
-  draft.connectivityEvidence = retainedEvidence.filter((evidence) => {
-    if (evidence.kind !== "spice-source") return true;
-    const key = `${evidence.netId}\u0000${evidence.sourceNetId}`;
-    if (!seenSpiceSources.has(key)) {
-      seenSpiceSources.add(key);
+  const seenEvidence = new Set<string>();
+  draft.connectivityEvidence = draft.connectivityEvidence.filter((evidence) => {
+    const key =
+      evidence.kind === "spice-source"
+        ? `spice-source\u0000${evidence.netId}\u0000${evidence.sourceNetId}`
+        : evidence.kind === "net-name-hint"
+          ? `net-name-hint\u0000${evidence.netId}\u0000${evidence.origin}\u0000${foldNetName(evidence.sourceName)}`
+          : evidence.kind === "name-claim" &&
+              evidence.owner.kind === "global-declaration"
+            ? `global-declaration\u0000${evidence.netId}\u0000${evidence.owner.sourceNetId}\u0000${foldNetName(evidence.name)}`
+            : null;
+    if (!key || !seenEvidence.has(key)) {
+      if (key) seenEvidence.add(key);
       return true;
     }
     changedObjectIds.add(evidence.id);
@@ -364,9 +348,7 @@ export function physicalContactLicenseForTransaction(
 export function connectivityEvidenceNetIds(
   evidence: SchematicDocument["connectivityEvidence"][number],
 ): readonly string[] {
-  return evidence.kind === "explicit-equivalence"
-    ? evidence.memberNetIds
-    : [evidence.netId];
+  return [evidence.netId];
 }
 
 function connectivityEvidenceOwnerId(
@@ -378,7 +360,7 @@ function connectivityEvidenceOwnerId(
       return evidence.owner.annotationId;
     case "power-marker":
       return evidence.owner.objectId;
-    case "explicit-net-property":
+    case "global-declaration":
       return null;
   }
 }
@@ -389,41 +371,9 @@ export function removeConnectivityEvidenceOwnedBy(
   changedObjectIds: Set<string>,
 ): readonly string[] {
   const affectedNetIds = new Set<string>();
-  const sourceBackedNetIds = new Set(
-    draft.connectivityEvidence.flatMap((evidence) =>
-      evidence.kind === "spice-source" ? [evidence.netId] : [],
-    ),
-  );
-  const removedOwnedClaims = draft.connectivityEvidence.filter((evidence) => {
-    const ownerId = connectivityEvidenceOwnerId(evidence);
-    return Boolean(ownerId && objectIds.has(ownerId));
-  });
-  const shadowedProjectionIds = new Set(
-    draft.connectivityEvidence.flatMap((evidence) => {
-      if (
-        evidence.kind !== "name-claim" ||
-        evidence.owner.kind !== "explicit-net-property" ||
-        sourceBackedNetIds.has(evidence.netId)
-      ) {
-        return [];
-      }
-      const shadowed = removedOwnedClaims.some(
-        (candidate) =>
-          candidate.kind === "name-claim" &&
-          candidate.netId === evidence.netId &&
-          foldNetName(candidate.name) === foldNetName(evidence.name) &&
-          candidate.scope === evidence.scope &&
-          candidate.powerDomain === evidence.powerDomain,
-      );
-      return shadowed ? [evidence.id] : [];
-    }),
-  );
   draft.connectivityEvidence = draft.connectivityEvidence.filter((evidence) => {
     const ownerId = connectivityEvidenceOwnerId(evidence);
-    if (
-      (!ownerId || !objectIds.has(ownerId)) &&
-      !shadowedProjectionIds.has(evidence.id)
-    ) {
+    if (!ownerId || !objectIds.has(ownerId)) {
       return true;
     }
     changedObjectIds.add(evidence.id);
@@ -544,6 +494,72 @@ export function propagateSpiceSourceEvidenceAfterSplit(
       changedObjectIds.add(id);
     }
   }
+  const nameHints = draft.connectivityEvidence.filter(
+    (
+      evidence,
+    ): evidence is Extract<
+      SchematicDocument["connectivityEvidence"][number],
+      { kind: "net-name-hint" }
+    > => evidence.kind === "net-name-hint" && evidence.netId === originalNetId,
+  );
+  for (const hint of nameHints) {
+    for (const netId of splitNetIds) {
+      if (
+        draft.connectivityEvidence.some(
+          (evidence) =>
+            evidence.kind === "net-name-hint" &&
+            evidence.netId === netId &&
+            evidence.origin === hint.origin &&
+            foldNetName(evidence.sourceName) === foldNetName(hint.sourceName),
+        )
+      ) {
+        continue;
+      }
+      const id = deriveStableId(
+        "connectivity-evidence",
+        "net-name-hint",
+        hint.id,
+        netId,
+      );
+      draft.connectivityEvidence.push({ ...hint, id, netId });
+      changedObjectIds.add(id);
+    }
+  }
+  const globalClaims = draft.connectivityEvidence.filter(
+    (
+      evidence,
+    ): evidence is Extract<
+      SchematicDocument["connectivityEvidence"][number],
+      { kind: "name-claim" }
+    > & { owner: { kind: "global-declaration"; sourceNetId: string } } =>
+      evidence.kind === "name-claim" &&
+      evidence.owner.kind === "global-declaration" &&
+      evidence.netId === originalNetId,
+  );
+  for (const claim of globalClaims) {
+    for (const netId of splitNetIds) {
+      if (
+        draft.connectivityEvidence.some(
+          (evidence) =>
+            evidence.kind === "name-claim" &&
+            evidence.netId === netId &&
+            evidence.owner.kind === "global-declaration" &&
+            evidence.owner.sourceNetId === claim.owner.sourceNetId &&
+            foldNetName(evidence.name) === foldNetName(claim.name),
+        )
+      ) {
+        continue;
+      }
+      const id = deriveStableId(
+        "connectivity-evidence",
+        "global-declaration",
+        claim.id,
+        netId,
+      );
+      draft.connectivityEvidence.push({ ...claim, id, netId });
+      changedObjectIds.add(id);
+    }
+  }
 }
 
 /**
@@ -566,9 +582,8 @@ export function ensureDraftingLayer(draft: SchematicDocument): void {
  * Evidence describes a live Base Net; it cannot make an otherwise unreachable
  * Base Net live by referring back to it. Visible labels/markers are already
  * counted through their Annotation, Instance, Route, or Junction owners.
- * Imported source/name evidence and explicit equivalence are retired or
- * trimmed with the Base Net, while the Document source binding remains the
- * durable provenance record.
+ * Imported source/name evidence is retired with the Base Net, while the
+ * Document source binding remains the durable provenance record.
  */
 export function pruneUnreachableLocalNet(
   draft: SchematicDocument,
@@ -613,30 +628,11 @@ export function pruneUnreachableLocalNet(
   ) {
     return;
   }
-  const retainedEvidence: typeof draft.connectivityEvidence = [];
-  for (const evidence of draft.connectivityEvidence) {
-    if (evidence.kind === "explicit-equivalence") {
-      if (!evidence.memberNetIds.includes(netId)) {
-        retainedEvidence.push(evidence);
-        continue;
-      }
-      const memberNetIds = evidence.memberNetIds.filter(
-        (memberNetId) => memberNetId !== netId,
-      );
-      changedObjectIds.add(evidence.id);
-      if (memberNetIds.length >= 2) {
-        evidence.memberNetIds = memberNetIds;
-        retainedEvidence.push(evidence);
-      }
-      continue;
-    }
-    if (evidence.netId === netId) {
-      changedObjectIds.add(evidence.id);
-      continue;
-    }
-    retainedEvidence.push(evidence);
-  }
-  draft.connectivityEvidence = retainedEvidence;
+  draft.connectivityEvidence = draft.connectivityEvidence.filter((evidence) => {
+    if (evidence.netId !== netId) return true;
+    changedObjectIds.add(evidence.id);
+    return false;
+  });
   let clearedBulkDefault = false;
   if (draft.mosBulkDefaults?.nmosNetId === netId) {
     delete draft.mosBulkDefaults.nmosNetId;

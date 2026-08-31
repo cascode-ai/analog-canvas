@@ -12,7 +12,7 @@ import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 import { expect, test } from "vitest";
 
 import { proposeVisualSelectionDeletion } from "../selection/delete-selection";
-import { copyWholeDocument, proposePaste } from "./clipboard";
+import { captureDocumentComposition, proposePaste } from "./clipboard";
 
 interface PlacedScene {
   instanceIds: string[];
@@ -45,7 +45,7 @@ function placeScene(
   sequence: number,
 ): { project: CircuitProject; scene: PlacedScene } {
   const document = project.documents[0]!;
-  const clipboard = copyWholeDocument(source)!;
+  const clipboard = captureDocumentComposition(source)!;
   const proposal = proposePaste(
     document,
     clipboard,

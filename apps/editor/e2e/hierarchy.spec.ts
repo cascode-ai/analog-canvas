@@ -73,8 +73,12 @@ test("shows the hierarchy row only once there is a hierarchy", async ({
   // A flat Project has nothing to navigate, so the row stays out of the way
   // and the first Cell is created from Edit.
   const toolbar = page.locator('.toolbar-row[aria-label="Document hierarchy"]');
+  // A negative count can succeed before the code-split editor route mounts.
+  // Use the always-present Edit command as the positive startup anchor first.
+  await expect(page.getByTestId("edit-manage-cells")).toHaveCount(1, {
+    timeout: 15_000,
+  });
   await expect(toolbar).toHaveCount(0);
-  await expect(page.getByTestId("edit-manage-cells")).toHaveCount(1);
 
   await createCell(page, "FirstStage");
   await expect(toolbar).toHaveCount(1);
@@ -582,7 +586,9 @@ test("allows distinct Cell Pins to expose one internal contact", async ({
 
   await page.getByTestId("shapes-chip-port").click();
   await canvas.click({ position: { x: 240, y: 200 } });
-  await expect(page.getByTestId("status")).toContainText("Added Cell Pin Vin2");
+  // The existing Port is the visible current Net name, so a second Cell Pin
+  // placed on the same contact adopts it while retaining independent identity.
+  await expect(page.getByTestId("status")).toContainText("Added Cell Pin Vin");
   await page.keyboard.press("Escape");
 
   await expect(page.getByTestId("hit-P1")).toBeVisible();

@@ -123,7 +123,7 @@ export const InstanceImportProvenanceSchema = z.strictObject({
   terminalMapping: z.array(InstanceTerminalMappingSchema).max(128).optional(),
 });
 export const MosBulkBindingSchema = z.strictObject({
-  origin: z.enum(["cell-default", "supply-default"]),
+  origin: z.enum(["cell-default", "instance-override", "supply-default"]),
   netId: StableIdSchema,
 });
 export const InstanceSchema = z
@@ -134,6 +134,8 @@ export const InstanceSchema = z
     sourceRef: SourceSpanSchema.optional(),
     importProvenance: InstanceImportProvenanceSchema.optional(),
     // Present only for an editor-materialized implicit body connection.
+    // Cross-Document composition converts a source Cell policy into an
+    // instance-override so the copied body does not inherit target defaults.
     // Explicit SPICE/user B connections need no parallel metadata.
     mosBulkBinding: MosBulkBindingSchema.optional(),
     placement: PlacementSchema.nullable(),

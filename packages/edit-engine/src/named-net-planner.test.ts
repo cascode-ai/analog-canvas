@@ -3,7 +3,10 @@ import { describe, expect, it } from "vitest";
 
 import { planEnsureNamedNet } from "./named-net-planner.js";
 
-const owner = { kind: "explicit-net-property" as const };
+const owner = {
+  kind: "net-label" as const,
+  annotationId: "label-source",
+};
 
 describe("named Net planner", () => {
   it("writes an unused name only as an owner-addressed claim", () => {
@@ -84,7 +87,7 @@ describe("named Net planner", () => {
       name: "VDD",
       scope: "local",
       powerDomain: "vdd",
-      owner: { kind: "explicit-net-property" },
+      owner: { kind: "power-marker", objectId: "VDD" },
     });
     expect(
       planEnsureNamedNet(document, {
@@ -97,7 +100,7 @@ describe("named Net planner", () => {
     ).toMatchObject({ ok: false, relatedNetIds: ["net-vdd", "net-source"] });
   });
 
-  it("adopts an existing explicit or imported name without leaving a conflict", () => {
+  it("leaves an imported source spelling unchanged when a visible label is authored", () => {
     const document = createEmptyDocument("main", "Main");
     document.nets.push({
       id: "net-source",
@@ -105,12 +108,11 @@ describe("named Net planner", () => {
       terminals: [],
     });
     document.connectivityEvidence.push({
-      id: "claim-explicit",
-      kind: "name-claim",
+      id: "hint-imported",
+      kind: "net-name-hint",
       netId: "net-source",
-      name: "OLD",
-      owner,
-      scope: "local",
+      sourceName: "OLD",
+      origin: "spice-import",
     });
 
     expect(
@@ -123,10 +125,6 @@ describe("named Net planner", () => {
     ).toMatchObject({
       ok: true,
       edits: [
-        {
-          kind: "upsert_connectivity_evidence",
-          evidence: { id: "claim-explicit", name: "NEW" },
-        },
         {
           kind: "upsert_connectivity_evidence",
           evidence: { id: "claim-label", name: "NEW" },

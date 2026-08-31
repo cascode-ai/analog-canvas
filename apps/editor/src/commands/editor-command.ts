@@ -26,6 +26,7 @@ export type EditorCommandRequest =
   | { id: "drafting.add-text" }
   | { id: "properties.open" }
   | { id: "properties.close" }
+  | { id: "view.pan"; direction: "left" | "right" | "up" | "down" }
   | { id: "view.fit" };
 
 export interface EditorCommandState {
@@ -94,6 +95,7 @@ export interface EditorCommandOperations {
   addText(): void;
   openProperties(): void;
   closeProperties(): void;
+  panView(direction: "left" | "right" | "up" | "down"): void;
   fitView(): void;
   report(message: string): void;
 }
@@ -249,6 +251,7 @@ export function createEditorCommandRouter(
       case "tool.activate":
         return enabled(context.activeTool === request.tool);
       case "drafting.add-text":
+      case "view.pan":
       case "view.fit":
         return enabled();
       case "properties.open":
@@ -401,6 +404,9 @@ export function createEditorCommandRouter(
         break;
       case "view.fit":
         options.operations.fitView();
+        break;
+      case "view.pan":
+        options.operations.panView(request.direction);
         break;
     }
     return { status: "executed" };

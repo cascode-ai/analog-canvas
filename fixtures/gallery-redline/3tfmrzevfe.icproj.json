@@ -1,0 +1,3626 @@
+{
+  "documents": [
+    {
+      "annotations": [
+        {
+          "alignment": "middle",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 280,
+              "y": 210
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": -10,
+              "y": -20
+            },
+            "objectId": "R1"
+          },
+          "binding": {
+            "instanceId": "R1",
+            "kind": "instance-schematic-name"
+          },
+          "id": "instance-label-R1",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "start",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 260,
+              "y": 190
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": 20,
+              "y": 10
+            },
+            "objectId": "M3"
+          },
+          "binding": {
+            "instanceId": "M3",
+            "kind": "instance-schematic-name"
+          },
+          "id": "instance-label-M1-copy-1",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "start",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 260,
+              "y": 290
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": 20,
+              "y": 10
+            },
+            "objectId": "M4"
+          },
+          "binding": {
+            "instanceId": "M4",
+            "kind": "instance-schematic-name"
+          },
+          "id": "instance-label-M2-copy-1",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "start",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 355,
+              "y": 335
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": 5,
+              "y": 15
+            },
+            "objectId": "C1"
+          },
+          "binding": {
+            "instanceId": "C1",
+            "kind": "instance-schematic-name"
+          },
+          "id": "instance-label-C1",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "start",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 420,
+              "y": 335
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": 10,
+              "y": 15
+            },
+            "objectId": "C2"
+          },
+          "binding": {
+            "instanceId": "C2",
+            "kind": "instance-schematic-name"
+          },
+          "id": "instance-label-C2",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "start",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 475,
+              "y": 335
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": 5,
+              "y": 15
+            },
+            "objectId": "C3"
+          },
+          "binding": {
+            "instanceId": "C3",
+            "kind": "instance-schematic-name"
+          },
+          "id": "instance-label-C3",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "start",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 540,
+              "y": 335
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": 10,
+              "y": 15
+            },
+            "objectId": "C4"
+          },
+          "binding": {
+            "instanceId": "C4",
+            "kind": "instance-schematic-name"
+          },
+          "id": "instance-label-C4",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "start",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 600,
+              "y": 335
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": 10,
+              "y": 15
+            },
+            "objectId": "C5"
+          },
+          "binding": {
+            "instanceId": "C5",
+            "kind": "instance-schematic-name"
+          },
+          "id": "instance-label-C5",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "start",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 325,
+              "y": 285
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": -15,
+              "y": 25
+            },
+            "objectId": "M5"
+          },
+          "binding": {
+            "instanceId": "M5",
+            "kind": "instance-schematic-name"
+          },
+          "id": "instance-label-M5",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "start",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 385,
+              "y": 285
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": -15,
+              "y": 25
+            },
+            "objectId": "M6"
+          },
+          "binding": {
+            "instanceId": "M6",
+            "kind": "instance-schematic-name"
+          },
+          "id": "instance-label-M6",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "start",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 445,
+              "y": 285
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": -15,
+              "y": 25
+            },
+            "objectId": "M7"
+          },
+          "binding": {
+            "instanceId": "M7",
+            "kind": "instance-schematic-name"
+          },
+          "id": "instance-label-M7",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "start",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 500,
+              "y": 285
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": -20,
+              "y": 25
+            },
+            "objectId": "M8"
+          },
+          "binding": {
+            "instanceId": "M8",
+            "kind": "instance-schematic-name"
+          },
+          "id": "instance-label-M8",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "start",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 560,
+              "y": 285
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": -20,
+              "y": 25
+            },
+            "objectId": "M9"
+          },
+          "binding": {
+            "instanceId": "M9",
+            "kind": "instance-schematic-name"
+          },
+          "id": "instance-label-M9",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "start",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 260,
+              "y": 410
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": 20,
+              "y": 10
+            },
+            "objectId": "M10"
+          },
+          "binding": {
+            "instanceId": "M10",
+            "kind": "instance-schematic-name"
+          },
+          "id": "instance-label-M10",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "start",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 260,
+              "y": 500
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": 20,
+              "y": 10
+            },
+            "objectId": "M11"
+          },
+          "binding": {
+            "instanceId": "M11",
+            "kind": "instance-schematic-name"
+          },
+          "id": "instance-label-M11",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "start",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 370,
+              "y": 500
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": 20,
+              "y": 10
+            },
+            "objectId": "C6"
+          },
+          "binding": {
+            "instanceId": "C6",
+            "kind": "instance-schematic-name"
+          },
+          "id": "instance-label-C6",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "start",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 230,
+              "y": 115
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": -20,
+              "y": -5
+            },
+            "objectId": "VDD1"
+          },
+          "binding": {
+            "kind": "net-name",
+            "netId": "net-ui-26"
+          },
+          "id": "power-label-vdd1",
+          "kind": "power-label",
+          "locked": false,
+          "netId": "net-ui-26",
+          "rotation": 0
+        },
+        {
+          "alignment": "start",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 225,
+              "y": 355
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": -25,
+              "y": -5
+            },
+            "objectId": "VDD2"
+          },
+          "binding": {
+            "kind": "net-name",
+            "netId": "net-contact-vdd2"
+          },
+          "id": "power-label-vdd2",
+          "kind": "power-label",
+          "locked": false,
+          "netId": "net-contact-vdd2",
+          "rotation": 0
+        },
+        {
+          "alignment": "start",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 330,
+              "y": 375
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": -10,
+              "y": 15
+            },
+            "objectId": "VDD4"
+          },
+          "binding": {
+            "kind": "net-name",
+            "netId": "net-ui-22"
+          },
+          "formatOverride": {
+            "runs": [
+              {
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "kind": "text",
+                        "value": "V"
+                      },
+                      {
+                        "children": [
+                          {
+                            "kind": "text",
+                            "value": "SS"
+                          }
+                        ],
+                        "kind": "span",
+                        "style": "subscript"
+                      }
+                    ],
+                    "kind": "span",
+                    "style": "bold"
+                  }
+                ],
+                "kind": "span",
+                "style": "italic"
+              }
+            ]
+          },
+          "id": "power-label-vdd4",
+          "kind": "power-label",
+          "locked": false,
+          "netId": "net-ui-22",
+          "rotation": 0,
+          "sizeScale": 1
+        },
+        {
+          "alignment": "middle",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 290,
+              "y": 480
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": 0,
+              "y": 30
+            },
+            "objectId": "R2"
+          },
+          "binding": {
+            "instanceId": "R2",
+            "kind": "instance-schematic-name"
+          },
+          "id": "instance-label-R2",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "middle",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 680,
+              "y": 290
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": 0,
+              "y": 50
+            },
+            "objectId": "X1"
+          },
+          "binding": {
+            "instanceId": "X1",
+            "kind": "instance-schematic-name"
+          },
+          "id": "instance-label-X1",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
+        }
+      ],
+      "connectivityEvidence": [
+        {
+          "id": "connectivity-evidence-9cf7eacd6eb3b290",
+          "kind": "name-claim",
+          "name": "VDD",
+          "netId": "net-ui-26",
+          "owner": {
+            "kind": "power-marker",
+            "objectId": "VDD1"
+          },
+          "powerDomain": "vdd",
+          "scope": "global"
+        },
+        {
+          "id": "connectivity-evidence-15554944e5b75cf5",
+          "kind": "name-claim",
+          "name": "VDD",
+          "netId": "net-contact-vdd2",
+          "owner": {
+            "kind": "power-marker",
+            "objectId": "VDD2"
+          },
+          "powerDomain": "vdd",
+          "scope": "global"
+        },
+        {
+          "id": "connectivity-evidence-32c3e3397414c9b9",
+          "kind": "name-claim",
+          "name": "VDD",
+          "netId": "net-ui-41",
+          "owner": {
+            "kind": "power-marker",
+            "objectId": "VDD3"
+          },
+          "powerDomain": "vdd",
+          "scope": "global"
+        },
+        {
+          "id": "connectivity-evidence-67898ea4c8a72157",
+          "kind": "name-claim",
+          "name": "VSS",
+          "netId": "net-ui-22",
+          "owner": {
+            "kind": "power-marker",
+            "objectId": "VDD4"
+          },
+          "powerDomain": "vdd",
+          "scope": "global"
+        }
+      ],
+      "constraints": [],
+      "drafting": {
+        "objects": [
+          {
+            "alignment": "middle",
+            "anchor": {
+              "kind": "free",
+              "position": {
+                "x": 250,
+                "y": 545
+              }
+            },
+            "content": {
+              "runs": [
+                {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "kind": "text",
+                          "value": "V"
+                        },
+                        {
+                          "children": [
+                            {
+                              "kind": "text",
+                              "value": "SS"
+                            }
+                          ],
+                          "kind": "span",
+                          "style": "subscript"
+                        }
+                      ],
+                      "kind": "span",
+                      "style": "bold"
+                    }
+                  ],
+                  "kind": "span",
+                  "style": "italic"
+                }
+              ]
+            },
+            "id": "note-10",
+            "kind": "text",
+            "locked": false,
+            "rotation": 0,
+            "styleOverride": {
+              "sizeScale": 1
+            },
+            "typographyToken": "label",
+            "zIndex": 0
+          },
+          {
+            "alignment": "middle",
+            "anchor": {
+              "kind": "free",
+              "position": {
+                "x": 165,
+                "y": 450
+              }
+            },
+            "content": {
+              "runs": [
+                {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "kind": "text",
+                          "value": "IN_1"
+                        }
+                      ],
+                      "kind": "span",
+                      "style": "italic"
+                    }
+                  ],
+                  "kind": "span",
+                  "style": "bold"
+                }
+              ]
+            },
+            "id": "note-11",
+            "kind": "text",
+            "locked": false,
+            "rotation": 0,
+            "styleOverride": {
+              "sizeScale": 1
+            },
+            "typographyToken": "label",
+            "zIndex": 0
+          },
+          {
+            "anchor": {
+              "kind": "free",
+              "position": {
+                "x": 600,
+                "y": 140
+              }
+            },
+            "center": {
+              "x": 600,
+              "y": 140
+            },
+            "height": 80,
+            "id": "rectangle-26",
+            "kind": "rectangle",
+            "lineStyle": "solid",
+            "locked": false,
+            "rotation": 0,
+            "styleOverride": {
+              "lineStyle": "dashed"
+            },
+            "width": 140,
+            "zIndex": 0
+          },
+          {
+            "alignment": "middle",
+            "anchor": {
+              "kind": "free",
+              "position": {
+                "x": 165,
+                "y": 230
+              }
+            },
+            "content": {
+              "runs": [
+                {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "kind": "text",
+                          "value": "IN_1'"
+                        }
+                      ],
+                      "kind": "span",
+                      "style": "bold"
+                    }
+                  ],
+                  "kind": "span",
+                  "style": "italic"
+                }
+              ]
+            },
+            "id": "note-30",
+            "kind": "text",
+            "locked": false,
+            "rotation": 0,
+            "styleOverride": {
+              "sizeScale": 1
+            },
+            "typographyToken": "label",
+            "zIndex": 0
+          },
+          {
+            "alignment": "middle",
+            "anchor": {
+              "kind": "free",
+              "position": {
+                "x": 550,
+                "y": 140
+              }
+            },
+            "content": {
+              "runs": [
+                {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "kind": "text",
+                          "value": "IN_1"
+                        }
+                      ],
+                      "kind": "span",
+                      "style": "bold"
+                    }
+                  ],
+                  "kind": "span",
+                  "style": "italic"
+                }
+              ]
+            },
+            "id": "note-31",
+            "kind": "text",
+            "locked": false,
+            "rotation": 0,
+            "styleOverride": {
+              "sizeScale": 1
+            },
+            "typographyToken": "label",
+            "zIndex": 0
+          },
+          {
+            "alignment": "middle",
+            "anchor": {
+              "kind": "free",
+              "position": {
+                "x": 650,
+                "y": 140
+              }
+            },
+            "content": {
+              "runs": [
+                {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "kind": "text",
+                          "value": "IN_1'"
+                        }
+                      ],
+                      "kind": "span",
+                      "style": "bold"
+                    }
+                  ],
+                  "kind": "span",
+                  "style": "italic"
+                }
+              ]
+            },
+            "id": "note-32",
+            "kind": "text",
+            "locked": false,
+            "rotation": 0,
+            "styleOverride": {
+              "sizeScale": 1
+            },
+            "typographyToken": "label",
+            "zIndex": 0
+          },
+          {
+            "alignment": "middle",
+            "anchor": {
+              "kind": "free",
+              "position": {
+                "x": 680,
+                "y": 350
+              }
+            },
+            "content": {
+              "runs": [
+                {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "kind": "text",
+                          "value": "A1"
+                        }
+                      ],
+                      "kind": "span",
+                      "style": "bold"
+                    }
+                  ],
+                  "kind": "span",
+                  "style": "italic"
+                }
+              ]
+            },
+            "id": "note-33",
+            "kind": "text",
+            "locked": false,
+            "rotation": 0,
+            "styleOverride": {
+              "sizeScale": 1
+            },
+            "typographyToken": "label",
+            "zIndex": 0
+          },
+          {
+            "alignment": "middle",
+            "anchor": {
+              "kind": "free",
+              "position": {
+                "x": 625,
+                "y": 250
+              }
+            },
+            "content": {
+              "runs": [
+                {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "kind": "text",
+                          "value": "IN_1"
+                        }
+                      ],
+                      "kind": "span",
+                      "style": "bold"
+                    }
+                  ],
+                  "kind": "span",
+                  "style": "italic"
+                }
+              ]
+            },
+            "id": "note-34",
+            "kind": "text",
+            "locked": false,
+            "rotation": 0,
+            "styleOverride": {
+              "sizeScale": 1
+            },
+            "typographyToken": "label",
+            "zIndex": 0
+          },
+          {
+            "alignment": "middle",
+            "anchor": {
+              "kind": "free",
+              "position": {
+                "x": 620,
+                "y": 474
+              }
+            },
+            "content": {
+              "runs": [
+                {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "kind": "text",
+                          "value": "IN_1'"
+                        }
+                      ],
+                      "kind": "span",
+                      "style": "bold"
+                    }
+                  ],
+                  "kind": "span",
+                  "style": "italic"
+                }
+              ]
+            },
+            "id": "note-38",
+            "kind": "text",
+            "locked": false,
+            "rotation": 0,
+            "styleOverride": {
+              "sizeScale": 1
+            },
+            "typographyToken": "label",
+            "zIndex": 0
+          },
+          {
+            "alignment": "middle",
+            "anchor": {
+              "kind": "free",
+              "position": {
+                "x": 319,
+                "y": 320
+              }
+            },
+            "content": {
+              "runs": [
+                {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "kind": "text",
+                          "value": "m=1"
+                        }
+                      ],
+                      "kind": "span",
+                      "style": "bold"
+                    }
+                  ],
+                  "kind": "span",
+                  "style": "italic"
+                }
+              ]
+            },
+            "id": "note-39",
+            "kind": "text",
+            "locked": false,
+            "rotation": 0,
+            "styleOverride": {
+              "sizeScale": 1
+            },
+            "typographyToken": "label",
+            "zIndex": 0
+          },
+          {
+            "alignment": "middle",
+            "anchor": {
+              "kind": "free",
+              "position": {
+                "x": 385,
+                "y": 320
+              }
+            },
+            "content": {
+              "runs": [
+                {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "kind": "text",
+                          "value": "m=2"
+                        }
+                      ],
+                      "kind": "span",
+                      "style": "bold"
+                    }
+                  ],
+                  "kind": "span",
+                  "style": "italic"
+                }
+              ]
+            },
+            "id": "note-40",
+            "kind": "text",
+            "locked": false,
+            "rotation": 0,
+            "styleOverride": {
+              "sizeScale": 1
+            },
+            "typographyToken": "label",
+            "zIndex": 0
+          },
+          {
+            "alignment": "middle",
+            "anchor": {
+              "kind": "free",
+              "position": {
+                "x": 445,
+                "y": 320
+              }
+            },
+            "content": {
+              "runs": [
+                {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "kind": "text",
+                          "value": "m=4"
+                        }
+                      ],
+                      "kind": "span",
+                      "style": "italic"
+                    }
+                  ],
+                  "kind": "span",
+                  "style": "bold"
+                }
+              ]
+            },
+            "id": "note-41",
+            "kind": "text",
+            "locked": false,
+            "rotation": 0,
+            "styleOverride": {
+              "sizeScale": 1
+            },
+            "typographyToken": "label",
+            "zIndex": 0
+          },
+          {
+            "alignment": "middle",
+            "anchor": {
+              "kind": "free",
+              "position": {
+                "x": 505,
+                "y": 320
+              }
+            },
+            "content": {
+              "runs": [
+                {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "kind": "text",
+                          "value": "m=8"
+                        }
+                      ],
+                      "kind": "span",
+                      "style": "bold"
+                    }
+                  ],
+                  "kind": "span",
+                  "style": "italic"
+                }
+              ]
+            },
+            "id": "note-42",
+            "kind": "text",
+            "locked": false,
+            "rotation": 0,
+            "styleOverride": {
+              "sizeScale": 1
+            },
+            "typographyToken": "label",
+            "zIndex": 0
+          },
+          {
+            "alignment": "middle",
+            "anchor": {
+              "kind": "free",
+              "position": {
+                "x": 559,
+                "y": 320
+              }
+            },
+            "content": {
+              "runs": [
+                {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "kind": "text",
+                          "value": "m=16"
+                        }
+                      ],
+                      "kind": "span",
+                      "style": "bold"
+                    }
+                  ],
+                  "kind": "span",
+                  "style": "italic"
+                }
+              ]
+            },
+            "id": "note-43",
+            "kind": "text",
+            "locked": false,
+            "rotation": 0,
+            "styleOverride": {
+              "sizeScale": 1
+            },
+            "typographyToken": "label",
+            "zIndex": 0
+          },
+          {
+            "alignment": "middle",
+            "anchor": {
+              "kind": "free",
+              "position": {
+                "x": 305,
+                "y": 260
+              }
+            },
+            "content": {
+              "runs": [
+                {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "kind": "text",
+                          "value": "Q1 "
+                        }
+                      ],
+                      "kind": "span",
+                      "style": "bold"
+                    }
+                  ],
+                  "kind": "span",
+                  "style": "italic"
+                }
+              ]
+            },
+            "id": "note-44",
+            "kind": "text",
+            "locked": false,
+            "rotation": 0,
+            "styleOverride": {
+              "sizeScale": 1
+            },
+            "typographyToken": "label",
+            "zIndex": 0
+          },
+          {
+            "alignment": "middle",
+            "anchor": {
+              "kind": "free",
+              "position": {
+                "x": 370,
+                "y": 260
+              }
+            },
+            "content": {
+              "runs": [
+                {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "kind": "text",
+                          "value": "Q2"
+                        }
+                      ],
+                      "kind": "span",
+                      "style": "bold"
+                    }
+                  ],
+                  "kind": "span",
+                  "style": "italic"
+                }
+              ]
+            },
+            "id": "note-45",
+            "kind": "text",
+            "locked": false,
+            "rotation": 0,
+            "styleOverride": {
+              "sizeScale": 1
+            },
+            "typographyToken": "label",
+            "zIndex": 0
+          },
+          {
+            "alignment": "middle",
+            "anchor": {
+              "kind": "free",
+              "position": {
+                "x": 430,
+                "y": 260
+              }
+            },
+            "content": {
+              "runs": [
+                {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "kind": "text",
+                          "value": "Q3"
+                        }
+                      ],
+                      "kind": "span",
+                      "style": "bold"
+                    }
+                  ],
+                  "kind": "span",
+                  "style": "italic"
+                }
+              ]
+            },
+            "id": "note-46",
+            "kind": "text",
+            "locked": false,
+            "rotation": 0,
+            "styleOverride": {
+              "sizeScale": 1
+            },
+            "typographyToken": "label",
+            "zIndex": 0
+          },
+          {
+            "alignment": "middle",
+            "anchor": {
+              "kind": "free",
+              "position": {
+                "x": 550,
+                "y": 260
+              }
+            },
+            "content": {
+              "runs": [
+                {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "kind": "text",
+                          "value": "Q5"
+                        }
+                      ],
+                      "kind": "span",
+                      "style": "bold"
+                    }
+                  ],
+                  "kind": "span",
+                  "style": "italic"
+                }
+              ]
+            },
+            "id": "note-47",
+            "kind": "text",
+            "locked": false,
+            "rotation": 0,
+            "styleOverride": {
+              "sizeScale": 1
+            },
+            "typographyToken": "label",
+            "zIndex": 0
+          },
+          {
+            "alignment": "middle",
+            "anchor": {
+              "kind": "free",
+              "position": {
+                "x": 490,
+                "y": 260
+              }
+            },
+            "content": {
+              "runs": [
+                {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "kind": "text",
+                          "value": "Q4"
+                        }
+                      ],
+                      "kind": "span",
+                      "style": "bold"
+                    }
+                  ],
+                  "kind": "span",
+                  "style": "italic"
+                }
+              ]
+            },
+            "id": "note-48",
+            "kind": "text",
+            "locked": false,
+            "rotation": 0,
+            "styleOverride": {
+              "sizeScale": 1
+            },
+            "typographyToken": "label",
+            "zIndex": 0
+          },
+          {
+            "alignment": "middle",
+            "anchor": {
+              "kind": "free",
+              "position": {
+                "x": 855,
+                "y": 250
+              }
+            },
+            "content": {
+              "runs": [
+                {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "kind": "text",
+                          "value": "LS_ZN"
+                        }
+                      ],
+                      "kind": "span",
+                      "style": "bold"
+                    }
+                  ],
+                  "kind": "span",
+                  "style": "italic"
+                }
+              ]
+            },
+            "id": "note-49",
+            "kind": "text",
+            "locked": false,
+            "rotation": 0,
+            "styleOverride": {
+              "sizeScale": 1
+            },
+            "typographyToken": "label",
+            "zIndex": 0
+          },
+          {
+            "alignment": "middle",
+            "anchor": {
+              "kind": "free",
+              "position": {
+                "x": 855,
+                "y": 450
+              }
+            },
+            "content": {
+              "runs": [
+                {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "kind": "text",
+                          "value": "HS_ZA"
+                        }
+                      ],
+                      "kind": "span",
+                      "style": "bold"
+                    }
+                  ],
+                  "kind": "span",
+                  "style": "italic"
+                }
+              ]
+            },
+            "id": "note-52",
+            "kind": "text",
+            "locked": false,
+            "rotation": 0,
+            "styleOverride": {
+              "sizeScale": 1
+            },
+            "typographyToken": "label",
+            "zIndex": 0
+          }
+        ]
+      },
+      "id": "document-main",
+      "instances": [
+        {
+          "id": "R1",
+          "netlist": {
+            "binding": {
+              "deviceClass": "resistor",
+              "kind": "primitive"
+            },
+            "parameters": {},
+            "reference": "R1"
+          },
+          "placement": {
+            "mirror": "x",
+            "position": {
+              "x": 290,
+              "y": 230
+            },
+            "rotation": 90
+          },
+          "schematicReference": "R1",
+          "symbolId": "resistor"
+        },
+        {
+          "id": "M3",
+          "mosBulkBinding": {
+            "netId": "net-ui-26",
+            "origin": "cell-default"
+          },
+          "netlist": {
+            "parameters": {
+              "l": "150n",
+              "m": "1",
+              "nf": "1",
+              "w": "1u"
+            },
+            "reference": "M3"
+          },
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 240,
+              "y": 180
+            },
+            "rotation": 0
+          },
+          "schematicReference": "M3",
+          "symbolId": "pmos",
+          "symbolVariantId": "textbook-3terminal"
+        },
+        {
+          "id": "M4",
+          "netlist": {
+            "parameters": {
+              "l": "150n",
+              "m": "1",
+              "nf": "1",
+              "w": "1u"
+            },
+            "reference": "M4"
+          },
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 240,
+              "y": 280
+            },
+            "rotation": 0
+          },
+          "schematicReference": "M4",
+          "symbolId": "nmos",
+          "symbolVariantId": "textbook-3terminal"
+        },
+        {
+          "id": "C1",
+          "netlist": {
+            "binding": {
+              "deviceClass": "capacitor",
+              "kind": "primitive"
+            },
+            "parameters": {},
+            "reference": "C1"
+          },
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 350,
+              "y": 320
+            },
+            "rotation": 0
+          },
+          "schematicReference": "C1",
+          "symbolId": "capacitor"
+        },
+        {
+          "id": "C2",
+          "netlist": {
+            "binding": {
+              "deviceClass": "capacitor",
+              "kind": "primitive"
+            },
+            "parameters": {},
+            "reference": "C2"
+          },
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 410,
+              "y": 320
+            },
+            "rotation": 0
+          },
+          "schematicReference": "C2",
+          "symbolId": "capacitor"
+        },
+        {
+          "id": "C3",
+          "netlist": {
+            "binding": {
+              "deviceClass": "capacitor",
+              "kind": "primitive"
+            },
+            "parameters": {},
+            "reference": "C3"
+          },
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 470,
+              "y": 320
+            },
+            "rotation": 0
+          },
+          "schematicReference": "C3",
+          "symbolId": "capacitor"
+        },
+        {
+          "id": "C4",
+          "netlist": {
+            "binding": {
+              "deviceClass": "capacitor",
+              "kind": "primitive"
+            },
+            "parameters": {},
+            "reference": "C4"
+          },
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 530,
+              "y": 320
+            },
+            "rotation": 0
+          },
+          "schematicReference": "C4",
+          "symbolId": "capacitor"
+        },
+        {
+          "id": "C5",
+          "netlist": {
+            "binding": {
+              "deviceClass": "capacitor",
+              "kind": "primitive"
+            },
+            "parameters": {},
+            "reference": "C5"
+          },
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 590,
+              "y": 320
+            },
+            "rotation": 0
+          },
+          "schematicReference": "C5",
+          "symbolId": "capacitor"
+        },
+        {
+          "id": "M5",
+          "mosBulkBinding": {
+            "netId": "net-ui-26",
+            "origin": "cell-default"
+          },
+          "netlist": {
+            "parameters": {
+              "l": "150n",
+              "m": "1",
+              "nf": "1",
+              "w": "1u"
+            },
+            "reference": "M5"
+          },
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 340,
+              "y": 260
+            },
+            "rotation": 0
+          },
+          "schematicReference": "M5",
+          "symbolId": "pmos",
+          "symbolVariantId": "textbook-3terminal"
+        },
+        {
+          "id": "M6",
+          "mosBulkBinding": {
+            "netId": "net-ui-26",
+            "origin": "cell-default"
+          },
+          "netlist": {
+            "parameters": {
+              "l": "150n",
+              "m": "1",
+              "nf": "1",
+              "w": "1u"
+            },
+            "reference": "M6"
+          },
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 400,
+              "y": 260
+            },
+            "rotation": 0
+          },
+          "schematicReference": "M6",
+          "symbolId": "pmos",
+          "symbolVariantId": "textbook-3terminal"
+        },
+        {
+          "id": "M7",
+          "mosBulkBinding": {
+            "netId": "net-ui-26",
+            "origin": "cell-default"
+          },
+          "netlist": {
+            "parameters": {
+              "l": "150n",
+              "m": "1",
+              "nf": "1",
+              "w": "1u"
+            },
+            "reference": "M7"
+          },
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 460,
+              "y": 260
+            },
+            "rotation": 0
+          },
+          "schematicReference": "M7",
+          "symbolId": "pmos",
+          "symbolVariantId": "textbook-3terminal"
+        },
+        {
+          "id": "M8",
+          "mosBulkBinding": {
+            "netId": "net-ui-26",
+            "origin": "cell-default"
+          },
+          "netlist": {
+            "parameters": {
+              "l": "150n",
+              "m": "1",
+              "nf": "1",
+              "w": "1u"
+            },
+            "reference": "M8"
+          },
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 520,
+              "y": 260
+            },
+            "rotation": 0
+          },
+          "schematicReference": "M8",
+          "symbolId": "pmos",
+          "symbolVariantId": "textbook-3terminal"
+        },
+        {
+          "id": "M9",
+          "mosBulkBinding": {
+            "netId": "net-ui-26",
+            "origin": "cell-default"
+          },
+          "netlist": {
+            "parameters": {
+              "l": "150n",
+              "m": "1",
+              "nf": "1",
+              "w": "1u"
+            },
+            "reference": "M9"
+          },
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 580,
+              "y": 260
+            },
+            "rotation": 0
+          },
+          "schematicReference": "M9",
+          "symbolId": "pmos",
+          "symbolVariantId": "textbook-3terminal"
+        },
+        {
+          "id": "X2",
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 770,
+              "y": 250
+            },
+            "rotation": 0
+          },
+          "schematicReference": "X2",
+          "symbolId": "and-gate"
+        },
+        {
+          "id": "M10",
+          "mosBulkBinding": {
+            "netId": "net-ui-26",
+            "origin": "cell-default"
+          },
+          "netlist": {
+            "parameters": {
+              "l": "150n",
+              "m": "1",
+              "nf": "1",
+              "w": "1u"
+            },
+            "reference": "M10"
+          },
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 240,
+              "y": 400
+            },
+            "rotation": 0
+          },
+          "schematicReference": "M10",
+          "symbolId": "pmos",
+          "symbolVariantId": "textbook-3terminal"
+        },
+        {
+          "id": "M11",
+          "netlist": {
+            "parameters": {
+              "l": "150n",
+              "m": "1",
+              "nf": "1",
+              "w": "1u"
+            },
+            "reference": "M11"
+          },
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 240,
+              "y": 490
+            },
+            "rotation": 0
+          },
+          "schematicReference": "M11",
+          "symbolId": "nmos",
+          "symbolVariantId": "textbook-3terminal"
+        },
+        {
+          "id": "C6",
+          "netlist": {
+            "binding": {
+              "deviceClass": "capacitor",
+              "kind": "primitive"
+            },
+            "parameters": {},
+            "reference": "C6"
+          },
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 350,
+              "y": 490
+            },
+            "rotation": 0
+          },
+          "schematicReference": "C6",
+          "symbolId": "capacitor"
+        },
+        {
+          "id": "X3",
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 680,
+              "y": 460
+            },
+            "rotation": 0
+          },
+          "schematicReference": "X3",
+          "symbolId": "nor-gate"
+        },
+        {
+          "id": "X4",
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 770,
+              "y": 450
+            },
+            "rotation": 0
+          },
+          "schematicReference": "X4",
+          "symbolId": "and-gate"
+        },
+        {
+          "id": "VDD1",
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 250,
+              "y": 120
+            },
+            "rotation": 0
+          },
+          "schematicReference": "VDD1",
+          "symbolId": "vdd-port"
+        },
+        {
+          "id": "VDD2",
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 250,
+              "y": 360
+            },
+            "rotation": 0
+          },
+          "schematicReference": "VDD2",
+          "symbolId": "vdd-port"
+        },
+        {
+          "id": "VDD3",
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 250,
+              "y": 530
+            },
+            "rotation": 180
+          },
+          "schematicReference": "VDD3",
+          "symbolId": "vdd-port"
+        },
+        {
+          "id": "VDD4",
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 340,
+              "y": 360
+            },
+            "rotation": 180
+          },
+          "schematicReference": "VDD4",
+          "symbolId": "vdd-port"
+        },
+        {
+          "id": "R2",
+          "netlist": {
+            "binding": {
+              "deviceClass": "resistor",
+              "kind": "primitive"
+            },
+            "parameters": {},
+            "reference": "R2"
+          },
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 290,
+              "y": 450
+            },
+            "rotation": 90
+          },
+          "schematicReference": "R2",
+          "symbolId": "resistor"
+        },
+        {
+          "id": "X5",
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 600,
+              "y": 140
+            },
+            "rotation": 0
+          },
+          "schematicReference": "X5",
+          "symbolId": "inverter"
+        },
+        {
+          "id": "P1",
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 200,
+              "y": 450
+            },
+            "rotation": 0
+          },
+          "symbolId": "port"
+        },
+        {
+          "id": "P2",
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 200,
+              "y": 230
+            },
+            "rotation": 0
+          },
+          "symbolId": "port"
+        },
+        {
+          "id": "X1",
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 680,
+              "y": 240
+            },
+            "rotation": 0
+          },
+          "schematicReference": "X1",
+          "symbolId": "nor-gate"
+        },
+        {
+          "id": "P3",
+          "placement": {
+            "mirror": "x",
+            "position": {
+              "x": 810,
+              "y": 250
+            },
+            "rotation": 0
+          },
+          "symbolId": "port"
+        },
+        {
+          "id": "P4",
+          "placement": {
+            "mirror": "x",
+            "position": {
+              "x": 810,
+              "y": 450
+            },
+            "rotation": 0
+          },
+          "symbolId": "port"
+        }
+      ],
+      "junctions": [
+        {
+          "id": "junction-ui-4",
+          "netId": "net-ui-1",
+          "position": {
+            "x": 210,
+            "y": 230
+          },
+          "role": "branch"
+        },
+        {
+          "id": "junction-ui-6",
+          "netId": "net-ui-1-copy-1",
+          "position": {
+            "x": 250,
+            "y": 230
+          },
+          "role": "branch"
+        },
+        {
+          "id": "junction-ui-9",
+          "netId": "net-ui-8",
+          "position": {
+            "x": 350,
+            "y": 230
+          },
+          "role": "branch"
+        },
+        {
+          "id": "junction-ui-11",
+          "netId": "net-ui-8",
+          "position": {
+            "x": 420,
+            "y": 230
+          },
+          "role": "branch"
+        },
+        {
+          "id": "junction-ui-13",
+          "netId": "net-ui-8",
+          "position": {
+            "x": 480,
+            "y": 230
+          },
+          "role": "branch"
+        },
+        {
+          "id": "junction-ui-15",
+          "netId": "net-ui-8",
+          "position": {
+            "x": 530,
+            "y": 230
+          },
+          "role": "branch"
+        },
+        {
+          "id": "junction-ui-24",
+          "netId": "net-ui-22",
+          "position": {
+            "x": 250,
+            "y": 340
+          },
+          "role": "branch"
+        },
+        {
+          "id": "junction-ui-28",
+          "netId": "net-ui-8",
+          "position": {
+            "x": 550,
+            "y": 230
+          },
+          "role": "branch"
+        },
+        {
+          "id": "junction-ui-39",
+          "netId": "net-ui-37",
+          "position": {
+            "x": 250,
+            "y": 450
+          },
+          "role": "branch"
+        },
+        {
+          "id": "junction-ui-45",
+          "netId": "net-ui-33",
+          "position": {
+            "x": 720,
+            "y": 350
+          },
+          "role": "branch"
+        },
+        {
+          "id": "junction-ui-46",
+          "netId": "net-ui-33",
+          "position": {
+            "x": 690,
+            "y": 350
+          },
+          "role": "route-anchor"
+        },
+        {
+          "id": "junction-lifecycle-2-2",
+          "netId": "net-split-83b11de7bcb0c042",
+          "position": {
+            "x": 310,
+            "y": 450
+          },
+          "role": "branch"
+        },
+        {
+          "id": "junction-ui-48",
+          "netId": "net-split-83b11de7bcb0c042",
+          "position": {
+            "x": 400,
+            "y": 450
+          },
+          "role": "branch"
+        },
+        {
+          "id": "junction-lifecycle-35-2",
+          "netId": "net-ui-30",
+          "position": {
+            "x": 710,
+            "y": 240
+          },
+          "role": "branch"
+        },
+        {
+          "id": "junction-ui-51",
+          "netId": "net-ui-8",
+          "position": {
+            "x": 620,
+            "y": 230
+          },
+          "role": "branch"
+        }
+      ],
+      "layoutGroups": [],
+      "mosBulkDefaults": {
+        "pmosNetId": "net-ui-26"
+      },
+      "name": "Main",
+      "netlist": {
+        "formalParameters": [],
+        "name": "Main",
+        "terminals": [
+          {
+            "direction": "passive",
+            "id": "terminal-p1",
+            "interfaceInstanceIds": [
+              "P1"
+            ],
+            "name": "Vin",
+            "netId": "net-ui-38"
+          },
+          {
+            "direction": "passive",
+            "id": "terminal-p2",
+            "interfaceInstanceIds": [
+              "P2"
+            ],
+            "name": "Vin2",
+            "netId": "net-ui-1"
+          },
+          {
+            "direction": "passive",
+            "id": "terminal-p3",
+            "interfaceInstanceIds": [
+              "P3"
+            ],
+            "name": "Vin3",
+            "netId": "net-contact-p3"
+          },
+          {
+            "direction": "passive",
+            "id": "terminal-p4",
+            "interfaceInstanceIds": [
+              "P4"
+            ],
+            "name": "Vin4",
+            "netId": "net-contact-p4"
+          }
+        ]
+      },
+      "nets": [
+        {
+          "id": "net-ui-1",
+          "terminals": [
+            {
+              "instanceId": "M3",
+              "pinName": "G"
+            },
+            {
+              "instanceId": "M4",
+              "pinName": "G"
+            },
+            {
+              "instanceId": "P2",
+              "pinName": "P"
+            }
+          ]
+        },
+        {
+          "id": "net-ui-1-copy-1",
+          "terminals": [
+            {
+              "instanceId": "M3",
+              "pinName": "D"
+            },
+            {
+              "instanceId": "M4",
+              "pinName": "D"
+            },
+            {
+              "instanceId": "R1",
+              "pinName": "2"
+            }
+          ]
+        },
+        {
+          "id": "net-ui-8",
+          "terminals": [
+            {
+              "instanceId": "R1",
+              "pinName": "1"
+            },
+            {
+              "instanceId": "M5",
+              "pinName": "S"
+            },
+            {
+              "instanceId": "M6",
+              "pinName": "S"
+            },
+            {
+              "instanceId": "M7",
+              "pinName": "S"
+            },
+            {
+              "instanceId": "M8",
+              "pinName": "S"
+            },
+            {
+              "instanceId": "M9",
+              "pinName": "S"
+            },
+            {
+              "instanceId": "X1",
+              "pinName": "A"
+            }
+          ]
+        },
+        {
+          "id": "net-ui-17",
+          "terminals": [
+            {
+              "instanceId": "M5",
+              "pinName": "D"
+            },
+            {
+              "instanceId": "C1",
+              "pinName": "1"
+            }
+          ]
+        },
+        {
+          "id": "net-ui-18",
+          "terminals": [
+            {
+              "instanceId": "M6",
+              "pinName": "D"
+            },
+            {
+              "instanceId": "C2",
+              "pinName": "1"
+            }
+          ]
+        },
+        {
+          "id": "net-ui-19",
+          "terminals": [
+            {
+              "instanceId": "M7",
+              "pinName": "D"
+            },
+            {
+              "instanceId": "C3",
+              "pinName": "1"
+            }
+          ]
+        },
+        {
+          "id": "net-ui-20",
+          "terminals": [
+            {
+              "instanceId": "M8",
+              "pinName": "D"
+            },
+            {
+              "instanceId": "C4",
+              "pinName": "1"
+            }
+          ]
+        },
+        {
+          "id": "net-ui-21",
+          "terminals": [
+            {
+              "instanceId": "M9",
+              "pinName": "D"
+            },
+            {
+              "instanceId": "C5",
+              "pinName": "1"
+            }
+          ]
+        },
+        {
+          "id": "net-ui-22",
+          "terminals": [
+            {
+              "instanceId": "C1",
+              "pinName": "2"
+            },
+            {
+              "instanceId": "C2",
+              "pinName": "2"
+            },
+            {
+              "instanceId": "C3",
+              "pinName": "2"
+            },
+            {
+              "instanceId": "C4",
+              "pinName": "2"
+            },
+            {
+              "instanceId": "C5",
+              "pinName": "2"
+            },
+            {
+              "instanceId": "M4",
+              "pinName": "S"
+            },
+            {
+              "instanceId": "VDD4",
+              "pinName": "P"
+            }
+          ]
+        },
+        {
+          "id": "net-ui-26",
+          "terminals": [
+            {
+              "instanceId": "M3",
+              "pinName": "S"
+            },
+            {
+              "instanceId": "VDD1",
+              "pinName": "P"
+            },
+            {
+              "instanceId": "M3",
+              "pinName": "B"
+            },
+            {
+              "instanceId": "M5",
+              "pinName": "B"
+            },
+            {
+              "instanceId": "M6",
+              "pinName": "B"
+            },
+            {
+              "instanceId": "M7",
+              "pinName": "B"
+            },
+            {
+              "instanceId": "M8",
+              "pinName": "B"
+            },
+            {
+              "instanceId": "M9",
+              "pinName": "B"
+            },
+            {
+              "instanceId": "M10",
+              "pinName": "B"
+            }
+          ]
+        },
+        {
+          "id": "net-ui-30",
+          "terminals": [
+            {
+              "instanceId": "X2",
+              "pinName": "A"
+            },
+            {
+              "instanceId": "X1",
+              "pinName": "Y"
+            }
+          ]
+        },
+        {
+          "id": "net-ui-33",
+          "terminals": [
+            {
+              "instanceId": "X2",
+              "pinName": "B"
+            },
+            {
+              "instanceId": "X4",
+              "pinName": "A"
+            }
+          ]
+        },
+        {
+          "id": "net-ui-34",
+          "terminals": [
+            {
+              "instanceId": "X4",
+              "pinName": "B"
+            },
+            {
+              "instanceId": "X3",
+              "pinName": "Y"
+            }
+          ]
+        },
+        {
+          "id": "net-ui-37",
+          "terminals": [
+            {
+              "instanceId": "M10",
+              "pinName": "D"
+            },
+            {
+              "instanceId": "M11",
+              "pinName": "D"
+            },
+            {
+              "instanceId": "R2",
+              "pinName": "2"
+            }
+          ]
+        },
+        {
+          "id": "net-ui-38",
+          "terminals": [
+            {
+              "instanceId": "M10",
+              "pinName": "G"
+            },
+            {
+              "instanceId": "M11",
+              "pinName": "G"
+            },
+            {
+              "instanceId": "P1",
+              "pinName": "P"
+            }
+          ]
+        },
+        {
+          "id": "net-ui-41",
+          "terminals": [
+            {
+              "instanceId": "M11",
+              "pinName": "S"
+            },
+            {
+              "instanceId": "C6",
+              "pinName": "2"
+            },
+            {
+              "instanceId": "VDD3",
+              "pinName": "P"
+            }
+          ]
+        },
+        {
+          "id": "net-split-83b11de7bcb0c042",
+          "terminals": [
+            {
+              "instanceId": "C6",
+              "pinName": "1"
+            },
+            {
+              "instanceId": "X3",
+              "pinName": "A"
+            },
+            {
+              "instanceId": "R2",
+              "pinName": "1"
+            }
+          ]
+        },
+        {
+          "id": "net-contact-vdd2",
+          "terminals": [
+            {
+              "instanceId": "VDD2",
+              "pinName": "P"
+            },
+            {
+              "instanceId": "M10",
+              "pinName": "S"
+            }
+          ]
+        },
+        {
+          "id": "net-contact-p3",
+          "terminals": [
+            {
+              "instanceId": "P3",
+              "pinName": "P"
+            },
+            {
+              "instanceId": "X2",
+              "pinName": "Y"
+            }
+          ]
+        },
+        {
+          "id": "net-contact-p4",
+          "terminals": [
+            {
+              "instanceId": "P4",
+              "pinName": "P"
+            },
+            {
+              "instanceId": "X4",
+              "pinName": "Y"
+            }
+          ]
+        }
+      ],
+      "noConnects": [],
+      "presentation": {
+        "compactness": "normal",
+        "grid": 10,
+        "styleProfileId": "razavi-textbook-v1"
+      },
+      "revision": 231,
+      "routes": [
+        {
+          "id": "route-ui-1-copy-1-a-6",
+          "legs": [
+            {
+              "id": "route-leg-0a26f946f44129ca",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-ui-6",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-1-copy-1",
+          "start": {
+            "instanceId": "M3",
+            "kind": "terminal",
+            "pinName": "D"
+          }
+        },
+        {
+          "id": "route-ui-1-copy-1-b-6",
+          "legs": [
+            {
+              "id": "route-leg-124a2e67b15ff7ab",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "M4",
+                  "kind": "terminal",
+                  "pinName": "D"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-1-copy-1",
+          "start": {
+            "junctionId": "junction-ui-6",
+            "kind": "junction"
+          }
+        },
+        {
+          "id": "route-ui-2-copy-1-a-4",
+          "legs": [
+            {
+              "id": "route-leg-22324e5e3d841275",
+              "mode": "manual",
+              "to": {
+                "bendId": "route-bend-22324e5e3d841275",
+                "kind": "bend",
+                "position": {
+                  "x": 210,
+                  "y": 180
+                }
+              }
+            },
+            {
+              "id": "route-leg-22324d5e3d8410c2",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-ui-4",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-1",
+          "start": {
+            "instanceId": "M3",
+            "kind": "terminal",
+            "pinName": "G"
+          }
+        },
+        {
+          "id": "route-ui-2-copy-1-b-4",
+          "legs": [
+            {
+              "id": "route-leg-f91df07e734fbf92",
+              "mode": "manual",
+              "to": {
+                "bendId": "route-bend-22324d5e3d8410c2",
+                "kind": "bend",
+                "position": {
+                  "x": 210,
+                  "y": 280
+                }
+              }
+            },
+            {
+              "id": "route-leg-22324c5e3d840f0f",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "M4",
+                  "kind": "terminal",
+                  "pinName": "G"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-1",
+          "start": {
+            "junctionId": "junction-ui-4",
+            "kind": "junction"
+          }
+        },
+        {
+          "id": "route-ui-7",
+          "legs": [
+            {
+              "id": "route-leg-9a9de466acb079d9",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-ui-6",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-1-copy-1",
+          "start": {
+            "instanceId": "R1",
+            "kind": "terminal",
+            "pinName": "2"
+          }
+        },
+        {
+          "id": "route-ui-8-a-9",
+          "legs": [
+            {
+              "id": "route-leg-05662e849956eae0",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-ui-9",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-8",
+          "start": {
+            "instanceId": "R1",
+            "kind": "terminal",
+            "pinName": "1"
+          }
+        },
+        {
+          "id": "route-ui-8-b-9",
+          "legs": [
+            {
+              "id": "route-leg-05662f849956ec93",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "M5",
+                  "kind": "terminal",
+                  "pinName": "S"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-8",
+          "start": {
+            "junctionId": "junction-ui-9",
+            "kind": "junction"
+          }
+        },
+        {
+          "id": "route-ui-10-a-11",
+          "legs": [
+            {
+              "id": "route-leg-88ad879b5c4f380c",
+              "mode": "manual",
+              "to": {
+                "bendId": "route-bend-18a9a2a6982e52e6",
+                "kind": "bend",
+                "position": {
+                  "x": 410,
+                  "y": 230
+                }
+              }
+            },
+            {
+              "id": "route-leg-30a6a09d15f88445",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-ui-11",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-8",
+          "start": {
+            "instanceId": "M6",
+            "kind": "terminal",
+            "pinName": "S"
+          }
+        },
+        {
+          "id": "route-ui-10-b-11",
+          "legs": [
+            {
+              "id": "route-leg-88ad889b5c4f39bf",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-ui-9",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-8",
+          "start": {
+            "junctionId": "junction-ui-11",
+            "kind": "junction"
+          }
+        },
+        {
+          "id": "route-ui-12-a-13",
+          "legs": [
+            {
+              "id": "route-leg-45feb7b4fda98d1a",
+              "mode": "manual",
+              "to": {
+                "bendId": "route-bend-143e0fe17e6a2e03",
+                "kind": "bend",
+                "position": {
+                  "x": 470,
+                  "y": 230
+                }
+              }
+            },
+            {
+              "id": "route-leg-cb57c9fd49832274",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-ui-13",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-8",
+          "start": {
+            "instanceId": "M7",
+            "kind": "terminal",
+            "pinName": "S"
+          }
+        },
+        {
+          "id": "route-ui-12-b-13",
+          "legs": [
+            {
+              "id": "route-leg-45feb8b4fda98ecd",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-ui-11",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-8",
+          "start": {
+            "junctionId": "junction-ui-13",
+            "kind": "junction"
+          }
+        },
+        {
+          "id": "route-ui-14-a-15",
+          "legs": [
+            {
+              "id": "route-leg-2c77578d26288638",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-ui-15",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-8",
+          "start": {
+            "instanceId": "M8",
+            "kind": "terminal",
+            "pinName": "S"
+          }
+        },
+        {
+          "id": "route-ui-14-b-15",
+          "legs": [
+            {
+              "id": "route-leg-2c77588d262887eb",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-ui-13",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-8",
+          "start": {
+            "junctionId": "junction-ui-15",
+            "kind": "junction"
+          }
+        },
+        {
+          "id": "route-ui-16-a-28-a-51",
+          "legs": [
+            {
+              "id": "route-leg-3ebbe7a93baf89d6",
+              "mode": "manual",
+              "to": {
+                "bendId": "route-bend-045bba881fd85291",
+                "kind": "bend",
+                "position": {
+                  "x": 590,
+                  "y": 230
+                }
+              }
+            },
+            {
+              "id": "route-leg-fb60e4e874122a12",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-ui-51",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-8",
+          "start": {
+            "instanceId": "M9",
+            "kind": "terminal",
+            "pinName": "S"
+          }
+        },
+        {
+          "id": "route-ui-16-a-28-b-51",
+          "legs": [
+            {
+              "id": "route-leg-908860b0f7ee0151",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-ui-28",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-8",
+          "start": {
+            "junctionId": "junction-ui-51",
+            "kind": "junction"
+          }
+        },
+        {
+          "id": "route-ui-16-b-28",
+          "legs": [
+            {
+              "id": "route-leg-3ebbe8a93baf8b89",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-ui-15",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-8",
+          "start": {
+            "junctionId": "junction-ui-28",
+            "kind": "junction"
+          }
+        },
+        {
+          "id": "route-ui-17",
+          "legs": [
+            {
+              "id": "route-leg-56b8e59fb979bb35",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "C1",
+                  "kind": "terminal",
+                  "pinName": "1"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-17",
+          "start": {
+            "instanceId": "M5",
+            "kind": "terminal",
+            "pinName": "D"
+          }
+        },
+        {
+          "id": "route-ui-18",
+          "legs": [
+            {
+              "id": "route-leg-2193afd79b5cded4",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "C2",
+                  "kind": "terminal",
+                  "pinName": "1"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-18",
+          "start": {
+            "instanceId": "M6",
+            "kind": "terminal",
+            "pinName": "D"
+          }
+        },
+        {
+          "id": "route-ui-19",
+          "legs": [
+            {
+              "id": "route-leg-140975b95ad30063",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "C3",
+                  "kind": "terminal",
+                  "pinName": "1"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-19",
+          "start": {
+            "instanceId": "M7",
+            "kind": "terminal",
+            "pinName": "D"
+          }
+        },
+        {
+          "id": "route-ui-20",
+          "legs": [
+            {
+              "id": "route-leg-8d47b73400233dbf",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "C4",
+                  "kind": "terminal",
+                  "pinName": "1"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-20",
+          "start": {
+            "instanceId": "M8",
+            "kind": "terminal",
+            "pinName": "D"
+          }
+        },
+        {
+          "id": "route-ui-21",
+          "legs": [
+            {
+              "id": "route-leg-4b3248f996c36fe0",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "C5",
+                  "kind": "terminal",
+                  "pinName": "1"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-21",
+          "start": {
+            "instanceId": "M9",
+            "kind": "terminal",
+            "pinName": "D"
+          }
+        },
+        {
+          "id": "route-ui-22-part-1",
+          "legs": [
+            {
+              "id": "route-leg-80408e5fa8039710",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "C2",
+                  "kind": "terminal",
+                  "pinName": "2"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-22",
+          "start": {
+            "instanceId": "C1",
+            "kind": "terminal",
+            "pinName": "2"
+          }
+        },
+        {
+          "id": "route-ui-22-part-2",
+          "legs": [
+            {
+              "id": "route-leg-962c1c719f0d8a8d",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "C3",
+                  "kind": "terminal",
+                  "pinName": "2"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-22",
+          "start": {
+            "instanceId": "C2",
+            "kind": "terminal",
+            "pinName": "2"
+          }
+        },
+        {
+          "id": "route-ui-22-part-3",
+          "legs": [
+            {
+              "id": "route-leg-92853e7bbd8ad10e",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "C4",
+                  "kind": "terminal",
+                  "pinName": "2"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-22",
+          "start": {
+            "instanceId": "C3",
+            "kind": "terminal",
+            "pinName": "2"
+          }
+        },
+        {
+          "id": "route-ui-22-part-4",
+          "legs": [
+            {
+              "id": "route-leg-ceeca44f9da0a0d3",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "C5",
+                  "kind": "terminal",
+                  "pinName": "2"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-22",
+          "start": {
+            "instanceId": "C4",
+            "kind": "terminal",
+            "pinName": "2"
+          }
+        },
+        {
+          "id": "route-ui-23-b-24-a-contact-vdd4-p",
+          "legs": [
+            {
+              "id": "route-leg-fb5c8f5fdb452d3b",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "VDD4",
+                  "kind": "terminal",
+                  "pinName": "P"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-22",
+          "start": {
+            "junctionId": "junction-ui-24",
+            "kind": "junction"
+          }
+        },
+        {
+          "id": "route-ui-23-b-24-b-contact-vdd4-p",
+          "legs": [
+            {
+              "id": "route-leg-0b6741c69c68ddd0",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "C1",
+                  "kind": "terminal",
+                  "pinName": "2"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-22",
+          "start": {
+            "instanceId": "VDD4",
+            "kind": "terminal",
+            "pinName": "P"
+          }
+        },
+        {
+          "id": "route-ui-25",
+          "legs": [
+            {
+              "id": "route-leg-a5b59907cb78c394",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-ui-24",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-22",
+          "start": {
+            "instanceId": "M4",
+            "kind": "terminal",
+            "pinName": "S"
+          }
+        },
+        {
+          "id": "route-ui-26-a-contact-vdd1-p",
+          "legs": [
+            {
+              "id": "route-leg-64fa87174ce40741",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "VDD1",
+                  "kind": "terminal",
+                  "pinName": "P"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-26",
+          "start": {
+            "instanceId": "M3",
+            "kind": "terminal",
+            "pinName": "S"
+          }
+        },
+        {
+          "id": "route-ui-30",
+          "legs": [
+            {
+              "id": "route-leg-c45e0a2ff0d6df32",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-lifecycle-35-2",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-30",
+          "start": {
+            "instanceId": "X2",
+            "kind": "terminal",
+            "pinName": "A"
+          }
+        },
+        {
+          "id": "route-ui-33-a-45",
+          "legs": [
+            {
+              "id": "route-leg-f42f484e44b04c93",
+              "mode": "manual",
+              "to": {
+                "bendId": "route-bend-67952f8dd149aa15",
+                "kind": "bend",
+                "position": {
+                  "x": 720,
+                  "y": 260
+                }
+              }
+            },
+            {
+              "id": "route-leg-4f98b19753805236",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-ui-45",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-33",
+          "start": {
+            "instanceId": "X2",
+            "kind": "terminal",
+            "pinName": "B"
+          }
+        },
+        {
+          "id": "route-ui-33-b-45",
+          "legs": [
+            {
+              "id": "route-leg-5a0817d18bd0d9e5",
+              "mode": "manual",
+              "to": {
+                "bendId": "route-bend-4f98b19753805236",
+                "kind": "bend",
+                "position": {
+                  "x": 720,
+                  "y": 440
+                }
+              }
+            },
+            {
+              "id": "route-leg-84bd875f719c8b77",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "X4",
+                  "kind": "terminal",
+                  "pinName": "A"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-33",
+          "start": {
+            "junctionId": "junction-ui-45",
+            "kind": "junction"
+          }
+        },
+        {
+          "id": "route-ui-34",
+          "legs": [
+            {
+              "id": "route-leg-b7c7e27a649a7cce",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "X3",
+                  "kind": "terminal",
+                  "pinName": "Y"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-34",
+          "start": {
+            "instanceId": "X4",
+            "kind": "terminal",
+            "pinName": "B"
+          }
+        },
+        {
+          "id": "route-ui-37-a-39",
+          "legs": [
+            {
+              "id": "route-leg-982f18400eb72a2f",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-ui-39",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-37",
+          "start": {
+            "instanceId": "M10",
+            "kind": "terminal",
+            "pinName": "D"
+          }
+        },
+        {
+          "id": "route-ui-37-b-39",
+          "legs": [
+            {
+              "id": "route-leg-3fff1a62d5a14742",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "M11",
+                  "kind": "terminal",
+                  "pinName": "D"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-37",
+          "start": {
+            "junctionId": "junction-ui-39",
+            "kind": "junction"
+          }
+        },
+        {
+          "id": "route-ui-38-a-contact-p1-p",
+          "legs": [
+            {
+              "id": "route-leg-29c501f3b057da4a",
+              "mode": "manual",
+              "to": {
+                "bendId": "route-bend-15ce2f1509df290c",
+                "kind": "bend",
+                "position": {
+                  "x": 210,
+                  "y": 400
+                }
+              }
+            },
+            {
+              "id": "route-leg-084414f6c95580fb",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "P1",
+                  "kind": "terminal",
+                  "pinName": "P"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-38",
+          "start": {
+            "instanceId": "M10",
+            "kind": "terminal",
+            "pinName": "G"
+          }
+        },
+        {
+          "id": "route-ui-38-b-contact-p1-p",
+          "legs": [
+            {
+              "id": "route-leg-51a42b453321ea75",
+              "mode": "manual",
+              "to": {
+                "bendId": "route-bend-084414f6c95580fb",
+                "kind": "bend",
+                "position": {
+                  "x": 210,
+                  "y": 490
+                }
+              }
+            },
+            {
+              "id": "route-leg-d31f5f2eab397e1a",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "M11",
+                  "kind": "terminal",
+                  "pinName": "G"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-38",
+          "start": {
+            "instanceId": "P1",
+            "kind": "terminal",
+            "pinName": "P"
+          }
+        },
+        {
+          "id": "route-ui-41",
+          "legs": [
+            {
+              "id": "route-leg-9b2c48343afa1aee",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "C6",
+                  "kind": "terminal",
+                  "pinName": "2"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-41",
+          "start": {
+            "instanceId": "M11",
+            "kind": "terminal",
+            "pinName": "S"
+          }
+        },
+        {
+          "id": "route-ui-44-a-48",
+          "legs": [
+            {
+              "id": "route-leg-fe744de21b47d151",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-ui-48",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-split-83b11de7bcb0c042",
+          "start": {
+            "instanceId": "X3",
+            "kind": "terminal",
+            "pinName": "A"
+          }
+        },
+        {
+          "id": "route-ui-44-b-48",
+          "legs": [
+            {
+              "id": "route-leg-7c7bd8f462fe2ad8",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-lifecycle-2-2",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-split-83b11de7bcb0c042",
+          "start": {
+            "junctionId": "junction-ui-48",
+            "kind": "junction"
+          }
+        },
+        {
+          "id": "route-ui-47",
+          "legs": [
+            {
+              "id": "route-leg-e8bedfd0246ba3a4",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-ui-46",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-33",
+          "start": {
+            "junctionId": "junction-ui-45",
+            "kind": "junction"
+          }
+        },
+        {
+          "id": "route-ui-49",
+          "legs": [
+            {
+              "id": "route-leg-00931ff7fa7adfa6",
+              "mode": "manual",
+              "to": {
+                "bendId": "route-bend-772a0bf8002f45fd",
+                "kind": "bend",
+                "position": {
+                  "x": 350,
+                  "y": 450
+                }
+              }
+            },
+            {
+              "id": "route-leg-75362e02201e20fe",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-ui-48",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-split-83b11de7bcb0c042",
+          "start": {
+            "instanceId": "C6",
+            "kind": "terminal",
+            "pinName": "1"
+          }
+        },
+        {
+          "id": "route-ui-50",
+          "legs": [
+            {
+              "id": "route-leg-ef9370d073bb2660",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-ui-39",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-37",
+          "start": {
+            "instanceId": "R2",
+            "kind": "terminal",
+            "pinName": "2"
+          }
+        },
+        {
+          "id": "route-ui-52",
+          "legs": [
+            {
+              "id": "route-leg-fc842942befef15e",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-ui-51",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-8",
+          "start": {
+            "instanceId": "X1",
+            "kind": "terminal",
+            "pinName": "A"
+          }
+        }
+      ],
+      "sourceStatus": "connectivity-modified"
+    }
+  ],
+  "externalSubcircuitDefinitions": [],
+  "id": "project-main",
+  "name": "deadtime",
+  "schemaVersion": 34,
+  "source": {
+    "dialect": "none",
+    "entry": null,
+    "files": [],
+    "sourcePolicy": "copy"
+  },
+  "structureRevision": 6,
+  "symbolLibrary": {
+    "hash": "razavi-reference-v1",
+    "id": "razavi-symbols",
+    "version": "1"
+  },
+  "topDocumentId": "document-main"
+}

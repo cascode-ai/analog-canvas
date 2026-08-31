@@ -77,6 +77,24 @@ function transaction(
   };
 }
 
+function materializeClaimLabels(document: SchematicDocument): void {
+  for (const evidence of document.connectivityEvidence) {
+    if (evidence.kind !== "name-claim" || evidence.owner.kind !== "net-label") {
+      continue;
+    }
+    document.annotations.push({
+      id: evidence.owner.annotationId,
+      kind: evidence.powerDomain ? "power-label" : "net-label",
+      binding: { kind: "net-name", netId: evidence.netId },
+      netId: evidence.netId,
+      anchor: { kind: "free", position: { x: 0, y: 0 } },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    });
+  }
+}
+
 describe("direct-contact transform lifecycle", () => {
   it("uses coincident visible endpoints as the conservative transform guard", () => {
     const contact = fixture();
@@ -418,7 +436,7 @@ describe("direct-contact transform lifecycle", () => {
         name: "VDD",
         scope: "global",
         powerDomain: "vdd",
-        owner: { kind: "explicit-net-property" },
+        owner: { kind: "net-label", annotationId: "test-net-label-1" },
       },
       {
         id: "claim-ground",
@@ -427,9 +445,10 @@ describe("direct-contact transform lifecycle", () => {
         name: "0",
         scope: "global",
         powerDomain: "ground",
-        owner: { kind: "explicit-net-property" },
+        owner: { kind: "net-label", annotationId: "test-net-label-2" },
       },
     ];
+    materializeClaimLabels(document);
 
     // The move parks a ground pin exactly on a VDD pin. Since transforms
     // never bond, there is no merge to reject: the move succeeds and the
@@ -480,7 +499,7 @@ describe("direct-contact transform lifecycle", () => {
         name: "VDD",
         scope: "global",
         powerDomain: "vdd",
-        owner: { kind: "explicit-net-property" },
+        owner: { kind: "net-label", annotationId: "test-net-label-3" },
       },
       {
         id: "claim-ground",
@@ -489,9 +508,10 @@ describe("direct-contact transform lifecycle", () => {
         name: "0",
         scope: "global",
         powerDomain: "ground",
-        owner: { kind: "explicit-net-property" },
+        owner: { kind: "net-label", annotationId: "test-net-label-4" },
       },
     ];
+    materializeClaimLabels(document);
 
     // An explicit Junction is authored geometry, so it does bond — and a
     // bond across power domains is rejected atomically.

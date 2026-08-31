@@ -25,10 +25,14 @@ export const ConnectivityNameClaimOwnerSchema = z.discriminatedUnion("kind", [
     kind: z.literal("power-marker"),
     objectId: StableIdSchema,
   }),
-  z.strictObject({ kind: z.literal("explicit-net-property") }),
+  z.strictObject({
+    /** Explicit SPICE `0`/`.global` semantics, not an inferred power name. */
+    kind: z.literal("global-declaration"),
+    sourceNetId: StableIdSchema,
+  }),
 ]);
 
-/** Persisted reason why Base Nets participate in one logical connectivity. */
+/** Persisted typed naming and import provenance for one Base Net. */
 export const ConnectivityEvidenceSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     id: StableIdSchema,
@@ -49,8 +53,15 @@ export const ConnectivityEvidenceSchema = z.discriminatedUnion("kind", [
   }),
   z.strictObject({
     id: StableIdSchema,
-    kind: z.literal("explicit-equivalence"),
-    memberNetIds: z.array(StableIdSchema).min(2).max(256),
+    /**
+     * Source spelling retained for display/round-trip only. It never names or
+     * joins a Logical Net; current electrical names require a visible owner,
+     * a formal Cell Pin, or an explicit global declaration.
+     */
+    kind: z.literal("net-name-hint"),
+    netId: StableIdSchema,
+    sourceName: z.string().trim().min(1).max(256),
+    origin: z.enum(["spice-import", "legacy-explicit-net-property"]),
   }),
 ]);
 

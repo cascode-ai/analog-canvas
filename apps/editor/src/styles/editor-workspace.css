@@ -638,3 +638,93 @@
     height: 36px;
   }
 }
+
+/* The docked gallery's controls: a search box, a tag menu and the wall's size.
+   The panel is narrow, so tags live behind a menu rather than in a chip row —
+   the only difference from the Gallery wall, whose behaviour it otherwise
+   shares exactly. */
+.examples-panel-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--icm-space-2);
+  padding: 0 var(--icm-space-2);
+}
+
+.examples-panel-search {
+  flex: 1 1 8rem;
+  min-width: 0;
+  padding: var(--icm-space-1) var(--icm-space-2);
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  background: var(--icm-surface);
+  color: inherit;
+  font-size: var(--icm-font-xs);
+}
+
+.examples-panel-tag-menu {
+  position: relative;
+}
+
+.examples-panel-tag-toggle {
+  padding: var(--icm-space-1) var(--icm-space-2);
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  background: var(--icm-surface);
+  color: inherit;
+  font-size: var(--icm-font-xs);
+  cursor: pointer;
+}
+
+.examples-panel-tag-options {
+  position: absolute;
+  z-index: 2;
+  top: calc(100% + var(--icm-space-1));
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--icm-space-1);
+  max-height: 16rem;
+  min-width: 10rem;
+  padding: var(--icm-space-2);
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  background: var(--icm-surface-raised, var(--icm-surface));
+  box-shadow: var(--icm-shadow-panel, 0 4px 12px rgb(0 0 0 / 18%));
+  overflow: auto;
+}
+
+.examples-panel-tag-option {
+  display: flex;
+  align-items: center;
+  gap: var(--icm-space-1);
+  font-size: var(--icm-font-xs);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.examples-panel-tag-count {
+  margin-left: auto;
+  color: var(--icm-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.examples-panel-count {
+  flex-basis: 100%;
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.examples-panel-empty {
+  margin: 0;
+  padding: 0 var(--icm-space-2);
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+}
+
+/* Watched to fetch the next page; it has no size of its own, so a short
+   filtered list keeps it in view and the feed keeps arriving. */
+.examples-panel-sentinel {
+  height: 1px;
+}

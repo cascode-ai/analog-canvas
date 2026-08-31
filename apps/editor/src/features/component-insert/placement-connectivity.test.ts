@@ -26,6 +26,17 @@ function addSupplyClaim(
   scope: "local" | "global",
   powerDomain: "vdd" | "ground",
 ): void {
+  const annotationId = `test-net-label-${netId}`;
+  document.annotations.push({
+    id: annotationId,
+    kind: "power-label",
+    binding: { kind: "net-name", netId },
+    netId,
+    anchor: { kind: "free", position: { x: 0, y: 0 } },
+    alignment: "start",
+    rotation: 0,
+    locked: false,
+  });
   document.connectivityEvidence.push({
     id: `claim-${netId}`,
     kind: "name-claim",
@@ -33,7 +44,7 @@ function addSupplyClaim(
     name,
     scope,
     powerDomain,
-    owner: { kind: "explicit-net-property" },
+    owner: { kind: "net-label", annotationId },
   });
 }
 

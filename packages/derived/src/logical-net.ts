@@ -17,6 +17,7 @@ export interface ResolvedLogicalNet {
   scope?: "local" | "global";
   powerDomain: LogicalNetPowerDomain;
   evidenceIds: readonly string[];
+  formalTerminalIds: readonly string[];
   sourceNetIds: readonly string[];
   conflicts: readonly LogicalNetConflictCode[];
 }
@@ -79,12 +80,13 @@ function unionGroups(
 }
 
 /**
- * Resolve Document-local logical identity from schema-23 evidence. Physical
- * Base Nets remain intact; this pure result is the only electrical folding
- * implementation used by editor and netlist consumers. `spice-source`
- * evidence is provenance for imported routing guidance, not electrical
- * equivalence: a user cut must not remain connected merely because both
- * resulting components came from the same source Net.
+ * Resolve Document-local logical identity from owner-addressed scoped names
+ * and formal Cell-Pin names.
+ * Physical Base Nets remain intact; this pure result is the only electrical
+ * folding implementation used by editor and netlist consumers. `spice-source`
+ * and `net-name-hint` evidence are provenance, not electrical equivalence: a
+ * user cut must not remain connected merely because both resulting components
+ * came from the same source Net or retained the same source spelling.
  */
 export function resolveDocumentLogicalNets(
   document: SchematicDocument,
@@ -94,19 +96,33 @@ export function resolveDocumentLogicalNets(
     .sort((left, right) => left.localeCompare(right, "en"));
   const set = new DisjointSet(baseNetIds);
 
-  unionGroups(
-    set,
-    document.connectivityEvidence.flatMap((evidence) =>
-      evidence.kind === "explicit-equivalence" ? [evidence.memberNetIds] : [],
-    ),
-  );
-
   const byScopedName = new Map<string, string[]>();
+  const formalNames = (document.netlist?.terminals ?? []).map((terminal) => {
+    const matchingGlobalClaim = document.connectivityEvidence.some(
+      (evidence) =>
+        evidence.kind === "name-claim" &&
+        evidence.netId === terminal.netId &&
+        evidence.scope === "global" &&
+        foldNetName(evidence.name) === foldNetName(terminal.name),
+    );
+    return {
+      id: terminal.id,
+      netId: terminal.netId,
+      name: terminal.name,
+      scope: matchingGlobalClaim ? ("global" as const) : ("local" as const),
+    };
+  });
   for (const evidence of document.connectivityEvidence) {
     if (evidence.kind !== "name-claim") continue;
     const key = `${evidence.scope}\u0000${foldNetName(evidence.name)}`;
     const ids = byScopedName.get(key) ?? [];
     ids.push(evidence.netId);
+    byScopedName.set(key, ids);
+  }
+  for (const terminal of formalNames) {
+    const key = `${terminal.scope}\u0000${foldNetName(terminal.name)}`;
+    const ids = byScopedName.get(key) ?? [];
+    ids.push(terminal.netId);
     byScopedName.set(key, ids);
   }
   unionGroups(set, byScopedName.values());
@@ -124,19 +140,37 @@ export function resolveDocumentLogicalNets(
       members.sort((left, right) => left.localeCompare(right, "en"));
       const memberSet = new Set(members);
       const evidence = document.connectivityEvidence
-        .filter((item) =>
-          item.kind === "explicit-equivalence"
-            ? item.memberNetIds.some((netId) => memberSet.has(netId))
-            : memberSet.has(item.netId),
-        )
+        .filter((item) => memberSet.has(item.netId))
         .sort((left, right) => left.id.localeCompare(right.id, "en"));
-      const nameCandidates = evidence.flatMap((item) =>
-        item.kind === "name-claim" ? [item.name] : [],
+      const memberFormalNames = formalNames.filter((item) =>
+        memberSet.has(item.netId),
       );
+      const nameCandidates = [
+        ...evidence.flatMap((item) =>
+          item.kind === "name-claim" ? [item.name] : [],
+        ),
+      ];
       const namesByFolded = new Map<string, string>();
       for (const name of nameCandidates) {
         const folded = foldNetName(name);
         if (!namesByFolded.has(folded)) namesByFolded.set(folded, name.trim());
+      }
+      // A single formal Port spelling is a visible current name. Multiple
+      // differently named Cell Pins may intentionally expose one internal
+      // Net, so they remain interface aliases unless a Label/marker chooses
+      // the current Net name explicitly.
+      if (namesByFolded.size === 0) {
+        const formalNamesByFolded = new Map<string, string>();
+        for (const terminal of memberFormalNames) {
+          const folded = foldNetName(terminal.name);
+          if (!formalNamesByFolded.has(folded)) {
+            formalNamesByFolded.set(folded, terminal.name.trim());
+          }
+        }
+        if (formalNamesByFolded.size === 1) {
+          const [folded, name] = formalNamesByFolded.entries().next().value!;
+          namesByFolded.set(folded, name);
+        }
       }
       const scopes = new Set(
         evidence.flatMap((item) =>
@@ -180,6 +214,7 @@ export function resolveDocumentLogicalNets(
           : {}),
         powerDomain,
         evidenceIds: evidence.map((item) => item.id),
+        formalTerminalIds: memberFormalNames.map((item) => item.id).sort(),
         sourceNetIds,
         conflicts,
       };

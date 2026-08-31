@@ -252,6 +252,65 @@ function buildNetContext(
   let generatedIndex = 1;
   for (const logicalNet of logicalNets.groups) {
     let name = formalTerminalByLogicalId.get(logicalNet.id) ?? logicalNet.name;
+    if (!name) {
+      const memberNetIds = new Set(logicalNet.baseNetIds);
+      const hints = document.connectivityEvidence.filter(
+        (
+          evidence,
+        ): evidence is Extract<
+          SchematicDocument["connectivityEvidence"][number],
+          { kind: "net-name-hint" }
+        > =>
+          evidence.kind === "net-name-hint" && memberNetIds.has(evidence.netId),
+      );
+      const namesByFolded = new Map<string, string>();
+      for (const hint of hints) {
+        const folded = foldNetName(hint.sourceName);
+        if (!namesByFolded.has(folded)) {
+          namesByFolded.set(folded, hint.sourceName);
+        }
+      }
+      if (namesByFolded.size === 1) {
+        const preferredName = [...namesByFolded.values()][0]!;
+        if (isIdentifier(preferredName, true)) {
+          name = preferredName;
+          let suffix = 2;
+          while (occupiedNames.has(foldNetName(name))) {
+            name = `${preferredName}__${suffix}`;
+            suffix += 1;
+          }
+          if (name !== preferredName) {
+            diagnostic(
+              diagnostics,
+              document.id,
+              "DISAMBIGUATED_SOURCE_NET_NAME",
+              `Source node ${preferredName} exports as ${name} because its spelling is already in use`,
+              [...logicalNet.baseNetIds, ...hints.map((hint) => hint.id)],
+              "warning",
+            );
+          }
+          occupiedNames.add(foldNetName(name));
+        } else {
+          diagnostic(
+            diagnostics,
+            document.id,
+            "UNREPRESENTABLE_SOURCE_NET_NAME",
+            `Source node spelling is outside the portable identifier subset: ${preferredName}`,
+            [...logicalNet.baseNetIds, ...hints.map((hint) => hint.id)],
+            "warning",
+          );
+        }
+      } else if (namesByFolded.size > 1) {
+        diagnostic(
+          diagnostics,
+          document.id,
+          "AMBIGUOUS_SOURCE_NET_NAME",
+          `Logical Net ${logicalNet.id} contains multiple source node spellings and requires a generated current name`,
+          [...logicalNet.baseNetIds, ...hints.map((hint) => hint.id)],
+          "warning",
+        );
+      }
+    }
     if (!name && logicalNet.scope !== "global") {
       do {
         name = `N${String(generatedIndex).padStart(4, "0")}`;

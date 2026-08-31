@@ -407,39 +407,12 @@ export function App({
       setGalleryRefreshSignal((previous) => previous + 1);
     });
   }, [visibleLibraryPanelOpen]);
-  useEffect(() => {
-    if (!visibleLibraryPanelOpen) return;
-    let cancelled = false;
-    const generation = ++galleryLoadGenerationRef.current;
-    void (async () => {
-      try {
-        const response = await fetch("/api/gallery?limit=60", {
-          credentials: "same-origin",
-        });
-        if (!response.ok) return;
-        const payload = (await response.json()) as {
-          entries?: {
-            id: string;
-            name: string;
-            author: string;
-            description: string;
-            previewRevision?: string;
-          }[];
-        };
-        if (!cancelled && generation === galleryLoadGenerationRef.current) {
-          setGalleryExamples(payload.entries ?? []);
-        }
-      } catch {
-        // Unreachable worker (offline dev): the bundled list stands in.
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [visibleLibraryPanelOpen, galleryRefreshSignal]);
 
   const [recoveryFailureDismissed, setRecoveryFailureDismissed] =
     useState(false);
+  // Feature name whose on-demand chunk vanished under a redeploy; the banner
+  // offers the refresh that restores the current circuit.
+  const [chunkLoadFailure, setChunkLoadFailure] = useState<string | null>(null);
   const {
     state: recoveryState,
     sessions: recoverySessions,
@@ -630,16 +603,6 @@ export function App({
   }, [activeProjectId]);
   // The Examples panel reads the same community gallery as the landing
   // feed; null means unreachable, so the bundled list stands in.
-  const [galleryExamples, setGalleryExamples] = useState<
-    | readonly {
-        id: string;
-        name: string;
-        author: string;
-        description: string;
-        previewRevision?: string;
-      }[]
-    | null
-  >(null);
   const [publishGates, setPublishGates] = useState<SubmissionGateReport | null>(
     null,
   );
@@ -2414,6 +2377,7 @@ export function App({
   });
   const {
     fitView,
+    panView,
     zoomViewAtCenter,
     handleWheel,
     zoomAtClientPoint,
@@ -3122,6 +3086,7 @@ export function App({
       addText: addPlainText,
       openProperties,
       closeProperties,
+      panView,
       fitView,
       report: setStatus,
     },
@@ -3143,6 +3108,7 @@ export function App({
       setImportReviewOpen,
       setSelectionOpen,
       setStatus,
+      onChunkLoadFailure: setChunkLoadFailure,
     });
 
   // Single entry point for selecting a drafting object. Editing is opened
@@ -3877,6 +3843,14 @@ export function App({
         help={
           helpOpen ? { closeButtonRef: helpCloseRef, onClose: closeHelp } : null
         }
+        chunkLoadFailure={
+          chunkLoadFailure === null
+            ? null
+            : {
+                feature: chunkLoadFailure,
+                onDismiss: () => setChunkLoadFailure(null),
+              }
+        }
         recoveryFailure={
           (recoveryState === "quota-exceeded" ||
             recoveryState === "unavailable" ||
@@ -4185,7 +4159,6 @@ export function App({
         ) : (
           <ExamplesPanel
             open={visibleLibraryPanelOpen}
-            galleryExamples={galleryExamples}
             onOpenGalleryExample={(id) => void insertGalleryEntryById(id)}
             onOpenExample={openLibraryExample}
           />

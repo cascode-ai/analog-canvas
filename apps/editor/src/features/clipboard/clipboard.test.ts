@@ -18,7 +18,7 @@ import {
   copyPlacementOrientationEdits,
   orientClipboard,
   copySelection,
-  copyWholeDocument,
+  captureDocumentComposition,
   proposePaste,
 } from "./clipboard";
 
@@ -205,7 +205,7 @@ describe("schematic clipboard", () => {
       netId: "net-signal",
       name: "SIGNAL",
       scope: "local",
-      owner: { kind: "explicit-net-property" },
+      owner: { kind: "net-label", annotationId: "label-signal" },
     });
     document.routes.push(
       createRoutePath({
@@ -217,8 +217,18 @@ describe("schematic clipboard", () => {
         modes: ["manual", "manual"],
       }),
     );
+    document.annotations.push({
+      id: "label-signal",
+      kind: "net-label",
+      binding: { kind: "net-name", netId: "net-signal" },
+      netId: "net-signal",
+      anchor: { kind: "free", position: { x: 170, y: 80 } },
+      alignment: "middle",
+      rotation: 0,
+      locked: false,
+    });
 
-    const copied = copySelection(document, ["R1", "R2"]);
+    const copied = copySelection(document, ["R1", "R2", "label-signal"]);
     expect(copied?.routes).toHaveLength(1);
     const proposal = proposePaste(document, copied!, { x: 20, y: 20 }, 1);
     const result = executeTransaction(
@@ -385,6 +395,15 @@ describe("schematic clipboard", () => {
         },
       },
       {
+        id: "R3",
+        symbolId: "resistor",
+        placement: {
+          position: { x: 140, y: 20 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+      {
         id: "R2",
         symbolId: "resistor",
         placement: {
@@ -409,19 +428,17 @@ describe("schematic clipboard", () => {
     document.connectivityEvidence.push(
       {
         id: "claim-r1",
-        kind: "name-claim",
+        kind: "net-name-hint",
         netId: "net-r1",
-        name: "N1",
-        scope: "local",
-        owner: { kind: "explicit-net-property" },
+        sourceName: "N1",
+        origin: "legacy-explicit-net-property",
       },
       {
         id: "claim-r2",
-        kind: "name-claim",
+        kind: "net-name-hint",
         netId: "net-r2",
-        name: "N2",
-        scope: "local",
-        owner: { kind: "explicit-net-property" },
+        sourceName: "N2",
+        origin: "legacy-explicit-net-property",
       },
     );
     document.mosBulkDefaults = { nmosNetId: "net-r2" };
@@ -913,7 +930,520 @@ describe("schematic clipboard", () => {
   });
 });
 
-describe("copyWholeDocument", () => {
+describe("captureDocumentComposition", () => {
+  it("uses composition identity while preserving an available designator", () => {
+    const source = createEmptyDocument("source-document", "Source");
+    source.instances.push({
+      id: "R7",
+      symbolId: "resistor",
+      schematicReference: "R7",
+      placement: {
+        position: { x: 20, y: 20 },
+        rotation: 0,
+        mirror: "none",
+      },
+      netlist: {
+        reference: "R7",
+        binding: { kind: "primitive", deviceClass: "resistor" },
+        parameters: { value: "10k" },
+      },
+    });
+
+    const fragment = captureDocumentComposition(source)!;
+    const proposal = proposePaste(
+      createEmptyDocument("target-document", "Target"),
+      fragment,
+      { x: 0, y: 0 },
+      1,
+    );
+    const added = proposal.edits.find((edit) => edit.kind === "add_instance");
+
+    expect(fragment).toMatchObject({
+      intent: "compose-document",
+      sourceDocumentId: "source-document",
+      sourceGrid: 10,
+    });
+    expect(proposal.operationPlan).toMatchObject({
+      intent: "compose",
+      expectedElectricalEffect: {
+        kind: "compose",
+        boundaryPolicy: "preserve-target-physical",
+      },
+    });
+    expect(proposal.compositionOccurrence).toMatchObject({
+      id: "composition-source-document-copy-1",
+      sourceDocumentId: "source-document",
+      targetDocumentId: "target-document",
+      objectIdRemap: {
+        instances: { R7: "R7-copy-1" },
+      },
+    });
+    expect(added).toMatchObject({
+      kind: "add_instance",
+      instance: {
+        id: "R7-copy-1",
+        schematicReference: "R7",
+        netlist: { reference: "R7" },
+      },
+    });
+  });
+
+  it("owns composed MOS bulk connections per instance without changing target defaults", () => {
+    const source = createLibraryExampleProject(
+      "fully-differential-two-stage-op-amp",
+    )!.documents[0]!;
+    const sourceBindings = source.instances.filter(
+      (instance) => instance.mosBulkBinding,
+    );
+    expect(sourceBindings.length).toBeGreaterThan(0);
+
+    const target = createEmptyDocument("target-document", "Target");
+    const fragment = captureDocumentComposition(source)!;
+    const proposal = proposePaste(target, fragment, { x: 0, y: 0 }, 1);
+    expect(proposal.errors).toEqual([]);
+    const result = executeTransaction(
+      target,
+      {
+        transactionId: "compose-mos-bulk",
+        documentId: target.id,
+        expectedRevision: target.revision,
+        actor: { kind: "human", id: "test" },
+        edits: proposal.edits,
+      },
+      { symbolResolver: resolver },
+    );
+    if (!result.ok) throw new Error(JSON.stringify(result, null, 2));
+
+    expect(result.document.mosBulkDefaults).toBeUndefined();
+    for (const sourceInstance of sourceBindings) {
+      const copiedInstanceId = proposal.idRemap.instances[sourceInstance.id]!;
+      const copiedNetId =
+        proposal.idRemap.nets[sourceInstance.mosBulkBinding!.netId]!;
+      expect(
+        result.document.instances.find(
+          (instance) => instance.id === copiedInstanceId,
+        )?.mosBulkBinding,
+      ).toEqual({ origin: "instance-override", netId: copiedNetId });
+      expect(
+        result.document.nets
+          .find((net) => net.id === copiedNetId)
+          ?.terminals.some(
+            (terminal) =>
+              terminal.instanceId === copiedInstanceId &&
+              terminal.pinName === "B",
+          ),
+      ).toBe(true);
+    }
+  });
+
+  it("closes a still-derived source Cell bulk default before composition", () => {
+    const source = createEmptyDocument("source-document", "Source");
+    source.instances.push({
+      id: "M1",
+      symbolId: "nmos",
+      placement: {
+        position: { x: 20, y: 20 },
+        rotation: 0,
+        mirror: "none",
+      },
+    });
+    source.nets.push({ id: "net-substrate", terminals: [] });
+    source.mosBulkDefaults = { nmosNetId: "net-substrate" };
+
+    const fragment = captureDocumentComposition(source)!;
+    expect(fragment.instances[0]?.mosBulkBinding).toEqual({
+      origin: "cell-default",
+      netId: "net-substrate",
+    });
+    expect(fragment.nets[0]?.terminals).toEqual([
+      { instanceId: "M1", pinName: "B" },
+    ]);
+    const target = createEmptyDocument("target-document", "Target");
+    const result = executeTransaction(
+      target,
+      {
+        transactionId: "compose-derived-bulk",
+        documentId: target.id,
+        expectedRevision: target.revision,
+        actor: { kind: "human", id: "test" },
+        edits: proposePaste(target, fragment, { x: 0, y: 0 }, 1).edits,
+      },
+      { symbolResolver: resolver },
+    );
+    if (!result.ok) throw new Error(JSON.stringify(result, null, 2));
+    expect(result.document.instances[0]?.mosBulkBinding).toEqual({
+      origin: "instance-override",
+      netId: "net-substrate-copy-1",
+    });
+    expect(result.document.nets[0]?.terminals).toEqual([
+      { instanceId: "M1-copy-1", pinName: "B" },
+    ]);
+  });
+
+  it("composes Cell parameters and complete layout ownership through one object map", () => {
+    const source = createEmptyDocument("source-document", "Source");
+    source.instances.push(
+      {
+        id: "P1",
+        symbolId: "port",
+        placement: {
+          position: { x: 20, y: 20 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+      {
+        id: "P2",
+        symbolId: "port",
+        placement: {
+          position: { x: 80, y: 20 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+    );
+    source.nets.push(
+      {
+        id: "net-a",
+        terminals: [{ instanceId: "P1", pinName: "P" }],
+      },
+      {
+        id: "net-b",
+        terminals: [{ instanceId: "P2", pinName: "P" }],
+      },
+    );
+    source.netlist = {
+      name: "Source",
+      formalParameters: [{ name: "GAIN", defaultValue: "10" }],
+      terminals: [
+        {
+          id: "terminal-a",
+          name: "A",
+          netId: "net-a",
+          direction: "input",
+          interfaceInstanceIds: ["P1"],
+        },
+        {
+          id: "terminal-b",
+          name: "B",
+          netId: "net-b",
+          direction: "output",
+          interfaceInstanceIds: ["P2"],
+        },
+      ],
+    };
+    source.layoutGroups.push({
+      id: "mixed-group",
+      kind: "custom",
+      objectIds: ["P1", "net-a"],
+      locked: false,
+    });
+    source.constraints.push({
+      id: "pin-alignment",
+      kind: "align-y",
+      objectIds: ["P1", "P2"],
+      locked: false,
+    });
+
+    const target = createEmptyDocument("target-document", "Combined");
+    delete target.netlist;
+    const fragment = captureDocumentComposition(source)!;
+    const proposal = proposePaste(target, fragment, { x: 100, y: 0 }, 1);
+    expect(proposal.errors).toEqual([]);
+    expect(proposal.edits[0]).toEqual({
+      kind: "create_cell_interface",
+      name: "Combined",
+    });
+    const result = executeTransaction(
+      target,
+      {
+        transactionId: "compose-interface-layout",
+        documentId: target.id,
+        expectedRevision: target.revision,
+        actor: { kind: "human", id: "test" },
+        edits: proposal.edits,
+      },
+      { symbolResolver: resolver },
+    );
+    if (!result.ok) throw new Error(JSON.stringify(result, null, 2));
+
+    expect(result.document.netlist).toMatchObject({
+      name: "Combined",
+      formalParameters: [{ name: "GAIN", defaultValue: "10" }],
+      terminals: [
+        { id: "terminal-a-copy-1", netId: "net-a-copy-1" },
+        { id: "terminal-b-copy-1", netId: "net-b-copy-1" },
+      ],
+    });
+    expect(result.document.layoutGroups).toEqual([
+      {
+        id: "mixed-group-copy-1",
+        kind: "custom",
+        objectIds: ["P1-copy-1", "net-a-copy-1"],
+        locked: false,
+      },
+    ]);
+    expect(result.document.constraints).toEqual([
+      {
+        id: "pin-alignment-copy-1",
+        kind: "align-y",
+        objectIds: ["P1-copy-1", "P2-copy-1"],
+        locked: false,
+      },
+    ]);
+  });
+
+  it("reports formal-parameter and target-grid conflicts before the transaction", () => {
+    const source = createEmptyDocument("source-document", "Source");
+    source.presentation.grid = 5;
+    source.instances.push({
+      id: "R1",
+      symbolId: "resistor",
+      placement: {
+        position: { x: 5, y: 10 },
+        rotation: 0,
+        mirror: "none",
+      },
+    });
+    source.netlist = {
+      name: "Source",
+      terminals: [],
+      formalParameters: [{ name: "GAIN", defaultValue: "10" }],
+    };
+    const target = createEmptyDocument("target-document", "Target");
+    target.netlist = {
+      name: "Target",
+      terminals: [],
+      formalParameters: [{ name: "gain", defaultValue: "20" }],
+    };
+
+    const proposal = proposePaste(
+      target,
+      captureDocumentComposition(source)!,
+      { x: 0, y: 0 },
+      1,
+    );
+    expect(proposal.errors).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("formal parameter conflict"),
+        expect.stringContaining("incompatible with target grid 10"),
+      ]),
+    );
+    expect(
+      proposal.edits.find((edit) => edit.kind === "add_instance"),
+    ).toMatchObject({
+      instance: { placement: { position: { x: 5, y: 10 } } },
+    });
+  });
+
+  it("keeps repeated imported local names separate while explicit globals still join", () => {
+    const source = createEmptyDocument("source-document", "Source");
+    source.instances.push(
+      {
+        id: "R1",
+        symbolId: "resistor",
+        placement: {
+          position: { x: 20, y: 20 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+      {
+        id: "R2",
+        symbolId: "resistor",
+        placement: {
+          position: { x: 80, y: 20 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+    );
+    source.nets.push(
+      {
+        id: "net-out-a",
+        terminals: [{ instanceId: "R1", pinName: "1" }],
+      },
+      {
+        id: "net-out-b",
+        terminals: [{ instanceId: "R2", pinName: "1" }],
+      },
+      {
+        id: "net-vdd",
+        terminals: [{ instanceId: "R3", pinName: "1" }],
+      },
+    );
+    source.connectivityEvidence.push(
+      {
+        id: "claim-out-a",
+        kind: "net-name-hint",
+        netId: "net-out-a",
+        sourceName: "OUT",
+        origin: "spice-import",
+      },
+      {
+        id: "claim-out-b",
+        kind: "net-name-hint",
+        netId: "net-out-b",
+        sourceName: "out",
+        origin: "spice-import",
+      },
+      {
+        id: "claim-vdd",
+        kind: "name-claim",
+        netId: "net-vdd",
+        name: "VDD",
+        owner: { kind: "global-declaration", sourceNetId: "source-vdd" },
+        scope: "global",
+        powerDomain: "vdd",
+      },
+      {
+        id: "source-vdd",
+        kind: "spice-source",
+        netId: "net-vdd",
+        sourceNetId: "source-vdd",
+      },
+    );
+    const fragment = captureDocumentComposition(source)!;
+    const firstTarget = createEmptyDocument("target-document", "Target");
+    const firstProposal = proposePaste(
+      firstTarget,
+      fragment,
+      { x: 0, y: 0 },
+      1,
+    );
+    const first = executeTransaction(
+      firstTarget,
+      {
+        transactionId: "compose-first",
+        documentId: firstTarget.id,
+        expectedRevision: firstTarget.revision,
+        actor: { kind: "human", id: "test" },
+        edits: firstProposal.edits,
+      },
+      { symbolResolver: resolver },
+    );
+    if (!first.ok) throw new Error(JSON.stringify(first, null, 2));
+    const secondProposal = proposePaste(
+      first.document,
+      fragment,
+      { x: 200, y: 0 },
+      2,
+    );
+    const second = executeTransaction(
+      first.document,
+      {
+        transactionId: "compose-second",
+        documentId: first.document.id,
+        expectedRevision: first.document.revision,
+        actor: { kind: "human", id: "test" },
+        edits: secondProposal.edits,
+      },
+      { symbolResolver: resolver },
+    );
+    if (!second.ok) throw new Error(JSON.stringify(second, null, 2));
+
+    expect(firstProposal.compositionOccurrence).toMatchObject({
+      id: "composition-source-document-copy-1",
+      sourceDocumentId: "source-document",
+      targetDocumentId: "target-document",
+    });
+    expect(secondProposal.compositionOccurrence).toMatchObject({
+      id: "composition-source-document-copy-2",
+      sourceDocumentId: "source-document",
+      targetDocumentId: "target-document",
+    });
+    expect(firstProposal.compositionOccurrence?.id).not.toBe(
+      secondProposal.compositionOccurrence?.id,
+    );
+    const resolved = resolveDocumentLogicalNets(second.document);
+    expect(
+      resolved.groups.filter((group) =>
+        group.baseNetIds.some((netId) => netId.includes("net-out")),
+      ),
+    ).toHaveLength(4);
+    expect(
+      resolved.groups.some((group) => group.name?.toLowerCase() === "out"),
+    ).toBe(false);
+    expect(
+      resolved.groups.find((group) => group.name === "VDD")?.baseNetIds,
+    ).toHaveLength(2);
+  });
+
+  it("materializes a label-only Net while placing a Gallery document", () => {
+    const source = createEmptyDocument("document-main", "Label-only Net");
+    source.instances.push({
+      id: "VDD1",
+      symbolId: "vdd-port",
+      placement: {
+        position: { x: 100, y: 100 },
+        rotation: 0,
+        mirror: "none",
+      },
+      schematicReference: "VDD1",
+    });
+    source.nets.push(
+      { id: "net-label-only", terminals: [] },
+      { id: "net-empty-source-fact", terminals: [] },
+    );
+    source.annotations.push({
+      id: "power-label-vdd1",
+      kind: "power-label",
+      binding: { kind: "net-name", netId: "net-label-only" },
+      anchor: {
+        kind: "object",
+        objectId: "VDD1",
+        localOffset: { x: 15, y: 10 },
+        fallbackPosition: { x: 115, y: 110 },
+      },
+      netId: "net-label-only",
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    });
+
+    const target = createEmptyDocument("target", "Target");
+    const clipboard = captureDocumentComposition(source);
+    expect(clipboard).not.toBeNull();
+    expect(clipboard?.nets.map((net) => net.id)).toEqual([
+      "net-label-only",
+      "net-empty-source-fact",
+    ]);
+    const proposal = proposePaste(target, clipboard!, { x: 200, y: 50 }, 1);
+    expect(proposal.errors).toEqual([]);
+    const result = executeTransaction(
+      target,
+      {
+        transactionId: "paste-label-only-net",
+        documentId: target.id,
+        expectedRevision: target.revision,
+        actor: { kind: "human", id: "test" },
+        edits: proposal.edits,
+      },
+      { symbolResolver: resolver },
+    );
+
+    if (!result.ok) throw new Error(JSON.stringify(result, null, 2));
+    const copiedNet = result.document.nets.find(
+      (net) => net.id === proposal.idRemap.nets["net-label-only"],
+    );
+    expect(copiedNet).toEqual({
+      id: "net-label-only-copy-1",
+      terminals: [],
+    });
+    expect(result.document.nets).toContainEqual({
+      id: "net-empty-source-fact-copy-1",
+      terminals: [],
+    });
+    expect(result.document.annotations).toEqual([
+      expect.objectContaining({
+        id: "power-label-vdd1-copy-1",
+        netId: "net-label-only-copy-1",
+        binding: { kind: "net-name", netId: "net-label-only-copy-1" },
+      }),
+    ]);
+    expect(result.document.junctions).toEqual([]);
+  });
+
   it("keeps standalone drafting geometry and its layout group", () => {
     const document = createEmptyDocument("document-main", "Drafting scene");
     document.drafting = {
@@ -956,13 +1486,13 @@ describe("copyWholeDocument", () => {
       locked: false,
     });
 
-    const clipboard = copyWholeDocument(document);
+    const clipboard = captureDocumentComposition(document);
     expect(clipboard?.draftingObjects.map((object) => object.kind)).toEqual([
       "rectangle",
       "arrow",
       "leader",
     ]);
-    expect(clipboard?.draftingGroups).toEqual([document.layoutGroups[0]]);
+    expect(clipboard?.layoutGroups).toEqual([document.layoutGroups[0]]);
     expect(clipboardPlacementAnchor(clipboard!)).toEqual({ x: 40, y: 30 });
 
     const target = createEmptyDocument("target", "Target");
@@ -1073,7 +1603,7 @@ describe("copyWholeDocument", () => {
       ],
     };
 
-    const clipboard = copyWholeDocument(document)!;
+    const clipboard = captureDocumentComposition(document)!;
     const proposal = proposePaste(
       createEmptyDocument("target", "Target"),
       clipboard,
@@ -1135,7 +1665,7 @@ describe("copyWholeDocument", () => {
       kind: "name-claim",
       netId: "net-vdd",
       name: "VDD",
-      owner: { kind: "explicit-net-property" },
+      owner: { kind: "power-marker", objectId: "rail-vdd" },
       scope: "global",
       powerDomain: "vdd",
     });
@@ -1169,7 +1699,7 @@ describe("copyWholeDocument", () => {
     // rail with no device on it yet is not part of any selection.
     expect(copySelection(document, [])).toBeNull();
 
-    const whole = copyWholeDocument(document);
+    const whole = captureDocumentComposition(document);
     expect(whole?.routes).toHaveLength(1);
     expect(whole?.routes[0]?.presentation).toBe("power-rail");
     expect(whole?.junctions).toHaveLength(2);
@@ -1183,7 +1713,7 @@ describe("copyWholeDocument", () => {
   it("retains migrated Power Rail name claims when inserting an example", () => {
     const example = createLibraryExampleProject("common-source-amplifier");
     expect(example).not.toBeNull();
-    const clipboard = copyWholeDocument(example!.documents[0]!);
+    const clipboard = captureDocumentComposition(example!.documents[0]!);
     expect(clipboard).not.toBeNull();
     const target = createEmptyDocument("target", "Target");
     const proposal = proposePaste(target, clipboard!, { x: 20, y: 20 }, 1);
@@ -1363,7 +1893,7 @@ describe("a copy stands on its own", () => {
     });
 
     const clipboard = copySelection(document, [], ["wave-a", "wave-b"]);
-    expect(clipboard?.draftingGroups).toEqual([document.layoutGroups[0]]);
+    expect(clipboard?.layoutGroups).toEqual([document.layoutGroups[0]]);
 
     const proposal = proposePaste(document, clipboard!, { x: 200, y: 0 }, 1);
     const pastedObjects = proposal.edits.flatMap((edit) =>

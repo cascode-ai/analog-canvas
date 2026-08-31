@@ -110,6 +110,8 @@ Route transaction.
   Routes and terminal membership are not copied, so copied boundary pins are
   open. A selected Cell Pin, supply marker, or Net-label owner retains its own
   naming evidence and rejoins a Logical Net only through `name + scope`.
+  Imported `net-name-hint` and `spice-source` provenance may travel with a
+  copied Base Net but never rejoins it by source spelling or source identity.
   Implicit MOS bulk binding remains the explicit Cell-policy exception.
 - Delete is one graph operation: selected Route geometry dominates incidental
   marquee Junction dots; Junction-only deletion owns its incident arms; Route
@@ -128,7 +130,10 @@ committing clears the binding before connecting the explicit Net. Deleting the
 explicit route may reconcile only an explicitly configured cell default.
 Source-bound/imported MOS instances remain governed by their fourth-node
 evidence and are never guessed. Legacy persisted `supply-default` bindings are
-readable compatibility data, not a current authoring policy.
+readable compatibility data, not a current authoring policy. Cross-Document
+composition materializes an effective source `cell-default` as an
+`instance-override`: the copied B membership remains fixed to its copied Base
+Net and neither consumes nor changes the target Document's Cell default.
 
 A `power-rail` Route is valid only on a Base Net with an explicit persisted
 name claim whose `powerDomain` is `vdd`. Rail authoring creates or reuses that
@@ -140,6 +145,10 @@ contact evidence.
 The two rail endpoints remain directly resizable along the rail axis; moving
 the rail translates its full connected component, including tap Junctions,
 without splitting the rail into independent pieces.
+Deleting any rail segment or its owned power label likewise removes the whole
+visually continuous rail component and that label/name-owner closure in one
+transaction. Ordinary tapped wires remain; a partial rail cut that would
+strand an unnamed `power-rail` Route is not an authoring operation.
 
 A named global Net is itself an explicit semantic bridge. Separate Ground or
 VDD markers on that Net do not require a drawn trunk or matching label and do
@@ -164,9 +173,9 @@ or transform edits cannot dismiss guidance; the current graph simply yields a
 new result. `remove_route_geometry` retains Net membership and therefore
 re-exposes unresolved imported components. A normal connection cut splits all
 physical components, including imported and global Base Nets; only the primary
-component retains non-source electrical Evidence such as explicit equivalence,
-while owner-addressed markers follow their surviving component and source
-provenance is copied to every component. The editor may show
+component retains an unowned imported name projection, while owner-addressed
+markers follow their surviving component and source provenance is copied to
+every component. The editor may show
 focused, all, or hidden imported guides; each guide carries the actual Base
 Net at both endpoints, so clicking it uses the ordinary Wire merge path. Net
 highlight suppresses guides incident to the highlighted Net. Unplaced
@@ -178,6 +187,14 @@ coordinates.
 Base Nets remain physical connectivity; Logical Nets are derived from
 owner-addressed `name-claim` evidence. Reusing a spelling never merges Route
 geometry.
+
+Name claims resolve by scope and folded name inside the containing Document.
+Flattened Document composition copies those owner-addressed claims into the
+target Document's namespace, so matching local names resolve to one Logical
+Net without merging their Base-Net geometry. A composition occurrence records
+source-to-target identity only in the operation plan and never participates in
+Net resolution. Hierarchical Cell Instances, rather than hidden naming domains,
+provide local-name isolation across Documents.
 
 - Renaming one marker detaches only that owner from its old Base Net, creates
   or joins its requested name semantics, and rebinds its own label. Other

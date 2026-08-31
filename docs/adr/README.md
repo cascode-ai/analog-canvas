@@ -51,7 +51,8 @@ major boundaries exist.
 - [`0014-resolved-route-geometry.md`](0014-resolved-route-geometry.md) — resolved Route geometry
 - [`0015-object-locator-and-diagnostic-envelope.md`](0015-object-locator-and-diagnostic-envelope.md) — common locator and diagnostics
 - [`0039-any-angle-route-authoring.md`](0039-any-angle-route-authoring.md) — one Route protocol with any-angle authoring
-- [`0040-connectivity-evidence.md`](0040-connectivity-evidence.md) — Base Nets, marker claims, and Logical Nets
+- [`0051-owner-explainable-logical-nets.md`](0051-owner-explainable-logical-nets.md) — Base Nets, typed names, and owner-explainable Logical Nets
+- [`0052-net-name-authority-and-source-provenance.md`](0052-net-name-authority-and-source-provenance.md) — visible/current Net names versus non-electrical source spelling
 - [`0041-physical-cut-and-endpoint-readiness.md`](0041-physical-cut-and-endpoint-readiness.md) — physical cut and endpoint readiness
 - [`0044-imported-source-provenance.md`](0044-imported-source-provenance.md) — source provenance is not connectivity
 - [`0047-stable-route-leg-model.md`](0047-stable-route-leg-model.md) — stable Route leg and bend identity

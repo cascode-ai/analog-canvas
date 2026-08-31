@@ -6,6 +6,7 @@ import {
   fitCameraToBounds,
   fitCameraToVisibleBounds,
   normalizeCameraRect,
+  panCameraByScreenPixels,
   zoomCameraAtAnchor,
 } from "./fit-view";
 
@@ -89,6 +90,41 @@ describe("zoomCameraAtAnchor", () => {
     // maxHeight (3000 -> 3500, scale 7/6) binds before maxWidth.
     expect(grown.height).toBe(CAMERA_ZOOM_LIMITS.maxHeight);
     expect(grown.width).toBeCloseTo((4000 * 7) / 6, 10);
+  });
+});
+
+describe("panCameraByScreenPixels", () => {
+  it("keeps the keyboard step constant in screen space across zoom levels", () => {
+    const viewport = { width: 800, height: 400 };
+    expect(
+      panCameraByScreenPixels(
+        { x: 100, y: 200, width: 800, height: 400 },
+        "right",
+        48,
+        viewport,
+      ),
+    ).toEqual({ x: 148, y: 200, width: 800, height: 400 });
+    expect(
+      panCameraByScreenPixels(
+        { x: 100, y: 200, width: 400, height: 200 },
+        "down",
+        48,
+        viewport,
+      ),
+    ).toEqual({ x: 100, y: 224, width: 400, height: 200 });
+  });
+
+  it("moves each direction without changing zoom", () => {
+    const current = { x: 100, y: 200, width: 800, height: 400 };
+    const viewport = { width: 800, height: 400 };
+    expect(panCameraByScreenPixels(current, "left", 40, viewport)).toEqual({
+      ...current,
+      x: 60,
+    });
+    expect(panCameraByScreenPixels(current, "up", 40, viewport)).toEqual({
+      ...current,
+      y: 160,
+    });
   });
 });
 

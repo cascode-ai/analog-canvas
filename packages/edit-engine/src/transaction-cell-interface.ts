@@ -8,6 +8,7 @@ type CellInterfaceEdit = Extract<
   EditTransaction["edits"][number],
   {
     kind:
+      | "create_cell_interface"
       | "add_cell_terminal"
       | "update_cell_terminal"
       | "remove_cell_terminal"
@@ -31,6 +32,24 @@ export function applyCellInterfaceEdit(
 ): CellInterfaceEditOutcome {
   const { draft, changedObjectIds, deferNetPrune, reject } = context;
   switch (edit.kind) {
+    case "create_cell_interface": {
+      if (draft.netlist) {
+        return {
+          ok: false,
+          rejection: reject(
+            "EDIT_PRECONDITION",
+            "Document already has a formal Cell interface",
+          ),
+        };
+      }
+      draft.netlist = {
+        name: edit.name,
+        terminals: [],
+        formalParameters: [],
+      };
+      changedObjectIds.add(draft.id);
+      return { ok: true, connectivityChanged: true };
+    }
     case "add_cell_terminal": {
       if (!draft.netlist) {
         return {

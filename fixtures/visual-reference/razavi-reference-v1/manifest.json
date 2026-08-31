@@ -70,6 +70,26 @@
           "reason": "removes the non-source red annotation arrow while retaining the printed figure"
         }
       }
+    },
+    {
+      "path": "transconductance-reference.png",
+      "sha256": "84038eaab654faaa7fbfcf17c7df204bfbea546e27e0bc4f0b6b08e4b1747902",
+      "scope": [
+        "user-supplied raster witness for a right-tapered transconductance Signal Flow block"
+      ],
+      "source": {
+        "kind": "user-supplied-raster-witness",
+        "title": "Small-signal amplifier diagram",
+        "figure": "user-supplied transconductance example",
+        "provenance": "user-supplied schematic image in the Analog Canvas feature request",
+        "sourceFileName": "1a382eca-f95b-45a4-9c60-f9f7d4f74021.png",
+        "sourceSha256": "5795ff03bb255bf7c7a405fef9cf73f28a657ceebb842e51ffbcad0cbd3f1b62",
+        "sourcePixels": {
+          "width": 699,
+          "height": 447
+        },
+        "sourceCropPx": [47, 115, 109, 180]
+      }
     }
   ],
   "vectorEvidence": [
@@ -481,5 +501,5 @@
     "Visio/VSS may establish legacy pin semantics but must not determine visual geometry."
   ],
   "deltaSigmaGeometryPath": "delta-sigma-geometry.json",
-  "deltaSigmaGeometrySha256": "3950498b6a74dbdcaca44a9bd62748924ec7fe1ecf6c72116c94123966aa4aa9"
+  "deltaSigmaGeometrySha256": "5eaa4c0efb4217083d1c7b79446bd80f07d2f18f808d61d25110d995ee594439"
 }

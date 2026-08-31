@@ -130,6 +130,7 @@ describe("blocks that carry no designator", () => {
     for (const symbolId of [
       "adder",
       "multiplier",
+      "transconductance",
       "integrator",
       "unit-delay",
       "quantizer",

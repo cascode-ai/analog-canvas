@@ -338,50 +338,39 @@
           "name": "VDD",
           "netId": "net-power-vdd1",
           "owner": {
-            "kind": "explicit-net-property"
+            "kind": "power-marker",
+            "objectId": "route-vdd1-rail-a-1"
           },
           "powerDomain": "vdd",
           "scope": "local"
         },
         {
           "id": "connectivity-evidence-43d121a9b2699894",
-          "kind": "name-claim",
-          "name": "Vout",
+          "kind": "net-name-hint",
           "netId": "net-ui-8",
-          "owner": {
-            "kind": "explicit-net-property"
-          },
-          "scope": "local"
+          "origin": "legacy-explicit-net-property",
+          "sourceName": "Vout"
         },
         {
           "id": "connectivity-evidence-e49301de7c4e842c",
-          "kind": "name-claim",
-          "name": "Vin1",
+          "kind": "net-name-hint",
           "netId": "net-contact-p1",
-          "owner": {
-            "kind": "explicit-net-property"
-          },
-          "scope": "local"
+          "origin": "legacy-explicit-net-property",
+          "sourceName": "Vin1"
         },
         {
           "id": "connectivity-evidence-3505353a1aed4e2e",
-          "kind": "name-claim",
-          "name": "Vin2",
+          "kind": "net-name-hint",
           "netId": "net-contact-p2",
-          "owner": {
-            "kind": "explicit-net-property"
-          },
-          "scope": "local"
+          "origin": "legacy-explicit-net-property",
+          "sourceName": "Vin2"
         },
         {
           "id": "connectivity-evidence-0ee42d8cf01c7bbb",
-          "kind": "name-claim",
-          "name": "Vb",
+          "kind": "net-name-hint",
           "netId": "net-contact-p4",
-          "owner": {
-            "kind": "explicit-net-property"
-          },
-          "scope": "local"
+          "origin": "legacy-explicit-net-property",
+          "sourceName": "Vb"
         },
         {
           "id": "connectivity-evidence-5c878c49425c1514",
@@ -389,7 +378,8 @@
           "name": "0",
           "netId": "net-contact-gnd1",
           "owner": {
-            "kind": "explicit-net-property"
+            "kind": "power-marker",
+            "objectId": "GND1"
           },
           "powerDomain": "ground",
           "scope": "global"
@@ -1287,7 +1277,7 @@
   "externalSubcircuitDefinitions": [],
   "id": "project-main",
   "name": "New Circuit",
-  "schemaVersion": 32,
+  "schemaVersion": 34,
   "source": {
     "dialect": "none",
     "entry": null,

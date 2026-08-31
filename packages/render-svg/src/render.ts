@@ -50,6 +50,7 @@ import {
   resolveSignalFlowPinAt,
 } from "@icm/symbols";
 import type {
+  AdaptiveSignalFlowBlockLayout,
   SignalFlowLayoutParameters,
   SymbolDefinition,
   SymbolPrimitive,
@@ -284,6 +285,28 @@ function renderPrimitive(
   }
 }
 
+function signalFlowFramePoints(body: {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}): string {
+  const right = body.x + body.width;
+  const bottom = body.y + body.height;
+  const taper = body.height / 4;
+  return `${body.x},${body.y} ${right},${body.y + taper} ${right},${bottom - taper} ${body.x},${bottom}`;
+}
+
+function renderAdaptiveSignalFlowFrame(
+  adaptive: AdaptiveSignalFlowBlockLayout,
+  attributes: string,
+): string {
+  const { body, shape } = adaptive;
+  return shape === "right-tapered-trapezoid"
+    ? `<polygon ${attributes} points="${signalFlowFramePoints(body)}"/>`
+    : `<rect ${attributes} x="${body.x}" y="${body.y}" width="${body.width}" height="${body.height}"/>`;
+}
+
 export function renderSymbolDefinitionBody(
   definition: SymbolDefinition,
   hiddenPrimitiveParts: readonly string[] = [],
@@ -303,9 +326,13 @@ export function renderSymbolDefinitionBody(
     const right = center.x + pinSpan;
     const bodyLeft = body.x;
     const bodyRight = body.x + body.width;
+    const frame = renderAdaptiveSignalFlowFrame(
+      adaptive,
+      `data-role="signal-flow-frame" data-part="body" fill="none" stroke-width="${profile.strokes.emphasis}" stroke-linecap="butt" stroke-linejoin="miter"`,
+    );
     return [
       `<line data-part="input-a-lead" x1="${left}" y1="${center.y}" x2="${bodyLeft}" y2="${center.y}"/>`,
-      `<rect data-role="signal-flow-frame" data-part="body" x="${body.x}" y="${body.y}" width="${body.width}" height="${body.height}" fill="none" stroke-width="${profile.strokes.emphasis}" stroke-linecap="butt" stroke-linejoin="miter"/>`,
+      frame,
       `<line data-part="output-y-lead" x1="${bodyRight}" y1="${center.y}" x2="${right}" y2="${center.y}"/>`,
     ].join("");
   }
@@ -888,15 +915,20 @@ export function buildSvgScene(
       // override is set, no rect is emitted (identical markup to pre-override
       // rendering).
       const viewBox = resolved.definition.viewBox;
-      const adaptiveBounds = resolveAdaptiveSignalFlowBlockLayout(
+      const adaptiveLayout = resolveAdaptiveSignalFlowBlockLayout(
         resolved.definition,
         instance.signalFlowParameters,
-      )?.body;
-      const background = adaptiveBounds ?? viewBox;
+      );
+      const background = adaptiveLayout?.body ?? viewBox;
       const backgroundRect =
-        styleOverride?.background !== undefined
-          ? `<rect data-role="instance-background" x="${background.x}" y="${background.y}" width="${background.width}" height="${background.height}" fill="${styleOverride.background}"/>`
-          : "";
+        styleOverride?.background === undefined
+          ? ""
+          : adaptiveLayout
+            ? renderAdaptiveSignalFlowFrame(
+                adaptiveLayout,
+                `data-role="instance-background" fill="${styleOverride.background}" stroke="none"`,
+              )
+            : `<rect data-role="instance-background" x="${background.x}" y="${background.y}" width="${background.width}" height="${background.height}" fill="${styleOverride.background}"/>`;
       const symbolRole =
         styleOverride === undefined ? "" : ' data-role="instance-symbol"';
       return `<g data-object-id="${escapeXml(instance.id)}" data-symbol-id="${escapeXml(resolved.definition.id)}"><g transform="${instanceTransform(instance)}">${backgroundRect}<g${symbolRole} fill="none" stroke="${strokeColor}" stroke-width="${profile.strokes.symbol}" stroke-linecap="${profile.lineCap}" stroke-linejoin="${profile.lineJoin}"${profileMiterAttribute(profile)}>${primitives}${formula}</g></g>${pinNames}</g>`;

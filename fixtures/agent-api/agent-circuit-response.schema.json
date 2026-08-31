@@ -749,6 +749,7 @@
                             "enum": [
                               "explicit",
                               "cell-default",
+                              "instance-override",
                               "supply-default",
                               "no-connect",
                               "unresolved"

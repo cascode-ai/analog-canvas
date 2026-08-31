@@ -80,23 +80,17 @@
       "connectivityEvidence": [
         {
           "id": "connectivity-evidence-cb18afb946bb14c9",
-          "kind": "name-claim",
-          "name": "VINP",
+          "kind": "net-name-hint",
           "netId": "net-vinp",
-          "owner": {
-            "kind": "explicit-net-property"
-          },
-          "scope": "local"
+          "origin": "legacy-explicit-net-property",
+          "sourceName": "VINP"
         },
         {
           "id": "connectivity-evidence-3081eb85ad004ff7",
-          "kind": "name-claim",
-          "name": "VOUT",
+          "kind": "net-name-hint",
           "netId": "net-vout",
-          "owner": {
-            "kind": "explicit-net-property"
-          },
-          "scope": "local"
+          "origin": "legacy-explicit-net-property",
+          "sourceName": "VOUT"
         }
       ],
       "constraints": [],
@@ -428,7 +422,7 @@
   "externalSubcircuitDefinitions": [],
   "id": "project-phase-5-dense-analog",
   "name": "Current Differential Stage",
-  "schemaVersion": 32,
+  "schemaVersion": 34,
   "source": {
     "dialect": "none",
     "entry": null,

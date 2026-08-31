@@ -1,0 +1,2816 @@
+{
+  "documents": [
+    {
+      "annotations": [
+        {
+          "alignment": "start",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 345,
+              "y": 70
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": 15,
+              "y": 10
+            },
+            "objectId": "VDD1"
+          },
+          "binding": {
+            "kind": "net-name",
+            "netId": "net-power-vdd1"
+          },
+          "id": "power-label-vdd1",
+          "kind": "power-label",
+          "locked": false,
+          "netId": "net-power-vdd1",
+          "rotation": 0
+        },
+        {
+          "alignment": "end",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 280,
+              "y": 180
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": -20,
+              "y": 10
+            },
+            "objectId": "M3"
+          },
+          "binding": {
+            "instanceId": "M3",
+            "kind": "instance-schematic-name"
+          },
+          "id": "instance-label-M2-copy-1",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "start",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 260,
+              "y": 440
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": 10,
+              "y": 10
+            },
+            "objectId": "Q1"
+          },
+          "binding": {
+            "instanceId": "Q1",
+            "kind": "instance-schematic-name"
+          },
+          "id": "instance-label-Q1",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "start",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 350,
+              "y": 400
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": 10,
+              "y": 10
+            },
+            "objectId": "Q2"
+          },
+          "binding": {
+            "instanceId": "Q2",
+            "kind": "instance-schematic-name"
+          },
+          "id": "instance-label-Q2",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "end",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 150,
+              "y": 260
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": -10,
+              "y": 10
+            },
+            "objectId": "Q3"
+          },
+          "binding": {
+            "instanceId": "Q3",
+            "kind": "instance-schematic-name"
+          },
+          "id": "instance-label-Q3",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "start",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 430,
+              "y": 260
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": 10,
+              "y": 10
+            },
+            "objectId": "Q4"
+          },
+          "binding": {
+            "instanceId": "Q4",
+            "kind": "instance-schematic-name"
+          },
+          "id": "instance-label-Q4",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "start",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 430,
+              "y": 360
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": 10,
+              "y": 20
+            },
+            "objectId": "Q5"
+          },
+          "binding": {
+            "instanceId": "Q5",
+            "kind": "instance-schematic-name"
+          },
+          "id": "instance-label-Q5",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "start",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 520,
+              "y": 350
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": 10,
+              "y": 10
+            },
+            "objectId": "Q6"
+          },
+          "binding": {
+            "instanceId": "Q6",
+            "kind": "instance-schematic-name"
+          },
+          "id": "instance-label-Q6",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "start",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 270,
+              "y": 370
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": 20,
+              "y": 10
+            },
+            "objectId": "R1"
+          },
+          "binding": {
+            "instanceId": "R1",
+            "kind": "instance-schematic-name"
+          },
+          "id": "instance-label-R1",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "start",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 270,
+              "y": 290
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": 20,
+              "y": 10
+            },
+            "objectId": "R2"
+          },
+          "binding": {
+            "instanceId": "R2",
+            "kind": "instance-schematic-name"
+          },
+          "id": "instance-label-R2",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "start",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 360,
+              "y": 290
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": 20,
+              "y": 10
+            },
+            "objectId": "R3"
+          },
+          "binding": {
+            "instanceId": "R3",
+            "kind": "instance-schematic-name"
+          },
+          "id": "instance-label-R3",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "start",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 180,
+              "y": 350
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": 20,
+              "y": 10
+            },
+            "objectId": "R4"
+          },
+          "binding": {
+            "instanceId": "R4",
+            "kind": "instance-schematic-name"
+          },
+          "id": "instance-label-R4",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "start",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 110,
+              "y": 300
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": 20,
+              "y": 10
+            },
+            "objectId": "R5"
+          },
+          "binding": {
+            "instanceId": "R5",
+            "kind": "instance-schematic-name"
+          },
+          "id": "instance-label-R5",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "start",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 110,
+              "y": 380
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": 20,
+              "y": 10
+            },
+            "objectId": "R6"
+          },
+          "binding": {
+            "instanceId": "R6",
+            "kind": "instance-schematic-name"
+          },
+          "id": "instance-label-R6",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "start",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 300,
+              "y": 225
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": 10,
+              "y": 5
+            },
+            "objectId": "R7"
+          },
+          "binding": {
+            "instanceId": "R7",
+            "kind": "instance-schematic-name"
+          },
+          "id": "instance-label-R7",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "start",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 520,
+              "y": 150
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": 20,
+              "y": 10
+            },
+            "objectId": "M4"
+          },
+          "binding": {
+            "instanceId": "M4",
+            "kind": "instance-schematic-name"
+          },
+          "id": "instance-label-M4",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "start",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 430,
+              "y": 120
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": 20,
+              "y": 10
+            },
+            "objectId": "M6"
+          },
+          "binding": {
+            "instanceId": "M6",
+            "kind": "instance-schematic-name"
+          },
+          "id": "instance-label-M4-copy-2",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "end",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 150,
+              "y": 120
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": -20,
+              "y": 10
+            },
+            "objectId": "M8"
+          },
+          "binding": {
+            "instanceId": "M8",
+            "kind": "instance-schematic-name"
+          },
+          "id": "instance-label-M4-copy-2-copy-2",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
+        }
+      ],
+      "connectivityEvidence": [
+        {
+          "id": "connectivity-evidence-5b59a3c4dac05690",
+          "kind": "name-claim",
+          "name": "VDD",
+          "netId": "net-split-347ebb07a2a7a37b",
+          "owner": {
+            "kind": "power-marker",
+            "objectId": "VDD1"
+          },
+          "powerDomain": "vdd",
+          "scope": "global"
+        },
+        {
+          "id": "connectivity-evidence-05bc07a4cf424fb3",
+          "kind": "name-claim",
+          "name": "0",
+          "netId": "net-ui-9",
+          "owner": {
+            "kind": "power-marker",
+            "objectId": "GND1"
+          },
+          "powerDomain": "ground",
+          "scope": "global"
+        }
+      ],
+      "constraints": [],
+      "drafting": {
+        "objects": [
+          {
+            "alignment": "middle",
+            "anchor": {
+              "kind": "free",
+              "position": {
+                "x": 80,
+                "y": 185
+              }
+            },
+            "content": {
+              "runs": [
+                {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "kind": "text",
+                          "value": "VBG"
+                        }
+                      ],
+                      "kind": "span",
+                      "style": "bold"
+                    }
+                  ],
+                  "kind": "span",
+                  "style": "italic"
+                }
+              ]
+            },
+            "id": "note-19",
+            "kind": "text",
+            "locked": false,
+            "rotation": 0,
+            "styleOverride": {
+              "sizeScale": 1
+            },
+            "typographyToken": "label",
+            "zIndex": 0
+          }
+        ]
+      },
+      "id": "document-main",
+      "instances": [
+        {
+          "id": "VDD1",
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 330,
+              "y": 60
+            },
+            "rotation": 0
+          },
+          "schematicReference": "VDD1",
+          "symbolId": "vdd-port"
+        },
+        {
+          "id": "M3",
+          "mosBulkBinding": {
+            "netId": "net-ui-9",
+            "origin": "cell-default"
+          },
+          "netlist": {
+            "parameters": {
+              "l": "150n",
+              "m": "1",
+              "nf": "1",
+              "w": "1u"
+            },
+            "reference": "M3"
+          },
+          "placement": {
+            "mirror": "x",
+            "position": {
+              "x": 300,
+              "y": 170
+            },
+            "rotation": 0
+          },
+          "schematicReference": "M3",
+          "symbolId": "nmos",
+          "symbolVariantId": "textbook-3terminal"
+        },
+        {
+          "id": "Q1",
+          "netlist": {
+            "parameters": {},
+            "reference": "Q1"
+          },
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 250,
+              "y": 430
+            },
+            "rotation": 0
+          },
+          "schematicReference": "Q1",
+          "symbolId": "npn"
+        },
+        {
+          "id": "Q2",
+          "netlist": {
+            "parameters": {},
+            "reference": "Q2"
+          },
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 340,
+              "y": 390
+            },
+            "rotation": 0
+          },
+          "schematicReference": "Q2",
+          "symbolId": "npn"
+        },
+        {
+          "id": "Q3",
+          "netlist": {
+            "parameters": {},
+            "reference": "Q3"
+          },
+          "placement": {
+            "mirror": "x",
+            "position": {
+              "x": 160,
+              "y": 250
+            },
+            "rotation": 0
+          },
+          "schematicReference": "Q3",
+          "symbolId": "npn"
+        },
+        {
+          "id": "Q4",
+          "netlist": {
+            "parameters": {},
+            "reference": "Q4"
+          },
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 420,
+              "y": 250
+            },
+            "rotation": 0
+          },
+          "schematicReference": "Q4",
+          "symbolId": "npn"
+        },
+        {
+          "id": "Q5",
+          "netlist": {
+            "parameters": {},
+            "reference": "Q5"
+          },
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 420,
+              "y": 340
+            },
+            "rotation": 0
+          },
+          "schematicReference": "Q5",
+          "symbolId": "npn"
+        },
+        {
+          "id": "Q6",
+          "netlist": {
+            "parameters": {},
+            "reference": "Q6"
+          },
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 510,
+              "y": 340
+            },
+            "rotation": 0
+          },
+          "schematicReference": "Q6",
+          "symbolId": "npn"
+        },
+        {
+          "id": "R1",
+          "netlist": {
+            "binding": {
+              "deviceClass": "resistor",
+              "kind": "primitive"
+            },
+            "parameters": {},
+            "reference": "R1"
+          },
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 250,
+              "y": 360
+            },
+            "rotation": 0
+          },
+          "schematicReference": "R1",
+          "symbolId": "resistor"
+        },
+        {
+          "id": "R2",
+          "netlist": {
+            "binding": {
+              "deviceClass": "resistor",
+              "kind": "primitive"
+            },
+            "parameters": {},
+            "reference": "R2"
+          },
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 250,
+              "y": 280
+            },
+            "rotation": 0
+          },
+          "schematicReference": "R2",
+          "symbolId": "resistor"
+        },
+        {
+          "id": "R3",
+          "netlist": {
+            "binding": {
+              "deviceClass": "resistor",
+              "kind": "primitive"
+            },
+            "parameters": {},
+            "reference": "R3"
+          },
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 340,
+              "y": 280
+            },
+            "rotation": 0
+          },
+          "schematicReference": "R3",
+          "symbolId": "resistor"
+        },
+        {
+          "id": "R4",
+          "netlist": {
+            "binding": {
+              "deviceClass": "resistor",
+              "kind": "primitive"
+            },
+            "parameters": {},
+            "reference": "R4"
+          },
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 160,
+              "y": 340
+            },
+            "rotation": 0
+          },
+          "schematicReference": "R4",
+          "symbolId": "resistor"
+        },
+        {
+          "id": "R5",
+          "netlist": {
+            "binding": {
+              "deviceClass": "resistor",
+              "kind": "primitive"
+            },
+            "parameters": {},
+            "reference": "R5"
+          },
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 90,
+              "y": 290
+            },
+            "rotation": 0
+          },
+          "schematicReference": "R5",
+          "symbolId": "resistor"
+        },
+        {
+          "id": "R6",
+          "netlist": {
+            "binding": {
+              "deviceClass": "resistor",
+              "kind": "primitive"
+            },
+            "parameters": {},
+            "reference": "R6"
+          },
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 90,
+              "y": 370
+            },
+            "rotation": 0
+          },
+          "schematicReference": "R6",
+          "symbolId": "resistor"
+        },
+        {
+          "id": "R7",
+          "netlist": {
+            "binding": {
+              "deviceClass": "resistor",
+              "kind": "primitive"
+            },
+            "parameters": {},
+            "reference": "R7"
+          },
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 290,
+              "y": 220
+            },
+            "rotation": 0
+          },
+          "schematicReference": "R7",
+          "symbolId": "resistor"
+        },
+        {
+          "id": "M4",
+          "mosBulkBinding": {
+            "netId": "net-split-347ebb07a2a7a37b",
+            "origin": "cell-default"
+          },
+          "netlist": {
+            "parameters": {
+              "l": "150n",
+              "m": "1",
+              "nf": "1",
+              "w": "1u"
+            },
+            "reference": "M4"
+          },
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 500,
+              "y": 140
+            },
+            "rotation": 0
+          },
+          "schematicReference": "M4",
+          "symbolId": "pmos",
+          "symbolVariantId": "textbook-3terminal"
+        },
+        {
+          "id": "M5",
+          "mosBulkBinding": {
+            "netId": "net-split-347ebb07a2a7a37b",
+            "origin": "cell-default"
+          },
+          "netlist": {
+            "parameters": {
+              "l": "150n",
+              "m": "1",
+              "nf": "1",
+              "w": "1u"
+            },
+            "reference": "M5"
+          },
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 500,
+              "y": 140
+            },
+            "rotation": 0
+          },
+          "schematicReference": "M5",
+          "symbolId": "pmos",
+          "symbolVariantId": "textbook-3terminal"
+        },
+        {
+          "id": "M6",
+          "mosBulkBinding": {
+            "netId": "net-split-347ebb07a2a7a37b",
+            "origin": "cell-default"
+          },
+          "netlist": {
+            "parameters": {
+              "l": "150n",
+              "m": "1",
+              "nf": "1",
+              "w": "1u"
+            },
+            "reference": "M6"
+          },
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 410,
+              "y": 110
+            },
+            "rotation": 0
+          },
+          "schematicName": {
+            "runs": [
+              {
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "kind": "text",
+                        "value": "M2"
+                      }
+                    ],
+                    "kind": "span",
+                    "style": "bold"
+                  }
+                ],
+                "kind": "span",
+                "style": "italic"
+              }
+            ]
+          },
+          "schematicReference": "M6",
+          "symbolId": "pmos",
+          "symbolVariantId": "textbook-3terminal"
+        },
+        {
+          "id": "M7",
+          "mosBulkBinding": {
+            "netId": "net-split-347ebb07a2a7a37b",
+            "origin": "cell-default"
+          },
+          "netlist": {
+            "parameters": {
+              "l": "150n",
+              "m": "1",
+              "nf": "1",
+              "w": "1u"
+            },
+            "reference": "M7"
+          },
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 410,
+              "y": 110
+            },
+            "rotation": 0
+          },
+          "schematicReference": "M7",
+          "symbolId": "pmos",
+          "symbolVariantId": "textbook-3terminal"
+        },
+        {
+          "id": "M8",
+          "mosBulkBinding": {
+            "netId": "net-split-347ebb07a2a7a37b",
+            "origin": "cell-default"
+          },
+          "netlist": {
+            "parameters": {
+              "l": "150n",
+              "m": "1",
+              "nf": "1",
+              "w": "1u"
+            },
+            "reference": "M8"
+          },
+          "placement": {
+            "mirror": "x",
+            "position": {
+              "x": 170,
+              "y": 110
+            },
+            "rotation": 0
+          },
+          "schematicName": {
+            "runs": [
+              {
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "kind": "text",
+                        "value": "M1"
+                      }
+                    ],
+                    "kind": "span",
+                    "style": "bold"
+                  }
+                ],
+                "kind": "span",
+                "style": "italic"
+              }
+            ]
+          },
+          "schematicReference": "M8",
+          "symbolId": "pmos",
+          "symbolVariantId": "textbook-3terminal"
+        },
+        {
+          "id": "GND1",
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 300,
+              "y": 480
+            },
+            "rotation": 0
+          },
+          "schematicReference": "GND1",
+          "symbolId": "ground"
+        }
+      ],
+      "junctions": [
+        {
+          "id": "junction-ui-6",
+          "netId": "net-split-3f52b798550ad130",
+          "position": {
+            "x": 220,
+            "y": 330
+          },
+          "role": "branch"
+        },
+        {
+          "id": "junction-ui-23",
+          "netId": "net-ui-22",
+          "position": {
+            "x": 420,
+            "y": 130
+          },
+          "role": "route-anchor"
+        },
+        {
+          "id": "junction-ui-25",
+          "netId": "net-ui-22",
+          "position": {
+            "x": 420,
+            "y": 170
+          },
+          "role": "branch"
+        },
+        {
+          "id": "junction-ui-28",
+          "netId": "net-split-7bc3714d88068ee2",
+          "position": {
+            "x": 360,
+            "y": 340
+          },
+          "role": "branch"
+        },
+        {
+          "id": "junction-ui-31",
+          "netId": "net-split-7bc3714d88068ee2",
+          "position": {
+            "x": 400,
+            "y": 340
+          },
+          "role": "branch"
+        },
+        {
+          "id": "junction-lifecycle-6-1",
+          "netId": "net-split-347ebb07a2a7a37b",
+          "position": {
+            "x": 420,
+            "y": 90
+          },
+          "role": "branch"
+        },
+        {
+          "id": "junction-lifecycle-7-2",
+          "netId": "net-665f4cbe40f8c964",
+          "position": {
+            "x": 160,
+            "y": 130
+          },
+          "role": "branch"
+        },
+        {
+          "id": "junction-ui-44",
+          "netId": "net-split-347ebb07a2a7a37b",
+          "position": {
+            "x": 420,
+            "y": 80
+          },
+          "role": "branch"
+        },
+        {
+          "id": "junction-ui-47",
+          "netId": "net-ui-46",
+          "position": {
+            "x": 510,
+            "y": 170
+          },
+          "role": "branch"
+        },
+        {
+          "id": "junction-ui-56",
+          "netId": "net-split-347ebb07a2a7a37b",
+          "position": {
+            "x": 290,
+            "y": 80
+          },
+          "role": "branch"
+        },
+        {
+          "id": "junction-ui-61",
+          "netId": "net-split-347ebb07a2a7a37b",
+          "position": {
+            "x": 290,
+            "y": 100
+          },
+          "role": "branch"
+        },
+        {
+          "id": "junction-ui-63",
+          "netId": "net-665f4cbe40f8c964",
+          "position": {
+            "x": 210,
+            "y": 110
+          },
+          "role": "branch"
+        },
+        {
+          "id": "junction-ui-64",
+          "netId": "net-665f4cbe40f8c964",
+          "position": {
+            "x": 160,
+            "y": 140
+          },
+          "role": "branch"
+        },
+        {
+          "id": "junction-ui-66",
+          "netId": "net-split-3f52b798550ad130",
+          "position": {
+            "x": 250,
+            "y": 330
+          },
+          "role": "branch"
+        },
+        {
+          "id": "junction-ui-68",
+          "netId": "net-split-7bc3714d88068ee2",
+          "position": {
+            "x": 340,
+            "y": 340
+          },
+          "role": "branch"
+        },
+        {
+          "id": "junction-canonical-26b3e229ab18ddac",
+          "netId": "net-split-d5a4be795e522687",
+          "position": {
+            "x": 290,
+            "y": 250
+          },
+          "role": "branch"
+        },
+        {
+          "id": "junction-canonical-917290ea9bdea8de",
+          "netId": "net-split-d5a4be795e522687",
+          "position": {
+            "x": 340,
+            "y": 250
+          },
+          "role": "branch"
+        },
+        {
+          "id": "junction-ui-71",
+          "netId": "net-split-d5a4be795e522687",
+          "position": {
+            "x": 250,
+            "y": 250
+          },
+          "role": "branch"
+        },
+        {
+          "id": "junction-canonical-c68e1be232efda00",
+          "netId": "net-ui-9",
+          "position": {
+            "x": 340,
+            "y": 470
+          },
+          "role": "branch"
+        },
+        {
+          "id": "junction-canonical-30f573ca3fd936af",
+          "netId": "net-ui-9",
+          "position": {
+            "x": 420,
+            "y": 470
+          },
+          "role": "branch"
+        },
+        {
+          "id": "junction-canonical-80c748947814cceb",
+          "netId": "net-ui-9",
+          "position": {
+            "x": 160,
+            "y": 470
+          },
+          "role": "branch"
+        },
+        {
+          "id": "junction-ui-73",
+          "netId": "net-ui-9",
+          "position": {
+            "x": 250,
+            "y": 470
+          },
+          "role": "branch"
+        }
+      ],
+      "layoutGroups": [],
+      "mosBulkDefaults": {
+        "nmosNetId": "net-ui-9",
+        "pmosNetId": "net-split-347ebb07a2a7a37b"
+      },
+      "name": "Main",
+      "netlist": {
+        "formalParameters": [],
+        "name": "Main",
+        "terminals": []
+      },
+      "nets": [
+        {
+          "id": "net-power-vdd1",
+          "terminals": []
+        },
+        {
+          "id": "net-ui-4",
+          "terminals": [
+            {
+              "instanceId": "Q3",
+              "pinName": "E"
+            },
+            {
+              "instanceId": "R4",
+              "pinName": "1"
+            }
+          ]
+        },
+        {
+          "id": "net-ui-8",
+          "terminals": [
+            {
+              "instanceId": "R1",
+              "pinName": "2"
+            },
+            {
+              "instanceId": "Q1",
+              "pinName": "C"
+            },
+            {
+              "instanceId": "Q2",
+              "pinName": "B"
+            }
+          ]
+        },
+        {
+          "id": "net-ui-9",
+          "terminals": [
+            {
+              "instanceId": "Q1",
+              "pinName": "E"
+            },
+            {
+              "instanceId": "R6",
+              "pinName": "2"
+            },
+            {
+              "instanceId": "R4",
+              "pinName": "2"
+            },
+            {
+              "instanceId": "Q5",
+              "pinName": "E"
+            },
+            {
+              "instanceId": "Q2",
+              "pinName": "E"
+            },
+            {
+              "instanceId": "Q6",
+              "pinName": "E"
+            },
+            {
+              "instanceId": "GND1",
+              "pinName": "0"
+            },
+            {
+              "instanceId": "M3",
+              "pinName": "B"
+            }
+          ]
+        },
+        {
+          "id": "net-split-cfc8a56233ad32f7",
+          "terminals": [
+            {
+              "instanceId": "R7",
+              "pinName": "1"
+            },
+            {
+              "instanceId": "M3",
+              "pinName": "S"
+            },
+            {
+              "instanceId": "R5",
+              "pinName": "1"
+            }
+          ]
+        },
+        {
+          "id": "net-split-347ebb07a2a7a37b",
+          "terminals": [
+            {
+              "instanceId": "M3",
+              "pinName": "D"
+            },
+            {
+              "instanceId": "VDD1",
+              "pinName": "P"
+            },
+            {
+              "instanceId": "M4",
+              "pinName": "S"
+            },
+            {
+              "instanceId": "M5",
+              "pinName": "S"
+            },
+            {
+              "instanceId": "M6",
+              "pinName": "S"
+            },
+            {
+              "instanceId": "M7",
+              "pinName": "S"
+            },
+            {
+              "instanceId": "M8",
+              "pinName": "S"
+            },
+            {
+              "instanceId": "M4",
+              "pinName": "B"
+            },
+            {
+              "instanceId": "M5",
+              "pinName": "B"
+            },
+            {
+              "instanceId": "M6",
+              "pinName": "B"
+            },
+            {
+              "instanceId": "M7",
+              "pinName": "B"
+            },
+            {
+              "instanceId": "M8",
+              "pinName": "B"
+            }
+          ]
+        },
+        {
+          "id": "net-ui-22",
+          "terminals": [
+            {
+              "instanceId": "Q4",
+              "pinName": "C"
+            },
+            {
+              "instanceId": "M3",
+              "pinName": "G"
+            },
+            {
+              "instanceId": "M6",
+              "pinName": "D"
+            },
+            {
+              "instanceId": "M7",
+              "pinName": "D"
+            }
+          ]
+        },
+        {
+          "id": "net-ui-27",
+          "terminals": [
+            {
+              "instanceId": "Q4",
+              "pinName": "E"
+            },
+            {
+              "instanceId": "Q5",
+              "pinName": "C"
+            }
+          ]
+        },
+        {
+          "id": "net-ui-38",
+          "terminals": [
+            {
+              "instanceId": "R6",
+              "pinName": "1"
+            },
+            {
+              "instanceId": "R5",
+              "pinName": "2"
+            }
+          ]
+        },
+        {
+          "id": "net-ui-46",
+          "terminals": [
+            {
+              "instanceId": "M4",
+              "pinName": "D"
+            },
+            {
+              "instanceId": "Q6",
+              "pinName": "C"
+            },
+            {
+              "instanceId": "M4",
+              "pinName": "G"
+            },
+            {
+              "instanceId": "M5",
+              "pinName": "D"
+            },
+            {
+              "instanceId": "M5",
+              "pinName": "G"
+            }
+          ]
+        },
+        {
+          "id": "net-665f4cbe40f8c964",
+          "terminals": [
+            {
+              "instanceId": "M6",
+              "pinName": "G"
+            },
+            {
+              "instanceId": "M7",
+              "pinName": "G"
+            },
+            {
+              "instanceId": "M8",
+              "pinName": "G"
+            },
+            {
+              "instanceId": "Q3",
+              "pinName": "C"
+            }
+          ]
+        },
+        {
+          "id": "net-split-3f52b798550ad130",
+          "terminals": [
+            {
+              "instanceId": "R1",
+              "pinName": "1"
+            },
+            {
+              "instanceId": "R2",
+              "pinName": "2"
+            },
+            {
+              "instanceId": "Q1",
+              "pinName": "B"
+            }
+          ]
+        },
+        {
+          "id": "net-split-7bc3714d88068ee2",
+          "terminals": [
+            {
+              "instanceId": "R3",
+              "pinName": "2"
+            },
+            {
+              "instanceId": "Q5",
+              "pinName": "B"
+            },
+            {
+              "instanceId": "Q2",
+              "pinName": "C"
+            },
+            {
+              "instanceId": "Q6",
+              "pinName": "B"
+            }
+          ]
+        },
+        {
+          "id": "net-split-d5a4be795e522687",
+          "terminals": [
+            {
+              "instanceId": "R2",
+              "pinName": "1"
+            },
+            {
+              "instanceId": "Q3",
+              "pinName": "B"
+            },
+            {
+              "instanceId": "R3",
+              "pinName": "1"
+            },
+            {
+              "instanceId": "Q4",
+              "pinName": "B"
+            },
+            {
+              "instanceId": "R7",
+              "pinName": "2"
+            }
+          ]
+        }
+      ],
+      "noConnects": [],
+      "presentation": {
+        "compactness": "normal",
+        "grid": 10,
+        "styleProfileId": "razavi-textbook-v1"
+      },
+      "revision": 223,
+      "routes": [
+        {
+          "id": "route-ui-1-part-2-a-44",
+          "legs": [
+            {
+              "id": "route-leg-750b4db10a8ae493",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-ui-44",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-split-347ebb07a2a7a37b",
+          "start": {
+            "instanceId": "VDD1",
+            "kind": "terminal",
+            "pinName": "P"
+          }
+        },
+        {
+          "id": "route-ui-1-part-2-b-44",
+          "legs": [
+            {
+              "id": "route-leg-750b4cb10a8ae2e0",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-lifecycle-6-1",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-split-347ebb07a2a7a37b",
+          "start": {
+            "junctionId": "junction-ui-44",
+            "kind": "junction"
+          }
+        },
+        {
+          "id": "route-ui-3-a-64",
+          "legs": [
+            {
+              "id": "route-leg-950eb45aec291af5",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-ui-64",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-665f4cbe40f8c964",
+          "start": {
+            "junctionId": "junction-lifecycle-7-2",
+            "kind": "junction"
+          }
+        },
+        {
+          "id": "route-ui-3-b-64",
+          "legs": [
+            {
+              "id": "route-leg-fd0c92bf36a6bb8a",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "Q3",
+                  "kind": "terminal",
+                  "pinName": "C"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-665f4cbe40f8c964",
+          "start": {
+            "junctionId": "junction-ui-64",
+            "kind": "junction"
+          }
+        },
+        {
+          "id": "route-ui-4",
+          "legs": [
+            {
+              "id": "route-leg-c70356568efe97cc",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "R4",
+                  "kind": "terminal",
+                  "pinName": "1"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-4",
+          "start": {
+            "instanceId": "Q3",
+            "kind": "terminal",
+            "pinName": "E"
+          }
+        },
+        {
+          "id": "route-ui-5-a-6-a-66",
+          "legs": [
+            {
+              "id": "route-leg-b425448e843180bb",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-ui-66",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-split-3f52b798550ad130",
+          "start": {
+            "instanceId": "R2",
+            "kind": "terminal",
+            "pinName": "2"
+          }
+        },
+        {
+          "id": "route-ui-5-a-6-b-66",
+          "legs": [
+            {
+              "id": "route-leg-d905a668dc090dd7",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-ui-6",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-split-3f52b798550ad130",
+          "start": {
+            "junctionId": "junction-ui-66",
+            "kind": "junction"
+          }
+        },
+        {
+          "id": "route-ui-7",
+          "legs": [
+            {
+              "id": "route-leg-9a9de466acb079d9",
+              "mode": "manual",
+              "to": {
+                "bendId": "route-bend-feb42ed1925487f0",
+                "kind": "bend",
+                "position": {
+                  "x": 210,
+                  "y": 330
+                }
+              }
+            },
+            {
+              "id": "route-leg-9a9de366acb07826",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-ui-6",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-split-3f52b798550ad130",
+          "start": {
+            "instanceId": "Q1",
+            "kind": "terminal",
+            "pinName": "B"
+          }
+        },
+        {
+          "id": "route-ui-8",
+          "legs": [
+            {
+              "id": "route-leg-05662e849956eae0",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "Q1",
+                  "kind": "terminal",
+                  "pinName": "C"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-8",
+          "start": {
+            "instanceId": "R1",
+            "kind": "terminal",
+            "pinName": "2"
+          }
+        },
+        {
+          "id": "route-ui-10",
+          "legs": [
+            {
+              "id": "route-leg-88ad879b5c4f380c",
+              "mode": "manual",
+              "to": {
+                "bendId": "route-bend-0004ae134170008c",
+                "kind": "bend",
+                "position": {
+                  "x": 250,
+                  "y": 390
+                }
+              }
+            },
+            {
+              "id": "route-leg-f27a93f500e6587b",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "R1",
+                  "kind": "terminal",
+                  "pinName": "2"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-8",
+          "start": {
+            "instanceId": "Q2",
+            "kind": "terminal",
+            "pinName": "B"
+          }
+        },
+        {
+          "id": "route-ui-11-a-28-a-68",
+          "legs": [
+            {
+              "id": "route-leg-7b236d7d1bc58ffb",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-ui-68",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-split-7bc3714d88068ee2",
+          "start": {
+            "instanceId": "Q2",
+            "kind": "terminal",
+            "pinName": "C"
+          }
+        },
+        {
+          "id": "route-ui-11-a-28-b-68",
+          "legs": [
+            {
+              "id": "route-leg-3433512fb65c8f67",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-ui-28",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-split-7bc3714d88068ee2",
+          "start": {
+            "junctionId": "junction-ui-68",
+            "kind": "junction"
+          }
+        },
+        {
+          "id": "route-c79afa04fa904c82",
+          "legs": [
+            {
+              "id": "route-leg-475f30ea18231e1e",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "R7",
+                  "kind": "terminal",
+                  "pinName": "1"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-split-cfc8a56233ad32f7",
+          "start": {
+            "instanceId": "M3",
+            "kind": "terminal",
+            "pinName": "S"
+          }
+        },
+        {
+          "id": "route-ui-24-a-25",
+          "legs": [
+            {
+              "id": "route-leg-92d7673fc0ab7623",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-ui-25",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-22",
+          "start": {
+            "junctionId": "junction-ui-23",
+            "kind": "junction"
+          }
+        },
+        {
+          "id": "route-ui-24-b-25",
+          "legs": [
+            {
+              "id": "route-leg-3c41290ee68fcf73",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "Q4",
+                  "kind": "terminal",
+                  "pinName": "C"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-22",
+          "start": {
+            "junctionId": "junction-ui-25",
+            "kind": "junction"
+          }
+        },
+        {
+          "id": "route-ui-26",
+          "legs": [
+            {
+              "id": "route-leg-64fa87174ce40741",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-ui-25",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-22",
+          "start": {
+            "instanceId": "M3",
+            "kind": "terminal",
+            "pinName": "G"
+          }
+        },
+        {
+          "id": "route-ui-29-a-31",
+          "legs": [
+            {
+              "id": "route-leg-ab4549138c00fbf8",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-ui-31",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-split-7bc3714d88068ee2",
+          "start": {
+            "instanceId": "Q5",
+            "kind": "terminal",
+            "pinName": "B"
+          }
+        },
+        {
+          "id": "route-ui-29-b-31",
+          "legs": [
+            {
+              "id": "route-leg-def48e4003db2773",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-ui-28",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-split-7bc3714d88068ee2",
+          "start": {
+            "junctionId": "junction-ui-31",
+            "kind": "junction"
+          }
+        },
+        {
+          "id": "route-ui-30",
+          "legs": [
+            {
+              "id": "route-leg-c45e0a2ff0d6df32",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "Q5",
+                  "kind": "terminal",
+                  "pinName": "C"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-27",
+          "start": {
+            "instanceId": "Q4",
+            "kind": "terminal",
+            "pinName": "E"
+          }
+        },
+        {
+          "id": "route-ui-32-part-1",
+          "legs": [
+            {
+              "id": "route-leg-bffe5405fd10890b",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "Q5",
+                  "kind": "terminal",
+                  "pinName": "B"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-split-7bc3714d88068ee2",
+          "start": {
+            "instanceId": "Q6",
+            "kind": "terminal",
+            "pinName": "B"
+          }
+        },
+        {
+          "id": "route-ui-32-part-2",
+          "legs": [
+            {
+              "id": "route-leg-df971e4052f3dbaa",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-ui-31",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-split-7bc3714d88068ee2",
+          "start": {
+            "instanceId": "Q5",
+            "kind": "terminal",
+            "pinName": "B"
+          }
+        },
+        {
+          "id": "route-ui-37",
+          "legs": [
+            {
+              "id": "route-leg-982f18400eb72a2f",
+              "mode": "manual",
+              "to": {
+                "bendId": "route-bend-982f18400eb72a2f",
+                "kind": "bend",
+                "position": {
+                  "x": 90,
+                  "y": 190
+                }
+              }
+            },
+            {
+              "id": "route-leg-982f17400eb7287c",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "R5",
+                  "kind": "terminal",
+                  "pinName": "1"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-split-cfc8a56233ad32f7",
+          "start": {
+            "instanceId": "M3",
+            "kind": "terminal",
+            "pinName": "S"
+          }
+        },
+        {
+          "id": "route-ui-38",
+          "legs": [
+            {
+              "id": "route-leg-29c501f3b057da4a",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "R5",
+                  "kind": "terminal",
+                  "pinName": "2"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-38",
+          "start": {
+            "instanceId": "R6",
+            "kind": "terminal",
+            "pinName": "1"
+          }
+        },
+        {
+          "id": "route-ui-45",
+          "legs": [
+            {
+              "id": "route-leg-facd6fec39c517d2",
+              "mode": "manual",
+              "to": {
+                "bendId": "route-bend-facd6fec39c517d2",
+                "kind": "bend",
+                "position": {
+                  "x": 510,
+                  "y": 80
+                }
+              }
+            },
+            {
+              "id": "route-leg-facd70ec39c51985",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-ui-44",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-split-347ebb07a2a7a37b",
+          "start": {
+            "instanceId": "M4",
+            "kind": "terminal",
+            "pinName": "S"
+          }
+        },
+        {
+          "id": "route-ui-46-a-47",
+          "legs": [
+            {
+              "id": "route-leg-d5e0ae08199e5633",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-ui-47",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-46",
+          "start": {
+            "instanceId": "M4",
+            "kind": "terminal",
+            "pinName": "D"
+          }
+        },
+        {
+          "id": "route-ui-46-b-47",
+          "legs": [
+            {
+              "id": "route-leg-925974eaea0ca3e3",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "Q6",
+                  "kind": "terminal",
+                  "pinName": "C"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-46",
+          "start": {
+            "junctionId": "junction-ui-47",
+            "kind": "junction"
+          }
+        },
+        {
+          "id": "route-ui-48",
+          "legs": [
+            {
+              "id": "route-leg-18901dee78451105",
+              "mode": "manual",
+              "to": {
+                "bendId": "route-bend-18901dee78451105",
+                "kind": "bend",
+                "position": {
+                  "x": 470,
+                  "y": 140
+                }
+              }
+            },
+            {
+              "id": "route-leg-18901cee78450f52",
+              "mode": "manual",
+              "to": {
+                "bendId": "route-bend-18901cee78450f52",
+                "kind": "bend",
+                "position": {
+                  "x": 470,
+                  "y": 170
+                }
+              }
+            },
+            {
+              "id": "route-leg-18901bee78450d9f",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-ui-47",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-46",
+          "start": {
+            "instanceId": "M4",
+            "kind": "terminal",
+            "pinName": "G"
+          }
+        },
+        {
+          "id": "route-ui-55-a-56-a-61",
+          "legs": [
+            {
+              "id": "route-leg-37388f169da32ca3",
+              "mode": "manual",
+              "to": {
+                "bendId": "route-bend-f5aad031b0ad266f",
+                "kind": "bend",
+                "position": {
+                  "x": 160,
+                  "y": 80
+                }
+              }
+            },
+            {
+              "id": "route-leg-55d4a79e0e42dfb3",
+              "mode": "manual",
+              "to": {
+                "bendId": "route-bend-02feea4ff1093f10",
+                "kind": "bend",
+                "position": {
+                  "x": 290,
+                  "y": 80
+                }
+              }
+            },
+            {
+              "id": "route-leg-18ea7861e813328d",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-ui-61",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-split-347ebb07a2a7a37b",
+          "start": {
+            "instanceId": "M8",
+            "kind": "terminal",
+            "pinName": "S"
+          }
+        },
+        {
+          "id": "route-ui-55-a-56-b-61",
+          "legs": [
+            {
+              "id": "route-leg-7180e9a95f496435",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-ui-56",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-split-347ebb07a2a7a37b",
+          "start": {
+            "junctionId": "junction-ui-61",
+            "kind": "junction"
+          }
+        },
+        {
+          "id": "route-ui-55-b-56",
+          "legs": [
+            {
+              "id": "route-leg-70cf59ca08a55565",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "VDD1",
+                  "kind": "terminal",
+                  "pinName": "P"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-split-347ebb07a2a7a37b",
+          "start": {
+            "junctionId": "junction-ui-56",
+            "kind": "junction"
+          }
+        },
+        {
+          "id": "route-ui-60-a-63",
+          "legs": [
+            {
+              "id": "route-leg-9890702521a80313",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-ui-63",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-665f4cbe40f8c964",
+          "start": {
+            "instanceId": "M8",
+            "kind": "terminal",
+            "pinName": "G"
+          }
+        },
+        {
+          "id": "route-ui-60-b-63",
+          "legs": [
+            {
+              "id": "route-leg-d8ea98dcf9aa19d1",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "M7",
+                  "kind": "terminal",
+                  "pinName": "G"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-665f4cbe40f8c964",
+          "start": {
+            "junctionId": "junction-ui-63",
+            "kind": "junction"
+          }
+        },
+        {
+          "id": "route-ui-62",
+          "legs": [
+            {
+              "id": "route-leg-6ab30ffcaddfbab1",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-ui-61",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-split-347ebb07a2a7a37b",
+          "start": {
+            "instanceId": "M3",
+            "kind": "terminal",
+            "pinName": "D"
+          }
+        },
+        {
+          "id": "route-ui-65",
+          "legs": [
+            {
+              "id": "route-leg-4f3851def64e6850",
+              "mode": "manual",
+              "to": {
+                "bendId": "route-bend-4f3851def64e6850",
+                "kind": "bend",
+                "position": {
+                  "x": 200,
+                  "y": 110
+                }
+              }
+            },
+            {
+              "id": "route-leg-4f3852def64e6a03",
+              "mode": "manual",
+              "to": {
+                "bendId": "route-bend-4f3852def64e6a03",
+                "kind": "bend",
+                "position": {
+                  "x": 200,
+                  "y": 140
+                }
+              }
+            },
+            {
+              "id": "route-leg-4f3853def64e6bb6",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-ui-64",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-665f4cbe40f8c964",
+          "start": {
+            "junctionId": "junction-ui-63",
+            "kind": "junction"
+          }
+        },
+        {
+          "id": "route-ui-67",
+          "legs": [
+            {
+              "id": "route-leg-5c290a514192334e",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-ui-66",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-split-3f52b798550ad130",
+          "start": {
+            "instanceId": "R1",
+            "kind": "terminal",
+            "pinName": "1"
+          }
+        },
+        {
+          "id": "route-ui-69",
+          "legs": [
+            {
+              "id": "route-leg-10d579b0ebf6153c",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-ui-68",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-split-7bc3714d88068ee2",
+          "start": {
+            "instanceId": "R3",
+            "kind": "terminal",
+            "pinName": "2"
+          }
+        },
+        {
+          "id": "route-ui-12-b-13-a-15-a-17-a-71",
+          "legs": [
+            {
+              "id": "route-leg-45feb8b4fda98ecd",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-ui-71",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-split-d5a4be795e522687",
+          "start": {
+            "instanceId": "Q3",
+            "kind": "terminal",
+            "pinName": "B"
+          }
+        },
+        {
+          "id": "route-ui-12-b-13-a-15-a-17-b-71",
+          "legs": [
+            {
+              "id": "route-leg-0d450afedeb26180",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-canonical-26b3e229ab18ddac",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-split-d5a4be795e522687",
+          "start": {
+            "junctionId": "junction-ui-71",
+            "kind": "junction"
+          }
+        },
+        {
+          "id": "route-ui-18",
+          "legs": [
+            {
+              "id": "route-leg-2193afd79b5cded4",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-canonical-26b3e229ab18ddac",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-split-d5a4be795e522687",
+          "start": {
+            "instanceId": "R7",
+            "kind": "terminal",
+            "pinName": "2"
+          }
+        },
+        {
+          "id": "route-canonical-394415e236142c61",
+          "legs": [
+            {
+              "id": "route-leg-dc4da67cec027905",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-canonical-917290ea9bdea8de",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-split-d5a4be795e522687",
+          "start": {
+            "junctionId": "junction-canonical-26b3e229ab18ddac",
+            "kind": "junction"
+          }
+        },
+        {
+          "id": "route-ui-12-a-13",
+          "legs": [
+            {
+              "id": "route-leg-45feb7b4fda98d1a",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "R3",
+                  "kind": "terminal",
+                  "pinName": "1"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-split-d5a4be795e522687",
+          "start": {
+            "junctionId": "junction-canonical-917290ea9bdea8de",
+            "kind": "junction"
+          }
+        },
+        {
+          "id": "route-ui-14",
+          "legs": [
+            {
+              "id": "route-leg-2c77578d26288638",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "Q4",
+                  "kind": "terminal",
+                  "pinName": "B"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-split-d5a4be795e522687",
+          "start": {
+            "junctionId": "junction-canonical-917290ea9bdea8de",
+            "kind": "junction"
+          }
+        },
+        {
+          "id": "route-ui-72",
+          "legs": [
+            {
+              "id": "route-leg-c0381572938fc358",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-ui-71",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-split-d5a4be795e522687",
+          "start": {
+            "instanceId": "R2",
+            "kind": "terminal",
+            "pinName": "1"
+          }
+        },
+        {
+          "id": "route-ui-9-a-33-b-39-b-contact-gnd1-0",
+          "legs": [
+            {
+              "id": "route-leg-e83a0ca09b39187b",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-canonical-c68e1be232efda00",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-9",
+          "start": {
+            "instanceId": "GND1",
+            "kind": "terminal",
+            "pinName": "0"
+          }
+        },
+        {
+          "id": "route-ui-9-b-33",
+          "legs": [
+            {
+              "id": "route-leg-477b9ebf02b6bc25",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-canonical-c68e1be232efda00",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-9",
+          "start": {
+            "instanceId": "Q2",
+            "kind": "terminal",
+            "pinName": "E"
+          }
+        },
+        {
+          "id": "route-ui-34-b-35",
+          "legs": [
+            {
+              "id": "route-leg-c36f9d9c8ece088d",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-canonical-30f573ca3fd936af",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-9",
+          "start": {
+            "junctionId": "junction-canonical-c68e1be232efda00",
+            "kind": "junction"
+          }
+        },
+        {
+          "id": "route-ui-52",
+          "legs": [
+            {
+              "id": "route-leg-fc842942befef15e",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-canonical-30f573ca3fd936af",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-9",
+          "start": {
+            "instanceId": "Q5",
+            "kind": "terminal",
+            "pinName": "E"
+          }
+        },
+        {
+          "id": "route-ui-36-b-51",
+          "legs": [
+            {
+              "id": "route-leg-9b045310e0acb28d",
+              "mode": "manual",
+              "to": {
+                "bendId": "route-bend-609ef8b898f22461",
+                "kind": "bend",
+                "position": {
+                  "x": 510,
+                  "y": 470
+                }
+              }
+            },
+            {
+              "id": "route-leg-4aea0aa6a216d034",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "Q6",
+                  "kind": "terminal",
+                  "pinName": "E"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-9",
+          "start": {
+            "junctionId": "junction-canonical-30f573ca3fd936af",
+            "kind": "junction"
+          }
+        },
+        {
+          "id": "route-ui-42",
+          "legs": [
+            {
+              "id": "route-leg-d0517dfc5916f74f",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-canonical-80c748947814cceb",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-9",
+          "start": {
+            "instanceId": "R4",
+            "kind": "terminal",
+            "pinName": "2"
+          }
+        },
+        {
+          "id": "route-ui-9-a-33-a-39-a-73",
+          "legs": [
+            {
+              "id": "route-leg-477b9cbf02b6b8bf",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "junctionId": "junction-ui-73",
+                  "kind": "junction"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-9",
+          "start": {
+            "junctionId": "junction-canonical-80c748947814cceb",
+            "kind": "junction"
+          }
+        },
+        {
+          "id": "route-ui-9-a-33-a-39-b-73",
+          "legs": [
+            {
+              "id": "route-leg-667c6366c97bb022",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "Q1",
+                  "kind": "terminal",
+                  "pinName": "E"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-9",
+          "start": {
+            "junctionId": "junction-ui-73",
+            "kind": "junction"
+          }
+        },
+        {
+          "id": "route-ui-40-a-41",
+          "legs": [
+            {
+              "id": "route-leg-a2741dd3e54eaeed",
+              "mode": "manual",
+              "to": {
+                "bendId": "route-bend-c8597c54b4849ab4",
+                "kind": "bend",
+                "position": {
+                  "x": 90,
+                  "y": 470
+                }
+              }
+            },
+            {
+              "id": "route-leg-a2741cd3e54ead3a",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "R6",
+                  "kind": "terminal",
+                  "pinName": "2"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-9",
+          "start": {
+            "junctionId": "junction-canonical-80c748947814cceb",
+            "kind": "junction"
+          }
+        },
+        {
+          "id": "route-ui-74",
+          "legs": [
+            {
+              "id": "route-leg-d80c759a699f35ba",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "GND1",
+                  "kind": "terminal",
+                  "pinName": "0"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-ui-9",
+          "start": {
+            "junctionId": "junction-ui-73",
+            "kind": "junction"
+          }
+        }
+      ],
+      "sourceStatus": "connectivity-modified"
+    }
+  ],
+  "externalSubcircuitDefinitions": [],
+  "id": "project-main",
+  "name": "LTC3452",
+  "schemaVersion": 34,
+  "source": {
+    "dialect": "none",
+    "entry": null,
+    "files": [],
+    "sourcePolicy": "copy"
+  },
+  "structureRevision": 0,
+  "symbolLibrary": {
+    "hash": "razavi-reference-v1",
+    "id": "razavi-symbols",
+    "version": "1"
+  },
+  "topDocumentId": "document-main"
+}

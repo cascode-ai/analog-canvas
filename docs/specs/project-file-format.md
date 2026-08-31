@@ -2,28 +2,32 @@
 
 Status: `accepted`
 
-Current Project schema: `32`
+Current Project schema: `34`
 
 Primary owners: `packages/model` (current shape) and
 `packages/project-protocol` (file boundary)
 
 An `.icproj.json` file is canonical JSON for one complete `CircuitProject`.
-`@icm/project-protocol` exposes `parseProject`. The rolling file boundary accepts
-schemas 31 and 32. Schema 31 added optional per-instance Signal Flow metadata
-(`formula`, `coefficient`, `bodyWidth`, `bodyHeight`) independent from netlist
-authority. Schema 32 adds optional presentation-only `Annotation.textColor`.
-The 31→32 adapter preserves inherited text behavior, materializes no color
-field, and advances only the version stamp. The public file boundary supplies
-only schema 32 in memory and writes only schema 32; schema 30 and older, and
-versions newer than 32, are rejected. Retained 29→30 and 30→31 adapters remain
-available only to controlled historical maintenance paths.
+`@icm/project-protocol` exposes `parseProject`. The file boundary accepts every
+schema covered by its explicit 24→34 upgrade chain. Schema 32 added optional
+presentation-only `Annotation.textColor`; schema 33 removes ownerless
+`explicit-equivalence` connectivity. The 32→33 adapter advances the version
+stamp only when that retired record is absent. If one exists, it rejects at the
+exact evidence path rather than silently dropping connectivity, merging Base
+Nets, or inventing a name. Schema 34 retires hidden
+`explicit-net-property` claims: the 33→34 adapter preserves imported ordinary
+spellings as non-electrical `net-name-hint` provenance, retains explicit SPICE
+globals as owned global declarations, and materializes an existing visible
+power owner when possible. The public file boundary supplies only schema 34 in
+memory and writes only schema 34; versions older than 24 or newer than 34 are
+rejected.
 
 ## Current authorities
 
 - `Document.netlist.terminals` defines ordered authored Cell-Pin declarations
   with stable identity, direction, Net binding, and exactly one ordinary Cell
-  Pin Instance. Equal names remain independent; formal consumers group them by
-  case-insensitive name without changing the Project.
+  Pin Instance. Equal case-folded names identify one Logical Net without
+  physically merging their independently authored Base Nets.
 - `Document.netlist.formalParameters` and project-level
   `externalSubcircuitDefinitions` define exact nonlocal netlist interfaces.
   Each external definition has a stable identity, an ordered list of stable
@@ -46,9 +50,11 @@ available only to controlled historical maintenance paths.
   with terminal `P`; their connectivity is stored in `Net.terminals` and
   ordinary terminal Route endpoints.
 - Base `Net.terminals` is the physical membership authority.
-- `Document.connectivityEvidence` records owner-addressable name claims,
-  SPICE-source assertions, and explicit Base-Net equivalence. The shared
-  Logical-Net resolver is the sole runtime naming/source authority.
+- `Document.connectivityEvidence` records owner-addressed name claims, explicit
+  imported global declarations, non-electrical source-name hints, and
+  SPICE-source assertions for one Base Net at a time. The shared Logical-Net
+  resolver joins distinct Base Nets through authoritative scoped names or equal
+  formal Cell-Pin names; hints and source identity never create connectivity.
 - Route endpoints are terminal or Junction references only.
 - A marker claim may classify its Logical Net as `vdd` or `ground`; role never
   substitutes for name identity.
@@ -79,8 +85,8 @@ available only to controlled historical maintenance paths.
 ## Read and write
 
 ```text
-import text -> parse JSON -> require Project schema 31 or 32
--> converge to schema 32 -> strict schema-32 validation -> install unbound
+import text -> parse JSON -> require Project schema 24 through 34
+-> converge to schema 34 -> strict schema-34 validation -> install unbound
 export -> strict validation -> canonical key ordering -> Blob download
 ```
 
@@ -91,16 +97,16 @@ after explicit human approval in the editor.
 A migrated imported file is marked dirty. The editor never overwrites a source
 selected through the browser file input; the user may Save it as a Cloud
 Project or explicitly export upgraded bytes. Browser recovery records may be
-canonicalized to v32 only after a successful validated write.
+canonicalized to v34 only after a successful validated write.
 
-Project entry does not repair duplicate canonical supply Nets (`0` or `VDD`).
-Duplicate folded Net names are invalid input and remain a blocking diagnostic
-until the author explicitly renames or merges the Nets.
+Project entry does not physically merge Base Nets. Matching authoritative names
+resolve as one Logical Net; conflicting claims remain a blocking diagnostic.
+Repeated source-name hints are valid provenance and never imply connectivity.
 
 Canonical serialization ends with one newline and is byte-stable across
 serialize/parse/serialize. The current corpus is listed in
 `fixtures/projects/compatibility-corpus.json`; its accepted entries must all be
-already canonical Project schema 32. The rejected corpus names expected
+already canonical Project schema 34. The rejected corpus names expected
 validation failures.
 
 Viewport, selection, undo history, canvas overlays, Agent credentials,

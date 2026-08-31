@@ -152,7 +152,17 @@ test("opens one digital simulation window and picks a Net from the canvas", asyn
     netId: "clock",
     name: "CK",
     scope: "local",
-    owner: { kind: "explicit-net-property" },
+    owner: { kind: "net-label", annotationId: "test-net-label-1" },
+  });
+  project.documents[0]!.annotations.push({
+    id: "test-net-label-1",
+    kind: "net-label",
+    netId: "clock",
+    binding: { kind: "net-name", netId: "clock" },
+    anchor: { kind: "free", position: { x: 700, y: 160 } },
+    alignment: "middle",
+    rotation: 0,
+    locked: false,
   });
   await page.goto("/editor");
   await page.getByTestId("project-file").setInputFiles({
@@ -2982,6 +2992,8 @@ test("Properties toggles reference label visibility for one or many components",
 test("Properties keeps component and Annotation text colors independent", async ({
   page,
 }) => {
+  const clockStart = Date.parse("2026-08-31T00:00:00Z");
+  await page.clock.install({ time: clockStart });
   await page.goto("/editor");
   await placeComponent(page, "resistor", { x: 280, y: 180 });
   await placeComponent(page, "resistor", { x: 480, y: 180 });
@@ -3032,11 +3044,13 @@ test("Properties keeps component and Annotation text colors independent", async 
   // A pending RGB draft belongs to this Annotation only. Selecting another
   // Annotation remounts the keyed Text properties before the deferred blur
   // commit, so R1's draft cannot reach either Annotation.
+  await page.clock.pauseAt(clockStart + 60_000);
   await properties.getByLabel("Text color red").fill("12");
   await page
     .getByTestId("annotation-hit-instance-label-R2")
     .click({ force: true });
-  await page.waitForTimeout(300);
+  await page.clock.runFor(300);
+  await page.clock.resume();
   await expect(label).toHaveAttribute("fill", "#2563eb");
   await expect(secondLabel).not.toHaveAttribute("fill");
   await expect(properties.getByLabel("Text color hex value")).toHaveText(
@@ -3796,8 +3810,8 @@ test("deletes imported Net Labels with non-editor ids", async ({ page }) => {
     page.getByRole("textbox", { name: "Electrical Net label" }),
   ).toHaveValue("");
 
-  // The label was selected alongside the Route. Its deleted annotation id
-  // must not poison the following atomic Wire deletion.
+  // The label was selected alongside the Route. Its deletion must not poison
+  // the following atomic Wire deletion or leave a hidden electrical name.
   await page.keyboard.press("Delete");
   await expect(page.getByTestId("route-hit-route-imported-h")).toHaveCount(0);
   await expect(page.getByTestId("status")).toContainText(
@@ -3813,13 +3827,8 @@ test("deletes imported Net Labels with non-editor ids", async ({ page }) => {
   const savedDocument = JSON.parse(savedWithoutLabel.toString("utf8"))
     .documents[0];
   expect(savedDocument.annotations).toHaveLength(0);
-  expect(savedDocument.connectivityEvidence).toContainEqual(
-    expect.objectContaining({
-      kind: "name-claim",
-      netId: "net-h",
-      name: "HORIZONTAL",
-      owner: { kind: "explicit-net-property" },
-    }),
+  expect(savedDocument.connectivityEvidence).not.toContainEqual(
+    expect.objectContaining({ kind: "name-claim", netId: "net-h" }),
   );
   await page.getByTestId("project-file").setInputFiles({
     name: "legacy-net-label-reopened.icproj.json",
@@ -3901,6 +3910,9 @@ test("places a Ground pin onto a canonical Route and keeps real split topology",
   const document = project.documents[0]!;
   const horizontalNet = document.nets.find((net) => net.id === "net-h");
   if (!horizontalNet) throw new Error("Routing demo is missing net-h");
+  for (const terminal of document.netlist?.terminals ?? []) {
+    if (terminal.netId === horizontalNet.id) terminal.name = "0";
+  }
   for (const evidence of document.connectivityEvidence) {
     if (evidence.kind === "name-claim" && evidence.netId === horizontalNet.id) {
       evidence.name = "0";
@@ -4205,8 +4217,18 @@ test("requires warning review before exporting generated NoConnect nodes", async
     kind: "name-claim",
     netId: "net-in",
     name: "IN",
-    owner: { kind: "explicit-net-property" },
+    owner: { kind: "net-label", annotationId: "test-net-label-3" },
     scope: "local",
+  });
+  document.annotations.push({
+    id: "test-net-label-3",
+    kind: "net-label",
+    netId: "net-in",
+    binding: { kind: "net-name", netId: "net-in" },
+    anchor: { kind: "free", position: { x: 0, y: 0 } },
+    alignment: "start",
+    rotation: 0,
+    locked: false,
   });
   document.noConnects.push({
     id: "r1-open",
@@ -4345,13 +4367,51 @@ test("exports structural SPICE and Spectre netlists while exposing instance auth
   await expect(properties.getByText(/^Model:/u)).toHaveCount(0);
 });
 
+test("edits the transconductance trapezoid from +gm1 to -gmL", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "transconductance", { x: 360, y: 240 });
+  await openSelectionShelf(page);
+  const properties = page.getByRole("complementary", { name: "Properties" });
+  const formula = properties.getByLabel("Signal flow formula");
+  const formalScene = page.locator('[data-layer="formal"]');
+  const frame = formalScene.locator('[data-role="signal-flow-frame"]');
+
+  await expect(formula).toHaveValue("+g_m");
+  await expect(frame).toHaveCount(1);
+  await expect(frame).toHaveAttribute(
+    "points",
+    "-20,-35 20,-17.5 20,17.5 -20,35",
+  );
+  await expect(
+    formalScene.locator('[data-role="formula-subscript"]'),
+  ).toHaveText("m");
+
+  await formula.fill("−gₘL");
+  await formula.press("Tab");
+  await expect(
+    formalScene.locator('[data-role="formula-subscript"]'),
+  ).toHaveText("mL");
+
+  await clickCommand(page, "Edit", "Undo");
+  await expect(formula).toHaveValue("+g_m");
+  await clickCommand(page, "Edit", "Redo");
+  await expect(formula).toHaveValue("−gₘL");
+});
+
 test("edits a formula-capable Signal Flow block with undo, redo, and Reset defaults", async ({
   page,
 }) => {
-  // Capability determines this scenario. A catalog addition can become the
-  // exercised block without this E2E test baking in a particular symbol ID.
+  // Capability determines this scenario: a catalog addition becomes the
+  // exercised block without this test baking in a symbol ID. Blocks whose
+  // frame takes a non-rectangular `shape` are excluded — they size their body
+  // by different rules, and the frame dimensions asserted below belong to the
+  // rectangular family. A tapered block is its own scenario.
   const formulaSymbol = razaviProductSymbols.find(
-    (symbol) => symbol.formulaPresentation?.supportsCoefficient,
+    (symbol) =>
+      symbol.formulaPresentation?.supportsCoefficient &&
+      !symbol.formulaPresentation.adaptiveFrame?.shape,
   );
   expect(formulaSymbol).toBeDefined();
   const symbol = formulaSymbol!;

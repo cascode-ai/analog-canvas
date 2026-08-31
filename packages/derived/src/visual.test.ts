@@ -231,3 +231,106 @@ describe("visual quality diagnostics", () => {
     ).toEqual([]);
   });
 });
+
+describe("terminal-on-foreign-route exclusions", () => {
+  function documentWithRestingPin() {
+    const document = createEmptyDocument("rest", "Resting pin");
+    document.instances.push({
+      id: "R1",
+      symbolId: "resistor",
+      placement: { position: { x: 60, y: 40 }, rotation: 0, mirror: "none" },
+    });
+    return document;
+  }
+  const foreignHits = (document: Parameters<typeof diagnoseVisualQuality>[0]) =>
+    diagnoseVisualQuality(document, resolver).filter(
+      (item) => item.code === "VISUAL_TERMINAL_ON_FOREIGN_ROUTE",
+    );
+
+  it("stays quiet for a pin legally attached to the route it touches", () => {
+    const document = documentWithRestingPin();
+    document.nets.push({
+      id: "n",
+      terminals: [{ instanceId: "R1", pinName: "2" }],
+    });
+    document.junctions.push({
+      id: "J1",
+      netId: "n",
+      position: { x: 60, y: 140 },
+      role: "route-anchor",
+    });
+    document.routes.push(
+      createRoutePath({
+        id: "own-wire",
+        netId: "n",
+        start: { kind: "terminal", instanceId: "R1", pinName: "2" },
+        end: { kind: "junction", junctionId: "J1" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    expect(foreignHits(document)).toEqual([]);
+  });
+
+  it("stays quiet for a NoConnect-marked pin resting on a foreign wire", () => {
+    const document = documentWithRestingPin();
+    document.noConnects.push({
+      id: "nc1",
+      endpoint: { kind: "terminal", instanceId: "R1", pinName: "2" },
+    });
+    document.nets.push({ id: "netA", terminals: [] });
+    document.junctions.push(
+      {
+        id: "J1",
+        netId: "netA",
+        position: { x: 0, y: 60 },
+        role: "route-anchor",
+      },
+      {
+        id: "J2",
+        netId: "netA",
+        position: { x: 200, y: 60 },
+        role: "route-anchor",
+      },
+    );
+    document.routes.push(
+      createRoutePath({
+        id: "wireA",
+        netId: "netA",
+        start: { kind: "junction", junctionId: "J1" },
+        end: { kind: "junction", junctionId: "J2" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    expect(foreignHits(document)).toEqual([]);
+  });
+
+  it("stays quiet for a pin resting on another route of its own Net", () => {
+    const document = documentWithRestingPin();
+    document.nets.push({
+      id: "n",
+      terminals: [{ instanceId: "R1", pinName: "2" }],
+    });
+    document.junctions.push(
+      { id: "J1", netId: "n", position: { x: 0, y: 60 }, role: "route-anchor" },
+      {
+        id: "J2",
+        netId: "n",
+        position: { x: 200, y: 60 },
+        role: "route-anchor",
+      },
+    );
+    document.routes.push(
+      createRoutePath({
+        id: "same-net-wire",
+        netId: "n",
+        start: { kind: "junction", junctionId: "J1" },
+        end: { kind: "junction", junctionId: "J2" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    expect(foreignHits(document)).toEqual([]);
+  });
+});

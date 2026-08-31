@@ -5,7 +5,7 @@ Status: `accepted`
 Primary owner: `packages/model`
 
 The Project contains Documents; each Document owns revisioned electrical,
-geometric, and presentation facts. The current model is strict schema 32 and has
+geometric, and presentation facts. The current model is strict schema 34 and has
 no compatibility shape.
 
 ## Coordinate domains
@@ -35,10 +35,14 @@ migration. Invalid coordinates are rejected with their data path.
   `CellTerminal.name` and has no visible schematic reference.
 - A Base Net owns physical terminal membership only. A terminal is
   `{instanceId, pinName}` and belongs to at most one Base Net.
-- `ConnectivityEvidence` records owner-addressed names, SPICE source identity,
-  and explicit equivalence. The pure Logical-Net resolver is the only place
-  these facts are folded. Conflicting name, scope, or power claims remain
-  explicit errors; no claim type silently wins.
+- `ConnectivityEvidence` records owner-addressed name claims, explicit SPICE
+  globals, non-electrical source-name hints, and SPICE source identity for one
+  Base Net at a time. The pure Logical-Net resolver joins distinct Base Nets
+  through matching folded authoritative names in the same scope or matching
+  formal Cell-Pin names. A `net-name-hint` and `spice-source` record are
+  provenance only and never join Nets. Conflicting name, scope, or power claims
+  remain explicit errors; no claim type silently wins. There is no generic
+  persisted equivalence edge.
 - `Route` owns editable geometry for one Net and connects terminal or Junction
   endpoints only.
 - `Junction` owns explicit branch/anchor geometry.
@@ -46,15 +50,17 @@ migration. Invalid coordinates are rejected with their data path.
 - `Document.netlist.terminals` is the ordered list of authored Cell Pins. Each
   declaration has a stable ID, name, direction, Net ID, and a singleton
   `interfaceInstanceIds` array pointing to its one ordinary canvas Cell Pin
-  Instance. Duplicate names are valid and do not imply connectivity. A
-  declaration's Port Name may differ from its internal Logical-Net name.
+  Instance. Equal folded names intentionally identify one Logical Net while
+  the declarations and physical Base Nets remain independently editable. A
+  declaration's Port Name may differ from a visible internal Net Label; the
+  Port name supplies interface identity without overwriting that Label.
 
 Canvas `port` and `port-filled` artwork has exactly one meaning: a Cell Pin.
 Each is an ordinary single-pin Instance with pin `P`, owns exactly one ordered
 Cell-Pin declaration, and uses ordinary Net membership and Route endpoints. The
 model has no free-Port branch or separate Port collection. Equal Port Names do
-not share terminal identity, direction, Base Net, annotations, or lifecycle.
-Only Wire/contact topology connects Pins.
+not merge terminal identity, direction, Base Net, annotations, or lifecycle,
+but they resolve to one Logical Net in the current Document.
 
 Consumers that need a Cell's formal interface use the pure
 `projectCellInterface` read model. It groups declarations by case-insensitive
@@ -87,6 +93,9 @@ explicit first, then materialized from a configured cell-default Net. Without
 either, it remains unresolved; MOS polarity never creates or selects a power
 Net. Existing persisted `supply-default` bindings remain readable for rolling
 compatibility, but current manual authoring does not create them.
+Cross-Document composition converts an effective source `cell-default` to an
+instance-owned `instance-override` so target Cell policy cannot retarget the
+copied body.
 Imported/source-bound MOS instances with missing fourth-node evidence remain
 unresolved.
 
@@ -175,7 +184,10 @@ ordinary Schematic edits inside one Project structural transaction. The
 Project's `structureRevision` protects this cross-Document boundary and the
 editor records it as one undoable structural commit.
 
-Persistence writes only schema 32. The rolling reader accepts schema 31 at the
-file boundary and advances it without rewriting content, then supplies the
-current model only; no compatibility shape enters runtime electrical
-derivation. Retained 29→30 and 30→31 adapters are maintenance-only.
+Persistence writes only schema 34. The reader carries every schema in its
+explicit 24→34 upgrade chain forward, then supplies the current model only; no
+compatibility shape enters runtime electrical derivation. The 32→33 step
+rejects ownerless equivalence rather than guessing replacement connectivity.
+The 33→34 step converts hidden imported names into non-electrical hints or
+explicit global declarations and materializes an existing power owner where
+one is available.

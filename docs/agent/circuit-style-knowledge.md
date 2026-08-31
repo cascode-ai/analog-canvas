@@ -52,6 +52,9 @@ Document graph available while focusing on one electrically coherent region.
 - Align repeated cells by semantic order such as bit, weight, stage, or tap.
 - Use hierarchy when formal terminals tell a clearer story; use flat views when the user
   needs transistor-level inspection.
+- In behavioral Signal Flow views, use the right-tapered transconductance block
+  for signed `g_m` relations. Keep A-to-Y flow left-to-right and edit its formula
+  rather than treating it as a transistor or an automatic SPICE mapping.
 
 ## Express nodes honestly
 

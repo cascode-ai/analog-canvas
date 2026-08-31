@@ -396,6 +396,30 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     },
   },
   {
+    symbolId: "transconductance",
+    name: "Transconductance (+gₘ)",
+    category: "signal-flow",
+    reviewStatus: "reviewed",
+    pinOrder: ["A", "Y"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Behavioral transconductance block; structural netlists need an explicit implementation mapping.",
+    assetPath: "transconductance.symbol.json",
+    assetHash:
+      "9540d3afb56d9a9f93f25d5cb252bf6b6457114e45ad4d24992a066ca6432725",
+    visualAuthority: {
+      kind: "razavi-reference-v1",
+      referenceManifestPath:
+        "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      referencePaths: [
+        "fixtures/visual-reference/razavi-reference-v1/delta-sigma-geometry.json",
+      ],
+      calibrationPath:
+        "fixtures/visual-reference/razavi-reference-v1/delta-sigma-geometry.json",
+    },
+  },
+  {
     symbolId: "integrator",
     name: "Integrator (1/s)",
     category: "signal-flow",
@@ -3293,6 +3317,111 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         },
       },
     ],
+    variants: [],
+    labelVisibility: "hidden",
+  },
+  {
+    schemaVersion: 1,
+    id: "transconductance",
+    name: "Transconductance (+gₘ)",
+    viewBox: {
+      x: -44,
+      y: -39,
+      width: 88,
+      height: 78,
+    },
+    pins: [
+      {
+        name: "A",
+        role: "input",
+        at: {
+          x: -40,
+          y: 0,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 15,
+        },
+      },
+      {
+        name: "Y",
+        role: "output",
+        at: {
+          x: 40,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 15,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -40,
+          y: 0,
+        },
+        to: {
+          x: -20,
+          y: 0,
+        },
+        part: "input-a-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        part: "body",
+        data: "M -20 -35 L 20 -17.5 L 20 17.5 L -20 35 Z",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 20,
+          y: 0,
+        },
+        to: {
+          x: 40,
+          y: 0,
+        },
+        part: "output-y-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    formulaPresentation: {
+      defaultFormula: "+g_m",
+      supportsCoefficient: true,
+      center: {
+        x: 0,
+        y: 0,
+      },
+      fontSize: 12,
+      adaptiveFrame: {
+        shape: "right-tapered-trapezoid",
+        minBodyWidth: 40,
+        minBodyHeight: 70,
+        horizontalPadding: 4,
+        verticalPadding: 4,
+        leadLength: 20,
+      },
+    },
     variants: [],
     labelVisibility: "hidden",
   },

@@ -1,0 +1,105 @@
+{
+  "schemaVersion": 1,
+  "id": "transconductance",
+  "name": "Transconductance (+gₘ)",
+  "viewBox": {
+    "x": -44,
+    "y": -39,
+    "width": 88,
+    "height": 78
+  },
+  "pins": [
+    {
+      "name": "A",
+      "role": "input",
+      "at": {
+        "x": -40,
+        "y": 0
+      },
+      "direction": "west",
+      "presentation": {
+        "visibility": "visible",
+        "leadLength": 15
+      }
+    },
+    {
+      "name": "Y",
+      "role": "output",
+      "at": {
+        "x": 40,
+        "y": 0
+      },
+      "direction": "east",
+      "presentation": {
+        "visibility": "visible",
+        "leadLength": 15
+      }
+    }
+  ],
+  "primitives": [
+    {
+      "kind": "line",
+      "from": {
+        "x": -40,
+        "y": 0
+      },
+      "to": {
+        "x": -20,
+        "y": 0
+      },
+      "part": "input-a-lead",
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "butt",
+        "lineJoin": "miter"
+      }
+    },
+    {
+      "kind": "path",
+      "part": "body",
+      "data": "M -20 -35 L 20 -17.5 L 20 17.5 L -20 35 Z",
+      "style": {
+        "strokeRole": "emphasis",
+        "lineCap": "butt",
+        "lineJoin": "miter",
+        "miterLimit": 4
+      }
+    },
+    {
+      "kind": "line",
+      "from": {
+        "x": 20,
+        "y": 0
+      },
+      "to": {
+        "x": 40,
+        "y": 0
+      },
+      "part": "output-y-lead",
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "butt",
+        "lineJoin": "miter"
+      }
+    }
+  ],
+  "formulaPresentation": {
+    "defaultFormula": "+g_m",
+    "supportsCoefficient": true,
+    "center": {
+      "x": 0,
+      "y": 0
+    },
+    "fontSize": 12,
+    "adaptiveFrame": {
+      "shape": "right-tapered-trapezoid",
+      "minBodyWidth": 40,
+      "minBodyHeight": 70,
+      "horizontalPadding": 4,
+      "verticalPadding": 4,
+      "leadLength": 20
+    }
+  },
+  "variants": [],
+  "labelVisibility": "hidden"
+}

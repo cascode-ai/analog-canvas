@@ -60,6 +60,7 @@ function fixture(overrides: Partial<EditorCommandContext> = {}) {
     addText: vi.fn(),
     openProperties: vi.fn(),
     closeProperties: vi.fn(),
+    panView: vi.fn(),
     fitView: vi.fn(),
     report: vi.fn(),
   };
@@ -209,6 +210,16 @@ describe("editor command router", () => {
     });
     router.execute({ id: "tool.activate", tool: "arrow" });
     expect(operations.activateTool).toHaveBeenCalledWith("arrow");
+  });
+
+  it("routes camera panning through the shared command plane", () => {
+    const { router, operations } = fixture({ interactionMode: "wire" });
+    expect(router.state({ id: "view.pan", direction: "left" })).toEqual({
+      enabled: true,
+      active: false,
+    });
+    router.execute({ id: "view.pan", direction: "up" });
+    expect(operations.panView).toHaveBeenCalledWith("up");
   });
 
   it("leaves history and tool re-entry lifecycle to their domain owners", () => {

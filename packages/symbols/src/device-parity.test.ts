@@ -66,6 +66,7 @@ describe("built-in device/Symbol parity", () => {
       "port-filled",
       "adder",
       "multiplier",
+      "transconductance",
       "integrator",
       "unit-delay",
       "discrete-time-integrator",

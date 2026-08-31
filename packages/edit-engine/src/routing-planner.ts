@@ -781,11 +781,26 @@ export function proposeVisualRouteDeletion(
   const routesToRemove = new Set<string>();
   const bulkRoutesToRemove = new Set<string>();
   const junctionsToRemove = new Set(junctionIds);
-  const includeRouteAndBulkFamily = (route: RouteBranch): boolean => {
+  const removedRailEndpointJunctionIds = new Set<string>();
+  const removedRailNetIds = new Set<string>();
+  const includeRouteAndOwnedFamily = (route: RouteBranch): boolean => {
     let changed = false;
     if (!routesToRemove.has(route.id)) {
       routesToRemove.add(route.id);
       changed = true;
+    }
+    const railComponent = derivePowerRailComponent(document, route.id);
+    if (railComponent) {
+      removedRailNetIds.add(route.netId);
+      railComponent.endpointJunctionIds.forEach((junctionId) =>
+        removedRailEndpointJunctionIds.add(junctionId),
+      );
+      for (const routeId of railComponent.routeIds) {
+        if (!routesToRemove.has(routeId)) {
+          routesToRemove.add(routeId);
+          changed = true;
+        }
+      }
     }
     const family = deriveMosBulkRouteFamily(document, route);
     if (!family) return changed;
@@ -800,7 +815,7 @@ export function proposeVisualRouteDeletion(
   };
   for (const routeId of routeIds) {
     const route = document.routes.find((candidate) => candidate.id === routeId);
-    if (route) includeRouteAndBulkFamily(route);
+    if (route) includeRouteAndOwnedFamily(route);
     else routesToRemove.add(routeId);
   }
   let changed = true;
@@ -813,7 +828,7 @@ export function proposeVisualRouteDeletion(
           junctionsToRemove.has(endpoint.junctionId),
       );
       if (touchesDeletedJunction && !routesToRemove.has(route.id)) {
-        changed = includeRouteAndBulkFamily(route) || changed;
+        changed = includeRouteAndOwnedFamily(route) || changed;
       }
     }
     for (const junction of document.junctions) {
@@ -851,13 +866,9 @@ export function proposeVisualRouteDeletion(
       (annotation) =>
         annotation.kind === "power-label" &&
         annotation.anchor.kind === "object" &&
-        sortedJunctionIds.includes(annotation.anchor.objectId) &&
-        document.routes.some(
-          (route) =>
-            routesToRemove.has(route.id) &&
-            route.presentation === "power-rail" &&
-            route.netId === annotation.netId,
-        ),
+        removedRailEndpointJunctionIds.has(annotation.anchor.objectId) &&
+        annotation.netId !== undefined &&
+        removedRailNetIds.has(annotation.netId),
     )
     .map((annotation) => annotation.id);
   const removedAnnotationIds = [

@@ -4,6 +4,11 @@ import type { DesignNetlistIR, NetlistFormat } from "@icm/netlist";
 import type { SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 import { prepareDocumentFormulaArtifacts } from "../text-editing/formula-artifacts";
+import {
+  ChunkLoadError,
+  chunkLoadStatus,
+  importChunk,
+} from "../../components/chunk-import";
 
 export interface EditorExportArtifact {
   bytes: BlobPart;
@@ -98,8 +103,10 @@ export async function createVisualExportArtifact(
     projectName,
   );
   if (format === "png") {
-    const { rasterizeFormalSvgInBrowser } =
-      await import("@icm/exporters/browser-raster");
+    const { rasterizeFormalSvgInBrowser } = await importChunk(
+      "PNG export",
+      () => import("@icm/exporters/browser-raster"),
+    );
     const png = await rasterizeFormalSvgInBrowser(source);
     return {
       bytes: png.bytes as BlobPart,
@@ -108,8 +115,10 @@ export async function createVisualExportArtifact(
       report: `Exported PNG revision ${document.revision}`,
     };
   }
-  const { vectorizeFormalSvgInBrowser } =
-    await import("@icm/exporters/browser-pdf");
+  const { vectorizeFormalSvgInBrowser } = await importChunk(
+    "PDF export",
+    () => import("@icm/exporters/browser-pdf"),
+  );
   const pdf = await vectorizeFormalSvgInBrowser(source);
   return {
     bytes: pdf as BlobPart,
@@ -132,4 +141,24 @@ export function requestBrowserDownload(
   anchor.download = `${safeExportBaseName(baseName)}.${artifact.extension}`;
   anchor.click();
   window.setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+/**
+ * User-facing account of a failed export. A vanished on-demand chunk gets
+ * the refresh remedy and names the feature so the App can raise the banner;
+ * anything else keeps its own message.
+ */
+export function describeExportFailure(error: unknown): {
+  status: string;
+  chunkFeature?: string;
+} {
+  if (error instanceof ChunkLoadError) {
+    return {
+      status: chunkLoadStatus(error.feature),
+      chunkFeature: error.feature,
+    };
+  }
+  return {
+    status: error instanceof Error ? error.message : "Export failed",
+  };
 }

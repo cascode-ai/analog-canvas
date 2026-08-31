@@ -21,12 +21,29 @@ function claimNet(
   scope: "local" | "global" = "local",
   powerDomain?: "vdd" | "ground",
 ): void {
+  const labelId = deriveStableId(
+    "fixture-net-label",
+    document.id,
+    netId,
+    name,
+    scope,
+  );
+  document.annotations.push({
+    id: labelId,
+    kind: powerDomain ? "power-label" : "net-label",
+    binding: { kind: "net-name", netId },
+    netId,
+    anchor: { kind: "free", position: { x: 0, y: 0 } },
+    alignment: "start",
+    rotation: 0,
+    locked: false,
+  });
   document.connectivityEvidence.push({
     id: deriveStableId("fixture-net-name", document.id, netId),
     kind: "name-claim",
     netId,
     name,
-    owner: { kind: "explicit-net-property" },
+    owner: { kind: "net-label", annotationId: labelId },
     scope,
     ...(powerDomain ? { powerDomain } : {}),
   });
@@ -193,7 +210,7 @@ describe("current formal cell interface", () => {
     expect(project).toEqual(before);
   });
 
-  it("exports evidence-equivalent Base Nets as one logical node", () => {
+  it("exports matching-name Base Nets as one logical node", () => {
     const project = createEmptyProject("project", "Project");
     const document = project.documents[0]!;
     document.instances.push({
@@ -218,24 +235,8 @@ describe("current formal cell interface", () => {
         terminals: [{ instanceId: "R1", pinName: "2" }],
       },
     );
-    document.connectivityEvidence.push(
-      {
-        id: "claim-a",
-        kind: "name-claim",
-        netId: "net-a",
-        name: "BIAS",
-        owner: { kind: "explicit-net-property" },
-        scope: "local",
-      },
-      {
-        id: "claim-b",
-        kind: "name-claim",
-        netId: "net-b",
-        name: "bias",
-        owner: { kind: "explicit-net-property" },
-        scope: "local",
-      },
-    );
+    claimNet(document, "net-a", "BIAS");
+    claimNet(document, "net-b", "BIAS");
 
     const result = analyzeDesignNetlist(project);
     expect(result.diagnostics).toEqual([]);
@@ -246,6 +247,60 @@ describe("current formal cell interface", () => {
       { pinName: "1", netName: "BIAS" },
       { pinName: "2", netName: "BIAS" },
     ]);
+  });
+
+  it("keeps copied source-name hints electrically separate and disambiguates export", () => {
+    const project = createEmptyProject("project", "Project");
+    const document = project.documents[0]!;
+    document.instances.push({
+      id: "R1",
+      symbolId: "resistor",
+      placement: null,
+      netlist: {
+        reference: "R1",
+        binding: { kind: "primitive", deviceClass: "resistor" },
+        parameters: { value: "10k" },
+      },
+    });
+    document.nets.push(
+      {
+        id: "net-a",
+        terminals: [{ instanceId: "R1", pinName: "1" }],
+      },
+      {
+        id: "net-b",
+        terminals: [{ instanceId: "R1", pinName: "2" }],
+      },
+    );
+    document.connectivityEvidence.push(
+      {
+        id: "hint-a",
+        kind: "net-name-hint",
+        netId: "net-a",
+        sourceName: "OUT",
+        origin: "spice-import",
+      },
+      {
+        id: "hint-b",
+        kind: "net-name-hint",
+        netId: "net-b",
+        sourceName: "out",
+        origin: "spice-import",
+      },
+    );
+
+    const result = analyzeDesignNetlist(project);
+
+    expect(result.ir?.cells[0]?.instances[0]?.nodes).toEqual([
+      { pinName: "1", netName: "OUT" },
+      { pinName: "2", netName: "out__2" },
+    ]);
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "DISAMBIGUATED_SOURCE_NET_NAME",
+        severity: "warning",
+      }),
+    );
   });
 
   it("exports explicit NoConnect terminals through deterministic floating nodes", () => {
@@ -353,24 +408,8 @@ describe("current formal cell interface", () => {
 
       terminals: [],
     });
-    document.connectivityEvidence.push(
-      {
-        id: "claim-local",
-        kind: "name-claim",
-        netId: "net-global",
-        name: "BIAS",
-        owner: { kind: "explicit-net-property" },
-        scope: "local",
-      },
-      {
-        id: "claim-global",
-        kind: "name-claim",
-        netId: "net-global",
-        name: "BIAS",
-        owner: { kind: "explicit-net-property" },
-        scope: "global",
-      },
-    );
+    claimNet(document, "net-global", "BIAS", "local");
+    claimNet(document, "net-global", "BIAS", "global");
 
     const result = analyzeDesignNetlist(project);
 

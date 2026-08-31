@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { resolveDocumentLogicalNets } from "./logical-net.js";
 
 describe("resolved logical Nets", () => {
-  it("keeps source provenance non-electrical while resolving explicit identity deterministically", () => {
+  it("keeps source name hints non-electrical while resolving visible scoped names deterministically", () => {
     const document = createEmptyDocument("document", "Document");
     document.nets.push(
       { id: "net-d", terminals: [] },
@@ -18,7 +18,7 @@ describe("resolved logical Nets", () => {
         kind: "name-claim",
         netId: "net-a",
         name: "Bias",
-        owner: { kind: "explicit-net-property" },
+        owner: { kind: "net-label", annotationId: "label-a" },
         scope: "local",
       },
       {
@@ -26,7 +26,7 @@ describe("resolved logical Nets", () => {
         kind: "name-claim",
         netId: "net-b",
         name: "BIAS",
-        owner: { kind: "explicit-net-property" },
+        owner: { kind: "net-label", annotationId: "label-b" },
         scope: "local",
       },
       {
@@ -42,9 +42,18 @@ describe("resolved logical Nets", () => {
         sourceNetId: "source-shared",
       },
       {
-        id: "equivalence-cd",
-        kind: "explicit-equivalence",
-        memberNetIds: ["net-c", "net-d"],
+        id: "hint-c",
+        kind: "net-name-hint",
+        netId: "net-c",
+        sourceName: "OUT",
+        origin: "spice-import",
+      },
+      {
+        id: "hint-d",
+        kind: "net-name-hint",
+        netId: "net-d",
+        sourceName: "out",
+        origin: "spice-import",
       },
     );
 
@@ -60,45 +69,43 @@ describe("resolved logical Nets", () => {
       }),
       expect.objectContaining({
         id: "net-c",
-        baseNetIds: ["net-c", "net-d"],
+        baseNetIds: ["net-c"],
         sourceNetIds: ["source-shared"],
         conflicts: [],
       }),
+      expect.objectContaining({
+        id: "net-d",
+        baseNetIds: ["net-d"],
+        sourceNetIds: [],
+        conflicts: [],
+      }),
     ]);
-    expect(resolved.byBaseNetId.get("net-d")?.id).toBe("net-c");
+    expect(resolved.byBaseNetId.get("net-d")?.id).toBe("net-d");
   });
 
-  it("keeps conflicting explicit equivalence inspectable without choosing a name", () => {
+  it("keeps conflicting claims on one physical Base Net inspectable", () => {
     const document = createEmptyDocument("document", "Document");
-    document.nets.push(
-      { id: "net-a", terminals: [] },
-      { id: "net-b", terminals: [] },
-    );
+    document.nets.push({ id: "net-a", terminals: [] });
     document.connectivityEvidence.push(
       {
         id: "claim-a",
         kind: "name-claim",
         netId: "net-a",
         name: "A",
-        owner: { kind: "explicit-net-property" },
+        owner: { kind: "net-label", annotationId: "label-a" },
         scope: "local",
       },
       {
         id: "claim-b",
         kind: "name-claim",
-        netId: "net-b",
+        netId: "net-a",
         name: "B",
-        owner: { kind: "explicit-net-property" },
+        owner: { kind: "net-label", annotationId: "label-b" },
         scope: "global",
-      },
-      {
-        id: "equivalence",
-        kind: "explicit-equivalence",
-        memberNetIds: ["net-a", "net-b"],
       },
     );
     expect(resolveDocumentLogicalNets(document).groups[0]).toMatchObject({
-      baseNetIds: ["net-a", "net-b"],
+      baseNetIds: ["net-a"],
       conflicts: ["name-conflict", "scope-conflict"],
     });
     expect(resolveDocumentLogicalNets(document).groups[0]).not.toHaveProperty(
@@ -106,7 +113,7 @@ describe("resolved logical Nets", () => {
     );
   });
 
-  it("ignores inert legacy projections when resolving marker-owned names", () => {
+  it("does not promote a legacy source spelling into a Logical Net name", () => {
     const document = createEmptyDocument("document", "Document");
     document.nets.push(
       { id: "legacy", terminals: [] },
@@ -114,48 +121,58 @@ describe("resolved logical Nets", () => {
     );
     document.connectivityEvidence.push({
       id: "claim-vdd",
-      kind: "name-claim",
+      kind: "net-name-hint",
       netId: "marker",
-      name: "vdd",
-      owner: { kind: "explicit-net-property" },
-      scope: "local",
-      powerDomain: "vdd",
+      sourceName: "vdd",
+      origin: "legacy-explicit-net-property",
     });
 
     expect(resolveDocumentLogicalNets(document).groups).toEqual([
       expect.objectContaining({ baseNetIds: ["legacy"], powerDomain: "none" }),
       expect.objectContaining({
         baseNetIds: ["marker"],
-        name: "vdd",
-        powerDomain: "vdd",
+        powerDomain: "none",
       }),
     ]);
+    expect(resolveDocumentLogicalNets(document).groups[1]).not.toHaveProperty(
+      "name",
+    );
   });
 
-  it("does not let an inert legacy projection conflict with a marker claim", () => {
+  it("does not let a source name hint conflict with a visible marker claim", () => {
     const document = createEmptyDocument("document", "Document");
     document.nets.push({
       id: "net",
 
       terminals: [],
     });
-    document.connectivityEvidence.push({
-      id: "claim-bias",
-      kind: "name-claim",
-      netId: "net",
-      name: "BIAS",
-      owner: { kind: "explicit-net-property" },
-      scope: "local",
-    });
+    document.connectivityEvidence.push(
+      {
+        id: "hint-bias",
+        kind: "net-name-hint",
+        netId: "net",
+        sourceName: "BIAS",
+        origin: "spice-import",
+      },
+      {
+        id: "claim-output",
+        kind: "name-claim",
+        netId: "net",
+        name: "OUTPUT",
+        owner: { kind: "power-marker", objectId: "marker" },
+        scope: "local",
+        powerDomain: "vdd",
+      },
+    );
 
     expect(resolveDocumentLogicalNets(document).groups[0]).toMatchObject({
-      name: "BIAS",
+      name: "OUTPUT",
       conflicts: [],
-      powerDomain: "none",
+      powerDomain: "vdd",
     });
   });
 
-  it("keeps a formal Cell Pin name distinct from the connected logical Net name", () => {
+  it("joins formal Cell Pins and visible labels through the same scoped name", () => {
     const document = createEmptyDocument("document", "Document");
     document.nets.push(
       { id: "net-port", terminals: [] },
@@ -179,24 +196,49 @@ describe("resolved logical Nets", () => {
       kind: "name-claim",
       netId: "net-label",
       name: "P1",
-      owner: { kind: "explicit-net-property" },
+      owner: { kind: "net-label", annotationId: "label-p1" },
       scope: "local",
     });
 
     expect(resolveDocumentLogicalNets(document).groups).toEqual([
       expect.objectContaining({
-        baseNetIds: ["net-label"],
+        baseNetIds: ["net-label", "net-port"],
         name: "P1",
         conflicts: [],
       }),
-      expect.objectContaining({
-        baseNetIds: ["net-port"],
-        conflicts: [],
-      }),
     ]);
-    expect(resolveDocumentLogicalNets(document).groups[1]).not.toHaveProperty(
-      "name",
-    );
     expect(document.connectivityEvidence).toHaveLength(1);
+  });
+
+  it("uses one visible formal Port spelling as the current Logical Net name", () => {
+    const document = createEmptyDocument("document", "Document");
+    document.nets.push({ id: "net-out", terminals: [] });
+    document.netlist = {
+      name: "Cell",
+      terminals: [
+        {
+          id: "terminal-out-a",
+          name: "Vout",
+          netId: "net-out",
+          direction: "output",
+          interfaceInstanceIds: ["port-out-a"],
+        },
+        {
+          id: "terminal-out-b",
+          name: "VOUT",
+          netId: "net-out",
+          direction: "output",
+          interfaceInstanceIds: ["port-out-b"],
+        },
+      ],
+      formalParameters: [],
+    };
+
+    expect(resolveDocumentLogicalNets(document).groups[0]).toMatchObject({
+      name: "Vout",
+      baseNetIds: ["net-out"],
+      formalTerminalIds: ["terminal-out-a", "terminal-out-b"],
+      conflicts: [],
+    });
   });
 });

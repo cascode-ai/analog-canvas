@@ -119,6 +119,50 @@ describe("render svg", () => {
     );
   });
 
+  it("renders a right-tapered transconductance frame, matching background, and subscript formula", () => {
+    const transconductance = {
+      ...definition,
+      id: "transconductance",
+      name: "Transconductance (+gₘ)",
+      viewBox: { x: -44, y: -39, width: 88, height: 78 },
+      formulaPresentation: {
+        ...definition.formulaPresentation,
+        defaultFormula: "+g_m",
+        adaptiveFrame: {
+          ...definition.formulaPresentation.adaptiveFrame,
+          shape: "right-tapered-trapezoid" as const,
+          minBodyWidth: 40,
+          horizontalPadding: 4,
+          minBodyHeight: 70,
+        },
+      },
+    };
+    const doc = createEmptyDocument("main", "Main");
+    doc.instances.push({
+      id: "gm1",
+      symbolId: "transconductance",
+      placement: { position: { x: 100, y: 100 }, rotation: 0, mirror: "none" },
+      styleOverride: { background: "#ffeedd" },
+      signalFlowParameters: { formula: "−gₘL" },
+    });
+
+    const scene = buildSvgScene(
+      doc,
+      new InMemorySymbolResolver([transconductance]),
+    );
+    expect(scene.formalBody).toContain(
+      'data-role="instance-background" fill="#ffeedd" stroke="none" points="-20,-35 20,-17.5 20,17.5 -20,35"',
+    );
+    expect(scene.formalBody).toContain(
+      'data-role="signal-flow-frame" data-part="body"',
+    );
+    expect(scene.formalBody).toContain(
+      'points="-20,-35 20,-17.5 20,17.5 -20,35"',
+    );
+    expect(scene.formalBody).toContain('data-role="formula-subscript"');
+    expect(scene.formalBody).toContain(">mL</tspan>");
+  });
+
   it("renders signal-flow-frame, 12pt formula, fraction line, dynamic leads, and keeps pin names", () => {
     const doc = createEmptyDocument("main", "Main");
     doc.instances.push({

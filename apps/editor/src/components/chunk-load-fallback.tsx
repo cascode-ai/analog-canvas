@@ -7,7 +7,7 @@ export interface ChunkLoadFallbackProps {
   onCancel?: () => void;
 }
 
-function refreshWithRestore(): void {
+export function refreshWithRestore(): void {
   try {
     // The recovery coordinator flushes on pagehide, so the snapshot survives
     // this reload; the flag lets the refreshed page restore it automatically.
@@ -105,4 +105,40 @@ export function createChunkLoadFallback(
       </div>
     );
   };
+}
+
+/**
+ * Dismissible banner for a failed on-demand chunk outside any dialog —
+ * an export command whose module vanished under a redeploy. Same remedy as
+ * every chunk failure: refresh, with the current circuit restored.
+ */
+export function ChunkLoadBanner({
+  feature,
+  onDismiss,
+}: {
+  feature: string;
+  onDismiss: () => void;
+}) {
+  return (
+    <aside
+      className="recovery-banner recovery-banner-warning"
+      data-testid="chunk-load-banner"
+      role="alert"
+      aria-label="Feature failed to load"
+    >
+      <p>
+        {feature} could not load — the app has been updated since this tab
+        opened. Refresh to load the new version; your current circuit is
+        restored automatically.
+      </p>
+      <div>
+        <button type="button" onClick={refreshWithRestore}>
+          Refresh app
+        </button>
+        <button type="button" onClick={onDismiss}>
+          Not now
+        </button>
+      </div>
+    </aside>
+  );
 }

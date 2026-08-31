@@ -138,7 +138,7 @@ describe("endpoint connectivity assessment", () => {
       kind: "name-claim",
       netId: "supply",
       name: "VDD",
-      owner: { kind: "explicit-net-property" },
+      owner: { kind: "net-label", annotationId: "test-net-label-1" },
       scope: "global",
       powerDomain: "vdd",
     });

@@ -57,6 +57,8 @@ const profile = {
 describe("Signal Flow formula renderer", () => {
   it("normalizes ASCII and Unicode superscripts before parsing textbook fractions", () => {
     expect(normalizeSignalFlowFormula("z⁻¹/(1−z⁻¹)")).toBe("z^-1/(1-z^-1)");
+    expect(normalizeSignalFlowFormula("+gₘ₁")).toBe("+g_m1");
+    expect(normalizeSignalFlowFormula("−gₘL")).toBe("-g_mL");
     expect(parseSignalFlowFraction("1/s")).toEqual({
       numerator: "1",
       denominator: "s",
@@ -80,6 +82,25 @@ describe("Signal Flow formula renderer", () => {
     expect(fraction).toContain('font-size="12"');
     expect(fraction).toContain("K·");
     expect(fraction).toContain('stroke="#aabbcc"');
+
+    const transconductance = renderSignalFlowFormula(
+      { ...formulaDefinition.formulaPresentation, defaultFormula: "+g_m" },
+      { formula: "−gₘL" },
+      { foreground: "#000000", profile },
+    );
+    expect(transconductance).toContain(
+      'data-role="formula-subscript" baseline-shift="sub"',
+    );
+    expect(transconductance).toContain(">mL</tspan>");
+
+    const mixedScripts = renderSignalFlowFormula(
+      { ...formulaDefinition.formulaPresentation, defaultFormula: "z^-1+g_m" },
+      undefined,
+      { foreground: "#000000", profile },
+    );
+    expect(mixedScripts).toContain(">-1</tspan>+g");
+    expect(mixedScripts).toContain(">m</tspan>");
+    expect(mixedScripts).not.toContain(">-1+g</tspan>");
 
     const fallback = renderSignalFlowFormula(
       formulaDefinition.formulaPresentation,

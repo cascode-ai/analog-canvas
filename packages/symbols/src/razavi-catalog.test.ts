@@ -169,6 +169,7 @@ describe("Razavi symbol catalog", () => {
       ["delay-cell", "reviewed", "razavi-reference-v1"],
       ["adder", "reviewed", "razavi-reference-v1"],
       ["multiplier", "reviewed", "razavi-reference-v1"],
+      ["transconductance", "reviewed", "razavi-reference-v1"],
       ["integrator", "reviewed", "razavi-reference-v1"],
       ["unit-delay", "reviewed", "razavi-reference-v1"],
       ["discrete-time-integrator", "reviewed", "razavi-reference-v1"],
@@ -555,7 +556,7 @@ describe("Razavi symbol catalog", () => {
   });
 
   it("uses reviewed catalog objects as the sole built-in product library", () => {
-    expect(razaviCatalogSymbols).toHaveLength(50);
+    expect(razaviCatalogSymbols).toHaveLength(51);
     for (const catalogSymbol of razaviProductSymbols) {
       expect(
         builtInSymbols.find((symbol) => symbol.id === catalogSymbol.id),
@@ -579,6 +580,7 @@ describe("Razavi symbol catalog", () => {
       "delay-cell",
       "adder",
       "multiplier",
+      "transconductance",
       "integrator",
       "unit-delay",
       "discrete-time-integrator",
@@ -626,6 +628,7 @@ describe("Razavi symbol catalog", () => {
       "fixtures/visual-reference/razavi-reference-v1/delta-sigma-geometry.json";
     const directWitnesses = [
       ["adder", "delta-sigma-figure-21-38-reference.png"],
+      ["transconductance", "transconductance-reference.png"],
       ["integrator", "delta-sigma-figure-21-38-reference.png"],
       ["discrete-time-integrator", "delta-sigma-figure-21-33-reference.png"],
     ] as const;
@@ -647,6 +650,7 @@ describe("Razavi symbol catalog", () => {
     for (const symbolId of [
       "adder",
       "multiplier",
+      "transconductance",
       "integrator",
       "unit-delay",
       "discrete-time-integrator",
@@ -698,6 +702,32 @@ describe("Razavi symbol catalog", () => {
         ),
       ).toBe(false);
     }
+
+    const transconductance = requireRazaviCatalogSymbol("transconductance");
+    expect(transconductance.pins.map((pin) => pin.name)).toEqual(["A", "Y"]);
+    expect(transconductance.formulaPresentation).toEqual({
+      defaultFormula: "+g_m",
+      supportsCoefficient: true,
+      center: { x: 0, y: 0 },
+      fontSize: 12,
+      adaptiveFrame: {
+        shape: "right-tapered-trapezoid",
+        minBodyWidth: 40,
+        minBodyHeight: 70,
+        horizontalPadding: 4,
+        verticalPadding: 4,
+        leadLength: 20,
+      },
+    });
+    expect(transconductance.primitives).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "path",
+          part: "body",
+          data: "M -20 -35 L 20 -17.5 L 20 17.5 L -20 35 Z",
+        }),
+      ]),
+    );
   });
 
   it("keeps the variable resistor electrically two-terminal with one diagonal adjustment arrow", () => {

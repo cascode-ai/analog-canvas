@@ -37,6 +37,25 @@ describe("CircuitProject schema", () => {
     expect(CircuitProjectJsonSchema).toMatchObject({ type: "object" });
   });
 
+  it("rejects the retired hidden electrical Net-name owner", () => {
+    const document = createEmptyDocument("document", "Document");
+    document.nets.push({ id: "net-out", terminals: [] });
+    const candidate = {
+      ...document,
+      connectivityEvidence: [
+        {
+          id: "claim-out",
+          kind: "name-claim",
+          netId: "net-out",
+          name: "OUT",
+          owner: { kind: "explicit-net-property" },
+          scope: "local",
+        },
+      ],
+    };
+    expect(SchematicDocumentSchema.safeParse(candidate).success).toBe(false);
+  });
+
   it("rejects retired logical projections on physical Base Nets", () => {
     const project = createEmptyProject("project-net", "Net");
     for (const projection of [
@@ -362,14 +381,11 @@ describe("CircuitProject schema", () => {
       symbolId: "port",
       placement: null,
     });
-    document.nets.push(
-      {
-        id: "net-a",
+    document.nets.push({
+      id: "net-a",
 
-        terminals: [{ instanceId: "P1", pinName: "P" }],
-      },
-      { id: "net-b", terminals: [] },
-    );
+      terminals: [{ instanceId: "P1", pinName: "P" }],
+    });
     document.netlist = {
       name: "Evidence",
       formalParameters: [],
@@ -409,17 +425,11 @@ describe("CircuitProject schema", () => {
         sourceNetId: "source-a",
       },
       {
-        id: "claim-a-conflict",
-        kind: "name-claim",
+        id: "hint-a",
+        kind: "net-name-hint",
         netId: "net-a",
-        name: "ALIAS",
-        owner: { kind: "explicit-net-property" },
-        scope: "local",
-      },
-      {
-        id: "equivalence-ab",
-        kind: "explicit-equivalence",
-        memberNetIds: ["net-a", "net-b"],
+        sourceName: "ALIAS",
+        origin: "spice-import",
       },
     );
     expect(SchematicDocumentSchema.safeParse(document).success).toBe(true);
@@ -473,20 +483,25 @@ describe("CircuitProject schema", () => {
     );
     document.connectivityEvidence[0] = {
       id: "claim-a",
+      kind: "net-name-hint",
+      netId: "net-a",
+      sourceName: "A",
+      origin: "legacy-explicit-net-property",
+    };
+    expect(SchematicDocumentSchema.safeParse(document).success).toBe(true);
+    const retired = structuredClone(document) as unknown as Record<
+      string,
+      unknown
+    >;
+    (retired.connectivityEvidence as unknown[])[0] = {
+      id: "claim-a",
       kind: "name-claim",
       netId: "net-a",
       name: "A",
       owner: { kind: "explicit-net-property" },
       scope: "local",
     };
-    document.connectivityEvidence[3] = {
-      id: "equivalence-ab",
-      kind: "explicit-equivalence",
-      memberNetIds: ["net-a", "net-a"],
-    };
-    expect(() => SchematicDocumentSchema.parse(document)).toThrow(
-      /Duplicate explicit-equivalence member/,
-    );
+    expect(SchematicDocumentSchema.safeParse(retired).success).toBe(false);
   });
 
   it("accepts a rail label format override whose power claim is owned by the label itself", () => {

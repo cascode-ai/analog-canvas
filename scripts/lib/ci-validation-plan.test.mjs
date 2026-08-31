@@ -1,3 +1,5 @@
+import { readdir } from "node:fs/promises";
+
 import { describe, expect, it } from "vitest";
 
 import {
@@ -67,6 +69,20 @@ describe("CI validation planning", () => {
     expect(plan.reasons).toContain(
       "uncovered browser impact: apps/editor/src/lib/new-helper.ts",
     );
+  });
+
+  it("keeps every browser spec reachable through a focused route", async () => {
+    const directory = new URL("../../apps/editor/e2e/", import.meta.url);
+    const specs = (await readdir(directory))
+      .filter((name) => name.endsWith(".spec.ts"))
+      .map((name) => `apps/editor/e2e/${name}`)
+      .sort();
+
+    for (const spec of specs) {
+      const plan = ciPlan([spec]);
+      expect(plan.mode, spec).toBe("focused");
+      expect(plan.e2eArgs, spec).toContain(spec);
+    }
   });
 
   it("treats validation-policy documentation as a full fallback", () => {

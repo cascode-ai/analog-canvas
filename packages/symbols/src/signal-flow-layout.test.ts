@@ -84,6 +84,38 @@ describe("signal-flow layout", () => {
     expect(larger!.body.width).toBeGreaterThanOrEqual(layout!.body.width);
   });
 
+  it("preserves a right-tapered transconductance frame while expanding long formulas", () => {
+    const trapezoid = {
+      formulaPresentation: {
+        ...definition.formulaPresentation,
+        defaultFormula: "+g_m",
+        adaptiveFrame: {
+          ...definition.formulaPresentation.adaptiveFrame,
+          shape: "right-tapered-trapezoid" as const,
+          minBodyWidth: 40,
+          horizontalPadding: 4,
+          minBodyHeight: 70,
+        },
+      },
+    };
+    const preset = resolveAdaptiveSignalFlowBlockLayout(trapezoid, {
+      formula: "+gₘ₁",
+    });
+    const expanded = resolveAdaptiveSignalFlowBlockLayout(trapezoid, {
+      formula: "-g_mL_with_a_long_suffix",
+    });
+
+    expect(preset).toMatchObject({
+      shape: "right-tapered-trapezoid",
+      body: { width: 40, height: 70 },
+      pinSpan: 40,
+    });
+    expect(expanded!.shape).toBe("right-tapered-trapezoid");
+    expect(expanded!.body.width).toBeGreaterThan(preset!.body.width);
+    expect(expanded!.body.height).toBe(70);
+    expect(expanded!.pinSpan).toBeGreaterThan(preset!.pinSpan);
+  });
+
   it("keeps adaptive body, pinSpan, and pin coordinates aligned around the same center", () => {
     const layout = resolveAdaptiveSignalFlowBlockLayout(definition, {
       formula: "z^-1/(1-z^-1)",
