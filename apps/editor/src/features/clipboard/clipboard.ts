@@ -1147,6 +1147,41 @@ export function proposePaste(
       );
     }
   }
+  const junctionNetIds = new Set(
+    clipboard.junctions.map((junction) => junction.netId),
+  );
+  const annotationNetIds = new Set(
+    clipboard.annotations.flatMap((annotation) => [
+      ...(annotation.netId ? [annotation.netId] : []),
+      ...(annotation.binding?.kind === "net-name"
+        ? [annotation.binding.netId]
+        : []),
+    ]),
+  );
+  /**
+   * `connect_endpoints` and `add_junction` normally materialize each copied
+   * Base Net. A valid Document may also contain a label-only Net with neither
+   * terminals nor Junctions, though, and `upsert_schematic_annotation` quite
+   * correctly refuses to reference a Net that does not exist. The typed edit
+   * surface has no raw add-Net operation, so use an atomic, temporary
+   * label-anchor Junction to create the Net and remove it after the copied
+   * Annotation makes that empty Net reachable. Nothing synthetic survives in
+   * the pasted Document.
+   */
+  const annotationNetScaffoldIds = new Map(
+    clipboard.nets.flatMap((net) =>
+      net.terminals.length === 0 &&
+      !junctionNetIds.has(net.id) &&
+      annotationNetIds.has(net.id)
+        ? [
+            [
+              net.id,
+              uniqueCopyId("clipboard-net-anchor", sequence, occupied),
+            ] as const,
+          ]
+        : [],
+    ),
+  );
   const objectIds = new Map<string, string>([
     ...instanceIds,
     ...netIds,
@@ -1292,6 +1327,18 @@ export function proposePaste(
         },
       };
     }),
+  );
+  edits.push(
+    ...[...annotationNetScaffoldIds].map(
+      ([sourceNetId, junctionId]): SchematicEdit => ({
+        kind: "add_junction",
+        junctionId,
+        netId: netIds.get(sourceNetId)!,
+        position: { x: 0, y: 0 },
+        role: "label-anchor",
+        createNet: true,
+      }),
+    ),
   );
   const availableNetIds = new Set([
     ...document.nets.map((net) => net.id),
@@ -1445,6 +1492,14 @@ export function proposePaste(
         },
       };
     }),
+  );
+  edits.push(
+    ...[...annotationNetScaffoldIds.values()].map(
+      (junctionId): SchematicEdit => ({
+        kind: "remove_junction",
+        junctionId,
+      }),
+    ),
   );
   const clonedRoutesBySource = new Map(
     clipboard.routes.flatMap((source) => {

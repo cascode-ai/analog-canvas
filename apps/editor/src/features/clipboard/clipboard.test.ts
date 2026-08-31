@@ -914,6 +914,70 @@ describe("schematic clipboard", () => {
 });
 
 describe("copyWholeDocument", () => {
+  it("materializes a label-only Net while placing a Gallery document", () => {
+    const source = createEmptyDocument("document-main", "Label-only Net");
+    source.instances.push({
+      id: "VDD1",
+      symbolId: "vdd-port",
+      placement: {
+        position: { x: 100, y: 100 },
+        rotation: 0,
+        mirror: "none",
+      },
+      schematicReference: "VDD1",
+    });
+    source.nets.push({ id: "net-label-only", terminals: [] });
+    source.annotations.push({
+      id: "power-label-vdd1",
+      kind: "power-label",
+      binding: { kind: "net-name", netId: "net-label-only" },
+      anchor: {
+        kind: "object",
+        objectId: "VDD1",
+        localOffset: { x: 15, y: 10 },
+        fallbackPosition: { x: 115, y: 110 },
+      },
+      netId: "net-label-only",
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    });
+
+    const target = createEmptyDocument("target", "Target");
+    const clipboard = copyWholeDocument(source);
+    expect(clipboard).not.toBeNull();
+    const proposal = proposePaste(target, clipboard!, { x: 200, y: 50 }, 1);
+    expect(proposal.errors).toEqual([]);
+    const result = executeTransaction(
+      target,
+      {
+        transactionId: "paste-label-only-net",
+        documentId: target.id,
+        expectedRevision: target.revision,
+        actor: { kind: "human", id: "test" },
+        edits: proposal.edits,
+      },
+      { symbolResolver: resolver },
+    );
+
+    if (!result.ok) throw new Error(JSON.stringify(result, null, 2));
+    const copiedNet = result.document.nets.find(
+      (net) => net.id === proposal.idRemap.nets["net-label-only"],
+    );
+    expect(copiedNet).toEqual({
+      id: "net-label-only-copy-1",
+      terminals: [],
+    });
+    expect(result.document.annotations).toEqual([
+      expect.objectContaining({
+        id: "power-label-vdd1-copy-1",
+        netId: "net-label-only-copy-1",
+        binding: { kind: "net-name", netId: "net-label-only-copy-1" },
+      }),
+    ]);
+    expect(result.document.junctions).toEqual([]);
+  });
+
   it("keeps standalone drafting geometry and its layout group", () => {
     const document = createEmptyDocument("document-main", "Drafting scene");
     document.drafting = {
