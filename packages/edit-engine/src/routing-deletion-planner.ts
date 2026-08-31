@@ -1,8 +1,9 @@
 import {
+  derivePowerRailComponent,
   deriveRoutingAffectedClosure,
   type RoutingSelectionSeed,
 } from "@icm/derived";
-import type { SchematicDocument } from "@icm/model";
+import { routeEnd, type SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
 import {
@@ -20,6 +21,49 @@ export interface RoutingDeletionSeed extends RoutingSelectionSeed {
   readonly draftingIds?: readonly string[];
 }
 
+/** A selected rail label owns the same deletion component as its rail. */
+function expandSelectedPowerRailLabels(
+  document: SchematicDocument,
+  seed: RoutingDeletionSeed,
+): RoutingDeletionSeed {
+  const routeIds = new Set(seed.routeIds);
+  for (const annotationId of seed.annotationIds ?? []) {
+    const annotation = document.annotations.find(
+      (candidate) =>
+        candidate.id === annotationId && candidate.kind === "power-label",
+    );
+    if (!annotation) continue;
+    const anchor = annotation.anchor;
+    const seedRoute = document.routes.find((route) => {
+      if (
+        route.presentation !== "power-rail" ||
+        route.netId !== annotation.netId
+      ) {
+        return false;
+      }
+      if (anchor.kind === "route") {
+        return anchor.routeId === route.id;
+      }
+      return (
+        anchor.kind === "object" &&
+        [route.start, routeEnd(route)].some(
+          (endpoint) =>
+            endpoint.kind === "junction" &&
+            endpoint.junctionId === anchor.objectId,
+        )
+      );
+    });
+    if (!seedRoute) continue;
+    for (const routeId of derivePowerRailComponent(document, seedRoute.id)
+      ?.routeIds ?? []) {
+      routeIds.add(routeId);
+    }
+  }
+  return routeIds.size === seed.routeIds.length
+    ? seed
+    : { ...seed, routeIds: [...routeIds] };
+}
+
 /**
  * Plan one graph deletion. Route selection dominates incidental marquee
  * Junction dots; Junction-only selection owns its incident arms. Instance,
@@ -32,12 +76,13 @@ export function planRoutingDeletion(
   seed: RoutingDeletionSeed,
   sequence: number,
 ): RoutingOperationPlan {
-  const affected = deriveRoutingAffectedClosure(document, seed);
+  const expandedSeed = expandSelectedPowerRailLabels(document, seed);
+  const affected = deriveRoutingAffectedClosure(document, expandedSeed);
   const selectedInstances = new Set(affected.instances);
   const routeDeletion = proposeVisualRouteDeletion(
     document,
-    seed.routeIds,
-    seed.routeIds.length > 0 ? [] : seed.junctionIds,
+    expandedSeed.routeIds,
+    expandedSeed.routeIds.length > 0 ? [] : expandedSeed.junctionIds,
     { instanceIdsScheduledForDeletion: affected.instances },
   );
   const instanceEdits =
@@ -49,7 +94,9 @@ export function planRoutingDeletion(
     selectedInstances,
   );
   const routeAnnotationIds = new Set(routeDeletion.annotationIds);
-  const explicitAnnotationIds = [...new Set(seed.annotationIds ?? [])].filter(
+  const explicitAnnotationIds = [
+    ...new Set(expandedSeed.annotationIds ?? []),
+  ].filter(
     (annotationId) =>
       document.annotations.some(
         (annotation) => annotation.id === annotationId,
@@ -57,8 +104,9 @@ export function planRoutingDeletion(
       !removedWithInstances.has(annotationId) &&
       !routeAnnotationIds.has(annotationId),
   );
-  const draftingIds = [...new Set(seed.draftingIds ?? [])].filter((objectId) =>
-    document.drafting?.objects.some((object) => object.id === objectId),
+  const draftingIds = [...new Set(expandedSeed.draftingIds ?? [])].filter(
+    (objectId) =>
+      document.drafting?.objects.some((object) => object.id === objectId),
   );
   const edits: SchematicEdit[] = [
     ...instanceEdits,

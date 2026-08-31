@@ -17,6 +17,7 @@ export * from "./routing-deletion-planner.js";
 export * from "./net-name-operation-planner.js";
 export * from "./instance-lifecycle.js";
 export * from "./transaction.js";
+export * from "./transaction-preflight.js";
 export * from "./project-transaction.js";
 export * from "./hierarchy-planner.js";
 export * from "./cell-reset-planner.js";

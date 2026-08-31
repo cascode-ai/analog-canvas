@@ -87,6 +87,9 @@ explicit first, then materialized from a configured cell-default Net. Without
 either, it remains unresolved; MOS polarity never creates or selects a power
 Net. Existing persisted `supply-default` bindings remain readable for rolling
 compatibility, but current manual authoring does not create them.
+Cross-Document composition converts an effective source `cell-default` to an
+instance-owned `instance-override` so target Cell policy cannot retarget the
+copied body.
 Imported/source-bound MOS instances with missing fourth-node evidence remain
 unresolved.
 

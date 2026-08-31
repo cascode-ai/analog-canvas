@@ -22,6 +22,7 @@ export type RoutingOperationIntent =
   | "transform"
   | "route-geometry"
   | "clone"
+  | "compose"
   | "delete"
   | "rename-marker"
   | "rename-net";
@@ -35,6 +36,11 @@ export interface OperationIdRemap {
   readonly junctions: Readonly<Record<string, string>>;
   readonly annotations: Readonly<Record<string, string>>;
   readonly evidence: Readonly<Record<string, string>>;
+  readonly noConnects: Readonly<Record<string, string>>;
+  readonly draftingObjects: Readonly<Record<string, string>>;
+  readonly layoutGroups: Readonly<Record<string, string>>;
+  readonly constraints: Readonly<Record<string, string>>;
+  readonly cellTerminals: Readonly<Record<string, string>>;
 }
 
 export type ExpectedElectricalEffect =
@@ -53,6 +59,11 @@ export type ExpectedElectricalEffect =
       readonly kind: "clone";
       readonly mapping: Readonly<Record<string, string>>;
       readonly boundaryPolicy: "disconnect";
+    }
+  | {
+      readonly kind: "compose";
+      readonly mapping: Readonly<Record<string, string>>;
+      readonly boundaryPolicy: "preserve-target-physical";
     }
   | {
       readonly kind: "rebind-name-owner";
@@ -123,6 +134,11 @@ const EMPTY_ID_REMAP: OperationIdRemap = {
   junctions: {},
   annotations: {},
   evidence: {},
+  noConnects: {},
+  draftingObjects: {},
+  layoutGroups: {},
+  constraints: {},
+  cellTerminals: {},
 };
 
 function unique(values: Iterable<string>): readonly string[] {
@@ -307,6 +323,22 @@ function validateExpectedEffect(
       )
         ? "Routing clone reused a source identity"
         : null;
+    case "compose": {
+      if (
+        Object.entries(expected.mapping).some(
+          ([source, clone]) => source === clone,
+        )
+      ) {
+        return "Document composition reused a source identity";
+      }
+      return existingEndpointKeys(beforeDocument).some(
+        (key) =>
+          before.endpointToBaseNet.get(key) !==
+          after.endpointToBaseNet.get(key),
+      )
+        ? "Document composition changed existing physical Net membership"
+        : null;
+    }
     case "rebind-name-owner": {
       const claim = after.nameClaimsByOwner.get(expected.ownerKey);
       return claim?.name === expected.requestedName &&
@@ -404,7 +436,7 @@ export function expectedElectricalEffectForOperation(
       ]),
     };
   }
-  if (intent === "clone") {
+  if (intent === "clone" || intent === "compose") {
     return { kind: "preserve", endpointKeys: existingEndpointKeys(document) };
   }
   const editedEndpointKeys = endpointKeysFromEdits(edits);
