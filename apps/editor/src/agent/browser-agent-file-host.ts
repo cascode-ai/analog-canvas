@@ -14,6 +14,7 @@ import type { CircuitProject, SchematicDocument } from "@icm/model";
 import { importSpiceSources } from "@icm/spice";
 import type { SymbolResolver } from "@icm/symbols";
 import { prepareDocumentFormulaArtifacts } from "../features/text-editing/formula-artifacts";
+import { importChunk } from "../components/chunk-import";
 
 type StoredCandidate = {
   project: CircuitProject;
@@ -170,8 +171,10 @@ export class BrowserAgentFileHost {
         );
       }
       if (request.artifact === "png") {
-        const { rasterizeFormalSvgInBrowser } =
-          await import("@icm/exporters/browser-raster");
+        const { rasterizeFormalSvgInBrowser } = await importChunk(
+          "PNG export",
+          () => import("@icm/exporters/browser-raster"),
+        );
         const png = await rasterizeFormalSvgInBrowser(source);
         return this.artifactResponse(
           request,
@@ -180,8 +183,10 @@ export class BrowserAgentFileHost {
           png.bytes,
         );
       }
-      const { vectorizeFormalSvgInBrowser } =
-        await import("@icm/exporters/browser-pdf");
+      const { vectorizeFormalSvgInBrowser } = await importChunk(
+        "PDF export",
+        () => import("@icm/exporters/browser-pdf"),
+      );
       const pdf = await vectorizeFormalSvgInBrowser(source);
       return this.artifactResponse(
         request,

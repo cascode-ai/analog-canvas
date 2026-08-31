@@ -3,6 +3,7 @@ import { Suspense, type ComponentProps } from "react";
 import type { AgentFileCandidateSummary } from "@icm/agent-adapter";
 import type { CellResetPlan } from "@icm/edit-engine";
 
+import { ChunkLoadBanner } from "../components/chunk-load-fallback";
 import {
   RecoveryAvailableBanner,
   RecoveryFailureBanner,
@@ -23,6 +24,7 @@ import {
 
 export interface EditorDialogLayerProps {
   help: ComponentProps<typeof LazyEditorHelpDialog> | null;
+  chunkLoadFailure: ComponentProps<typeof ChunkLoadBanner> | null;
   recoveryFailure: ComponentProps<typeof RecoveryFailureBanner> | null;
   recoveryAvailable: ComponentProps<typeof RecoveryAvailableBanner> | null;
   recentRecovery: ComponentProps<typeof LazyRecentRecoveryDialog> | null;
@@ -51,6 +53,7 @@ export interface EditorDialogLayerProps {
 /** All modal/overlay UI kept outside the persistent editor workspace. */
 export function EditorDialogLayer({
   help,
+  chunkLoadFailure,
   recoveryFailure,
   recoveryAvailable,
   recentRecovery,
@@ -70,6 +73,7 @@ export function EditorDialogLayer({
     <>
       <Suspense fallback={null}>
         {help ? <LazyEditorHelpDialog {...help} /> : null}
+        {chunkLoadFailure ? <ChunkLoadBanner {...chunkLoadFailure} /> : null}
         {recoveryFailure ? (
           <RecoveryFailureBanner {...recoveryFailure} />
         ) : null}
