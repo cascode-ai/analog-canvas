@@ -149,3 +149,149 @@ export function subscribeGalleryRefresh(
     }
   };
 }
+
+/**
+ * The community feed's data layer, shared by every surface that shows the
+ * Gallery: the wall itself and the panel docked beside the canvas. It lives
+ * here rather than in either component so the two cannot drift — a circuit
+ * that a search finds on the wall must be found by the same search in the
+ * panel, or people reasonably conclude the software is broken.
+ */
+
+export interface GalleryFeedEntry {
+  id: string;
+  name: string;
+  author: string;
+  description: string;
+  createdAt: string;
+  /** Absent only while a newer client is rolling out against an older API. */
+  previewRevision?: string;
+  schemaVersion: number;
+  tags?: string[];
+  /**
+   * Whether the circuit extracts to a design netlist. A mark of extra
+   * completeness, never a gate — a schematic is allowed to be abbreviated,
+   * and one without this is listed exactly like one with it.
+   */
+  netlistable?: boolean;
+  likes?: number;
+  likedByViewer?: boolean;
+}
+
+export interface GalleryFeedPage {
+  entries: GalleryFeedEntry[];
+  nextCursor: string | null;
+  /** Whole filtered wall's size; null while a pre-totals API answers. */
+  total: number | null;
+}
+
+export interface GalleryFeedState {
+  status: "loading" | "ready" | "unavailable";
+  entries: GalleryFeedEntry[];
+  nextCursor: string | null;
+  total: number | null;
+}
+
+/**
+ * Whether one entry answers a search. Case-insensitive substring over the
+ * fields a person would search by: what it is called, who drew it, what it
+ * says about itself, and how it is tagged.
+ */
+export function galleryEntryMatchesQuery(
+  entry: Pick<GalleryFeedEntry, "name" | "author" | "description" | "tags">,
+  normalizedQuery: string,
+): boolean {
+  if (!normalizedQuery) return true;
+  return [entry.name, entry.author, entry.description, ...(entry.tags ?? [])]
+    .filter((field): field is string => Boolean(field))
+    .some((field) => field.toLowerCase().includes(normalizedQuery));
+}
+
+/** Tag menu entries, newest count first, as the wall's tag bar shows them. */
+export interface GalleryTagOption {
+  tag: string;
+  count: number;
+}
+
+export async function loadGalleryFeed(
+  fetchLike: typeof fetch = fetch,
+  options: {
+    cursor?: string | null;
+    author?: string | null;
+    tags?: readonly string[];
+  } = {},
+): Promise<GalleryFeedPage | null> {
+  const params = new URLSearchParams();
+  if (options.author) params.set("author", options.author);
+  if (options.tags && options.tags.length > 0) {
+    params.set("tags", options.tags.join(","));
+  }
+  if (options.cursor) params.set("cursor", options.cursor);
+  const query = params.toString();
+  try {
+    const response = await fetchLike(
+      `/api/gallery${query ? `?${query}` : ""}`,
+      { credentials: "same-origin" },
+    );
+    if (!response.ok) return null;
+    const payload = (await response.json()) as {
+      entries?: GalleryFeedEntry[];
+      nextCursor?: unknown;
+      total?: unknown;
+    };
+    return {
+      entries: payload.entries ?? [],
+      nextCursor:
+        typeof payload.nextCursor === "string" ? payload.nextCursor : null,
+      total: typeof payload.total === "number" ? payload.total : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** The tag menu's options. An unreachable worker leaves the menu empty. */
+export async function loadGalleryTags(
+  fetchLike: typeof fetch = fetch,
+): Promise<GalleryTagOption[]> {
+  try {
+    const response = await fetchLike("/api/gallery/tags", {
+      credentials: "same-origin",
+    });
+    if (!response.ok) return [];
+    const payload = (await response.json()) as {
+      tags?: GalleryTagOption[];
+    };
+    return payload.tags ?? [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * The wall's size in words, said only when the server has said it: a
+ * pre-totals API or a still-loading feed renders nothing rather than a guess.
+ * "Filtered" names the server-side narrowing (author, tags); "match" belongs
+ * to the text query, whose clause counts VISIBLE entries and says "so far"
+ * until the feed is exhausted.
+ */
+export function galleryCountLabel(
+  total: number | null,
+  options: {
+    filtered?: boolean;
+    search?: { visible: number; settled: boolean } | null;
+  } = {},
+): string | null {
+  if (total === null) return null;
+  const noun = total === 1 ? "circuit" : "circuits";
+  const base = `${total.toLocaleString()} ${
+    options.filtered ? `filtered ${noun}` : noun
+  }`;
+  const search = options.search ?? null;
+  const clause = search
+    ? ` · ${search.visible} ${search.visible === 1 ? "match" : "matches"}${
+        search.settled ? "" : " so far"
+      }`
+    : "";
+  return `${base}${clause}`;
+}

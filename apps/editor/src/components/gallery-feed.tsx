@@ -8,47 +8,34 @@ import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import { libraryProjectExamples } from "../examples/library-examples";
 import {
   announceGalleryChange,
+  galleryCountLabel,
+  galleryEntryMatchesQuery,
   galleryPreviewUrl,
+  loadGalleryFeed,
+  loadGalleryTags,
   subscribeGalleryRefresh,
+  type GalleryFeedEntry,
+  type GalleryFeedPage,
+  type GalleryFeedState,
+  type GalleryTagOption,
 } from "../gallery-client";
+
+// The wall and the canvas-side panel share one data layer, so a search that
+// finds a circuit here finds it there too. These re-exports keep every
+// existing importer of this module working unchanged.
+export {
+  galleryEntryMatchesQuery,
+  loadGalleryFeed,
+  loadGalleryTags,
+  type GalleryFeedEntry,
+  type GalleryFeedPage,
+  type GalleryFeedState,
+  type GalleryTagOption,
+};
 import { fetchSessionUser } from "./account";
 import { GalleryChrome } from "./gallery-chrome";
 import { Masonry } from "./masonry";
 import { ShelfWall } from "./shelf-wall";
-
-export interface GalleryFeedEntry {
-  id: string;
-  name: string;
-  author: string;
-  description: string;
-  createdAt: string;
-  /** Absent only while a newer client is rolling out against an older API. */
-  previewRevision?: string;
-  schemaVersion: number;
-  tags?: string[];
-  /**
-   * Whether the circuit extracts to a design netlist. A mark of extra
-   * completeness, never a gate — a schematic is allowed to be abbreviated,
-   * and one without this is listed exactly like one with it.
-   */
-  netlistable?: boolean;
-  likes?: number;
-  likedByViewer?: boolean;
-}
-
-export interface GalleryFeedPage {
-  entries: GalleryFeedEntry[];
-  nextCursor: string | null;
-  /** Whole filtered wall's size; null while a pre-totals API answers. */
-  total: number | null;
-}
-
-export interface GalleryFeedState {
-  status: "loading" | "ready" | "unavailable";
-  entries: GalleryFeedEntry[];
-  nextCursor: string | null;
-  total: number | null;
-}
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 /**
@@ -262,16 +249,6 @@ function HeartIcon({ filled }: { filled: boolean }) {
  * (trimmed, lowercased); fields answer case-insensitively. A tag counts as
  * content, so a query matching a tag matches the circuits that carry it.
  */
-export function galleryEntryMatchesQuery(
-  entry: Pick<GalleryFeedEntry, "name" | "author" | "description" | "tags">,
-  normalizedQuery: string,
-): boolean {
-  if (!normalizedQuery) return true;
-  return [entry.name, entry.author, entry.description, ...(entry.tags ?? [])]
-    .filter((field): field is string => Boolean(field))
-    .some((field) => field.toLowerCase().includes(normalizedQuery));
-}
-
 /**
  * The wall's size, said only when the server has said it: a pre-totals API
  * or a still-loading feed renders nothing rather than a guess. "Filtered"
@@ -288,18 +265,11 @@ export function GalleryCountPanel({
   filtered?: boolean;
   search?: { visible: number; settled: boolean } | null;
 }) {
-  if (total === null) return null;
-  const noun = total === 1 ? "circuit" : "circuits";
-  const base = `${total.toLocaleString()} ${filtered ? `filtered ${noun}` : noun}`;
-  const clause = search
-    ? ` · ${search.visible} ${search.visible === 1 ? "match" : "matches"}${
-        search.settled ? "" : " so far"
-      }`
-    : "";
+  const label = galleryCountLabel(total, { filtered, search });
+  if (label === null) return null;
   return (
     <span className="gallery-count-panel" data-testid="gallery-count-panel">
-      {base}
-      {clause}
+      {label}
     </span>
   );
 }
@@ -331,43 +301,6 @@ function bundledTiles() {
 }
 
 /** One feed page; the plain first request stays exactly `/api/gallery`. */
-export async function loadGalleryFeed(
-  fetchLike: typeof fetch = fetch,
-  options: {
-    cursor?: string | null;
-    author?: string | null;
-    tags?: readonly string[];
-  } = {},
-): Promise<GalleryFeedPage | null> {
-  const params = new URLSearchParams();
-  if (options.author) params.set("author", options.author);
-  if (options.tags && options.tags.length > 0) {
-    params.set("tags", options.tags.join(","));
-  }
-  if (options.cursor) params.set("cursor", options.cursor);
-  const query = params.toString();
-  try {
-    const response = await fetchLike(
-      `/api/gallery${query ? `?${query}` : ""}`,
-      { credentials: "same-origin" },
-    );
-    if (!response.ok) return null;
-    const payload = (await response.json()) as {
-      entries?: GalleryFeedEntry[];
-      nextCursor?: unknown;
-      total?: unknown;
-    };
-    return {
-      entries: payload.entries ?? [],
-      nextCursor:
-        typeof payload.nextCursor === "string" ? payload.nextCursor : null,
-      total: typeof payload.total === "number" ? payload.total : null,
-    };
-  } catch {
-    return null;
-  }
-}
-
 /**
  * Full-screen landing feed: every tile is one published circuit that opens
  * in the editor at `/g/<id>`. Bundled Library examples fill the wall while
