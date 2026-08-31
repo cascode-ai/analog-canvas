@@ -3,11 +3,10 @@ import type { RichTextDocument, RichTextRun, RichTextStyle } from "./schema.js";
 /**
  * Semantic text emitted by current authoring for standardized schematic names.
  *
- * This is deliberately not a markup parser: `_{}`, `\\it{}`, and other markup
- * spellings are invalid Project text. Callers either supply an explicit
- * RichText AST or use this helper for a semantic
- * identifier such as an instance reference or a conventional voltage/current
- * label.
+ * This is deliberately not a markup parser. Every input character remains in
+ * the RichText projection; this helper only assigns the initial Razavi house
+ * style. Callers use an explicit RichText AST for later formatting and the
+ * explicit Formula editor for LaTeX syntax.
  */
 export type SemanticTextKind =
   | "default-instance"
@@ -46,19 +45,19 @@ function mathSubscript(value: string): RichTextRun {
 }
 
 /**
- * House style for an authored identifier: the leading character is the
- * capitalized symbol and everything after it defaults to its subscript. Both
- * halves stay editable afterwards.
+ * House style for an authored identifier: the leading character is the symbol
+ * and everything after it defaults to its subscript. Both halves stay editable
+ * afterwards. Styling must never rewrite the semantic identifier: punctuation
+ * and letter case are preserved exactly.
  *
  * Whitespace marks prose rather than an identifier — a drafting note must not
  * be swallowed into one long subscript — so a multi-word value keeps its
- * capitalized first letter and stays a single upright-size run.
+ * authored spelling and stays a single upright-size run.
  */
 function symbolRuns(value: string): RichTextRun[] {
-  const capitalized = value.slice(0, 1).toUpperCase() + value.slice(1);
-  if (/\s/u.test(capitalized)) return [mathBase(capitalized)];
-  const head = capitalized.slice(0, 1);
-  const tail = capitalized.slice(1);
+  if (/\s/u.test(value)) return [mathBase(value)];
+  const head = value.slice(0, 1);
+  const tail = value.slice(1);
   return tail.length > 0
     ? [mathBase(head), mathSubscript(tail)]
     : [mathBase(head)];
@@ -67,43 +66,17 @@ function symbolRuns(value: string): RichTextRun[] {
 /** Construct the initial Razavi-style RichText for a free drafting label. */
 export function defaultDraftTextDocument(value: string): RichTextDocument {
   if (value.length === 0) return { runs: [{ kind: "line-break" }] };
-  if (/[\\{}^]/u.test(value)) return { runs: [{ kind: "text", value }] };
-
-  const underscore = value.indexOf("_");
-  if (underscore > 0 && underscore < value.length - 1) {
-    return {
-      runs: [
-        mathBase(value.slice(0, underscore)),
-        mathSubscript(value.slice(underscore + 1)),
-      ],
-    };
-  }
-
   return { runs: symbolRuns(value) };
 }
 
 /** Construct current-authoring RichText for a conventional semantic label. */
 export function semanticTextDocument(
   value: string,
-  kind: SemanticTextKind,
+  _kind: SemanticTextKind,
 ): RichTextDocument {
   if (value.length === 0) return { runs: [{ kind: "line-break" }] };
-  // `_suffix` and `_{suffix}` are the one explicit identifier notation the
-  // product accepts. Parse it before role-specific shorthand so Cell Pins,
-  // ordinary labels, and hierarchy pin names never diverge on V_in.
-  const explicitSubscript = /^(.+?)_(?:\{(.+)\}|(.+))$/u.exec(value);
-  if (explicitSubscript) {
-    return {
-      runs: [
-        mathBase(explicitSubscript[1]!),
-        mathSubscript(explicitSubscript[2] ?? explicitSubscript[3]!),
-      ],
-    };
-  }
-  if (/[\\{}^]/u.test(value)) return { runs: [{ kind: "text", value }] };
-
-  // Every authored label follows one rule: capitalized leading symbol, the
-  // rest as its subscript. A trailing polarity sign stays outside the
+  // Every authored label follows one styling rule: leading symbol, then the
+  // remainder as its subscript. A trailing polarity sign stays outside the
   // subscript because it qualifies the whole identifier.
   const signed = /^(.+?)([+-])$/u.exec(value);
   if (!signed) return { runs: symbolRuns(value) };

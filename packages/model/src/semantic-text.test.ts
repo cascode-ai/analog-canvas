@@ -25,16 +25,16 @@ describe("semantic formal-Port text", () => {
     });
   });
 
-  it("uses the same explicit multi-character subscript grammar for Ports and Net Labels", () => {
+  it("preserves punctuation instead of interpreting it as subscript markup", () => {
     const port = semanticTextDocument("V_{in,cm}", "formal-port");
     const net = semanticTextDocument("V_{in,cm}", "net-label");
 
     expect(port).toEqual(net);
-    expect(flattenRichText(port)).toBe("Vin,cm");
+    expect(flattenRichText(port)).toBe("V_{in,cm}");
     expect(port.runs[1]).toMatchObject({
       kind: "span",
       style: "subscript",
-      children: [{ children: [{ value: "in,cm" }] }],
+      children: [{ children: [{ value: "_{in,cm}" }] }],
     });
   });
 
@@ -98,13 +98,13 @@ describe("house text style", () => {
     });
   });
 
-  it("capitalizes the leading symbol and subscripts the remainder", () => {
+  it("preserves the leading symbol case while subscripting the remainder", () => {
     const content = semanticTextDocument("vout", "net-label");
 
-    expect(flattenRichText(content)).toBe("Vout");
+    expect(flattenRichText(content)).toBe("vout");
     expect(content.runs[0]).toMatchObject({
       style: "italic",
-      children: [{ children: [{ value: "V" }] }],
+      children: [{ children: [{ value: "v" }] }],
     });
     expect(content.runs[1]).toMatchObject({
       style: "subscript",
@@ -132,7 +132,7 @@ describe("drafting text", () => {
   it("subscripts an identifier typed into a text box", () => {
     const content = defaultDraftTextDocument("vbias");
 
-    expect(flattenRichText(content)).toBe("Vbias");
+    expect(flattenRichText(content)).toBe("vbias");
     expect(content.runs).toHaveLength(2);
     expect(content.runs[1]).toMatchObject({ style: "subscript" });
   });
@@ -140,8 +140,14 @@ describe("drafting text", () => {
   it("keeps a multi-word note as prose instead of one long subscript", () => {
     const content = defaultDraftTextDocument("design note");
 
-    expect(flattenRichText(content)).toBe("Design note");
+    expect(flattenRichText(content)).toBe("design note");
     expect(content.runs).toHaveLength(1);
     expect(content.runs[0]).toMatchObject({ style: "italic" });
+  });
+
+  it("keeps ordinary text punctuation literal while applying the house style", () => {
+    for (const value of ["A1_wi", "x^2", String.raw`V\{in\}`]) {
+      expect(flattenRichText(defaultDraftTextDocument(value))).toBe(value);
+    }
   });
 });

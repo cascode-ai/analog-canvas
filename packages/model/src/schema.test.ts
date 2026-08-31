@@ -450,6 +450,30 @@ describe("CircuitProject schema", () => {
       ],
     };
     expect(SchematicDocumentSchema.safeParse(document).success).toBe(true);
+    document.connectivityEvidence[0] = {
+      ...originalLabelClaim,
+      name: "A1_wi",
+    };
+    document.annotations[0]!.formatOverride = {
+      runs: [
+        {
+          kind: "span",
+          style: "italic",
+          children: [{ kind: "text", value: "A1_wi" }],
+        },
+      ],
+    };
+    expect(SchematicDocumentSchema.safeParse(document).success).toBe(true);
+    document.connectivityEvidence[0] = originalLabelClaim;
+    document.annotations[0]!.formatOverride = {
+      runs: [
+        {
+          kind: "span",
+          style: "italic",
+          children: [{ kind: "text", value: "A" }],
+        },
+      ],
+    };
     document.annotations[0]!.anchor = {
       kind: "object",
       objectId: "P1",

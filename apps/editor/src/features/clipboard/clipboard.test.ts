@@ -749,7 +749,7 @@ describe("schematic clipboard", () => {
         { kind: "upsert_schematic_annotation" }
       > => edit.kind === "upsert_schematic_annotation",
     );
-    expect(flattenRichText(pastedLabel!.annotation.content!)).toBe("Rload");
+    expect(flattenRichText(pastedLabel!.annotation.content!)).toBe("R_load");
     expect(proposal.instanceIds).toEqual(["R2"]);
   });
 
