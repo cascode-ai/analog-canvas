@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { resolveDocumentLogicalNets } from "./logical-net.js";
 
 describe("resolved logical Nets", () => {
-  it("keeps source provenance non-electrical while resolving explicit identity deterministically", () => {
+  it("keeps source provenance non-electrical while resolving scoped names deterministically", () => {
     const document = createEmptyDocument("document", "Document");
     document.nets.push(
       { id: "net-d", terminals: [] },
@@ -41,11 +41,6 @@ describe("resolved logical Nets", () => {
         netId: "net-c",
         sourceNetId: "source-shared",
       },
-      {
-        id: "equivalence-cd",
-        kind: "explicit-equivalence",
-        memberNetIds: ["net-c", "net-d"],
-      },
     );
 
     const resolved = resolveDocumentLogicalNets(document);
@@ -60,20 +55,23 @@ describe("resolved logical Nets", () => {
       }),
       expect.objectContaining({
         id: "net-c",
-        baseNetIds: ["net-c", "net-d"],
+        baseNetIds: ["net-c"],
         sourceNetIds: ["source-shared"],
         conflicts: [],
       }),
+      expect.objectContaining({
+        id: "net-d",
+        baseNetIds: ["net-d"],
+        sourceNetIds: [],
+        conflicts: [],
+      }),
     ]);
-    expect(resolved.byBaseNetId.get("net-d")?.id).toBe("net-c");
+    expect(resolved.byBaseNetId.get("net-d")?.id).toBe("net-d");
   });
 
-  it("keeps conflicting explicit equivalence inspectable without choosing a name", () => {
+  it("keeps conflicting claims on one physical Base Net inspectable", () => {
     const document = createEmptyDocument("document", "Document");
-    document.nets.push(
-      { id: "net-a", terminals: [] },
-      { id: "net-b", terminals: [] },
-    );
+    document.nets.push({ id: "net-a", terminals: [] });
     document.connectivityEvidence.push(
       {
         id: "claim-a",
@@ -86,19 +84,14 @@ describe("resolved logical Nets", () => {
       {
         id: "claim-b",
         kind: "name-claim",
-        netId: "net-b",
+        netId: "net-a",
         name: "B",
         owner: { kind: "explicit-net-property" },
         scope: "global",
       },
-      {
-        id: "equivalence",
-        kind: "explicit-equivalence",
-        memberNetIds: ["net-a", "net-b"],
-      },
     );
     expect(resolveDocumentLogicalNets(document).groups[0]).toMatchObject({
-      baseNetIds: ["net-a", "net-b"],
+      baseNetIds: ["net-a"],
       conflicts: ["name-conflict", "scope-conflict"],
     });
     expect(resolveDocumentLogicalNets(document).groups[0]).not.toHaveProperty(

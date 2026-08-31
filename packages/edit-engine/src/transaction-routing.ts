@@ -89,7 +89,7 @@ export function netEndpointGroups(
   // is a real electrical contact even when no Route object exists between the
   // coincident endpoints. Preserve that contact when a different Route is cut.
   // Name claims and other Logical-Net Evidence are intentionally excluded:
-  // they express logical equivalence, not one physical Base-Net component.
+  // they express logical identity, not one physical Base-Net component.
   if (resolver) {
     for (const contact of deriveDocumentContactEvidence(document, resolver)
       .contacts) {

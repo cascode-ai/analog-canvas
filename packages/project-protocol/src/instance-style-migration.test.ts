@@ -20,8 +20,12 @@ import {
   upgradeSchema31To32,
   upgradeSchema31To32WithReport,
 } from "./transforms/annotation-text-color.js";
+import {
+  upgradeSchema32To33,
+  upgradeSchema32To33WithReport,
+} from "./transforms/explicit-equivalence.js";
 
-describe("schema migrations through Annotation text color", () => {
+describe("schema migrations through ownerless Net equivalence retirement", () => {
   it("keeps each retained historical transform independently usable", () => {
     const current = JSON.parse(
       serializeProject(createEmptyProject("test", "Test")),
@@ -30,15 +34,17 @@ describe("schema migrations through Annotation text color", () => {
     const v30 = upgradeSchema29To30(v29);
     const v31 = upgradeSchema30To31(v30);
     const v32 = upgradeSchema31To32(v31);
+    const v33 = upgradeSchema32To33(v32);
 
     expect(v29.schemaVersion).toBe(29);
     expect(v30.schemaVersion).toBe(30);
     expect(v31.schemaVersion).toBe(31);
-    expect(v32.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
     expect(v32.schemaVersion).toBe(32);
+    expect(v33.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
+    expect(v33.schemaVersion).toBe(33);
   });
 
-  it("reports additive 28→29, 29→30, 30→31, and 31→32 upgrades as unchanged", () => {
+  it("reports non-rewriting 28→29 through 32→33 upgrades as unchanged", () => {
     expect(
       upgradeSchema28To29WithReport({ schemaVersion: 28 }).report.changed,
     ).toBe(false);
@@ -51,9 +57,12 @@ describe("schema migrations through Annotation text color", () => {
     expect(
       upgradeSchema31To32WithReport({ schemaVersion: 31 }).report.changed,
     ).toBe(false);
+    expect(
+      upgradeSchema32To33WithReport({ schemaVersion: 32 }).report.changed,
+    ).toBe(false);
   });
 
-  it("migrates schema 31 to 32 at the rolling project boundary", () => {
+  it("migrates schema 31 through 33 at the project boundary", () => {
     const current = JSON.parse(
       serializeProject(createEmptyProject("test", "Test")),
     ) as Record<string, unknown>;
@@ -64,7 +73,7 @@ describe("schema migrations through Annotation text color", () => {
     if (!result.ok) return;
     expect(result.sourceSchemaVersion).toBe(31);
     expect(result.migrated).toBe(true);
-    expect(result.project.schemaVersion).toBe(32);
+    expect(result.project.schemaVersion).toBe(33);
   });
 
   it("keeps schema 30 loadable through the upgrade chain", () => {

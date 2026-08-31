@@ -241,17 +241,30 @@ describe("digital event simulation", () => {
     ]);
   });
 
-  it("folds saved Base Nets through explicit logical equivalence", () => {
-    const document = createEmptyDocument("doc", "Equivalent probes");
+  it("folds saved Base Nets through matching scoped names", () => {
+    const document = createEmptyDocument("doc", "Named probes");
     document.nets.push(
       { id: "left", terminals: [] },
       { id: "right", terminals: [] },
     );
-    document.connectivityEvidence.push({
-      id: "same-signal",
-      kind: "explicit-equivalence",
-      memberNetIds: ["left", "right"],
-    });
+    document.connectivityEvidence.push(
+      {
+        id: "left-name",
+        kind: "name-claim",
+        netId: "left",
+        name: "SIGNAL",
+        owner: { kind: "explicit-net-property" },
+        scope: "local",
+      },
+      {
+        id: "right-name",
+        kind: "name-claim",
+        netId: "right",
+        name: "signal",
+        owner: { kind: "explicit-net-property" },
+        scope: "local",
+      },
+    );
 
     const result = simulateDigitalDocument({
       document,
@@ -262,7 +275,7 @@ describe("digital event simulation", () => {
       {
         netId: "left",
         baseNetIds: ["left", "right"],
-        name: "left",
+        name: "SIGNAL",
         transitions: [{ timePs: 0, value: "Z" }],
       },
     ]);

@@ -382,14 +382,11 @@ describe("CircuitProject schema", () => {
       symbolId: "port",
       placement: null,
     });
-    document.nets.push(
-      {
-        id: "net-a",
+    document.nets.push({
+      id: "net-a",
 
-        terminals: [{ instanceId: "P1", pinName: "P" }],
-      },
-      { id: "net-b", terminals: [] },
-    );
+      terminals: [{ instanceId: "P1", pinName: "P" }],
+    });
     document.netlist = {
       name: "Evidence",
       formalParameters: [],
@@ -435,11 +432,6 @@ describe("CircuitProject schema", () => {
         name: "ALIAS",
         owner: { kind: "explicit-net-property" },
         scope: "local",
-      },
-      {
-        id: "equivalence-ab",
-        kind: "explicit-equivalence",
-        memberNetIds: ["net-a", "net-b"],
       },
     );
     expect(SchematicDocumentSchema.safeParse(document).success).toBe(true);
@@ -499,14 +491,7 @@ describe("CircuitProject schema", () => {
       owner: { kind: "explicit-net-property" },
       scope: "local",
     };
-    document.connectivityEvidence[3] = {
-      id: "equivalence-ab",
-      kind: "explicit-equivalence",
-      memberNetIds: ["net-a", "net-a"],
-    };
-    expect(() => SchematicDocumentSchema.parse(document)).toThrow(
-      /Duplicate explicit-equivalence member/,
-    );
+    expect(SchematicDocumentSchema.safeParse(document).success).toBe(true);
   });
 
   it("accepts a rail label format override whose power claim is owned by the label itself", () => {

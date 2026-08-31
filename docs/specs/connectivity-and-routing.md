@@ -171,9 +171,9 @@ or transform edits cannot dismiss guidance; the current graph simply yields a
 new result. `remove_route_geometry` retains Net membership and therefore
 re-exposes unresolved imported components. A normal connection cut splits all
 physical components, including imported and global Base Nets; only the primary
-component retains non-source electrical Evidence such as explicit equivalence,
-while owner-addressed markers follow their surviving component and source
-provenance is copied to every component. The editor may show
+component retains an unowned imported name projection, while owner-addressed
+markers follow their surviving component and source provenance is copied to
+every component. The editor may show
 focused, all, or hidden imported guides; each guide carries the actual Base
 Net at both endpoints, so clicking it uses the ordinary Wire merge path. Net
 highlight suppresses guides incident to the highlighted Net. Unplaced

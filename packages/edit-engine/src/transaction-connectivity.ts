@@ -36,37 +36,14 @@ function retargetConnectivityEvidence(
   targetNetId: string,
   changedObjectIds: Set<string>,
 ): void {
-  const retainedEvidence: typeof draft.connectivityEvidence = [];
   for (const evidence of draft.connectivityEvidence) {
-    if (evidence.kind === "explicit-equivalence") {
-      const memberNetIds = [
-        ...new Set(
-          evidence.memberNetIds.map((netId) =>
-            netId === sourceNetId ? targetNetId : netId,
-          ),
-        ),
-      ];
-      if (memberNetIds.length < 2) {
-        changedObjectIds.add(evidence.id);
-        continue;
-      }
-      if (
-        memberNetIds.length !== evidence.memberNetIds.length ||
-        memberNetIds.some(
-          (netId, index) => netId !== evidence.memberNetIds[index],
-        )
-      ) {
-        evidence.memberNetIds = memberNetIds;
-        changedObjectIds.add(evidence.id);
-      }
-    } else if (evidence.netId === sourceNetId) {
+    if (evidence.netId === sourceNetId) {
       evidence.netId = targetNetId;
       changedObjectIds.add(evidence.id);
     }
-    retainedEvidence.push(evidence);
   }
   const seenSpiceSources = new Set<string>();
-  draft.connectivityEvidence = retainedEvidence.filter((evidence) => {
+  draft.connectivityEvidence = draft.connectivityEvidence.filter((evidence) => {
     if (evidence.kind !== "spice-source") return true;
     const key = `${evidence.netId}\u0000${evidence.sourceNetId}`;
     if (!seenSpiceSources.has(key)) {
@@ -364,9 +341,7 @@ export function physicalContactLicenseForTransaction(
 export function connectivityEvidenceNetIds(
   evidence: SchematicDocument["connectivityEvidence"][number],
 ): readonly string[] {
-  return evidence.kind === "explicit-equivalence"
-    ? evidence.memberNetIds
-    : [evidence.netId];
+  return [evidence.netId];
 }
 
 function connectivityEvidenceOwnerId(
@@ -566,9 +541,8 @@ export function ensureDraftingLayer(draft: SchematicDocument): void {
  * Evidence describes a live Base Net; it cannot make an otherwise unreachable
  * Base Net live by referring back to it. Visible labels/markers are already
  * counted through their Annotation, Instance, Route, or Junction owners.
- * Imported source/name evidence and explicit equivalence are retired or
- * trimmed with the Base Net, while the Document source binding remains the
- * durable provenance record.
+ * Imported source/name evidence is retired with the Base Net, while the
+ * Document source binding remains the durable provenance record.
  */
 export function pruneUnreachableLocalNet(
   draft: SchematicDocument,
@@ -613,30 +587,11 @@ export function pruneUnreachableLocalNet(
   ) {
     return;
   }
-  const retainedEvidence: typeof draft.connectivityEvidence = [];
-  for (const evidence of draft.connectivityEvidence) {
-    if (evidence.kind === "explicit-equivalence") {
-      if (!evidence.memberNetIds.includes(netId)) {
-        retainedEvidence.push(evidence);
-        continue;
-      }
-      const memberNetIds = evidence.memberNetIds.filter(
-        (memberNetId) => memberNetId !== netId,
-      );
-      changedObjectIds.add(evidence.id);
-      if (memberNetIds.length >= 2) {
-        evidence.memberNetIds = memberNetIds;
-        retainedEvidence.push(evidence);
-      }
-      continue;
-    }
-    if (evidence.netId === netId) {
-      changedObjectIds.add(evidence.id);
-      continue;
-    }
-    retainedEvidence.push(evidence);
-  }
-  draft.connectivityEvidence = retainedEvidence;
+  draft.connectivityEvidence = draft.connectivityEvidence.filter((evidence) => {
+    if (evidence.netId !== netId) return true;
+    changedObjectIds.add(evidence.id);
+    return false;
+  });
   let clearedBulkDefault = false;
   if (draft.mosBulkDefaults?.nmosNetId === netId) {
     delete draft.mosBulkDefaults.nmosNetId;

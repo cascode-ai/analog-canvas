@@ -28,7 +28,7 @@ export const ConnectivityNameClaimOwnerSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("explicit-net-property") }),
 ]);
 
-/** Persisted reason why Base Nets participate in one logical connectivity. */
+/** Persisted typed naming and import provenance for one Base Net. */
 export const ConnectivityEvidenceSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     id: StableIdSchema,
@@ -46,11 +46,6 @@ export const ConnectivityEvidenceSchema = z.discriminatedUnion("kind", [
     netId: StableIdSchema,
     sourceNetId: StableIdSchema,
     sourceRef: SourceSpanSchema.optional(),
-  }),
-  z.strictObject({
-    id: StableIdSchema,
-    kind: z.literal("explicit-equivalence"),
-    memberNetIds: z.array(StableIdSchema).min(2).max(256),
   }),
 ]);
 

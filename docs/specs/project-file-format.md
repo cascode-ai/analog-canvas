@@ -2,21 +2,21 @@
 
 Status: `accepted`
 
-Current Project schema: `32`
+Current Project schema: `33`
 
 Primary owners: `packages/model` (current shape) and
 `packages/project-protocol` (file boundary)
 
 An `.icproj.json` file is canonical JSON for one complete `CircuitProject`.
-`@icm/project-protocol` exposes `parseProject`. The rolling file boundary accepts
-schemas 31 and 32. Schema 31 added optional per-instance Signal Flow metadata
-(`formula`, `coefficient`, `bodyWidth`, `bodyHeight`) independent from netlist
-authority. Schema 32 adds optional presentation-only `Annotation.textColor`.
-The 31→32 adapter preserves inherited text behavior, materializes no color
-field, and advances only the version stamp. The public file boundary supplies
-only schema 32 in memory and writes only schema 32; schema 30 and older, and
-versions newer than 32, are rejected. Retained 29→30 and 30→31 adapters remain
-available only to controlled historical maintenance paths.
+`@icm/project-protocol` exposes `parseProject`. The file boundary accepts every
+schema covered by its explicit 24→33 upgrade chain. Schema 32 added optional
+presentation-only `Annotation.textColor`; schema 33 removes ownerless
+`explicit-equivalence` connectivity. The 32→33 adapter advances the version
+stamp only when that retired record is absent. If one exists, it rejects at the
+exact evidence path rather than silently dropping connectivity, merging Base
+Nets, or inventing a name. The public file boundary supplies only schema 33 in
+memory and writes only schema 33; versions older than 24 or newer than 33 are
+rejected.
 
 ## Current authorities
 
@@ -46,9 +46,10 @@ available only to controlled historical maintenance paths.
   with terminal `P`; their connectivity is stored in `Net.terminals` and
   ordinary terminal Route endpoints.
 - Base `Net.terminals` is the physical membership authority.
-- `Document.connectivityEvidence` records owner-addressable name claims,
-  SPICE-source assertions, and explicit Base-Net equivalence. The shared
-  Logical-Net resolver is the sole runtime naming/source authority.
+- `Document.connectivityEvidence` records typed name claims and SPICE-source
+  assertions for one Base Net at a time. The shared Logical-Net resolver is the
+  sole runtime naming/source authority and joins distinct Base Nets only through
+  matching folded names in the same scope.
 - Route endpoints are terminal or Junction references only.
 - A marker claim may classify its Logical Net as `vdd` or `ground`; role never
   substitutes for name identity.
@@ -79,8 +80,8 @@ available only to controlled historical maintenance paths.
 ## Read and write
 
 ```text
-import text -> parse JSON -> require Project schema 31 or 32
--> converge to schema 32 -> strict schema-32 validation -> install unbound
+import text -> parse JSON -> require Project schema 24 through 33
+-> converge to schema 33 -> strict schema-33 validation -> install unbound
 export -> strict validation -> canonical key ordering -> Blob download
 ```
 
@@ -91,7 +92,7 @@ after explicit human approval in the editor.
 A migrated imported file is marked dirty. The editor never overwrites a source
 selected through the browser file input; the user may Save it as a Cloud
 Project or explicitly export upgraded bytes. Browser recovery records may be
-canonicalized to v32 only after a successful validated write.
+canonicalized to v33 only after a successful validated write.
 
 Project entry does not repair duplicate canonical supply Nets (`0` or `VDD`).
 Duplicate folded Net names are invalid input and remain a blocking diagnostic
@@ -100,7 +101,7 @@ until the author explicitly renames or merges the Nets.
 Canonical serialization ends with one newline and is byte-stable across
 serialize/parse/serialize. The current corpus is listed in
 `fixtures/projects/compatibility-corpus.json`; its accepted entries must all be
-already canonical Project schema 32. The rejected corpus names expected
+already canonical Project schema 33. The rejected corpus names expected
 validation failures.
 
 Viewport, selection, undo history, canvas overlays, Agent credentials,

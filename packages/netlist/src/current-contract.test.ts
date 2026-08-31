@@ -193,7 +193,7 @@ describe("current formal cell interface", () => {
     expect(project).toEqual(before);
   });
 
-  it("exports evidence-equivalent Base Nets as one logical node", () => {
+  it("exports matching-name Base Nets as one logical node", () => {
     const project = createEmptyProject("project", "Project");
     const document = project.documents[0]!;
     document.instances.push({

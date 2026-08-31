@@ -86,7 +86,7 @@ describe("schema 31 to 32 migration (Annotation text color)", () => {
 
     expect(result.sourceSchemaVersion).toBe(31);
     expect(result.migrated).toBe(true);
-    expect(result.project.schemaVersion).toBe(32);
+    expect(result.project.schemaVersion).toBe(33);
     expect(result.project.documents[0]!.instances[0]).toMatchObject({
       styleOverride: {
         foreground: "#DC2626",

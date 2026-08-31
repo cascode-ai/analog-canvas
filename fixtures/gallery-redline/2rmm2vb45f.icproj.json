@@ -5443,7 +5443,7 @@
   ],
   "id": "project-898510e0e3b15ad5",
   "name": "Switched_Capacitor_DAC_6bit (SPICE Import Demo)",
-  "schemaVersion": 32,
+  "schemaVersion": 33,
   "source": {
     "dialect": "spice3f5-core",
     "entry": "circuit.spi",

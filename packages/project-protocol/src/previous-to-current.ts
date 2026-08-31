@@ -66,3 +66,11 @@ export type {
   Schema31To32MigrationReport,
   Schema31To32MigrationResult,
 } from "./transforms/annotation-text-color.js";
+export {
+  upgradeSchema32To33,
+  upgradeSchema32To33WithReport,
+} from "./transforms/explicit-equivalence.js";
+export type {
+  Schema32To33MigrationReport,
+  Schema32To33MigrationResult,
+} from "./transforms/explicit-equivalence.js";

@@ -5,19 +5,19 @@ Status: `accepted`
 Primary owner: Worker Cloud Project storage, `packages/project-protocol`, and
 the editor document lifecycle
 
-Project content uses canonical schema-32 JSON. A private Cloud Project is the
+Project content uses canonical schema-33 JSON. A private Cloud Project is the
 formal saved resource; `.icproj.json` is portable import/export and backup.
 The current-only model in `packages/model` validates the normalized shape;
 `packages/project-protocol` owns parsing, rolling compatibility diagnostics,
 and canonical serialization. Persistence validates the complete current schema
-before import or Cloud Save. Schema 31 upgrades to 32 at ingestion through a
-version-stamp-only adapter; serialization always writes schema 32. Older
-schemas are rejected outside the rolling current-and-previous compatibility
-window.
+before import or Cloud Save. The explicit schema 24→33 chain upgrades supported
+historical files; serialization always writes schema 33. The 32→33 adapter
+rejects ownerless Net equivalence instead of guessing replacement electrical
+semantics. Versions outside the implemented chain are rejected.
 
 Recovery state is a non-authoritative browser safety copy. It may restore a
-complete schema-32 Project or a schema-31 record that validates after the
-bounded upgrade, associated with a recorded working-copy session.
+complete schema-33 Project or a supported historical record that validates
+after the chained upgrade, associated with a recorded working-copy session.
 Corrupt, incompatible, or partial recovery data is discarded or retained as raw
 data without changing the live Project. User-saved Library examples are the
 same class of origin-local, non-authoritative convenience data: canonical

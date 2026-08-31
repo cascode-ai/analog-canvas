@@ -107,13 +107,6 @@ export function planCellReset(
     );
     const retainedEvidenceIds = new Set(
       document.connectivityEvidence.flatMap((evidence) => {
-        if (evidence.kind === "explicit-equivalence") {
-          return evidence.memberNetIds.every((netId) =>
-            interfaceNetIds.has(netId),
-          )
-            ? [evidence.id]
-            : [];
-        }
         if (!interfaceNetIds.has(evidence.netId)) return [];
         if (evidence.kind !== "name-claim") return [evidence.id];
         switch (evidence.owner.kind) {

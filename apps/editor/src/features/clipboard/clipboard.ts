@@ -811,9 +811,6 @@ export function copySelection(
         selectedIds.has(noConnect.endpoint.instanceId),
     ),
     connectivityEvidence: document.connectivityEvidence.filter((evidence) => {
-      if (evidence.kind === "explicit-equivalence") {
-        return evidence.memberNetIds.every((netId) => netIds.has(netId));
-      }
       if (!netIds.has(evidence.netId)) return false;
       if (evidence.kind !== "name-claim") return true;
       switch (evidence.owner.kind) {
@@ -1445,28 +1442,22 @@ export function proposePaste(
     ...clipboard.connectivityEvidence.map((evidence): SchematicEdit => {
       const clone = structuredClone(evidence);
       clone.id = evidenceIds.get(evidence.id)!;
-      if (clone.kind === "explicit-equivalence") {
-        clone.memberNetIds = clone.memberNetIds.map(
-          (netId) => netIds.get(netId) ?? netId,
-        );
-      } else {
-        clone.netId = netIds.get(clone.netId) ?? clone.netId;
-        if (clone.kind === "name-claim") {
-          switch (clone.owner.kind) {
-            case "net-label":
-              clone.owner.annotationId =
-                annotationIds.get(clone.owner.annotationId) ??
-                clone.owner.annotationId;
-              break;
-            case "power-marker":
-              clone.owner.objectId =
-                objectIds.get(clone.owner.objectId) ??
-                annotationIds.get(clone.owner.objectId) ??
-                clone.owner.objectId;
-              break;
-            case "explicit-net-property":
-              break;
-          }
+      clone.netId = netIds.get(clone.netId) ?? clone.netId;
+      if (clone.kind === "name-claim") {
+        switch (clone.owner.kind) {
+          case "net-label":
+            clone.owner.annotationId =
+              annotationIds.get(clone.owner.annotationId) ??
+              clone.owner.annotationId;
+            break;
+          case "power-marker":
+            clone.owner.objectId =
+              objectIds.get(clone.owner.objectId) ??
+              annotationIds.get(clone.owner.objectId) ??
+              clone.owner.objectId;
+            break;
+          case "explicit-net-property":
+            break;
         }
       }
       return { kind: "upsert_connectivity_evidence", evidence: clone };
