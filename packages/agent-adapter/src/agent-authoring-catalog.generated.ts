@@ -707,6 +707,34 @@ export const agentRazaviAuthoringCatalog = {
       variants: [],
     },
     {
+      symbolId: "opamp-lettered",
+      name: "Operational Amplifier (lettered)",
+      category: "analog-block",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      pins: [
+        {
+          name: "IN+",
+          role: "non-inverting-input",
+          direction: "west",
+          visibility: "visible",
+        },
+        {
+          name: "IN-",
+          role: "inverting-input",
+          direction: "west",
+          visibility: "visible",
+        },
+        {
+          name: "OUT",
+          role: "output",
+          direction: "east",
+          visibility: "visible",
+        },
+      ],
+      variants: [],
+    },
+    {
       symbolId: "opamp-differential",
       name: "Differential Op Amp",
       category: "analog-block",
@@ -974,6 +1002,28 @@ export const agentRazaviAuthoringCatalog = {
     {
       symbolId: "voltage-amplifier",
       name: "Voltage Amplifier",
+      category: "analog-block",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      pins: [
+        {
+          name: "IN",
+          role: "input",
+          direction: "west",
+          visibility: "visible",
+        },
+        {
+          name: "OUT",
+          role: "output",
+          direction: "east",
+          visibility: "visible",
+        },
+      ],
+      variants: [],
+    },
+    {
+      symbolId: "voltage-amplifier-lettered",
+      name: "Voltage Amplifier (lettered)",
       category: "analog-block",
       defaultVariantId: null,
       labelVisibility: "shown",

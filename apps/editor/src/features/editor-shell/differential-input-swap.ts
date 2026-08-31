@@ -16,6 +16,7 @@ import type { SchematicEdit } from "@icm/edit-engine";
 const INPUT_SWAP_SUFFIX = "-inputs-swapped";
 const INPUT_SWAP_SOURCES = [
   "opamp",
+  "opamp-lettered",
   "comparator",
   "opamp-differential",
   "opamp-differential-crossed",

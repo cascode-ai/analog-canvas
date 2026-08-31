@@ -119,8 +119,14 @@ export const SymbolPrimitiveSchema = z.discriminatedUnion("kind", [
 export const SymbolFormulaPresentationSchema = z.strictObject({
   /** Canonical source text used when the instance has no formula override. */
   defaultFormula: z.string().min(1).max(256),
-  /** Whether the editor may prepend an independent coefficient to the formula. */
-  supportsCoefficient: z.literal(true),
+  /**
+   * Whether the editor may prepend an independent coefficient to the formula.
+   * True for the transfer-function blocks, where `k·H(s)` is the notation.
+   * False for a body letter such as an amplifier's gain mark, which names the
+   * stage rather than scaling it: offering a coefficient there would advertise
+   * an operation the drawing does not mean.
+   */
+  supportsCoefficient: z.boolean(),
   /** Symbol-local visual center for the renderer-owned formula. */
   center: SymbolGeometryPointSchema,
   fontSize: z.number().finite().positive(),

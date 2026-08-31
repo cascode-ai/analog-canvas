@@ -36,6 +36,7 @@ const PRODUCT_IDS = [
   "nor-gate",
   "npn",
   "opamp",
+  "opamp-lettered",
   "opamp-differential",
   "or-gate",
   "pmos",
@@ -48,6 +49,7 @@ const PRODUCT_IDS = [
   "variable-resistor",
   "vdd-port",
   "voltage-amplifier",
+  "voltage-amplifier-lettered",
   "pulse-voltage-source",
   "voltage-controlled-switch",
   "voltage-source",
@@ -82,6 +84,7 @@ describe("built-in Symbol libraries", () => {
       "opamp-differential-crossed",
       "comparator-inputs-swapped",
       "opamp-inputs-swapped",
+      "opamp-lettered-inputs-swapped",
       "opamp-differential-inputs-swapped",
       "opamp-differential-crossed-inputs-swapped",
     ]) {
