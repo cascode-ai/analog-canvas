@@ -1,6 +1,7 @@
 import {
   deriveMosBulkRouteFamily,
   derivePowerRailComponent,
+  endpointKey,
   isMosBulkRoute,
   isMosBulkTerminal,
   pointOnSegment,
@@ -42,6 +43,7 @@ import {
 } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
+import type { ExpectedElectricalEffect } from "./routing-operation-plan.js";
 import type { SchematicEdit } from "./transaction.js";
 import { rebuildRoutePath } from "./route-leg-mutation.js";
 
@@ -562,12 +564,77 @@ function looseRouteAnchorIds(
     : null;
 }
 
-/** Plan translation of an isolated loose route and its two endpoint anchors. */
+/**
+ * Where a moved loose end comes to rest on a conductor of another Net.
+ *
+ * Only the two ENDS are considered. A wire whose middle crosses another wire
+ * touches it at an interior point of both and connects nothing — a Crossing is
+ * not a Junction, and that invariant is the reason this looks at anchors
+ * rather than at the whole translated path.
+ */
+function looseRouteLandingContacts(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  route: RouteBranch,
+  anchorIds: readonly string[],
+  delta: Point,
+): Array<{ routeId: string; request: EndpointRouteAttachmentRequest }> {
+  const contacts: Array<{
+    routeId: string;
+    request: EndpointRouteAttachmentRequest;
+  }> = [];
+  for (const junctionId of anchorIds) {
+    const junction = document.junctions.find(
+      (candidate) => candidate.id === junctionId,
+    );
+    if (!junction) continue;
+    const landing = {
+      x: junction.position.x + delta.x,
+      y: junction.position.y + delta.y,
+    };
+    for (const candidate of document.routes) {
+      // The moved wire's own conductors are geometry travelling with it, and
+      // a conductor already on this Net has nothing to merge.
+      if (candidate.id === route.id || candidate.netId === route.netId) {
+        continue;
+      }
+      const geometry = resolveRouteGeometry(document, resolver, candidate);
+      const segmentIndex = geometry?.segments.findIndex((segment) =>
+        pointOnSegment(landing, segment.from, segment.to),
+      );
+      if (segmentIndex === undefined || segmentIndex < 0) continue;
+      contacts.push({
+        routeId: candidate.id,
+        request: {
+          endpoint: { kind: "junction", junctionId },
+          endpointNetId: route.netId,
+          point: landing,
+          segmentIndex,
+        },
+      });
+      break;
+    }
+  }
+  return contacts;
+}
+
+/**
+ * Plan translation of an isolated loose route and its two endpoint anchors.
+ *
+ * Given a resolver, an end that comes to rest on another Net's conductor also
+ * joins it: dragging an end onto a wire is the same deliberate gesture as
+ * dropping a pin on one, and it is not ambiguous. The returned
+ * `expectedElectricalEffect` declares that join, because the routing gate
+ * otherwise reads a geometry move as "preserve" and refuses the connection the
+ * gesture asked for. With no landing contact the declaration is absent and the
+ * preserve default stands, so an ordinary move stays pure geometry.
+ */
 export function proposeLooseRouteTranslation(
   document: SchematicDocument,
   routeId: string,
   delta: Point,
-): RouteEditPlan {
+  landing?: { resolver: SymbolResolver; suffix: string },
+): RouteEditPlan & { expectedElectricalEffect?: ExpectedElectricalEffect } {
   const route = document.routes.find((candidate) => candidate.id === routeId);
   if (!route) throw new Error(`Route not found: ${routeId}`);
   const anchors = looseRouteAnchorIds(document, route);
@@ -588,25 +655,66 @@ export function proposeLooseRouteTranslation(
       },
     };
   });
+  const edits: SchematicEdit[] = [
+    ...anchorEdits,
+    {
+      kind: "set_route_path",
+      route: rebuildRoutePath(
+        route,
+        route.start,
+        routeEnd(route),
+        routeBends(route).map((point) => ({
+          x: point.x + delta.x,
+          y: point.y + delta.y,
+        })),
+        routeModes(route),
+        "loose-route-translation",
+      ),
+    },
+  ];
+  if (!landing) return { routeId, edits };
+
+  const contacts = looseRouteLandingContacts(
+    document,
+    landing.resolver,
+    route,
+    anchors,
+    delta,
+  );
+  if (contacts.length === 0) return { routeId, edits };
+
+  const endpointGroups: string[][] = [];
+  const byTargetRoute = new Map<string, EndpointRouteAttachmentRequest[]>();
+  for (const contact of contacts) {
+    const requests = byTargetRoute.get(contact.routeId) ?? [];
+    requests.push(contact.request);
+    byTargetRoute.set(contact.routeId, requests);
+  }
+  for (const [targetRouteId, requests] of byTargetRoute) {
+    const target = document.routes.find(
+      (candidate) => candidate.id === targetRouteId,
+    )!;
+    const attachment = proposeEndpointsRouteAttachment(
+      document,
+      landing.resolver,
+      targetRouteId,
+      requests,
+      landing.suffix,
+    );
+    edits.push(...attachment.edits);
+    // Declare the join in the gate's own terms: each landing endpoint ends up
+    // sharing a Net with the conductor it came to rest on.
+    for (const request of requests) {
+      endpointGroups.push([
+        endpointKey(request.endpoint),
+        ...routeEndpoints(target).map((endpoint) => endpointKey(endpoint)),
+      ]);
+    }
+  }
   return {
     routeId,
-    edits: [
-      ...anchorEdits,
-      {
-        kind: "set_route_path",
-        route: rebuildRoutePath(
-          route,
-          route.start,
-          routeEnd(route),
-          routeBends(route).map((point) => ({
-            x: point.x + delta.x,
-            y: point.y + delta.y,
-          })),
-          routeModes(route),
-          "loose-route-translation",
-        ),
-      },
-    ],
+    edits,
+    expectedElectricalEffect: { kind: "merge", endpointGroups },
   };
 }
 
