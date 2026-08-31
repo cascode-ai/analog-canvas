@@ -202,6 +202,7 @@ describe("Razavi symbol catalog", () => {
       ["port", "reviewed", "razavi-reference-v1"],
       ["port-filled", "reviewed", "razavi-reference-v1"],
       ["resistor", "reviewed", "razavi-reference-v1"],
+      ["simple-spdt-switch", "reviewed", "house"],
       ["simple-switch", "reviewed", "house"],
       ["spdt-switch", "reviewed", "house"],
       ["variable-capacitor", "reviewed", "razavi-reference-v1"],
@@ -558,7 +559,7 @@ describe("Razavi symbol catalog", () => {
   });
 
   it("uses reviewed catalog objects as the sole built-in product library", () => {
-    expect(razaviCatalogSymbols).toHaveLength(56);
+    expect(razaviCatalogSymbols).toHaveLength(57);
     for (const catalogSymbol of razaviProductSymbols) {
       expect(
         builtInSymbols.find((symbol) => symbol.id === catalogSymbol.id),
@@ -1968,6 +1969,26 @@ describe("house-drawn switch additions", () => {
     expect(blade, "blade").toBeDefined();
     if (!blade || blade.kind !== "line") return;
     expect(blade.to.y).toBeLessThan(blade.from.y);
+  });
+
+  it("keeps the plain selector out of the Library and identical in pins", () => {
+    // The point of this entry is that it does NOT add a sixth switch tile:
+    // it is the SPDT's other drawing, reached by an action. Its pins match
+    // the circled one exactly, which is what lets the exchange keep every
+    // wired terminal.
+    const entry = getRazaviCatalogEntry("simple-spdt-switch");
+    expect(entry?.palette).toBe(false);
+    const plain = requireRazaviCatalogSymbol("simple-spdt-switch");
+    const circled = requireRazaviCatalogSymbol("spdt-switch");
+    expect(plain.pins.map((pin) => pin.name)).toEqual(
+      circled.pins.map((pin) => pin.name),
+    );
+    expect(plain.pins.map((pin) => pin.at)).toEqual(
+      circled.pins.map((pin) => pin.at),
+    );
+    // Same device, different drawing: no contact circles at all.
+    expect(plain.primitives.every((p) => p.kind === "line")).toBe(true);
+    expect(circled.primitives.some((p) => p.kind === "circle")).toBe(true);
   });
 
   it("keeps both additions off the automatic netlist path", () => {

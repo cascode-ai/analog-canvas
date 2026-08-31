@@ -1253,6 +1253,23 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     },
   },
   {
+    symbolId: "simple-spdt-switch",
+    name: "Simple SPDT Switch",
+    category: "switch",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "The contact-circle drawing of a selector and its plain drawing are one component in two states. Drawn here as the SPDT's sibling so the state is reached by an action rather than by a second Library tile.",
+    pinOrder: ["COM", "A", "B"],
+    palette: false,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Three-terminal selector; SPICE has no single-pole double-throw primitive.",
+    assetPath: "simple-spdt-switch.symbol.json",
+    assetHash:
+      "c586e487e5a4f2dd6fb48f096fa9183162ea9cb02b6ad1edc7706a706f1122cf",
+  },
+  {
     symbolId: "simple-switch",
     name: "Simple Switch",
     category: "switch",
@@ -7623,6 +7640,125 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           lineCap: "butt",
           lineJoin: "miter",
           miterLimit: 12,
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "simple-spdt-switch",
+    name: "Simple SPDT Switch",
+    viewBox: {
+      x: -34,
+      y: -20,
+      width: 68,
+      height: 40,
+    },
+    pins: [
+      {
+        name: "COM",
+        role: "passive",
+        at: {
+          x: -20,
+          y: 0,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "A",
+        role: "passive",
+        at: {
+          x: 20,
+          y: -10,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "B",
+        role: "passive",
+        at: {
+          x: 20,
+          y: 10,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -20,
+          y: 0,
+        },
+        to: {
+          x: -10,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -10,
+          y: 0,
+        },
+        to: {
+          x: 8,
+          y: -9,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 10,
+          y: -10,
+        },
+        to: {
+          x: 20,
+          y: -10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 10,
+          y: 10,
+        },
+        to: {
+          x: 20,
+          y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
         },
       },
     ],

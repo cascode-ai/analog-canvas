@@ -712,6 +712,52 @@ test("constructs VDD as a drawn dotless power rail", async ({ page }) => {
   await expect(canvas.getByText("VDD", { exact: true })).toHaveCount(0);
 });
 
+test("a switch changes contact style in place, keeping its wires", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await chooseComponent(page, "spdt-switch");
+  const canvas = page.getByTestId("schematic-canvas");
+  await canvas.click({ position: { x: 360, y: 220 } });
+  await page.keyboard.press("Escape");
+
+  // Wire the common terminal, so the swap has something to lose.
+  await clickDrawTool(page, "wire");
+  await page.getByTestId("terminal-S1-COM").click();
+  await canvas.dblclick({ position: { x: 200, y: 320 } });
+  await page.keyboard.press("Escape");
+  await expect(page.locator('[data-layer="routes"] polyline')).toHaveCount(1);
+
+  await page.locator('[data-canvas-hit-kind="instance"]').first().click();
+  await page.getByTestId("selection-shelf").click();
+  const toggle = page.getByTestId("swap-switch-contact-style");
+  await expect(toggle).toBeVisible();
+
+  // The plain drawing is a state of this component, not a second part: the
+  // Library never grew a tile for it.
+  await expect(page.getByTestId("shapes-chip-simple-spdt-switch")).toHaveCount(
+    0,
+  );
+
+  await toggle.click();
+  await expect(page.locator("[data-symbol-id]").first()).toHaveAttribute(
+    "data-symbol-id",
+    "simple-spdt-switch",
+  );
+  // Same instance, same designator, same wire: the exchange keeps terminal
+  // identity, so nothing is orphaned.
+  await expect(page.getByTestId("hit-S1")).toHaveCount(1);
+  await expect(page.locator('[data-layer="routes"] polyline')).toHaveCount(1);
+
+  await toggle.click();
+  await expect(page.locator("[data-symbol-id]").first()).toHaveAttribute(
+    "data-symbol-id",
+    "spdt-switch",
+  );
+  await expect(page.locator('[data-layer="routes"] polyline')).toHaveCount(1);
+});
+
 test("a rail ending on a wire joins it, and says so in plain words", async ({
   page,
 }) => {

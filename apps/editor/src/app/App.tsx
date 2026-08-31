@@ -162,6 +162,11 @@ import {
   ShapesPanel,
 } from "../features/editor-shell/shapes-panel";
 import {
+  drawsContactCircles,
+  planSwitchContactStyleSwap,
+  switchContactStyleSibling,
+} from "../features/editor-shell/switch-contact-style";
+import {
   differentialOutputSibling,
   planDifferentialOutputSwap,
 } from "../features/editor-shell/differential-output-swap";
@@ -4476,6 +4481,24 @@ export function App({
                       }),
                     onReturnToTray: () =>
                       returnInstancesToTray([selectedInstance.id]),
+                    ...(switchContactStyleSibling(selectedInstance.symbolId)
+                      ? {
+                          onSwapContactStyle: {
+                            label: drawsContactCircles(
+                              selectedInstance.symbolId,
+                            )
+                              ? "Draw without contact circles"
+                              : "Draw with contact circles",
+                            run: () =>
+                              transact(
+                                planSwitchContactStyleSwap(
+                                  selectedInstance.id,
+                                  selectedInstance.symbolId,
+                                ),
+                              ),
+                          },
+                        }
+                      : {}),
                     ...(differentialOutputSibling(selectedInstance.symbolId)
                       ? {
                           onSwapOutputs: () =>
