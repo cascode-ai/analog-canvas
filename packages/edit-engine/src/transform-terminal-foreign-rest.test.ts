@@ -77,10 +77,10 @@ describe("terminal resting on a foreign Net after a real transform", () => {
     );
     expect(hits).toHaveLength(1);
     expect(hits[0]).toMatchObject({
-      severity: "error",
+      severity: "warning",
       category: "structural",
       confidence: "high",
-      gateEligible: true,
+      gateEligible: false,
       objectIds: ["R1", "wireA"],
       point: { x: 60, y: 100 },
       parameters: {

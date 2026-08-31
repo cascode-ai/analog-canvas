@@ -786,7 +786,11 @@ export function diagnoseVisualQuality(
   // contact point rests on a Net it does not belong to reads as connected
   // while the model says otherwise. A rest on the pin's own Net is the
   // ordinary contact idiom, and a NoConnect marker is the author stating
-  // the rest is deliberate; both stay quiet.
+  // the rest is deliberate; both stay quiet. Graded warning and kept out of
+  // the submission gate: a production-corpus sweep found the rest idiom in
+  // 8 published abbreviated schematics (floating pins parked on power
+  // rails), and the gallery contract welcomes abbreviated drawings — the
+  // finding is evidence for the author, not a wall in front of them.
   const terminalNetIds = new Map<string, string>();
   for (const net of document.nets) {
     for (const terminal of net.terminals) {
@@ -830,10 +834,10 @@ export function diagnoseVisualQuality(
         ) {
           diagnostics.push({
             code: "VISUAL_TERMINAL_ON_FOREIGN_ROUTE",
-            severity: "error",
+            severity: "warning",
             category: "structural",
             confidence: "high",
-            gateEligible: true,
+            gateEligible: false,
             message: `Terminal ${instance.id}:${pin.name} lies on unrelated route ${route.id}`,
             objectIds: [instance.id, route.id],
             point: contactPoint,
