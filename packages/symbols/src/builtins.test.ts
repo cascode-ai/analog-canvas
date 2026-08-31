@@ -37,7 +37,6 @@ const PRODUCT_IDS = [
   "npn",
   "opamp",
   "opamp-differential",
-  "opamp-differential-crossed",
   "or-gate",
   "pmos",
   "pnp",
@@ -78,6 +77,9 @@ describe("built-in Symbol libraries", () => {
     const resolvable = new Set(builtInSymbols.map((symbol) => symbol.id));
     const browsable = new Set(razaviProductSymbols.map((symbol) => symbol.id));
     for (const id of [
+      // Crossed outputs are a state of the differential amplifier reached by
+      // "Swap + / - outputs", not a second part to browse for.
+      "opamp-differential-crossed",
       "comparator-inputs-swapped",
       "opamp-inputs-swapped",
       "opamp-differential-inputs-swapped",
