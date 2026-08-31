@@ -1,3 +1,4 @@
+import { flattenRichText } from "@icm/model";
 import type {
   Annotation,
   DerivedPoint,
@@ -36,12 +37,25 @@ export interface AnnotationPresentation {
  * Instance keeps its object-anchored labels for a later re-placement, but its
  * labels are not floating drawing objects while the Instance is in the Tray.
  * Formal Cell Pins use their terminal name as their sole visible identity.
+ *
+ * An annotation with no resolved text is not visible either. It paints no
+ * glyph, so anything the canvas hangs on it — a hit box, a marquee target — is
+ * a control nobody can see. Empty text is always a projection that came back
+ * with nothing (a designator for an Instance the device registry gives no
+ * reference prefix, a value the Instance does not carry), never something a
+ * person authored: `proposeTextEditingCommit` deletes an annotation the moment
+ * its content is emptied, and an open editing session holds its text in the
+ * session rather than in the annotation. So there is no empty-but-wanted
+ * annotation to exempt, including one mid-edit.
  */
 export function isSchematicAnnotationVisible(
   document: SchematicDocument,
   annotation: Annotation,
 ): boolean {
   if (annotation.visible === false) return false;
+  if (!flattenRichText(resolveAnnotationText(document, annotation)).trim()) {
+    return false;
+  }
   const anchoredInstanceId =
     annotation.anchor.kind === "object"
       ? annotation.anchor.objectId

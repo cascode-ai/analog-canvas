@@ -789,4 +789,40 @@ describe("voltage-controlled switch", () => {
       "S1 vout 0 vctrl vcm SW_RLY",
     );
   });
+
+  // The two-terminal Razavi switches are drawn, designated, and read, but they
+  // are not simulable: SPICE's S wants four nodes and a model card that a
+  // two-terminal drawing cannot supply, which is why the Symbol catalog marks
+  // them manual-only. Emission must say so rather than print an S card with a
+  // missing target where the model name belongs.
+  it("refuses to emit a card for a drawing-only two-terminal switch", () => {
+    const project = createEmptyProject("project", "Project");
+    const document = project.documents[0]!;
+    document.instances.push({
+      id: "S1",
+      symbolId: "ideal-switch",
+      placement: null,
+      reference: "S1",
+      netlist: { parameters: {} },
+    });
+    document.nets.push({
+      id: "net-a",
+      terminals: [{ instanceId: "S1", pinName: "1" }],
+    });
+    claimNet(document, "net-a", "vout");
+    document.nets.push({
+      id: "net-b",
+      terminals: [{ instanceId: "S1", pinName: "2" }],
+    });
+    claimNet(document, "net-b", "0");
+
+    const analysis = analyzeDesignNetlist(project);
+    expect(analysis.diagnostics.map((diagnostic) => diagnostic.code)).toContain(
+      "NON_NETLISTABLE_DEVICE",
+    );
+    // Without the refusal the printer reaches `instance.target!` holding null
+    // and throws inside wrapSpice, so an unsimulable Symbol on the canvas took
+    // the whole export down.
+    expect(analysis.ir).toBeNull();
+  });
 });

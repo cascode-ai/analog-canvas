@@ -61,9 +61,12 @@ function fixture(): {
       modes: ["manual"],
     }),
   );
+  // Designated, so its label projects visible text: an empty label paints
+  // nothing and is not a marquee target, which is not what this fixture tests.
   document.instances.push({
     id: "M1",
     symbolId: "nmos",
+    reference: "M1",
     placement: { position: { x: 300, y: 200 }, rotation: 0, mirror: "none" },
   });
   const label = defaultInstanceLabel(

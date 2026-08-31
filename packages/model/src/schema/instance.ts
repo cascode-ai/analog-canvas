@@ -58,8 +58,11 @@ export const NetlistDeviceClassSchema = z.enum([
   "bjt",
   "voltage-source",
   "current-source",
-  // A voltage-controlled switch: `S<ref> n+ n- nc+ nc- MODEL` — two switched
-  // nodes, two control nodes, and a required model card.
+  // The switch family, designated `S`. A binding of this class emits the SPICE
+  // form `S<ref> n+ n- nc+ nc- MODEL` — two switched nodes, two control nodes,
+  // and a required model card — so only the voltage-controlled switch reaches
+  // emission. The two-terminal switches carry the class and the `S` sequence
+  // for the schematic's sake and declare no netlist target.
   "switch",
   "net-marker",
 ]);

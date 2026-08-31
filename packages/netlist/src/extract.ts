@@ -711,6 +711,21 @@ function extractDeviceInstance(
     }
     return null;
   }
+  // A device the registry designates but gives no netlist target is drawing
+  // only: the two-terminal Razavi switches are drawn, numbered, and read, but
+  // SPICE's `S` wants four nodes and a model card they cannot supply. Say so
+  // and emit nothing. Falling through would reach the printer with a null
+  // target where the model name belongs, and it throws there.
+  if (definition.targetPolicy === "none") {
+    diagnostic(
+      diagnostics,
+      document.id,
+      "NON_NETLISTABLE_DEVICE",
+      `Symbol ${instance.symbolId} is drawing-only and has no netlist form`,
+      [instance.id],
+    );
+    return null;
+  }
   const netlist = instance.netlist;
   if (!netlist) {
     diagnostic(
