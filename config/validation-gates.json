@@ -89,6 +89,11 @@
       "apps/editor/src/canvas/canvas-hit-resolver*",
       "apps/editor/e2e/thin-target-hit.spec.ts"
     ],
+    "emptyLabelGhost": [
+      "packages/derived/src/annotation-presentation.ts",
+      "packages/devices/src/descriptors/*switch*",
+      "apps/editor/e2e/empty-label-ghost.spec.ts"
+    ],
     "componentInsert": [
       "apps/editor/src/features/component-insert/**",
       "apps/editor/e2e/component-insert.spec.ts"
@@ -417,6 +422,18 @@
       "ci": { "e2eArgs": ["apps/editor/e2e/thin-target-hit.spec.ts"] }
     },
     {
+      "id": "empty-label-ghost-browser",
+      "stage": "affected",
+      "groups": ["emptyLabelGhost"],
+      "description": "Validate that a label with no text leaves no selectable target.",
+      "command": [
+        "pnpm",
+        "test:e2e:local",
+        "apps/editor/e2e/empty-label-ghost.spec.ts"
+      ],
+      "ci": { "e2eArgs": ["apps/editor/e2e/empty-label-ghost.spec.ts"] }
+    },
+    {
       "id": "release-verification",
       "stage": "affected",
       "groups": ["release"],
@@ -455,6 +472,7 @@
         "editor-wiring-browser",
         "placement-near-miss-browser",
         "thin-target-hit-browser",
+        "empty-label-ghost-browser",
         "release-verification",
         "branch-verification"
       ]
