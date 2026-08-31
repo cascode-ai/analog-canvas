@@ -2,8 +2,6 @@
 
 Status: `accepted`
 
-Version: `1.0-v0.1`
-
 Primary owner: `scripts/performance-baseline.mjs`
 
 ## Representative workload

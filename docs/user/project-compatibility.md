@@ -33,7 +33,7 @@ text, a fraction, or a coefficient needs more room, and never clips or shrinks
 the formula to satisfy an undersized request. A canonical v34 file can be
 opened, saved, reopened, and saved again without byte drift.
 
-Schemas v24 through v33 are accepted through the explicit chained upgrades.
+Schemas v24 through v35 are accepted through the explicit chained upgrades.
 Schema v32 adds optional `Annotation.textColor`; schema v33 removes the
 ownerless `explicit-equivalence` record. A v32 file without that record changes
 only its version stamp. A file containing it is rejected at the exact evidence

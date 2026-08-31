@@ -70,6 +70,6 @@ normative in
 
 - [ADR 0008](0008-agent-local-route-tree-expander.md)
 - [ADR 0014](0014-resolved-route-geometry.md)
-- [ADR 0047](0047-stable-route-leg-model.md)
+- [ADR 0014](0014-resolved-route-geometry.md)
 - [connectivity and routing spec](../specs/connectivity-and-routing.md)
 - [editor interaction spec](../specs/editor-interaction.md)

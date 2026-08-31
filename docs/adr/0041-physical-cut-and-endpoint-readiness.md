@@ -112,6 +112,6 @@ revision fence rather than adding a field.
 
 ## Related documents
 
-- [ADR 0051](0051-owner-explainable-logical-nets.md)
+- [ADR 0052](0052-owner-explainable-net-authority.md)
 - [Connectivity and routing](../specs/connectivity-and-routing.md)
 - [Agent Circuit API](../specs/agent-api.md)

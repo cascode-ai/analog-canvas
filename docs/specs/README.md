@@ -20,7 +20,6 @@ against. They describe required behavior and invariants, not task history.
 | [`persistence-and-recovery.md`](persistence-and-recovery.md) | accepted | Atomic save, AppData cache/session/recovery, migrations                                  |
 | [`export.md`](export.md)                                     | accepted | Formal SVG source and derived PNG/PDF contracts                                          |
 | [`netlist-export.md`](netlist-export.md)                     | accepted | Deterministic structural SPICE/Spectre export and diagnostics                            |
-| [`digital-timing-simulation.md`](digital-timing-simulation.md) | accepted | Internal deterministic event layer and production-hidden local tooling                   |
 | [`performance.md`](performance.md)                           | accepted | Representative workloads and release budgets                                             |
 | [`editor-interaction.md`](editor-interaction.md)             | accepted | Direct manipulation, manual authoring, gestures, and automation boundary                 |
 | [`web-agent-session.md`](web-agent-session.md)               | accepted | Browser-authoritative relay: scopes, transport, events, errors, threat                   |
@@ -41,3 +40,6 @@ create empty files only to mirror this table. Start from
 - Name deterministic validation that demonstrates the contract.
 - Changes after acceptance require compatibility analysis and, when
   architectural, an ADR.
+- A package-internal experiment does not become a normative product
+  specification merely because code remains in the repository. Its local
+  README and tests own that implementation until the product adopts it.

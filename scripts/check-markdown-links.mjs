@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const markdownRoots = [resolve(root, "README.md"), resolve(root, "docs")];
 const adrRoot = resolve(root, "docs", "adr");
+const specsRoot = resolve(root, "docs", "specs");
 const markdownLink = /\]\(([^)]+)\)/gu;
 
 async function exists(path) {
@@ -77,6 +78,32 @@ for (const file of adrFiles) {
   }
   if (!adrIndex.includes(`(${name})`)) {
     failures.push(`${name} is missing from docs/adr/README.md`);
+  }
+}
+
+const specsIndex = await readFile(resolve(specsRoot, "README.md"), "utf8");
+const specFiles = (await collectMarkdown(specsRoot)).filter(
+  (file) => !["README.md", "spec.template.md"].includes(basename(file)),
+);
+for (const file of specFiles) {
+  const name = basename(file);
+  const text = await readFile(file, "utf8");
+  if (!/^#\s+\S/mu.test(text)) {
+    failures.push(`${name} must have a title`);
+  }
+  if (!/^Status:\s*`?(accepted|proposed)`?\s*$/imu.test(text)) {
+    failures.push(`${name} must have Status: accepted or proposed`);
+  }
+  if (!/^(?:Primary owner|Primary owners|Owners):\s*\S/imu.test(text)) {
+    failures.push(`${name} must state ownership`);
+  }
+  if (!specsIndex.includes(`(${name})`)) {
+    failures.push(`${name} is missing from docs/specs/README.md`);
+  }
+  if (name !== "agent-api.md" && /^Version:/imu.test(text)) {
+    failures.push(
+      `${name} must not declare a local Version without an independent protocol`,
+    );
   }
 }
 

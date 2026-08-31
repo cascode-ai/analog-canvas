@@ -2,8 +2,6 @@
 
 Status: `accepted`
 
-Version: `1.2`
-
 Owners: `fixtures/visual-reference`, `packages/symbols`, `packages/derived`,
 `packages/render-svg`, `scripts`
 
@@ -347,8 +345,9 @@ Schema-version-1 manifests without `vectorEvidence` remain valid. PDF-derived
 symbols extend the palette without changing persisted Project schema; only an
 explicit reviewed mapping may extend SPICE import behavior. The hollow `port`,
 filled `port-filled`, Junction, and all existing symbol behavior remain
-distinct. The former Razavi style and component-extension specifications
-are superseded by this document and retained as redirects.
+distinct. This is the sole Razavi-specific visual contract. Historical style
+and component-extension documents were deleted after their surviving rules
+moved here; Git retains their history.
 
 Related decisions and explanatory evidence:
 

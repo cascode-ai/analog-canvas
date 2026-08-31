@@ -17,10 +17,9 @@ major boundaries exist.
 - [`0012-pdf-vector-evidence-for-razavi-assets.md`](0012-pdf-vector-evidence-for-razavi-assets.md) — scoped PDF vector evidence
 - [`0017-deterministic-design-netlist-boundary.md`](0017-deterministic-design-netlist-boundary.md) — deterministic design-netlist boundary
 - [`0021-coordinate-domains-and-grid-normalization.md`](0021-coordinate-domains-and-grid-normalization.md) — coordinate domains and grid normalization
-- [`0053-chain-carried-project-compatibility.md`](0053-chain-carried-project-compatibility.md) — chain-carried Project compatibility with a floored upgrade chain
-- [`0024-device-protocol-and-compatibility-boundaries.md`](0024-device-protocol-and-compatibility-boundaries.md) — device protocol boundaries
+- [`0024-built-in-device-and-project-boundaries.md`](0024-built-in-device-and-project-boundaries.md) — built-in device and Project boundaries
 - [`0049-cloud-project-save-boundary.md`](0049-cloud-project-save-boundary.md) — stable Cloud Project Save
-- [`0050-deterministic-digital-timing-simulation.md`](0050-deterministic-digital-timing-simulation.md) — internal timing layer with production-hidden tooling
+- [`0053-chain-carried-project-compatibility.md`](0053-chain-carried-project-compatibility.md) — chain-carried Project compatibility with a floored upgrade chain
 
 ### Agent boundary
 
@@ -28,34 +27,27 @@ major boundaries exist.
 - [`0007-snapshot-driven-agent-workflow.md`](0007-snapshot-driven-agent-workflow.md) — complete Snapshot and typed transaction workflow
 - [`0008-agent-local-route-tree-expander.md`](0008-agent-local-route-tree-expander.md) — transient Agent-local RouteGraph expansion
 - [`0016-browser-authoritative-agent-session.md`](0016-browser-authoritative-agent-session.md) — browser-authoritative authorization
-- [`0019-four-operation-agent-golden-contract.md`](0019-four-operation-agent-golden-contract.md) — four-operation Circuit contract
 - [`0020-agent-side-mcp-adapter.md`](0020-agent-side-mcp-adapter.md) — MCP adapter over the domain API
 
 ### Schematic, hierarchy, and presentation
 
-- [`0010-text-annotation-drafting-schema.md`](0010-text-annotation-drafting-schema.md) — RichText annotation and drafting authority
-- [`0025-schematic-hierarchy-and-formal-ports.md`](0025-schematic-hierarchy-and-formal-ports.md) — schematic Cell hierarchy
-- [`0026-definition-level-cell-symbol-presentation.md`](0026-definition-level-cell-symbol-presentation.md) — definition-level Cell symbol intent
-- [`0027-stage-1-netlist-authoring-protocol.md`](0027-stage-1-netlist-authoring-protocol.md) — typed netlist authoring facts
+- [`0025-schematic-hierarchy-and-formal-ports.md`](0025-schematic-hierarchy-and-formal-ports.md) — schematic hierarchy and independent Cell Pins
+- [`0027-stage-1-netlist-authoring-protocol.md`](0027-stage-1-netlist-authoring-protocol.md) — typed netlist authoring authority
 - [`0029-external-subcircuit-definition-protocol.md`](0029-external-subcircuit-definition-protocol.md) — external subcircuit definitions
-- [`0054-single-instance-reference-authority.md`](0054-single-instance-reference-authority.md) — one authored Instance Reference across canvas, copy, Agent, and export
 - [`0036-named-power-and-mos-bulk-semantics.md`](0036-named-power-and-mos-bulk-semantics.md) — named power and MOS bulk policy
 - [`0038-document-style-overrides.md`](0038-document-style-overrides.md) — Document style overrides
-- [`0046-independent-cell-pins-and-formal-port-projection.md`](0046-independent-cell-pins-and-formal-port-projection.md) — independent Cell Pins and derived Formal Ports
+- [`0054-single-instance-reference-authority.md`](0054-single-instance-reference-authority.md) — one authored Instance Reference across canvas, copy, Agent, and export
 
 ### Connectivity and routing
 
 - [`0009-move-stretches-connected-routes.md`](0009-move-stretches-connected-routes.md) — topology-preserving movement
 - [`0013-project-connectivity-index.md`](0013-project-connectivity-index.md) — shared Project connectivity index
-- [`0014-resolved-route-geometry.md`](0014-resolved-route-geometry.md) — resolved Route geometry
+- [`0014-resolved-route-geometry.md`](0014-resolved-route-geometry.md) — stable Route legs and resolved geometry
 - [`0015-object-locator-and-diagnostic-envelope.md`](0015-object-locator-and-diagnostic-envelope.md) — common locator and diagnostics
 - [`0039-any-angle-route-authoring.md`](0039-any-angle-route-authoring.md) — one Route protocol with any-angle authoring
-- [`0051-owner-explainable-logical-nets.md`](0051-owner-explainable-logical-nets.md) — Base Nets, typed names, and owner-explainable Logical Nets
-- [`0052-net-name-authority-and-source-provenance.md`](0052-net-name-authority-and-source-provenance.md) — visible/current Net names versus non-electrical source spelling
 - [`0041-physical-cut-and-endpoint-readiness.md`](0041-physical-cut-and-endpoint-readiness.md) — physical cut and endpoint readiness
-- [`0044-imported-source-provenance.md`](0044-imported-source-provenance.md) — source provenance is not connectivity
-- [`0047-stable-route-leg-model.md`](0047-stable-route-leg-model.md) — stable Route leg and bend identity
 - [`0048-routing-operation-plan.md`](0048-routing-operation-plan.md) — evaluated routing-operation plan
+- [`0052-owner-explainable-net-authority.md`](0052-owner-explainable-net-authority.md) — owner-explainable Net authority and non-electrical provenance
 
 ## Lifecycle and deletion policy
 

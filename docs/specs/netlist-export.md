@@ -2,8 +2,6 @@
 
 Status: `accepted`
 
-Version: `1.0-structural`
-
 Primary owner: `packages/netlist`
 
 Related ADR: [`0017-deterministic-design-netlist-boundary.md`](../adr/0017-deterministic-design-netlist-boundary.md)

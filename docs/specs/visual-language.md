@@ -2,8 +2,6 @@
 
 Status: `accepted`
 
-Version: `1.7`
-
 Primary owner: `packages/render-svg`, `apps/editor`
 
 ## Purpose

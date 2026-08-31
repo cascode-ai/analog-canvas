@@ -2,8 +2,6 @@
 
 Status: `proposed`
 
-Version: `0.1`
-
 Primary owner: `<module>`
 
 ## Purpose

@@ -2,8 +2,6 @@
 
 Status: `accepted`
 
-Version: `1.0`
-
 Primary owners: `packages/render-svg`, `packages/exporters`
 
 Related ADR: [`0014-resolved-route-geometry.md`](../adr/0014-resolved-route-geometry.md).
