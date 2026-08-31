@@ -184,9 +184,18 @@ export const SymbolDefinitionSchema = z
     // A derived subcircuit container may legitimately expose an empty formal
     // interface before ports are authored in its child Cell.
     hierarchicalBlock: z.literal(true).optional(),
-    // Formula-capable Signal Flow blocks own only their frame and electrical
-    // pins in primitive geometry. The renderer projects this presentation
-    // contract so instance formula/coefficient edits never change identity.
+    // One editable text inside the body, owned by the Instance. The Symbol
+    // says where it sits and what it says by default; the Instance overrides
+    // the text through `signalFlowParameters.formula`, so two copies of one
+    // part on a sheet read differently without becoming different parts. The
+    // renderer projects it, so an edit never changes Symbol identity.
+    //
+    // Any Symbol may declare it — the Signal Flow blocks named the field and
+    // came first, the lettered amplifiers followed, and a converter block
+    // labelled ADC or DAC needs nothing new. The default is a string, not a
+    // character: declare `defaultFormula: "ADC"`, a `center` in symbol-local
+    // geometry, a `fontSize`, and `supportsCoefficient: false` unless the
+    // text really is a transfer function something may scale.
     formulaPresentation: SymbolFormulaPresentationSchema.optional(),
   })
   .superRefine((symbol, context) => {
