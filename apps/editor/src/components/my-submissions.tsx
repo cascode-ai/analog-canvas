@@ -25,6 +25,16 @@ export interface MineEntry {
   previewRevision?: string;
   status: string;
   rejectReason: string | null;
+  recycledAt?: string | null;
+}
+
+export const RECYCLED_RETENTION_DAYS = 30;
+
+export function recycledRemovalDate(recycledAt: string): string {
+  const removal = new Date(
+    Date.parse(recycledAt) + RECYCLED_RETENTION_DAYS * 86_400_000,
+  );
+  return removal.toISOString().slice(0, 10);
 }
 
 type MineState =
@@ -301,6 +311,9 @@ export function MySubmissions() {
                       {entry.rejectReason
                         ? "Removed after rejection. Only the Owner can restore it."
                         : "Not shown in the Gallery. Restore republishes it."}
+                      {entry.recycledAt
+                        ? ` Removed permanently after ${recycledRemovalDate(entry.recycledAt)}.`
+                        : null}
                     </p>
                   ) : null}
                 </div>

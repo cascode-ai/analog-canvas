@@ -123,6 +123,19 @@ export const GALLERY_MAX_DESCRIPTION_LENGTH = 300;
  * campus or office exit spent the allowance for everyone behind it.
  */
 export const GALLERY_DAILY_SUBMISSION_LIMIT = 100;
+/**
+ * Recycle-bin retention. The quota deliberately refunds a withdrawal
+ * (recycling counts as taking work down), which leaves publish->recycle
+ * cycling bounded only by request rate while every cycle stores a full
+ * project_text/svg_text row. These bounds close that write-amplification
+ * channel without touching the quota semantics: per account only the newest
+ * rows stay, and any recycled row past the window expires. Both are policy
+ * defaults chosen without live bin data; a genuine second thought fits far
+ * inside either bound, and an author always held the stronger right of
+ * deleting their own entry outright in one step.
+ */
+export const GALLERY_RECYCLED_KEEP_PER_ACCOUNT = 25;
+export const GALLERY_RECYCLED_RETENTION_DAYS = 30;
 export const GALLERY_MAX_TAGS = 5;
 export const GALLERY_MAX_TAG_LENGTH = 24;
 /** How many previous states each Gallery entry retains. */
@@ -680,6 +693,7 @@ export class GalleryDO {
         entry.netlistable ?? 0,
         previewRevision,
       );
+      this.sweepRecycledRows(entry.owner_user_id ?? "", entry.created_at);
       return { status: "stored" as const };
     });
     if (outcome.status === "rate-limited") {
@@ -973,6 +987,8 @@ export class GalleryDO {
         ...summaryOf(row),
         status: row.status,
         rejectReason: row.reject_reason,
+        // The author's bin view shows when a withdrawn entry will expire.
+        recycledAt: row.recycled_at,
       })),
     });
   }
@@ -1498,12 +1514,17 @@ export class GalleryDO {
         id,
       );
     } else {
-      this.sql.exec(
-        "UPDATE gallery_entries SET status = ?, recycled_at = ? WHERE id = ?",
-        status,
-        status === "recycled" ? at : null,
-        id,
-      );
+      this.state.storage.transactionSync(() => {
+        this.sql.exec(
+          "UPDATE gallery_entries SET status = ?, recycled_at = ? WHERE id = ?",
+          status,
+          status === "recycled" ? at : null,
+          id,
+        );
+        if (status === "recycled") {
+          this.sweepRecycledRows(row.owner_user_id ?? "", at);
+        }
+      });
     }
     return Response.json({ id, status });
   }
@@ -1547,14 +1568,53 @@ export class GalleryDO {
       return Response.json({ error: "not-recycled" }, { status: 409 });
     }
     this.state.storage.transactionSync(() => {
-      this.sql.exec(
-        "DELETE FROM gallery_entry_versions WHERE entry_id = ?",
-        id,
-      );
-      this.sql.exec("DELETE FROM gallery_likes WHERE entry_id = ?", id);
-      this.sql.exec("DELETE FROM gallery_entries WHERE id = ?", id);
+      this.hardDeleteEntryRows(id);
     });
     return Response.json({ id, deleted: true });
+  }
+
+  /** Remove one entry and everything hanging off it. Callers own the transaction. */
+  private hardDeleteEntryRows(id: string): void {
+    this.sql.exec("DELETE FROM gallery_entry_versions WHERE entry_id = ?", id);
+    this.sql.exec("DELETE FROM gallery_likes WHERE entry_id = ?", id);
+    this.sql.exec("DELETE FROM gallery_entries WHERE id = ?", id);
+  }
+
+  /**
+   * Lazy retention sweep, run inside the submission and recycle write
+   * transactions — no alarms, no scheduled work. Keeps the newest
+   * {@link GALLERY_RECYCLED_KEEP_PER_ACCOUNT} recycled rows for the writing
+   * account (anonymous/legacy rows share one unowned bucket and are exempt
+   * from the cap), and opportunistically expires a few recycled rows older
+   * than {@link GALLERY_RECYCLED_RETENTION_DAYS} across all accounts, so the
+   * age backstop amortizes over ordinary writes.
+   */
+  private sweepRecycledRows(ownerUserId: string, nowIso: string): void {
+    const cutoff = new Date(
+      Date.parse(nowIso) - GALLERY_RECYCLED_RETENTION_DAYS * 86_400_000,
+    ).toISOString();
+    const expired = this.sql
+      .exec<{ id: string }>(
+        `SELECT id FROM gallery_entries
+         WHERE status = 'recycled' AND recycled_at IS NOT NULL
+           AND recycled_at < ?
+         ORDER BY recycled_at LIMIT 5`,
+        cutoff,
+      )
+      .toArray();
+    for (const row of expired) this.hardDeleteEntryRows(row.id);
+    if (ownerUserId === "") return;
+    const overflow = this.sql
+      .exec<{ id: string }>(
+        `SELECT id FROM gallery_entries
+         WHERE status = 'recycled' AND owner_user_id = ?
+         ORDER BY recycled_at DESC, id DESC
+         LIMIT -1 OFFSET ?`,
+        ownerUserId,
+        GALLERY_RECYCLED_KEEP_PER_ACCOUNT,
+      )
+      .toArray();
+    for (const row of overflow) this.hardDeleteEntryRows(row.id);
   }
 
   private recycled(): Response {

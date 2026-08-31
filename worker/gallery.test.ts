@@ -3105,3 +3105,147 @@ describe("gallery owner lifecycle (withdrawal and history)", () => {
     expect(payload.entry.name).toBe("Hist v1");
   });
 });
+
+describe("recycle bin retention", () => {
+  function seedRecycled(
+    env: Harness,
+    id: string,
+    ownerUserId: string,
+    recycledAt: string,
+  ): void {
+    env.gallerySql.exec(
+      `INSERT INTO gallery_entries(
+        id, name, author, description, created_at, schema_version,
+        status, recycled_at, owner_user_id, submitter_email,
+        submitter_provider, tags, project_text, svg_text, netlistable,
+        preview_revision
+      ) VALUES (?, ?, '', '', ?, ?, 'recycled', ?, ?, '', '', '[]', ?, '<svg/>', 0, 'r')`,
+      id,
+      `Binned ${id}`,
+      recycledAt,
+      CURRENT_PROJECT_SCHEMA_VERSION,
+      recycledAt,
+      ownerUserId,
+      projectText(),
+    );
+  }
+
+  function recycledIds(env: Harness, ownerUserId: string): string[] {
+    return env.gallerySql
+      .exec<{ id: string }>(
+        `SELECT id FROM gallery_entries
+         WHERE status = 'recycled' AND owner_user_id = ?
+         ORDER BY recycled_at`,
+        ownerUserId,
+      )
+      .toArray()
+      .map((row) => row.id);
+  }
+
+  async function submitFor(
+    env: Harness,
+    ownerUserId: string,
+    day: string,
+  ): Promise<number> {
+    const response = await env.GALLERY.getByName("gallery").fetch(
+      "https://gallery/submit",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          day,
+          enforceLimit: true,
+          entry: {
+            id: "",
+            name: "Retention probe",
+            author: "",
+            description: "",
+            created_at: `${day}T00:00:00.000Z`,
+            schema_version: CURRENT_PROJECT_SCHEMA_VERSION,
+            owner_user_id: ownerUserId,
+            project_text: projectText(),
+            svg_text: "<svg/>",
+          },
+        }),
+      },
+    );
+    return response.status;
+  }
+
+  it("caps an account's recycled rows at the newest K on the next write", async () => {
+    const env = environment();
+    for (let index = 0; index < 27; index += 1) {
+      seedRecycled(
+        env,
+        `bin-${String(index).padStart(2, "0")}`,
+        "hoarder",
+        `2026-08-30T10:${String(index).padStart(2, "0")}:00.000Z`,
+      );
+    }
+    expect(await submitFor(env, "hoarder", "2026-08-31")).toBe(200);
+    const remaining = recycledIds(env, "hoarder");
+    expect(remaining).toHaveLength(25);
+    // The oldest rows fell off; the newest stayed.
+    expect(remaining[0]).toBe("bin-02");
+    expect(remaining.at(-1)).toBe("bin-26");
+  });
+
+  it("expires recycled rows past the retention window, any account", async () => {
+    const env = environment();
+    seedRecycled(env, "bin-old", "someone", "2026-07-01T00:00:00.000Z");
+    seedRecycled(env, "bin-young", "someone", "2026-08-29T00:00:00.000Z");
+    seedRecycled(env, "bin-legacy", "", "2026-06-01T00:00:00.000Z");
+    expect(await submitFor(env, "someone", "2026-08-31")).toBe(200);
+    const all = env.gallerySql
+      .exec<{ id: string }>(
+        "SELECT id FROM gallery_entries WHERE status = 'recycled'",
+      )
+      .toArray()
+      .map((row) => row.id);
+    expect(all).not.toContain("bin-old");
+    expect(all).not.toContain("bin-legacy");
+    expect(all).toContain("bin-young");
+  });
+
+  it("leaves an anonymous-owner backlog alone below the age window", async () => {
+    const env = environment();
+    for (let index = 0; index < 30; index += 1) {
+      seedRecycled(
+        env,
+        `legacy-${String(index).padStart(2, "0")}`,
+        "",
+        `2026-08-2${index % 10}T00:00:00.000Z`,
+      );
+    }
+    expect(await submitFor(env, "author", "2026-08-31")).toBe(200);
+    const legacy = env.gallerySql
+      .exec<{ count: number }>(
+        `SELECT COUNT(*) AS count FROM gallery_entries
+         WHERE status = 'recycled' AND owner_user_id = ''`,
+      )
+      .one().count;
+    // No per-account cap for the anonymous bucket - only age expiry applies,
+    // and none of these rows is old enough.
+    expect(legacy).toBe(30);
+  });
+
+  it("reports the retention deadline to the author's submissions view", async () => {
+    const env = environment();
+    seedRecycled(env, "bin-mine", "author", "2026-08-30T12:00:00.000Z");
+    const response = await env.GALLERY.getByName("gallery").fetch(
+      "https://gallery/mine",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ownerUserId: "author" }),
+      },
+    );
+    const payload = (await response.json()) as {
+      entries: { id: string; recycledAt?: string | null }[];
+    };
+    expect(payload.entries[0]).toMatchObject({
+      id: "bin-mine",
+      recycledAt: "2026-08-30T12:00:00.000Z",
+    });
+  });
+});
