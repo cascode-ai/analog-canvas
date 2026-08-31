@@ -147,24 +147,6 @@ function pointOnClosedSegment(point: Point, from: Point, to: Point): boolean {
   return pointOnSegment(point, from, to, { epsilon: EPSILON });
 }
 
-function collinearContinuation(
-  point: Point,
-  incident: readonly AtomicEdge[],
-): boolean {
-  if (incident.length !== 2) return false;
-  const other = (edge: AtomicEdge) =>
-    samePoint(edge.from, point) ? edge.to : edge.from;
-  const first = other(incident[0]!);
-  const second = other(incident[1]!);
-  const firstVector = { x: first.x - point.x, y: first.y - point.y };
-  const secondVector = { x: second.x - point.x, y: second.y - point.y };
-  return (
-    Math.abs(firstVector.x * secondVector.y - firstVector.y * secondVector.x) <=
-      EPSILON &&
-    firstVector.x * secondVector.x + firstVector.y * secondVector.y < 0
-  );
-}
-
 function routePresentation(route: RouteBranch): string {
   return route.presentation ?? "wire";
 }
@@ -354,17 +336,12 @@ export function normalizeSameNetConductorTopology(
         continue;
       }
       const incident = incidentByPoint.get(pointKey(junction.position)) ?? [];
-      if (role === "branch") {
-        if (collinearContinuation(junction.position, incident)) {
-          collapsibleJunctionIds.add(junction.id);
-        }
-        continue;
-      }
-      // A degree-two route-anchor is no longer a loose end: its two arms are
-      // one continuous conductor, joined collinearly (the join point
-      // disappears) or at a corner (the join becomes an interior bend).
-      // Collapsing it makes segmentation follow the drawing, not the stroke
-      // history — the W-tool continuation repro.
+      // A Junction role records how the point was authored; current conductor
+      // degree decides whether it is still a branch. Once either a branch or
+      // route-anchor has exactly two ordinary-Wire arms, those arms are one
+      // continuous conductor. A collinear join disappears and a corner join
+      // becomes an interior bend. Protected and same-transaction Junctions
+      // were excluded above, so stable external ownership is preserved.
       if (incident.length === 2) {
         collapsibleJunctionIds.add(junction.id);
       }

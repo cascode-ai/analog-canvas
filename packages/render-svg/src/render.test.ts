@@ -82,6 +82,44 @@ describe("render svg", () => {
     );
   });
 
+  it("bridges a retained dotless degree-two branch corner", () => {
+    const doc = createEmptyDocument("branch-corner", "Branch corner");
+    doc.nets.push({ id: "net", terminals: [] });
+    doc.junctions.push(
+      { id: "left", netId: "net", position: { x: 0, y: 0 } },
+      {
+        id: "corner",
+        netId: "net",
+        position: { x: 40, y: 0 },
+        role: "branch",
+      },
+      { id: "bottom", netId: "net", position: { x: 40, y: 40 } },
+    );
+    doc.routes.push(
+      createRoutePath({
+        id: "horizontal",
+        netId: "net",
+        start: { kind: "junction", junctionId: "left" },
+        end: { kind: "junction", junctionId: "corner" },
+        bends: [],
+        modes: ["manual"],
+      }),
+      createRoutePath({
+        id: "vertical",
+        netId: "net",
+        start: { kind: "junction", junctionId: "corner" },
+        end: { kind: "junction", junctionId: "bottom" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+
+    const scene = buildSvgScene(doc, new InMemorySymbolResolver([]));
+
+    expect(scene.formalBody).toContain('data-role="junction-miter-bridge"');
+    expect(scene.formalBody).toContain('data-junction-id="corner"');
+  });
+
   it("renders a Route override while an unstyled Route keeps the profile color", () => {
     const doc = createEmptyDocument("wire-color", "Wire color");
     doc.nets.push({ id: "net", terminals: [] });

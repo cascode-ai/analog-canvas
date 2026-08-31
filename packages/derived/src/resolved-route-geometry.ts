@@ -46,7 +46,7 @@ export type EndpointJoin =
       routeDirection: Point;
     }
   | {
-      kind: "route-anchor-miter";
+      kind: "junction-miter";
       junctionId: string;
       at: Point;
       directions: readonly [Point, Point];
@@ -187,12 +187,12 @@ export function resolveDocumentRoutingGeometry(
     routes,
     endpointJoins: [
       ...terminalJoins,
-      ...resolveRouteAnchorJoinsFromGeometry(document, routes),
+      ...resolveJunctionJoinsFromGeometry(document, routes),
     ],
   };
 }
 
-export function resolveRouteAnchorJoins(
+export function resolveJunctionJoins(
   document: SchematicDocument,
   resolver: SymbolResolver,
 ): EndpointJoin[] {
@@ -201,16 +201,17 @@ export function resolveRouteAnchorJoins(
     const geometry = resolveRouteGeometry(document, resolver, route);
     if (geometry) routes.set(route.id, geometry);
   }
-  return resolveRouteAnchorJoinsFromGeometry(document, routes);
+  return resolveJunctionJoinsFromGeometry(document, routes);
 }
 
-function resolveRouteAnchorJoinsFromGeometry(
+function resolveJunctionJoinsFromGeometry(
   document: SchematicDocument,
   routes: ReadonlyMap<string, ResolvedRouteGeometry>,
 ): EndpointJoin[] {
   const anchors = new Map<string, { point: Point; directions: Point[] }>();
   for (const junction of document.junctions) {
-    if (junction.role === "route-anchor") {
+    const role = junction.role ?? "branch";
+    if (role === "branch" || role === "route-anchor") {
       anchors.set(junction.id, { point: junction.position, directions: [] });
     }
   }
@@ -231,7 +232,7 @@ function resolveRouteAnchorJoinsFromGeometry(
     .filter(([, anchor]) => anchor.directions.length === 2)
     .sort(([left], [right]) => left.localeCompare(right, "en"))
     .map(([junctionId, anchor]): EndpointJoin => ({
-      kind: "route-anchor-miter",
+      kind: "junction-miter",
       junctionId,
       at: anchor.point,
       directions: [anchor.directions[0]!, anchor.directions[1]!] as readonly [
