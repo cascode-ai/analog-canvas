@@ -1,0 +1,119 @@
+{
+  "schemaVersion": 1,
+  "id": "simple-spdt-switch",
+  "name": "Simple SPDT Switch",
+  "viewBox": {
+    "x": -34,
+    "y": -20,
+    "width": 68,
+    "height": 40
+  },
+  "pins": [
+    {
+      "name": "COM",
+      "role": "passive",
+      "at": {
+        "x": -20,
+        "y": 0
+      },
+      "direction": "west",
+      "presentation": {
+        "visibility": "visible",
+        "leadLength": 10
+      }
+    },
+    {
+      "name": "A",
+      "role": "passive",
+      "at": {
+        "x": 20,
+        "y": -10
+      },
+      "direction": "east",
+      "presentation": {
+        "visibility": "visible",
+        "leadLength": 10
+      }
+    },
+    {
+      "name": "B",
+      "role": "passive",
+      "at": {
+        "x": 20,
+        "y": 10
+      },
+      "direction": "east",
+      "presentation": {
+        "visibility": "visible",
+        "leadLength": 10
+      }
+    }
+  ],
+  "primitives": [
+    {
+      "kind": "line",
+      "from": {
+        "x": -20,
+        "y": 0
+      },
+      "to": {
+        "x": -10,
+        "y": 0
+      },
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "butt",
+        "lineJoin": "miter"
+      }
+    },
+    {
+      "kind": "line",
+      "from": {
+        "x": -10,
+        "y": 0
+      },
+      "to": {
+        "x": 8,
+        "y": -9
+      },
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "butt",
+        "lineJoin": "miter"
+      }
+    },
+    {
+      "kind": "line",
+      "from": {
+        "x": 10,
+        "y": -10
+      },
+      "to": {
+        "x": 20,
+        "y": -10
+      },
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "butt",
+        "lineJoin": "miter"
+      }
+    },
+    {
+      "kind": "line",
+      "from": {
+        "x": 10,
+        "y": 10
+      },
+      "to": {
+        "x": 20,
+        "y": 10
+      },
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "butt",
+        "lineJoin": "miter"
+      }
+    }
+  ],
+  "variants": []
+}

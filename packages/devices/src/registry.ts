@@ -24,6 +24,7 @@ import {
   idealSwitchDevice,
   closedSwitchDevice,
   simpleSwitchDevice,
+  simpleSpdtSwitchDevice,
   spdtSwitchDevice,
 } from "./descriptors/index.js";
 import { validateDeviceDescriptors } from "./validation.js";
@@ -73,6 +74,7 @@ export const deviceRegistry = defineDeviceRegistry([
   idealSwitchDevice,
   closedSwitchDevice,
   simpleSwitchDevice,
+  simpleSpdtSwitchDevice,
   spdtSwitchDevice,
   groundDevice,
   vddPortDevice,

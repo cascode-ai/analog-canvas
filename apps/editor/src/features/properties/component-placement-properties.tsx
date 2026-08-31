@@ -16,6 +16,7 @@ export function ComponentPlacementProperties({
   onMirror,
   onReturnToTray,
   onSwapOutputs,
+  onSwapContactStyle,
   onSwapInputs,
   onDiscard,
 }: {
@@ -30,6 +31,7 @@ export function ComponentPlacementProperties({
   onMirror: (direction: "left-right" | "top-bottom") => void;
   onReturnToTray: () => void;
   onSwapOutputs?: () => void;
+  onSwapContactStyle?: { label: string; run: () => void };
   onSwapInputs?: () => void;
   onDiscard: () => void;
 }) {
@@ -107,6 +109,19 @@ export function ComponentPlacementProperties({
           >
             Return to tray
           </button>
+          {onSwapContactStyle ? (
+            <div className="component-mirror-row" aria-label="Switch drawing">
+              <button
+                type="button"
+                data-testid="swap-switch-contact-style"
+                aria-label={onSwapContactStyle.label}
+                title={onSwapContactStyle.label}
+                onClick={onSwapContactStyle.run}
+              >
+                {onSwapContactStyle.label}
+              </button>
+            </div>
+          ) : null}
           {onSwapOutputs || onSwapInputs ? (
             <div
               className="component-mirror-row property-amplifier-actions"

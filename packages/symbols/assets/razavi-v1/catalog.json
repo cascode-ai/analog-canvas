@@ -1047,6 +1047,20 @@
       }
     },
     {
+      "symbolId": "simple-spdt-switch",
+      "name": "Simple SPDT Switch",
+      "category": "switch",
+      "reviewStatus": "reviewed",
+      "provenance": "house",
+      "houseReason": "The contact-circle drawing of a selector and its plain drawing are one component in two states. Drawn here as the SPDT's sibling so the state is reached by an action rather than by a second Library tile.",
+      "pinOrder": ["COM", "A", "B"],
+      "palette": false,
+      "automaticMappings": [],
+      "manualOnlyReason": "Three-terminal selector; SPICE has no single-pole double-throw primitive.",
+      "assetPath": "simple-spdt-switch.symbol.json",
+      "assetHash": "c586e487e5a4f2dd6fb48f096fa9183162ea9cb02b6ad1edc7706a706f1122cf"
+    },
+    {
       "symbolId": "simple-switch",
       "name": "Simple Switch",
       "category": "switch",
