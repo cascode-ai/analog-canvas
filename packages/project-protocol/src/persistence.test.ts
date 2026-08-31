@@ -388,12 +388,12 @@ describe("Project persistence", () => {
     ).toBe(serializeProject(parsed.project));
   });
 
-  it("rejects schemas outside the current-and-previous window", () => {
+  it("rejects schemas outside the supported chain window", () => {
     const project = createEmptyProject("project-test", "Test Project");
-    for (const schemaVersion of [23, 24, 25, 26, 27, 28, 29, 30, 33, 99]) {
+    for (const schemaVersion of [1, 22, 23, 33, 99]) {
       expect(() =>
         parseProject(JSON.stringify({ ...project, schemaVersion })),
-      ).toThrow(/must be 31 or 32/);
+      ).toThrow(/must be between 24 and 32/);
     }
   });
 });

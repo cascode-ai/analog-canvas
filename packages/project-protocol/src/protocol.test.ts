@@ -37,13 +37,13 @@ describe("Project protocol boundary", () => {
     });
   });
 
-  it("rejects projects older than the rolling compatibility window", () => {
+  it("rejects projects older than the supported chain window", () => {
     const current = JSON.parse(
       serializeProject(createEmptyProject("protocol-project", "Protocol")),
     ) as Record<string, unknown>;
     expect(
       tryParseProjectWithMetadata(
-        JSON.stringify({ ...current, schemaVersion: 25 }),
+        JSON.stringify({ ...current, schemaVersion: 23 }),
       ),
     ).toMatchObject({
       ok: false,

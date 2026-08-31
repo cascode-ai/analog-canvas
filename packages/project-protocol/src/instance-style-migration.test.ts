@@ -67,14 +67,15 @@ describe("schema migrations through Annotation text color", () => {
     expect(result.project.schemaVersion).toBe(32);
   });
 
-  it("does not keep schema 30 in the rolling read window", () => {
+  it("keeps schema 30 loadable through the upgrade chain", () => {
     const current = JSON.parse(
       serializeProject(createEmptyProject("test", "Test")),
     ) as Record<string, unknown>;
     const v30 = JSON.stringify({ ...current, schemaVersion: 30 });
     expect(tryParseProjectWithMetadata(v30)).toMatchObject({
-      ok: false,
-      diagnostics: [{ code: "UNSUPPORTED_SCHEMA_VERSION" }],
+      ok: true,
+      sourceSchemaVersion: 30,
+      migrated: true,
     });
   });
 
