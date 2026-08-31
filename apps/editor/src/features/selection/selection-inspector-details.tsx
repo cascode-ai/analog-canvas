@@ -141,6 +141,8 @@ export interface ProjectDiagnosticsSectionProps {
    * statusbar badge's click. The section stays user-collapsible afterwards.
    */
   focusRequestToken?: number;
+  /** Reports the section's expanded state — the canvas review-mode gate. */
+  onOpenStateChange?(open: boolean): void;
 }
 
 export interface NetTraceSectionProps {
@@ -248,6 +250,7 @@ export function ProjectDiagnosticsSection({
   documentLabel,
   onSelectDiagnostic,
   focusRequestToken = 0,
+  onOpenStateChange,
 }: ProjectDiagnosticsSectionProps) {
   const diagnostics = snapshot.diagnostics;
   const [severityFilter, setSeverityFilter] =
@@ -264,6 +267,9 @@ export function ProjectDiagnosticsSection({
   );
   const [handledFocusToken, setHandledFocusToken] = useState(focusRequestToken);
   const sectionRef = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    onOpenStateChange?.(sectionOpen);
+  }, [onOpenStateChange, sectionOpen]);
   useEffect(() => {
     if (focusRequestToken <= handledFocusToken) return;
     setHandledFocusToken(focusRequestToken);

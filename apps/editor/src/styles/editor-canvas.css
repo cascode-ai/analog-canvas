@@ -141,6 +141,58 @@
   pointer-events: stroke;
 }
 
+/* Findings on the canvas: an open severity-colored ring over a light halo,
+   never occluding the artwork it marks. Geometry scales with the schematic
+   (like junction dots) while non-scaling-stroke keeps the line crisp, so
+   rings shrink and fade on zoom-out instead of clouding the drawing. */
+.diagnostic-markers .diagnostic-marker-halo {
+  fill: none;
+  stroke: var(--icm-surface, #fff);
+  stroke-width: 4.5;
+  vector-effect: non-scaling-stroke;
+  opacity: 0.85;
+}
+
+.diagnostic-markers .diagnostic-marker-ring {
+  fill: none;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.diagnostic-marker[data-severity="error"] .diagnostic-marker-ring {
+  stroke: var(--icm-danger, #b42318);
+}
+
+.diagnostic-marker[data-severity="warning"] .diagnostic-marker-ring {
+  stroke: var(--icm-warning, #b54708);
+}
+
+.diagnostic-markers .diagnostic-marker-count {
+  font-size: 9px;
+  font-weight: 700;
+  paint-order: stroke;
+  stroke: var(--icm-surface, #fff);
+  stroke-width: 2.5;
+}
+
+.diagnostic-marker[data-severity="error"] .diagnostic-marker-count {
+  fill: var(--icm-danger, #b42318);
+}
+
+.diagnostic-marker[data-severity="warning"] .diagnostic-marker-count {
+  fill: var(--icm-warning, #b54708);
+}
+
+/* Ring-band hit only (an annulus path): the marker's centre stays
+   click-through, so the pin or junction it rings remains directly clickable
+   (and right-clickable) — the marker never captures what it annotates. */
+.diagnostic-markers .diagnostic-marker-hit {
+  fill: transparent;
+  stroke: none;
+  cursor: pointer;
+  pointer-events: fill;
+}
+
 .hit-target.annotation-text-hit.would-move {
   fill: rgb(var(--icm-accent-rgb) / 7%);
   stroke: rgb(var(--icm-accent-rgb) / 28%);
