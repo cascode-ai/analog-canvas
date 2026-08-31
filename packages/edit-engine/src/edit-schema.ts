@@ -172,6 +172,11 @@ export const BulkPatchInstanceNetlistEditSchema = z.strictObject({
   kind: z.literal("bulk_patch_instance_netlist"),
   assignments: z.array(BulkInstanceNetlistAssignmentSchema).min(1).max(5000),
 });
+/** Establish a formal Cell interface on a Document that does not have one. */
+export const CreateCellInterfaceEditSchema = z.strictObject({
+  kind: z.literal("create_cell_interface"),
+  name: z.string().min(1).max(128),
+});
 export const AddCellTerminalEditSchema = z.strictObject({
   kind: z.literal("add_cell_terminal"),
   terminal: CellNetlistTerminalSchema,
@@ -273,6 +278,15 @@ export const ConnectEndpointsEditSchema = z.strictObject({
   from: RouteEndpointSchema,
   to: RouteEndpointSchema,
   newNetId: StableIdSchema.optional(),
+});
+/**
+ * Materialize one physical Base Net without assigning a name, owner, terminal,
+ * or geometry. Document composition uses this before replaying the source
+ * Net's independently typed membership and Evidence edits.
+ */
+export const CreateBaseNetEditSchema = z.strictObject({
+  kind: z.literal("create_base_net"),
+  netId: StableIdSchema,
 });
 
 /** A power rail edit creates/reuses one explicit named Net and its geometry. */
@@ -410,6 +424,7 @@ export const SchematicEditSchema = z.discriminatedUnion("kind", [
   SetInstanceBindingEditSchema,
   SetInstanceNetlistEditSchema,
   BulkPatchInstanceNetlistEditSchema,
+  CreateCellInterfaceEditSchema,
   AddCellTerminalEditSchema,
   UpdateCellTerminalEditSchema,
   RemoveCellTerminalEditSchema,
@@ -425,6 +440,7 @@ export const SchematicEditSchema = z.discriminatedUnion("kind", [
   RemoveRouteGeometryEditSchema,
   CutConnectionEditSchema,
   ConnectEndpointsEditSchema,
+  CreateBaseNetEditSchema,
   AddPowerRailEditSchema,
   MergeNetsEditSchema,
   UpsertConnectivityEvidenceEditSchema,

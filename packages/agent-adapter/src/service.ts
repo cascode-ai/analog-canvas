@@ -165,6 +165,7 @@ export function agentEditCategory(
     case "set_instance_netlist":
     case "set_instance_binding":
     case "bulk_patch_instance_netlist":
+    case "create_cell_interface":
     case "add_cell_terminal":
     case "update_cell_terminal":
     case "remove_cell_terminal":
@@ -179,6 +180,7 @@ export function agentEditCategory(
     case "remove_route_geometry":
     case "cut_connection":
     case "connect_endpoints":
+    case "create_base_net":
     case "add_power_rail":
     case "merge_nets":
     case "set_mos_bulk_defaults":

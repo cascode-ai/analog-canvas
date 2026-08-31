@@ -37,6 +37,26 @@ describe("CircuitProject schema", () => {
     expect(CircuitProjectJsonSchema).toMatchObject({ type: "object" });
   });
 
+  it("rejects hidden Net naming domains", () => {
+    const document = createEmptyDocument("document", "Document");
+    document.nets.push({ id: "net-out", terminals: [] });
+    const candidate = {
+      ...document,
+      connectivityEvidence: [
+        {
+          id: "claim-out",
+          kind: "name-claim",
+          netId: "net-out",
+          name: "OUT",
+          owner: { kind: "explicit-net-property" },
+          scope: "local",
+          localDomainId: "gallery-occurrence-1",
+        },
+      ],
+    };
+    expect(SchematicDocumentSchema.safeParse(candidate).success).toBe(false);
+  });
+
   it("rejects retired logical projections on physical Base Nets", () => {
     const project = createEmptyProject("project-net", "Net");
     for (const projection of [

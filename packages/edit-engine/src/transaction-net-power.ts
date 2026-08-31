@@ -22,6 +22,7 @@ type NetPowerEdit = Extract<
   EditTransaction["edits"][number],
   {
     kind:
+      | "create_base_net"
       | "add_power_rail"
       | "merge_nets"
       | "upsert_connectivity_evidence"
@@ -48,6 +49,35 @@ export function applyNetPowerEdit(
   let connectivityChanged = false;
 
   switch (edit.kind) {
+    case "create_base_net": {
+      const occupiedIds = new Set(
+        [
+          ...draft.instances,
+          ...draft.nets,
+          ...draft.routes,
+          ...draft.junctions,
+          ...draft.annotations,
+          ...draft.connectivityEvidence,
+          ...draft.layoutGroups,
+          ...draft.constraints,
+          ...draft.noConnects,
+          ...(draft.netlist?.terminals ?? []),
+          ...(draft.drafting?.objects ?? []),
+        ].map((object) => object.id),
+      );
+      if (occupiedIds.has(edit.netId)) {
+        return rejectAt(
+          "EDIT_PRECONDITION",
+          `Base Net ID already exists: ${edit.netId}`,
+          [],
+          [edit.netId],
+        );
+      }
+      draft.nets.push({ id: edit.netId, terminals: [] });
+      changedObjectIds.add(edit.netId);
+      connectivityChanged = true;
+      break;
+    }
     case "add_power_rail": {
       const horizontal =
         edit.start.y === edit.end.y && edit.start.x !== edit.end.x;

@@ -145,6 +145,9 @@ describe("clipboard audit batch", () => {
 
   it("rotating the clipboard turns drafting objects with the rigid body (#12)", () => {
     const clipboard: SchematicClipboard = {
+      intent: "clone-selection",
+      sourceDocumentId: "document-main",
+      sourceGrid: 10,
       instances: [
         {
           id: "R1",
@@ -157,6 +160,7 @@ describe("clipboard audit batch", () => {
         },
       ],
       cellTerminals: [],
+      formalParameters: [],
       nets: [],
       routes: [],
       junctions: [],
@@ -189,7 +193,8 @@ describe("clipboard audit batch", () => {
           lineStyle: "dashed",
         },
       ],
-      draftingGroups: [],
+      layoutGroups: [],
+      constraints: [],
     };
     const rotated = orientClipboard(clipboard, [
       { kind: "rotate", deltaDegrees: 90 },

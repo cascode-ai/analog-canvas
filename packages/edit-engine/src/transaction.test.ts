@@ -171,6 +171,44 @@ describe("Edit Transaction envelope", () => {
     ]);
   });
 
+  it("materializes a prepared Base Net before assigning terminal membership", () => {
+    const document = createEmptyDocument("document-main", "Main");
+    document.instances.push(
+      { id: "R1", symbolId: "resistor", placement: null },
+      { id: "R2", symbolId: "resistor", placement: null },
+    );
+
+    const result = executeTransaction(
+      document,
+      {
+        ...transaction(),
+        edits: [
+          { kind: "create_base_net", netId: "net-imported" },
+          {
+            kind: "connect_endpoints",
+            from: { kind: "terminal", instanceId: "R1", pinName: "1" },
+            to: { kind: "terminal", instanceId: "R2", pinName: "1" },
+            newNetId: "net-imported",
+          },
+        ],
+      },
+      { symbolResolver: resolver },
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.document.nets).toEqual([
+      {
+        id: "net-imported",
+        terminals: [
+          { instanceId: "R1", pinName: "1" },
+          { instanceId: "R2", pinName: "1" },
+        ],
+      },
+    ]);
+    expect(result.document.connectivityEvidence).toEqual([]);
+  });
+
   it("rejects a schematic reference on a formal Cell Pin", () => {
     const document = createEmptyDocument("document-main", "Main");
     document.instances.push({

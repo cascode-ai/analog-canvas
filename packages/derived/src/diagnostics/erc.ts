@@ -406,6 +406,7 @@ export function runErcChecks(
           );
           const configuredDefault =
             resolution?.status === "cell-default" ||
+            resolution?.status === "instance-override" ||
             resolution?.status === "supply-default";
           if (!bulkAssessment.electricallySatisfied && !configuredDefault) {
             diagnostics.push({

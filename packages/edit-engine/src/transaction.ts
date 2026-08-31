@@ -359,6 +359,7 @@ export function executeTransaction(
         connectivityChanged ||= outcome.connectivityChanged ?? false;
         break;
       }
+      case "create_cell_interface":
       case "add_cell_terminal":
       case "update_cell_terminal":
       case "remove_cell_terminal":
@@ -429,6 +430,7 @@ export function executeTransaction(
         connectivityChanged ||= outcome.connectivityChanged ?? false;
         break;
       }
+      case "create_base_net":
       case "add_power_rail":
       case "merge_nets":
       case "upsert_connectivity_evidence":

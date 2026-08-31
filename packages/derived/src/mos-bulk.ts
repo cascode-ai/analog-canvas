@@ -11,7 +11,8 @@ import { routeEnd } from "@icm/model";
 export type MosBulkKind = "nmos" | "pmos";
 export type MosBulkResolution =
   | {
-      status: "explicit" | "cell-default" | "supply-default";
+      status:
+        "explicit" | "cell-default" | "instance-override" | "supply-default";
       instance: Instance;
       net: Net;
       materialized: boolean;

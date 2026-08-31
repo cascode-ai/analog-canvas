@@ -73,14 +73,14 @@ for readability; these groups do not create separate mutation endpoints:
   `set_instance_binding`,
   `patch_instance_netlist_parameters`, `bulk_patch_instance_netlist`,
   `set_instance_netlist`;
-- Cell interface: `add_cell_terminal`, `update_cell_terminal`,
+- Cell interface: `create_cell_interface`, `add_cell_terminal`, `update_cell_terminal`,
   `remove_cell_terminal`, `reorder_cell_terminals`,
   `set_cell_formal_parameters`;
 - Route/Junction/connectivity: `set_route_path`, `route_orthogonal`,
   `add_junction`, `attach_endpoint_to_route`, `remove_junction`,
   `move_junction`, `remove_route_geometry`, `cut_connection`, `connect_endpoints`,
   `disconnect_endpoint`;
-- Net/power/MOS: `add_power_rail`, `merge_nets`,
+- Net/power/MOS: `create_base_net`, `add_power_rail`, `merge_nets`,
   `upsert_connectivity_evidence`, `remove_connectivity_evidence`,
   `set_mos_bulk_defaults`,
   `reconcile_mos_bulk`, `clear_mos_bulk_default`;

@@ -135,6 +135,7 @@ export function createEndpointConnectivityClassifier(
         : undefined;
       const configuredDefault =
         resolution?.status === "cell-default" ||
+        resolution?.status === "instance-override" ||
         resolution?.status === "supply-default";
       const externalPeers = assessment.peerEndpoints.filter((candidate) => {
         if (candidate.kind !== "terminal") return true;

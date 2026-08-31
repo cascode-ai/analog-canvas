@@ -2982,6 +2982,8 @@ test("Properties toggles reference label visibility for one or many components",
 test("Properties keeps component and Annotation text colors independent", async ({
   page,
 }) => {
+  const clockStart = Date.parse("2026-08-31T00:00:00Z");
+  await page.clock.install({ time: clockStart });
   await page.goto("/editor");
   await placeComponent(page, "resistor", { x: 280, y: 180 });
   await placeComponent(page, "resistor", { x: 480, y: 180 });
@@ -3032,11 +3034,13 @@ test("Properties keeps component and Annotation text colors independent", async 
   // A pending RGB draft belongs to this Annotation only. Selecting another
   // Annotation remounts the keyed Text properties before the deferred blur
   // commit, so R1's draft cannot reach either Annotation.
+  await page.clock.pauseAt(clockStart + 60_000);
   await properties.getByLabel("Text color red").fill("12");
   await page
     .getByTestId("annotation-hit-instance-label-R2")
     .click({ force: true });
-  await page.waitForTimeout(300);
+  await page.clock.runFor(300);
+  await page.clock.resume();
   await expect(label).toHaveAttribute("fill", "#2563eb");
   await expect(secondLabel).not.toHaveAttribute("fill");
   await expect(properties.getByLabel("Text color hex value")).toHaveText(

@@ -8,7 +8,7 @@ import {
 } from "../../examples/library-examples";
 import {
   clipboardPlacementAnchor,
-  copyWholeDocument,
+  captureDocumentComposition,
   type SchematicClipboard,
 } from "../clipboard/clipboard";
 
@@ -77,7 +77,7 @@ export function createGalleryExampleCommands({
       (candidate) => candidate.id === imported.topDocumentId,
     );
     if (!importedDocument || imported.documents.length > 1) return false;
-    const clipboard = copyWholeDocument(importedDocument);
+    const clipboard = captureDocumentComposition(importedDocument);
     const anchor = clipboard ? clipboardPlacementAnchor(clipboard) : null;
     if (!clipboard || !anchor) return false;
     cancelAllTransientInteraction();

@@ -424,6 +424,7 @@ export const AgentSnapshotInstanceSchema = z.strictObject({
       status: z.enum([
         "explicit",
         "cell-default",
+        "instance-override",
         "supply-default",
         "no-connect",
         "unresolved",
