@@ -206,6 +206,42 @@ describe("moving a wire onto another wire", () => {
     expect(ambiguousJunctionErrors(moved)).toEqual([]);
   });
 
+  it("lets a connected component move instead of refusing the edit", () => {
+    // Reported: a VDD port whose pin rests on a wire could not be nudged one
+    // grid down — not "it moved and disconnected", but the whole edit refused
+    // with "That edit would have changed which Nets these objects belong to".
+    // Moving a part is allowed to change what it touches; that is the
+    // author's intent, not an accident, and the guard exists to catch
+    // accidents.
+    const document = twoLooseWires();
+    document.instances.push({
+      id: "VDD1",
+      symbolId: "vdd-port",
+      placement: { position: { x: 240, y: 190 }, rotation: 0, mirror: "none" },
+    } as SchematicDocument["instances"][number]);
+    document.nets
+      .find((net) => net.id === "net-horizontal")!
+      .terminals.push({ instanceId: "VDD1", pinName: "P" });
+
+    const plan = createRoutingOperationPlan(document, {
+      intent: "transform",
+      edits: [
+        {
+          kind: "move_instance",
+          instanceId: "VDD1",
+          position: { x: 240, y: 180 },
+        },
+      ],
+      diagnostics: [],
+    });
+    const gate = gateRoutingOperationPlan(document, plan, context);
+
+    expect(
+      gate.ok,
+      gate.ok ? "" : `${gate.message} :: ${gate.diagnostics[0]?.message ?? ""}`,
+    ).toBe(true);
+  });
+
   it("stays a no-op when a moved end lands on a conductor of its own Net", () => {
     // Second half of the same guard: landing on a wire already on this Net has
     // nothing to merge, so the move must not manufacture an edit or an error.

@@ -189,3 +189,35 @@ test("dragging a wire's end onto another wire joins them into one net", async ({
   // Drawing and model agree, so there is nothing ambiguous left to report.
   await expect(page.getByTestId("statusbar-issues")).toHaveText("No issues");
 });
+
+test("a power rail drawn across the tops of wires connects to them", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  const canvas = page.getByTestId("schematic-canvas");
+  await canvas.click({ position: { x: 600, y: 500 } });
+
+  // Two wires standing side by side with their upper ends level.
+  for (const x of [300, 460]) {
+    await page.keyboard.press("w");
+    await canvas.click({ position: { x, y: 400 } });
+    await canvas.click({ position: { x, y: 280 } });
+    await page.keyboard.press("Enter");
+    await page.keyboard.press("Escape");
+  }
+  await expect(page.locator('[data-canvas-hit-kind="route"]')).toHaveCount(2);
+
+  // A VDD rail laid across both tops. This used to refuse outright with
+  // "That edit would have changed which Nets these objects belong to" — the
+  // mirror of the rail-end-on-wire case, and just as deliberate a gesture.
+  await chooseComponent(page, "vdd");
+  await canvas.click({ position: { x: 240, y: 280 } });
+  await canvas.click({ position: { x: 520, y: 280 } });
+
+  await expect(page.getByTestId("status")).toContainText("Added VDD rail");
+  // The rail tapped both wires on the way across, so it arrives split into
+  // three pieces — two wires plus three rail segments — rather than lying
+  // over them as one unconnected conductor.
+  await expect(page.locator('[data-canvas-hit-kind="route"]')).toHaveCount(5);
+  await expect(page.getByTestId("statusbar-issues")).toHaveText("No issues");
+});
