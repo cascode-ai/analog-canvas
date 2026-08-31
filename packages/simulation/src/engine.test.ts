@@ -13,8 +13,8 @@ function instance(
     id,
     symbolId,
     placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+    reference: id,
     netlist: {
-      reference: id,
       parameters,
     },
   };

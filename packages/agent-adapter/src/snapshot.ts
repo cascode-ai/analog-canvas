@@ -123,6 +123,31 @@ function instanceTarget(
   return `subcircuit:${binding.name}`;
 }
 
+function instanceMasterName(
+  options: BuildAgentSessionSnapshotOptions,
+  instance: SchematicDocument["instances"][number],
+): string | null {
+  const binding = instance.netlist?.binding;
+  if (binding?.kind === "model" || binding?.kind === "unresolved-subcircuit") {
+    return binding.name;
+  }
+  if (binding?.kind === "subcircuit") {
+    return (
+      options.project?.documents.find(
+        (document) => document.id === binding.childDocumentId,
+      )?.netlist?.name ?? null
+    );
+  }
+  if (binding?.kind === "external-subcircuit") {
+    return (
+      options.project?.externalSubcircuitDefinitions.find(
+        (definition) => definition.id === binding.definitionId,
+      )?.name ?? null
+    );
+  }
+  return instance.importProvenance?.sourceMasterName ?? null;
+}
+
 function subcircuitTargetName(target: string | null): string | null {
   const prefix = "subcircuit:";
   return target?.toLowerCase().startsWith(prefix)
@@ -242,7 +267,8 @@ function documentSnapshot(
       const mosBulk = resolveMosBulkConnection(document, instance);
       return {
         id: instance.id,
-        name: instance.netlist?.reference ?? instance.id,
+        reference: instance.reference ?? null,
+        masterName: instanceMasterName(options, instance),
         symbolId: instance.symbolId,
         symbolVariantId: instance.symbolVariantId ?? null,
         target,
@@ -251,7 +277,6 @@ function documentSnapshot(
         ...(instance.netlist
           ? {
               netlist: {
-                reference: instance.netlist.reference,
                 ...(instance.netlist.binding
                   ? { binding: instance.netlist.binding }
                   : {}),

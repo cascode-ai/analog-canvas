@@ -118,8 +118,8 @@ test("opens one digital simulation window and picks a Net from the canvas", asyn
         rotation: 0,
         mirror: "none",
       },
+      reference: "V1",
       netlist: {
-        reference: "V1",
         parameters: { period: "10ns", dutyCycle: "50", initial: "0" },
       },
     },
@@ -2029,7 +2029,7 @@ test("connects copied multi-pin groups through a manually bent wire", async ({
   await page
     .getByTestId("schematic-canvas")
     .click({ position: { x: 460, y: 500 } });
-  await page.getByTestId("terminal-M4-S").click();
+  await page.getByTestId("terminal-M2-copy-1-S").click();
 
   await expect(page.getByTestId("status")).toContainText("Committed route");
   await expect(page.locator('[data-layer="routes"] polyline')).toHaveCount(3);
@@ -2901,7 +2901,7 @@ test("L edits a selected route Net Label without opening Properties", async ({
   ).toHaveCount(0);
 });
 
-test("Properties offers no dead label controls for a schematic-only block", async ({
+test("Properties offers no dead Reference controls for a schematic-only block", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -2909,23 +2909,23 @@ test("Properties offers no dead label controls for a schematic-only block", asyn
   await placeComponent(page, "resistor", { x: 520, y: 200 });
   await openSelectionShelf(page);
   const properties = page.getByRole("complementary", { name: "Properties" });
-  const labelField = properties.getByLabel("Component schematic label");
+  const referenceField = properties.getByLabel("Component reference");
   const parametersCard = properties.getByLabel(
     "Component parameters and display",
   );
 
   // A summing junction hides its designator on the canvas, so the panel
-  // offers neither the label field nor the display toggles that could
+  // offers neither a Reference field nor the display toggles that could
   // never change the drawing. Identity facts and Appearance remain.
   await page.locator('[data-canvas-hit-kind="instance"]').first().click();
   await expect(properties.getByText("Symbol")).toBeVisible();
-  await expect(labelField).toHaveCount(0);
+  await expect(referenceField).toHaveCount(0);
   await expect(parametersCard).toHaveCount(0);
   await expect(properties.getByText("Line / foreground")).toBeVisible();
 
   // An ordinary device keeps both.
   await page.getByTestId("hit-R1").click();
-  await expect(labelField).toHaveCount(1);
+  await expect(referenceField).toHaveCount(1);
   await expect(parametersCard).toHaveCount(1);
   await expect(properties.getByLabel("Component display toggles")).toHaveCount(
     1,
@@ -3645,7 +3645,7 @@ test("R rotates a copy preview before committing the copied component", async ({
   await expect(previewSymbol).toHaveAttribute("transform", /rotate\(90\)/u);
   await canvas.click({ position: { x: 560, y: 340 } });
   await expect(
-    canvas.locator('[data-object-id="R2"] > g').first(),
+    canvas.locator('[data-object-id="R1-copy-1"] > g').first(),
   ).toHaveAttribute("transform", /rotate\(90\)/u);
   // The pasted designator and its visible label both read R2.
   await expect(canvas.getByText("R2", { exact: true })).toBeVisible();
@@ -4232,8 +4232,8 @@ test("requires warning review before exporting generated NoConnect nodes", async
     id: "R1",
     symbolId: "resistor",
     placement: null,
+    reference: "R1",
     netlist: {
-      reference: "R1",
       binding: { kind: "primitive", deviceClass: "resistor" },
       parameters: { value: "10k" },
     },
@@ -4388,12 +4388,7 @@ test("exports structural SPICE and Spectre netlists while exposing instance auth
   const properties = page.getByRole("complementary", { name: "Properties" });
   await expect(properties.getByLabel("Cell netlist name")).toHaveCount(0);
   await expect(properties.getByLabel("Cell netlist port order")).toHaveCount(0);
-  await expect(
-    properties.getByLabel("Component netlist reference"),
-  ).toBeVisible();
-  await expect(
-    properties.getByLabel("Component schematic label"),
-  ).toBeVisible();
+  await expect(properties.getByLabel("Component reference")).toBeVisible();
   await expect(properties.getByLabel("Component model target")).toBeVisible();
   await expect(properties.getByText(/^Model:/u)).toHaveCount(0);
 });
@@ -4533,9 +4528,7 @@ test("selects a reviewed SKY130 MOS through the existing Model field", async ({
   await model.press("Tab");
 
   await expect(properties).toContainText("External subcircuit · X reference");
-  await expect(
-    properties.getByLabel("Component netlist reference"),
-  ).toHaveValue("X1");
+  await expect(properties.getByLabel("Component reference")).toHaveValue("X1");
   await expect(properties.getByLabel("Component nf")).toBeVisible();
   await expect(
     properties.getByLabel("Component m", { exact: true }),
@@ -4560,9 +4553,8 @@ test("selects a reviewed SKY130 MOS through the existing Model field", async ({
   expect(saved.documents[0].instances[0]).toMatchObject({
     id: "M1",
     symbolId: "nmos",
-    schematicReference: "M1",
+    reference: "X1",
     netlist: {
-      reference: "X1",
       binding: { kind: "external-subcircuit" },
     },
   });

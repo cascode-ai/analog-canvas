@@ -12,13 +12,15 @@ describe("planBatchProperty", () => {
         id: "M1",
         symbolId: "nmos",
         placement: null,
-        netlist: { reference: "M1", parameters: { l: "60n" } },
+        reference: "M1",
+        netlist: { parameters: { l: "60n" } },
       },
       {
         id: "R1",
         symbolId: "resistor",
         placement: null,
-        netlist: { reference: "R1", parameters: {} },
+        reference: "R1",
+        netlist: { parameters: {} },
       },
     );
     const plan = planBatchProperty(
@@ -57,13 +59,15 @@ describe("planBatchProperty", () => {
       id: "M1",
       symbolId: "nmos",
       placement: null,
-      netlist: { reference: "M1", parameters: { l: "60n" } },
+      reference: "M1",
+      netlist: { parameters: { l: "60n" } },
     });
     child.instances.push({
       id: "M2",
       symbolId: "nmos",
       placement: null,
-      netlist: { reference: "M2", parameters: { l: "60n" } },
+      reference: "M2",
+      netlist: { parameters: { l: "60n" } },
     });
 
     const plan = planBatchProperty(

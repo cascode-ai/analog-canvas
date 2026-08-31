@@ -17,7 +17,8 @@ function makeDocument(): SchematicDocument {
       rotation: 0,
       mirror: "none",
     },
-    netlist: { reference: "X1", parameters: { gain: "4" } },
+    reference: "X1",
+    netlist: { parameters: { gain: "4" } },
   });
   return doc;
 }

@@ -54,7 +54,7 @@ Every emitted token has exactly one authority:
 | Cell interface order       | first occurrence in `projectCellInterface`    | coordinates or alphabetical order             |
 | Connectivity               | `Net.terminals`                               | Routes, Junction geometry, labels, or overlap |
 | Logical Net name/scope     | resolved owner-addressed marker claims        | legacy Base fields or text appearance         |
-| Instance reference         | `Instance.netlist.reference`                  | instance-label annotation                     |
+| Instance reference         | `Instance.reference`                          | object ID or annotation text                  |
 | Device class and pin order | reviewed device definition or child interface | `symbolId` string conventions or orientation  |
 | Model/subcircuit target    | typed instance binding                        | symbol name or PDK search                     |
 | Parameters                 | typed raw parameter record                    | rendered text or numeric evaluation           |
@@ -80,7 +80,6 @@ interface CellNetlistInterface {
 }
 
 interface InstanceNetlistData {
-  reference: string;
   binding:
     | { kind: "primitive"; deviceClass: DeviceClass }
     | { kind: "model"; deviceClass: DeviceClass; name: string }
@@ -105,8 +104,7 @@ and `port-filled` symbols are Cell Pins: each owns exactly one singleton
 declaration through `terminals[].interfaceInstanceIds` and neither emits an
 instance line. Cell Pins are available in top and child Documents. A hierarchy
 instance uses its bound child Document and the read-only formal projection of
-that child's declarations. Ports receive no visible
-schematic Reference or `Instance.netlist.reference`. A Cell Pin uses its
+that child's declarations. Ports receive no visible Instance Reference. A Cell Pin uses its
 `CellTerminal.name`, such as `Vout`, as its Port Name.
 Its bound Annotation may retain same-text RichText formatting, which never
 changes emitted names. At extraction, names are grouped case-insensitively;

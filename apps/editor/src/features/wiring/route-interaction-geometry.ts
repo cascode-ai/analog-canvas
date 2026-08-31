@@ -544,7 +544,7 @@ export function defaultInstanceLabel(
   return {
     id: `instance-label-${instance.id}`,
     kind: "instance-label",
-    binding: { kind: "instance-schematic-name", instanceId: instance.id },
+    binding: { kind: "instance-reference", instanceId: instance.id },
     anchor: {
       kind: "object",
       objectId: instance.id,

@@ -86,7 +86,7 @@ function instance(id: string, spiceName?: string) {
       rotation: 0 as const,
       mirror: "none" as const,
     },
-    ...(spiceName ? { netlist: { reference: spiceName, parameters: {} } } : {}),
+    ...(spiceName ? { reference: spiceName, netlist: { parameters: {} } } : {}),
   };
 }
 
@@ -412,7 +412,7 @@ describe("ERC engine", () => {
     ).toHaveLength(1);
   });
 
-  it("flags two instances sharing a normalized netlist reference", () => {
+  it("flags two instances sharing a normalized Instance Reference", () => {
     const project = emptyProject();
     project.documents[0]!.instances = [
       instance("I1", "M1"),
@@ -431,7 +431,7 @@ describe("ERC engine", () => {
       },
     ];
     const diagnostic = run(project).find(
-      (item) => item.code === "ERC_DUPLICATE_INSTANCE_NAME",
+      (item) => item.code === "ERC_DUPLICATE_INSTANCE_REFERENCE",
     );
     expect(diagnostic).toBeDefined();
     expect(diagnostic!.severity).toBe("error");
@@ -555,7 +555,7 @@ describe("ERC engine", () => {
         ...instance("I1"),
         importProvenance: {
           kind: "model",
-          name: "missing-model",
+          sourceMasterName: "missing-model",
           sourceTarget: "model:missing-model",
           status: "missing",
         },
@@ -579,7 +579,7 @@ describe("ERC engine", () => {
       ...document.instances[0]!,
       importProvenance: {
         kind: "opaque",
-        name: "unsupported-device",
+        sourceMasterName: "unsupported-device",
         sourceTarget: "opaque:unsupported-device",
         status: "unsupported",
       },
@@ -595,8 +595,8 @@ describe("ERC engine", () => {
     document.instances = [
       {
         ...instance("I1"),
+        reference: "XI1",
         netlist: {
-          reference: "XI1",
           binding: {
             kind: "external-subcircuit",
             definitionId: "external-missing",
@@ -605,7 +605,7 @@ describe("ERC engine", () => {
         },
         importProvenance: {
           kind: "opaque",
-          name: "missing_external_master",
+          sourceMasterName: "missing_external_master",
           sourceTarget: "external-subcircuit:missing_external_master",
           status: "missing",
         },
@@ -631,13 +631,13 @@ describe("ERC engine", () => {
     document.instances = [
       {
         ...instance("I1"),
+        reference: "I1",
         netlist: {
-          reference: "I1",
           parameters: {},
         },
         importProvenance: {
           kind: "opaque",
-          name: "fixture",
+          sourceMasterName: "fixture",
           sourceTarget: "fixture:terminal-mapping",
           terminalMapping: [
             { sourcePosition: 0, pinName: "L" },

@@ -133,8 +133,8 @@ describe("editor shell", () => {
       id: "X1",
       symbolId: "hierarchical-child",
       placement: null,
+      reference: "X1",
       netlist: {
-        reference: "X1",
         parameters: {},
         binding: {
           kind: "subcircuit",

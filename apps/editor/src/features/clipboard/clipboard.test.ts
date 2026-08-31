@@ -1,6 +1,9 @@
 import { createRoutePath, routeBends, routeEnd } from "@icm/model";
 import { executeTransaction } from "@icm/edit-engine";
-import { resolveDocumentLogicalNets } from "@icm/derived";
+import {
+  resolveAnnotationText,
+  resolveDocumentLogicalNets,
+} from "@icm/derived";
 import type { Annotation, Instance } from "@icm/model";
 import {
   createEmptyDocument,
@@ -170,8 +173,8 @@ describe("schematic clipboard", () => {
           rotation: 0,
           mirror: "none",
         },
+        reference: "R1",
         netlist: {
-          reference: "R1",
           binding: { kind: "primitive", deviceClass: "resistor" },
           parameters: { value: "1k" },
         },
@@ -184,8 +187,8 @@ describe("schematic clipboard", () => {
           rotation: 0,
           mirror: "none",
         },
+        reference: "R2",
         netlist: {
-          reference: "R2",
           binding: { kind: "primitive", deviceClass: "resistor" },
           parameters: { value: "2k" },
         },
@@ -246,17 +249,17 @@ describe("schematic clipboard", () => {
     if (!result.ok) return;
     expect(result.document.instances).toHaveLength(4);
     expect(
-      result.document.instances.map((instance) => instance.netlist?.reference),
+      result.document.instances.map((instance) => instance.reference),
     ).toEqual(["R1", "R2", "R3", "R4"]);
     expect(result.document.routes).toHaveLength(2);
     expect(result.document.nets).toHaveLength(2);
     expect(resolveDocumentLogicalNets(result.document).groups).toHaveLength(1);
     expect(result.document.routes[1]).toMatchObject({
       netId: "net-signal-copy-1",
-      start: { instanceId: "R3" },
+      start: { instanceId: "R1-copy-1" },
     });
     expect(routeEnd(result.document.routes[1]!)).toMatchObject({
-      instanceId: "R4",
+      instanceId: "R2-copy-1",
     });
     expect(routeBends(result.document.routes[1]!)).toEqual([
       { x: 120, y: 100 },
@@ -636,20 +639,29 @@ describe("schematic clipboard", () => {
       },
       ...(reference
         ? {
-            schematicReference: reference,
-            netlist: { reference, parameters: {} },
+            reference: reference,
+            netlist: { parameters: {} },
           }
         : {}),
     };
   }
 
-  function instanceLabel(instanceId: string, text: string): Annotation {
+  function instanceLabel(
+    instanceId: string,
+    text: string,
+    bound = true,
+  ): Annotation {
     return {
       id: `instance-label-${instanceId}`,
       kind: "instance-label",
-      // Match production labels: semantic base + subscript runs, not one
-      // flat text leaf.
-      content: semanticTextDocument(text, "instance-label"),
+      ...(bound
+        ? {
+            binding: {
+              kind: "instance-reference" as const,
+              instanceId,
+            },
+          }
+        : { content: semanticTextDocument(text, "instance-label") }),
       anchor: {
         kind: "object",
         objectId: instanceId,
@@ -662,14 +674,14 @@ describe("schematic clipboard", () => {
     };
   }
 
-  it("adopts the incremented reference as the pasted id and label text", () => {
+  it("allocates object identity independently while projecting the new Reference", () => {
     const document = createEmptyDocument("document-main", "Designator paste");
     document.instances.push(resistorInstance("R1", "R1"));
     document.annotations.push(instanceLabel("R1", "R1"));
 
     const copied = copySelection(document, ["R1"]);
     const proposal = proposePaste(document, copied!, { x: 20, y: 0 }, 1);
-    expect(proposal.instanceIds).toEqual(["R2"]);
+    expect(proposal.instanceIds).toEqual(["R1-copy-1"]);
     // Executing the paste proves the rewritten label stays schema-valid.
     const result = executeTransaction(
       document,
@@ -686,14 +698,15 @@ describe("schematic clipboard", () => {
     if (!result.ok) return;
     expect(result.document.instances).toHaveLength(2);
     expect(result.document.instances[1]).toMatchObject({
-      id: "R2",
-      schematicReference: "R2",
-      netlist: { reference: "R2" },
+      id: "R1-copy-1",
+      reference: "R2",
     });
     expect(
       result.document.annotations
         .filter((annotation) => annotation.kind === "instance-label")
-        .map((annotation) => flattenRichText(annotation.content!)),
+        .map((annotation) =>
+          flattenRichText(resolveAnnotationText(result.document, annotation)),
+        ),
     ).toEqual(["R1", "R2"]);
   });
 
@@ -711,7 +724,7 @@ describe("schematic clipboard", () => {
       },
       1,
     );
-    expect(pasted.instanceIds).toEqual(["R2"]);
+    expect(pasted.instanceIds).toEqual(["R1-copy-1"]);
     const once = executeTransaction(
       document,
       {
@@ -734,13 +747,13 @@ describe("schematic clipboard", () => {
       },
       2,
     );
-    expect(pasted.instanceIds).toEqual(["R3"]);
+    expect(pasted.instanceIds).toEqual(["R1-copy-2"]);
   });
 
   it("preserves hand-edited label text on paste", () => {
     const document = createEmptyDocument("document-main", "Custom label");
     document.instances.push(resistorInstance("R1", "R1"));
-    document.annotations.push(instanceLabel("R1", "R_load"));
+    document.annotations.push(instanceLabel("R1", "R_load", false));
 
     const proposal = proposePaste(
       document,
@@ -758,7 +771,7 @@ describe("schematic clipboard", () => {
       > => edit.kind === "upsert_schematic_annotation",
     );
     expect(flattenRichText(pastedLabel!.annotation.content!)).toBe("R_load");
-    expect(proposal.instanceIds).toEqual(["R2"]);
+    expect(proposal.instanceIds).toEqual(["R1-copy-1"]);
   });
 
   it("falls back to an opaque copy id when the source id diverges", () => {
@@ -777,7 +790,7 @@ describe("schematic clipboard", () => {
       (edit): edit is Extract<typeof edit, { kind: "add_instance" }> =>
         edit.kind === "add_instance",
     );
-    expect(pastedInstance?.instance.netlist?.reference).toBe("R2");
+    expect(pastedInstance?.instance.reference).toBe("R2");
     const pastedLabel = proposal.edits.find(
       (
         edit,
@@ -786,7 +799,10 @@ describe("schematic clipboard", () => {
         { kind: "upsert_schematic_annotation" }
       > => edit.kind === "upsert_schematic_annotation",
     );
-    expect(flattenRichText(pastedLabel!.annotation.content!)).toBe("R2");
+    expect(pastedLabel!.annotation.binding).toEqual({
+      kind: "instance-reference",
+      instanceId: "custom-1-copy-1",
+    });
   });
 
   it("remaps an internal NoConnect to the copied instance", () => {
@@ -936,14 +952,13 @@ describe("captureDocumentComposition", () => {
     source.instances.push({
       id: "R7",
       symbolId: "resistor",
-      schematicReference: "R7",
+      reference: "R7",
       placement: {
         position: { x: 20, y: 20 },
         rotation: 0,
         mirror: "none",
       },
       netlist: {
-        reference: "R7",
         binding: { kind: "primitive", deviceClass: "resistor" },
         parameters: { value: "10k" },
       },
@@ -982,8 +997,8 @@ describe("captureDocumentComposition", () => {
       kind: "add_instance",
       instance: {
         id: "R7-copy-1",
-        schematicReference: "R7",
-        netlist: { reference: "R7" },
+        reference: "R7",
+        netlist: { parameters: { value: "10k" } },
       },
     });
   });
@@ -1379,7 +1394,6 @@ describe("captureDocumentComposition", () => {
         rotation: 0,
         mirror: "none",
       },
-      schematicReference: "VDD1",
     });
     source.nets.push(
       { id: "net-label-only", terminals: [] },
@@ -1741,13 +1755,13 @@ describe("captureDocumentComposition", () => {
 describe("a copy stands on its own", () => {
   it("gives a device without a netlist block a fresh designator", () => {
     const document = createEmptyDocument("document-main", "Copy");
-    // An ideal switch carries a schematic reference but no netlist block, so
+    // An ideal switch carries an optional Reference but no netlist block, so
     // the reference sequence never allocated it a fresh designator and the
     // internal copy id leaked onto the canvas as "X1-copy-3".
     document.instances.push({
       id: "X1",
       symbolId: "ideal-switch",
-      schematicReference: "X1",
+      reference: "X1",
       placement: { position: { x: 100, y: 100 }, rotation: 0, mirror: "none" },
     });
 
@@ -1770,8 +1784,8 @@ describe("a copy stands on its own", () => {
     const copy = result.document.instances.find(
       (instance) => instance.id === proposal.instanceIds[0],
     )!;
-    expect(copy.schematicReference).toBe("X2");
-    expect(copy.schematicReference).not.toMatch(/copy/u);
+    expect(copy.reference).toBe("X2");
+    expect(copy.reference).not.toMatch(/copy/u);
   });
 
   it("keeps a copied Cell Pin separate from its source", () => {

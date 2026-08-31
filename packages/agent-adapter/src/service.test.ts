@@ -592,12 +592,14 @@ describe("current Agent Circuit API service", () => {
 
   it("applies an instance netlist-parameter patch through the same presentation boundary", () => {
     const fixture = serviceFixture();
-    fixture.getDocument().instances.find((item) => item.id === "M1")!.netlist =
-      {
-        reference: "M1",
-        binding: { kind: "primitive", deviceClass: "mos" },
-        parameters: {},
-      };
+    const instance = fixture
+      .getDocument()
+      .instances.find((item) => item.id === "M1")!;
+    instance.reference = "M1";
+    instance.netlist = {
+      binding: { kind: "primitive", deviceClass: "mos" },
+      parameters: {},
+    };
     const response = fixture.service.handle({
       apiVersion: "2.0",
       requestId: "property-patch",

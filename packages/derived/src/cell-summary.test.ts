@@ -29,8 +29,8 @@ describe("Cell summary", () => {
         id,
         symbolId: hierarchicalSymbolId("Stage"),
         placement: null,
+        reference: id,
         netlist: {
-          reference: id,
           parameters: {},
           binding: {
             kind: "subcircuit",

@@ -28,6 +28,7 @@ import {
   upgradeSchema33To34,
   upgradeSchema33To34WithReport,
 } from "./transforms/net-name-provenance.js";
+import { upgradeSchema34To35 } from "./transforms/instance-reference.js";
 
 describe("schema migrations through hidden Net-name retirement", () => {
   it("keeps each retained historical transform independently usable", () => {
@@ -40,14 +41,15 @@ describe("schema migrations through hidden Net-name retirement", () => {
     const v32 = upgradeSchema31To32(v31);
     const v33 = upgradeSchema32To33(v32);
     const v34 = upgradeSchema33To34(v33);
+    const v35 = upgradeSchema34To35(v34);
 
     expect(v29.schemaVersion).toBe(29);
     expect(v30.schemaVersion).toBe(30);
     expect(v31.schemaVersion).toBe(31);
     expect(v32.schemaVersion).toBe(32);
     expect(v33.schemaVersion).toBe(33);
-    expect(v34.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
     expect(v34.schemaVersion).toBe(34);
+    expect(v35.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
   });
 
   it("reports non-rewriting 28→29 through 32→33 upgrades as unchanged", () => {
@@ -71,7 +73,7 @@ describe("schema migrations through hidden Net-name retirement", () => {
     ).toBe(false);
   });
 
-  it("migrates schema 31 through 34 at the project boundary", () => {
+  it("migrates schema 31 through 35 at the project boundary", () => {
     const current = JSON.parse(
       serializeProject(createEmptyProject("test", "Test")),
     ) as Record<string, unknown>;
@@ -82,7 +84,7 @@ describe("schema migrations through hidden Net-name retirement", () => {
     if (!result.ok) return;
     expect(result.sourceSchemaVersion).toBe(31);
     expect(result.migrated).toBe(true);
-    expect(result.project.schemaVersion).toBe(34);
+    expect(result.project.schemaVersion).toBe(35);
   });
 
   it("keeps schema 30 loadable through the upgrade chain", () => {
@@ -107,7 +109,8 @@ describe("schema migrations through hidden Net-name retirement", () => {
         rotation: 0,
         mirror: "none",
       },
-      netlist: { reference: "R1", parameters: { value: "10k" } },
+      reference: "R1",
+      netlist: { parameters: { value: "10k" } },
       styleOverride: {
         foreground: "#DC2626",
         background: "#2563EB",
@@ -122,7 +125,7 @@ describe("schema migrations through hidden Net-name retirement", () => {
     project.documents[0]!.annotations.push({
       id: "label-inst-1",
       kind: "instance-label",
-      binding: { kind: "instance-designator", instanceId: "inst-1" },
+      binding: { kind: "instance-reference", instanceId: "inst-1" },
       anchor: {
         kind: "object",
         objectId: "inst-1",
@@ -138,7 +141,8 @@ describe("schema migrations through hidden Net-name retirement", () => {
     const serialized = serializeProject(project);
     const parsed = parseProject(serialized);
     expect(parsed.documents[0]!.instances[0]).toMatchObject({
-      netlist: { reference: "R1", parameters: { value: "10k" } },
+      reference: "R1",
+      netlist: { parameters: { value: "10k" } },
       styleOverride: {
         foreground: "#DC2626",
         background: "#2563EB",

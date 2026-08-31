@@ -5,7 +5,7 @@ Status: `accepted`
 Primary owner: `packages/model`
 
 The Project contains Documents; each Document owns revisioned electrical,
-geometric, and presentation facts. The current model is strict schema 34 and has
+geometric, and presentation facts. The current model is strict schema 35 and has
 no compatibility shape.
 
 ## Coordinate domains
@@ -29,10 +29,11 @@ migration. Invalid coordinates are rejected with their data path.
 ## Electrical authority
 
 - `Instance` selects one exact canonical symbol and optional visual variant.
-  `Instance.schematicReference` is its canvas-facing Reference when the
-  Instance has one, independent of the optional emitted
-  `Instance.netlist.reference`. A Cell Pin instead projects
-  `CellTerminal.name` and has no visible schematic reference.
+  `Instance.reference` is its sole authored Reference when the Instance has
+  one. The same value is projected on canvas and emitted when the Instance has
+  netlist facts. It is independent from stable `Instance.id` and typed master
+  binding. A Cell Pin instead projects `CellTerminal.name` and has no Instance
+  Reference.
 - A Base Net owns physical terminal membership only. A terminal is
   `{instanceId, pinName}` and belongs to at most one Base Net.
 - `ConnectivityEvidence` records owner-addressed name claims, explicit SPICE
@@ -111,14 +112,13 @@ route-relative and include a deterministic fallback position for dangling
 visual references. While an anchor resolves, its resolved position is the one
 text baseline used by rendering, editor hit/marquee geometry, export bounds,
 and visual diagnostics; `fallbackPosition` is used only for a dangling target.
-`instance-schematic-name` resolves RichText `schematicName` and only then the
-internal schematic/netlist reference; `instance-designator` resolves an
-optional, read-only network ID. `net-name` and `cell-terminal-name` resolve
-their semantic source and may use a same-text Annotation RichText
-`formatOverride`; `instance-master-name` and `instance-value` resolve their own
-source. Renderers never derive visible
-instance text from IDs or copied properties. Drafting objects are visual-only
-and cannot create connectivity.
+`instance-reference` resolves only `Instance.reference`. It, `net-name`, and
+`cell-terminal-name` may use a same-text Annotation RichText `formatOverride`;
+`instance-value` resolves typed component parameters. A visible master label or
+other custom object-attached text is a literal Annotation and has no identity
+or export authority. Renderers never derive visible Instance text from IDs,
+master bindings, provenance, or copied properties. Drafting objects are
+visual-only and cannot create connectivity.
 
 An Annotation may independently persist presentation-only `textColor`. With
 that field absent, an `instance-label` or `instance-value` inherits the owning
@@ -155,7 +155,8 @@ two explicit placements may occupy the same side/offset slot.
   Cell name is derived from that child. External bindings reference one
   project-level external definition, and unresolved imported bindings retain
   only a target name until resolution.
-- Netlist references and parameter values live in `Instance.netlist`.
+- The sole authored Reference lives in `Instance.reference`; emitting Instances
+  use that same token for netlist output. Parameters live in `Instance.netlist`.
   Parameters are defined only by the matching Device Descriptor: every field
   declares its key, requiredness, editor kind, optional unit/example/help, and
   display role. Insert, Properties, validation, Value projection, and export
@@ -184,10 +185,11 @@ ordinary Schematic edits inside one Project structural transaction. The
 Project's `structureRevision` protects this cross-Document boundary and the
 editor records it as one undoable structural commit.
 
-Persistence writes only schema 34. The reader carries every schema in its
-explicit 24→34 upgrade chain forward, then supplies the current model only; no
+Persistence writes only schema 35. The reader carries every schema in its
+explicit 24→35 upgrade chain forward, then supplies the current model only; no
 compatibility shape enters runtime electrical derivation. The 32→33 step
 rejects ownerless equivalence rather than guessing replacement connectivity.
 The 33→34 step converts hidden imported names into non-electrical hints or
 explicit global declarations and materializes an existing power owner where
-one is available.
+one is available. The 34→35 step converges parallel Instance naming fields to
+one Reference and materializes distinct visible text as an Annotation.

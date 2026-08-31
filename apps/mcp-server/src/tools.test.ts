@@ -121,7 +121,7 @@ describe("mcp tool surface", () => {
     ) as Record<string, unknown>;
     expect(instance).toMatchObject({
       id: "instance-1",
-      name: "M1",
+      reference: "M1",
       symbolId: "nmos",
       parameters: { w: "4u", l: "1u" },
     });
@@ -166,7 +166,7 @@ describe("mcp tool surface", () => {
           {
             kind: "place-component",
             symbol: "capacitor",
-            name: "C1",
+            reference: "C1",
             position: { x: 100, y: 100 },
           },
           {
@@ -272,7 +272,7 @@ describe("mcp tool surface", () => {
           {
             kind: "place-component",
             symbol: "not-in-catalog",
-            name: "X1",
+            reference: "X1",
             position: { x: 0, y: 0 },
           },
         ],

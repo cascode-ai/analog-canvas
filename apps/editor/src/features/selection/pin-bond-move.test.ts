@@ -95,7 +95,8 @@ function fixtureDocument(): SchematicDocument {
     id: "RX",
     symbolId: "resistor",
     placement: { position: { x: 100, y: 420 }, rotation: 0, mirror: "none" },
-    netlist: { reference: "RX", parameters: {} },
+    reference: "RX",
+    netlist: { parameters: {} },
   });
   return document;
 }

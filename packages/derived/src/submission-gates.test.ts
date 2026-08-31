@@ -76,7 +76,7 @@ function dualInstance(id: string, reference?: string) {
       rotation: 0 as const,
       mirror: "none" as const,
     },
-    ...(reference ? { netlist: { reference, parameters: {} } } : {}),
+    ...(reference ? { reference, netlist: { parameters: {} } } : {}),
   };
 }
 
@@ -187,7 +187,7 @@ describe("evaluateSubmissionGates", () => {
     expect(failureCodes(target)).toEqual(["floating-endpoints"]);
   });
 
-  it("reports ERC errors such as duplicate instance names", () => {
+  it("reports ERC errors such as duplicate Instance References", () => {
     const target = project();
     const document = target.documents[0]!;
     document.instances = [dualInstance("I1", "X1"), dualInstance("I2", "X1")];
@@ -215,7 +215,7 @@ describe("evaluateSubmissionGates", () => {
       "erc-errors",
     ]);
     expect(report.failures[0]?.examples[0]).toContain(
-      "ERC_DUPLICATE_INSTANCE_NAME",
+      "ERC_DUPLICATE_INSTANCE_REFERENCE",
     );
   });
 

@@ -72,10 +72,11 @@ describe("component parameter catalogue", () => {
       id: "M1",
       symbolId: "nmos",
       placement: null,
-      netlist: { reference: "M1", parameters: { w: "1u" } },
+      reference: "M1",
+      netlist: { parameters: { w: "1u" } },
     };
     expect(effectiveComponentParameterValue(instance, parameter)).toBe("1u");
-    instance.netlist = { reference: "M1", parameters: { w: "3u" } };
+    instance.netlist = { parameters: { w: "3u" } };
     expect(effectiveComponentParameterValue(instance, parameter)).toBe("3u");
   });
 
@@ -133,8 +134,8 @@ describe("component parameter catalogue", () => {
       id: "V1",
       symbolId: "pulse-voltage-source",
       placement: null,
+      reference: "V1",
       netlist: {
-        reference: "V1",
         parameters: { period: "8ns", width: "2ns", low: "0" },
       },
     };

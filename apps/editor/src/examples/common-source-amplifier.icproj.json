@@ -589,8 +589,7 @@
               "deviceClass": "capacitor",
               "kind": "primitive"
             },
-            "parameters": {},
-            "reference": "C1"
+            "parameters": {}
           },
           "placement": {
             "mirror": "none",
@@ -600,8 +599,8 @@
             },
             "rotation": 0
           },
-          "schematicReference": "C1",
-          "symbolId": "capacitor"
+          "symbolId": "capacitor",
+          "reference": "C1"
         },
         {
           "id": "C1-copy-1",
@@ -610,8 +609,7 @@
               "deviceClass": "capacitor",
               "kind": "primitive"
             },
-            "parameters": {},
-            "reference": "C2"
+            "parameters": {}
           },
           "placement": {
             "mirror": "none",
@@ -621,8 +619,8 @@
             },
             "rotation": 90
           },
-          "schematicReference": "C2",
-          "symbolId": "capacitor"
+          "symbolId": "capacitor",
+          "reference": "C2"
         },
         {
           "id": "M2",
@@ -631,8 +629,7 @@
             "origin": "supply-default"
           },
           "netlist": {
-            "parameters": {},
-            "reference": "M1"
+            "parameters": {}
           },
           "placement": {
             "mirror": "none",
@@ -642,9 +639,9 @@
             },
             "rotation": 0
           },
-          "schematicReference": "M1",
           "symbolId": "nmos",
-          "symbolVariantId": "textbook-3terminal"
+          "symbolVariantId": "textbook-3terminal",
+          "reference": "M1"
         },
         {
           "id": "R3",
@@ -653,8 +650,7 @@
               "deviceClass": "resistor",
               "kind": "primitive"
             },
-            "parameters": {},
-            "reference": "R1"
+            "parameters": {}
           },
           "placement": {
             "mirror": "x",
@@ -664,19 +660,11 @@
             },
             "rotation": 0
           },
-          "schematicReference": "R1",
-          "symbolId": "resistor"
+          "symbolId": "resistor",
+          "reference": "R1"
         },
         {
           "id": "GND5",
-          "netlist": {
-            "binding": {
-              "deviceClass": "net-marker",
-              "kind": "primitive"
-            },
-            "parameters": {},
-            "reference": "PWR2"
-          },
           "placement": {
             "mirror": "none",
             "position": {
@@ -685,19 +673,10 @@
             },
             "rotation": 0
           },
-          "schematicReference": "PWR2",
           "symbolId": "ground"
         },
         {
           "id": "GND5-copy-2",
-          "netlist": {
-            "binding": {
-              "deviceClass": "net-marker",
-              "kind": "primitive"
-            },
-            "parameters": {},
-            "reference": "PWR3"
-          },
           "placement": {
             "mirror": "none",
             "position": {
@@ -706,19 +685,10 @@
             },
             "rotation": 0
           },
-          "schematicReference": "PWR3",
           "symbolId": "ground"
         },
         {
           "id": "GND5-copy-2-copy-3",
-          "netlist": {
-            "binding": {
-              "deviceClass": "net-marker",
-              "kind": "primitive"
-            },
-            "parameters": {},
-            "reference": "PWR4"
-          },
           "placement": {
             "mirror": "none",
             "position": {
@@ -727,19 +697,10 @@
             },
             "rotation": 0
           },
-          "schematicReference": "PWR4",
           "symbolId": "ground"
         },
         {
           "id": "GND5-copy-2-copy-3-copy-4",
-          "netlist": {
-            "binding": {
-              "deviceClass": "net-marker",
-              "kind": "primitive"
-            },
-            "parameters": {},
-            "reference": "PWR5"
-          },
           "placement": {
             "mirror": "none",
             "position": {
@@ -748,7 +709,6 @@
             },
             "rotation": 0
           },
-          "schematicReference": "PWR5",
           "symbolId": "ground"
         },
         {
@@ -758,8 +718,7 @@
               "deviceClass": "resistor",
               "kind": "primitive"
             },
-            "parameters": {},
-            "reference": "R2"
+            "parameters": {}
           },
           "placement": {
             "mirror": "none",
@@ -769,14 +728,13 @@
             },
             "rotation": 90
           },
-          "schematicReference": "R2",
-          "symbolId": "resistor"
+          "symbolId": "resistor",
+          "reference": "R2"
         },
         {
           "id": "V6",
           "netlist": {
-            "parameters": {},
-            "reference": "V1"
+            "parameters": {}
           },
           "placement": {
             "mirror": "x",
@@ -786,8 +744,8 @@
             },
             "rotation": 0
           },
-          "schematicReference": "V1",
-          "symbolId": "voltage-source"
+          "symbolId": "voltage-source",
+          "reference": "V1"
         }
       ],
       "junctions": [
@@ -1382,7 +1340,7 @@
   "externalSubcircuitDefinitions": [],
   "id": "project-main",
   "name": "New Circuit",
-  "schemaVersion": 34,
+  "schemaVersion": 35,
   "source": {
     "dialect": "none",
     "entry": null,

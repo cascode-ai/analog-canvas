@@ -15,9 +15,7 @@ export function annotationOwningInstanceId(
   }
   const binding = annotation.binding;
   if (
-    binding?.kind === "instance-designator" ||
-    binding?.kind === "instance-schematic-name" ||
-    binding?.kind === "instance-master-name" ||
+    binding?.kind === "instance-reference" ||
     binding?.kind === "instance-value"
   ) {
     return binding.instanceId;

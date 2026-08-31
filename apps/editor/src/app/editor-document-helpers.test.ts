@@ -26,7 +26,7 @@ describe("editor document helpers", () => {
     document.annotations.push({
       id: "label-R1",
       kind: "instance-label",
-      binding: { kind: "instance-schematic-name", instanceId: "R1" },
+      binding: { kind: "instance-reference", instanceId: "R1" },
       anchor: {
         kind: "object",
         objectId: "R1",
@@ -43,12 +43,12 @@ describe("editor document helpers", () => {
     expect(instanceLabelAnnotationFor(document, "R2")).toBeUndefined();
   });
 
-  it("does not confuse a master label with a schematic label", () => {
+  it("does not confuse a literal master label with a live Reference label", () => {
     const document = createEmptyDocument("doc", "Doc");
     document.annotations.push({
       id: "master-R1",
       kind: "instance-label",
-      binding: { kind: "instance-master-name", instanceId: "R1" },
+      content: { runs: [{ kind: "text", value: "master" }] },
       anchor: {
         kind: "object",
         objectId: "R1",
@@ -92,8 +92,8 @@ describe("editor document helpers", () => {
       id: "R1",
       symbolId: "resistor",
       placement: null,
+      reference: "R1",
       netlist: {
-        reference: "R1",
         parameters: { value: "1k", keep: "yes" },
       },
     };

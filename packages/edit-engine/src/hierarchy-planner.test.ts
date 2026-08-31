@@ -53,8 +53,8 @@ describe("hierarchy domain planners", () => {
     ).toMatchObject({
       id: "X1",
       placement: { rotation: 90, mirror: "x" },
+      reference: "X1",
       netlist: {
-        reference: "X1",
         binding: { childDocumentId: "child" },
       },
     });
@@ -95,7 +95,7 @@ describe("hierarchy domain planners", () => {
         { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
         "X2",
       ),
-    ).toMatchObject({ id: "X2-copy-1", netlist: { reference: "X2" } });
+    ).toMatchObject({ id: "X2-copy-1", reference: "X2" });
   });
 
   it("atomically adds a Port Instance, local Net, and formal terminal", () => {
@@ -397,14 +397,13 @@ describe("reviewed external MOS model targets", () => {
     document.instances.push({
       id: "M1",
       symbolId: "nmos",
-      schematicReference: "M1",
       placement: {
         position: { x: 0, y: 0 },
         rotation: 0,
         mirror: "none",
       },
+      reference: "M1",
       netlist: {
-        reference: "M1",
         binding: { kind: "model", deviceClass: "mos", name: "generic_nmos" },
         parameters: { w: "2u", l: "150n", m: "2" },
       },
@@ -461,9 +460,8 @@ describe("reviewed external MOS model targets", () => {
     });
     expect(instance).toMatchObject({
       symbolId: "nmos",
-      schematicReference: "M1",
+      reference: "X1",
       netlist: {
-        reference: "X1",
         parameters: { w: "2u", l: "150n", m: "2" },
         binding: { kind: "external-subcircuit" },
       },
@@ -552,9 +550,8 @@ describe("reviewed external MOS model targets", () => {
     if (!result.ok) return;
     expect(result.project.documents[0]!.instances[0]).toMatchObject({
       symbolId: "nmos",
-      schematicReference: "M1",
+      reference: "M1",
       netlist: {
-        reference: "M1",
         binding: { kind: "model", deviceClass: "mos", name: "generic_nmos" },
       },
     });

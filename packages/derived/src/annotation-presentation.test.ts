@@ -90,7 +90,7 @@ describe("annotation presentation", () => {
       id: "instance-label-R1",
       kind: "instance-label" as const,
       binding: {
-        kind: "instance-schematic-name" as const,
+        kind: "instance-reference" as const,
         instanceId: "R1",
       },
       anchor: {
@@ -106,7 +106,7 @@ describe("annotation presentation", () => {
     const obsoleteFormalDesignator = {
       ...retainedLabel,
       id: "designator-R1",
-      binding: { kind: "instance-designator" as const, instanceId: "R1" },
+      binding: { kind: "instance-reference" as const, instanceId: "R1" },
     };
     expect(
       isSchematicAnnotationVisible(document, obsoleteFormalDesignator),

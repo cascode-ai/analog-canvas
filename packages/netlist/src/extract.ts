@@ -449,7 +449,7 @@ function terminalNetName(
       diagnostics,
       document.id,
       "MISSING_PIN_NET",
-      `Required pin ${instance.netlist?.reference ?? instance.id}.${pinName} is not connected to an exportable Net`,
+      `Required pin ${instance.reference ?? instance.id}.${pinName} is not connected to an exportable Net`,
       [instance.id],
     );
     return null;
@@ -467,12 +467,12 @@ function extractHierarchyInstance(
   const netlist = instance.netlist;
   const binding = netlist?.binding;
   if (!netlist || binding?.kind !== "subcircuit") return null;
-  if (!isIdentifier(netlist.reference)) {
+  if (!isIdentifier(instance.reference!)) {
     diagnostic(
       diagnostics,
       document.id,
       "INVALID_INSTANCE_REFERENCE",
-      `Instance reference is outside the portable identifier subset: ${netlist.reference}`,
+      `Instance reference is outside the portable identifier subset: ${instance.reference!}`,
       [instance.id],
     );
   }
@@ -493,7 +493,7 @@ function extractHierarchyInstance(
       diagnostics,
       document.id,
       "MISSING_CHILD_INTERFACE",
-      `Hierarchy instance ${netlist.reference} has no resolved child netlist interface`,
+      `Hierarchy instance ${instance.reference!} has no resolved child netlist interface`,
       [instance.id, binding.childDocumentId],
     );
     return null;
@@ -516,7 +516,7 @@ function extractHierarchyInstance(
   });
   return {
     id: instance.id,
-    reference: netlist.reference,
+    reference: instance.reference!,
     deviceClass: "hierarchical",
     target: child.netlist.name,
     nodes,
@@ -550,7 +550,7 @@ function validateFormalParameterOverrides(
       diagnostics,
       document.id,
       "UNKNOWN_SUBCIRCUIT_PARAMETER",
-      `Instance ${instance.netlist?.reference ?? instance.id} sets unknown formal parameter ${name}`,
+      `Instance ${instance.reference ?? instance.id} sets unknown formal parameter ${name}`,
       [instance.id],
     );
   }
@@ -567,7 +567,7 @@ function validateFormalParameterOverrides(
       diagnostics,
       document.id,
       "MISSING_REQUIRED_SUBCIRCUIT_PARAMETER",
-      `Instance ${instance.netlist?.reference ?? instance.id} must override formal parameter ${formal.name}`,
+      `Instance ${instance.reference ?? instance.id} must override formal parameter ${formal.name}`,
       [instance.id],
     );
   }
@@ -592,12 +592,12 @@ function extractExternalSubcircuitInstance(
     );
     return null;
   }
-  if (!isIdentifier(netlist.reference) || !isIdentifier(definition.name)) {
+  if (!isIdentifier(instance.reference!) || !isIdentifier(definition.name)) {
     diagnostic(
       diagnostics,
       document.id,
       "INVALID_SUBCIRCUIT_IDENTIFIER",
-      `External subcircuit ${netlist.reference} or target ${definition.name} is outside the portable identifier subset`,
+      `External subcircuit ${instance.reference!} or target ${definition.name} is outside the portable identifier subset`,
       [instance.id, definition.id],
     );
   }
@@ -631,7 +631,7 @@ function extractExternalSubcircuitInstance(
       diagnostics,
       document.id,
       "UNKNOWN_EXTERNAL_SUBCIRCUIT_PIN",
-      `External subcircuit ${netlist.reference} references unknown formal terminal ${pinName}`,
+      `External subcircuit ${instance.reference!} references unknown formal terminal ${pinName}`,
       [instance.id, definition.id],
     );
   }
@@ -647,7 +647,7 @@ function extractExternalSubcircuitInstance(
   });
   return {
     id: instance.id,
-    reference: netlist.reference,
+    reference: instance.reference!,
     deviceClass: "hierarchical",
     target: definition.name,
     nodes,
@@ -722,12 +722,12 @@ function extractDeviceInstance(
     );
     return null;
   }
-  if (!isIdentifier(netlist.reference)) {
+  if (!isIdentifier(instance.reference!)) {
     diagnostic(
       diagnostics,
       document.id,
       "INVALID_INSTANCE_REFERENCE",
-      `Instance reference is outside the portable identifier subset: ${netlist.reference}`,
+      `Instance reference is outside the portable identifier subset: ${instance.reference!}`,
       [instance.id],
     );
   }
@@ -737,7 +737,7 @@ function extractDeviceInstance(
         diagnostics,
         document.id,
         "MISSING_MODEL_TARGET",
-        `Instance ${netlist.reference} requires an explicit model target`,
+        `Instance ${instance.reference!} requires an explicit model target`,
         [instance.id],
       );
     } else if (netlist.binding.deviceClass !== definition.deviceClass) {
@@ -758,7 +758,7 @@ function extractDeviceInstance(
       diagnostics,
       document.id,
       "DEVICE_CLASS_MISMATCH",
-      `Instance ${netlist.reference} requires primitive class ${definition.deviceClass}`,
+      `Instance ${instance.reference!} requires primitive class ${definition.deviceClass}`,
       [instance.id],
     );
   }
@@ -787,7 +787,7 @@ function extractDeviceInstance(
         diagnostics,
         document.id,
         "MISSING_REQUIRED_PARAMETER",
-        `Instance ${netlist.reference} requires parameter ${parameter}`,
+        `Instance ${instance.reference!} requires parameter ${parameter}`,
         [instance.id],
       );
     }
@@ -826,7 +826,7 @@ function extractDeviceInstance(
   }
   return {
     id: instance.id,
-    reference: netlist.reference,
+    reference: instance.reference!,
     deviceClass: definition.deviceClass,
     target,
     nodes,
@@ -914,15 +914,6 @@ function extractCell(
       ? [issue.otherInstanceId, issue.instanceId]
       : [issue.instanceId];
     switch (issue.code) {
-      case "UNEXPECTED_REFERENCE":
-        diagnostic(
-          diagnostics,
-          document.id,
-          "UNEXPECTED_INSTANCE_REFERENCE",
-          `Symbol ${issue.instanceId} does not emit reference ${issue.reference}`,
-          otherInstanceIds,
-        );
-        break;
       case "WRONG_REFERENCE_PREFIX":
         diagnostic(
           diagnostics,
@@ -955,8 +946,8 @@ function extractCell(
     interfaceProjection.ports.flatMap((port) => port.interfaceInstanceIds),
   );
   for (const instance of [...document.instances].sort((a, b) => {
-    const left = a.netlist?.reference ?? a.id;
-    const right = b.netlist?.reference ?? b.id;
+    const left = a.reference ?? a.id;
+    const right = b.reference ?? b.id;
     return compareText(left, right) || a.id.localeCompare(b.id);
   })) {
     if (cellPinInstanceIds.has(instance.id)) continue;

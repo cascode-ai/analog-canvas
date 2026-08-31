@@ -50,7 +50,8 @@ export function testSnapshot(): AgentSessionSnapshot {
       instances: [
         {
           id: "instance-1",
-          name: "M1",
+          reference: "M1",
+          masterName: null,
           symbolId: "nmos",
           symbolVariantId: null,
           target: null,
@@ -93,14 +94,14 @@ export function testSnapshot(): AgentSessionSnapshot {
           ],
           mosBulk: { status: "supply-default", netId: null },
           netlist: {
-            reference: "M1",
             binding: { kind: "primitive", deviceClass: "mos" },
             parameters: { w: "2u", l: "1u" },
           },
         },
         {
           id: "instance-2",
-          name: "R1",
+          reference: "R1",
+          masterName: null,
           symbolId: "resistor",
           symbolVariantId: null,
           target: null,

@@ -75,7 +75,8 @@ const baseInstance = {
     rotation: 0 as const,
     mirror: "none" as const,
   },
-  netlist: { reference: "R1", parameters: {} },
+  reference: "R1",
+  netlist: { parameters: {} },
 };
 
 describe("InstanceSchema presentation metadata", () => {
@@ -149,12 +150,12 @@ describe("SignalFlowParametersSchema", () => {
 });
 
 describe("CircuitProject schema version", () => {
-  it("current schema version is 34", () => {
-    expect(CURRENT_PROJECT_SCHEMA_VERSION).toBe(34);
+  it("current schema version is 35", () => {
+    expect(CURRENT_PROJECT_SCHEMA_VERSION).toBe(35);
   });
 
-  it("createEmptyProject produces schema version 34", () => {
-    expect(createEmptyProject("test", "Test").schemaVersion).toBe(34);
+  it("createEmptyProject produces schema version 35", () => {
+    expect(createEmptyProject("test", "Test").schemaVersion).toBe(35);
   });
 
   it("validates style and Signal Flow metadata together", () => {

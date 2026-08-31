@@ -104,8 +104,8 @@ describe("Net highlight", () => {
       id: "X1",
       symbolId: "single",
       placement: null,
+      reference: "X1",
       netlist: {
-        reference: "X1",
         parameters: {},
         binding: {
           kind: "subcircuit",
@@ -200,8 +200,8 @@ describe("Net highlight", () => {
         id,
         symbolId: "single",
         placement: null,
+        reference: id,
         netlist: {
-          reference: id,
           parameters: {},
           binding: {
             kind: "subcircuit" as const,
@@ -319,8 +319,8 @@ describe("Net highlight", () => {
       id: "X1",
       symbolId: hierarchicalSymbolId(child.netlist!.name),
       placement: null,
+      reference: "X1",
       netlist: {
-        reference: "X1",
         parameters: {},
         binding: { kind: "subcircuit", childDocumentId: child.id },
       },

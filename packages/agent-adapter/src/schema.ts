@@ -371,7 +371,6 @@ export const AgentSnapshotPinSchema = z.strictObject({
 });
 
 const AgentNetlistFactsSchema = z.strictObject({
-  reference: z.string().min(1),
   binding: z
     .discriminatedUnion("kind", [
       z.strictObject({
@@ -410,7 +409,8 @@ const AgentNetlistFactsSchema = z.strictObject({
 
 export const AgentSnapshotInstanceSchema = z.strictObject({
   id: StableIdSchema,
-  name: z.string().min(1),
+  reference: z.string().min(1).nullable(),
+  masterName: z.string().min(1).nullable(),
   symbolId: StableIdSchema,
   symbolVariantId: StableIdSchema.nullable(),
   target: z.string().nullable(),

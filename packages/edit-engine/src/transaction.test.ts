@@ -27,6 +27,7 @@ const resolver = new InMemorySymbolResolver(builtInSymbols);
 /** Canonical machine-projected value content for a fixture instance. */
 function canonicalValueContent(instance: {
   symbolId: string;
+  reference?: string;
   netlist?: unknown;
 }): RichTextDocument {
   const display = displayableInstanceValue(
@@ -43,10 +44,9 @@ function documentWithInstance() {
   document.instances.push({
     id: "M1",
     symbolId: "nmos",
-    schematicReference: "M1",
     placement: null,
+    reference: "M1",
     netlist: {
-      reference: "M1",
       binding: { kind: "primitive", deviceClass: "mos" },
       parameters: {},
     },
@@ -239,7 +239,7 @@ describe("Edit Transaction envelope", () => {
       ...transaction(),
       edits: [
         {
-          kind: "set_instance_schematic_reference",
+          kind: "set_instance_reference",
           instanceId: "port-object",
           reference: "P1",
         },
@@ -391,7 +391,7 @@ describe("Edit Transaction envelope", () => {
     document.instances.push({
       id: "R1",
       symbolId: "resistor",
-      schematicReference: "R1",
+      reference: "R1",
       placement: null,
     });
     document.layoutGroups.push({
@@ -421,39 +421,21 @@ describe("Edit Transaction envelope", () => {
     });
   });
 
-  it("updates a RichText schematic name without changing the SPICE reference", () => {
-    const document = documentWithInstance();
-    const result = executeTransaction(document, {
-      ...transaction(),
-      edits: [
-        {
-          kind: "set_instance_schematic_name",
-          instanceId: "M1",
-          content: {
-            runs: [
-              {
-                kind: "span",
-                style: "overbar",
-                children: [{ kind: "text", value: "M1" }],
-              },
-            ],
-          },
-        },
-      ],
-    });
-
-    expect(result).toMatchObject({ ok: true });
-    if (!result.ok) return;
-    expect(result.document.instances[0]!.netlist!.reference).toBe("M1");
-    expect(result.document.instances[0]!.schematicName).toEqual({
-      runs: [
-        {
-          kind: "span",
-          style: "overbar",
-          children: [{ kind: "text", value: "M1" }],
-        },
-      ],
-    });
+  it("rejects retired parallel Instance naming edits", () => {
+    expect(
+      SchematicEditSchema.safeParse({
+        kind: "set_instance_schematic_name",
+        instanceId: "M1",
+        content: { runs: [{ kind: "text", value: "alias" }] },
+      }).success,
+    ).toBe(false);
+    expect(
+      SchematicEditSchema.safeParse({
+        kind: "set_instance_schematic_reference",
+        instanceId: "M1",
+        reference: "M2",
+      }).success,
+    ).toBe(false);
   });
 
   it("rejects the retired ambiguous annotation edit names", () => {
@@ -2147,8 +2129,8 @@ describe("Edit Transaction envelope", () => {
       document: {
         instances: [
           {
+            reference: "MN0",
             netlist: {
-              reference: "MN0",
               binding: { kind: "model", deviceClass: "mos", name: "nch" },
             },
           },
@@ -2163,7 +2145,8 @@ describe("Edit Transaction envelope", () => {
       id: "M2",
       symbolId: "nmos",
       placement: null,
-      netlist: { reference: "M2", parameters: {} },
+      reference: "M2",
+      netlist: { parameters: {} },
     });
     document.annotations.push({
       id: "instance-label-M1",
@@ -2209,7 +2192,7 @@ describe("Edit Transaction envelope", () => {
     });
     expect(renamed).toMatchObject({ ok: true });
     if (!renamed.ok) return;
-    expect(renamed.document.instances[0]?.netlist?.reference).toBe("M3");
+    expect(renamed.document.instances[0]?.reference).toBe("M3");
     expect(flattenRichText(renamed.document.annotations[0]!.content!)).toBe(
       "M1",
     );
@@ -2221,8 +2204,8 @@ describe("Edit Transaction envelope", () => {
       id: "M2",
       symbolId: "nmos",
       placement: null,
+      reference: "M2",
       netlist: {
-        reference: "M2",
         binding: { kind: "primitive", deviceClass: "mos" },
         parameters: { l: "60n" },
       },
@@ -2263,9 +2246,10 @@ describe("Edit Transaction envelope", () => {
       ],
     });
     expect(rejected).toMatchObject({ ok: false, applied: false });
-    expect(
-      document.instances.map((instance) => instance.netlist?.reference),
-    ).toEqual(["M1", "M2"]);
+    expect(document.instances.map((instance) => instance.reference)).toEqual([
+      "M1",
+      "M2",
+    ]);
   });
 
   it("rejects an invalid parameter patch without partially changing the instance", () => {
@@ -2634,8 +2618,8 @@ describe("Edit Transaction envelope", () => {
       id: "M1",
       symbolId: "nmos",
       placement: null,
+      reference: "M1",
       netlist: {
-        reference: "M1",
         binding: { kind: "primitive" as const, deviceClass: "mos" as const },
         parameters: { w: "10u", l: "0.5u" },
       },
@@ -2690,7 +2674,6 @@ describe("Edit Transaction envelope", () => {
 
   it("preserves a hand-edited instance value and hides an emptied projection", () => {
     const baseNetlist = (parameters: Record<string, string>) => ({
-      reference: "M1",
       binding: { kind: "primitive" as const, deviceClass: "mos" as const },
       parameters,
     });
@@ -2698,6 +2681,7 @@ describe("Edit Transaction envelope", () => {
     handEdited.instances.push({
       id: "M1",
       symbolId: "nmos",
+      reference: "M1",
       placement: null,
       netlist: baseNetlist({ w: "10u", l: "0.5u" }),
     });
@@ -2740,6 +2724,7 @@ describe("Edit Transaction envelope", () => {
     const emptiedInstance = {
       id: "M1",
       symbolId: "nmos",
+      reference: "M1",
       placement: null,
       netlist: baseNetlist({ w: "10u", l: "0.5u" }),
     };
@@ -2784,8 +2769,8 @@ describe("Edit Transaction envelope", () => {
       id: "R1",
       symbolId: "resistor",
       placement: null,
+      reference: "R1",
       netlist: {
-        reference: "R1",
         binding: {
           kind: "primitive" as const,
           deviceClass: "resistor" as const,
@@ -2827,8 +2812,8 @@ describe("Edit Transaction envelope", () => {
     expect(result.document.annotations[0]!.content).toEqual(
       canonicalValueContent({
         ...instance,
+        reference: "R1",
         netlist: {
-          reference: "R1",
           binding: { kind: "primitive", deviceClass: "resistor" },
           parameters: { value: "22k" },
         },

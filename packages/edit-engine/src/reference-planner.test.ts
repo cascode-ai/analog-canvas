@@ -10,7 +10,8 @@ describe("planSetInstanceReference", () => {
       id: "R1",
       symbolId: "resistor",
       placement: null,
-      netlist: { reference: "R1", parameters: {} },
+      reference: "R1",
+      netlist: { parameters: {} },
     });
 
     expect(
@@ -34,13 +35,15 @@ describe("planSetInstanceReference", () => {
         id: "R1",
         symbolId: "resistor",
         placement: null,
-        netlist: { reference: "R1", parameters: {} },
+        reference: "R1",
+        netlist: { parameters: {} },
       },
       {
         id: "R2",
         symbolId: "resistor",
         placement: null,
-        netlist: { reference: "R2", parameters: {} },
+        reference: "R2",
+        netlist: { parameters: {} },
       },
     );
 

@@ -14,7 +14,8 @@ function tee(portOnJunction: boolean): SchematicDocument {
       id: "R1",
       symbolId: "resistor",
       placement: { position: { x: 260, y: 220 }, rotation: 90, mirror: "none" },
-      netlist: { reference: "R1", parameters: {} },
+      reference: "R1",
+      netlist: { parameters: {} },
     },
     {
       id: "P1",
@@ -26,13 +27,13 @@ function tee(portOnJunction: boolean): SchematicDocument {
         rotation: 0,
         mirror: "none",
       },
-      netlist: { reference: "P1", parameters: {} },
     },
     {
       id: "R2",
       symbolId: "resistor",
       placement: { position: { x: 420, y: 400 }, rotation: 0, mirror: "none" },
-      netlist: { reference: "R2", parameters: {} },
+      reference: "R2",
+      netlist: { parameters: {} },
     },
   );
   document.netlist!.terminals.push({
@@ -105,19 +106,16 @@ function straightTap(): SchematicDocument {
       id: "P0",
       symbolId: "port",
       placement: { position: { x: 300, y: 240 }, rotation: 0, mirror: "none" },
-      netlist: { reference: "P0", parameters: {} },
     },
     {
       id: "P1",
       symbolId: "port",
       placement: { position: { x: 410, y: 240 }, rotation: 0, mirror: "none" },
-      netlist: { reference: "P1", parameters: {} },
     },
     {
       id: "P2",
       symbolId: "port",
       placement: { position: { x: 480, y: 240 }, rotation: 0, mirror: "x" },
-      netlist: { reference: "P2", parameters: {} },
     },
   );
   document.netlist!.terminals.push(

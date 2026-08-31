@@ -55,7 +55,7 @@ export class ActionCompileError extends Error {
 
 interface SnapshotInstance {
   id: string;
-  name: string;
+  reference: string | null;
   symbolId: string;
   pins: readonly {
     name: string;
@@ -65,7 +65,6 @@ interface SnapshotInstance {
     } | null;
   }[];
   netlist?: {
-    reference: string;
     binding?: Record<string, unknown>;
     parameters: Record<string, string>;
     terminalMapping?: { sourcePosition: number; pinName: string }[];
@@ -104,7 +103,7 @@ function resolvedDocument(snapshot: AgentSessionSnapshot): ResolvedDocument {
   return {
     instances: document.instances.map((instance) => ({
       id: instance.id,
-      name: instance.name,
+      reference: instance.reference,
       symbolId: instance.symbolId,
       pins: instance.pins.map((pin) => ({
         name: pin.name,
@@ -113,7 +112,6 @@ function resolvedDocument(snapshot: AgentSessionSnapshot): ResolvedDocument {
       ...(instance.netlist
         ? {
             netlist: {
-              reference: instance.netlist.reference,
               ...(instance.netlist.binding
                 ? {
                     binding: instance.netlist.binding as Record<
@@ -182,12 +180,15 @@ function resolveInstance(
   }
   const found = ref.id
     ? document.instances.find((instance) => instance.id === ref.id)
-    : document.instances.find((instance) => instance.name === ref.name);
+    : document.instances.find(
+        (instance) =>
+          "reference" in ref && instance.reference === ref.reference,
+      );
   if (!found) {
     throw new ActionCompileError(
       index,
       kind,
-      `no instance matches ${ref.id ? `id "${ref.id}"` : `name "${ref.name}"`}`,
+      `no instance matches ${ref.id ? `id "${ref.id}"` : `Reference "${"reference" in ref ? ref.reference : ""}"`}`,
     );
   }
   return found;
@@ -225,7 +226,7 @@ function requirePin(
     throw new ActionCompileError(
       index,
       kind,
-      `instance "${instance.name}" has no pin "${pin}"; snapshot pins: ${instance.pins
+      `instance "${instance.reference ?? instance.id}" has no pin "${pin}"; snapshot pins: ${instance.pins
         .map((candidate) => candidate.name)
         .join(", ")}`,
     );
@@ -477,27 +478,20 @@ export function compileActions(
         });
         break;
       }
-      case "rename":
-        if (action.target.kind === "net") {
-          throw new ActionCompileError(
-            index,
-            action.kind,
-            "Net naming is marker-owned and is not exposed as a low-level Agent edit",
-          );
-        } else {
-          const instance = resolveInstance(
-            document,
-            index,
-            action.kind,
-            action.target,
-          );
-          pushEdit(index, action.kind, {
-            kind: "set_instance_reference",
-            instanceId: instance.id,
-            reference: action.name,
-          });
-        }
+      case "set-reference": {
+        const instance = resolveInstance(
+          document,
+          index,
+          action.kind,
+          action.target,
+        );
+        pushEdit(index, action.kind, {
+          kind: "set_instance_reference",
+          instanceId: instance.id,
+          reference: action.reference,
+        });
         break;
+      }
       case "set-property": {
         const instance = resolveInstance(
           document,
@@ -608,11 +602,15 @@ function compilePlaceComponent(
       `"${action.symbol}" is not in the reviewed built-in catalog; a custom, imported, or PDK symbol is a human-fact boundary (see analog-canvas://reference/authoring)`,
     );
   }
-  if (document.instances.some((instance) => instance.name === action.name)) {
+  if (
+    document.instances.some(
+      (instance) => instance.reference === action.reference,
+    )
+  ) {
     throw new ActionCompileError(
       index,
       action.kind,
-      `instance name "${action.name}" already exists in this document`,
+      `Instance Reference "${action.reference}" already exists in this document`,
     );
   }
   const variant = action.variant ?? catalogSymbol.defaultVariantId ?? undefined;
@@ -621,6 +619,7 @@ function compilePlaceComponent(
     instance: {
       id: allocateId("instance"),
       symbolId: action.symbol,
+      reference: action.reference,
       ...(variant ? { symbolVariantId: variant } : {}),
       placement: {
         position: action.position,
@@ -628,7 +627,6 @@ function compilePlaceComponent(
         mirror: action.mirror ?? "none",
       },
       netlist: {
-        reference: action.name,
         parameters: action.parameters ?? {},
       },
     },
@@ -697,7 +695,7 @@ function compileConnect(
     if (pinSide) {
       const instance = resolveInstance(document, index, action.kind, {
         kind: "instance",
-        name: pinSide.instance,
+        reference: pinSide.instance,
       });
       requirePin(index, action.kind, instance, pinSide.pin);
       const pin = instance.pins.find(
@@ -737,7 +735,7 @@ function compileConnect(
     if (target.kind === "pin") {
       const instance = resolveInstance(document, index, action.kind, {
         kind: "instance",
-        name: target.instance,
+        reference: target.instance,
       });
       requirePin(index, action.kind, instance, target.pin);
       return {
@@ -848,7 +846,7 @@ function compileDisconnect(
   if (action.target.kind === "pin") {
     const instance = resolveInstance(document, index, action.kind, {
       kind: "instance",
-      name: action.target.instance,
+      reference: action.target.instance,
     });
     requirePin(index, action.kind, instance, action.target.pin);
     pushEdit(index, action.kind, {
@@ -989,14 +987,19 @@ function compileDelete(
   document: ResolvedDocument,
   pushEdit: PushEdit,
 ): void {
-  const reference = action.target.id ?? action.target.name ?? "";
+  const reference =
+    action.target.id ??
+    (action.target.kind === "instance"
+      ? action.target.reference
+      : action.target.name) ??
+    "";
   switch (action.target.kind) {
     case "instance": {
       const instance = resolveInstance(document, index, action.kind, {
         kind: "instance",
         ...(action.target.id
           ? { id: action.target.id }
-          : { name: action.target.name }),
+          : { reference: action.target.reference }),
       });
       pushEdit(index, action.kind, {
         kind: "remove_instance",

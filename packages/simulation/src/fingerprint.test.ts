@@ -14,8 +14,8 @@ describe("digital simulation input fingerprint", () => {
         rotation: 0,
         mirror: "none",
       },
+      reference: "V1",
       netlist: {
-        reference: "V1",
         parameters: {
           period: "10ns",
           dutyCycle: "50",
@@ -45,8 +45,8 @@ describe("digital simulation input fingerprint", () => {
       id: "CLK",
       symbolId: "pulse-voltage-source",
       placement: null,
+      reference: "V1",
       netlist: {
-        reference: "V1",
         parameters: { period: "10ns", dutyCycle: "50", initial: "0" },
       },
     });

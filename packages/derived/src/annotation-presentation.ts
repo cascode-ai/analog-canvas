@@ -57,8 +57,7 @@ export function isSchematicAnnotationVisible(
   }
   const binding = annotation.binding;
   return !(
-    (binding?.kind === "instance-designator" ||
-      binding?.kind === "instance-schematic-name") &&
+    binding?.kind === "instance-reference" &&
     document.netlist?.terminals.some((terminal) =>
       terminal.interfaceInstanceIds.includes(binding.instanceId),
     )

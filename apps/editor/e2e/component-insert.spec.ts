@@ -133,12 +133,13 @@ test("mirrors component and copy placement previews before their commits", async
   await expect(copyPreview).toHaveAttribute("transform", /rotate\(180\)/u);
   await canvas.click({ position: { x: 520, y: 220 } });
   await expect(
-    canvas.locator('[data-object-id="R2"] > g').first(),
+    canvas.locator('[data-object-id="R1-copy-1"] > g').first(),
   ).toHaveAttribute("transform", /rotate\(180\)/u);
+  await expect(canvas.getByText("R2", { exact: true })).toBeVisible();
   await page.keyboard.press("Escape");
 });
 
-test("writes a manual netlist reference through post-placement Properties", async ({
+test("writes an Instance Reference through post-placement Properties", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -155,9 +156,9 @@ test("writes a manual netlist reference through post-placement Properties", asyn
   // The quick pick carries no reference field; naming happens in Properties.
   await page.getByTestId("hit-R1").click();
   await page.getByTestId("selection-shelf").click();
-  const netlistReference = page.getByLabel("Component netlist reference");
-  await netlistReference.fill("R7");
-  await netlistReference.press("Tab");
+  const instanceReference = page.getByLabel("Component reference");
+  await instanceReference.fill("R7");
+  await instanceReference.press("Tab");
 
   await expect
     .poll(() => recoveryProjectTexts(page))
@@ -1015,7 +1016,8 @@ test("copies a MOS whose bulk belongs to a shared supply Net", async ({
   await canvas.hover({ position: { x: 620, y: 340 } });
   await expect(page.getByTestId("copy-placement-preview")).toBeVisible();
   await canvas.click({ position: { x: 620, y: 340 } });
-  await expect(page.getByTestId("hit-M3")).toBeVisible();
+  await expect(page.getByTestId("hit-M1-copy-1")).toBeVisible();
+  await expect(canvas.getByText("M3", { exact: true })).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "Analog Canvas" }),
   ).toBeVisible();
@@ -1126,23 +1128,17 @@ test("carries a manual Value through placement and Q property editing", async ({
     page.getByRole("button", { name: "Discard changes" }),
   ).toHaveCount(0);
   await expect(page.getByLabel("Component identity")).toContainText(
-    "Schematic labelNetlist referenceSymbolresistorCell",
+    "ReferenceSymbolresistorCell",
   );
   await expect(page.getByLabel("Component identity")).not.toContainText(
     "Device class",
   );
-  const netlistReference = page.getByLabel("Component netlist reference");
-  await expect(netlistReference).toHaveValue("R1");
-  await netlistReference.fill("R7");
-  await netlistReference.press("Tab");
+  const instanceReference = page.getByLabel("Component reference");
+  await expect(instanceReference).toHaveValue("R1");
+  await instanceReference.fill("R7");
+  await instanceReference.press("Tab");
   await expect(page.getByTestId("revision")).toHaveText("4");
-  await expect(netlistReference).toHaveValue("R7");
-  const schematicLabel = page.getByLabel("Component schematic label");
-  await expect(schematicLabel).toHaveValue("R1");
-  await schematicLabel.fill("Input resistor");
-  await schematicLabel.press("Enter");
-  await expect(page.getByTestId("revision")).toHaveText("5");
-  await expect(schematicLabel).toHaveValue("Input resistor");
+  await expect(instanceReference).toHaveValue("R7");
   await page
     .locator("summary")
     .filter({ hasText: "Advanced parameters" })
@@ -1151,7 +1147,7 @@ test("carries a manual Value through placement and Q property editing", async ({
   await page.getByLabel("Additional parameter name 1").fill("tc");
   await page.getByLabel("Additional parameter value 1").fill("0.1");
   await page.getByRole("button", { name: "Apply parameters" }).click();
-  await expect(page.getByTestId("revision")).toHaveText("6");
+  await expect(page.getByTestId("revision")).toHaveText("5");
   await expect(page.getByLabel("Additional parameter name 1")).toHaveValue(
     "tc",
   );

@@ -12,9 +12,7 @@ function messageForReferenceIssue(
 ): string {
   switch (issue.code) {
     case "MISSING_REFERENCE":
-      return "This component requires a netlist reference";
-    case "UNEXPECTED_REFERENCE":
-      return "This symbol does not emit a netlist reference";
+      return "This component requires an Instance Reference";
     case "WRONG_REFERENCE_PREFIX":
       return `Reference ${issue.reference} does not match this component prefix`;
     case "DUPLICATE_REFERENCE":
@@ -34,24 +32,24 @@ export function planSetInstanceReference(
   const instance = document.instances.find(
     (candidate) => candidate.id === request.instanceId,
   );
-  if (!instance?.netlist) {
-    return { ok: false, message: "This component has no netlist reference" };
+  if (!instance) {
+    return { ok: false, message: "This component does not exist" };
   }
   const reference = request.reference.trim();
   if (!reference) {
     return { ok: false, message: "Reference cannot be empty" };
   }
-  if (reference === instance.netlist.reference) {
+  if (reference === instance.reference) {
     return { ok: true, reference, edits: [] };
   }
   const proposed = structuredClone(document);
   const proposedInstance = proposed.instances.find(
     (candidate) => candidate.id === request.instanceId,
   );
-  if (!proposedInstance?.netlist) {
-    return { ok: false, message: "This component has no netlist reference" };
+  if (!proposedInstance) {
+    return { ok: false, message: "This component does not exist" };
   }
-  proposedInstance.netlist.reference = reference;
+  proposedInstance.reference = reference;
   const issue = referenceIssuesForInstance(
     createReferenceIndex(proposed),
     request.instanceId,

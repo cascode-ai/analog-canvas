@@ -15,7 +15,7 @@ import {
 type Instance = SchematicDocument["instances"][number];
 
 export interface DefaultInstanceDisplayOptions {
-  /** Show the default user-facing schematic label. */
+  /** Show the live user-facing Instance Reference projection. */
   readonly showDesignator?: boolean;
   readonly showValue?: boolean;
   readonly masterName?: string;
@@ -31,7 +31,7 @@ export function instanceLabelAnnotationFor(
     (annotation) =>
       (annotation.kind === "instance-label" ||
         annotation.kind === "net-label") &&
-      (annotation.binding?.kind === "instance-schematic-name" ||
+      (annotation.binding?.kind === "instance-reference" ||
         annotation.binding?.kind === "cell-terminal-name" ||
         annotation.binding?.kind === "net-name") &&
       annotation.anchor.kind === "object" &&
@@ -78,7 +78,7 @@ export function defaultInstanceDisplayAnnotations(
   if (options.showDesignator !== false && label) {
     annotations.push({
       ...label,
-      binding: { kind: "instance-schematic-name", instanceId: instance.id },
+      binding: { kind: "instance-reference", instanceId: instance.id },
     });
   }
   if (options.masterName) {
@@ -145,8 +145,8 @@ function isSameDefaultProjection(
   const candidateBinding = candidate.binding;
   if (!existingBinding || !candidateBinding) return false;
   if (
-    existingBinding.kind === "instance-schematic-name" &&
-    candidateBinding.kind === "instance-schematic-name"
+    existingBinding.kind === "instance-reference" &&
+    candidateBinding.kind === "instance-reference"
   ) {
     return existingBinding.instanceId === candidateBinding.instanceId;
   }

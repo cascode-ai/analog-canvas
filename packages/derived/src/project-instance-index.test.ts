@@ -12,13 +12,15 @@ describe("ProjectInstanceIndex", () => {
       id: "R1",
       symbolId: "resistor",
       placement: null,
-      netlist: { reference: "R1", parameters: { value: "10k" } },
+      reference: "R1",
+      netlist: { parameters: { value: "10k" } },
     });
     child.instances.push({
       id: "R1",
       symbolId: "resistor",
       placement: null,
-      netlist: { reference: "C1", parameters: {} },
+      reference: "C1",
+      netlist: { parameters: {} },
     });
 
     const index = buildProjectInstanceIndex(project);
@@ -33,7 +35,7 @@ describe("ProjectInstanceIndex", () => {
     ]);
   });
 
-  it("keeps internal ID, electrical reference, alias and master distinct", () => {
+  it("keeps internal ID, authored Reference, and master distinct", () => {
     const project = createEmptyProject("project", "Project");
     project.externalSubcircuitDefinitions.push({
       id: "master-sky130-nfet",
@@ -46,15 +48,14 @@ describe("ProjectInstanceIndex", () => {
       id: "imported-instance-4c3b",
       symbolId: "generic-block-2",
       placement: null,
+      reference: "XBIAS",
       netlist: {
-        reference: "XBIAS",
         binding: {
           kind: "external-subcircuit",
           definitionId: "master-sky130-nfet",
         },
         parameters: {},
       },
-      schematicName: { runs: [{ kind: "text", value: "Bias transistor" }] },
     });
 
     const row = buildProjectInstanceIndex(project).row(
@@ -64,11 +65,8 @@ describe("ProjectInstanceIndex", () => {
     expect(row).toMatchObject({
       instanceId: "imported-instance-4c3b",
       reference: "XBIAS",
-      schematicName: "Bias transistor",
       masterName: "sky130_fd_pr__nfet_01v8",
     });
-    expect(
-      buildProjectInstanceIndex(project).search("bias transistor"),
-    ).toHaveLength(1);
+    expect(buildProjectInstanceIndex(project).search("XBIAS")).toHaveLength(1);
   });
 });

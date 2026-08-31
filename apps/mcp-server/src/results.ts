@@ -109,7 +109,8 @@ export function inspectInstanceValue(
 ): Record<string, unknown> {
   return {
     id: instance.id,
-    name: instance.name,
+    reference: instance.reference,
+    masterName: instance.masterName,
     symbolId: instance.symbolId,
     ...(instance.symbolVariantId
       ? { symbolVariantId: instance.symbolVariantId }
@@ -156,7 +157,8 @@ export function inspectObject(
   const document = entry.snapshot.document;
   const reference = target.id ?? target.name ?? "";
   const instance = document.instances.find(
-    (candidate) => candidate.id === reference || candidate.name === reference,
+    (candidate) =>
+      candidate.id === reference || candidate.reference === reference,
   );
   if (instance) return inspectInstanceValue(instance);
   const net = document.nets.find(
@@ -216,12 +218,13 @@ export function inspectConnectivity(
   const reference = target?.id ?? target?.name;
   if (reference) {
     const instance = document.instances.find(
-      (candidate) => candidate.id === reference || candidate.name === reference,
+      (candidate) =>
+        candidate.id === reference || candidate.reference === reference,
     );
     if (instance) {
       return {
         instanceId: instance.id,
-        name: instance.name,
+        reference: instance.reference,
         connections: instance.pins.map((pin) => ({
           pin: pin.name,
           netId: pin.netId,
@@ -240,7 +243,7 @@ export function inspectConnectivity(
             (candidate) => candidate.id === terminal.instanceId,
           );
           return {
-            instance: owner?.name ?? terminal.instanceId,
+            instance: owner?.reference ?? terminal.instanceId,
             pin: terminal.pinName,
           };
         }),
@@ -298,18 +301,18 @@ export function searchSnapshot(
   const document = entry.snapshot.document;
 
   for (const instance of document.instances) {
-    if (instance.name.toLowerCase().includes(needle)) {
+    if (instance.reference?.toLowerCase().includes(needle)) {
       consider("instance", {
         kind: "instance",
         id: instance.id,
-        name: instance.name,
+        name: instance.reference,
         detail: `symbol ${instance.symbolId}`,
       });
     } else if (instance.symbolId.toLowerCase().includes(needle)) {
       consider("instance", {
         kind: "instance",
         id: instance.id,
-        name: instance.name,
+        name: instance.reference,
         detail: `symbol ${instance.symbolId}`,
       });
     }
@@ -321,7 +324,7 @@ export function searchSnapshot(
         consider("property", {
           kind: "property",
           id: instance.id,
-          name: instance.name,
+          name: instance.reference,
           detail: `${key} = ${String(value)}`,
         });
         break;

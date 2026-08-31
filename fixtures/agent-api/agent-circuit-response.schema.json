@@ -516,9 +516,27 @@
                       "id": {
                         "$ref": "#/$defs/__schema0"
                       },
-                      "name": {
-                        "type": "string",
-                        "minLength": 1
+                      "reference": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "masterName": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
                       },
                       "symbolId": {
                         "$ref": "#/$defs/__schema0"
@@ -778,10 +796,6 @@
                       "netlist": {
                         "type": "object",
                         "properties": {
-                          "reference": {
-                            "type": "string",
-                            "minLength": 1
-                          },
                           "binding": {
                             "oneOf": [
                               {
@@ -912,7 +926,6 @@
                           }
                         },
                         "required": [
-                          "reference",
                           "parameters"
                         ],
                         "additionalProperties": false
@@ -920,7 +933,8 @@
                     },
                     "required": [
                       "id",
-                      "name",
+                      "reference",
+                      "masterName",
                       "symbolId",
                       "symbolVariantId",
                       "target",
@@ -12976,41 +12990,7 @@
           "properties": {
             "kind": {
               "type": "string",
-              "const": "instance-designator"
-            },
-            "instanceId": {
-              "$ref": "#/$defs/__schema0"
-            }
-          },
-          "required": [
-            "kind",
-            "instanceId"
-          ],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "instance-schematic-name"
-            },
-            "instanceId": {
-              "$ref": "#/$defs/__schema0"
-            }
-          },
-          "required": [
-            "kind",
-            "instanceId"
-          ],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "instance-master-name"
+              "const": "instance-reference"
             },
             "instanceId": {
               "$ref": "#/$defs/__schema0"

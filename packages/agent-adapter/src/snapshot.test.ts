@@ -74,7 +74,7 @@ describe("Agent Document Snapshot", () => {
       expect(m1.netlist).toBeUndefined();
     } else {
       expect(m1.netlist).toMatchObject({
-        reference: modelM1.netlist.reference,
+        reference: modelM1.reference,
         parameters: modelM1.netlist.parameters,
       });
       expect(m1.netlist?.binding).toEqual(modelM1.netlist.binding);

@@ -42,18 +42,8 @@ export const AnnotationKindSchema = z.enum([
  */
 export const AnnotationTextBindingSchema = z.discriminatedUnion("kind", [
   z.strictObject({
-    /** Optional, read-only emitted network designator; never an object ID. */
-    kind: z.literal("instance-designator"),
-    instanceId: StableIdSchema,
-  }),
-  z.strictObject({
-    /** The default user-owned RichText schematic label. */
-    kind: z.literal("instance-schematic-name"),
-    instanceId: StableIdSchema,
-  }),
-  z.strictObject({
-    /** The binding target's human-readable master/Cell/model name. */
-    kind: z.literal("instance-master-name"),
+    /** The Instance's sole authored Reference; never an object ID. */
+    kind: z.literal("instance-reference"),
     instanceId: StableIdSchema,
   }),
   z.strictObject({
@@ -107,6 +97,7 @@ export const AnnotationSchema = z
     }
     if (
       annotation.formatOverride &&
+      annotation.binding?.kind !== "instance-reference" &&
       annotation.binding?.kind !== "net-name" &&
       annotation.binding?.kind !== "cell-terminal-name"
     ) {
@@ -114,7 +105,7 @@ export const AnnotationSchema = z
         code: z.ZodIssueCode.custom,
         path: ["formatOverride"],
         message:
-          "RichText format overrides require an editable Net or Cell-terminal name binding",
+          "RichText format overrides require an editable Instance, Net, or Cell-terminal name binding",
       });
     }
     if (annotation.markerKind && annotation.kind !== "route-marker") {

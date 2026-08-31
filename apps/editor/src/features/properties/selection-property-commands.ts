@@ -5,7 +5,6 @@ import {
 } from "@icm/edit-engine";
 import { resolveDocumentStyleProfile } from "@icm/derived";
 import {
-  defaultDraftTextDocument,
   type Annotation,
   type CircuitProject,
   type SchematicDocument,
@@ -179,38 +178,14 @@ export function createSelectionPropertyCommands({
     }
   };
 
-  const updateSelectedSchematicName = (value: string): boolean => {
-    if (!selectedInstance) return false;
-    const content = defaultDraftTextDocument(value.trim());
-    if (
-      JSON.stringify(selectedInstance.schematicName ?? null) ===
-      JSON.stringify(content)
-    ) {
-      return true;
-    }
-    if (
-      transact([
-        {
-          kind: "set_instance_schematic_name",
-          instanceId: selectedInstance.id,
-          content,
-        },
-      ]).ok
-    ) {
-      setStatus(`Renamed schematic label to ${value.trim()}`);
-      return true;
-    }
-    return false;
-  };
-
   const updateSelectedReference = (value: string): boolean => {
-    if (!selectedInstance?.netlist) return false;
+    if (!selectedInstance?.reference) return false;
     const reference = value.trim();
     if (!reference) {
-      setStatus("Netlist reference cannot be empty");
+      setStatus("Reference cannot be empty");
       return false;
     }
-    if (reference === selectedInstance.netlist.reference) return true;
+    if (reference === selectedInstance.reference) return true;
     if (
       transact([
         {
@@ -220,7 +195,7 @@ export function createSelectionPropertyCommands({
         },
       ]).ok
     ) {
-      setStatus(`Set netlist reference to ${reference}`);
+      setStatus(`Set Reference to ${reference}`);
       return true;
     }
     return false;
@@ -261,7 +236,6 @@ export function createSelectionPropertyCommands({
     referenceLabelVisibilityEdits,
     valueVisibilityEdits,
     updateSelectedModelTarget,
-    updateSelectedSchematicName,
     updateSelectedReference,
     deleteSelectedAnnotation,
     reverseSelectedCurrentArrow,

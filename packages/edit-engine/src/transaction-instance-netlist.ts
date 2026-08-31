@@ -3,7 +3,10 @@ import type { SchematicDocument } from "@icm/model";
 
 import type { EditTransaction } from "./edit-schema.js";
 import type { EditMutationOutcome, RejectEdit } from "./transaction-domain.js";
-import { refreshInstanceValueAnnotation } from "./transaction-instance-annotations.js";
+import {
+  refreshInstanceReferenceAnnotation,
+  refreshInstanceValueAnnotation,
+} from "./transaction-instance-annotations.js";
 
 type InstanceNetlistEdit = Extract<
   EditTransaction["edits"][number],
@@ -11,8 +14,6 @@ type InstanceNetlistEdit = Extract<
     kind:
       | "patch_instance_netlist_parameters"
       | "set_instance_reference"
-      | "set_instance_schematic_reference"
-      | "set_instance_schematic_name"
       | "set_instance_binding"
       | "set_instance_netlist"
       | "bulk_patch_instance_netlist";
@@ -38,9 +39,7 @@ function referencePolicyFailure(
   if (!issue) return null;
   switch (issue.code) {
     case "MISSING_REFERENCE":
-      return "This component requires a netlist reference";
-    case "UNEXPECTED_REFERENCE":
-      return "This symbol does not emit a netlist reference";
+      return "This component requires an Instance Reference";
     case "WRONG_REFERENCE_PREFIX":
       return `Reference ${issue.reference} does not match this component prefix`;
     case "DUPLICATE_REFERENCE":
@@ -176,43 +175,6 @@ export function applyInstanceNetlistEdit(
       const instance = draft.instances.find(
         (candidate) => candidate.id === edit.instanceId,
       );
-      if (!instance?.netlist) {
-        return {
-          ok: false,
-          rejection: reject(
-            "EDIT_PRECONDITION",
-            "Reference edit requires an instance netlist record",
-            [],
-            [edit.instanceId],
-          ),
-        };
-      }
-      if (instance.netlist.reference === edit.reference) {
-        return {
-          ok: false,
-          rejection: reject(
-            "EDIT_PRECONDITION",
-            "Reference edit does not change the instance",
-            [],
-            [edit.instanceId],
-          ),
-        };
-      }
-      instance.netlist.reference = edit.reference;
-      const failure = referencePolicyFailure(draft, instance.id);
-      if (failure) {
-        return {
-          ok: false,
-          rejection: reject("EDIT_PRECONDITION", failure, [], [instance.id]),
-        };
-      }
-      changedObjectIds.add(edit.instanceId);
-      return { ok: true, connectivityChanged: false };
-    }
-    case "set_instance_schematic_reference": {
-      const instance = draft.instances.find(
-        (candidate) => candidate.id === edit.instanceId,
-      );
       if (!instance) {
         return {
           ok: false,
@@ -233,87 +195,45 @@ export function applyInstanceNetlistEdit(
           ok: false,
           rejection: reject(
             "EDIT_PRECONDITION",
-            "A formal Cell Pin is identified by its Cell terminal name, not a schematic reference",
+            "A formal Cell Pin is identified by its Cell terminal name, not an Instance reference",
             [],
             [instance.id],
           ),
         };
       }
-      if (instance.schematicReference === edit.reference) {
+      if (instance.symbolId === "ground" || instance.symbolId === "vdd-port") {
         return {
           ok: false,
           rejection: reject(
             "EDIT_PRECONDITION",
-            "Schematic reference edit does not change the instance",
+            "A power marker is identified by its visible Net name, not an Instance reference",
+            [],
+            [instance.id],
+          ),
+        };
+      }
+      if (instance.reference === edit.reference) {
+        return {
+          ok: false,
+          rejection: reject(
+            "EDIT_PRECONDITION",
+            "Reference edit does not change the instance",
             [],
             [edit.instanceId],
           ),
         };
       }
-      const duplicate = draft.instances.find(
-        (candidate) =>
-          candidate.id !== instance.id &&
-          (
-            candidate.schematicReference ?? candidate.netlist?.reference
-          )?.toLowerCase() === edit.reference.toLowerCase(),
-      );
-      if (duplicate) {
+      instance.reference = edit.reference;
+      const failure = referencePolicyFailure(draft, instance.id);
+      if (failure) {
         return {
           ok: false,
-          rejection: reject(
-            "EDIT_PRECONDITION",
-            `Schematic reference is already in use: ${edit.reference}`,
-            [],
-            [duplicate.id],
-          ),
+          rejection: reject("EDIT_PRECONDITION", failure, [], [instance.id]),
         };
       }
-      instance.schematicReference = edit.reference;
-      changedObjectIds.add(instance.id);
       for (const annotation of draft.annotations) {
         if (
-          annotation.binding?.kind === "instance-schematic-name" &&
-          annotation.binding.instanceId === instance.id
-        ) {
-          changedObjectIds.add(annotation.id);
-        }
-      }
-      return { ok: true, connectivityChanged: false };
-    }
-    case "set_instance_schematic_name": {
-      const instance = draft.instances.find(
-        (candidate) => candidate.id === edit.instanceId,
-      );
-      if (!instance) {
-        return {
-          ok: false,
-          rejection: reject(
-            "OBJECT_NOT_FOUND",
-            `Instance does not exist: ${edit.instanceId}`,
-            [],
-            [edit.instanceId],
-          ),
-        };
-      }
-      if (
-        JSON.stringify(instance.schematicName ?? null) ===
-        JSON.stringify(edit.content)
-      ) {
-        return {
-          ok: false,
-          rejection: reject(
-            "EDIT_PRECONDITION",
-            "Schematic name edit does not change the instance",
-            [],
-            [edit.instanceId],
-          ),
-        };
-      }
-      instance.schematicName = structuredClone(edit.content);
-      changedObjectIds.add(edit.instanceId);
-      for (const annotation of draft.annotations) {
-        if (
-          annotation.binding?.kind === "instance-schematic-name" &&
+          annotation.binding?.kind === "instance-reference" &&
           annotation.binding.instanceId === instance.id
         ) {
           changedObjectIds.add(annotation.id);
@@ -445,9 +365,9 @@ export function applyInstanceNetlistEdit(
         let parametersChanged = false;
         if (
           assignment.reference !== undefined &&
-          instance.netlist.reference !== assignment.reference
+          instance.reference !== assignment.reference
         ) {
-          instance.netlist.reference = assignment.reference;
+          instance.reference = assignment.reference;
           changed = true;
         }
         if (assignment.binding !== undefined) {
@@ -543,6 +463,12 @@ export function applyInstanceNetlistEdit(
             changedObjectIds,
           );
         }
+        refreshInstanceReferenceAnnotation(
+          draft,
+          before,
+          instance.id,
+          changedObjectIds,
+        );
         changedObjectIds.add(instance.id);
       }
       for (const instanceId of assignedIds) {

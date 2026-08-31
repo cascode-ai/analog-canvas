@@ -23,7 +23,7 @@ function label(overrides: Partial<Annotation> = {}): Annotation {
   return {
     id: "label",
     kind: "instance-label",
-    binding: { kind: "instance-schematic-name", instanceId: "semantic" },
+    binding: { kind: "instance-reference", instanceId: "semantic" },
     anchor: {
       kind: "object",
       objectId: "visual",

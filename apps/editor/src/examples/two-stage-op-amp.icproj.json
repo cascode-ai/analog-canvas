@@ -287,8 +287,7 @@
         {
           "id": "X7",
           "netlist": {
-            "parameters": {},
-            "reference": "X1"
+            "parameters": {}
           },
           "placement": {
             "mirror": "x",
@@ -298,14 +297,13 @@
             },
             "rotation": 180
           },
-          "schematicReference": "X1",
-          "symbolId": "opamp"
+          "symbolId": "opamp",
+          "reference": "X1"
         },
         {
           "id": "X8",
           "netlist": {
-            "parameters": {},
-            "reference": "X2"
+            "parameters": {}
           },
           "placement": {
             "mirror": "none",
@@ -315,8 +313,8 @@
             },
             "rotation": 0
           },
-          "schematicReference": "X2",
-          "symbolId": "voltage-amplifier"
+          "symbolId": "voltage-amplifier",
+          "reference": "X2"
         },
         {
           "id": "C9",
@@ -325,8 +323,7 @@
               "deviceClass": "capacitor",
               "kind": "primitive"
             },
-            "parameters": {},
-            "reference": "C1"
+            "parameters": {}
           },
           "placement": {
             "mirror": "none",
@@ -336,8 +333,8 @@
             },
             "rotation": 0
           },
-          "schematicReference": "C1",
-          "symbolId": "capacitor"
+          "symbolId": "capacitor",
+          "reference": "C1"
         },
         {
           "id": "C10",
@@ -346,8 +343,7 @@
               "deviceClass": "capacitor",
               "kind": "primitive"
             },
-            "parameters": {},
-            "reference": "C2"
+            "parameters": {}
           },
           "placement": {
             "mirror": "none",
@@ -357,19 +353,11 @@
             },
             "rotation": 270
           },
-          "schematicReference": "C2",
-          "symbolId": "capacitor"
+          "symbolId": "capacitor",
+          "reference": "C2"
         },
         {
           "id": "GND11",
-          "netlist": {
-            "binding": {
-              "deviceClass": "net-marker",
-              "kind": "primitive"
-            },
-            "parameters": {},
-            "reference": "PWR1"
-          },
           "placement": {
             "mirror": "none",
             "position": {
@@ -378,15 +366,10 @@
             },
             "rotation": 0
           },
-          "schematicReference": "PWR1",
           "symbolId": "ground"
         },
         {
           "id": "P12",
-          "netlist": {
-            "parameters": {},
-            "reference": "X3"
-          },
           "placement": {
             "mirror": "none",
             "position": {
@@ -399,10 +382,6 @@
         },
         {
           "id": "P13",
-          "netlist": {
-            "parameters": {},
-            "reference": "X4"
-          },
           "placement": {
             "mirror": "none",
             "position": {
@@ -799,7 +778,7 @@
   "externalSubcircuitDefinitions": [],
   "id": "project-main",
   "name": "New Circuit",
-  "schemaVersion": 34,
+  "schemaVersion": 35,
   "source": {
     "dialect": "none",
     "entry": null,

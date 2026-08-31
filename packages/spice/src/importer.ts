@@ -213,7 +213,7 @@ function importProvenance(
     case "primitive":
       return {
         kind: "primitive",
-        name: instance.target.family,
+        sourceMasterName: instance.target.family,
         sourceTarget: targetDescription(instance, symbolMappings),
         status: "resolved",
       };
@@ -223,7 +223,7 @@ function importProvenance(
       );
       return {
         kind: "model",
-        name: instance.target.modelName,
+        sourceMasterName: instance.target.modelName,
         sourceTarget: targetDescription(instance, symbolMappings),
         status: "resolved",
         ...(modelType ? { modelType } : {}),
@@ -235,21 +235,21 @@ function importProvenance(
       // mutable compatibility property.
       return {
         kind: "subcircuit",
-        name: instance.target.cellName,
+        sourceMasterName: instance.target.cellName,
         sourceTarget: targetDescription(instance, symbolMappings),
         status: "missing",
       };
     case "external-subcircuit":
       return {
         kind: "opaque",
-        name: instance.target.masterName,
+        sourceMasterName: instance.target.masterName,
         sourceTarget: targetDescription(instance, symbolMappings),
         status: "missing",
       };
     case "opaque":
       return {
         kind: "opaque",
-        name: instance.target.sourceName,
+        sourceMasterName: instance.target.sourceName,
         sourceTarget: targetDescription(instance, symbolMappings),
         status: "resolved",
       };
@@ -294,8 +294,8 @@ function importInstance(
       })),
     },
     placement: null,
+    reference: instance.name,
     netlist: {
-      reference: instance.name,
       ...(netlistBinding ? { binding: netlistBinding } : {}),
       parameters: Object.fromEntries(
         Object.entries(instance.parameters).map(([name, parameter]) => [
@@ -477,20 +477,7 @@ function bindImportedChildDocuments(documents: readonly SchematicDocument[]): {
   const boundDocuments: SchematicDocument[] = documents.map((document) => ({
     ...document,
     instances: document.instances.map((instance) => {
-      const isFormalPort = document.netlist?.terminals.some((terminal) =>
-        terminal.interfaceInstanceIds.includes(instance.id),
-      );
-      const referencedInstance = {
-        ...instance,
-        ...(isFormalPort
-          ? {}
-          : {
-              schematicReference:
-                instance.schematicReference ??
-                instance.netlist?.reference ??
-                instance.id,
-            }),
-      };
+      const referencedInstance = { ...instance };
       const isImportedChild = instance.importProvenance?.kind === "subcircuit";
       const isImportedExternal =
         instance.netlist?.binding?.kind === "external-subcircuit";
@@ -499,17 +486,20 @@ function bindImportedChildDocuments(documents: readonly SchematicDocument[]): {
       }
       const childDocumentId = isImportedChild
         ? documentIdByCellName.get(
-            instance.importProvenance!.name.toLowerCase(),
+            instance.importProvenance!.sourceMasterName.toLowerCase(),
           )
         : undefined;
       const externalDefinition = !childDocumentId
         ? (() => {
-            const key = instance.importProvenance!.name.toLowerCase();
+            const key =
+              instance.importProvenance!.sourceMasterName.toLowerCase();
             const existing = externalDefinitions.get(key);
             if (existing) return existing;
             const definition: ExternalSubcircuitDefinition = {
-              id: externalDefinitionId(instance.importProvenance!.name),
-              name: instance.importProvenance!.name,
+              id: externalDefinitionId(
+                instance.importProvenance!.sourceMasterName,
+              ),
+              name: instance.importProvenance!.sourceMasterName,
               terminals: (instance.importProvenance!.terminalMapping ?? [])
                 .toSorted(
                   (left, right) => left.sourcePosition - right.sourcePosition,

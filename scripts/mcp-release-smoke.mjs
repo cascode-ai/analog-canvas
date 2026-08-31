@@ -316,7 +316,7 @@ try {
       {
         kind: "place-component",
         symbol: "resistor",
-        name: "R1",
+        reference: "R1",
         position: { x: 200, y: 200 },
       },
     ],

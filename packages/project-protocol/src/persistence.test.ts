@@ -400,10 +400,10 @@ describe("Project persistence", () => {
 
   it("rejects schemas outside the supported chain window", () => {
     const project = createEmptyProject("project-test", "Test Project");
-    for (const schemaVersion of [1, 22, 23, 35, 99]) {
+    for (const schemaVersion of [1, 22, 23, 36, 99]) {
       expect(() =>
         parseProject(JSON.stringify({ ...project, schemaVersion })),
-      ).toThrow(/must be between 24 and 34/);
+      ).toThrow(/must be between 24 and 35/);
     }
   });
 });

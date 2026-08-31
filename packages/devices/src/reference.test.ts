@@ -16,19 +16,22 @@ describe("ReferencePolicy and ReferenceIndex", () => {
         id: "R1",
         symbolId: "resistor",
         placement: null,
-        netlist: { reference: "R1", parameters: {} },
+        reference: "R1",
+        netlist: { parameters: {} },
       },
       {
         id: "R3",
         symbolId: "resistor",
         placement: null,
-        netlist: { reference: "R3", parameters: {} },
+        reference: "R3",
+        netlist: { parameters: {} },
       },
       {
         id: "M1",
         symbolId: "nmos",
         placement: null,
-        netlist: { reference: "M1", parameters: {} },
+        reference: "M1",
+        netlist: { parameters: {} },
       },
     );
     const index = createReferenceIndex(document);
@@ -48,19 +51,22 @@ describe("ReferencePolicy and ReferenceIndex", () => {
         id: "R2",
         symbolId: "resistor",
         placement: null,
-        netlist: { reference: "C1", parameters: {} },
+        reference: "C1",
+        netlist: { parameters: {} },
       },
       {
         id: "R3",
         symbolId: "resistor",
         placement: null,
-        netlist: { reference: "c1", parameters: {} },
+        reference: "c1",
+        netlist: { parameters: {} },
       },
       {
         id: "G1",
         symbolId: "ground",
         placement: null,
-        netlist: { reference: "G1", parameters: {} },
+        reference: "G1",
+        netlist: { parameters: {} },
       },
     );
     expect(
@@ -69,7 +75,6 @@ describe("ReferencePolicy and ReferenceIndex", () => {
       "MISSING_REFERENCE",
       "WRONG_REFERENCE_PREFIX",
       "WRONG_REFERENCE_PREFIX",
-      "UNEXPECTED_REFERENCE",
       "DUPLICATE_REFERENCE",
       "DUPLICATE_REFERENCE",
     ]);
@@ -81,7 +86,8 @@ describe("ReferencePolicy and ReferenceIndex", () => {
       id: "R1",
       symbolId: "resistor",
       placement: null,
-      netlist: { reference: "X1", parameters: {} },
+      reference: "X1",
+      netlist: { parameters: {} },
     });
 
     expect(

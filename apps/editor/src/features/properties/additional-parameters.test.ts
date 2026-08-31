@@ -10,8 +10,8 @@ const instance = (parameters: Record<string, string>) =>
     id: "instance-r1",
     symbolId: "resistor",
     placement: null,
+    reference: "R1",
     netlist: {
-      reference: "R1",
       binding: { kind: "primitive" as const, deviceClass: "resistor" as const },
       parameters,
     },

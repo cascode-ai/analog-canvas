@@ -1,4 +1,3 @@
-import { flattenRichText } from "@icm/model";
 import type { SchematicDocument } from "@icm/model";
 
 type Instance = SchematicDocument["instances"][number];
@@ -10,14 +9,7 @@ export function placementTrayIdentity(
   const formalName = document.netlist?.terminals.find((terminal) =>
     terminal.interfaceInstanceIds.includes(instance.id),
   )?.name;
-  const schematicName = flattenRichText(instance.schematicName ?? { runs: [] });
-  const reference =
-    instance.schematicReference ?? instance.netlist?.reference ?? null;
-  const secondary = formalName ?? schematicName;
-  const identity =
-    reference && secondary && reference !== secondary
-      ? `${reference} · ${secondary}`
-      : (reference ?? secondary ?? "Unreferenced");
+  const identity = formalName ?? instance.reference ?? "Unreferenced";
   return `${identity} · ${instance.symbolId}`;
 }
 

@@ -121,7 +121,7 @@
             },
             "rotation": 0
           },
-          "schematicReference": "M1",
+          "reference": "M1",
           "symbolId": "nmos"
         },
         {
@@ -134,7 +134,7 @@
             },
             "rotation": 0
           },
-          "schematicReference": "M2",
+          "reference": "M2",
           "symbolId": "nmos"
         },
         {
@@ -159,7 +159,6 @@
             },
             "rotation": 0
           },
-          "schematicReference": "GND1",
           "symbolId": "ground"
         }
       ],
@@ -422,7 +421,7 @@
   "externalSubcircuitDefinitions": [],
   "id": "project-phase-5-dense-analog",
   "name": "Current Differential Stage",
-  "schemaVersion": 34,
+  "schemaVersion": 35,
   "source": {
     "dialect": "none",
     "entry": null,

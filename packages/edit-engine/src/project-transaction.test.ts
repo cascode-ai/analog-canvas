@@ -31,8 +31,8 @@ function hierarchyInstance(
       rotation: 0 as const,
       mirror: "none" as const,
     },
+    reference: id,
     netlist: {
-      reference: id,
       parameters: {},
       binding: {
         kind: "subcircuit" as const,
@@ -526,7 +526,7 @@ describe("Project structural transaction", () => {
       },
       importProvenance: {
         kind: "subcircuit" as const,
-        name: "Child",
+        sourceMasterName: "Child",
         sourceTarget: `cell:${child.id}`,
         terminalMapping: [{ sourcePosition: 0, pinName: "VIN" }],
       },
@@ -869,7 +869,7 @@ describe("Project structural transaction", () => {
       ...hierarchyInstance("X1", "Child", child.id),
       importProvenance: {
         kind: "subcircuit" as const,
-        name: "Child",
+        sourceMasterName: "Child",
         sourceTarget: `cell:${child.id}`,
         terminalMapping: [{ sourcePosition: 0, pinName: "IN" }],
       },
@@ -1036,7 +1036,7 @@ describe("Project structural transaction", () => {
       applied: true,
       project: {
         documents: [
-          { instances: [{ netlist: { reference: "X1" } }] },
+          { instances: [{ reference: "X1" }] },
           { instances: [], netlist: { terminals: [] } },
         ],
       },
@@ -1106,7 +1106,7 @@ describe("Project structural transaction", () => {
       ok: true,
       project: {
         documents: [
-          { instances: [{ netlist: { reference: "X1" } }] },
+          { instances: [{ reference: "X1" }] },
           { instances: [], netlist: { terminals: [] } },
         ],
       },
@@ -1245,8 +1245,8 @@ describe("Project structural transaction", () => {
       id: "X1",
       symbolId: "nmos",
       placement: null,
+      reference: "X1",
       netlist: {
-        reference: "X1",
         binding: {
           kind: "external-subcircuit",
           definitionId: definition.id,

@@ -219,7 +219,7 @@ describe("route interaction geometry", () => {
     expect(label).toMatchObject({
       id: "instance-label-R1",
       kind: "instance-label",
-      binding: { kind: "instance-schematic-name", instanceId: "R1" },
+      binding: { kind: "instance-reference", instanceId: "R1" },
       anchor: expect.objectContaining({ kind: "object", objectId: "R1" }),
     });
     document.annotations.push(label!);

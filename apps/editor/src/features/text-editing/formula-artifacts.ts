@@ -10,9 +10,6 @@ import type { RichTextDocument, SchematicDocument } from "@icm/model";
 
 function formulaDocuments(document: SchematicDocument): RichTextDocument[] {
   const documents: RichTextDocument[] = [];
-  for (const instance of document.instances) {
-    if (instance.schematicName) documents.push(instance.schematicName);
-  }
   for (const annotation of document.annotations) {
     if (annotation.content) documents.push(annotation.content);
     if (annotation.formatOverride) documents.push(annotation.formatOverride);

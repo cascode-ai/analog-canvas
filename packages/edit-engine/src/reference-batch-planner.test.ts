@@ -8,7 +8,8 @@ function nmos(id: string, reference: string) {
     id,
     symbolId: "nmos",
     placement: null,
-    netlist: { reference, parameters: {} },
+    reference,
+    netlist: { parameters: {} },
   };
 }
 

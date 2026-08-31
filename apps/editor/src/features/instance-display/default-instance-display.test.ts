@@ -11,7 +11,7 @@ import {
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 
 describe("default instance display annotations", () => {
-  it("creates a RichText schematic label and master label for an external call", () => {
+  it("creates a live Reference label and literal master label for an external call", () => {
     const document = createEmptyDocument("main", "Main");
     const instance = {
       id: "opaque-import-id",
@@ -21,8 +21,8 @@ describe("default instance display annotations", () => {
         rotation: 0 as const,
         mirror: "none" as const,
       },
+      reference: "X1",
       netlist: {
-        reference: "X1",
         binding: {
           kind: "external-subcircuit" as const,
           definitionId: "master-opamp",
@@ -42,7 +42,7 @@ describe("default instance display annotations", () => {
       {
         kind: "instance-label",
         binding: {
-          kind: "instance-schematic-name",
+          kind: "instance-reference",
           instanceId: "opaque-import-id",
         },
       },
@@ -84,13 +84,13 @@ describe("default instance display annotations", () => {
     const instance = {
       id: "imported-resistor-opaque-id",
       symbolId: "resistor",
-      schematicReference: "R7",
+      reference: "R7",
       placement: {
         position: { x: 100, y: 100 },
         rotation: 0 as const,
         mirror: "none" as const,
       },
-      netlist: { reference: "R7", parameters: { value: "10k" } },
+      netlist: { parameters: { value: "10k" } },
     };
 
     const missing = missingDefaultInstanceDisplayAnnotations(
@@ -102,7 +102,7 @@ describe("default instance display annotations", () => {
     expect(missing).toEqual([
       expect.objectContaining({
         binding: {
-          kind: "instance-schematic-name",
+          kind: "instance-reference",
           instanceId: "imported-resistor-opaque-id",
         },
       }),

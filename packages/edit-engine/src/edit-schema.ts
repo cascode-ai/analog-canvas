@@ -16,7 +16,6 @@ import {
   NoConnectSchema,
   PlacementSchema,
   PointSchema,
-  RichTextDocumentSchema,
   RouteBranchSchema,
   RouteEndpointSchema,
   RoutePresentationSchema,
@@ -103,18 +102,6 @@ export const SetInstanceReferenceEditSchema = z.strictObject({
   kind: z.literal("set_instance_reference"),
   instanceId: StableIdSchema,
   reference: z.string().min(1).max(128),
-});
-/** Update the visible schematic reference without changing netlist identity. */
-export const SetInstanceSchematicReferenceEditSchema = z.strictObject({
-  kind: z.literal("set_instance_schematic_reference"),
-  instanceId: StableIdSchema,
-  reference: z.string().min(1).max(128),
-});
-/** Update the default user-visible, RichText schematic label. */
-export const SetInstanceSchematicNameEditSchema = z.strictObject({
-  kind: z.literal("set_instance_schematic_name"),
-  instanceId: StableIdSchema,
-  content: RichTextDocumentSchema,
 });
 /**
  * Set, update, or clear per-instance color overrides.
@@ -417,8 +404,6 @@ export const SchematicEditSchema = z.discriminatedUnion("kind", [
   MirrorInstanceEditSchema,
   PatchInstanceNetlistParametersEditSchema,
   SetInstanceReferenceEditSchema,
-  SetInstanceSchematicReferenceEditSchema,
-  SetInstanceSchematicNameEditSchema,
   SetInstanceStyleOverrideEditSchema,
   SetInstanceSignalFlowParametersEditSchema,
   SetInstanceBindingEditSchema,

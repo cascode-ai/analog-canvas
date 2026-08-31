@@ -16,8 +16,8 @@ function instance(
     },
     ...(Object.keys(netlistParameters).length > 0
       ? {
+          reference: "X1",
           netlist: {
-            reference: "X1",
             binding: {
               kind: "primitive" as const,
               deviceClass: "resistor" as const,

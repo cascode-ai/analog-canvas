@@ -225,7 +225,7 @@ describe("agent session client", () => {
             after.document.instances.push({
               ...after.document.instances[1]!,
               id: "instance-3",
-              name: "R2",
+              reference: "R2",
             });
             return snapshotResponse(request.requestId, after, 6);
           }
@@ -244,12 +244,12 @@ describe("agent session client", () => {
       {
         kind: "place-component",
         symbol: "resistor",
-        name: "R2",
+        reference: "R2",
         position: { x: 700, y: 200 },
       },
       {
         kind: "move",
-        target: { kind: "instance", name: "M1" },
+        target: { kind: "instance", reference: "M1" },
         position: { x: 320, y: 240 },
       },
     ]);
@@ -320,7 +320,7 @@ describe("agent session client", () => {
     const report = await client.applyActions([
       {
         kind: "move",
-        target: { kind: "instance", name: "M1" },
+        target: { kind: "instance", reference: "M1" },
         position: { x: 1, y: 1 },
       },
     ]);
@@ -387,7 +387,7 @@ describe("agent session client", () => {
       [
         {
           kind: "move",
-          target: { kind: "instance", name: "M1" },
+          target: { kind: "instance", reference: "M1" },
           position: { x: 340, y: 240 },
         },
       ],

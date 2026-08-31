@@ -41,8 +41,8 @@
             "objectId": "M3"
           },
           "binding": {
-            "instanceId": "M3",
-            "kind": "instance-schematic-name"
+            "kind": "instance-reference",
+            "instanceId": "M3"
           },
           "id": "instance-label-M2-copy-1",
           "kind": "instance-label",
@@ -64,8 +64,8 @@
             "objectId": "Q1"
           },
           "binding": {
-            "instanceId": "Q1",
-            "kind": "instance-schematic-name"
+            "kind": "instance-reference",
+            "instanceId": "Q1"
           },
           "id": "instance-label-Q1",
           "kind": "instance-label",
@@ -87,8 +87,8 @@
             "objectId": "Q2"
           },
           "binding": {
-            "instanceId": "Q2",
-            "kind": "instance-schematic-name"
+            "kind": "instance-reference",
+            "instanceId": "Q2"
           },
           "id": "instance-label-Q2",
           "kind": "instance-label",
@@ -110,8 +110,8 @@
             "objectId": "Q3"
           },
           "binding": {
-            "instanceId": "Q3",
-            "kind": "instance-schematic-name"
+            "kind": "instance-reference",
+            "instanceId": "Q3"
           },
           "id": "instance-label-Q3",
           "kind": "instance-label",
@@ -133,8 +133,8 @@
             "objectId": "Q4"
           },
           "binding": {
-            "instanceId": "Q4",
-            "kind": "instance-schematic-name"
+            "kind": "instance-reference",
+            "instanceId": "Q4"
           },
           "id": "instance-label-Q4",
           "kind": "instance-label",
@@ -156,8 +156,8 @@
             "objectId": "Q5"
           },
           "binding": {
-            "instanceId": "Q5",
-            "kind": "instance-schematic-name"
+            "kind": "instance-reference",
+            "instanceId": "Q5"
           },
           "id": "instance-label-Q5",
           "kind": "instance-label",
@@ -179,8 +179,8 @@
             "objectId": "Q6"
           },
           "binding": {
-            "instanceId": "Q6",
-            "kind": "instance-schematic-name"
+            "kind": "instance-reference",
+            "instanceId": "Q6"
           },
           "id": "instance-label-Q6",
           "kind": "instance-label",
@@ -202,8 +202,8 @@
             "objectId": "R1"
           },
           "binding": {
-            "instanceId": "R1",
-            "kind": "instance-schematic-name"
+            "kind": "instance-reference",
+            "instanceId": "R1"
           },
           "id": "instance-label-R1",
           "kind": "instance-label",
@@ -225,8 +225,8 @@
             "objectId": "R2"
           },
           "binding": {
-            "instanceId": "R2",
-            "kind": "instance-schematic-name"
+            "kind": "instance-reference",
+            "instanceId": "R2"
           },
           "id": "instance-label-R2",
           "kind": "instance-label",
@@ -248,8 +248,8 @@
             "objectId": "R3"
           },
           "binding": {
-            "instanceId": "R3",
-            "kind": "instance-schematic-name"
+            "kind": "instance-reference",
+            "instanceId": "R3"
           },
           "id": "instance-label-R3",
           "kind": "instance-label",
@@ -271,8 +271,8 @@
             "objectId": "R4"
           },
           "binding": {
-            "instanceId": "R4",
-            "kind": "instance-schematic-name"
+            "kind": "instance-reference",
+            "instanceId": "R4"
           },
           "id": "instance-label-R4",
           "kind": "instance-label",
@@ -294,8 +294,8 @@
             "objectId": "R5"
           },
           "binding": {
-            "instanceId": "R5",
-            "kind": "instance-schematic-name"
+            "kind": "instance-reference",
+            "instanceId": "R5"
           },
           "id": "instance-label-R5",
           "kind": "instance-label",
@@ -317,8 +317,8 @@
             "objectId": "R6"
           },
           "binding": {
-            "instanceId": "R6",
-            "kind": "instance-schematic-name"
+            "kind": "instance-reference",
+            "instanceId": "R6"
           },
           "id": "instance-label-R6",
           "kind": "instance-label",
@@ -340,8 +340,8 @@
             "objectId": "R7"
           },
           "binding": {
-            "instanceId": "R7",
-            "kind": "instance-schematic-name"
+            "kind": "instance-reference",
+            "instanceId": "R7"
           },
           "id": "instance-label-R7",
           "kind": "instance-label",
@@ -363,8 +363,8 @@
             "objectId": "M4"
           },
           "binding": {
-            "instanceId": "M4",
-            "kind": "instance-schematic-name"
+            "kind": "instance-reference",
+            "instanceId": "M4"
           },
           "id": "instance-label-M4",
           "kind": "instance-label",
@@ -385,14 +385,30 @@
             },
             "objectId": "M6"
           },
-          "binding": {
-            "instanceId": "M6",
-            "kind": "instance-schematic-name"
-          },
           "id": "instance-label-M4-copy-2",
           "kind": "instance-label",
           "locked": false,
-          "rotation": 0
+          "rotation": 0,
+          "content": {
+            "runs": [
+              {
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "kind": "text",
+                        "value": "M2"
+                      }
+                    ],
+                    "kind": "span",
+                    "style": "bold"
+                  }
+                ],
+                "kind": "span",
+                "style": "italic"
+              }
+            ]
+          }
         },
         {
           "alignment": "end",
@@ -408,14 +424,30 @@
             },
             "objectId": "M8"
           },
-          "binding": {
-            "instanceId": "M8",
-            "kind": "instance-schematic-name"
-          },
           "id": "instance-label-M4-copy-2-copy-2",
           "kind": "instance-label",
           "locked": false,
-          "rotation": 0
+          "rotation": 0,
+          "content": {
+            "runs": [
+              {
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "kind": "text",
+                        "value": "M1"
+                      }
+                    ],
+                    "kind": "span",
+                    "style": "bold"
+                  }
+                ],
+                "kind": "span",
+                "style": "italic"
+              }
+            ]
+          }
         }
       ],
       "connectivityEvidence": [
@@ -500,7 +532,6 @@
             },
             "rotation": 0
           },
-          "schematicReference": "VDD1",
           "symbolId": "vdd-port"
         },
         {
@@ -515,8 +546,7 @@
               "m": "1",
               "nf": "1",
               "w": "1u"
-            },
-            "reference": "M3"
+            }
           },
           "placement": {
             "mirror": "x",
@@ -526,15 +556,14 @@
             },
             "rotation": 0
           },
-          "schematicReference": "M3",
           "symbolId": "nmos",
-          "symbolVariantId": "textbook-3terminal"
+          "symbolVariantId": "textbook-3terminal",
+          "reference": "M3"
         },
         {
           "id": "Q1",
           "netlist": {
-            "parameters": {},
-            "reference": "Q1"
+            "parameters": {}
           },
           "placement": {
             "mirror": "none",
@@ -544,14 +573,13 @@
             },
             "rotation": 0
           },
-          "schematicReference": "Q1",
-          "symbolId": "npn"
+          "symbolId": "npn",
+          "reference": "Q1"
         },
         {
           "id": "Q2",
           "netlist": {
-            "parameters": {},
-            "reference": "Q2"
+            "parameters": {}
           },
           "placement": {
             "mirror": "none",
@@ -561,14 +589,13 @@
             },
             "rotation": 0
           },
-          "schematicReference": "Q2",
-          "symbolId": "npn"
+          "symbolId": "npn",
+          "reference": "Q2"
         },
         {
           "id": "Q3",
           "netlist": {
-            "parameters": {},
-            "reference": "Q3"
+            "parameters": {}
           },
           "placement": {
             "mirror": "x",
@@ -578,14 +605,13 @@
             },
             "rotation": 0
           },
-          "schematicReference": "Q3",
-          "symbolId": "npn"
+          "symbolId": "npn",
+          "reference": "Q3"
         },
         {
           "id": "Q4",
           "netlist": {
-            "parameters": {},
-            "reference": "Q4"
+            "parameters": {}
           },
           "placement": {
             "mirror": "none",
@@ -595,14 +621,13 @@
             },
             "rotation": 0
           },
-          "schematicReference": "Q4",
-          "symbolId": "npn"
+          "symbolId": "npn",
+          "reference": "Q4"
         },
         {
           "id": "Q5",
           "netlist": {
-            "parameters": {},
-            "reference": "Q5"
+            "parameters": {}
           },
           "placement": {
             "mirror": "none",
@@ -612,14 +637,13 @@
             },
             "rotation": 0
           },
-          "schematicReference": "Q5",
-          "symbolId": "npn"
+          "symbolId": "npn",
+          "reference": "Q5"
         },
         {
           "id": "Q6",
           "netlist": {
-            "parameters": {},
-            "reference": "Q6"
+            "parameters": {}
           },
           "placement": {
             "mirror": "none",
@@ -629,8 +653,8 @@
             },
             "rotation": 0
           },
-          "schematicReference": "Q6",
-          "symbolId": "npn"
+          "symbolId": "npn",
+          "reference": "Q6"
         },
         {
           "id": "R1",
@@ -639,8 +663,7 @@
               "deviceClass": "resistor",
               "kind": "primitive"
             },
-            "parameters": {},
-            "reference": "R1"
+            "parameters": {}
           },
           "placement": {
             "mirror": "none",
@@ -650,8 +673,8 @@
             },
             "rotation": 0
           },
-          "schematicReference": "R1",
-          "symbolId": "resistor"
+          "symbolId": "resistor",
+          "reference": "R1"
         },
         {
           "id": "R2",
@@ -660,8 +683,7 @@
               "deviceClass": "resistor",
               "kind": "primitive"
             },
-            "parameters": {},
-            "reference": "R2"
+            "parameters": {}
           },
           "placement": {
             "mirror": "none",
@@ -671,8 +693,8 @@
             },
             "rotation": 0
           },
-          "schematicReference": "R2",
-          "symbolId": "resistor"
+          "symbolId": "resistor",
+          "reference": "R2"
         },
         {
           "id": "R3",
@@ -681,8 +703,7 @@
               "deviceClass": "resistor",
               "kind": "primitive"
             },
-            "parameters": {},
-            "reference": "R3"
+            "parameters": {}
           },
           "placement": {
             "mirror": "none",
@@ -692,8 +713,8 @@
             },
             "rotation": 0
           },
-          "schematicReference": "R3",
-          "symbolId": "resistor"
+          "symbolId": "resistor",
+          "reference": "R3"
         },
         {
           "id": "R4",
@@ -702,8 +723,7 @@
               "deviceClass": "resistor",
               "kind": "primitive"
             },
-            "parameters": {},
-            "reference": "R4"
+            "parameters": {}
           },
           "placement": {
             "mirror": "none",
@@ -713,8 +733,8 @@
             },
             "rotation": 0
           },
-          "schematicReference": "R4",
-          "symbolId": "resistor"
+          "symbolId": "resistor",
+          "reference": "R4"
         },
         {
           "id": "R5",
@@ -723,8 +743,7 @@
               "deviceClass": "resistor",
               "kind": "primitive"
             },
-            "parameters": {},
-            "reference": "R5"
+            "parameters": {}
           },
           "placement": {
             "mirror": "none",
@@ -734,8 +753,8 @@
             },
             "rotation": 0
           },
-          "schematicReference": "R5",
-          "symbolId": "resistor"
+          "symbolId": "resistor",
+          "reference": "R5"
         },
         {
           "id": "R6",
@@ -744,8 +763,7 @@
               "deviceClass": "resistor",
               "kind": "primitive"
             },
-            "parameters": {},
-            "reference": "R6"
+            "parameters": {}
           },
           "placement": {
             "mirror": "none",
@@ -755,8 +773,8 @@
             },
             "rotation": 0
           },
-          "schematicReference": "R6",
-          "symbolId": "resistor"
+          "symbolId": "resistor",
+          "reference": "R6"
         },
         {
           "id": "R7",
@@ -765,8 +783,7 @@
               "deviceClass": "resistor",
               "kind": "primitive"
             },
-            "parameters": {},
-            "reference": "R7"
+            "parameters": {}
           },
           "placement": {
             "mirror": "none",
@@ -776,8 +793,8 @@
             },
             "rotation": 0
           },
-          "schematicReference": "R7",
-          "symbolId": "resistor"
+          "symbolId": "resistor",
+          "reference": "R7"
         },
         {
           "id": "M4",
@@ -791,8 +808,7 @@
               "m": "1",
               "nf": "1",
               "w": "1u"
-            },
-            "reference": "M4"
+            }
           },
           "placement": {
             "mirror": "none",
@@ -802,9 +818,9 @@
             },
             "rotation": 0
           },
-          "schematicReference": "M4",
           "symbolId": "pmos",
-          "symbolVariantId": "textbook-3terminal"
+          "symbolVariantId": "textbook-3terminal",
+          "reference": "M4"
         },
         {
           "id": "M5",
@@ -818,8 +834,7 @@
               "m": "1",
               "nf": "1",
               "w": "1u"
-            },
-            "reference": "M5"
+            }
           },
           "placement": {
             "mirror": "none",
@@ -829,9 +844,9 @@
             },
             "rotation": 0
           },
-          "schematicReference": "M5",
           "symbolId": "pmos",
-          "symbolVariantId": "textbook-3terminal"
+          "symbolVariantId": "textbook-3terminal",
+          "reference": "M5"
         },
         {
           "id": "M6",
@@ -845,8 +860,7 @@
               "m": "1",
               "nf": "1",
               "w": "1u"
-            },
-            "reference": "M6"
+            }
           },
           "placement": {
             "mirror": "none",
@@ -856,29 +870,9 @@
             },
             "rotation": 0
           },
-          "schematicName": {
-            "runs": [
-              {
-                "children": [
-                  {
-                    "children": [
-                      {
-                        "kind": "text",
-                        "value": "M2"
-                      }
-                    ],
-                    "kind": "span",
-                    "style": "bold"
-                  }
-                ],
-                "kind": "span",
-                "style": "italic"
-              }
-            ]
-          },
-          "schematicReference": "M6",
           "symbolId": "pmos",
-          "symbolVariantId": "textbook-3terminal"
+          "symbolVariantId": "textbook-3terminal",
+          "reference": "M6"
         },
         {
           "id": "M7",
@@ -892,8 +886,7 @@
               "m": "1",
               "nf": "1",
               "w": "1u"
-            },
-            "reference": "M7"
+            }
           },
           "placement": {
             "mirror": "none",
@@ -903,9 +896,9 @@
             },
             "rotation": 0
           },
-          "schematicReference": "M7",
           "symbolId": "pmos",
-          "symbolVariantId": "textbook-3terminal"
+          "symbolVariantId": "textbook-3terminal",
+          "reference": "M7"
         },
         {
           "id": "M8",
@@ -919,8 +912,7 @@
               "m": "1",
               "nf": "1",
               "w": "1u"
-            },
-            "reference": "M8"
+            }
           },
           "placement": {
             "mirror": "x",
@@ -930,29 +922,9 @@
             },
             "rotation": 0
           },
-          "schematicName": {
-            "runs": [
-              {
-                "children": [
-                  {
-                    "children": [
-                      {
-                        "kind": "text",
-                        "value": "M1"
-                      }
-                    ],
-                    "kind": "span",
-                    "style": "bold"
-                  }
-                ],
-                "kind": "span",
-                "style": "italic"
-              }
-            ]
-          },
-          "schematicReference": "M8",
           "symbolId": "pmos",
-          "symbolVariantId": "textbook-3terminal"
+          "symbolVariantId": "textbook-3terminal",
+          "reference": "M8"
         },
         {
           "id": "GND1",
@@ -964,7 +936,6 @@
             },
             "rotation": 0
           },
-          "schematicReference": "GND1",
           "symbolId": "ground"
         }
       ],
@@ -2799,7 +2770,7 @@
   "externalSubcircuitDefinitions": [],
   "id": "project-main",
   "name": "LTC3452",
-  "schemaVersion": 34,
+  "schemaVersion": 35,
   "source": {
     "dialect": "none",
     "entry": null,

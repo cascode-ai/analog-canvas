@@ -66,9 +66,7 @@ for readability; these groups do not create separate mutation endpoints:
   `reset_cell_body`;
 - Instance: `add_instance`, `remove_instance`, `set_instance_symbol`,
   `place_instance`, `unplace_instance`, `move_instance`, `rotate_instance`,
-  `mirror_instance`,
-  `set_instance_reference`, `set_instance_schematic_reference`,
-  `set_instance_schematic_name`, `set_instance_style_override`,
+  `mirror_instance`, `set_instance_reference`, `set_instance_style_override`,
   `set_instance_signal_flow_parameters`,
   `set_instance_binding`,
   `patch_instance_netlist_parameters`, `bulk_patch_instance_netlist`,
@@ -102,13 +100,12 @@ capability `wire`
 advertises the mutually exclusive high-level `wireIntent` transaction form; it
 is not another `SchematicEdit` member.
 
-`set_instance_reference`, `set_instance_binding`, and
-`patch_instance_netlist_parameters` are the ordinary field writers for an
-existing netlist record. `set_instance_schematic_reference` changes the visible
-Reference for any non-formal Instance, including a non-emitting Port, without
-changing netlist output; Cell Pins use their terminal name and reject
-this edit. `set_instance_schematic_name` instead changes the user-owned
-RichText label shown on an ordinary schematic instance. Net
+`set_instance_reference` writes the sole authored Instance Reference. Its live
+`instance-reference` annotations display that same value, and netlist extraction
+emits it when the Instance has a netlist binding. Cell Pins use their terminal
+name and reject this edit; descriptive attached text is an ordinary literal
+Annotation and has no identity authority. `set_instance_binding` and
+`patch_instance_netlist_parameters` are the ordinary netlist field writers. Net
 Label character edits update their owner-addressed name claim; formal Port
 character edits rename only the selected `CellTerminal.name`; a case-folded
 duplicate is valid and never invokes `merge_nets`. A formatting-only edit

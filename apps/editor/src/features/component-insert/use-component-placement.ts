@@ -52,7 +52,8 @@ import {
 } from "../instance-display/default-instance-display";
 import {
   initialInstanceNetlist,
-  nextInstanceDesignator,
+  nextInstanceId,
+  nextInstanceReference,
 } from "../netlist-export/netlist-authoring";
 import {
   defaultRazaviSymbolVariantId,
@@ -163,19 +164,19 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
     placementRequest: PendingComponentPlacement,
   ): void => {
     if (placementRequest.kind !== "symbol") return;
-    const id = nextInstanceDesignator(options.document, symbolId);
+    const id = nextInstanceId(options.document, symbolId);
     const symbolVariantId = defaultRazaviSymbolVariantId(symbolId);
     const netlist = initialInstanceNetlist(
-      options.document,
       symbolId,
       placementRequest.parameters,
-      placementRequest.referenceText ?? undefined,
     );
+    const reference =
+      placementRequest.referenceText ??
+      nextInstanceReference(options.document, symbolId);
     const instance = {
       id,
       symbolId,
-      schematicReference:
-        placementRequest.referenceText ?? netlist?.reference ?? id,
+      ...(reference ? { reference } : {}),
       ...(symbolVariantId ? { symbolVariantId } : {}),
       placement: {
         position,
@@ -373,7 +374,7 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
       options.setStatus("The selected Cell no longer exists");
       return;
     }
-    const id = nextInstanceDesignator(options.document, symbolId);
+    const id = nextInstanceId(options.document, symbolId);
     const reference =
       placementRequest.referenceText ??
       nextReference(
@@ -438,7 +439,7 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
       options.setStatus("The selected external master no longer exists");
       return;
     }
-    const id = nextInstanceDesignator(options.document, symbolId);
+    const id = nextInstanceId(options.document, symbolId);
     const reference =
       placementRequest.referenceText ??
       nextReference(
@@ -493,7 +494,7 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
     position: Point,
     placementRequest: PendingComponentPlacement,
   ): void => {
-    const id = nextInstanceDesignator(options.document, symbolId);
+    const id = nextInstanceId(options.document, symbolId);
     if (placementRequest.kind !== "cell-pin" || !placementRequest.direction)
       return;
     const instance = {

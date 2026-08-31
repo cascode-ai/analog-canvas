@@ -17,7 +17,8 @@ function fixture() {
     id: "R1",
     symbolId: "resistor",
     placement: { position: { x: 50, y: 50 }, rotation: 0, mirror: "none" },
-    netlist: { reference: "R1", parameters: {} },
+    reference: "R1",
+    netlist: { parameters: {} },
   });
   document.nets.push({ id: "net-loose", terminals: [] });
   document.junctions.push(

@@ -156,8 +156,6 @@ export function agentEditCategory(
       return "geometry";
     case "patch_instance_netlist_parameters":
     case "set_instance_reference":
-    case "set_instance_schematic_reference":
-    case "set_instance_schematic_name":
     case "set_instance_style_override":
     case "set_route_style_override":
     case "set_instance_signal_flow_parameters":
