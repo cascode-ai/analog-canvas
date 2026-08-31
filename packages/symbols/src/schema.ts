@@ -132,6 +132,8 @@ export const SymbolFormulaPresentationSchema = z.strictObject({
    */
   adaptiveFrame: z
     .strictObject({
+      /** Body outline. Omitted preserves the historical rectangular frame. */
+      shape: z.enum(["rectangle", "right-tapered-trapezoid"]).optional(),
       minBodyWidth: z.number().int().positive().multipleOf(10),
       minBodyHeight: z.number().int().positive().multipleOf(10),
       horizontalPadding: z.number().finite().nonnegative(),

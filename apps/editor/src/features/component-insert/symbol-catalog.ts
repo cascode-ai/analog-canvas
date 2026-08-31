@@ -2,6 +2,7 @@ import {
   expandedDeviceCatalogEntry,
   expandedDeviceSymbols,
   EXTENDED_DEVICE_CATEGORY,
+  normalizeSignalFlowFormula,
   razaviProductSymbols,
 } from "@icm/symbols";
 import type { SymbolDefinition } from "@icm/symbols";
@@ -99,6 +100,7 @@ export function symbolCategory(symbolId: string): string {
     [
       "adder",
       "multiplier",
+      "transconductance",
       "integrator",
       "unit-delay",
       "discrete-time-integrator",
@@ -207,6 +209,7 @@ const SYMBOL_ORDER: readonly string[] = [
   // Signal-flow blocks in signal-chain order, not alphabetical.
   "adder",
   "multiplier",
+  "transconductance",
   "integrator",
   "unit-delay",
   "discrete-time-integrator",
@@ -229,7 +232,10 @@ function symbolRank(symbolId: string): number {
 }
 
 function searchableText(symbol: SymbolDefinition): string {
-  return `${symbol.name} ${symbol.id}`.toLowerCase();
+  const formula = symbol.formulaPresentation?.defaultFormula ?? "";
+  return normalizeSignalFlowFormula(
+    `${symbol.name} ${symbol.id} ${formula}`,
+  ).toLowerCase();
 }
 
 export function componentCatalog(
@@ -238,7 +244,9 @@ export function componentCatalog(
   recentSymbolIds: readonly string[] = [],
   timingUiEnabled = TIMING_UI_ENABLED,
 ): ComponentCatalogGroup[] {
-  const normalizedQuery = query.trim().toLowerCase();
+  const normalizedQuery = normalizeSignalFlowFormula(
+    query.trim(),
+  ).toLowerCase();
   const recentRank = new Map(
     recentSymbolIds.map((symbolId, index) => [symbolId, index]),
   );

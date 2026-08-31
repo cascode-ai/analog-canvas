@@ -4349,13 +4349,46 @@ test("exports structural SPICE and Spectre netlists while exposing instance auth
   await expect(properties.getByText(/^Model:/u)).toHaveCount(0);
 });
 
+test("edits the transconductance trapezoid from +gm1 to -gmL", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "transconductance", { x: 360, y: 240 });
+  await openSelectionShelf(page);
+  const properties = page.getByRole("complementary", { name: "Properties" });
+  const formula = properties.getByLabel("Signal flow formula");
+  const formalScene = page.locator('[data-layer="formal"]');
+  const frame = formalScene.locator('[data-role="signal-flow-frame"]');
+
+  await expect(formula).toHaveValue("+g_m");
+  await expect(frame).toHaveCount(1);
+  await expect(frame).toHaveAttribute(
+    "points",
+    "-20,-35 20,-17.5 20,17.5 -20,35",
+  );
+  await expect(
+    formalScene.locator('[data-role="formula-subscript"]'),
+  ).toHaveText("m");
+
+  await formula.fill("−gₘL");
+  await formula.press("Tab");
+  await expect(
+    formalScene.locator('[data-role="formula-subscript"]'),
+  ).toHaveText("mL");
+
+  await clickCommand(page, "Edit", "Undo");
+  await expect(formula).toHaveValue("+g_m");
+  await clickCommand(page, "Edit", "Redo");
+  await expect(formula).toHaveValue("−gₘL");
+});
+
 test("edits a formula-capable Signal Flow block with undo, redo, and Reset defaults", async ({
   page,
 }) => {
   // Capability determines this scenario. A catalog addition can become the
   // exercised block without this E2E test baking in a particular symbol ID.
   const formulaSymbol = razaviProductSymbols.find(
-    (symbol) => symbol.formulaPresentation?.supportsCoefficient,
+    (symbol) => symbol.id === "discrete-time-integrator",
   );
   expect(formulaSymbol).toBeDefined();
   const symbol = formulaSymbol!;

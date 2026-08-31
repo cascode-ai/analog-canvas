@@ -325,6 +325,26 @@
       }
     },
     {
+      "symbolId": "transconductance",
+      "name": "Transconductance (+gₘ)",
+      "category": "signal-flow",
+      "reviewStatus": "reviewed",
+      "pinOrder": ["A", "Y"],
+      "palette": true,
+      "automaticMappings": [],
+      "manualOnlyReason": "Behavioral transconductance block; structural netlists need an explicit implementation mapping.",
+      "assetPath": "transconductance.symbol.json",
+      "assetHash": "9540d3afb56d9a9f93f25d5cb252bf6b6457114e45ad4d24992a066ca6432725",
+      "visualAuthority": {
+        "kind": "razavi-reference-v1",
+        "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+        "referencePaths": [
+          "fixtures/visual-reference/razavi-reference-v1/delta-sigma-geometry.json"
+        ],
+        "calibrationPath": "fixtures/visual-reference/razavi-reference-v1/delta-sigma-geometry.json"
+      }
+    },
+    {
       "symbolId": "integrator",
       "name": "Integrator (1/s)",
       "category": "signal-flow",

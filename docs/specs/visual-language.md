@@ -167,3 +167,18 @@ correct.
 ## Open decisions
 
 - Font embedding and cross-format metric calibration remain deferred.
+
+## Signal Flow transconductance blocks
+
+A transconductance relation is drawn as a right-tapered trapezoid with one west
+input `A`, one east output `Y`, and renderer-owned formula text centered inside.
+The taller input edge and narrower output edge follow the pinned user-supplied
+small-signal reference. The canonical default is `+g_m`; instance presentation
+may express signed/indexed forms such as `+g_m1`, `−gₘL`, or another safe
+formula without changing the symbol's A/Y electrical identity.
+
+The trapezoid, leads, background, hit bounds, and route endpoints share the
+adaptive Signal Flow layout. Long formulae and explicit minimum dimensions grow
+the body on the 10-unit grid; they never clip or shrink 12-unit formula text.
+The block is behavioral and manual-only: neither its formula nor coefficient
+implies a SPICE primitive or automatic device mapping.

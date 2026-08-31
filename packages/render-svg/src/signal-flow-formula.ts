@@ -34,41 +34,56 @@ function escapeXml(value: string): string {
     .replaceAll(">", "&gt;");
 }
 
-function superscriptEnd(value: string, start: number): number {
+function scriptEnd(value: string, start: number): number {
   if (value[start] === "(") {
     const close = value.indexOf(")", start + 1);
     return close === -1 ? start : close + 1;
   }
   let end = start;
-  while (end < value.length && /[A-Za-z0-9+\-]/u.test(value[end]!)) end += 1;
+  // A sign may prefix a script (z^-1 or z^+1), but a later sign starts the
+  // next formula term and must not be swallowed into the superscript/subscript.
+  if (value[end] === "+" || value[end] === "-") end += 1;
+  while (end < value.length && /[A-Za-z0-9]/u.test(value[end]!)) end += 1;
   return end;
 }
 
-/** Render ordinary formula text plus true SVG superscript tspans. */
+/** Render ordinary formula text plus true SVG super/subscript tspans. */
 export function renderSignalFlowInlineFormula(value: string): string {
   const normalized = normalizeSignalFlowFormula(value);
   let markup = "";
   let cursor = 0;
+  const underscoreCount = [...normalized].filter(
+    (character) => character === "_",
+  ).length;
   while (cursor < normalized.length) {
-    const marker = normalized.indexOf("^", cursor);
+    const superscript = normalized.indexOf("^", cursor);
+    const subscript =
+      underscoreCount === 1 ? normalized.indexOf("_", cursor) : -1;
+    const marker =
+      superscript === -1
+        ? subscript
+        : subscript === -1
+          ? superscript
+          : Math.min(superscript, subscript);
     if (marker === -1 || marker === normalized.length - 1) {
       markup += escapeXml(normalized.slice(cursor));
       break;
     }
     markup += escapeXml(normalized.slice(cursor, marker));
     const start = marker + 1;
-    const end = superscriptEnd(normalized, start);
+    const end = scriptEnd(normalized, start);
     if (end === start) {
-      markup += "^";
+      markup += normalized[marker];
       cursor = start;
       continue;
     }
-    const rawExponent = normalized.slice(start, end);
-    const exponent =
-      rawExponent.startsWith("(") && rawExponent.endsWith(")")
-        ? rawExponent.slice(1, -1)
-        : rawExponent;
-    markup += `<tspan data-role="formula-superscript" baseline-shift="super" font-size="70%">${escapeXml(exponent)}</tspan>`;
+    const rawScript = normalized.slice(start, end);
+    const script =
+      rawScript.startsWith("(") && rawScript.endsWith(")")
+        ? rawScript.slice(1, -1)
+        : rawScript;
+    const kind = normalized[marker] === "^" ? "superscript" : "subscript";
+    markup += `<tspan data-role="formula-${kind}" baseline-shift="${kind === "superscript" ? "super" : "sub"}" font-size="70%">${escapeXml(script)}</tspan>`;
     cursor = end;
   }
   return markup;

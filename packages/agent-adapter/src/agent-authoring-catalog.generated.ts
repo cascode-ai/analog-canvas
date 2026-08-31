@@ -320,6 +320,28 @@ export const agentRazaviAuthoringCatalog = {
       variants: [],
     },
     {
+      symbolId: "transconductance",
+      name: "Transconductance (+gₘ)",
+      category: "signal-flow",
+      defaultVariantId: null,
+      labelVisibility: "hidden",
+      pins: [
+        {
+          name: "A",
+          role: "input",
+          direction: "west",
+          visibility: "visible",
+        },
+        {
+          name: "Y",
+          role: "output",
+          direction: "east",
+          visibility: "visible",
+        },
+      ],
+      variants: [],
+    },
+    {
       symbolId: "integrator",
       name: "Integrator (1/s)",
       category: "signal-flow",

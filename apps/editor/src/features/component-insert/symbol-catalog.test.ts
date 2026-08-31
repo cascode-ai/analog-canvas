@@ -104,6 +104,26 @@ describe("component insertion catalog", () => {
     expect(symbols[0]?.pins.map((pin) => pin.name)).toEqual(["P1", "P2"]);
   });
 
+  it("offers the directly witnessed transconductance trapezoid by id and formula", () => {
+    expect(symbolCategory("transconductance")).toBe("Signal Flow");
+    for (const query of ["transconductance", "+g_m", "+gₘ"]) {
+      expect(
+        flattenComponentCatalog(componentCatalog("razavi-textbook-v1", query)),
+      ).toContainEqual(
+        expect.objectContaining({
+          id: "transconductance",
+          pins: [
+            expect.objectContaining({ name: "A" }),
+            expect.objectContaining({ name: "Y" }),
+          ],
+          formulaPresentation: expect.objectContaining({
+            defaultFormula: "+g_m",
+          }),
+        }),
+      );
+    }
+  });
+
   it("offers the calibrated discrete-time integrator by formula and canonical id", () => {
     const symbols = flattenComponentCatalog(
       componentCatalog("razavi-textbook-v1", "discrete-time-integrator"),

@@ -5,7 +5,8 @@
     "These measurements are calibrated from hash-pinned user-supplied raster witnesses, not PDF vector extraction.",
     "The supplied PDF is limited to its first 100 pages and does not contain Chapter 21; it is not an authority for these figures.",
     "Figure 21.38 directly witnesses the three summing circles, two 1/s bodies, and DAC body. Figure 21.33 directly witnesses a summing circle and the z^-1/(1-z^-1) body.",
-    "Multiplier, unit-delay, and quantizer do not have direct screenshot evidence here. Their marks and body choices are family-derived provisional calibrations."
+    "Multiplier, unit-delay, and quantizer do not have direct screenshot evidence here. Their marks and body choices are family-derived provisional calibrations.",
+    "The transconductance trapezoid is directly witnessed by the user-supplied small-signal amplifier diagram; its formula text remains renderer-owned and editable."
   ],
   "witnesses": [
     {
@@ -58,6 +59,30 @@
         "reason": "removes the non-source red annotation arrow while retaining the printed figure"
       },
       "reproduction": "The repository stores this immutable cropped witness directly; regeneration from the private source screenshot is intentionally not required."
+    },
+    {
+      "id": "small-signal-transconductance-block",
+      "kind": "user-supplied-raster-witness",
+      "sourceSha256": "5795ff03bb255bf7c7a405fef9cf73f28a657ceebb842e51ffbcad0cbd3f1b62",
+      "sourcePixels": {
+        "width": 699,
+        "height": 447
+      },
+      "witnessPath": "transconductance-reference.png",
+      "witnessSha256": "84038eaab654faaa7fbfcf17c7df204bfbea546e27e0bc4f0b6b08e4b1747902",
+      "evidence": [
+        "right-tapered transconductance trapezoid",
+        "centered +g_m1 formula",
+        "horizontal signal-flow leads"
+      ],
+      "source": {
+        "title": "Small-signal amplifier diagram",
+        "figure": "user-supplied transconductance example",
+        "provenance": "user-supplied schematic image in the Analog Canvas feature request",
+        "sourceFileName": "1a382eca-f95b-45a4-9c60-f9f7d4f74021.png"
+      },
+      "sourceCropPx": [47, 115, 109, 180],
+      "reproduction": "Crop the source image at x=47, y=115, width=109, height=180 without resampling."
     }
   ],
   "symbols": {
@@ -180,6 +205,81 @@
         },
         "targetRadius": 12,
         "bodyKind": "circle"
+      }
+    },
+    "transconductance": {
+      "evidenceStatus": "direct-raster",
+      "witnessId": "small-signal-transconductance-block",
+      "pinOrder": ["A", "Y"],
+      "viewBox": {
+        "x": -44,
+        "y": -39,
+        "width": 88,
+        "height": 78
+      },
+      "pins": [
+        {
+          "name": "A",
+          "role": "input",
+          "at": {
+            "x": -40,
+            "y": 0
+          },
+          "direction": "west"
+        },
+        {
+          "name": "Y",
+          "role": "output",
+          "at": {
+            "x": 40,
+            "y": 0
+          },
+          "direction": "east"
+        }
+      ],
+      "body": {
+        "left": -20,
+        "top": -35,
+        "right": 20,
+        "bottom": 35
+      },
+      "formulaPresentation": {
+        "defaultFormula": "+g_m",
+        "supportsCoefficient": true,
+        "center": {
+          "x": 0,
+          "y": 0
+        },
+        "fontSize": 12,
+        "adaptiveFrame": {
+          "shape": "right-tapered-trapezoid",
+          "minBodyWidth": 40,
+          "minBodyHeight": 70,
+          "horizontalPadding": 4,
+          "verticalPadding": 4,
+          "leadLength": 20
+        }
+      },
+      "measurement": {
+        "window": {
+          "width": 109,
+          "height": 180,
+          "minX": 47,
+          "minY": 115
+        },
+        "targetBody": {
+          "width": 40,
+          "height": 70,
+          "referenceRatio": 0.571429
+        },
+        "bodyKind": "right-tapered-trapezoid",
+        "assetPath": "transconductance-reference.png",
+        "pixelsPerLogical": 2.34,
+        "originPx": {
+          "x": 54.5,
+          "y": 90
+        },
+        "threshold": 220
       }
     },
     "integrator": {

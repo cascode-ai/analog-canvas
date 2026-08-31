@@ -65,6 +65,7 @@ const COMPACT_LIBRARY_LABELS: Readonly<Record<string, string>> = {
   "voltage-source": "V Src",
   adder: "Add",
   multiplier: "Mult",
+  transconductance: "gm",
   integrator: "1/s",
   "unit-delay": "z⁻¹",
   "discrete-time-integrator": "DT Int",
