@@ -177,8 +177,8 @@ describe("annotation presentation", () => {
   it("treats whitespace-only annotation content as empty", () => {
     const document = createEmptyDocument("blank-text", "Blank text");
     const blank = {
-      id: "blank-note",
-      kind: "note" as const,
+      id: "blank-label",
+      kind: "instance-label" as const,
       content: { runs: [{ kind: "text" as const, value: "   " }] },
       anchor: { kind: "free" as const, position: { x: 10, y: 10 } },
       alignment: "start" as const,
