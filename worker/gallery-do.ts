@@ -129,15 +129,16 @@ export const GALLERY_DAILY_SUBMISSION_LIMIT = 100;
  * Recycle-bin retention. The quota deliberately refunds a withdrawal
  * (recycling counts as taking work down), which leaves publish->recycle
  * cycling bounded only by request rate while every cycle stores a full
- * project_text/svg_text row. These bounds close that write-amplification
- * channel without touching the quota semantics: per account only the newest
- * rows stay, and any recycled row past the window expires. Both are policy
- * defaults chosen without live bin data; a genuine second thought fits far
- * inside either bound, and an author always held the stronger right of
- * deleting their own entry outright in one step.
+ * project_text/svg_text row. The per-account cap closes that
+ * write-amplification channel without touching the quota semantics: from
+ * entry 26 onward net storage growth is zero regardless of cycling rate,
+ * and the rule is one an author can state — the bin holds their 25 most
+ * recent withdrawals. Deliberately no age expiry: a clock destroys work on
+ * a schedule the author cannot reason about, and against the burst threat
+ * it was the weaker half anyway. An author always held the stronger right
+ * of deleting their own entry outright in one step.
  */
 export const GALLERY_RECYCLED_KEEP_PER_ACCOUNT = 25;
-export const GALLERY_RECYCLED_RETENTION_DAYS = 30;
 export const GALLERY_MAX_TAGS = 5;
 export const GALLERY_MAX_TAG_LENGTH = 24;
 /** How many previous states each Gallery entry retains. */
@@ -695,7 +696,7 @@ export class GalleryDO {
         entry.netlistable ?? 0,
         previewRevision,
       );
-      this.sweepRecycledRows(entry.owner_user_id ?? "", entry.created_at);
+      this.sweepRecycledRows(entry.owner_user_id ?? "");
       return { status: "stored" as const };
     });
     if (outcome.status === "rate-limited") {
@@ -1544,7 +1545,7 @@ export class GalleryDO {
           id,
         );
         if (status === "recycled") {
-          this.sweepRecycledRows(row.owner_user_id ?? "", at);
+          this.sweepRecycledRows(row.owner_user_id ?? "");
         }
       });
     }
@@ -1606,25 +1607,10 @@ export class GalleryDO {
    * Lazy retention sweep, run inside the submission and recycle write
    * transactions — no alarms, no scheduled work. Keeps the newest
    * {@link GALLERY_RECYCLED_KEEP_PER_ACCOUNT} recycled rows for the writing
-   * account (anonymous/legacy rows share one unowned bucket and are exempt
-   * from the cap), and opportunistically expires a few recycled rows older
-   * than {@link GALLERY_RECYCLED_RETENTION_DAYS} across all accounts, so the
-   * age backstop amortizes over ordinary writes.
+   * account; anonymous/legacy rows share one unowned bucket and are exempt
+   * from the cap. The cap is the whole policy — nothing expires by time.
    */
-  private sweepRecycledRows(ownerUserId: string, nowIso: string): void {
-    const cutoff = new Date(
-      Date.parse(nowIso) - GALLERY_RECYCLED_RETENTION_DAYS * 86_400_000,
-    ).toISOString();
-    const expired = this.sql
-      .exec<{ id: string }>(
-        `SELECT id FROM gallery_entries
-         WHERE status = 'recycled' AND recycled_at IS NOT NULL
-           AND recycled_at < ?
-         ORDER BY recycled_at LIMIT 5`,
-        cutoff,
-      )
-      .toArray();
-    for (const row of expired) this.hardDeleteEntryRows(row.id);
+  private sweepRecycledRows(ownerUserId: string): void {
     if (ownerUserId === "") return;
     const overflow = this.sql
       .exec<{ id: string }>(

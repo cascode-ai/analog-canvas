@@ -28,14 +28,12 @@ export interface MineEntry {
   recycledAt?: string | null;
 }
 
-export const RECYCLED_RETENTION_DAYS = 30;
-
-export function recycledRemovalDate(recycledAt: string): string {
-  const removal = new Date(
-    Date.parse(recycledAt) + RECYCLED_RETENTION_DAYS * 86_400_000,
-  );
-  return removal.toISOString().slice(0, 10);
-}
+/**
+ * Mirrors the worker's GALLERY_RECYCLED_KEEP_PER_ACCOUNT. The cap is the
+ * whole retention policy — nothing in the bin expires by time, so the card
+ * states the rule instead of promising a date.
+ */
+export const RECYCLED_KEEP_COUNT = 25;
 
 type MineState =
   | { status: "loading" }
@@ -311,9 +309,7 @@ export function MySubmissions() {
                       {entry.rejectReason
                         ? "Removed after rejection. Only the Owner can restore it."
                         : "Not shown in the Gallery. Restore republishes it."}
-                      {entry.recycledAt
-                        ? ` Removed permanently after ${recycledRemovalDate(entry.recycledAt)}.`
-                        : null}
+                      {` Kept while it is among your ${RECYCLED_KEEP_COUNT} most recent withdrawals.`}
                     </p>
                   ) : null}
                 </div>
