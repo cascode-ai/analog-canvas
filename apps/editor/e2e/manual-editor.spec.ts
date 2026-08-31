@@ -4385,10 +4385,15 @@ test("edits the transconductance trapezoid from +gm1 to -gmL", async ({
 test("edits a formula-capable Signal Flow block with undo, redo, and Reset defaults", async ({
   page,
 }) => {
-  // Capability determines this scenario. A catalog addition can become the
-  // exercised block without this E2E test baking in a particular symbol ID.
+  // Capability determines this scenario: a catalog addition becomes the
+  // exercised block without this test baking in a symbol ID. Blocks whose
+  // frame takes a non-rectangular `shape` are excluded — they size their body
+  // by different rules, and the frame dimensions asserted below belong to the
+  // rectangular family. A tapered block is its own scenario.
   const formulaSymbol = razaviProductSymbols.find(
-    (symbol) => symbol.id === "discrete-time-integrator",
+    (symbol) =>
+      symbol.formulaPresentation?.supportsCoefficient &&
+      !symbol.formulaPresentation.adaptiveFrame?.shape,
   );
   expect(formulaSymbol).toBeDefined();
   const symbol = formulaSymbol!;
