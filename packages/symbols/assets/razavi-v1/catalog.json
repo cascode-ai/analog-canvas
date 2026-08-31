@@ -116,7 +116,7 @@
       "automaticMappings": [],
       "manualOnlyReason": "Textbook comparator block; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
       "assetPath": "comparator.symbol.json",
-      "assetHash": "af71a4819813b3d325d43e5d654d4f0599967c53cd2e66490310436b0b0643cb",
+      "assetHash": "075dd7ad2013a208999ea11adcea164c5bf25796e899ee634333ea81a7223039",
       "visualAuthority": {
         "kind": "razavi-reference-v1",
         "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
@@ -137,7 +137,7 @@
       "automaticMappings": [],
       "manualOnlyReason": "Textbook comparator block; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
       "assetPath": "comparator-inputs-swapped.symbol.json",
-      "assetHash": "2347fb5e02a6b024ec9b758d51a80766e8665ad269616200575777a5fec9fce8",
+      "assetHash": "20625bbd6ee271d697840e965a3a731131e8518129e7df3e67f97c1f48765fbf",
       "visualAuthority": {
         "kind": "razavi-reference-v1",
         "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
@@ -414,7 +414,7 @@
       "automaticMappings": [],
       "manualOnlyReason": "Behavioral quantization block; structural netlists need an explicit implementation mapping.",
       "assetPath": "quantizer.symbol.json",
-      "assetHash": "8eb283cbf258a09b50dad8ce3aabe96025d860e1235084e23788a7110b76ca82",
+      "assetHash": "c0a2302385f7059d3016f34d849da63bf6db652383953107f5362305b2de83dc",
       "visualAuthority": {
         "kind": "razavi-reference-v1",
         "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
