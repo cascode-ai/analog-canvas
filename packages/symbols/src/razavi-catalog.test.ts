@@ -730,6 +730,56 @@ describe("Razavi symbol catalog", () => {
     );
   });
 
+  it("draws the quantizer on a square body with its staircase inset evenly", () => {
+    // The body holds a transfer characteristic, so it needs the same room on
+    // both axes; it is not the integrator's wide-and-short formula box it was
+    // provisionally derived from. Assert the shape, not the size, so a later
+    // resize cannot flatten it again.
+    const symbol = requireRazaviCatalogSymbol("quantizer");
+    const body = symbol.primitives.find(
+      (primitive) => primitive.part === "body",
+    );
+    const staircase = symbol.primitives.find(
+      (primitive) => primitive.part === "quantizer-staircase",
+    );
+    if (
+      !body ||
+      body.kind !== "path" ||
+      !staircase ||
+      staircase.kind !== "polyline"
+    ) {
+      throw new Error("Quantizer body or staircase is missing");
+    }
+    const extent = (points: readonly { x: number; y: number }[]) => {
+      const xs = points.map((point) => point.x);
+      const ys = points.map((point) => point.y);
+      return {
+        left: Math.min(...xs),
+        right: Math.max(...xs),
+        top: Math.min(...ys),
+        bottom: Math.max(...ys),
+      };
+    };
+    const bodyExtent = extent(pathPoints(body.data));
+    expect(bodyExtent.right - bodyExtent.left).toBe(
+      bodyExtent.bottom - bodyExtent.top,
+    );
+
+    // The staircase reads as a plot inside a frame, so every margin stays
+    // comparable — a bare "it fits" check would let it drift into a corner.
+    const stairExtent = extent(staircase.points);
+    const margins = [
+      stairExtent.left - bodyExtent.left,
+      bodyExtent.right - stairExtent.right,
+      stairExtent.top - bodyExtent.top,
+      bodyExtent.bottom - stairExtent.bottom,
+    ];
+    for (const margin of margins) {
+      expect(margin).toBeGreaterThanOrEqual(4);
+    }
+    expect(Math.max(...margins) - Math.min(...margins)).toBeLessThanOrEqual(2);
+  });
+
   it("keeps the variable resistor electrically two-terminal with one diagonal adjustment arrow", () => {
     const symbol = requireRazaviCatalogSymbol("variable-resistor");
 

@@ -6,7 +6,8 @@
     "The supplied PDF is limited to its first 100 pages and does not contain Chapter 21; it is not an authority for these figures.",
     "Figure 21.38 directly witnesses the three summing circles, two 1/s bodies, and DAC body. Figure 21.33 directly witnesses a summing circle and the z^-1/(1-z^-1) body.",
     "Multiplier, unit-delay, and quantizer do not have direct screenshot evidence here. Their marks and body choices are family-derived provisional calibrations.",
-    "The transconductance trapezoid is directly witnessed by the user-supplied small-signal amplifier diagram; its formula text remains renderer-owned and editable."
+    "The transconductance trapezoid is directly witnessed by the user-supplied small-signal amplifier diagram; its formula text remains renderer-owned and editable.",
+    "The quantizer body is deliberately square rather than the integrator's 40x26 it was provisionally derived from: it carries a transfer characteristic, not a line of formula text, so it needs comparable room on both axes. Its width and pin span remain family-standard."
   ],
   "witnesses": [
     {
@@ -453,9 +454,9 @@
       ],
       "body": {
         "left": -20,
-        "top": -13,
+        "top": -20,
         "right": 20,
-        "bottom": 13
+        "bottom": 20
       },
       "measurement": {
         "window": {
@@ -466,7 +467,7 @@
         },
         "targetBody": {
           "width": 40,
-          "height": 26
+          "height": 40
         },
         "bodyKind": "sharp-rectangle"
       }

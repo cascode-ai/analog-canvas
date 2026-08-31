@@ -503,7 +503,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Behavioral quantization block; structural netlists need an explicit implementation mapping.",
     assetPath: "quantizer.symbol.json",
     assetHash:
-      "8eb283cbf258a09b50dad8ce3aabe96025d860e1235084e23788a7110b76ca82",
+      "c0a2302385f7059d3016f34d849da63bf6db652383953107f5362305b2de83dc",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -3796,7 +3796,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "path",
         part: "body",
-        data: "M -20 -13 L 20 -13 L 20 13 L -20 13 Z",
+        data: "M -20 -20 L 20 -20 L 20 20 L -20 20 Z",
         style: {
           strokeRole: "emphasis",
           lineCap: "butt",
@@ -3827,35 +3827,35 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         points: [
           {
             x: -14,
-            y: 8,
+            y: 15,
           },
           {
             x: -7,
-            y: 8,
+            y: 15,
           },
           {
             x: -7,
-            y: 3,
+            y: 5,
           },
           {
             x: 0,
-            y: 3,
+            y: 5,
           },
           {
             x: 0,
-            y: -2,
+            y: -5,
           },
           {
             x: 7,
-            y: -2,
+            y: -5,
           },
           {
             x: 7,
-            y: -7,
+            y: -15,
           },
           {
             x: 14,
-            y: -7,
+            y: -15,
           },
         ],
         style: {
