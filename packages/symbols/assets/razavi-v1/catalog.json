@@ -1139,7 +1139,7 @@
       "palette": true,
       "automaticMappings": ["spice:S"],
       "assetPath": "voltage-controlled-switch.symbol.json",
-      "assetHash": "0fe2629e4289b7eb341ec6df29c0356d1bc27e5802a3db2fe45d5d1a28f435eb"
+      "assetHash": "c7a243285745643126ab4e90220d55b82408bd63219cc2fabe6d8a53e93dd85b"
     },
     {
       "symbolId": "voltage-source",

@@ -39,7 +39,7 @@
       "name": "CP",
       "role": "passive",
       "at": {
-        "x": -30,
+        "x": -20,
         "y": 20
       },
       "direction": "west",
@@ -52,7 +52,7 @@
       "name": "CN",
       "role": "passive",
       "at": {
-        "x": 30,
+        "x": 20,
         "y": 20
       },
       "direction": "east",
@@ -144,7 +144,7 @@
     {
       "kind": "line",
       "from": {
-        "x": -30,
+        "x": -20,
         "y": 20
       },
       "to": {
@@ -164,7 +164,7 @@
         "y": 20
       },
       "to": {
-        "x": 30,
+        "x": 20,
         "y": 20
       },
       "style": {

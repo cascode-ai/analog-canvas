@@ -1736,18 +1736,41 @@ describe("switch port leads", () => {
     }
   });
 
-  it("leaves the control rail whole", () => {
+  it("keeps the control rail a rail, at the switch path's own width", () => {
     // CP/CN are the two ends of ONE horizontal control line, split by the gap
-    // at ±4 that the dashed coupling crosses. Pulling them to ±10 by the same
-    // formula would cut that line into two stubs and stop it reading as a
-    // rail, so they keep their reach. Recorded as a decision, not an
-    // oversight: if the drawing is ever revisited, this is the reason.
+    // at ±4 that the dashed coupling crosses. #470 shortened the switched
+    // path to ±20 and left these at ±30, which is what made the symbol read
+    // as narrow on top and wide underneath. They now match the path above —
+    // the anchor AND the drawn end move together, so the line stays a rail
+    // instead of becoming the two stubs that pulling the anchors alone (to
+    // ±10, by the through-path formula) would have produced. That stub is
+    // the outcome this test exists to prevent; the reach is a means to it.
     const symbol = requireRazaviCatalogSymbol("voltage-controlled-switch");
+    const switchedReach = Math.abs(
+      symbol.pins.find((candidate) => candidate.name === "P")!.at.x,
+    );
     for (const pinName of ["CP", "CN"]) {
       const pin = symbol.pins.find((candidate) => candidate.name === pinName);
       expect(pin, pinName).toBeDefined();
       if (!pin) continue;
-      expect(Math.abs(pin.at.x), `${pinName} anchor`).toBe(30);
+      // One envelope: the control port is as wide as the path it controls.
+      expect(Math.abs(pin.at.x), `${pinName} anchor`).toBe(switchedReach);
+
+      // The rail is drawn from the anchor inward to the coupling gap, and it
+      // must stay long enough to read as a rail rather than a stub.
+      const rail = symbol.primitives.find(
+        (primitive) =>
+          primitive.kind === "line" &&
+          primitive.from.y === pin.at.y &&
+          primitive.to.y === pin.at.y &&
+          (primitive.from.x === pin.at.x || primitive.to.x === pin.at.x),
+      );
+      expect(rail, `${pinName} rail segment`).toBeDefined();
+      if (!rail || rail.kind !== "line") continue;
+      const drawn = Math.abs(rail.to.x - rail.from.x);
+      expect(drawn, `${pinName} rail length`).toBeGreaterThanOrEqual(12);
+      const innerEnd = Math.min(Math.abs(rail.from.x), Math.abs(rail.to.x));
+      expect(innerEnd, `${pinName} coupling gap`).toBe(4);
     }
   });
 });
