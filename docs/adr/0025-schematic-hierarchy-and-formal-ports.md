@@ -205,7 +205,7 @@ current, preserving the rolling N-1 policy.
 
 ## Related documents
 
-- [`0023-rolling-previous-project-compatibility.md`](0023-rolling-previous-project-compatibility.md)
+- [`0053-chain-carried-project-compatibility.md`](0053-chain-carried-project-compatibility.md)
 - [`0024-device-protocol-and-compatibility-boundaries.md`](0024-device-protocol-and-compatibility-boundaries.md)
 - [`../specs/schematic-model.md`](../specs/schematic-model.md)
 - [`../specs/edit-engine.md`](../specs/edit-engine.md)

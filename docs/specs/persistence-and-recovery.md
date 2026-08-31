@@ -8,7 +8,7 @@ the editor document lifecycle
 Project content uses canonical schema-34 JSON. A private Cloud Project is the
 formal saved resource; `.icproj.json` is portable import/export and backup.
 The current-only model in `packages/model` validates the normalized shape;
-`packages/project-protocol` owns parsing, rolling compatibility diagnostics,
+`packages/project-protocol` owns parsing, compatibility diagnostics,
 and canonical serialization. Persistence validates the complete current schema
 before import or Cloud Save. The explicit schema 24→33 chain upgrades supported
 historical files; serialization always writes schema 34. The 32→33 adapter

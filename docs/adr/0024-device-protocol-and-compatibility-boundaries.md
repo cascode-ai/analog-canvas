@@ -150,7 +150,7 @@ do not constitute a historic fixture collection.
 
 ## Related documents
 
-- [`0023-rolling-previous-project-compatibility.md`](0023-rolling-previous-project-compatibility.md)
+- [`0053-chain-carried-project-compatibility.md`](0053-chain-carried-project-compatibility.md)
 - [`../specs/schematic-model.md`](../specs/schematic-model.md)
 - [`../specs/project-file-format.md`](../specs/project-file-format.md)
 - [`../specs/persistence-and-recovery.md`](../specs/persistence-and-recovery.md)

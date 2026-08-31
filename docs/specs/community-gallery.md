@@ -8,7 +8,7 @@ landing feed
 ## Trust boundary
 
 The only accepted input is Project JSON that passes the strict protocol
-boundary (`parseProject`; the rolling previous-version upgrade applies).
+boundary (`parseProject`; the chained schema upgrades apply).
 Everything stored and served — canonical Project text and the preview SVG —
 is derived server-side from that validated model. Client-supplied markup is
 never stored, echoed, or served. Previews are rendered by `@icm/render-svg`
