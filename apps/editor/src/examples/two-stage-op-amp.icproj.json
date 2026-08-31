@@ -297,8 +297,8 @@
             },
             "rotation": 180
           },
-          "symbolId": "opamp",
-          "reference": "X1"
+          "reference": "X1",
+          "symbolId": "opamp"
         },
         {
           "id": "X8",
@@ -313,8 +313,8 @@
             },
             "rotation": 0
           },
-          "symbolId": "voltage-amplifier",
-          "reference": "X2"
+          "reference": "X2",
+          "symbolId": "voltage-amplifier"
         },
         {
           "id": "C9",
@@ -333,8 +333,8 @@
             },
             "rotation": 0
           },
-          "symbolId": "capacitor",
-          "reference": "C1"
+          "reference": "C1",
+          "symbolId": "capacitor"
         },
         {
           "id": "C10",
@@ -353,8 +353,8 @@
             },
             "rotation": 270
           },
-          "symbolId": "capacitor",
-          "reference": "C2"
+          "reference": "C2",
+          "symbolId": "capacitor"
         },
         {
           "id": "GND11",
@@ -778,7 +778,7 @@
   "externalSubcircuitDefinitions": [],
   "id": "project-main",
   "name": "New Circuit",
-  "schemaVersion": 35,
+  "schemaVersion": 36,
   "source": {
     "dialect": "none",
     "entry": null,

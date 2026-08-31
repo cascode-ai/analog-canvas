@@ -5,7 +5,7 @@ Status: `accepted`
 Primary owner: `packages/model`
 
 The Project contains Documents; each Document owns revisioned electrical,
-geometric, and presentation facts. The current model is strict schema 35 and has
+geometric, and presentation facts. The current model is strict schema 36 and has
 no compatibility shape.
 
 ## Coordinate domains
@@ -185,11 +185,13 @@ ordinary Schematic edits inside one Project structural transaction. The
 Project's `structureRevision` protects this cross-Document boundary and the
 editor records it as one undoable structural commit.
 
-Persistence writes only schema 35. The reader carries every schema in its
-explicit 24→35 upgrade chain forward, then supplies the current model only; no
+Persistence writes only schema 36. The reader carries every schema in its
+explicit 24→36 upgrade chain forward, then supplies the current model only; no
 compatibility shape enters runtime electrical derivation. The 32→33 step
 rejects ownerless equivalence rather than guessing replacement connectivity.
 The 33→34 step converts hidden imported names into non-electrical hints or
 explicit global declarations and materializes an existing power owner where
 one is available. The 34→35 step converges parallel Instance naming fields to
-one Reference and materializes distinct visible text as an Annotation.
+one Reference and materializes distinct visible text as an Annotation. The
+35→36 step repairs reference-shaped labels that were materialized as literal
+text, maps them to the owning Reference, and retains their RichText styling.

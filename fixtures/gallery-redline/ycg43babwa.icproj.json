@@ -41,8 +41,8 @@
             "objectId": "M3"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "M3"
+            "instanceId": "M3",
+            "kind": "instance-reference"
           },
           "id": "instance-label-M2-copy-1",
           "kind": "instance-label",
@@ -64,8 +64,8 @@
             "objectId": "Q1"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "Q1"
+            "instanceId": "Q1",
+            "kind": "instance-reference"
           },
           "id": "instance-label-Q1",
           "kind": "instance-label",
@@ -87,8 +87,8 @@
             "objectId": "Q2"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "Q2"
+            "instanceId": "Q2",
+            "kind": "instance-reference"
           },
           "id": "instance-label-Q2",
           "kind": "instance-label",
@@ -110,8 +110,8 @@
             "objectId": "Q3"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "Q3"
+            "instanceId": "Q3",
+            "kind": "instance-reference"
           },
           "id": "instance-label-Q3",
           "kind": "instance-label",
@@ -133,8 +133,8 @@
             "objectId": "Q4"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "Q4"
+            "instanceId": "Q4",
+            "kind": "instance-reference"
           },
           "id": "instance-label-Q4",
           "kind": "instance-label",
@@ -156,8 +156,8 @@
             "objectId": "Q5"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "Q5"
+            "instanceId": "Q5",
+            "kind": "instance-reference"
           },
           "id": "instance-label-Q5",
           "kind": "instance-label",
@@ -179,8 +179,8 @@
             "objectId": "Q6"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "Q6"
+            "instanceId": "Q6",
+            "kind": "instance-reference"
           },
           "id": "instance-label-Q6",
           "kind": "instance-label",
@@ -202,8 +202,8 @@
             "objectId": "R1"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "R1"
+            "instanceId": "R1",
+            "kind": "instance-reference"
           },
           "id": "instance-label-R1",
           "kind": "instance-label",
@@ -225,8 +225,8 @@
             "objectId": "R2"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "R2"
+            "instanceId": "R2",
+            "kind": "instance-reference"
           },
           "id": "instance-label-R2",
           "kind": "instance-label",
@@ -248,8 +248,8 @@
             "objectId": "R3"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "R3"
+            "instanceId": "R3",
+            "kind": "instance-reference"
           },
           "id": "instance-label-R3",
           "kind": "instance-label",
@@ -271,8 +271,8 @@
             "objectId": "R4"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "R4"
+            "instanceId": "R4",
+            "kind": "instance-reference"
           },
           "id": "instance-label-R4",
           "kind": "instance-label",
@@ -294,8 +294,8 @@
             "objectId": "R5"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "R5"
+            "instanceId": "R5",
+            "kind": "instance-reference"
           },
           "id": "instance-label-R5",
           "kind": "instance-label",
@@ -317,8 +317,8 @@
             "objectId": "R6"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "R6"
+            "instanceId": "R6",
+            "kind": "instance-reference"
           },
           "id": "instance-label-R6",
           "kind": "instance-label",
@@ -340,8 +340,8 @@
             "objectId": "R7"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "R7"
+            "instanceId": "R7",
+            "kind": "instance-reference"
           },
           "id": "instance-label-R7",
           "kind": "instance-label",
@@ -363,8 +363,8 @@
             "objectId": "M4"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "M4"
+            "instanceId": "M4",
+            "kind": "instance-reference"
           },
           "id": "instance-label-M4",
           "kind": "instance-label",
@@ -385,11 +385,11 @@
             },
             "objectId": "M6"
           },
-          "id": "instance-label-M4-copy-2",
-          "kind": "instance-label",
-          "locked": false,
-          "rotation": 0,
-          "content": {
+          "binding": {
+            "instanceId": "M6",
+            "kind": "instance-reference"
+          },
+          "formatOverride": {
             "runs": [
               {
                 "children": [
@@ -397,7 +397,7 @@
                     "children": [
                       {
                         "kind": "text",
-                        "value": "M2"
+                        "value": "M6"
                       }
                     ],
                     "kind": "span",
@@ -408,7 +408,11 @@
                 "style": "italic"
               }
             ]
-          }
+          },
+          "id": "instance-label-M4-copy-2",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
         },
         {
           "alignment": "end",
@@ -424,11 +428,11 @@
             },
             "objectId": "M8"
           },
-          "id": "instance-label-M4-copy-2-copy-2",
-          "kind": "instance-label",
-          "locked": false,
-          "rotation": 0,
-          "content": {
+          "binding": {
+            "instanceId": "M8",
+            "kind": "instance-reference"
+          },
+          "formatOverride": {
             "runs": [
               {
                 "children": [
@@ -436,7 +440,7 @@
                     "children": [
                       {
                         "kind": "text",
-                        "value": "M1"
+                        "value": "M8"
                       }
                     ],
                     "kind": "span",
@@ -447,7 +451,11 @@
                 "style": "italic"
               }
             ]
-          }
+          },
+          "id": "instance-label-M4-copy-2-copy-2",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
         }
       ],
       "connectivityEvidence": [
@@ -556,9 +564,9 @@
             },
             "rotation": 0
           },
+          "reference": "M3",
           "symbolId": "nmos",
-          "symbolVariantId": "textbook-3terminal",
-          "reference": "M3"
+          "symbolVariantId": "textbook-3terminal"
         },
         {
           "id": "Q1",
@@ -573,8 +581,8 @@
             },
             "rotation": 0
           },
-          "symbolId": "npn",
-          "reference": "Q1"
+          "reference": "Q1",
+          "symbolId": "npn"
         },
         {
           "id": "Q2",
@@ -589,8 +597,8 @@
             },
             "rotation": 0
           },
-          "symbolId": "npn",
-          "reference": "Q2"
+          "reference": "Q2",
+          "symbolId": "npn"
         },
         {
           "id": "Q3",
@@ -605,8 +613,8 @@
             },
             "rotation": 0
           },
-          "symbolId": "npn",
-          "reference": "Q3"
+          "reference": "Q3",
+          "symbolId": "npn"
         },
         {
           "id": "Q4",
@@ -621,8 +629,8 @@
             },
             "rotation": 0
           },
-          "symbolId": "npn",
-          "reference": "Q4"
+          "reference": "Q4",
+          "symbolId": "npn"
         },
         {
           "id": "Q5",
@@ -637,8 +645,8 @@
             },
             "rotation": 0
           },
-          "symbolId": "npn",
-          "reference": "Q5"
+          "reference": "Q5",
+          "symbolId": "npn"
         },
         {
           "id": "Q6",
@@ -653,8 +661,8 @@
             },
             "rotation": 0
           },
-          "symbolId": "npn",
-          "reference": "Q6"
+          "reference": "Q6",
+          "symbolId": "npn"
         },
         {
           "id": "R1",
@@ -673,8 +681,8 @@
             },
             "rotation": 0
           },
-          "symbolId": "resistor",
-          "reference": "R1"
+          "reference": "R1",
+          "symbolId": "resistor"
         },
         {
           "id": "R2",
@@ -693,8 +701,8 @@
             },
             "rotation": 0
           },
-          "symbolId": "resistor",
-          "reference": "R2"
+          "reference": "R2",
+          "symbolId": "resistor"
         },
         {
           "id": "R3",
@@ -713,8 +721,8 @@
             },
             "rotation": 0
           },
-          "symbolId": "resistor",
-          "reference": "R3"
+          "reference": "R3",
+          "symbolId": "resistor"
         },
         {
           "id": "R4",
@@ -733,8 +741,8 @@
             },
             "rotation": 0
           },
-          "symbolId": "resistor",
-          "reference": "R4"
+          "reference": "R4",
+          "symbolId": "resistor"
         },
         {
           "id": "R5",
@@ -753,8 +761,8 @@
             },
             "rotation": 0
           },
-          "symbolId": "resistor",
-          "reference": "R5"
+          "reference": "R5",
+          "symbolId": "resistor"
         },
         {
           "id": "R6",
@@ -773,8 +781,8 @@
             },
             "rotation": 0
           },
-          "symbolId": "resistor",
-          "reference": "R6"
+          "reference": "R6",
+          "symbolId": "resistor"
         },
         {
           "id": "R7",
@@ -793,8 +801,8 @@
             },
             "rotation": 0
           },
-          "symbolId": "resistor",
-          "reference": "R7"
+          "reference": "R7",
+          "symbolId": "resistor"
         },
         {
           "id": "M4",
@@ -818,9 +826,9 @@
             },
             "rotation": 0
           },
+          "reference": "M4",
           "symbolId": "pmos",
-          "symbolVariantId": "textbook-3terminal",
-          "reference": "M4"
+          "symbolVariantId": "textbook-3terminal"
         },
         {
           "id": "M5",
@@ -844,9 +852,9 @@
             },
             "rotation": 0
           },
+          "reference": "M5",
           "symbolId": "pmos",
-          "symbolVariantId": "textbook-3terminal",
-          "reference": "M5"
+          "symbolVariantId": "textbook-3terminal"
         },
         {
           "id": "M6",
@@ -870,9 +878,9 @@
             },
             "rotation": 0
           },
+          "reference": "M6",
           "symbolId": "pmos",
-          "symbolVariantId": "textbook-3terminal",
-          "reference": "M6"
+          "symbolVariantId": "textbook-3terminal"
         },
         {
           "id": "M7",
@@ -896,9 +904,9 @@
             },
             "rotation": 0
           },
+          "reference": "M7",
           "symbolId": "pmos",
-          "symbolVariantId": "textbook-3terminal",
-          "reference": "M7"
+          "symbolVariantId": "textbook-3terminal"
         },
         {
           "id": "M8",
@@ -922,9 +930,9 @@
             },
             "rotation": 0
           },
+          "reference": "M8",
           "symbolId": "pmos",
-          "symbolVariantId": "textbook-3terminal",
-          "reference": "M8"
+          "symbolVariantId": "textbook-3terminal"
         },
         {
           "id": "GND1",
@@ -2770,7 +2778,7 @@
   "externalSubcircuitDefinitions": [],
   "id": "project-main",
   "name": "LTC3452",
-  "schemaVersion": 35,
+  "schemaVersion": 36,
   "source": {
     "dialect": "none",
     "entry": null,

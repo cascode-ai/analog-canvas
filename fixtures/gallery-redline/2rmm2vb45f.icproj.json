@@ -17,8 +17,8 @@
             "objectId": "XDP"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "XDP"
+            "instanceId": "XDP",
+            "kind": "instance-reference"
           },
           "id": "instance-label-XDP",
           "kind": "instance-label",
@@ -40,8 +40,8 @@
             "objectId": "XDN"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "XDN"
+            "instanceId": "XDN",
+            "kind": "instance-reference"
           },
           "id": "instance-label-XDN",
           "kind": "instance-label",
@@ -63,8 +63,8 @@
             "objectId": "XSP"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "XSP"
+            "instanceId": "XSP",
+            "kind": "instance-reference"
           },
           "id": "instance-label-XSP",
           "kind": "instance-label",
@@ -86,8 +86,8 @@
             "objectId": "XSN"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "XSN"
+            "instanceId": "XSN",
+            "kind": "instance-reference"
           },
           "id": "instance-label-XSN",
           "kind": "instance-label",
@@ -277,6 +277,7 @@
           "id": "XDP",
           "importProvenance": {
             "kind": "opaque",
+            "sourceMasterName": "sky130_fd_pr__pfet_01v8",
             "sourceTarget": "external-subcircuit:sky130_fd_pr__pfet_01v8",
             "status": "resolved",
             "symbolMappingRegistryId": "sky130-pfet-four-terminal",
@@ -297,8 +298,7 @@
                 "pinName": "B",
                 "sourcePosition": 3
               }
-            ],
-            "sourceMasterName": "sky130_fd_pr__pfet_01v8"
+            ]
           },
           "mosBulkBinding": {
             "netId": "net-d7602f62b45329ba",
@@ -323,6 +323,7 @@
             },
             "rotation": 0
           },
+          "reference": "XDP",
           "sourceRef": {
             "end": {
               "column": 63,
@@ -336,13 +337,13 @@
               "offset": 186
             }
           },
-          "symbolId": "pmos",
-          "reference": "XDP"
+          "symbolId": "pmos"
         },
         {
           "id": "XDN",
           "importProvenance": {
             "kind": "opaque",
+            "sourceMasterName": "sky130_fd_pr__nfet_01v8",
             "sourceTarget": "external-subcircuit:sky130_fd_pr__nfet_01v8",
             "status": "resolved",
             "symbolMappingRegistryId": "sky130-nfet-four-terminal",
@@ -363,8 +364,7 @@
                 "pinName": "B",
                 "sourcePosition": 3
               }
-            ],
-            "sourceMasterName": "sky130_fd_pr__nfet_01v8"
+            ]
           },
           "netlist": {
             "binding": {
@@ -385,6 +385,7 @@
             },
             "rotation": 0
           },
+          "reference": "XDN",
           "sourceRef": {
             "end": {
               "column": 63,
@@ -398,13 +399,13 @@
               "offset": 249
             }
           },
-          "symbolId": "nmos",
-          "reference": "XDN"
+          "symbolId": "nmos"
         },
         {
           "id": "XSP",
           "importProvenance": {
             "kind": "opaque",
+            "sourceMasterName": "sky130_fd_pr__pfet_01v8",
             "sourceTarget": "external-subcircuit:sky130_fd_pr__pfet_01v8",
             "status": "resolved",
             "symbolMappingRegistryId": "sky130-pfet-four-terminal",
@@ -425,8 +426,7 @@
                 "pinName": "B",
                 "sourcePosition": 3
               }
-            ],
-            "sourceMasterName": "sky130_fd_pr__pfet_01v8"
+            ]
           },
           "mosBulkBinding": {
             "netId": "net-d7602f62b45329ba",
@@ -451,6 +451,7 @@
             },
             "rotation": 0
           },
+          "reference": "XSP",
           "sourceRef": {
             "end": {
               "column": 61,
@@ -464,13 +465,13 @@
               "offset": 312
             }
           },
-          "symbolId": "pmos",
-          "reference": "XSP"
+          "symbolId": "pmos"
         },
         {
           "id": "XSN",
           "importProvenance": {
             "kind": "opaque",
+            "sourceMasterName": "sky130_fd_pr__nfet_01v8",
             "sourceTarget": "external-subcircuit:sky130_fd_pr__nfet_01v8",
             "status": "resolved",
             "symbolMappingRegistryId": "sky130-nfet-four-terminal",
@@ -491,8 +492,7 @@
                 "pinName": "B",
                 "sourcePosition": 3
               }
-            ],
-            "sourceMasterName": "sky130_fd_pr__nfet_01v8"
+            ]
           },
           "netlist": {
             "binding": {
@@ -513,6 +513,7 @@
             },
             "rotation": 0
           },
+          "reference": "XSN",
           "sourceRef": {
             "end": {
               "column": 61,
@@ -526,8 +527,7 @@
               "offset": 373
             }
           },
-          "symbolId": "nmos",
-          "reference": "XSN"
+          "symbolId": "nmos"
         },
         {
           "id": "cell-pin-97faf2cad5ec4598",
@@ -1532,8 +1532,8 @@
             "objectId": "XU0"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "XU0"
+            "instanceId": "XU0",
+            "kind": "instance-reference"
           },
           "id": "instance-label-XU0",
           "kind": "instance-label",
@@ -1555,8 +1555,8 @@
             "objectId": "XU1"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "XU1"
+            "instanceId": "XU1",
+            "kind": "instance-reference"
           },
           "id": "instance-label-XU1",
           "kind": "instance-label",
@@ -1577,11 +1577,11 @@
             },
             "objectId": "XU2"
           },
-          "id": "instance-label-XU2",
-          "kind": "instance-label",
-          "locked": false,
-          "rotation": 0,
-          "content": {
+          "binding": {
+            "instanceId": "XU2",
+            "kind": "instance-reference"
+          },
+          "formatOverride": {
             "runs": [
               {
                 "children": [
@@ -1616,7 +1616,11 @@
                 "style": "subscript"
               }
             ]
-          }
+          },
+          "id": "instance-label-XU2",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
         },
         {
           "alignment": "middle",
@@ -1633,8 +1637,8 @@
             "objectId": "XU3"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "XU3"
+            "instanceId": "XU3",
+            "kind": "instance-reference"
           },
           "id": "instance-label-XU3",
           "kind": "instance-label",
@@ -1656,8 +1660,8 @@
             "objectId": "XU4"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "XU4"
+            "instanceId": "XU4",
+            "kind": "instance-reference"
           },
           "id": "instance-label-XU4",
           "kind": "instance-label",
@@ -1679,8 +1683,8 @@
             "objectId": "XU5"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "XU5"
+            "instanceId": "XU5",
+            "kind": "instance-reference"
           },
           "id": "instance-label-XU5",
           "kind": "instance-label",
@@ -1702,8 +1706,8 @@
             "objectId": "XRESET"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "XRESET"
+            "instanceId": "XRESET",
+            "kind": "instance-reference"
           },
           "id": "instance-label-XRESET",
           "kind": "instance-label",
@@ -1725,8 +1729,8 @@
             "objectId": "C0"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "C0"
+            "instanceId": "C0",
+            "kind": "instance-reference"
           },
           "id": "instance-label-C0",
           "kind": "instance-label",
@@ -1748,8 +1752,8 @@
             "objectId": "C1"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "C1"
+            "instanceId": "C1",
+            "kind": "instance-reference"
           },
           "id": "instance-label-C1",
           "kind": "instance-label",
@@ -1771,8 +1775,8 @@
             "objectId": "C2"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "C2"
+            "instanceId": "C2",
+            "kind": "instance-reference"
           },
           "id": "instance-label-C2",
           "kind": "instance-label",
@@ -1794,8 +1798,8 @@
             "objectId": "C3"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "C3"
+            "instanceId": "C3",
+            "kind": "instance-reference"
           },
           "id": "instance-label-C3",
           "kind": "instance-label",
@@ -1817,8 +1821,8 @@
             "objectId": "C4"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "C4"
+            "instanceId": "C4",
+            "kind": "instance-reference"
           },
           "id": "instance-label-C4",
           "kind": "instance-label",
@@ -1840,8 +1844,8 @@
             "objectId": "C5"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "C5"
+            "instanceId": "C5",
+            "kind": "instance-reference"
           },
           "id": "instance-label-C5",
           "kind": "instance-label",
@@ -1863,8 +1867,8 @@
             "objectId": "CDUMMY"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "CDUMMY"
+            "instanceId": "CDUMMY",
+            "kind": "instance-reference"
           },
           "id": "instance-label-CDUMMY",
           "kind": "instance-label",
@@ -2428,6 +2432,7 @@
           "id": "XU0",
           "importProvenance": {
             "kind": "subcircuit",
+            "sourceMasterName": "scdac_unit",
             "sourceTarget": "subcircuit:scdac_unit",
             "status": "resolved",
             "terminalMapping": [
@@ -2451,8 +2456,7 @@
                 "pinName": "vdd",
                 "sourcePosition": 4
               }
-            ],
-            "sourceMasterName": "scdac_unit"
+            ]
           },
           "netlist": {
             "binding": {
@@ -2469,6 +2473,7 @@
             },
             "rotation": 90
           },
+          "reference": "XU0",
           "sourceRef": {
             "end": {
               "column": 35,
@@ -2482,13 +2487,13 @@
               "offset": 525
             }
           },
-          "symbolId": "hierarchical-symbol-82822626bf0850db",
-          "reference": "XU0"
+          "symbolId": "hierarchical-symbol-82822626bf0850db"
         },
         {
           "id": "XU1",
           "importProvenance": {
             "kind": "subcircuit",
+            "sourceMasterName": "scdac_unit",
             "sourceTarget": "subcircuit:scdac_unit",
             "status": "resolved",
             "terminalMapping": [
@@ -2512,8 +2517,7 @@
                 "pinName": "vdd",
                 "sourcePosition": 4
               }
-            ],
-            "sourceMasterName": "scdac_unit"
+            ]
           },
           "netlist": {
             "binding": {
@@ -2530,6 +2534,7 @@
             },
             "rotation": 90
           },
+          "reference": "XU1",
           "sourceRef": {
             "end": {
               "column": 35,
@@ -2543,13 +2548,13 @@
               "offset": 560
             }
           },
-          "symbolId": "hierarchical-symbol-82822626bf0850db",
-          "reference": "XU1"
+          "symbolId": "hierarchical-symbol-82822626bf0850db"
         },
         {
           "id": "XU2",
           "importProvenance": {
             "kind": "subcircuit",
+            "sourceMasterName": "scdac_unit",
             "sourceTarget": "subcircuit:scdac_unit",
             "status": "resolved",
             "terminalMapping": [
@@ -2573,8 +2578,7 @@
                 "pinName": "vdd",
                 "sourcePosition": 4
               }
-            ],
-            "sourceMasterName": "scdac_unit"
+            ]
           },
           "netlist": {
             "binding": {
@@ -2591,6 +2595,7 @@
             },
             "rotation": 90
           },
+          "reference": "XU2",
           "sourceRef": {
             "end": {
               "column": 35,
@@ -2604,13 +2609,13 @@
               "offset": 595
             }
           },
-          "symbolId": "hierarchical-symbol-82822626bf0850db",
-          "reference": "XU2"
+          "symbolId": "hierarchical-symbol-82822626bf0850db"
         },
         {
           "id": "XU3",
           "importProvenance": {
             "kind": "subcircuit",
+            "sourceMasterName": "scdac_unit",
             "sourceTarget": "subcircuit:scdac_unit",
             "status": "resolved",
             "terminalMapping": [
@@ -2634,8 +2639,7 @@
                 "pinName": "vdd",
                 "sourcePosition": 4
               }
-            ],
-            "sourceMasterName": "scdac_unit"
+            ]
           },
           "netlist": {
             "binding": {
@@ -2652,6 +2656,7 @@
             },
             "rotation": 90
           },
+          "reference": "XU3",
           "sourceRef": {
             "end": {
               "column": 35,
@@ -2665,13 +2670,13 @@
               "offset": 630
             }
           },
-          "symbolId": "hierarchical-symbol-82822626bf0850db",
-          "reference": "XU3"
+          "symbolId": "hierarchical-symbol-82822626bf0850db"
         },
         {
           "id": "XU4",
           "importProvenance": {
             "kind": "subcircuit",
+            "sourceMasterName": "scdac_unit",
             "sourceTarget": "subcircuit:scdac_unit",
             "status": "resolved",
             "terminalMapping": [
@@ -2695,8 +2700,7 @@
                 "pinName": "vdd",
                 "sourcePosition": 4
               }
-            ],
-            "sourceMasterName": "scdac_unit"
+            ]
           },
           "netlist": {
             "binding": {
@@ -2713,6 +2717,7 @@
             },
             "rotation": 90
           },
+          "reference": "XU4",
           "sourceRef": {
             "end": {
               "column": 35,
@@ -2726,13 +2731,13 @@
               "offset": 665
             }
           },
-          "symbolId": "hierarchical-symbol-82822626bf0850db",
-          "reference": "XU4"
+          "symbolId": "hierarchical-symbol-82822626bf0850db"
         },
         {
           "id": "XU5",
           "importProvenance": {
             "kind": "subcircuit",
+            "sourceMasterName": "scdac_unit",
             "sourceTarget": "subcircuit:scdac_unit",
             "status": "resolved",
             "terminalMapping": [
@@ -2756,8 +2761,7 @@
                 "pinName": "vdd",
                 "sourcePosition": 4
               }
-            ],
-            "sourceMasterName": "scdac_unit"
+            ]
           },
           "netlist": {
             "binding": {
@@ -2774,6 +2778,7 @@
             },
             "rotation": 90
           },
+          "reference": "XU5",
           "sourceRef": {
             "end": {
               "column": 35,
@@ -2787,13 +2792,13 @@
               "offset": 700
             }
           },
-          "symbolId": "hierarchical-symbol-82822626bf0850db",
-          "reference": "XU5"
+          "symbolId": "hierarchical-symbol-82822626bf0850db"
         },
         {
           "id": "XRESET",
           "importProvenance": {
             "kind": "opaque",
+            "sourceMasterName": "sky130_fd_pr__nfet_01v8",
             "sourceTarget": "external-subcircuit:sky130_fd_pr__nfet_01v8",
             "status": "resolved",
             "symbolMappingRegistryId": "sky130-nfet-four-terminal",
@@ -2814,8 +2819,7 @@
                 "pinName": "B",
                 "sourcePosition": 3
               }
-            ],
-            "sourceMasterName": "sky130_fd_pr__nfet_01v8"
+            ]
           },
           "netlist": {
             "binding": {
@@ -2836,6 +2840,7 @@
             },
             "rotation": 0
           },
+          "reference": "XRESET",
           "sourceRef": {
             "end": {
               "column": 65,
@@ -2849,13 +2854,13 @@
               "offset": 735
             }
           },
-          "symbolId": "nmos",
-          "reference": "XRESET"
+          "symbolId": "nmos"
         },
         {
           "id": "C0",
           "importProvenance": {
             "kind": "primitive",
+            "sourceMasterName": "capacitor",
             "sourceTarget": "primitive:capacitor",
             "status": "resolved",
             "terminalMapping": [
@@ -2867,8 +2872,7 @@
                 "pinName": "2",
                 "sourcePosition": 1
               }
-            ],
-            "sourceMasterName": "capacitor"
+            ]
           },
           "netlist": {
             "binding": {
@@ -2887,6 +2891,7 @@
             },
             "rotation": 0
           },
+          "reference": "C0",
           "sourceRef": {
             "end": {
               "column": 17,
@@ -2900,13 +2905,13 @@
               "offset": 800
             }
           },
-          "symbolId": "capacitor",
-          "reference": "C0"
+          "symbolId": "capacitor"
         },
         {
           "id": "C1",
           "importProvenance": {
             "kind": "primitive",
+            "sourceMasterName": "capacitor",
             "sourceTarget": "primitive:capacitor",
             "status": "resolved",
             "terminalMapping": [
@@ -2918,8 +2923,7 @@
                 "pinName": "2",
                 "sourcePosition": 1
               }
-            ],
-            "sourceMasterName": "capacitor"
+            ]
           },
           "netlist": {
             "binding": {
@@ -2938,6 +2942,7 @@
             },
             "rotation": 0
           },
+          "reference": "C1",
           "sourceRef": {
             "end": {
               "column": 17,
@@ -2951,13 +2956,13 @@
               "offset": 817
             }
           },
-          "symbolId": "capacitor",
-          "reference": "C1"
+          "symbolId": "capacitor"
         },
         {
           "id": "C2",
           "importProvenance": {
             "kind": "primitive",
+            "sourceMasterName": "capacitor",
             "sourceTarget": "primitive:capacitor",
             "status": "resolved",
             "terminalMapping": [
@@ -2969,8 +2974,7 @@
                 "pinName": "2",
                 "sourcePosition": 1
               }
-            ],
-            "sourceMasterName": "capacitor"
+            ]
           },
           "netlist": {
             "binding": {
@@ -2989,6 +2993,7 @@
             },
             "rotation": 0
           },
+          "reference": "C2",
           "sourceRef": {
             "end": {
               "column": 17,
@@ -3002,13 +3007,13 @@
               "offset": 834
             }
           },
-          "symbolId": "capacitor",
-          "reference": "C2"
+          "symbolId": "capacitor"
         },
         {
           "id": "C3",
           "importProvenance": {
             "kind": "primitive",
+            "sourceMasterName": "capacitor",
             "sourceTarget": "primitive:capacitor",
             "status": "resolved",
             "terminalMapping": [
@@ -3020,8 +3025,7 @@
                 "pinName": "2",
                 "sourcePosition": 1
               }
-            ],
-            "sourceMasterName": "capacitor"
+            ]
           },
           "netlist": {
             "binding": {
@@ -3040,6 +3044,7 @@
             },
             "rotation": 0
           },
+          "reference": "C3",
           "sourceRef": {
             "end": {
               "column": 18,
@@ -3053,13 +3058,13 @@
               "offset": 851
             }
           },
-          "symbolId": "capacitor",
-          "reference": "C3"
+          "symbolId": "capacitor"
         },
         {
           "id": "C4",
           "importProvenance": {
             "kind": "primitive",
+            "sourceMasterName": "capacitor",
             "sourceTarget": "primitive:capacitor",
             "status": "resolved",
             "terminalMapping": [
@@ -3071,8 +3076,7 @@
                 "pinName": "2",
                 "sourcePosition": 1
               }
-            ],
-            "sourceMasterName": "capacitor"
+            ]
           },
           "netlist": {
             "binding": {
@@ -3091,6 +3095,7 @@
             },
             "rotation": 0
           },
+          "reference": "C4",
           "sourceRef": {
             "end": {
               "column": 18,
@@ -3104,13 +3109,13 @@
               "offset": 869
             }
           },
-          "symbolId": "capacitor",
-          "reference": "C4"
+          "symbolId": "capacitor"
         },
         {
           "id": "C5",
           "importProvenance": {
             "kind": "primitive",
+            "sourceMasterName": "capacitor",
             "sourceTarget": "primitive:capacitor",
             "status": "resolved",
             "terminalMapping": [
@@ -3122,8 +3127,7 @@
                 "pinName": "2",
                 "sourcePosition": 1
               }
-            ],
-            "sourceMasterName": "capacitor"
+            ]
           },
           "netlist": {
             "binding": {
@@ -3142,6 +3146,7 @@
             },
             "rotation": 0
           },
+          "reference": "C5",
           "sourceRef": {
             "end": {
               "column": 18,
@@ -3155,13 +3160,13 @@
               "offset": 887
             }
           },
-          "symbolId": "capacitor",
-          "reference": "C5"
+          "symbolId": "capacitor"
         },
         {
           "id": "CDUMMY",
           "importProvenance": {
             "kind": "primitive",
+            "sourceMasterName": "capacitor",
             "sourceTarget": "primitive:capacitor",
             "status": "resolved",
             "terminalMapping": [
@@ -3173,8 +3178,7 @@
                 "pinName": "2",
                 "sourcePosition": 1
               }
-            ],
-            "sourceMasterName": "capacitor"
+            ]
           },
           "netlist": {
             "binding": {
@@ -3193,6 +3197,7 @@
             },
             "rotation": 0
           },
+          "reference": "CDUMMY",
           "sourceRef": {
             "end": {
               "column": 20,
@@ -3206,8 +3211,7 @@
               "offset": 905
             }
           },
-          "symbolId": "capacitor",
-          "reference": "CDUMMY"
+          "symbolId": "capacitor"
         },
         {
           "id": "cell-pin-8d2d35d48ff5f9ed",
@@ -5343,7 +5347,7 @@
   ],
   "id": "project-898510e0e3b15ad5",
   "name": "Switched_Capacitor_DAC_6bit (SPICE Import Demo)",
-  "schemaVersion": 35,
+  "schemaVersion": 36,
   "source": {
     "dialect": "spice3f5-core",
     "entry": "circuit.spi",

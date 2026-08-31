@@ -1003,6 +1003,112 @@ describe("captureDocumentComposition", () => {
     });
   });
 
+  it("renumbers a mapped Reference and its independent RichText presentation together", () => {
+    const source = createEmptyDocument("source-document", "Source");
+    source.instances.push({
+      id: "M5",
+      symbolId: "nmos",
+      reference: "M5",
+      placement: {
+        position: { x: 20, y: 20 },
+        rotation: 0,
+        mirror: "none",
+      },
+      netlist: { parameters: {} },
+    });
+    source.annotations.push({
+      id: "instance-label-M5",
+      kind: "instance-label",
+      binding: { kind: "instance-reference", instanceId: "M5" },
+      formatOverride: semanticTextDocument("M5", "instance-label"),
+      anchor: {
+        kind: "object",
+        objectId: "M5",
+        localOffset: { x: 0, y: -20 },
+        fallbackPosition: { x: 20, y: 0 },
+      },
+      alignment: "middle",
+      rotation: 0,
+      locked: false,
+    });
+    const target = createEmptyDocument("target-document", "Target");
+    target.instances.push({
+      id: "existing-M5",
+      symbolId: "nmos",
+      reference: "M5",
+      placement: null,
+      netlist: { parameters: {} },
+    });
+
+    const proposal = proposePaste(
+      target,
+      captureDocumentComposition(source)!,
+      { x: 0, y: 0 },
+      1,
+    );
+    const result = executeTransaction(
+      target,
+      {
+        transactionId: "compose-reference-presentation",
+        documentId: target.id,
+        expectedRevision: target.revision,
+        actor: { kind: "human", id: "test" },
+        edits: proposal.edits,
+      },
+      { symbolResolver: resolver },
+    );
+
+    if (!result.ok) throw new Error(JSON.stringify(result, null, 2));
+    const copiedId = proposal.idRemap.instances.M5!;
+    expect(
+      result.document.instances.find((instance) => instance.id === copiedId)
+        ?.reference,
+    ).toBe("M6");
+    const copiedLabel = result.document.annotations.find(
+      (annotation) =>
+        annotation.binding?.kind === "instance-reference" &&
+        annotation.binding.instanceId === copiedId,
+    );
+    expect(copiedLabel?.formatOverride).toBeDefined();
+    expect(flattenRichText(copiedLabel!.formatOverride!)).toBe("M6");
+    expect(copiedLabel!.formatOverride!.runs[0]).toEqual(
+      semanticTextDocument("M5", "instance-label").runs[0],
+    );
+
+    const renamed = executeTransaction(
+      result.document,
+      {
+        transactionId: "rename-composed-reference",
+        documentId: result.document.id,
+        expectedRevision: result.document.revision,
+        actor: { kind: "human", id: "test" },
+        edits: [
+          {
+            kind: "set_instance_reference",
+            instanceId: copiedId,
+            reference: "M21",
+          },
+        ],
+      },
+      { symbolResolver: resolver },
+    );
+
+    if (!renamed.ok) throw new Error(JSON.stringify(renamed, null, 2));
+    expect(
+      renamed.document.instances.find((instance) => instance.id === copiedId)
+        ?.reference,
+    ).toBe("M21");
+    const renamedLabel = renamed.document.annotations.find(
+      (annotation) =>
+        annotation.binding?.kind === "instance-reference" &&
+        annotation.binding.instanceId === copiedId,
+    );
+    expect(flattenRichText(renamedLabel!.formatOverride!)).toBe("M21");
+    expect(renamedLabel!.formatOverride!.runs[0]).toEqual(
+      semanticTextDocument("M5", "instance-label").runs[0],
+    );
+  });
+
   it("owns composed MOS bulk connections per instance without changing target defaults", () => {
     const source = createLibraryExampleProject(
       "fully-differential-two-stage-op-amp",

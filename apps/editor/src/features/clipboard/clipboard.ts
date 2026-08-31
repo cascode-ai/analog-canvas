@@ -35,6 +35,7 @@ import type { SymbolResolver } from "@icm/symbols";
 import {
   createRoutePath,
   inverseTransformPoint,
+  rewriteRichTextPlainText,
   routeBends,
   routeEnd,
   transformPoint,
@@ -1338,6 +1339,20 @@ export function proposePaste(
   edits.push(
     ...clipboard.annotations.map((annotation): SchematicEdit => {
       const clone = structuredClone(annotation);
+      if (
+        clone.binding?.kind === "instance-reference" &&
+        clone.formatOverride
+      ) {
+        const mappedReference = instanceReferences.get(
+          clone.binding.instanceId,
+        );
+        if (mappedReference) {
+          clone.formatOverride = rewriteRichTextPlainText(
+            clone.formatOverride,
+            mappedReference,
+          );
+        }
+      }
       return {
         kind: "upsert_schematic_annotation",
         annotation: {

@@ -116,7 +116,11 @@
             },
             "objectId": "M2"
           },
-          "content": {
+          "binding": {
+            "instanceId": "M2",
+            "kind": "instance-reference"
+          },
+          "formatOverride": {
             "runs": [
               {
                 "children": [
@@ -599,8 +603,8 @@
             },
             "rotation": 0
           },
-          "symbolId": "capacitor",
-          "reference": "C1"
+          "reference": "C1",
+          "symbolId": "capacitor"
         },
         {
           "id": "C1-copy-1",
@@ -619,8 +623,8 @@
             },
             "rotation": 90
           },
-          "symbolId": "capacitor",
-          "reference": "C2"
+          "reference": "C2",
+          "symbolId": "capacitor"
         },
         {
           "id": "M2",
@@ -639,9 +643,9 @@
             },
             "rotation": 0
           },
+          "reference": "M1",
           "symbolId": "nmos",
-          "symbolVariantId": "textbook-3terminal",
-          "reference": "M1"
+          "symbolVariantId": "textbook-3terminal"
         },
         {
           "id": "R3",
@@ -660,8 +664,8 @@
             },
             "rotation": 0
           },
-          "symbolId": "resistor",
-          "reference": "R1"
+          "reference": "R1",
+          "symbolId": "resistor"
         },
         {
           "id": "GND5",
@@ -728,8 +732,8 @@
             },
             "rotation": 90
           },
-          "symbolId": "resistor",
-          "reference": "R2"
+          "reference": "R2",
+          "symbolId": "resistor"
         },
         {
           "id": "V6",
@@ -744,8 +748,8 @@
             },
             "rotation": 0
           },
-          "symbolId": "voltage-source",
-          "reference": "V1"
+          "reference": "V1",
+          "symbolId": "voltage-source"
         }
       ],
       "junctions": [
@@ -1340,7 +1344,7 @@
   "externalSubcircuitDefinitions": [],
   "id": "project-main",
   "name": "New Circuit",
-  "schemaVersion": 35,
+  "schemaVersion": 36,
   "source": {
     "dialect": "none",
     "entry": null,

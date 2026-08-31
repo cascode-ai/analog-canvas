@@ -16,66 +16,11 @@
             },
             "objectId": "M3"
           },
-          "id": "instance-label-M1-copy-1-copy-1",
-          "kind": "instance-label",
-          "locked": false,
-          "rotation": 0,
-          "content": {
-            "runs": [
-              {
-                "children": [
-                  {
-                    "children": [
-                      {
-                        "kind": "text",
-                        "value": "M"
-                      }
-                    ],
-                    "kind": "span",
-                    "style": "bold"
-                  }
-                ],
-                "kind": "span",
-                "style": "italic"
-              },
-              {
-                "children": [
-                  {
-                    "children": [
-                      {
-                        "kind": "text",
-                        "value": "4"
-                      }
-                    ],
-                    "kind": "span",
-                    "style": "bold"
-                  }
-                ],
-                "kind": "span",
-                "style": "subscript"
-              }
-            ]
-          }
-        },
-        {
-          "alignment": "start",
-          "anchor": {
-            "fallbackPosition": {
-              "x": 255,
-              "y": 265
-            },
-            "kind": "object",
-            "localOffset": {
-              "x": 15,
-              "y": 5
-            },
-            "objectId": "M4"
+          "binding": {
+            "instanceId": "M3",
+            "kind": "instance-reference"
           },
-          "id": "instance-label-M3-copy-1",
-          "kind": "instance-label",
-          "locked": false,
-          "rotation": 0,
-          "content": {
+          "formatOverride": {
             "runs": [
               {
                 "children": [
@@ -110,27 +55,31 @@
                 "style": "subscript"
               }
             ]
-          }
+          },
+          "id": "instance-label-M1-copy-1-copy-1",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
         },
         {
           "alignment": "start",
           "anchor": {
             "fallbackPosition": {
               "x": 255,
-              "y": 340
+              "y": 265
             },
             "kind": "object",
             "localOffset": {
               "x": 15,
-              "y": 10
+              "y": 5
             },
-            "objectId": "M5"
+            "objectId": "M4"
           },
-          "id": "instance-label-M4-copy-1",
-          "kind": "instance-label",
-          "locked": false,
-          "rotation": 0,
-          "content": {
+          "binding": {
+            "instanceId": "M4",
+            "kind": "instance-reference"
+          },
+          "formatOverride": {
             "runs": [
               {
                 "children": [
@@ -154,7 +103,7 @@
                     "children": [
                       {
                         "kind": "text",
-                        "value": "1"
+                        "value": "4"
                       }
                     ],
                     "kind": "span",
@@ -165,7 +114,70 @@
                 "style": "subscript"
               }
             ]
-          }
+          },
+          "id": "instance-label-M3-copy-1",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
+        },
+        {
+          "alignment": "start",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 255,
+              "y": 340
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": 15,
+              "y": 10
+            },
+            "objectId": "M5"
+          },
+          "binding": {
+            "instanceId": "M5",
+            "kind": "instance-reference"
+          },
+          "formatOverride": {
+            "runs": [
+              {
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "kind": "text",
+                        "value": "M"
+                      }
+                    ],
+                    "kind": "span",
+                    "style": "bold"
+                  }
+                ],
+                "kind": "span",
+                "style": "italic"
+              },
+              {
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "kind": "text",
+                        "value": "5"
+                      }
+                    ],
+                    "kind": "span",
+                    "style": "bold"
+                  }
+                ],
+                "kind": "span",
+                "style": "subscript"
+              }
+            ]
+          },
+          "id": "instance-label-M4-copy-1",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
         },
         {
           "alignment": "start",
@@ -205,11 +217,11 @@
             },
             "objectId": "M2"
           },
-          "id": "instance-label-M1-copy-1",
-          "kind": "instance-label",
-          "locked": false,
-          "rotation": 0,
-          "content": {
+          "binding": {
+            "instanceId": "M2",
+            "kind": "instance-reference"
+          },
+          "formatOverride": {
             "runs": [
               {
                 "children": [
@@ -244,7 +256,11 @@
                 "style": "subscript"
               }
             ]
-          }
+          },
+          "id": "instance-label-M1-copy-1",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
         },
         {
           "alignment": "end",
@@ -284,10 +300,6 @@
             },
             "objectId": "C2"
           },
-          "id": "instance-label-C1-copy-1",
-          "kind": "instance-label",
-          "locked": false,
-          "rotation": 0,
           "content": {
             "runs": [
               {
@@ -307,7 +319,11 @@
                 "style": "italic"
               }
             ]
-          }
+          },
+          "id": "instance-label-C1-copy-1",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
         },
         {
           "alignment": "end",
@@ -820,9 +836,9 @@
             },
             "rotation": 0
           },
+          "reference": "M3",
           "symbolId": "pmos",
-          "symbolVariantId": "textbook-3terminal",
-          "reference": "M3"
+          "symbolVariantId": "textbook-3terminal"
         },
         {
           "id": "M4",
@@ -846,9 +862,9 @@
             },
             "rotation": 0
           },
+          "reference": "M4",
           "symbolId": "nmos",
-          "symbolVariantId": "textbook-3terminal",
-          "reference": "M4"
+          "symbolVariantId": "textbook-3terminal"
         },
         {
           "id": "M5",
@@ -872,9 +888,9 @@
             },
             "rotation": 0
           },
+          "reference": "M5",
           "symbolId": "nmos",
-          "symbolVariantId": "textbook-3terminal",
-          "reference": "M5"
+          "symbolVariantId": "textbook-3terminal"
         },
         {
           "id": "GND1-copy-1",
@@ -922,9 +938,9 @@
             },
             "rotation": 0
           },
+          "reference": "M2",
           "symbolId": "pmos",
-          "symbolVariantId": "textbook-3terminal",
-          "reference": "M2"
+          "symbolVariantId": "textbook-3terminal"
         },
         {
           "id": "P2-copy-1",
@@ -955,8 +971,8 @@
             },
             "rotation": 0
           },
-          "symbolId": "capacitor",
-          "reference": "C2"
+          "reference": "C2",
+          "symbolId": "capacitor"
         },
         {
           "id": "GND2-copy-1",
@@ -1016,9 +1032,9 @@
             },
             "rotation": 270
           },
+          "reference": "M1",
           "symbolId": "nmos",
-          "symbolVariantId": "textbook-3terminal",
-          "reference": "M1"
+          "symbolVariantId": "textbook-3terminal"
         },
         {
           "id": "M6",
@@ -1042,9 +1058,9 @@
             },
             "rotation": 270
           },
+          "reference": "M6",
           "symbolId": "pmos",
-          "symbolVariantId": "textbook-3terminal",
-          "reference": "M6"
+          "symbolVariantId": "textbook-3terminal"
         },
         {
           "id": "X1",
@@ -1056,8 +1072,8 @@
             },
             "rotation": 0
           },
-          "symbolId": "inverter",
-          "reference": "X1"
+          "reference": "X1",
+          "symbolId": "inverter"
         },
         {
           "id": "VDD1",
@@ -2039,7 +2055,7 @@
   "externalSubcircuitDefinitions": [],
   "id": "project-888e7106-b15b-4186-a980-d5a88c004d4c",
   "name": "suppression of skew",
-  "schemaVersion": 35,
+  "schemaVersion": 36,
   "source": {
     "dialect": "none",
     "entry": null,

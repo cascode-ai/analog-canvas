@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { flattenRichText, normalizeRichText } from "./rich-text.js";
+import {
+  flattenRichText,
+  normalizeRichText,
+  rewriteRichTextPlainText,
+} from "./rich-text.js";
 import { RichTextDocumentSchema } from "./schema.js";
 import type { RichTextDocument } from "./schema.js";
 
@@ -130,5 +134,65 @@ describe("canonical RichText helpers", () => {
         ],
       }).success,
     ).toBe(false);
+  });
+
+  it("rewrites a semantic name while preserving its independent RichText styles", () => {
+    const content: RichTextDocument = {
+      runs: [
+        {
+          kind: "span",
+          style: "italic",
+          children: [
+            {
+              kind: "span",
+              style: "bold",
+              children: [{ kind: "text", value: "M" }],
+            },
+          ],
+        },
+        {
+          kind: "span",
+          style: "subscript",
+          children: [
+            {
+              kind: "span",
+              style: "bold",
+              children: [{ kind: "text", value: "15" }],
+            },
+          ],
+        },
+      ],
+    };
+
+    const rewritten = rewriteRichTextPlainText(content, "M21");
+
+    expect(flattenRichText(rewritten)).toBe("M21");
+    expect(rewritten).toEqual({
+      runs: [
+        {
+          kind: "span",
+          style: "italic",
+          children: [
+            {
+              kind: "span",
+              style: "bold",
+              children: [{ kind: "text", value: "M" }],
+            },
+          ],
+        },
+        {
+          kind: "span",
+          style: "subscript",
+          children: [
+            {
+              kind: "span",
+              style: "bold",
+              children: [{ kind: "text", value: "21" }],
+            },
+          ],
+        },
+      ],
+    });
+    expect(RichTextDocumentSchema.safeParse(rewritten).success).toBe(true);
   });
 });

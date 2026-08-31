@@ -1,6 +1,6 @@
 # Project File Compatibility
 
-The released Project schema version is `35`. It retains schematic-only
+The released Project schema version is `36`. It retains schematic-only
 hierarchy integrity, a Project structural revision, stable formal Cell ports,
 and definition-level Cell symbol presentation. It also has one typed Instance
 netlist authority, formal Cell parameters, and Project-local external
@@ -33,7 +33,7 @@ text, a fraction, or a coefficient needs more room, and never clips or shrinks
 the formula to satisfy an undersized request. A canonical v34 file can be
 opened, saved, reopened, and saved again without byte drift.
 
-Schemas v24 through v35 are accepted through the explicit chained upgrades.
+Schemas v24 through v36 are accepted through the explicit chained upgrades.
 Schema v32 adds optional `Annotation.textColor`; schema v33 removes the
 ownerless `explicit-equivalence` record. A v32 file without that record changes
 only its version stamp. A file containing it is rejected at the exact evidence
@@ -42,8 +42,11 @@ was a wire, Label, Alias, or hierarchy terminal. Schema v34 retires the hidden
 `explicit-net-property` naming owner. Source-backed local names become
 non-electrical round-trip hints, explicit SPICE globals retain declaration
 authority, and visible power objects become the owner where one already exists.
+Schema v35 unifies Instance References, and schema v36 restores Gallery-copied
+reference-shaped RichText labels as mapped Reference presentations while
+retaining descriptive attached text.
 The original file is never overwritten silently. Schemas older than v24 and
-versions newer than v34 are rejected by the project-file boundary.
+versions newer than v36 are rejected by the project-file boundary.
 
 The canonical-current corpus at
 [`fixtures/projects/compatibility-corpus.json`](../../fixtures/projects/compatibility-corpus.json)

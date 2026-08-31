@@ -41,8 +41,8 @@
             "objectId": "M1"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "M1"
+            "instanceId": "M1",
+            "kind": "instance-reference"
           },
           "id": "instance-label-M1",
           "kind": "instance-label",
@@ -64,8 +64,8 @@
             "objectId": "M2"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "M2"
+            "instanceId": "M2",
+            "kind": "instance-reference"
           },
           "id": "instance-label-M2",
           "kind": "instance-label",
@@ -87,8 +87,8 @@
             "objectId": "M3"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "M3"
+            "instanceId": "M3",
+            "kind": "instance-reference"
           },
           "id": "instance-label-M3",
           "kind": "instance-label",
@@ -110,8 +110,8 @@
             "objectId": "M4"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "M4"
+            "instanceId": "M4",
+            "kind": "instance-reference"
           },
           "id": "instance-label-M4",
           "kind": "instance-label",
@@ -133,8 +133,8 @@
             "objectId": "M5"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "M5"
+            "instanceId": "M5",
+            "kind": "instance-reference"
           },
           "id": "instance-label-M5",
           "kind": "instance-label",
@@ -156,8 +156,8 @@
             "objectId": "M6"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "M6"
+            "instanceId": "M6",
+            "kind": "instance-reference"
           },
           "id": "instance-label-M6",
           "kind": "instance-label",
@@ -179,8 +179,8 @@
             "objectId": "M7"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "M7"
+            "instanceId": "M7",
+            "kind": "instance-reference"
           },
           "id": "instance-label-M5-copy-1",
           "kind": "instance-label",
@@ -202,8 +202,8 @@
             "objectId": "M8"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "M8"
+            "instanceId": "M8",
+            "kind": "instance-reference"
           },
           "id": "instance-label-M6-copy-1",
           "kind": "instance-label",
@@ -361,8 +361,8 @@
             "objectId": "C1"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "C1"
+            "instanceId": "C1",
+            "kind": "instance-reference"
           },
           "id": "instance-label-C1",
           "kind": "instance-label",
@@ -384,8 +384,8 @@
             "objectId": "C2"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "C2"
+            "instanceId": "C2",
+            "kind": "instance-reference"
           },
           "id": "instance-label-C2",
           "kind": "instance-label",
@@ -516,10 +516,6 @@
             },
             "objectId": "I1"
           },
-          "id": "instance-label-I1",
-          "kind": "instance-label",
-          "locked": false,
-          "rotation": 0,
           "content": {
             "runs": [
               {
@@ -555,7 +551,11 @@
                 "style": "subscript"
               }
             ]
-          }
+          },
+          "id": "instance-label-I1",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
         },
         {
           "alignment": "start",
@@ -571,10 +571,6 @@
             },
             "objectId": "I2"
           },
-          "id": "instance-label-I2",
-          "kind": "instance-label",
-          "locked": false,
-          "rotation": 0,
           "content": {
             "runs": [
               {
@@ -620,7 +616,11 @@
                 "style": "bold"
               }
             ]
-          }
+          },
+          "id": "instance-label-I2",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0
         }
       ],
       "connectivityEvidence": [
@@ -756,9 +756,9 @@
             },
             "rotation": 0
           },
+          "reference": "M1",
           "symbolId": "pmos",
-          "symbolVariantId": "textbook-3terminal",
-          "reference": "M1"
+          "symbolVariantId": "textbook-3terminal"
         },
         {
           "id": "M2",
@@ -777,9 +777,9 @@
             },
             "rotation": 0
           },
+          "reference": "M2",
           "symbolId": "pmos",
-          "symbolVariantId": "textbook-3terminal",
-          "reference": "M2"
+          "symbolVariantId": "textbook-3terminal"
         },
         {
           "id": "M3",
@@ -798,9 +798,9 @@
             },
             "rotation": 0
           },
+          "reference": "M3",
           "symbolId": "pmos",
-          "symbolVariantId": "textbook-3terminal",
-          "reference": "M3"
+          "symbolVariantId": "textbook-3terminal"
         },
         {
           "id": "M4",
@@ -819,9 +819,9 @@
             },
             "rotation": 0
           },
+          "reference": "M4",
           "symbolId": "pmos",
-          "symbolVariantId": "textbook-3terminal",
-          "reference": "M4"
+          "symbolVariantId": "textbook-3terminal"
         },
         {
           "id": "M5",
@@ -840,9 +840,9 @@
             },
             "rotation": 0
           },
+          "reference": "M5",
           "symbolId": "nmos",
-          "symbolVariantId": "textbook-3terminal",
-          "reference": "M5"
+          "symbolVariantId": "textbook-3terminal"
         },
         {
           "id": "M6",
@@ -861,9 +861,9 @@
             },
             "rotation": 0
           },
+          "reference": "M6",
           "symbolId": "nmos",
-          "symbolVariantId": "textbook-3terminal",
-          "reference": "M6"
+          "symbolVariantId": "textbook-3terminal"
         },
         {
           "id": "M7",
@@ -882,9 +882,9 @@
             },
             "rotation": 0
           },
+          "reference": "M7",
           "symbolId": "nmos",
-          "symbolVariantId": "textbook-3terminal",
-          "reference": "M7"
+          "symbolVariantId": "textbook-3terminal"
         },
         {
           "id": "M8",
@@ -903,9 +903,9 @@
             },
             "rotation": 0
           },
+          "reference": "M8",
           "symbolId": "nmos",
-          "symbolVariantId": "textbook-3terminal",
-          "reference": "M8"
+          "symbolVariantId": "textbook-3terminal"
         },
         {
           "id": "P1",
@@ -948,8 +948,8 @@
             },
             "rotation": 0
           },
-          "symbolId": "capacitor",
-          "reference": "C1"
+          "reference": "C1",
+          "symbolId": "capacitor"
         },
         {
           "id": "C2",
@@ -968,8 +968,8 @@
             },
             "rotation": 0
           },
-          "symbolId": "capacitor",
-          "reference": "C2"
+          "reference": "C2",
+          "symbolId": "capacitor"
         },
         {
           "id": "GND3",
@@ -1036,8 +1036,8 @@
             },
             "rotation": 0
           },
-          "symbolId": "current-source",
-          "reference": "I1"
+          "reference": "I1",
+          "symbolId": "current-source"
         },
         {
           "id": "I2",
@@ -1056,8 +1056,8 @@
             },
             "rotation": 0
           },
-          "symbolId": "current-source",
-          "reference": "I2"
+          "reference": "I2",
+          "symbolId": "current-source"
         },
         {
           "id": "GND1",
@@ -2487,7 +2487,7 @@
   "externalSubcircuitDefinitions": [],
   "id": "project-main",
   "name": "New Circuit",
-  "schemaVersion": 35,
+  "schemaVersion": 36,
   "source": {
     "dialect": "none",
     "entry": null,

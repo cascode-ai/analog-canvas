@@ -29,6 +29,7 @@ import {
   upgradeSchema33To34WithReport,
 } from "./transforms/net-name-provenance.js";
 import { upgradeSchema34To35 } from "./transforms/instance-reference.js";
+import { upgradeSchema35To36 } from "./transforms/instance-reference-annotation.js";
 
 describe("schema migrations through hidden Net-name retirement", () => {
   it("keeps each retained historical transform independently usable", () => {
@@ -42,6 +43,7 @@ describe("schema migrations through hidden Net-name retirement", () => {
     const v33 = upgradeSchema32To33(v32);
     const v34 = upgradeSchema33To34(v33);
     const v35 = upgradeSchema34To35(v34);
+    const v36 = upgradeSchema35To36(v35);
 
     expect(v29.schemaVersion).toBe(29);
     expect(v30.schemaVersion).toBe(30);
@@ -49,7 +51,8 @@ describe("schema migrations through hidden Net-name retirement", () => {
     expect(v32.schemaVersion).toBe(32);
     expect(v33.schemaVersion).toBe(33);
     expect(v34.schemaVersion).toBe(34);
-    expect(v35.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
+    expect(v35.schemaVersion).toBe(35);
+    expect(v36.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
   });
 
   it("reports non-rewriting 28→29 through 32→33 upgrades as unchanged", () => {
@@ -73,7 +76,7 @@ describe("schema migrations through hidden Net-name retirement", () => {
     ).toBe(false);
   });
 
-  it("migrates schema 31 through 35 at the project boundary", () => {
+  it("migrates schema 31 through 36 at the project boundary", () => {
     const current = JSON.parse(
       serializeProject(createEmptyProject("test", "Test")),
     ) as Record<string, unknown>;
@@ -84,7 +87,7 @@ describe("schema migrations through hidden Net-name retirement", () => {
     if (!result.ok) return;
     expect(result.sourceSchemaVersion).toBe(31);
     expect(result.migrated).toBe(true);
-    expect(result.project.schemaVersion).toBe(35);
+    expect(result.project.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
   });
 
   it("keeps schema 30 loadable through the upgrade chain", () => {

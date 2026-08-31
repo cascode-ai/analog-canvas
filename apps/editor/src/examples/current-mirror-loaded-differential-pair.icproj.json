@@ -41,8 +41,8 @@
             "objectId": "M1"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "M1"
+            "instanceId": "M1",
+            "kind": "instance-reference"
           },
           "id": "instance-label-M1",
           "kind": "instance-label",
@@ -64,8 +64,8 @@
             "objectId": "M2"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "M2"
+            "instanceId": "M2",
+            "kind": "instance-reference"
           },
           "id": "instance-label-M2",
           "kind": "instance-label",
@@ -87,8 +87,8 @@
             "objectId": "M3"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "M3"
+            "instanceId": "M3",
+            "kind": "instance-reference"
           },
           "id": "instance-label-M3",
           "kind": "instance-label",
@@ -110,8 +110,8 @@
             "objectId": "M4"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "M4"
+            "instanceId": "M4",
+            "kind": "instance-reference"
           },
           "id": "instance-label-M4",
           "kind": "instance-label",
@@ -133,8 +133,8 @@
             "objectId": "M5"
           },
           "binding": {
-            "kind": "instance-reference",
-            "instanceId": "M5"
+            "instanceId": "M5",
+            "kind": "instance-reference"
           },
           "id": "instance-label-M5",
           "kind": "instance-label",
@@ -464,9 +464,9 @@
             },
             "rotation": 0
           },
+          "reference": "M1",
           "symbolId": "pmos",
-          "symbolVariantId": "textbook-3terminal",
-          "reference": "M1"
+          "symbolVariantId": "textbook-3terminal"
         },
         {
           "id": "M2",
@@ -485,9 +485,9 @@
             },
             "rotation": 0
           },
+          "reference": "M2",
           "symbolId": "pmos",
-          "symbolVariantId": "textbook-3terminal",
-          "reference": "M2"
+          "symbolVariantId": "textbook-3terminal"
         },
         {
           "id": "M3",
@@ -506,9 +506,9 @@
             },
             "rotation": 0
           },
+          "reference": "M3",
           "symbolId": "nmos",
-          "symbolVariantId": "textbook-3terminal",
-          "reference": "M3"
+          "symbolVariantId": "textbook-3terminal"
         },
         {
           "id": "M4",
@@ -527,9 +527,9 @@
             },
             "rotation": 0
           },
+          "reference": "M4",
           "symbolId": "nmos",
-          "symbolVariantId": "textbook-3terminal",
-          "reference": "M4"
+          "symbolVariantId": "textbook-3terminal"
         },
         {
           "id": "M5",
@@ -548,9 +548,9 @@
             },
             "rotation": 0
           },
+          "reference": "M5",
           "symbolId": "nmos",
-          "symbolVariantId": "textbook-3terminal",
-          "reference": "M5"
+          "symbolVariantId": "textbook-3terminal"
         },
         {
           "id": "P1",
@@ -1271,7 +1271,7 @@
   "externalSubcircuitDefinitions": [],
   "id": "project-main",
   "name": "New Circuit",
-  "schemaVersion": 35,
+  "schemaVersion": 36,
   "source": {
     "dialect": "none",
     "entry": null,
