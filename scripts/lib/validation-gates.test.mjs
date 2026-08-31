@@ -30,6 +30,16 @@ describe("validation gate planning", () => {
     expect(missing).toEqual([]);
   });
 
+  it("keeps the complete delivery gate as the single owner of covered work", () => {
+    const full = catalog.gates.find((gate) => gate.id === "full-delivery");
+    const covered = catalog.gates
+      .filter((gate) => gate.stage !== "final" && gate.id !== "test-impact")
+      .map((gate) => gate.id)
+      .sort();
+
+    expect([...full.supersedes].sort()).toEqual(covered);
+  });
+
   it("matches repository globs without treating a single star as a slash", () => {
     expect(
       globPattern("apps/**/src/**").test("apps/editor/src/app/App.tsx"),
@@ -64,12 +74,7 @@ describe("validation gate planning", () => {
 
   it("expands shared protocol changes to hierarchy and persistence", () => {
     const selected = ids(["packages/project-protocol/src/persistence.ts"]);
-    expect(selected).toContain("static-contracts");
-    expect(selected).toContain("test-impact");
-    expect(selected).toContain("workspace-unit");
-    expect(selected).toContain("hierarchy-browser");
-    expect(selected).toContain("project-file-browser");
-    expect(selected).toContain("full-delivery");
+    expect(selected).toEqual(["test-impact", "full-delivery"]);
   });
 
   it("maps Gallery and account changes to their dedicated browser workflow", () => {
@@ -90,24 +95,39 @@ describe("validation gate planning", () => {
     expect(plan.fullReasons).toContain(
       "gate contract changed: .github/workflows/ci.yml",
     );
-    expect(plan.gates.map((gate) => gate.id)).toContain("branch-verification");
-    expect(plan.gates.map((gate) => gate.id)).toContain("full-delivery");
-    expect(plan.gates.map((gate) => gate.id)).toContain("static-contracts");
+    expect(plan.gates.map((gate) => gate.id)).toEqual([
+      "test-impact",
+      "full-delivery",
+    ]);
   });
 
   it("runs static contracts for documentation that defines the gate contract", () => {
     const plan = planValidation(["docs/testing/README.md"], catalog);
     expect(plan.docsOnly).toBe(true);
     expect(plan.requiresFull).toBe(true);
-    expect(plan.gates.map((gate) => gate.id)).toContain("static-contracts");
+    expect(plan.gates.map((gate) => gate.id)).toEqual(["full-delivery"]);
   });
 
   it("forces a full fallback for an unclassified implementation path", () => {
     const plan = planValidation(["tooling/new-runner.toml"], catalog);
     expect(plan.unknownPaths).toEqual(["tooling/new-runner.toml"]);
     expect(plan.requiresFull).toBe(true);
-    expect(plan.gates.map((gate) => gate.id)).toContain("static-contracts");
-    expect(plan.gates.map((gate) => gate.id)).toContain("branch-verification");
+    expect(plan.gates.map((gate) => gate.id)).toEqual([
+      "test-impact",
+      "full-delivery",
+    ]);
+  });
+
+  it("routes specialized editor behavior to its dedicated browser contracts", () => {
+    expect(ids(["apps/editor/src/canvas/diagnostic-markers.ts"])).toContain(
+      "editor-diagnostics-browser",
+    );
+    expect(
+      ids(["apps/editor/src/features/component-insert/placement-near-miss.ts"]),
+    ).toContain("placement-near-miss-browser");
+    expect(ids(["apps/editor/src/canvas/canvas-hit-resolver.ts"])).toContain(
+      "thin-target-hit-browser",
+    );
   });
 
   it("ignores local stores and renders the selected base", () => {

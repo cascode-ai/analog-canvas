@@ -25,13 +25,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          # Pull requests need their complete commit range for Test-Impact.
+          # Forced-full events inspect only the checked-out merge/scheduled
+          # commit, so two commits avoid an unbounded all-ref fetch.
+          fetch-depth: ${{ github.event_name == 'pull_request' && '0' || '2' }}
       - id: plan
         name: Plan CI validation
         env:
           EVENT_NAME: ${{ github.event_name }}
           PULL_REQUEST_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          MERGE_GROUP_BASE_SHA: ${{ github.event.merge_group.base_sha }}
         shell: bash
         run: |
           force_args=()
@@ -40,7 +42,7 @@ jobs:
               base="$PULL_REQUEST_BASE_SHA"
               ;;
             merge_group)
-              base="$MERGE_GROUP_BASE_SHA"
+              base="$(git rev-parse HEAD^ 2>/dev/null || git rev-parse HEAD)"
               force_args+=(--force-full)
               ;;
             *)

@@ -139,15 +139,16 @@ Before a non-document change is merged or pushed to `main`:
 1. Start from a clean dependency state with
    `pnpm install --frozen-lockfile`. Run `pnpm setup:e2e` once on a machine that
    does not yet have the matching Playwright Chromium installation.
-2. Run `pnpm gate:preflight -- --base <base-ref>` and
-   `pnpm gate:affected -- --base <base-ref>`.
-3. Run `pnpm gate:full` when the printed plan selects `full-delivery`: shared
-   core, production boundaries, gate-policy changes, and unclassified code all
-   take this conservative path. A bounded mapped change does not repeat the
-   complete browser suite locally.
-4. Push a review branch and wait for all five GitHub required checks. Static,
+2. Run `pnpm gate:preflight -- --base <base-ref>`.
+3. When the printed plan selects `full-delivery`, run `pnpm gate:full` once;
+   the complete gate supersedes affected static, unit, focused-browser,
+   release, and branch checks. Otherwise run
+   `pnpm gate:affected -- --base <base-ref>`. Shared core, production
+   boundaries, gate-policy changes, and unclassified code take the
+   conservative full path without repeating its covered work locally.
+4. Push a review branch and wait for all seven GitHub required checks. Static,
    full unit, and release/performance checks run for every implementation PR;
-   the two browser checks run focused specs or automatically fall back to the
+   the four browser checks run focused specs or automatically fall back to the
    complete suite. Merge-queue, nightly, and manual CI runs are always full.
 5. If a remote check fails, keep the target active: inspect its log, repair the
    reported cause, and repeat verification. A successful `git push` is not a
