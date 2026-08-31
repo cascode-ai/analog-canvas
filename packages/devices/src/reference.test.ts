@@ -43,6 +43,48 @@ describe("ReferencePolicy and ReferenceIndex", () => {
     ).toBe("M2");
   });
 
+  // All three switches designate `S`, so they draw from one sequence: the
+  // index is keyed by prefix, not by device, and the next free suffix skips
+  // whatever the other two already occupy. A sheet numbers its switches S1,
+  // S2, S3 in placement order regardless of which kind each one is.
+  it("shares one sequence across every device that designates S", () => {
+    const document = createEmptyDocument("main", "Main");
+    document.instances.push(
+      {
+        id: "a",
+        symbolId: "ideal-switch",
+        placement: null,
+        reference: "S1",
+      },
+      {
+        id: "b",
+        symbolId: "voltage-controlled-switch",
+        placement: null,
+        reference: "S2",
+        netlist: {
+          binding: { kind: "model", deviceClass: "switch", name: "SW" },
+          parameters: {},
+        },
+      },
+      { id: "c", symbolId: "closed-switch", placement: null },
+    );
+    const index = createReferenceIndex(document);
+    for (const instance of document.instances) {
+      expect(referencePolicyForInstance(instance)).toEqual({
+        kind: "required",
+        prefix: "S",
+      });
+      expect(nextReference(index, referencePolicyForInstance(instance))).toBe(
+        "S3",
+      );
+    }
+    // Only the undesignated one is short a reference; the shared prefix does
+    // not make the other two look duplicated.
+    expect(index.issues).toEqual([
+      { code: "MISSING_REFERENCE", instanceId: "c" },
+    ]);
+  });
+
   it("reports missing, unexpected, prefix, and case-folded duplicate evidence", () => {
     const document = createEmptyDocument("main", "Main");
     document.instances.push(

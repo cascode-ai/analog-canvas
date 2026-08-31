@@ -56,12 +56,25 @@ describe("built-in device/Symbol parity", () => {
     });
   });
 
+  // Drawn, designated, and read, but not simulable: SPICE's S card takes four
+  // nodes and a model, and these have two terminals and no control, which is
+  // why the catalog records them as manual-only. They still share the `S`
+  // sequence, because a reader counts the switches on a sheet as one series.
+  it("designates the two-terminal switches without a netlist form", () => {
+    for (const symbolId of ["ideal-switch", "closed-switch"]) {
+      expect(deviceDescriptor(symbolId)).toMatchObject({
+        deviceClass: "switch",
+        referencePrefix: "S",
+        pinOrder: ["1", "2"],
+        targetPolicy: "none",
+      });
+    }
+  });
+
   it("leaves unsupported catalog blocks explicit instead of guessing", () => {
     for (const symbolId of [
       "opamp",
       "voltage-amplifier",
-      "ideal-switch",
-      "closed-switch",
       "port",
       "port-filled",
       "adder",

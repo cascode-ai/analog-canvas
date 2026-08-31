@@ -21,6 +21,8 @@ import {
   voltageControlledSwitchDevice,
   voltageSourceDevice,
   zenerDiodeDevice,
+  idealSwitchDevice,
+  closedSwitchDevice,
 } from "./descriptors/index.js";
 import { validateDeviceDescriptors } from "./validation.js";
 
@@ -66,6 +68,8 @@ export const deviceRegistry = defineDeviceRegistry([
   pulseVoltageSourceDevice,
   currentSourceDevice,
   voltageControlledSwitchDevice,
+  idealSwitchDevice,
+  closedSwitchDevice,
   groundDevice,
   vddPortDevice,
 ]);

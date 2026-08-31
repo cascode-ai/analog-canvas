@@ -1861,13 +1861,14 @@ describe("captureDocumentComposition", () => {
 describe("a copy stands on its own", () => {
   it("gives a device without a netlist block a fresh designator", () => {
     const document = createEmptyDocument("document-main", "Copy");
-    // An ideal switch carries an optional Reference but no netlist block, so
-    // the reference sequence never allocated it a fresh designator and the
-    // internal copy id leaked onto the canvas as "X1-copy-3".
+    // An ideal switch carries no netlist block, so the internal copy id once
+    // leaked onto the canvas as "X1-copy-3". It now carries the `S` prefix its
+    // descriptor declares, so the copy takes the next free suffix in that
+    // sequence rather than any spelling derived from the original's id.
     document.instances.push({
       id: "X1",
       symbolId: "ideal-switch",
-      reference: "X1",
+      reference: "S1",
       placement: { position: { x: 100, y: 100 }, rotation: 0, mirror: "none" },
     });
 
@@ -1890,7 +1891,7 @@ describe("a copy stands on its own", () => {
     const copy = result.document.instances.find(
       (instance) => instance.id === proposal.instanceIds[0],
     )!;
-    expect(copy.reference).toBe("X2");
+    expect(copy.reference).toBe("S2");
     expect(copy.reference).not.toMatch(/copy/u);
   });
 
