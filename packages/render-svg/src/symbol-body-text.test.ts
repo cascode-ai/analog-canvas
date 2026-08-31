@@ -178,3 +178,44 @@ describe("editable body text as a general Symbol capability", () => {
     ]);
   });
 });
+
+describe("converter blocks carry the same editable body text", () => {
+  it("renders ADC and DAC defaults and honours a per-Instance override", () => {
+    const document = createEmptyDocument("main", "Main");
+    document.instances.push(
+      {
+        id: "U1",
+        symbolId: "adc",
+        placement: {
+          position: { x: 100, y: 100 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+      {
+        id: "U2",
+        symbolId: "dac",
+        placement: {
+          position: { x: 300, y: 100 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+      {
+        id: "U3",
+        symbolId: "adc",
+        placement: {
+          position: { x: 500, y: 100 },
+          rotation: 0,
+          mirror: "none",
+        },
+        signalFlowParameters: { formula: "12b ADC" },
+      },
+    );
+    expect(letters(renderDocumentSvg(document, resolver))).toEqual([
+      "ADC",
+      "DAC",
+      "12b ADC",
+    ]);
+  });
+});

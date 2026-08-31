@@ -217,6 +217,8 @@ describe("Razavi symbol catalog", () => {
       ["xnor-gate", "reviewed", "razavi-reference-v1"],
       ["xor-gate", "reviewed", "razavi-reference-v1"],
       ["zener-diode", "reviewed", "razavi-reference-v1"],
+      ["adc", "reviewed", "house"],
+      ["dac", "reviewed", "house"],
     ]);
   });
 
@@ -559,7 +561,7 @@ describe("Razavi symbol catalog", () => {
   });
 
   it("uses reviewed catalog objects as the sole built-in product library", () => {
-    expect(razaviCatalogSymbols).toHaveLength(57);
+    expect(razaviCatalogSymbols).toHaveLength(59);
     for (const catalogSymbol of razaviProductSymbols) {
       expect(
         builtInSymbols.find((symbol) => symbol.id === catalogSymbol.id),
@@ -621,6 +623,8 @@ describe("Razavi symbol catalog", () => {
       "xnor-gate",
       "xor-gate",
       "zener-diode",
+      "adc",
+      "dac",
     ]);
     for (const entry of razaviSymbolCatalogEntries) {
       expect(isRazaviProductCatalogEntry(entry)).toBe(

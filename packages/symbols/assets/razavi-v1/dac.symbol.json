@@ -1,0 +1,115 @@
+{
+  "schemaVersion": 1,
+  "id": "dac",
+  "name": "Digital-to-Analog Converter",
+  "viewBox": {
+    "x": -34,
+    "y": -19,
+    "width": 68,
+    "height": 38
+  },
+  "pins": [
+    {
+      "name": "IN",
+      "role": "input",
+      "at": {
+        "x": -30,
+        "y": 0
+      },
+      "direction": "west",
+      "presentation": {
+        "visibility": "visible",
+        "leadLength": 5
+      }
+    },
+    {
+      "name": "OUT",
+      "role": "output",
+      "at": {
+        "x": 30,
+        "y": 0
+      },
+      "direction": "east",
+      "presentation": {
+        "visibility": "visible",
+        "leadLength": 5
+      }
+    }
+  ],
+  "primitives": [
+    {
+      "kind": "line",
+      "from": {
+        "x": -30,
+        "y": 0
+      },
+      "to": {
+        "x": -25,
+        "y": 0
+      },
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "butt",
+        "lineJoin": "miter"
+      }
+    },
+    {
+      "kind": "polygon",
+      "points": [
+        {
+          "x": -25,
+          "y": -15
+        },
+        {
+          "x": 15,
+          "y": -15
+        },
+        {
+          "x": 25,
+          "y": 0
+        },
+        {
+          "x": 15,
+          "y": 15
+        },
+        {
+          "x": -25,
+          "y": 15
+        }
+      ],
+      "fill": "none",
+      "stroke": "foreground",
+      "style": {
+        "strokeRole": "emphasis",
+        "lineCap": "butt",
+        "lineJoin": "miter"
+      }
+    },
+    {
+      "kind": "line",
+      "from": {
+        "x": 25,
+        "y": 0
+      },
+      "to": {
+        "x": 30,
+        "y": 0
+      },
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "butt",
+        "lineJoin": "miter"
+      }
+    }
+  ],
+  "variants": [],
+  "formulaPresentation": {
+    "defaultFormula": "DAC",
+    "supportsCoefficient": false,
+    "center": {
+      "x": -2.41,
+      "y": 0
+    },
+    "fontSize": 12
+  }
+}

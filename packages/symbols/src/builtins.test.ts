@@ -58,6 +58,8 @@ const PRODUCT_IDS = [
   "xnor-gate",
   "xor-gate",
   "zener-diode",
+  "adc",
+  "dac",
 ] as const;
 
 describe("built-in Symbol libraries", () => {

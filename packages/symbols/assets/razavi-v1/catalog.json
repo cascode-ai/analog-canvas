@@ -1375,6 +1375,34 @@
         "converterPath": "scripts/generate-razavi-zener-asset.mjs",
         "converterVersion": 1
       }
+    },
+    {
+      "symbolId": "adc",
+      "name": "Analog-to-Digital Converter",
+      "category": "analog-block",
+      "reviewStatus": "reviewed",
+      "provenance": "house",
+      "houseReason": "The reference draws converter internals, never a block standing for one on a sheet. Drawn here as the arrow a data path is read through.",
+      "pinOrder": ["IN", "OUT"],
+      "palette": true,
+      "automaticMappings": [],
+      "manualOnlyReason": "A converter block stands for a subsystem; SPICE has no primitive for one.",
+      "assetPath": "adc.symbol.json",
+      "assetHash": "27855e5142d4ae54d83562ac76952e98ba1d4234c188801a73efc8358a4ae09c"
+    },
+    {
+      "symbolId": "dac",
+      "name": "Digital-to-Analog Converter",
+      "category": "analog-block",
+      "reviewStatus": "reviewed",
+      "provenance": "house",
+      "houseReason": "The reference draws converter internals, never a block standing for one on a sheet. Drawn here as the ADC's mirror so a signal chain reads in both directions.",
+      "pinOrder": ["IN", "OUT"],
+      "palette": true,
+      "automaticMappings": [],
+      "manualOnlyReason": "A converter block stands for a subsystem; SPICE has no primitive for one.",
+      "assetPath": "dac.symbol.json",
+      "assetHash": "4be7f9a855d6055575402bd783a27e10152097b1a85c31e487479ed4612b8d16"
     }
   ],
   "semanticPrimitives": [
