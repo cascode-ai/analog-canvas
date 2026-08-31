@@ -43,6 +43,8 @@ const PRODUCT_IDS = [
   "port",
   "port-filled",
   "resistor",
+  "simple-switch",
+  "spdt-switch",
   "variable-capacitor",
   "variable-inductor",
   "variable-resistor",
