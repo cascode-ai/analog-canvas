@@ -117,9 +117,13 @@ export function symbolCategory(symbolId: string): string {
     return "Sources";
   }
   if (
-    ["ideal-switch", "closed-switch", "voltage-controlled-switch"].includes(
-      symbolId,
-    )
+    [
+      "ideal-switch",
+      "closed-switch",
+      "simple-switch",
+      "spdt-switch",
+      "voltage-controlled-switch",
+    ].includes(symbolId)
   ) {
     return "Switches";
   }

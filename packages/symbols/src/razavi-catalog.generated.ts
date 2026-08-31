@@ -1191,6 +1191,40 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     },
   },
   {
+    symbolId: "simple-switch",
+    name: "Simple Switch",
+    category: "switch",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "The reviewed page draws its switch with contact circles. Analog schematics far more often draw the same element as one broken line with a blade, so it is drawn here rather than by removing evidence from the traced symbol.",
+    pinOrder: ["1", "2"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Two-terminal switch; SPICE S has a four-terminal control contract.",
+    assetPath: "simple-switch.symbol.json",
+    assetHash:
+      "d379bb5a1986dca82cf603c7b7721b7fe8680ccabc33b72bc0ab4bf3e5460cbe",
+  },
+  {
+    symbolId: "spdt-switch",
+    name: "SPDT Switch",
+    category: "switch",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "A single-pole double-throw switch does not appear on the reviewed page; it is drawn here in the family's idiom, with the traced switch's contact circles and blade angle.",
+    pinOrder: ["COM", "A", "B"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Three-terminal selector; SPICE has no single-pole double-throw primitive.",
+    assetPath: "spdt-switch.symbol.json",
+    assetHash:
+      "619b00cf2fdb0a6b81830a245018425fcabb38641eec39fe2bb21fd4a285e92d",
+  },
+  {
     symbolId: "variable-capacitor",
     name: "Variable Capacitor",
     category: "passive",
@@ -7156,6 +7190,260 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           lineCap: "butt",
           lineJoin: "miter",
           miterLimit: 12,
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "simple-switch",
+    name: "Simple Switch",
+    viewBox: {
+      x: -34,
+      y: -18,
+      width: 68,
+      height: 30,
+    },
+    pins: [
+      {
+        name: "1",
+        role: "passive",
+        at: {
+          x: -20,
+          y: 0,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "2",
+        role: "passive",
+        at: {
+          x: 20,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -20,
+          y: 0,
+        },
+        to: {
+          x: -10,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -10,
+          y: 0,
+        },
+        to: {
+          x: 6,
+          y: -11,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 10,
+          y: 0,
+        },
+        to: {
+          x: 20,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "spdt-switch",
+    name: "SPDT Switch",
+    viewBox: {
+      x: -34,
+      y: -20,
+      width: 68,
+      height: 40,
+    },
+    pins: [
+      {
+        name: "COM",
+        role: "passive",
+        at: {
+          x: -20,
+          y: 0,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "A",
+        role: "passive",
+        at: {
+          x: 20,
+          y: -10,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "B",
+        role: "passive",
+        at: {
+          x: 20,
+          y: 10,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -20,
+          y: 0,
+        },
+        to: {
+          x: -13,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "circle",
+        center: {
+          x: -10,
+          y: 0,
+        },
+        radius: 3,
+        fill: "none",
+        stroke: "foreground",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -7.32,
+          y: -1.34,
+        },
+        to: {
+          x: 7.32,
+          y: -8.66,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "circle",
+        center: {
+          x: 10,
+          y: -10,
+        },
+        radius: 3,
+        fill: "none",
+        stroke: "foreground",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 13,
+          y: -10,
+        },
+        to: {
+          x: 20,
+          y: -10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "circle",
+        center: {
+          x: 10,
+          y: 10,
+        },
+        radius: 3,
+        fill: "none",
+        stroke: "foreground",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 13,
+          y: 10,
+        },
+        to: {
+          x: 20,
+          y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
         },
       },
     ],
