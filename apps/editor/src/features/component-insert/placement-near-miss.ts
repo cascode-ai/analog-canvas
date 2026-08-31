@@ -74,6 +74,16 @@ export function findPlacementNearMisses(
 
   const misses: PlacementNearMiss[] = [];
   for (const pin of resolved.definition.pins) {
+    // The hint names pins a person can point at. A variant-hidden or
+    // implicit pin is not drawn, so "pin B is 1 grid from a wire" would
+    // describe something invisible — same visibility rule as placement
+    // contact resolution.
+    if (
+      resolved.variant?.hiddenPinNames.includes(pin.name) ||
+      pin.presentation.visibility === "implicit"
+    ) {
+      continue;
+    }
     const at = transformPoint(
       pin.at,
       instance.placement.position,

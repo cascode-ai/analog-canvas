@@ -151,4 +151,23 @@ describe("placement near misses", () => {
       findPlacementNearMisses(document, resolver, resistorAt(300, 330)),
     ).toEqual([]);
   });
+
+  it("never hints about a pin the symbol hides", () => {
+    // A three-terminal NMOS hides its bulk pin B. At (280,310) against the
+    // wire at y=300, hidden B (300,310) and visible G (260,310) and D
+    // (290,290) are all exactly one grid away: the hint may name the pins a
+    // person can see, and must not name the one they cannot.
+    const document = documentWithWire();
+    const mos = {
+      id: "M9",
+      symbolId: "nmos",
+      symbolVariantId: "textbook-3terminal",
+      placement: { position: { x: 280, y: 310 }, rotation: 0, mirror: "none" },
+    } as Instance;
+    const misses = findPlacementNearMisses(document, resolver, mos);
+    const pinNames = misses.map((miss) => miss.pinName);
+    expect(pinNames).toContain("G");
+    expect(pinNames).toContain("D");
+    expect(pinNames).not.toContain("B");
+  });
 });
