@@ -57,6 +57,8 @@ describe("component insertion catalog", () => {
     expect(symbolCategory("zener-diode")).toBe("Extended Devices");
     expect(symbolCategory("ideal-switch")).toBe("Switches");
     expect(symbolCategory("closed-switch")).toBe("Switches");
+    expect(symbolCategory("simple-switch")).toBe("Switches");
+    expect(symbolCategory("spdt-switch")).toBe("Switches");
     expect(symbolCategory("discrete-time-integrator")).toBe("Signal Flow");
     expect(symbolCategory("ndmos")).toBe("Extended Devices");
     expect(symbolCategory("pdmos")).toBe("Extended Devices");

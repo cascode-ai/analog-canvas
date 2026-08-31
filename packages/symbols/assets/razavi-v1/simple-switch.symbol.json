@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "id": "simple-switch",
+  "name": "Simple Switch",
+  "viewBox": {
+    "x": -34,
+    "y": -18,
+    "width": 68,
+    "height": 30
+  },
+  "pins": [
+    {
+      "name": "1",
+      "role": "passive",
+      "at": {
+        "x": -20,
+        "y": 0
+      },
+      "direction": "west",
+      "presentation": {
+        "visibility": "visible",
+        "leadLength": 10
+      }
+    },
+    {
+      "name": "2",
+      "role": "passive",
+      "at": {
+        "x": 20,
+        "y": 0
+      },
+      "direction": "east",
+      "presentation": {
+        "visibility": "visible",
+        "leadLength": 10
+      }
+    }
+  ],
+  "primitives": [
+    {
+      "kind": "line",
+      "from": {
+        "x": -20,
+        "y": 0
+      },
+      "to": {
+        "x": -10,
+        "y": 0
+      },
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "butt",
+        "lineJoin": "miter"
+      }
+    },
+    {
+      "kind": "line",
+      "from": {
+        "x": -10,
+        "y": 0
+      },
+      "to": {
+        "x": 6,
+        "y": -11
+      },
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "butt",
+        "lineJoin": "miter"
+      }
+    },
+    {
+      "kind": "line",
+      "from": {
+        "x": 10,
+        "y": 0
+      },
+      "to": {
+        "x": 20,
+        "y": 0
+      },
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "butt",
+        "lineJoin": "miter"
+      }
+    }
+  ],
+  "variants": []
+}

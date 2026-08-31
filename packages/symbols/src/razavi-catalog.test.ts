@@ -200,6 +200,8 @@ describe("Razavi symbol catalog", () => {
       ["port", "reviewed", "razavi-reference-v1"],
       ["port-filled", "reviewed", "razavi-reference-v1"],
       ["resistor", "reviewed", "razavi-reference-v1"],
+      ["simple-switch", "reviewed", "house"],
+      ["spdt-switch", "reviewed", "house"],
       ["variable-capacitor", "reviewed", "razavi-reference-v1"],
       ["variable-inductor", "reviewed", "razavi-reference-v1"],
       ["variable-resistor", "reviewed", "razavi-reference-v1"],
@@ -556,7 +558,7 @@ describe("Razavi symbol catalog", () => {
   });
 
   it("uses reviewed catalog objects as the sole built-in product library", () => {
-    expect(razaviCatalogSymbols).toHaveLength(51);
+    expect(razaviCatalogSymbols).toHaveLength(53);
     for (const catalogSymbol of razaviProductSymbols) {
       expect(
         builtInSymbols.find((symbol) => symbol.id === catalogSymbol.id),
@@ -604,6 +606,8 @@ describe("Razavi symbol catalog", () => {
       "port",
       "port-filled",
       "resistor",
+      "simple-switch",
+      "spdt-switch",
       "variable-capacitor",
       "variable-inductor",
       "variable-resistor",
@@ -1736,18 +1740,107 @@ describe("switch port leads", () => {
     }
   });
 
-  it("leaves the control rail whole", () => {
+  it("keeps the control rail a rail, at the switch path's own width", () => {
     // CP/CN are the two ends of ONE horizontal control line, split by the gap
-    // at ±4 that the dashed coupling crosses. Pulling them to ±10 by the same
-    // formula would cut that line into two stubs and stop it reading as a
-    // rail, so they keep their reach. Recorded as a decision, not an
-    // oversight: if the drawing is ever revisited, this is the reason.
+    // at ±4 that the dashed coupling crosses. #470 shortened the switched
+    // path to ±20 and left these at ±30, which is what made the symbol read
+    // as narrow on top and wide underneath. They now match the path above —
+    // the anchor AND the drawn end move together, so the line stays a rail
+    // instead of becoming the two stubs that pulling the anchors alone (to
+    // ±10, by the through-path formula) would have produced. That stub is
+    // the outcome this test exists to prevent; the reach is a means to it.
     const symbol = requireRazaviCatalogSymbol("voltage-controlled-switch");
+    const switchedReach = Math.abs(
+      symbol.pins.find((candidate) => candidate.name === "P")!.at.x,
+    );
     for (const pinName of ["CP", "CN"]) {
       const pin = symbol.pins.find((candidate) => candidate.name === pinName);
       expect(pin, pinName).toBeDefined();
       if (!pin) continue;
-      expect(Math.abs(pin.at.x), `${pinName} anchor`).toBe(30);
+      // One envelope: the control port is as wide as the path it controls.
+      expect(Math.abs(pin.at.x), `${pinName} anchor`).toBe(switchedReach);
+
+      // The rail is drawn from the anchor inward to the coupling gap, and it
+      // must stay long enough to read as a rail rather than a stub.
+      const rail = symbol.primitives.find(
+        (primitive) =>
+          primitive.kind === "line" &&
+          primitive.from.y === pin.at.y &&
+          primitive.to.y === pin.at.y &&
+          (primitive.from.x === pin.at.x || primitive.to.x === pin.at.x),
+      );
+      expect(rail, `${pinName} rail segment`).toBeDefined();
+      if (!rail || rail.kind !== "line") continue;
+      const drawn = Math.abs(rail.to.x - rail.from.x);
+      expect(drawn, `${pinName} rail length`).toBeGreaterThanOrEqual(12);
+      const innerEnd = Math.min(Math.abs(rail.from.x), Math.abs(rail.to.x));
+      expect(innerEnd, `${pinName} coupling gap`).toBe(4);
+    }
+  });
+});
+
+describe("house-drawn switch additions", () => {
+  it("draws the simple switch as one broken line, with no contact circles", () => {
+    // The point of this symbol is what it does NOT have: the contact circles
+    // of the traced switch. Analog schematics draw a sampling switch as a
+    // line with a blade, and that is what makes it quicker to read in a
+    // dense circuit.
+    const symbol = requireRazaviCatalogSymbol("simple-switch");
+    expect(symbol.primitives.every((p) => p.kind === "line")).toBe(true);
+    expect(symbol.pins.map((pin) => pin.name)).toEqual(["1", "2"]);
+    for (const pin of symbol.pins) {
+      expect(Math.abs(pin.at.x), `${pin.name} anchor`).toBe(20);
+      expect(pin.at.y).toBe(0);
+    }
+    // The blade leaves the left contact and stops short of the right one:
+    // the gap is the open state, so a closed-looking bridge would be wrong.
+    const blade = symbol.primitives.find(
+      (p) => p.kind === "line" && p.from.y !== p.to.y,
+    );
+    expect(blade, "blade").toBeDefined();
+    if (!blade || blade.kind !== "line") return;
+    const rightLead = symbol.primitives.find(
+      (p) =>
+        p.kind === "line" && p.from.y === 0 && p.to.y === 0 && p.to.x === 20,
+    );
+    expect(rightLead, "right lead").toBeDefined();
+    if (!rightLead || rightLead.kind !== "line") return;
+    expect(blade.to.x).toBeLessThan(rightLead.from.x);
+  });
+
+  it("gives the SPDT switch one common terminal and two throws", () => {
+    // Pin ORDER is a shared contract: common first, then the throws in the
+    // order they are drawn, top to bottom. Anything reading this device by
+    // position depends on it, so it changes only with its callers.
+    const symbol = requireRazaviCatalogSymbol("spdt-switch");
+    expect(symbol.pins.map((pin) => pin.name)).toEqual(["COM", "A", "B"]);
+    const at = (name: string) =>
+      symbol.pins.find((pin) => pin.name === name)!.at;
+    expect(at("COM")).toEqual({ x: -20, y: 0 });
+    // A is the upper throw, B the lower — the drawing and the order agree.
+    expect(at("A")).toEqual({ x: 20, y: -10 });
+    expect(at("B")).toEqual({ x: 20, y: 10 });
+    // The blade rests on a throw rather than floating between them, so the
+    // symbol states a position instead of showing both contacts open.
+    const circles = symbol.primitives.filter((p) => p.kind === "circle");
+    expect(circles).toHaveLength(3);
+    const blade = symbol.primitives.find(
+      (p) => p.kind === "line" && p.from.y !== p.to.y,
+    );
+    expect(blade, "blade").toBeDefined();
+    if (!blade || blade.kind !== "line") return;
+    expect(blade.to.y).toBeLessThan(blade.from.y);
+  });
+
+  it("keeps both additions off the automatic netlist path", () => {
+    // A two-terminal switch has no SPICE form and a double-throw switch has
+    // no primitive at all; emitting either would write a line no simulator
+    // accepts. They stay manual, stated in the catalog rather than implied.
+    for (const symbolId of ["simple-switch", "spdt-switch"]) {
+      const entry = getRazaviCatalogEntry(symbolId);
+      expect(entry, symbolId).toBeDefined();
+      expect(entry?.automaticMappings, symbolId).toEqual([]);
+      expect(entry?.manualOnlyReason, symbolId).toBeTruthy();
     }
   });
 });
