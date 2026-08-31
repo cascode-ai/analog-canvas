@@ -193,6 +193,46 @@ export const CAMERA_ZOOM_LIMITS: CameraZoomLimits = {
   maxHeight: 3500,
 };
 
+export type CameraPanDirection = "left" | "right" | "up" | "down";
+
+/**
+ * Moves the camera by a screen-space distance.
+ *
+ * Keyboard navigation is expected to feel constant at every zoom level, so
+ * its public step is measured in CSS pixels and converted here to Document
+ * units. Positive x/y moves the viewport toward the right/bottom of the
+ * schematic, matching wheel and middle-button camera semantics.
+ */
+export function panCameraByScreenPixels(
+  current: GridRect,
+  direction: CameraPanDirection,
+  pixels: number,
+  viewport: { width: number; height: number },
+): GridRect {
+  if (
+    !Number.isFinite(pixels) ||
+    pixels < 0 ||
+    !Number.isFinite(viewport.width) ||
+    !Number.isFinite(viewport.height) ||
+    viewport.width <= 0 ||
+    viewport.height <= 0
+  ) {
+    return current;
+  }
+  const dx = (pixels * current.width) / viewport.width;
+  const dy = (pixels * current.height) / viewport.height;
+  switch (direction) {
+    case "left":
+      return { ...current, x: current.x - dx };
+    case "right":
+      return { ...current, x: current.x + dx };
+    case "up":
+      return { ...current, y: current.y - dy };
+    case "down":
+      return { ...current, y: current.y + dy };
+  }
+}
+
 /**
  * Scales the camera rect around a viewport-relative anchor (0..1 in each
  * axis), the shared core of cursor-anchored wheel zoom and center-anchored

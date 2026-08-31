@@ -258,6 +258,10 @@ export function createEditorCanvasEventHandlers({
     onPointerDownCapture(event: CanvasPointerEvent) {
       const target = event.target as Element;
       if (target.closest('[data-testid="canvas-text-editor"]')) return;
+      // The canvas is the keyboard-command surface. Explicitly take focus on
+      // pointer entry so an earlier toolbar or Project-name input cannot keep
+      // swallowing canvas shortcuts after the user returns to the drawing.
+      event.currentTarget.focus({ preventScroll: true });
       if (
         cellSymbolLayoutEnabled &&
         target.closest('[data-testid="cell-symbol-layout-overlay"]')

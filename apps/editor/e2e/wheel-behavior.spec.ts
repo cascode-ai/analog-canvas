@@ -68,3 +68,46 @@ test("a wheel zooms and a trackpad pans, and the setting overrides both", async 
   await awaitEditorReady(page);
   await expect(page.getByLabel("Scroll wheel")).toHaveValue("pan");
 });
+
+test("arrow keys pan the camera by one stable screen-space step", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  const canvas = page.getByTestId("schematic-canvas");
+  const bounds = await canvas.boundingBox();
+  expect(bounds).not.toBeNull();
+  await canvas.click({
+    position: { x: bounds!.width - 12, y: bounds!.height - 12 },
+  });
+
+  const readViewBox = async () =>
+    (await canvas.getAttribute("viewBox"))!.split(" ").map(Number) as [
+      number,
+      number,
+      number,
+      number,
+    ];
+  const initial = await readViewBox();
+  await page.keyboard.press("ArrowRight");
+  await expect.poll(readViewBox).not.toEqual(initial);
+  const right = await readViewBox();
+  expect(right[2]).toBe(initial[2]);
+  expect(right[3]).toBe(initial[3]);
+  expect(((right[0] - initial[0]) * bounds!.width) / initial[2]).toBeCloseTo(
+    48,
+    1,
+  );
+
+  await page.keyboard.press("ArrowLeft");
+  await expect.poll(readViewBox).toEqual(initial);
+  await page.keyboard.press("ArrowDown");
+  await expect.poll(readViewBox).not.toEqual(initial);
+  const down = await readViewBox();
+  expect(((down[1] - initial[1]) * bounds!.height) / initial[3]).toBeCloseTo(
+    48,
+    1,
+  );
+  await page.keyboard.press("ArrowUp");
+  await expect.poll(readViewBox).toEqual(initial);
+});
