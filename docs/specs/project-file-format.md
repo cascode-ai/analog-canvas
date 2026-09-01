@@ -110,6 +110,10 @@ canonicalized to v36 only after a successful validated write.
 Project entry does not physically merge Base Nets. Matching authoritative names
 resolve as one Logical Net; conflicting claims remain a blocking diagnostic.
 Repeated source-name hints are valid provenance and never imply connectivity.
+The explicit portable-file and Gallery import boundaries may canonicalize
+legacy ordinary-Wire geometry, including removal of an unowned Route that now
+resolves entirely to an already-connected endpoint contact; parsing, Cloud
+open, and recovery remain exact.
 
 Canonical serialization ends with one newline and is byte-stable across
 serialize/parse/serialize. The current corpus is listed in

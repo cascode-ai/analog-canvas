@@ -1,4 +1,8 @@
-import { createEmptyDocument, createEmptyProject } from "@icm/model";
+import {
+  createEmptyDocument,
+  createEmptyProject,
+  createRoutePath,
+} from "@icm/model";
 import { serializeProject } from "@icm/project-protocol";
 import { describe, expect, it, vi } from "vitest";
 
@@ -46,6 +50,75 @@ describe("Gallery and example commands", () => {
     expect(input.setStatus).toHaveBeenCalledWith(
       expect.stringContaining("Place Scene on the canvas"),
     );
+  });
+
+  it("normalizes a switch Route collapsed by current pins before Gallery placement", () => {
+    const input = dependencies();
+    const imported = createEmptyProject("legacy-switch", "Legacy switch");
+    const document = imported.documents[0]!;
+    document.instances.push(
+      {
+        id: "X1",
+        symbolId: "ideal-switch",
+        placement: {
+          position: { x: 500, y: 200 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+      {
+        id: "P1",
+        symbolId: "port",
+        placement: {
+          position: { x: 510, y: 200 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+    );
+    document.nets.push({
+      id: "net-contact",
+      terminals: [
+        { instanceId: "X1", pinName: "2" },
+        { instanceId: "P1", pinName: "P" },
+      ],
+    });
+    document.netlist!.terminals.push({
+      id: "terminal-p1",
+      name: "OUT",
+      netId: "net-contact",
+      direction: "passive",
+      interfaceInstanceIds: ["P1"],
+    });
+    document.routes.push(
+      createRoutePath({
+        id: "legacy-ten-unit-route",
+        netId: "net-contact",
+        start: { kind: "terminal", instanceId: "P1", pinName: "P" },
+        end: { kind: "terminal", instanceId: "X1", pinName: "2" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    const commands = createGalleryExampleCommands(input);
+
+    expect(commands.beginProjectImportPlacement(imported, "Switch")).toBe(true);
+
+    expect(input.beginCopyPlacement).toHaveBeenCalledWith(
+      expect.objectContaining({
+        routes: [],
+        nets: [
+          expect.objectContaining({
+            terminals: expect.arrayContaining([
+              { instanceId: "X1", pinName: "2" },
+              { instanceId: "P1", pinName: "P" },
+            ]),
+          }),
+        ],
+      }),
+      { x: 500, y: 200 },
+    );
+    expect(document.routes).toHaveLength(1);
   });
 
   it("leaves hierarchical Projects for guarded replacement", () => {

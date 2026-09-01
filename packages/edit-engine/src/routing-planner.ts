@@ -1310,6 +1310,10 @@ export function proposeWireCommit(
     draft.routingMode ?? "orthogonal",
     draft.cornerOrder ?? "auto",
   );
+  // Exact endpoint contact is real connectivity but has no conductor length.
+  // Keep the ordinary connect/merge edits above and do not manufacture a
+  // Route whose sole segment begins and ends at the same resolved point.
+  if (routed.points.length < 2) return { routeId, netId, edits };
   edits.push({
     kind: "set_route_path",
     route: createRoutePath({
