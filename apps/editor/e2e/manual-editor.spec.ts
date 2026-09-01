@@ -3033,8 +3033,10 @@ test("Properties toggles reference label visibility for one or many components",
     componentProperties.getByText("Appearance", { exact: true }),
   ).toBeVisible();
   await expect(
-    componentProperties.getByLabel("Component identity"),
-  ).toContainText("TargetBuilt-in primitive: resistor");
+    componentProperties.getByText("Built-in primitive: resistor", {
+      exact: true,
+    }),
+  ).toHaveCount(0);
   await expect(
     componentProperties.getByText("Netlist target", { exact: true }),
   ).toHaveCount(0);
