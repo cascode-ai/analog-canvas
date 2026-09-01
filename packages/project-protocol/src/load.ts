@@ -25,6 +25,7 @@ import {
   upgradeSchema34To35,
   upgradeSchema35To36,
 } from "./previous-to-current.js";
+import { repairBoundFormatOverrides } from "./transforms/bound-format-override.js";
 import { OLDEST_SUPPORTED_PROJECT_SCHEMA_VERSION } from "./version.js";
 
 /**
@@ -165,6 +166,12 @@ export function tryParseProjectWithMetadata(
     }
     throw error;
   }
+  // A bound format override is derived from the name it decorates. When the
+  // two have drifted apart — #463 retired the leading-capital rule under
+  // overrides already written and published — restore the text instead of
+  // refusing the Project, because a file that will not open is, to its
+  // author, a file that is gone.
+  current = repairBoundFormatOverrides(current);
   const diagnostics = invalidProjectDiagnostics(current);
   if (diagnostics.length > 0) return { ok: false, diagnostics };
   return {
