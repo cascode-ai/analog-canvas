@@ -64,7 +64,7 @@ describe("direct endpoint connection planner", () => {
     });
   });
 
-  it("rejects direct contact between differently named Nets", () => {
+  it("retires both labels when differently named Nets are joined", () => {
     const document = fixture();
     document.nets.push(
       {
@@ -106,8 +106,23 @@ describe("direct endpoint connection planner", () => {
         newNetId: "unused",
       }),
     ).toMatchObject({
-      ok: false,
-      relatedNetIds: ["net-a", "net-b"],
+      ok: true,
+      // Neither AVDD nor DVDD describes the joined node, so both the claims
+      // and the labels that own them go, and the node ends up unnamed.
+      edits: [
+        { kind: "remove_connectivity_evidence", evidenceId: "claim-a" },
+        {
+          kind: "remove_schematic_annotation",
+          annotationId: "test-net-label-1",
+        },
+        { kind: "remove_connectivity_evidence", evidenceId: "claim-b" },
+        {
+          kind: "remove_schematic_annotation",
+          annotationId: "test-net-label-2",
+        },
+        { kind: "merge_nets" },
+        { kind: "connect_endpoints" },
+      ],
     });
   });
 
