@@ -10,6 +10,7 @@
       "@icm/mcp-server": ["./apps/mcp-server/src/index.ts"],
       "@icm/agent-routing": ["./packages/agent-routing/src/index.ts"],
       "@icm/derived": ["./packages/derived/src/index.ts"],
+      "@icm/spice-run": ["./packages/spice-run/src/index.ts"],
       "@icm/devices": ["./packages/devices/src/index.ts"],
       "@icm/edit-engine": ["./packages/edit-engine/src/index.ts"],
       "@icm/exporters": ["./packages/exporters/src/index.ts"],

@@ -1,21 +1,16 @@
 {
-  "name": "@icm/local-host",
-  "version": "0.2.0",
+  "name": "@icm/spice-run",
+  "version": "0.0.0",
   "private": true,
   "type": "module",
-  "bin": {
-    "interactive-circuit-maker": "./dist/cli.js"
-  },
   "exports": {
     ".": {
+      "development": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     }
   },
   "scripts": {
     "build": "tsc -p tsconfig.json"
-  },
-  "dependencies": {
-    "@icm/spice-run": "workspace:*"
   }
 }

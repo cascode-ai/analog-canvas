@@ -7,7 +7,7 @@ import {
   MAX_SIMULATION_TIMEOUT_MS,
   readNgspiceDiagnostics,
   resolveTimeoutMs,
-} from "./simulation-contract.js";
+} from "./index.js";
 
 /**
  * Captured from ngspice 44 on 2026-09-01, not written by hand. The point of

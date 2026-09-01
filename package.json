@@ -15,6 +15,7 @@
     "@icm/netlist": "workspace:*",
     "@icm/project-protocol": "workspace:*",
     "@icm/render-svg": "workspace:*",
+    "@icm/spice-run": "workspace:*",
     "@icm/symbols": "workspace:*"
   },
   "scripts": {
