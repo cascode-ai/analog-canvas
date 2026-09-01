@@ -456,6 +456,87 @@ describe("drafting layer rendering", () => {
     );
   });
 
+  function arrowDocument(styleOverride?: Record<string, unknown>) {
+    const document = createEmptyDocument("doc", "Drafting");
+    document.drafting = {
+      objects: [
+        {
+          id: "ar-1",
+          kind: "arrow",
+          locked: false,
+          zIndex: 0,
+          anchor: { kind: "free", position: { x: 0, y: 0 } },
+          from: { kind: "free", position: { x: 0, y: 0 } },
+          to: { kind: "free", position: { x: 100, y: 0 } },
+          ...(styleOverride ? { styleOverride } : {}),
+        },
+      ],
+    };
+    return document;
+  }
+
+  it("draws a head at both ends of a double-headed arrow", () => {
+    const document = arrowDocument({ arrowHeadAt: "both" });
+    const svg = renderDocumentSvg(document, resolver);
+    const profile = resolveSchematicStyleProfile(
+      document.presentation.styleProfileId,
+    );
+    const head = profile.annotations.arrowHeadLength;
+
+    expect(svg.match(/<polygon/gu)).toHaveLength(2);
+    // The leading head points the other way: its tip is the arrow's start and
+    // its base lies inside the shaft, mirroring the trailing head exactly.
+    expect(svg).toContain(`<polygon points="0,0 ${head},`);
+    expect(svg).toContain(`<polygon points="100,0 ${100 - head},`);
+    // And the shaft stops on both base planes, so neither point is blunted.
+    expect(svg).toContain(`points="${head},0 ${100 - head},0"`);
+  });
+
+  it("puts the single head on the start when asked", () => {
+    const document = arrowDocument({ arrowHeadAt: "start" });
+    const svg = renderDocumentSvg(document, resolver);
+    const head = resolveSchematicStyleProfile(
+      document.presentation.styleProfileId,
+    ).annotations.arrowHeadLength;
+
+    expect(svg.match(/<polygon/gu)).toHaveLength(1);
+    expect(svg).toContain(`<polygon points="0,0 ${head},`);
+    // The far end keeps its full length, since nothing occupies it.
+    expect(svg).toContain(`points="${head},0 100,0"`);
+  });
+
+  it("leaves an arrow written before this field pointing one way", () => {
+    // The compatibility brake. Every arrow in every existing document lacks
+    // arrowHeadAt, and each must keep exactly the drawing it has today: one
+    // head, on the trailing end. A default that changed this would rewrite
+    // the appearance of files nobody asked us to touch.
+    const withoutField = renderDocumentSvg(arrowDocument(), resolver);
+    const explicitEnd = renderDocumentSvg(
+      arrowDocument({ arrowHeadAt: "end" }),
+      resolver,
+    );
+
+    expect(withoutField.match(/<polygon/gu)).toHaveLength(1);
+    expect(withoutField).toBe(explicitEnd);
+  });
+
+  it("honours the head style at both ends, including none", () => {
+    const open = renderDocumentSvg(
+      arrowDocument({ arrowHead: "open", arrowHeadAt: "both" }),
+      resolver,
+    );
+    expect(open.match(/<polygon[^>]*fill="none"/gu)).toHaveLength(2);
+
+    // "none" is still the absence of any head, whatever the placement says:
+    // a plain line is a legitimate annotation and must stay reachable.
+    const none = renderDocumentSvg(
+      arrowDocument({ arrowHead: "none", arrowHeadAt: "both" }),
+      resolver,
+    );
+    expect(none).not.toContain("<polygon");
+    expect(none).toContain('points="0,0 100,0"');
+  });
+
   it("keeps the head in proportion when the shaft thickens", () => {
     // A head held at profile size while the shaft thickened stopped being a
     // head: at the widest stroke its base corners barely cleared the shaft,
