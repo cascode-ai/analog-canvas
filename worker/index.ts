@@ -138,14 +138,12 @@ export default {
  * every cache in the path to keep the wrong answer under a name that
  * promised to be immutable.
  *
- * The asset binding cannot make that distinction: `not_found_handling`
- * applies to every miss alike, and it answers before the Worker runs, so a
- * shell-for-everything setting makes the check below unreachable however
- * green its test looks. The binding is therefore set to `none` and the
- * choice is made here, where the path is known. Listing `/assets/*` in
- * `run_worker_first` would be the other way to arrive, and it is not: that
- * makes `env.ASSETS.fetch` re-enter this Worker, and every asset request
- * fails with 1101.
+ * Cloudflare's SPA mode serves browser navigation misses as `index.html`
+ * before the Worker runs, while non-navigation misses can still reach this
+ * code. That gives stale module requests an explicit 404 without making the
+ * Worker responsible for synthesizing the SPA shell. Listing `/assets/*` in
+ * `run_worker_first` would instead put every asset through this Worker and
+ * risks re-entry through the assets binding.
  */
 async function serveStaticMiss(request: Request, env: Env): Promise<Response> {
   const path = new URL(request.url).pathname;
@@ -159,10 +157,8 @@ async function serveStaticMiss(request: Request, env: Env): Promise<Response> {
     });
   }
 
-  // Static Assets invokes the Worker only after this URL has already missed
-  // the asset manifest. Fetching the same URL here re-enters the Worker and
-  // ends in Cloudflare 1101. Every non-API, non-hashed miss is a client route,
-  // so ask only for the known index file; that real asset is served directly.
+  // For non-navigation requests, ask the binding for the SPA fallback. The
+  // binding applies single-page-application handling and returns index.html.
   const shell = await env.ASSETS.fetch(
     new Request(new URL("/index.html", request.url), request),
   );

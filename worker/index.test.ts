@@ -89,8 +89,8 @@ describe("static asset serving", () => {
     expect(response.status).toBe(404);
     expect(response.headers.get("content-type")).toContain("text/plain");
     expect(response.headers.get("cache-control")).toBe("no-store");
-    // Re-fetching the missing path through the binding re-enters the Worker
-    // under not_found_handling "none" and produces Cloudflare error 1101.
+    // Do not ask the SPA-configured binding for a missing module: its fallback
+    // is the document shell, not JavaScript.
     expect(requestedPaths).toEqual([]);
   });
 
@@ -134,11 +134,8 @@ describe("assets binding wiring", () => {
     const { assets } = wranglerConfig();
     expect(assets.run_worker_first).not.toContain("/assets/*");
     expect(assets.run_worker_first).toContain("/api/*");
-    // "single-page-application" answers a MISSING asset with the shell, and
-    // it does so in front of the Worker — so the 404 below could never run
-    // in production, however green its test was. "none" lets a miss fall
-    // through to the Worker, which is the only place that can tell a stale
-    // chunk name from a route.
-    expect(assets.not_found_handling).toBe("none");
+    // Cloudflare uses the SPA fallback for browser navigations, but still
+    // invokes the Worker for non-navigation misses such as module fetches.
+    expect(assets.not_found_handling).toBe("single-page-application");
   });
 });
