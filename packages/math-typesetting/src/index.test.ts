@@ -28,6 +28,10 @@ const corpus = [
   String.raw`\begin{cases}V_{OH},&x>0\\V_{OL},&x\leq0\end{cases}`,
 ];
 
+function countSvgTags(svg: string, closing = false): number {
+  return [...svg.matchAll(closing ? /<\/svg>/g : /<svg\b/g)].length;
+}
+
 describe("Analog Canvas formula typesetter", () => {
   it("renders the formula corpus as standalone path-based SVG", async () => {
     const typesetter = createFormulaTypesetter();
@@ -43,10 +47,49 @@ describe("Analog Canvas formula typesetter", () => {
       );
       expect(result.artifact.svg).toContain("<svg");
       expect(result.artifact.svg).toContain("<path");
+      expect(countSvgTags(result.artifact.svg)).toBe(
+        countSvgTags(result.artifact.svg, true),
+      );
       expect(result.artifact.svg).not.toContain("<foreignObject");
       expect(result.artifact.svg).not.toContain("<image");
       expect(result.artifact.svg).not.toMatch(/(?:href|xlink:href)=/);
     }
+  });
+
+  it("keeps the complete expression when MathJax emits nested SVG glyphs", async () => {
+    const typesetter = createFormulaTypesetter();
+    const prefix = typesetter.typesetSync({
+      ...baseRequest,
+      latex: String.raw`\overline{I_1^{n}}`,
+    });
+    const expression = typesetter.typesetSync({
+      ...baseRequest,
+      latex: String.raw`\overline{I_1^{n}}=4kt`,
+    });
+
+    expect(prefix).toMatchObject({ ok: true });
+    expect(expression).toMatchObject({ ok: true });
+    if (!prefix.ok || !expression.ok) return;
+
+    expect(expression.artifact.width).toBeGreaterThan(prefix.artifact.width);
+    expect(expression.artifact.svg).toContain('data-latex="="');
+    expect(expression.artifact.svg).toContain('data-latex="4"');
+    expect(expression.artifact.svg).toContain('data-latex="k"');
+    expect(expression.artifact.svg).toContain('data-latex="t"');
+    expect(countSvgTags(expression.artifact.svg)).toBe(
+      countSvgTags(expression.artifact.svg, true),
+    );
+  });
+
+  it("does not truncate ordinary operators after the first glyph", () => {
+    const result = createFormulaTypesetter().typesetSync({
+      ...baseRequest,
+      latex: "x+y",
+    });
+    expect(result).toMatchObject({ ok: true });
+    if (!result.ok) return;
+    expect(result.artifact.svg).toContain('data-latex="+"');
+    expect(result.artifact.svg).toContain('data-latex="y"');
   });
 
   it("produces deterministic markup, metrics, and source hashes", async () => {

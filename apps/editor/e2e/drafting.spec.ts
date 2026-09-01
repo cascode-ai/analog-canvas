@@ -455,25 +455,45 @@ test("converts a non-equivalent Reference formula into attached literal text", a
 
   const latex = String.raw`R_1=4kT`;
   await page.getByRole("textbox", { name: "Formula LaTeX source" }).fill(latex);
-  let prompt = "";
+  let nativeDialogOpened = false;
   page.once("dialog", async (dialog) => {
-    prompt = dialog.message();
-    await dialog.accept();
+    nativeDialogOpened = true;
+    await dialog.dismiss();
   });
   await page
     .getByRole("dialog", { name: "Formula" })
     .getByRole("button", { name: "Insert", exact: true })
     .click();
 
-  await expect
-    .poll(() => prompt)
-    .toContain("does not preserve the electrical name");
+  const confirmation = page.getByTestId("formula-conversion-confirmation");
+  await expect(confirmation).toContainText(
+    "Formula does not match the electrical name",
+  );
+  await expect(confirmation).toContainText(
+    "Reference “R1” will remain unchanged",
+  );
+  expect(nativeDialogOpened).toBe(false);
+  await confirmation.getByRole("button", { name: "Keep editing" }).click();
+  await expect(confirmation).toHaveCount(0);
+  await expect(page.getByRole("dialog", { name: "Formula" })).toBeVisible();
+  await page
+    .getByRole("dialog", { name: "Formula" })
+    .getByRole("button", { name: "Insert", exact: true })
+    .click();
+  await confirmation
+    .getByRole("button", { name: "Add as formula note" })
+    .click();
   await expect(page.getByTestId("canvas-text-editor")).toHaveCount(0);
   await expect(page.getByTestId("status")).toHaveText(
     "Added a component formula annotation; the electrical Reference is unchanged",
   );
   await expect(
     page.locator('[data-object-id^="instance-formula-"] [data-role="formula"]'),
+  ).toHaveCount(1);
+  await expect(
+    page.locator(
+      '[data-object-id^="instance-formula-"] [data-role="formula"] [data-latex="="]',
+    ),
   ).toHaveCount(1);
   await expect(
     page.locator('[data-object-id="instance-label-R1"]'),
