@@ -262,3 +262,39 @@ test("Shift+M with nothing selected arms the detached move for the next click", 
   expect(after.x).toBeGreaterThan(before.x + 100);
   expect(await routePoints(page)).toEqual(wireBefore);
 });
+
+// The reason the keyboard verb earns its place beside Ctrl+drag: the drag
+// detaches only the part under the pointer, while Shift+M carries every
+// selected part and detaches all of them together.
+test("Shift+M carries a whole multi-part selection", async ({ page }) => {
+  const { ids, wireBefore } = await wiredPair(page);
+
+  const top = page.getByTestId(`hit-${ids[0]}`);
+  const bottom = page.getByTestId(`hit-${ids[1]}`);
+  await top.click();
+  await bottom.click({ modifiers: ["Shift"] });
+  await expect(top).toHaveClass(/selected/);
+  await expect(bottom).toHaveClass(/selected/);
+
+  const topBefore = (await top.boundingBox())!;
+  const bottomBefore = (await bottom.boundingBox())!;
+
+  await page.keyboard.press("Shift+M");
+  await expect(page.getByTestId("status")).toContainText("without wires");
+
+  const target = {
+    x: topBefore.x + 200,
+    y: topBefore.y + topBefore.height / 2,
+  };
+  await page.mouse.move(target.x, target.y);
+  await page.mouse.click(target.x, target.y);
+
+  // Both parts moved by the same delta, and the wire between them did not.
+  const topAfter = (await page.getByTestId(`hit-${ids[0]}`).boundingBox())!;
+  const bottomAfter = (await page.getByTestId(`hit-${ids[1]}`).boundingBox())!;
+  expect(topAfter.x).toBeGreaterThan(topBefore.x + 100);
+  expect(Math.round(bottomAfter.x - bottomBefore.x)).toBe(
+    Math.round(topAfter.x - topBefore.x),
+  );
+  expect(await routePoints(page)).toEqual(wireBefore);
+});
