@@ -224,6 +224,20 @@ const SYMBOL_ORDER: readonly string[] = [
   "quantizer",
   // Annotations: drawing tools first (toolbar order), then the polarity
   // label, standalone signs, and fixed decorative marks last.
+  // Analog Blocks. Alphabetical order split the two converters apart, putting
+  // ADC at the head of the group and DAC four tiles later with comparators and
+  // a differential amplifier between them. A reader looking for one converter
+  // is looking for the pair, so they sit together, after the amplifiers and
+  // comparators an analog schematic reaches for far more often.
+  "opamp",
+  "opamp-lettered",
+  "opamp-differential",
+  "voltage-amplifier",
+  "voltage-amplifier-lettered",
+  "comparator",
+  "comparator-unmarked",
+  "adc",
+  "dac",
   "annotation-arrow",
   "annotation-line",
   "annotation-rectangle",
