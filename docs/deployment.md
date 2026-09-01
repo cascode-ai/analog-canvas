@@ -34,6 +34,37 @@ never executes. **A green CI run is evidence about the code, not about the
 deployment.** That gap is why verification runs against the live site, and why
 failing it now costs one verification round instead of an afternoon.
 
+## What the rollback does not protect
+
+The rollback restores a previous Worker **version**. Three things it does not
+do, all learned on 2026-09-01 when it fired for the first time on real
+traffic:
+
+**A rollback does not undo a check that was wrong.** #519 made a missing
+hashed asset answer 404, which is correct. The smoke check still required the
+old shell-at-200 answer, so verification failed and the deploy was rolled
+back — the machinery obeying a wrong instruction, perfectly. Every later
+merge then hit the same check and rolled back too. When a change alters
+behaviour a verification asserts, **the verification is part of the change**;
+shipping one without the other blocks the pipeline for everyone.
+
+**Repeated rollbacks do not return to a known state.** After three failed
+deploys and three rollbacks, production was measured serving the NEW
+behaviour: a missing chunk returned 404 with the Worker's own message. The
+version selection after a previous rollback did not land where a reading of
+the deployment list predicts, and the exact bookkeeping Cloudflare applies to
+a rollback's own deployment entry was not established here. Treat "it rolled
+back" as "a previous version is live", not as "the version you had before".
+**Measure production after a rollback, every time.**
+
+**A rollback does not undo bound resources.** Wrangler says so in its own
+warning: Durable Objects, D1, R2 and KV are not restored. A deploy that
+migrates data is not made safe by this protection.
+
+None of that makes the rollback worthless — production stayed up through all
+three failures, which is the whole point. It makes the rollback a way to keep
+serving, not a way to be sure what you are serving.
+
 ## What CI cannot tell you
 
 Anything that only exists at Worker runtime:
