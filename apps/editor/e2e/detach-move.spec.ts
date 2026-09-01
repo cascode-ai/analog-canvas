@@ -297,4 +297,14 @@ test("Shift+M carries a whole multi-part selection", async ({ page }) => {
     Math.round(topAfter.x - topBefore.x),
   );
   expect(await routePoints(page)).toEqual(wireBefore);
+
+  // Both selected parts are electrically open, not just visually adrift. The
+  // wire between them was the only thing on that Net, so nothing is left on it.
+  const terminals = await exportedTerminals(page);
+  expect(terminals).not.toContainEqual(
+    expect.objectContaining({ instanceId: ids[0] }),
+  );
+  expect(terminals).not.toContainEqual(
+    expect.objectContaining({ instanceId: ids[1] }),
+  );
 });
