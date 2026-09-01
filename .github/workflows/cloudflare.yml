@@ -33,6 +33,7 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @icm/spice-run build
       - run: pnpm --filter @icm/editor... build
         env:
           # Timing simulation remains a localhost development surface until
