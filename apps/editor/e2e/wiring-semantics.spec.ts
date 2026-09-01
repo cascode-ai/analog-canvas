@@ -221,3 +221,47 @@ test("a power rail drawn across the tops of wires connects to them", async ({
   await expect(page.locator('[data-canvas-hit-kind="route"]')).toHaveCount(5);
   await expect(page.getByTestId("statusbar-issues")).toHaveText("No issues");
 });
+
+test("a component dragged onto a wire lands and connects", async ({ page }) => {
+  await page.goto("/editor");
+  const canvas = page.getByTestId("schematic-canvas");
+  await canvas.click({ position: { x: 600, y: 500 } });
+
+  await page.keyboard.press("w");
+  await canvas.click({ position: { x: 240, y: 320 } });
+  await canvas.click({ position: { x: 480, y: 320 } });
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Escape");
+
+  // Place the port clear of the wire, so no placement contact runs and the
+  // only thing under test is the move.
+  await chooseComponent(page, "vdd-port");
+  await canvas.click({ position: { x: 360, y: 200 } });
+  await page.keyboard.press("Escape");
+  await expect(page.locator('[data-canvas-hit-kind="route"]')).toHaveCount(1);
+
+  // Drag it down until its pin comes to rest on the wire. This used to be
+  // refused outright — "That edit would have changed which Nets these objects
+  // belong to" — leaving the part where it started: the author could neither
+  // connect it nor put it there.
+  const instance = page.locator('[data-canvas-hit-kind="instance"]').first();
+  const body = (await instance.boundingBox())!;
+  const wire = (await page
+    .locator('[data-canvas-hit-kind="route"]')
+    .first()
+    .boundingBox())!;
+  const cx = body.x + body.width / 2;
+  const cy = body.y + body.height / 2;
+  const travel = wire.y + wire.height / 2 - (body.y + body.height);
+  await page.mouse.move(cx, cy);
+  await page.mouse.down();
+  await page.mouse.move(cx, cy + travel / 2, { steps: 6 });
+  await page.mouse.move(cx, cy + travel, { steps: 6 });
+  await page.mouse.up();
+
+  await expect(page.getByTestId("status")).toContainText("connected them");
+  // The pin became a real endpoint on the conductor, so the wire is now two
+  // pieces meeting at it.
+  await expect(page.locator('[data-canvas-hit-kind="route"]')).toHaveCount(2);
+  await expect(page.getByTestId("statusbar-issues")).toHaveText("No issues");
+});

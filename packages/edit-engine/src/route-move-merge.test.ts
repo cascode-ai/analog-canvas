@@ -17,11 +17,18 @@ import {
   createRoutePath,
   type SchematicDocument,
 } from "@icm/model";
+import { readdirSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 import { diagnoseVisualQuality } from "@icm/derived";
+import { parseProject } from "@icm/project-protocol";
 import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
-import { proposeLooseRouteTranslation } from "./routing-planner.js";
+import {
+  proposeEndpointRouteAttachment,
+  proposeLooseRouteTranslation,
+} from "./routing-planner.js";
 import {
   createRoutingOperationPlan,
   gateRoutingOperationPlan,
@@ -242,6 +249,50 @@ describe("moving a wire onto another wire", () => {
     ).toBe(true);
   });
 
+  it("declares the join an attach performs, so a pin can be dragged onto a wire", () => {
+    // The move controller already emits attach_endpoint_to_route when a
+    // dragged pin lands on a conductor, but the effect derivation read merge
+    // only from connect_endpoints. Every attach therefore declared "preserve"
+    // while performing a join, and the gate refused the gesture with "That
+    // edit would have changed which Nets these objects belong to" — the pin
+    // would not land, and the part could not be placed where the author put
+    // it.
+    const document = twoLooseWires();
+    document.instances.push({
+      id: "VDD1",
+      symbolId: "vdd-port",
+      placement: { position: { x: 150, y: 180 }, rotation: 0, mirror: "none" },
+    } as SchematicDocument["instances"][number]);
+    document.nets.push({
+      id: "net-vdd",
+      terminals: [{ instanceId: "VDD1", pinName: "P" }],
+    });
+
+    const attachment = proposeEndpointRouteAttachment(
+      document,
+      { kind: "terminal", instanceId: "VDD1", pinName: "P" },
+      "net-vdd",
+      "wire-horizontal",
+      { x: 150, y: 200 },
+      0,
+      "t2",
+    );
+    const plan = createRoutingOperationPlan(document, {
+      intent: "attach-to-route",
+      edits: attachment.edits,
+      diagnostics: [],
+    });
+    const gate = gateRoutingOperationPlan(document, plan, context);
+
+    expect(
+      gate.ok,
+      gate.ok ? "" : `${gate.message} :: ${gate.diagnostics[0]?.message ?? ""}`,
+    ).toBe(true);
+    // The declaration is derived, not hand-written: it names the attached
+    // endpoint together with the conductor it joins.
+    expect(plan.expectedElectricalEffect).toMatchObject({ kind: "merge" });
+  });
+
   it("stays a no-op when a moved end lands on a conductor of its own Net", () => {
     // Second half of the same guard: landing on a wire already on this Net has
     // nothing to merge, so the move must not manufacture an edit or an error.
@@ -257,5 +308,60 @@ describe("moving a wire onto another wire", () => {
 
     expect(netMembership(moved)).toEqual(before);
     expect(ambiguousJunctionErrors(moved)).toEqual([]);
+  });
+});
+
+describe("a pin resting on a conductor, in published drawings", () => {
+  /**
+   * Dragging a pin onto a wire connects it — that is a gesture. A pin that
+   * merely RESTS on a conductor in a drawing someone already published is not
+   * a gesture and must stay unconnected: the Gallery contract welcomes
+   * abbreviated schematics, and `diagnoseVisualQuality` grades the idiom a
+   * warning rather than an error for exactly that reason.
+   *
+   * Asserted against real published circuits rather than a synthetic case,
+   * because the risk being guarded is "we silently rewired drawings that
+   * already exist".
+   */
+  const corpus = resolve(process.cwd(), "fixtures/gallery-redline");
+  const files = readdirSync(corpus).filter((name) =>
+    name.endsWith(".icproj.json"),
+  );
+
+  it("finds the idiom in the corpus at all", () => {
+    // A guard on the guard: if the corpus ever stops containing a resting
+    // pin, the assertion below would pass vacuously and prove nothing.
+    const resting = files.flatMap((file) =>
+      parseProject(
+        readFileSync(resolve(corpus, file), "utf8"),
+      ).documents.flatMap((document) =>
+        diagnoseVisualQuality(document, resolver).filter(
+          (finding) => finding.code === "VISUAL_TERMINAL_ON_FOREIGN_ROUTE",
+        ),
+      ),
+    );
+    expect(resting.length).toBeGreaterThan(0);
+  });
+
+  it.each(files)("%s: a resting pin is still not a member", (file) => {
+    const project = parseProject(readFileSync(resolve(corpus, file), "utf8"));
+    for (const document of project.documents) {
+      const findings = diagnoseVisualQuality(document, resolver).filter(
+        (finding) => finding.code === "VISUAL_TERMINAL_ON_FOREIGN_ROUTE",
+      );
+      for (const finding of findings) {
+        const [instanceId, routeId] = finding.objectIds ?? [];
+        const route = document.routes.find(
+          (candidate) => candidate.id === routeId,
+        );
+        const restingNet = document.nets.find((net) =>
+          net.terminals.some((terminal) => terminal.instanceId === instanceId),
+        );
+        // The finding exists precisely because the pin is NOT on the
+        // conductor's Net. If these ever coincided, the drawing would have
+        // been rewired underneath its author.
+        expect(restingNet?.id).not.toBe(route?.netId);
+      }
+    }
   });
 });
