@@ -138,6 +138,57 @@ describe("operating point labels", () => {
     expect(labels[1]?.at).toEqual({ x: 200, y: 200 });
   });
 
+  it("moves a badge off artwork instead of covering it", () => {
+    // Found by rendering the rule over a real published circuit: the anchor
+    // knew the conductor but not what was already drawn there, so a voltage
+    // could land on a component's own label. A number that hides the part it
+    // describes is worse than one that sits a little lower.
+    const document = twoNetDocument();
+    document.instances.push({
+      id: "R9",
+      symbolId: "resistor",
+      // Straddling the named net's wire at y = 100, right where the badge
+      // would otherwise go.
+      placement: { position: { x: 200, y: 100 }, rotation: 0, mirror: "none" },
+    } as SchematicDocument["instances"][number]);
+
+    const labels = operatingPointLabels({
+      document,
+      resolver,
+      voltages,
+      display: "named",
+    });
+
+    expect(labels).toHaveLength(1);
+    const at = labels[0]!.at;
+    // Clear of the symbol: the resistor stands at x = 200, and a badge is
+    // about 43 units wide, so anything within ~30 units would still cover it.
+    expect(Math.abs(at.x - 200)).toBeGreaterThan(30);
+    // And still on the conductor it describes — sliding along the wire, not
+    // drifting into blank page where the reader must work out what it means.
+    expect(at.x).toBeGreaterThanOrEqual(100);
+    expect(at.x).toBeLessThanOrEqual(300);
+    expect(at.y).toBe(100);
+  });
+
+  it("does not stack two badges on the same spot", () => {
+    // Two nets whose best anchors coincide would otherwise print one voltage
+    // over the other, which reads as a single wrong number.
+    const document = twoNetDocument();
+    document.junctions.forEach((junction) => {
+      if (junction.netId === "net-plain") junction.position.y = 100;
+    });
+    const labels = operatingPointLabels({
+      document,
+      resolver,
+      voltages,
+      display: "all",
+    });
+
+    expect(labels).toHaveLength(2);
+    expect(labels[0]!.at).not.toEqual(labels[1]!.at);
+  });
+
   it("keeps a millivolt node readable instead of rounding it to zero", () => {
     // The whole point of an operating point is small differences; a format
     // that prints 0.00 V for a 12 mV node hides exactly what was asked.
