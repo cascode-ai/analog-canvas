@@ -15,6 +15,7 @@ import { removeConnectivityEvidenceOwnedBy } from "./transaction-connectivity.js
 import {
   routeFromEdit,
   routeIsProtected,
+  routeRelatedObjectIds,
   validateRoute,
 } from "./transaction-routing.js";
 
@@ -82,7 +83,7 @@ export function applyRouteGeometryEdit(
             "EDIT_PRECONDITION",
             routeError,
             [],
-            [edit.route.id],
+            routeRelatedObjectIds(route),
           ),
         };
       }
@@ -172,7 +173,12 @@ export function applyRouteGeometryEdit(
       if (routeError) {
         return {
           ok: false,
-          rejection: reject("EDIT_PRECONDITION", routeError),
+          rejection: reject(
+            "EDIT_PRECONDITION",
+            routeError,
+            [],
+            routeRelatedObjectIds(route),
+          ),
         };
       }
       if (existingIndex >= 0) draft.routes[existingIndex] = route;

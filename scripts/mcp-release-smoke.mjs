@@ -6,7 +6,10 @@ import { join, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 
-const releaseRoot = resolve("output/release/interactive-circuit-maker-v0.1.0");
+const { version } = JSON.parse(await readFile(resolve("package.json"), "utf8"));
+const releaseRoot = resolve(
+  `output/release/interactive-circuit-maker-v${version}`,
+);
 const metadata = JSON.parse(
   await readFile(resolve(releaseRoot, "release.json"), "utf8"),
 );

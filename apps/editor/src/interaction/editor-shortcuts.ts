@@ -161,7 +161,12 @@ export function resolveEditorShortcut(
     }
     if (plain && key === "m") {
       return context.interactionMode === "moving-selection"
-        ? { kind: "run-command", command: { id: "selection.move" } }
+        ? {
+            kind: "run-command",
+            command: event.shiftKey
+              ? { id: "selection.move", detach: true }
+              : { id: "selection.move" },
+          }
         : { kind: "blocked-interaction-command", command: "Move" };
     }
     if (plain && key === "i") {
@@ -277,7 +282,14 @@ export function resolveEditorShortcut(
     return { kind: "run-command", command: { id: "selection.copy" } };
   }
   if (plain && key === "m") {
-    return { kind: "run-command", command: { id: "selection.move" } };
+    // Shift+M is Virtuoso's move-without-wires. `plain` allows Shift through,
+    // so this branch must read it rather than let it fall to a plain Move.
+    return {
+      kind: "run-command",
+      command: event.shiftKey
+        ? { id: "selection.move", detach: true }
+        : { id: "selection.move" },
+    };
   }
   if (plain && key === "i") {
     return { kind: "run-command", command: { id: "insert.open" } };

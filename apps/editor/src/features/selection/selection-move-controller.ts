@@ -14,6 +14,7 @@ import {
 import { deviceDescriptor } from "@icm/devices";
 import {
   deriveNetConnectivity,
+  endpointKey,
   findRouteSegmentsAtPoint,
   isMosBulkTerminal,
   isVisibleEndpoint,
@@ -548,6 +549,9 @@ export function createSelectionMoveController({
   ): void => {
     const sourceDocument = projection?.document ?? document;
     const prefixEdits = [...(projection?.prefixEdits ?? [])];
+    const disconnectedEndpointKeys = prefixEdits.flatMap((edit) =>
+      edit.kind === "disconnect_endpoint" ? [endpointKey(edit.endpoint)] : [],
+    );
     const { snap: resolvedSnap, moves } =
       projection?.resolvedMove ??
       resolveInstanceMove(
@@ -707,12 +711,26 @@ export function createSelectionMoveController({
         }
         return plan.edits;
       })();
+      const hasRouteContact = contactEdits.length > 0;
+      const hasDirectContact = directEdits.length > 0;
+      const operationIntent: RoutingOperationIntent = hasRouteContact
+        ? "attach-to-route"
+        : hasDirectContact
+          ? "connect"
+          : "transform";
+      const expectedElectricalEffect: ExpectedElectricalEffect | undefined =
+        seriesSplice
+          ? seriesSplice.expectedElectricalEffect
+          : disconnectedEndpointKeys.length > 0 &&
+              !hasRouteContact &&
+              !hasDirectContact
+            ? {
+                kind: "remove",
+                removedEndpointKeys: disconnectedEndpointKeys,
+              }
+            : undefined;
       const result = transactConnectivity(
-        targetElectrical?.kind === "route"
-          ? "attach-to-route"
-          : targetElectrical?.kind === "endpoint"
-            ? "connect"
-            : "transform",
+        operationIntent,
         [
           ...prefixEdits,
           ...groupMove.edits,
@@ -720,9 +738,7 @@ export function createSelectionMoveController({
           ...contactEdits,
           ...directEdits,
         ],
-        seriesSplice
-          ? { expectedElectricalEffect: seriesSplice.expectedElectricalEffect }
-          : undefined,
+        expectedElectricalEffect ? { expectedElectricalEffect } : undefined,
       );
       if (result?.ok && seriesSplice) {
         setStatus("Inserted the moved component in series into the wire");
@@ -733,6 +749,8 @@ export function createSelectionMoveController({
         setStatus("Snapped pin endpoints and connected them without a wire");
       } else if (result?.ok && directContactRejection) {
         setStatus(`Moved without connecting: ${directContactRejection}`);
+      } else if (result?.ok && disconnectedEndpointKeys.length > 0) {
+        setStatus("Moved selection without wires; original endpoints are open");
       } else if (result?.ok && prefixEdits.length > 0) {
         setStatus("Moved and transformed selection");
       }

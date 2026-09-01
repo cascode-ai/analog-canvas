@@ -34,6 +34,7 @@ describe("annotation color properties", () => {
     expect(markup).toContain(
       'aria-label="Text color picker" type="color" value="#dc2626"',
     );
+    expect(markup).toContain("Auto uses the inherited text color.");
   });
 
   it("shows the annotation-owned override instead of inherited ink", () => {

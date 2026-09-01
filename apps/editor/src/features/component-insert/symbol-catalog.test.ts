@@ -265,6 +265,30 @@ describe("reach order inside a category", () => {
     ]);
   });
 
+  it("keeps the two converters together in Analog Blocks", () => {
+    const groups = componentCatalog("razavi-textbook-v1", "");
+    const blocks = groups
+      .find((group) => group.category === "Analog Blocks")!
+      .symbols.map((symbol) => symbol.id);
+    // Alphabetical order put ADC at the head of the group and DAC four tiles
+    // later, with two comparators and a differential amplifier between them.
+    // Someone looking for one converter is looking for the pair.
+    expect(blocks.indexOf("dac") - blocks.indexOf("adc")).toBe(1);
+    // And the pair sits after the parts an analog schematic reaches for more
+    // often, rather than leading the group as the letter A did.
+    expect(blocks).toEqual([
+      "opamp",
+      "opamp-lettered",
+      "opamp-differential",
+      "voltage-amplifier",
+      "voltage-amplifier-lettered",
+      "comparator",
+      "comparator-unmarked",
+      "adc",
+      "dac",
+    ]);
+  });
+
   it("orders logic gates by family rather than by name", () => {
     const groups = componentCatalog("razavi-textbook-v1", "");
     const gates = groups

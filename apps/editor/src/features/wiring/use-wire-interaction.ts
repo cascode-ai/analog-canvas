@@ -18,6 +18,7 @@ import {
   proposeWireSegmentMove,
   proposeWireCommitThroughContacts,
   type SchematicEdit,
+  type ExpectedElectricalEffect,
   type RoutingOperationIntent,
   type RoutingOperationPlan,
   type WireSource,
@@ -157,11 +158,13 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
   const proposalFor = (
     intent: RoutingOperationIntent,
     edits: readonly SchematicEdit[],
+    expectedElectricalEffect?: ExpectedElectricalEffect,
   ): RoutingOperationPlan =>
     createRoutingOperationPlan(options.document, {
       intent,
       diagnostics: [],
       edits,
+      ...(expectedElectricalEffect ? { expectedElectricalEffect } : {}),
     });
 
   const freeWireAnchor = (
@@ -443,12 +446,26 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
             options.document,
             record.route.id,
             delta,
+            {
+              resolver: options.resolver,
+              suffix: `land-${options.nextRoutingSuffix()}`,
+            },
+          );
+          // An attach among the edits means an end came to rest on another
+          // conductor; the gate derives the join from that primitive itself.
+          const landed = proposal.edits.some(
+            (edit) => edit.kind === "attach_endpoint_to_route",
           );
           const result = transactProposal(
             proposalFor("route-geometry", proposal.edits),
           );
-          if (result.ok)
-            options.setStatus(`Moved loose route ${record.route.id}`);
+          if (result.ok) {
+            options.setStatus(
+              landed
+                ? `Moved ${record.route.id} onto the wire it now shares a net with`
+                : `Moved loose route ${record.route.id}`,
+            );
+          }
         }
       } else if (preview.intent === "move-power-rail") {
         const delta = {

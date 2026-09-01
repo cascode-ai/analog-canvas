@@ -483,3 +483,169 @@ describe("a drawn rail meeting an existing wire", () => {
     expect(railEnd!.netId).not.toBe(wireNetId(document));
   });
 });
+
+describe("a rail drawn across the ends of existing wires", () => {
+  /**
+   * Two vertical wires standing side by side, each on its own Net, with loose
+   * upper ends level at y = 100 — the drawing a bus is normally added to.
+   */
+  function twoStandingWires(): SchematicDocument {
+    const document = createEmptyDocument("rail-over-ends", "Rail over ends");
+    document.presentation.grid = 10;
+    for (const [index, x] of [100, 200].entries()) {
+      const netId = `net-w${index}`;
+      document.nets.push({ id: netId, terminals: [] });
+      document.junctions.push(
+        {
+          id: `W${index}-top`,
+          netId,
+          position: { x, y: 100 },
+          role: "route-anchor",
+        },
+        {
+          id: `W${index}-bottom`,
+          netId,
+          position: { x, y: 200 },
+          role: "route-anchor",
+        },
+      );
+      document.routes.push(
+        createRoutePath({
+          id: `wire-${index}`,
+          netId,
+          start: { kind: "junction", junctionId: `W${index}-top` },
+          end: { kind: "junction", junctionId: `W${index}-bottom` },
+          bends: [],
+          modes: ["manual"],
+        }),
+      );
+    }
+    return document;
+  }
+
+  function drawRail(
+    document: SchematicDocument,
+    start: { x: number; y: number },
+    end: { x: number; y: number },
+  ) {
+    const plan = planVddRailEdits(
+      document,
+      { instanceId: "VDD1", start, end },
+      resolver,
+    );
+    if (!plan.ok) throw new Error(plan.message);
+    const operation = createRoutingOperationPlan(document, {
+      intent: "connect",
+      diagnostics: [],
+      edits: plan.edits,
+      ...(plan.expectedElectricalEffect
+        ? { expectedElectricalEffect: plan.expectedElectricalEffect }
+        : {}),
+    });
+    const gate = gateRoutingOperationPlan(document, operation, {
+      symbolResolver: resolver,
+    });
+    if (!gate.ok) return { gate, document: null };
+    const result = executeTransaction(
+      document,
+      {
+        transactionId: "draw-rail",
+        documentId: document.id,
+        expectedRevision: document.revision,
+        actor: { kind: "human", id: "test" },
+        edits: [...gate.edits],
+      },
+      { symbolResolver: resolver },
+    );
+    if (!result.ok) throw new Error(result.error.message);
+    return { gate, document: result.document };
+  }
+
+  it("joins every wire whose END rests on the rail", () => {
+    // The mirror of the endpoint rule #469 established: there the rail's end
+    // landed on a wire, here the wires' ends land on the rail. The gesture is
+    // the same deliberate act, so the refusal — "That edit would have changed
+    // which Nets these objects belong to" — was wrong in both directions.
+    const { gate, document } = drawRail(
+      twoStandingWires(),
+      { x: 60, y: 100 },
+      { x: 240, y: 100 },
+    );
+    expect(
+      gate.ok,
+      gate.ok ? "" : `${gate.message} :: ${gate.diagnostics[0]?.message ?? ""}`,
+    ).toBe(true);
+    if (!document) return;
+    const netIds = new Set(document.routes.map((route) => route.netId));
+    expect(netIds.size).toBe(1);
+  });
+
+  it("leaves a wire the rail merely crosses on its own Net", () => {
+    // Same rail, drawn across the wires' MIDDLES instead of their ends. Two
+    // conductors meeting at an interior point of both say nothing about
+    // intent, so nothing connects — a Crossing is not a Junction.
+    const { gate, document } = drawRail(
+      twoStandingWires(),
+      { x: 60, y: 150 },
+      { x: 240, y: 150 },
+    );
+    expect(gate.ok).toBe(true);
+    if (!document) return;
+    const wireNetIds = new Set(
+      document.routes
+        .filter((route) => route.id.startsWith("wire-"))
+        .map((route) => route.netId),
+    );
+    expect(wireNetIds).toEqual(new Set(["net-w0", "net-w1"]));
+  });
+
+  it("does not adopt a PIN that happens to rest on the rail", () => {
+    // The line this rule deliberately does not cross. A drawn wire's end is
+    // unambiguously an end, so the rail adopts it. A *pin* resting under a
+    // rail is the abbreviated idiom the Gallery contract welcomes and
+    // diagnoseVisualQuality grades a warning rather than an error — a corpus
+    // sweep found it in published schematics. Adopting it here would rewire
+    // drawings that already exist, so only junctions are collected.
+    //
+    // Asserted on its own rather than left implicit in the collection code:
+    // the whole risk is that a later reader "completes" the symmetry.
+    const document = twoStandingWires();
+    document.instances.push({
+      id: "R1",
+      symbolId: "resistor",
+      // Pin 1 sits 20 above the body, so the body at y = 120 rests its pin
+      // exactly on the rail's line at y = 100, between the two wires.
+      placement: { position: { x: 150, y: 120 }, rotation: 0, mirror: "none" },
+    } as SchematicDocument["instances"][number]);
+    document.nets.push({
+      id: "net-resistor",
+      terminals: [{ instanceId: "R1", pinName: "1" }],
+    });
+
+    // Non-vacuous: the pin really is on the rail's line, so a rule that
+    // adopted resting pins would have taken this one.
+    const pin = resolver
+      .resolve("resistor")!
+      .definition.pins.find((candidate) => candidate.name === "1")!;
+    expect({ x: 150 + pin.at.x, y: 120 + pin.at.y }).toEqual({
+      x: 150,
+      y: 100,
+    });
+
+    const { gate, document: after } = drawRail(
+      document,
+      { x: 60, y: 100 },
+      { x: 240, y: 100 },
+    );
+    expect(gate.ok).toBe(true);
+    if (!after) return;
+    const restingNet = after.nets.find((net) =>
+      net.terminals.some((terminal) => terminal.instanceId === "R1"),
+    );
+    const railNet = after.routes.find((route) =>
+      route.id.startsWith("route-vdd1"),
+    )?.netId;
+    expect(restingNet?.id).toBe("net-resistor");
+    expect(restingNet?.id).not.toBe(railNet);
+  });
+});

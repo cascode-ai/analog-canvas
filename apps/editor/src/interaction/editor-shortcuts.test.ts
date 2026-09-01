@@ -199,6 +199,12 @@ describe("editor shortcut contract", () => {
     );
     expect(resolve("p")).toEqual(command({ id: "insert.cell-pin" }));
     expect(resolve("m")).toEqual(command({ id: "selection.move" }));
+    // Virtuoso's pairing: M stretches the wires along with the part, Shift+M
+    // leaves them where they are. Shift used to fall through to plain Move
+    // because `plain` only excludes Ctrl/Meta/Alt.
+    expect(resolve("m", {}, { shiftKey: true })).toEqual(
+      command({ id: "selection.move", detach: true }),
+    );
     expect(resolve("l")).toEqual({ kind: "net-label-selection-required" });
     expect(resolve("l", { hasRouteSelection: true })).toEqual({
       kind: "edit-net-label",

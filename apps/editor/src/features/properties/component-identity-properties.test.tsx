@@ -8,7 +8,7 @@ import {
 } from "./component-identity-properties";
 
 describe("component identity properties", () => {
-  it("describes a built-in primitive target", () => {
+  it("omits the internal target description for a built-in primitive", () => {
     const document = createEmptyDocument("cell", "Cell");
     const instance: (typeof document.instances)[number] = {
       id: "R1",
@@ -20,9 +20,7 @@ describe("component identity properties", () => {
         binding: { kind: "primitive", deviceClass: "resistor" },
       },
     };
-    expect(componentTargetDescription(instance)).toBe(
-      "Built-in primitive: resistor",
-    );
+    expect(componentTargetDescription(instance)).toBeNull();
   });
 
   it("renders identity, editable marker name, and model suggestions", () => {

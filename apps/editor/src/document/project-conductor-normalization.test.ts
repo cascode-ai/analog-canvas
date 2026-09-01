@@ -76,4 +76,72 @@ describe("imported Project conductor normalization", () => {
     expect(normalized).toEqual({ project, changedDocumentIds: [] });
     expect(normalized.project).toBe(project);
   });
+
+  it("converts a switch Route collapsed by current terminal geometry to direct contact", () => {
+    const project = createEmptyProject("legacy-switch", "Legacy switch");
+    const document = project.documents[0]!;
+    document.instances.push(
+      {
+        id: "X1",
+        symbolId: "ideal-switch",
+        placement: {
+          position: { x: 500, y: 200 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+      {
+        id: "P1",
+        symbolId: "port",
+        placement: {
+          position: { x: 510, y: 200 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+    );
+    document.nets.push({
+      id: "net-contact",
+      terminals: [
+        { instanceId: "X1", pinName: "2" },
+        { instanceId: "P1", pinName: "P" },
+      ],
+    });
+    document.netlist!.terminals.push({
+      id: "terminal-p1",
+      name: "OUT",
+      netId: "net-contact",
+      direction: "passive",
+      interfaceInstanceIds: ["P1"],
+    });
+    document.routes.push(
+      createRoutePath({
+        id: "legacy-ten-unit-route",
+        netId: "net-contact",
+        start: { kind: "terminal", instanceId: "P1", pinName: "P" },
+        end: { kind: "terminal", instanceId: "X1", pinName: "2" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+
+    const normalized = normalizeImportedProjectConductors(project, resolver);
+
+    expect(normalized.changedDocumentIds).toEqual([document.id]);
+    expect(normalized.project.documents[0]).toMatchObject({
+      revision: 1,
+      sourceStatus: "geometry-only-changed",
+      routes: [],
+      nets: [
+        {
+          id: "net-contact",
+          terminals: [
+            { instanceId: "X1", pinName: "2" },
+            { instanceId: "P1", pinName: "P" },
+          ],
+        },
+      ],
+    });
+    expect(project.documents[0]!.routes).toHaveLength(1);
+  });
 });

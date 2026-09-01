@@ -45,11 +45,11 @@ export function componentTargetDescription(
   instance: Instance,
   internalCellName?: string,
   externalSubcircuitName?: string,
-): string {
+): string | null {
   const binding = instance.netlist?.binding;
   switch (binding?.kind) {
     case "primitive":
-      return `Built-in primitive: ${binding.deviceClass}`;
+      return null;
     case "subcircuit":
       return `Internal Cell: ${internalCellName ?? "unresolved"}`;
     case "external-subcircuit":

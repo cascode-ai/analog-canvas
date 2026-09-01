@@ -37,16 +37,33 @@ export type VddRailPlan =
     }
   | { ok: false; message: string };
 
+/** Whether `point` lies on the straight span between `from` and `to`. */
+function pointOnRailSpan(point: Point, from: Point, to: Point): boolean {
+  const withinX =
+    point.x >= Math.min(from.x, to.x) && point.x <= Math.max(from.x, to.x);
+  const withinY =
+    point.y >= Math.min(from.y, to.y) && point.y <= Math.max(from.y, to.y);
+  const onLine =
+    (to.x - from.x) * (point.y - from.y) ===
+    (to.y - from.y) * (point.x - from.x);
+  return onLine && withinX && withinY;
+}
+
 /**
  * The Net merges a drawn rail performs, declared from geometry.
  *
- * A rail END that lands on an existing conductor connects to it, exactly as a
- * pin dropped on a wire does. A rail that merely CROSSES a wire touches it at
- * an interior point of both and connects nothing — the crossing invariant —
- * so only the two rail ends are considered, and each is paired with the
- * conductor it terminates on. Without this declaration the operation reads as
- * "preserve" and the routing gate refuses the very connection the gesture
- * asked for.
+ * An END resting on a conductor connects to it, exactly as a pin dropped on a
+ * wire does, and the relation is symmetric: it holds whether the rail's own
+ * end lands on an existing wire, or an existing wire's end lands on the span
+ * of the new rail — the ordinary "bus across the tops of several wires"
+ * drawing. Both directions are collected here.
+ *
+ * What is never collected is a CROSSING: two conductors meeting at an
+ * interior point of both, where the picture cannot say whether a connection
+ * was meant. That is why this looks only at endpoints — the rail's two ends,
+ * and the existing endpoints resting on the rail — and never at interior
+ * intersections. Without the declaration the operation reads as "preserve"
+ * and the routing gate refuses the very connection the gesture asked for.
  */
 function railEndpointMergeEffect(
   document: SchematicDocument,
@@ -55,6 +72,11 @@ function railEndpointMergeEffect(
   junctionIds: { startJunctionId: string; endJunctionId: string },
 ): ExpectedElectricalEffect | undefined {
   const geometry = resolveDocumentRoutingGeometry(document, resolver);
+  const railKeys = [
+    endpointKey({ kind: "junction", junctionId: junctionIds.startJunctionId }),
+    endpointKey({ kind: "junction", junctionId: junctionIds.endJunctionId }),
+  ];
+  // Direction one: a rail end comes to rest on an existing conductor.
   const groups = (
     [
       [construction.start, junctionIds.startJunctionId],
@@ -75,6 +97,17 @@ function railEndpointMergeEffect(
       ? [[endpointKey({ kind: "junction", junctionId }), ...new Set(partners)]]
       : [];
   });
+  // Direction two: an existing endpoint comes to rest on the rail's span.
+  for (const junction of document.junctions) {
+    if (
+      !pointOnRailSpan(junction.position, construction.start, construction.end)
+    )
+      continue;
+    groups.push([
+      endpointKey({ kind: "junction", junctionId: junction.id }),
+      ...railKeys,
+    ]);
+  }
   return groups.length > 0
     ? { kind: "merge", endpointGroups: groups }
     : undefined;

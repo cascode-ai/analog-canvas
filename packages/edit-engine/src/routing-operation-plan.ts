@@ -1,4 +1,4 @@
-import type { SchematicDocument } from "@icm/model";
+import { routeEndpoints, type SchematicDocument } from "@icm/model";
 import {
   deriveElectricalTopologyProjection,
   endpointKey,
@@ -389,19 +389,54 @@ function existingEndpointKeys(document: SchematicDocument): readonly string[] {
   ]);
 }
 
+/**
+ * The Net joins an edit list performs, read off the edits themselves.
+ *
+ * Two primitives join Nets, and both say so in their own shape rather than
+ * needing the caller to remember: `connect_endpoints` names the two endpoints
+ * it bonds, and `attach_endpoint_to_route` makes an endpoint the common node
+ * of two Route halves, so it ends up sharing that conductor's Net.
+ *
+ * Deriving this here — instead of asking each planner to hand-write a
+ * declaration — is what keeps the guard honest as new operations appear. A
+ * planner that emits either primitive is declared correctly with no further
+ * work; one that joins Nets by some other means must supply its own
+ * `expectedElectricalEffect`, because nothing in its edits says what it did.
+ */
+function mergeGroupsFromEdits(
+  document: SchematicDocument,
+  edits: readonly SchematicEdit[],
+): readonly (readonly string[])[] {
+  return edits.flatMap((edit) => {
+    if (edit.kind === "connect_endpoints") {
+      return [[endpointKey(edit.from), endpointKey(edit.to)]];
+    }
+    if (edit.kind === "attach_endpoint_to_route") {
+      const route = document.routes.find(
+        (candidate) => candidate.id === edit.routeId,
+      );
+      return route
+        ? [
+            [
+              endpointKey(edit.endpoint),
+              ...routeEndpoints(route).map((endpoint) => endpointKey(endpoint)),
+            ],
+          ]
+        : [];
+    }
+    return [];
+  });
+}
+
 export function expectedElectricalEffectForOperation(
   document: SchematicDocument,
   intent: RoutingOperationIntent,
   edits: readonly SchematicEdit[],
 ): ExpectedElectricalEffect {
+  const mergeGroups = mergeGroupsFromEdits(document, edits);
   if (intent === "connect" || intent === "attach-to-route") {
-    const groups = edits.flatMap((edit) =>
-      edit.kind === "connect_endpoints"
-        ? [[endpointKey(edit.from), endpointKey(edit.to)]]
-        : [],
-    );
-    return groups.length > 0
-      ? { kind: "merge", endpointGroups: groups }
+    return mergeGroups.length > 0
+      ? { kind: "merge", endpointGroups: mergeGroups }
       : { kind: "preserve", endpointKeys: existingEndpointKeys(document) };
   }
   if (intent === "cut") {
@@ -438,6 +473,14 @@ export function expectedElectricalEffectForOperation(
   }
   if (intent === "clone" || intent === "compose") {
     return { kind: "preserve", endpointKeys: existingEndpointKeys(document) };
+  }
+  // A geometry operation usually preserves membership, but it does not have
+  // to: a wire dragged so its end lands on another conductor, or a part moved
+  // onto a wire, carries the joining primitive in its edits like any other
+  // operation. The primitive is what joins Nets, not the intent label, so it
+  // is read the same way here.
+  if (mergeGroups.length > 0) {
+    return { kind: "merge", endpointGroups: mergeGroups };
   }
   const editedEndpointKeys = endpointKeysFromEdits(edits);
   return {

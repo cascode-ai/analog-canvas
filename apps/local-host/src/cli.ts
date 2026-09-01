@@ -10,4 +10,4 @@ const editorRoot = resolve(
     : "apps/editor/dist",
 );
 const running = await startLocalHost({ editorRoot, port: 4173 });
-process.stdout.write(`Interactive Circuit Maker v0.1.0: ${running.origin}\n`);
+process.stdout.write(`Interactive Circuit Maker v0.2.0: ${running.origin}\n`);

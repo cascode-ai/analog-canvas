@@ -1,13 +1,18 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
-import { startLocalHost } from "../output/release/interactive-circuit-maker-v0.1.0/host/index.js";
+const { version } = JSON.parse(await readFile(resolve("package.json"), "utf8"));
+const { startLocalHost } = await import(
+  `../output/release/interactive-circuit-maker-v${version}/host/index.js`
+);
 
-const releaseRoot = resolve("output/release/interactive-circuit-maker-v0.1.0");
+const releaseRoot = resolve(
+  `output/release/interactive-circuit-maker-v${version}`,
+);
 const metadata = JSON.parse(
   await readFile(resolve(releaseRoot, "release.json"), "utf8"),
 );
-if (metadata.version !== "0.1.0")
+if (metadata.version !== version)
   throw new Error("Release metadata version mismatch");
 const running = await startLocalHost({
   editorRoot: resolve(releaseRoot, "editor"),
@@ -19,7 +24,7 @@ try {
     fetch(`${running.origin}/sw.js`),
     fetch(running.origin),
   ]);
-  if (!health.ok || (await health.json()).version !== "0.1.0")
+  if (!health.ok || (await health.json()).version !== version)
     throw new Error("Release health check failed");
   const manifestData = await manifest.json();
   if (manifestData.icons.length < 2 || manifestData.display !== "standalone")

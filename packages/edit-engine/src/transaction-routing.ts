@@ -30,6 +30,18 @@ export function routeIsProtected(route: RouteBranch): boolean {
   return route.legs.some((leg) => leg.mode === "locked");
 }
 
+export function routeRelatedObjectIds(route: RouteBranch): string[] {
+  const end = routeEnd(route);
+  return [
+    route.id,
+    route.netId,
+    ...(route.start.kind === "terminal"
+      ? [route.start.instanceId]
+      : [route.start.junctionId]),
+    ...(end.kind === "terminal" ? [end.instanceId] : [end.junctionId]),
+  ];
+}
+
 export function endpointOwnerNetId(
   document: SchematicDocument,
   endpoint: RouteEndpoint,
@@ -235,7 +247,10 @@ export function validateRoute(
   // rejects only degenerate geometry; which headings a command may author is
   // the edit engine's transient policy, not a rule about legal Routes.
   if (!polylineSatisfiesConstraint(polyline.points, "any-angle")) {
-    return `Route ${route.id} must contain only non-zero segments`;
+    const points = polyline.points
+      .map((point) => `(${point.x},${point.y})`)
+      .join(" -> ");
+    return `Route ${route.id} (${endpointKey(route.start)} -> ${endpointKey(end)}, resolved ${points}) must contain only non-zero segments`;
   }
   if (
     route.presentation === "power-rail" &&

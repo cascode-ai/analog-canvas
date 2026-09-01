@@ -26,10 +26,7 @@ export function AnnotationColorProperties({
           disabled={annotation.locked}
           onChange={onChange}
         />
-        <small>
-          Auto inherits the owning instance's effective foreground for reference
-          and value text; other annotations use the document foreground.
-        </small>
+        <small>Auto uses the inherited text color.</small>
       </div>
     </section>
   );

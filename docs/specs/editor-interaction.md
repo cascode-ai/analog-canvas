@@ -250,6 +250,16 @@ routing closure. The editor keeps only gesture state; the Edit Engine's
 the typed edits committed on pointer release. Neither object is Project data or
 an Agent API payload, and no pointer handler invents an independent follow set.
 
+Schematic movement follows the Virtuoso pairing. Plain `M` translates the
+selection while internal conductors follow and boundary Routes stretch without
+changing connectivity. `Shift+M` (and its Ctrl/Cmd-drag direct gesture) moves
+the selected Instances without their wires: every routed terminal is first
+replaced by an open Junction stub at the original landing, then the existing
+`disconnect_endpoint` edit removes that terminal from the old Base Net. The
+wire geometry remains byte-for-byte in place and the moved pin is electrically
+open. Both gestures use the same selection-move controller and existing typed
+edits; detached move is not a persisted mode or a second mutation protocol.
+
 The visual marquee is the user's explicit intent. Electrical closure then
 classifies that intent without changing connectivity:
 

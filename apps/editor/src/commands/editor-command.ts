@@ -14,7 +14,12 @@ export type EditorCommandRequest =
   | { id: "selection.clear" }
   | { id: "selection.delete" }
   | { id: "selection.copy" }
-  | { id: "selection.move" }
+  /**
+   * `detach` follows Virtuoso's Shift+M: the parts move on their own and each
+   * connected wire stays exactly where it was, re-anchored to a Junction stub.
+   * Plain Move stretches those wires along with the part.
+   */
+  | { id: "selection.move"; detach?: boolean }
   | { id: "selection.align"; mode: EdgeAlignmentMode }
   | { id: "transform.rotate"; deltaDegrees?: 90 | -90 }
   | { id: "transform.rotate-next" }
@@ -74,7 +79,7 @@ export interface EditorCommandOperations {
   clearSelection(): void;
   deleteSelection(): void;
   beginCopy(): void;
-  beginMove(): void;
+  beginMove(detach: boolean): void;
   alignSelection(mode: EdgeAlignmentMode): void;
   rotatePlacement(deltaDegrees: 90 | -90): void;
   rotateCopy(deltaDegrees: 90 | -90): void;
@@ -322,7 +327,7 @@ export function createEditorCommandRouter(
         options.operations.beginCopy();
         break;
       case "selection.move":
-        options.operations.beginMove();
+        options.operations.beginMove(request.detach === true);
         break;
       case "selection.align":
         options.operations.alignSelection(request.mode);
