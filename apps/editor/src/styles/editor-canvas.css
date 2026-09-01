@@ -189,6 +189,35 @@
   fill: var(--icm-warning, #b54708);
 }
 
+/* Simulated node voltages. A number sitting directly on a wire and the grid
+   is unreadable exactly where it matters, so each rides an opaque plate.
+   A voltage the author earned by naming the net reads as settled; one that
+   appeared because they pointed at something reads as passing, so a glance
+   tells them which numbers will still be there when they look away. */
+.operating-point-badges .operating-point-plate {
+  fill: var(--icm-surface, #fff);
+  stroke: var(--icm-border, #d5d9e0);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+  opacity: 0.92;
+}
+
+.operating-point-badges .operating-point-text {
+  font-size: 9px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  fill: var(--icm-accent-strong, #175cd3);
+}
+
+.operating-point-badge[data-reason="selected"] .operating-point-plate,
+.operating-point-badge[data-reason="hovered"] .operating-point-plate {
+  stroke-dasharray: 2 2;
+}
+
+.operating-point-badge[data-reason="all"] .operating-point-plate {
+  opacity: 0.78;
+}
+
 /* Ring-band hit only (an annulus path): the marker's centre stays
    click-through, so the pin or junction it rings remains directly clickable
    (and right-clickable) — the marker never captures what it annotates. */

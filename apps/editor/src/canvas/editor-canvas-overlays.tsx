@@ -279,6 +279,74 @@ export function DiagnosticMarkersOverlay({
   );
 }
 
+/**
+ * One operating-point voltage, ready to paint. Declared structurally so the
+ * canvas layer stays below features: the simulation feature decides which
+ * nets earn a badge and where it sits, and hands the result down.
+ */
+export interface OperatingPointBadge {
+  netId: string;
+  netLabel: string;
+  text: string;
+  at: { x: number; y: number };
+  /** Permanent because the author named the net, or transient on demand. */
+  reason: "named" | "selected" | "hovered" | "all";
+}
+
+/**
+ * Simulated node voltages, drawn over the schematic and never part of it.
+ *
+ * Pure annotation: no pointer events, no hit geometry, nothing selectable.
+ * A simulation result is not a document object — ADR 0055 keeps results out
+ * of the model entirely — so this layer must not offer any way to grab one.
+ *
+ * Each badge gets an opaque plate because a bare number over a wire and the
+ * grid is unreadable exactly where it matters most.
+ */
+export function OperatingPointOverlay({
+  badges,
+}: {
+  badges: readonly OperatingPointBadge[];
+}) {
+  if (badges.length === 0) return null;
+  return (
+    <g
+      data-testid="operating-point-badges"
+      className="operating-point-badges"
+      pointerEvents="none"
+      aria-hidden="true"
+    >
+      {badges.map((badge) => (
+        <g
+          key={badge.netId}
+          className="operating-point-badge"
+          data-reason={badge.reason}
+          data-net-id={badge.netId}
+        >
+          {/* Sized from the text length: the canvas has no measurement pass,
+              and a plate that is too small is worse than none. */}
+          <rect
+            className="operating-point-plate"
+            x={badge.at.x - badge.text.length * 3.1 - 3}
+            y={badge.at.y - 17}
+            width={badge.text.length * 6.2 + 6}
+            height={13}
+            rx={2}
+          />
+          <text
+            className="operating-point-text"
+            x={badge.at.x}
+            y={badge.at.y - 7}
+            textAnchor="middle"
+          >
+            {badge.text}
+          </text>
+        </g>
+      ))}
+    </g>
+  );
+}
+
 export interface NetLabelTether {
   label: { x: number; y: number };
   conductor: { x: number; y: number };
