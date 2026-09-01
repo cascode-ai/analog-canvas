@@ -46,36 +46,29 @@ describe("analytics request normalization", () => {
 });
 
 describe("static asset serving", () => {
-  /**
-   * The assets binding is configured with single-page-application not-found
-   * handling, so anything it cannot match comes back as the shell.
-   */
   function envServing(files: Record<string, string>) {
-    return {
+    const requestedPaths: string[] = [];
+    const env = {
       ASSETS: {
         fetch(request: Request) {
           const path = new URL(request.url).pathname;
+          requestedPaths.push(path);
           const body = files[path];
-          // With not_found_handling "none" the assets layer answers a miss
-          // with 404 and the request reaches the Worker. index.html is a
-          // real file, so the shell is something the Worker can ask for.
-          if (path === "/index.html") {
-            return Promise.resolve(
-              new Response("<!doctype html><html></html>", {
-                headers: { "content-type": "text/html" },
-              }),
-            );
-          }
           return Promise.resolve(
             body === undefined
               ? new Response("Not found", { status: 404 })
               : new Response(body, {
-                  headers: { "content-type": "text/javascript" },
+                  headers: {
+                    "content-type": path.endsWith(".html")
+                      ? "text/html"
+                      : "text/javascript",
+                  },
                 }),
           );
         },
       },
     } as unknown as Parameters<typeof worker.fetch>[1];
+    return { env, requestedPaths };
   }
 
   const call = (env: unknown, path: string) =>
@@ -84,32 +77,38 @@ describe("static asset serving", () => {
       env as Parameters<typeof worker.fetch>[1],
     );
 
-  it("serves an asset that exists", async () => {
-    const env = envServing({ "/assets/App-abc.js": "export const a = 1;" });
-    const response = await call(env, "/assets/App-abc.js");
-    expect(response.status).toBe(200);
-    expect(await response.text()).toContain("export const a");
-  });
-
   it("404s a hashed asset the build no longer has", async () => {
     // A page open across a deploy asks for names this build does not carry.
     // Answering with the shell hands the browser a document where it asked
     // for a module, and every cache in the path is invited to keep it under
     // a name that promised to be immutable.
-    const env = envServing({});
+    const { env, requestedPaths } = envServing({
+      "/index.html": "<!doctype html><html></html>",
+    });
     const response = await call(env, "/assets/App-gone.js");
     expect(response.status).toBe(404);
     expect(response.headers.get("content-type")).toContain("text/plain");
     expect(response.headers.get("cache-control")).toBe("no-store");
+    // Re-fetching the missing path through the binding re-enters the Worker
+    // under not_found_handling "none" and produces Cloudflare error 1101.
+    expect(requestedPaths).toEqual([]);
   });
 
   it("still renders the shell for a route with no file behind it", async () => {
-    const env = envServing({});
-    for (const path of ["/g/2cdq4dmhy9", "/editor", "/mine"]) {
+    const { env, requestedPaths } = envServing({
+      "/index.html": "<!doctype html><html></html>",
+    });
+    for (const path of ["/g/2cdq4dmhy9", "/editor", "/analytics", "/mine"]) {
       const response = await call(env, path);
       expect(response.status).toBe(200);
       expect(response.headers.get("content-type")).toContain("text/html");
     }
+    expect(requestedPaths).toEqual([
+      "/index.html",
+      "/index.html",
+      "/index.html",
+      "/index.html",
+    ]);
   });
 });
 
