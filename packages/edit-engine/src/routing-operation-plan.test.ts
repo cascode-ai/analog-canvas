@@ -189,4 +189,87 @@ describe("RoutingOperationPlan", () => {
     expect(gate.diagnostics.length).toBeGreaterThan(0);
     expect(gate.diagnostics[0]?.message).toBeTruthy();
   });
+
+  /**
+   * What a merge declaration can and cannot be trusted to catch.
+   *
+   * Both checks in the merge branch read `endpointToBaseNet`, which is built
+   * from Net terminals and Junctions — model membership, not geometry. An
+   * endpoint with no membership therefore appears in neither the precise
+   * check's resolved Nets nor the witness fallback's source Nets: declaring
+   * it is a no-op, invisible to the guard.
+   *
+   * This is worth pinning because the two halves are easy to conflate.
+   * "Declaring extra endpoints is harmless" is false — an extra endpoint that
+   * DOES have membership and does not end up joined is caught. Only the
+   * unowned ones are silent. A planner that wants a boundary enforced must
+   * therefore enforce it by what it emits, not by what it declares.
+   */
+  describe("what a merge declaration is checked against", () => {
+    it("is silent about a declared endpoint that belongs to no Net", () => {
+      const document = twoNetDocument();
+      // An instance with no Net membership at all: nothing in the model
+      // places its pin on a conductor, so the projection has no entry for it.
+      document.instances.push({
+        id: "R1",
+        symbolId: "resistor",
+        placement: { position: { x: 40, y: 0 }, rotation: 0, mirror: "none" },
+      } as (typeof document.instances)[number]);
+
+      const plan = createRoutingOperationPlan(document, {
+        intent: "connect",
+        // A real edit that moves geometry and joins nothing, so the merge
+        // declaration is the only thing under test.
+        edits: [
+          {
+            kind: "move_junction",
+            junctionId: "J1",
+            position: { x: 0, y: 10 },
+          },
+        ],
+        diagnostics: [],
+        expectedElectricalEffect: {
+          kind: "merge",
+          endpointGroups: [["terminal:R1:1", "junction:J1"]],
+        },
+      });
+      const gate = gateRoutingOperationPlan(document, plan, {
+        symbolResolver: resolver,
+      });
+
+      // No edits ran, so nothing merged — and the guard still passes, because
+      // the unowned endpoint contributes nothing for it to compare.
+      expect(gate.ok).toBe(true);
+    });
+
+    it("refuses a declared merge between two endpoints that keep their Nets", () => {
+      const document = twoNetDocument();
+      const plan = createRoutingOperationPlan(document, {
+        intent: "connect",
+        // A real edit that moves geometry and joins nothing, so the merge
+        // declaration is the only thing under test.
+        edits: [
+          {
+            kind: "move_junction",
+            junctionId: "J1",
+            position: { x: 0, y: 10 },
+          },
+        ],
+        diagnostics: [],
+        expectedElectricalEffect: {
+          kind: "merge",
+          endpointGroups: [["junction:J1", "junction:J2"]],
+        },
+      });
+      const gate = gateRoutingOperationPlan(document, plan, {
+        symbolResolver: resolver,
+      });
+
+      // Both ends have membership and stay on their own Nets, so the same
+      // guard that shrugged above catches this one.
+      expect(gate.ok).toBe(false);
+      if (gate.ok) return;
+      expect(gate.message).toMatch(/did not join/u);
+    });
+  });
 });
