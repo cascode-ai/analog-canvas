@@ -33,6 +33,14 @@ for an explicit Cloud Save or Project export. Cloud opens, recovery, and the
 project-protocol parser remain exact: they never rewrite stored geometry as a
 read side effect.
 
+An ordinary Route that resolves entirely to one exact point after a built-in
+terminal-anchor correction is redundant direct-contact geometry. File,
+Gallery-open, and Gallery-placement import copies remove it only when both
+endpoints still belong to its Base Net and no Annotation, name owner, layout
+group, or constraint owns the Route. The Net membership survives unchanged;
+owned geometry is retained for an explicit diagnostic instead of being
+silently discarded.
+
 Route centerlines are one geometry protocol. Normal interactive Routes may use
 horizontal, vertical, or ±45-degree segments; orthogonal is the default
 authoring constraint, not a second persisted Route shape. `power-rail` is the

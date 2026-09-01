@@ -1,4 +1,7 @@
-import { normalizeSameNetConductorTopology } from "@icm/edit-engine";
+import {
+  normalizeRedundantDirectContactRoutes,
+  normalizeSameNetConductorTopology,
+} from "@icm/edit-engine";
 import { CircuitProjectSchema } from "@icm/model";
 import type { CircuitProject } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
@@ -9,7 +12,7 @@ export interface ImportedConductorNormalization {
 }
 
 /**
- * Canonicalize legacy ordinary-Wire overlap in one explicitly imported copy.
+ * Canonicalize legacy ordinary-Wire geometry in one explicitly imported copy.
  *
  * Project parsing remains byte-preserving and Cloud/recovery opens remain
  * exact. The local File import boundary is the intentional equivalent of an
@@ -23,8 +26,12 @@ export function normalizeImportedProjectConductors(
   const candidate = structuredClone(project);
   const changedDocumentIds: string[] = [];
   for (const document of candidate.documents) {
-    const result = normalizeSameNetConductorTopology(document, resolver);
-    if (!result.changed) continue;
+    const directContacts = normalizeRedundantDirectContactRoutes(
+      document,
+      resolver,
+    );
+    const topology = normalizeSameNetConductorTopology(document, resolver);
+    if (!directContacts.changed && !topology.changed) continue;
     document.revision += 1;
     if (document.sourceStatus === "in-sync") {
       document.sourceStatus = "geometry-only-changed";

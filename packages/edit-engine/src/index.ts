@@ -7,6 +7,7 @@ export * from "./series-splice-planner.js";
 export * from "./power-net-planner.js";
 export * from "./named-net-planner.js";
 export * from "./direct-contact-planner.js";
+export * from "./direct-contact-route-normalization.js";
 export * from "./reference-planner.js";
 export * from "./reference-batch-planner.js";
 export * from "./batch-property-planner.js";

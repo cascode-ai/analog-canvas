@@ -90,6 +90,25 @@ describe("wire editing proposals", () => {
     expect(proposal.edits[3]).not.toHaveProperty("newNetId");
   });
 
+  it("commits coincident endpoints as direct contact without a Route", () => {
+    const from = source(
+      { kind: "terminal", instanceId: "X1", pinName: "2" },
+      { x: 520, y: 200 },
+      "net-contact",
+    );
+    const to = source(
+      { kind: "terminal", instanceId: "P1", pinName: "P" },
+      { x: 520, y: 200 },
+      "net-contact",
+    );
+
+    const proposal = proposeWireCommit(from, to, [], 6);
+
+    expect(proposal.edits).toEqual([
+      { kind: "connect_endpoints", from: from.endpoint, to: to.endpoint },
+    ]);
+  });
+
   it("does not short another pin on a selected endpoint device", () => {
     const from = source(
       { kind: "terminal", instanceId: "R1", pinName: "2" },

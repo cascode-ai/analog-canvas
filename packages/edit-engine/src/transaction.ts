@@ -61,6 +61,7 @@ import {
 import {
   addEndpointToNet,
   endpointOwnerNetId,
+  routeRelatedObjectIds,
   routeIsProtected,
   sameResolvedRoutePoints,
   validateRoute,
@@ -960,6 +961,7 @@ export function executeTransaction(
             `Transaction leaves invalid Route geometry for ${route.id}: ${routeError}`,
             [],
             ["routes", route.id],
+            routeRelatedObjectIds(route),
           );
         }
       }

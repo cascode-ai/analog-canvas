@@ -171,6 +171,83 @@ describe("Edit Transaction envelope", () => {
     ]);
   });
 
+  it("identifies both endpoint owners when a transaction authors a zero-length Route", () => {
+    const document = createEmptyDocument("document-main", "Main");
+    document.instances.push(
+      {
+        id: "X1",
+        symbolId: "ideal-switch",
+        placement: {
+          position: { x: 500, y: 200 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+      {
+        id: "P1",
+        symbolId: "port",
+        placement: {
+          position: { x: 510, y: 200 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+    );
+    document.nets.push({
+      id: "net-contact",
+      terminals: [
+        { instanceId: "X1", pinName: "2" },
+        { instanceId: "P1", pinName: "P" },
+      ],
+    });
+    defineCellPin(document, "P1", "OUT", "net-contact");
+
+    const result = executeTransaction(
+      document,
+      {
+        ...transaction(),
+        edits: [
+          {
+            kind: "set_route_path",
+            route: createRoutePath({
+              id: "route-zero",
+              netId: "net-contact",
+              start: {
+                kind: "terminal",
+                instanceId: "P1",
+                pinName: "P",
+              },
+              end: {
+                kind: "terminal",
+                instanceId: "X1",
+                pinName: "2",
+              },
+              bends: [],
+              modes: ["manual"],
+            }),
+          },
+        ],
+      },
+      { symbolResolver: resolver },
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        code: "EDIT_PRECONDITION",
+        message: expect.stringContaining(
+          "Route route-zero (terminal:P1:P -> terminal:X1:2, resolved (520,200) -> (520,200))",
+        ),
+      },
+      diagnostics: [
+        expect.objectContaining({
+          path: ["edits", 0],
+          objectIds: ["route-zero", "net-contact", "P1", "X1"],
+        }),
+      ],
+    });
+  });
+
   it("materializes a prepared Base Net before assigning terminal membership", () => {
     const document = createEmptyDocument("document-main", "Main");
     document.instances.push(

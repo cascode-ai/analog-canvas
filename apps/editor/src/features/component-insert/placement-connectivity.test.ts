@@ -5,7 +5,10 @@ import {
   gateRoutingOperationPlan,
   planInstanceDeletion,
 } from "@icm/edit-engine";
-import { resolveDocumentLogicalNets } from "@icm/derived";
+import {
+  resolveDocumentLogicalNets,
+  resolveEndpointConnection,
+} from "@icm/derived";
 import { createEmptyDocument, transformPoint } from "@icm/model";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
@@ -60,6 +63,90 @@ function transaction(expectedRevision: number, edits: unknown[]) {
 }
 
 describe("component placement electrical contacts", () => {
+  it.each([
+    "simple-switch",
+    "ideal-switch",
+    "closed-switch",
+    "spdt-switch",
+    "simple-spdt-switch",
+    "voltage-controlled-switch",
+  ])("connects %s directly to a Cell Port without a Route", (symbolId) => {
+    const document = createEmptyDocument("main", "Main");
+    document.instances.push({
+      id: "P1",
+      symbolId: "port",
+      placement: {
+        position: { x: 0, y: 0 },
+        rotation: 0,
+        mirror: "none",
+      },
+    });
+    document.nets.push({
+      id: "net-port",
+      terminals: [{ instanceId: "P1", pinName: "P" }],
+    });
+    document.netlist!.terminals.push({
+      id: "terminal-p1",
+      name: "OUT",
+      netId: "net-port",
+      direction: "passive",
+      interfaceInstanceIds: ["P1"],
+    });
+    const symbol = resolver.resolve(symbolId)!.definition;
+    const contactedPin = symbol.pins[0]!;
+    const placed = {
+      id: "S1",
+      symbolId,
+      placement: {
+        position: {
+          x: 10 - contactedPin.at.x,
+          y: -contactedPin.at.y,
+        },
+        rotation: 0 as const,
+        mirror: "none" as const,
+      },
+    };
+
+    const portEndpoint = {
+      kind: "terminal" as const,
+      instanceId: "P1",
+      pinName: "P",
+    };
+    const proposal = proposePlacementContact(document, resolver, placed, [
+      {
+        endpoint: portEndpoint,
+        connection: resolveEndpointConnection(
+          document,
+          resolver,
+          portEndpoint,
+        )!,
+        netId: "net-port",
+        preludeEdits: [],
+      },
+    ]);
+
+    expect(proposal).toMatchObject({ matched: true, ambiguous: false });
+    const result = executeTransaction(
+      document,
+      transaction(document.revision, [
+        { kind: "add_instance", instance: placed },
+        ...proposal.edits,
+      ]),
+      context,
+    );
+    if (!result.ok) throw new Error(result.error.message);
+    expect(result.document.routes).toEqual([]);
+    expect(result.document.nets).toEqual([
+      expect.objectContaining({
+        id: "net-port",
+        terminals: expect.arrayContaining([
+          { instanceId: "P1", pinName: "P" },
+          { instanceId: "S1", pinName: contactedPin.name },
+        ]),
+      }),
+    ]);
+  });
+
   it("splices a two-pin component into one contacted Route", () => {
     const document = createEmptyDocument("main", "Main");
     document.nets.push({ id: "net-signal", terminals: [] });
