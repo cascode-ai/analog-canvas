@@ -93,6 +93,13 @@ Formula SVG is embedded into the same formal
 scene used by canvas, SVG, PNG, and vector PDF; it is never rasterized or
 persisted.
 
+An ordinary RichText overbar is one explicit decoration over its authored
+span. A subscript/superscript stack under that span does not inherit separate
+bars, and text before or after the span neither breaks nor extends the bar.
+The complete line is measured before start, center, or end alignment is
+resolved, so continuation text cannot shift the anchor or escape export
+bounds.
+
 Derived visual diagnostics cover unplaced or unresolved symbols, symbol and
 label overlap, short route segments, ambiguous Junction dots, unsatisfied
 layout constraints, and optional export-page bounds. Diagnostics never mutate

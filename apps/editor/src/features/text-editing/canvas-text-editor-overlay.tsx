@@ -7,6 +7,7 @@ import {
 } from "react";
 
 import type { DerivedRect, GridRect } from "@icm/model";
+import { flattenRichText } from "@icm/model";
 
 import { RichTextEditor } from "./rich-text-editor";
 import type { TextEditingSession } from "./text-editing";
@@ -25,6 +26,7 @@ export interface CanvasTextEditorOverlayProps {
   onCancel(): void;
   onDelete(): void;
   onReverseCurrentArrow?(): void;
+  onConvertFormulaToLiteral?(formula: TextEditingSession["content"]): boolean;
 }
 
 /**
@@ -123,6 +125,7 @@ export function CanvasTextEditorOverlay({
   onCancel,
   onDelete,
   onReverseCurrentArrow,
+  onConvertFormulaToLiteral,
 }: CanvasTextEditorOverlayProps) {
   const anchorRef = useRef<SVGGElement | null>(null);
   const [canvasSize, setCanvasSize] = useState<{
@@ -174,6 +177,11 @@ export function CanvasTextEditorOverlay({
       : null,
     measuredLayoutHeight,
   );
+  const sourceOnly =
+    session.bound &&
+    session.bindingKind !== "instance-reference" &&
+    session.bindingKind !== "net-name" &&
+    session.bindingKind !== "cell-terminal-name";
 
   return (
     <g
@@ -202,12 +210,7 @@ export function CanvasTextEditorOverlay({
           disabled={disabled}
           sizeScale={session.sizeScale}
           alignment={session.alignment}
-          sourceOnly={
-            session.bound &&
-            session.bindingKind !== "instance-reference" &&
-            session.bindingKind !== "net-name" &&
-            session.bindingKind !== "cell-terminal-name"
-          }
+          sourceOnly={sourceOnly}
           multiline={!session.bound}
           onChange={(content) => onUpdate({ content })}
           onSizeChange={(sizeScale) => onUpdate({ sizeScale })}
@@ -215,6 +218,13 @@ export function CanvasTextEditorOverlay({
           onCommit={onCommit}
           onCancel={onCancel}
           onDelete={onDelete}
+          {...(session.bound && !sourceOnly
+            ? { formulaSemanticText: flattenRichText(session.content) }
+            : {})}
+          {...(session.bindingKind === "instance-reference" &&
+          onConvertFormulaToLiteral
+            ? { onConvertFormulaToLiteral }
+            : {})}
           onLayoutHeightChange={handleLayoutHeightChange}
           {...(onReverseCurrentArrow ? { onReverseCurrentArrow } : {})}
         />

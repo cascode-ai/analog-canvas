@@ -412,6 +412,16 @@ math profile, and replaces the current RichText document with one atomic
 formula only after validation succeeds. Ordinary bold, italic, script,
 overbar, alignment, multiline, and symbol controls remain the same RichText
 system; formulas do not create an Additional Text or Annotation side channel.
+For a semantic name binding, Formula Insert checks the proposed formula before
+it changes the editing session. A bounded formula made only from groups,
+scripts, overbar, bold/italic wrappers, and supported Greek symbols is compiled
+to the same canonical RichText presentation when its flattened characters
+still equal the bound name. A non-equivalent Instance Reference formula offers to become a
+literal formula annotation attached at the Instance's value-label position;
+accepting keeps `Instance.reference` unchanged. Declining leaves the Formula
+editor open. Other bound electrical names refuse a non-equivalent formula in
+the Formula panel. Ordinary character edits and formatting commands do not use
+this formula-only decision path.
 
 ## Files, recovery, and replacement
 

@@ -33,6 +33,7 @@ import {
   updateTextEditingSession,
 } from "../text-editing/text-editing";
 import type { TextEditingSession } from "../text-editing/text-editing";
+import { attachedInstanceFormulaAnnotation } from "../text-editing/bound-formula";
 import { planElectricalMarkerName } from "./electrical-marker-name";
 
 export interface InstancePropertyDraft {
@@ -139,6 +140,7 @@ export interface UsePropertiesEditorOptions {
   ) => SchematicEdit[];
   isCellPinAnnotation?: (annotation: Annotation) => boolean;
   commitCellPinAnnotation?: (annotation: Annotation, name: string) => boolean;
+  nextId: (prefix: string) => string;
 }
 
 /** Flat owner for property drafts, Net Labels, and canvas text sessions. */
@@ -844,6 +846,39 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     setTextEditing(null);
   };
 
+  const convertFormulaToAttachedLiteral = (
+    formula: RichTextDocument,
+  ): boolean => {
+    if (!textEditing || textEditing.owner !== "annotation") return false;
+    const source = options.document.annotations.find(
+      (annotation) => annotation.id === textEditing.id,
+    );
+    if (!source) return false;
+    const annotation = attachedInstanceFormulaAnnotation({
+      document: options.document,
+      source,
+      formula,
+      resolver: options.resolver,
+      id: options.nextId("instance-formula"),
+    });
+    if (!annotation) {
+      options.setStatus("This formula cannot be attached to the component");
+      return false;
+    }
+    if (
+      !options.transact([{ kind: "upsert_schematic_annotation", annotation }])
+        .ok
+    ) {
+      return false;
+    }
+    setTextEditing(null);
+    options.selectOnly("annotation", [annotation.id]);
+    options.setStatus(
+      "Added a component formula annotation; the electrical Reference is unchanged",
+    );
+    return true;
+  };
+
   return {
     additionalParameterDraft,
     additionalParameterDraftChanges: !sameAdditionalParameterDrafts(
@@ -861,6 +896,7 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     commitNetLabelEditing,
     commitPendingNetLabelDraft,
     commitTextEditing,
+    convertFormulaToAttachedLiteral,
     cancelAdditionalParameters,
     clearTextEditing: () => setTextEditing(null),
     deleteSelectedRouteNetLabel,

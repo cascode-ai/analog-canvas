@@ -89,6 +89,7 @@ export function EditorInteractionPreviews({
   onTextCommit,
   onTextCancel,
   onTextDelete,
+  onConvertFormulaToLiteral,
   onReverseCurrentArrow,
 }: {
   boxPreview: BoxPreview | null;
@@ -107,6 +108,7 @@ export function EditorInteractionPreviews({
   onTextCommit: () => void;
   onTextCancel: () => void;
   onTextDelete: () => void;
+  onConvertFormulaToLiteral?: CanvasTextEditorOverlayProps["onConvertFormulaToLiteral"];
   onReverseCurrentArrow?: () => void;
 }) {
   return (
@@ -155,6 +157,7 @@ export function EditorInteractionPreviews({
           onCommit={onTextCommit}
           onCancel={onTextCancel}
           onDelete={onTextDelete}
+          {...(onConvertFormulaToLiteral ? { onConvertFormulaToLiteral } : {})}
           {...(onReverseCurrentArrow ? { onReverseCurrentArrow } : {})}
         />
       ) : null}

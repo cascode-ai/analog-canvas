@@ -35,7 +35,10 @@ function overbarExpression(options?: {
   };
 }
 
-function render(document: RichTextDocument) {
+function render(
+  document: RichTextDocument,
+  alignment: "start" | "middle" | "end" = "start",
+) {
   const rendered = renderPositionedOverbarScriptDocument(
     document,
     razaviTextbookProfile,
@@ -43,7 +46,7 @@ function render(document: RichTextDocument) {
       x: 100,
       y: 50,
       fontSize: 20,
-      alignment: "start",
+      alignment,
     },
   );
   expect(rendered).not.toBeNull();
@@ -390,5 +393,55 @@ describe("an overbar followed by more of the line", () => {
     const rendered = render(meanValueThenEquation());
     expect(rendered.tspans).toContain("=4kT");
     expect(rendered.tspans).toContain("m");
+  });
+  it("positions one exact bar when ordinary text precedes the expression", () => {
+    const document = meanValueThenEquation();
+    const bold = document.runs[0];
+    if (bold?.kind !== "span") throw new Error("Expected bold wrapper");
+    const italic = bold.children[0];
+    if (italic?.kind !== "span") throw new Error("Expected italic wrapper");
+    italic.children.unshift({ kind: "text", value: "S=" });
+
+    const rendered = render(document);
+    expect(rendered.decorations.match(/<line\b/g)).toHaveLength(1);
+    expect(rendered.tspans).toContain("S=");
+    expect(rendered.tspans).toContain("=4kT");
+    expect(rendered.tspans).not.toContain("text-decoration");
+  });
+
+  it.each([["middle", 100] as const, ["end", 100] as const])(
+    "aligns the complete continued line for %s alignment",
+    (alignment, x) => {
+      const rendered = render(meanValueThenEquation(), alignment);
+      const base = tagAttributes(
+        rendered.tspans,
+        "tspan",
+        'data-text-run="base"',
+      );
+      const startX = numericAttribute(base, "x");
+
+      expect(
+        alignment === "middle"
+          ? startX + rendered.width / 2
+          : startX + rendered.width,
+      ).toBeCloseTo(x, 6);
+    },
+  );
+
+  it("measures styled continuation runs with the shared RichText layout", () => {
+    const document = meanValueThenEquation();
+    const italic = document.runs[0];
+    if (italic?.kind !== "span") throw new Error("Expected bold wrapper");
+    const inner = italic.children[0];
+    if (inner?.kind !== "span") throw new Error("Expected italic wrapper");
+    inner.children.splice(1, inner.children.length - 1, {
+      kind: "fraction",
+      numerator: { runs: [{ kind: "text", value: "gm" }] },
+      denominator: { runs: [{ kind: "text", value: "ro" }] },
+    });
+
+    const rendered = render(document);
+    expect(rendered.width).toBeGreaterThan(0);
+    expect(rendered.tspans).toContain('data-text-run="fraction"');
   });
 });
