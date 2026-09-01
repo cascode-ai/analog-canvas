@@ -422,6 +422,83 @@ describe("current formal cell interface", () => {
     );
   });
 
+  it("blocks distinct local and global Nets that encode to the same node token", () => {
+    const project = createEmptyProject("project", "Project");
+    const document = project.documents[0]!;
+    document.nets.push(
+      { id: "net-local-vdd", terminals: [] },
+      { id: "net-global-vdd", terminals: [] },
+    );
+    claimNet(document, "net-local-vdd", "VDD", "local");
+    claimNet(document, "net-global-vdd", "vdd", "global");
+
+    const result = analyzeDesignNetlist(project);
+
+    expect(result.ir).toBeNull();
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "DIALECT_NAME_COLLISION",
+        objectIds: expect.arrayContaining(["net-local-vdd", "net-global-vdd"]),
+      }),
+    );
+  });
+
+  it("projects one preferred global spelling through every reachable Cell", () => {
+    const project = createEmptyProject("project", "Project", "top");
+    const top = project.documents[0]!;
+    const child = createEmptyProject("child-project", "Child", "child")
+      .documents[0]!;
+    child.netlist!.name = "child";
+    project.documents.push(child);
+    top.instances.push({
+      id: "X1",
+      symbolId: "child-symbol",
+      placement: null,
+      reference: "X1",
+      netlist: {
+        binding: { kind: "subcircuit", childDocumentId: "child" },
+        parameters: {},
+      },
+    });
+    for (const [document, reference, netId, spelling] of [
+      [top, "R1", "net-top-vdd", "VDD"],
+      [child, "R2", "net-child-vdd", "vdd"],
+    ] as const) {
+      document.instances.push({
+        id: reference,
+        symbolId: "resistor",
+        placement: null,
+        reference,
+        netlist: {
+          binding: { kind: "primitive", deviceClass: "resistor" },
+          parameters: { value: "1k" },
+        },
+      });
+      document.nets.push({
+        id: netId,
+        terminals: [{ instanceId: reference, pinName: "1" }],
+      });
+      document.noConnects.push({
+        id: `nc-${reference}`,
+        endpoint: { kind: "terminal", instanceId: reference, pinName: "2" },
+      });
+      claimNet(document, netId, spelling, "global");
+    }
+
+    const result = analyzeDesignNetlist(project);
+
+    expect(
+      result.diagnostics.filter((item) => item.severity === "error"),
+    ).toEqual([]);
+    expect(result.ir?.globals).toEqual(["VDD"]);
+    expect(
+      result.ir?.cells.map(
+        (cell) => cell.nets.find((net) => net.scope === "global")?.name,
+      ),
+    ).toEqual(["VDD", "VDD"]);
+    expect(printSpiceNetlist(result.ir!)).toContain("R2 VDD NC0001 1k");
+  });
+
   it("exports a ground net marker without inventing a netlist record", () => {
     const project = createEmptyProject("project", "Project");
     const document = project.documents[0]!;

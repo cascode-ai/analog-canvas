@@ -1,7 +1,9 @@
 import { foldNetName, projectCellInterface, routeEndpoints } from "@icm/model";
 import {
+  deriveProjectNetNameProjection,
   directObjectLocator,
   resolveDocumentLogicalNets,
+  type ProjectedNetName,
   type ResolvedLogicalNet,
 } from "@icm/derived";
 import type {
@@ -159,6 +161,7 @@ interface CellNetContext {
 function buildNetContext(
   document: SchematicDocument,
   documentsById: Map<string, SchematicDocument>,
+  projectedNames: ReadonlyMap<string, ProjectedNetName>,
   diagnostics: NetlistDiagnostic[],
 ): CellNetContext {
   if (document.nets.length > MAX_NETS_PER_CELL) {
@@ -200,18 +203,32 @@ function buildNetContext(
         [...logicalNet.baseNetIds, ...logicalNet.evidenceIds],
       );
     }
-    if (!logicalNet.name) continue;
-    const folded = foldNetName(logicalNet.name);
-    if (!explicitNames.has(folded)) {
+    const projectedName = projectedNames.get(logicalNet.id);
+    const explicitName = logicalNet.name
+      ? (projectedName?.preferredSpelling ?? logicalNet.name)
+      : undefined;
+    if (!explicitName) continue;
+    const folded = foldNetName(explicitName);
+    const prior = explicitNames.get(folded);
+    if (prior && prior !== logicalNet.id) {
+      const priorNet = logicalNets.byId.get(prior);
+      diagnostic(
+        diagnostics,
+        document.id,
+        "DIALECT_NAME_COLLISION",
+        `${logicalNet.scope ?? "local"} Net ${explicitName} and ${priorNet?.scope ?? "local"} Net ${explicitName} encode to the same portable node token`,
+        [...(priorNet?.baseNetIds ?? [prior]), ...logicalNet.baseNetIds],
+      );
+    } else if (!prior) {
       explicitNames.set(folded, logicalNet.id);
     }
     occupiedNames.add(folded);
-    if (!isIdentifier(logicalNet.name, true)) {
+    if (!isIdentifier(explicitName, true)) {
       diagnostic(
         diagnostics,
         document.id,
         "INVALID_NET_NAME",
-        `Net name is outside the portable identifier subset: ${logicalNet.name}`,
+        `Net name is outside the portable identifier subset: ${explicitName}`,
         [...logicalNet.baseNetIds],
       );
     }
@@ -251,7 +268,14 @@ function buildNetContext(
   const nameByNetId = new Map<string, string>();
   let generatedIndex = 1;
   for (const logicalNet of logicalNets.groups) {
-    let name = formalTerminalByLogicalId.get(logicalNet.id) ?? logicalNet.name;
+    const projectedName = projectedNames.get(logicalNet.id);
+    let name =
+      logicalNet.scope === "global"
+        ? (projectedName?.preferredSpelling ?? logicalNet.name)
+        : (formalTerminalByLogicalId.get(logicalNet.id) ??
+          (logicalNet.name
+            ? (projectedName?.preferredSpelling ?? logicalNet.name)
+            : undefined));
     if (!name) {
       const memberNetIds = new Set(logicalNet.baseNetIds);
       const hints = document.connectivityEvidence.filter(
@@ -855,6 +879,7 @@ function extractCell(
   project: CircuitProject,
   document: SchematicDocument,
   documentsById: Map<string, SchematicDocument>,
+  projectedNames: ReadonlyMap<string, ProjectedNetName>,
   diagnostics: NetlistDiagnostic[],
 ): DesignNetlistCell | null {
   if (!document.netlist) {
@@ -891,7 +916,12 @@ function extractCell(
       `Cell has ${document.instances.length} instances; maximum is ${MAX_INSTANCES_PER_CELL}`,
     );
   }
-  const context = buildNetContext(document, documentsById, diagnostics);
+  const context = buildNetContext(
+    document,
+    documentsById,
+    projectedNames,
+    diagnostics,
+  );
   const interfaceProjection = projectCellInterface(document.netlist);
   const ports = interfaceProjection.ports.flatMap((port) => {
     let hasMissingNet = false;
@@ -1009,6 +1039,7 @@ export function analyzeDesignNetlist(
 ): DesignNetlistAnalysisResult {
   const diagnostics: NetlistDiagnostic[] = [];
   const documents = reachableDocuments(project, diagnostics);
+  const nameProjection = deriveProjectNetNameProjection(project);
   const documentsById = new Map(
     project.documents.map((document) => [document.id, document]),
   );
@@ -1031,7 +1062,13 @@ export function analyzeDesignNetlist(
         cellNames.set(folded, document.id);
       }
     }
-    const cell = extractCell(project, document, documentsById, diagnostics);
+    const cell = extractCell(
+      project,
+      document,
+      documentsById,
+      nameProjection.byDocumentId.get(document.id) ?? new Map(),
+      diagnostics,
+    );
     if (cell) cells.push(cell);
   }
   diagnostics.sort(
