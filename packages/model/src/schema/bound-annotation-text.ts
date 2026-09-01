@@ -8,9 +8,9 @@ import type { RichTextDocument } from "../schema.js";
  * a stale format override has to be repaired.
  */
 interface BoundAnnotationSource {
-  instances: readonly { id: string; reference?: string | undefined }[];
+  instances?: readonly { id: string; reference?: string | undefined }[];
   netlist?: { terminals: readonly { id: string; name: string }[] } | undefined;
-  connectivityEvidence: readonly {
+  connectivityEvidence?: readonly {
     kind: string;
     netId?: string | undefined;
     name?: string | undefined;
@@ -61,8 +61,9 @@ export function boundAnnotationSemanticText(
 
   if (binding.kind === "instance-reference") {
     return semanticTextDocument(
-      document.instances.find((instance) => instance.id === binding.instanceId)
-        ?.reference ?? "",
+      (document.instances ?? []).find(
+        (instance) => instance.id === binding.instanceId,
+      )?.reference ?? "",
       "instance-label",
     );
   }
@@ -76,7 +77,9 @@ export function boundAnnotationSemanticText(
   }
   if (binding.kind !== "net-name") return null;
 
-  const nameClaim = document.connectivityEvidence.find(
+  // Pre-parse callers reach this before schema defaults are applied, so the
+  // arrays this reads may legitimately be absent rather than empty.
+  const nameClaim = (document.connectivityEvidence ?? []).find(
     (evidence) =>
       evidence.kind === "name-claim" &&
       evidence.netId === binding.netId &&

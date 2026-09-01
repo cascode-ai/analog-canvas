@@ -90,3 +90,43 @@ describe("stale bound format overrides", () => {
     expect(overrides).toEqual(expect.arrayContaining(["reset", "XU2"]));
   });
 });
+
+// The repair runs before the schema applies its defaults, so the arrays it
+// reads can be absent rather than empty. Assuming otherwise threw inside the
+// loader and took the whole editor down on open — invisible to every unit test
+// here, because they all start from complete fixtures. A browser test caught
+// it, and the cast at the call site was what hid it from the typechecker.
+describe("repair on incomplete pre-schema input", () => {
+  it("does not throw when a Project's optional arrays are absent", () => {
+    const sparse = {
+      schemaVersion: 36,
+      id: "project-1",
+      name: "Sparse",
+      topDocumentId: "document-main",
+      documents: [
+        {
+          id: "document-main",
+          name: "Main",
+          annotations: [
+            {
+              id: "annotation-1",
+              kind: "net-label",
+              binding: { kind: "net-name", netId: "net-1" },
+              formatOverride: { runs: [{ kind: "text", value: "vdd" }] },
+              anchor: { kind: "free", position: { x: 0, y: 0 } },
+              alignment: "start",
+              rotation: 0,
+              locked: false,
+            },
+          ],
+        },
+      ],
+    };
+
+    // This Project is far from valid, and reporting that is fine. The repair
+    // must not be what fails: it may produce diagnostics, never an exception.
+    expect(() =>
+      tryParseProjectWithMetadata(JSON.stringify(sparse)),
+    ).not.toThrow();
+  });
+});
