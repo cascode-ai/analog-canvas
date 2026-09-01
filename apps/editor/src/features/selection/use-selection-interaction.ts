@@ -833,6 +833,73 @@ export function useSelectionInteraction(
     options.updateInstanceSelection(instanceId, additive);
   };
 
+  /**
+   * Shift-drag duplicates, the way Virtuoso does. The copy rides the existing
+   * copy-placement preview so it snaps and renders like any other paste, and
+   * the release commits it; the original is never touched.
+   *
+   * A stationary Shift-press is not a duplicate, it is this editor's
+   * add-to-selection click, so the copy only starts once the drag threshold is
+   * crossed and a press-release without movement falls through to the toggle.
+   */
+  const beginCopyDrag = (
+    event: ReactPointerEvent<SVGElement>,
+    instanceId: string,
+    hitTarget: SVGElement,
+  ): void => {
+    const svg = (hitTarget.ownerSVGElement ?? hitTarget) as SVGSVGElement;
+    // Duplicate what a plain drag would have carried: the live selection when
+    // the pressed part belongs to it, otherwise just that part.
+    const copiedIds = options.selectedIds.includes(instanceId)
+      ? options.selectedIds
+      : [instanceId];
+    let started = false;
+    options.canvasDragSessionRef.current?.cancel();
+    options.canvasDragSessionRef.current = startCanvasDragSession({
+      target: hitTarget,
+      pointerId: event.pointerId,
+      startClient: { x: event.clientX, y: event.clientY },
+      thresholdPx: 4,
+      onPreview: (client) => {
+        const point = options.pointFromClient(client.x, client.y, svg, false);
+        if (!started) {
+          beginCopyPlacement(copiedIds);
+          if (options.getInteractionState().kind !== "copy-placement") {
+            options.canvasDragSessionRef.current?.cancel();
+            return;
+          }
+          started = true;
+        }
+        options.setCopyPreviewPoint({
+          x: options.snapCoordinate(
+            point.x,
+            options.document.presentation.grid,
+          ),
+          y: options.snapCoordinate(
+            point.y,
+            options.document.presentation.grid,
+          ),
+        });
+      },
+      onFinish: ({ client, dragged }) => {
+        options.canvasDragSessionRef.current = null;
+        if (!dragged || !started) {
+          // A modifier-click that never moved keeps its toggle meaning.
+          selectInstance(instanceId, true);
+          options.setStatus(`Selected ${instanceId}`);
+          return;
+        }
+        commitCopyPlacement(
+          options.pointFromClient(client.x, client.y, svg, false),
+        );
+      },
+      onCancel: () => {
+        options.canvasDragSessionRef.current = null;
+        if (started) options.cancelInteraction();
+      },
+    });
+  };
+
   const beginMove = (
     event: ReactPointerEvent<SVGElement>,
     instanceId: string,
@@ -849,26 +916,26 @@ export function useSelectionInteraction(
     if (!instance?.placement) return;
     options.suppressInstanceClickRef.current =
       hitTarget.getAttribute("data-canvas-hit-kind") === "instance";
-    // A modified drag follows Virtuoso: it moves the parts and leaves their
-    // wires exactly where they are on open Junction stubs, with the old
-    // terminal memberships disconnected. Cmd serves the same role as Ctrl
-    // because macOS browsers convert Ctrl+left-press into a right-button
-    // press before the page ever sees it.
+    // The two modified drags follow Virtuoso, where they mean different
+    // things. Ctrl/Cmd-drag moves a part off its wires, leaving them exactly
+    // where they are on open Junction stubs with the old terminal memberships
+    // disconnected. Shift-drag duplicates instead: the original never moves
+    // and a copy lands where the pointer is released.
     //
-    // The two modifiers differ in what they pick up, and that follows what
-    // each already means here. Ctrl/Cmd is the "just this part" gesture from
-    // #413 and stays that. Shift is this editor's add-to-selection modifier,
-    // so Shift+drag carries the whole selection the way Shift+M does.
+    // Cmd stands in for Ctrl because macOS browsers convert Ctrl+left-press
+    // into a right-button press before the page ever sees it.
     //
     // Either modifier pressed and released without moving keeps its
-    // toggle-selection meaning; the drag threshold below decides which
-    // happened, so nothing is committed on a stationary click.
-    const detachDrag = event.ctrlKey || event.metaKey || event.shiftKey;
-    const detachCarriesSelection =
-      event.shiftKey && options.selectedIds.includes(instanceId);
+    // toggle-selection meaning; the drag threshold decides which happened, so
+    // nothing is committed on a stationary click.
+    const detachDrag = (event.ctrlKey || event.metaKey) && !event.shiftKey;
+    const copyDrag = event.shiftKey && !(event.ctrlKey || event.metaKey);
+    if (copyDrag) {
+      beginCopyDrag(event, instanceId, hitTarget);
+      return;
+    }
     const movingSelection: VisualSelection =
-      (!detachDrag || detachCarriesSelection) &&
-      options.selectedIds.includes(instanceId)
+      !detachDrag && options.selectedIds.includes(instanceId)
         ? options.visualSelection
         : {
             instanceIds: [instanceId],
@@ -881,14 +948,7 @@ export function useSelectionInteraction(
     let previewBaseDocument = options.document;
     if (detachDrag) {
       try {
-        // Detach every part the move will actually carry, planned against the
-        // undetached Document, so a multi-part Shift+drag opens all of their
-        // endpoints rather than only the one under the pointer.
-        const prepared = prepareDetachedMove(
-          new Set(
-            planSelectionMove(options.document, movingSelection).instanceIds,
-          ),
-        );
+        const prepared = prepareDetachedMove(new Set([instanceId]));
         detachEdits = prepared.edits;
         previewBaseDocument = prepared.document;
       } catch (error) {
