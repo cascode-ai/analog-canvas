@@ -525,41 +525,6 @@ export function propagateSpiceSourceEvidenceAfterSplit(
       changedObjectIds.add(id);
     }
   }
-  const globalClaims = draft.connectivityEvidence.filter(
-    (
-      evidence,
-    ): evidence is Extract<
-      SchematicDocument["connectivityEvidence"][number],
-      { kind: "name-claim" }
-    > & { owner: { kind: "global-declaration"; sourceNetId: string } } =>
-      evidence.kind === "name-claim" &&
-      evidence.owner.kind === "global-declaration" &&
-      evidence.netId === originalNetId,
-  );
-  for (const claim of globalClaims) {
-    for (const netId of splitNetIds) {
-      if (
-        draft.connectivityEvidence.some(
-          (evidence) =>
-            evidence.kind === "name-claim" &&
-            evidence.netId === netId &&
-            evidence.owner.kind === "global-declaration" &&
-            evidence.owner.sourceNetId === claim.owner.sourceNetId &&
-            foldNetName(evidence.name) === foldNetName(claim.name),
-        )
-      ) {
-        continue;
-      }
-      const id = deriveStableId(
-        "connectivity-evidence",
-        "global-declaration",
-        claim.id,
-        netId,
-      );
-      draft.connectivityEvidence.push({ ...claim, id, netId });
-      changedObjectIds.add(id);
-    }
-  }
 }
 
 /**

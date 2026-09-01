@@ -1,7 +1,9 @@
 import { foldNetName, projectCellInterface, routeEndpoints } from "@icm/model";
 import {
+  deriveProjectNetNameProjection,
   directObjectLocator,
   resolveDocumentLogicalNets,
+  type ProjectedNetName,
   type ResolvedLogicalNet,
 } from "@icm/derived";
 import type {
@@ -24,6 +26,13 @@ import type {
   DesignNetlistInstance,
   NetlistDiagnostic,
 } from "./ir.js";
+import {
+  encodedNetNameCollisionKey,
+  encodeNetName,
+  type EncodedNetName,
+  type NetlistFormat,
+  type NetlistNamingProfile,
+} from "./net-name-codec.js";
 
 const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/u;
 const MAX_CELLS = 1024;
@@ -156,9 +165,27 @@ interface CellNetContext {
   nets: DesignNetlistCell["nets"];
 }
 
+export interface DesignNetlistAnalysisOptions {
+  format?: NetlistFormat;
+  namingProfile?: NetlistNamingProfile;
+}
+
+type ResolvedDesignNetlistAnalysisOptions =
+  Required<DesignNetlistAnalysisOptions>;
+
+function encodeCandidate(
+  name: string,
+  scope: "local" | "global",
+  options: ResolvedDesignNetlistAnalysisOptions,
+): EncodedNetName {
+  return encodeNetName(name, scope, options.format, options.namingProfile);
+}
+
 function buildNetContext(
   document: SchematicDocument,
   documentsById: Map<string, SchematicDocument>,
+  projectedNames: ReadonlyMap<string, ProjectedNetName>,
+  options: ResolvedDesignNetlistAnalysisOptions,
   diagnostics: NetlistDiagnostic[],
 ): CellNetContext {
   if (document.nets.length > MAX_NETS_PER_CELL) {
@@ -170,7 +197,7 @@ function buildNetContext(
     );
   }
   const explicitNames = new Map<string, string>();
-  const occupiedNames = new Set<string>();
+  const occupiedNames = new Map<string, string>();
   const logicalNets = resolveDocumentLogicalNets(document);
   for (const logicalNet of logicalNets.groups) {
     if (logicalNet.conflicts.includes("name-conflict")) {
@@ -200,19 +227,25 @@ function buildNetContext(
         [...logicalNet.baseNetIds, ...logicalNet.evidenceIds],
       );
     }
-    if (!logicalNet.name) continue;
-    const folded = foldNetName(logicalNet.name);
+    const projectedName = projectedNames.get(logicalNet.id);
+    const explicitName = logicalNet.name
+      ? (projectedName?.preferredSpelling ?? logicalNet.name)
+      : undefined;
+    if (!explicitName) continue;
+    const folded = foldNetName(explicitName);
     if (!explicitNames.has(folded)) {
       explicitNames.set(folded, logicalNet.id);
     }
-    occupiedNames.add(folded);
-    if (!isIdentifier(logicalNet.name, true)) {
+    if ((projectedName?.spellings.length ?? 0) > 1) {
       diagnostic(
         diagnostics,
         document.id,
-        "INVALID_NET_NAME",
-        `Net name is outside the portable identifier subset: ${logicalNet.name}`,
-        [...logicalNet.baseNetIds],
+        logicalNet.scope === "global"
+          ? "GLOBAL_NAME_SPELLING_NORMALIZED"
+          : "NET_NAME_SPELLING_NORMALIZED",
+        `${logicalNet.scope ?? "local"} Net spellings [${projectedName!.spellings.join(", ")}] export as ${explicitName}`,
+        [...logicalNet.baseNetIds, ...logicalNet.evidenceIds],
+        "warning",
       );
     }
   }
@@ -244,14 +277,43 @@ function buildNetContext(
         );
       }
       formalTerminalByLogicalId.set(logicalId, port.name);
-      occupiedNames.add(port.key);
+    }
+  }
+
+  // Authoritative authored/interface names reserve their dialect tokens before
+  // source hints are considered. A copied import hint may be suffixed; a
+  // current Label, marker, Cell Pin, or declaration may not.
+  for (const logicalNet of logicalNets.groups) {
+    const projectedName = projectedNames.get(logicalNet.id);
+    const authoritativeName =
+      logicalNet.scope === "global"
+        ? (projectedName?.preferredSpelling ?? logicalNet.name)
+        : (formalTerminalByLogicalId.get(logicalNet.id) ??
+          (logicalNet.name
+            ? (projectedName?.preferredSpelling ?? logicalNet.name)
+            : undefined));
+    if (!authoritativeName) continue;
+    const encoded = encodeCandidate(
+      authoritativeName,
+      logicalNet.scope ?? "local",
+      options,
+    );
+    if (encoded.ok && !occupiedNames.has(encoded.collisionKey)) {
+      occupiedNames.set(encoded.collisionKey, logicalNet.id);
     }
   }
 
   const nameByNetId = new Map<string, string>();
   let generatedIndex = 1;
   for (const logicalNet of logicalNets.groups) {
-    let name = formalTerminalByLogicalId.get(logicalNet.id) ?? logicalNet.name;
+    const projectedName = projectedNames.get(logicalNet.id);
+    let name =
+      logicalNet.scope === "global"
+        ? (projectedName?.preferredSpelling ?? logicalNet.name)
+        : (formalTerminalByLogicalId.get(logicalNet.id) ??
+          (logicalNet.name
+            ? (projectedName?.preferredSpelling ?? logicalNet.name)
+            : undefined));
     if (!name) {
       const memberNetIds = new Set(logicalNet.baseNetIds);
       const hints = document.connectivityEvidence.filter(
@@ -272,12 +334,25 @@ function buildNetContext(
       }
       if (namesByFolded.size === 1) {
         const preferredName = [...namesByFolded.values()][0]!;
-        if (isIdentifier(preferredName, true)) {
+        const encodedHint = encodeCandidate(
+          preferredName,
+          logicalNet.scope ?? "local",
+          options,
+        );
+        if (encodedHint.ok) {
           name = preferredName;
+          let encodedName = encodedHint;
           let suffix = 2;
-          while (occupiedNames.has(foldNetName(name))) {
+          while (occupiedNames.has(encodedName.collisionKey)) {
             name = `${preferredName}__${suffix}`;
             suffix += 1;
+            const encodedSuffix = encodeCandidate(
+              name,
+              logicalNet.scope ?? "local",
+              options,
+            );
+            if (!encodedSuffix.ok) break;
+            encodedName = encodedSuffix;
           }
           if (name !== preferredName) {
             diagnostic(
@@ -289,13 +364,12 @@ function buildNetContext(
               "warning",
             );
           }
-          occupiedNames.add(foldNetName(name));
         } else {
           diagnostic(
             diagnostics,
             document.id,
             "UNREPRESENTABLE_SOURCE_NET_NAME",
-            `Source node spelling is outside the portable identifier subset: ${preferredName}`,
+            `Source node ${preferredName} cannot be encoded for ${options.format}: ${encodedHint.message}`,
             [...logicalNet.baseNetIds, ...hints.map((hint) => hint.id)],
             "warning",
           );
@@ -312,11 +386,15 @@ function buildNetContext(
       }
     }
     if (!name && logicalNet.scope !== "global") {
+      let encodedGenerated: EncodedNetName;
       do {
         name = `N${String(generatedIndex).padStart(4, "0")}`;
         generatedIndex += 1;
-      } while (occupiedNames.has(foldNetName(name)));
-      occupiedNames.add(foldNetName(name));
+        encodedGenerated = encodeCandidate(name, "local", options);
+      } while (
+        encodedGenerated.ok &&
+        occupiedNames.has(encodedGenerated.collisionKey)
+      );
       diagnostic(
         diagnostics,
         document.id,
@@ -327,8 +405,32 @@ function buildNetContext(
       );
     }
     if (!name) continue;
+    const encoded = encodeCandidate(name, logicalNet.scope ?? "local", options);
+    if (!encoded.ok) {
+      diagnostic(diagnostics, document.id, encoded.code, encoded.message, [
+        ...logicalNet.baseNetIds,
+        ...logicalNet.evidenceIds,
+      ]);
+      continue;
+    }
+    const priorLogicalId = occupiedNames.get(encoded.collisionKey);
+    if (priorLogicalId && priorLogicalId !== logicalNet.id) {
+      const priorNet = logicalNets.byId.get(priorLogicalId);
+      diagnostic(
+        diagnostics,
+        document.id,
+        "DIALECT_NAME_COLLISION",
+        `${logicalNet.scope ?? "local"} Net ${name} and ${priorNet?.scope ?? "local"} Net ${priorNet?.name ?? priorLogicalId} encode to ${encoded.token} for ${options.format}`,
+        [
+          ...(priorNet?.baseNetIds ?? [priorLogicalId]),
+          ...logicalNet.baseNetIds,
+        ],
+      );
+    } else {
+      occupiedNames.set(encoded.collisionKey, logicalNet.id);
+    }
     for (const netId of logicalNet.baseNetIds) {
-      nameByNetId.set(netId, name);
+      nameByNetId.set(netId, encoded.token);
     }
   }
   const netByTerminal = new Map<string, ResolvedLogicalNet>();
@@ -388,11 +490,19 @@ function buildNetContext(
     left.id.localeCompare(right.id),
   )) {
     let generated = "";
+    let encodedGenerated: EncodedNetName;
     do {
       generated = `NC${String(noConnectIndex).padStart(4, "0")}`;
       noConnectIndex += 1;
-    } while (occupiedNames.has(foldNetName(generated)));
-    occupiedNames.add(foldNetName(generated));
+      encodedGenerated = encodeCandidate(generated, "local", options);
+    } while (
+      encodedGenerated.ok &&
+      occupiedNames.has(encodedGenerated.collisionKey)
+    );
+    if (encodedGenerated.ok) {
+      occupiedNames.set(encodedGenerated.collisionKey, noConnect.id);
+      generated = encodedGenerated.token;
+    }
     const key = `${noConnect.endpoint.instanceId}\u0000${noConnect.endpoint.pinName}`;
     noConnectNameByTerminal.set(key, generated);
     noConnectNets.push({ id: noConnect.id, name: generated, scope: "local" });
@@ -415,9 +525,9 @@ function buildNetContext(
       ...logicalNets.groups.flatMap((logicalNet) => {
         const name = nameByNetId.get(logicalNet.baseNetIds[0]!);
         if (!name) return [];
-        const foldedName = foldNetName(name);
-        if (emittedNetNames.has(foldedName)) return [];
-        emittedNetNames.add(foldedName);
+        const collisionKey = encodedNetNameCollisionKey(name, options.format);
+        if (emittedNetNames.has(collisionKey)) return [];
+        emittedNetNames.add(collisionKey);
         return [
           {
             id: logicalNet.id,
@@ -855,6 +965,8 @@ function extractCell(
   project: CircuitProject,
   document: SchematicDocument,
   documentsById: Map<string, SchematicDocument>,
+  projectedNames: ReadonlyMap<string, ProjectedNetName>,
+  options: ResolvedDesignNetlistAnalysisOptions,
   diagnostics: NetlistDiagnostic[],
 ): DesignNetlistCell | null {
   if (!document.netlist) {
@@ -891,7 +1003,13 @@ function extractCell(
       `Cell has ${document.instances.length} instances; maximum is ${MAX_INSTANCES_PER_CELL}`,
     );
   }
-  const context = buildNetContext(document, documentsById, diagnostics);
+  const context = buildNetContext(
+    document,
+    documentsById,
+    projectedNames,
+    options,
+    diagnostics,
+  );
   const interfaceProjection = projectCellInterface(document.netlist);
   const ports = interfaceProjection.ports.flatMap((port) => {
     let hasMissingNet = false;
@@ -907,18 +1025,27 @@ function extractCell(
       );
     }
     if (hasMissingNet) return [];
-    if (!isIdentifier(port.name, true)) {
+    const logicalNet = resolveDocumentLogicalNets(document).byBaseNetId.get(
+      port.netIds[0]!,
+    );
+    const encodedPort = encodeCandidate(
+      port.name,
+      logicalNet?.scope ?? "local",
+      options,
+    );
+    if (!encodedPort.ok) {
       diagnostic(
         diagnostics,
         document.id,
-        "INVALID_PORT_NAME",
-        `Port name is outside the portable identifier subset: ${port.name}`,
+        encodedPort.code,
+        `Port ${port.name} cannot be encoded for ${options.format}: ${encodedPort.message}`,
         [...port.netIds],
       );
+      return [];
     }
     const representativeNetId = port.netIds[0]!;
     const netName = context.nameByNetId.get(representativeNetId) ?? port.name;
-    return [{ id: representativeNetId, name: port.name, netName }];
+    return [{ id: representativeNetId, name: encodedPort.token, netName }];
   });
 
   const referenceIndex = createReferenceIndex(document);
@@ -1006,9 +1133,15 @@ function extractCell(
 
 export function analyzeDesignNetlist(
   project: CircuitProject,
+  options: DesignNetlistAnalysisOptions = {},
 ): DesignNetlistAnalysisResult {
+  const resolvedOptions: ResolvedDesignNetlistAnalysisOptions = {
+    format: options.format ?? "spice",
+    namingProfile: options.namingProfile ?? "native",
+  };
   const diagnostics: NetlistDiagnostic[] = [];
   const documents = reachableDocuments(project, diagnostics);
+  const nameProjection = deriveProjectNetNameProjection(project);
   const documentsById = new Map(
     project.documents.map((document) => [document.id, document]),
   );
@@ -1031,7 +1164,14 @@ export function analyzeDesignNetlist(
         cellNames.set(folded, document.id);
       }
     }
-    const cell = extractCell(project, document, documentsById, diagnostics);
+    const cell = extractCell(
+      project,
+      document,
+      documentsById,
+      nameProjection.byDocumentId.get(document.id) ?? new Map(),
+      resolvedOptions,
+      diagnostics,
+    );
     if (cell) cells.push(cell);
   }
   diagnostics.sort(

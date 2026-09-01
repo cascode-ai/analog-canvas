@@ -1,16 +1,17 @@
-import { printDesignNetlist } from "@icm/netlist";
+import { analyzeDesignNetlist, printDesignNetlist } from "@icm/netlist";
 import type { Diagnostic } from "@icm/derived";
 import type {
-  DesignNetlistAnalysisResult,
   NetlistDiagnostic,
   NetlistFormat,
+  NetlistNamingProfile,
 } from "@icm/netlist";
+import type { CircuitProject } from "@icm/model";
 import { useMemo, useState } from "react";
 
 /** Presentation-only composition of structural analysis and current ERC. */
 export function NetlistPreflightDialog({
   open,
-  result,
+  project,
   electricalDiagnostics,
   onClose,
   onNavigate,
@@ -18,14 +19,20 @@ export function NetlistPreflightDialog({
   onExport,
 }: {
   open: boolean;
-  result: DesignNetlistAnalysisResult;
+  project: CircuitProject;
   electricalDiagnostics: readonly Diagnostic[];
   onClose(): void;
   onNavigate(diagnostic: NetlistDiagnostic): void;
   onNavigateElectrical(diagnostic: Diagnostic): void;
-  onExport(format: NetlistFormat): void;
+  onExport(format: NetlistFormat, namingProfile: NetlistNamingProfile): void;
 }) {
   const [format, setFormat] = useState<NetlistFormat>("spice");
+  const [namingProfile, setNamingProfile] =
+    useState<NetlistNamingProfile>("native");
+  const result = useMemo(
+    () => analyzeDesignNetlist(project, { format, namingProfile }),
+    [format, namingProfile, project],
+  );
   // The same finding repeated once per object says nothing many times over;
   // count it instead. Seven identical lines was most of what the report said.
   const groupedFindings = useMemo(() => {
@@ -127,7 +134,25 @@ export function NetlistPreflightDialog({
                     <option value="spectre">Spectre (.scs)</option>
                   </select>
                 </label>
-                <button type="button" onClick={() => onExport(format)}>
+                <label>
+                  Naming profile
+                  <select
+                    aria-label="Netlist naming profile"
+                    value={namingProfile}
+                    onChange={(event) =>
+                      setNamingProfile(
+                        event.currentTarget.value as NetlistNamingProfile,
+                      )
+                    }
+                  >
+                    <option value="native">Native declarations</option>
+                    <option value="cadence-bang">Cadence `!` globals</option>
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => onExport(format, namingProfile)}
+                >
                   Download {format === "spice" ? "SPICE" : "Spectre"} netlist
                 </button>
               </div>

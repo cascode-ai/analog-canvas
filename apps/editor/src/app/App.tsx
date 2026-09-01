@@ -23,6 +23,7 @@ import {
   computeNetHighlight,
   annotationOwningInstanceId,
   deriveNetConnectivity,
+  deriveProjectNetNameProjection,
   deriveRoutingAffectedClosure,
   diagnosticPresentationGroup,
   resolveDraftingObjectGeometry,
@@ -1249,6 +1250,39 @@ export function App({
     wireSource,
     bulkDrawInstanceId,
   });
+  const projectNetNameProjection = useMemo(
+    () => deriveProjectNetNameProjection(project),
+    [project],
+  );
+  const selectedNetNameAnnotation =
+    selectedAnnotation?.binding?.kind === "net-name" &&
+    (selectedAnnotation.kind === "net-label" ||
+      selectedAnnotation.kind === "power-label")
+      ? selectedAnnotation
+      : (selectedRouteNetLabel ?? null);
+  const selectedNetNameClaim = selectedNetNameAnnotation
+    ? document.connectivityEvidence.find(
+        (evidence) =>
+          evidence.kind === "name-claim" &&
+          ((evidence.owner.kind === "net-label" &&
+            evidence.owner.annotationId === selectedNetNameAnnotation.id) ||
+            (evidence.owner.kind === "power-marker" &&
+              selectedNetNameAnnotation.anchor.kind === "object" &&
+              evidence.owner.objectId ===
+                selectedNetNameAnnotation.anchor.objectId)),
+      )
+    : undefined;
+  const selectedNetNameLogical = selectedNetNameAnnotation?.netId
+    ? logicalNets.byBaseNetId.get(selectedNetNameAnnotation.netId)
+    : undefined;
+  const selectedNetNameProjection = selectedNetNameLogical
+    ? projectNetNameProjection.byDocumentId
+        .get(document.id)
+        ?.get(selectedNetNameLogical.id)
+    : undefined;
+  const selectedNetPreferredSpelling =
+    selectedNetNameProjection?.preferredSpelling ??
+    selectedNetNameLogical?.name;
   const sceneSnapTargetIndex = useMemo(
     () => buildSceneSnapTargetIndex(document, resolver, visibleEndpoints),
     [document, resolver, visibleEndpoints],
@@ -1408,6 +1442,7 @@ export function App({
   const {
     netLabelForRoute,
     netLabelEditsForRoute,
+    netLabelScopeEdit,
     netNameEditsForAnnotation,
     propertyParametersForInstance,
     instancePropertyEdits,
@@ -1450,6 +1485,7 @@ export function App({
     beginNetLabelEditing,
     commitInstancePropertyDraft,
     commitElectricalMarkerName,
+    commitNetLabelScope,
     commitNetLabelEditing,
     commitPendingNetLabelDraft,
     commitTextEditing,
@@ -1491,6 +1527,7 @@ export function App({
     clearSelectionKinds,
     netLabelForRoute,
     netLabelEditsForRoute,
+    netLabelScopeEdit,
     netNameEditsForAnnotation,
     instancePropertyEdits,
     referenceLabelVisibilityEdits,
@@ -3158,10 +3195,7 @@ export function App({
       document,
       resolver,
       defaultViewBox: DEFAULT_VIEWBOX,
-      netlistIr: netlistAnalysis.ir,
-      exportWarningsPresent:
-        netlistAnalysis.diagnostics.length > 0 ||
-        electricalDiagnostics.length > 0,
+      electricalWarningsPresent: electricalDiagnostics.length > 0,
       guardDirtyReplacement,
       replaceActiveProject,
       setNetlistPreflightOpen,
@@ -3709,7 +3743,8 @@ export function App({
             refreshApp();
           },
           onImportProject: (file) => void openProjectFile(file),
-          onImportSpice: (files) => void importSpiceFiles(files),
+          onImportSpice: (files, namingProfile) =>
+            void importSpiceFiles(files, namingProfile),
           onExportProject: exportProjectFile,
           onExportSvg: exportSvg,
           onExportRaster: (format) => void exportRaster(format),
@@ -4071,12 +4106,13 @@ export function App({
           netlistPreflightOpen
             ? {
                 open: netlistPreflightOpen,
-                result: netlistAnalysis,
+                project,
                 electricalDiagnostics,
                 onClose: () => setNetlistPreflightOpen(false),
                 onNavigate: navigateToNetlistDiagnostic,
                 onNavigateElectrical: jumpToProjectDiagnostic,
-                onExport: (format) => exportDesignNetlist(format, true),
+                onExport: (format, namingProfile) =>
+                  exportDesignNetlist(format, true, namingProfile),
               }
             : null
         }
@@ -4617,6 +4653,28 @@ export function App({
                       );
                     }
                   },
+                }
+              : null
+          }
+          netName={
+            selectedNetNameAnnotation &&
+            selectedNetNameClaim?.kind === "name-claim"
+              ? {
+                  annotationId: selectedNetNameAnnotation.id,
+                  authoredScope: selectedNetNameClaim.scope,
+                  editableScope: selectedNetNameAnnotation.kind === "net-label",
+                  effectiveScope:
+                    selectedNetNameLogical?.scope ?? selectedNetNameClaim.scope,
+                  ...(selectedNetPreferredSpelling
+                    ? { preferredSpelling: selectedNetPreferredSpelling }
+                    : {}),
+                  spellings:
+                    selectedNetNameProjection?.spellings ??
+                    (selectedNetNameLogical?.name
+                      ? [selectedNetNameLogical.name]
+                      : []),
+                  onScopeChange: (scope) =>
+                    commitNetLabelScope(selectedNetNameAnnotation, scope),
                 }
               : null
           }

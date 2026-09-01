@@ -49,6 +49,7 @@ major boundaries exist.
 - [`0041-physical-cut-and-endpoint-readiness.md`](0041-physical-cut-and-endpoint-readiness.md) — physical cut and endpoint readiness
 - [`0048-routing-operation-plan.md`](0048-routing-operation-plan.md) — evaluated routing-operation plan
 - [`0052-owner-explainable-net-authority.md`](0052-owner-explainable-net-authority.md) — owner-explainable Net authority and non-electrical provenance
+- [`0056-derived-net-scope-and-dialect-spelling.md`](0056-derived-net-scope-and-dialect-spelling.md) — derived effective scope and operation-scoped dialect spelling
 
 ## Lifecycle and deletion policy
 

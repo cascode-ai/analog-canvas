@@ -18,7 +18,10 @@ export interface FileCommandMenuProps {
   onDeleteCloudProject: (project: CloudProjectSummary) => void;
   onRefresh: () => void;
   onImportProject: (file: File | null) => void;
-  onImportSpice: (files: FileList | null) => void;
+  onImportSpice: (
+    files: FileList | null,
+    namingProfile?: "native" | "cadence-bang",
+  ) => void;
   onExportProject: () => void;
   onExportSvg: () => void;
   onExportRaster: (format: "png" | "pdf") => void;
@@ -116,6 +119,18 @@ export function FileCommandMenu({
             accept=".spi,.cir,.sp,.inc,.lib"
             multiple
             onChange={(event) => onImportSpice(event.currentTarget.files)}
+          />
+        </label>
+        <label className="file-import">
+          Import Cadence SPICE (`!` globals)…
+          <input
+            data-testid="cadence-spice-files"
+            type="file"
+            accept=".spi,.cir,.sp,.inc,.lib"
+            multiple
+            onChange={(event) =>
+              onImportSpice(event.currentTarget.files, "cadence-bang")
+            }
           />
         </label>
         <button type="button" onClick={onExportProject}>

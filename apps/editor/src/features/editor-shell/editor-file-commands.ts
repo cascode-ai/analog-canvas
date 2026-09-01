@@ -1,4 +1,5 @@
-import type { DesignNetlistIR, NetlistFormat } from "@icm/netlist";
+import { analyzeDesignNetlist } from "@icm/netlist";
+import type { NetlistFormat, NetlistNamingProfile } from "@icm/netlist";
 import type { CircuitProject, GridRect, SchematicDocument } from "@icm/model";
 import { importSpiceSources } from "@icm/spice";
 import type { SymbolResolver } from "@icm/symbols";
@@ -22,8 +23,7 @@ export interface EditorFileCommandDependencies {
   document: SchematicDocument;
   resolver: SymbolResolver;
   defaultViewBox: GridRect;
-  netlistIr: DesignNetlistIR | null;
-  exportWarningsPresent: boolean;
+  electricalWarningsPresent: boolean;
   guardDirtyReplacement: (
     label: string,
     replace: () => void | Promise<void>,
@@ -48,8 +48,7 @@ export function createEditorFileCommands({
   document,
   resolver,
   defaultViewBox,
-  netlistIr,
-  exportWarningsPresent,
+  electricalWarningsPresent,
   guardDirtyReplacement,
   replaceActiveProject,
   setNetlistPreflightOpen,
@@ -74,11 +73,14 @@ export function createEditorFileCommands({
   const exportDesignNetlist = (
     format: NetlistFormat,
     warningsReviewed = false,
+    namingProfile: NetlistNamingProfile = "native",
   ): void => {
+    const analysis = analyzeDesignNetlist(project, { format, namingProfile });
     const plan = planDesignNetlistExport({
       format,
-      ir: netlistIr,
-      warningsPresent: exportWarningsPresent,
+      ir: analysis.ir,
+      warningsPresent:
+        analysis.diagnostics.length > 0 || electricalWarningsPresent,
       warningsReviewed,
       projectName: project.name,
     });
@@ -109,7 +111,10 @@ export function createEditorFileCommands({
     }
   };
 
-  const importSpiceFiles = async (files: FileList | null): Promise<void> => {
+  const importSpiceFiles = async (
+    files: FileList | null,
+    namingProfile: "native" | "cadence-bang" = "native",
+  ): Promise<void> => {
     if (!files || files.length === 0) return;
     const sourceInputs = await Promise.all(
       [...files].map(async (file) => ({
@@ -138,6 +143,8 @@ export function createEditorFileCommands({
       const result = await importSpiceSources(
         sourceInputs,
         entryCandidates[0]!.path,
+        {},
+        { namingProfile },
       );
       const nextImportReport: SpiceImportReport = {
         entryPath: entryCandidates[0]!.path,

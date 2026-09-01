@@ -175,6 +175,46 @@ describe("property edit planner", () => {
     );
   });
 
+  it("changes only the selected Net Label owner's existing scope claim", () => {
+    const input = routedFixture();
+    const annotation: Annotation = {
+      id: "label-vdd",
+      kind: "net-label",
+      binding: { kind: "net-name", netId: "net" },
+      netId: "net",
+      anchor: { kind: "free", position: { x: 0, y: 0 } },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    };
+    input.document.annotations.push(annotation);
+    input.document.connectivityEvidence.push({
+      id: "claim-vdd",
+      kind: "name-claim",
+      netId: "net",
+      name: "VDD",
+      scope: "local",
+      owner: { kind: "net-label", annotationId: annotation.id },
+    });
+    const before = structuredClone(input.document);
+    const planner = createPropertyEditPlanner(input);
+
+    expect(planner.netLabelScopeEdit(annotation, "global")).toEqual([
+      {
+        kind: "upsert_connectivity_evidence",
+        evidence: {
+          id: "claim-vdd",
+          kind: "name-claim",
+          netId: "net",
+          name: "VDD",
+          scope: "global",
+          owner: { kind: "net-label", annotationId: "label-vdd" },
+        },
+      },
+    ]);
+    expect(input.document).toEqual(before);
+  });
+
   it("plans parameter patches, snapped movement, and rotation atomically", () => {
     const input = fixture();
     input.document.presentation.grid = 10;

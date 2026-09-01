@@ -110,4 +110,49 @@ describe("direct endpoint connection planner", () => {
       relatedNetIds: ["net-a", "net-b"],
     });
   });
+
+  it("allows same-name local and global Nets to make explicit physical contact", () => {
+    const document = fixture();
+    document.nets.push(
+      {
+        id: "net-local",
+        terminals: [{ instanceId: "A", pinName: "P" }],
+      },
+      {
+        id: "net-global",
+        terminals: [{ instanceId: "B", pinName: "P" }],
+      },
+    );
+    document.connectivityEvidence.push(
+      {
+        id: "claim-local",
+        kind: "name-claim",
+        netId: "net-local",
+        name: "VDD",
+        scope: "local",
+        owner: { kind: "net-label", annotationId: "label-local" },
+      },
+      {
+        id: "claim-global",
+        kind: "name-claim",
+        netId: "net-global",
+        name: "vdd",
+        scope: "global",
+        powerDomain: "vdd",
+        owner: { kind: "power-marker", objectId: "VDD1" },
+      },
+    );
+
+    expect(
+      planDirectEndpointConnection(document, {
+        from: endpoint("A"),
+        to: endpoint("B"),
+        newNetId: "unused",
+      }),
+    ).toMatchObject({
+      ok: true,
+      edits: [{ kind: "merge_nets" }, { kind: "connect_endpoints" }],
+    });
+    expect(document.connectivityEvidence).toHaveLength(2);
+  });
 });
