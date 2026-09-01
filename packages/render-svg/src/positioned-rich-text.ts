@@ -2,6 +2,8 @@ import { richTextAdvanceEm } from "@icm/derived";
 import type { SchematicStyleProfile } from "@icm/derived";
 import type { RichTextDocument, RichTextRun } from "@icm/model";
 
+import { renderRichTextDocument } from "./rich-text.js";
+
 interface TextStyle {
   italic: boolean;
   bold: boolean;
@@ -169,7 +171,7 @@ export function renderPositionedOverbarScriptDocument(
     bold: options.defaultBold ?? false,
   });
   if (
-    outer.runs.length !== 1 ||
+    outer.runs.length === 0 ||
     outer.runs[0]!.kind !== "span" ||
     outer.runs[0]!.style !== "overbar"
   ) {
@@ -177,6 +179,14 @@ export function renderPositionedOverbarScriptDocument(
   }
 
   const overbar = outer.runs[0] as Extract<RichTextRun, { kind: "span" }>;
+  // Anything after the barred name is ordinary inline text. It has to be
+  // rendered here rather than left to the generic path, because the generic
+  // path draws the bar with CSS `text-decoration: overline`, which SVG
+  // inherits into every nested tspan: the subscript and the superscript each
+  // grow a bar of their own, at their own size and height. That is the defect
+  // in issue #495, and it appeared the moment someone appended `=4kT` to a
+  // name that had been rendering correctly on its own.
+  const continuation = outer.runs.slice(1);
   const expression = unwrapWholeTextStyles(overbar.children, outer.style);
   if (expression.runs.length === 0) return null;
 
@@ -277,9 +287,39 @@ export function renderPositionedOverbarScriptDocument(
     : baseTop;
   const lineY = Math.min(baseTop, superscriptTop) - overbarGap;
   const strokeWidth = Math.max(1, profile.strokes.annotation);
+  // The bar belongs to the name, so it ends where the name ends. `width`
+  // grows to cover the continuation, but the line does not.
+  const nameWidth = width;
+  const continuationTspans =
+    continuation.length > 0
+      ? `<tspan x="${number(startX + nameWidth)}" y="${number(options.y)}">${renderRichTextDocument(
+          { runs: continuation },
+          profile,
+          {
+            lineOriginX: startX + nameWidth,
+            fontSize: options.fontSize,
+            defaultBold: outer.style.bold,
+            defaultItalic: outer.style.italic,
+          },
+        )}</tspan>`
+      : "";
+  const continuationWidth =
+    continuation.length > 0
+      ? richTextAdvanceEm(plainText(continuation)) * options.fontSize
+      : 0;
   return {
-    width,
-    tspans: `<tspan data-text-run="overbar">${baseTspans}<tspan data-text-run="script-stack">${orderedScripts}</tspan></tspan>`,
-    decorations: `<line data-text-decoration="overbar" x1="${number(startX)}" y1="${number(lineY)}" x2="${number(startX + width)}" y2="${number(lineY)}" stroke="${options.color ?? profile.foreground}" stroke-width="${number(strokeWidth)}"/>`,
+    width: nameWidth + continuationWidth,
+    tspans: `<tspan data-text-run="overbar">${baseTspans}<tspan data-text-run="script-stack">${orderedScripts}</tspan></tspan>${continuationTspans}`,
+    decorations: `<line data-text-decoration="overbar" x1="${number(startX)}" y1="${number(lineY)}" x2="${number(startX + nameWidth)}" y2="${number(lineY)}" stroke="${options.color ?? profile.foreground}" stroke-width="${number(strokeWidth)}"/>`,
   };
+}
+
+/** Flat text of a run list, for advancing the pen past the continuation. */
+function plainText(runs: readonly RichTextRun[]): string {
+  let output = "";
+  for (const run of runs) {
+    if (run.kind === "text") output += run.value;
+    else if (run.kind === "span") output += plainText(run.children);
+  }
+  return output;
 }

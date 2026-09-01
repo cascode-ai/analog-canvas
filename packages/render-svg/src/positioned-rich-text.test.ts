@@ -294,3 +294,101 @@ describe("renderPositionedOverbarScriptDocument", () => {
     ).toBeNull();
   });
 });
+
+describe("an overbar followed by more of the line", () => {
+  /**
+   * Issue #495, taken from the reporter's own Project file: a mean-value name
+   * with both a subscript and a superscript, then the rest of the equation
+   * appended after it.
+   */
+  function meanValueThenEquation(): RichTextDocument {
+    return {
+      runs: [
+        {
+          kind: "span",
+          style: "bold",
+          children: [
+            {
+              kind: "span",
+              style: "italic",
+              children: [
+                {
+                  kind: "span",
+                  style: "overbar",
+                  children: [
+                    { kind: "text", value: "I" },
+                    {
+                      kind: "span",
+                      style: "subscript",
+                      children: [{ kind: "text", value: "n" }],
+                    },
+                    {
+                      kind: "span",
+                      style: "superscript",
+                      children: [{ kind: "text", value: "2" }],
+                    },
+                  ],
+                },
+                { kind: "text", value: "=4kT" },
+                {
+                  kind: "span",
+                  style: "subscript",
+                  children: [{ kind: "text", value: "m" }],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+  }
+
+  // The reported defect: appending to the name dropped the whole line to CSS
+  // `text-decoration: overline`, which SVG inherits into every nested tspan,
+  // so the subscript and the superscript each grew a bar of their own at their
+  // own height. One drawn line, and no inherited decoration anywhere.
+  it("keeps one drawn bar over the name when the equation continues", () => {
+    const rendered = render(meanValueThenEquation());
+
+    expect(rendered.decorations.match(/<line\b/g)).toHaveLength(1);
+    expect(rendered.tspans).not.toContain("text-decoration");
+    expect(rendered.decorations).not.toContain("text-decoration:");
+  });
+
+  // The bar covers the name it belongs to and stops there; it must not run on
+  // over the equation that follows.
+  it("stops the bar at the end of the name, not the end of the line", () => {
+    const rendered = render(meanValueThenEquation());
+    const overbar = tagAttributes(
+      rendered.decorations,
+      "line",
+      'data-text-decoration="overbar"',
+    );
+    const base = tagAttributes(
+      rendered.tspans,
+      "tspan",
+      'data-text-run="base"',
+    );
+    const subscript = tagAttributes(
+      rendered.tspans,
+      "tspan",
+      'data-text-run="subscript"',
+    );
+
+    expect(numericAttribute(overbar, "x1")).toBe(numericAttribute(base, "x"));
+    const nameRight =
+      numericAttribute(subscript, "x") +
+      numericAttribute(subscript, "textLength");
+    expect(numericAttribute(overbar, "x2")).toBeCloseTo(nameRight, 6);
+    // The reported width covers the whole line, so the bar ends short of it.
+    expect(numericAttribute(overbar, "x2")).toBeLessThan(
+      numericAttribute(base, "x") + rendered.width,
+    );
+  });
+
+  it("still renders the appended equation", () => {
+    const rendered = render(meanValueThenEquation());
+    expect(rendered.tspans).toContain("=4kT");
+    expect(rendered.tspans).toContain("m");
+  });
+});
