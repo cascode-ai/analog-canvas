@@ -329,10 +329,11 @@ test("Shift+M carries a whole multi-part selection", async ({ page }) => {
   );
 });
 
-// Shift+drag is the pointer form of Shift+M: the parts move, the wires stay
-// where they were and their old endpoints go electrically open. Shift+click
-// with no movement must still mean "add to selection".
-test("Shift+drag moves the part and leaves its wire in place", async ({
+// Virtuoso's pairing for the two modified drags: Ctrl/Cmd moves a part off its
+// wires, and Shift duplicates. Shift+drag therefore leaves the original alone
+// and drops a copy where the pointer lands. Shift+click with no movement must
+// still mean "add to selection".
+test("Shift+drag leaves the original in place and drops a copy", async ({
   page,
 }) => {
   const { ids, wireBefore } = await wiredPair(page);
@@ -346,12 +347,17 @@ test("Shift+drag moves the part and leaves its wire in place", async ({
 
   await shiftDrag(page, center, { x: center.x + 180, y: center.y });
 
-  const after = (await top.boundingBox())!;
-  expect(after.x).toBeGreaterThan(before.x + 100);
-  expect(await routePoints(page)).toEqual(wireBefore);
+  // A third part now exists, and the two originals never moved.
+  const after = await instanceIds(page);
+  expect(after).toHaveLength(3);
+  expect(after).toEqual(expect.arrayContaining(ids));
+  const settled = (await top.boundingBox())!;
+  expect(Math.abs(settled.x - before.x)).toBeLessThan(2);
 
+  // Duplicating never disturbs the wiring the originals already had.
+  expect(await routePoints(page)).toEqual(wireBefore);
   const terminals = await exportedTerminals(page);
-  expect(terminals).not.toContainEqual(
+  expect(terminals).toContainEqual(
     expect.objectContaining({ instanceId: ids[0] }),
   );
   expect(terminals).toContainEqual(
