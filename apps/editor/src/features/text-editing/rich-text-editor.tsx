@@ -460,6 +460,8 @@ export function RichTextEditor({
     existingFormula?.display ?? "inline",
   );
   const [formulaError, setFormulaError] = useState<string | null>(null);
+  const [pendingFormulaConversion, setPendingFormulaConversion] =
+    useState<RichTextDocument | null>(null);
 
   useLayoutEffect(() => {
     const shell = shellRef.current;
@@ -600,7 +602,20 @@ export function RichTextEditor({
     setFormulaDraft(formula?.latex ?? (selection || "V_{OUT}"));
     setFormulaDisplay(formula?.display ?? "inline");
     setFormulaError(null);
+    setPendingFormulaConversion(null);
     setFormulaOpen(true);
+  };
+
+  const closeFormulaEditor = (): void => {
+    setFormulaOpen(false);
+    setFormulaError(null);
+    setPendingFormulaConversion(null);
+  };
+
+  const updateFormulaDraft = (value: string): void => {
+    setFormulaDraft(value);
+    setFormulaError(null);
+    setPendingFormulaConversion(null);
   };
 
   const applyFormula = async (): Promise<void> => {
@@ -629,16 +644,8 @@ export function RichTextEditor({
         );
         return;
       }
-      const convert = window.confirm(
-        `This formula does not preserve the electrical name “${formulaSemanticText}”. Add it as a component formula annotation instead? The electrical name will stay unchanged.`,
-      );
-      if (!convert) return;
-      if (!onConvertFormulaToLiteral(next)) {
-        setFormulaError("This formula could not be attached to the component");
-        return;
-      }
-      setFormulaOpen(false);
       setFormulaError(null);
+      setPendingFormulaConversion(next);
       return;
     }
     const inserted = boundPresentation ?? next;
@@ -646,8 +653,17 @@ export function RichTextEditor({
     if (editableRef.current) {
       editableRef.current.innerHTML = toEditableHtml(inserted);
     }
-    setFormulaOpen(false);
-    setFormulaError(null);
+    closeFormulaEditor();
+  };
+
+  const confirmFormulaConversion = (): void => {
+    if (!pendingFormulaConversion || !onConvertFormulaToLiteral) return;
+    if (!onConvertFormulaToLiteral(pendingFormulaConversion)) {
+      setFormulaError("This formula could not be attached to the component");
+      setPendingFormulaConversion(null);
+      return;
+    }
+    closeFormulaEditor();
   };
 
   return (
@@ -882,7 +898,7 @@ export function RichTextEditor({
             <button
               type="button"
               aria-label="Close formula editor"
-              onClick={() => setFormulaOpen(false)}
+              onClick={closeFormulaEditor}
             >
               ×
             </button>
@@ -896,7 +912,7 @@ export function RichTextEditor({
               <FormulaMathfield
                 ref={formulaMathfieldRef}
                 value={formulaDraft}
-                onChange={setFormulaDraft}
+                onChange={updateFormulaDraft}
               />
             </section>
             <div
@@ -956,7 +972,7 @@ export function RichTextEditor({
                 aria-label="Formula LaTeX source"
                 spellCheck={false}
                 rows={3}
-                onChange={(event) => setFormulaDraft(event.target.value)}
+                onChange={(event) => updateFormulaDraft(event.target.value)}
               />
             </label>
             {formulaError ? (
@@ -965,31 +981,68 @@ export function RichTextEditor({
               </div>
             ) : null}
           </div>
-          <div className="rich-text-formula-actions">
-            <div className="rich-text-formula-display-toggle">
+          {pendingFormulaConversion && formulaSemanticText !== undefined ? (
+            <div
+              className="rich-text-formula-conversion"
+              data-testid="formula-conversion-confirmation"
+              role="alert"
+            >
+              <div>
+                <strong>Formula does not match the electrical name</strong>
+                <span>
+                  Reference “{formulaSemanticText}” will remain unchanged. Add
+                  this expression as a component formula note?
+                </span>
+              </div>
+              <div className="rich-text-formula-conversion-actions">
+                <button
+                  type="button"
+                  onClick={() => setPendingFormulaConversion(null)}
+                >
+                  Keep editing
+                </button>
+                <button
+                  className="rich-text-formula-primary-action"
+                  type="button"
+                  onClick={confirmFormulaConversion}
+                >
+                  Add as formula note
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="rich-text-formula-actions">
+              <div className="rich-text-formula-display-toggle">
+                <button
+                  type="button"
+                  aria-pressed={formulaDisplay === "inline"}
+                  onClick={() => {
+                    setFormulaDisplay("inline");
+                    setPendingFormulaConversion(null);
+                  }}
+                >
+                  Inline
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={formulaDisplay === "block"}
+                  onClick={() => {
+                    setFormulaDisplay("block");
+                    setPendingFormulaConversion(null);
+                  }}
+                >
+                  Display
+                </button>
+              </div>
               <button
+                className="rich-text-formula-primary-action"
                 type="button"
-                aria-pressed={formulaDisplay === "inline"}
-                onClick={() => setFormulaDisplay("inline")}
+                onClick={() => void applyFormula()}
               >
-                Inline
-              </button>
-              <button
-                type="button"
-                aria-pressed={formulaDisplay === "block"}
-                onClick={() => setFormulaDisplay("block")}
-              >
-                Display
+                Insert
               </button>
             </div>
-            <button
-              className="rich-text-formula-primary-action"
-              type="button"
-              onClick={() => void applyFormula()}
-            >
-              Insert
-            </button>
-          </div>
+          )}
         </div>
       ) : null}
       {sourceOnly ? (

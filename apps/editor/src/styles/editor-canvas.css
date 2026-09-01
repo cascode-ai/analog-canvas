@@ -958,6 +958,35 @@
   background: var(--icm-accent);
 }
 
+.rich-text-formula-conversion {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.55rem;
+  border-top: 1px solid var(--icm-border);
+  background: var(--icm-surface-muted);
+}
+
+.rich-text-formula-conversion > div:first-child {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.rich-text-formula-conversion strong {
+  font-size: var(--icm-font-sm);
+}
+
+.rich-text-formula-conversion span {
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+  line-height: 1.35;
+}
+
+.rich-text-formula-conversion-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.4rem;
+}
+
 .rich-text-editable [data-rich-text-script-stack] > sup {
   top: -0.28em;
 }

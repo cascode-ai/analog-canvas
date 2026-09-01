@@ -40,6 +40,26 @@ const SVG_START = /<svg\b/;
 const DIMENSION_EX = /^(-?(?:\d+(?:\.\d+)?|\.\d+))ex$/;
 const VERTICAL_ALIGN_EX = /vertical-align:\s*(-?(?:\d+(?:\.\d+)?|\.\d+))ex/;
 
+function findOuterSvgRange(
+  markup: string,
+): { start: number; end: number } | null {
+  const tags = /<\/?svg\b[^>]*>/g;
+  let depth = 0;
+  let start = -1;
+  for (let match = tags.exec(markup); match; match = tags.exec(markup)) {
+    const tag = match[0];
+    if (tag.startsWith("</")) {
+      if (start < 0 || depth === 0) return null;
+      depth -= 1;
+      if (depth === 0) return { start, end: tags.lastIndex };
+      continue;
+    }
+    if (start < 0) start = match.index;
+    if (!tag.endsWith("/>")) depth += 1;
+  }
+  return null;
+}
+
 function parseEx(value: string | null, fontSize: number): number | undefined {
   const match = value?.match(DIMENSION_EX);
   if (!match) return undefined;
@@ -51,13 +71,14 @@ function extractSvg(
   markup: string,
   request: FormulaRequest,
 ): Omit<FormulaArtifact, "sourceHash"> {
-  const start = markup.search(SVG_START);
-  const end = markup.indexOf("</svg>", start);
-  if (start < 0 || end < 0) {
-    throw new Error("Math renderer did not return a standalone SVG element.");
+  const range = findOuterSvgRange(markup);
+  if (!range || SVG_START.test(markup.slice(range.end))) {
+    throw new Error(
+      "Math renderer did not return one balanced standalone SVG element.",
+    );
   }
 
-  let svg = markup.slice(start, end + "</svg>".length);
+  let svg = markup.slice(range.start, range.end);
   const openTag = svg.slice(0, svg.indexOf(">") + 1);
   const width = parseEx(
     openTag.match(/\bwidth="([^"]+)"/)?.[1] ?? null,
@@ -105,7 +126,15 @@ export function createFormulaTypesetter(): FormulaTypesetter {
       differentialD: String.raw`\mathrm{d}`,
     },
   });
-  const output = new SVG({ fontCache: "none" });
+  // A Formula artifact is one self-contained SVG. MathJax 4 enables inline
+  // line breaking by default and otherwise emits sibling SVG fragments around
+  // operators (for example, `x` and `+y`). That shape cannot be embedded as a
+  // single drafting object, so keep the expression on one MathJax line and let
+  // the editor's formula source panel handle horizontal overflow.
+  const output = new SVG({
+    fontCache: "none",
+    linebreaks: { inline: false },
+  });
   const document = mathjax.document("", {
     InputJax: input,
     OutputJax: output,
