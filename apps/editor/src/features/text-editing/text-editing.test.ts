@@ -205,3 +205,106 @@ describe("unified text editing", () => {
     });
   });
 });
+
+describe("Symbol body text edits in place", () => {
+  const dac = (formula?: string) => ({
+    id: "X1",
+    symbolId: "dac",
+    placement: {
+      position: { x: 100, y: 100 },
+      rotation: 0 as const,
+      mirror: "none" as const,
+    },
+    ...(formula ? { signalFlowParameters: { formula } } : {}),
+  });
+
+  // The text inside a Symbol body is a plain string with its own compact
+  // script syntax, not a RichText document. It rides the same session so the
+  // canvas overlay can host it, carried as one text run.
+  it("opens a session on the Symbol's own default text", () => {
+    const session = createTextEditingSession({
+      owner: "instance-formula",
+      object: dac(),
+      defaultFormula: "DAC",
+    });
+
+    expect(session).toMatchObject({
+      owner: "instance-formula",
+      id: "X1",
+      content: { runs: [{ kind: "text", value: "DAC" }] },
+    });
+  });
+
+  it("opens a session on the override once the person has set one", () => {
+    const session = createTextEditingSession({
+      owner: "instance-formula",
+      object: dac("8-bit"),
+      defaultFormula: "DAC",
+    });
+
+    expect(session.content).toEqual({
+      runs: [{ kind: "text", value: "8-bit" }],
+    });
+  });
+
+  // Editing in place writes the same field the Properties panel writes, so the
+  // two surfaces cannot drift: there is one value, not two copies of it.
+  it("commits the edited text as a signal-flow parameter override", () => {
+    const document = createEmptyDocument("main", "Main");
+    document.instances.push(dac());
+    const session = updateTextEditingSession(
+      createTextEditingSession({
+        owner: "instance-formula",
+        object: dac(),
+        defaultFormula: "DAC",
+      }),
+      { content: { runs: [{ kind: "text", value: "8-bit DAC" }] } },
+    );
+
+    expect(proposeTextEditingCommit(document, session)).toEqual({
+      kind: "update",
+      id: "X1",
+      edit: {
+        kind: "set_instance_signal_flow_parameters",
+        instanceId: "X1",
+        parameters: { formula: "8-bit DAC" },
+      },
+    });
+  });
+
+  // Typing the Symbol's own default back is not an override: storing it would
+  // freeze a copy of a default that is allowed to change.
+  it("clears the override when the text returns to the Symbol default", () => {
+    const document = createEmptyDocument("main", "Main");
+    document.instances.push(dac("8-bit"));
+    const session = updateTextEditingSession(
+      createTextEditingSession({
+        owner: "instance-formula",
+        object: dac("8-bit"),
+        defaultFormula: "DAC",
+      }),
+      { content: { runs: [{ kind: "text", value: "DAC" }] } },
+    );
+
+    expect(proposeTextEditingCommit(document, session)).toMatchObject({
+      kind: "update",
+      edit: { parameters: null },
+    });
+  });
+
+  it("reports no change when the text is untouched", () => {
+    const document = createEmptyDocument("main", "Main");
+    document.instances.push(dac("8-bit"));
+
+    expect(
+      proposeTextEditingCommit(
+        document,
+        createTextEditingSession({
+          owner: "instance-formula",
+          object: dac("8-bit"),
+          defaultFormula: "DAC",
+        }),
+      ),
+    ).toEqual({ kind: "unchanged" });
+  });
+});

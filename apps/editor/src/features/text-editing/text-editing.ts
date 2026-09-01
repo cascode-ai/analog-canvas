@@ -11,9 +11,23 @@ import type {
 
 export type DraftingTextObject = Extract<DraftingObject, { kind: "text" }>;
 
+type Instance = SchematicDocument["instances"][number];
+
 export type EditableTextTarget =
   | { owner: "annotation"; object: Annotation }
-  | { owner: "drafting"; object: DraftingTextObject };
+  | { owner: "drafting"; object: DraftingTextObject }
+  /**
+   * The text a Symbol draws inside its own body — a DAC's "DAC", an
+   * integrator's transfer function, the letter in a lettered op-amp. It is a
+   * plain string in the Symbol's own compact script syntax (`z^-1`, `1/(1-z)`),
+   * not a RichText document, and `defaultFormula` is what the Symbol draws
+   * when the Instance overrides nothing.
+   */
+  | {
+      owner: "instance-formula";
+      object: Instance;
+      defaultFormula: string;
+    };
 
 export interface TextEditingSession {
   owner: EditableTextTarget["owner"];
@@ -24,6 +38,8 @@ export interface TextEditingSession {
   /** Semantic displays edit their source field, not a copied RichText AST. */
   bound: boolean;
   bindingKind?: AnnotationTextBinding["kind"];
+  /** Symbol body text only: what the Symbol draws with no override. */
+  defaultFormula?: string;
 }
 
 export type TextEditingCommitProposal =
@@ -48,6 +64,22 @@ export function createTextEditingSession(
       alignment: annotation.alignment,
       bound: annotation.binding !== undefined,
       ...(annotation.binding ? { bindingKind: annotation.binding.kind } : {}),
+    };
+  }
+  if (target.owner === "instance-formula") {
+    // Carried as one text run so the canvas overlay can host it unchanged.
+    // The overlay shows this as a plain source field, with no rich-text or
+    // formula affordances, because the field cannot store them.
+    const value =
+      target.object.signalFlowParameters?.formula ?? target.defaultFormula;
+    return {
+      owner: "instance-formula",
+      id: target.object.id,
+      content: { runs: [{ kind: "text", value }] },
+      sizeScale: 1,
+      alignment: "middle",
+      bound: true,
+      defaultFormula: target.defaultFormula,
     };
   }
   return {
@@ -79,6 +111,18 @@ export function resolveTextEditingTarget(
     );
     return object ? { owner: "annotation", object } : null;
   }
+  if (session.owner === "instance-formula") {
+    const object = document.instances.find(
+      (candidate) => candidate.id === session.id,
+    );
+    return object
+      ? {
+          owner: "instance-formula",
+          object,
+          defaultFormula: session.defaultFormula ?? "",
+        }
+      : null;
+  }
   const object = document.drafting?.objects.find(
     (candidate): candidate is DraftingTextObject =>
       candidate.id === session.id && candidate.kind === "text",
@@ -87,9 +131,17 @@ export function resolveTextEditingTarget(
 }
 
 export function textDeletionEdit(session: TextEditingSession): SchematicEdit {
-  return session.owner === "annotation"
-    ? { kind: "remove_schematic_annotation", annotationId: session.id }
-    : { kind: "remove_drafting_object", objectId: session.id };
+  if (session.owner === "annotation")
+    return { kind: "remove_schematic_annotation", annotationId: session.id };
+  // Emptying a Symbol's body text drops back to what the Symbol draws; the
+  // Instance itself is not a text object and is not deleted with its label.
+  if (session.owner === "instance-formula")
+    return {
+      kind: "set_instance_signal_flow_parameters",
+      instanceId: session.id,
+      parameters: null,
+    };
+  return { kind: "remove_drafting_object", objectId: session.id };
 }
 
 function richTextEqual(
@@ -105,6 +157,35 @@ export function proposeTextEditingCommit(
   document: SchematicDocument,
   session: TextEditingSession,
 ): TextEditingCommitProposal {
+  if (session.owner === "instance-formula") {
+    const instance = document.instances.find(
+      (candidate) => candidate.id === session.id,
+    );
+    if (!instance) return { kind: "blocked" };
+    const edited = flattenRichText(session.content).trim();
+    const current = instance.signalFlowParameters?.formula;
+    // Typing the Symbol's own default back is not an override: storing it
+    // would freeze a copy of a default the Symbol is allowed to change. The
+    // Properties panel reads the same rule, so the two surfaces agree.
+    const nextFormula =
+      edited && edited !== session.defaultFormula ? edited : undefined;
+    if (nextFormula === current) return { kind: "unchanged" };
+    const rest = { ...instance.signalFlowParameters };
+    delete rest.formula;
+    const parameters = {
+      ...rest,
+      ...(nextFormula ? { formula: nextFormula } : {}),
+    };
+    return {
+      kind: "update",
+      id: session.id,
+      edit: {
+        kind: "set_instance_signal_flow_parameters",
+        instanceId: session.id,
+        parameters: Object.keys(parameters).length > 0 ? parameters : null,
+      },
+    };
+  }
   const plainText = flattenRichText(session.content).trim();
   const emptied = !plainText;
   const emptyTarget = emptied
@@ -126,7 +207,10 @@ export function proposeTextEditingCommit(
   }
 
   const target = resolveTextEditingTarget(document, session);
-  if (!target || target.object.locked) return { kind: "blocked" };
+  // Symbol body text returned above; what remains carries a lock of its own.
+  if (!target || target.owner === "instance-formula")
+    return { kind: "blocked" };
+  if (target.object.locked) return { kind: "blocked" };
 
   if (target.owner === "annotation") {
     const annotation = target.object;

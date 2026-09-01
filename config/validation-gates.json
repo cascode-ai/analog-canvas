@@ -94,6 +94,10 @@
       "packages/devices/src/descriptors/*switch*",
       "apps/editor/e2e/empty-label-ghost.spec.ts"
     ],
+    "symbolBodyText": [
+      "apps/editor/src/features/text-editing/**",
+      "apps/editor/e2e/symbol-body-text.spec.ts"
+    ],
     "componentInsert": [
       "apps/editor/src/features/component-insert/**",
       "apps/editor/e2e/component-insert.spec.ts"
@@ -434,6 +438,18 @@
       "ci": { "e2eArgs": ["apps/editor/e2e/empty-label-ghost.spec.ts"] }
     },
     {
+      "id": "symbol-body-text-browser",
+      "stage": "affected",
+      "groups": ["symbolBodyText"],
+      "description": "Validate in-place editing of the text a Symbol draws in its own body.",
+      "command": [
+        "pnpm",
+        "test:e2e:local",
+        "apps/editor/e2e/symbol-body-text.spec.ts"
+      ],
+      "ci": { "e2eArgs": ["apps/editor/e2e/symbol-body-text.spec.ts"] }
+    },
+    {
       "id": "release-verification",
       "stage": "affected",
       "groups": ["release"],
@@ -473,6 +489,7 @@
         "placement-near-miss-browser",
         "thin-target-hit-browser",
         "empty-label-ghost-browser",
+        "symbol-body-text-browser",
         "release-verification",
         "branch-verification"
       ]

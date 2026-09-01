@@ -16,7 +16,7 @@ import { JunctionSchema, RouteBranchSchema } from "./routing.js";
 import { AnnotationSchema } from "./annotations.js";
 import { DraftingLayerSchema } from "./drafting.js";
 import { flattenRichText } from "../rich-text.js";
-import { semanticTextDocument } from "../semantic-text.js";
+import { boundAnnotationSemanticText } from "./bound-annotation-text.js";
 import {
   LayoutConstraintSchema,
   LayoutGroupSchema,
@@ -350,46 +350,7 @@ export const SchematicDocumentSchema = SchematicDocumentBaseSchema.superRefine(
         });
       }
       if (!annotation.formatOverride || !binding) continue;
-      const annotationNameClaim = document.connectivityEvidence.find(
-        (evidence) =>
-          evidence.kind === "name-claim" &&
-          evidence.netId ===
-            (binding.kind === "net-name" ? binding.netId : undefined) &&
-          ((evidence.owner.kind === "net-label" &&
-            evidence.owner.annotationId === annotation.id) ||
-            // A power-marker claim is owned by the marker instance for supply
-            // ports, but a drawn power rail's claim is owned by the label
-            // annotation itself — both spellings name this annotation's net.
-            (evidence.owner.kind === "power-marker" &&
-              ((annotation.anchor.kind === "object" &&
-                evidence.owner.objectId === annotation.anchor.objectId) ||
-                evidence.owner.objectId === annotation.id))),
-      );
-      const semanticContent =
-        binding.kind === "instance-reference"
-          ? semanticTextDocument(
-              document.instances.find(
-                (instance) => instance.id === binding.instanceId,
-              )?.reference ?? "",
-              "instance-label",
-            )
-          : binding.kind === "cell-terminal-name"
-            ? semanticTextDocument(
-                document.netlist?.terminals.find(
-                  (terminal) => terminal.id === binding.terminalId,
-                )?.name ?? "",
-                "formal-port",
-              )
-            : binding.kind === "net-name"
-              ? semanticTextDocument(
-                  (annotationNameClaim?.kind === "name-claim"
-                    ? annotationNameClaim.name
-                    : undefined) ?? "",
-                  annotation.kind === "power-label"
-                    ? "power-label"
-                    : "net-label",
-                )
-              : null;
+      const semanticContent = boundAnnotationSemanticText(document, annotation);
       if (
         semanticContent &&
         flattenRichText(annotation.formatOverride) !==
