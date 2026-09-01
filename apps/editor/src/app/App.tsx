@@ -27,6 +27,8 @@ import {
   diagnosticPresentationGroup,
   resolveDraftingObjectGeometry,
   displayableInstanceValue,
+  symbolCarriesReference,
+  symbolSupportsValueAnnotation,
   resolveMosBulkConnection,
   resolveDocumentStyleProfile,
   resolveRouteTap,
@@ -4471,6 +4473,12 @@ export function App({
                       selectedInstanceValue !== null &&
                       selectedInstanceValue.visible !== false,
                     valueAvailable: selectedInstanceValueAvailable,
+                    valueSupported: selectedInstance
+                      ? symbolSupportsValueAnnotation(selectedInstance.symbolId)
+                      : false,
+                    referenceAvailable: selectedInstance
+                      ? symbolCarriesReference(selectedInstance.symbolId)
+                      : false,
                     referenceLabelRenderable: selectedLabelRenderable,
                     additionalParameters: additionalParameterDraft,
                     additionalParametersChanged:

@@ -1,5 +1,9 @@
 import type { RichTextDocument } from "@icm/model";
-import { deviceDescriptor, type DeviceParameterDefinition } from "@icm/devices";
+import {
+  deviceDescriptor,
+  referencePolicyForSymbol,
+  type DeviceParameterDefinition,
+} from "@icm/devices";
 
 export type InstanceValueDisplay =
   | { readonly kind: "displayable"; readonly content: RichTextDocument }
@@ -57,6 +61,34 @@ function boldDocument(value: string): RichTextDocument {
  * writes back. Display is Razavi textbook style: upright bold text with the
  * engineering unit, and a stacked fraction bar for MOS W/L.
  */
+/**
+ * Whether this Symbol's device can ever annotate a value.
+ *
+ * Different from {@link displayableInstanceValue}, which answers whether one
+ * instance has a value to show right now: a resistor with no resistance typed
+ * yet is undisplayable but value-capable, and its Value control belongs on
+ * screen so the person can see what is missing. A switch, and anything with
+ * no device descriptor at all, can never carry one.
+ */
+export function symbolSupportsValueAnnotation(symbolId: string): boolean {
+  return (
+    deviceDescriptor(symbolId)?.capabilities.supportsValueAnnotation === true
+  );
+}
+
+/**
+ * Whether an instance of this Symbol gets a reference designator.
+ *
+ * A Symbol with no device descriptor — a voltage amplifier, an op amp, the
+ * signal-flow blocks — has no reference prefix, so its instances have no
+ * designator to show or hide. Asked through the reference policy rather than
+ * a list of Symbol names, so a Symbol added later answers correctly without
+ * anyone remembering to update a list.
+ */
+export function symbolCarriesReference(symbolId: string): boolean {
+  return referencePolicyForSymbol(symbolId).kind !== "none";
+}
+
 export function displayableInstanceValue(
   instance: InstanceValueSource,
 ): InstanceValueDisplay {
