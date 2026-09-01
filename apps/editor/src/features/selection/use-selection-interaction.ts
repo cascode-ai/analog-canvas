@@ -456,6 +456,7 @@ export function useSelectionInteraction(
 
   const beginKeyboardSelectionMove = (
     explicitSelection?: VisualSelection,
+    moveOptions?: { detach?: boolean },
   ): void => {
     if (commandMoveSessionRef.current) {
       options.setStatus(
@@ -463,12 +464,38 @@ export function useSelectionInteraction(
       );
       return;
     }
+    const detach = moveOptions?.detach === true;
     // An explicit selection serves the armed Move verb: the pointed-at part
     // is picked up directly, independent of the live selection state.
-    const movePlan = planSelectionMove(
-      options.document,
-      explicitSelection ?? options.visualSelection,
-    );
+    const selection = explicitSelection ?? options.visualSelection;
+    // Shift+M cuts the parts loose before anything moves, so the move plans
+    // against the topology the detach creates. Planning first and detaching
+    // after would stretch the very wires the detach is meant to leave alone.
+    let detachEdits: SchematicEdit[] = [];
+    let baseDocument = options.document;
+    if (detach) {
+      const detaching = planSelectionMove(options.document, selection);
+      if (detaching.instanceIds.length === 0) {
+        options.setStatus("Select a part to move without its wires");
+        return;
+      }
+      try {
+        detachSequenceRef.current += 1;
+        detachEdits = planRoutedTerminalDetachment(
+          options.document,
+          options.resolver,
+          new Set(detaching.instanceIds),
+          detachSequenceRef.current,
+        );
+      } catch (error) {
+        options.setStatus(
+          error instanceof Error ? error.message : "Detach move failed",
+        );
+        return;
+      }
+      baseDocument = projectDetachedDocument(options.document, detachEdits);
+    }
+    const movePlan = planSelectionMove(baseDocument, selection);
     if (movePlan.previewObjectIds.length === 0) {
       options.setStatus(
         "Selected objects are attached or locked and cannot move",
@@ -481,7 +508,7 @@ export function useSelectionInteraction(
         null)
       : (options.selectedIds.at(-1) ?? movePlan.instanceIds.at(0) ?? null);
     const primary = primaryInstanceId
-      ? options.document.instances.find((item) => item.id === primaryInstanceId)
+      ? baseDocument.instances.find((item) => item.id === primaryInstanceId)
       : undefined;
     const instancePreview = primary?.placement
       ? {
@@ -489,7 +516,7 @@ export function useSelectionInteraction(
           primaryInstanceId: primaryInstanceId!,
           originalPositions: Object.fromEntries(
             movePlan.instanceIds.flatMap((id) => {
-              const item = options.document.instances.find(
+              const item = baseDocument.instances.find(
                 (candidate) => candidate.id === id,
               );
               return item?.placement
@@ -511,8 +538,8 @@ export function useSelectionInteraction(
         : options.visualMoveOrigin(movePlan),
       visual: null,
       routeVisual: null,
-      projectedDocument: options.document,
-      prefixEdits: [],
+      projectedDocument: baseDocument,
+      prefixEdits: detachEdits,
       latestPoint: null,
       latestScreenPoint: null,
       svg: null,
@@ -522,7 +549,9 @@ export function useSelectionInteraction(
     options.setProjectedMovePreview(null);
     options.beginSelectionMoveInteraction();
     options.setStatus(
-      "Move: move the pointer, then click to place (Esc to cancel)",
+      detach
+        ? "Move without wires: move the pointer, then click to place (Esc to cancel)"
+        : "Move: move the pointer, then click to place (Esc to cancel)",
     );
   };
 

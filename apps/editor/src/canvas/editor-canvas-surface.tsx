@@ -72,6 +72,7 @@ const CADENCE_QUICK_SHORTCUTS = [
   { keys: ["I"], action: "Insert component" },
   { keys: ["R"], action: "Rotate" },
   { keys: ["M"], action: "Move selection" },
+  { keys: ["Shift", "M"], action: "Move without wires" },
   { keys: ["U"], action: "Undo" },
   { keys: ["P"], action: "Place Cell Pin" },
   { keys: ["C"], action: "Copy selection" },
