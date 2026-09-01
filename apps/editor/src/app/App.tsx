@@ -1453,6 +1453,7 @@ export function App({
     commitNetLabelEditing,
     commitPendingNetLabelDraft,
     commitTextEditing,
+    convertFormulaToAttachedLiteral,
     clearTextEditing,
     cancelAdditionalParameters,
     deleteSelectedRouteNetLabel,
@@ -1505,6 +1506,10 @@ export function App({
       );
     },
     commitCellPinAnnotation: editCellTerminalAnnotation,
+    nextId: (prefix) => {
+      uniqueSuffixCounter.current += 1;
+      return `${prefix}-${uniqueSuffixCounter.current}`;
+    },
   });
   function selectedVisualIds(kind: VisualSelectionKind): readonly string[] {
     switch (kind) {
@@ -5188,6 +5193,7 @@ export function App({
               setStatus("Cancelled text changes");
             },
             onTextDelete: deleteTextEditing,
+            onConvertFormulaToLiteral: convertFormulaToAttachedLiteral,
             ...(editingAnnotation &&
             isRoutedMarker(editingAnnotation) &&
             effectiveRouteAttachment(editingAnnotation)

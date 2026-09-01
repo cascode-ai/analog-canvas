@@ -18,6 +18,8 @@ import {
 } from "@icm/math-typesetting/cache";
 import type { RichTextDocument, RichTextRun } from "@icm/model";
 
+import { boundFormulaPresentation } from "./bound-formula";
+
 export interface RichTextEditorProps {
   targetKey: string;
   content: RichTextDocument;
@@ -40,6 +42,10 @@ export interface RichTextEditorProps {
   onCancel(): void;
   onDelete(): void;
   onReverseCurrentArrow?(): void;
+  /** Electrical name represented by this editor, when Formula is constrained. */
+  formulaSemanticText?: string;
+  /** Convert a non-equivalent Formula into literal attached text. */
+  onConvertFormulaToLiteral?(formula: RichTextDocument): boolean;
   onLayoutHeightChange?(height: number): void;
 }
 
@@ -436,6 +442,8 @@ export function RichTextEditor({
   onCancel,
   onDelete,
   onReverseCurrentArrow,
+  formulaSemanticText,
+  onConvertFormulaToLiteral,
   onLayoutHeightChange,
 }: RichTextEditorProps) {
   const shellRef = useRef<HTMLDivElement>(null);
@@ -610,9 +618,33 @@ export function RichTextEditor({
     const next: RichTextDocument = {
       runs: [{ kind: "math", latex, display: formulaDisplay }],
     };
-    onChange(next);
+    const boundPresentation =
+      formulaSemanticText === undefined
+        ? null
+        : boundFormulaPresentation(latex, formulaSemanticText);
+    if (formulaSemanticText !== undefined && !boundPresentation) {
+      if (!onConvertFormulaToLiteral) {
+        setFormulaError(
+          `A bound electrical name formula must preserve “${formulaSemanticText}”`,
+        );
+        return;
+      }
+      const convert = window.confirm(
+        `This formula does not preserve the electrical name “${formulaSemanticText}”. Add it as a component formula annotation instead? The electrical name will stay unchanged.`,
+      );
+      if (!convert) return;
+      if (!onConvertFormulaToLiteral(next)) {
+        setFormulaError("This formula could not be attached to the component");
+        return;
+      }
+      setFormulaOpen(false);
+      setFormulaError(null);
+      return;
+    }
+    const inserted = boundPresentation ?? next;
+    onChange(inserted);
     if (editableRef.current) {
-      editableRef.current.innerHTML = toEditableHtml(next);
+      editableRef.current.innerHTML = toEditableHtml(inserted);
     }
     setFormulaOpen(false);
     setFormulaError(null);

@@ -423,6 +423,79 @@ test("authors one validated formula through the canonical text editor", async ({
   expect(pdf.toString("latin1")).not.toContain("/Subtype /Image");
 });
 
+test("converts a non-equivalent Reference formula into attached literal text", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await chooseComponent(page, "resistor");
+  await page.getByTestId("schematic-canvas").click({
+    position: { x: 360, y: 240 },
+  });
+  await page.keyboard.press("Escape");
+  await page.getByTestId("annotation-hit-instance-label-R1").dblclick();
+  await page.getByRole("button", { name: "Insert formula" }).click();
+
+  await page.getByRole("textbox", { name: "Formula LaTeX source" }).fill("R_1");
+  await page
+    .getByRole("dialog", { name: "Formula" })
+    .getByRole("button", { name: "Insert", exact: true })
+    .click();
+  await expect(page.getByRole("dialog", { name: "Formula" })).toHaveCount(0);
+  await expect(
+    page.getByRole("textbox", { name: "Canvas text editor" }).locator("sub"),
+  ).toHaveText("1");
+  await page.getByRole("button", { name: "Apply text changes" }).click();
+  await expect(
+    page.locator('[data-object-id="instance-label-R1"]'),
+  ).toContainText("R1");
+
+  await page.getByTestId("annotation-hit-instance-label-R1").dblclick();
+  await page.getByRole("button", { name: "Insert formula" }).click();
+
+  const latex = String.raw`R_1=4kT`;
+  await page.getByRole("textbox", { name: "Formula LaTeX source" }).fill(latex);
+  let prompt = "";
+  page.once("dialog", async (dialog) => {
+    prompt = dialog.message();
+    await dialog.accept();
+  });
+  await page
+    .getByRole("dialog", { name: "Formula" })
+    .getByRole("button", { name: "Insert", exact: true })
+    .click();
+
+  await expect
+    .poll(() => prompt)
+    .toContain("does not preserve the electrical name");
+  await expect(page.getByTestId("canvas-text-editor")).toHaveCount(0);
+  await expect(page.getByTestId("status")).toHaveText(
+    "Added a component formula annotation; the electrical Reference is unchanged",
+  );
+  await expect(
+    page.locator('[data-object-id^="instance-formula-"] [data-role="formula"]'),
+  ).toHaveCount(1);
+  await expect(
+    page.locator('[data-object-id="instance-label-R1"]'),
+  ).toContainText("R1");
+
+  const project = JSON.parse(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  );
+  expect(project.documents[0].instances[0].reference).toBe("R1");
+  expect(
+    project.documents[0].annotations.find((annotation: { id: string }) =>
+      annotation.id.startsWith("instance-formula-"),
+    ),
+  ).toMatchObject({
+    kind: "instance-value",
+    content: { runs: [{ kind: "math", latex, display: "inline" }] },
+    anchor: { kind: "object", objectId: "R1" },
+  });
+});
+
 test("keeps unsafe formula source out of the Project", async ({ page }) => {
   await page.goto("/editor");
   await awaitEditorReady(page);
