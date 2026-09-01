@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { chooseComponent } from "./editor-fixtures";
+import { chooseComponent, downloadBytes } from "./editor-fixtures";
 
 async function placeComponent(
   page: Page,
@@ -26,6 +26,23 @@ function routePoints(page: Page) {
     .evaluateAll((elements) =>
       elements.map((element) => element.getAttribute("points")),
     );
+}
+
+async function exportedTerminals(
+  page: Page,
+): Promise<Array<{ instanceId: string; pinName: string }>> {
+  const saved = JSON.parse(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  ) as {
+    documents: Array<{
+      nets: Array<{
+        terminals: Array<{ instanceId: string; pinName: string }>;
+      }>;
+    }>;
+  };
+  return saved.documents[0]!.nets.flatMap((net) => net.terminals);
 }
 
 const META = 4; // CDP Input modifier bitmask (Cmd; macOS turns Ctrl+left into a right press)
@@ -102,7 +119,7 @@ test("Ctrl+drag moves only the part; its wire stays exactly in place", async ({
 
   await ctrlDrag(page, center, { x: center.x + 180, y: center.y });
 
-  // The part moved; the wire kept its exact geometry on the same net.
+  // The part moved; the now-open wire kept its exact authored geometry.
   const after = (await top.boundingBox())!;
   expect(after.x).toBeGreaterThan(before.x + 100);
   const wireAfter = await routePoints(page);
@@ -178,6 +195,16 @@ test("Shift+M moves the selection and leaves its wires where they were", async (
   const after = (await page.getByTestId(`hit-${ids[0]}`).boundingBox())!;
   expect(after.x).toBeGreaterThan(before.x + 100);
   expect(await routePoints(page)).toEqual(wireBefore);
+
+  // Geometry alone is insufficient: Shift+M is a real electrical disconnect,
+  // not a same-Net flightline disguised as a detached wire.
+  const terminals = await exportedTerminals(page);
+  expect(terminals).not.toContainEqual(
+    expect.objectContaining({ instanceId: ids[0] }),
+  );
+  expect(terminals).toContainEqual(
+    expect.objectContaining({ instanceId: ids[1] }),
+  );
 });
 
 // The brake: plain M must still drag the wire along, or Shift+M would have
@@ -199,6 +226,13 @@ test("M still stretches the wire along with the part", async ({ page }) => {
   const after = (await page.getByTestId(`hit-${ids[0]}`).boundingBox())!;
   expect(after.x).toBeGreaterThan(before.x + 100);
   expect(await routePoints(page)).not.toEqual(wireBefore);
+  const terminals = await exportedTerminals(page);
+  expect(terminals).toContainEqual(
+    expect.objectContaining({ instanceId: ids[0] }),
+  );
+  expect(terminals).toContainEqual(
+    expect.objectContaining({ instanceId: ids[1] }),
+  );
 });
 
 // Shift+M is verb-first the same way M is: pressed with nothing selected it

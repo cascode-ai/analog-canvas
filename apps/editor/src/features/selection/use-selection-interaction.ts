@@ -16,7 +16,6 @@ import {
   createRoutingOperationPlan,
   executeTransaction,
   gateRoutingOperationPlan,
-  planRoutedTerminalDetachment,
   planRoutingDeletion,
   planRoutingTransform,
   type RoutingOperationIntent,
@@ -34,6 +33,7 @@ import {
 } from "../../canvas/canvas-drag-session";
 import { startCanvasDragVisual } from "../../canvas/canvas-drag-visual";
 import type { ScreenFlip } from "../../interaction/shortcut-orientation";
+import { planDetachedMove } from "./detached-move";
 import type { VisualSelection } from "./visual-selection";
 import {
   planSelectionMove,
@@ -41,38 +41,6 @@ import {
 } from "./selection-move-plan";
 
 type TransactionResult = { ok: boolean; revision: number };
-
-/**
- * Preview projection of the detach edits: apply the planned Junction stubs
- * and re-anchored routes to a document clone so the drag ghost shows the
- * wires already staying put. The real edits still commit atomically as the
- * move transaction's prefix.
- */
-function projectDetachedDocument(
-  document: SchematicDocument,
-  edits: readonly SchematicEdit[],
-): SchematicDocument {
-  if (edits.length === 0) return document;
-  const next = structuredClone(document) as SchematicDocument & {
-    junctions: SchematicDocument["junctions"][number][];
-    routes: SchematicDocument["routes"][number][];
-  };
-  for (const edit of edits) {
-    if (edit.kind === "add_junction") {
-      next.junctions.push({
-        id: edit.junctionId,
-        netId: edit.netId,
-        position: edit.position,
-      });
-    } else if (edit.kind === "set_route_path") {
-      const index = next.routes.findIndex(
-        (candidate) => candidate.id === edit.route.id,
-      );
-      if (index >= 0) next.routes[index] = edit.route;
-    }
-  }
-  return next;
-}
 
 interface ResolvedInstanceMove {
   snap: SnapResult;
@@ -259,6 +227,44 @@ export function useSelectionInteraction(
       return { ok: false, revision: options.document.revision };
     }
     return options.transact([...gate.edits], options_);
+  };
+
+  /**
+   * One validated prefix shared by Shift+M and Ctrl/Cmd-drag. The gate both
+   * rejects protected interface terminals before a preview starts and gives
+   * the renderer the exact post-disconnect Document the final move uses.
+   */
+  const prepareDetachedMove = (
+    instanceIds: ReadonlySet<string>,
+  ): { document: SchematicDocument; edits: SchematicEdit[] } => {
+    detachSequenceRef.current += 1;
+    const planned = planDetachedMove(
+      options.document,
+      options.resolver,
+      instanceIds,
+      detachSequenceRef.current,
+    );
+    if (planned.edits.length === 0) {
+      return { document: options.document, edits: [] };
+    }
+    const gate = gateRoutingOperationPlan(
+      options.document,
+      createRoutingOperationPlan(options.document, {
+        intent: "transform",
+        diagnostics: [],
+        edits: planned.edits,
+        expectedElectricalEffect: {
+          kind: "remove",
+          removedEndpointKeys: planned.disconnectedEndpointKeys,
+        },
+      }),
+      { symbolResolver: options.resolver },
+    );
+    if (!gate.ok) throw new Error(gate.message);
+    return {
+      document: gate.evaluated.finalDocument,
+      edits: [...gate.edits],
+    };
   };
 
   const projectedInstancePreview = (
@@ -480,20 +486,15 @@ export function useSelectionInteraction(
         return;
       }
       try {
-        detachSequenceRef.current += 1;
-        detachEdits = planRoutedTerminalDetachment(
-          options.document,
-          options.resolver,
-          new Set(detaching.instanceIds),
-          detachSequenceRef.current,
-        );
+        const prepared = prepareDetachedMove(new Set(detaching.instanceIds));
+        detachEdits = prepared.edits;
+        baseDocument = prepared.document;
       } catch (error) {
         options.setStatus(
           error instanceof Error ? error.message : "Detach move failed",
         );
         return;
       }
-      baseDocument = projectDetachedDocument(options.document, detachEdits);
     }
     const movePlan = planSelectionMove(baseDocument, selection);
     if (movePlan.previewObjectIds.length === 0) {
@@ -851,8 +852,8 @@ export function useSelectionInteraction(
     options.suppressInstanceClickRef.current =
       hitTarget.getAttribute("data-canvas-hit-kind") === "instance";
     // Ctrl-drag follows Virtuoso: the drag moves ONLY the part, leaving its
-    // wires exactly where they are (they re-anchor onto Junction stubs and
-    // stay on the Net, so the missing path shows as a flightline). Cmd
+    // wires exactly where they are on open Junction stubs while the old
+    // terminal memberships are disconnected. Cmd
     // serves the same role because macOS browsers convert Ctrl+left-press
     // into a right-button press before the page ever sees it. A plain
     // modifier-click without a drag keeps its toggle-selection meaning.
@@ -866,23 +867,15 @@ export function useSelectionInteraction(
     let previewBaseDocument = options.document;
     if (detachDrag) {
       try {
-        detachSequenceRef.current += 1;
-        detachEdits = planRoutedTerminalDetachment(
-          options.document,
-          options.resolver,
-          new Set([instanceId]),
-          detachSequenceRef.current,
-        );
+        const prepared = prepareDetachedMove(new Set([instanceId]));
+        detachEdits = prepared.edits;
+        previewBaseDocument = prepared.document;
       } catch (error) {
         options.setStatus(
           error instanceof Error ? error.message : "Detach move failed",
         );
         return;
       }
-      previewBaseDocument = projectDetachedDocument(
-        options.document,
-        detachEdits,
-      );
     }
     const movingSelection: VisualSelection =
       !detachDrag && options.selectedIds.includes(instanceId)
@@ -894,7 +887,7 @@ export function useSelectionInteraction(
             annotationIds: [],
             draftingIds: [],
           };
-    const movePlan = planSelectionMove(options.document, movingSelection);
+    const movePlan = planSelectionMove(previewBaseDocument, movingSelection);
     const movingIds = movePlan.instanceIds;
     // A detach drag defers selection: a threshold-crossing drag selects the
     // moved part on finish, while a mere modifier-click keeps its
@@ -955,6 +948,7 @@ export function useSelectionInteraction(
         tolerance,
         suppressSnap,
         lastSnap,
+        detachDrag ? previewBaseDocument : undefined,
       );
       lastSnap = resolved.snap;
       const input = {
@@ -1080,7 +1074,7 @@ export function useSelectionInteraction(
           }
           if (detachEdits.length > 0) {
             options.setStatus(
-              `Moved ${instanceId} without its wires — reconnect via the flightlines`,
+              `Moved ${instanceId} without its wires; original wire endpoints remain open`,
             );
           }
         } else if (detachDrag) {
