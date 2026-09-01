@@ -17,6 +17,8 @@ export function ComponentElectricalProperties({
   referenceVisible,
   valueVisible,
   valueAvailable,
+  valueSupported,
+  referenceAvailable,
   referenceLabelRenderable,
   additionalParameters,
   additionalParametersChanged,
@@ -36,6 +38,21 @@ export function ComponentElectricalProperties({
   referenceVisible: boolean;
   valueVisible: boolean;
   valueAvailable: boolean;
+  /**
+   * Whether this device can ever annotate a value. A switch designates S1 and
+   * carries no value at all, so its Value toggle would switch nothing. This
+   * is not the same as {@link valueAvailable}, which is false only until the
+   * parameters are filled in and keeps its toggle so the remedy is visible.
+   */
+  valueSupported: boolean;
+  /**
+   * Whether this instance has a reference designator to show. A part with no
+   * device descriptor — a voltage amplifier, an op amp, the signal-flow
+   * blocks — never gets one, so a "Reference" toggle would switch something
+   * that does not exist. Read from the reference policy rather than a list of
+   * Symbol names, so a Symbol added later is right without anyone editing it.
+   */
+  referenceAvailable: boolean;
   /**
    * Whether this Symbol can draw a reference label at all. A Symbol that
    * declares `labelVisibility: "hidden"` — a summing junction, a 1/s block,
@@ -64,7 +81,10 @@ export function ComponentElectricalProperties({
   // control: schematic-only glyphs neither draw a reference nor carry a
   // value, and a Symbol with no parameters and no netlist has nothing left
   // for this card to say.
-  const displayable = referenceLabelRenderable || valueAvailable;
+  // Offer only what the drawing can actually show: a reference this
+  // instance has and this Symbol draws, and a value this device supports.
+  const referenceToggleable = referenceLabelRenderable && referenceAvailable;
+  const displayable = referenceToggleable || valueSupported;
   if (primaryParameters.length === 0 && !displayable && !instance.netlist) {
     return null;
   }
@@ -107,7 +127,7 @@ export function ComponentElectricalProperties({
             className="display-toggle-row"
             aria-label="Component display toggles"
           >
-            {referenceLabelRenderable ? (
+            {referenceToggleable ? (
               <DisplayToggle
                 label={
                   instance.symbolId === "port" ||
@@ -119,15 +139,17 @@ export function ComponentElectricalProperties({
                 onChange={onReferenceVisibilityChange}
               />
             ) : null}
-            <DisplayToggle
-              label="Value"
-              checked={valueVisible}
-              disabled={!valueAvailable}
-              help={
-                valueAvailable ? undefined : "Set the device parameters first"
-              }
-              onChange={onValueVisibilityChange}
-            />
+            {valueSupported ? (
+              <DisplayToggle
+                label="Value"
+                checked={valueVisible}
+                disabled={!valueAvailable}
+                help={
+                  valueAvailable ? undefined : "Set the device parameters first"
+                }
+                onChange={onValueVisibilityChange}
+              />
+            ) : null}
           </div>
         </div>
       ) : null}

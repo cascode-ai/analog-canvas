@@ -712,6 +712,41 @@ test("constructs VDD as a drawn dotless power rail", async ({ page }) => {
   await expect(canvas.getByText("VDD", { exact: true })).toHaveCount(0);
 });
 
+test("a part with no designator offers no Reference toggle", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  // A voltage amplifier has no device descriptor, so it never designates.
+  await placeComponent(page, "voltage-amplifier", { x: 300, y: 200 });
+  await openSelectionShelf(page);
+  const properties = page.getByRole("complementary", { name: "Properties" });
+  await expect(properties).toContainText("voltage-amplifier");
+  // The row switched something that does not exist, so it is not there.
+  await expect(properties.getByLabel("Component display toggles")).toHaveCount(
+    0,
+  );
+
+  // The brake: a resistor designates R1 and carries a value, so its toggles
+  // are untouched and still work.
+  await placeComponent(page, "resistor", { x: 500, y: 200 });
+  await openSelectionShelf(page);
+  const toggles = properties.getByLabel("Component display toggles");
+  await expect(toggles).toBeVisible();
+  await expect(toggles).toContainText("Reference");
+  await expect(toggles).toContainText("Value");
+  const reference = toggles.getByLabel("Reference");
+  await expect(reference).toBeChecked();
+  const drawnLabel = page.locator(
+    '[data-layer="annotations"] [data-object-id="instance-label-R1"]',
+  );
+  await expect(drawnLabel).toHaveCount(1);
+  await reference.uncheck();
+  await expect(drawnLabel).toHaveCount(0);
+  await reference.check();
+  await expect(drawnLabel).toHaveCount(1);
+});
+
 test("a switch changes contact style in place, keeping its wires", async ({
   page,
 }) => {
@@ -5888,6 +5923,56 @@ test("double-click ends the wire even when it lands on another wire", async ({
   // Nothing is in progress, so a plain move draws no preview leg.
   await page.mouse.move(500, 500);
   await expect(page.getByTestId("status")).toContainText("Wire finished");
+});
+
+test("dragging a wire previews the orthogonal path it will commit", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await placeComponent(page, "resistor", { x: 260, y: 200 });
+  const canvas = page.getByTestId("schematic-canvas");
+  // A wire from a terminal out to a free end, drawn at a free angle: the
+  // shape the report was about.
+  await clickDrawTool(page, "wire");
+  await page.getByTestId("terminal-R1-2").click();
+  for (let step = 0; step < 4; step += 1) {
+    await canvas.click({ button: "middle", position: { x: 380, y: 260 } });
+  }
+  await canvas.dblclick({ position: { x: 520, y: 300 } });
+  await page.keyboard.press("Escape");
+
+  const drawnPoints = async () => {
+    const points = await page
+      .locator('[data-layer="routes"] polyline')
+      .first()
+      .getAttribute("points");
+    return (points ?? "")
+      .trim()
+      .split(/\s+/u)
+      .map((pair) => pair.split(",").map(Number) as [number, number]);
+  };
+  const everyLegAxisAligned = (points: [number, number][]) =>
+    points.every((point, index) => {
+      if (index === 0) return true;
+      const previous = points[index - 1]!;
+      return point[0] === previous[0] || point[1] === previous[1];
+    });
+
+  const route = page.locator('[data-canvas-hit-kind="route"]').first();
+  const box = (await route.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(
+    box.x + box.width / 2 + 20,
+    box.y + box.height / 2 + 70,
+    { steps: 8 },
+  );
+  // While the pointer is down the preview used to close back at the old free
+  // end, drawing a triangle the editor never commits.
+  expect(everyLegAxisAligned(await drawnPoints())).toBe(true);
+  await page.mouse.up();
+  expect(everyLegAxisAligned(await drawnPoints())).toBe(true);
 });
 
 test("draws a wire at an angle the 45-degree grid cannot reach", async ({

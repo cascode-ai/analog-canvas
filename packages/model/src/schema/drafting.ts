@@ -21,6 +21,19 @@ const DraftingObjectBaseSchema = z.strictObject({
       italic: z.boolean().optional(),
       lineStyle: z.enum(["solid", "dashed", "dotted"]).optional(),
       arrowHead: z.enum(["none", "filled", "open"]).optional(),
+      /**
+       * Which ends carry the head. Absent means the trailing end alone, which
+       * is what every arrow drawn before this field meant, so existing files
+       * load unchanged with no migration and no schema bump.
+       *
+       * Deliberately one placement rather than a separate style per end: a
+       * double-headed annotation arrow uses the same head at both ends by
+       * drafting convention, so per-end styles would answer a question nobody
+       * asked while doubling what the panel must present. If mismatched ends
+       * ever earn their keep, a second optional field adds them without
+       * disturbing anything written until then.
+       */
+      arrowHeadAt: z.enum(["end", "start", "both"]).optional(),
       /** Free multiplier over the profile's annotation stroke (schema 27
        * widened the previous four-step ladder); document-level
        * annotationStrokeScale composes multiplicatively on top. */
