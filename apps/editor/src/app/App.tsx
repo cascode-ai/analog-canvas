@@ -104,6 +104,10 @@ import {
   type SpiceImportReport,
 } from "../features/editor-shell/editor-file-commands";
 import { EditorStatusbar } from "../features/editor-shell/editor-statusbar";
+import {
+  operatingPointLabels,
+  type OperatingPointDisplay,
+} from "../features/simulation/operating-point-labels";
 import { TimingSimulationPanel } from "../features/simulation/timing-simulation-panel";
 import { TIMING_UI_ENABLED } from "../features/simulation/timing-ui";
 import { updateComponentParameterValues } from "../features/component-insert/component-parameters";
@@ -1251,6 +1255,50 @@ export function App({
   );
   const [issuesFocusToken, setIssuesFocusToken] = useState(0);
   const [issuesSectionOpen, setIssuesSectionOpen] = useState(false);
+  /**
+   * The last DC operating point, kept in view state only. A simulation result
+   * is never persisted into the Project (ADR 0055), so it lives here and dies
+   * with the session rather than entering the document or the undo history.
+   *
+   * The setters have no caller yet by design, not by omission: the producer is
+   * the SPICE panel's run result, and the run route is still being built. This
+   * is the seam it attaches to — `setOperatingPointVoltages(result.operating
+   * Point)` on success and `new Map()` on a new run. Do not delete it as dead
+   * code; deleting it would silently remove the canvas half of the feature.
+   */
+  const [operatingPointVoltages, setOperatingPointVoltages] = useState<
+    ReadonlyMap<string, number>
+  >(() => new Map());
+  const [operatingPointDisplay, setOperatingPointDisplay] =
+    useState<OperatingPointDisplay>("named");
+  const operatingPointBadges = useMemo(
+    () =>
+      operatingPointVoltages.size === 0
+        ? []
+        : operatingPointLabels({
+            document,
+            resolver,
+            voltages: operatingPointVoltages,
+            display: operatingPointDisplay,
+            // "Pointed at" is whichever net the selected wire carries; the
+            // highlight already tracks hover for the net-highlight overlay.
+            selectedNetIds: selectedRouteId
+              ? document.routes
+                  .filter((route) => route.id === selectedRouteId)
+                  .map((route) => route.netId)
+              : [],
+            hoveredNetId: highlightedNetId ?? null,
+          }),
+    [
+      document,
+      resolver,
+      operatingPointVoltages,
+      operatingPointDisplay,
+      selectedRouteId,
+      highlightedNetId,
+    ],
+  );
+
   const diagnosticMarkers = useMemo(
     () =>
       buildDiagnosticMarkers({
@@ -4799,6 +4847,7 @@ export function App({
             markers: diagnosticMarkers,
             onSelectMarker: jumpToProjectDiagnostic,
           }}
+          operatingPoint={{ badges: operatingPointBadges }}
           netLabelTether={netLabelTether}
           copyPreviewInnerHtml={copyPreviewInnerHtml}
           copyPreviewTransform={copyPreviewTransform}
