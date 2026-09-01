@@ -33,6 +33,7 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @icm/spice-run build
       - run: pnpm --filter @icm/editor... build
         env:
           # Timing simulation remains a localhost development surface until
@@ -88,16 +89,18 @@ jobs:
             --retry 5 --retry-delay 2 --retry-all-errors \
             --max-time 20 \
             https://analog-canvas.tokenzhang.com/api/agent/mcp-manifest.json >/dev/null
-          missing_asset="$(curl --silent --show-error \
+          stale_asset="$(curl --silent --show-error \
             --max-time 20 \
-            --output /tmp/analog-canvas-missing-asset.txt \
+            --output /tmp/analog-canvas-stale-asset.txt \
             --write-out '%{http_code} %{content_type}' \
             https://analog-canvas.tokenzhang.com/assets/App-deploy-smoke-missing.js)"
-          case "$missing_asset" in
-            "404 text/plain"*) ;;
+          case "$stale_asset" in
+            "200 text/html"*)
+              grep -qi '<!doctype html>' /tmp/analog-canvas-stale-asset.txt
+              ;;
             *)
-              echo "Missing hashed asset returned: $missing_asset"
-              cat /tmp/analog-canvas-missing-asset.txt
+              echo "Stale hashed asset returned: $stale_asset"
+              cat /tmp/analog-canvas-stale-asset.txt
               exit 1
               ;;
           esac
