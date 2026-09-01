@@ -598,4 +598,54 @@ describe("a rail drawn across the ends of existing wires", () => {
     );
     expect(wireNetIds).toEqual(new Set(["net-w0", "net-w1"]));
   });
+
+  it("does not adopt a PIN that happens to rest on the rail", () => {
+    // The line this rule deliberately does not cross. A drawn wire's end is
+    // unambiguously an end, so the rail adopts it. A *pin* resting under a
+    // rail is the abbreviated idiom the Gallery contract welcomes and
+    // diagnoseVisualQuality grades a warning rather than an error — a corpus
+    // sweep found it in published schematics. Adopting it here would rewire
+    // drawings that already exist, so only junctions are collected.
+    //
+    // Asserted on its own rather than left implicit in the collection code:
+    // the whole risk is that a later reader "completes" the symmetry.
+    const document = twoStandingWires();
+    document.instances.push({
+      id: "R1",
+      symbolId: "resistor",
+      // Pin 1 sits 20 above the body, so the body at y = 120 rests its pin
+      // exactly on the rail's line at y = 100, between the two wires.
+      placement: { position: { x: 150, y: 120 }, rotation: 0, mirror: "none" },
+    } as SchematicDocument["instances"][number]);
+    document.nets.push({
+      id: "net-resistor",
+      terminals: [{ instanceId: "R1", pinName: "1" }],
+    });
+
+    // Non-vacuous: the pin really is on the rail's line, so a rule that
+    // adopted resting pins would have taken this one.
+    const pin = resolver
+      .resolve("resistor")!
+      .definition.pins.find((candidate) => candidate.name === "1")!;
+    expect({ x: 150 + pin.at.x, y: 120 + pin.at.y }).toEqual({
+      x: 150,
+      y: 100,
+    });
+
+    const { gate, document: after } = drawRail(
+      document,
+      { x: 60, y: 100 },
+      { x: 240, y: 100 },
+    );
+    expect(gate.ok).toBe(true);
+    if (!after) return;
+    const restingNet = after.nets.find((net) =>
+      net.terminals.some((terminal) => terminal.instanceId === "R1"),
+    );
+    const railNet = after.routes.find((route) =>
+      route.id.startsWith("route-vdd1"),
+    )?.netId;
+    expect(restingNet?.id).toBe("net-resistor");
+    expect(restingNet?.id).not.toBe(railNet);
+  });
 });

@@ -451,16 +451,17 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
               suffix: `land-${options.nextRoutingSuffix()}`,
             },
           );
+          // An attach among the edits means an end came to rest on another
+          // conductor; the gate derives the join from that primitive itself.
+          const landed = proposal.edits.some(
+            (edit) => edit.kind === "attach_endpoint_to_route",
+          );
           const result = transactProposal(
-            proposalFor(
-              "route-geometry",
-              proposal.edits,
-              proposal.expectedElectricalEffect,
-            ),
+            proposalFor("route-geometry", proposal.edits),
           );
           if (result.ok) {
             options.setStatus(
-              proposal.expectedElectricalEffect
+              landed
                 ? `Moved ${record.route.id} onto the wire it now shares a net with`
                 : `Moved loose route ${record.route.id}`,
             );

@@ -1,7 +1,6 @@
 import {
   deriveMosBulkRouteFamily,
   derivePowerRailComponent,
-  endpointKey,
   isMosBulkRoute,
   isMosBulkTerminal,
   pointOnSegment,
@@ -43,7 +42,6 @@ import {
 } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
-import type { ExpectedElectricalEffect } from "./routing-operation-plan.js";
 import type { SchematicEdit } from "./transaction.js";
 import { rebuildRoutePath } from "./route-leg-mutation.js";
 
@@ -623,18 +621,17 @@ function looseRouteLandingContacts(
  *
  * Given a resolver, an end that comes to rest on another Net's conductor also
  * joins it: dragging an end onto a wire is the same deliberate gesture as
- * dropping a pin on one, and it is not ambiguous. The returned
- * `expectedElectricalEffect` declares that join, because the routing gate
- * otherwise reads a geometry move as "preserve" and refuses the connection the
- * gesture asked for. With no landing contact the declaration is absent and the
- * preserve default stands, so an ordinary move stays pure geometry.
+ * dropping a pin on one, and it is not ambiguous. The join is emitted as an
+ * ordinary attach, which is a primitive the routing gate reads for itself —
+ * no declaration is written here, and none is needed. With no landing contact
+ * no attach is emitted and the move stays pure geometry.
  */
 export function proposeLooseRouteTranslation(
   document: SchematicDocument,
   routeId: string,
   delta: Point,
   landing?: { resolver: SymbolResolver; suffix: string },
-): RouteEditPlan & { expectedElectricalEffect?: ExpectedElectricalEffect } {
+): RouteEditPlan {
   const route = document.routes.find((candidate) => candidate.id === routeId);
   if (!route) throw new Error(`Route not found: ${routeId}`);
   const anchors = looseRouteAnchorIds(document, route);
@@ -683,7 +680,6 @@ export function proposeLooseRouteTranslation(
   );
   if (contacts.length === 0) return { routeId, edits };
 
-  const endpointGroups: string[][] = [];
   const byTargetRoute = new Map<string, EndpointRouteAttachmentRequest[]>();
   for (const contact of contacts) {
     const requests = byTargetRoute.get(contact.routeId) ?? [];
@@ -691,31 +687,17 @@ export function proposeLooseRouteTranslation(
     byTargetRoute.set(contact.routeId, requests);
   }
   for (const [targetRouteId, requests] of byTargetRoute) {
-    const target = document.routes.find(
-      (candidate) => candidate.id === targetRouteId,
-    )!;
-    const attachment = proposeEndpointsRouteAttachment(
-      document,
-      landing.resolver,
-      targetRouteId,
-      requests,
-      landing.suffix,
+    edits.push(
+      ...proposeEndpointsRouteAttachment(
+        document,
+        landing.resolver,
+        targetRouteId,
+        requests,
+        landing.suffix,
+      ).edits,
     );
-    edits.push(...attachment.edits);
-    // Declare the join in the gate's own terms: each landing endpoint ends up
-    // sharing a Net with the conductor it came to rest on.
-    for (const request of requests) {
-      endpointGroups.push([
-        endpointKey(request.endpoint),
-        ...routeEndpoints(target).map((endpoint) => endpointKey(endpoint)),
-      ]);
-    }
   }
-  return {
-    routeId,
-    edits,
-    expectedElectricalEffect: { kind: "merge", endpointGroups },
-  };
+  return { routeId, edits };
 }
 
 /**
