@@ -12,8 +12,9 @@ spelling and Cadence-compatible round-trip behavior, without changing physical
 connectivity or Net lifecycle behavior.
 
 This is a Net naming/resolution/export boundary target. It is not a
-connectivity-lifecycle target. Delivery is ordered P0 correctness, P1 naming
-authority and dialect capability, then P2 source-spelling compatibility.
+connectivity-lifecycle target. Delivery is ordered as the separately committed
+C0 lifecycle correction, P0 naming correctness, P1 naming authority and
+dialect capability, then P2 source-spelling compatibility.
 
 ## Why this is P0
 
@@ -246,6 +247,66 @@ After a Wire cut, existing evidence-copy rules remain authoritative. If two
 resulting Nets retain the same source hint, the exporter may disambiguate those
 non-authoritative hints and report it; it must not reconnect the Nets.
 
+## Prerequisite C0 - Imported-global split allocation
+
+This is a separate P0 connectivity-correctness target that must land before the
+naming P0 work. It is recorded here because a stale imported global authority
+can invalidate every later spelling/export guarantee, but it is not part of
+the naming implementation boundary.
+
+The importer correctly maps an explicit source declaration:
+
+```spice
+.global VDD
+```
+
+to an authoritative global `name-claim` owned by `global-declaration`. The
+defect occurs later: the common split propagation currently copies that
+non-spatial declaration to every Base-Net component after `cut_connection`.
+The resolver then joins those components again by global scoped name, so the
+physical split does not become an electrical/netlist split.
+
+The accepted split allocation is:
+
+| Evidence after cut                 | Allocation                                                                |
+| ---------------------------------- | ------------------------------------------------------------------------- |
+| `spice-source`                     | Copy to every surviving component as provenance.                          |
+| `net-name-hint`                    | Copy to every surviving component as non-electrical spelling provenance.  |
+| `global-declaration`               | Keep only on the primary component that retains the original Base-Net ID. |
+| Label or Power Marker `name-claim` | Continue following its existing spatial owner to the surviving component. |
+
+No importer mapping, schema, resolver rule, project-global projection, or new
+lifecycle state is required. The existing split algorithm already chooses the
+primary component and retains the original Base-Net ID, so retaining the
+original declaration requires no second ownership rule. The existing
+connectivity transaction continues setting `sourceStatus` to
+`connectivity-modified`.
+
+Required C0 acceptance scenarios:
+
+1. Cutting an imported global with no spatial name owner produces two Base
+   Nets and two Logical Nets; only the primary remains global.
+2. When both resulting components independently retain same-name Global
+   Markers, they remain two Base Nets but intentionally resolve to one global
+   Logical Net.
+3. When only one component has a current global owner, the other component
+   does not inherit global scope from source provenance.
+4. Both components retain their `spice-source` and `net-name-hint` evidence,
+   and imported routing guidance remains non-electrical.
+5. Undo and redo restore the exact Base-Net, evidence, Logical-Net, and
+   `sourceStatus` results.
+
+### Separate delivery boundary
+
+- C0 owns only split evidence allocation and its focused Edit Engine/derived
+  regression tests.
+- C0 must be committed and reviewed independently from resolver spelling,
+  project-global projection, dialect codec, and Properties changes.
+- Naming P0-P2 commits must not use C0 as permission to rewrite the common
+  connect/cut/split lifecycle.
+- A test that only observes physical Base-Net partitioning is insufficient;
+  C0 must assert post-cut Logical-Net resolution and exported connectivity.
+
 ## Accepted product decisions
 
 | Decision                         | Accepted policy                                                                                                                     |
@@ -257,6 +318,10 @@ non-authoritative hints and report it; it must not reconnect the Nets.
 | Persistence                      | Keep one authored `name-claim`; preferred spelling, variants, codec tokens, and profiles remain transient.                          |
 
 ## Strict implementation boundary
+
+The following boundary applies to the naming P0-P2 work packages. Prerequisite
+C0 is the separately committed correction described above and is the only
+planned change to split evidence allocation.
 
 ### Allowed changes
 
@@ -451,6 +516,9 @@ Only these outputs may change:
 
 ## Phase exit gates
 
+- C0 is complete when cutting an imported global cannot regain connectivity
+  through copied declaration authority, while provenance, owner-following,
+  source status, and undo/redo retain their existing contracts.
 - P0 is complete when no successful export can collapse two distinct schematic
   Net identities, all reachable references use one project-global spelling,
   and unchanged connectivity/lifecycle fixtures produce byte-identical
