@@ -17,6 +17,34 @@ export type DirectEndpointConnectionPlan =
       relatedNetIds: readonly string[];
     };
 
+/**
+ * Retire the net labels that name these Base Nets, annotation and claim both.
+ *
+ * Only claims a **label** owns are retired. A claim owned by a power marker
+ * comes from a symbol the author placed on the canvas — a VDD or VSS part,
+ * not a piece of text — and deleting parts is not what naming a node meant.
+ * Contact between two supply domains is refused earlier for that reason.
+ */
+function retireNetLabelClaims(
+  document: SchematicDocument,
+  netIds: readonly string[],
+): SchematicEdit[] {
+  const edits: SchematicEdit[] = [];
+  for (const evidence of document.connectivityEvidence) {
+    if (evidence.kind !== "name-claim") continue;
+    if (!netIds.includes(evidence.netId)) continue;
+    if (evidence.owner.kind !== "net-label") continue;
+    edits.push(
+      { kind: "remove_connectivity_evidence", evidenceId: evidence.id },
+      {
+        kind: "remove_schematic_annotation",
+        annotationId: evidence.owner.annotationId,
+      },
+    );
+  }
+  return edits;
+}
+
 export interface DirectEndpointConnectionRequest {
   from: RouteEndpoint;
   to: RouteEndpoint;
@@ -66,17 +94,21 @@ export function planDirectEndpointConnection(
   const relatedNetIds = [fromNetId, toNetId].sort((left, right) =>
     left.localeCompare(right, "en"),
   );
-  if (
+  // Two differently named Nets brought into contact DO join, and BOTH names
+  // go with the join. Neither one describes the result: the author named two
+  // nodes precisely to say they were different, so keeping either would have
+  // the drawing assert something they never said, while keeping both would
+  // leave one node claiming two names. Retiring the pair says only what is
+  // true — this node is not named yet — and two labels vanishing is visible
+  // in a way one quiet survivor would not be.
+  const namesConflict = Boolean(
     fromLogical?.name &&
     toLogical?.name &&
-    foldNetName(fromLogical.name) !== foldNetName(toLogical.name)
-  ) {
-    return {
-      ok: false,
-      message: `Cannot directly connect named Nets ${fromLogical.name} and ${toLogical.name}`,
-      relatedNetIds,
-    };
-  }
+    foldNetName(fromLogical.name) !== foldNetName(toLogical.name),
+  );
+  const retiredLabelEdits = namesConflict
+    ? retireNetLabelClaims(document, [fromNetId, toNetId])
+    : [];
   if (
     fromLogical?.powerDomain === "conflict" ||
     toLogical?.powerDomain === "conflict" ||
@@ -102,6 +134,9 @@ export function planDirectEndpointConnection(
     ok: true,
     netId: targetNetId,
     edits: [
+      // The names go first: the merge that follows must not have to hold a
+      // Net carrying two of them, even for one intermediate step.
+      ...retiredLabelEdits,
       { kind: "merge_nets", targetNetId, sourceNetId },
       { kind: "connect_endpoints", from: request.from, to: request.to },
     ],
