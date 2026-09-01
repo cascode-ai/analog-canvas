@@ -91,3 +91,23 @@ export function resolveCanvasHitAtPoint(
     cycle,
   );
 }
+
+/**
+ * A hit radius that stays the same size on screen at any zoom.
+ *
+ * Endpoint and Junction circles carried a radius in document units, so
+ * zooming out shrank them on screen until a Junction was barely clickable —
+ * while the route hit band beside them is 14 screen pixels and never
+ * changes, because CSS gives it a non-scaling stroke. A circle's radius has
+ * no such CSS, so the conversion happens here: the viewBox width against the
+ * width one hundred percent zoom shows is exactly the document-units-per-
+ * pixel factor the zoom readout already reports.
+ */
+export function screenScaleHitRadius(
+  viewBoxWidth: number,
+  referenceWidth: number,
+  pixels: number,
+): number {
+  if (!(viewBoxWidth > 0) || !(referenceWidth > 0)) return pixels;
+  return (pixels * viewBoxWidth) / referenceWidth;
+}

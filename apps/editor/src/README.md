@@ -7,7 +7,13 @@ tests beside the implementation whose contract they protect.
 
 - `app/`: top-level editor composition and orchestration.
 - `canvas/`: reusable canvas geometry, hit resolution, and drag-session
-  infrastructure. It must not own document transactions.
+  infrastructure. It must not own document transactions. Who owns one pointer
+  press is decided only in `pointer-down-router.ts`, a pure function over
+  facts: the capture-phase dispatcher gathers those facts, asks it, and
+  executes the answer. Hit elements carry data attributes and their click,
+  double-click and context-menu handlers; a press handler on one of them
+  would be a second opinion, and the ordering between the two used to rest on
+  `stopPropagation` firing first.
 - `components/`: reusable presentational shells that do not own editor model
   state.
 - `document/`: document navigation, transaction, and project recovery

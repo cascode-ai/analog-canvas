@@ -21,6 +21,7 @@ function emptyEndpointProps(document = createEmptyDocument("cell", "Cell")) {
     selectedEndpoint: null,
     supplementalJunctionIds: [],
     endpointLabel: vi.fn(),
+    endpointHitRadius: 6,
     onEndpointActions: vi.fn(),
     onRouteStretch: vi.fn(),
     onJunctionSelect: vi.fn(),
@@ -204,5 +205,32 @@ describe("editor canvas hit layer", () => {
     expect(markup.indexOf('data-testid="junction-a"')).toBeLessThan(
       markup.indexOf('data-testid="annotation-hit-note"'),
     );
+  });
+});
+
+describe("endpoint hit targets at any zoom", () => {
+  it("draws the hit circle at the radius the view asks for", () => {
+    // Zoomed out, the caller passes a larger document radius so the target
+    // keeps its size on screen; the layer must use it verbatim.
+    const document = createEmptyDocument("cell", "Cell");
+    const markup = renderToStaticMarkup(
+      <EditorCanvasHitLayer
+        selection={emptySelectionProps(document)}
+        endpoints={{
+          ...emptyEndpointProps(document),
+          endpoints: [
+            {
+              endpoint: { kind: "junction", junctionId: "j1" },
+              netId: "net-1",
+              connection: { contactPoint: { x: 10, y: 20 } },
+              preludeEdits: [],
+            } as unknown as WireSource,
+          ],
+          endpointLabel: () => "endpoint-j1",
+          endpointHitRadius: 12,
+        }}
+      />,
+    );
+    expect(markup).toContain('r="12"');
   });
 });

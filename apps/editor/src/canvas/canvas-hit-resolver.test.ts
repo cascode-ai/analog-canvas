@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveCanvasHit } from "./canvas-hit-resolver";
+import { resolveCanvasHit, screenScaleHitRadius } from "./canvas-hit-resolver";
 
 function element(kind: string, id: string, selected = false): Element {
   const classes = new Set(selected ? ["selected"] : []);
@@ -104,5 +104,20 @@ describe("resolveCanvasHit", () => {
       kind: "instance",
       id: "M1",
     });
+  });
+});
+
+describe("a hit radius that does not shrink when the view does", () => {
+  it("keeps one screen size at every zoom", () => {
+    // At 100% the radius is the pixel count; zoomed out two-fold the
+    // document radius doubles so the circle looks the same on screen.
+    expect(screenScaleHitRadius(1000, 1000, 6)).toBe(6);
+    expect(screenScaleHitRadius(2000, 1000, 6)).toBe(12);
+    expect(screenScaleHitRadius(500, 1000, 6)).toBe(3);
+  });
+
+  it("falls back to the pixel count when the view is not measurable yet", () => {
+    expect(screenScaleHitRadius(0, 1000, 6)).toBe(6);
+    expect(screenScaleHitRadius(1000, 0, 6)).toBe(6);
   });
 });

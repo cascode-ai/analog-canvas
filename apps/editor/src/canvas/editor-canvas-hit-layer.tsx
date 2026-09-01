@@ -57,22 +57,19 @@ interface SelectionHitTargetProps {
   wouldMoveIds: ReadonlySet<string>;
   onInstanceClick: (instance: Instance, additive: boolean) => void;
   onInstanceOpen: (instance: Instance) => void;
-  onInstancePointerDown: (
-    event: ReactPointerEvent<SVGRectElement>,
-    instance: Instance,
-  ) => void;
   onInstanceContextMenu: (
     instance: Instance,
     clientX: number,
     clientY: number,
   ) => void;
+  /**
+   * Reached only while a drawing tool is up. The pointer tool's presses are
+   * claimed and stopped by the capture-phase router, which is the one place
+   * that decides ownership; the wire gesture reads the whole press itself.
+   */
   onRoutePointerDown: (
     event: ReactPointerEvent<SVGPolylineElement>,
     routeId: string,
-  ) => void;
-  onAnnotationPointerDown: (
-    event: ReactPointerEvent<SVGRectElement>,
-    annotation: Annotation,
   ) => void;
   onAnnotationContextMenu: (
     annotation: Annotation,
@@ -101,6 +98,11 @@ interface EndpointHitTargetProps {
     intent: StretchIntent,
   ) => void;
   onJunctionSelect: (endpoint: WireSource) => void;
+  /**
+   * Radius of the endpoint and Junction hit circles, in document units,
+   * converted so the target keeps one size on screen at any zoom.
+   */
+  endpointHitRadius: number;
   onWireEndpoint: (
     event: ReactPointerEvent<SVGCircleElement>,
     endpoint: WireSource,
@@ -139,10 +141,8 @@ function SelectionHitTargets({
   wouldMoveIds,
   onInstanceClick,
   onInstanceOpen,
-  onInstancePointerDown,
   onInstanceContextMenu,
   onRoutePointerDown,
-  onAnnotationPointerDown,
   onAnnotationContextMenu,
   onAnnotationEdit,
   onNetPointerEnter,
@@ -180,7 +180,6 @@ function SelectionHitTargets({
                 event.stopPropagation();
                 onInstanceOpen(instance);
               }}
-              onPointerDown={(event) => onInstancePointerDown(event, instance)}
               onContextMenu={(event) => {
                 event.preventDefault();
                 event.stopPropagation();
@@ -207,6 +206,9 @@ function SelectionHitTargets({
                 : "route-hit"
           }
           points={serializePolylinePoints(geometry.centerline)}
+          // Drawing tools only: under the pointer tool the capture-phase
+          // router has already claimed this press and stopped it, so this
+          // handler runs for the wire gesture and for nothing else.
           onPointerDown={(event) => onRoutePointerDown(event, route.id)}
           onPointerEnter={() => onNetPointerEnter?.(route.netId)}
           onPointerLeave={() => onNetPointerLeave?.()}
@@ -263,9 +265,6 @@ function SelectionHitTargets({
               }
               {...hitBox}
               onClick={(event) => event.stopPropagation()}
-              onPointerDown={(event) =>
-                onAnnotationPointerDown(event, annotation)
-              }
               onPointerEnter={() =>
                 annotation.netId && onNetPointerEnter?.(annotation.netId)
               }
@@ -300,6 +299,7 @@ function EndpointHitTargets({
   selectedEndpoint,
   supplementalJunctionIds,
   endpointLabel,
+  endpointHitRadius,
   onEndpointActions,
   onRouteStretch,
   onJunctionSelect,
@@ -370,7 +370,7 @@ function EndpointHitTargets({
         }
         cx={candidate.connection.contactPoint.x}
         cy={candidate.connection.contactPoint.y}
-        r={4}
+        r={endpointHitRadius}
         onClick={(event) => event.stopPropagation()}
         onContextMenu={(event) => {
           event.preventDefault();
