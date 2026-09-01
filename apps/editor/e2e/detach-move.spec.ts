@@ -46,17 +46,19 @@ async function exportedTerminals(
 }
 
 const META = 4; // CDP Input modifier bitmask (Cmd; macOS turns Ctrl+left into a right press)
+const SHIFT = 8; // CDP Input modifier bitmask for Shift
 
 /**
  * Playwright's high-level mouse API cannot attach keyboard modifiers to
- * pointer events, so the detach drag goes through the raw CDP input
+ * pointer events, so a modified drag goes through the raw CDP input
  * pipeline. Cmd stands in for Ctrl because macOS converts Ctrl+left-press
  * into a right-button press before the page sees it.
  */
-async function ctrlDrag(
+async function modifierDrag(
   page: Page,
   from: { x: number; y: number },
   to: { x: number; y: number },
+  modifiers: number = META,
 ): Promise<void> {
   const cdp = await page.context().newCDPSession(page);
   await cdp.send("Input.dispatchMouseEvent", {
@@ -66,7 +68,7 @@ async function ctrlDrag(
     button: "left",
     buttons: 1,
     clickCount: 1,
-    modifiers: META,
+    modifiers,
   });
   const steps = 8;
   for (let step = 1; step <= steps; step += 1) {
@@ -76,7 +78,7 @@ async function ctrlDrag(
       y: from.y + ((to.y - from.y) * step) / steps,
       button: "left",
       buttons: 1,
-      modifiers: META,
+      modifiers,
     });
   }
   await cdp.send("Input.dispatchMouseEvent", {
@@ -86,9 +88,27 @@ async function ctrlDrag(
     button: "left",
     buttons: 0,
     clickCount: 1,
-    modifiers: META,
+    modifiers,
   });
   await cdp.detach();
+}
+
+/** Ctrl/Cmd variant, the gesture shipped in #413. */
+async function ctrlDrag(
+  page: Page,
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+): Promise<void> {
+  await modifierDrag(page, from, to, META);
+}
+
+/** Shift variant, asked for so the drag matches Shift+M. */
+async function shiftDrag(
+  page: Page,
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+): Promise<void> {
+  await modifierDrag(page, from, to, SHIFT);
 }
 
 test("Ctrl+drag moves only the part; its wire stays exactly in place", async ({
@@ -307,4 +327,57 @@ test("Shift+M carries a whole multi-part selection", async ({ page }) => {
   expect(terminals).not.toContainEqual(
     expect.objectContaining({ instanceId: ids[1] }),
   );
+});
+
+// Shift+drag is the pointer form of Shift+M: the parts move, the wires stay
+// where they were and their old endpoints go electrically open. Shift+click
+// with no movement must still mean "add to selection".
+test("Shift+drag moves the part and leaves its wire in place", async ({
+  page,
+}) => {
+  const { ids, wireBefore } = await wiredPair(page);
+
+  const top = page.getByTestId(`hit-${ids[0]}`);
+  const before = (await top.boundingBox())!;
+  const center = {
+    x: before.x + before.width / 2,
+    y: before.y + before.height / 2,
+  };
+
+  await shiftDrag(page, center, { x: center.x + 180, y: center.y });
+
+  const after = (await top.boundingBox())!;
+  expect(after.x).toBeGreaterThan(before.x + 100);
+  expect(await routePoints(page)).toEqual(wireBefore);
+
+  const terminals = await exportedTerminals(page);
+  expect(terminals).not.toContainEqual(
+    expect.objectContaining({ instanceId: ids[0] }),
+  );
+  expect(terminals).toContainEqual(
+    expect.objectContaining({ instanceId: ids[1] }),
+  );
+});
+
+// The brake: Shift is this editor's add-to-selection modifier, and a
+// stationary Shift+click must keep meaning exactly that.
+test("Shift+click without a drag still adds to the selection", async ({
+  page,
+}) => {
+  const { ids } = await wiredPair(page);
+
+  const top = page.getByTestId(`hit-${ids[0]}`);
+  const bottom = page.getByTestId(`hit-${ids[1]}`);
+  await top.click();
+  await expect(top).toHaveClass(/selected/);
+
+  const box = (await bottom.boundingBox())!;
+  const center = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  await shiftDrag(page, center, center);
+
+  // Both are selected, and neither moved.
+  await expect(top).toHaveClass(/selected/);
+  await expect(bottom).toHaveClass(/selected/);
+  const settled = (await bottom.boundingBox())!;
+  expect(Math.abs(settled.x - box.x)).toBeLessThan(2);
 });

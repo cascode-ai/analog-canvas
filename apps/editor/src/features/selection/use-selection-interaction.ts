@@ -847,27 +847,48 @@ export function useSelectionInteraction(
       (candidate) => candidate.id === instanceId,
     );
     if (!instance?.placement) return;
-    const hasSelectionModifier =
-      event.shiftKey || event.ctrlKey || event.metaKey;
     options.suppressInstanceClickRef.current =
       hitTarget.getAttribute("data-canvas-hit-kind") === "instance";
-    // Ctrl-drag follows Virtuoso: the drag moves ONLY the part, leaving its
-    // wires exactly where they are on open Junction stubs while the old
-    // terminal memberships are disconnected. Cmd
-    // serves the same role because macOS browsers convert Ctrl+left-press
-    // into a right-button press before the page ever sees it. A plain
-    // modifier-click without a drag keeps its toggle-selection meaning.
-    const detachDrag = (event.ctrlKey || event.metaKey) && !event.shiftKey;
-    if (hasSelectionModifier && !detachDrag) {
-      selectInstance(instanceId, true);
-      options.setStatus(`Selected ${instanceId}`);
-      return;
-    }
+    // A modified drag follows Virtuoso: it moves the parts and leaves their
+    // wires exactly where they are on open Junction stubs, with the old
+    // terminal memberships disconnected. Cmd serves the same role as Ctrl
+    // because macOS browsers convert Ctrl+left-press into a right-button
+    // press before the page ever sees it.
+    //
+    // The two modifiers differ in what they pick up, and that follows what
+    // each already means here. Ctrl/Cmd is the "just this part" gesture from
+    // #413 and stays that. Shift is this editor's add-to-selection modifier,
+    // so Shift+drag carries the whole selection the way Shift+M does.
+    //
+    // Either modifier pressed and released without moving keeps its
+    // toggle-selection meaning; the drag threshold below decides which
+    // happened, so nothing is committed on a stationary click.
+    const detachDrag = event.ctrlKey || event.metaKey || event.shiftKey;
+    const detachCarriesSelection =
+      event.shiftKey && options.selectedIds.includes(instanceId);
+    const movingSelection: VisualSelection =
+      (!detachDrag || detachCarriesSelection) &&
+      options.selectedIds.includes(instanceId)
+        ? options.visualSelection
+        : {
+            instanceIds: [instanceId],
+            routeIds: [],
+            junctionIds: [],
+            annotationIds: [],
+            draftingIds: [],
+          };
     let detachEdits: SchematicEdit[] = [];
     let previewBaseDocument = options.document;
     if (detachDrag) {
       try {
-        const prepared = prepareDetachedMove(new Set([instanceId]));
+        // Detach every part the move will actually carry, planned against the
+        // undetached Document, so a multi-part Shift+drag opens all of their
+        // endpoints rather than only the one under the pointer.
+        const prepared = prepareDetachedMove(
+          new Set(
+            planSelectionMove(options.document, movingSelection).instanceIds,
+          ),
+        );
         detachEdits = prepared.edits;
         previewBaseDocument = prepared.document;
       } catch (error) {
@@ -877,16 +898,6 @@ export function useSelectionInteraction(
         return;
       }
     }
-    const movingSelection: VisualSelection =
-      !detachDrag && options.selectedIds.includes(instanceId)
-        ? options.visualSelection
-        : {
-            instanceIds: [instanceId],
-            routeIds: [],
-            junctionIds: [],
-            annotationIds: [],
-            draftingIds: [],
-          };
     const movePlan = planSelectionMove(previewBaseDocument, movingSelection);
     const movingIds = movePlan.instanceIds;
     // A detach drag defers selection: a threshold-crossing drag selects the
