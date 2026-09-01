@@ -39,6 +39,27 @@ jobs:
           # Timing simulation remains a localhost development surface until
           # its interaction and presentation contracts are ready to publish.
           VITE_ICM_TIMING_UI: disabled
+      # The version serving right now, captured BEFORE anything changes.
+      # Read afterwards it would already describe the deploy under test, and
+      # a rollback would restore the very thing it is meant to undo.
+      - name: Record the version to roll back to
+        id: rollback_target
+        run: |
+          if ! pnpm dlx wrangler@4.120.1 deployments list --json > /tmp/deployments-before.json; then
+            echo "could not list deployments; rollback will be unavailable"
+            echo "version_id=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if version_id="$(node scripts/deploy-rollback-target.mjs < /tmp/deployments-before.json)"; then
+            echo "version_id=$version_id" >> "$GITHUB_OUTPUT"
+            echo "Rollback target: $version_id"
+          else
+            echo "version_id=" >> "$GITHUB_OUTPUT"
+            echo "No rollback target available for this deploy"
+          fi
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - run: pnpm dlx wrangler@4.120.1 deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -72,6 +93,7 @@ jobs:
           ADMIN_EMAILS: ${{ secrets.ADMIN_EMAILS }}
           ADMIN_EMAILS_EXTRA: ${{ secrets.ADMIN_EMAILS_EXTRA }}
       - name: Verify production deployment
+        id: verify
         run: |
           curl --fail --silent --show-error \
             --retry 5 --retry-delay 2 --retry-all-errors \
@@ -104,3 +126,36 @@ jobs:
               exit 1
               ;;
           esac
+
+      # Detection without recovery is what turned a bad deploy into twenty
+      # minutes of 500s: the pipeline saw them, went red, and left production
+      # broken. This restores the previous version instead, then proves the
+      # restore worked. The job still fails, loudly — a rollback is a recovery,
+      # never a pass.
+      - name: Roll back a failed deployment
+        if: failure() && steps.verify.outcome == 'failure'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          ROLLBACK_VERSION: ${{ steps.rollback_target.outputs.version_id }}
+        run: |
+          if [ -z "$ROLLBACK_VERSION" ]; then
+            echo "::error::Verification failed and no rollback target was recorded. Production is serving the failed deploy and needs a human."
+            exit 1
+          fi
+          echo "::warning::Verification failed; rolling back to $ROLLBACK_VERSION"
+          pnpm dlx wrangler@4.120.1 rollback "$ROLLBACK_VERSION" \
+            --yes --message "Automatic rollback: post-deploy verification failed for ${GITHUB_SHA}"
+          # A rollback that is not re-verified is a second unchecked deploy.
+          # These are the same paths the verification step checks, and the
+          # editor is among them because that is what broke.
+          for path in / /editor /analytics /api/agent/mcp-manifest.json; do
+            if ! curl --fail --silent --show-error \
+              --retry 10 --retry-delay 3 --retry-all-errors --max-time 20 \
+              "https://analog-canvas.tokenzhang.com${path}" >/dev/null; then
+              echo "::error::Rollback to $ROLLBACK_VERSION did not restore ${path}. Production is down and needs a human."
+              exit 1
+            fi
+          done
+          echo "::error::Deploy of ${GITHUB_SHA} failed verification and was rolled back to $ROLLBACK_VERSION. Production is serving the previous version."
+          exit 1
