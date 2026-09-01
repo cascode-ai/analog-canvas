@@ -107,13 +107,12 @@ function moveLooseRoute(
     resolver,
     suffix: "t1",
   });
+  // No declaration is threaded through: the gate derives the join from the
+  // attach primitive in the edits, which is the whole point of the move.
   const plan = createRoutingOperationPlan(document, {
     intent: "route-geometry",
     edits: proposal.edits,
     diagnostics: [],
-    ...(proposal.expectedElectricalEffect
-      ? { expectedElectricalEffect: proposal.expectedElectricalEffect }
-      : {}),
   });
   const gate = gateRoutingOperationPlan(document, plan, context);
   if (!gate.ok) {
