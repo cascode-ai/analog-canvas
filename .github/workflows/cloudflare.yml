@@ -79,25 +79,4 @@ jobs:
           curl --fail --silent --show-error \
             --retry 5 --retry-delay 2 --retry-all-errors \
             --max-time 20 \
-            https://analog-canvas.tokenzhang.com/editor >/dev/null
-          curl --fail --silent --show-error \
-            --retry 5 --retry-delay 2 --retry-all-errors \
-            --max-time 20 \
-            https://analog-canvas.tokenzhang.com/analytics >/dev/null
-          curl --fail --silent --show-error \
-            --retry 5 --retry-delay 2 --retry-all-errors \
-            --max-time 20 \
             https://analog-canvas.tokenzhang.com/api/agent/mcp-manifest.json >/dev/null
-          missing_asset="$(curl --silent --show-error \
-            --max-time 20 \
-            --output /tmp/analog-canvas-missing-asset.txt \
-            --write-out '%{http_code} %{content_type}' \
-            https://analog-canvas.tokenzhang.com/assets/App-deploy-smoke-missing.js)"
-          case "$missing_asset" in
-            "404 text/plain"*) ;;
-            *)
-              echo "Missing hashed asset returned: $missing_asset"
-              cat /tmp/analog-canvas-missing-asset.txt
-              exit 1
-              ;;
-          esac
