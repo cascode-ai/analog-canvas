@@ -33,6 +33,8 @@ export type DraftingStylePatch = Partial<{
    * foreground (the patch application deletes the key). */
   color: string | undefined;
   arrowHead: "none" | "filled" | "open";
+  /** Which ends carry the head; absent means the trailing end alone. */
+  arrowHeadAt: "end" | "start" | "both";
   arrowHeadScale: 0.75 | 1 | 1.25 | 1.5;
 }>;
 

@@ -1428,8 +1428,10 @@ function draftingPathData(
   points: Point[],
   curveControls: Array<Point | null>,
   finalPoint?: Point,
+  /** Where the shaft begins when a head occupies the first point. */
+  firstPoint?: Point,
 ): string {
-  const start = points[0]!;
+  const start = firstPoint ?? points[0]!;
   let data = `M ${start.x} ${start.y}`;
   for (let index = 0; index < points.length - 1; index += 1) {
     const end =
@@ -1463,6 +1465,65 @@ function finalDraftArrowTangent(
     if (Math.hypot(tangent.x, tangent.y) > 1e-6) return tangent;
   }
   return { x: 1, y: 0 };
+}
+
+/**
+ * The direction a head at the START must point: outward along the first drawn
+ * segment, away from the shaft. Walks forward for the first segment with real
+ * length, mirroring the trailing tangent's walk backward, so a degenerate
+ * first leg or a curve control is handled the same way at both ends.
+ */
+function initialDraftArrowTangent(
+  points: readonly Point[],
+  curveControls: readonly (Point | null)[],
+): Point {
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const start = points[index]!;
+    const successor = curveControls[index] ?? points[index + 1]!;
+    const tangent = {
+      x: start.x - successor.x,
+      y: start.y - successor.y,
+    };
+    if (Math.hypot(tangent.x, tangent.y) > 1e-6) return tangent;
+  }
+  return { x: -1, y: 0 };
+}
+
+/**
+ * One arrow head, as markup plus the point the shaft must stop at.
+ *
+ * Both ends use the same profile-calibrated proportions: a double-headed
+ * arrow whose two heads differed in size would read as a drawing mistake, and
+ * the Razavi calibration owns that size for the whole product.
+ */
+function draftArrowHead(
+  tip: Point,
+  tangent: Point,
+  style: "none" | "filled" | "open",
+  head: number,
+  halfHeadWidth: number,
+  stroke: string,
+  strokeWidth: number,
+): { markup: string; shaftEnd: Point } {
+  const length = Math.hypot(tangent.x, tangent.y) || 1;
+  if (style === "none") return { markup: "", shaftEnd: tip };
+  const nx = (-tangent.y / length) * halfHeadWidth;
+  const ny = (tangent.x / length) * halfHeadWidth;
+  const base = {
+    x: tip.x - (tangent.x / length) * head,
+    y: tip.y - (tangent.y / length) * head,
+  };
+  const paint =
+    style === "open"
+      ? `fill="none" stroke="${stroke}" stroke-width="${strokeWidth}"`
+      : `fill="${stroke}"`;
+  return {
+    markup: `<polygon points="${tip.x},${tip.y} ${base.x + nx},${base.y + ny} ${base.x - nx},${base.y - ny}" ${paint}/>`,
+    // The shaft terminates on the head's base plane, not underneath its tip.
+    // This preserves the clean triangular point of Razavi-style arrows at
+    // every angle and head scale, and it must hold at both ends alike.
+    shaftEnd: base,
+  };
 }
 
 function renderDraftArrow(
@@ -1499,11 +1560,10 @@ function renderDraftArrow(
   const headWeight = headScale * strokeScale;
   const head = profile.annotations.arrowHeadLength * headWeight;
   const halfHeadWidth = (profile.annotations.arrowHeadWidth * headWeight) / 2;
-  const nx = (-dy / length) * halfHeadWidth;
-  const ny = (dx / length) * halfHeadWidth;
-  const baseX = tipX - (dx / length) * head;
-  const baseY = tipY - (dy / length) * head;
   const arrowHead = object.styleOverride?.arrowHead ?? "filled";
+  // Absent means the trailing end alone: every arrow drawn before this field
+  // existed meant exactly that, so old documents keep their appearance.
+  const arrowHeadAt = object.styleOverride?.arrowHeadAt ?? "end";
   const stroke = object.styleOverride?.color ?? profile.foreground;
   const lineStyle = object.styleOverride?.lineStyle ?? "solid";
   const dash =
@@ -1512,21 +1572,35 @@ function renderDraftArrow(
       : lineStyle === "dotted"
         ? ' stroke-dasharray="2 3"'
         : "";
-  const headBody =
-    arrowHead === "none"
-      ? ""
-      : `<polygon points="${tipX},${tipY} ${baseX + nx},${baseY + ny} ${baseX - nx},${baseY - ny}" ${arrowHead === "open" ? `fill="none" stroke="${stroke}" stroke-width="${strokeWidth}"` : `fill="${stroke}"`}/>`;
-  // The shaft terminates on the arrow head's base plane, not underneath its
-  // tip. This preserves the clean triangular point of Razavi-style arrows at
-  // every angle and head scale. A headless arrow remains a complete line.
-  const shaftEndX = arrowHead === "none" ? tipX : baseX;
-  const shaftEndY = arrowHead === "none" ? tipY : baseY;
-  const shaftPoints = [...points.slice(0, -1), { x: shaftEndX, y: shaftEndY }]
+  const trailing = draftArrowHead(
+    { x: tipX, y: tipY },
+    { x: dx, y: dy },
+    arrowHeadAt === "start" ? "none" : arrowHead,
+    head,
+    halfHeadWidth,
+    stroke,
+    strokeWidth,
+  );
+  const leading = draftArrowHead(
+    points[0]!,
+    initialDraftArrowTangent(points, geometry.curveControls),
+    arrowHeadAt === "end" ? "none" : arrowHead,
+    head,
+    halfHeadWidth,
+    stroke,
+    strokeWidth,
+  );
+  const headBody = leading.markup + trailing.markup;
+  const shaftPoints = [
+    leading.shaftEnd,
+    ...points.slice(1, -1),
+    trailing.shaftEnd,
+  ]
     .map((point) => `${point.x},${point.y}`)
     .join(" ");
   const hasCurve = geometry.curveControls.some(Boolean);
   const shaft = hasCurve
-    ? `<path d="${draftingPathData(points, geometry.curveControls, { x: shaftEndX, y: shaftEndY })}" fill="none"`
+    ? `<path d="${draftingPathData(points, geometry.curveControls, trailing.shaftEnd, leading.shaftEnd)}" fill="none"`
     : `<polyline points="${shaftPoints}" fill="none"`;
   return `<g data-object-id="${object.id}" data-kind="draft-arrow"${unresolved}>${shaft} stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linecap="${profile.lineCap}" stroke-linejoin="${profile.lineJoin}"${dash}/>${headBody}</g>`;
 }

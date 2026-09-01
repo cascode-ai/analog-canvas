@@ -350,6 +350,32 @@ export function DraftingPropertiesPanel({
               <option value="open">Open</option>
             </select>
           </label>
+          {/* Placement is its own question, kept beside style rather than
+              multiplied into it: one combined list would need seven entries
+              to say what two short lists say, and the entries would grow
+              again the moment another head style appears. Hidden when there
+              is no head to place, so the panel never offers a choice that
+              cannot change anything. */}
+          {(object.styleOverride?.arrowHead ?? "filled") !== "none" ? (
+            <label>
+              Arrow head at
+              <select
+                aria-label="Arrow head at"
+                value={object.styleOverride?.arrowHeadAt ?? "end"}
+                disabled={object.locked}
+                onChange={(event) =>
+                  onStyleChange({
+                    arrowHeadAt: event.currentTarget.value as
+                      "end" | "start" | "both",
+                  })
+                }
+              >
+                <option value="end">End</option>
+                <option value="start">Start</option>
+                <option value="both">Both ends</option>
+              </select>
+            </label>
+          ) : null}
           <label>
             Arrow head size
             <select
