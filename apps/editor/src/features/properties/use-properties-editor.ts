@@ -120,6 +120,10 @@ export interface UsePropertiesEditorOptions {
       formatOverride?: RichTextDocument;
     },
   ) => SchematicEdit[] | null;
+  netLabelScopeEdit: (
+    annotation: Annotation,
+    scope: "local" | "global",
+  ) => SchematicEdit[] | null;
   netNameEditsForAnnotation?: (
     annotation: Annotation,
     name: string,
@@ -450,6 +454,19 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
       setNetLabelDraft("");
       options.setStatus(
         `Deleted Net Label ${flattenRichText(resolveAnnotationText(options.document, label))}`,
+      );
+    }
+  };
+
+  const commitNetLabelScope = (
+    annotation: Annotation,
+    scope: "local" | "global",
+  ): void => {
+    const edits = options.netLabelScopeEdit(annotation, scope);
+    if (!edits || edits.length === 0) return;
+    if (transactNamedNet(edits)) {
+      options.setStatus(
+        `Net Label ${flattenRichText(resolveAnnotationText(options.document, annotation))} is now ${scope}`,
       );
     }
   };
@@ -893,6 +910,7 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     beginNetLabelEditing,
     commitInstancePropertyDraft,
     commitElectricalMarkerName,
+    commitNetLabelScope,
     commitNetLabelEditing,
     commitPendingNetLabelDraft,
     commitTextEditing,

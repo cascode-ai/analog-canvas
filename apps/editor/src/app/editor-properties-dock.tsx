@@ -13,6 +13,7 @@ import { ComponentSignalFlowProperties } from "../features/properties/component-
 import { ComponentPlacementProperties } from "../features/properties/component-placement-properties";
 import { ComponentStyleProperties } from "../features/properties/component-style-properties";
 import { AnnotationColorProperties } from "../features/properties/annotation-color-properties";
+import { NetNameProperties } from "../features/properties/net-name-properties";
 import { DraftingPropertiesPanel } from "../features/drafting/drafting-properties-panel";
 import {
   AnnotationActionsSection,
@@ -52,6 +53,7 @@ export interface EditorPropertiesDockProps {
   groupDisplay: ComponentProps<typeof GroupDisplayToggles>;
   component: ComponentPropertiesModel | null;
   annotationText: ComponentProps<typeof AnnotationColorProperties> | null;
+  netName: ComponentProps<typeof NetNameProperties> | null;
   drafting: ComponentProps<typeof DraftingPropertiesPanel> | null;
   placementTray: ComponentProps<typeof PlacementTrayPanel>;
   routeActions: ComponentProps<typeof RouteActionsSection>;
@@ -77,6 +79,7 @@ export function EditorPropertiesDock({
   groupDisplay,
   component,
   annotationText,
+  netName,
   drafting,
   placementTray,
   routeActions,
@@ -162,6 +165,7 @@ export function EditorPropertiesDock({
               {...annotationText}
             />
           ) : null}
+          {netName ? <NetNameProperties {...netName} /> : null}
           {drafting ? (
             <DraftingPropertiesPanel key={drafting.object.id} {...drafting} />
           ) : null}

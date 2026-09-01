@@ -380,6 +380,38 @@ describe("current rendering contract", () => {
     expect(svg).not.toContain("baseline-shift");
   });
 
+  it("marks an ordinary global Net Label without changing its authored text", () => {
+    const document = createEmptyDocument("doc", "Global label");
+    document.nets.push({ id: "net-bias", terminals: [] });
+    document.annotations.push({
+      id: "label-bias",
+      kind: "net-label",
+      netId: "net-bias",
+      binding: { kind: "net-name", netId: "net-bias" },
+      anchor: { kind: "free", position: { x: 40, y: 40 } },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    });
+    document.connectivityEvidence.push({
+      id: "claim-bias",
+      kind: "name-claim",
+      netId: "net-bias",
+      name: "BIAS",
+      scope: "global",
+      owner: { kind: "net-label", annotationId: "label-bias" },
+    });
+
+    const svg = renderDocumentSvg(document, resolver);
+
+    expect(svg).toContain('data-role="global-net-badge"');
+    expect(svg).toContain('data-object-id="label-bias"');
+    expect(document.connectivityEvidence[0]).toMatchObject({
+      name: "BIAS",
+      scope: "global",
+    });
+  });
+
   it("does not interpret a BJT base route as a MOS bulk connection", () => {
     const document = createEmptyDocument("doc", "BJT base route");
     document.instances.push({

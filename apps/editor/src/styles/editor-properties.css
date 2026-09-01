@@ -267,6 +267,33 @@
   white-space: nowrap;
 }
 
+.net-name-properties {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.net-name-properties > small {
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+}
+
+.net-name-properties .net-spelling-variants {
+  grid-column: 1 / -1;
+}
+
+.net-scope-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.25rem;
+  padding: 0 0.4rem;
+  border: 1px solid rgb(var(--icm-accent-rgb) / 40%);
+  border-radius: 999px;
+  background: var(--icm-accent-soft);
+  color: var(--icm-accent);
+  font-size: var(--icm-font-xs);
+  font-weight: 700;
+}
+
 .cell-symbol-layout-properties {
   display: grid;
   gap: 0.55rem;
