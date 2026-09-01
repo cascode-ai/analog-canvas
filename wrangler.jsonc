@@ -15,12 +15,22 @@
     },
   ],
   "assets": {
+    // The binding the Worker fetches through. Its absence is what produced
+    // error 1101 on 2026-09-01: `env.ASSETS` was undefined, so the moment a
+    // request reached the Worker's asset path it threw. Reproduced locally
+    // against workerd, and it is the reason the earlier "binding re-entry"
+    // explanation was wrong — routing /assets/* through the Worker does not
+    // re-enter it.
+    "binding": "ASSETS",
     "directory": "./apps/editor/dist",
-    // Client routes and stale asset names receive the SPA shell before the
-    // Worker runs. The client recognizes a stale module response and reloads;
-    // routing /assets/* through the Worker causes binding re-entry and 1101.
+    // A path under /assets/ names a content-hashed file: the name is a
+    // promise about the bytes, so a miss is a miss and must say 404. Every
+    // other path is a client route with no file behind it, and its miss is
+    // the shell. The Worker sees /assets/* in order to tell those two apart,
+    // because the asset layer alone answers both with the shell and a
+    // browser expecting JavaScript gets HTML at status 200.
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*"],
+    "run_worker_first": ["/api/*", "/assets/*"],
   },
   "durable_objects": {
     "bindings": [
