@@ -712,6 +712,41 @@ test("constructs VDD as a drawn dotless power rail", async ({ page }) => {
   await expect(canvas.getByText("VDD", { exact: true })).toHaveCount(0);
 });
 
+test("a part with no designator offers no Reference toggle", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  // A voltage amplifier has no device descriptor, so it never designates.
+  await placeComponent(page, "voltage-amplifier", { x: 300, y: 200 });
+  await openSelectionShelf(page);
+  const properties = page.getByRole("complementary", { name: "Properties" });
+  await expect(properties).toContainText("voltage-amplifier");
+  // The row switched something that does not exist, so it is not there.
+  await expect(properties.getByLabel("Component display toggles")).toHaveCount(
+    0,
+  );
+
+  // The brake: a resistor designates R1 and carries a value, so its toggles
+  // are untouched and still work.
+  await placeComponent(page, "resistor", { x: 500, y: 200 });
+  await openSelectionShelf(page);
+  const toggles = properties.getByLabel("Component display toggles");
+  await expect(toggles).toBeVisible();
+  await expect(toggles).toContainText("Reference");
+  await expect(toggles).toContainText("Value");
+  const reference = toggles.getByLabel("Reference");
+  await expect(reference).toBeChecked();
+  const drawnLabel = page.locator(
+    '[data-layer="annotations"] [data-object-id="instance-label-R1"]',
+  );
+  await expect(drawnLabel).toHaveCount(1);
+  await reference.uncheck();
+  await expect(drawnLabel).toHaveCount(0);
+  await reference.check();
+  await expect(drawnLabel).toHaveCount(1);
+});
+
 test("a switch changes contact style in place, keeping its wires", async ({
   page,
 }) => {

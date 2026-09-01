@@ -38,6 +38,8 @@ describe("component electrical properties", () => {
         referenceVisible
         valueVisible
         valueAvailable
+        valueSupported
+        referenceAvailable
         referenceLabelRenderable
         additionalParameters={[
           { id: "extra", originalName: "ad", name: "ad", value: "1p" },
@@ -75,6 +77,8 @@ describe("component electrical properties", () => {
         referenceVisible={false}
         valueVisible={false}
         valueAvailable={false}
+        valueSupported={false}
+        referenceAvailable={false}
         referenceLabelRenderable={false}
         additionalParameters={[]}
         additionalParametersChanged={false}
@@ -111,6 +115,8 @@ describe("component electrical properties", () => {
         referenceVisible={false}
         valueVisible={false}
         valueAvailable
+        valueSupported
+        referenceAvailable
         referenceLabelRenderable={false}
         additionalParameters={[]}
         additionalParametersChanged={false}
@@ -126,5 +132,96 @@ describe("component electrical properties", () => {
     );
     expect(markup).toContain("Value");
     expect(markup).not.toContain(">Reference<");
+  });
+});
+
+describe("the Display row only offers what the drawing can show", () => {
+  const render = (
+    instance: Parameters<typeof ComponentElectricalProperties>[0]["instance"],
+    flags: {
+      referenceAvailable?: boolean;
+      valueSupported?: boolean;
+      valueAvailable?: boolean;
+      referenceLabelRenderable?: boolean;
+    },
+  ) =>
+    renderToStaticMarkup(
+      <ComponentElectricalProperties
+        instance={instance}
+        parameters={[]}
+        parameterValues={{}}
+        firstInputRef={createRef<HTMLInputElement>()}
+        referenceVisible
+        valueVisible
+        valueAvailable={flags.valueAvailable ?? false}
+        valueSupported={flags.valueSupported ?? false}
+        referenceAvailable={flags.referenceAvailable ?? false}
+        referenceLabelRenderable={flags.referenceLabelRenderable ?? true}
+        additionalParameters={[]}
+        additionalParametersChanged={false}
+        onParameterChange={vi.fn()}
+        onReferenceVisibilityChange={vi.fn()}
+        onValueVisibilityChange={vi.fn()}
+        onAdditionalParameterChange={vi.fn()}
+        onAdditionalParameterRemove={vi.fn()}
+        onAdditionalParameterAdd={vi.fn()}
+        onAdditionalParametersApply={vi.fn()}
+        onAdditionalParametersCancel={vi.fn()}
+      />,
+    );
+
+  it("drops the whole row for a part that has neither a reference nor a value", () => {
+    // A voltage amplifier has no device descriptor, so it has no designator
+    // to show. The toggle switched something that does not exist.
+    const markup = render(
+      { id: "X3", symbolId: "voltage-amplifier", placement: null },
+      {},
+    );
+    expect(markup).not.toContain("Component display toggles");
+    expect(markup).not.toContain("Reference");
+    expect(markup).not.toContain(">Value<");
+  });
+
+  it("keeps both toggles for a part that has both", () => {
+    // The brake: a resistor designates R1 and carries a value, so nothing
+    // about it changes.
+    const markup = render(
+      { id: "R1", symbolId: "resistor", placement: null, reference: "R1" },
+      { referenceAvailable: true, valueSupported: true, valueAvailable: true },
+    );
+    expect(markup).toContain("Component display toggles");
+    expect(markup).toContain("Reference");
+    expect(markup).toContain("Value");
+  });
+
+  it("keeps a value toggle that is merely unset, and says why", () => {
+    // "No value yet" is not "no value ever": the row must stay so the person
+    // can see the remedy.
+    const markup = render(
+      { id: "R1", symbolId: "resistor", placement: null, reference: "R1" },
+      { referenceAvailable: true, valueSupported: true, valueAvailable: false },
+    );
+    expect(markup).toContain("Value");
+    expect(markup).toContain("Set the device parameters first");
+  });
+
+  it("offers only the reference for a part that can never show a value", () => {
+    // A switch designates S1 but has no value annotation at all.
+    const markup = render(
+      { id: "S1", symbolId: "ideal-switch", placement: null, reference: "S1" },
+      { referenceAvailable: true, valueSupported: false },
+    );
+    expect(markup).toContain("Reference");
+    expect(markup).not.toContain(">Value<");
+  });
+
+  it("still hides the reference for a Symbol that draws no label", () => {
+    // Ground and the signal-flow blocks: the artwork shows no label, so the
+    // toggle would edit something invisible even where a reference exists.
+    const markup = render(
+      { id: "G1", symbolId: "ground", placement: null, reference: "G1" },
+      { referenceAvailable: true, referenceLabelRenderable: false },
+    );
+    expect(markup).not.toContain("Reference");
   });
 });
