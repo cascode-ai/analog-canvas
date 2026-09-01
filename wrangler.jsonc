@@ -16,9 +16,9 @@
   ],
   "assets": {
     "directory": "./apps/editor/dist",
-    // Browser navigations that miss a real file receive the SPA shell before
-    // the Worker runs. Non-navigation misses still reach the Worker, where a
-    // stale hashed asset receives a definitive 404.
+    // Client routes and stale asset names receive the SPA shell before the
+    // Worker runs. The client recognizes a stale module response and reloads;
+    // routing /assets/* through the Worker causes binding re-entry and 1101.
     "not_found_handling": "single-page-application",
     "run_worker_first": ["/api/*"],
   },

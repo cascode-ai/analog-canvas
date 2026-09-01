@@ -122,55 +122,9 @@ export default {
       return Response.json({ error: "Not found" }, { status: 404 });
     }
 
-    return serveStaticMiss(request, env);
+    return env.ASSETS.fetch(request);
   },
 };
-
-/**
- * Resolve a URL that the static asset layer has already reported missing.
- *
- * A route like `/g/<id>` has no file behind it and must render the shell. A
- * request for `/assets/App-<hash>.js` is the opposite: those names carry a
- * content hash, so one that is not there is a stale page asking for a build
- * that no longer exists. Answering it with `200 text/html` hands the browser
- * a document where it asked for a module, which surfaces as "Failed to fetch
- * dynamically imported module" instead of a plain missing file, and invites
- * every cache in the path to keep the wrong answer under a name that
- * promised to be immutable.
- *
- * Cloudflare's SPA mode serves browser navigation misses as `index.html`
- * before the Worker runs, while non-navigation misses can still reach this
- * code. That gives stale module requests an explicit 404 without making the
- * Worker responsible for synthesizing the SPA shell. Listing `/assets/*` in
- * `run_worker_first` would instead put every asset through this Worker and
- * risks re-entry through the assets binding.
- */
-async function serveStaticMiss(request: Request, env: Env): Promise<Response> {
-  const path = new URL(request.url).pathname;
-  if (path.startsWith("/assets/")) {
-    return new Response(`Not found: ${path}`, {
-      status: 404,
-      headers: {
-        "content-type": "text/plain; charset=utf-8",
-        "cache-control": "no-store",
-      },
-    });
-  }
-
-  // For non-navigation requests, ask the binding for the SPA fallback. The
-  // binding applies single-page-application handling and returns index.html.
-  const shell = await env.ASSETS.fetch(
-    new Request(new URL("/index.html", request.url), request),
-  );
-  if (!shell.ok) return shell;
-  return new Response(shell.body, {
-    status: 200,
-    headers: {
-      "content-type": "text/html; charset=utf-8",
-      "cache-control": "public, max-age=0, must-revalidate",
-    },
-  });
-}
 
 async function trackPageView(request: Request, env: Env): Promise<Response> {
   const noContent = () => new Response(null, { status: 204 });
