@@ -81,6 +81,7 @@ import {
   type CanvasDragSession,
 } from "../canvas/canvas-drag-session";
 import { startCanvasDragVisual } from "../canvas/canvas-drag-visual";
+import { instanceVisibleHitBox } from "../canvas/instance-geometry";
 import { createCanvasHitController } from "../canvas/canvas-hit-controller";
 import { buildDiagnosticMarkers } from "../canvas/diagnostic-markers";
 import {
@@ -1484,6 +1485,7 @@ export function App({
     applyNetLabel,
     beginAnnotationTextEditing,
     beginDraftingTextEditing,
+    beginInstanceFormulaEditing,
     beginNetLabelEditing,
     commitInstancePropertyDraft,
     commitElectricalMarkerName,
@@ -2148,6 +2150,13 @@ export function App({
     textEditingTarget?.owner === "drafting"
       ? textEditingTarget.object
       : undefined;
+  const editingInstanceFormula =
+    textEditingTarget?.owner === "instance-formula"
+      ? textEditingTarget.object
+      : undefined;
+  const editingInstanceFormulaSymbol = editingInstanceFormula
+    ? resolver.resolve(editingInstanceFormula.symbolId)
+    : undefined;
   const textEditingBounds = editingAnnotation
     ? annotationHitBox(
         document,
@@ -2165,8 +2174,17 @@ export function App({
     : editingDrafting?.kind === "text"
       ? resolveDraftingObjectGeometry(document, resolver, editingDrafting)
           .bounds
-      : null;
-  const textEditingLocked = Boolean(textEditingTarget?.object.locked);
+      : editingInstanceFormulaSymbol && editingInstanceFormula
+        ? instanceVisibleHitBox(
+            editingInstanceFormula,
+            editingInstanceFormulaSymbol,
+          )
+        : null;
+  // A Symbol has no lock on its own body text; the other two owners do.
+  const textEditingLocked =
+    textEditingTarget !== null &&
+    textEditingTarget?.owner !== "instance-formula" &&
+    Boolean(textEditingTarget?.object.locked);
 
   const internalSelection = deriveRoutingAffectedClosure(document, {
     instanceIds: selectedIds,
@@ -5007,9 +5025,27 @@ export function App({
                 selectInstanceFromSelection(instance.id, additive);
               },
               onInstanceOpen: (instance) => {
-                if (referencedDocumentId(project, instance))
+                if (referencedDocumentId(project, instance)) {
                   enterHierarchy(instance.id);
-                else inspectInstance(instance.id);
+                  return;
+                }
+                // A Symbol that draws text inside its own body edits that text
+                // where it is drawn, like every other text on the canvas. It
+                // used to be reachable only from the Properties panel, which
+                // made the same gesture mean two different things depending on
+                // where the text happened to live.
+                const presentation = resolver.resolve(
+                  instance.symbolId,
+                  instance.symbolVariantId,
+                )?.definition.formulaPresentation;
+                if (presentation) {
+                  beginInstanceFormulaEditing(
+                    instance,
+                    presentation.defaultFormula,
+                  );
+                  return;
+                }
+                inspectInstance(instance.id);
               },
               onInstancePointerDown: (event, instance) => {
                 if (simulationPickNetsActive) {

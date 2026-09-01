@@ -611,6 +611,24 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     setTextEditing(createTextEditingSession({ owner: "drafting", object }));
   };
 
+  /**
+   * The text a Symbol draws inside its own body. It edits on the canvas where
+   * it is drawn, through the same session and overlay every other editable
+   * text uses, and commits to the same field the Properties panel writes.
+   */
+  const beginInstanceFormulaEditing = (
+    instance: Instance,
+    defaultFormula: string,
+  ): void => {
+    setTextEditing(
+      createTextEditingSession({
+        owner: "instance-formula",
+        object: instance,
+        defaultFormula,
+      }),
+    );
+  };
+
   const updateTextEditing = (
     change: Partial<
       Pick<TextEditingSession, "content" | "sizeScale" | "alignment">
@@ -907,6 +925,7 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     applyAdditionalParameters,
     beginAnnotationTextEditing,
     beginDraftingTextEditing,
+    beginInstanceFormulaEditing,
     beginNetLabelEditing,
     commitInstancePropertyDraft,
     commitElectricalMarkerName,

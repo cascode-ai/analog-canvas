@@ -178,10 +178,14 @@ export function CanvasTextEditorOverlay({
     measuredLayoutHeight,
   );
   const sourceOnly =
-    session.bound &&
-    session.bindingKind !== "instance-reference" &&
-    session.bindingKind !== "net-name" &&
-    session.bindingKind !== "cell-terminal-name";
+    // A Symbol's body text is a plain string in the Symbol's own script
+    // syntax. Offering bold, an overbar or the formula tool on a field that
+    // cannot store any of them would promise formatting the commit drops.
+    session.owner === "instance-formula" ||
+    (session.bound &&
+      session.bindingKind !== "instance-reference" &&
+      session.bindingKind !== "net-name" &&
+      session.bindingKind !== "cell-terminal-name");
 
   return (
     <g
