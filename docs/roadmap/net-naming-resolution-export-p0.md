@@ -1,0 +1,286 @@
+# P0 - Net Naming, Global Projection, and Export Correctness
+
+Status: `proposed`
+
+Owners: `packages/derived`, `packages/netlist`, `apps/editor`
+
+## Objective
+
+Close the naming defects that can make an exported netlist express different
+electrical connectivity from the schematic, without changing physical
+connectivity or Net lifecycle behavior.
+
+This is a Net naming/resolution/export boundary target. It is not a
+connectivity-lifecycle target.
+
+## Why this is P0
+
+The schematic currently distinguishes Logical Nets with scoped name identity,
+while extraction eventually emits plain simulator tokens. If scope or
+project-wide spelling is discarded before those tokens are proven unique, two
+distinct schematic Nets can become one simulator node, or one intended global
+Net can become multiple simulator nodes.
+
+Two correctness cases must be impossible:
+
+```text
+one Cell contains local VDD and global VDD
+-> both export as VDD
+-> the global declaration silently promotes and shorts the local node
+```
+
+```text
+top Cell spells a global VDD and a child Cell spells the same global vdd
+-> extraction preserves two spellings
+-> a dialect may interpret them as two nodes instead of one project global
+```
+
+Export must either produce one deliberate identity, produce two provably
+distinct dialect tokens, or block with a precise diagnostic. It must never
+silently change connectivity.
+
+## Naming model
+
+The existing persisted authority remains:
+
+```text
+Base Net
+  + owner-addressed name-claim { name, scope, owner, powerDomain? }
+  + formal Cell-Pin names
+  + non-authoritative import provenance
+        |
+        v
+Document Logical-Net resolver
+        |
+        v
+Project global-name projection
+        |
+        v
+Dialect identifier codec and collision check
+        |
+        v
+DesignNetlistIR
+```
+
+- `BaseNet.id` and terminal membership remain the physical authority.
+- `name-claim` remains the only editable Label/marker naming authority.
+- `LogicalNet.id` remains a revision-scoped derived handle.
+- `spice-source` and `net-name-hint` remain provenance only.
+- Project-global spelling and encoded dialect tokens are transient export
+  projections. They are not persisted identities.
+
+## Scope rules
+
+The intended authoring rules are:
+
+- an ordinary Net Label defaults to `local`;
+- VDD/power markers and Power Rails default to `global`;
+- Ground is the global reference node `0`;
+- imported explicit `.global` facts remain global declarations;
+- a Label may explicitly edit its existing `scope` claim between `local` and
+  `global` through the normal owner-addressed evidence edit path;
+- two disconnected claims with the same visible spelling but different scopes
+  remain distinct Logical Nets;
+- when the same physically connected Logical-Net group carries the same name
+  in both scopes, its effective scope is derived as `global`; owner claims are
+  not rewritten. Different names or incompatible power roles remain conflicts.
+
+The last rule changes the current accepted conflict policy and therefore
+requires the corresponding ADR/spec amendment in the implementation target.
+It does not authorize a new persisted promotion state.
+
+Because `VDD` may legally denote a local Net while another `VDD` is global,
+the editor must expose scope in Properties. A compact Global badge or equivalent
+presentation cue is required before this coexistence is treated as ordinary
+UI, but that cue has no electrical authority.
+
+## Spelling and dialect rules
+
+P0 separates three concepts that must not be collapsed:
+
+1. **Logical identity** decides whether authored claims denote the same
+   Logical Net.
+2. **Project spelling projection** selects one deterministic display/export
+   spelling for every project-global identity and uses it in every reachable
+   Cell.
+3. **Dialect codec** converts that identity to a legal SPICE or Spectre token
+   and checks uniqueness under that dialect's comparison rules.
+
+The current accepted model uses case-folded schematic name identity. P0 must
+preserve that rule unless a dedicated ADR deliberately changes it together
+with import, Properties, resolver, hierarchy, and compatibility tests. Case
+sensitivity must not change accidentally inside an exporter fix.
+
+The project-global projection must use one deterministic representative
+spelling for every folded global identity. Selection must be independent of
+array traversal and must be covered by stable-order tests. Every Cell node
+reference and the project global declaration consume that same projection.
+
+The dialect codec owns simulator syntax such as whether an authored `VDD!`
+can be emitted directly, must be escaped, or is unsupported. The shared model
+must not reject a valid authored name merely because the old portable ASCII
+subset cannot print it. Conversely, a printer must not strip punctuation,
+fold case, or append a suffix to an authoritative name when doing so can
+change identity.
+
+When two distinct Logical Nets map to one dialect token, extraction returns a
+blocking `NET_NAME_COLLISION`-class diagnostic naming both Nets, their scopes,
+and the conflicting token. Automatic `__2` disambiguation remains permitted
+only for non-authoritative source hints or generated unnamed local Nets, never
+for an authored Label, Cell Pin, or global declaration.
+
+## Strict implementation boundary
+
+### Allowed changes
+
+- pure Logical-Net name and effective-scope resolution;
+- the project-level global index and canonical spelling projection;
+- netlist extraction, dialect codecs, and collision diagnostics;
+- Properties editing of the existing `name-claim.scope` field;
+- a presentation-only Global indicator;
+- focused tests and the accepted specs/ADR required by these semantics.
+
+No new persisted field is required.
+
+### Systems that must remain unchanged
+
+- `connect_endpoints` and `merge_nets`;
+- `cut_connection` and `disconnect_endpoint`;
+- connected-components partitioning;
+- Base-Net split and stable-ID allocation;
+- terminal, Route, and Junction reassignment;
+- Label/marker evidence migration by owner;
+- orphan-Net pruning;
+- `sourceStatus` transitions;
+- imported-provenance copying;
+- undo/redo;
+- reset/clear;
+- hierarchy occurrence identity and traversal.
+
+The implementation must not:
+
+- rewrite every same-name Label to `global` after contact;
+- add a scope-promotion or scope-demotion lifecycle;
+- persist a hidden logical connection;
+- modify source provenance to preserve a naming result;
+- invoke Base-Net merge/split operations from a Label scope or spelling edit.
+
+The required behavior is purely derived:
+
+```text
+Wire connect/cut
+-> existing physical Base-Net transactions run unchanged
+-> existing owner evidence follows the resulting Base Nets unchanged
+-> resolver recomputes names and effective scope for the new revision
+-> export projection and codec recompute output tokens
+```
+
+## Work packages
+
+### WP-P0.1 - Characterize the electrical boundary
+
+- Add fixtures for local/global same-spelling Nets, cross-Cell global spelling,
+  `VDD!`, node `0`, and dialect collisions.
+- Snapshot physical topology and lifecycle state before changing the resolver
+  or exporter.
+- Main modules: `packages/derived`, `packages/netlist` tests and fixtures.
+
+### WP-P0.2 - Resolve effective scope without persisted promotion
+
+- Derive global effective scope for one already-connected, same-name group
+  containing local and global owner claims.
+- Keep disconnected local/global groups distinct.
+- Preserve all existing Base-Net and evidence ownership mutations.
+- Main module: `packages/derived`.
+
+### WP-P0.3 - Project one global identity and spelling
+
+- Extend the project global index with a deterministic canonical spelling.
+- Apply that projection to every reachable Cell before IR construction.
+- Diagnose contradictory global identities instead of repairing Project data.
+- Main modules: `packages/derived`, `packages/netlist`.
+
+### WP-P0.4 - Encode and prove dialect names
+
+- Centralize per-dialect identifier validation/encoding.
+- Detect local/global and encoded-token collisions before printer invocation.
+- Keep generated-name and non-authoritative hint disambiguation deterministic.
+- Main module: `packages/netlist`.
+
+### WP-P0.5 - Expose authored scope safely
+
+- Edit only the selected Label's existing owner-addressed scope claim.
+- Show enough scope information to distinguish equal visible local/global names.
+- Reuse the existing transaction, validation, undo, and redo paths.
+- Main module: `apps/editor`; supporting typed edit only if the existing edit
+  surface cannot express the field change.
+
+Each work package is a separate bounded implementation target unless its
+changed files and validation surface clearly coincide with an adjacent package.
+
+## Acceptance scenarios
+
+| Scenario                                                                          | Required result                                                                                                             |
+| --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Disconnected local `VDD` and global `VDD` in one Cell                             | They remain distinct. Export emits distinct legal tokens or blocks; it never silently shorts them.                          |
+| A local `VDD` Wire is physically connected to a global `VDD` marker               | The existing Base Net is unchanged by naming logic; the derived Logical Net is global and exports consistently.             |
+| That Wire is cut                                                                  | Existing split/evidence ownership decides the new Base Nets; the resolver recomputes scope without promotion history.       |
+| Top `VDD` and child `vdd` are one global identity under the accepted folding rule | Every Cell reference and the global declaration use one canonical project spelling/token.                                   |
+| Two distinct identities encode to the same dialect token                          | Export blocks with a collision diagnostic referencing both Logical/Base Nets.                                               |
+| An authored name is `VDD!`                                                        | The selected dialect emits a defined legal representation or blocks as unsupported; punctuation is never silently stripped. |
+| Ground marker                                                                     | It remains global node `0`; no naming projection creates an alias.                                                          |
+| Label scope changes through Properties                                            | Only that owner's claim changes; physical membership, Routes, Junctions, provenance, and unrelated claims do not.           |
+| Undo/redo of a scope edit                                                         | Existing project transaction semantics restore exactly the prior/new evidence and derived export result.                    |
+
+## Regression invariants
+
+For identical physical editing operations before and after this work, tests
+must prove equality of:
+
+- Base-Net connected-component partitions and stable-ID allocation;
+- terminal, Route, and Junction ownership;
+- owner-addressed evidence reassignment after split;
+- orphan pruning and `sourceStatus`;
+- imported provenance;
+- undo/redo and reset/clear state transitions;
+- hierarchy occurrence edges.
+
+Only these outputs may change:
+
+- Logical-Net name/effective-scope resolution;
+- project-global grouping and canonical spelling;
+- exported node/global tokens;
+- naming, scope, representability, and collision diagnostics;
+- Properties/presentation of the existing scope fact.
+
+## Deterministic validation
+
+- focused `packages/derived` Logical-Net and project-index tests;
+- focused `packages/netlist` extraction and SPICE/Spectre golden tests;
+- structural SPICE reparse for every successfully emitted fixture;
+- focused editor Properties tests for the existing scope edit;
+- existing edit-engine connect, cut, split, evidence migration, lifecycle,
+  reset, and undo/redo regressions with no golden-state changes;
+- `pnpm gate:affected -- --base <base-ref>` for each implementation target;
+- the repository mainline delivery gate before merge.
+
+## Out of scope
+
+- PDK lookup, model libraries, simulation profiles, corners, or analyses;
+- physical connectivity algorithms or lifecycle redesign;
+- persisted Logical-Net IDs or Logical-Net lineage;
+- hierarchy-occurrence redesign;
+- bus naming and vector expansion;
+- source-text round-trip beyond preserving typed provenance;
+- automatic inference that arbitrary names such as `VDD`, `AVDD`, or `DVDD`
+  are global merely because of their spelling.
+
+## Exit gate
+
+P0 is complete only when every acceptance scenario is deterministic in both
+SPICE and Spectre export, no successful export can collapse two distinct
+schematic Net identities, and unchanged connectivity/lifecycle regression
+fixtures produce byte-identical physical state.
+
+Dependent netlist-import/export closure work may then rely on project-global
+identity and dialect spelling as explicit, tested boundaries.
