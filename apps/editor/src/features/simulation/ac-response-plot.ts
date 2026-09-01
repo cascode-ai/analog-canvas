@@ -216,11 +216,26 @@ export function acResponseSvg(
     })
     .join("");
 
+  // The author asked for these expressions by name; printing them back is the
+  // only way to tell two curves apart, and colour alone would leave anyone
+  // who cannot separate the hues with an unreadable plot.
+  const legend = traces
+    .map((trace, index) => {
+      const y = frame.y + 12 + index * 14;
+      const swatchX = frame.x + 10;
+      return (
+        `<line class="ac-trace ac-trace-${index % 6}" x1="${swatchX}" y1="${y}" x2="${swatchX + 16}" y2="${y}"/>` +
+        `<text class="ac-legend-text" x="${swatchX + 22}" y="${y + 3}">${escapeXml(trace.label)}</text>`
+      );
+    })
+    .join("");
+
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" class="ac-response" viewBox="0 0 ${size.width} ${size.height}" width="${size.width}" height="${size.height}" role="img" aria-label="AC response">` +
     `<rect class="ac-frame" x="${frame.x}" y="${frame.y}" width="${frame.width}" height="${frame.height}"/>` +
     gridLines +
     curves +
+    legend +
     `</svg>`
   );
 }

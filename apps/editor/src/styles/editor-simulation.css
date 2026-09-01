@@ -336,3 +336,62 @@
     min-width: 0;
   }
 }
+
+/* AC response plot. `fill: none` is not decoration here: an SVG polyline
+   fills black by default, so without this rule every trace renders as a
+   solid blob instead of a curve. */
+.ac-response .ac-trace {
+  fill: none;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+.ac-response .ac-trace.ac-phase {
+  stroke-dasharray: 3 2;
+  stroke-width: 1.2;
+}
+
+.ac-response .ac-frame {
+  fill: none;
+  stroke: var(--icm-border, #d5d9e0);
+  stroke-width: 1;
+}
+
+.ac-response .ac-grid {
+  stroke: var(--icm-border-subtle, #eceff3);
+  stroke-width: 1;
+}
+
+.ac-response .ac-axis-label {
+  font-size: 9px;
+  fill: var(--icm-text-muted, #667085);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Traces are distinguished by hue, and one plot may carry several. The
+   sequence keeps adjacent entries far apart in hue so two curves crossing
+   stay separable, and repeats after six rather than fading to nothing. */
+.ac-response .ac-trace-0 {
+  stroke: #175cd3;
+}
+.ac-response .ac-trace-1 {
+  stroke: #b54708;
+}
+.ac-response .ac-trace-2 {
+  stroke: #067647;
+}
+.ac-response .ac-trace-3 {
+  stroke: #6941c6;
+}
+.ac-response .ac-trace-4 {
+  stroke: #b42318;
+}
+.ac-response .ac-trace-5 {
+  stroke: #026aa2;
+}
+
+.ac-response .ac-legend-text {
+  font-size: 10px;
+  fill: var(--icm-text, #101828);
+  font-family: var(--icm-mono, ui-monospace, monospace);
+}

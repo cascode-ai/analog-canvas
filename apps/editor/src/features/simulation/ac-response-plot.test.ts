@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import {
@@ -85,6 +88,40 @@ describe("AC response plot", () => {
         { width: 600, height: 300 },
       ),
     ).toBeNull();
+  });
+
+  it("names every trace on the plot, in its own colour class", () => {
+    // Found by rendering realistic sweeps before any simulator existed: two
+    // traces were drawn identically and unlabelled, so the plot could not be
+    // read at all. The author asked for these expressions by name; printing
+    // them back is the only way to tell the curves apart, and colour alone
+    // would leave anyone who cannot separate the hues with nothing.
+    const svg = acResponseSvg(
+      [
+        { label: "vdb(vout)", points: singlePole().points },
+        { label: "vdb(vout_loaded)", points: singlePole().points },
+      ],
+      { width: 600, height: 300 },
+    )!;
+
+    expect(svg).toContain("vdb(vout)");
+    expect(svg).toContain("vdb(vout_loaded)");
+    expect(svg).toContain("ac-trace-0");
+    expect(svg).toContain("ac-trace-1");
+  });
+
+  it("carries the stylesheet that keeps a polyline from filling solid", () => {
+    // An SVG polyline fills black by default. The plot ships no inline
+    // presentation attributes, so if the class stops being styled every trace
+    // renders as a solid blob — silently, and only in the app.
+    const css = readFileSync(
+      resolve(process.cwd(), "apps/editor/src/styles/editor-simulation.css"),
+      "utf8",
+    );
+    expect(css).toMatch(/\.ac-response \.ac-trace \{[^}]*fill:\s*none/u);
+    for (let index = 0; index < 6; index += 1) {
+      expect(css).toContain(`.ac-trace-${index}`);
+    }
   });
 
   it("labels the frequency axis the way it is spoken", () => {
