@@ -14,6 +14,7 @@ import {
   type AgentSessionNamespaceLike,
 } from "./agent-session";
 import { routeGalleryRequest, type GalleryNamespaceLike } from "./gallery";
+import { routeSimulationRequest, type SimulationEnv } from "./simulation";
 import { routeAuthRequest, type AuthNamespaceLike } from "./auth";
 
 export { AnalyticsDO } from "./analytics";
@@ -21,7 +22,7 @@ export { AgentSessionDO } from "./agent-session";
 export { GalleryDO } from "./gallery";
 export { AuthDO } from "./auth";
 
-type Env = {
+type Env = SimulationEnv & {
   ANALYTICS: DurableObjectNamespaceLike;
   ASSETS: { fetch(request: Request): Promise<Response> };
   ANALYTICS_KEY: string | undefined;
@@ -104,6 +105,9 @@ export default {
 
     const galleryResponse = await routeGalleryRequest(request, env);
     if (galleryResponse) return galleryResponse;
+
+    const simulationResponse = await routeSimulationRequest(request, env);
+    if (simulationResponse) return simulationResponse;
 
     if (url.pathname === "/api/track" && request.method === "POST") {
       return trackPageView(request, env);
