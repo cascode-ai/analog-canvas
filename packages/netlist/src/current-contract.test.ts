@@ -313,6 +313,31 @@ describe("current formal cell interface", () => {
     );
   });
 
+  it("keeps current authored spelling authoritative after source correspondence changes", () => {
+    const project = resistorProject({ value: "10k" });
+    const document = project.documents[0]!;
+    document.sourceStatus = "connectivity-modified";
+    document.connectivityEvidence.push({
+      id: "old-source-name",
+      kind: "net-name-hint",
+      netId: "net-in",
+      sourceName: "old_input",
+      origin: "spice-import",
+    });
+
+    const result = analyzeDesignNetlist(project);
+
+    expect(result.ir?.cells[0]?.instances[0]?.nodes[0]).toEqual({
+      pinName: "1",
+      netName: "VIN",
+    });
+    expect(result.ir?.cells[0]?.nets).toContainEqual({
+      id: "net-in",
+      name: "VIN",
+      scope: "local",
+    });
+  });
+
   it("exports explicit NoConnect terminals through deterministic floating nodes", () => {
     const project = resistorProject({ value: "10k" });
     const document = project.documents[0]!;

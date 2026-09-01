@@ -259,6 +259,51 @@ function normalizedSemantics(ir: DesignNetlistIR) {
 }
 
 describe("structural SPICE round trip", () => {
+  it("keeps Cadence bang spelling separate from global electrical identity", async () => {
+    const imported = await importSpiceSources(
+      [
+        {
+          path: "cadence.spi",
+          bytes: new TextEncoder().encode(
+            "Cadence bang\nV1 vdd! 0 DC 1.8\n.end\n",
+          ),
+        },
+      ],
+      "cadence.spi",
+      {},
+      { namingProfile: "cadence-bang" },
+    );
+    expect(imported.successful).toBe(true);
+
+    const native = analyzeDesignNetlist(imported.project!, {
+      format: "spice",
+      namingProfile: "native",
+    });
+    const cadence = analyzeDesignNetlist(imported.project!, {
+      format: "spice",
+      namingProfile: "cadence-bang",
+    });
+
+    expect(native.ir?.globals).toEqual(["0", "vdd"]);
+    expect(cadence.ir?.globals).toEqual(["0", "vdd!"]);
+    expect(printSpiceNetlist(native.ir!)).toContain(".global vdd");
+    expect(printSpiceNetlist(cadence.ir!)).toContain(".global vdd!");
+    expect(imported.project!.documents[0]!.connectivityEvidence).toContainEqual(
+      expect.objectContaining({
+        kind: "net-name-hint",
+        sourceName: "vdd!",
+      }),
+    );
+
+    imported.project!.documents[0]!.sourceStatus = "connectivity-modified";
+    expect(
+      analyzeDesignNetlist(imported.project!, {
+        format: "spice",
+        namingProfile: "cadence-bang",
+      }).ir,
+    ).toEqual(cadence.ir);
+  });
+
   it("keeps capacitor plate pin order independent of schematic orientation", () => {
     const project = structuralProject();
     const capacitor = project.documents

@@ -3192,10 +3192,7 @@ export function App({
       document,
       resolver,
       defaultViewBox: DEFAULT_VIEWBOX,
-      netlistIr: netlistAnalysis.ir,
-      exportWarningsPresent:
-        netlistAnalysis.diagnostics.length > 0 ||
-        electricalDiagnostics.length > 0,
+      electricalWarningsPresent: electricalDiagnostics.length > 0,
       guardDirtyReplacement,
       replaceActiveProject,
       setNetlistPreflightOpen,
@@ -3743,7 +3740,8 @@ export function App({
             refreshApp();
           },
           onImportProject: (file) => void openProjectFile(file),
-          onImportSpice: (files) => void importSpiceFiles(files),
+          onImportSpice: (files, namingProfile) =>
+            void importSpiceFiles(files, namingProfile),
           onExportProject: exportProjectFile,
           onExportSvg: exportSvg,
           onExportRaster: (format) => void exportRaster(format),
@@ -4105,12 +4103,13 @@ export function App({
           netlistPreflightOpen
             ? {
                 open: netlistPreflightOpen,
-                result: netlistAnalysis,
+                project,
                 electricalDiagnostics,
                 onClose: () => setNetlistPreflightOpen(false),
                 onNavigate: navigateToNetlistDiagnostic,
                 onNavigateElectrical: jumpToProjectDiagnostic,
-                onExport: (format) => exportDesignNetlist(format, true),
+                onExport: (format, namingProfile) =>
+                  exportDesignNetlist(format, true, namingProfile),
               }
             : null
         }

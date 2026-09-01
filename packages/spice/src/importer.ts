@@ -33,6 +33,22 @@ export interface SpiceImportResult extends SpiceCompileResult {
 
 export interface SpiceImportOptions {
   symbolMappings?: readonly PdkSymbolMappingOverride[];
+  namingProfile?: "native" | "cadence-bang";
+}
+
+function importedNetName(
+  name: string,
+  scope: "local" | "global",
+  namingProfile: NonNullable<SpiceImportOptions["namingProfile"]>,
+): { name: string; scope: "local" | "global"; sourceName: string } {
+  if (
+    namingProfile === "cadence-bang" &&
+    name.length > 1 &&
+    name.endsWith("!")
+  ) {
+    return { name: name.slice(0, -1), scope: "global", sourceName: name };
+  }
+  return { name, scope, sourceName: name };
 }
 
 interface ImportSymbolMapping {
@@ -311,8 +327,10 @@ function importDocument(
   cell: CircuitCellIR,
   diagnostics: SpiceDiagnostic[],
   modelTypeByName: ReadonlyMap<string, string>,
-  symbolMappings: readonly PdkSymbolMappingOverride[],
+  options: SpiceImportOptions,
 ): SchematicDocument {
+  const symbolMappings = options.symbolMappings ?? [];
+  const namingProfile = options.namingProfile ?? "native";
   const documentId = deriveStableId("document", cell.name.toLowerCase());
   const visibleInstances = cell.instances.filter((instance) => {
     if (instance.terminals.length > 0) return true;
@@ -355,11 +373,16 @@ function importDocument(
       ),
   }));
   const formalTerminals = cell.ports.map((port, index) => {
+    const importedPortName = importedNetName(
+      port.name,
+      cell.nets.find((net) => net.id === port.netId)?.scope ?? "local",
+      namingProfile,
+    ).name;
     const interfaceInstanceId = deriveStableId(
       "cell-pin",
       documentId,
       String(index),
-      port.name,
+      importedPortName,
     );
     instances.push({
       id: interfaceInstanceId,
@@ -369,8 +392,13 @@ function importDocument(
     const net = nets.find((candidate) => candidate.id === port.netId);
     net?.terminals.push({ instanceId: interfaceInstanceId, pinName: "P" });
     return {
-      id: deriveStableId("cell-terminal", documentId, String(index), port.name),
-      name: port.name,
+      id: deriveStableId(
+        "cell-terminal",
+        documentId,
+        String(index),
+        importedPortName,
+      ),
+      name: importedPortName,
       netId: port.netId,
       direction: "passive" as const,
       interfaceInstanceIds: [interfaceInstanceId],
@@ -392,58 +420,79 @@ function importDocument(
     },
     instances,
     nets,
-    connectivityEvidence: cell.nets.flatMap((net) => [
-      ...(net.name
-        ? [
-            net.scope === "global"
-              ? {
-                  id: deriveStableId(
-                    "connectivity-evidence",
-                    documentId,
-                    "global-declaration",
-                    net.id,
-                    net.name,
-                  ),
-                  kind: "name-claim" as const,
-                  netId: net.id,
-                  name: net.name,
-                  owner: {
-                    kind: "global-declaration" as const,
-                    sourceNetId: net.id,
+    connectivityEvidence: cell.nets.flatMap((net) => {
+      const importedName = importedNetName(net.name, net.scope, namingProfile);
+      return [
+        ...(importedName.name
+          ? [
+              importedName.scope === "global"
+                ? {
+                    id: deriveStableId(
+                      "connectivity-evidence",
+                      documentId,
+                      "global-declaration",
+                      net.id,
+                      importedName.name,
+                    ),
+                    kind: "name-claim" as const,
+                    netId: net.id,
+                    name: importedName.name,
+                    owner: {
+                      kind: "global-declaration" as const,
+                      sourceNetId: net.id,
+                    },
+                    scope: "global" as const,
+                    ...(importedName.name === "0"
+                      ? { powerDomain: "ground" as const }
+                      : {}),
+                  }
+                : {
+                    id: deriveStableId(
+                      "connectivity-evidence",
+                      documentId,
+                      "net-name-hint",
+                      net.id,
+                      net.name,
+                    ),
+                    kind: "net-name-hint" as const,
+                    netId: net.id,
+                    sourceName: importedName.sourceName,
+                    origin: "spice-import" as const,
                   },
-                  scope: "global" as const,
-                  ...(net.name === "0"
-                    ? { powerDomain: "ground" as const }
-                    : {}),
-                }
-              : {
-                  id: deriveStableId(
-                    "connectivity-evidence",
-                    documentId,
-                    "net-name-hint",
-                    net.id,
-                    net.name,
-                  ),
-                  kind: "net-name-hint" as const,
-                  netId: net.id,
-                  sourceName: net.name,
-                  origin: "spice-import" as const,
-                },
-          ]
-        : []),
-      ...[net.id].map((sourceNetId) => ({
-        id: deriveStableId(
-          "connectivity-evidence",
-          documentId,
-          "spice-source",
-          net.id,
+            ]
+          : []),
+        ...(importedName.scope === "global" &&
+        importedName.sourceName !== importedName.name
+          ? [
+              {
+                id: deriveStableId(
+                  "connectivity-evidence",
+                  documentId,
+                  "net-name-hint",
+                  net.id,
+                  importedName.sourceName,
+                ),
+                kind: "net-name-hint" as const,
+                netId: net.id,
+                sourceName: importedName.sourceName,
+                origin: "spice-import" as const,
+              },
+            ]
+          : []),
+        ...[net.id].map((sourceNetId) => ({
+          id: deriveStableId(
+            "connectivity-evidence",
+            documentId,
+            "spice-source",
+            net.id,
+            sourceNetId,
+          ),
+          kind: "spice-source" as const,
+          netId: net.id,
           sourceNetId,
-        ),
-        kind: "spice-source" as const,
-        netId: net.id,
-        sourceNetId,
-      })),
-    ]),
+        })),
+      ];
+    }),
     routes: [],
     junctions: [],
     annotations: [],
@@ -573,12 +622,7 @@ export function importCircuitIR(
     ]),
   );
   const importedDocuments = ir.cells.map((cell) =>
-    importDocument(
-      cell,
-      diagnostics,
-      modelTypeByName,
-      options.symbolMappings ?? [],
-    ),
+    importDocument(cell, diagnostics, modelTypeByName, options),
   );
   const { documents, externalSubcircuitDefinitions } =
     bindImportedChildDocuments(importedDocuments);
