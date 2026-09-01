@@ -122,12 +122,12 @@ export default {
       return Response.json({ error: "Not found" }, { status: 404 });
     }
 
-    return serveAsset(request, env);
+    return serveStaticMiss(request, env);
   },
 };
 
 /**
- * Serve a static asset, and let a missing one be missing.
+ * Resolve a URL that the static asset layer has already reported missing.
  *
  * A route like `/g/<id>` has no file behind it and must render the shell. A
  * request for `/assets/App-<hash>.js` is the opposite: those names carry a
@@ -147,9 +147,7 @@ export default {
  * makes `env.ASSETS.fetch` re-enter this Worker, and every asset request
  * fails with 1101.
  */
-async function serveAsset(request: Request, env: Env): Promise<Response> {
-  const response = await env.ASSETS.fetch(request);
-  if (response.status !== 404) return response;
+async function serveStaticMiss(request: Request, env: Env): Promise<Response> {
   const path = new URL(request.url).pathname;
   if (path.startsWith("/assets/")) {
     return new Response(`Not found: ${path}`, {
@@ -160,11 +158,15 @@ async function serveAsset(request: Request, env: Env): Promise<Response> {
       },
     });
   }
-  // Every other miss is a client route: render the shell the app boots from.
+
+  // Static Assets invokes the Worker only after this URL has already missed
+  // the asset manifest. Fetching the same URL here re-enters the Worker and
+  // ends in Cloudflare 1101. Every non-API, non-hashed miss is a client route,
+  // so ask only for the known index file; that real asset is served directly.
   const shell = await env.ASSETS.fetch(
     new Request(new URL("/index.html", request.url), request),
   );
-  if (!shell.ok) return response;
+  if (!shell.ok) return shell;
   return new Response(shell.body, {
     status: 200,
     headers: {
