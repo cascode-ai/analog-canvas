@@ -90,20 +90,6 @@ export function planDirectEndpointConnection(
       relatedNetIds,
     };
   }
-  if (
-    fromLogical?.name &&
-    toLogical?.name &&
-    fromLogical.scope &&
-    toLogical.scope &&
-    fromLogical.scope !== toLogical.scope
-  ) {
-    return {
-      ok: false,
-      message: "Cannot directly connect named Nets with incompatible scopes",
-      relatedNetIds,
-    };
-  }
-
   const fromHasSemantics = Boolean(
     fromLogical?.evidenceIds.length || fromLogical?.sourceNetIds.length,
   );

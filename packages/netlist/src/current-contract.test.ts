@@ -410,7 +410,7 @@ describe("current formal cell interface", () => {
     });
   });
 
-  it("reports conflicting local/global claims on one Logical Net", () => {
+  it("exports same-name local/global claims on one physical Net as global", () => {
     const project = createEmptyProject("project", "Project");
     const document = project.documents[0]!;
     document.nets.push({
@@ -423,13 +423,11 @@ describe("current formal cell interface", () => {
 
     const result = analyzeDesignNetlist(project);
 
-    expect(result.ir).toBeNull();
-    expect(result.diagnostics).toContainEqual(
-      expect.objectContaining({
-        code: "CONFLICTING_LOGICAL_NET_SCOPE",
-        objectIds: expect.arrayContaining(["net-global"]),
-      }),
-    );
+    expect(result.diagnostics).toEqual([]);
+    expect(result.ir?.globals).toEqual(["BIAS"]);
+    expect(result.ir?.cells[0]?.nets).toEqual([
+      { id: "net-global", name: "BIAS", scope: "global" },
+    ]);
   });
 
   it("blocks distinct local and global Nets that encode to the same node token", () => {

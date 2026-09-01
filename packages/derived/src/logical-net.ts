@@ -192,7 +192,13 @@ export function resolveDocumentLogicalNets(
       if (namesByFolded.size > 1) {
         conflicts.push("name-conflict");
       }
-      if (scopes.size > 1) conflicts.push("scope-conflict");
+      // Scope is a property of one name identity, not a second physical
+      // partition. When the same already-connected Net carries local and
+      // global claims for that one name, global is the effective scope. Keep
+      // both owner claims intact so a later cut can re-derive each side.
+      if (scopes.size > 1 && namesByFolded.size !== 1) {
+        conflicts.push("scope-conflict");
+      }
       if (powerDomain === "conflict") {
         conflicts.push("power-domain-conflict");
       }
@@ -211,7 +217,9 @@ export function resolveDocumentLogicalNets(
           : {}),
         ...(scopes.size === 1
           ? { scope: [...scopes][0] as "local" | "global" }
-          : {}),
+          : namesByFolded.size === 1 && scopes.has("global")
+            ? { scope: "global" as const }
+            : {}),
         powerDomain,
         evidenceIds: evidence.map((item) => item.id),
         formalTerminalIds: memberFormalNames.map((item) => item.id).sort(),
