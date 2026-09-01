@@ -163,11 +163,27 @@ export function mergeDiagnostics(
 }
 
 /** Canonical Project diagnostic evidence consumed by the GUI and Agent API. */
+/**
+ * Which families of evidence to gather.
+ *
+ * Electrical rules answer a question about a FINISHED circuit — is this gate
+ * driven, is this bulk tied — and a circuit halfway through being drawn
+ * honestly fails them. Reported while drawing they are noise that buries the
+ * one finding worth reading, so a caller that runs continuously asks for
+ * `visual` alone, and the moments that need an electrical verdict — export,
+ * publication, an explicit check — ask for everything.
+ */
+export interface DiagnosticDomainOptions {
+  domains?: readonly ("erc" | "visual")[];
+}
+
 export function diagnoseProject(
   project: CircuitProject,
   resolver: SymbolResolver,
   index = buildProjectConnectivityIndex(project, resolver),
+  options: DiagnosticDomainOptions = {},
 ): readonly Diagnostic[] {
+  const wanted = options.domains ?? (["erc", "visual"] as const);
   const visual = project.documents.flatMap((document) => {
     const documentIndex = index.documents.get(document.id);
     return diagnoseVisualQuality(document, resolver, {
@@ -181,7 +197,10 @@ export function diagnoseProject(
       adaptVisualDiagnostic(diagnostic, document.id, index),
     );
   });
-  return mergeDiagnostics(runErcChecks(project, index, resolver), visual);
+  return mergeDiagnostics(
+    wanted.includes("erc") ? runErcChecks(project, index, resolver) : [],
+    wanted.includes("visual") ? visual : [],
+  );
 }
 
 /** Build one revision-stamped, non-persisted snapshot of current evidence. */
@@ -189,6 +208,7 @@ export function diagnoseProjectSnapshot(
   project: CircuitProject,
   resolver: SymbolResolver,
   index = buildProjectConnectivityIndex(project, resolver),
+  options: DiagnosticDomainOptions = {},
 ): LiveDiagnosticSnapshot {
   return {
     source: "live",
@@ -201,6 +221,6 @@ export function diagnoseProjectSnapshot(
       .sort((left, right) =>
         left.documentId.localeCompare(right.documentId, "en"),
       ),
-    diagnostics: diagnoseProject(project, resolver, index),
+    diagnostics: diagnoseProject(project, resolver, index, options),
   };
 }

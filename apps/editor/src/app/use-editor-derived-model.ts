@@ -1,8 +1,9 @@
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 
 import {
   buildProjectSearchIndex,
   deriveCrossings,
+  diagnoseProject,
   diagnoseProjectSnapshot,
   diagnoseVisualQuality,
   endpointKey,
@@ -272,16 +273,31 @@ export function useEditorDerivedModel({
         endpointKey(highlightedNetOrigin.endpoint) ===
           endpointKey(selectedHighlightEndpoint))),
   );
+  // Drawing stays quiet. Electrical rules judge a FINISHED circuit, so a
+  // half-drawn one fails them honestly and continuously: one freshly placed
+  // NMOS reports an unresolved bulk, a floating gate and two unconnected
+  // pins before the author has drawn a single wire, and a twenty-transistor
+  // circuit would carry eighty such findings mid-draw, nearly all of which
+  // vanish once it is wired. The bulk one cannot even be acted on — the
+  // default needs a power net that a blank sheet does not have yet.
+  //
+  // So the live pass gathers visual evidence only, and the electrical verdict
+  // is computed where it is asked for: netlist export, gallery publication
+  // (which runs its own checks server-side regardless), and Check Report.
   const liveDiagnosticSnapshot = useMemo(
-    () => diagnoseProjectSnapshot(project, resolver, projectConnectivityIndex),
+    () =>
+      diagnoseProjectSnapshot(project, resolver, projectConnectivityIndex, {
+        domains: ["visual"],
+      }),
     [project, projectConnectivityIndex, resolver],
   );
-  const electricalDiagnostics = useMemo(
+  /** Electrical rules, on request. Never called during ordinary editing. */
+  const requestElectricalDiagnostics = useCallback(
     () =>
-      liveDiagnosticSnapshot.diagnostics.filter(
-        (diagnostic) => diagnostic.domain === "erc",
-      ),
-    [liveDiagnosticSnapshot],
+      diagnoseProject(project, resolver, projectConnectivityIndex, {
+        domains: ["erc"],
+      }),
+    [project, projectConnectivityIndex, resolver],
   );
   const projectSearchIndex = useMemo(
     () =>
@@ -381,7 +397,7 @@ export function useEditorDerivedModel({
     highlightedNetId,
     selectedHighlightIsActive,
     liveDiagnosticSnapshot,
-    electricalDiagnostics,
+    requestElectricalDiagnostics,
     searchResults,
     flightlines,
     displayedFlightlines,

@@ -1226,7 +1226,7 @@ export function App({
     highlightedNetId,
     selectedHighlightIsActive,
     liveDiagnosticSnapshot,
-    electricalDiagnostics,
+    requestElectricalDiagnostics,
     searchResults,
     flightlines,
     displayedFlightlines,
@@ -1339,7 +1339,7 @@ export function App({
         document,
         resolver,
         connectivityIndex: projectConnectivityIndex,
-        electricalDiagnostics,
+        electricalDiagnostics: [],
         visualDiagnostics,
         reviewOpen: selectionOpen && issuesSectionOpen,
       }),
@@ -1347,7 +1347,6 @@ export function App({
       document,
       resolver,
       projectConnectivityIndex,
-      electricalDiagnostics,
       visualDiagnostics,
       selectionOpen,
       issuesSectionOpen,
@@ -3195,7 +3194,9 @@ export function App({
       document,
       resolver,
       defaultViewBox: DEFAULT_VIEWBOX,
-      electricalWarningsPresent: electricalDiagnostics.length > 0,
+      // Asked at export time, which is one of the moments an
+      // electrical verdict belongs to.
+      electricalWarningsPresent: requestElectricalDiagnostics().length > 0,
       guardDirtyReplacement,
       replaceActiveProject,
       setNetlistPreflightOpen,
@@ -4107,7 +4108,9 @@ export function App({
             ? {
                 open: netlistPreflightOpen,
                 project,
-                electricalDiagnostics,
+                // The dialog only renders while open, so this IS the
+                // explicit check the author asked for.
+                electricalDiagnostics: requestElectricalDiagnostics(),
                 onClose: () => setNetlistPreflightOpen(false),
                 onNavigate: navigateToNetlistDiagnostic,
                 onNavigateElectrical: jumpToProjectDiagnostic,
