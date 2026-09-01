@@ -91,6 +91,17 @@ the boundary has moved.
 - Use `pnpm verify:branch` when a completed branch crosses enough workspace
   boundaries to justify static checks, all unit tests, one build, and the
   production smoke check. It is not the mainline delivery gate.
+- **Production incident exception.** While production is broken, restoring
+  service outranks the delivery route: pushing straight to `main` is allowed,
+  and so is any shortcut that shortens the outage. This is written down
+  because the alternative is worse — a rule that forbids it is a rule people
+  break while panicking, and a broken rule protects nothing. Two conditions
+  make it a route rather than a hole: it applies only while service is
+  actually degraded, not to a change someone is merely in a hurry about; and
+  once service is back, the bypass gets a written record — what was broken,
+  what was pushed, and which checks were skipped — in the follow-up commit or
+  PR. The record is the point. A bypass nobody wrote down is indistinguishable
+  from a bypass nobody noticed.
 - Gate planning is the local validation policy. It never authorizes skipping a
   required GitHub check. Shared-core changes, gate-policy changes, and
   unclassified non-documentation paths require the full fallback; bounded
