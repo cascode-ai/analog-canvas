@@ -43,6 +43,7 @@ import {
 import type { SymbolResolver } from "@icm/symbols";
 
 import type { SchematicEdit } from "./transaction.js";
+import { planDirectEndpointConnection } from "./direct-contact-planner.js";
 import { rebuildRoutePath } from "./route-leg-mutation.js";
 
 export interface WireEndpointGeometry {
@@ -563,6 +564,46 @@ function looseRouteAnchorIds(
 }
 
 /**
+ * A landing that rests on another Net's conductor, in one of the two shapes
+ * the model can express: against a bare END of that conductor, or part-way
+ * along its SPAN. They are the same gesture electrically and different
+ * structurally — splicing a wire in two at a point that is already its end
+ * would ask for a zero-length conductor, so an end meeting an end is stated
+ * as the direct contact it is.
+ */
+type LooseRouteLanding =
+  | {
+      kind: "span";
+      routeId: string;
+      request: EndpointRouteAttachmentRequest;
+    }
+  | {
+      kind: "endpoint";
+      routeId: string;
+      movedJunctionId: string;
+      targetEndpoint: RouteEndpoint;
+    };
+
+/** The endpoint of `candidate` that sits exactly at `point`, if either does. */
+function routeEndpointAt(
+  document: SchematicDocument,
+  candidate: RouteBranch,
+  point: Point,
+): RouteEndpoint | null {
+  for (const endpoint of routeEndpoints(candidate)) {
+    if (endpoint.kind !== "junction") continue;
+    const junction = document.junctions.find(
+      (record) => record.id === endpoint.junctionId,
+    );
+    if (!junction) continue;
+    if (junction.position.x === point.x && junction.position.y === point.y) {
+      return endpoint;
+    }
+  }
+  return null;
+}
+
+/**
  * Where a moved loose end comes to rest on a conductor of another Net.
  *
  * Only the two ENDS are considered. A wire whose middle crosses another wire
@@ -576,11 +617,8 @@ function looseRouteLandingContacts(
   route: RouteBranch,
   anchorIds: readonly string[],
   delta: Point,
-): Array<{ routeId: string; request: EndpointRouteAttachmentRequest }> {
-  const contacts: Array<{
-    routeId: string;
-    request: EndpointRouteAttachmentRequest;
-  }> = [];
+): LooseRouteLanding[] {
+  const contacts: LooseRouteLanding[] = [];
   for (const junctionId of anchorIds) {
     const junction = document.junctions.find(
       (candidate) => candidate.id === junctionId,
@@ -596,12 +634,26 @@ function looseRouteLandingContacts(
       if (candidate.id === route.id || candidate.netId === route.netId) {
         continue;
       }
+      // An end resting on the other wire's end is checked first: such a point
+      // also satisfies "on the segment", and taking it as a span landing is
+      // exactly the splice that cannot be made.
+      const targetEndpoint = routeEndpointAt(document, candidate, landing);
+      if (targetEndpoint) {
+        contacts.push({
+          kind: "endpoint",
+          routeId: candidate.id,
+          movedJunctionId: junctionId,
+          targetEndpoint,
+        });
+        break;
+      }
       const geometry = resolveRouteGeometry(document, resolver, candidate);
       const segmentIndex = geometry?.segments.findIndex((segment) =>
         pointOnSegment(landing, segment.from, segment.to),
       );
       if (segmentIndex === undefined || segmentIndex < 0) continue;
       contacts.push({
+        kind: "span",
         routeId: candidate.id,
         request: {
           endpoint: { kind: "junction", junctionId },
@@ -682,6 +734,21 @@ export function proposeLooseRouteTranslation(
 
   const byTargetRoute = new Map<string, EndpointRouteAttachmentRequest[]>();
   for (const contact of contacts) {
+    if (contact.kind === "endpoint") {
+      // End against end: state the contact directly rather than splicing the
+      // target at a point that is already its own end.
+      const direct = planDirectEndpointConnection(document, {
+        from: { kind: "junction", junctionId: contact.movedJunctionId },
+        to: contact.targetEndpoint,
+        newNetId: `net-${landing.suffix}`,
+      });
+      // Two differently NAMED Nets are the one case this gesture cannot
+      // settle: joining them would retire a name its author chose. The move
+      // still happens, the ends still touch, and the existing ambiguity
+      // finding is left standing for the author to resolve deliberately.
+      if (direct.ok) edits.push(...direct.edits);
+      continue;
+    }
     const requests = byTargetRoute.get(contact.routeId) ?? [];
     requests.push(contact.request);
     byTargetRoute.set(contact.routeId, requests);
