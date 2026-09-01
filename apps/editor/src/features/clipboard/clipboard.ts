@@ -485,9 +485,50 @@ function fallbackClipboardPreviewDocument(
 }
 
 /**
+ * How far a preview paste must sit from the circuit to be read as its own
+ * copy rather than as landing on the original. One span past the rightmost
+ * coordinate the Document uses clears every existing object, and the offset
+ * is a whole number so the fragment translates back exactly.
+ */
+function previewClearanceOffset(base: SchematicDocument): Point {
+  let extent = 0;
+  const consider = (value: number): void => {
+    if (Number.isFinite(value)) extent = Math.max(extent, Math.abs(value));
+  };
+  for (const instance of base.instances) {
+    if (instance.placement) {
+      consider(instance.placement.position.x);
+      consider(instance.placement.position.y);
+    }
+  }
+  for (const junction of base.junctions) {
+    consider(junction.position.x);
+    consider(junction.position.y);
+  }
+  for (const route of base.routes) {
+    for (const leg of route.legs) {
+      if (leg.to.kind === "bend") {
+        consider(leg.to.position.x);
+        consider(leg.to.position.y);
+      }
+    }
+  }
+  return { x: Math.ceil(extent) * 2 + 10_000, y: 0 };
+}
+
+/**
  * Build the copy ghost from the same dry-run transaction as its eventual
  * commit.  The fallback keeps rendering resilient while the Symbol resolver
  * is unavailable during isolated unit callers.
+ *
+ * The dry run is placed clear of the circuit and the result translated back,
+ * because the ghost's own coordinates start on top of the objects it was
+ * copied from — it is drawn at the origin and moved to the pointer by an SVG
+ * transform. Pasting onto the source is a real gesture with a real meaning:
+ * commit-time canonicalisation reads the copied pins as landing on the
+ * originals and folds the copied Net and its Routes into them. That is right
+ * for a paste and wrong for a preview, which then showed parts with no wires
+ * between them.
  */
 export function clipboardPreviewDocument(
   base: SchematicDocument,
@@ -499,7 +540,13 @@ export function clipboardPreviewDocument(
 ): SchematicDocument {
   const oriented = orientClipboard(clipboard, orientationOperations);
   if (resolver) {
-    const proposal = proposePaste(base, oriented, offset, sequence);
+    const clearance = previewClearanceOffset(base);
+    const proposal = proposePaste(
+      base,
+      oriented,
+      { x: offset.x + clearance.x, y: offset.y + clearance.y },
+      sequence,
+    );
     if (proposal.errors.length === 0) {
       const result = executeTransaction(
         base,
@@ -602,10 +649,12 @@ export function clipboardPreviewDocument(
             constraintIds.has(constraint.id),
           ),
         });
+        // Back from the clearance the dry run needed, so the ghost lands
+        // where the caller asked for it.
         return fallbackClipboardPreviewDocument(
           result.document,
           previewClipboard,
-          { x: 0, y: 0 },
+          { x: -clearance.x, y: -clearance.y },
         );
       }
     }
