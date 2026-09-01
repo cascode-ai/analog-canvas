@@ -358,7 +358,7 @@ describe("public Agent session routes", () => {
     expect(manifest).toMatchObject({
       format: AGENT_MCP_BOOTSTRAP_FORMAT,
       name: "analog-canvas",
-      version: "0.1.0",
+      version: "0.2.0",
       transport: "stdio",
       requirements: { node: ">=24.0.0" },
       fallback: {
@@ -367,7 +367,7 @@ describe("public Agent session routes", () => {
       },
     });
     expect(manifest.launch.args.join(" ")).toContain(
-      "analog-canvas-mcp-server-0.1.0.tgz",
+      "analog-canvas-mcp-server-0.2.0.tgz",
     );
     expect(manifest.hosts.codex.command).toContain("codex mcp add");
     expect(manifest.hosts.cursor.config.mcpServers["analog-canvas"]).toEqual(

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Analog Canvas (repo `interactive-circuit-maker`) is a local-first, connectivity-aware schematic editor: structural SPICE is imported into a typed circuit model, edited in the browser (React + SVG), persisted as one canonical `.icproj.json` Project file, and exported as formal SVG/PNG/PDF and deterministic SPICE/Spectre design netlists. It is an editor and structural circuit tool — not a simulator. A human UI and an authorized Agent API edit the same live Project through the same edit engine; neither may bypass electrical, revision, lock, or transaction invariants.
+Analog Canvas (repo `interactive-circuit-maker`) is a local-first, connectivity-aware schematic editor: structural SPICE is imported into a typed circuit model, edited in the browser (React + SVG), persisted as one canonical `.icproj.json` Project file, and exported as formal SVG/PNG/PDF and deterministic SPICE/Spectre design netlists. It edits circuits and simulates the ones that are fully described at the transistor level: a circuit whose every instance resolves to a PDK device model runs against ngspice, hierarchy included; one containing an abstract block is refused with the block named (ADR 0055). A human UI and an authorized Agent API edit the same live Project through the same edit engine; neither may bypass electrical, revision, lock, or transaction invariants.
 
 pnpm workspace (`apps/*`, `packages/*`, all scoped `@icm/*`), Node >= 24, pnpm >= 11.16, TypeScript, ESM only.
 

@@ -13,7 +13,7 @@ describe("EditorHelpDialog", () => {
 
     expect(markup).toContain('role="dialog"');
     expect(markup).toContain("About Analog Canvas");
-    expect(markup).toContain("Version <strong>0.1.0</strong>");
+    expect(markup).toContain("Version <strong>0.2.0</strong>");
     expect(markup).toContain(
       'href="https://github.com/cascode-ai/analog-canvas"',
     );
