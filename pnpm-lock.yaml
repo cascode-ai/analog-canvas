@@ -25,6 +25,9 @@ importers:
       "@icm/render-svg":
         specifier: workspace:*
         version: link:packages/render-svg
+      "@icm/spice-run":
+        specifier: workspace:*
+        version: link:packages/spice-run
       "@icm/symbols":
         specifier: workspace:*
         version: link:packages/symbols
@@ -118,7 +121,11 @@ importers:
         specifier: ^6.2.5
         version: 6.2.5
 
-  apps/local-host: {}
+  apps/local-host:
+    dependencies:
+      "@icm/spice-run":
+        specifier: workspace:*
+        version: link:../../packages/spice-run
 
   apps/mcp-server:
     dependencies:
@@ -348,6 +355,8 @@ importers:
       zod:
         specifier: 4.4.3
         version: 4.4.3
+
+  packages/spice-run: {}
 
   packages/symbols:
     dependencies:

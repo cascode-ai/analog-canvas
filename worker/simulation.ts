@@ -20,7 +20,7 @@ import {
   readNgspiceDiagnostics,
   resolveTimeoutMs,
   type SimulationResult,
-} from "./simulation-contract";
+} from "@icm/spice-run";
 
 /** What a container-backed runner has to offer this module. */
 export interface NgspiceRunner {
