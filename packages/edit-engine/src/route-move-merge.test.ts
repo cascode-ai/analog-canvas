@@ -364,3 +364,144 @@ describe("a pin resting on a conductor, in published drawings", () => {
     }
   });
 });
+
+/**
+ * Two wire ENDS brought head to head in mid-air.
+ *
+ * The same rule as landing on a conductor, seen from the case where neither
+ * point lies in the other's span. Butting two ends together is the commonest
+ * way to join wires while drawing, and it is *more* deliberate than dropping
+ * an end on a wire's middle, not less. Before this rule the move merged
+ * nothing and flagged the meeting point ambiguous from both sides at once.
+ */
+function twoHeadToHeadWires(): SchematicDocument {
+  const document = createEmptyDocument("head-to-head", "Head to head");
+  document.presentation.grid = 10;
+  document.nets.push(
+    { id: "net-left", terminals: [] },
+    { id: "net-right", terminals: [] },
+  );
+  document.junctions.push(
+    {
+      id: "L1",
+      netId: "net-left",
+      position: { x: 100, y: 200 },
+      role: "route-anchor",
+    },
+    {
+      id: "L2",
+      netId: "net-left",
+      position: { x: 200, y: 200 },
+      role: "route-anchor",
+    },
+    {
+      id: "R1",
+      netId: "net-right",
+      position: { x: 260, y: 200 },
+      role: "route-anchor",
+    },
+    {
+      id: "R2",
+      netId: "net-right",
+      position: { x: 360, y: 200 },
+      role: "route-anchor",
+    },
+  );
+  document.routes.push(
+    createRoutePath({
+      id: "wire-left",
+      netId: "net-left",
+      start: { kind: "junction", junctionId: "L1" },
+      end: { kind: "junction", junctionId: "L2" },
+      bends: [],
+      modes: ["manual"],
+    }),
+    createRoutePath({
+      id: "wire-right",
+      netId: "net-right",
+      start: { kind: "junction", junctionId: "R1" },
+      end: { kind: "junction", junctionId: "R2" },
+      bends: [],
+      modes: ["manual"],
+    }),
+  );
+  return document;
+}
+
+describe("bringing two wire ends head to head", () => {
+  it("joins the two Nets when the ends meet in mid-air", () => {
+    // The right wire starts at x = 260; slide it 60 left so its start lands
+    // exactly on the left wire's end at (200, 200). Neither point is in the
+    // other's span: this is end against end.
+    const moved = moveLooseRoute(twoHeadToHeadWires(), "wire-right", {
+      x: -60,
+      y: 0,
+    });
+
+    expect(conductingNetIds(moved)).toHaveLength(1);
+    expect(ambiguousJunctionErrors(moved)).toEqual([]);
+  });
+
+  it("still refuses to merge two wires that merely cross", () => {
+    // The brake, restated for this path: the vertical wire now spans
+    // y = 170..230 across the horizontal one, touching at an interior point
+    // of both with neither end resting on anything.
+    const moved = moveLooseRoute(twoLooseWires(), "wire-vertical", {
+      x: 0,
+      y: 70,
+    });
+
+    expect(conductingNetIds(moved)).toHaveLength(2);
+    expect(ambiguousJunctionErrors(moved)).toEqual([]);
+  });
+
+  it("refuses to retire a name when two named Nets are butted together", () => {
+    const document = twoHeadToHeadWires();
+    // The author labelled both sides, which is how they say the two are NOT
+    // the same node. Touching the ends cannot quietly discard one of the
+    // names, so this stays two Nets and keeps its ambiguity finding.
+    for (const [netId, name] of [
+      ["net-left", "VBST"],
+      ["net-right", "VGN"],
+    ] as const) {
+      document.annotations.push({
+        id: `label-${netId}`,
+        kind: "net-label",
+        binding: { kind: "net-name", netId },
+        netId,
+        anchor: { kind: "free", position: { x: 0, y: 0 } },
+        alignment: "start",
+        rotation: 0,
+        locked: false,
+      });
+      document.connectivityEvidence.push({
+        id: `claim-${netId}`,
+        kind: "name-claim",
+        netId,
+        name,
+        owner: { kind: "net-label", annotationId: `label-${netId}` },
+        scope: "local",
+      });
+    }
+
+    const moved = moveLooseRoute(document, "wire-right", { x: -60, y: 0 });
+
+    expect(conductingNetIds(moved)).toHaveLength(2);
+  });
+
+  it("leaves the joined conductor's connectivity alone when it moves again", () => {
+    const joined = moveLooseRoute(twoHeadToHeadWires(), "wire-right", {
+      x: -60,
+      y: 0,
+    });
+    expect(conductingNetIds(joined)).toHaveLength(1);
+    // The two collinear wires are one conductor now, so the id to move next
+    // is whatever canonicalization left behind rather than either original.
+    const joinedRouteId = joined.routes[0]!.id;
+
+    // Moving it must neither split the Net nor invent a second join.
+    const movedAgain = moveLooseRoute(joined, joinedRouteId, { x: 0, y: -40 });
+    expect(conductingNetIds(movedAgain)).toHaveLength(1);
+    expect(ambiguousJunctionErrors(movedAgain)).toEqual([]);
+  });
+});
