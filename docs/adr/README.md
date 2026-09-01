@@ -37,6 +37,7 @@ major boundaries exist.
 - [`0036-named-power-and-mos-bulk-semantics.md`](0036-named-power-and-mos-bulk-semantics.md) — named power and MOS bulk policy
 - [`0038-document-style-overrides.md`](0038-document-style-overrides.md) — Document style overrides
 - [`0054-single-instance-reference-authority.md`](0054-single-instance-reference-authority.md) — one authored Instance Reference across canvas, copy, Agent, and export
+- [`0055-simulation-is-part-of-the-product.md`](0055-simulation-is-part-of-the-product.md) — simulation joins the product; what is simulatable, whose testbench, and where ngspice runs
 
 ### Connectivity and routing
 
