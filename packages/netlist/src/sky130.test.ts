@@ -221,3 +221,84 @@ describe("the five-transistor OTA, bound end to end", () => {
     expect(printed).not.toMatch(/^M\d/mu);
   });
 });
+
+describe("the path the product actually takes", () => {
+  /**
+   * Choosing a Sky130 model in the editor makes the instance an EXTERNAL
+   * SUBCIRCUIT: the extractor emits deviceClass "hierarchical" with the
+   * wrapper name as its target and an X reference, already in D G S B order.
+   * So the prefix and node order arrive correct — and the geometry does not.
+   * The editor stores W and L in metres (its own fields read "W / m"), which
+   * is exactly the value Sky130 must not receive.
+   */
+  it("converts geometry on an external-subcircuit instance too", () => {
+    const ir = {
+      topCellName: "amp",
+      globals: [],
+      cells: [
+        {
+          id: "amp",
+          name: "amp",
+          ports: [],
+          nets: [],
+          instances: [
+            {
+              id: "M1",
+              reference: "X1",
+              deviceClass: "hierarchical",
+              target: "sky130_fd_pr__nfet_01v8",
+              nodes: [
+                { pinName: "D", netName: "d" },
+                { pinName: "G", netName: "g" },
+                { pinName: "S", netName: "0" },
+                { pinName: "B", netName: "0" },
+              ],
+              parameters: [
+                { name: "w", rawValue: "96u" },
+                { name: "l", rawValue: "1u" },
+                { name: "nf", rawValue: "12" },
+              ],
+            },
+          ],
+        },
+      ],
+    } as unknown as DesignNetlistIR;
+
+    const printed = printSpiceNetlist(bindSky130Netlist(ir, {}));
+    expect(printed).toContain(
+      "X1 d g 0 0 sky130_fd_pr__nfet_01v8 w=96 l=1 nf=12",
+    );
+    // Metres would have simulated a device a million times too large.
+    expect(printed).not.toContain("96u");
+  });
+
+  it("leaves a subcircuit that is not a PDK device alone", () => {
+    // Our own hierarchy carries no Sky130 geometry convention, so touching
+    // its parameters would corrupt an ordinary design.
+    const ir = {
+      topCellName: "top",
+      globals: [],
+      cells: [
+        {
+          id: "top",
+          name: "top",
+          ports: [],
+          nets: [],
+          instances: [
+            {
+              id: "X1",
+              reference: "X1",
+              deviceClass: "hierarchical",
+              target: "leaf",
+              nodes: [{ pinName: "a", netName: "n1" }],
+              parameters: [{ name: "l", rawValue: "60n" }],
+            },
+          ],
+        },
+      ],
+    } as unknown as DesignNetlistIR;
+    expect(printSpiceNetlist(bindSky130Netlist(ir, {}))).toContain(
+      "X1 n1 leaf l=60n",
+    );
+  });
+});

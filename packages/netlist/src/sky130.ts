@@ -27,8 +27,21 @@ import type {
  *   measurably different current.
  */
 export interface Sky130BindingOptions {
-  /** Design model target (`nch`, `pch`, …) to Sky130 wrapper name. */
-  readonly modelByTarget: Readonly<Record<string, string>>;
+  /**
+   * Design model target (`nch`, `pch`, …) to Sky130 wrapper name, for designs
+   * whose devices name a generic model. A target that is already a Sky130
+   * wrapper needs no entry: choosing one in the editor makes the instance an
+   * external subcircuit that arrives here named, X-referenced, and in D G S B
+   * order — with its geometry still in metres, which is the part that matters.
+   */
+  readonly modelByTarget?: Readonly<Record<string, string>>;
+}
+
+const SKY130_DEVICE_PREFIX = "sky130_fd_pr__";
+
+/** Whether a netlist target names a Sky130 device wrapper. */
+export function isSky130Device(target: string | null | undefined): boolean {
+  return typeof target === "string" && target.startsWith(SKY130_DEVICE_PREFIX);
 }
 
 const MICROMETRE = 1e-6;
@@ -84,14 +97,38 @@ export function sky130Micrometres(value: string): string {
   return `${Number(micrometres.toPrecision(12))}`;
 }
 
+function withMicrometreGeometry(
+  instance: DesignNetlistInstance,
+): DesignNetlistInstance {
+  return {
+    ...instance,
+    parameters: instance.parameters.map((parameter) =>
+      parameter.name.toLowerCase() === "l" ||
+      parameter.name.toLowerCase() === "w"
+        ? { ...parameter, rawValue: sky130Micrometres(parameter.rawValue) }
+        : parameter,
+    ),
+  };
+}
+
 function bindInstance(
   instance: DesignNetlistInstance,
   cellName: string,
   options: Sky130BindingOptions,
 ): DesignNetlistInstance {
-  if (instance.deviceClass !== "mos") return instance;
+  // A device the editor already bound to the PDK arrives as an external
+  // subcircuit. Everything about it is right except the units.
+  if (instance.deviceClass !== "mos") {
+    return isSky130Device(instance.target)
+      ? withMicrometreGeometry(instance)
+      : instance;
+  }
   const target = instance.target;
-  const model = target ? options.modelByTarget[target] : undefined;
+  const model = isSky130Device(target)
+    ? target!
+    : target
+      ? options.modelByTarget?.[target]
+      : undefined;
   if (!model) {
     throw new Error(
       `No Sky130 model is bound for ${cellName}.${instance.reference} (model ${target ?? "none"})`,
@@ -106,12 +143,7 @@ function bindInstance(
       : `X${instance.reference}`,
     deviceClass: "hierarchical",
     target: model,
-    parameters: instance.parameters.map((parameter) =>
-      parameter.name.toLowerCase() === "l" ||
-      parameter.name.toLowerCase() === "w"
-        ? { ...parameter, rawValue: sky130Micrometres(parameter.rawValue) }
-        : parameter,
-    ),
+    parameters: withMicrometreGeometry(instance).parameters,
   };
 }
 
