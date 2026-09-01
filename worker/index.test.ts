@@ -56,11 +56,19 @@ describe("static asset serving", () => {
         fetch(request: Request) {
           const path = new URL(request.url).pathname;
           const body = files[path];
+          // With not_found_handling "none" the assets layer answers a miss
+          // with 404 and the request reaches the Worker. index.html is a
+          // real file, so the shell is something the Worker can ask for.
+          if (path === "/index.html") {
+            return Promise.resolve(
+              new Response("<!doctype html><html></html>", {
+                headers: { "content-type": "text/html" },
+              }),
+            );
+          }
           return Promise.resolve(
             body === undefined
-              ? new Response("<!doctype html><html></html>", {
-                  headers: { "content-type": "text/html" },
-                })
+              ? new Response("Not found", { status: 404 })
               : new Response(body, {
                   headers: { "content-type": "text/javascript" },
                 }),
@@ -127,6 +135,11 @@ describe("assets binding wiring", () => {
     const { assets } = wranglerConfig();
     expect(assets.run_worker_first).not.toContain("/assets/*");
     expect(assets.run_worker_first).toContain("/api/*");
-    expect(assets.not_found_handling).toBe("single-page-application");
+    // "single-page-application" answers a MISSING asset with the shell, and
+    // it does so in front of the Worker — so the 404 below could never run
+    // in production, however green its test was. "none" lets a miss fall
+    // through to the Worker, which is the only place that can tell a stale
+    // chunk name from a route.
+    expect(assets.not_found_handling).toBe("none");
   });
 });

@@ -125,29 +125,47 @@ export default {
 /**
  * Serve a static asset, and let a missing one be missing.
  *
- * `not_found_handling: "single-page-application"` is right for a route like
- * `/g/<id>`, which has no file behind it and must render the shell. It is
- * wrong for `/assets/*`: those names carry a content hash, so a request for
- * one that is not there is a stale page asking for a build that no longer
- * exists — not a route. Answering it with `200 text/html` hands the browser
- * a document where it asked for a module, which surfaces as "error loading
+ * A route like `/g/<id>` has no file behind it and must render the shell. A
+ * request for `/assets/App-<hash>.js` is the opposite: those names carry a
+ * content hash, so one that is not there is a stale page asking for a build
+ * that no longer exists. Answering it with `200 text/html` hands the browser
+ * a document where it asked for a module, which surfaces as "Failed to fetch
  * dynamically imported module" instead of a plain missing file, and invites
  * every cache in the path to keep the wrong answer under a name that
  * promised to be immutable.
+ *
+ * The asset binding cannot make that distinction: `not_found_handling`
+ * applies to every miss alike, and it answers before the Worker runs, so a
+ * shell-for-everything setting makes the check below unreachable however
+ * green its test looks. The binding is therefore set to `none` and the
+ * choice is made here, where the path is known. Listing `/assets/*` in
+ * `run_worker_first` would be the other way to arrive, and it is not: that
+ * makes `env.ASSETS.fetch` re-enter this Worker, and every asset request
+ * fails with 1101.
  */
 async function serveAsset(request: Request, env: Env): Promise<Response> {
   const response = await env.ASSETS.fetch(request);
+  if (response.status !== 404) return response;
   const path = new URL(request.url).pathname;
-  if (!path.startsWith("/assets/")) return response;
-  const servedShell = (response.headers.get("content-type") ?? "").includes(
-    "text/html",
+  if (path.startsWith("/assets/")) {
+    return new Response(`Not found: ${path}`, {
+      status: 404,
+      headers: {
+        "content-type": "text/plain; charset=utf-8",
+        "cache-control": "no-store",
+      },
+    });
+  }
+  // Every other miss is a client route: render the shell the app boots from.
+  const shell = await env.ASSETS.fetch(
+    new Request(new URL("/index.html", request.url), request),
   );
-  if (!servedShell) return response;
-  return new Response(`Not found: ${path}`, {
-    status: 404,
+  if (!shell.ok) return response;
+  return new Response(shell.body, {
+    status: 200,
     headers: {
-      "content-type": "text/plain; charset=utf-8",
-      "cache-control": "no-store",
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "public, max-age=0, must-revalidate",
     },
   });
 }
