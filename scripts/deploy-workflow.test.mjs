@@ -56,6 +56,31 @@ describe("Cloudflare deploy workflow", () => {
     expect(workflow).toContain("needs a human");
   });
 
+  it("requires a missing hashed asset to answer 404", () => {
+    // This check once asserted the opposite: it required the shell at 200,
+    // which was the #493 bug recorded as the expected answer. It then rolled
+    // back the fix for that bug, correctly obeying a wrong instruction. The
+    // assertion exists so the old expectation cannot come back quietly.
+    const verifySection = workflow.slice(
+      workflow.indexOf("Verify production deployment"),
+      workflow.indexOf("Roll back a failed deployment"),
+    );
+    expect(verifySection).toContain("App-deploy-smoke-missing.js");
+    expect(verifySection).toMatch(/"404 "\*\)/u);
+    expect(verifySection).toContain("must answer 404");
+  });
+
+  it("still requires a client route to receive the shell", () => {
+    // The other half of the boundary. Turning every miss into a 404 would
+    // break /editor, which is the failure this whole area started from.
+    const verifySection = workflow.slice(
+      workflow.indexOf("Verify production deployment"),
+      workflow.indexOf("Roll back a failed deployment"),
+    );
+    expect(verifySection).toContain("must receive the shell");
+    expect(verifySection).toContain("doctype html");
+  });
+
   it("verifies the editor route, which is what broke", () => {
     const verifySection = workflow.slice(
       workflow.indexOf("Verify production deployment"),
