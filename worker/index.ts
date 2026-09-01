@@ -138,38 +138,29 @@ export default {
  * every cache in the path to keep the wrong answer under a name that
  * promised to be immutable.
  *
- * The asset binding cannot make that distinction: `not_found_handling`
- * applies to every miss alike, and it answers before the Worker runs, so a
- * shell-for-everything setting makes the check below unreachable however
- * green its test looks. The binding is therefore set to `none` and the
- * choice is made here, where the path is known. Listing `/assets/*` in
- * `run_worker_first` would be the other way to arrive, and it is not: that
- * makes `env.ASSETS.fetch` re-enter this Worker, and every asset request
- * fails with 1101.
+ * Neither route into the Worker works today, and both were tried. Listing
+ * `/assets/*` in `run_worker_first` makes `env.ASSETS.fetch` re-enter this
+ * Worker: 1101 on every asset. Setting `not_found_handling` to `none` so a
+ * miss falls through does the same thing by another door — the fall-through
+ * re-enters, and the whole site answered 1101 until it was reverted (#498,
+ * reverted here). So this check only fires for a miss that reaches the
+ * Worker some other way, and the served-shell-for-a-missing-chunk problem
+ * of #493 needs a fix on the client, which is where the recovery action
+ * shipped.
  */
 async function serveAsset(request: Request, env: Env): Promise<Response> {
   const response = await env.ASSETS.fetch(request);
-  if (response.status !== 404) return response;
   const path = new URL(request.url).pathname;
-  if (path.startsWith("/assets/")) {
-    return new Response(`Not found: ${path}`, {
-      status: 404,
-      headers: {
-        "content-type": "text/plain; charset=utf-8",
-        "cache-control": "no-store",
-      },
-    });
-  }
-  // Every other miss is a client route: render the shell the app boots from.
-  const shell = await env.ASSETS.fetch(
-    new Request(new URL("/index.html", request.url), request),
+  if (!path.startsWith("/assets/")) return response;
+  const servedShell = (response.headers.get("content-type") ?? "").includes(
+    "text/html",
   );
-  if (!shell.ok) return response;
-  return new Response(shell.body, {
-    status: 200,
+  if (!servedShell) return response;
+  return new Response(`Not found: ${path}`, {
+    status: 404,
     headers: {
-      "content-type": "text/html; charset=utf-8",
-      "cache-control": "public, max-age=0, must-revalidate",
+      "content-type": "text/plain; charset=utf-8",
+      "cache-control": "no-store",
     },
   });
 }
