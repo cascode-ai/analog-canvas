@@ -259,6 +259,35 @@ export function createPropertyEditPlanner({
     ];
   };
 
+  const netLabelScopeEdit = (
+    annotation: Annotation,
+    scope: "local" | "global",
+  ): SchematicEdit[] | null => {
+    if (annotation.kind !== "net-label") {
+      setStatus("Power markers keep their required global scope");
+      return null;
+    }
+    const claim = document.connectivityEvidence.find(
+      (
+        evidence,
+      ): evidence is Extract<ConnectivityEvidence, { kind: "name-claim" }> =>
+        evidence.kind === "name-claim" &&
+        evidence.owner.kind === "net-label" &&
+        evidence.owner.annotationId === annotation.id,
+    );
+    if (!claim) {
+      setStatus("This Net Label has no editable scope claim");
+      return null;
+    }
+    if (claim.scope === scope) return [];
+    return [
+      {
+        kind: "upsert_connectivity_evidence",
+        evidence: { ...claim, scope },
+      },
+    ];
+  };
+
   const propertyParametersForInstance = (
     instance: SchematicDocument["instances"][number],
   ) => {
@@ -366,6 +395,7 @@ export function createPropertyEditPlanner({
   return {
     netLabelForRoute,
     netLabelEditsForRoute,
+    netLabelScopeEdit,
     netNameEditsForAnnotation,
     propertyParametersForInstance,
     instancePropertyEdits,

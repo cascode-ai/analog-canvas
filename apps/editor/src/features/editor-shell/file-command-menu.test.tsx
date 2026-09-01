@@ -45,6 +45,9 @@ describe("FileCommandMenu", () => {
     expect(markup).toContain('class="cloud-project-time"');
     expect(markup).toContain("cloud-project-cloud-1");
     expect(markup).toContain("Import Project File…");
+    expect(markup).toContain("Import SPICE…");
+    expect(markup).toContain("Import Cadence SPICE (`!` globals)…");
+    expect(markup).toContain('data-testid="cadence-spice-files"');
     expect(markup).toContain("Export Project File…");
     expect(markup).not.toContain("Download Backup");
     expect(markup).not.toContain("Previous Project");

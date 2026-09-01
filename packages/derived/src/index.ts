@@ -19,6 +19,7 @@ export * from "./instance-value.js";
 export * from "./logical-net.js";
 export * from "./net-highlight.js";
 export * from "./net-label.js";
+export * from "./net-name-projection.js";
 export * from "./mos-bulk.js";
 export * from "./object-locator.js";
 export * from "./project-search.js";

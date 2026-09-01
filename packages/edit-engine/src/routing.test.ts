@@ -3012,14 +3012,41 @@ describe("routing Edit Engine", () => {
     );
   });
 
-  it("physically splits a global-Net Route instead of hiding the cut behind global Evidence", () => {
+  it("keeps an imported global declaration only on the primary component after a cut", () => {
     const document = documentFixture();
     const net = document.nets.find((candidate) => candidate.id === "net-v")!;
-    for (const evidence of document.connectivityEvidence) {
-      if (evidence.kind === "name-claim" && evidence.netId === net.id) {
-        evidence.scope = "global";
-      }
-    }
+    document.netlist!.terminals.find(
+      (terminal) => terminal.id === "cell-terminal-c",
+    )!.name = "LEFT";
+    document.netlist!.terminals.find(
+      (terminal) => terminal.id === "cell-terminal-d",
+    )!.name = "RIGHT";
+    document.connectivityEvidence.push(
+      {
+        id: "imported-global-vdd",
+        kind: "name-claim",
+        netId: net.id,
+        name: "VDD",
+        scope: "global",
+        owner: {
+          kind: "global-declaration",
+          sourceNetId: "source-vdd",
+        },
+      },
+      {
+        id: "source-vdd",
+        kind: "spice-source",
+        netId: net.id,
+        sourceNetId: "source-vdd",
+      },
+      {
+        id: "source-vdd-name",
+        kind: "net-name-hint",
+        netId: net.id,
+        sourceName: "VDD",
+        origin: "spice-import",
+      },
+    );
     document.routes = [
       createRoutePath({
         id: "route-global",
@@ -3051,6 +3078,39 @@ describe("routing Edit Engine", () => {
         candidate.terminals.some((terminal) => terminal.instanceId === "D"),
       ),
     ).toMatchObject({ terminals: [{ instanceId: "D" }] });
+    const splitNetIds = result.document.nets
+      .filter((candidate) =>
+        candidate.terminals.some((terminal) =>
+          ["C", "D"].includes(terminal.instanceId),
+        ),
+      )
+      .map((candidate) => candidate.id)
+      .sort();
+    expect(
+      result.document.connectivityEvidence.flatMap((evidence) =>
+        evidence.kind === "name-claim" &&
+        evidence.owner.kind === "global-declaration"
+          ? [evidence.netId]
+          : [],
+      ),
+    ).toEqual(["net-v"]);
+    for (const kind of ["spice-source", "net-name-hint"] as const) {
+      expect(
+        result.document.connectivityEvidence
+          .filter((evidence) => evidence.kind === kind)
+          .map((evidence) => evidence.netId)
+          .filter((netId) => splitNetIds.includes(netId))
+          .sort(),
+      ).toEqual(splitNetIds);
+    }
+    const logicalNets = resolveDocumentLogicalNets(result.document);
+    const left = logicalNets.byBaseNetId.get("net-v");
+    const rightNetId = splitNetIds.find((netId) => netId !== "net-v")!;
+    const right = logicalNets.byBaseNetId.get(rightNetId);
+    expect(left).toMatchObject({ name: "VDD", scope: "global" });
+    expect(right).toMatchObject({ scope: "local" });
+    expect(right?.name).toBe("RIGHT");
+    expect(left?.id).not.toBe(right?.id);
     expect(result.document.sourceStatus).toBe("connectivity-modified");
   });
 

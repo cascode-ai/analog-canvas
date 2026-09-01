@@ -113,6 +113,38 @@ describe("resolved logical Nets", () => {
     );
   });
 
+  it("derives global scope for same-name local and global claims on one physical Net", () => {
+    const document = createEmptyDocument("document", "Document");
+    document.nets.push({ id: "net-vdd", terminals: [] });
+    document.connectivityEvidence.push(
+      {
+        id: "claim-local",
+        kind: "name-claim",
+        netId: "net-vdd",
+        name: "VDD",
+        owner: { kind: "net-label", annotationId: "label-local" },
+        scope: "local",
+      },
+      {
+        id: "claim-global",
+        kind: "name-claim",
+        netId: "net-vdd",
+        name: "vdd",
+        owner: { kind: "power-marker", objectId: "VDD1" },
+        scope: "global",
+        powerDomain: "vdd",
+      },
+    );
+
+    expect(resolveDocumentLogicalNets(document).groups[0]).toMatchObject({
+      name: "vdd",
+      scope: "global",
+      conflicts: [],
+      evidenceIds: ["claim-global", "claim-local"],
+    });
+    expect(document.connectivityEvidence).toHaveLength(2);
+  });
+
   it("does not promote a legacy source spelling into a Logical Net name", () => {
     const document = createEmptyDocument("document", "Document");
     document.nets.push(

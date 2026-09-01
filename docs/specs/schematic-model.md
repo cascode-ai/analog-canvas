@@ -41,9 +41,11 @@ migration. Invalid coordinates are rejected with their data path.
   Base Net at a time. The pure Logical-Net resolver joins distinct Base Nets
   through matching folded authoritative names in the same scope or matching
   formal Cell-Pin names. A `net-name-hint` and `spice-source` record are
-  provenance only and never join Nets. Conflicting name, scope, or power claims
-  remain explicit errors; no claim type silently wins. There is no generic
-  persisted equivalence edge.
+  provenance only and never join Nets. Equal-folded local and global claims on
+  one already-connected group derive an effective global scope without
+  rewriting either owner. Disconnected claims remain separate; different-name
+  scope combinations and incompatible power claims remain explicit errors.
+  There is no generic persisted equivalence edge.
 - `Route` owns editable geometry for one Net and connects terminal or Junction
   endpoints only.
 - `Junction` owns explicit branch/anchor geometry.
@@ -82,7 +84,9 @@ High-level GUI Net naming starts from an existing candidate Base Net plus a
 stable Net Label owner. It writes or updates that owner's `name-claim`; it
 never emits `merge_nets` or creates a new `Net.name` projection. Matching
 claims join only in the derived Logical-Net view. Physical contact alone uses
-the internal Base-Net merge primitive.
+the internal Base-Net merge primitive. Explicitly contacting equal-folded
+local and global Nets is permitted; the merged group's effective scope is
+global while both authored claims remain unchanged.
 
 The editor does not normalize from inert legacy Base-Net metadata or coalesce
 Base Nets by text. Compatible same-name claims are ordinary logical identity;

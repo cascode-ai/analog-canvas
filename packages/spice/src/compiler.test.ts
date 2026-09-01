@@ -7,6 +7,85 @@ import { importCompileResult } from "./importer.js";
 import { loadSourceBundleFromFile } from "./node-source.js";
 
 describe("SPICE elaboration and Project import", () => {
+  it("applies Cadence bang globals only through the explicit import profile", async () => {
+    const compiled = await compileSpiceSources(
+      [
+        {
+          path: "bang.spi",
+          bytes: Buffer.from("Bang profile\nR1 vdd! 0 1k\n.end\n"),
+        },
+      ],
+      "bang.spi",
+    );
+
+    const native = importCompileResult(compiled);
+    const cadence = importCompileResult(compiled, {
+      namingProfile: "cadence-bang",
+    });
+    const nativeEvidence = native.project!.documents[0]!.connectivityEvidence;
+    const cadenceEvidence = cadence.project!.documents[0]!.connectivityEvidence;
+
+    expect(nativeEvidence).toContainEqual(
+      expect.objectContaining({
+        kind: "net-name-hint",
+        sourceName: "vdd!",
+      }),
+    );
+    expect(nativeEvidence).not.toContainEqual(
+      expect.objectContaining({
+        kind: "name-claim",
+        name: "vdd",
+        scope: "global",
+      }),
+    );
+    expect(cadenceEvidence).toContainEqual(
+      expect.objectContaining({
+        kind: "name-claim",
+        name: "vdd",
+        scope: "global",
+        owner: expect.objectContaining({ kind: "global-declaration" }),
+      }),
+    );
+    expect(cadenceEvidence).toContainEqual(
+      expect.objectContaining({
+        kind: "net-name-hint",
+        sourceName: "vdd!",
+      }),
+    );
+  });
+
+  it("preserves a literal bang in an explicitly global generic SPICE name", async () => {
+    const imported = importCompileResult(
+      await compileSpiceSources(
+        [
+          {
+            path: "literal-bang.spi",
+            bytes: Buffer.from(
+              "Literal bang\n.global vdd!\nR1 vdd! 0 1k\n.end\n",
+            ),
+          },
+        ],
+        "literal-bang.spi",
+      ),
+    );
+
+    expect(imported.project!.documents[0]!.connectivityEvidence).toContainEqual(
+      expect.objectContaining({
+        kind: "name-claim",
+        name: "vdd!",
+        scope: "global",
+      }),
+    );
+    expect(
+      imported.project!.documents[0]!.connectivityEvidence,
+    ).not.toContainEqual(
+      expect.objectContaining({
+        kind: "name-claim",
+        name: "vdd",
+      }),
+    );
+  });
+
   it("imports capacitor source positions onto stable plate pins", async () => {
     const imported = importCompileResult(
       await compileSpiceSources(

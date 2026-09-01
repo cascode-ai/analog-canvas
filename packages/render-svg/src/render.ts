@@ -981,6 +981,18 @@ export function buildSvgScene(
       );
       const colorOverride =
         resolvedColor === profile.foreground ? undefined : resolvedColor;
+      const globalLabel =
+        annotation.kind === "net-label" &&
+        document.connectivityEvidence.some(
+          (evidence) =>
+            evidence.kind === "name-claim" &&
+            evidence.scope === "global" &&
+            evidence.owner.kind === "net-label" &&
+            evidence.owner.annotationId === annotation.id,
+        );
+      const globalBadge = globalLabel
+        ? `<g data-role="global-net-badge" transform="${transform}"><rect x="${position.x - 8}" y="${position.y - annotationFontSize - 2}" width="7" height="7" rx="2" fill="${profile.background}" stroke="${profile.foreground}" stroke-width="0.8"/><text x="${position.x - 4.5}" y="${position.y - annotationFontSize + 3.3}" text-anchor="middle" font-size="5px" font-weight="700">G</text></g>`
+        : "";
       if (
         annotation.kind === "route-marker" &&
         annotation.markerKind === "current"
@@ -1075,7 +1087,7 @@ export function buildSvgScene(
           ? (content.runs[0] as Extract<RichTextRun, { kind: "fraction" }>)
           : null;
       if (fractionRun) {
-        return renderStackedFractionAnnotation(fractionRun, {
+        const fraction = renderStackedFractionAnnotation(fractionRun, {
           attributes,
           position,
           alignment: annotation.alignment,
@@ -1086,6 +1098,7 @@ export function buildSvgScene(
           ...(colorOverride ? { color: colorOverride } : {}),
           profile,
         });
+        return `<g>${fraction}${globalBadge}</g>`;
       }
       const formula = renderFormulaDocument(content, profile, {
         x: position.x,
@@ -1095,7 +1108,7 @@ export function buildSvgScene(
         ...(colorOverride ? { color: colorOverride } : {}),
       });
       if (formula) {
-        return `<g ${attributes} transform="${transform}">${formula}</g>`;
+        return `<g ${attributes} transform="${transform}">${formula}</g>${globalBadge}`;
       }
       const positioned = renderPositionedOverbarScriptDocument(
         content,
@@ -1109,9 +1122,9 @@ export function buildSvgScene(
         },
       );
       if (positioned) {
-        return `<g transform="${transform}"><text ${attributes} x="${position.x}" y="${position.y}" text-anchor="start"${emphasis}${colorOverride ? ` fill="${colorOverride}"` : ""}${schematicTextSizeAttribute(annotation.kind, profile, annotation.sizeScale)}>${positioned.tspans}</text>${positioned.decorations}</g>`;
+        return `<g transform="${transform}"><text ${attributes} x="${position.x}" y="${position.y}" text-anchor="start"${emphasis}${colorOverride ? ` fill="${colorOverride}"` : ""}${schematicTextSizeAttribute(annotation.kind, profile, annotation.sizeScale)}>${positioned.tspans}</text>${positioned.decorations}</g>${globalBadge}`;
       }
-      return `<text ${attributes} x="${position.x}" y="${position.y}" text-anchor="${annotation.alignment}" transform="${transform}"${emphasis}${colorOverride ? ` fill="${colorOverride}" color="${colorOverride}"` : ""}${schematicTextSizeAttribute(annotation.kind, profile, annotation.sizeScale)}>${renderAnnotationText(document, annotation, profile)}</text>`;
+      return `<text ${attributes} x="${position.x}" y="${position.y}" text-anchor="${annotation.alignment}" transform="${transform}"${emphasis}${colorOverride ? ` fill="${colorOverride}" color="${colorOverride}"` : ""}${schematicTextSizeAttribute(annotation.kind, profile, annotation.sizeScale)}>${renderAnnotationText(document, annotation, profile)}</text>${globalBadge}`;
     })
     .join("");
 
