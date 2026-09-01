@@ -1280,6 +1280,9 @@ export function App({
         .get(document.id)
         ?.get(selectedNetNameLogical.id)
     : undefined;
+  const selectedNetPreferredSpelling =
+    selectedNetNameProjection?.preferredSpelling ??
+    selectedNetNameLogical?.name;
   const sceneSnapTargetIndex = useMemo(
     () => buildSceneSnapTargetIndex(document, resolver, visibleEndpoints),
     [document, resolver, visibleEndpoints],
@@ -4662,9 +4665,9 @@ export function App({
                   editableScope: selectedNetNameAnnotation.kind === "net-label",
                   effectiveScope:
                     selectedNetNameLogical?.scope ?? selectedNetNameClaim.scope,
-                  preferredSpelling:
-                    selectedNetNameProjection?.preferredSpelling ??
-                    selectedNetNameLogical?.name,
+                  ...(selectedNetPreferredSpelling
+                    ? { preferredSpelling: selectedNetPreferredSpelling }
+                    : {}),
                   spellings:
                     selectedNetNameProjection?.spellings ??
                     (selectedNetNameLogical?.name
