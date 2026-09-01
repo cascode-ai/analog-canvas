@@ -4,6 +4,8 @@ import type {
   PointerEvent as ReactPointerEvent,
 } from "react";
 
+import { segmentDragPreviewPolyline } from "./segment-drag-preview";
+
 import {
   type WireDraftStep,
   createRoutingOperationPlan,
@@ -731,11 +733,17 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
           // point used to plan once more, fail, and snap the wire back to
           // where it started, discarding everything the preview had shown.
           preview.point = point;
-          dragVisual().setPolyline([
-            record.geometry.centerline[0]!,
-            ...proposal.waypoints,
-            record.geometry.centerline.at(-1)!,
-          ]);
+          // Draw what the plan will commit. Pinning the Route's original
+          // endpoints here left a moved free end behind, so the closing leg
+          // cut across at an angle and the drag read as a triangle.
+          dragVisual().setPolyline(
+            segmentDragPreviewPolyline(
+              record.route,
+              record.geometry.centerline,
+              proposal.waypoints,
+              plan.preview?.junctions ?? [],
+            ),
+          );
         } catch {
           // Keep the last valid preview; commit lands on it instead.
         }
