@@ -47,10 +47,9 @@ describe("AC response plot", () => {
     expect(left).toBeCloseTo(1, 6);
     expect(right).toBeCloseTo(1e6, 0);
     // Logarithmic, so the midpoint is the geometric mean, not the average.
-    expect(layout.frequencyAt(layout.frame.x + layout.frame.width / 2)).toBeCloseTo(
-      1e3,
-      6,
-    );
+    expect(
+      layout.frequencyAt(layout.frame.x + layout.frame.width / 2),
+    ).toBeCloseTo(1e3, 6);
   });
 
   it("draws magnitude and phase as separate traces on one frame", () => {

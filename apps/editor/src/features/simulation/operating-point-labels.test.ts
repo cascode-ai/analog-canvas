@@ -21,8 +21,18 @@ function twoNetDocument(): SchematicDocument {
     const y = 100 + index * 100;
     document.nets.push({ id: netId, terminals: [] });
     document.junctions.push(
-      { id: `${netId}-a`, netId, position: { x: 100, y }, role: "route-anchor" },
-      { id: `${netId}-b`, netId, position: { x: 300, y }, role: "route-anchor" },
+      {
+        id: `${netId}-a`,
+        netId,
+        position: { x: 100, y },
+        role: "route-anchor",
+      },
+      {
+        id: `${netId}-b`,
+        netId,
+        position: { x: 300, y },
+        role: "route-anchor",
+      },
     );
     document.routes.push(
       createRoutePath({
