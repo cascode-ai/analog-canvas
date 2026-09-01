@@ -2,6 +2,11 @@ import { Component } from "react";
 import type { ErrorInfo, ReactNode } from "react";
 
 import { BugReportLink } from "./bug-report-link";
+import {
+  browserStaleBuildRecovery,
+  isStaleBuildFailure,
+  recoverFromStaleBuild,
+} from "./stale-build-recovery";
 
 export interface EditorErrorBoundaryProps {
   children: ReactNode;
@@ -41,7 +46,11 @@ export class EditorErrorBoundary extends Component<
       return (
         <EditorCrashScreen
           message={this.state.error.message}
+          staleBuild={isStaleBuildFailure(this.state.error.message)}
           onReload={() => window.location.reload()}
+          onRecover={() =>
+            void recoverFromStaleBuild(browserStaleBuildRecovery())
+          }
         />
       );
     }
@@ -52,11 +61,19 @@ export class EditorErrorBoundary extends Component<
 export interface EditorCrashScreenProps {
   message: string;
   onReload(): void;
+  /**
+   * The failure is a chunk this build can no longer fetch, so an ordinary
+   * reload can hand back the same document and fail again. Reported in #493.
+   */
+  staleBuild?: boolean;
+  onRecover?(): void;
 }
 
 export function EditorCrashScreen({
   message,
   onReload,
+  staleBuild = false,
+  onRecover,
 }: EditorCrashScreenProps) {
   return (
     <div
@@ -66,15 +83,29 @@ export function EditorCrashScreen({
       aria-labelledby="editor-crash-title"
     >
       <div className="editor-crash-panel">
-        <h1 id="editor-crash-title">The editor hit an unexpected problem</h1>
+        <h1 id="editor-crash-title">
+          {staleBuild
+            ? "This page is running an old version of the editor"
+            : "The editor hit an unexpected problem"}
+        </h1>
         <p>
-          Rendering stopped with an internal error. Your recent committed work
-          is kept in this browser's recovery copies.
+          {staleBuild
+            ? "The app was updated after this page opened, so part of it can no longer load. Reloading with a clean copy fixes it. Your recent committed work is kept in this browser's recovery copies."
+            : "Rendering stopped with an internal error. Your recent committed work is kept in this browser's recovery copies."}
         </p>
         <p>
           <code>{message}</code>
         </p>
         <div className="editor-crash-actions">
+          {staleBuild && onRecover ? (
+            <button
+              type="button"
+              data-testid="crash-reload-clean"
+              onClick={onRecover}
+            >
+              Reload with a clean copy
+            </button>
+          ) : null}
           <button type="button" onClick={onReload}>
             Reload editor
           </button>

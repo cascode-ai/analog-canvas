@@ -16,7 +16,10 @@
   ],
   "assets": {
     "directory": "./apps/editor/dist",
-    "not_found_handling": "single-page-application",
+    // A miss falls through to the Worker, which tells a stale hashed asset
+    // (404) from a client route (the shell). The single-page-application
+    // setting answers both with the shell, before the Worker runs.
+    "not_found_handling": "none",
     "run_worker_first": ["/api/*"],
   },
   "durable_objects": {
