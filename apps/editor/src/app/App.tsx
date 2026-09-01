@@ -915,7 +915,7 @@ export function App({
    * over to their own placement/move interactions on the first target.
    */
   const [armedVerb, setArmedVerb] = useState<
-    "rotate" | "copy" | "move" | "delete" | null
+    "rotate" | "copy" | "move" | "move-detached" | "delete" | null
   >(null);
   /** The click paired with an armed-verb pickup must not commit a placement. */
   const suppressCommitClickRef = useRef(false);
@@ -1848,7 +1848,9 @@ export function App({
   });
 
   /** Arm a verb so the next object pointed at is the one acted on. */
-  function armVerb(verb: "rotate" | "copy" | "move" | "delete"): void {
+  function armVerb(
+    verb: "rotate" | "copy" | "move" | "move-detached" | "delete",
+  ): void {
     setArmedVerb(verb);
     setStatus(
       verb === "rotate"
@@ -1857,7 +1859,9 @@ export function App({
           ? "Copy: click a part to pick up a copy · Esc cancels"
           : verb === "move"
             ? "Move: click a part to pick it up · Esc cancels"
-            : "Delete: click objects to delete them · Esc exits",
+            : verb === "move-detached"
+              ? "Move without wires: click a part to pick it up · Esc cancels"
+              : "Delete: click objects to delete them · Esc exits",
     );
   }
 
@@ -1901,14 +1905,18 @@ export function App({
       beginCopyPlacementFromSelection([instanceId]);
       return true;
     }
-    if (armedVerb === "move") {
+    if (armedVerb === "move" || armedVerb === "move-detached") {
+      const detach = armedVerb === "move-detached";
       setArmedVerb(null);
       selectOnly("instance", [instanceId]);
       suppressCommitClickRef.current = true;
-      beginKeyboardSelectionMoveFromSelection({
-        ...EMPTY_VISUAL_SELECTION,
-        instanceIds: [instanceId],
-      });
+      beginKeyboardSelectionMoveFromSelection(
+        {
+          ...EMPTY_VISUAL_SELECTION,
+          instanceIds: [instanceId],
+        },
+        { detach },
+      );
       return true;
     }
     deleteSelectionFromSelection({ instanceIds: [instanceId] });
@@ -3055,12 +3063,12 @@ export function App({
         }
         armVerb("copy");
       },
-      beginMove: () => {
+      beginMove: (detach) => {
         if (canBeginKeyboardSelectionMove()) {
-          beginKeyboardSelectionMoveFromSelection();
+          beginKeyboardSelectionMoveFromSelection(undefined, { detach });
           return;
         }
-        armVerb("move");
+        armVerb(detach ? "move-detached" : "move");
       },
       alignSelection,
       rotatePlacement: rotatePendingComponentFromHook,

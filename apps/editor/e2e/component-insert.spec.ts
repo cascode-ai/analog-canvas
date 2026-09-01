@@ -305,6 +305,7 @@ test("keeps quick-start shortcuts in the upper-right corner until the first comp
     "IInsert component",
     "RRotate",
     "MMove selection",
+    "ShiftMMove without wires",
     "UUndo",
     "PPlace Cell Pin",
     "CCopy selection",
