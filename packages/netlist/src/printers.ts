@@ -4,8 +4,9 @@ import type {
   DesignNetlistInstance,
   DesignNetlistParameter,
 } from "./ir.js";
+import type { NetlistFormat } from "./net-name-codec.js";
 
-export type NetlistFormat = "spice" | "spectre";
+export type { NetlistFormat } from "./net-name-codec.js";
 
 export interface NetlistFileDescriptor {
   extension: ".spi" | ".scs";

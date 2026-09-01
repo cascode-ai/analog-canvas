@@ -8,10 +8,14 @@ import {
 import {
   analyzeDesignNetlist as analyzeCurrentDesignNetlist,
   printSpiceNetlist,
+  type DesignNetlistAnalysisOptions,
 } from "./index.js";
 
-function analyzeDesignNetlist(project: CircuitProject) {
-  return analyzeCurrentDesignNetlist(project);
+function analyzeDesignNetlist(
+  project: CircuitProject,
+  options?: DesignNetlistAnalysisOptions,
+) {
+  return analyzeCurrentDesignNetlist(project, options);
 }
 
 function claimNet(
@@ -189,7 +193,13 @@ describe("current formal cell interface", () => {
 
     const result = analyzeDesignNetlist(project);
 
-    expect(result.diagnostics).toEqual([]);
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({
+        code: "NET_NAME_SPELLING_NORMALIZED",
+        severity: "warning",
+        message: "local Net spellings [VIN, vin] export as VIN",
+      }),
+    ]);
     expect(result.ir?.cells[0]?.ports).toEqual([
       {
         id: "net-vin-a",
@@ -443,6 +453,51 @@ describe("current formal cell interface", () => {
     );
   });
 
+  it("applies the selected dialect codec after semantic Net resolution", () => {
+    const project = createEmptyProject("project", "Project");
+    const document = project.documents[0]!;
+    document.nets.push({ id: "net-bus", terminals: [] });
+    claimNet(document, "net-bus", "DATA<3>");
+
+    const spice = analyzeDesignNetlist(project, { format: "spice" });
+    const spectre = analyzeDesignNetlist(project, { format: "spectre" });
+
+    expect(spice.ir).toBeNull();
+    expect(spice.diagnostics).toContainEqual(
+      expect.objectContaining({ code: "UNREPRESENTABLE_NGSPICE_NET_NAME" }),
+    );
+    expect(spectre.diagnostics).toEqual([]);
+    expect(spectre.ir?.cells[0]?.nets).toContainEqual({
+      id: "net-bus",
+      name: "DATA\\<3\\>",
+      scope: "local",
+    });
+  });
+
+  it("projects typed globals through the explicit Cadence bang profile", () => {
+    const project = createEmptyProject("project", "Project");
+    const document = project.documents[0]!;
+    document.nets.push({ id: "net-vdd", terminals: [] });
+    claimNet(document, "net-vdd", "VDD", "global");
+
+    const native = analyzeDesignNetlist(project, {
+      format: "spectre",
+      namingProfile: "native",
+    });
+    const cadence = analyzeDesignNetlist(project, {
+      format: "spectre",
+      namingProfile: "cadence-bang",
+    });
+
+    expect(native.ir?.globals).toEqual(["VDD"]);
+    expect(cadence.ir?.globals).toEqual(["VDD!"]);
+    expect(cadence.ir?.cells[0]?.nets).toContainEqual({
+      id: "net-vdd",
+      name: "VDD!",
+      scope: "global",
+    });
+  });
+
   it("projects one preferred global spelling through every reachable Cell", () => {
     const project = createEmptyProject("project", "Project", "top");
     const top = project.documents[0]!;
@@ -491,6 +546,12 @@ describe("current formal cell interface", () => {
       result.diagnostics.filter((item) => item.severity === "error"),
     ).toEqual([]);
     expect(result.ir?.globals).toEqual(["VDD"]);
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "GLOBAL_NAME_SPELLING_NORMALIZED",
+        message: "global Net spellings [VDD, vdd] export as VDD",
+      }),
+    );
     expect(
       result.ir?.cells.map(
         (cell) => cell.nets.find((net) => net.scope === "global")?.name,
