@@ -23,7 +23,6 @@ const facts = (
   tool: "pointer",
   interactionKind: "idle",
   placementOwnsCanvas: false,
-  simulationPickNetsActive: false,
   cellSymbolLayoutTarget: false,
   handleAtPoint: false,
   hit: hitOf("instance", "R1"),
@@ -82,6 +81,24 @@ describe("who owns one press on the canvas", () => {
     expect(
       resolvePointerDownAction(facts({ hit: hitOf("handle", "h1") })),
     ).toEqual({ kind: "handle-passthrough" });
+  });
+
+  it("leaves every drawing-tool press to the tool", () => {
+    // Drawing reads the whole gesture: where the press lands, whether it
+    // continues or finishes a wire, and which junctions that implies. This
+    // router speaks for the pointer tool, so a drawing press passes through
+    // to its target untouched — including an endpoint circle, which is how
+    // a wire starts from a pin and which carries no hit kind at all.
+    for (const hit of [
+      hitOf("route", "route-1"),
+      hitOf("junction", "j1"),
+      hitOf("instance", "R1"),
+      null,
+    ]) {
+      expect(resolvePointerDownAction(facts({ tool: "wire", hit }))).toEqual({
+        kind: "gesture-passthrough",
+      });
+    }
   });
 
   it("gives the middle button and the drawing tools to the gesture layer", () => {
@@ -179,22 +196,5 @@ describe("who owns one press on the canvas", () => {
         }),
       ).kind,
     ).toBe("consume-armed-verb");
-  });
-
-  it("marks a Net while a testbench is picking, and drags nothing", () => {
-    expect(
-      resolvePointerDownAction(
-        facts({
-          simulationPickNetsActive: true,
-          hit: hitOf("route", "route-1"),
-        }),
-      ),
-    ).toEqual({ kind: "simulation-pick", hitKind: "route", id: "route-1" });
-    // Picking outranks an armed verb: the mode is explicit and modal.
-    expect(
-      resolvePointerDownAction(
-        facts({ simulationPickNetsActive: true, armedVerbConsumesHit: true }),
-      ).kind,
-    ).toBe("simulation-pick");
   });
 });

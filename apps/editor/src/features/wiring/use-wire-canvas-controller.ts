@@ -316,16 +316,12 @@ export function useWireCanvasController({
       return;
     }
     if (tool !== "pointer") {
-      // The middle button never places or taps: while the wire tool is up it
-      // cycles the corner shape (matching the canvas-background gesture), and
-      // other buttons leave the conductor untouched so right-click keeps
-      // cancelling through the context-menu path.
-      if (event.button === 1 && tool === "wire") {
-        event.stopPropagation();
-        event.preventDefault();
-        cycleWireCornerShape();
-        return;
-      }
+      // The middle button never places or taps. Its one rule — pan, and cycle
+      // the corner shape on a release that did not drag — lives in the
+      // gesture controller, which is where the canvas background already sent
+      // it; this controller used to carry a second copy. Other non-primary
+      // buttons leave the conductor untouched so right-click keeps cancelling
+      // through the context-menu path.
       if (event.button !== 0) return;
       handleWireRoutePointerDown(event, routeId, hitTarget);
       return;

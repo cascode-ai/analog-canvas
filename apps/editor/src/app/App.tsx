@@ -83,6 +83,7 @@ import {
 import { startCanvasDragVisual } from "../canvas/canvas-drag-visual";
 import { instanceVisibleHitBox } from "../canvas/instance-geometry";
 import { createCanvasHitController } from "../canvas/canvas-hit-controller";
+import { screenScaleHitRadius } from "../canvas/canvas-hit-resolver";
 import { buildDiagnosticMarkers } from "../canvas/diagnostic-markers";
 import {
   type RouteStretchPreview,
@@ -2477,6 +2478,9 @@ export function App({
       selectEndpoint,
       endpointStatusLabel: (endpoint) => endpointTestId(endpoint.endpoint),
       setStatus,
+      suppressNextClick: () => {
+        suppressInstanceClick.current = true;
+      },
       consumeArmedVerb: (kind, id) => {
         if (kind === "instance") return consumeArmedVerbOnInstance(id);
         if (kind === "route") return consumeArmedDeleteOnObject("routeIds", id);
@@ -5047,25 +5051,19 @@ export function App({
                 }
                 inspectInstance(instance.id);
               },
-              onInstancePointerDown: (event, instance) => {
+              onRoutePointerDown: (event, routeId) => {
+                // Reached only while a drawing tool is up: the pointer tool's
+                // presses are claimed and stopped by the capture-phase router.
                 if (simulationPickNetsActive) {
                   event.stopPropagation();
                   event.preventDefault();
+                  const route = document.routes.find(
+                    (candidate) => candidate.id === routeId,
+                  );
+                  if (route) toggleSimulationSavedNet(route.netId);
                   return;
                 }
-                // While a verb is armed the click acts on the pointed-at
-                // part (rotate it, copy it, pick it up, delete it) rather
-                // than picking it up for a plain drag.
-                if (
-                  event.button === 0 &&
-                  consumeArmedVerbOnInstance(instance.id)
-                ) {
-                  event.stopPropagation();
-                  event.preventDefault();
-                  suppressInstanceClick.current = true;
-                  return;
-                }
-                beginMoveFromSelection(event, instance.id);
+                handleRoutePointerDown(event, routeId);
               },
               onInstanceContextMenu: (instance, clientX, clientY) => {
                 // macOS fires contextmenu for Ctrl+left-press; while that
@@ -5078,43 +5076,6 @@ export function App({
                   clientX,
                   clientY,
                 );
-              },
-              onRoutePointerDown: (event, routeId) => {
-                if (simulationPickNetsActive) {
-                  event.stopPropagation();
-                  event.preventDefault();
-                  const route = document.routes.find(
-                    (candidate) => candidate.id === routeId,
-                  );
-                  if (route) toggleSimulationSavedNet(route.netId);
-                  return;
-                }
-                if (
-                  event.button === 0 &&
-                  consumeArmedDeleteOnObject("routeIds", routeId)
-                ) {
-                  event.stopPropagation();
-                  event.preventDefault();
-                  return;
-                }
-                handleRoutePointerDown(event, routeId);
-              },
-              onAnnotationPointerDown: (event, annotation) => {
-                if (simulationPickNetsActive && annotation.netId) {
-                  event.stopPropagation();
-                  event.preventDefault();
-                  toggleSimulationSavedNet(annotation.netId);
-                  return;
-                }
-                if (
-                  event.button === 0 &&
-                  consumeArmedDeleteOnObject("annotationIds", annotation.id)
-                ) {
-                  event.stopPropagation();
-                  event.preventDefault();
-                  return;
-                }
-                beginAnnotationDrag(event, annotation);
               },
               onAnnotationContextMenu: (annotation, clientX, clientY) =>
                 openVisualContextMenu(
@@ -5148,6 +5109,16 @@ export function App({
                   `Endpoint actions: ${endpointTestId(candidate.endpoint)}`,
                 );
               },
+              // The same four units at one hundred percent, but held at that
+              // size on screen as the view zooms out, where the dot used to
+              // shrink until it could not be hit. Growing it at the default
+              // view would change which target wins a shared point, and this
+              // is a reach fix, not a priority change.
+              endpointHitRadius: screenScaleHitRadius(
+                viewBox.width,
+                DEFAULT_VIEWBOX.width,
+                4,
+              ),
               onRouteStretch: beginRouteStretch,
               onJunctionSelect: (candidate) => {
                 if (simulationPickNetsActive) {

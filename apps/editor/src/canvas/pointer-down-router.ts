@@ -26,8 +26,6 @@ export interface PointerDownFacts {
   readonly interactionKind: string;
   /** A component is being placed, so the canvas belongs to placement. */
   readonly placementOwnsCanvas: boolean;
-  /** Net-picking for a simulation testbench: a press marks a Net instead. */
-  readonly simulationPickNetsActive: boolean;
   /** The press landed inside the Cell symbol layout overlay. */
   readonly cellSymbolLayoutTarget: boolean;
   /**
@@ -96,11 +94,15 @@ export function resolvePointerDownAction(
   // written twice, once here and once in the wire controller.
   if (facts.button === 1) return { kind: "gesture-passthrough" };
 
-  // A drawing tool owns its own presses, and a secondary button belongs to
-  // the context menu; neither is pointer-ownership.
-  if (facts.tool !== "pointer" || facts.button !== 0) {
-    return { kind: "gesture-passthrough" };
-  }
+  if (facts.button !== 0) return { kind: "gesture-passthrough" };
+
+  // A drawing tool owns its own presses. Pressing a conductor, an endpoint
+  // circle, or empty canvas while drawing is part of drawing, and the wire
+  // controller reads the whole gesture — where the press lands, whether it
+  // continues or finishes a wire, which junctions that implies. Claiming any
+  // of it here changes the gesture, so this router speaks for the pointer
+  // tool only, and every drawing press reaches its target untouched.
+  if (facts.tool !== "pointer") return { kind: "gesture-passthrough" };
 
   if (facts.cellSymbolLayoutTarget) {
     return { kind: "ignore", reason: "Cell symbol layout overlay" };
@@ -110,12 +112,6 @@ export function resolvePointerDownAction(
   const hit = facts.hit;
   if (!hit) return { kind: "ignore", reason: "no hit under the pointer" };
   if (hit.kind === "handle") return { kind: "handle-passthrough" };
-
-  // Picking Nets for a testbench: the press marks what it lands on and
-  // never starts a drag.
-  if (facts.simulationPickNetsActive) {
-    return { kind: "simulation-pick", hitKind: hit.kind, id: hit.id };
-  }
 
   // An armed verb owns the press: the pointed-at object is acted on rather
   // than picked up or selected.
