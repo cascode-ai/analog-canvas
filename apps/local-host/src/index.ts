@@ -3,7 +3,10 @@ import type { IncomingMessage, Server, ServerResponse } from "node:http";
 import { readFile, stat } from "node:fs/promises";
 import { extname, isAbsolute, relative, resolve } from "node:path";
 
-import type { ModelLibrarySelection } from "@icm/spice-run";
+import {
+  isSimulationInputRevision,
+  type ModelLibrarySelection,
+} from "@icm/spice-run";
 
 import { simulateLocally } from "./simulate.js";
 
@@ -159,7 +162,12 @@ async function handleSimulate(
     return;
   }
 
-  let body: { netlist?: unknown; testbench?: unknown; timeoutMs?: unknown };
+  let body: {
+    netlist?: unknown;
+    testbench?: unknown;
+    timeoutMs?: unknown;
+    inputRevision?: unknown;
+  };
   try {
     body = JSON.parse(Buffer.concat(chunks).toString("utf8")) as typeof body;
   } catch {
@@ -168,7 +176,11 @@ async function handleSimulate(
   }
   const netlist = typeof body.netlist === "string" ? body.netlist : null;
   const testbench = typeof body.testbench === "string" ? body.testbench : null;
-  if (!netlist || !testbench) {
+  if (
+    !netlist ||
+    !testbench ||
+    !isSimulationInputRevision(body.inputRevision)
+  ) {
     send(400, {
       error: "invalid-request",
       message:
@@ -176,6 +188,7 @@ async function handleSimulate(
     });
     return;
   }
+  const inputRevision = body.inputRevision;
 
   const outcome = await simulateLocally(
     {
@@ -184,6 +197,7 @@ async function handleSimulate(
       ...(typeof body.timeoutMs === "number"
         ? { timeoutMs: body.timeoutMs }
         : {}),
+      ...(inputRevision ? { inputRevision } : {}),
     },
     {
       ...(options.ngspicePath ? { ngspicePath: options.ngspicePath } : {}),

@@ -32,11 +32,25 @@ describe("local simulation", () => {
     const outcome = await simulateLocally({
       netlist: "V1 in 0 DC 1\nR1 in out 1k\nR2 out 0 1k",
       testbench: ".control\nop\nprint v(out)\n.endc",
+      inputRevision: "local-revision-1",
     });
     expect(outcome.kind).toBe("ran");
     if (outcome.kind !== "ran") return;
     expect(outcome.result.outcome.status).toBe("completed");
     expect(outcome.result.log).toContain("5.000000e-01");
+    expect(outcome.result.metadata).toMatchObject({
+      schemaVersion: 1,
+      input: { inputRevision: "local-revision-1" },
+      configuration: { modelLibrary: null },
+      environment: {
+        executor: "local-host",
+        reproducibility: "observed",
+        simulator: { name: "ngspice" },
+      },
+    });
+    expect(outcome.result.metadata.environment.fingerprint).toMatch(
+      /^[0-9a-f]{64}$/u,
+    );
   });
 
   withSimulator(
