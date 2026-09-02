@@ -20,14 +20,15 @@ import {
   classifySimulationOutcome,
   readNgspiceDiagnostics,
   resolveTimeoutMs,
+  type ModelLibrarySelection,
   type SimulationResult,
 } from "@icm/spice-run";
 
 export interface LocalSimulationOptions {
   /** The simulator binary; the user's own install by default. */
   ngspicePath?: string;
-  /** Model library the deck should include, if the user has a PDK. */
-  modelLibraryPath?: string | null;
+  /** Explicit model-library directive, path, and optional section. */
+  modelLibrary?: ModelLibrarySelection | null;
 }
 
 /**
@@ -106,7 +107,7 @@ export async function simulateLocally(
 ): Promise<LocalSimulationOutcome> {
   const binary = options.ngspicePath ?? process.env.NGSPICE_BIN ?? "ngspice";
   const timeoutMs = resolveTimeoutMs(request.timeoutMs);
-  const deck = buildSimulationDeck(request, options.modelLibraryPath ?? null);
+  const deck = buildSimulationDeck(request, options.modelLibrary ?? null);
 
   const directory = await mkdtemp(join(tmpdir(), "icm-local-sim-"));
   const deckPath = join(directory, "deck.cir");

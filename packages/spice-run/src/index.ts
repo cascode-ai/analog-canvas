@@ -22,6 +22,24 @@ export interface SimulationRequest {
 }
 
 /**
+ * How one simulator-readable model library enters the final deck.
+ *
+ * A plain model file is included in full. A sectioned corner library must be
+ * selected with `.lib` and an explicit section; a path alone cannot express
+ * that distinction and must never be guessed from the filename.
+ */
+export type ModelLibrarySelection =
+  | {
+      readonly directive: "include";
+      readonly path: string;
+    }
+  | {
+      readonly directive: "lib";
+      readonly path: string;
+      readonly section: string;
+    };
+
+/**
  * One line ngspice said about the run. `severity` is our reading of it; `text`
  * is always ngspice's own, unedited, because a designer reads the original and
  * a paraphrase would lose the node names and line numbers that make it useful.
@@ -89,17 +107,38 @@ export function resolveTimeoutMs(requested: number | undefined): number {
  */
 export function buildSimulationDeck(
   request: Pick<SimulationRequest, "netlist" | "testbench">,
-  modelLibraryPath: string | null,
+  modelLibrary: ModelLibrarySelection | null,
 ): string {
   const lines = ["* Analog Canvas simulation deck"];
-  if (modelLibraryPath) {
-    lines.push(`.include ${modelLibraryPath}`);
+  if (modelLibrary) {
+    lines.push(formatModelLibrarySelection(modelLibrary));
   }
   lines.push(request.netlist.trimEnd(), request.testbench.trimEnd());
   // `.end` closes the deck. An author who wrote their own is not given a
   // second one, since a duplicate ends the deck early and silently.
   if (!/^\s*\.end\s*$/imu.test(request.testbench)) lines.push(".end");
   return lines.join("\n") + "\n";
+}
+
+function formatModelLibrarySelection(selection: ModelLibrarySelection): string {
+  const path = selection.path.trim();
+  if (path.length === 0 || /[\r\n"]/u.test(path)) {
+    throw new Error(
+      "A simulation model-library path must be non-empty and contain no quotes or line breaks.",
+    );
+  }
+  const quotedPath = `"${path}"`;
+  if (selection.directive === "include") {
+    return `.include ${quotedPath}`;
+  }
+
+  const section = selection.section.trim();
+  if (!/^[a-z0-9_.+-]+$/iu.test(section)) {
+    throw new Error(
+      "A simulation model-library section must be one non-empty SPICE token.",
+    );
+  }
+  return `.lib ${quotedPath} ${section}`;
 }
 
 const DROPPED_INPUT_PATTERNS = [

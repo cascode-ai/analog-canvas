@@ -13,6 +13,7 @@ against. They describe required behavior and invariants, not task history.
 | [`circuit-ir.md`](circuit-ir.md)                             | accepted | Transient dialect-neutral import boundary                                                |
 | [`symbol-dsl.md`](symbol-dsl.md)                             | accepted | Geometry, electrical/visual pins, variants, validation                                   |
 | [`spice-frontend.md`](spice-frontend.md)                     | accepted | Lossless syntax, dialects, includes, expressions, elaboration                            |
+| [`simulation.md`](simulation.md)                             | accepted | Transient deck assembly, model-library directive, path, and section                      |
 | [`connectivity-and-routing.md`](connectivity-and-routing.md) | accepted | Route graph, junction, crossing, flightline, locks                                       |
 | [`visual-language.md`](visual-language.md)                   | accepted | Razavi visual tokens, annotations, overlays, golden output                               |
 | [`razavi-visual-contract.md`](razavi-visual-contract.md)     | accepted | Razavi authority, construction, interface-symbol semantics, exposure, and pixel fidelity |
