@@ -1,6 +1,6 @@
 # SKY130 Production Export Contract Repair
 
-Status: `implemented on codex/sky130-production-export-contract; validation in progress`
+Status: `implemented; full-delivery validation complete on codex/sky130-production-export-contract`
 
 Primary owners: `packages/devices`, `packages/edit-engine`,
 `packages/project-protocol`, `packages/netlist`, `packages/spice`,
