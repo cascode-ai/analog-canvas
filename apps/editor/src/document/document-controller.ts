@@ -24,6 +24,43 @@ import {
 
 type ProjectSymbolResolver = ReturnType<typeof createProjectSymbolResolver>;
 
+const SYMBOL_DEFINITION_EDIT_KINDS = new Set<SchematicEdit["kind"]>([
+  "create_cell_interface",
+  "add_cell_terminal",
+  "update_cell_terminal",
+  "remove_cell_terminal",
+  "reorder_cell_terminals",
+  "set_cell_symbol_presentation",
+]);
+
+function transactionMayChangeSymbolDefinitions(
+  edits: readonly SchematicEdit[],
+): boolean {
+  return edits.some(
+    (edit) =>
+      SYMBOL_DEFINITION_EDIT_KINDS.has(edit.kind) ||
+      edit.kind === "undo" ||
+      edit.kind === "redo",
+  );
+}
+
+function documentSymbolDefinitionChanged(
+  before: SchematicDocument,
+  after: SchematicDocument,
+): boolean {
+  return (
+    before.name !== after.name ||
+    JSON.stringify(before.sourceBinding) !==
+      JSON.stringify(after.sourceBinding) ||
+    JSON.stringify(before.netlist?.name) !==
+      JSON.stringify(after.netlist?.name) ||
+    JSON.stringify(before.netlist?.terminals) !==
+      JSON.stringify(after.netlist?.terminals) ||
+    JSON.stringify(before.presentation.cellSymbol) !==
+      JSON.stringify(after.presentation.cellSymbol)
+  );
+}
+
 /**
  * A complete authenticated transaction envelope accepted by
  * {@link EditorDocumentController.dispatchTransaction}. Both human and Agent
@@ -256,10 +293,11 @@ export class EditorDocumentController {
    * The single write path for both human and Agent transactions. Selects the
    * matching per-Document history (without retargeting the active Document),
    * dispatches through {@link DocumentHistory.transact}, and on a successful
-   * commit replaces the Project document and refreshes the resolver exactly like
-   * a human commit. `dryRun` mutates no history, Project, resolver, or undo
-   * state. Opening or viewing another Document neither retargets nor cancels an
-   * explicit dispatch.
+   * commit replaces the Project document. Ordinary drawing edits preserve the
+   * resolver because built-in and hierarchical symbol definitions did not
+   * change; definition-level edits and their undo/redo rebuild it. `dryRun`
+   * mutates no history, Project, resolver, or undo state. Opening or viewing
+   * another Document neither retargets nor cancels an explicit dispatch.
    *
    * Unexpected runtime exceptions from the engine or from post-commit Project
    * re-validation are converted into typed `INTERNAL_ERROR` rejections: the
@@ -308,15 +346,23 @@ export class EditorDocumentController {
     }
     if (result.ok && result.applied) {
       const previousProject = this.projectValue;
+      const previousDocument = previousProject.documents.find(
+        (document) => document.id === request.documentId,
+      )!;
       try {
         this.projectValue = replaceProjectDocument(
           this.projectValue,
           result.document,
         );
-        this.resolverValue = createProjectSymbolResolver(
-          this.projectValue,
-          builtInSymbols,
-        );
+        if (
+          transactionMayChangeSymbolDefinitions(request.edits) &&
+          documentSymbolDefinitionChanged(previousDocument, result.document)
+        ) {
+          this.resolverValue = createProjectSymbolResolver(
+            this.projectValue,
+            builtInSymbols,
+          );
+        }
         if (
           !request.edits.some(
             (edit) => edit.kind === "undo" || edit.kind === "redo",

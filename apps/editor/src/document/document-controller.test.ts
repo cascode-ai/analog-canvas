@@ -206,6 +206,7 @@ describe("EditorDocumentController", () => {
   it("commits a new child Cell without replacing the Project session", () => {
     const controller = new EditorDocumentController(hierarchicalProject());
     const sessionId = controller.projectSessionId;
+    const resolverBefore = controller.resolver;
     controller.transact([{ kind: "add_instance", instance: instance("Rold") }]);
     const project = structuredClone(controller.project);
     const child = createEmptyDocument("document-cell-1", "Cell1");
@@ -233,6 +234,7 @@ describe("EditorDocumentController", () => {
 
     expect(active.id).toBe(controller.project.topDocumentId);
     expect(controller.projectSessionId).toBe(sessionId);
+    expect(controller.resolver).not.toBe(resolverBefore);
     expect(
       controller.resolver.resolve(hierarchicalSymbolId("Cell1")),
     ).toBeDefined();
@@ -258,7 +260,7 @@ describe("EditorDocumentController", () => {
     ).toBe(true);
   });
 
-  it("dispatches an Agent transaction as one undo item and refreshes state", () => {
+  it("dispatches an Agent transaction as one undo item without rebuilding symbols", () => {
     const controller = new EditorDocumentController(hierarchicalProject());
     const resolverBefore = controller.resolver;
     const revisionBefore = controller.document.revision;
@@ -275,8 +277,7 @@ describe("EditorDocumentController", () => {
     expect(controller.document.instances).toContainEqual(instance("Ragent"));
     expect(controller.document.revision).toBe(revisionBefore + 1);
     expect(controller.canUndo).toBe(true);
-    // A commit refreshes the resolver (new reference) like a human commit.
-    expect(controller.resolver).not.toBe(resolverBefore);
+    expect(controller.resolver).toBe(resolverBefore);
 
     // One Agent transaction is one undo item: a single undo restores the
     // pre-Agent state through the shared history.
@@ -284,6 +285,29 @@ describe("EditorDocumentController", () => {
     expect(controller.document.instances).not.toContainEqual(
       instance("Ragent"),
     );
+    expect(controller.resolver).toBe(resolverBefore);
+  });
+
+  it("rebuilds symbols for a definition-level Document edit", () => {
+    const controller = new EditorDocumentController(hierarchicalProject());
+    controller.openDocument("document-child");
+    const resolverBefore = controller.resolver;
+
+    const result = controller.dispatchTransaction({
+      transactionId: "cell-symbol-presentation",
+      documentId: "document-child",
+      expectedRevision: controller.document.revision,
+      actor: { kind: "human", id: "human-local" },
+      edits: [
+        {
+          kind: "set_cell_symbol_presentation",
+          presentation: { minimumBodySize: { width: 120, height: 80 } },
+        },
+      ],
+    });
+
+    expect(result.ok && result.applied).toBe(true);
+    expect(controller.resolver).not.toBe(resolverBefore);
   });
 
   it("accepts a human transaction via dispatch identical to transact", () => {
