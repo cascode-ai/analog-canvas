@@ -800,6 +800,11 @@
   box-shadow: var(--icm-shadow-lg);
 }
 
+.editor-crash-panel[data-kind="load"] {
+  border-color: var(--icm-border-strong);
+  background: var(--icm-surface);
+}
+
 .editor-crash-panel h1 {
   margin: 0;
   font-size: var(--icm-font-lg);

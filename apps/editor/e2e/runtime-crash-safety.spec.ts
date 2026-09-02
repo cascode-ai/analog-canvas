@@ -38,6 +38,31 @@ test("a render crash shows the recovery screen instead of a blank page", async (
   await expect(page.getByTestId("schematic-canvas")).toBeVisible();
 });
 
+test("a repeated route chunk failure is not misreported as an old build", async ({
+  page,
+}) => {
+  // #529 named the App chunk from the current deployment. Aborting its route
+  // reproduces a transient dynamic-import failure rather than a retired 404.
+  await page.route("**/src/app/App.tsx*", (route) => route.abort());
+  await page.goto("/editor");
+
+  // The loader retries one navigation. The second failure reaches a neutral,
+  // correctly diagnosed loading screen instead of the stale-build warning.
+  const crashScreen = page.getByTestId("editor-crash-screen");
+  await expect(crashScreen).toBeVisible();
+  await expect(crashScreen).toContainText(
+    "The editor could not finish loading",
+  );
+  await expect(crashScreen).toContainText("temporarily unavailable");
+  await expect(crashScreen).not.toContainText(
+    "This page is running an old version",
+  );
+  await expect(
+    crashScreen.getByRole("button", { name: "Try again" }),
+  ).toBeVisible();
+  await expect(crashScreen.getByTestId("crash-reload-clean")).toBeVisible();
+});
+
 test("a failed dialog chunk degrades to a scoped notice, not the crash screen", async ({
   page,
 }) => {
