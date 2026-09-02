@@ -17,8 +17,13 @@
 import {
   buildSimulationDeck,
   classifySimulationOutcome,
+  createSimulationInputMetadata,
+  isSimulationInputRevision,
   readNgspiceDiagnostics,
   resolveTimeoutMs,
+  simulationConfigurationMetadata,
+  verifySimulationEnvironmentMetadata,
+  type ModelLibrarySelection,
   type SimulationResult,
 } from "@icm/spice-run";
 
@@ -47,6 +52,7 @@ interface SimulationRequestBody {
   netlist?: unknown;
   testbench?: unknown;
   timeoutMs?: unknown;
+  inputRevision?: unknown;
 }
 
 /**
@@ -91,7 +97,11 @@ export async function routeSimulationRequest(
   }
   const netlist = typeof body.netlist === "string" ? body.netlist : null;
   const testbench = typeof body.testbench === "string" ? body.testbench : null;
-  if (!netlist || !testbench) {
+  if (
+    !netlist ||
+    !testbench ||
+    !isSimulationInputRevision(body.inputRevision)
+  ) {
     return Response.json(
       {
         error: "invalid-request",
@@ -101,20 +111,20 @@ export async function routeSimulationRequest(
       { status: 400 },
     );
   }
+  const inputRevision = body.inputRevision;
 
   const timeoutMs = resolveTimeoutMs(
     typeof body.timeoutMs === "number" ? body.timeoutMs : undefined,
   );
   let deck: string;
+  let modelLibrary: ModelLibrarySelection;
   try {
-    deck = buildSimulationDeck(
-      { netlist, testbench },
-      {
-        directive: "lib",
-        path: env.SKY130_LIB_PATH ?? DEFAULT_LIB_PATH,
-        section: env.SKY130_LIB_SECTION ?? DEFAULT_LIB_SECTION,
-      },
-    );
+    modelLibrary = {
+      directive: "lib",
+      path: env.SKY130_LIB_PATH ?? DEFAULT_LIB_PATH,
+      section: env.SKY130_LIB_SECTION ?? DEFAULT_LIB_SECTION,
+    };
+    deck = buildSimulationDeck({ netlist, testbench }, modelLibrary);
   } catch (error) {
     return Response.json(
       {
@@ -156,7 +166,20 @@ export async function routeSimulationRequest(
     exitCode?: unknown;
     timedOut?: unknown;
     durationMs?: unknown;
+    environment?: unknown;
   };
+  const environment = await verifySimulationEnvironmentMetadata(
+    raw.environment,
+  );
+  if (!environment) {
+    return Response.json(
+      {
+        error: "simulator-protocol-invalid",
+        message: "The simulator did not identify its execution environment.",
+      },
+      { status: 502 },
+    );
+  }
   const log = typeof raw.log === "string" ? raw.log : "";
   const diagnostics = readNgspiceDiagnostics(log);
   const result: SimulationResult = {
@@ -168,6 +191,17 @@ export async function routeSimulationRequest(
     diagnostics,
     log,
     durationMs: typeof raw.durationMs === "number" ? raw.durationMs : 0,
+    metadata: {
+      schemaVersion: 1,
+      input: await createSimulationInputMetadata({
+        ...(inputRevision ? { inputRevision } : {}),
+        netlist,
+        testbench,
+        deck,
+      }),
+      configuration: simulationConfigurationMetadata(modelLibrary),
+      environment,
+    },
   };
   return Response.json(result, { status: 200 });
 }

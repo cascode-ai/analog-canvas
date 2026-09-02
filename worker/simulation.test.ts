@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { createSimulationEnvironmentMetadata } from "@icm/spice-run";
+
 import { routeSimulationRequest, type SimulationEnv } from "./simulation";
 
 function post(body: unknown, path = "/api/simulate"): Request {
@@ -9,6 +11,23 @@ function post(body: unknown, path = "/api/simulate"): Request {
     body: JSON.stringify(body),
   });
 }
+
+const HOSTED_ENVIRONMENT = await createSimulationEnvironmentMetadata({
+  executor: "hosted-container",
+  reproducibility: "observed",
+  platform: "linux/x64",
+  simulator: {
+    name: "ngspice",
+    version: "ngspice-47",
+    binarySha256:
+      "22d5cae2bd32b2e39157a8d27bf457122f68285b72a9ebefdf41551b628233ab",
+  },
+  models: {
+    id: "sky130A",
+    contentSha256:
+      "17c208a699228f5acb87bf59c09c22a4c4d3937b6766b4957737d34e8e075f64",
+  },
+});
 
 /** Stands in for the container, recording the deck it was handed. */
 function stubRunner(
@@ -25,7 +44,7 @@ function stubRunner(
           };
           seen.deck = sent.deck;
           seen.timeoutMs = sent.timeoutMs;
-          return Response.json(reply);
+          return Response.json({ environment: HOSTED_ENVIRONMENT, ...reply });
         },
       }),
     },
@@ -71,7 +90,10 @@ describe("simulation route", () => {
     const seen: { deck?: string; timeoutMs?: number } = {};
     await routeSimulationRequest(
       post({ netlist: NETLIST, testbench: TESTBENCH }),
-      stubRunner({ log: "", exitCode: 0, timedOut: false, durationMs: 5 }, seen),
+      stubRunner(
+        { log: "", exitCode: 0, timedOut: false, durationMs: 5 },
+        seen,
+      ),
     );
     expect(seen.deck).toContain(TESTBENCH);
     expect(seen.deck).toContain(NETLIST);
@@ -97,6 +119,49 @@ describe("simulation route", () => {
       env,
     );
     expect(seen.deck).toContain('.lib "/models/sky130.lib.spice" ff');
+  });
+
+  it("returns input, configuration and environment identity with a result", async () => {
+    const response = await routeSimulationRequest(
+      post({
+        netlist: NETLIST,
+        testbench: TESTBENCH,
+        inputRevision: "revision-42",
+      }),
+      stubRunner({ log: "", exitCode: 0, timedOut: false, durationMs: 5 }),
+    );
+    expect((await response!.json()) as unknown).toMatchObject({
+      metadata: {
+        schemaVersion: 1,
+        input: {
+          inputRevision: "revision-42",
+          netlistSha256: expect.stringMatching(/^[0-9a-f]{64}$/u),
+          testbenchSha256: expect.stringMatching(/^[0-9a-f]{64}$/u),
+          deckSha256: expect.stringMatching(/^[0-9a-f]{64}$/u),
+        },
+        configuration: {
+          modelLibrary: { directive: "lib", section: "tt" },
+        },
+        environment: HOSTED_ENVIRONMENT,
+      },
+    });
+  });
+
+  it("rejects a container response without environment identity", async () => {
+    const response = await routeSimulationRequest(
+      post({ netlist: NETLIST, testbench: TESTBENCH }),
+      stubRunner({
+        log: "",
+        exitCode: 0,
+        timedOut: false,
+        durationMs: 5,
+        environment: null,
+      }),
+    );
+    expect(response?.status).toBe(502);
+    expect((await response!.json()) as unknown).toMatchObject({
+      error: "simulator-protocol-invalid",
+    });
   });
 
   it("reports an invalid deployed section as environment configuration", async () => {
@@ -135,7 +200,12 @@ describe("simulation route", () => {
   it("passes a timeout through as a timeout, carrying the ceiling", async () => {
     const response = await routeSimulationRequest(
       post({ netlist: NETLIST, testbench: TESTBENCH, timeoutMs: 1_000 }),
-      stubRunner({ log: "", exitCode: null, timedOut: true, durationMs: 1_004 }),
+      stubRunner({
+        log: "",
+        exitCode: null,
+        timedOut: true,
+        durationMs: 1_004,
+      }),
     );
     expect((await response!.json()) as unknown).toMatchObject({
       outcome: { status: "timed-out", timeoutMs: 1_000 },
