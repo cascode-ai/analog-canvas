@@ -183,30 +183,36 @@ export function ColorOverrideControl({
           </button>
         ))}
       </div>
-      <div className="component-rgb-inputs" aria-label={`${label} custom RGB`}>
-        {(["r", "g", "b"] as const).map((channel) => (
-          <label key={channel}>
-            {channel.toUpperCase()}
-            <input
-              aria-label={`${label} ${
-                channel === "r" ? "red" : channel === "g" ? "green" : "blue"
-              }`}
-              type="number"
-              min="0"
-              max="255"
-              step="1"
-              value={rgb[channel]}
-              onChange={(event) =>
-                updateChannel(channel, event.currentTarget.value)
-              }
-              onBlur={(event) => commitOnBlur(event.relatedTarget)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") commitPending();
-              }}
-            />
-          </label>
-        ))}
-      </div>
+      <details className="component-rgb-details">
+        <summary>RGB</summary>
+        <div
+          className="component-rgb-inputs"
+          aria-label={`${label} custom RGB`}
+        >
+          {(["r", "g", "b"] as const).map((channel) => (
+            <label key={channel}>
+              {channel.toUpperCase()}
+              <input
+                aria-label={`${label} ${
+                  channel === "r" ? "red" : channel === "g" ? "green" : "blue"
+                }`}
+                type="number"
+                min="0"
+                max="255"
+                step="1"
+                value={rgb[channel]}
+                onChange={(event) =>
+                  updateChannel(channel, event.currentTarget.value)
+                }
+                onBlur={(event) => commitOnBlur(event.relatedTarget)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") commitPending();
+                }}
+              />
+            </label>
+          ))}
+        </div>
+      </details>
     </fieldset>
   );
 }

@@ -30,13 +30,13 @@ export function ComponentStyleProperties({
       <div className="property-section-heading">Appearance</div>
       <small>Colors apply to this component only.</small>
       <ColorOverrideControl
-        label="Line / foreground"
+        label="Line"
         value={instance.styleOverride?.foreground}
         fallback={defaultForeground}
         onChange={(value) => update("foreground", value)}
       />
       <ColorOverrideControl
-        label="Background / fill"
+        label="Background"
         value={instance.styleOverride?.background}
         fallback="#ffffff"
         transparentDefault

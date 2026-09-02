@@ -3026,7 +3026,7 @@ test("Properties offers no dead Reference controls for a schematic-only block", 
   await expect(properties.getByText("Symbol")).toBeVisible();
   await expect(referenceField).toHaveCount(0);
   await expect(parametersCard).toHaveCount(0);
-  await expect(properties.getByText("Line / foreground")).toBeVisible();
+  await expect(properties.getByText("Line", { exact: true })).toBeVisible();
 
   // An ordinary device keeps both.
   await page.getByTestId("hit-R1").click();
@@ -3147,11 +3147,9 @@ test("Properties keeps component and Annotation text colors independent", async 
   const label = page.locator('[data-object-id="instance-label-R1"]');
   const secondLabel = page.locator('[data-object-id="instance-label-R2"]');
 
+  await properties.getByRole("button", { name: "Use Red for line" }).click();
   await properties
-    .getByRole("button", { name: "Use Red for line / foreground" })
-    .click();
-  await properties
-    .getByRole("button", { name: "Use Blue for background / fill" })
+    .getByRole("button", { name: "Use Blue for background" })
     .click();
   await expect(symbol).toHaveAttribute("stroke", "#dc2626");
   await expect(
@@ -3186,6 +3184,7 @@ test("Properties keeps component and Annotation text colors independent", async 
   // Annotation remounts the keyed Text properties before the deferred blur
   // commit, so R1's draft cannot reach either Annotation.
   await page.clock.pauseAt(clockStart + 60_000);
+  await properties.locator("summary", { hasText: /^RGB$/u }).click();
   await properties.getByLabel("Text color red").fill("12");
   await page
     .getByTestId("annotation-hit-instance-label-R2")
@@ -3201,6 +3200,7 @@ test("Properties keeps component and Annotation text colors independent", async 
   await page
     .getByTestId("annotation-hit-instance-label-R1")
     .click({ force: true });
+  await properties.locator("summary", { hasText: /^RGB$/u }).click();
   await properties.getByLabel("Text color red").fill("12");
   const resetTextColor = properties.getByRole("button", {
     name: "Reset text color",
