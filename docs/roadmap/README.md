@@ -7,6 +7,7 @@ boundaries.
 
 | Area                                                  | Status                                                        | Current authority                                                                                                       |
 | ----------------------------------------------------- | ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| SKY130 production export contract                     | proposed; implementation not started                          | [bounded contract repair](sky130-production-export-contract.md)                                                         |
 | Net naming, global projection, and export correctness | proposed C0, P0-P2                                            | [staged boundary and delivery plan](net-naming-resolution-export-p0.md)                                                 |
 | Connectivity, routing, and electrical debugging       | active                                                        | [unification plan](connectivity-routing-debugging-plan.md)                                                              |
 | Browser-authorized Agent sessions                     | implementation validation complete; deployment review pending | [session integration plan](web-agent-session-integration-plan.md) and [web-session spec](../specs/web-agent-session.md) |
