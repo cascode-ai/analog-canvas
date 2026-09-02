@@ -43,7 +43,7 @@ import {
   type CircuitProject,
 } from "@icm/model";
 
-import { sessionUserOf, type AuthNamespaceLike } from "./auth";
+import type { AuthNamespaceLike } from "./auth";
 
 /**
  * A circuit's id is its address, so it is short enough to read out loud and
@@ -292,12 +292,35 @@ interface EntryRow {
   preview_revision: string;
 }
 
+type EntrySummaryRow = Pick<
+  EntryRow,
+  | "id"
+  | "name"
+  | "author"
+  | "description"
+  | "created_at"
+  | "schema_version"
+  | "tags"
+  | "netlistable"
+  | "preview_revision"
+>;
+
+interface PreviewAccessRow {
+  status: string;
+  owner_user_id: string | null;
+  preview_revision: string;
+}
+
+interface PreviewRow extends PreviewAccessRow {
+  svg_text: string;
+}
+
 const TOKENZHANG_BYLINE_MIGRATION = "2026-08-26-tokenzhang-to-zhishuai-zhang";
 const TOKENZHANG_BYLINE = "Zhishuai Zhang";
 const VERSION_RETENTION_MIGRATION = "2026-08-27-gallery-version-retention-2";
 
 function summaryOf(
-  row: EntryRow & { likes?: number; liked_by_viewer?: number },
+  row: EntrySummaryRow & { likes?: number; liked_by_viewer?: number },
 ): GalleryEntrySummary {
   return {
     id: row.id,
@@ -506,6 +529,10 @@ export class GalleryDO {
         return this.entry(String(body.id), "public");
       case "any-entry":
         return this.entry(String(body.id), null);
+      case "preview-access":
+        return this.previewAccess(String(body.id));
+      case "preview":
+        return this.preview(String(body.id));
       case "set-status":
         return this.setStatus(
           String(body.id),
@@ -746,8 +773,9 @@ export class GalleryDO {
       bindings.push(cursor);
     }
     const rows = this.sql
-      .exec<EntryRow & { likes: number; liked_by_viewer: number }>(
-        `SELECT e.*,
+      .exec<EntrySummaryRow & { likes: number; liked_by_viewer: number }>(
+        `SELECT e.id, e.name, e.author, e.description, e.created_at,
+           e.schema_version, e.tags, e.netlistable, e.preview_revision,
            (SELECT COUNT(*) FROM gallery_likes WHERE entry_id = e.id) AS likes,
            (SELECT COUNT(*) FROM gallery_likes
              WHERE entry_id = e.id AND user_id = ?) AS liked_by_viewer
@@ -764,6 +792,41 @@ export class GalleryDO {
         ? `${page.at(-1)!.created_at}|${page.at(-1)!.id}`
         : null;
     return Response.json({ entries: page.map(summaryOf), nextCursor, total });
+  }
+
+  /** Minimum row needed to decide whether an immutable preview cache hit is valid. */
+  private previewAccess(id: string): Response {
+    const row = this.sql
+      .exec<PreviewAccessRow>(
+        `SELECT status, owner_user_id, preview_revision
+         FROM gallery_entries WHERE id = ?`,
+        id,
+      )
+      .toArray()[0];
+    if (!row) return Response.json({ error: "not-found" }, { status: 404 });
+    return Response.json({
+      status: row.status,
+      ownerUserId: row.owner_user_id,
+      previewRevision: row.preview_revision || "legacy",
+    });
+  }
+
+  /** Preview bytes without the unrelated canonical Project payload. */
+  private preview(id: string): Response {
+    const row = this.sql
+      .exec<PreviewRow>(
+        `SELECT status, owner_user_id, preview_revision, svg_text
+         FROM gallery_entries WHERE id = ?`,
+        id,
+      )
+      .toArray()[0];
+    if (!row) return Response.json({ error: "not-found" }, { status: 404 });
+    return Response.json({
+      status: row.status,
+      ownerUserId: row.owner_user_id,
+      previewRevision: row.preview_revision || "legacy",
+      svgText: row.svg_text,
+    });
   }
 
   /**

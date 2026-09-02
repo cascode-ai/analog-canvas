@@ -54,6 +54,49 @@ async function callGallery<T>(
   return { status: response.status, payload: (await response.json()) as T };
 }
 
+export interface GalleryPreviewCache {
+  match(request: Request): Promise<Response | undefined>;
+  put(request: Request, response: Response): Promise<void>;
+}
+
+export interface GalleryRouteRuntime {
+  /** Injectable in tests; production falls back to Cloudflare's default cache. */
+  previewCache?: GalleryPreviewCache | null;
+}
+
+function defaultPreviewCache(): GalleryPreviewCache | null {
+  if (typeof caches === "undefined") return null;
+  return (
+    (caches as CacheStorage & { readonly default?: Cache }).default ?? null
+  );
+}
+
+async function matchPreviewCache(
+  cache: GalleryPreviewCache | null,
+  request: Request,
+): Promise<Response | undefined> {
+  if (!cache) return undefined;
+  try {
+    return await cache.match(request);
+  } catch {
+    // A cache outage must degrade to the canonical GalleryDO path.
+    return undefined;
+  }
+}
+
+async function storePreviewCache(
+  cache: GalleryPreviewCache | null,
+  request: Request,
+  response: Response,
+): Promise<void> {
+  if (!cache) return;
+  try {
+    await cache.put(request, response);
+  } catch {
+    // The response is still valid when an edge refuses or evicts the entry.
+  }
+}
+
 function sameOrigin(request: Request): boolean {
   const expected = new URL(request.url).origin;
   const origin = request.headers.get("Origin");
@@ -494,6 +537,7 @@ async function handleEntryUpdate(
 export async function routeGalleryRequest(
   request: Request,
   env: GalleryEnv,
+  runtime: GalleryRouteRuntime = {},
 ): Promise<Response | null> {
   const url = new URL(request.url);
   if (url.pathname === "/api/projects") {
@@ -743,12 +787,36 @@ export async function routeGalleryRequest(
     return Response.json(payload, { status });
   }
   if (segments.length === 2 && segments[1] === "preview.svg") {
+    const requestedRevision = url.searchParams.get("v");
+    const previewCache =
+      request.method === "GET" && requestedRevision
+        ? runtime.previewCache === undefined
+          ? defaultPreviewCache()
+          : runtime.previewCache
+        : null;
+    const cached = await matchPreviewCache(previewCache, request);
+    if (cached) {
+      // A content URL stays immutable, but publication status does not. Check
+      // the tiny access row before serving an edge hit so recycle/reject/delete
+      // and a newer current revision retain exactly their existing behavior.
+      const access = await callGallery<{
+        status?: string;
+        previewRevision?: string;
+      }>(env, "preview-access", { id: segments[0] });
+      if (
+        access.status === 200 &&
+        access.payload.status === "public" &&
+        access.payload.previewRevision === requestedRevision
+      ) {
+        return cached;
+      }
+    }
     const { status, payload } = await callGallery<{
       status?: string;
-      entry?: GalleryEntrySummary;
       ownerUserId?: string | null;
+      previewRevision?: string;
       svgText?: string;
-    }>(env, "any-entry", { id: segments[0] });
+    }>(env, "preview", { id: segments[0] });
     if (status !== 200 || !payload.svgText) {
       return Response.json(
         { error: "not-found" },
@@ -759,12 +827,11 @@ export async function routeGalleryRequest(
       // A matching revision URL names immutable bytes. Old and unversioned
       // clients still receive the current image, but it is never stored under
       // a mutable or incorrect cache key.
-      const requestedRevision = url.searchParams.get("v");
-      const currentRevision = payload.entry?.previewRevision;
+      const currentRevision = payload.previewRevision;
       const immutable =
         typeof currentRevision === "string" &&
         requestedRevision === String(currentRevision);
-      return new Response(payload.svgText, {
+      const response = new Response(payload.svgText, {
         headers: {
           "content-type": "image/svg+xml",
           "cache-control": immutable
@@ -774,6 +841,10 @@ export async function routeGalleryRequest(
             "default-src 'none'; style-src 'unsafe-inline'",
         },
       });
+      if (immutable) {
+        await storePreviewCache(previewCache, request, response.clone());
+      }
+      return response;
     }
     const allowed =
       (await canReview(request, env)) ||

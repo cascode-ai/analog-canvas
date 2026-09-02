@@ -537,13 +537,16 @@ describe("sessionUserOf (module seam for the gallery)", () => {
   it("resolves the signed-in user through the binding and null otherwise", async () => {
     const auth = harness({ RESEND_API_KEY: "rk", ADMIN_EMAILS: "b@e.co" });
     const cookie = await emailSignIn(auth, "b@e.co");
+    let bindingFetches = 0;
     const env = {
       AUTH: {
         getByName: () => ({
-          fetch: (input: Request | string, init?: RequestInit) =>
-            auth.durable.fetch(
+          fetch: (input: Request | string, init?: RequestInit) => {
+            bindingFetches += 1;
+            return auth.durable.fetch(
               typeof input === "string" ? new Request(input, init) : input,
-            ),
+            );
+          },
         }),
       },
     };
@@ -554,11 +557,21 @@ describe("sessionUserOf (module seam for the gallery)", () => {
       env,
     );
     expect(signedIn?.isAdmin).toBe(true);
+    expect(bindingFetches).toBe(1);
     const anonymous = await sessionUserOf(
       new Request(`${ORIGIN}/api/gallery/submissions`),
       env,
     );
     expect(anonymous).toBeNull();
+    expect(bindingFetches).toBe(1);
+    const emptySession = await sessionUserOf(
+      new Request(`${ORIGIN}/api/gallery/submissions`, {
+        headers: { Cookie: "icm_visitor=visitor; icm_session=" },
+      }),
+      env,
+    );
+    expect(emptySession).toBeNull();
+    expect(bindingFetches).toBe(1);
     const unbound = await sessionUserOf(
       new Request(`${ORIGIN}/api/gallery/submissions`),
       {},
