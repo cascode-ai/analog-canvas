@@ -61,11 +61,12 @@ XR1 top bottom vss sky130_fd_pr__res_high_po w=1 l=5.5 mult=1
 XC1 top bottom sky130_fd_pr__cap_mim_m3_1 w=5 l=5 mf=1
 ```
 
-The resistor remains a two-terminal resistive path in the drawing, with a real
-third substrate terminal `B`. The MIM capacitor remains a two-terminal
-capacitor. Selecting either reviewed target changes its binding and authored
-parameter surface; it does not synthesize a scalar resistance/capacitance or
-expand PDK-internal parasitics onto the schematic.
+The resistor remains visually identical to the current two-terminal resistor;
+its reviewed binding carries a real third substrate terminal `B` selected only
+through Properties. The MIM capacitor remains visually identical to the
+current two-terminal capacitor. Selecting either reviewed target changes its
+binding and authored parameter surface; it does not synthesize a scalar
+resistance/capacitance or expand PDK-internal parasitics onto the schematic.
 
 ## Evidence and current failure
 
@@ -175,8 +176,10 @@ physical device dimensions do not change.
   ordered `R0/R1/B` connectivity and reviewed `w/l/mult` parameters.
 - One exact physical-capacitor binding for `sky130_fd_pr__cap_mim_m3_1` with
   ordered `C0/C1` connectivity and reviewed `w/l/mf` parameters.
-- Reuse of the existing resistor and capacitor artwork, with a resistor
-  substrate-pin presentation that never erases the third electrical node.
+- Frozen reuse of the current resistor and capacitor artwork with no new lead,
+  pin, badge, marker, or alternate PDK symbol.
+- A non-graphical resistor substrate binding selected from existing Nets in
+  Properties; it never becomes a canvas terminal or Route endpoint.
 - Properties and batch editing for the reviewed R/C geometry and substrate
   selection without deriving geometry from the generic scalar `value`.
 - Persisted schematic reference independent of emitted SPICE invocation kind.
@@ -261,7 +264,7 @@ interface ReviewedExternalDeviceBinding {
     | readonly ["D", "G", "S", "B"]
     | readonly ["R0", "R1", "B"]
     | readonly ["C0", "C1"];
-  symbolPinMap: Readonly<Record<string, string>>;
+  terminalBindings: readonly ReviewedTerminalBinding[];
   authoredReferencePrefix: "M" | "R" | "C";
   spiceCardPrefix: "X";
   parameterBindings: readonly ReviewedParameterBinding[];
@@ -277,14 +280,17 @@ cannot identify the contract safely.
 presentation or reuse the existing passive artwork. It does not own invocation
 or parameter-unit semantics.
 
-`terminalOrder` is the public target order; it does not authorize renaming the
-stable pins already used by the native symbols. The reviewed mappings are:
+`terminalOrder` is the public target order; it does not authorize renaming or
+redrawing the stable pins already used by native symbols. A reviewed terminal
+binding may source a target terminal from either a graphical symbol pin or a
+non-graphical Properties Net selection:
 
-| Native stable pin | Reviewed target terminal |
+| Reviewed target terminal | Project source |
 |---|---|
-| MOS `D/G/S/B` | `D/G/S/B` |
-| resistor `1/2/B` | `R0/R1/B` |
-| capacitor `1/2` | `C0/C1` |
+| MOS `D/G/S/B` | existing graphical/implicit MOS `D/G/S/B` terminals |
+| resistor `R0/R1` | existing graphical resistor pins `1/2` |
+| resistor `B` | non-graphical `Body/Substrate Net` property |
+| capacitor `C0/C1` | existing graphical capacitor pins `1/2` |
 
 ## Reviewed physical-resistor contract
 
@@ -295,22 +301,25 @@ forced through the current `R n1 n2 value` contract.
   `r0 r1 b`.
 - The authored reference remains in the resistor domain (`R1`); SPICE emission
   derives `XR1` without mutating or renumbering the Project instance.
-- The existing resistor artwork and stable endpoint pins `1/2` are reused.
-  The reviewed presentation adds an electrically real side terminal `B` whose semantic
-  role is `substrate`, not a third resistor-current endpoint and not MOS base
-  or bulk by spelling alone.
+- The current resistor artwork and its two visible endpoint pins `1/2` are
+  frozen. Selecting the reviewed target must not add, remove, move, restyle, or
+  replace any visible primitive, pin, marker, lead, or label in that icon.
+- `B` is an electrically real but non-graphical reviewed terminal whose role
+  is `substrate`, not a third resistor-current endpoint and not MOS base or
+  bulk by spelling alone.
 - Native pins `1` and `2` remain the series insertion pair and map to target
   `R0` and `R1`. `B` must never participate in conductor splicing or replace
   either resistor endpoint.
-- Import preserves the third source node exactly. Export always emits it,
-  whether its visual connection is expanded or compact.
-- New authoring exposes `B` until the user explicitly connects it by wire or
-  chooses an existing Net in a `Body/Substrate Net` property. No Net-name rule
-  silently chooses VSS/VDD and no unconfigured body default is invented.
-- A compact view may hide the side pin only after `B` has resolved Net
-  membership; Properties must still show the selected Net and offer an
-  explicit-pin action. An explicit wire is ordinary electrical wiring and
-  takes precedence over compact presentation.
+- Import preserves the third source node exactly and shows its resolved Net in
+  Properties. Export always emits it, although it has no canvas geometry.
+- New authoring supports `B` only through a `Body/Substrate Net` selector in
+  Properties. The choices are existing logical Nets in the active Document;
+  choosing one updates the single electrical Net membership used by export.
+- `B` has no routeable side pin, auxiliary pin, flightline, explicit wire,
+  no-connect marker, or compact/expanded visual state. Canvas wiring and
+  terminal hit-testing must continue to see only resistor pins `1/2`.
+- No Net-name rule silently chooses VSS/VDD and no unconfigured body default
+  is invented.
 - An unresolved `B` is an export-blocking missing-terminal diagnostic. It is
   not exported as ground, one resistor endpoint, or an empty node.
 - The reviewed authored parameters are geometry `w`, `l`, and wrapper
@@ -321,9 +330,9 @@ forced through the current `R n1 n2 value` contract.
   editor neither calculates them nor persists synthetic component instances.
 
 The initial target deliberately does not introduce a general PDK substrate or
-well-domain protocol. A later convenience target may add explicit Document
-defaults when more than one reviewed body-terminal family justifies that
-shared concept; it must not reuse MOS-only metadata accidentally.
+well-domain protocol. A later target may revisit defaults or graphical body
+connections only through a new product decision; neither is latent scope in
+this work and MOS-only metadata is not reused accidentally.
 
 ## Reviewed physical-capacitor contract
 
@@ -334,9 +343,10 @@ not a primitive `C n1 n2 value` card.
   `c0 c1`.
 - The authored reference remains in the capacitor domain (`C1`); SPICE
   emission derives `XC1` without changing the Project reference.
-- Existing capacitor artwork and stable pin `1/2` top/bottom plate semantics
-  are reused. The reviewed mapping is exact: pin `1`/top plate -> `C0`, pin
-  `2`/bottom plate -> `C1`.
+- Current capacitor artwork and stable pin `1/2` top/bottom plate semantics are
+  frozen. Selecting the reviewed target must not change any visible primitive,
+  pin, marker, lead, or label. The reviewed mapping is exact: pin `1`/top plate
+  -> `C0`, pin `2`/bottom plate -> `C1`.
 - The authored parameters are geometry `w`, `l`, and multiplicity `mf`.
   Generic scalar capacitance `value` is not converted to area and is not
   emitted while this binding is selected.
@@ -636,14 +646,14 @@ Primary files:
 
 ### WP-SKY6 - Physical resistor and MIM capacitor authoring
 
-- Reuse the existing resistor and capacitor Insert actions and artwork; model
-  selection changes binding instead of creating a parallel PDK palette.
-- Add the exact native `1/2/B` to target `R0/R1/B` resistor mapping while
-  retaining native pins `1/2` as the only legal series-insertion pair.
-- Add a routeable substrate side pin and `Body/Substrate Net` property. Compact
-  presentation is allowed only after the B terminal has actual Net membership.
-- Keep an explicit substrate Route ordinary and visible; do not extend the
-  MOS-only dashed-bulk convention by spelling coincidence.
+- Reuse the existing resistor and capacitor Insert actions and freeze their
+  current artwork byte-for-byte from the user's perspective; model selection
+  changes binding instead of creating a parallel PDK palette or icon variant.
+- Map existing resistor pins `1/2` to target `R0/R1` and resolve target `B`
+  only from the `Body/Substrate Net` property. Pins `1/2` remain the only
+  canvas terminals and the only legal series-insertion pair.
+- Do not create a resistor B pin, Route, flightline, hidden-pin hit target,
+  no-connect marker, or MOS-style dashed-bulk presentation.
 - Add the exact capacitor top/bottom to `C0/C1` mapping without creating a
   third terminal or calculated-capacitance field.
 - Give reviewed physical passives their geometry parameter editors and batch
@@ -654,13 +664,13 @@ Primary files:
 Primary files:
 
 - reviewed device definitions under `packages/devices/src/`
-- resistor/capacitor variants under `packages/symbols/`
+- existing resistor/capacitor symbol invariance tests under `packages/symbols/`
 - `packages/edit-engine/src/` terminal and binding planners
 - `packages/spice/src/importer.ts`
 - `packages/netlist/src/`
 - `apps/editor/src/features/component-insert/`
 - `apps/editor/src/features/properties/`
-- affected route, flightline, and series-placement tests
+- affected Properties, export, and series-placement tests
 
 ## Acceptance matrix
 
@@ -671,11 +681,11 @@ Primary files:
 | Switch reviewed NFET back to ordinary MOS | reference remains `M1`; connectivity unchanged |
 | Import official-style `Xn ... nfet_01v8 l=0.15 w=1` | binding remains external; native NMOS presentation is allowed; canonical l/w are restored |
 | Re-export the imported call | same electrical target, D/G/S/B order, and target-equivalent parameters |
-| Insert resistor `R1`, select reviewed `res_high_po` | reference remains `R1`; binding becomes external; native `1/2/B` maps to target `R0/R1/B` |
+| Insert resistor `R1`, select reviewed `res_high_po` | reference remains `R1`; icon and visible pins `1/2` are unchanged; binding gains property-only target B |
 | Leave reviewed resistor B unresolved | stable export-blocking missing-terminal diagnostic; no guessed VSS/VDD |
-| Connect reviewed resistor B to VSS | `XR1 r0-net r1-net VSS ... w/l/mult`; native `1/2` remain the series path |
-| Import `XR... r0 r1 b res_high_po` | exact third-node connectivity is retained; native resistor presentation is allowed |
-| Insert capacitor `C1`, select reviewed `cap_mim_m3_1` | reference remains `C1`; exact C0/C1 mapping and w/l/mf editor are used |
+| Select VSS in resistor Body/Substrate Net | property owns target B; export emits `XR1 r0-net r1-net VSS ...`; no canvas wire/pin appears |
+| Import `XR... r0 r1 b res_high_po` | exact third-node connectivity is retained in Properties; current resistor icon remains unchanged |
+| Insert capacitor `C1`, select reviewed `cap_mim_m3_1` | reference and current icon remain unchanged; exact C0/C1 mapping and w/l/mf editor are used |
 | Export reviewed MIM capacitor | `XC1 c0-net c1-net sky130_fd_pr__cap_mim_m3_1 w=... l=... mf=...` |
 | Switch generic R/C to reviewed physical target | reference and connectivity stay stable; scalar value is not converted into geometry |
 | Re-open reviewed R/C Project | no model-internal parasitic R/C elements or calculated values appear in Project JSON |
@@ -697,8 +707,9 @@ wiring that lower layers cannot prove.
 ### Unit and module contracts
 
 - exact binding accepts only the two reviewed names and exact D/G/S/B order;
-- resistor binding accepts only exact `res_high_po`, maps stable `1/2/B` to
-  target R0/R1/B, and preserves B as ordinary Net membership;
+- resistor binding accepts only exact `res_high_po`, maps stable graphical
+  `1/2` plus the property-only B Net to target R0/R1/B, and never exposes B to
+  canvas routing;
 - capacitor binding accepts only exact `cap_mim_m3_1` with C0/C1 order;
 - import preserves X invocation while applying native presentation;
 - MOS, resistor, and MIM l/w import/export conversions are inverse over
@@ -710,8 +721,10 @@ wiring that lower layers cannot prove.
 - Project reference policy remains R/C for reviewed passive presentation;
 - SPICE emitted reference projection produces `XM1`, `XR1`, and `XC1` and
   detects collisions;
-- reviewed resistor B cannot splice a conductor, disappear from export, or
-  acquire a Net from its name;
+- reviewed resistor B cannot splice a conductor, become a canvas terminal,
+  disappear from export, or acquire a Net from its name;
+- selecting either reviewed passive leaves current resistor/capacitor artwork
+  and visible pin geometry unchanged;
 - reviewed MIM never derives w/l from scalar capacitance or persists
   model-internal contact resistance/capacitance;
 - generic external raw parameters remain unchanged;
@@ -726,8 +739,9 @@ wiring that lower layers cannot prove.
   reference and all D/G/S/B connectivity.
 - Selecting reviewed resistor/capacitor suggestions retains R/C references,
   uses the existing Insert actions, and exposes only the reviewed properties.
-- Wiring or selecting the resistor substrate Net resolves B; leaving it
-  unresolved blocks the download with the same lower-level diagnostic.
+- Selecting the resistor substrate Net in Properties resolves B; there is no
+  wiring path for B, and leaving it unresolved blocks the download with the
+  same lower-level diagnostic.
 - File/Export SPICE uses the same reviewed projection as package tests.
 - Switching back restores ordinary model binding without renumbering.
 
@@ -774,6 +788,8 @@ all required GitHub checks.
 - Dropping, grounding, or joining `res_high_po.B` from a name-based guess.
 - Reusing the MOS-only bulk route/binding special case for a resistor merely
   because both terminals are spelled `B`.
+- Changing the current resistor or capacitor icon, adding a PDK variant, or
+  exposing resistor B as a pin, Route, flightline, or no-connect marker.
 - Converting generic resistance/capacitance values into guessed physical
   geometry or copying PDK-internal parasitic elements into the Project.
 - Using the visual symbol or model-name prefix to decide M versus X.
@@ -797,9 +813,11 @@ This repair is complete only when all of the following are demonstrated:
 3. official-style SKY130 import/export is electrically equivalent under the
    reviewed public interface;
 4. reviewed `res_high_po` import/new authoring/export preserves R0/R1/B,
-   requires an explicit B Net, and emits w/l/mult without expanding the model;
+   requires a Properties-selected B Net, leaves the current resistor icon
+   unchanged, and emits w/l/mult without expanding the model;
 5. reviewed `cap_mim_m3_1` import/new authoring/export preserves C0/C1 and
-   emits w/l/mf without inventing a scalar capacitance;
+   leaves the current capacitor icon unchanged while emitting w/l/mf without
+   inventing a scalar capacitance;
 6. no broad SKY130 name rule remains in the released mapping path;
 7. editor export and package tests exercise the same production projection;
 8. generic external calls and unrelated primitive devices retain their
