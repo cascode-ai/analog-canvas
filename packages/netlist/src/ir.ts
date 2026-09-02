@@ -23,7 +23,7 @@ export interface DesignNetlistFormalParameter {
 export interface DesignNetlistInstance {
   id: StableId;
   reference: string;
-  /** Card family is derived independently from the authored reference. */
+  /** Card family must agree with the persisted ngspice Reference designator. */
   invocationKind: "primitive" | "subcircuit";
   reviewedExternalBindingId?: ReviewedExternalBindingId;
   deviceClass: DesignNetlistDeviceClass;

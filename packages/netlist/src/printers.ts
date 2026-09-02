@@ -5,7 +5,6 @@ import type {
   DesignNetlistParameter,
 } from "./ir.js";
 import type { NetlistFormat } from "./net-name-codec.js";
-import { spiceEmittedReference } from "./emitted-reference.js";
 
 export type { NetlistFormat } from "./net-name-codec.js";
 
@@ -74,7 +73,7 @@ function wrapSpice(tokens: readonly string[], width = 100): string[] {
 
 function spiceInstance(instance: DesignNetlistInstance): string[] {
   const nodes = instance.nodes.map((node) => node.netName);
-  const reference = spiceEmittedReference(instance);
+  const reference = instance.reference;
   let tokens: string[];
   switch (instance.deviceClass) {
     case "resistor":

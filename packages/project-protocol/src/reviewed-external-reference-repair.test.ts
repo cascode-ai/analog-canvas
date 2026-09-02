@@ -20,7 +20,7 @@ function legacyProject() {
     id: "legacy-mos",
     symbolId: "nmos",
     placement: null,
-    reference: "X1",
+    reference: "M1",
     netlist: {
       binding: { kind: "external-subcircuit", definitionId: "sky-nfet" },
       parameters: { w: "1u", l: "150n" },
@@ -30,22 +30,29 @@ function legacyProject() {
 }
 
 describe("legacy reviewed external reference repair", () => {
-  it("restores the authored device prefix for the exact old UI shape", () => {
+  it("canonicalizes the old authored device prefix to the ngspice X call", () => {
     const opened = parseProjectWithMetadata(JSON.stringify(legacyProject()));
     expect(opened.migrated).toBe(false);
-    expect(opened.project.documents[0]!.instances[0]!.reference).toBe("M1");
+    expect(opened.project.documents[0]!.instances[0]!.reference).toBe("XM1");
   });
 
   it("does not rewrite when the repaired reference would collide", () => {
     const project = legacyProject();
     project.documents[0]!.instances.push({
-      id: "existing-m1",
+      id: "existing-xm1",
       symbolId: "resistor",
       placement: null,
-      reference: "M1",
+      reference: "XM1",
       netlist: { parameters: { value: "1k" } },
     });
     const opened = parseProjectWithMetadata(JSON.stringify(project));
-    expect(opened.project.documents[0]!.instances[0]!.reference).toBe("X1");
+    expect(opened.project.documents[0]!.instances[0]!.reference).toBe("M1");
+  });
+
+  it("leaves an imported X reference unchanged", () => {
+    const project = legacyProject();
+    project.documents[0]!.instances[0]!.reference = "XMSWP0";
+    const opened = parseProjectWithMetadata(JSON.stringify(project));
+    expect(opened.project.documents[0]!.instances[0]!.reference).toBe("XMSWP0");
   });
 });

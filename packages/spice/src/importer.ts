@@ -631,9 +631,9 @@ function bindImportedChildDocuments(documents: readonly SchematicDocument[]): {
                   instance.importProvenance!.terminalMapping?.length ?? 0,
                 )?.parameters.map((parameter) => ({
                   name: parameter.name,
-                  ...(parameter.targetDefaultValue
-                    ? { defaultValue: parameter.targetDefaultValue }
-                    : {}),
+                  ...(parameter.targetDefaultValue === undefined
+                    ? {}
+                    : { defaultValue: parameter.targetDefaultValue }),
                 })) ?? [],
               interfaceStatus: reviewedExternalBindingForTerminalCount(
                 instance.importProvenance!.sourceMasterName,

@@ -319,7 +319,10 @@ function matchingReviewedExternalDefinition(
 
 /**
  * Switches a native device between its ordinary binding and one exact reviewed
- * external target without changing its authored reference or graphical pins.
+ * external target. The ngspice card designator is the persisted Reference, so
+ * this transaction changes M/R/C to X and restores the native prefix when the
+ * external target is removed without changing object identity or graphical
+ * pins.
  */
 export function planSetDeviceModelTarget(
   project: CircuitProject,
@@ -374,9 +377,9 @@ export function planSetDeviceModelTarget(
         })),
         formalParameters: targetBinding.parameters.map((parameter) => ({
           name: parameter.name,
-          ...(parameter.targetDefaultValue
-            ? { defaultValue: parameter.targetDefaultValue }
-            : {}),
+          ...(parameter.targetDefaultValue === undefined
+            ? {}
+            : { defaultValue: parameter.targetDefaultValue }),
         })),
         interfaceStatus: "declared" as const,
       } satisfies ExternalSubcircuitDefinition);
@@ -392,7 +395,19 @@ export function planSetDeviceModelTarget(
       );
     }
     const symbolId = verified.symbolId;
-    const reference = instance.reference!;
+    const reference = instance.reference!.toUpperCase().startsWith("X")
+      ? instance.reference!
+      : `X${instance.reference!}`;
+    const referenceOwner = document.instances.find(
+      (candidate) =>
+        candidate.id !== instanceId &&
+        candidate.reference?.toLowerCase() === reference.toLowerCase(),
+    );
+    if (referenceOwner) {
+      throw new Error(
+        `Cannot set external target because Reference ${reference} is already used`,
+      );
+    }
     const documentEdits: DocumentEdits = [];
     if (instance.symbolId !== symbolId) {
       documentEdits.push({
@@ -454,7 +469,28 @@ export function planSetDeviceModelTarget(
   }
 
   const symbolId = sourceSymbolId;
-  const reference = instance.reference!;
+  const nativePrefix =
+    sourceSymbolId === "nmos" || sourceSymbolId === "pmos"
+      ? "M"
+      : sourceSymbolId === "resistor"
+        ? "R"
+        : "C";
+  const externalBody = currentExternal
+    ? instance.reference!.replace(/^x/iu, "")
+    : instance.reference!;
+  const reference = externalBody.toUpperCase().startsWith(nativePrefix)
+    ? externalBody
+    : `${nativePrefix}${externalBody}`;
+  const referenceOwner = document.instances.find(
+    (candidate) =>
+      candidate.id !== instanceId &&
+      candidate.reference?.toLowerCase() === reference.toLowerCase(),
+  );
+  if (referenceOwner) {
+    throw new Error(
+      `Cannot clear external target because Reference ${reference} is already used`,
+    );
+  }
   if (normalizedName && symbolId !== "nmos" && symbolId !== "pmos") {
     throw new Error(
       `${symbolId} supports only the reviewed model suggestion in this release`,
