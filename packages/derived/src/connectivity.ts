@@ -9,15 +9,7 @@ import {
   resolveEndpointPoint,
 } from "./endpoint.js";
 import { deriveDocumentContactEvidence } from "./contact.js";
-import {
-  resolveDocumentRoutingGeometry,
-  type ResolvedDocumentRoutingGeometry,
-} from "./resolved-route-geometry.js";
-import {
-  resolveNetLabelBinding,
-  resolveNetLabelBindings,
-  type ResolvedNetLabelBinding,
-} from "./net-label.js";
+import { resolveNetLabelBindings } from "./net-label.js";
 import { resolveAnnotationText } from "./annotation-text.js";
 import { resolveDocumentLogicalNets } from "./logical-net.js";
 import {
@@ -25,6 +17,10 @@ import {
   type NetGuidanceGraph,
   type RoutingGuide,
 } from "./routing-guidance.js";
+import {
+  buildDocumentDerivedContext,
+  type DocumentDerivedContext,
+} from "./document-derived-context.js";
 
 export interface VisibleConnectivityNode {
   key: string;
@@ -80,47 +76,19 @@ class DisjointSet {
  * and passing it through turns an all-nets sweep from quadratic (full
  * contact evidence and label bindings re-derived per net) into one pass.
  */
-export interface NetConnectivityContext {
-  routingGeometry: ResolvedDocumentRoutingGeometry;
-  contacts: ReturnType<typeof deriveDocumentContactEvidence>;
-  netLabelBindingsByNetId: ReadonlyMap<
-    string,
-    readonly ResolvedNetLabelBinding[]
-  >;
-}
+/** @deprecated Use DocumentDerivedContext for new shared consumers. */
+export type NetConnectivityContext = DocumentDerivedContext;
+
+const visibleConnectivityByContext = new WeakMap<
+  DocumentDerivedContext,
+  Map<string, VisibleNetConnectivity>
+>();
 
 export function deriveNetConnectivityContext(
   document: SchematicDocument,
   resolver: SymbolResolver,
 ): NetConnectivityContext {
-  const routingGeometry = resolveDocumentRoutingGeometry(document, resolver);
-  const netLabelBindingsByNetId = new Map<string, ResolvedNetLabelBinding[]>();
-  for (const annotation of document.annotations) {
-    const binding = resolveNetLabelBinding(
-      document,
-      resolver,
-      annotation,
-      routingGeometry,
-    );
-    if (!binding) continue;
-    const bindings = netLabelBindingsByNetId.get(binding.netId) ?? [];
-    bindings.push(binding);
-    netLabelBindingsByNetId.set(binding.netId, bindings);
-  }
-  for (const bindings of netLabelBindingsByNetId.values()) {
-    bindings.sort((left, right) =>
-      left.annotationId.localeCompare(right.annotationId, "en"),
-    );
-  }
-  return {
-    routingGeometry,
-    contacts: deriveDocumentContactEvidence(
-      document,
-      resolver,
-      routingGeometry,
-    ),
-    netLabelBindingsByNetId,
-  };
+  return buildDocumentDerivedContext(document, resolver);
 }
 
 export function deriveNetConnectivity(
@@ -129,8 +97,23 @@ export function deriveNetConnectivity(
   net: Net,
   context?: NetConnectivityContext,
 ): VisibleNetConnectivity {
+  if (
+    context &&
+    (context.documentId !== document.id ||
+      context.documentRevision !== document.revision)
+  ) {
+    throw new Error("Connectivity received a stale DocumentDerivedContext");
+  }
+  const contextCache = context
+    ? (visibleConnectivityByContext.get(context) ?? new Map())
+    : undefined;
+  if (context && !visibleConnectivityByContext.has(context)) {
+    visibleConnectivityByContext.set(context, contextCache!);
+  }
+  const cached = contextCache?.get(net.id);
+  if (cached) return cached;
   const endpoints = netEndpoints(document, net).filter((endpoint) =>
-    isVisibleEndpoint(document, resolver, endpoint),
+    isVisibleEndpoint(document, resolver, endpoint, context),
   );
   const nodes = new Map(
     endpoints.map((endpoint) => {
@@ -140,25 +123,29 @@ export function deriveNetConnectivity(
         {
           key,
           endpoint,
-          point: resolveEndpointPoint(document, resolver, endpoint),
+          point:
+            context?.endpointConnections.get(key)?.contactPoint ??
+            resolveEndpointPoint(document, resolver, endpoint, context),
         },
       ];
     }),
   );
   const sets = new DisjointSet();
   for (const key of nodes.keys()) sets.add(key);
-  for (const route of document.routes.filter(
-    (candidate) => candidate.netId === net.id,
-  )) {
+  const routesForNet =
+    context?.routesByNetId.get(net.id) ??
+    document.routes.filter((candidate) => candidate.netId === net.id);
+  for (const route of routesForNet) {
     const from = endpointKey(route.start);
     const to = endpointKey(routeEnd(route));
     if (nodes.has(from) && nodes.has(to)) sets.union(from, to);
   }
-  const contacts =
-    context?.contacts ?? deriveDocumentContactEvidence(document, resolver);
-  for (const contact of contacts.contacts.filter(
-    (candidate) => candidate.netId === net.id,
-  )) {
+  const contacts = context
+    ? (context.contactsByNetId.get(net.id) ?? [])
+    : deriveDocumentContactEvidence(document, resolver).contacts.filter(
+        (candidate) => candidate.netId === net.id,
+      );
+  for (const contact of contacts) {
     const keys = contact.endpoints
       .map(endpointKey)
       .filter((key) => nodes.has(key));
@@ -171,9 +158,11 @@ export function deriveNetConnectivity(
     ? (context.netLabelBindingsByNetId.get(net.id) ?? [])
     : resolveNetLabelBindings(document, resolver, net.id);
   for (const binding of netLabelBindings) {
-    const annotation = document.annotations.find(
-      (candidate) => candidate.id === binding.annotationId,
-    )!;
+    const annotation =
+      context?.annotationsById.get(binding.annotationId) ??
+      document.annotations.find(
+        (candidate) => candidate.id === binding.annotationId,
+      )!;
     const label = flattenRichText(
       resolveAnnotationText(document, annotation),
     ).trim();
@@ -183,7 +172,8 @@ export function deriveNetConnectivity(
     group.push(key);
     labeledEndpoints.set(label, group);
   }
-  for (const annotation of document.annotations) {
+  for (const annotation of context?.annotationsByNetId.get(net.id) ??
+    document.annotations) {
     if (annotation.kind !== "power-label" || annotation.netId !== net.id) {
       continue;
     }
@@ -218,19 +208,16 @@ export function deriveNetConnectivity(
       componentNodes.sort((left, right) =>
         left.key.localeCompare(right.key, "en"),
       );
+      const componentNodeKeys = new Set(componentNodes.map((node) => node.key));
       return {
         id: deriveStableId("component", net.id, componentNodes[0]!.key),
         netId: net.id,
         nodes: componentNodes,
-        routes: document.routes
+        routes: routesForNet
           .filter(
             (route) =>
-              route.netId === net.id &&
-              componentNodes.some(
-                (node) =>
-                  node.key === endpointKey(route.start) ||
-                  node.key === endpointKey(routeEnd(route)),
-              ),
+              componentNodeKeys.has(endpointKey(route.start)) ||
+              componentNodeKeys.has(endpointKey(routeEnd(route))),
           )
           .map((route) => route.id)
           .sort((left, right) => left.localeCompare(right, "en")),
@@ -239,35 +226,41 @@ export function deriveNetConnectivity(
     .sort((left, right) =>
       left.nodes[0]!.key.localeCompare(right.nodes[0]!.key, "en"),
     );
-  return { netId: net.id, components };
+  const result = { netId: net.id, components };
+  contextCache?.set(net.id, result);
+  return result;
 }
 
 export function deriveVisibleConnectivity(
   document: SchematicDocument,
   resolver: SymbolResolver,
 ): VisibleNetConnectivity[] {
+  const context = deriveNetConnectivityContext(document, resolver);
   return [...document.nets]
     .sort((left, right) => left.id.localeCompare(right.id, "en"))
-    .map((net) => deriveNetConnectivity(document, resolver, net));
+    .map((net) => deriveNetConnectivity(document, resolver, net, context));
 }
 
 function flightlineNodePriority(
   document: SchematicDocument,
   node: VisibleConnectivityNode,
+  context?: DocumentDerivedContext,
 ): number {
   if (node.endpoint.kind !== "junction") return 1;
   const junctionId = node.endpoint.junctionId;
-  const junction = document.junctions.find(
-    (candidate) => candidate.id === junctionId,
-  );
-  const degree = document.routes.filter((route) => {
-    const end = routeEnd(route);
-    return (
-      (route.start.kind === "junction" &&
-        route.start.junctionId === junctionId) ||
-      (end.kind === "junction" && end.junctionId === junctionId)
-    );
-  }).length;
+  const junction =
+    context?.junctionsById.get(junctionId) ??
+    document.junctions.find((candidate) => candidate.id === junctionId);
+  const degree = context
+    ? (context.routeDegreeByEndpointKey.get(endpointKey(node.endpoint)) ?? 0)
+    : document.routes.filter((route) => {
+        const end = routeEnd(route);
+        return (
+          (route.start.kind === "junction" &&
+            route.start.junctionId === junctionId) ||
+          (end.kind === "junction" && end.junctionId === junctionId)
+        );
+      }).length;
   return junction?.role === "route-anchor" && degree <= 1 ? 0 : 2;
 }
 
@@ -275,14 +268,15 @@ function guidanceGraphForNet(
   document: SchematicDocument,
   resolver: SymbolResolver,
   net: Net,
+  context?: DocumentDerivedContext,
 ): NetGuidanceGraph | null {
   // A named global Net is already an explicit semantic bridge. Multiple
   // Ground/VDD markers may intentionally have no visible trunk between them.
-  const logicalNet = resolveDocumentLogicalNets(document).byBaseNetId.get(
-    net.id,
-  );
+  const logicalNet = (
+    context?.logicalNetResolution ?? resolveDocumentLogicalNets(document)
+  ).byBaseNetId.get(net.id);
   if (logicalNet?.scope === "global" && logicalNet.name) return null;
-  const components = deriveNetConnectivity(document, resolver, net)
+  const components = deriveNetConnectivity(document, resolver, net, context)
     .components.map((component) => ({
       id: component.id,
       netId: net.id,
@@ -294,7 +288,7 @@ function guidanceGraphForNet(
                 key: node.key,
                 endpoint: node.endpoint,
                 point: node.point,
-                priority: flightlineNodePriority(document, node),
+                priority: flightlineNodePriority(document, node, context),
               },
             ],
       ),
@@ -308,9 +302,11 @@ function importedGuidanceGraph(
   resolver: SymbolResolver,
   sourceNetId: string,
   baseNetIds: readonly string[],
+  context?: DocumentDerivedContext,
 ): NetGuidanceGraph | null {
   const baseNetIdSet = new Set(baseNetIds);
-  const logicalNets = resolveDocumentLogicalNets(document);
+  const logicalNets =
+    context?.logicalNetResolution ?? resolveDocumentLogicalNets(document);
   const logicalGroups = new Map(
     baseNetIds.flatMap((baseNetId) => {
       const group = logicalNets.byBaseNetId.get(baseNetId);
@@ -329,7 +325,8 @@ function importedGuidanceGraph(
     .filter((net) => baseNetIdSet.has(net.id))
     .sort((left, right) => left.id.localeCompare(right.id, "en"))
     .flatMap(
-      (net) => guidanceGraphForNet(document, resolver, net)?.components ?? [],
+      (net) =>
+        guidanceGraphForNet(document, resolver, net, context)?.components ?? [],
     );
   const representativeNetId = baseNetIdSet.has(sourceNetId)
     ? sourceNetId
@@ -349,10 +346,11 @@ export function deriveFlightlines(
   document: SchematicDocument,
   resolver: SymbolResolver,
 ): Flightline[] {
+  const context = deriveNetConnectivityContext(document, resolver);
   return [...document.nets]
     .sort((left, right) => left.id.localeCompare(right.id, "en"))
     .flatMap((net) => {
-      const graph = guidanceGraphForNet(document, resolver, net);
+      const graph = guidanceGraphForNet(document, resolver, net, context);
       return graph ? deriveRoutingGuidance(graph) : [];
     });
 }
@@ -364,6 +362,7 @@ export function deriveFlightlines(
 export function deriveImportedRoutingGuidance(
   document: SchematicDocument,
   resolver: SymbolResolver,
+  context = deriveNetConnectivityContext(document, resolver),
 ): RoutingGuide[] {
   const baseNetIdsBySource = new Map<string, Set<string>>();
   for (const evidence of document.connectivityEvidence) {
@@ -375,9 +374,13 @@ export function deriveImportedRoutingGuidance(
   return [...baseNetIdsBySource]
     .sort(([left], [right]) => left.localeCompare(right, "en"))
     .flatMap(([sourceNetId, baseNetIds]) => {
-      const graph = importedGuidanceGraph(document, resolver, sourceNetId, [
-        ...baseNetIds,
-      ]);
+      const graph = importedGuidanceGraph(
+        document,
+        resolver,
+        sourceNetId,
+        [...baseNetIds],
+        context,
+      );
       return graph ? deriveRoutingGuidance(graph) : [];
     });
 }

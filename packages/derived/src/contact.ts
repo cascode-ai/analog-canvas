@@ -8,6 +8,8 @@ import {
   netEndpoints,
   resolveEndpointOutwardDirection,
   resolveEndpointPoint,
+  type EndpointConnection,
+  type EndpointObjectLookup,
 } from "./endpoint.js";
 import {
   resolveDocumentRoutingGeometry,
@@ -205,11 +207,12 @@ function contactIncidents(
   endpoints: readonly RouteEndpoint[],
   point: Point,
   geometry: ResolvedDocumentRoutingGeometry,
+  routesForNet: readonly SchematicDocument["routes"][number][],
+  endpointConnections?: ReadonlyMap<string, EndpointConnection>,
 ): ContactIncident[] {
   const incidents: ContactIncident[] = [];
   const explicitEndpointKeys = new Set(endpoints.map(endpointKey));
-  for (const route of document.routes) {
-    if (route.netId !== netId) continue;
+  for (const route of routesForNet) {
     const centerline = geometry.routes.get(route.id)?.centerline;
     if (!centerline) continue;
     const endpointDirections = routeEndpointDirections(
@@ -228,11 +231,9 @@ function contactIncidents(
   }
   for (const endpoint of endpoints) {
     if (endpoint.kind !== "terminal") continue;
-    const outward = resolveEndpointOutwardDirection(
-      document,
-      resolver,
-      endpoint,
-    );
+    const outward =
+      endpointConnections?.get(endpointKey(endpoint))?.outward ??
+      resolveEndpointOutwardDirection(document, resolver, endpoint);
     if (outward) {
       incidents.push({
         kind: "terminal",
@@ -257,14 +258,21 @@ function netContacts(
   resolver: SymbolResolver,
   net: Net,
   geometry: ResolvedDocumentRoutingGeometry,
+  routesForNet: readonly SchematicDocument["routes"][number][],
+  endpointConnections?: ReadonlyMap<string, EndpointConnection>,
+  endpointLookup?: EndpointObjectLookup,
 ): CoincidentContact[] {
   const grouped = new Map<
     string,
     Array<{ endpoint: RouteEndpoint; point: Point }>
   >();
   for (const endpoint of netEndpoints(document, net)) {
-    if (!isVisibleEndpoint(document, resolver, endpoint)) continue;
-    const point = resolveEndpointPoint(document, resolver, endpoint);
+    if (!isVisibleEndpoint(document, resolver, endpoint, endpointLookup)) {
+      continue;
+    }
+    const point =
+      endpointConnections?.get(endpointKey(endpoint))?.contactPoint ??
+      resolveEndpointPoint(document, resolver, endpoint, endpointLookup);
     if (!point) continue;
     const key = pointKey(point);
     grouped.set(key, [...(grouped.get(key) ?? []), { endpoint, point }]);
@@ -284,6 +292,8 @@ function netContacts(
         endpoints,
         point,
         geometry,
+        routesForNet,
+        endpointConnections,
       );
       const directions = new Map<string, Point>();
       for (const incident of incidents) {
@@ -335,10 +345,39 @@ export function deriveDocumentContactEvidence(
   document: SchematicDocument,
   resolver: SymbolResolver,
   routingGeometry = resolveDocumentRoutingGeometry(document, resolver),
+  options: {
+    routesByNetId?: ReadonlyMap<
+      string,
+      readonly SchematicDocument["routes"][number][]
+    >;
+    endpointConnections?: ReadonlyMap<string, EndpointConnection>;
+    endpointLookup?: EndpointObjectLookup;
+  } = {},
 ): DocumentContactEvidence {
+  const routesByNetId =
+    options.routesByNetId ??
+    (() => {
+      const grouped = new Map<string, SchematicDocument["routes"][number][]>();
+      for (const route of document.routes) {
+        const routes = grouped.get(route.netId) ?? [];
+        routes.push(route);
+        grouped.set(route.netId, routes);
+      }
+      return grouped;
+    })();
   const contacts = [...document.nets]
     .sort((left, right) => left.id.localeCompare(right.id, "en"))
-    .flatMap((net) => netContacts(document, resolver, net, routingGeometry));
+    .flatMap((net) =>
+      netContacts(
+        document,
+        resolver,
+        net,
+        routingGeometry,
+        routesByNetId.get(net.id) ?? [],
+        options.endpointConnections,
+        options.endpointLookup,
+      ),
+    );
   const byEndpointKey = new Map<string, CoincidentContact>();
   for (const contact of contacts) {
     for (const endpoint of contact.endpoints) {
