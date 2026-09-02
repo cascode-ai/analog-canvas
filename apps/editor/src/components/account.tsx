@@ -34,20 +34,45 @@ const NO_PROVIDERS: AuthProviders = {
   email: false,
 };
 
+const SESSION_CACHE_MS = 30_000;
+const sessionRequests = new WeakMap<
+  typeof fetch,
+  { expiresAt: number; request: Promise<SessionUser | null> }
+>();
+
+function cacheSessionUser(
+  fetchLike: typeof fetch,
+  user: SessionUser | null,
+): void {
+  sessionRequests.set(fetchLike, {
+    expiresAt: Date.now() + SESSION_CACHE_MS,
+    request: Promise.resolve(user),
+  });
+}
+
 /** The signed-in user, or null (also on any failure). */
 export async function fetchSessionUser(
   fetchLike: typeof fetch = fetch,
 ): Promise<SessionUser | null> {
-  try {
-    const response = await fetchLike("/api/auth/me", {
-      credentials: "same-origin",
-    });
-    if (!response.ok) return null;
-    const payload = (await response.json()) as { user?: SessionUser | null };
-    return payload.user ?? null;
-  } catch {
-    return null;
-  }
+  const cached = sessionRequests.get(fetchLike);
+  if (cached && cached.expiresAt > Date.now()) return cached.request;
+  const request = (async (): Promise<SessionUser | null> => {
+    try {
+      const response = await fetchLike("/api/auth/me", {
+        credentials: "same-origin",
+      });
+      if (!response.ok) return null;
+      const payload = (await response.json()) as { user?: SessionUser | null };
+      return payload.user ?? null;
+    } catch {
+      return null;
+    }
+  })();
+  sessionRequests.set(fetchLike, {
+    expiresAt: Date.now() + SESSION_CACHE_MS,
+    request,
+  });
+  return request;
 }
 
 /** Providers plus session; a dark or unreachable worker reads as no-auth. */
@@ -298,13 +323,17 @@ export function AccountMenu() {
       }}
       onRename={(displayName) => {
         void renameAccount(displayName).then((user) => {
-          if (user) setState({ providers: state.providers, user });
+          if (user) {
+            setState({ providers: state.providers, user });
+            cacheSessionUser(fetch, user);
+          }
         });
       }}
       onSignOut={() => {
-        void signOut().then(() =>
-          setState({ providers: state.providers, user: null }),
-        );
+        void signOut().then(() => {
+          setState({ providers: state.providers, user: null });
+          cacheSessionUser(fetch, null);
+        });
       }}
     />
   );

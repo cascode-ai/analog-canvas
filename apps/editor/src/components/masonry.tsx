@@ -30,6 +30,31 @@ export function shortestColumn(heights: readonly number[]): number {
   return column;
 }
 
+/** Collapse any number of observer notifications into one animation frame. */
+export function createFrameCoalescer(
+  callback: () => void,
+  requestFrame: (
+    callback: FrameRequestCallback,
+  ) => number = requestAnimationFrame,
+  cancelFrame: (handle: number) => void = cancelAnimationFrame,
+): { schedule: () => void; cancel: () => void } {
+  let frame: number | null = null;
+  return {
+    schedule() {
+      if (frame !== null) return;
+      frame = requestFrame(() => {
+        frame = null;
+        callback();
+      });
+    },
+    cancel() {
+      if (frame === null) return;
+      cancelFrame(frame);
+      frame = null;
+    },
+  };
+}
+
 export interface MasonryItem {
   key: string;
   node: ReactNode;
@@ -62,20 +87,38 @@ export function Masonry({
       const count = masonryColumnCount(width, minColumnWidth, gap);
       const columnWidth = (width - gap * (count - 1)) / count;
       const heights = new Array<number>(count).fill(0);
+      const widthStyle = `${columnWidth}px`;
+      // Write every width before measuring any height. This produces one
+      // layout flush instead of alternating N writes with N reads.
       for (const tile of tiles) {
-        tile.style.width = `${columnWidth}px`;
-        const height = tile.offsetHeight;
-        const column = shortestColumn(heights);
-        tile.style.transform = `translate(${column * (columnWidth + gap)}px, ${heights[column]}px)`;
-        heights[column] = heights[column]! + height + gap;
+        if (tile.style.width !== widthStyle) tile.style.width = widthStyle;
       }
-      container.style.height = `${Math.max(0, Math.max(...heights) - gap)}px`;
+      const tileHeights = tiles.map((tile) => tile.offsetHeight);
+      const placements = tileHeights.map((height) => {
+        const column = shortestColumn(heights);
+        const transform = `translate(${column * (columnWidth + gap)}px, ${heights[column]}px)`;
+        heights[column] = heights[column]! + height + gap;
+        return transform;
+      });
+      for (const [index, tile] of tiles.entries()) {
+        const transform = placements[index]!;
+        if (tile.style.transform !== transform)
+          tile.style.transform = transform;
+      }
+      const heightStyle = `${Math.max(0, Math.max(...heights) - gap)}px`;
+      if (container.style.height !== heightStyle) {
+        container.style.height = heightStyle;
+      }
     };
-    const observer = new ResizeObserver(relayout);
+    const coalescer = createFrameCoalescer(relayout);
+    const observer = new ResizeObserver(coalescer.schedule);
     observer.observe(container);
     for (const child of container.children) observer.observe(child);
     relayout();
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      coalescer.cancel();
+    };
   }, [items, minColumnWidth, gap]);
 
   return (

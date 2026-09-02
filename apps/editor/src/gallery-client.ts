@@ -166,6 +166,9 @@ export interface GalleryFeedEntry {
   createdAt: string;
   /** Absent only while a newer client is rolling out against an older API. */
   previewRevision?: string;
+  /** Intrinsic SVG viewBox size, used to reserve the tile before image load. */
+  previewWidth?: number;
+  previewHeight?: number;
   schemaVersion: number;
   tags?: string[];
   /**

@@ -2,7 +2,11 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { AccountMenuView, type AccountState } from "./account";
+import {
+  AccountMenuView,
+  fetchSessionUser,
+  type AccountState,
+} from "./account";
 
 function markupFor(state: AccountState, notice: string | null = null): string {
   return renderToStaticMarkup(
@@ -58,5 +62,24 @@ describe("AccountMenuView", () => {
     expect(markup).toContain('data-testid="account-owner"');
     expect(markup).toContain('data-testid="account-signout"');
     expect(markup).not.toContain("account-signin");
+  });
+});
+
+describe("fetchSessionUser", () => {
+  it("coalesces concurrent and nearby consumers onto one session request", async () => {
+    let requests = 0;
+    const fetchLike = (async () => {
+      requests += 1;
+      return new Response(JSON.stringify({ user: null }), { status: 200 });
+    }) as typeof fetch;
+
+    const [first, second] = await Promise.all([
+      fetchSessionUser(fetchLike),
+      fetchSessionUser(fetchLike),
+    ]);
+    const third = await fetchSessionUser(fetchLike);
+
+    expect([first, second, third]).toEqual([null, null, null]);
+    expect(requests).toBe(1);
   });
 });

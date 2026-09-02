@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { masonryColumnCount, shortestColumn } from "./masonry";
+import {
+  createFrameCoalescer,
+  masonryColumnCount,
+  shortestColumn,
+} from "./masonry";
 
 describe("masonryColumnCount", () => {
   it("fits as many min-width columns as the container allows", () => {
@@ -37,5 +41,38 @@ describe("shortestColumn", () => {
     // Three tiles fill the top row in order; the fourth lands under the
     // shortest (the first, 120-tall) column.
     expect(placed).toEqual([0, 1, 2, 0]);
+  });
+});
+
+describe("createFrameCoalescer", () => {
+  it("runs one layout for a burst and cancels queued work on cleanup", () => {
+    const frames = new Map<number, FrameRequestCallback>();
+    let nextFrame = 0;
+    let layouts = 0;
+    const coalescer = createFrameCoalescer(
+      () => {
+        layouts += 1;
+      },
+      (callback) => {
+        nextFrame += 1;
+        frames.set(nextFrame, callback);
+        return nextFrame;
+      },
+      (handle) => {
+        frames.delete(handle);
+      },
+    );
+
+    coalescer.schedule();
+    coalescer.schedule();
+    coalescer.schedule();
+    expect(frames.size).toBe(1);
+    frames.get(1)!(0);
+    expect(layouts).toBe(1);
+
+    coalescer.schedule();
+    expect(frames.has(2)).toBe(true);
+    coalescer.cancel();
+    expect(frames.has(2)).toBe(false);
   });
 });

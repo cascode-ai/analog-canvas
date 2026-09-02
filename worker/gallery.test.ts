@@ -18,6 +18,7 @@ import {
   routeGalleryRequest,
   SHORT_ID_LENGTH,
   shortId,
+  svgPreviewDimensions,
   type GalleryEnv,
   type GalleryPreviewCache,
 } from "./gallery";
@@ -203,6 +204,18 @@ function memoryPreviewCache(): GalleryPreviewCache & {
   };
 }
 
+describe("svgPreviewDimensions", () => {
+  it("reads a positive SVG viewBox and rejects incomplete geometry", () => {
+    expect(
+      svgPreviewDimensions(
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="-20 10 640 360"></svg>',
+      ),
+    ).toEqual({ width: 640, height: 360 });
+    expect(svgPreviewDimensions('<svg viewBox="0 0 20 0"></svg>')).toBeNull();
+    expect(svgPreviewDimensions("<svg></svg>")).toBeNull();
+  });
+});
+
 function cookieHeaders(cookie: string): HeadersInit {
   return { Cookie: cookie };
 }
@@ -246,6 +259,39 @@ async function submitOne(
 }
 
 describe("gallery data migrations", () => {
+  it("backfills intrinsic preview dimensions for existing entries once", () => {
+    const state = sqliteState();
+    new GalleryDO(state);
+    state.storage.sql.exec(
+      `INSERT INTO gallery_entries
+       (id, name, author, description, created_at, schema_version, status,
+        project_text, svg_text)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      "legacy-preview",
+      "Legacy preview",
+      "Author",
+      "",
+      "2026-08-01T00:00:00.000Z",
+      CURRENT_PROJECT_SCHEMA_VERSION,
+      "public",
+      projectText("Legacy preview"),
+      '<svg viewBox="-10 -20 320 180"></svg>',
+    );
+    state.storage.sql.exec(
+      "DELETE FROM data_migrations WHERE id LIKE '%preview-dimensions%'",
+    );
+
+    new GalleryDO(state);
+    expect(
+      state.storage.sql
+        .exec<{ preview_width: number; preview_height: number }>(
+          `SELECT preview_width, preview_height FROM gallery_entries
+           WHERE id = 'legacy-preview'`,
+        )
+        .one(),
+    ).toEqual({ preview_width: 320, preview_height: 180 });
+  });
+
   it("renames tokenzhang across entries and restorable versions once", () => {
     const state = sqliteState();
     new GalleryDO(state);
@@ -944,6 +990,8 @@ describe("gallery submissions", () => {
         id: string;
         name: string;
         previewRevision: string;
+        previewWidth: number;
+        previewHeight: number;
         schemaVersion: number;
       }[];
     };
@@ -953,6 +1001,8 @@ describe("gallery submissions", () => {
       schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
     });
     expect(listed.entries[0]!.previewRevision).toMatch(/^[a-f0-9]{64}$/u);
+    expect(listed.entries[0]!.previewWidth).toBeGreaterThan(0);
+    expect(listed.entries[0]!.previewHeight).toBeGreaterThan(0);
 
     const detail = await route(env, new Request(`${ORIGIN}/api/gallery/${id}`));
     const payload = (await detail.json()) as { projectText: string };
