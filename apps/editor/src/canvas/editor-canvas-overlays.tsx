@@ -29,6 +29,7 @@ export function CanvasGridOverlay({
       </defs>
       <rect
         data-testid="canvas-grid-dots"
+        data-camera-bounds="true"
         x={viewBox.x}
         y={viewBox.y}
         width={viewBox.width}
@@ -55,6 +56,7 @@ export function CanvasInputPlanes({
       {tool === "wire" ? (
         <rect
           data-testid="wire-input-plane"
+          data-camera-bounds="true"
           className="wire-input-plane"
           x={viewBox.x}
           y={viewBox.y}
@@ -69,6 +71,7 @@ export function CanvasInputPlanes({
               ? "copy-placement-input-plane"
               : "component-input-plane"
           }
+          data-camera-bounds="true"
           className="component-input-plane"
           x={viewBox.x}
           y={viewBox.y}

@@ -60,8 +60,11 @@ export interface CanvasGestureControllerDependencies {
   viewport: {
     defaultViewBox: GridRect;
     contentBounds: GridRect | null | undefined;
-    viewBox: GridRect;
+    getViewBox: () => GridRect;
     setViewBox: SetViewBox;
+    scheduleViewBox: SetViewBox;
+    flushViewBox: () => void;
+    measureSurface: (element: SVGSVGElement, refresh?: boolean) => DOMRect;
     pointFromClient: (
       clientX: number,
       clientY: number,
@@ -207,8 +210,11 @@ export function createCanvasGestureController({
   viewport: {
     defaultViewBox,
     contentBounds,
-    viewBox,
+    getViewBox,
     setViewBox,
+    scheduleViewBox,
+    flushViewBox,
+    measureSurface,
     pointFromClient,
     rawPointFromClient,
     logicalRadiusForPixels,
@@ -310,13 +316,13 @@ export function createCanvasGestureController({
     clientY: number,
     element: SVGSVGElement,
   ): void => {
-    const bounds = element.getBoundingClientRect();
+    const bounds = measureSurface(element);
     if (bounds.width <= 0 || bounds.height <= 0) return;
     const anchor = {
       x: (clientX - bounds.left) / bounds.width,
       y: (clientY - bounds.top) / bounds.height,
     };
-    setViewBox((current) => zoomCameraAtAnchor(current, factor, anchor));
+    scheduleViewBox((current) => zoomCameraAtAnchor(current, factor, anchor));
   };
 
   // Wheel map by device. A trackpad two-finger scroll pans in every
@@ -327,7 +333,7 @@ export function createCanvasGestureController({
   // and history-swipe navigation.
   const handleWheel = (event: WheelEvent, element: SVGSVGElement): void => {
     event.preventDefault();
-    const bounds = element.getBoundingClientRect();
+    const bounds = measureSurface(element);
     if (bounds.width <= 0 || bounds.height <= 0) return;
     const unit =
       event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? bounds.height : 1;
@@ -358,7 +364,7 @@ export function createCanvasGestureController({
     if (!trackpad) {
       if (event.shiftKey) {
         if (deltaY === 0) return;
-        setViewBox((current) => ({
+        scheduleViewBox((current) => ({
           ...current,
           x: current.x + (deltaY * current.width) / bounds.width,
         }));
@@ -376,7 +382,7 @@ export function createCanvasGestureController({
     const panX = event.shiftKey && deltaX === 0 ? deltaY : deltaX;
     const panY = event.shiftKey && deltaX === 0 ? 0 : deltaY;
     if (panX === 0 && panY === 0) return;
-    setViewBox((current) => ({
+    scheduleViewBox((current) => ({
       ...current,
       x: current.x + (panX * current.width) / bounds.width,
       y: current.y + (panY * current.height) / bounds.height,
@@ -414,9 +420,10 @@ export function createCanvasGestureController({
     if (gesture === "pan") {
       event.preventDefault();
       event.currentTarget.setPointerCapture(event.pointerId);
+      measureSurface(event.currentTarget, true);
       setPanPreview({
         clientStart: { x: event.clientX, y: event.clientY },
-        viewBoxStart: viewBox,
+        viewBoxStart: getViewBox(),
         pointerId: event.pointerId,
         dragged: false,
       });
@@ -470,12 +477,12 @@ export function createCanvasGestureController({
       const update = updateCanvasPan(
         panPreview,
         { x: event.clientX, y: event.clientY },
-        event.currentTarget.getBoundingClientRect(),
+        measureSurface(event.currentTarget),
         PAN_START_DISTANCE_PX,
       );
       if (!update) return;
       if (update.preview !== panPreview) setPanPreview(update.preview);
-      setViewBox(update.viewBox);
+      scheduleViewBox(update.viewBox);
       return;
     }
     const point = pointFromClient(
@@ -574,6 +581,7 @@ export function createCanvasGestureController({
     if (completeCellSymbolLayoutDrag(event)) return;
     if (panPreview?.pointerId === event.pointerId) {
       event.currentTarget.releasePointerCapture(event.pointerId);
+      flushViewBox();
       if (!panPreview.dragged && getInteractionKind() === "wire") {
         cycleWireCornerShape();
       }
