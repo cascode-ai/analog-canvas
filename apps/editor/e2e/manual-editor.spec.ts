@@ -4641,7 +4641,7 @@ test("selects a reviewed SKY130 MOS through the existing Model field", async ({
   await expect(properties).toContainText(
     "External subcircuit · SPICE emits an X card",
   );
-  await expect(properties.getByLabel("Component reference")).toHaveValue("M1");
+  await expect(properties.getByLabel("Component reference")).toHaveValue("XM1");
   await expect(properties.getByLabel("Component nf")).toBeVisible();
   await expect(
     properties.getByLabel("Component m", { exact: true }),
@@ -4649,6 +4649,7 @@ test("selects a reviewed SKY130 MOS through the existing Model field", async ({
 
   await model.selectOption("");
   await expect(model).toHaveValue("");
+  await expect(properties.getByLabel("Component reference")).toHaveValue("M1");
   await expect(properties).not.toContainText(
     "External subcircuit · SPICE emits an X card",
   );
@@ -4658,11 +4659,13 @@ test("selects a reviewed SKY130 MOS through the existing Model field", async ({
   await customModel.fill("generic_nmos");
   await customModel.press("Enter");
   await expect(customModel).toHaveValue("generic_nmos");
+  await expect(properties.getByLabel("Component reference")).toHaveValue("M1");
 
   await model.selectOption("sky130_fd_pr__nfet_01v8");
   await expect(properties).toContainText(
     "External subcircuit · SPICE emits an X card",
   );
+  await expect(properties.getByLabel("Component reference")).toHaveValue("XM1");
 
   const saved = JSON.parse(
     (await downloadBytes(page, "File", "Export Project File…")).toString(
@@ -4683,7 +4686,7 @@ test("selects a reviewed SKY130 MOS through the existing Model field", async ({
   expect(saved.documents[0].instances[0]).toMatchObject({
     id: "M1",
     symbolId: "nmos",
-    reference: "M1",
+    reference: "XM1",
     netlist: {
       parameters: { w: "1u", l: "150n", nf: "1", m: "1" },
       binding: { kind: "external-subcircuit" },
@@ -4697,12 +4700,16 @@ for (const fixture of [
     model: "sky130_fd_pr__res_high_po",
     externalParameter: "Component mult",
     primitiveParameter: "Component value",
+    nativeReference: "R1",
+    externalReference: "XR1",
   },
   {
     symbolId: "capacitor",
     model: "sky130_fd_pr__cap_mim_m3_1",
     externalParameter: "Component mf",
     primitiveParameter: "Component value",
+    nativeReference: "C1",
+    externalReference: "XC1",
   },
 ] as const) {
   test(`switches ${fixture.symbolId} Model parameters immediately and clears through None`, async ({
@@ -4719,6 +4726,9 @@ for (const fixture of [
     });
 
     await model.selectOption(fixture.model);
+    await expect(properties.getByLabel("Component reference")).toHaveValue(
+      fixture.externalReference,
+    );
     await expect(
       properties.getByLabel(fixture.externalParameter),
     ).toBeVisible();
@@ -4728,6 +4738,9 @@ for (const fixture of [
 
     await model.selectOption("");
     await expect(model).toHaveValue("");
+    await expect(properties.getByLabel("Component reference")).toHaveValue(
+      fixture.nativeReference,
+    );
     await expect(
       properties.getByLabel(fixture.primitiveParameter),
     ).toBeVisible();

@@ -35,7 +35,6 @@ import {
   type NetlistFormat,
   type NetlistNamingProfile,
 } from "./net-name-codec.js";
-import { spiceEmittedReference } from "./emitted-reference.js";
 
 const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/u;
 const MAX_CELLS = 1024;
@@ -1237,25 +1236,6 @@ function extractCell(
             )
           : extractDeviceInstance(document, instance, context, diagnostics);
     if (extracted) instances.push(extracted);
-  }
-  if (options.format === "spice") {
-    const byEmittedReference = new Map<string, DesignNetlistInstance>();
-    for (const instance of instances) {
-      const emitted = spiceEmittedReference(instance);
-      const folded = emitted.toLowerCase();
-      const prior = byEmittedReference.get(folded);
-      if (prior) {
-        diagnostic(
-          diagnostics,
-          document.id,
-          "DUPLICATE_EMITTED_INSTANCE_REFERENCE",
-          `Authored references ${prior.reference} and ${instance.reference} both emit as ${emitted}`,
-          [prior.id, instance.id],
-        );
-      } else {
-        byEmittedReference.set(folded, instance);
-      }
-    }
   }
   return {
     id: document.id,

@@ -29,8 +29,6 @@ export interface ReviewedExternalDeviceBinding {
   readonly invocationKind: "external-subcircuit";
   readonly symbolId: "nmos" | "pmos" | "resistor" | "capacitor";
   readonly deviceClass: "mos" | "resistor" | "capacitor";
-  readonly authoredReferencePrefix: "M" | "R" | "C";
-  readonly spiceCardPrefix: "X";
   readonly terminals: readonly ReviewedExternalTerminalBinding[];
   readonly parameters: readonly ReviewedExternalParameterBinding[];
 }
@@ -70,6 +68,7 @@ const count = (
   defaultValue: "1",
   help,
   displayRole: name === "nf" ? "finger-count" : "multiplier",
+  targetDefaultValue: "1",
   spiceOrder,
 });
 
@@ -82,8 +81,6 @@ export const reviewedExternalDeviceBindings: readonly ReviewedExternalDeviceBind
       invocationKind: "external-subcircuit",
       symbolId: "nmos",
       deviceClass: "mos",
-      authoredReferencePrefix: "M",
-      spiceCardPrefix: "X",
       terminals: ["D", "G", "S", "B"].map((name) => ({
         targetName: name,
         pinName: name,
@@ -103,8 +100,6 @@ export const reviewedExternalDeviceBindings: readonly ReviewedExternalDeviceBind
       invocationKind: "external-subcircuit",
       symbolId: "pmos",
       deviceClass: "mos",
-      authoredReferencePrefix: "M",
-      spiceCardPrefix: "X",
       terminals: ["D", "G", "S", "B"].map((name) => ({
         targetName: name,
         pinName: name,
@@ -124,8 +119,6 @@ export const reviewedExternalDeviceBindings: readonly ReviewedExternalDeviceBind
       invocationKind: "external-subcircuit",
       symbolId: "resistor",
       deviceClass: "resistor",
-      authoredReferencePrefix: "R",
-      spiceCardPrefix: "X",
       terminals: [
         { targetName: "R0", pinName: "1", interaction: "canvas" },
         { targetName: "R1", pinName: "2", interaction: "canvas" },
@@ -149,8 +142,6 @@ export const reviewedExternalDeviceBindings: readonly ReviewedExternalDeviceBind
       invocationKind: "external-subcircuit",
       symbolId: "capacitor",
       deviceClass: "capacitor",
-      authoredReferencePrefix: "C",
-      spiceCardPrefix: "X",
       terminals: [
         { targetName: "C0", pinName: "1", interaction: "canvas" },
         { targetName: "C1", pinName: "2", interaction: "canvas" },

@@ -436,7 +436,7 @@ describe("reviewed external MOS model targets", () => {
     return project;
   }
 
-  it("creates a SKY130 interface while preserving the authored M reference", () => {
+  it("creates a SKY130 interface and atomically adopts its ngspice X reference", () => {
     const project = projectWithNmos();
     const edits = planSetMosModelTarget(
       project,
@@ -458,10 +458,16 @@ describe("reviewed external MOS model targets", () => {
     expect(result.project.externalSubcircuitDefinitions[0]).toMatchObject({
       name: "sky130_fd_pr__nfet_01v8",
       terminals: [{ name: "D" }, { name: "G" }, { name: "S" }, { name: "B" }],
+      formalParameters: [
+        { name: "w", defaultValue: "1" },
+        { name: "l", defaultValue: "0.15" },
+        { name: "nf", defaultValue: "1" },
+        { name: "m", defaultValue: "1" },
+      ],
     });
     expect(instance).toMatchObject({
       symbolId: "nmos",
-      reference: "M1",
+      reference: "XM1",
       netlist: {
         parameters: { w: "2u", l: "150n", m: "2" },
         binding: { kind: "external-subcircuit" },
@@ -618,7 +624,7 @@ describe("reviewed external MOS model targets", () => {
       if (!result.ok) continue;
       expect(result.project.documents[0]!.instances[0]).toMatchObject({
         symbolId: fixture.symbolId,
-        reference: fixture.reference,
+        reference: `X${fixture.reference}`,
         netlist: {
           binding: { kind: "external-subcircuit" },
           parameters: fixture.parameters,
@@ -630,5 +636,25 @@ describe("reviewed external MOS model targets", () => {
         ),
       ).toEqual(fixture.terminalNames);
     }
+  });
+
+  it("refuses a Model transition when its canonical X reference is occupied", () => {
+    const project = projectWithNmos();
+    project.documents[0]!.instances.push({
+      id: "existing-external",
+      symbolId: "external-symbol",
+      placement: null,
+      reference: "XM1",
+      netlist: { parameters: {} },
+    });
+
+    expect(() =>
+      planSetMosModelTarget(
+        project,
+        project.topDocumentId,
+        "M1",
+        "sky130_fd_pr__nfet_01v8",
+      ),
+    ).toThrow(/Reference XM1 is already used/u);
   });
 });

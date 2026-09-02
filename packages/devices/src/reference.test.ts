@@ -43,6 +43,27 @@ describe("ReferencePolicy and ReferenceIndex", () => {
     ).toBe("M2");
   });
 
+  it("uses the ngspice X sequence for every external-subcircuit call", () => {
+    const document = createEmptyDocument("main", "Main");
+    document.instances.push({
+      id: "reviewed-mos",
+      symbolId: "nmos",
+      placement: null,
+      reference: "XM1",
+      netlist: {
+        binding: {
+          kind: "external-subcircuit",
+          definitionId: "sky-nfet",
+        },
+        parameters: {},
+      },
+    });
+    const policy = referencePolicyForInstance(document.instances[0]!);
+    expect(policy).toEqual({ kind: "required", prefix: "X" });
+    expect(nextReference(createReferenceIndex(document), policy)).toBe("X1");
+    expect(createReferenceIndex(document).issues).toEqual([]);
+  });
+
   // All three switches designate `S`, so they draw from one sequence: the
   // index is keyed by prefix, not by device, and the next free suffix skips
   // whatever the other two already occupy. A sheet numbers its switches S1,

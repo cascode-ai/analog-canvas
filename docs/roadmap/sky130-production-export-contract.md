@@ -2,6 +2,13 @@
 
 Status: `implemented; full-delivery validation complete on codex/sky130-production-export-contract`
 
+Superseding decision (2026-09-02): while ngspice is the sole simulation
+target, `Instance.reference` stores the exact card designator. Reviewed
+external calls therefore persist `XM1/XR1/XC1`, Model changes update Reference
+atomically, and the authored/emitted-reference separation described below is
+historical rather than current normative behavior. Current authority lives in
+`docs/specs/schematic-model.md` and `docs/specs/netlist-export.md`.
+
 Primary owners: `packages/devices`, `packages/edit-engine`,
 `packages/project-protocol`, `packages/netlist`, `packages/spice`,
 `packages/symbols`, `apps/editor`

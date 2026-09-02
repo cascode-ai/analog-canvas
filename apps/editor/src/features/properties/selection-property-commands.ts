@@ -150,7 +150,7 @@ export function createSelectionPropertyCommands({
             : undefined;
           setStatus(
             reviewed
-              ? `Set reviewed external target ${target}; authored Reference is unchanged`
+              ? `Set reviewed external target ${target} and its X Reference`
               : target
                 ? `Set model target ${target}`
                 : `Cleared model target for ${selectedInstance.id}`,

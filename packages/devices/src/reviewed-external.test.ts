@@ -49,5 +49,18 @@ describe("reviewed external device bindings", () => {
         "sky130_fd_pr__nfet_01v8",
       )?.parameters.map((parameter) => parameter.name),
     ).toEqual(["w", "l", "nf", "m"]);
+    expect(
+      reviewedExternalBindingForMaster(
+        "sky130_fd_pr__nfet_01v8",
+      )?.parameters.map((parameter) => [
+        parameter.name,
+        parameter.targetDefaultValue,
+      ]),
+    ).toEqual([
+      ["w", "1"],
+      ["l", "0.15"],
+      ["nf", "1"],
+      ["m", "1"],
+    ]);
   });
 });

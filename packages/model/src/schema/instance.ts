@@ -144,7 +144,8 @@ export const InstanceSchema = z
     /**
      * The sole authored Instance reference. It is the ordinary canvas
      * designator and, for an emitting Instance, the emitted SPICE/Spectre
-     * reference. It is never an object identity or a master/model name.
+     * reference. Its prefix is the ngspice invocation designator; it is never
+     * an object identity or a master/model name.
      */
     reference: NetlistIdentifierSchema.optional(),
     netlist: InstanceNetlistDataSchema.optional(),

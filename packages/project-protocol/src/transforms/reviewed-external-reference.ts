@@ -56,11 +56,14 @@ export function repairLegacyReviewedExternalReferences(
         continue;
       }
       const reviewed = definitions.get(instance.netlist.binding.definitionId);
-      const suffix = /^x(\d+)$/iu.exec(instance.reference)?.[1];
-      if (!reviewed || reviewed.symbolId !== instance.symbolId || !suffix) {
+      if (
+        !reviewed ||
+        reviewed.symbolId !== instance.symbolId ||
+        instance.reference.toUpperCase().startsWith("X")
+      ) {
         continue;
       }
-      const candidate = `${reviewed.authoredReferencePrefix}${suffix}`;
+      const candidate = `X${instance.reference}`;
       if (occupied.has(candidate.toLowerCase())) continue;
       occupied.delete(instance.reference.toLowerCase());
       occupied.add(candidate.toLowerCase());

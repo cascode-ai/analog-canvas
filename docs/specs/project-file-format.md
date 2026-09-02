@@ -40,9 +40,11 @@ schema 36; versions older than 24 or newer than 36 are rejected.
   terminals, raw formal defaults, interface status and optional block
   presentation. It has no internal Document body.
 - `Instance.reference` is the sole authored Reference for an ordinary
-  referenced Instance and is both displayed and emitted. Cell Pins use
-  `CellTerminal.name` and never display a `P#` reference. `Instance.netlist`
-  contains only binding and typed parameter values for emitting Instances.
+  referenced Instance and is both displayed and emitted. Its stored prefix is
+  the ngspice invocation designator, including `X` for external subcircuit
+  calls. Cell Pins use `CellTerminal.name` and never display a `P#` reference.
+  `Instance.netlist` contains only binding and typed parameter values for
+  emitting Instances.
   Import source
   order and symbol-mapping registry identity live in
   `Instance.importProvenance`; there is no persisted property bag.

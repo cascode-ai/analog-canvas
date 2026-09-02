@@ -133,12 +133,12 @@ stable local pins with different names. The released SKY130 resistor maps
 only in Properties and never a Symbol pin, Route endpoint, or NoConnect. The
 reviewed MIM capacitor maps `C0/C1` from the frozen capacitor pins `1/2`.
 
-`Instance.reference` remains the authored designator (`M1`, `R1`, or `C1`).
-SPICE derives `XM1`, `XR1`, or `XC1` from external invocation kind; an already
-X-prefixed imported call is retained. Derived identifiers are checked
-case-insensitively for collisions before output. Reviewed SKY130 `l/w` values
-are stored canonically as metre-valued SPICE strings and projected to plain
-micrometre numbers only for SPICE/ngspice export.
+`Instance.reference` is the exact ngspice designator. Selecting a reviewed
+external target atomically changes `M1/R1/C1` to `XM1/XR1/XC1`; clearing that
+target restores the native prefix. Imported X calls are retained unchanged,
+and all References remain case-insensitively unique before output. Reviewed
+SKY130 `l/w` values are stored canonically as metre-valued SPICE strings and
+projected to plain micrometre numbers only for SPICE/ngspice export.
 
 External-master parameters are deliberately open: declared formal parameters
 provide authoring metadata, requiredness, and defaults, while additional raw
