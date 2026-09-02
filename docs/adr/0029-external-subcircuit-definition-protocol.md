@@ -22,8 +22,11 @@ project unable to author its first external call.
 non-emitting external master. A definition has a stable ID, master name,
 ordered stable terminals, raw formal parameter defaults, interface status and
 optional block presentation. Its array order is the SPICE node order. An
-Instance binds it with `{ kind: "external-subcircuit", definitionId }`, must
-receive an `X` reference, and owns raw parameter overrides and connectivity.
+Instance binds it with `{ kind: "external-subcircuit", definitionId }` and
+owns raw parameter overrides and connectivity. Generic block instances use an
+authored `X` reference. A reviewed native device retains its native authored
+reference domain (`M`, `R`, or `C`); SPICE derives the X-card designator from
+the binding without rewriting the Project reference.
 
 The external symbol is derived from the immutable definition ID and exists for
 every definition, including an unreferenced manually-created one. Renaming a
@@ -37,6 +40,11 @@ definition. PDK or library mappings may later change presentation, but cannot
 change this binding into a model or primitive. This decision deliberately does
 not add simulator model resolution, PDK installation, process corners or
 external `.subckt` body generation.
+
+One exact reviewed binding authority may map a public target interface onto
+stable native pins. This is not inferred from a family prefix: the master name
+and ordered target terminals must both match. Property-only terminals remain
+ordinary Net membership but are excluded from canvas routing.
 
 ## Validation
 

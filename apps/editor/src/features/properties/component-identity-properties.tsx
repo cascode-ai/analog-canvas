@@ -69,6 +69,7 @@ export function ComponentIdentityProperties({
   portNet,
   targetDescription,
   capacitorPlateRows,
+  propertyTerminal,
   modelTarget,
   onMarkerNameChange,
   onReferenceChange,
@@ -81,6 +82,13 @@ export function ComponentIdentityProperties({
   portNet: { id: string; logicalName: string; supply: boolean } | null;
   targetDescription: string | null;
   capacitorPlateRows: readonly CapacitorPlatePropertyRow[] | null;
+  propertyTerminal?: {
+    label: string;
+    pinName: string;
+    netId: string | null;
+    options: readonly { netId: string; label: string }[];
+    onChange: (netId: string | null) => void;
+  } | null;
   modelTarget: ComponentModelTargetView | null;
   onMarkerNameChange: (value: string) => void;
   onReferenceChange: (value: string) => boolean | void;
@@ -168,6 +176,33 @@ export function ComponentIdentityProperties({
           </dl>
         </div>
       ) : null}
+      {propertyTerminal ? (
+        <div
+          className="property-card property-terminal-card"
+          role="group"
+          aria-label="Property-only electrical terminals"
+        >
+          <div className="property-section-heading">Electrical terminals</div>
+          <label>
+            {propertyTerminal.label}
+            <select
+              aria-label={propertyTerminal.label}
+              value={propertyTerminal.netId ?? ""}
+              onChange={(event) =>
+                propertyTerminal.onChange(event.currentTarget.value || null)
+              }
+            >
+              <option value="">Unconnected</option>
+              {propertyTerminal.options.map((option) => (
+                <option value={option.netId} key={option.netId}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <small>Property-only terminal · no canvas pin or wire</small>
+          </label>
+        </div>
+      ) : null}
       {modelTarget ? (
         <div
           className="property-card property-target-card"
@@ -193,7 +228,7 @@ export function ComponentIdentityProperties({
               </datalist>
             ) : null}
             {modelTarget.externalSubcircuit ? (
-              <small>External subcircuit · X reference</small>
+              <small>External subcircuit · SPICE emits an X card</small>
             ) : null}
           </label>
         </div>

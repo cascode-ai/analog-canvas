@@ -1,5 +1,8 @@
 import type { Instance } from "@icm/model";
-import { deviceDescriptor } from "@icm/devices";
+import {
+  deviceDescriptor,
+  type ReviewedExternalDeviceBinding,
+} from "@icm/devices";
 
 export interface ComponentParameter {
   key: string;
@@ -87,6 +90,20 @@ export function componentParameters(
   }));
 }
 
+export function reviewedExternalComponentParameters(
+  binding: ReviewedExternalDeviceBinding,
+): readonly ComponentParameter[] {
+  return binding.parameters.map((parameter) => ({
+    key: parameter.name,
+    label: parameter.label,
+    ...(parameter.unitHint ? { unit: parameter.unitHint } : {}),
+    placeholder: parameter.placeholder,
+    ...(parameter.defaultValue ? { defaultValue: parameter.defaultValue } : {}),
+    help: parameter.help,
+    inputMode: parameter.editor,
+  }));
+}
+
 export function updateComponentParameterValues(
   symbolId: string,
   current: Readonly<Record<string, string>>,
@@ -97,19 +114,6 @@ export function updateComponentParameterValues(
   return symbolId === "pulse-voltage-source"
     ? synchronizeDigitalClockCompatibility(next)
     : next;
-}
-
-/**
- * An external subcircuit call carries geometry and its finger count, but not
- * the parallel multiplier — that belongs to the primitive device. NF is an
- * ordinary MOS parameter now, so this only drops the multiplier.
- */
-export function externalMosComponentParameters(
-  symbolId: "nmos" | "pmos",
-): readonly ComponentParameter[] {
-  return componentParameters(symbolId).filter(
-    (parameter) => parameter.key !== "m",
-  );
 }
 
 /**

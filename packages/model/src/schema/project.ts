@@ -270,89 +270,11 @@ export const CircuitProjectSchema = z
           });
           continue;
         }
-        const terminalNames = new Set(
-          definition.terminals.map((terminal) => terminal.name.toLowerCase()),
-        );
-        const references: Array<{
-          pinName: string;
-          path: Array<string | number>;
-        }> = [];
-        for (const [netIndex, net] of document.nets.entries()) {
-          for (const [terminalIndex, terminal] of net.terminals.entries()) {
-            if (terminal.instanceId !== instance.id) continue;
-            references.push({
-              pinName: terminal.pinName,
-              path: [
-                "documents",
-                documentIndex,
-                "nets",
-                netIndex,
-                "terminals",
-                terminalIndex,
-                "pinName",
-              ],
-            });
-          }
-        }
-        for (const [routeIndex, route] of document.routes.entries()) {
-          const finalTarget = route.legs.at(-1)?.to;
-          const routeEndpoints = [
-            ["start", route.start],
-            [
-              "end",
-              finalTarget?.kind === "endpoint"
-                ? finalTarget.endpoint
-                : undefined,
-            ],
-          ] as const;
-          for (const [endpointName, endpoint] of routeEndpoints) {
-            if (
-              !endpoint ||
-              endpoint.kind !== "terminal" ||
-              endpoint.instanceId !== instance.id
-            ) {
-              continue;
-            }
-            references.push({
-              pinName: endpoint.pinName,
-              path: [
-                "documents",
-                documentIndex,
-                "routes",
-                routeIndex,
-                ...(endpointName === "start"
-                  ? ["start"]
-                  : ["legs", route.legs.length - 1, "to", "endpoint"]),
-                "pinName",
-              ],
-            });
-          }
-        }
-        for (const [
-          noConnectIndex,
-          noConnect,
-        ] of document.noConnects.entries()) {
-          if (noConnect.endpoint.instanceId !== instance.id) continue;
-          references.push({
-            pinName: noConnect.endpoint.pinName,
-            path: [
-              "documents",
-              documentIndex,
-              "noConnects",
-              noConnectIndex,
-              "endpoint",
-              "pinName",
-            ],
-          });
-        }
-        for (const reference of references) {
-          if (terminalNames.has(reference.pinName.toLowerCase())) continue;
-          context.addIssue({
-            code: "custom",
-            message: `External subcircuit Instance ${instance.id} references unknown terminal ${reference.pinName}`,
-            path: reference.path,
-          });
-        }
+        // External target terminals and native Symbol pins are deliberately
+        // different namespaces (for example SKY130 R0/R1/B maps to the
+        // frozen resistor pins 1/2 plus a property-only B terminal). The
+        // model layer validates definition identity; the reviewed device
+        // registry validates the exact mapping during authoring and export.
       }
       childrenByDocument.set(document.id, children);
     }

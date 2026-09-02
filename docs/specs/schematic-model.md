@@ -30,8 +30,10 @@ migration. Invalid coordinates are rejected with their data path.
 
 - `Instance` selects one exact canonical symbol and optional visual variant.
   `Instance.reference` is its sole authored Reference when the Instance has
-  one. The same value is projected on canvas and emitted when the Instance has
-  netlist facts. It is independent from stable `Instance.id` and typed master
+  one. The value is projected on canvas. Dialect emission may derive a card
+  designator from typed invocation semantics (for example authored `M1` emits
+  `XM1` for a reviewed SPICE external call) without mutating the Project. It is
+  independent from stable `Instance.id` and typed master
   binding. A Cell Pin instead projects `CellTerminal.name` and has no Instance
   Reference.
 - A Base Net owns physical terminal membership only. A terminal is
@@ -159,8 +161,10 @@ two explicit placements may occupy the same side/offset slot.
   Cell name is derived from that child. External bindings reference one
   project-level external definition, and unresolved imported bindings retain
   only a target name until resolution.
-- The sole authored Reference lives in `Instance.reference`; emitting Instances
-  use that same token for netlist output. Parameters live in `Instance.netlist`.
+- The sole authored Reference lives in `Instance.reference`. Primitive cards
+  use it directly; external SPICE calls derive an `X` card designator and
+  validate the derived identifier for per-Cell collisions. Parameters live in
+  `Instance.netlist`.
   Parameters are defined only by the matching Device Descriptor: every field
   declares its key, requiredness, editor kind, optional unit/example/help, and
   display role. Insert, Properties, validation, Value projection, and export

@@ -3063,7 +3063,7 @@ test("Properties toggles reference label visibility for one or many components",
   });
   await expect(
     componentProperties.locator(":scope > .property-card"),
-  ).toHaveCount(4);
+  ).toHaveCount(5);
   await expect(
     componentProperties.getByText("Appearance", { exact: true }),
   ).toBeVisible();
@@ -3074,7 +3074,10 @@ test("Properties toggles reference label visibility for one or many components",
   ).toHaveCount(0);
   await expect(
     componentProperties.getByText("Netlist target", { exact: true }),
-  ).toHaveCount(0);
+  ).toBeVisible();
+  await expect(
+    componentProperties.getByLabel("Component model target"),
+  ).toBeVisible();
   const singleToggle = page.getByRole("checkbox", {
     name: "Reference",
     exact: true,
@@ -4634,12 +4637,14 @@ test("selects a reviewed SKY130 MOS through the existing Model field", async ({
   await model.fill("sky130_fd_pr__nfet_01v8");
   await model.press("Tab");
 
-  await expect(properties).toContainText("External subcircuit · X reference");
-  await expect(properties.getByLabel("Component reference")).toHaveValue("X1");
+  await expect(properties).toContainText(
+    "External subcircuit · SPICE emits an X card",
+  );
+  await expect(properties.getByLabel("Component reference")).toHaveValue("M1");
   await expect(properties.getByLabel("Component nf")).toBeVisible();
   await expect(
     properties.getByLabel("Component m", { exact: true }),
-  ).toHaveCount(0);
+  ).toBeVisible();
 
   const saved = JSON.parse(
     (await downloadBytes(page, "File", "Export Project File…")).toString(
@@ -4660,8 +4665,9 @@ test("selects a reviewed SKY130 MOS through the existing Model field", async ({
   expect(saved.documents[0].instances[0]).toMatchObject({
     id: "M1",
     symbolId: "nmos",
-    reference: "X1",
+    reference: "M1",
     netlist: {
+      parameters: { w: "1u", l: "150n", nf: "1", m: "1" },
       binding: { kind: "external-subcircuit" },
     },
   });

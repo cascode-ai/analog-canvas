@@ -43,6 +43,10 @@ import {
   foldNetName,
   flattenRichText,
 } from "@icm/model";
+import {
+  resolveReviewedExternalBinding,
+  reviewedExternalModelSuggestions,
+} from "@icm/devices";
 import type {
   CircuitProject,
   DerivedPoint,
@@ -61,8 +65,6 @@ import {
   externalSubcircuitSymbolId,
   findUnsupportedProjectSymbolIds,
   hierarchicalSymbolId,
-  resolvePdkSymbolMappingForTerminalOrder,
-  reviewedSky130MosModelSuggestions,
 } from "@icm/symbols";
 import {
   clipboardPreviewDocument,
@@ -1186,7 +1188,7 @@ export function App({
     selectedDevice,
     selectedCapacitorPlateRows,
     selectedExternalSubcircuit,
-    selectedExternalMosMapping,
+    selectedReviewedExternalBinding,
     selectedPropertyDevice,
     selectedRoute,
     selectedRouteNetLabels,
@@ -1832,7 +1834,7 @@ export function App({
       project.externalSubcircuitDefinitions.flatMap((definition) => {
         const mapping = definition.presentation
           ? undefined
-          : resolvePdkSymbolMappingForTerminalOrder(
+          : resolveReviewedExternalBinding(
               definition.name,
               definition.terminals.map((terminal) => terminal.name),
             );
@@ -2872,6 +2874,20 @@ export function App({
   const selectedPortLogicalName = selectedPortNet
     ? logicalNets.byBaseNetId.get(selectedPortNet.id)?.name
     : undefined;
+  const selectedPropertyOnlyTerminal =
+    selectedReviewedExternalBinding?.terminals.find(
+      (terminal) => terminal.interaction === "property",
+    );
+  const selectedPropertyOnlyTerminalNet =
+    selectedInstance && selectedPropertyOnlyTerminal
+      ? document.nets.find((net) =>
+          net.terminals.some(
+            (terminal) =>
+              terminal.instanceId === selectedInstance.id &&
+              terminal.pinName === selectedPropertyOnlyTerminal.pinName,
+          ),
+        )
+      : undefined;
 
   function commitProjectName(): void {
     setProjectNameDraft(null);
@@ -4451,7 +4467,7 @@ export function App({
                       !(
                         selectedInstance.netlist.binding?.kind === "model" ||
                         selectedDevice?.targetPolicy === "required-model" ||
-                        selectedExternalMosMapping
+                        selectedReviewedExternalBinding
                       )
                         ? componentTargetDescription(
                             selectedInstance,
@@ -4460,33 +4476,66 @@ export function App({
                           )
                         : null,
                     capacitorPlateRows: selectedCapacitorPlateRows,
+                    propertyTerminal:
+                      selectedInstance && selectedPropertyOnlyTerminal
+                        ? {
+                            label:
+                              selectedPropertyOnlyTerminal.role === "substrate"
+                                ? "Body/Substrate Net"
+                                : `${selectedPropertyOnlyTerminal.targetName} Net`,
+                            pinName: selectedPropertyOnlyTerminal.pinName,
+                            netId: selectedPropertyOnlyTerminalNet?.id ?? null,
+                            options: logicalNets.groups.map((logicalNet) => ({
+                              netId: logicalNet.baseNetIds[0]!,
+                              label:
+                                logicalNet.name ?? logicalNet.baseNetIds[0]!,
+                            })),
+                            onChange: (netId) => {
+                              const result = transact([
+                                {
+                                  kind: "set_property_terminal_net",
+                                  instanceId: selectedInstance.id,
+                                  pinName: selectedPropertyOnlyTerminal.pinName,
+                                  netId,
+                                },
+                              ]);
+                              if (result.ok) {
+                                setStatus(
+                                  netId
+                                    ? `Set ${selectedPropertyOnlyTerminal.targetName} to ${logicalNets.byBaseNetId.get(netId)?.name ?? netId}`
+                                    : `Cleared ${selectedPropertyOnlyTerminal.targetName} Net`,
+                                );
+                              }
+                            },
+                          }
+                        : null,
                     modelTarget:
                       selectedInstance.netlist &&
                       (selectedInstance.netlist.binding?.kind === "model" ||
                         selectedDevice?.targetPolicy === "required-model" ||
-                        selectedExternalMosMapping)
+                        reviewedExternalModelSuggestions(
+                          selectedPropertyDevice?.symbolId ?? "",
+                        ).length > 0 ||
+                        selectedReviewedExternalBinding)
                         ? {
                             defaultValue:
                               selectedInstance.netlist.binding?.kind === "model"
                                 ? selectedInstance.netlist.binding.name
-                                : selectedExternalMosMapping
+                                : selectedReviewedExternalBinding
                                   ? (selectedExternalSubcircuit?.name ?? "")
                                   : "",
-                            suggestions:
-                              selectedPropertyDevice?.symbolId === "nmos" ||
-                              selectedPropertyDevice?.symbolId === "pmos"
-                                ? reviewedSky130MosModelSuggestions(
-                                    selectedPropertyDevice.symbolId,
-                                  )
-                                : [],
-                            ...(selectedPropertyDevice?.symbolId === "nmos" ||
-                            selectedPropertyDevice?.symbolId === "pmos"
+                            suggestions: reviewedExternalModelSuggestions(
+                              selectedPropertyDevice?.symbolId ?? "",
+                            ),
+                            ...(reviewedExternalModelSuggestions(
+                              selectedPropertyDevice?.symbolId ?? "",
+                            ).length > 0
                               ? {
-                                  listId: `mos-model-options-${selectedPropertyDevice.symbolId}`,
+                                  listId: `reviewed-model-options-${selectedPropertyDevice!.symbolId}`,
                                 }
                               : {}),
                             externalSubcircuit: Boolean(
-                              selectedExternalMosMapping,
+                              selectedReviewedExternalBinding,
                             ),
                           }
                         : null,
