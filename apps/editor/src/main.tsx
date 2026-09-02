@@ -2,6 +2,7 @@ import { lazy, StrictMode, Suspense, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 
 import { EditorErrorBoundary } from "./components/editor-error-boundary";
+import { guardedRouteChunk } from "./components/route-chunk-loader";
 import "./styles.css";
 
 const container = document.getElementById("root");
@@ -12,58 +13,8 @@ if (!container) {
 
 type VisitStats = { pv: number; uv: number; scope: "all" };
 
-/**
- * Load a route chunk, surviving a deploy that lands mid-session.
- *
- * Chunk names carry a content hash, so a page that has been open across a
- * deploy asks for names the current build no longer has. Reloading is the
- * whole remedy: `index.html` is served `must-revalidate` and the service
- * worker fetches navigations network-first, so the next document names the
- * assets that do exist.
- *
- * Exactly once per route per session. If the freshly loaded graph still
- * cannot produce the chunk, the failure is real and belongs in front of the
- * person rather than in a reload loop.
- */
-const CHUNK_RELOAD_KEY = "icm-chunk-reload";
-
-function rememberedReload(): string | null {
-  try {
-    return sessionStorage.getItem(CHUNK_RELOAD_KEY);
-  } catch {
-    // Private modes can refuse storage; then a reload is simply not retried.
-    return window.location.pathname;
-  }
-}
-
-function lazyChunk<T>(load: () => Promise<T>): () => Promise<T> {
-  return () =>
-    load().then(
-      (module) => {
-        try {
-          sessionStorage.removeItem(CHUNK_RELOAD_KEY);
-        } catch {
-          // Nothing to clear when storage is unavailable.
-        }
-        return module;
-      },
-      (error: unknown) => {
-        if (rememberedReload() === window.location.pathname) throw error;
-        try {
-          sessionStorage.setItem(CHUNK_RELOAD_KEY, window.location.pathname);
-        } catch {
-          // Without storage the guard cannot hold, so do not reload at all.
-          throw error;
-        }
-        window.location.reload();
-        // The reload replaces this document; nothing downstream should run.
-        return new Promise<T>(() => {});
-      },
-    );
-}
-
 const EditorApp = lazy(
-  lazyChunk(() =>
+  guardedRouteChunk(() =>
     import("./app/App").then((module) => ({
       default: module.App,
     })),
@@ -71,7 +22,7 @@ const EditorApp = lazy(
 );
 
 const AnalyticsPage = lazy(
-  lazyChunk(() =>
+  guardedRouteChunk(() =>
     import("./components/analytics-page").then((module) => ({
       default: module.AnalyticsPage,
     })),
@@ -79,7 +30,7 @@ const AnalyticsPage = lazy(
 );
 
 const GalleryFeed = lazy(
-  lazyChunk(() =>
+  guardedRouteChunk(() =>
     import("./components/gallery-feed").then((module) => ({
       default: module.GalleryFeed,
     })),
@@ -87,7 +38,7 @@ const GalleryFeed = lazy(
 );
 
 const Moderation = lazy(
-  lazyChunk(() =>
+  guardedRouteChunk(() =>
     import("./components/moderation").then((module) => ({
       default: module.Moderation,
     })),
@@ -95,7 +46,7 @@ const Moderation = lazy(
 );
 
 const MySubmissions = lazy(
-  lazyChunk(() =>
+  guardedRouteChunk(() =>
     import("./components/my-submissions").then((module) => ({
       default: module.MySubmissions,
     })),

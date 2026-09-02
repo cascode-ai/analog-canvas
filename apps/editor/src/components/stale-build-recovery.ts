@@ -15,21 +15,118 @@
  */
 const SHELL_CACHE_PREFIX = "icm-static-shell-";
 
+export type ModuleLoadDiagnosis =
+  | {
+      kind: "stale-build";
+      assetUrl: string;
+      status: 404;
+    }
+  | {
+      kind: "temporary";
+      assetUrl: string | null;
+      status?: number;
+    };
+
+export interface ModuleLoadProbeSurfaces {
+  readonly currentUrl: string;
+  fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response>;
+}
+
+export class ConfirmedStaleBuildError extends Error {
+  override readonly name = "ConfirmedStaleBuildError";
+
+  constructor(
+    readonly assetUrl: string,
+    override readonly cause: unknown,
+  ) {
+    super(`This build can no longer load ${new URL(assetUrl).pathname}`);
+  }
+}
+
+export class TemporaryModuleLoadError extends Error {
+  override readonly name = "TemporaryModuleLoadError";
+
+  constructor(
+    readonly assetUrl: string | null,
+    override readonly cause: unknown,
+  ) {
+    super(
+      assetUrl === null
+        ? "A required editor file was temporarily unavailable"
+        : `A required editor file was temporarily unavailable: ${new URL(assetUrl).pathname}`,
+    );
+  }
+}
+
 export interface StaleBuildRecoverySurfaces {
   readonly caches?: CacheStorage;
   readonly serviceWorker?: ServiceWorkerContainer;
   reload(): void;
 }
 
-/** Whether a failure looks like a chunk this build can no longer fetch. */
-export function isStaleBuildFailure(message: string): boolean {
-  const text = message.toLowerCase();
-  return (
-    text.includes("dynamically imported module") ||
-    text.includes("failed to fetch dynamically") ||
-    text.includes("importing a module script failed") ||
-    text.includes("has been updated since this tab opened")
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function moduleAssetUrl(error: unknown, currentUrl: string): string | null {
+  const match = messageOf(error).match(
+    /(?:https?:\/\/[^\s"'<>]+|\/assets\/[^\s"'<>]+\.js(?:\?[^\s"'<>]*)?)/u,
   );
+  if (!match) return null;
+  try {
+    const current = new URL(currentUrl);
+    const asset = new URL(match[0], current);
+    if (
+      asset.origin !== current.origin ||
+      !asset.pathname.startsWith("/assets/") ||
+      !asset.pathname.endsWith(".js")
+    ) {
+      return null;
+    }
+    return asset.toString();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Probe the file named by a dynamic-import failure before blaming a deploy.
+ * The browser uses the same error text for a retired chunk, a network outage,
+ * and a temporarily unavailable current chunk. Only an observed 404 proves
+ * that this document names a file the active deployment no longer has.
+ */
+export async function diagnoseModuleLoadFailure(
+  error: unknown,
+  surfaces: ModuleLoadProbeSurfaces,
+): Promise<ModuleLoadDiagnosis> {
+  const assetUrl = moduleAssetUrl(error, surfaces.currentUrl);
+  if (assetUrl === null) return { kind: "temporary", assetUrl: null };
+  try {
+    const response = await surfaces.fetch(assetUrl, {
+      method: "HEAD",
+      cache: "no-store",
+      credentials: "same-origin",
+    });
+    if (response.status === 404) {
+      return { kind: "stale-build", assetUrl, status: 404 };
+    }
+    return {
+      kind: "temporary",
+      assetUrl,
+      status: response.status,
+    };
+  } catch {
+    return { kind: "temporary", assetUrl };
+  }
+}
+
+/** Whether a failure has been confirmed as a missing chunk, not guessed. */
+export function isStaleBuildFailure(error: unknown): boolean {
+  return error instanceof ConfirmedStaleBuildError;
+}
+
+export function isTemporaryModuleLoadFailure(error: unknown): boolean {
+  return error instanceof TemporaryModuleLoadError;
 }
 
 export async function recoverFromStaleBuild(

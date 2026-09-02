@@ -44,4 +44,21 @@ describe("EditorCrashScreen", () => {
     expect(html).toContain("The editor hit an unexpected problem");
     expect(html).not.toContain("crash-reload-clean");
   });
+
+  it("does not call a temporary module failure an old version", () => {
+    const html = renderToStaticMarkup(
+      <EditorCrashScreen
+        message="A required editor file was temporarily unavailable: /assets/App-current.js"
+        moduleLoadFailure
+        onReload={() => undefined}
+        onRecover={() => undefined}
+      />,
+    );
+    expect(html).toContain("The editor could not finish loading");
+    expect(html).toContain("temporarily unavailable");
+    expect(html).toContain("Try again");
+    expect(html).toContain("Reload with a clean copy");
+    expect(html).not.toContain("running an old version");
+    expect(html).toContain('data-kind="load"');
+  });
 });
