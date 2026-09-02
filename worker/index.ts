@@ -15,6 +15,7 @@ import {
 } from "./agent-session";
 import { routeGalleryRequest, type GalleryNamespaceLike } from "./gallery";
 import { routeSimulationRequest, type SimulationEnv } from "./simulation";
+import { stagingAccessGate, type StagingEnv } from "./staging-gate";
 import { routeAuthRequest, type AuthNamespaceLike } from "./auth";
 
 export { AnalyticsDO } from "./analytics";
@@ -22,23 +23,24 @@ export { AgentSessionDO } from "./agent-session";
 export { GalleryDO } from "./gallery";
 export { AuthDO } from "./auth";
 
-type Env = SimulationEnv & {
-  ANALYTICS: DurableObjectNamespaceLike;
-  ASSETS: { fetch(request: Request): Promise<Response> };
-  ANALYTICS_KEY: string | undefined;
-  AGENT_SESSION: AgentSessionNamespaceLike;
-  AGENT_ALLOWED_ORIGIN?: string;
-  GALLERY: GalleryNamespaceLike;
-  AUTH: AuthNamespaceLike;
-  GH_OAUTH_CLIENT_ID?: string;
-  GH_OAUTH_CLIENT_SECRET?: string;
-  GOOGLE_CLIENT_ID?: string;
-  GOOGLE_CLIENT_SECRET?: string;
-  RESEND_API_KEY?: string;
-  AUTH_EMAIL_FROM?: string;
-  ADMIN_EMAILS?: string;
-  ADMIN_EMAILS_EXTRA?: string;
-};
+type Env = SimulationEnv &
+  StagingEnv & {
+    ANALYTICS: DurableObjectNamespaceLike;
+    ASSETS: { fetch(request: Request): Promise<Response> };
+    ANALYTICS_KEY: string | undefined;
+    AGENT_SESSION: AgentSessionNamespaceLike;
+    AGENT_ALLOWED_ORIGIN?: string;
+    GALLERY: GalleryNamespaceLike;
+    AUTH: AuthNamespaceLike;
+    GH_OAUTH_CLIENT_ID?: string;
+    GH_OAUTH_CLIENT_SECRET?: string;
+    GOOGLE_CLIENT_ID?: string;
+    GOOGLE_CLIENT_SECRET?: string;
+    RESEND_API_KEY?: string;
+    AUTH_EMAIL_FROM?: string;
+    ADMIN_EMAILS?: string;
+    ADMIN_EMAILS_EXTRA?: string;
+  };
 
 type RequestCf = {
   country?: string;
@@ -95,6 +97,12 @@ const REFERRER_CATEGORIES: readonly (readonly [string, readonly string[]])[] = [
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
+    // Before any route, including the APIs: a staging deployment that cannot
+    // identify its caller serves nobody. Production leaves ICM_ENVIRONMENT
+    // unset, so this returns null there and costs one comparison.
+    const stagingRefusal = stagingAccessGate(request, env);
+    if (stagingRefusal) return stagingRefusal;
+
     const url = new URL(request.url);
 
     const agentResponse = await routeAgentSessionRequest(request, env);

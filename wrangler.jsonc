@@ -73,4 +73,54 @@
   "observability": {
     "enabled": true,
   },
+  // A place to look at a build before the public does. Merging to main used
+  // to deploy straight to production, so the only protection was after the
+  // fact: the bad version went live and came back seconds later. This is the
+  // interception that happens first.
+  //
+  // Bindings do NOT inherit into an environment; every one below is repeated
+  // deliberately, and a binding forgotten here is simply absent at runtime.
+  //
+  // WHAT STAGING CANNOT TELL YOU: its four Durable Object namespaces are
+  // EMPTY. They key on the script name, and this environment is a separate
+  // script, so there are no gallery entries, no accounts, no agent sessions.
+  // That is good for safety and it bounds what passing staging proves: it
+  // catches "the site does not come up", never "this particular circuit
+  // breaks when opened". See docs/deployment.md.
+  //
+  // No simulation container here on purpose: container time bills per
+  // environment, and a broken simulation route does not take the site down.
+  // Staging verifies only that the route exists and refuses correctly.
+  "env": {
+    "staging": {
+      "name": "interactive-circuit-maker-staging",
+      "workers_dev": true,
+      "vars": {
+        // Switches on the access gate in worker/staging-gate.ts. Without the
+        // STAGING_ACCESS_KEY secret beside it, staging serves nobody, which
+        // is the intended state until someone provisions the key.
+        "ICM_ENVIRONMENT": "staging",
+      },
+      "assets": {
+        "binding": "ASSETS",
+        "directory": "./apps/editor/dist",
+        "not_found_handling": "single-page-application",
+        "run_worker_first": ["/api/*", "/assets/*"],
+      },
+      "durable_objects": {
+        "bindings": [
+          { "name": "ANALYTICS", "class_name": "AnalyticsDO" },
+          { "name": "AGENT_SESSION", "class_name": "AgentSessionDO" },
+          { "name": "GALLERY", "class_name": "GalleryDO" },
+          { "name": "AUTH", "class_name": "AuthDO" },
+        ],
+      },
+      "migrations": [
+        { "tag": "v1", "new_sqlite_classes": ["AnalyticsDO"] },
+        { "tag": "v2", "new_sqlite_classes": ["AgentSessionDO"] },
+        { "tag": "v3", "new_sqlite_classes": ["GalleryDO"] },
+        { "tag": "v4", "new_sqlite_classes": ["AuthDO"] },
+      ],
+    },
+  },
 }

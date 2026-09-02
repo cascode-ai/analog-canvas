@@ -14,11 +14,58 @@ import { describe, expect, it } from "vitest";
  */
 const workflow = readFileSync(".github/workflows/cloudflare.yml", "utf8");
 
+describe("staging before production", () => {
+  it("puts a staging job in front of the production one", () => {
+    expect(workflow).toContain("Deploy staging");
+    expect(workflow).toMatch(
+      /deploy:\s*\n\s*name: Deploy Worker\s*\n\s*needs: staging/u,
+    );
+  });
+
+  it("does not block production when staging is not provisioned yet", () => {
+    // This lands before the Cloudflare environment exists. If an unprovisioned
+    // staging blocked deploys, it would jam the pipeline for everyone — the
+    // exact failure this repository spent a night recovering from.
+    expect(workflow).toContain("Staging is not provisioned yet");
+    expect(workflow).toMatch(/needs\.staging\.result == 'success'/u);
+  });
+
+  it("refuses to reach production when staging actually failed", () => {
+    // always() alone would run production regardless. The result check is
+    // what makes staging a gate rather than a decoration.
+    const gate = workflow.slice(workflow.indexOf("needs: staging"));
+    expect(gate).toContain("always() && needs.staging.result == 'success'");
+  });
+
+  it("checks staging with the same paths production is checked with", () => {
+    const stagingJob = workflow.slice(
+      workflow.indexOf("Verify staging"),
+      workflow.indexOf("deploy:\n"),
+    );
+    for (const path of ["/editor", "/analytics", "mcp-manifest.json"]) {
+      expect(stagingJob).toContain(path);
+    }
+    expect(stagingJob).toContain("must answer 404");
+  });
+
+  it("fails the deploy if staging is reachable without the key", () => {
+    // A staging anyone can open is a second public site showing half-built
+    // work. Being unlisted is not being private.
+    expect(workflow).toContain("Staging must refuse an anonymous caller");
+  });
+});
+
 describe("Cloudflare deploy workflow", () => {
-  it("records the rollback target before the deploy changes anything", () => {
-    const capture = workflow.indexOf("Record the version to roll back to");
-    const deploy = workflow.indexOf("wrangler@4.120.1 deploy");
+  it("records the rollback target before the production deploy", () => {
+    // Scoped to the production job: the staging job deploys too, and a naive
+    // search finds its deploy first. Staging deliberately has no rollback —
+    // nothing public is serving from it, so a bad staging deploy is a failed
+    // gate rather than an outage.
+    const productionJob = workflow.slice(workflow.indexOf("  deploy:\n"));
+    const capture = productionJob.indexOf("Record the version to roll back to");
+    const deploy = productionJob.indexOf("wrangler@4.120.1 deploy");
     expect(capture).toBeGreaterThan(-1);
+    expect(deploy).toBeGreaterThan(-1);
     // Read after deploying, the "previous" version is the broken one.
     expect(capture).toBeLessThan(deploy);
   });

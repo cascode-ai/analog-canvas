@@ -76,17 +76,42 @@ Anything that only exists at Worker runtime:
 
 For those, the live check after deploying is the only evidence.
 
-## Planned: staging before production
+## Staging before production
 
 A staging environment (`env.staging` in `wrangler.jsonc`) deploys first, gets
-the same verification, and promotes to production when it passes. It is not
-yet in place; it needs Cloudflare account changes, and the owner requires the
-staging hostname to be private and login-gated so it is never mistaken for the
-product.
+the same verification against its own hostname, and production runs only if
+staging did not fail. Merging to `main` no longer reaches the public without
+something having looked at the build first.
 
-**Promotion is automatic by default, and manual when the version changes.**
-An ordinary merge flows through staging to production without anyone waiting;
-a version bump stops at an approval gate.
+**Staging is private, and it fails closed.** The gate in
+`worker/staging-gate.ts` refuses every request unless the caller carries the
+shared key, and refuses _everyone_ when no key is configured at all — which is
+the state a freshly provisioned environment starts in. An unlisted hostname is
+not privacy: search engines index what gets linked, and a half-built product
+answering to the public is worse than having no staging. The key may arrive as
+a header, a cookie, or a one-time `?key=` that is immediately traded for a
+cookie so the secret leaves the address bar and the browser history. The
+staging verification asserts the refusal too: a staging that admits an
+anonymous caller fails its own deploy.
+
+**Promotion is automatic by default, and manual when the version changes.** An
+ordinary merge flows through staging to production without anyone waiting; a
+version bump stops at an approval gate.
+
+**Staging has no rollback, deliberately.** Nothing public serves from it, so a
+bad staging deploy is a failed gate rather than an outage — it simply stops
+production from happening. Rollback stays where the users are.
+
+### Until it is provisioned
+
+The staging job **skips itself** when `STAGING_ACCESS_KEY` is absent, and
+production proceeds exactly as before. This is why the code could land before
+the Cloudflare environment existed: an unprovisioned staging that blocked
+deploys would jam the pipeline for everybody, which is the failure this
+repository already spent a night recovering from. Provisioning needs a second
+Worker script, a hostname for it, and three repository secrets
+(`STAGING_ACCESS_KEY`, `STAGING_URL`, and the existing Cloudflare credentials
+already present).
 
 ### The limit to state plainly
 
