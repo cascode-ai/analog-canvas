@@ -6,12 +6,26 @@ export function replaceProjectDocument(
   project: CircuitProject,
   document: SchematicDocument,
 ): CircuitProject {
-  return CircuitProjectSchema.parse({
+  const parsed = CircuitProjectSchema.parse({
     ...project,
     documents: project.documents.map((candidate) =>
       candidate.id === document.id ? document : candidate,
     ),
   });
+  const previousDocuments = new Map(
+    project.documents.map((candidate) => [candidate.id, candidate] as const),
+  );
+  return {
+    ...parsed,
+    // Whole-Project validation clones every Document. Restore the already
+    // validated, unchanged revisions so downstream WeakMap caches and React
+    // readers can retain their identity across an unrelated Document edit.
+    documents: parsed.documents.map((candidate) =>
+      candidate.id === document.id
+        ? candidate
+        : (previousDocuments.get(candidate.id) ?? candidate),
+    ),
+  };
 }
 
 /** Resolve the active Document, falling back deterministically to top. */

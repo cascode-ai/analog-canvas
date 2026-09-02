@@ -23,7 +23,9 @@ describe("editor session project helpers", () => {
     const next = replaceProjectDocument(project, replacement);
 
     expect(next).not.toBe(project);
+    expect(next.documents[0]).toBe(original);
     expect(next.documents[0]).toEqual(original);
+    expect(next.documents[1]).not.toBe(replacement);
     expect(next.documents[1]).toEqual(replacement);
   });
 

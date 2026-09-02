@@ -8,7 +8,7 @@ import {
   endpointKey,
   isMosBulkTerminal,
   isVisibleEndpoint,
-  resolveDocumentLogicalNets,
+  resolveCommittedDocumentLogicalNets,
   resolveEndpointConnection,
   traceHierarchyNet,
 } from "@icm/derived";
@@ -18,7 +18,6 @@ import type {
   ProjectConnectivityIndex,
 } from "@icm/derived";
 import type { WireSource } from "@icm/edit-engine";
-import { analyzeDesignNetlist } from "@icm/netlist";
 import type {
   CircuitProject,
   RouteEndpoint,
@@ -50,6 +49,7 @@ interface UseEditorDerivedModelOptions {
   highlightedNetOrigin: HighlightedNetOrigin | null;
   selectedHighlightNetId: string | null;
   selectedHighlightEndpoint: RouteEndpoint | undefined;
+  searchActive: boolean;
   searchQuery: string;
   routingGuidanceView: RoutingGuidanceView;
   wireSource: WireSource | null;
@@ -213,6 +213,7 @@ export function useEditorDerivedModel({
   highlightedNetOrigin,
   selectedHighlightNetId,
   selectedHighlightEndpoint,
+  searchActive,
   searchQuery,
   routingGuidanceView,
   wireSource,
@@ -222,7 +223,7 @@ export function useEditorDerivedModel({
     document.id,
   );
   const logicalNets = useMemo(
-    () => resolveDocumentLogicalNets(document),
+    () => resolveCommittedDocumentLogicalNets(document),
     [document],
   );
   const routeGeometryRecords = useMemo(
@@ -234,10 +235,6 @@ export function useEditorDerivedModel({
         return geometry ? [{ route, geometry }] : [];
       }),
     [document, documentConnectivity],
-  );
-  const netlistAnalysis = useMemo(
-    () => analyzeDesignNetlist(project),
-    [project],
   );
   const highlightedTrace = useMemo(
     () =>
@@ -283,17 +280,12 @@ export function useEditorDerivedModel({
       ),
     [liveDiagnosticSnapshot],
   );
-  const projectSearchIndex = useMemo(
-    () =>
-      buildProjectSearchIndex(project, {
-        connectivityIndex: projectConnectivityIndex,
-      }),
-    [project, projectConnectivityIndex],
-  );
-  const searchResults = useMemo(
-    () => projectSearchIndex.search(searchQuery),
-    [projectSearchIndex, searchQuery],
-  );
+  const searchResults = useMemo(() => {
+    if (!searchActive || searchQuery.trim().length === 0) return [];
+    return buildProjectSearchIndex(project, {
+      connectivityIndex: projectConnectivityIndex,
+    }).search(searchQuery);
+  }, [project, projectConnectivityIndex, searchActive, searchQuery]);
   const flightlines = useMemo(
     () => [
       ...new Map(
@@ -375,7 +367,6 @@ export function useEditorDerivedModel({
     projectConnectivityIndex,
     logicalNets,
     routeGeometryRecords,
-    netlistAnalysis,
     highlightedTrace,
     highlightedNet,
     highlightedNetId,

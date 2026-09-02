@@ -31,6 +31,7 @@ import { flattenRichText } from "@icm/model";
 import type {
   EndpointJoin,
   DocumentContactEvidence,
+  ResolvedDocumentLogicalNets,
   ResolvedDocumentRoutingGeometry,
   ResolvedDraftingGeometry,
   SchematicStyleProfile,
@@ -90,12 +91,13 @@ function renderAnnotationText(
   document: SchematicDocument,
   annotation: SchematicDocument["annotations"][number],
   profile: SchematicStyleProfile,
+  logicalNets: ResolvedDocumentLogicalNets,
 ): string {
   const fontSize =
     schematicTextFontSize(annotation.kind, profile) *
     (annotation.sizeScale ?? 1);
   return renderRichTextDocument(
-    resolveAnnotationText(document, annotation),
+    resolveAnnotationText(document, annotation, logicalNets),
     profile,
     { fontSize },
   );
@@ -599,6 +601,7 @@ function deriveBounds(
   routingGeometry: ResolvedDocumentRoutingGeometry,
   margin: number,
   profile: SchematicStyleProfile,
+  logicalNets: ResolvedDocumentLogicalNets,
 ): DerivedRect {
   const bounds: DerivedRect[] = [];
   const estimatedTextBounds = (
@@ -653,13 +656,15 @@ function deriveBounds(
     });
   }
   for (const annotation of document.annotations) {
-    if (!isSchematicAnnotationVisible(document, annotation)) continue;
+    if (!isSchematicAnnotationVisible(document, annotation, logicalNets))
+      continue;
     const presentation = resolveAnnotationPresentation(
       document,
       resolver,
       annotation,
       profile,
       routingGeometry,
+      logicalNets,
     );
     const routePlacement =
       annotation.anchor.kind === "route"
@@ -672,7 +677,9 @@ function deriveBounds(
     const textPosition = routePlacement.labelPosition;
     bounds.push(
       estimatedTextBounds(
-        flattenRichText(resolveAnnotationText(document, annotation)),
+        flattenRichText(
+          resolveAnnotationText(document, annotation, logicalNets),
+        ),
         textPosition.x,
         textPosition.y,
         "middle",
@@ -747,7 +754,14 @@ export function buildSvgScene(
   );
   const viewBox = options.bounds
     ? RectSchema.parse(options.bounds)
-    : deriveBounds(document, resolver, routingGeometry, margin, profile);
+    : deriveBounds(
+        document,
+        resolver,
+        routingGeometry,
+        margin,
+        profile,
+        logicalNets,
+      );
 
   const joinedJunctionIds = new Set(
     routingGeometry.endpointJoins.flatMap((join) =>
@@ -937,10 +951,12 @@ export function buildSvgScene(
     })
     .join("");
   const annotations = [...document.annotations]
-    .filter((annotation) => isSchematicAnnotationVisible(document, annotation))
+    .filter((annotation) =>
+      isSchematicAnnotationVisible(document, annotation, logicalNets),
+    )
     .sort((left, right) => left.id.localeCompare(right.id, "en"))
     .map((annotation) => {
-      const content = resolveAnnotationText(document, annotation);
+      const content = resolveAnnotationText(document, annotation, logicalNets);
       const attachment = ` data-anchor-kind="${annotation.anchor.kind}"`;
       const presentation = resolveAnnotationPresentation(
         document,
@@ -948,6 +964,7 @@ export function buildSvgScene(
         annotation,
         profile,
         routingGeometry,
+        logicalNets,
       );
       const resolvedAnchor = presentation.anchor;
       const routeMarkerPlacement =
@@ -1034,7 +1051,7 @@ export function buildSvgScene(
         });
         const text = formula
           ? formula
-          : `<text x="${markerTextX}" y="${markerTextY}" text-anchor="${textAnchor}"${colorOverride ? ` fill="${colorOverride}"` : ""}${schematicTextSizeAttribute("route-marker", profile, annotation.sizeScale)}>${renderAnnotationText(document, annotation, profile)}</text>`;
+          : `<text x="${markerTextX}" y="${markerTextY}" text-anchor="${textAnchor}"${colorOverride ? ` fill="${colorOverride}"` : ""}${schematicTextSizeAttribute("route-marker", profile, annotation.sizeScale)}>${renderAnnotationText(document, annotation, profile, logicalNets)}</text>`;
         return `<g ${attributes}><g transform="${transform}"><polygon data-role="current-arrow-head" points="${tipX},${y} ${baseX},${y - halfHeadWidth} ${baseX},${y + halfHeadWidth}" fill="${profile.foreground}"/></g>${text}</g>`;
       }
       if (annotation.kind === "power-label") {
@@ -1050,7 +1067,7 @@ export function buildSvgScene(
         });
         const text = formula
           ? `<g transform="${transform}">${formula}</g>`
-          : `<text x="${position.x}" y="${position.y}" text-anchor="${annotation.alignment}" transform="${transform}"${colorOverride ? ` fill="${colorOverride}"` : ""}${schematicTextSizeAttribute("power-label", profile, annotation.sizeScale)}>${renderAnnotationText(document, annotation, profile)}</text>`;
+          : `<text x="${position.x}" y="${position.y}" text-anchor="${annotation.alignment}" transform="${transform}"${colorOverride ? ` fill="${colorOverride}"` : ""}${schematicTextSizeAttribute("power-label", profile, annotation.sizeScale)}>${renderAnnotationText(document, annotation, profile, logicalNets)}</text>`;
         return `<g ${attributes}>${text}</g>`;
       }
       if (
@@ -1076,7 +1093,7 @@ export function buildSvgScene(
         });
         const text = formula
           ? formula
-          : `<text x="${position.x}" y="${position.y}" text-anchor="${annotation.alignment}"${colorOverride ? ` fill="${colorOverride}"` : ""}${schematicTextSizeAttribute("route-marker", profile, annotation.sizeScale)}>${renderAnnotationText(document, annotation, profile)}</text>`;
+          : `<text x="${position.x}" y="${position.y}" text-anchor="${annotation.alignment}"${colorOverride ? ` fill="${colorOverride}"` : ""}${schematicTextSizeAttribute("route-marker", profile, annotation.sizeScale)}>${renderAnnotationText(document, annotation, profile, logicalNets)}</text>`;
         return `<g ${attributes}><text data-role="polarity-positive" x="${position.x + positiveOffset.x}" y="${position.y + positiveOffset.y + 4}" text-anchor="middle" font-size="${profile.typography.polarityFontSize}" style="${polarityStyle}">+</text><text data-role="polarity-negative" x="${position.x + negativeOffset.x}" y="${position.y + negativeOffset.y + 4}" text-anchor="middle" font-size="${profile.typography.polarityFontSize}" style="${polarityStyle}">−</text>${text}</g>`;
       }
       const emphasis = "";
@@ -1124,7 +1141,7 @@ export function buildSvgScene(
       if (positioned) {
         return `<g transform="${transform}"><text ${attributes} x="${position.x}" y="${position.y}" text-anchor="start"${emphasis}${colorOverride ? ` fill="${colorOverride}"` : ""}${schematicTextSizeAttribute(annotation.kind, profile, annotation.sizeScale)}>${positioned.tspans}</text>${positioned.decorations}</g>${globalBadge}`;
       }
-      return `<text ${attributes} x="${position.x}" y="${position.y}" text-anchor="${annotation.alignment}" transform="${transform}"${emphasis}${colorOverride ? ` fill="${colorOverride}" color="${colorOverride}"` : ""}${schematicTextSizeAttribute(annotation.kind, profile, annotation.sizeScale)}>${renderAnnotationText(document, annotation, profile)}</text>${globalBadge}`;
+      return `<text ${attributes} x="${position.x}" y="${position.y}" text-anchor="${annotation.alignment}" transform="${transform}"${emphasis}${colorOverride ? ` fill="${colorOverride}" color="${colorOverride}"` : ""}${schematicTextSizeAttribute(annotation.kind, profile, annotation.sizeScale)}>${renderAnnotationText(document, annotation, profile, logicalNets)}</text>${globalBadge}`;
     })
     .join("");
 

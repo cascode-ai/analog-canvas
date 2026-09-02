@@ -21,6 +21,7 @@ import {
   richTextMetrics,
 } from "./rich-text-layout.js";
 import type { SchematicStyleProfile } from "./style-profile.js";
+import type { ResolvedDocumentLogicalNets } from "./logical-net.js";
 
 /** Shared SVG, editor-hit, marquee, and export presentation of an annotation. */
 export interface AnnotationPresentation {
@@ -51,9 +52,14 @@ export interface AnnotationPresentation {
 export function isSchematicAnnotationVisible(
   document: SchematicDocument,
   annotation: Annotation,
+  logicalNets?: ResolvedDocumentLogicalNets,
 ): boolean {
   if (annotation.visible === false) return false;
-  if (!flattenRichText(resolveAnnotationText(document, annotation)).trim()) {
+  if (
+    !flattenRichText(
+      resolveAnnotationText(document, annotation, logicalNets),
+    ).trim()
+  ) {
     return false;
   }
   const anchoredInstanceId =
@@ -87,6 +93,7 @@ export function resolveAnnotationPresentation(
     document,
     resolver,
   ),
+  logicalNets?: ResolvedDocumentLogicalNets,
 ): AnnotationPresentation {
   const anchor = resolveVisualAnchor(
     document,
@@ -96,7 +103,7 @@ export function resolveAnnotationPresentation(
   );
   const sizeScale = annotation.sizeScale ?? 1;
   const fontSize = annotationFontSize(annotation, styleProfile) * sizeScale;
-  const text = resolveAnnotationText(document, annotation);
+  const text = resolveAnnotationText(document, annotation, logicalNets);
   const textLayout = measureRichTextDocument(text, {
     ...richTextMetrics(styleProfile, "label", sizeScale),
     fontSize,

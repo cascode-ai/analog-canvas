@@ -1226,7 +1226,6 @@ export function App({
   const {
     logicalNets,
     routeGeometryRecords,
-    netlistAnalysis,
     highlightedTrace,
     highlightedNet,
     highlightedNetId,
@@ -1251,15 +1250,12 @@ export function App({
     highlightedNetOrigin,
     selectedHighlightNetId,
     selectedHighlightEndpoint,
+    searchActive: searchOpen,
     searchQuery,
     routingGuidanceView,
     wireSource,
     bulkDrawInstanceId,
   });
-  const projectNetNameProjection = useMemo(
-    () => deriveProjectNetNameProjection(project),
-    [project],
-  );
   const selectedNetNameAnnotation =
     selectedAnnotation?.binding?.kind === "net-name" &&
     (selectedAnnotation.kind === "net-label" ||
@@ -1281,8 +1277,13 @@ export function App({
   const selectedNetNameLogical = selectedNetNameAnnotation?.netId
     ? logicalNets.byBaseNetId.get(selectedNetNameAnnotation.netId)
     : undefined;
+  const projectNetNameProjection = useMemo(
+    () =>
+      selectedNetNameLogical ? deriveProjectNetNameProjection(project) : null,
+    [project, selectedNetNameLogical],
+  );
   const selectedNetNameProjection = selectedNetNameLogical
-    ? projectNetNameProjection.byDocumentId
+    ? projectNetNameProjection?.byDocumentId
         .get(document.id)
         ?.get(selectedNetNameLogical.id)
     : undefined;
