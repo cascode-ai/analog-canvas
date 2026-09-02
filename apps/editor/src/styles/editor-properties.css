@@ -541,6 +541,16 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.35rem;
+  padding-top: 0.4rem;
+}
+
+.component-rgb-details summary {
+  width: fit-content;
+  color: var(--icm-text-muted);
+  cursor: pointer;
+  font-size: var(--icm-font-xs);
+  font-weight: 650;
+  user-select: none;
 }
 
 .component-rgb-inputs label {

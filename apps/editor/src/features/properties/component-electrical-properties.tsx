@@ -1,5 +1,6 @@
 import type { Ref } from "react";
 
+import { deviceDescriptor } from "@icm/devices";
 import type { SchematicDocument } from "@icm/model";
 
 import { DisplayToggle } from "../component-insert/display-toggle";
@@ -8,6 +9,7 @@ import type { AdditionalParameterDraft } from "./additional-parameters";
 import { derivedFingerWidth } from "./finger-width";
 
 type Instance = SchematicDocument["instances"][number];
+const COMPACT_PARAMETER_LABELS = new Set(["W", "L", "NF"]);
 
 export function ComponentElectricalProperties({
   instance,
@@ -85,6 +87,7 @@ export function ComponentElectricalProperties({
   // instance has and this Symbol draws, and a value this device supports.
   const referenceToggleable = referenceLabelRenderable && referenceAvailable;
   const displayable = referenceToggleable || valueSupported;
+  const isMos = deviceDescriptor(instance.symbolId)?.deviceClass === "mos";
   if (primaryParameters.length === 0 && !displayable && !instance.netlist) {
     return null;
   }
@@ -100,7 +103,9 @@ export function ComponentElectricalProperties({
             <span className="property-parameter-name">
               {parameter.label}
               {parameter.unit ? ` / ${parameter.unit}` : ""}
-              <em>({parameter.help})</em>
+              {isMos && COMPACT_PARAMETER_LABELS.has(parameter.label) ? null : (
+                <em>({parameter.help})</em>
+              )}
             </span>
             <input
               ref={index === 0 ? firstInputRef : undefined}

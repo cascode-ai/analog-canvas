@@ -9,7 +9,7 @@ import {
 } from "./component-style-properties";
 
 describe("component style properties", () => {
-  it("renders accessible presets, RGB controls, and independent resets", () => {
+  it("renders concise color sections with collapsible RGB controls", () => {
     const document = createEmptyDocument("cell", "Cell");
     const instance: (typeof document.instances)[number] = {
       id: "R1",
@@ -33,8 +33,16 @@ describe("component style properties", () => {
     );
 
     expect(markup).toContain("Appearance");
-    expect(markup).toContain('aria-label="Line / foreground custom RGB"');
-    expect(markup).toContain('aria-label="Background / fill color picker"');
+    expect(markup).toContain("<legend>Line</legend>");
+    expect(markup).toContain("<legend>Background</legend>");
+    expect(markup).not.toContain("Line / foreground");
+    expect(markup).not.toContain("Background / fill");
+    expect(markup).toContain('aria-label="Line custom RGB"');
+    expect(markup).toContain('aria-label="Background color picker"');
+    expect(
+      markup.match(/<details class="component-rgb-details">/gu),
+    ).toHaveLength(2);
+    expect(markup.match(/<summary>RGB<\/summary>/gu)).toHaveLength(2);
     expect(markup).toContain('aria-pressed="true"');
     expect(markup).toContain("Gray · #6b7280");
     expect(markup).not.toContain("Violet");
