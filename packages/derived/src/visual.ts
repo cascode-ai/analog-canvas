@@ -12,6 +12,7 @@ import {
   endpointKey,
   resolveEndpointOutwardDirection,
   resolveEndpointPoint,
+  type EndpointConnection,
 } from "./endpoint.js";
 import {
   resolveDocumentRoutingGeometry,
@@ -25,6 +26,13 @@ import {
 import { resolveAnnotationPresentation } from "./annotation-presentation.js";
 import { resolveAnnotationText } from "./annotation-text.js";
 import { pointOnSegment } from "./segment-geometry.js";
+import type { ResolvedDocumentLogicalNets } from "./logical-net.js";
+import {
+  buildBoundsSpatialIndex,
+  buildDocumentSpatialIndex,
+  type BoundsSpatialIndex,
+  type DocumentSpatialIndex,
+} from "./spatial-index.js";
 
 export interface VisualDiagnostic {
   code: string;
@@ -46,6 +54,14 @@ export interface VisualDiagnosticOptions {
   routingGeometry?: ResolvedDocumentRoutingGeometry;
   /** Contact evidence paired with `routingGeometry`; never persisted. */
   contactEvidence?: DocumentContactEvidence;
+  /** Revision-scoped broad-phase geometry supplied by a shared caller. */
+  spatialIndex?: DocumentSpatialIndex;
+  /** Logical-Net resolution paired with this immutable Document revision. */
+  logicalNetResolution?: ResolvedDocumentLogicalNets;
+  /** Resolved terminal/junction geometry shared with routing and contact. */
+  endpointConnections?: ReadonlyMap<string, EndpointConnection>;
+  /** @internal Exact-output comparison hook retained for optimization parity. */
+  candidateSearch?: "indexed" | "legacy";
 }
 
 interface CachedVisualDiagnostics {
@@ -421,6 +437,10 @@ function pushRoutingQualityMetrics(
   boundsById: Map<string, Rect>,
   routingGeometry: ResolvedDocumentRoutingGeometry,
   contactEvidence: DocumentContactEvidence,
+  instanceBoundsIndex: BoundsSpatialIndex<{ id: string; bounds: Rect }>,
+  spatialIndex: DocumentSpatialIndex,
+  candidateSearch: "indexed" | "legacy",
+  endpointConnections?: ReadonlyMap<string, EndpointConnection>,
 ): void {
   const routeCenterlines = document.routes
     .map((route) => ({
@@ -457,7 +477,16 @@ function pushRoutingQualityMetrics(
     for (let index = 1; index < centerline.length; index += 1) {
       const from = centerline[index - 1]!;
       const to = centerline[index]!;
-      for (const [instanceId, box] of boundsById) {
+      const candidateBounds =
+        candidateSearch === "indexed"
+          ? instanceBoundsIndex.queryBounds({
+              x: Math.min(from.x, to.x),
+              y: Math.min(from.y, to.y),
+              width: Math.abs(to.x - from.x),
+              height: Math.abs(to.y - from.y),
+            })
+          : [...boundsById].map(([id, bounds]) => ({ id, bounds }));
+      for (const { id: instanceId, bounds: box } of candidateBounds) {
         if (
           (index === 1 && fromTerminalInstances.has(instanceId)) ||
           (index === centerline.length - 1 &&
@@ -485,6 +514,34 @@ function pushRoutingQualityMetrics(
   // 2. Same-Net route overlap: two Routes on the same Net share a collinear
   //    overlapping segment (not just a shared endpoint).
   const overlappingRouteIdsByNet = new Map<string, Set<string>>();
+  const indexedRoutePairs = new Set<string>();
+  if (candidateSearch === "indexed") {
+    const routesById = new Map(
+      document.routes.map((route) => [route.id, route] as const),
+    );
+    for (const segment of document.routes.flatMap(
+      (route) => routingGeometry.routes.get(route.id)?.segments ?? [],
+    )) {
+      const route = routesById.get(segment.address.routeId);
+      if (!route) continue;
+      const bounds = {
+        x: Math.min(segment.from.x, segment.to.x),
+        y: Math.min(segment.from.y, segment.to.y),
+        width: Math.abs(segment.to.x - segment.from.x),
+        height: Math.abs(segment.to.y - segment.from.y),
+      };
+      for (const candidate of spatialIndex.routeSegments.queryBounds(bounds)) {
+        if (candidate.routeId === route.id || candidate.netId !== route.netId) {
+          continue;
+        }
+        indexedRoutePairs.add(
+          [route.id, candidate.routeId]
+            .sort((left, right) => left.localeCompare(right, "en"))
+            .join("\0"),
+        );
+      }
+    }
+  }
   for (let leftIndex = 0; leftIndex < routeCenterlines.length; leftIndex += 1) {
     for (
       let rightIndex = leftIndex + 1;
@@ -494,6 +551,16 @@ function pushRoutingQualityMetrics(
       const left = routeCenterlines[leftIndex]!;
       const right = routeCenterlines[rightIndex]!;
       if (left.route.netId !== right.route.netId) continue;
+      if (
+        candidateSearch === "indexed" &&
+        !indexedRoutePairs.has(
+          [left.route.id, right.route.id]
+            .sort((a, b) => a.localeCompare(b, "en"))
+            .join("\0"),
+        )
+      ) {
+        continue;
+      }
       const overlap = firstCollinearOverlap(left.centerline, right.centerline);
       if (overlap) {
         const ids = overlappingRouteIdsByNet.get(left.route.netId) ?? new Set();
@@ -524,11 +591,9 @@ function pushRoutingQualityMetrics(
   for (const { route, centerline } of routeCenterlines) {
     if (route.start.kind !== "terminal") continue;
     if (centerline.length < 2) continue;
-    const outward = resolveEndpointOutwardDirection(
-      document,
-      resolver,
-      route.start,
-    );
+    const outward =
+      endpointConnections?.get(endpointKey(route.start))?.outward ??
+      resolveEndpointOutwardDirection(document, resolver, route.start);
     if (!outward) continue;
     const first = centerline[0]!;
     const second = centerline[1]!;
@@ -558,6 +623,23 @@ function pushRoutingQualityMetrics(
       });
     }
   }
+}
+
+function candidateRoutesAtPoint(
+  document: SchematicDocument,
+  routesById: ReadonlyMap<string, SchematicDocument["routes"][number]>,
+  point: Point,
+  spatialIndex: DocumentSpatialIndex,
+  candidateSearch: "indexed" | "legacy",
+): readonly SchematicDocument["routes"][number][] {
+  if (candidateSearch === "legacy") return document.routes;
+  const seen = new Set<string>();
+  return spatialIndex.routeSegments.queryPoint(point).flatMap((segment) => {
+    if (seen.has(segment.routeId)) return [];
+    seen.add(segment.routeId);
+    const route = routesById.get(segment.routeId);
+    return route ? [route] : [];
+  });
 }
 
 function segmentIntersectsRect(from: Point, to: Point, box: Rect): boolean {
@@ -616,7 +698,8 @@ export function diagnoseVisualQuality(
 ): readonly VisualDiagnostic[] {
   const cacheEligible =
     options.minimumSegmentLength === undefined &&
-    options.pageBounds === undefined;
+    options.pageBounds === undefined &&
+    options.candidateSearch !== "legacy";
   const cached = cacheEligible
     ? visualDiagnosticCache.get(document)
     : undefined;
@@ -640,6 +723,23 @@ export function diagnoseVisualQuality(
   const contactEvidence =
     options.contactEvidence ??
     deriveDocumentContactEvidence(document, resolver, routingGeometry);
+  const spatialIndex =
+    options.spatialIndex ??
+    buildDocumentSpatialIndex(document, routingGeometry);
+  if (
+    spatialIndex.documentId !== document.id ||
+    spatialIndex.documentRevision !== document.revision
+  ) {
+    throw new Error("Visual diagnostics received a stale spatial index");
+  }
+  const candidateSearch = options.candidateSearch ?? "indexed";
+  const routesById = new Map(
+    document.routes.map((route) => [route.id, route] as const),
+  );
+  const instanceBoundsIndex = buildBoundsSpatialIndex(
+    bounds.map((item) => ({ bounds: item.bounds, value: item })),
+    Math.max(80, document.presentation.grid * 8),
+  );
 
   for (const instance of document.instances) {
     if (!instance.placement) {
@@ -705,6 +805,7 @@ export function diagnoseVisualQuality(
           annotation,
           styleProfile,
           routingGeometry,
+          options.logicalNetResolution,
         ).bounds,
       };
     });
@@ -754,7 +855,13 @@ export function diagnoseVisualQuality(
     }
   }
   for (const junction of document.junctions) {
-    for (const route of document.routes) {
+    for (const route of candidateRoutesAtPoint(
+      document,
+      routesById,
+      junction.position,
+      spatialIndex,
+      candidateSearch,
+    )) {
       if (route.netId === junction.netId) continue;
       const centerline = routingGeometry.routes.get(route.id)?.centerline;
       if (
@@ -816,13 +923,22 @@ export function diagnoseVisualQuality(
       const key = `${instance.id}\0${pin.name}`;
       if (noConnectKeys.has(key)) continue;
       const terminalNetId = terminalNetIds.get(key);
-      const contactPoint = resolveEndpointPoint(document, resolver, {
+      const endpoint = {
         kind: "terminal",
         instanceId: instance.id,
         pinName: pin.name,
-      });
+      } as const;
+      const contactPoint =
+        options.endpointConnections?.get(endpointKey(endpoint))?.contactPoint ??
+        resolveEndpointPoint(document, resolver, endpoint);
       if (!contactPoint) continue;
-      for (const route of document.routes) {
+      for (const route of candidateRoutesAtPoint(
+        document,
+        routesById,
+        contactPoint,
+        spatialIndex,
+        candidateSearch,
+      )) {
         if (route.netId === terminalNetId) continue;
         const centerline = routingGeometry.routes.get(route.id)?.centerline;
         if (
@@ -907,6 +1023,10 @@ export function diagnoseVisualQuality(
     boundsById,
     routingGeometry,
     contactEvidence,
+    instanceBoundsIndex,
+    spatialIndex,
+    candidateSearch,
+    options.endpointConnections,
   );
   const ordered = diagnostics.sort((left, right) =>
     `${left.code}\0${left.objectIds.join("\0")}`.localeCompare(

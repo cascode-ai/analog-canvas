@@ -331,6 +331,9 @@ export function useEditorDerivedModel({
           ? {
               routingGeometry: documentConnectivity.routingGeometry,
               contactEvidence: documentConnectivity.contactEvidence,
+              spatialIndex: documentConnectivity.spatialIndex,
+              logicalNetResolution: documentConnectivity.logicalNetResolution,
+              endpointConnections: documentConnectivity.endpointConnections,
             }
           : {}),
       }),

@@ -175,6 +175,9 @@ export function diagnoseProject(
         ? {
             routingGeometry: documentIndex.routingGeometry,
             contactEvidence: documentIndex.contactEvidence,
+            spatialIndex: documentIndex.spatialIndex,
+            logicalNetResolution: documentIndex.logicalNetResolution,
+            endpointConnections: documentIndex.endpointConnections,
           }
         : {}),
     }).map((diagnostic) =>

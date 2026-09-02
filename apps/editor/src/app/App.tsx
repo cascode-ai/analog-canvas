@@ -74,10 +74,13 @@ import type { SchematicClipboard } from "../features/clipboard/clipboard";
 import {
   canvasInsetsFromOverlays,
   fitCameraToBounds,
-  normalizeCameraRect,
   type CameraRectInput,
   type CanvasInsets,
 } from "../canvas/fit-view";
+import {
+  createCameraRuntime,
+  type CameraRuntime,
+} from "../canvas/camera-runtime";
 import {
   startCanvasDragSession,
   type CanvasDragSession,
@@ -496,6 +499,15 @@ export function App({
   } = useSelectionController();
   const uniqueSuffixCounter = useRef(0);
   const [viewBox, setRawViewBox] = useState<GridRect>(DEFAULT_VIEWBOX);
+  const cameraRuntimeRef = useRef<CameraRuntime | null>(null);
+  if (!cameraRuntimeRef.current) {
+    cameraRuntimeRef.current = createCameraRuntime(
+      DEFAULT_VIEWBOX,
+      setRawViewBox,
+    );
+  }
+  const cameraRuntime = cameraRuntimeRef.current;
+  useEffect(() => () => cameraRuntime.dispose(), [cameraRuntime]);
   const [gridDotsVisible, setGridDotsVisible] = useState(true);
   // Annotations and drafting place on their own pitch; the Document grid
   // stays the electrical contract for devices, wires, and junctions.
@@ -546,12 +558,7 @@ export function App({
     next: GridRect | CameraRectInput | ((current: GridRect) => CameraRectInput),
     grid = document.presentation.grid,
   ): void => {
-    setRawViewBox((current) =>
-      normalizeCameraRect(
-        typeof next === "function" ? next(current) : next,
-        grid,
-      ),
-    );
+    cameraRuntime.set(next, grid);
   };
   const [importReport, setImportReport] = useState<SpiceImportReport | null>(
     null,
@@ -2514,8 +2521,12 @@ export function App({
     viewport: {
       defaultViewBox: DEFAULT_VIEWBOX,
       contentBounds: contentSceneBounds,
-      viewBox,
+      getViewBox: cameraRuntime.current,
       setViewBox,
+      scheduleViewBox: (next, grid = document.presentation.grid) =>
+        cameraRuntime.schedule(next, grid),
+      flushViewBox: cameraRuntime.flush,
+      measureSurface: cameraRuntime.measureSurface,
       pointFromClient: (clientX, clientY, svg) =>
         pointFromClient(clientX, clientY, svg),
       rawPointFromClient: (clientX, clientY, svg) =>
@@ -4917,6 +4928,7 @@ export function App({
         />
         <EditorCanvasSurface
           empty={canvasIsEmpty}
+          cameraRuntime={cameraRuntime}
           onWheel={handleWheel}
           onPinch={zoomAtClientPoint}
           className={[

@@ -9,6 +9,7 @@ import type { SymbolResolver } from "@icm/symbols";
 
 import {
   type EndpointConnection,
+  endpointKey,
   resolveEndpointConnection,
 } from "./endpoint.js";
 import { unitDirection } from "./segment-geometry.js";
@@ -88,14 +89,15 @@ export function resolveRouteGeometry(
   document: SchematicDocument,
   resolver: SymbolResolver,
   route: SchematicDocument["routes"][number],
+  endpointConnections?: ReadonlyMap<string, EndpointConnection>,
 ): ResolvedRouteGeometry | null {
   const end = routeEnd(route);
-  const fromConnection = resolveEndpointConnection(
-    document,
-    resolver,
-    route.start,
-  );
-  const toConnection = resolveEndpointConnection(document, resolver, end);
+  const fromConnection =
+    endpointConnections?.get(endpointKey(route.start)) ??
+    resolveEndpointConnection(document, resolver, route.start);
+  const toConnection =
+    endpointConnections?.get(endpointKey(end)) ??
+    resolveEndpointConnection(document, resolver, end);
   if (!fromConnection || !toConnection) return null;
   const from = fromConnection.contactPoint;
   const to = toConnection.contactPoint;
@@ -170,13 +172,19 @@ export function resolveRouteGeometry(
 export function resolveDocumentRoutingGeometry(
   document: SchematicDocument,
   resolver: SymbolResolver,
+  endpointConnections?: ReadonlyMap<string, EndpointConnection>,
 ): ResolvedDocumentRoutingGeometry {
   const routes = new Map<string, ResolvedRouteGeometry>();
   const terminalJoins: EndpointJoin[] = [];
   for (const route of [...document.routes].sort((left, right) =>
     left.id.localeCompare(right.id, "en"),
   )) {
-    const geometry = resolveRouteGeometry(document, resolver, route);
+    const geometry = resolveRouteGeometry(
+      document,
+      resolver,
+      route,
+      endpointConnections,
+    );
     if (!geometry) continue;
     routes.set(route.id, geometry);
     terminalJoins.push(...geometry.endpointJoins);
