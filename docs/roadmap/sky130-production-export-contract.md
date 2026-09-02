@@ -8,17 +8,24 @@ Primary owners: `packages/devices`, `packages/edit-engine`,
 
 ## Objective
 
-Repair the released schematic-to-SPICE path for the two reviewed SKY130 1.8 V
-MOS devices without replacing the existing Project, external-subcircuit, or
-DesignNetlist protocols.
+Repair the released schematic-to-SPICE path for a deliberately small reviewed
+SKY130 set without replacing the existing Project, external-subcircuit, or
+DesignNetlist protocols. The accepted set is the two 1.8 V MOS devices plus
+one physical resistor and one physical MIM capacitor:
+
+- `sky130_fd_pr__nfet_01v8`
+- `sky130_fd_pr__pfet_01v8`
+- `sky130_fd_pr__res_high_po`
+- `sky130_fd_pr__cap_mim_m3_1`
 
 The defect is narrower than a new PDK system:
 
-> The repository already represents an external master, ordered D/G/S/B
-> connectivity, raw instance parameters, and structural X calls. The missing
-> work is to make production export use one reviewed SKY130 binding, separate
-> the authored reference from the emitted SPICE card designator, and apply the
-> verified parameter-unit projection in both import and export.
+> The repository already represents an external master, ordered connectivity,
+> raw instance parameters, and structural X calls. The missing work is to make
+> production export use one reviewed binding authority, separate the authored
+> reference from the emitted SPICE card designator, and apply the verified
+> terminal and parameter-unit projection in both import and export. The
+> existing ideal R/C primitives remain separate and unchanged.
 
 This roadmap is the implementation record for that bounded repair. It does not
 authorize PDK installation, model-file distribution, simulation profiles, or a
@@ -44,6 +51,22 @@ X call keeps its external invocation and may use the existing MOS artwork only
 when an exact reviewed interface matches. Unknown external calls remain generic
 external blocks.
 
+The same interaction applies to the two reviewed physical passives without
+adding another Insert flow. A user inserts the existing resistor or capacitor,
+keeps the authored reference `R1` or `C1`, and selects the exact reviewed model
+in the existing model/target field. Legal SPICE output uses X cards:
+
+```spice
+XR1 top bottom vss sky130_fd_pr__res_high_po w=1 l=5.5 mult=1
+XC1 top bottom sky130_fd_pr__cap_mim_m3_1 w=5 l=5 mf=1
+```
+
+The resistor remains a two-terminal resistive path in the drawing, with a real
+third substrate terminal `B`. The MIM capacitor remains a two-terminal
+capacitor. Selecting either reviewed target changes its binding and authored
+parameter surface; it does not synthesize a scalar resistance/capacitance or
+expand PDK-internal parasitics onto the schematic.
+
 ## Evidence and current failure
 
 ### Upstream contract
@@ -62,6 +85,15 @@ The ngspice manual is authoritative for the syntax boundary:
   with plain micrometre geometry such as `l=0.15 w=7.0`.
 - [open_pdks' SKY130 circuit template](https://github.com/fossi-foundation/open-pdks/blob/main/sky130/irsim/circuit_template.spi)
   follows the same library-selection, X-call, and D/G/S/B convention.
+- [SkyWater `res_high_po` public wrapper](https://github.com/google/skywater-pdk-libs-sky130_fd_pr/blob/main/cells/res_high_po/sky130_fd_pr__res_high_po.model.spice)
+  declares `.subckt sky130_fd_pr__res_high_po r0 r1 b`, accepts `w`, `l`, and
+  `mult`, and delegates the substrate parasitic network to the PDK model.
+- [SkyWater `cap_mim_m3_1` public wrapper](https://github.com/google/skywater-pdk-libs-sky130_fd_pr/blob/main/cells/cap_mim_m3/sky130_fd_pr__cap_mim_m3_1.model.spice)
+  declares `.subckt sky130_fd_pr__cap_mim_m3_1 c0 c1 w=1 l=1 mf=1` and owns
+  the capacitance and contact-resistance calculation.
+- [SkyWater's MIM device documentation](https://github.com/google/skywater-pdk/blob/main/docs/rules/device-details.rst)
+  identifies `c0` and `c1` as the two capacitor terminals and describes the
+  model as a subcircuit rather than a primitive scalar C card.
 
 The public name `sky130_fd_pr__nfet_01v8` is therefore a PDK device/model name
 in product vocabulary but an external `.subckt` master in ngspice grammar. The
@@ -139,6 +171,14 @@ physical device dimensions do not change.
 ### In scope
 
 - Exact reviewed bindings for the standard SKY130 1.8 V NFET and PFET.
+- One exact physical-resistor binding for `sky130_fd_pr__res_high_po` with
+  ordered `R0/R1/B` connectivity and reviewed `w/l/mult` parameters.
+- One exact physical-capacitor binding for `sky130_fd_pr__cap_mim_m3_1` with
+  ordered `C0/C1` connectivity and reviewed `w/l/mf` parameters.
+- Reuse of the existing resistor and capacitor artwork, with a resistor
+  substrate-pin presentation that never erases the third electrical node.
+- Properties and batch editing for the reviewed R/C geometry and substrate
+  selection without deriving geometry from the generic scalar `value`.
 - Persisted schematic reference independent of emitted SPICE invocation kind.
 - A deterministic emitted-reference projection and collision diagnostic.
 - Bidirectional parameter conversion for the reviewed parameters whose units
@@ -160,6 +200,13 @@ physical device dimensions do not change.
 - Defining foundry BSIM coefficients or exposing them in Properties.
 - Binding a generic `nch`/`pch` design to SKY130 at simulation time.
 - Supporting every `sky130_fd_pr__*` device family.
+- Supporting other resistor variants, including `res_xhigh_po`, fixed-width
+  precision variants, diffusion resistors, and generic metal/poly resistors.
+- Supporting `cap_mim_m3_2`, varactors, VPP capacitors, or any capacitor with
+  additional body/shield terminals.
+- Supporting SKY130 diodes, BJTs, inductors, RF/HV/ESD devices, or isolated
+  MOS variants. These families are explicitly deferred rather than inferred
+  from a common name prefix or similar artwork.
 - Inferring a public interface from a name prefix or regular expression.
 - Changing the Insert shortcut or adding a second SKY130-specific component
   insertion flow.
@@ -170,12 +217,12 @@ physical device dimensions do not change.
 
 | Fact | Authority | Example |
 |---|---|---|
-| Schematic presentation | reviewed symbol mapping | existing `nmos` artwork |
-| Authored reference | `Instance.reference` | `M1` |
+| Schematic presentation | reviewed symbol mapping | existing `nmos`, `resistor`, or `capacitor` artwork |
+| Authored reference | `Instance.reference` | `M1`, `R1`, or `C1` |
 | Invocation kind | typed netlist binding | `external-subcircuit` |
-| Emitted SPICE reference | dialect projection | `XM1` |
-| Public master | external definition/reviewed binding | `sky130_fd_pr__nfet_01v8` |
-| Ordered public terminals | reviewed binding checked against external definition | `D G S B` |
+| Emitted SPICE reference | dialect projection | `XM1`, `XR1`, or `XC1` |
+| Public master | external definition/reviewed binding | `sky130_fd_pr__res_high_po` |
+| Ordered public terminals | reviewed binding checked against external definition | `D G S B`, `R0 R1 B`, or `C0 C1` |
 | Connectivity | `Net.terminals` by canonical pin name | `D -> N0001` |
 | Canonical instance values | `Instance.netlist.parameters` | `l=150n`, `w=1u` |
 | Target parameter spelling and units | reviewed binding adapter | `l=0.15`, `w=1` |
@@ -197,15 +244,25 @@ The minimum facts are:
 
 ```typescript
 interface ReviewedExternalDeviceBinding {
-  id: "sky130-nfet-01v8" | "sky130-pfet-01v8";
+  id:
+    | "sky130-nfet-01v8"
+    | "sky130-pfet-01v8"
+    | "sky130-res-high-po"
+    | "sky130-cap-mim-m3-1";
   libraryId: "sky130_fd_pr";
   masterName:
     | "sky130_fd_pr__nfet_01v8"
-    | "sky130_fd_pr__pfet_01v8";
+    | "sky130_fd_pr__pfet_01v8"
+    | "sky130_fd_pr__res_high_po"
+    | "sky130_fd_pr__cap_mim_m3_1";
   invocationKind: "external-subcircuit";
-  deviceClass: "mos";
-  terminalOrder: readonly ["D", "G", "S", "B"];
-  authoredReferencePrefix: "M";
+  deviceClass: "mos" | "resistor" | "capacitor";
+  terminalOrder:
+    | readonly ["D", "G", "S", "B"]
+    | readonly ["R0", "R1", "B"]
+    | readonly ["C0", "C1"];
+  symbolPinMap: Readonly<Record<string, string>>;
+  authoredReferencePrefix: "M" | "R" | "C";
   spiceCardPrefix: "X";
   parameterBindings: readonly ReviewedParameterBinding[];
 }
@@ -217,7 +274,81 @@ binding ID only if implementation proves that exact master and interface
 cannot identify the contract safely.
 
 `packages/symbols` consumes the reviewed binding to choose `nmos` or `pmos`
-presentation. It does not own invocation or parameter-unit semantics.
+presentation or reuse the existing passive artwork. It does not own invocation
+or parameter-unit semantics.
+
+`terminalOrder` is the public target order; it does not authorize renaming the
+stable pins already used by the native symbols. The reviewed mappings are:
+
+| Native stable pin | Reviewed target terminal |
+|---|---|
+| MOS `D/G/S/B` | `D/G/S/B` |
+| resistor `1/2/B` | `R0/R1/B` |
+| capacitor `1/2` | `C0/C1` |
+
+## Reviewed physical-resistor contract
+
+`sky130_fd_pr__res_high_po` is not an ideal scalar resistor and must not be
+forced through the current `R n1 n2 value` contract.
+
+- Invocation is `external-subcircuit` with exact target terminal order
+  `r0 r1 b`.
+- The authored reference remains in the resistor domain (`R1`); SPICE emission
+  derives `XR1` without mutating or renumbering the Project instance.
+- The existing resistor artwork and stable endpoint pins `1/2` are reused.
+  The reviewed presentation adds an electrically real side terminal `B` whose semantic
+  role is `substrate`, not a third resistor-current endpoint and not MOS base
+  or bulk by spelling alone.
+- Native pins `1` and `2` remain the series insertion pair and map to target
+  `R0` and `R1`. `B` must never participate in conductor splicing or replace
+  either resistor endpoint.
+- Import preserves the third source node exactly. Export always emits it,
+  whether its visual connection is expanded or compact.
+- New authoring exposes `B` until the user explicitly connects it by wire or
+  chooses an existing Net in a `Body/Substrate Net` property. No Net-name rule
+  silently chooses VSS/VDD and no unconfigured body default is invented.
+- A compact view may hide the side pin only after `B` has resolved Net
+  membership; Properties must still show the selected Net and offer an
+  explicit-pin action. An explicit wire is ordinary electrical wiring and
+  takes precedence over compact presentation.
+- An unresolved `B` is an export-blocking missing-terminal diagnostic. It is
+  not exported as ground, one resistor endpoint, or an empty node.
+- The reviewed authored parameters are geometry `w`, `l`, and wrapper
+  multiplier `mult`. Generic resistor `value` is not converted into geometry
+  and is not emitted while this binding is selected.
+- Internal head/body resistance, mismatch, temperature effects, and substrate
+  parasitic capacitors remain entirely inside the loaded SKY130 model. The
+  editor neither calculates them nor persists synthetic component instances.
+
+The initial target deliberately does not introduce a general PDK substrate or
+well-domain protocol. A later convenience target may add explicit Document
+defaults when more than one reviewed body-terminal family justifies that
+shared concept; it must not reuse MOS-only metadata accidentally.
+
+## Reviewed physical-capacitor contract
+
+`sky130_fd_pr__cap_mim_m3_1` is a two-terminal physical MIM capacitor wrapper,
+not a primitive `C n1 n2 value` card.
+
+- Invocation is `external-subcircuit` with exact target terminal order
+  `c0 c1`.
+- The authored reference remains in the capacitor domain (`C1`); SPICE
+  emission derives `XC1` without changing the Project reference.
+- Existing capacitor artwork and stable pin `1/2` top/bottom plate semantics
+  are reused. The reviewed mapping is exact: pin `1`/top plate -> `C0`, pin
+  `2`/bottom plate -> `C1`.
+- The authored parameters are geometry `w`, `l`, and multiplicity `mf`.
+  Generic scalar capacitance `value` is not converted to area and is not
+  emitted while this binding is selected.
+- Capacitance, process/corner scaling, mismatch, and contact resistance are
+  calculated by the external SKY130 model. They are not copied into Project
+  JSON or expanded into visible internal R/C elements.
+- Switching between generic C and this reviewed target preserves reference and
+  connectivity but requires a complete target-appropriate parameter set. The
+  editor never guesses `w/l` from a previously authored capacitance.
+
+`cap_mim_m3_2`, varactors, VPP capacitors, and body/shield-bearing capacitor
+families require separate exact bindings and remain deferred.
 
 ## Reference contract
 
@@ -227,6 +358,9 @@ presentation. It does not own invocation or parameter-unit semantics.
 - Selecting a reviewed SKY130 external target changes only its typed binding.
 - Switching between ordinary MOS and reviewed SKY130 does not renumber the
   instance.
+- Ordinary resistor and capacitor instances likewise remain in their authored
+  `R` and `C` reference domains when the reviewed physical target is selected
+  or removed.
 - Batch annotation and clipboard operations use the authored reference policy,
   not the emitted SPICE card prefix.
 
@@ -234,8 +368,8 @@ presentation. It does not own invocation or parameter-unit semantics.
 
 - The printer must not decide invocation kind by inspecting the first
   character of `Instance.reference`.
-- A reviewed SKY130 external instance with authored reference `M1` emits
-  `XM1`.
+- Reviewed SKY130 external instances with authored references `M1`, `R1`, and
+  `C1` emit `XM1`, `XR1`, and `XC1` respectively.
 - An imported external instance whose preserved reference is already a valid X
   identifier remains unchanged; it never becomes `XX...`.
 - The derived emitted reference participates in case-insensitive per-Cell
@@ -255,9 +389,10 @@ presentation. It does not own invocation or parameter-unit semantics.
 
 ### Canonical versus target representation
 
-For a newly authored or newly imported reviewed SKY130 MOS, the Project stores
-the editor's canonical values. Import converts target-native values to this
-representation; export performs the inverse conversion.
+For a newly authored or newly imported reviewed SKY130 MOS, resistor, or MIM
+capacitor, the Project stores the editor's canonical values. Import converts
+target-native values to this representation; export performs the inverse
+conversion.
 
 The first reviewed conversions are:
 
@@ -268,6 +403,10 @@ The first reviewed conversions are:
 | finger count | dimensionless `nf` | `nf` |
 | parallel identical-device multiplier | dimensionless `m` | ngspice X-line special `m` |
 | SKY130 wrapper multiplier | independent target-native `mult` | wrapper formal `mult` |
+| resistor width and length | SPICE lengths in metres, suffix allowed | `w/l` as plain micrometre numbers |
+| resistor multiplicity | dimensionless `mult` | wrapper formal `mult` |
+| MIM width and length | SPICE lengths in metres, suffix allowed | `w/l` as plain micrometre numbers |
+| MIM multiplicity | dimensionless `mf` | wrapper formal `mf` |
 
 Examples:
 
@@ -277,10 +416,12 @@ Project w=1u   -> target w=1
 Project nf=4   -> target nf=4
 Project m=2    -> target X-line m=2
 Project mult=2 -> target wrapper formal mult=2
+Project resistor l=5.5u -> target l=5.5
+Project MIM w=5u l=5u mf=2 -> target w=5 l=5 mf=2
 ```
 
-`m`, `nf`, and `mult` are never aliases. In particular, do not implement
-`m -> mult` or `m -> nf`.
+`m`, `nf`, `mult`, and `mf` are never aliases. In particular, do not implement
+`m -> mult`, `m -> nf`, or `m -> mf`.
 
 The public wrapper also declares `ad`, `as`, `pd`, `ps`, `nrd`, `nrs`, `sa`,
 `sb`, and `sd`. This target must preserve explicitly imported overrides. It
@@ -391,6 +532,8 @@ binding out of the design-export contract.
 
 - Replace the broad SKY130 NFET/PFET regex rules with two exact reviewed
   entries.
+- Add exact entries for `res_high_po` and `cap_mim_m3_1`; do not add a family
+  regex for similar resistor or capacitor names.
 - Put invocation, terminal order, reference projection, formal-parameter
   knowledge, and parameter conversion under one electrical authority.
 - Let `packages/symbols` derive only the native presentation mapping.
@@ -412,6 +555,8 @@ Primary files:
 - Extend export IR or its typed metadata so SPICE emission derives `XM1`
   without mutating the Project.
 - Validate derived emitted-reference collisions.
+- Apply the same authored/emitted split to reviewed `R -> XR` and `C -> XC`
+  projections without changing generic R/C references.
 
 Primary files:
 
@@ -430,6 +575,10 @@ Primary files:
 - Preserve `nf`, emit ngspice X `m`, and retain independent wrapper `mult`.
 - Preserve other explicit public overrides without pretending their units were
   reviewed.
+- Normalize and project reviewed resistor `w/l/mult` and MIM `w/l/mf` without
+  treating any multiplier as an alias.
+- Keep generic R/C scalar `value` outside the physical-device parameter map;
+  no resistance-to-geometry or capacitance-to-area solver is introduced.
 - Reject non-convertible required expressions with a stable diagnostic.
 - Route the editor download command through this production operation.
 
@@ -485,6 +634,34 @@ Primary files:
 - `docs/user/spice-compatibility.md`
 - `docs/agent/knowledge/pdk-and-symbols.md`
 
+### WP-SKY6 - Physical resistor and MIM capacitor authoring
+
+- Reuse the existing resistor and capacitor Insert actions and artwork; model
+  selection changes binding instead of creating a parallel PDK palette.
+- Add the exact native `1/2/B` to target `R0/R1/B` resistor mapping while
+  retaining native pins `1/2` as the only legal series-insertion pair.
+- Add a routeable substrate side pin and `Body/Substrate Net` property. Compact
+  presentation is allowed only after the B terminal has actual Net membership.
+- Keep an explicit substrate Route ordinary and visible; do not extend the
+  MOS-only dashed-bulk convention by spelling coincidence.
+- Add the exact capacitor top/bottom to `C0/C1` mapping without creating a
+  third terminal or calculated-capacitance field.
+- Give reviewed physical passives their geometry parameter editors and batch
+  editing while retaining generic `value` for ordinary R/C devices.
+- Prove imported and newly authored R/C instances reach the same production
+  export path as the MOS binding.
+
+Primary files:
+
+- reviewed device definitions under `packages/devices/src/`
+- resistor/capacitor variants under `packages/symbols/`
+- `packages/edit-engine/src/` terminal and binding planners
+- `packages/spice/src/importer.ts`
+- `packages/netlist/src/`
+- `apps/editor/src/features/component-insert/`
+- `apps/editor/src/features/properties/`
+- affected route, flightline, and series-placement tests
+
 ## Acceptance matrix
 
 | Scenario | Required result |
@@ -494,7 +671,16 @@ Primary files:
 | Switch reviewed NFET back to ordinary MOS | reference remains `M1`; connectivity unchanged |
 | Import official-style `Xn ... nfet_01v8 l=0.15 w=1` | binding remains external; native NMOS presentation is allowed; canonical l/w are restored |
 | Re-export the imported call | same electrical target, D/G/S/B order, and target-equivalent parameters |
+| Insert resistor `R1`, select reviewed `res_high_po` | reference remains `R1`; binding becomes external; native `1/2/B` maps to target `R0/R1/B` |
+| Leave reviewed resistor B unresolved | stable export-blocking missing-terminal diagnostic; no guessed VSS/VDD |
+| Connect reviewed resistor B to VSS | `XR1 r0-net r1-net VSS ... w/l/mult`; native `1/2` remain the series path |
+| Import `XR... r0 r1 b res_high_po` | exact third-node connectivity is retained; native resistor presentation is allowed |
+| Insert capacitor `C1`, select reviewed `cap_mim_m3_1` | reference remains `C1`; exact C0/C1 mapping and w/l/mf editor are used |
+| Export reviewed MIM capacitor | `XC1 c0-net c1-net sky130_fd_pr__cap_mim_m3_1 w=... l=... mf=...` |
+| Switch generic R/C to reviewed physical target | reference and connectivity stay stable; scalar value is not converted into geometry |
+| Re-open reviewed R/C Project | no model-internal parasitic R/C elements or calculated values appear in Project JSON |
 | Enter an unreviewed `sky130_fd_pr__nfet_*` name | no automatic native mapping or X conversion |
+| Enter an unreviewed `sky130_fd_pr__res_*` or `cap_*` name | no family inference; generic external binding/presentation is retained |
 | Import a generic unknown X master | generic external block and raw parameter round-trip |
 | Set `nf=4 m=2 mult=3` | all three remain distinct in emitted output |
 | Two authored references derive the same SPICE identifier | export-blocking collision diagnostic |
@@ -511,12 +697,23 @@ wiring that lower layers cannot prove.
 ### Unit and module contracts
 
 - exact binding accepts only the two reviewed names and exact D/G/S/B order;
+- resistor binding accepts only exact `res_high_po`, maps stable `1/2/B` to
+  target R0/R1/B, and preserves B as ordinary Net membership;
+- capacitor binding accepts only exact `cap_mim_m3_1` with C0/C1 order;
 - import preserves X invocation while applying native presentation;
-- l/w import and export conversions are inverse over supported numeric forms;
+- MOS, resistor, and MIM l/w import/export conversions are inverse over
+  supported numeric forms;
 - unknown suffixes and required non-convertible expressions fail closed;
 - `nf`, `m`, and `mult` remain independent;
+- resistor `mult` and capacitor `mf` remain independent from MOS multipliers;
 - Project reference policy remains M for reviewed native MOS presentation;
-- SPICE emitted reference projection produces `XM1` and detects collisions;
+- Project reference policy remains R/C for reviewed passive presentation;
+- SPICE emitted reference projection produces `XM1`, `XR1`, and `XC1` and
+  detects collisions;
+- reviewed resistor B cannot splice a conductor, disappear from export, or
+  acquire a Net from its name;
+- reviewed MIM never derives w/l from scalar capacitance or persists
+  model-internal contact resistance/capacitance;
 - generic external raw parameters remain unchanged;
 - legacy reference migration is narrowly qualified and collision-safe;
 - legacy ambiguous values are not silently reinterpreted;
@@ -527,6 +724,10 @@ wiring that lower layers cannot prove.
 
 - Selecting a suggestion in the existing Model field retains the displayed
   reference and all D/G/S/B connectivity.
+- Selecting reviewed resistor/capacitor suggestions retains R/C references,
+  uses the existing Insert actions, and exposes only the reviewed properties.
+- Wiring or selecting the resistor substrate Net resolves B; leaving it
+  unresolved blocks the download with the same lower-level diagnostic.
 - File/Export SPICE uses the same reviewed projection as package tests.
 - Switching back restores ordinary model binding without renumbering.
 
@@ -568,6 +769,13 @@ all required GitHub checks.
 - Replacing the current Project/netlist protocols with a general PDK schema.
 - Treating every `sky130_fd_pr__nfet_*` or `pfet_*` as the same four-terminal
   interface.
+- Treating every resistor-looking or capacitor-looking SKY130 name as the
+  reviewed `res_high_po` or `cap_mim_m3_1` interface.
+- Dropping, grounding, or joining `res_high_po.B` from a name-based guess.
+- Reusing the MOS-only bulk route/binding special case for a resistor merely
+  because both terminals are spelled `B`.
+- Converting generic resistance/capacitance values into guessed physical
+  geometry or copying PDK-internal parasitic elements into the Project.
 - Using the visual symbol or model-name prefix to decide M versus X.
 - Persisting X as the user's MOS reference merely because SPICE requires an X
   card.
@@ -588,9 +796,13 @@ This repair is complete only when all of the following are demonstrated:
 2. new authoring keeps `M` references through SKY130 selection and removal;
 3. official-style SKY130 import/export is electrically equivalent under the
    reviewed public interface;
-4. no broad SKY130 name rule remains in the released mapping path;
-5. editor export and package tests exercise the same production projection;
-6. generic external calls and unrelated primitive devices retain their
+4. reviewed `res_high_po` import/new authoring/export preserves R0/R1/B,
+   requires an explicit B Net, and emits w/l/mult without expanding the model;
+5. reviewed `cap_mim_m3_1` import/new authoring/export preserves C0/C1 and
+   emits w/l/mf without inventing a scalar capacitance;
+6. no broad SKY130 name rule remains in the released mapping path;
+7. editor export and package tests exercise the same production projection;
+8. generic external calls and unrelated primitive devices retain their
    existing behavior;
-7. accepted specs and ADRs agree with the implementation; and
-8. required local and remote delivery gates are green.
+9. accepted specs and ADRs agree with the implementation; and
+10. required local and remote delivery gates are green.
