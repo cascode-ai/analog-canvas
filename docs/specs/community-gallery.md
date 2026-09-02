@@ -22,7 +22,10 @@ restrictive content-security-policy.
   `author` filters to that exact byline and optional `tags=a,b` to
   entries carrying ANY listed tag, both ahead of pagination). Rejected and
   recycled entries never appear. Every entry includes the content-derived
-  `previewRevision` used by its thumbnail URL.
+  `previewRevision` used by its thumbnail URL plus `previewWidth` and
+  `previewHeight` from the stored SVG viewBox. Older or invalid previews may
+  omit the dimensions; clients must then retain their existing natural-size
+  fallback.
 - `GET /api/gallery/tags` — distinct public tags with counts, most
   frequent first (feeds the multi-select menu).
 - `GET /api/gallery/<id>` — one public entry with its canonical
@@ -36,7 +39,10 @@ restrictive content-security-policy.
   editor's Examples panel reads the same gallery list and opens entries
   through the same path as `/g/<id>`. While the gallery is empty or
   unreachable, the feed and the panel both fall back to the bundled
-  Library examples, so neither surface is ever blank.
+  Library examples, so neither surface is ever blank. The landing feed loads
+  its renderer, symbol catalogue, and bundled Projects only after the remote
+  feed has settled empty or unavailable; a populated Gallery never pays for
+  those fallback-only dependencies.
 
 ## Publishing
 

@@ -843,6 +843,13 @@ export function GalleryFeed({
                               entry.previewRevision,
                             )}
                             alt={`Preview of ${entry.name}`}
+                            {...(entry.previewWidth !== undefined &&
+                            entry.previewHeight !== undefined
+                              ? {
+                                  width: entry.previewWidth,
+                                  height: entry.previewHeight,
+                                }
+                              : {})}
                           />
                           <span className="gallery-tile-copy">
                             <span className="gallery-tile-name">

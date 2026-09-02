@@ -19,6 +19,8 @@ const ENTRY = {
   description: "Three-stage loop",
   createdAt: "2026-08-21T10:00:00.000Z",
   previewRevision: "revision-0",
+  previewWidth: 640,
+  previewHeight: 360,
   schemaVersion: 23,
 };
 
@@ -125,6 +127,12 @@ test("the site lands on the full-screen gallery feed", async ({ page }) => {
   await expect(
     page.getByTestId(`gallery-tile-${ENTRY.id}`).locator("img"),
   ).toHaveAttribute("src", `/api/gallery/${ENTRY.id}/preview.svg?v=revision-0`);
+  await expect(
+    page.getByTestId(`gallery-tile-${ENTRY.id}`).locator("img"),
+  ).toHaveAttribute("width", "640");
+  await expect(
+    page.getByTestId(`gallery-tile-${ENTRY.id}`).locator("img"),
+  ).toHaveAttribute("height", "360");
   await expect(
     page.getByTestId("gallery-bundled-common-source-amplifier"),
   ).toHaveCount(0);
