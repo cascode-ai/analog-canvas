@@ -4527,13 +4527,6 @@ export function App({
                             suggestions: reviewedExternalModelSuggestions(
                               selectedPropertyDevice?.symbolId ?? "",
                             ),
-                            ...(reviewedExternalModelSuggestions(
-                              selectedPropertyDevice?.symbolId ?? "",
-                            ).length > 0
-                              ? {
-                                  listId: `reviewed-model-options-${selectedPropertyDevice!.symbolId}`,
-                                }
-                              : {}),
                             externalSubcircuit: Boolean(
                               selectedReviewedExternalBinding,
                             ),

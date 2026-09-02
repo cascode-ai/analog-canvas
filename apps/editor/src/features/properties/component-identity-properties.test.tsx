@@ -21,6 +21,8 @@ describe("component identity properties", () => {
       },
     };
     expect(componentTargetDescription(instance)).toBeNull();
+    delete instance.netlist!.binding;
+    expect(componentTargetDescription(instance)).toBeNull();
   });
 
   it("renders identity, editable marker name, and model suggestions", () => {
@@ -44,7 +46,6 @@ describe("component identity properties", () => {
         modelTarget={{
           defaultValue: "sky130_fd_pr__nfet_01v8",
           suggestions: ["sky130_fd_pr__nfet_01v8"],
-          listId: "mos-model-options-nmos",
           externalSubcircuit: false,
         }}
         onMarkerNameChange={vi.fn()}
@@ -53,7 +54,10 @@ describe("component identity properties", () => {
       />,
     );
     expect(markup).toContain('aria-label="Supply name"');
+    expect(markup).toContain('<option value="">None</option>');
     expect(markup).toContain("sky130_fd_pr__nfet_01v8");
+    expect(markup).toContain("Custom…");
+    expect(markup).not.toContain("datalist");
   });
 
   it("offers no Reference field when the object has no authored Reference", () => {

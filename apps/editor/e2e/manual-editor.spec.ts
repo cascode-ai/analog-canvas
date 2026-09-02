@@ -4629,13 +4629,14 @@ test("selects a reviewed SKY130 MOS through the existing Model field", async ({
   await placeComponent(page, "nmos", { x: 360, y: 220 });
   await openSelectionShelf(page);
   const properties = page.getByRole("complementary", { name: "Properties" });
-  const model = properties.getByLabel("Component model target");
+  const model = properties.getByLabel("Component model target", {
+    exact: true,
+  });
 
   await expect(
-    properties.locator('datalist option[value="sky130_fd_pr__nfet_01v8"]'),
+    model.locator('option[value="sky130_fd_pr__nfet_01v8"]'),
   ).toHaveCount(1);
-  await model.fill("sky130_fd_pr__nfet_01v8");
-  await model.press("Tab");
+  await model.selectOption("sky130_fd_pr__nfet_01v8");
 
   await expect(properties).toContainText(
     "External subcircuit · SPICE emits an X card",
@@ -4645,6 +4646,23 @@ test("selects a reviewed SKY130 MOS through the existing Model field", async ({
   await expect(
     properties.getByLabel("Component m", { exact: true }),
   ).toBeVisible();
+
+  await model.selectOption("");
+  await expect(model).toHaveValue("");
+  await expect(properties).not.toContainText(
+    "External subcircuit · SPICE emits an X card",
+  );
+
+  await model.selectOption({ label: "Custom…" });
+  const customModel = properties.getByLabel("Custom model name");
+  await customModel.fill("generic_nmos");
+  await customModel.press("Enter");
+  await expect(customModel).toHaveValue("generic_nmos");
+
+  await model.selectOption("sky130_fd_pr__nfet_01v8");
+  await expect(properties).toContainText(
+    "External subcircuit · SPICE emits an X card",
+  );
 
   const saved = JSON.parse(
     (await downloadBytes(page, "File", "Export Project File…")).toString(
@@ -4672,6 +4690,52 @@ test("selects a reviewed SKY130 MOS through the existing Model field", async ({
     },
   });
 });
+
+for (const fixture of [
+  {
+    symbolId: "resistor",
+    model: "sky130_fd_pr__res_high_po",
+    externalParameter: "Component mult",
+    primitiveParameter: "Component value",
+  },
+  {
+    symbolId: "capacitor",
+    model: "sky130_fd_pr__cap_mim_m3_1",
+    externalParameter: "Component mf",
+    primitiveParameter: "Component value",
+  },
+] as const) {
+  test(`switches ${fixture.symbolId} Model parameters immediately and clears through None`, async ({
+    page,
+  }) => {
+    await page.goto("/editor");
+    await placeComponent(page, fixture.symbolId, { x: 360, y: 220 });
+    await openSelectionShelf(page);
+    const properties = page.getByRole("complementary", {
+      name: "Properties",
+    });
+    const model = properties.getByLabel("Component model target", {
+      exact: true,
+    });
+
+    await model.selectOption(fixture.model);
+    await expect(
+      properties.getByLabel(fixture.externalParameter),
+    ).toBeVisible();
+    await expect(properties.getByLabel(fixture.primitiveParameter)).toHaveCount(
+      0,
+    );
+
+    await model.selectOption("");
+    await expect(model).toHaveValue("");
+    await expect(
+      properties.getByLabel(fixture.primitiveParameter),
+    ).toBeVisible();
+    await expect(properties.getByLabel(fixture.externalParameter)).toHaveCount(
+      0,
+    );
+  });
+}
 
 test("uses automatic recovery and guards shortcuts while typing", async ({
   page,

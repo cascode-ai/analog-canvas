@@ -989,7 +989,8 @@ function extractDeviceInstance(
     }
   } else if (
     definition.targetPolicy === "builtin" &&
-    (netlist.binding?.kind !== "primitive" ||
+    netlist.binding !== undefined &&
+    (netlist.binding.kind !== "primitive" ||
       netlist.binding.deviceClass !== definition.deviceClass)
   ) {
     diagnostic(

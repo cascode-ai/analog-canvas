@@ -406,6 +406,50 @@ describe("current formal cell interface", () => {
     ]);
   });
 
+  it("derives a missing built-in voltage-source target from the device registry", () => {
+    const project = createEmptyProject("project", "Project");
+    const document = project.documents[0]!;
+    document.instances.push({
+      id: "V6",
+      symbolId: "voltage-source",
+      placement: null,
+      reference: "V1",
+      netlist: { parameters: { dc: "1.8" } },
+    });
+    document.nets.push(
+      {
+        id: "net-out",
+        terminals: [{ instanceId: "V6", pinName: "+" }],
+      },
+      {
+        id: "net-ground",
+        terminals: [{ instanceId: "V6", pinName: "-" }],
+      },
+    );
+    claimNet(document, "net-out", "VOUT");
+    claimNet(document, "net-ground", "0", "global", "ground");
+
+    const result = analyzeDesignNetlist(project);
+
+    expect(result.diagnostics).toEqual([]);
+    expect(printSpiceNetlist(result.ir!)).toContain("V1 VOUT 0 DC 1.8");
+  });
+
+  it("still rejects an explicitly incompatible built-in binding", () => {
+    const project = resistorProject({ value: "10k" });
+    project.documents[0]!.instances[0]!.netlist!.binding = {
+      kind: "primitive",
+      deviceClass: "capacitor",
+    };
+
+    const result = analyzeDesignNetlist(project);
+
+    expect(result.ir).toBeNull();
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({ code: "DEVICE_CLASS_MISMATCH" }),
+    );
+  });
+
   it("returns stable analysis across repeated and serialized Project reads", () => {
     const project = resistorProject({ Value: "10k" });
     const first = analyzeDesignNetlist(project);
