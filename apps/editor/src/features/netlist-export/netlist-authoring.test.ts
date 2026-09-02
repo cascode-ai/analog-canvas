@@ -56,6 +56,10 @@ describe("netlist authoring", () => {
     expect(initialInstanceNetlist("nmos", { w: "2u", l: "60n" })).toEqual({
       parameters: { w: "2u", l: "60n" },
     });
+    expect(initialInstanceNetlist("voltage-source", { dc: "1.8" })).toEqual({
+      binding: { kind: "primitive", deviceClass: "voltage-source" },
+      parameters: { dc: "1.8" },
+    });
     expect(initialInstanceNetlist("ground", {})).toBeUndefined();
   });
 

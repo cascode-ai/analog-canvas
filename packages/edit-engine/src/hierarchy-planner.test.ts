@@ -12,6 +12,7 @@ import {
   planRemoveCellTerminal,
   planReorderCellTerminal,
   planRenameCellTerminal,
+  planSetDeviceModelTarget,
   planSetMosModelTarget,
 } from "./hierarchy-planner.js";
 import { executeProjectTransaction } from "./project-transaction.js";
@@ -435,7 +436,7 @@ describe("reviewed external MOS model targets", () => {
     return project;
   }
 
-  it("atomically creates a SKY130 interface and changes M to an external X call", () => {
+  it("creates a SKY130 interface while preserving the authored M reference", () => {
     const project = projectWithNmos();
     const edits = planSetMosModelTarget(
       project,
@@ -460,7 +461,7 @@ describe("reviewed external MOS model targets", () => {
     });
     expect(instance).toMatchObject({
       symbolId: "nmos",
-      reference: "X1",
+      reference: "M1",
       netlist: {
         parameters: { w: "2u", l: "150n", m: "2" },
         binding: { kind: "external-subcircuit" },
@@ -568,5 +569,66 @@ describe("reviewed external MOS model targets", () => {
         "sky130_fd_pr__pfet_01v8",
       ),
     ).toThrow(/not compatible/u);
+  });
+
+  it("reuses frozen passive symbols and replaces scalar values with reviewed geometry", () => {
+    for (const fixture of [
+      {
+        symbolId: "resistor",
+        reference: "R1",
+        target: "sky130_fd_pr__res_high_po",
+        terminalNames: ["R0", "R1", "B"],
+        parameters: { w: "1u", l: "5.5u", mult: "1" },
+      },
+      {
+        symbolId: "capacitor",
+        reference: "C1",
+        target: "sky130_fd_pr__cap_mim_m3_1",
+        terminalNames: ["C0", "C1"],
+        parameters: { w: "5u", l: "5u", mf: "1" },
+      },
+    ] as const) {
+      const project = createEmptyProject("project", "Project");
+      project.documents[0]!.instances.push({
+        id: fixture.reference,
+        symbolId: fixture.symbolId,
+        placement: null,
+        reference: fixture.reference,
+        netlist: {
+          binding: {
+            kind: "primitive",
+            deviceClass: fixture.symbolId,
+          },
+          parameters: { value: "10k" },
+        },
+      });
+      const result = executeProjectTransaction(project, {
+        transactionId: `set-${fixture.symbolId}-target`,
+        projectId: project.id,
+        expectedStructureRevision: project.structureRevision,
+        actor: { kind: "human", id: "test" },
+        edits: planSetDeviceModelTarget(
+          project,
+          project.topDocumentId,
+          fixture.reference,
+          fixture.target,
+        ),
+      });
+      expect(result.ok).toBe(true);
+      if (!result.ok) continue;
+      expect(result.project.documents[0]!.instances[0]).toMatchObject({
+        symbolId: fixture.symbolId,
+        reference: fixture.reference,
+        netlist: {
+          binding: { kind: "external-subcircuit" },
+          parameters: fixture.parameters,
+        },
+      });
+      expect(
+        result.project.externalSubcircuitDefinitions[0]!.terminals.map(
+          (terminal) => terminal.name,
+        ),
+      ).toEqual(fixture.terminalNames);
+    }
   });
 });

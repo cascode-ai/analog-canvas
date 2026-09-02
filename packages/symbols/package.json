@@ -14,10 +14,8 @@
     "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@icm/devices": "workspace:*",
     "@icm/model": "workspace:*",
     "zod": "4.4.3"
-  },
-  "devDependencies": {
-    "@icm/devices": "workspace:*"
   }
 }

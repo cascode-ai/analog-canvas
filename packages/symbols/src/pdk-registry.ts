@@ -1,3 +1,9 @@
+import {
+  resolveReviewedExternalBinding,
+  reviewedExternalBindingForMaster,
+  reviewedExternalModelSuggestions,
+} from "@icm/devices";
+
 import { isRazaviProductSymbolId } from "./razavi-catalog.js";
 
 export interface PdkSymbolMapping {
@@ -5,14 +11,6 @@ export interface PdkSymbolMapping {
   pinNames: readonly string[];
   source: "exact" | "pdk-rule";
   registryId: string;
-}
-
-interface PdkMappingRule {
-  id: string;
-  pattern: RegExp;
-  terminalCount: number;
-  symbolId: string;
-  pinNames: readonly string[];
 }
 
 export interface PdkSymbolMappingOverride {
@@ -31,29 +29,10 @@ export const reviewedSky130MosModels = {
 export function reviewedSky130MosModelSuggestions(
   symbolId: string,
 ): readonly string[] {
-  return symbolId === "nmos"
-    ? [reviewedSky130MosModels.nmos]
-    : symbolId === "pmos"
-      ? [reviewedSky130MosModels.pmos]
-      : [];
+  return reviewedExternalModelSuggestions(symbolId).filter(
+    (name) => symbolId === "nmos" || symbolId === "pmos",
+  );
 }
-
-const pdkRules: readonly PdkMappingRule[] = [
-  {
-    id: "sky130-nfet-four-terminal",
-    pattern: /^sky130_fd_pr__nfet_[a-z0-9_]+$/u,
-    terminalCount: 4,
-    symbolId: "nmos",
-    pinNames: ["D", "G", "S", "B"],
-  },
-  {
-    id: "sky130-pfet-four-terminal",
-    pattern: /^sky130_fd_pr__pfet_[a-z0-9_]+$/u,
-    terminalCount: 4,
-    symbolId: "pmos",
-    pinNames: ["D", "G", "S", "B"],
-  },
-];
 
 export function resolvePdkSymbolMapping(
   modelName: string,
@@ -75,17 +54,15 @@ export function resolvePdkSymbolMapping(
       source: "exact",
     };
   }
-  const rule = pdkRules.find(
-    (candidate) =>
-      candidate.terminalCount === terminalCount &&
-      candidate.pattern.test(normalized),
-  );
-  return rule && isRazaviProductSymbolId(rule.symbolId)
+  const reviewed = reviewedExternalBindingForMaster(modelName);
+  return reviewed &&
+    reviewed.terminals.length === terminalCount &&
+    isRazaviProductSymbolId(reviewed.symbolId)
     ? {
-        symbolId: rule.symbolId,
-        pinNames: [...rule.pinNames],
-        source: "pdk-rule",
-        registryId: rule.id,
+        symbolId: reviewed.symbolId,
+        pinNames: reviewed.terminals.map((terminal) => terminal.pinName),
+        source: "exact",
+        registryId: reviewed.id,
       }
     : undefined;
 }
@@ -95,16 +72,31 @@ export function resolvePdkSymbolMappingForTerminalOrder(
   terminalNames: readonly string[],
   exactOverrides: readonly PdkSymbolMappingOverride[] = [],
 ): PdkSymbolMapping | undefined {
-  const mapping = resolvePdkSymbolMapping(
+  const exact = resolvePdkSymbolMapping(
     modelName,
     terminalNames.length,
     exactOverrides,
   );
-  return mapping &&
-    terminalNames.every(
-      (name, index) =>
-        name.toLowerCase() === mapping.pinNames[index]?.toLowerCase(),
-    )
-    ? mapping
+  if (exactOverrides.length > 0 && exact?.source === "exact") {
+    const override = exactOverrides.find(
+      (candidate) =>
+        candidate.registryId === exact.registryId &&
+        candidate.modelName.toLowerCase() === modelName.toLowerCase(),
+    );
+    if (override) {
+      return terminalNames.every(
+        (name, index) =>
+          name.toLowerCase() === override.pinNames[index]?.toLowerCase(),
+      )
+        ? exact
+        : undefined;
+    }
+  }
+  const reviewed = resolveReviewedExternalBinding(modelName, terminalNames);
+  return reviewed && exact
+    ? {
+        ...exact,
+        pinNames: reviewed.terminals.map((terminal) => terminal.pinName),
+      }
     : undefined;
 }

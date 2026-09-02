@@ -2,24 +2,24 @@
 * Eight-channel chopper analog front end; no simulation/performance claim.
 
 .subckt chopper_channel INP INN CLK CLKB VBIAS OUTP OUTN VDD VSS
-MSWP0 NXP CLK  INP VSS sky130_fd_pr__nfet_01v8 W=1.2u L=0.15u
-MSWP1 NXP CLKB INN VSS sky130_fd_pr__nfet_01v8 W=1.2u L=0.15u
-MSWN0 NXN CLK  INN VSS sky130_fd_pr__nfet_01v8 W=1.2u L=0.15u
-MSWN1 NXN CLKB INP VSS sky130_fd_pr__nfet_01v8 W=1.2u L=0.15u
-MINP  N1 NXP TAIL VSS sky130_fd_pr__nfet_01v8 W=4u L=0.5u
-MINN  N2 NXN TAIL VSS sky130_fd_pr__nfet_01v8 W=4u L=0.5u
-MTAIL TAIL VBIAS VSS VSS sky130_fd_pr__nfet_01v8 W=8u L=1u
-MPC0  PC1 VBIAS VDD VDD sky130_fd_pr__pfet_01v8 W=6u L=0.5u
-MPC1  PC2 VBIAS VDD VDD sky130_fd_pr__pfet_01v8 W=6u L=0.5u
-MLOAD0 N1 N1 PC1 VDD sky130_fd_pr__pfet_01v8 W=6u L=0.5u
-MLOAD1 N2 N1 PC2 VDD sky130_fd_pr__pfet_01v8 W=6u L=0.5u
-MOUTP0 OUTP N1 VDD VDD sky130_fd_pr__pfet_01v8 W=10u L=0.3u
-MOUTP1 OUTP N2 VSS VSS sky130_fd_pr__nfet_01v8 W=5u L=0.3u
-MOUTN0 OUTN N2 VDD VDD sky130_fd_pr__pfet_01v8 W=10u L=0.3u
-MOUTN1 OUTN N1 VSS VSS sky130_fd_pr__nfet_01v8 W=5u L=0.3u
-MBIASP OUTP VBIAS VSS VSS sky130_fd_pr__nfet_01v8 W=2u L=1u
-MBIASN OUTN VBIAS VSS VSS sky130_fd_pr__nfet_01v8 W=2u L=1u
-MREF VBIAS VBIAS VSS VSS sky130_fd_pr__nfet_01v8 W=2u L=1u
+XMSWP0 NXP CLK  INP VSS sky130_fd_pr__nfet_01v8 l=0.15 w=1.2
+XMSWP1 NXP CLKB INN VSS sky130_fd_pr__nfet_01v8 l=0.15 w=1.2
+XMSWN0 NXN CLK  INN VSS sky130_fd_pr__nfet_01v8 l=0.15 w=1.2
+XMSWN1 NXN CLKB INP VSS sky130_fd_pr__nfet_01v8 l=0.15 w=1.2
+XMINP  N1 NXP TAIL VSS sky130_fd_pr__nfet_01v8 l=0.5 w=4
+XMINN  N2 NXN TAIL VSS sky130_fd_pr__nfet_01v8 l=0.5 w=4
+XMTAIL TAIL VBIAS VSS VSS sky130_fd_pr__nfet_01v8 l=1 w=8
+XMPC0  PC1 VBIAS VDD VDD sky130_fd_pr__pfet_01v8 l=0.5 w=6
+XMPC1  PC2 VBIAS VDD VDD sky130_fd_pr__pfet_01v8 l=0.5 w=6
+XMLOAD0 N1 N1 PC1 VDD sky130_fd_pr__pfet_01v8 l=0.5 w=6
+XMLOAD1 N2 N1 PC2 VDD sky130_fd_pr__pfet_01v8 l=0.5 w=6
+XMOUTP0 OUTP N1 VDD VDD sky130_fd_pr__pfet_01v8 l=0.3 w=10
+XMOUTP1 OUTP N2 VSS VSS sky130_fd_pr__nfet_01v8 l=0.3 w=5
+XMOUTN0 OUTN N2 VDD VDD sky130_fd_pr__pfet_01v8 l=0.3 w=10
+XMOUTN1 OUTN N1 VSS VSS sky130_fd_pr__nfet_01v8 l=0.3 w=5
+XMBIASP OUTP VBIAS VSS VSS sky130_fd_pr__nfet_01v8 l=1 w=2
+XMBIASN OUTN VBIAS VSS VSS sky130_fd_pr__nfet_01v8 l=1 w=2
+XMREF VBIAS VBIAS VSS VSS sky130_fd_pr__nfet_01v8 l=1 w=2
 .ends chopper_channel
 
 .subckt chopper_afe_8ch CLK CLKB VBIAS VDD VSS

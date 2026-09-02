@@ -324,6 +324,13 @@ export const DisconnectEndpointEditSchema = z.strictObject({
     pinName: z.string().min(1),
   }),
 });
+/** Assigns a reviewed non-graphical terminal directly to an existing Net. */
+export const SetPropertyTerminalNetEditSchema = z.strictObject({
+  kind: z.literal("set_property_terminal_net"),
+  instanceId: StableIdSchema,
+  pinName: z.string().min(1).max(128),
+  netId: StableIdSchema.nullable(),
+});
 export const AddNoConnectEditSchema = z.strictObject({
   kind: z.literal("add_no_connect"),
   noConnect: NoConnectSchema,
@@ -434,6 +441,7 @@ export const SchematicEditSchema = z.discriminatedUnion("kind", [
   ReconcileMosBulkEditSchema,
   ClearMosBulkDefaultEditSchema,
   DisconnectEndpointEditSchema,
+  SetPropertyTerminalNetEditSchema,
   AddNoConnectEditSchema,
   RemoveNoConnectEditSchema,
   SetPresentationStyleEditSchema,

@@ -1,5 +1,6 @@
 import type { ResolvedRouteGeometry } from "@icm/derived";
 import { resolveNetLabelBinding } from "@icm/derived";
+import { resolveReviewedExternalBinding } from "@icm/devices";
 import { planEnsureNamedNet, type SchematicEdit } from "@icm/edit-engine";
 import {
   deriveStableId,
@@ -11,12 +12,12 @@ import {
   type RouteBranch,
   type SchematicDocument,
 } from "@icm/model";
-import { resolvePdkSymbolMapping, type SymbolResolver } from "@icm/symbols";
+import type { SymbolResolver } from "@icm/symbols";
 
 import { snapCoordinate } from "../../snap/engine";
 import {
   componentParameters,
-  externalMosComponentParameters,
+  reviewedExternalComponentParameters,
 } from "../component-insert/component-parameters";
 import { initialInstanceNetlist } from "../netlist-export/netlist-authoring";
 
@@ -296,19 +297,14 @@ export function createPropertyEditPlanner({
       const definition = project.externalSubcircuitDefinitions.find(
         (candidate) => candidate.id === binding.definitionId,
       );
-      const mapping = definition
-        ? resolvePdkSymbolMapping(definition.name, definition.terminals.length)
+      const reviewed = definition
+        ? resolveReviewedExternalBinding(
+            definition.name,
+            definition.terminals.map((terminal) => terminal.name),
+          )
         : undefined;
-      if (
-        definition &&
-        (mapping?.symbolId === "nmos" || mapping?.symbolId === "pmos") &&
-        definition.terminals.every(
-          (terminal, index) =>
-            terminal.name.toLowerCase() ===
-            mapping.pinNames[index]?.toLowerCase(),
-        )
-      ) {
-        return externalMosComponentParameters(mapping.symbolId);
+      if (reviewed) {
+        return reviewedExternalComponentParameters(reviewed);
       }
     }
     return componentParameters(instance.symbolId);

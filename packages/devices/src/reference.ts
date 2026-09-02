@@ -39,10 +39,15 @@ export function referencePolicyForInstance(
   const binding = instance.netlist?.binding;
   if (
     binding?.kind === "subcircuit" ||
-    binding?.kind === "external-subcircuit" ||
     binding?.kind === "unresolved-subcircuit"
   ) {
     return hierarchyReferencePolicy;
+  }
+  if (binding?.kind === "external-subcircuit") {
+    const nativePrefix = deviceDescriptor(instance.symbolId)?.referencePrefix;
+    return nativePrefix
+      ? { kind: "required", prefix: nativePrefix }
+      : hierarchyReferencePolicy;
   }
   const prefix = deviceDescriptor(instance.symbolId)?.referencePrefix;
   return prefix ? { kind: "required", prefix } : { kind: "none" };

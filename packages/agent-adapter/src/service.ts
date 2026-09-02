@@ -210,6 +210,7 @@ export function agentEditCategory(
     case "reset_cell_body":
     case "upsert_connectivity_evidence":
     case "remove_connectivity_evidence":
+    case "set_property_terminal_net":
       return "unsupported";
   }
 }

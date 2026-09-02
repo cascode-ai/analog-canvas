@@ -8,18 +8,14 @@ import type {
 } from "@icm/model";
 import { deriveStableId, projectCellInterface, routeEnd } from "@icm/model";
 import {
-  createReferenceIndex,
-  hierarchyReferencePolicy,
-  nextReference,
-  referencePolicyForSymbol,
+  resolveReviewedExternalBinding,
+  reviewedExternalBindingForMaster,
 } from "@icm/devices";
 import {
   builtInSymbols,
   createProjectSymbolResolver,
   externalSubcircuitSymbolId,
   hierarchicalSymbolId,
-  resolvePdkSymbolMapping,
-  resolvePdkSymbolMappingForTerminalOrder,
 } from "@icm/symbols";
 import { resolveEndpointConnection } from "@icm/derived";
 
@@ -305,7 +301,7 @@ function externalTerminalId(masterName: string, index: number): string {
   );
 }
 
-function matchingExternalMosDefinition(
+function matchingReviewedExternalDefinition(
   project: CircuitProject,
   definitionId: string,
 ) {
@@ -313,19 +309,19 @@ function matchingExternalMosDefinition(
     (candidate) => candidate.id === definitionId,
   );
   if (!definition || definition.presentation) return undefined;
-  const mapping = resolvePdkSymbolMappingForTerminalOrder(
+  const binding = resolveReviewedExternalBinding(
     definition.name,
     definition.terminals.map((terminal) => terminal.name),
   );
-  if (!mapping) return undefined;
-  return { definition, mapping };
+  if (!binding) return undefined;
+  return { definition, binding };
 }
 
 /**
- * Switches a reviewed four-terminal MOS between an ordinary model binding and
- * a SKY130 external X-call without changing the existing D/G/S/B connectivity.
+ * Switches a native device between its ordinary binding and one exact reviewed
+ * external target without changing its authored reference or graphical pins.
  */
-export function planSetMosModelTarget(
+export function planSetDeviceModelTarget(
   project: CircuitProject,
   documentId: string,
   instanceId: string,
@@ -339,28 +335,27 @@ export function planSetMosModelTarget(
     throw new Error(`Netlisted Instance does not exist: ${instanceId}`);
   }
   const normalizedName = modelName.trim();
-  const targetMapping = normalizedName
-    ? resolvePdkSymbolMapping(normalizedName, 4)
+  const targetBinding = normalizedName
+    ? reviewedExternalBindingForMaster(normalizedName)
     : undefined;
   const currentExternal =
     instance.netlist.binding?.kind === "external-subcircuit"
-      ? matchingExternalMosDefinition(
+      ? matchingReviewedExternalDefinition(
           project,
           instance.netlist.binding.definitionId,
         )
       : undefined;
-  const sourceMosSymbolId =
-    currentExternal?.mapping.symbolId ?? instance.symbolId;
-  if (sourceMosSymbolId !== "nmos" && sourceMosSymbolId !== "pmos") {
+  const sourceSymbolId = currentExternal?.binding.symbolId ?? instance.symbolId;
+  if (!["nmos", "pmos", "resistor", "capacitor"].includes(sourceSymbolId)) {
     throw new Error(
-      "Only reviewed NMOS and PMOS targets can use the Model field",
+      "Only reviewed MOS, resistor, and capacitor targets use this Model field",
     );
   }
 
-  if (targetMapping) {
-    if (targetMapping.symbolId !== sourceMosSymbolId) {
+  if (targetBinding) {
+    if (targetBinding.symbolId !== sourceSymbolId) {
       throw new Error(
-        `${normalizedName} is not compatible with the selected ${sourceMosSymbolId.toUpperCase()}`,
+        `${normalizedName} is not compatible with the selected ${sourceSymbolId}`,
       );
     }
     const sameNameDefinition = project.externalSubcircuitDefinitions.find(
@@ -372,33 +367,32 @@ export function planSetMosModelTarget(
       ({
         id: externalDefinitionId(normalizedName),
         name: normalizedName,
-        terminals: targetMapping.pinNames.map((name, index) => ({
+        terminals: targetBinding.terminals.map((terminal, index) => ({
           id: externalTerminalId(normalizedName, index),
-          name,
+          name: terminal.targetName,
           direction: "passive" as const,
         })),
-        formalParameters: [],
+        formalParameters: targetBinding.parameters.map((parameter) => ({
+          name: parameter.name,
+          ...(parameter.targetDefaultValue
+            ? { defaultValue: parameter.targetDefaultValue }
+            : {}),
+        })),
         interfaceStatus: "declared" as const,
       } satisfies ExternalSubcircuitDefinition);
     const verified = definition.presentation
       ? undefined
-      : resolvePdkSymbolMappingForTerminalOrder(
+      : resolveReviewedExternalBinding(
           definition.name,
           definition.terminals.map((terminal) => terminal.name),
         );
-    if (!verified || verified.symbolId !== sourceMosSymbolId) {
+    if (!verified || verified.symbolId !== sourceSymbolId) {
       throw new Error(
-        `Existing external definition ${definition.name} does not declare D, G, S, B in reviewed order`,
+        `Existing external definition ${definition.name} does not match its reviewed public terminal order`,
       );
     }
     const symbolId = verified.symbolId;
-    const reference =
-      instance.netlist.binding?.kind === "external-subcircuit"
-        ? instance.reference!
-        : nextReference(
-            createReferenceIndex(document),
-            hierarchyReferencePolicy,
-          )!;
+    const reference = instance.reference!;
     const documentEdits: DocumentEdits = [];
     if (instance.symbolId !== symbolId) {
       documentEdits.push({
@@ -411,14 +405,38 @@ export function planSetMosModelTarget(
       kind: "external-subcircuit" as const,
       definitionId: definition.id,
     };
+    const parameterNames = new Set(
+      verified.parameters.map((parameter) => parameter.name.toLowerCase()),
+    );
+    const set = Object.fromEntries(
+      verified.parameters.flatMap((parameter) =>
+        instance.netlist!.parameters[parameter.name] === undefined &&
+        parameter.defaultValue !== undefined
+          ? [[parameter.name, parameter.defaultValue]]
+          : [],
+      ),
+    );
+    const unset = Object.keys(instance.netlist.parameters).filter(
+      (name) => !parameterNames.has(name.toLowerCase()),
+    );
     if (
       JSON.stringify(instance.netlist.binding ?? null) !==
         JSON.stringify(binding) ||
-      instance.reference !== reference
+      instance.reference !== reference ||
+      Object.keys(set).length > 0 ||
+      unset.length > 0
     ) {
       documentEdits.push({
         kind: "bulk_patch_instance_netlist",
-        assignments: [{ instanceId, reference, binding }],
+        assignments: [
+          {
+            instanceId,
+            reference,
+            binding,
+            ...(Object.keys(set).length ? { set } : {}),
+            ...(unset.length ? { unset } : {}),
+          },
+        ],
       });
     }
     if (documentEdits.length === 0) return [];
@@ -435,16 +453,31 @@ export function planSetMosModelTarget(
     ];
   }
 
-  const symbolId = sourceMosSymbolId;
-  const reference = currentExternal
-    ? nextReference(
-        createReferenceIndex(document),
-        referencePolicyForSymbol(symbolId),
-      )!
-    : instance.reference!;
-  const binding = normalizedName
-    ? ({ kind: "model", deviceClass: "mos", name: normalizedName } as const)
-    : undefined;
+  const symbolId = sourceSymbolId;
+  const reference = instance.reference!;
+  if (normalizedName && symbolId !== "nmos" && symbolId !== "pmos") {
+    throw new Error(
+      `${symbolId} supports only the reviewed model suggestion in this release`,
+    );
+  }
+  const binding =
+    symbolId === "nmos" || symbolId === "pmos"
+      ? normalizedName
+        ? ({ kind: "model", deviceClass: "mos", name: normalizedName } as const)
+        : undefined
+      : ({
+          kind: "primitive",
+          deviceClass: symbolId === "resistor" ? "resistor" : "capacitor",
+        } as const);
+  const ordinaryParameterNames = new Set(
+    (symbolId === "nmos" || symbolId === "pmos"
+      ? ["w", "l", "nf", "m"]
+      : ["value"]
+    ).map((name) => name.toLowerCase()),
+  );
+  const unset = Object.keys(instance.netlist.parameters).filter(
+    (name) => !ordinaryParameterNames.has(name.toLowerCase()),
+  );
   const documentEdits: DocumentEdits = [];
   if (instance.symbolId !== symbolId) {
     documentEdits.push({ kind: "set_instance_symbol", instanceId, symbolId });
@@ -452,17 +485,28 @@ export function planSetMosModelTarget(
   if (
     JSON.stringify(instance.netlist.binding ?? null) !==
       JSON.stringify(binding ?? null) ||
-    instance.reference !== reference
+    instance.reference !== reference ||
+    unset.length > 0
   ) {
     documentEdits.push({
       kind: "bulk_patch_instance_netlist",
-      assignments: [{ instanceId, reference, binding: binding ?? null }],
+      assignments: [
+        {
+          instanceId,
+          reference,
+          binding: binding ?? null,
+          ...(unset.length ? { unset } : {}),
+        },
+      ],
     });
   }
   return documentEdits.length > 0
     ? [transactDocument(project, documentId, documentEdits)]
     : [];
 }
+
+/** Compatibility name for callers; behavior now covers all reviewed devices. */
+export const planSetMosModelTarget = planSetDeviceModelTarget;
 
 /** Build the one canonical subcircuit Instance projection of a child Cell. */
 export function createHierarchyInstance(
@@ -496,15 +540,15 @@ export function createExternalSubcircuitInstance(
   placement: NonNullable<SchematicDocument["instances"][number]["placement"]>,
   reference = id,
 ): SchematicDocument["instances"][number] {
-  const mapping = definition.presentation
+  const reviewed = definition.presentation
     ? undefined
-    : resolvePdkSymbolMappingForTerminalOrder(
+    : resolveReviewedExternalBinding(
         definition.name,
         definition.terminals.map((terminal) => terminal.name),
       );
   return {
     id,
-    symbolId: mapping?.symbolId ?? externalSubcircuitSymbolId(definition.id),
+    symbolId: reviewed?.symbolId ?? externalSubcircuitSymbolId(definition.id),
     reference: reference,
     placement,
     netlist: {
@@ -740,8 +784,15 @@ export function proposeUpsertExternalSubcircuitDefinition(
   project: CircuitProject,
   definition: ExternalSubcircuitDefinition,
 ): SubcircuitInterfaceProposal {
+  const reviewed = resolveReviewedExternalBinding(
+    definition.name,
+    definition.terminals.map((terminal) => terminal.name),
+  );
   const allowedPins = new Set(
-    definition.terminals.map((terminal) => terminal.name.toLowerCase()),
+    (reviewed
+      ? reviewed.terminals.map((terminal) => terminal.pinName)
+      : definition.terminals.map((terminal) => terminal.name)
+    ).map((name) => name.toLowerCase()),
   );
   const diagnostics = project.documents.flatMap((document) =>
     document.instances.flatMap((instance) => {

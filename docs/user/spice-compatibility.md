@@ -10,14 +10,21 @@ omit includes, PDK model paths, simulator decks, corners and analyses. Unknown
 imported `X` calls remain external subcircuit calls; a display mapping never
 turns them into a primitive model call.
 
-For the reviewed four-terminal SKY130 NFET/PFET family, the editor uses the
-existing NMOS/PMOS artwork with explicit `D`, `G`, `S`, and `B` terminals while
-retaining the external definition and `X` reference. A user may place the
-ordinary NMOS/PMOS with the unchanged Insert flow, then choose
+For the exact reviewed SKY130 targets, the editor uses the existing NMOS,
+PMOS, resistor, and capacitor artwork while retaining an external definition.
+A user may place the ordinary NMOS/PMOS with the unchanged Insert flow, then choose
 `sky130_fd_pr__nfet_01v8` or `sky130_fd_pr__pfet_01v8` from the existing Model
 field. The edit creates or reuses the project-local external definition,
-preserves connectivity and raw values, and exposes `w`, `l`, and `nf`. It does
-not convert `m` into `nf`.
+preserves connectivity and the authored `M` reference, and exposes `w`, `l`,
+`nf`, and `m`. SPICE derives `XM1` from authored `M1`; it does not convert `m`
+into `nf`.
+
+The same Model field on the ordinary resistor and capacitor offers
+`sky130_fd_pr__res_high_po` and `sky130_fd_pr__cap_mim_m3_1`. Their existing
+icons and visible pins do not change. The resistor's real B substrate terminal
+is selected from existing Nets through `Body/Substrate Net` in Properties and
+has no canvas pin or wire. Physical R/C geometry is `w/l/mult` or `w/l/mf`;
+the editor never derives it from an ideal scalar value.
 
 This convenience is structural only. It does not install SKY130, resolve a
 local `.include`, supply foundry models or corners, or make the exported
