@@ -2,10 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { TilePreview } from "./tile-preview";
 import "../styles/gallery-entry.css";
 
-import { renderDocumentSvg } from "@icm/render-svg";
-import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
-
-import { libraryProjectExamples } from "../examples/library-examples";
 import {
   announceGalleryChange,
   galleryCountLabel,
@@ -19,6 +15,7 @@ import {
   type GalleryFeedState,
   type GalleryTagOption,
 } from "../gallery-client";
+import type { BundledGalleryTile } from "./gallery-bundled-fallback";
 
 // The wall and the canvas-side panel share one data layer, so a search that
 // finds a circuit here finds it there too. These re-exports keep every
@@ -37,7 +34,6 @@ import { GalleryChrome } from "./gallery-chrome";
 import { Masonry } from "./masonry";
 import { ShelfWall } from "./shelf-wall";
 
-const resolver = new InMemorySymbolResolver(builtInSymbols);
 /**
  * How many tags the bar shows before it offers the rest. One row at a typical
  * desktop width; the wall is what the reader came for, so the tags stay a
@@ -285,21 +281,6 @@ function savedAtLabel(createdAt: string): string {
       });
 }
 
-/** Bundled examples double as never-empty starter tiles for the feed. */
-function bundledTiles() {
-  return libraryProjectExamples.map((example) => {
-    const topDocument = example.project.documents.find(
-      (document) => document.id === example.project.topDocumentId,
-    )!;
-    return {
-      id: example.id,
-      name: example.name,
-      description: example.description,
-      svg: renderDocumentSvg(topDocument, resolver),
-    };
-  });
-}
-
 /** One feed page; the plain first request stays exactly `/api/gallery`. */
 /**
  * Full-screen landing feed: every tile is one published circuit that opens
@@ -344,6 +325,10 @@ export function GalleryFeed({
     { tag: string; count: number }[]
   >([]);
   const [refreshSignal, setRefreshSignal] = useState(0);
+  const [bundledFallback, setBundledFallback] = useState<{
+    status: "idle" | "loading" | "ready" | "failed";
+    tiles: BundledGalleryTile[];
+  }>({ status: "idle", tiles: [] });
 
   useEffect(() => {
     let cancelled = false;
@@ -617,6 +602,25 @@ export function GalleryFeed({
   }
 
   const entries = state.entries;
+  const needsBundledFallback =
+    state.status !== "loading" && entries.length === 0 && author === null;
+
+  useEffect(() => {
+    if (!needsBundledFallback || bundledFallback.status !== "idle") return;
+    let cancelled = false;
+    setBundledFallback({ status: "loading", tiles: [] });
+    void import("./gallery-bundled-fallback")
+      .then(({ loadBundledGalleryTiles }) => loadBundledGalleryTiles())
+      .then((tiles) => {
+        if (!cancelled) setBundledFallback({ status: "ready", tiles });
+      })
+      .catch(() => {
+        if (!cancelled) setBundledFallback({ status: "failed", tiles: [] });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [needsBundledFallback]);
 
   const normalizedSearchQuery = searchQuery.trim().toLowerCase();
   const visibleEntries = normalizedSearchQuery
@@ -811,7 +815,10 @@ export function GalleryFeed({
               {ownerNotice}
             </p>
           ) : null}
-          {state.status === "loading" ? (
+          {state.status === "loading" ||
+          (needsBundledFallback &&
+            (bundledFallback.status === "idle" ||
+              bundledFallback.status === "loading")) ? (
             <p className="gallery-status" data-testid="gallery-loading">
               Loading gallery…
             </p>
@@ -944,8 +951,8 @@ export function GalleryFeed({
                       </div>
                     ),
                   })),
-                  ...(entries.length === 0 && author === null
-                    ? bundledTiles()
+                  ...(needsBundledFallback
+                    ? bundledFallback.tiles
                         .filter((tile) =>
                           galleryEntryMatchesQuery(
                             { ...tile, author: "", tags: [] },

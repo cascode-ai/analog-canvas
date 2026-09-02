@@ -184,8 +184,13 @@ test("an open Gallery switches to a newly published preview revision", async ({
 test("the Owner rejects a Gallery entry with an author-visible reason", async ({
   page,
 }) => {
-  await page.route("**/api/auth/me", (route) =>
-    route.fulfill({
+  let sessionRequests = 0;
+  await page.route("**/api/auth/providers", (route) =>
+    route.fulfill({ json: { github: true, google: false, email: false } }),
+  );
+  await page.route("**/api/auth/me", (route) => {
+    sessionRequests += 1;
+    return route.fulfill({
       json: {
         user: {
           id: "owner-1",
@@ -196,8 +201,8 @@ test("the Owner rejects a Gallery entry with an author-visible reason", async ({
           isAdmin: true,
         },
       },
-    }),
-  );
+    });
+  });
   await mockGallery(page, [ENTRY]);
   let rejectReason = "";
   await page.route(`**/api/gallery/${ENTRY.id}/reject`, async (route) => {
@@ -209,6 +214,7 @@ test("the Owner rejects a Gallery entry with an author-visible reason", async ({
   await page.goto("/");
   const menu = page.getByTestId(`gallery-owner-menu-${ENTRY.id}`);
   await expect(menu).toBeVisible();
+  expect(sessionRequests).toBe(1);
   await menu.locator("summary").click();
   await expect(
     page.getByTestId(`gallery-owner-edit-${ENTRY.id}`),
