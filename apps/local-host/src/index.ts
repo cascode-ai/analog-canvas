@@ -3,6 +3,8 @@ import type { IncomingMessage, Server, ServerResponse } from "node:http";
 import { readFile, stat } from "node:fs/promises";
 import { extname, isAbsolute, relative, resolve } from "node:path";
 
+import type { ModelLibrarySelection } from "@icm/spice-run";
+
 import { simulateLocally } from "./simulate.js";
 
 const TYPES: Readonly<Record<string, string>> = {
@@ -20,8 +22,8 @@ export interface LocalHostOptions {
   port?: number;
   /** The simulator to run; the user's own install by default. */
   ngspicePath?: string;
-  /** PDK model library the deck should include, when the user has one. */
-  modelLibraryPath?: string | null;
+  /** Explicit model-library directive, path, and optional section. */
+  modelLibrary?: ModelLibrarySelection | null;
 }
 
 /** A deck larger than this is a mistake upstream, not a simulation. */
@@ -185,7 +187,7 @@ async function handleSimulate(
     },
     {
       ...(options.ngspicePath ? { ngspicePath: options.ngspicePath } : {}),
-      modelLibraryPath: options.modelLibraryPath ?? null,
+      modelLibrary: options.modelLibrary ?? null,
     },
   );
   if (outcome.kind === "simulator-unavailable") {

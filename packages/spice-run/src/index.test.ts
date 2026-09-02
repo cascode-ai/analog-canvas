@@ -122,19 +122,54 @@ describe("simulation deck assembly", () => {
     ".subckt amp in out\nM1 out in 0 0 nfet\n.ends\nXA in out amp";
   const testbench = "V1 in 0 DC 1\n.control\nop\nprint v(out)\n.endc";
 
-  it("contributes only the model path and keeps the testbench verbatim", () => {
+  it("selects an explicit section from a corner library", () => {
     const deck = buildSimulationDeck(
       { netlist, testbench },
-      "/opt/sky130/sky130A/libs.tech/ngspice/sky130.lib.spice",
+      {
+        directive: "lib",
+        path: "/opt/sky130/sky130A/libs.tech/ngspice/sky130.lib.spice",
+        section: "tt",
+      },
     );
     expect(deck).toContain(
-      ".include /opt/sky130/sky130A/libs.tech/ngspice/sky130.lib.spice",
+      '.lib "/opt/sky130/sky130A/libs.tech/ngspice/sky130.lib.spice" tt',
     );
     // ADR 0055: we ship no templates and infer no intent. Nothing analysis-
     // shaped may appear that the author did not write.
     expect(deck).toContain(testbench);
     const ours = deck.replace(testbench, "").replace(netlist, "");
     expect(ours).not.toMatch(/\.ac\b|\.dc\b|\.tran\b|\.control/iu);
+  });
+
+  it("includes a plain model file without inventing a section", () => {
+    const deck = buildSimulationDeck(
+      { netlist, testbench },
+      {
+        directive: "include",
+        path: "C:/PDK Files/models/plain-models.spice",
+      },
+    );
+    expect(deck).toContain('.include "C:/PDK Files/models/plain-models.spice"');
+    expect(deck).not.toMatch(/^\s*\.lib\b/mu);
+  });
+
+  it("refuses values that could inject another deck line", () => {
+    expect(() =>
+      buildSimulationDeck(
+        { netlist, testbench },
+        { directive: "include", path: 'models.spice"\n.end' },
+      ),
+    ).toThrow(/path/iu);
+    expect(() =>
+      buildSimulationDeck(
+        { netlist, testbench },
+        {
+          directive: "lib",
+          path: "models.lib.spice",
+          section: "tt\n.end",
+        },
+      ),
+    ).toThrow(/section/iu);
   });
 
   it("does not close a deck the author already closed", () => {

@@ -75,10 +75,41 @@ describe("simulation route", () => {
     );
     expect(seen.deck).toContain(TESTBENCH);
     expect(seen.deck).toContain(NETLIST);
-    // Our own contribution is the model path and nothing analysis-shaped.
+    // Our own contribution is the model selection and nothing analysis-shaped.
     const ours = seen.deck!.replace(TESTBENCH, "").replace(NETLIST, "");
-    expect(ours).toContain(".include");
+    expect(ours).toContain(
+      '.lib "/opt/sky130/sky130A/libs.tech/ngspice/sky130.lib.spice" tt',
+    );
+    expect(ours).not.toMatch(/^\s*\.include\b/mu);
     expect(ours).not.toMatch(/\.ac\b|\.dc\b|\.tran\b|\.control/iu);
+  });
+
+  it("uses the deployment's explicit Sky130 path and section", async () => {
+    const seen: { deck?: string; timeoutMs?: number } = {};
+    const env = stubRunner(
+      { log: "", exitCode: 0, timedOut: false, durationMs: 5 },
+      seen,
+    );
+    env.SKY130_LIB_PATH = "/models/sky130.lib.spice";
+    env.SKY130_LIB_SECTION = "ff";
+    await routeSimulationRequest(
+      post({ netlist: NETLIST, testbench: TESTBENCH }),
+      env,
+    );
+    expect(seen.deck).toContain('.lib "/models/sky130.lib.spice" ff');
+  });
+
+  it("reports an invalid deployed section as environment configuration", async () => {
+    const env = stubRunner({});
+    env.SKY130_LIB_SECTION = "tt\n.end";
+    const response = await routeSimulationRequest(
+      post({ netlist: NETLIST, testbench: TESTBENCH }),
+      env,
+    );
+    expect(response?.status).toBe(503);
+    expect((await response!.json()) as unknown).toMatchObject({
+      error: "simulation-environment-invalid",
+    });
   });
 
   it("reports a dropped device rather than a clean run", async () => {
