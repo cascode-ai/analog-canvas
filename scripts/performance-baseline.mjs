@@ -29,6 +29,7 @@ const budgets = {
   agentSnapshot: 1000,
   editTransaction: 1000,
   connectivityIndex: 1000,
+  connectivityRenderSvg: 2000,
   spiceImport: 2000,
   atomicSave: 1000,
 };
@@ -171,6 +172,11 @@ const edit = await measure(() =>
 const connectivityIndex = await measure(() =>
   buildProjectConnectivityIndex(validatedConnectivityProject, resolver),
 );
+const connectivityRender = await measure(() =>
+  renderDocumentSvg(validatedConnectivityProject.documents[0], resolver, {
+    title: validatedConnectivityProject.name,
+  }),
+);
 const sourcePath = resolve("fixtures/spice-baseline/core.cir");
 const modelPath = resolve("fixtures/spice-baseline/models.lib");
 const imported = await measure(async () =>
@@ -198,6 +204,7 @@ const measurements = {
   agentSnapshot: snapshot.milliseconds,
   editTransaction: edit.milliseconds,
   connectivityIndex: connectivityIndex.milliseconds,
+  connectivityRenderSvg: connectivityRender.milliseconds,
   spiceImport: imported.milliseconds,
   atomicSave: saved.milliseconds,
 };

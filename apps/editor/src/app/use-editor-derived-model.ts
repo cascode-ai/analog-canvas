@@ -8,7 +8,7 @@ import {
   endpointKey,
   isMosBulkTerminal,
   isVisibleEndpoint,
-  resolveDocumentLogicalNets,
+  resolveCommittedDocumentLogicalNets,
   resolveEndpointConnection,
   traceHierarchyNet,
 } from "@icm/derived";
@@ -223,7 +223,7 @@ export function useEditorDerivedModel({
     document.id,
   );
   const logicalNets = useMemo(
-    () => resolveDocumentLogicalNets(document),
+    () => resolveCommittedDocumentLogicalNets(document),
     [document],
   );
   const routeGeometryRecords = useMemo(

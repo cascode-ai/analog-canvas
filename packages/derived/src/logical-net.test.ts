@@ -1,9 +1,36 @@
 import { createEmptyDocument } from "@icm/model";
 import { describe, expect, it } from "vitest";
 
-import { resolveDocumentLogicalNets } from "./logical-net.js";
+import {
+  resolveCommittedDocumentLogicalNets,
+  resolveDocumentLogicalNets,
+} from "./logical-net.js";
 
 describe("resolved logical Nets", () => {
+  it("reuses only explicitly committed Document revisions", () => {
+    const document = createEmptyDocument("document-cache", "Document cache");
+    document.nets.push({ id: "net-a", terminals: [] });
+
+    const first = resolveCommittedDocumentLogicalNets(document);
+    const repeated = resolveCommittedDocumentLogicalNets(document);
+    expect(repeated).toBe(first);
+
+    document.nets.push({ id: "net-b", terminals: [] });
+    document.revision += 1;
+    const revised = resolveCommittedDocumentLogicalNets(document);
+    expect(revised).not.toBe(first);
+    expect(revised.groups.map((group) => group.id)).toEqual(["net-a", "net-b"]);
+  });
+
+  it("keeps the raw resolver live for mutable transaction drafts", () => {
+    const document = createEmptyDocument("document-draft", "Document draft");
+    document.nets.push({ id: "net-a", terminals: [] });
+    expect(resolveDocumentLogicalNets(document).groups).toHaveLength(1);
+
+    document.nets.push({ id: "net-b", terminals: [] });
+    expect(resolveDocumentLogicalNets(document).groups).toHaveLength(2);
+  });
+
   it("keeps source name hints non-electrical while resolving visible scoped names deterministically", () => {
     const document = createEmptyDocument("document", "Document");
     document.nets.push(

@@ -28,6 +28,14 @@ export interface ResolvedDocumentLogicalNets {
   byBaseNetId: ReadonlyMap<string, ResolvedLogicalNet>;
 }
 
+const committedDocumentLogicalNetCache = new WeakMap<
+  SchematicDocument,
+  {
+    revision: number;
+    resolution: ResolvedDocumentLogicalNets;
+  }
+>();
+
 export type LogicalNetContractIssue = {
   code:
     | "CONFLICTING_LOGICAL_NET_NAME"
@@ -235,6 +243,30 @@ export function resolveDocumentLogicalNets(
     ),
   );
   return { groups, byId, byBaseNetId };
+}
+
+/**
+ * Reuse Logical-Net resolution for an immutable, committed Document revision.
+ *
+ * This is deliberately separate from {@link resolveDocumentLogicalNets}.
+ * Edit-engine transactions mutate one draft object through several edits
+ * before advancing its revision, so mutable drafts must always use the raw
+ * resolver. Editor/render read models may opt into this cache only after a
+ * Document revision has been committed.
+ */
+export function resolveCommittedDocumentLogicalNets(
+  document: SchematicDocument,
+): ResolvedDocumentLogicalNets {
+  const cached = committedDocumentLogicalNetCache.get(document);
+  if (cached && cached.revision === document.revision) {
+    return cached.resolution;
+  }
+  const resolution = resolveDocumentLogicalNets(document);
+  committedDocumentLogicalNetCache.set(document, {
+    revision: document.revision,
+    resolution,
+  });
+  return resolution;
 }
 
 /** Electrical naming invariants evaluated on the one resolved semantic view. */
