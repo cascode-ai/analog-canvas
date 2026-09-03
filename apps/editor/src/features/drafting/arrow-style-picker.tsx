@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { razaviTextbookProfile } from "@icm/derived";
-import { ARROW_PRESETS, type ArrowPreset } from "./arrow-presets";
+import { ARROW_PICKER_PRESETS, type ArrowPreset } from "./arrow-presets";
 import { ArrowArtworkView } from "./arrow-artwork-view";
 
 export function ArrowStyleIcon({ preset }: { preset: ArrowPreset }) {
@@ -80,7 +80,7 @@ export function ArrowStylePicker({
               {family === "line" ? "Line arrows" : "Outline arrows"}
             </strong>
             <div className="arrow-style-options">
-              {ARROW_PRESETS.filter((p) => p.family === family).map(
+              {ARROW_PICKER_PRESETS.filter((p) => p.family === family).map(
                 (preset) => {
                   const unavailable =
                     disabled || (canChoose && !canChoose(preset));

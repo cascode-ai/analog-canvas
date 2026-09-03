@@ -61,12 +61,14 @@ and support curves; outline arrows are complete hollow shapes: move to preview,
 click to stamp a compact default, or drag a bounding box to set width and length.
 
 Select an arrow and press `Q` for Properties. **Style** is the same icon gallery,
-including filled/open, start/end/double and hollow outline arrows. **Stroke width**
-changes weight; an outline's **Width** changes its shape without changing weight.
+including filled/open single- and double-headed line arrows and hollow outline
+arrows. **Stroke width** changes weight; an outline's **Width** changes its shape
+without changing weight.
 Drag endpoint handles to set length, the side handle for outline width, and the
-rotation handle for direction; `R` and **Bearing** also rotate. Use a start/end
-style to change the pointing end without moving a curved path. The obsolete
-Head size, Rotate and Reverse controls are no longer separate panel controls.
+rotation handle for direction; `R` and **Bearing** also rotate. Reversed and
+headless line arrows remain supported in existing drawings but are not offered
+in the style menu. The obsolete Head size, Rotate and Reverse controls are no
+longer separate panel controls.
 
 Existing head sizes remain intact when loading or restyling old drawings.
 Converting a bent/curved line arrow to an outline is disabled: no bends are

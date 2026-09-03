@@ -29,6 +29,12 @@ export const ARROW_PRESETS: readonly ArrowPreset[] = [
     at,
   })),
 ];
+/** Keep legacy styles resolvable without offering redundant menu choices. */
+export const ARROW_PICKER_PRESETS = ARROW_PRESETS.filter(
+  (preset) =>
+    preset.family !== "line" ||
+    (preset.at !== "start" && preset.head !== "none"),
+);
 export const DEFAULT_ARROW_PRESET = ARROW_PRESETS[0]!;
 export const DEFAULT_OUTLINE_WIDTH = 30;
 export const DEFAULT_OUTLINE_LENGTH = 44;
