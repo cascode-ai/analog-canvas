@@ -30,6 +30,9 @@ export interface AgentHttpClientOptions {
   baseUrl: string;
   fetch?: typeof fetch;
   requestTimeoutMs?: number;
+  /** Bounded 429 backoff. The serialized body and request ID never change. */
+  rateLimitRetryAttempts?: number;
+  sleep?: (milliseconds: number) => Promise<void>;
 }
 
 interface ErrorResponseBody {
@@ -56,11 +59,17 @@ export class AgentHttpClient {
   private readonly baseUrlValue: string;
   private readonly fetchImpl: typeof fetch;
   private readonly timeoutMs: number;
+  private readonly rateLimitRetryAttempts: number;
+  private readonly sleep: (milliseconds: number) => Promise<void>;
 
   constructor(options: AgentHttpClientOptions) {
     this.baseUrlValue = options.baseUrl;
     this.fetchImpl = options.fetch ?? fetch;
     this.timeoutMs = options.requestTimeoutMs ?? 30_000;
+    this.rateLimitRetryAttempts = options.rateLimitRetryAttempts ?? 2;
+    this.sleep =
+      options.sleep ??
+      ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
   }
 
   get baseUrl(): string {
@@ -169,18 +178,35 @@ export class AgentHttpClient {
   }
 
   private async send(path: string, init: RequestInit): Promise<Response> {
-    let response: Response;
-    try {
-      response = await this.fetchImpl(joinUrl(this.baseUrl, path), {
-        ...init,
-        signal: AbortSignal.timeout(this.timeoutMs),
-      });
-    } catch (error) {
-      throw networkFailure(
-        error instanceof Error ? error.message : "Network request failed",
-      );
+    for (let attempt = 0; ; attempt += 1) {
+      let response: Response;
+      try {
+        response = await this.fetchImpl(joinUrl(this.baseUrl, path), {
+          ...init,
+          signal: AbortSignal.timeout(this.timeoutMs),
+        });
+      } catch (error) {
+        throw networkFailure(
+          error instanceof Error ? error.message : "Network request failed",
+        );
+      }
+      if (response.status !== 429 || attempt >= this.rateLimitRetryAttempts)
+        return response;
+      const retryAfter = response.headers.get("retry-after");
+      const seconds = retryAfter === null ? NaN : Number(retryAfter);
+      const requestedDelay = Number.isFinite(seconds)
+        ? seconds * 1000
+        : retryAfter
+          ? Date.parse(retryAfter) - Date.now()
+          : NaN;
+      const delay = Number.isFinite(requestedDelay)
+        ? Math.max(0, requestedDelay)
+        : 1000 * 2 ** attempt;
+      // Do not wait indefinitely or retry earlier than the server permits.
+      if (delay > this.timeoutMs) return response;
+      await response.body?.cancel();
+      await this.sleep(delay);
     }
-    return response;
   }
 
   private transportError(status: number, body: unknown): Error {

@@ -74,7 +74,11 @@ const NetRefSchema = NamedObjectRefSchema.refine((ref) => ref.kind === "net", {
 
 const PinTargetSchema = z.strictObject({
   kind: z.literal("pin"),
-  instance: z.string().min(1),
+  instance: z
+    .union([z.string().min(1), InstanceRefSchema])
+    .describe(
+      "Instance Reference, or {kind:'instance', id:'...'} for a stable ID (including formal Cell Pins).",
+    ),
   pin: z.string().min(1),
 });
 const ConnectTargetSchema = z.discriminatedUnion("kind", [
@@ -111,8 +115,8 @@ export const AuthoringActionSchema = z.discriminatedUnion("kind", [
     kind: z.literal("place-component"),
     /** Reviewed built-in Razavi symbol ID from the authoring catalog. */
     symbol: z.string().min(1),
-    /** The sole authored Instance Reference. */
-    reference: z.string().min(1).max(128),
+    /** Required for devices; omit for ground and VDD power markers. */
+    reference: z.string().min(1).max(128).optional(),
     position: PointInputSchema,
     rotation: RotationInputSchema.optional(),
     mirror: MirrorInputSchema.optional(),

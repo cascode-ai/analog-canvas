@@ -15,11 +15,43 @@ import { describe, expect, it } from "vitest";
 import {
   deriveNetConnectivity,
   deriveNetConnectivityContext,
+  deriveImportedRoutingGuidance,
 } from "./connectivity.js";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 
 describe("shared connectivity context (#17)", () => {
+  it("does not guide an imported default body terminal but still guides an independent body bias", () => {
+    const document = createEmptyDocument("main", "Main");
+    document.instances.push({
+      id: "M1",
+      symbolId: "nmos",
+      symbolVariantId: "textbook-3terminal",
+      placement: { position: { x: 100, y: 100 }, rotation: 0, mirror: "none" },
+    });
+    document.nets.push(
+      { id: "vss", terminals: [{ instanceId: "M1", pinName: "B" }] },
+      { id: "tail", terminals: [{ instanceId: "M1", pinName: "S" }] },
+    );
+    document.junctions.push({
+      id: "J1",
+      netId: "vss",
+      position: { x: 200, y: 200 },
+    });
+    document.connectivityEvidence.push({
+      id: "source",
+      kind: "spice-source",
+      netId: "vss",
+      sourceNetId: "source-vss",
+    });
+    document.mosBulkDefaults = { nmosNetId: "vss" };
+    const before = JSON.stringify(document);
+    expect(deriveImportedRoutingGuidance(document, resolver)).toHaveLength(0);
+    expect(JSON.stringify(document)).toBe(before);
+    document.mosBulkDefaults = { nmosNetId: "tail" };
+    document.revision += 1;
+    expect(deriveImportedRoutingGuidance(document, resolver)).toHaveLength(1);
+  });
   it("context-shared derivation matches the per-net derivation exactly", () => {
     const document = parseProject(
       readFileSync(

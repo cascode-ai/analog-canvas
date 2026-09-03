@@ -5,7 +5,11 @@ import {
   ConnectorStore,
   defaultConnectorFilePath,
 } from "@icm/agent-client";
-import { listResourceEntries, readResourceContent } from "./resources.js";
+import {
+  listResourceEntries,
+  listResourceTemplates,
+  readResourceContent,
+} from "./resources.js";
 import {
   callTool,
   listToolDefinitions,
@@ -14,7 +18,7 @@ import {
 import type { McpServerHandler, McpServerInfo } from "./protocol.js";
 
 export const MCP_SERVER_NAME = "analog-canvas";
-export const MCP_SERVER_VERSION = "0.3.0";
+export const MCP_SERVER_VERSION = "0.3.1";
 
 export interface McpServerConfig {
   apiBaseUrl: string;
@@ -56,6 +60,7 @@ export function assembleServer(config: McpServerConfig = resolveConfig()): {
     listTools: listToolDefinitions,
     callTool: (name, args) => callTool(name, args, toolSession),
     listResources: listResourceEntries,
+    listResourceTemplates,
     readResource: readResourceContent,
   };
   return { handler, serverInfo: MCP_SERVER_INFO, toolSession };

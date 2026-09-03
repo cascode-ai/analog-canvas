@@ -12,6 +12,14 @@ import { renderDocumentSvg, buildSvgScene } from "./render.js";
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 
 describe("instance style override rendering", () => {
+  it("inherits default text fill without a CSS rule overriding authored text colors", () => {
+    const svg = renderDocumentSvg(
+      createEmptyDocument("doc", "Colors"),
+      resolver,
+    );
+    expect(svg).toContain(";fill:#000}text{font-family:");
+    expect(svg).not.toMatch(/text\{[^}]*fill:/);
+  });
   it("renders an instance with foreground override", () => {
     const doc = createEmptyDocument("doc-1", "Test");
     doc.instances.push({

@@ -11,6 +11,10 @@ Use `inspect` and `search` for IDs and pins, not screenshot coordinates.
 Production hides the Agent UI intentionally. Development/staging enables it
 with `VITE_ICM_AGENT_UI=enabled`.
 
+MCP 0.3.1 is a development release for the matching API 2.0 branch. Releasing
+the adapter does not deploy editor/API fixes or enable the production Agent UI.
+Set `ANALOG_CANVAS_API_URL` to your development endpoint before starting it.
+
 ## Create and edit (MCP 0.3 / Kit 4)
 
 Use `apply_actions` for one atomic edit batch, wire, planned command or focus
@@ -44,8 +48,10 @@ Name Nets through labels/markers, never raw Base-Net fields.
 
 `advanced_transact` accepts exactly one of `edits`, `structureEdits`,
 `wireIntent`, `semanticIntent`, or `command`. The Helper supplies IDs and
-Document/Project revisions. Read `analog-canvas://contract/advanced-edits`
-when unfamiliar with a payload; reading is advisory, not a permission gate.
+Document/Project revisions. Read `analog-canvas://contract/edits/{kind}`
+for one edit schema (for example `set_instance_style_override`), avoiding the
+large `analog-canvas://contract/advanced-edits` resource meant for offline tooling.
+Reading is advisory, not a permission gate.
 Nested `transact_document` entries use their target Document revisions.
 
 Colors use existing `set_instance_style_override`, `set_route_style_override`,
@@ -54,6 +60,20 @@ returns these fields, `signalFlowParameters`, Cell interfaces, and external
 Model definitions. Netlist parameter values are strings, for example `"1u"`.
 
 `annotate` and `edit-text` accept plain text or canonical RichText:
+
+`connect`/`disconnect` pin targets accept an Instance Reference string or
+`instance:{kind:"instance",id:"…"}`; use the latter for imported formal Cell Pins.
+`place-component` requires a Reference for devices, but omit it for `ground`
+and `vdd-port`. To place an imported Instance, use `place-existing` with
+`instanceId` and `placement` (or `move` from the tray); default labels use the GUI planner.
+`add-label` and Net Label `edit-text` author the electrical name claim and bound
+text together. Deleting the label removes its owned claim, not the physical wires.
+
+`connection_status` probes the current session; closing a panel is not a disconnect.
+HTTP 429 retries are bounded and honor `Retry-After` using the identical request
+body and IDs. A longer server wait is returned to the caller instead of retried early.
+
+For example, a formula annotation:
 
 ```json
 {

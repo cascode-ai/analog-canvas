@@ -247,7 +247,21 @@ export class AgentSessionClient {
     };
   }
 
-  async status(): Promise<StatusReport> {
+  async status(options: { refresh?: boolean } = {}): Promise<StatusReport> {
+    if (options.refresh && this.session) {
+      try {
+        await this.capabilities({ force: true });
+      } catch (error) {
+        if (!(error instanceof AgentSessionError)) throw error;
+        // dispatch already records offline/revoked. Other failed probes must
+        // not leave a stale green status (nor destroy a usable credential).
+        if (
+          error.category !== "editor-offline" &&
+          error.category !== "unrecoverable-credential"
+        )
+          this.connection.apply("transport-interrupted", error.code);
+      }
+    }
     return {
       ...this.connection.snapshot,
       sessionId: this.session?.sessionId ?? null,

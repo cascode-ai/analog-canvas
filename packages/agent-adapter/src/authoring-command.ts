@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { PointSchema, StableIdSchema } from "@icm/model";
+import {
+  PointSchema,
+  StableIdSchema,
+  RichTextDocumentSchema,
+  PlacementSchema,
+} from "@icm/model";
 
 /** Small server-planned conveniences; results still commit as existing edits. */
 const SelectionSchema = z.strictObject({
@@ -10,6 +15,18 @@ const SelectionSchema = z.strictObject({
   draftingIds: z.array(StableIdSchema).max(256).default([]),
 });
 export const AgentAuthoringCommandSchema = z.discriminatedUnion("kind", [
+  z.strictObject({
+    kind: z.literal("place-existing"),
+    instanceId: StableIdSchema,
+    placement: PlacementSchema,
+  }),
+  z.strictObject({
+    kind: z.literal("set-net-label"),
+    annotationId: StableIdSchema,
+    netId: StableIdSchema,
+    text: RichTextDocumentSchema,
+    position: PointSchema.optional(),
+  }),
   z.strictObject({
     kind: z.literal("set-model"),
     instanceId: StableIdSchema,

@@ -29,6 +29,24 @@ async function freshClient(
 }
 
 describe("agent session client", () => {
+  it("probes status and clears a replaced project instead of reporting cached online", async () => {
+    const { client, http } = await freshClient();
+    await client.connect("session-1.code");
+    http.circuitHandler = async () => {
+      throw new AgentSessionError(
+        "PROJECT_REPLACED",
+        "replaced",
+        "unrecoverable-credential",
+        410,
+      );
+    };
+    expect((await client.status()).state).toBe("online");
+    expect(await client.status({ refresh: true })).toMatchObject({
+      state: "revoked",
+      projectId: null,
+      documentIds: [],
+    });
+  });
   it("claims a code, caches capabilities, snapshots once, and reports online", async () => {
     const { client, http } = await freshClient();
     const report = await client.connect("session-1.claim-code");

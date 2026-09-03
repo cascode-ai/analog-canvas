@@ -110,7 +110,7 @@
     {
       "uri": "analog-canvas://contract/advanced-edits",
       "name": "Advanced transaction contract",
-      "description": "Full typed edit union schema. Reading this resource unlocks the advanced_transact escape hatch in the same MCP session.",
+      "description": "Full HTTP request schema for offline tooling. For interactive use, prefer the compact analog-canvas://contract/edits/{kind} resource template. Reading is advisory, never a permission gate.",
       "mimeType": "application/schema+json",
       "source": {
         "kind": "repo",

@@ -14822,6 +14822,55 @@
                 "properties": {
                   "kind": {
                     "type": "string",
+                    "const": "place-existing"
+                  },
+                  "instanceId": {
+                    "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema1"
+                  },
+                  "placement": {
+                    "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema23"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "instanceId",
+                  "placement"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "set-net-label"
+                  },
+                  "annotationId": {
+                    "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema1"
+                  },
+                  "netId": {
+                    "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema1"
+                  },
+                  "text": {
+                    "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema111"
+                  },
+                  "position": {
+                    "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema24"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "annotationId",
+                  "netId",
+                  "text"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
                     "const": "set-model"
                   },
                   "instanceId": {

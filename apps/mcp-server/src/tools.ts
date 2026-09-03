@@ -264,7 +264,7 @@ const TOOLS: readonly ToolEntry[] = [
         "Report pairing and editor-attachment state (unpaired/connecting/online/editor-offline/reconnecting/revoked) plus token validity. Tokens themselves are never returned.",
       inputSchema: jsonSchemaOf(z.strictObject({})),
     },
-    handle: async (_args, session) => session.client.status(),
+    handle: async (_args, session) => session.client.status({ refresh: true }),
   },
   {
     definition: {

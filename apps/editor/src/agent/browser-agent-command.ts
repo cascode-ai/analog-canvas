@@ -10,13 +10,21 @@ import {
   planCreateCell,
   planRenameCell,
   planDeleteCell,
+  planEnsureNamedNet,
+  planElectricalMarkerRename,
   type SchematicEdit,
   type TransformOperation,
 } from "@icm/edit-engine";
-import { createEmptyDocument, type CircuitProject } from "@icm/model";
+import {
+  createEmptyDocument,
+  deriveStableId,
+  flattenRichText,
+  type CircuitProject,
+} from "@icm/model";
 import {
   resolveDocumentStyleProfile,
   resolveRouteGeometry,
+  resolveDocumentLogicalNets,
 } from "@icm/derived";
 import type { SymbolResolver } from "@icm/symbols";
 import { copySelection, proposePaste } from "../features/clipboard/clipboard";
@@ -26,6 +34,7 @@ import {
   type EdgeAlignmentMode,
 } from "../features/selection/align-selection";
 import { createSelectionTransformController } from "../features/selection/selection-transform-controller";
+import { missingDefaultInstanceDisplayAnnotations } from "../features/instance-display/default-instance-display";
 
 /** No second geometry/model/clipboard implementation: plan exactly as the GUI does. */
 export function planBrowserAgentCommand(
@@ -38,6 +47,146 @@ export function planBrowserAgentCommand(
   if (!document) throw new Error("Document not found");
   const sequence = document.revision + 1;
   switch (command.kind) {
+    case "place-existing": {
+      const instance = document.instances.find(
+        (item) => item.id === command.instanceId,
+      );
+      if (!instance || instance.placement)
+        throw new Error("place-existing requires an unplaced Instance");
+      const annotations = missingDefaultInstanceDisplayAnnotations(
+        document,
+        { ...instance, placement: command.placement },
+        resolver,
+        resolveDocumentStyleProfile(document.presentation),
+      );
+      return {
+        edits: [
+          {
+            kind: "place_instance",
+            instanceId: instance.id,
+            placement: command.placement,
+          },
+          ...annotations.map((annotation): SchematicEdit => ({
+            kind: "upsert_schematic_annotation",
+            annotation,
+          })),
+        ],
+      };
+    }
+    case "set-net-label": {
+      const existing = document.annotations.find(
+        (item) => item.id === command.annotationId,
+      );
+      if (
+        existing &&
+        existing.kind !== "net-label" &&
+        existing.kind !== "power-label"
+      )
+        throw new Error("The annotation is not a Net Label");
+      const logical = resolveDocumentLogicalNets(document);
+      const net =
+        logical.byId.get(command.netId) ??
+        logical.byBaseNetId.get(command.netId);
+      if (!net) throw new Error("Net not found");
+      const netId = existing?.netId ?? net.baseNetIds[0]!;
+      if (!net.baseNetIds.includes(netId))
+        throw new Error("Label belongs to another Net");
+      if (
+        existing?.kind === "power-label" &&
+        existing.anchor.kind === "object"
+      ) {
+        const rename = planElectricalMarkerRename(
+          document,
+          existing.anchor.objectId,
+          flattenRichText(command.text),
+        );
+        if (rename.status === "rejected") throw new Error(rename.message);
+        const edits = rename.status === "ready" ? [...rename.plan.edits] : [];
+        const rebound = edits.find(
+          (edit) =>
+            edit.kind === "upsert_schematic_annotation" &&
+            edit.annotation.id === existing.id,
+        );
+        return {
+          edits: [
+            ...edits,
+            {
+              kind: "upsert_schematic_annotation",
+              annotation: {
+                ...(rebound?.kind === "upsert_schematic_annotation"
+                  ? rebound.annotation
+                  : existing),
+                formatOverride: command.text,
+              },
+            },
+          ],
+        };
+      }
+      const existingClaim = document.connectivityEvidence.find(
+        (item) =>
+          item.kind === "name-claim" &&
+          item.owner.kind === "net-label" &&
+          item.owner.annotationId === command.annotationId,
+      );
+      const name = flattenRichText(command.text).trim();
+      const plan = planEnsureNamedNet(document, {
+        candidateNetId: netId,
+        name,
+        evidenceId:
+          existingClaim?.id ??
+          deriveStableId(
+            "connectivity-evidence",
+            document.id,
+            "net-label",
+            netId,
+            command.annotationId,
+          ),
+        owner: { kind: "net-label", annotationId: command.annotationId },
+        scope:
+          existingClaim?.kind === "name-claim"
+            ? existingClaim.scope
+            : (net.scope ?? "local"),
+        ...(net.powerDomain === "vdd" || net.powerDomain === "ground"
+          ? { powerDomain: net.powerDomain }
+          : {}),
+      });
+      if (!plan.ok) throw new Error(plan.message);
+      if (!existing && !command.position)
+        throw new Error("New Net Label requires position");
+      return {
+        edits: [
+          ...plan.edits,
+          {
+            kind: "upsert_schematic_annotation",
+            annotation: {
+              ...(existing ?? {
+                id: command.annotationId,
+                kind:
+                  net.powerDomain === "none"
+                    ? ("net-label" as const)
+                    : ("power-label" as const),
+                anchor: { kind: "free" as const, position: command.position! },
+                alignment: "middle" as const,
+                rotation: 0 as const,
+                locked: false,
+              }),
+              content: undefined,
+              netId,
+              binding: { kind: "net-name", netId },
+              formatOverride: command.text,
+              ...(command.position
+                ? {
+                    anchor: {
+                      kind: "free",
+                      position: command.position,
+                    } as const,
+                  }
+                : {}),
+            },
+          },
+        ],
+      };
+    }
     case "set-model":
       return {
         structureEdits: planSetDeviceModelTarget(

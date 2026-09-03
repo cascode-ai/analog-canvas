@@ -292,5 +292,14 @@ export function mosBulkShouldBeVisible(
 ): boolean {
   const resolution = resolveMosBulkConnection(document, instanceOrId);
   if (resolution?.status !== "explicit") return false;
+  // Imported fourth-node membership is electrical evidence, not a request to
+  // draw a body-bias lead. The configured Cell default stays implicit unless
+  // a bulk Route was authored. B and S membership are never rewritten here.
+  if (hasExplicitMosBulkRoute(document, resolution.instance.id)) return true;
+  const defaultNetId =
+    mosBulkKind(resolution.instance) === "nmos"
+      ? document.mosBulkDefaults?.nmosNetId
+      : document.mosBulkDefaults?.pmosNetId;
+  if (defaultNetId === resolution.net.id) return false;
   return true;
 }

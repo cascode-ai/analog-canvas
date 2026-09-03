@@ -51,6 +51,130 @@ async function setup() {
 }
 
 describe("MCP → API → shared editor parity", () => {
+  it("places a retained Instance with the GUI's missing default labels", async () => {
+    const { client, controller, add } = await setup();
+    const id = await add();
+    expect(
+      (await client.applyActions([{ kind: "unplace", instanceIds: [id] }])).ok,
+    ).toBe(true);
+    const placed = await client.applyActions([
+      {
+        kind: "move",
+        target: { kind: "instance", id },
+        position: { x: 200, y: 200 },
+      },
+    ]);
+    expect(placed.ok, placed.message).toBe(true);
+    expect(
+      controller.document.annotations.some(
+        (item) =>
+          item.binding?.kind === "instance-reference" &&
+          item.binding.instanceId === id,
+      ),
+    ).toBe(true);
+  });
+  it("names, renames and deletes an actual Net label through the shared name-claim planner", async () => {
+    const { client, controller, tool } = await setup();
+    expect(
+      (
+        await client.applyActions([
+          {
+            kind: "connect",
+            from: { kind: "point", x: 0, y: 0 },
+            to: { kind: "point", x: 80, y: 0 },
+          },
+        ])
+      ).ok,
+    ).toBe(true);
+    const netId = controller.document.routes[0]!.netId;
+    const label = await client.applyActions([
+      {
+        kind: "add-label",
+        target: { kind: "net", id: netId },
+        text: "test_bus",
+        position: { x: 40, y: -20 },
+      },
+    ]);
+    expect(label.ok, label.message).toBe(true);
+    const annotationId = controller.document.annotations[0]!.id;
+    expect(controller.document.connectivityEvidence).toContainEqual(
+      expect.objectContaining({
+        kind: "name-claim",
+        name: "test_bus",
+        owner: { kind: "net-label", annotationId },
+      }),
+    );
+    expect(
+      (
+        await tool("inspect", {
+          target: { kind: "net", id: netId },
+          refresh: true,
+        })
+      ).name,
+    ).toBe("test_bus");
+    const rename = await client.applyActions([
+      {
+        kind: "edit-text",
+        target: { kind: "annotation", id: annotationId },
+        text: "renamed_bus",
+      },
+    ]);
+    expect(rename.ok, rename.message).toBe(true);
+    expect(
+      (
+        await tool("inspect", {
+          target: { kind: "net", id: netId },
+          refresh: true,
+        })
+      ).name,
+    ).toBe("renamed_bus");
+    expect(
+      (
+        await client.applyActions([
+          { kind: "delete", target: { kind: "annotation", id: annotationId } },
+        ])
+      ).ok,
+    ).toBe(true);
+    expect(
+      controller.document.connectivityEvidence.filter(
+        (item) => item.kind === "name-claim",
+      ),
+    ).toHaveLength(0);
+    expect(
+      (
+        await tool("inspect", {
+          target: { kind: "net", id: netId },
+          refresh: true,
+        })
+      ).name,
+    ).toBeNull();
+  });
+  it("places an unnamed power marker and reports Reference-only changes", async () => {
+    const { client, controller, add } = await setup();
+    const id = await add();
+    const rename = await client.applyActions([
+      {
+        kind: "set-reference",
+        target: { kind: "instance", id },
+        reference: "M9",
+      },
+    ]);
+    expect(rename.ok, rename.message).toBe(true);
+    expect(rename.changedObjectIds).toContain(id);
+    const ground = await client.applyActions([
+      {
+        kind: "place-component",
+        symbol: "ground",
+        position: { x: 300, y: 300 },
+      },
+    ]);
+    expect(ground.ok, ground.message).toBe(true);
+    expect(
+      controller.document.instances.find(
+        (instance) => instance.symbolId === "ground",
+      )?.reference,
+    ).toBeUndefined();
+  });
   it("routes free wires and reads the shared Net trace without local inference", async () => {
     const { client, controller, tool } = await setup();
     const result = await client.applyActions([
