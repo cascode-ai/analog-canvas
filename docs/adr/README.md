@@ -50,6 +50,7 @@ major boundaries exist.
 - [`0048-routing-operation-plan.md`](0048-routing-operation-plan.md) — evaluated routing-operation plan
 - [`0052-owner-explainable-net-authority.md`](0052-owner-explainable-net-authority.md) — owner-explainable Net authority and non-electrical provenance
 - [`0056-derived-net-scope-and-dialect-spelling.md`](0056-derived-net-scope-and-dialect-spelling.md) — derived effective scope and operation-scoped dialect spelling
+- [`0057-release-channels-preview-and-production.md`](0057-release-channels-preview-and-production.md) — a preview Worker every merge deploys, and production that deploys only from a release
 
 ## Lifecycle and deletion policy
 

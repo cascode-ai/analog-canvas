@@ -1,0 +1,151 @@
+name: Deploy Preview
+
+# The preview channel (ADR 0057): every merge to main deploys the preview
+# Worker at analog-canvas-preview.tokenzhang.com and verifies it. Production
+# is a different workflow with a different trigger; nothing here can reach it.
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudflare-preview
+  cancel-in-progress: false
+
+env:
+  PREVIEW_URL: https://analog-canvas-preview.tokenzhang.com
+  # The Sky130 model files the container image copies, pinned to one volare
+  # release by tag and by the SHA-256 of each archive. Changing the models is
+  # a deliberate edit here, never a drift.
+  SKY130_TAG: sky130-c6d73a35f524070e85faff4a6a9eef49553ebc2b
+  SKY130_COMMON_SHA256: 8a7f06212c6d9fa5a1da6145f559f48a903434a5c5b6cd5352363700b6cadb94
+  SKY130_FD_PR_SHA256: dcb49c7450dfb55c91ce315d258563895df1ed75d4a9090064aade8290030a87
+
+jobs:
+  preview:
+    name: Deploy preview
+    runs-on: ubuntu-latest
+    environment:
+      name: cloudflare-preview
+      url: https://analog-canvas-preview.tokenzhang.com
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.16.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @icm/spice-run build
+      - run: pnpm --filter @icm/editor... build
+        env:
+          VITE_ICM_TIMING_UI: disabled
+      # The Dockerfile copies pdk/sky130A/libs.tech/ngspice and
+      # pdk/sky130A/libs.ref/sky130_fd_pr from the build context. Only those
+      # two trees are extracted: the archives also carry sky130B and every
+      # other tool's files, none of which ngspice reads.
+      - name: Stage the Sky130 model files for the container image
+        run: |
+          set -euo pipefail
+          mkdir -p pdk/download
+          for asset in common sky130_fd_pr; do
+            curl --fail --silent --show-error --location --max-time 300 \
+              --output "pdk/download/${asset}.tar.zst" \
+              "https://github.com/efabless/volare/releases/download/${SKY130_TAG}/${asset}.tar.zst"
+          done
+          echo "${SKY130_COMMON_SHA256}  pdk/download/common.tar.zst" | sha256sum --check -
+          echo "${SKY130_FD_PR_SHA256}  pdk/download/sky130_fd_pr.tar.zst" | sha256sum --check -
+          tar --zstd -xf pdk/download/common.tar.zst -C pdk --wildcards 'sky130A/libs.tech/ngspice/*'
+          tar --zstd -xf pdk/download/sky130_fd_pr.tar.zst -C pdk --wildcards 'sky130A/libs.ref/sky130_fd_pr/spice/*'
+          rm -rf pdk/download
+          test -f pdk/sky130A/libs.tech/ngspice/sky130.lib.spice
+          du -sh pdk/sky130A/libs.tech/ngspice pdk/sky130A/libs.ref/sky130_fd_pr/spice
+      - name: Deploy to preview
+        run: pnpm dlx wrangler@4.120.1 deploy --config wrangler.preview.jsonc
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      # What a preview is for: the page renders, the gallery reads and never
+      # writes, nothing is indexed, and the simulator answers.
+      - name: Verify preview
+        run: |
+          set -euo pipefail
+          channel="$(curl --fail --silent --show-error --max-time 20 \
+            --retry 5 --retry-delay 2 --retry-all-errors \
+            "${PREVIEW_URL}/api/channel")"
+          case "$channel" in
+            *'"preview"'*) ;;
+            *) echo "The preview does not know it is the preview: $channel"; exit 1 ;;
+          esac
+          shell="$(curl --fail --silent --show-error --max-time 20 "${PREVIEW_URL}/editor")"
+          entry="$(printf '%s' "$shell" | grep -o '/assets/[A-Za-z0-9._-]*\.js' | head -n 1)"
+          if [ -z "$entry" ]; then
+            echo "The editor shell references no script; it cannot boot."
+            exit 1
+          fi
+          entry_result="$(curl --silent --output /dev/null --max-time 20 \
+            --write-out '%{http_code} %{content_type}' "${PREVIEW_URL}${entry}")"
+          case "$entry_result" in
+            200*javascript*) ;;
+            *) echo "The editor's entry script answered: $entry_result"; exit 1 ;;
+          esac
+          stale="$(curl --silent --output /dev/null --max-time 20 \
+            --write-out '%{http_code}' "${PREVIEW_URL}/assets/App-preview-smoke-missing.js")"
+          if [ "$stale" != "404" ]; then
+            echo "A missing hashed asset must answer 404, got: $stale"
+            exit 1
+          fi
+          robots="$(curl --fail --silent --show-error --max-time 20 "${PREVIEW_URL}/robots.txt")"
+          case "$robots" in
+            *"Disallow: /"*) ;;
+            *) echo "The preview must refuse robots, got: $robots"; exit 1 ;;
+          esac
+          noindex="$(curl --silent --head --max-time 20 "${PREVIEW_URL}/editor" | tr -d '\r' | grep -i '^x-robots-tag:' || true)"
+          case "$noindex" in
+            *noindex*) ;;
+            *) echo "Preview responses must carry noindex, got: ${noindex:-nothing}"; exit 1 ;;
+          esac
+          gallery="$(curl --silent --output /dev/null --max-time 20 \
+            --write-out '%{http_code}' "${PREVIEW_URL}/api/gallery")"
+          if [ "$gallery" != "200" ]; then
+            echo "The preview must read the production gallery, got: $gallery"
+            exit 1
+          fi
+          write="$(curl --silent --output /dev/null --max-time 20 -X POST \
+            --write-out '%{http_code}' "${PREVIEW_URL}/api/gallery/preview-smoke/like")"
+          if [ "$write" != "403" ]; then
+            echo "A gallery write on the preview must be refused, got: $write"
+            exit 1
+          fi
+      # A resistor divider, the smallest circuit ngspice can answer for. It
+      # proves the whole chain: container built, models present, harness up,
+      # Worker talking to it. The circuit's own answer is checked by tests
+      # elsewhere; here the question is only "did a simulation happen".
+      - name: Simulate one circuit on the preview
+        run: |
+          set -euo pipefail
+          body="$(node -e '
+            const netlist = [".subckt divider in out", "R1 in out 1k", "R2 out 0 1k", ".ends divider"].join("\n");
+            const testbench = ["V1 in 0 DC 1", "X1 in out divider", ".op", ".end"].join("\n");
+            process.stdout.write(JSON.stringify({ netlist, testbench, inputRevision: "preview-smoke", timeoutMs: 60000 }));
+          ')"
+          result="$(curl --silent --show-error --max-time 120 \
+            --output /tmp/preview-simulation.json \
+            --write-out '%{http_code}' \
+            -H 'content-type: application/json' --data "$body" \
+            "${PREVIEW_URL}/api/simulate")"
+          cat /tmp/preview-simulation.json; echo
+          if [ "$result" != "200" ]; then
+            echo "The preview simulator answered HTTP $result; see the body above."
+            exit 1
+          fi
+          grep -q '"executor":"hosted-container"' /tmp/preview-simulation.json

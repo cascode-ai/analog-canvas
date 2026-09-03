@@ -9,6 +9,7 @@
     "pnpm": ">=11.16.0"
   },
   "dependencies": {
+    "@cloudflare/containers": "0.3.7",
     "@icm/agent-adapter": "workspace:*",
     "@icm/derived": "workspace:*",
     "@icm/model": "workspace:*",

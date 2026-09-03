@@ -1,0 +1,79 @@
+{
+  "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
+  // The preview channel (ADR 0057). Its own file on purpose: an environment
+  // inside wrangler.jsonc inherits every key it does not override, and that is
+  // how a staging deploy took the production custom domain on 2026-09-03.
+  // Nothing here inherits from anything.
+  "name": "interactive-circuit-maker-preview",
+  "main": "./worker/index.ts",
+  "compatibility_date": "2026-08-11",
+  // One address. The workers.dev and version-preview hostnames would be two
+  // more doors to the same build, uncounted and unlisted.
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [
+    {
+      "pattern": "analog-canvas-preview.tokenzhang.com",
+      "custom_domain": true,
+    },
+  ],
+  "vars": {
+    // Read by worker/channel.ts and, through /api/channel, by the editor.
+    "ICM_CHANNEL": "preview",
+    // Where the preview reads the gallery from: the public site's own public
+    // API, over HTTP, exactly as any anonymous visitor would. No Durable
+    // Object of the production script is bound here, because a binding has
+    // no read-only mode and this Worker runs code production has not
+    // accepted yet. Writes never leave this Worker (see channel.ts).
+    "ICM_GALLERY_UPSTREAM": "https://analog-canvas.tokenzhang.com",
+  },
+  "assets": {
+    "binding": "ASSETS",
+    "directory": "./apps/editor/dist",
+    "not_found_handling": "single-page-application",
+    // Same as production, plus robots.txt: the preview answers it itself
+    // with a full disallow so search engines never list unreleased work.
+    "run_worker_first": ["/api/*", "/assets/*", "/robots.txt"],
+  },
+  "durable_objects": {
+    "bindings": [
+      { "name": "ANALYTICS", "class_name": "AnalyticsDO" },
+      { "name": "AGENT_SESSION", "class_name": "AgentSessionDO" },
+      // The preview's own, empty gallery store. Gallery reads are served from
+      // the public site through ICM_GALLERY_UPSTREAM instead; this binding
+      // exists so the route module has something to hand a write to, and the
+      // channel rules refuse every write before it gets that far.
+      { "name": "GALLERY", "class_name": "GalleryDO" },
+      // The preview's own accounts: nobody signs in here, and no login
+      // provider is configured, so this namespace stays empty by design.
+      { "name": "AUTH", "class_name": "AuthDO" },
+      // The simulation container (ADR 0055). Bound here first; production
+      // receives it when a release that carries the feature is promoted.
+      { "name": "NGSPICE", "class_name": "NgspiceContainer" },
+    ],
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["AnalyticsDO"] },
+    { "tag": "v2", "new_sqlite_classes": ["AgentSessionDO"] },
+    { "tag": "v3", "new_sqlite_classes": ["AuthDO"] },
+    { "tag": "v4", "new_sqlite_classes": ["GalleryDO"] },
+    { "tag": "v5", "new_sqlite_classes": ["NgspiceContainer"] },
+  ],
+  "containers": [
+    {
+      "class_name": "NgspiceContainer",
+      "image": "./containers/ngspice/Dockerfile",
+      // The Dockerfile copies the Sky130 model files from pdk/ at the
+      // repository root, which the preview workflow stages before deploying.
+      // .dockerignore keeps everything else out of the build context.
+      "image_build_context": ".",
+      // One running simulator, one person's run at a time. Measure before
+      // raising either; the harness has to guard its own concurrency.
+      "instance_type": "basic",
+      "max_instances": 1,
+    },
+  ],
+  "observability": {
+    "enabled": true,
+  },
+}

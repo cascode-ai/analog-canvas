@@ -1,0 +1,6 @@
+# The container build context is the repository root so the Dockerfile can
+# copy the staged Sky130 model files from pdk/. Nothing else belongs in the
+# context: node_modules alone would make every build upload gigabytes.
+*
+!containers
+!pdk
