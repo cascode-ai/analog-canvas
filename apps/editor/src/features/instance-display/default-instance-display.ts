@@ -3,7 +3,7 @@ import {
   displayableInstanceValue,
   type SchematicStyleProfile,
 } from "@icm/derived";
-import { defaultDraftTextDocument } from "@icm/model";
+import { plainNameDocument } from "@icm/model";
 import type { Annotation, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
@@ -190,7 +190,7 @@ function defaultMasterNameAnnotation(
   return {
     id: `instance-master-${instance.id}`,
     kind: "instance-value",
-    content: defaultDraftTextDocument(masterName),
+    content: plainNameDocument(masterName),
     anchor: {
       kind: "object",
       objectId: instance.id,

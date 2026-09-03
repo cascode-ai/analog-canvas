@@ -69,6 +69,21 @@ export function defaultDraftTextDocument(value: string): RichTextDocument {
   return { runs: symbolRuns(value) };
 }
 
+/**
+ * Construct RichText for a name that is a word rather than an identifier.
+ *
+ * The subscript rule above reads its input as a symbol carrying an index —
+ * right for `M1` or `V_out`, and wrong for anything whose characters are just
+ * spelling. A Cell name is spelling: `sky130_fd_pr__nfet_01v8` has no leading
+ * symbol and no index, and setting it that way leaves one italic `s` above a
+ * shrunken remainder. Such names stay upright and whole, at the weight the
+ * surrounding instance text uses.
+ */
+export function plainNameDocument(value: string): RichTextDocument {
+  if (value.length === 0) return { runs: [{ kind: "line-break" }] };
+  return { runs: [span([{ kind: "text", value }], "bold")] };
+}
+
 /** Construct current-authoring RichText for a conventional semantic label. */
 export function semanticTextDocument(
   value: string,
