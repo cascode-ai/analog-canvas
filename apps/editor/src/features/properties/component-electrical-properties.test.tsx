@@ -61,6 +61,51 @@ describe("component electrical properties", () => {
     expect(markup).not.toContain("Component compatibility field");
   });
 
+  it("keeps W, L, and NF labels compact while retaining their tooltips", () => {
+    const document = createEmptyDocument("cell", "Cell");
+    const instance: (typeof document.instances)[number] = {
+      id: "M1",
+      symbolId: "nmos",
+      placement: null,
+      reference: "M1",
+    };
+    const markup = renderToStaticMarkup(
+      <ComponentElectricalProperties
+        instance={instance}
+        parameters={[
+          { key: "w", label: "W", placeholder: "1u", help: "Total width" },
+          { key: "l", label: "L", placeholder: "150n", help: "Length" },
+          { key: "nf", label: "NF", placeholder: "1", help: "Finger count" },
+          { key: "m", label: "M", placeholder: "1", help: "Multiplier" },
+        ]}
+        parameterValues={{ w: "1u", l: "150n", nf: "1", m: "1" }}
+        firstInputRef={createRef<HTMLInputElement>()}
+        referenceVisible
+        valueVisible
+        valueAvailable
+        valueSupported
+        referenceAvailable
+        referenceLabelRenderable
+        additionalParameters={[]}
+        additionalParametersChanged={false}
+        onParameterChange={vi.fn()}
+        onReferenceVisibilityChange={vi.fn()}
+        onValueVisibilityChange={vi.fn()}
+        onAdditionalParameterChange={vi.fn()}
+        onAdditionalParameterRemove={vi.fn()}
+        onAdditionalParameterAdd={vi.fn()}
+        onAdditionalParametersApply={vi.fn()}
+        onAdditionalParametersCancel={vi.fn()}
+      />,
+    );
+
+    expect(markup).not.toContain("(Total width)");
+    expect(markup).not.toContain("(Length)");
+    expect(markup).not.toContain("(Finger count)");
+    expect(markup).toContain("(Multiplier)");
+    expect(markup).toContain('title="Total width"');
+  });
+
   it("says nothing at all for a Symbol that has neither parameters nor a drawable label", () => {
     const document = createEmptyDocument("cell", "Cell");
     const instance: (typeof document.instances)[number] = {

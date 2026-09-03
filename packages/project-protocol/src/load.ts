@@ -26,6 +26,7 @@ import {
   upgradeSchema35To36,
 } from "./previous-to-current.js";
 import { repairBoundFormatOverrides } from "./transforms/bound-format-override.js";
+import { repairLegacyReviewedExternalReferences } from "./transforms/reviewed-external-reference.js";
 import { OLDEST_SUPPORTED_PROJECT_SCHEMA_VERSION } from "./version.js";
 
 /**
@@ -172,6 +173,9 @@ export function tryParseProjectWithMetadata(
   // refusing the Project, because a file that will not open is, to its
   // author, a file that is gone.
   current = repairBoundFormatOverrides(current);
+  const reviewedReferenceRepair =
+    repairLegacyReviewedExternalReferences(current);
+  current = reviewedReferenceRepair.project;
   const diagnostics = invalidProjectDiagnostics(current);
   if (diagnostics.length > 0) return { ok: false, diagnostics };
   return {

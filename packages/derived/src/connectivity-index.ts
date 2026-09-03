@@ -19,9 +19,8 @@ import { endpointKey, isVisibleEndpoint, netEndpoints } from "./endpoint.js";
 import { directObjectLocator, type ObjectLocator } from "./object-locator.js";
 import type { ResolvedNetLabelBinding } from "./net-label.js";
 import { resolveAnnotationText } from "./annotation-text.js";
-import type { ResolvedDocumentRoutingGeometry } from "./resolved-route-geometry.js";
-import type { DocumentContactEvidence } from "./contact.js";
 import { resolveDocumentLogicalNets } from "./logical-net.js";
+import type { DocumentDerivedContext } from "./document-derived-context.js";
 
 /**
  * Unified read-only connectivity index (ADR 0013). Single source of
@@ -60,16 +59,13 @@ export interface NetConnectivityRecord {
   routingGuidance: readonly RoutingGuide[];
 }
 
-export interface DocumentConnectivityIndex {
-  documentId: string;
+export interface DocumentConnectivityIndex extends DocumentDerivedContext {
   /** Physical membership: endpoint key -> Base Net id. */
   endpointToBaseNetId: ReadonlyMap<string, string>;
   /** One canonical record per resolved Logical Net. */
   logicalNets: ReadonlyMap<string, NetConnectivityRecord>;
   /** Total lookup from every Base Net id to its Logical Net record. */
   logicalNetByBaseNetId: ReadonlyMap<string, NetConnectivityRecord>;
-  routingGeometry: ResolvedDocumentRoutingGeometry;
-  contactEvidence: DocumentContactEvidence;
 }
 
 export interface HierarchyEdge {
@@ -184,28 +180,19 @@ function buildDocumentIndex(
     }
   }
 
+  const connectivityContext = deriveNetConnectivityContext(document, resolver);
   const routingGuidanceByNet = new Map<string, RoutingGuide[]>();
-  for (const line of deriveImportedRoutingGuidance(document, resolver)) {
+  for (const line of deriveImportedRoutingGuidance(
+    document,
+    resolver,
+    connectivityContext,
+  )) {
     const normalized = normalizeRoutingGuidance(line);
     for (const netId of new Set([line.fromNetId, line.toNetId])) {
       const lines = routingGuidanceByNet.get(netId) ?? [];
       lines.push(normalized);
       routingGuidanceByNet.set(netId, lines);
     }
-  }
-
-  const connectivityContext = deriveNetConnectivityContext(document, resolver);
-  const routesByNetId = new Map<string, SchematicDocument["routes"]>();
-  for (const route of document.routes) {
-    const routes = routesByNetId.get(route.netId) ?? [];
-    routes.push(route);
-    routesByNetId.set(route.netId, routes);
-  }
-  const junctionsByNetId = new Map<string, SchematicDocument["junctions"]>();
-  for (const junction of document.junctions) {
-    const junctions = junctionsByNetId.get(junction.netId) ?? [];
-    junctions.push(junction);
-    junctionsByNetId.set(junction.netId, junctions);
   }
 
   const baseRecords = new Map<string, NetConnectivityRecord>();
@@ -218,14 +205,14 @@ function buildDocumentIndex(
         net,
         routingGuidanceByNet.get(net.id) ?? [],
         connectivityContext,
-        routesByNetId.get(net.id) ?? [],
-        junctionsByNetId.get(net.id) ?? [],
+        connectivityContext.routesByNetId.get(net.id) ?? [],
+        connectivityContext.junctionsByNetId.get(net.id) ?? [],
       ),
     );
   }
   const logicalNets = new Map<string, NetConnectivityRecord>();
   const logicalNetByBaseNetId = new Map<string, NetConnectivityRecord>();
-  for (const group of resolveDocumentLogicalNets(document).groups) {
+  for (const group of connectivityContext.logicalNetResolution.groups) {
     const records = group.baseNetIds.map((netId) => baseRecords.get(netId)!);
     const aggregate: NetConnectivityRecord = {
       netId: group.id,
@@ -250,13 +237,11 @@ function buildDocumentIndex(
     }
   }
 
-  const index = {
-    documentId: document.id,
+  const index: DocumentConnectivityIndex = {
+    ...connectivityContext,
     endpointToBaseNetId,
     logicalNets,
     logicalNetByBaseNetId,
-    routingGeometry: connectivityContext.routingGeometry,
-    contactEvidence: connectivityContext.contacts,
   };
   documentIndexCache.set(document, {
     revision: document.revision,
@@ -296,8 +281,8 @@ function buildNetRecord(
   net: Net,
   routingGuidance: readonly RoutingGuide[],
   connectivityContext: NetConnectivityContext,
-  routesForNet: SchematicDocument["routes"],
-  junctionsForNet: SchematicDocument["junctions"],
+  routesForNet: readonly SchematicDocument["routes"][number][],
+  junctionsForNet: readonly SchematicDocument["junctions"][number][],
 ): NetConnectivityRecord {
   const logicalEndpoints: EndpointRef[] = [
     ...net.terminals.map((terminal) =>
@@ -306,7 +291,7 @@ function buildNetRecord(
   ].sort((a, b) => endpointKey(a).localeCompare(endpointKey(b), "en"));
 
   const visibleEndpoints = netEndpoints(document, net).filter((endpoint) =>
-    isVisibleEndpoint(document, resolver, endpoint),
+    isVisibleEndpoint(document, resolver, endpoint, connectivityContext),
   );
 
   const routedComponents = deriveNetConnectivity(
@@ -474,10 +459,14 @@ function buildHierarchyIndex(
 
 function buildGlobalNetIndex(
   project: CircuitProject,
+  documents: ReadonlyMap<string, DocumentConnectivityIndex>,
 ): ReadonlyMap<string, GlobalNetGroup> {
   const groups = new Map<string, NetObjectRef[]>();
   for (const document of project.documents) {
-    for (const logicalNet of resolveDocumentLogicalNets(document).groups) {
+    const logicalNets =
+      documents.get(document.id)?.logicalNetResolution ??
+      resolveDocumentLogicalNets(document);
+    for (const logicalNet of logicalNets.groups) {
       if (logicalNet.scope !== "global" || !logicalNet.name) continue;
       const foldedName = foldNetName(logicalNet.name);
       const refs = groups.get(foldedName) ?? [];
@@ -519,29 +508,33 @@ function referencedDocumentId(
   return null;
 }
 
-function buildObjectIndex(project: CircuitProject): ProjectObjectIndex {
+function buildObjectIndex(
+  project: CircuitProject,
+  documents: ReadonlyMap<string, DocumentConnectivityIndex>,
+): ProjectObjectIndex {
   return {
     resolve(documentId, objectId) {
       const document = project.documents.find(
         (candidate) => candidate.id === documentId,
       );
+      const documentIndex = documents.get(documentId);
       if (!document) return undefined;
       if (document.id === objectId) {
         return directObjectLocator(documentId, "document", objectId);
       }
-      if (document.instances.some((candidate) => candidate.id === objectId)) {
+      if (documentIndex?.instancesById.has(objectId)) {
         return directObjectLocator(documentId, "instance", objectId);
       }
-      if (document.nets.some((candidate) => candidate.id === objectId)) {
+      if (documentIndex?.netsById.has(objectId)) {
         return directObjectLocator(documentId, "net", objectId);
       }
-      if (document.routes.some((candidate) => candidate.id === objectId)) {
+      if (documentIndex?.routesById.has(objectId)) {
         return directObjectLocator(documentId, "route", objectId);
       }
-      if (document.junctions.some((candidate) => candidate.id === objectId)) {
+      if (documentIndex?.junctionsById.has(objectId)) {
         return directObjectLocator(documentId, "junction", objectId);
       }
-      if (document.annotations.some((candidate) => candidate.id === objectId)) {
+      if (documentIndex?.annotationsById.has(objectId)) {
         return directObjectLocator(documentId, "annotation", objectId);
       }
       return undefined;
@@ -562,7 +555,7 @@ export function buildProjectConnectivityIndex(
     topDocumentId: project.topDocumentId,
     documents,
     hierarchy: buildHierarchyIndex(project, resolver, documents),
-    globalNets: buildGlobalNetIndex(project),
-    objectIndex: buildObjectIndex(project),
+    globalNets: buildGlobalNetIndex(project, documents),
+    objectIndex: buildObjectIndex(project, documents),
   };
 }

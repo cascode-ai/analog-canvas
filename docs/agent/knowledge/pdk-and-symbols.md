@@ -12,19 +12,19 @@ existing Net membership. Prefer mappings in this order:
 
 1. explicit session/project import override;
 2. exact reviewed model mapping;
-3. reviewed PDK-scoped rule with the same terminal count;
-4. primitive mapping supported by the parsed model type;
-5. unresolved generic symbol.
+3. primitive mapping supported by the parsed model type;
+4. unresolved generic symbol.
 
-SKY130 `sky130_fd_pr__nfet_*` and `sky130_fd_pr__pfet_*` four-terminal devices
-map to product NMOS/PMOS pins `D,G,S,B`. That rule does not apply to another
-namespace or terminal count.
+Only the four released exact SKY130 masters are mapped: the 1.8 V NFET/PFET,
+`res_high_po`, and `cap_mim_m3_1`. Both exact master name and ordered public
+interface must match. No `sky130_fd_pr__nfet_*`, resistor, or capacitor family
+regular expression is an electrical authority.
 
-The mapped external definition keeps its immutable external Symbol ID and `X`
-binding; only its presentation borrows the base MOS artwork. Omit the base
-symbol's default three-terminal variant so the external contract exposes the
-fourth bulk terminal. An explicit external block presentation overrides this
-automatic artwork choice.
+The mapped instance keeps its external binding while borrowing native artwork.
+Its authored reference remains in the native M/R/C domain; SPICE derives the X
+card. MOS exposes D/G/S/B electrically, resistor R0/R1 map to frozen pins 1/2
+and B is property-only, and MIM C0/C1 map to frozen pins 1/2. An explicit
+external block presentation overrides automatic artwork choice.
 
 ## Safe symbol replacement
 

@@ -43,6 +43,10 @@ import {
   foldNetName,
   flattenRichText,
 } from "@icm/model";
+import {
+  resolveReviewedExternalBinding,
+  reviewedExternalModelSuggestions,
+} from "@icm/devices";
 import type {
   CircuitProject,
   DerivedPoint,
@@ -61,8 +65,6 @@ import {
   externalSubcircuitSymbolId,
   findUnsupportedProjectSymbolIds,
   hierarchicalSymbolId,
-  resolvePdkSymbolMappingForTerminalOrder,
-  reviewedSky130MosModelSuggestions,
 } from "@icm/symbols";
 import {
   clipboardPreviewDocument,
@@ -72,10 +74,13 @@ import type { SchematicClipboard } from "../features/clipboard/clipboard";
 import {
   canvasInsetsFromOverlays,
   fitCameraToBounds,
-  normalizeCameraRect,
   type CameraRectInput,
   type CanvasInsets,
 } from "../canvas/fit-view";
+import {
+  createCameraRuntime,
+  type CameraRuntime,
+} from "../canvas/camera-runtime";
 import {
   startCanvasDragSession,
   type CanvasDragSession,
@@ -83,6 +88,7 @@ import {
 import { startCanvasDragVisual } from "../canvas/canvas-drag-visual";
 import { instanceVisibleHitBox } from "../canvas/instance-geometry";
 import { createCanvasHitController } from "../canvas/canvas-hit-controller";
+import { screenScaleHitRadius } from "../canvas/canvas-hit-resolver";
 import { buildDiagnosticMarkers } from "../canvas/diagnostic-markers";
 import {
   type RouteStretchPreview,
@@ -493,6 +499,15 @@ export function App({
   } = useSelectionController();
   const uniqueSuffixCounter = useRef(0);
   const [viewBox, setRawViewBox] = useState<GridRect>(DEFAULT_VIEWBOX);
+  const cameraRuntimeRef = useRef<CameraRuntime | null>(null);
+  if (!cameraRuntimeRef.current) {
+    cameraRuntimeRef.current = createCameraRuntime(
+      DEFAULT_VIEWBOX,
+      setRawViewBox,
+    );
+  }
+  const cameraRuntime = cameraRuntimeRef.current;
+  useEffect(() => () => cameraRuntime.dispose(), [cameraRuntime]);
   const [gridDotsVisible, setGridDotsVisible] = useState(true);
   // Annotations and drafting place on their own pitch; the Document grid
   // stays the electrical contract for devices, wires, and junctions.
@@ -543,12 +558,7 @@ export function App({
     next: GridRect | CameraRectInput | ((current: GridRect) => CameraRectInput),
     grid = document.presentation.grid,
   ): void => {
-    setRawViewBox((current) =>
-      normalizeCameraRect(
-        typeof next === "function" ? next(current) : next,
-        grid,
-      ),
-    );
+    cameraRuntime.set(next, grid);
   };
   const [importReport, setImportReport] = useState<SpiceImportReport | null>(
     null,
@@ -1185,7 +1195,7 @@ export function App({
     selectedDevice,
     selectedCapacitorPlateRows,
     selectedExternalSubcircuit,
-    selectedExternalMosMapping,
+    selectedReviewedExternalBinding,
     selectedPropertyDevice,
     selectedRoute,
     selectedRouteNetLabels,
@@ -1223,7 +1233,6 @@ export function App({
   const {
     logicalNets,
     routeGeometryRecords,
-    netlistAnalysis,
     highlightedTrace,
     highlightedNet,
     highlightedNetId,
@@ -1248,15 +1257,12 @@ export function App({
     highlightedNetOrigin,
     selectedHighlightNetId,
     selectedHighlightEndpoint,
+    searchActive: searchOpen,
     searchQuery,
     routingGuidanceView,
     wireSource,
     bulkDrawInstanceId,
   });
-  const projectNetNameProjection = useMemo(
-    () => deriveProjectNetNameProjection(project),
-    [project],
-  );
   const selectedNetNameAnnotation =
     selectedAnnotation?.binding?.kind === "net-name" &&
     (selectedAnnotation.kind === "net-label" ||
@@ -1278,8 +1284,13 @@ export function App({
   const selectedNetNameLogical = selectedNetNameAnnotation?.netId
     ? logicalNets.byBaseNetId.get(selectedNetNameAnnotation.netId)
     : undefined;
+  const projectNetNameProjection = useMemo(
+    () =>
+      selectedNetNameLogical ? deriveProjectNetNameProjection(project) : null,
+    [project, selectedNetNameLogical],
+  );
   const selectedNetNameProjection = selectedNetNameLogical
-    ? projectNetNameProjection.byDocumentId
+    ? projectNetNameProjection?.byDocumentId
         .get(document.id)
         ?.get(selectedNetNameLogical.id)
     : undefined;
@@ -1831,7 +1842,7 @@ export function App({
       project.externalSubcircuitDefinitions.flatMap((definition) => {
         const mapping = definition.presentation
           ? undefined
-          : resolvePdkSymbolMappingForTerminalOrder(
+          : resolveReviewedExternalBinding(
               definition.name,
               definition.terminals.map((terminal) => terminal.name),
             );
@@ -2477,6 +2488,9 @@ export function App({
       selectEndpoint,
       endpointStatusLabel: (endpoint) => endpointTestId(endpoint.endpoint),
       setStatus,
+      suppressNextClick: () => {
+        suppressInstanceClick.current = true;
+      },
       consumeArmedVerb: (kind, id) => {
         if (kind === "instance") return consumeArmedVerbOnInstance(id);
         if (kind === "route") return consumeArmedDeleteOnObject("routeIds", id);
@@ -2507,8 +2521,12 @@ export function App({
     viewport: {
       defaultViewBox: DEFAULT_VIEWBOX,
       contentBounds: contentSceneBounds,
-      viewBox,
+      getViewBox: cameraRuntime.current,
       setViewBox,
+      scheduleViewBox: (next, grid = document.presentation.grid) =>
+        cameraRuntime.schedule(next, grid),
+      flushViewBox: cameraRuntime.flush,
+      measureSurface: cameraRuntime.measureSurface,
       pointFromClient: (clientX, clientY, svg) =>
         pointFromClient(clientX, clientY, svg),
       rawPointFromClient: (clientX, clientY, svg) =>
@@ -2868,6 +2886,20 @@ export function App({
   const selectedPortLogicalName = selectedPortNet
     ? logicalNets.byBaseNetId.get(selectedPortNet.id)?.name
     : undefined;
+  const selectedPropertyOnlyTerminal =
+    selectedReviewedExternalBinding?.terminals.find(
+      (terminal) => terminal.interaction === "property",
+    );
+  const selectedPropertyOnlyTerminalNet =
+    selectedInstance && selectedPropertyOnlyTerminal
+      ? document.nets.find((net) =>
+          net.terminals.some(
+            (terminal) =>
+              terminal.instanceId === selectedInstance.id &&
+              terminal.pinName === selectedPropertyOnlyTerminal.pinName,
+          ),
+        )
+      : undefined;
 
   function commitProjectName(): void {
     setProjectNameDraft(null);
@@ -4447,7 +4479,7 @@ export function App({
                       !(
                         selectedInstance.netlist.binding?.kind === "model" ||
                         selectedDevice?.targetPolicy === "required-model" ||
-                        selectedExternalMosMapping
+                        selectedReviewedExternalBinding
                       )
                         ? componentTargetDescription(
                             selectedInstance,
@@ -4456,33 +4488,59 @@ export function App({
                           )
                         : null,
                     capacitorPlateRows: selectedCapacitorPlateRows,
+                    propertyTerminal:
+                      selectedInstance && selectedPropertyOnlyTerminal
+                        ? {
+                            label:
+                              selectedPropertyOnlyTerminal.role === "substrate"
+                                ? "Body/Substrate Net"
+                                : `${selectedPropertyOnlyTerminal.targetName} Net`,
+                            pinName: selectedPropertyOnlyTerminal.pinName,
+                            netId: selectedPropertyOnlyTerminalNet?.id ?? null,
+                            options: logicalNets.groups.map((logicalNet) => ({
+                              netId: logicalNet.baseNetIds[0]!,
+                              label:
+                                logicalNet.name ?? logicalNet.baseNetIds[0]!,
+                            })),
+                            onChange: (netId) => {
+                              const result = transact([
+                                {
+                                  kind: "set_property_terminal_net",
+                                  instanceId: selectedInstance.id,
+                                  pinName: selectedPropertyOnlyTerminal.pinName,
+                                  netId,
+                                },
+                              ]);
+                              if (result.ok) {
+                                setStatus(
+                                  netId
+                                    ? `Set ${selectedPropertyOnlyTerminal.targetName} to ${logicalNets.byBaseNetId.get(netId)?.name ?? netId}`
+                                    : `Cleared ${selectedPropertyOnlyTerminal.targetName} Net`,
+                                );
+                              }
+                            },
+                          }
+                        : null,
                     modelTarget:
                       selectedInstance.netlist &&
                       (selectedInstance.netlist.binding?.kind === "model" ||
                         selectedDevice?.targetPolicy === "required-model" ||
-                        selectedExternalMosMapping)
+                        reviewedExternalModelSuggestions(
+                          selectedPropertyDevice?.symbolId ?? "",
+                        ).length > 0 ||
+                        selectedReviewedExternalBinding)
                         ? {
                             defaultValue:
                               selectedInstance.netlist.binding?.kind === "model"
                                 ? selectedInstance.netlist.binding.name
-                                : selectedExternalMosMapping
+                                : selectedReviewedExternalBinding
                                   ? (selectedExternalSubcircuit?.name ?? "")
                                   : "",
-                            suggestions:
-                              selectedPropertyDevice?.symbolId === "nmos" ||
-                              selectedPropertyDevice?.symbolId === "pmos"
-                                ? reviewedSky130MosModelSuggestions(
-                                    selectedPropertyDevice.symbolId,
-                                  )
-                                : [],
-                            ...(selectedPropertyDevice?.symbolId === "nmos" ||
-                            selectedPropertyDevice?.symbolId === "pmos"
-                              ? {
-                                  listId: `mos-model-options-${selectedPropertyDevice.symbolId}`,
-                                }
-                              : {}),
+                            suggestions: reviewedExternalModelSuggestions(
+                              selectedPropertyDevice?.symbolId ?? "",
+                            ),
                             externalSubcircuit: Boolean(
-                              selectedExternalMosMapping,
+                              selectedReviewedExternalBinding,
                             ),
                           }
                         : null,
@@ -4870,6 +4928,7 @@ export function App({
         />
         <EditorCanvasSurface
           empty={canvasIsEmpty}
+          cameraRuntime={cameraRuntime}
           onWheel={handleWheel}
           onPinch={zoomAtClientPoint}
           className={[
@@ -5047,25 +5106,19 @@ export function App({
                 }
                 inspectInstance(instance.id);
               },
-              onInstancePointerDown: (event, instance) => {
+              onRoutePointerDown: (event, routeId) => {
+                // Reached only while a drawing tool is up: the pointer tool's
+                // presses are claimed and stopped by the capture-phase router.
                 if (simulationPickNetsActive) {
                   event.stopPropagation();
                   event.preventDefault();
+                  const route = document.routes.find(
+                    (candidate) => candidate.id === routeId,
+                  );
+                  if (route) toggleSimulationSavedNet(route.netId);
                   return;
                 }
-                // While a verb is armed the click acts on the pointed-at
-                // part (rotate it, copy it, pick it up, delete it) rather
-                // than picking it up for a plain drag.
-                if (
-                  event.button === 0 &&
-                  consumeArmedVerbOnInstance(instance.id)
-                ) {
-                  event.stopPropagation();
-                  event.preventDefault();
-                  suppressInstanceClick.current = true;
-                  return;
-                }
-                beginMoveFromSelection(event, instance.id);
+                handleRoutePointerDown(event, routeId);
               },
               onInstanceContextMenu: (instance, clientX, clientY) => {
                 // macOS fires contextmenu for Ctrl+left-press; while that
@@ -5078,43 +5131,6 @@ export function App({
                   clientX,
                   clientY,
                 );
-              },
-              onRoutePointerDown: (event, routeId) => {
-                if (simulationPickNetsActive) {
-                  event.stopPropagation();
-                  event.preventDefault();
-                  const route = document.routes.find(
-                    (candidate) => candidate.id === routeId,
-                  );
-                  if (route) toggleSimulationSavedNet(route.netId);
-                  return;
-                }
-                if (
-                  event.button === 0 &&
-                  consumeArmedDeleteOnObject("routeIds", routeId)
-                ) {
-                  event.stopPropagation();
-                  event.preventDefault();
-                  return;
-                }
-                handleRoutePointerDown(event, routeId);
-              },
-              onAnnotationPointerDown: (event, annotation) => {
-                if (simulationPickNetsActive && annotation.netId) {
-                  event.stopPropagation();
-                  event.preventDefault();
-                  toggleSimulationSavedNet(annotation.netId);
-                  return;
-                }
-                if (
-                  event.button === 0 &&
-                  consumeArmedDeleteOnObject("annotationIds", annotation.id)
-                ) {
-                  event.stopPropagation();
-                  event.preventDefault();
-                  return;
-                }
-                beginAnnotationDrag(event, annotation);
               },
               onAnnotationContextMenu: (annotation, clientX, clientY) =>
                 openVisualContextMenu(
@@ -5148,6 +5164,16 @@ export function App({
                   `Endpoint actions: ${endpointTestId(candidate.endpoint)}`,
                 );
               },
+              // The same four units at one hundred percent, but held at that
+              // size on screen as the view zooms out, where the dot used to
+              // shrink until it could not be hit. Growing it at the default
+              // view would change which target wins a shared point, and this
+              // is a reach fix, not a priority change.
+              endpointHitRadius: screenScaleHitRadius(
+                viewBox.width,
+                DEFAULT_VIEWBOX.width,
+                4,
+              ),
               onRouteStretch: beginRouteStretch,
               onJunctionSelect: (candidate) => {
                 if (simulationPickNetsActive) {

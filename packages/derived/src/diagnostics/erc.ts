@@ -64,7 +64,8 @@ export function runErcChecks(
       docIndex,
       resolver,
     );
-    const logicalNets = resolveDocumentLogicalNets(document);
+    const logicalNets =
+      docIndex?.logicalNetResolution ?? resolveDocumentLogicalNets(document);
     for (const net of logicalNets.groups) {
       if (net.powerDomain !== "conflict") continue;
       diagnostics.push({

@@ -39,8 +39,8 @@ export function referencePolicyForInstance(
   const binding = instance.netlist?.binding;
   if (
     binding?.kind === "subcircuit" ||
-    binding?.kind === "external-subcircuit" ||
-    binding?.kind === "unresolved-subcircuit"
+    binding?.kind === "unresolved-subcircuit" ||
+    binding?.kind === "external-subcircuit"
   ) {
     return hierarchyReferencePolicy;
   }

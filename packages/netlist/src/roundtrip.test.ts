@@ -259,6 +259,76 @@ function normalizedSemantics(ir: DesignNetlistIR) {
 }
 
 describe("structural SPICE round trip", () => {
+  it("re-exports an imported reviewed SKY130 X call with omitted count defaults", async () => {
+    const source = [
+      "SKY130 reviewed round trip",
+      ".subckt amp D G S B",
+      "XMBIASN D G S B sky130_fd_pr__nfet_01v8 l=0.15 w=1",
+      ".ends amp",
+      ".end",
+      "",
+    ].join("\n");
+    const imported = await importSpiceSources(
+      [
+        {
+          path: "sky130-roundtrip.spi",
+          bytes: new TextEncoder().encode(source),
+        },
+      ],
+      "sky130-roundtrip.spi",
+    );
+
+    expect(imported.successful).toBe(true);
+    const project = imported.project!;
+    const instance = project.documents
+      .flatMap((document) => document.instances)
+      .find((candidate) => candidate.reference === "XMBIASN")!;
+    expect(instance).toMatchObject({
+      reference: "XMBIASN",
+      symbolId: "nmos",
+      netlist: {
+        binding: { kind: "external-subcircuit" },
+        parameters: { l: "150n", w: "1u" },
+      },
+    });
+    expect(project.externalSubcircuitDefinitions[0]!.formalParameters).toEqual([
+      { name: "w", defaultValue: "1" },
+      { name: "l", defaultValue: "0.15" },
+      { name: "nf", defaultValue: "1" },
+      { name: "m", defaultValue: "1" },
+    ]);
+
+    const analysis = analyzeDesignNetlist(project, { format: "spice" });
+    expect(analysis.diagnostics).toEqual([]);
+    expect(analysis.ir).not.toBeNull();
+    const printed = printSpiceNetlist(analysis.ir!);
+    expect(printed).toContain(
+      "XMBIASN D G S B sky130_fd_pr__nfet_01v8 l=0.15 w=1",
+    );
+    expect(printed).not.toContain("XXMBIASN");
+    expect(printed).not.toMatch(/\bnf=/u);
+    expect(printed).not.toMatch(/\bm=/u);
+
+    const reparsed = await importSpiceSources(
+      [
+        {
+          path: "sky130-reexport.spi",
+          bytes: new TextEncoder().encode(printed),
+        },
+      ],
+      "sky130-reexport.spi",
+    );
+    expect(reparsed.successful).toBe(true);
+    const reanalysis = analyzeDesignNetlist(reparsed.project!, {
+      format: "spice",
+    });
+    expect(reanalysis.diagnostics).toEqual([]);
+    expect(reanalysis.ir).not.toBeNull();
+    expect(normalizedSemantics(reanalysis.ir!)).toEqual(
+      normalizedSemantics(analysis.ir!),
+    );
+  });
+
   it("keeps Cadence bang spelling separate from global electrical identity", async () => {
     const imported = await importSpiceSources(
       [

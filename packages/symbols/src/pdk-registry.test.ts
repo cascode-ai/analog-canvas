@@ -17,19 +17,19 @@ describe("PDK symbol mapping registry", () => {
     expect(reviewedSky130MosModelSuggestions("resistor")).toEqual([]);
   });
 
-  it("maps reviewed SKY130 MOS namespaces with explicit pin order", () => {
+  it("maps only exact reviewed SKY130 bindings with canonical native pins", () => {
     expect(resolvePdkSymbolMapping("sky130_fd_pr__nfet_01v8", 4)).toEqual({
       symbolId: "nmos",
       pinNames: ["D", "G", "S", "B"],
-      source: "pdk-rule",
-      registryId: "sky130-nfet-four-terminal",
+      source: "exact",
+      registryId: "sky130-nfet-01v8",
     });
     expect(
       resolvePdkSymbolMapping("SKY130_FD_PR__PFET_G5V0D10V5", 4),
-    ).toMatchObject({ symbolId: "pmos", pinNames: ["D", "G", "S", "B"] });
+    ).toBeUndefined();
     expect(
       resolvePdkSymbolMapping("sky130_fd_pr__res_high_po", 3),
-    ).toBeUndefined();
+    ).toMatchObject({ symbolId: "resistor", pinNames: ["1", "2", "B"] });
   });
 
   it("does not guess an unknown namespace or conflicting terminal count", () => {
@@ -74,8 +74,8 @@ describe("PDK symbol mapping registry", () => {
     ).toEqual({
       symbolId: "nmos",
       pinNames: ["D", "G", "S", "B"],
-      source: "pdk-rule",
-      registryId: "sky130-nfet-four-terminal",
+      source: "exact",
+      registryId: "sky130-nfet-01v8",
     });
   });
 });

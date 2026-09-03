@@ -357,7 +357,7 @@ Q2 collector base emitter QPREF
       sourceMasterName: "sky130_fd_pr__nfet_01v8",
       status: "resolved",
       sourceTarget: "external-subcircuit:sky130_fd_pr__nfet_01v8",
-      symbolMappingRegistryId: "sky130-nfet-four-terminal",
+      symbolMappingRegistryId: "sky130-nfet-01v8",
       terminalMapping: [
         { sourcePosition: 0, pinName: "D" },
         { sourcePosition: 1, pinName: "G" },
@@ -368,7 +368,7 @@ Q2 collector base emitter QPREF
     expect(document.instances[0]!.reference).toBe("XM1");
     expect(document.instances[0]!.netlist).toEqual({
       binding: expect.objectContaining({ kind: "external-subcircuit" }),
-      parameters: { l: "1.0", w: "96", nf: "12" },
+      parameters: { l: "1u", w: "96u", nf: "12" },
     });
     expect(document.instances[0]).toMatchObject({
       symbolId: "nmos",
@@ -426,7 +426,7 @@ Q2 collector base emitter QPREF
         binding: expect.objectContaining({ kind: "external-subcircuit" }),
       }),
       importProvenance: expect.objectContaining({
-        symbolMappingRegistryId: "sky130-nfet-four-terminal",
+        symbolMappingRegistryId: "sky130-nfet-01v8",
         terminalMapping: [
           { sourcePosition: 0, pinName: "D" },
           { sourcePosition: 1, pinName: "G" },
@@ -442,7 +442,7 @@ Q2 collector base emitter QPREF
     ).toEqual([]);
   });
 
-  it("imports the SKY130 thermometer resistor with generic external masters", async () => {
+  it("imports reviewed SKY130 external masters with declared interfaces", async () => {
     const entry = resolve(
       process.cwd(),
       "netlists/sky130-thermometer-trim-resistor/circuit.spi",
@@ -459,9 +459,9 @@ Q2 collector base emitter QPREF
       ]),
     ).toEqual(
       expect.arrayContaining([
-        ["sky130_fd_pr__nfet_01v8", "inferred-positional"],
-        ["sky130_fd_pr__pfet_01v8", "inferred-positional"],
-        ["sky130_fd_pr__res_high_po", "inferred-positional"],
+        ["sky130_fd_pr__nfet_01v8", "declared"],
+        ["sky130_fd_pr__pfet_01v8", "declared"],
+        ["sky130_fd_pr__res_high_po", "declared"],
       ]),
     );
     expect(
@@ -473,5 +473,22 @@ Q2 collector base emitter QPREF
         )
         .every((instance) => instance.reference?.startsWith("X")),
     ).toBe(true);
+    const resistor = imported.project?.documents
+      .flatMap((document) => document.instances)
+      .find(
+        (instance) =>
+          instance.importProvenance?.sourceMasterName ===
+          "sky130_fd_pr__res_high_po",
+      );
+    expect(resistor).toMatchObject({
+      symbolId: "resistor",
+      importProvenance: {
+        terminalMapping: [
+          { sourcePosition: 0, pinName: "1" },
+          { sourcePosition: 1, pinName: "2" },
+          { sourcePosition: 2, pinName: "B" },
+        ],
+      },
+    });
   });
 });

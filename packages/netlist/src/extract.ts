@@ -17,7 +17,9 @@ import type {
 import {
   createReferenceIndex,
   deviceDescriptor,
+  projectLengthToSky130Micrometres,
   requiredParameterNames,
+  resolveReviewedExternalBinding,
 } from "@icm/devices";
 
 import type {
@@ -184,6 +186,7 @@ function encodeCandidate(
 function buildNetContext(
   document: SchematicDocument,
   documentsById: Map<string, SchematicDocument>,
+  externalDefinitionsById: ReadonlyMap<string, ExternalSubcircuitDefinition>,
   projectedNames: ReadonlyMap<string, ProjectedNetName>,
   options: ResolvedDesignNetlistAnalysisOptions,
   diagnostics: NetlistDiagnostic[],
@@ -454,9 +457,23 @@ function buildNetContext(
           binding?.kind === "subcircuit"
             ? documentsById.get(binding.childDocumentId)
             : undefined;
+        const externalDefinition =
+          binding?.kind === "external-subcircuit"
+            ? externalDefinitionsById.get(binding.definitionId)
+            : undefined;
+        const reviewed = externalDefinition
+          ? resolveReviewedExternalBinding(
+              externalDefinition.name,
+              externalDefinition.terminals.map((terminal) => terminal.name),
+            )
+          : undefined;
         const allowedPins = child?.netlist
           ? projectCellInterface(child.netlist).ports.map((port) => port.name)
-          : deviceDescriptor(instance.symbolId)?.pinOrder;
+          : reviewed
+            ? reviewed.terminals.map((terminal) => terminal.pinName)
+            : externalDefinition
+              ? externalDefinition.terminals.map((terminal) => terminal.name)
+              : deviceDescriptor(instance.symbolId)?.pinOrder;
         if (allowedPins && !allowedPins.includes(terminal.pinName)) {
           diagnostic(
             diagnostics,
@@ -627,6 +644,7 @@ function extractHierarchyInstance(
   return {
     id: instance.id,
     reference: instance.reference!,
+    invocationKind: "subcircuit",
     deviceClass: "hierarchical",
     target: child.netlist.name,
     nodes,
@@ -688,6 +706,7 @@ function extractExternalSubcircuitInstance(
   instance: Instance,
   definition: ExternalSubcircuitDefinition | undefined,
   context: CellNetContext,
+  options: ResolvedDesignNetlistAnalysisOptions,
   diagnostics: NetlistDiagnostic[],
 ): DesignNetlistInstance | null {
   const netlist = instance.netlist;
@@ -718,8 +737,19 @@ function extractExternalSubcircuitInstance(
     diagnostics,
     { allowAdditional: true },
   );
+  const reviewed = resolveReviewedExternalBinding(
+    definition.name,
+    definition.terminals.map((terminal) => terminal.name),
+  );
+  const terminalBindings = reviewed
+    ? reviewed.terminals
+    : definition.terminals.map((terminal) => ({
+        targetName: terminal.name,
+        pinName: terminal.name,
+        interaction: "canvas" as const,
+      }));
   const allowedPins = new Set(
-    definition.terminals.map((terminal) => terminal.name.toLowerCase()),
+    terminalBindings.map((terminal) => terminal.pinName.toLowerCase()),
   );
   const referencedPins = new Set<string>();
   for (const net of document.nets) {
@@ -732,6 +762,20 @@ function extractExternalSubcircuitInstance(
     for (const endpoint of routeEndpoints(route)) {
       if (endpoint.kind === "terminal" && endpoint.instanceId === instance.id) {
         referencedPins.add(endpoint.pinName);
+        const propertyTerminal = terminalBindings.find(
+          (terminal) =>
+            terminal.pinName === endpoint.pinName &&
+            terminal.interaction === "property",
+        );
+        if (propertyTerminal) {
+          diagnostic(
+            diagnostics,
+            document.id,
+            "PROPERTY_TERMINAL_ON_CANVAS",
+            `Property-only terminal ${instance.reference!}.${endpoint.pinName} cannot be a Route endpoint`,
+            [instance.id, route.id],
+          );
+        }
       }
     }
   }
@@ -745,25 +789,93 @@ function extractExternalSubcircuitInstance(
       [instance.id, definition.id],
     );
   }
-  const nodes = definition.terminals.flatMap((terminal) => {
+  for (const noConnect of document.noConnects) {
+    if (noConnect.endpoint.instanceId !== instance.id) continue;
+    const propertyTerminal = terminalBindings.find(
+      (terminal) =>
+        terminal.pinName === noConnect.endpoint.pinName &&
+        terminal.interaction === "property",
+    );
+    if (propertyTerminal) {
+      diagnostic(
+        diagnostics,
+        document.id,
+        "PROPERTY_TERMINAL_NO_CONNECT",
+        `Property-only terminal ${instance.reference!}.${noConnect.endpoint.pinName} requires an existing Net selection`,
+        [instance.id, noConnect.id],
+      );
+    }
+  }
+  const nodes = terminalBindings.flatMap((terminal) => {
     const netName = terminalNetName(
       document,
       instance,
-      terminal.name,
+      terminal.pinName,
       context,
       diagnostics,
     );
-    return netName ? [{ pinName: terminal.name, netName }] : [];
+    return netName ? [{ pinName: terminal.targetName, netName }] : [];
   });
+  const parameters = Object.entries(netlist.parameters);
+  const projectedParameters = reviewed
+    ? [
+        ...reviewed.parameters
+          .toSorted((left, right) => left.spiceOrder - right.spiceOrder)
+          .flatMap((parameter) => {
+            const entry = parameters.find(
+              ([name]) => name.toLowerCase() === parameter.name.toLowerCase(),
+            );
+            if (!entry) return [];
+            let rawValue = entry[1];
+            if (parameter.targetUnit === "micrometre") {
+              if (options.format !== "spice") {
+                diagnostic(
+                  diagnostics,
+                  document.id,
+                  "UNSUPPORTED_REVIEWED_BINDING_DIALECT",
+                  `${reviewed.masterName} geometry projection is reviewed only for SPICE/ngspice`,
+                  [instance.id],
+                );
+                return [];
+              }
+              try {
+                rawValue = projectLengthToSky130Micrometres(rawValue);
+              } catch (error) {
+                diagnostic(
+                  diagnostics,
+                  document.id,
+                  "INVALID_REVIEWED_GEOMETRY",
+                  error instanceof Error ? error.message : String(error),
+                  [instance.id],
+                );
+                return [];
+              }
+            }
+            return [{ name: parameter.name, rawValue }];
+          }),
+        ...parameters
+          .filter(
+            ([name]) =>
+              !reviewed.parameters.some(
+                (parameter) =>
+                  parameter.name.toLowerCase() === name.toLowerCase(),
+              ),
+          )
+          .sort(([a], [b]) => compareText(a, b))
+          .map(([name, rawValue]) => ({ name, rawValue })),
+      ]
+    : parameters
+        .sort(([a], [b]) => compareText(a, b))
+        .map(([name, rawValue]) => ({ name, rawValue }));
   return {
     id: instance.id,
     reference: instance.reference!,
+    invocationKind: "subcircuit",
+    ...(reviewed ? { reviewedExternalBindingId: reviewed.id } : {}),
     deviceClass: "hierarchical",
     target: definition.name,
     nodes,
-    parameters: Object.entries(netlist.parameters)
-      .sort(([a], [b]) => compareText(a, b))
-      .map(([name, rawValue]) => ({ name, rawValue })),
+    parameters: projectedParameters,
   };
 }
 
@@ -876,7 +988,8 @@ function extractDeviceInstance(
     }
   } else if (
     definition.targetPolicy === "builtin" &&
-    (netlist.binding?.kind !== "primitive" ||
+    netlist.binding !== undefined &&
+    (netlist.binding.kind !== "primitive" ||
       netlist.binding.deviceClass !== definition.deviceClass)
   ) {
     diagnostic(
@@ -952,6 +1065,7 @@ function extractDeviceInstance(
   return {
     id: instance.id,
     reference: instance.reference!,
+    invocationKind: "primitive",
     deviceClass: definition.deviceClass,
     target,
     nodes,
@@ -1006,6 +1120,12 @@ function extractCell(
   const context = buildNetContext(
     document,
     documentsById,
+    new Map(
+      project.externalSubcircuitDefinitions.map((definition) => [
+        definition.id,
+        definition,
+      ]),
+    ),
     projectedNames,
     options,
     diagnostics,
@@ -1111,6 +1231,7 @@ function extractCell(
                 (definition) => definition.id === binding.definitionId,
               ),
               context,
+              options,
               diagnostics,
             )
           : extractDeviceInstance(document, instance, context, diagnostics);

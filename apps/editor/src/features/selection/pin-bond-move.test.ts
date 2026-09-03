@@ -240,10 +240,12 @@ describe("pin-onto-pin move bond", () => {
     );
   });
 
-  it("keeps two differently named nets apart and says why", () => {
-    // E rides net-h (HORIZONTAL); C rides net-v (VERTICAL). The planner
-    // refuses the silent merge, the move itself still commits, and the
-    // status names the conflict instead of claiming a connection.
+  it("joins two differently named nets and retires both names", () => {
+    // E rides net-h (HORIZONTAL); C rides net-v (VERTICAL). Bringing the pin
+    // to rest on the other Net joins them like any other contact. Neither
+    // name survives the join — the author named two nodes to say they were
+    // different, and that statement is what the gesture revokes — so the
+    // labels go with the names rather than one being chosen for them.
     const { statuses, transactions } = runMove({
       instanceId: "E",
       origin: { x: 30, y: 400 },
@@ -251,14 +253,12 @@ describe("pin-onto-pin move bond", () => {
       target: { x: 0, y: 200 },
     });
     const edits = transactions.flatMap((t) => t.edits);
-    expect(edits.some((edit) => edit.kind === "connect_endpoints")).toBe(false);
-    expect(transactions.some((t) => t.result?.ok)).toBe(true);
+    expect(edits.some((edit) => edit.kind === "connect_endpoints")).toBe(true);
     expect(
-      statuses.some((s) =>
-        s.includes("Moved without connecting: Cannot directly connect"),
-      ),
-    ).toBe(true);
-    expect(statuses.some((s) => s.includes("Snapped pin endpoints"))).toBe(
+      edits.filter((edit) => edit.kind === "remove_schematic_annotation"),
+    ).toHaveLength(2);
+    expect(transactions.some((t) => t.result?.ok)).toBe(true);
+    expect(statuses.some((s) => s.includes("Moved without connecting"))).toBe(
       false,
     );
   });

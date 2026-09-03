@@ -6,8 +6,25 @@ import { useState } from "react";
  * backfilled, or a drawing the renderer cannot handle), the tile shows a
  * quiet schematic placeholder instead of the browser's broken-image glyph.
  */
-export function TilePreview({ src, alt }: { src: string; alt: string }) {
+export function TilePreview({
+  src,
+  alt,
+  width,
+  height,
+}: {
+  src: string;
+  alt: string;
+  width?: number;
+  height?: number;
+}) {
   const [failed, setFailed] = useState(false);
+  const hasIntrinsicSize =
+    typeof width === "number" &&
+    Number.isFinite(width) &&
+    width > 0 &&
+    typeof height === "number" &&
+    Number.isFinite(height) &&
+    height > 0;
   return (
     <span
       className={
@@ -44,6 +61,8 @@ export function TilePreview({ src, alt }: { src: string; alt: string }) {
           src={src}
           alt={alt}
           loading="lazy"
+          decoding="async"
+          {...(hasIntrinsicSize ? { width, height } : {})}
           onError={() => setFailed(true)}
         />
       )}

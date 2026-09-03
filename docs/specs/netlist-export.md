@@ -127,6 +127,19 @@ emitted `X` nodes and its `name` is the emitted master token. The instance owns
 raw overrides. A PDK may provide artwork later, but artwork cannot change
 external invocation into a primitive or model binding.
 
+Reviewed native-device mappings may source those ordered target terminals from
+stable local pins with different names. The released SKY130 resistor maps
+`R0/R1/B` from native `1/2/B`; B is a real `Net.terminals` membership edited
+only in Properties and never a Symbol pin, Route endpoint, or NoConnect. The
+reviewed MIM capacitor maps `C0/C1` from the frozen capacitor pins `1/2`.
+
+`Instance.reference` is the exact ngspice designator. Selecting a reviewed
+external target atomically changes `M1/R1/C1` to `XM1/XR1/XC1`; clearing that
+target restores the native prefix. Imported X calls are retained unchanged,
+and all References remain case-insensitively unique before output. Reviewed
+SKY130 `l/w` values are stored canonically as metre-valued SPICE strings and
+projected to plain micrometre numbers only for SPICE/ngspice export.
+
 External-master parameters are deliberately open: declared formal parameters
 provide authoring metadata, requiredness, and defaults, while additional raw
 instance keys are retained and emitted. This permits a project to carry

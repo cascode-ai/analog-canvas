@@ -455,11 +455,13 @@ describe("bringing two wire ends head to head", () => {
     expect(ambiguousJunctionErrors(moved)).toEqual([]);
   });
 
-  it("refuses to retire a name when two named Nets are butted together", () => {
+  it("retires both labels when two named Nets are butted together", () => {
     const document = twoHeadToHeadWires();
-    // The author labelled both sides, which is how they say the two are NOT
-    // the same node. Touching the ends cannot quietly discard one of the
-    // names, so this stays two Nets and keeps its ambiguity finding.
+    // The author labelled both sides, which is how they said the two were
+    // different nodes. Joining them makes both names untrue at once, so the
+    // pair is retired and the joined node is left unnamed for the author to
+    // name again — rather than the drawing claiming a name they never gave
+    // this node.
     for (const [netId, name] of [
       ["net-left", "VBST"],
       ["net-right", "VGN"],
@@ -486,7 +488,14 @@ describe("bringing two wire ends head to head", () => {
 
     const moved = moveLooseRoute(document, "wire-right", { x: -60, y: 0 });
 
-    expect(conductingNetIds(moved)).toHaveLength(2);
+    expect(conductingNetIds(moved)).toHaveLength(1);
+    expect(ambiguousJunctionErrors(moved)).toEqual([]);
+    // Both labels are gone from the drawing, and so is every name claim, so
+    // the joined Net carries no name at all.
+    expect(moved.annotations.filter((a) => a.kind === "net-label")).toEqual([]);
+    expect(
+      moved.connectivityEvidence.filter((e) => e.kind === "name-claim"),
+    ).toEqual([]);
   });
 
   it("leaves the joined conductor's connectivity alone when it moves again", () => {

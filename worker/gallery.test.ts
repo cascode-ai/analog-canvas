@@ -18,16 +18,19 @@ import {
   routeGalleryRequest,
   SHORT_ID_LENGTH,
   shortId,
+  svgPreviewDimensions,
   type GalleryEnv,
+  type GalleryPreviewCache,
 } from "./gallery";
 import { AuthDO, type AuthEnv } from "./auth";
 
-function sqliteState() {
+function sqliteState(queries?: string[]) {
   const db = new DatabaseSync(":memory:");
   return {
     storage: {
       sql: {
         exec<T>(query: string, ...bindings: unknown[]) {
+          queries?.push(query);
           const statement = db.prepare(query);
           if (/^\s*(select|with|pragma)/iu.test(query)) {
             const rows = statement.all(
@@ -61,6 +64,7 @@ type Harness = GalleryEnv & {
   authDurable: AuthDO;
   /** The gallery's own storage, for seeding rows a route cannot create. */
   gallerySql: ReturnType<typeof sqliteState>["storage"]["sql"];
+  galleryQueries: string[];
 };
 
 /**
@@ -68,7 +72,8 @@ type Harness = GalleryEnv & {
  * only way to publish anything.
  */
 function environment(): Harness {
-  const galleryState = sqliteState();
+  const galleryQueries: string[] = [];
+  const galleryState = sqliteState(galleryQueries);
   const durable = new GalleryDO(galleryState);
   const authDurable = new AuthDO(sqliteState(), {
     RESEND_API_KEY: "rk",
@@ -91,6 +96,7 @@ function environment(): Harness {
     },
     authDurable,
     gallerySql: galleryState.storage.sql,
+    galleryQueries,
   };
 }
 
@@ -177,6 +183,39 @@ async function route(env: GalleryEnv, request: Request) {
   return response;
 }
 
+function memoryPreviewCache(): GalleryPreviewCache & {
+  readonly matchCalls: string[];
+  readonly putCalls: string[];
+} {
+  const responses = new Map<string, Response>();
+  const matchCalls: string[] = [];
+  const putCalls: string[] = [];
+  return {
+    matchCalls,
+    putCalls,
+    async match(request) {
+      matchCalls.push(request.url);
+      return responses.get(request.url)?.clone();
+    },
+    async put(request, response) {
+      putCalls.push(request.url);
+      responses.set(request.url, response.clone());
+    },
+  };
+}
+
+describe("svgPreviewDimensions", () => {
+  it("reads a positive SVG viewBox and rejects incomplete geometry", () => {
+    expect(
+      svgPreviewDimensions(
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="-20 10 640 360"></svg>',
+      ),
+    ).toEqual({ width: 640, height: 360 });
+    expect(svgPreviewDimensions('<svg viewBox="0 0 20 0"></svg>')).toBeNull();
+    expect(svgPreviewDimensions("<svg></svg>")).toBeNull();
+  });
+});
+
 function cookieHeaders(cookie: string): HeadersInit {
   return { Cookie: cookie };
 }
@@ -220,6 +259,39 @@ async function submitOne(
 }
 
 describe("gallery data migrations", () => {
+  it("backfills intrinsic preview dimensions for existing entries once", () => {
+    const state = sqliteState();
+    new GalleryDO(state);
+    state.storage.sql.exec(
+      `INSERT INTO gallery_entries
+       (id, name, author, description, created_at, schema_version, status,
+        project_text, svg_text)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      "legacy-preview",
+      "Legacy preview",
+      "Author",
+      "",
+      "2026-08-01T00:00:00.000Z",
+      CURRENT_PROJECT_SCHEMA_VERSION,
+      "public",
+      projectText("Legacy preview"),
+      '<svg viewBox="-10 -20 320 180"></svg>',
+    );
+    state.storage.sql.exec(
+      "DELETE FROM data_migrations WHERE id LIKE '%preview-dimensions%'",
+    );
+
+    new GalleryDO(state);
+    expect(
+      state.storage.sql
+        .exec<{ preview_width: number; preview_height: number }>(
+          `SELECT preview_width, preview_height FROM gallery_entries
+           WHERE id = 'legacy-preview'`,
+        )
+        .one(),
+    ).toEqual({ preview_width: 320, preview_height: 180 });
+  });
+
   it("renames tokenzhang across entries and restorable versions once", () => {
     const state = sqliteState();
     new GalleryDO(state);
@@ -431,6 +503,22 @@ describe("newest-first gallery feed", () => {
     const full = await galleryPage(env);
     expect(full.entries).toHaveLength(2);
     expect(full.nextCursor).toBeNull();
+  });
+
+  it("reads feed summaries without loading stored Project or SVG payloads", async () => {
+    const env = environment();
+    await wallOf(env, 2);
+    env.galleryQueries.length = 0;
+
+    const page = await galleryPage(env);
+    expect(page.entries).toHaveLength(2);
+    const feedQuery = env.galleryQueries.find((query) =>
+      query.includes("FROM gallery_entries e"),
+    );
+    expect(feedQuery).toBeDefined();
+    expect(feedQuery).not.toContain("e.*");
+    expect(feedQuery).not.toContain("project_text");
+    expect(feedQuery).not.toContain("svg_text");
   });
 
   it("carries the whole wall's total on every page and counts the filtered set", async () => {
@@ -902,6 +990,8 @@ describe("gallery submissions", () => {
         id: string;
         name: string;
         previewRevision: string;
+        previewWidth: number;
+        previewHeight: number;
         schemaVersion: number;
       }[];
     };
@@ -911,6 +1001,8 @@ describe("gallery submissions", () => {
       schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
     });
     expect(listed.entries[0]!.previewRevision).toMatch(/^[a-f0-9]{64}$/u);
+    expect(listed.entries[0]!.previewWidth).toBeGreaterThan(0);
+    expect(listed.entries[0]!.previewHeight).toBeGreaterThan(0);
 
     const detail = await route(env, new Request(`${ORIGIN}/api/gallery/${id}`));
     const payload = (await detail.json()) as { projectText: string };
@@ -936,6 +1028,64 @@ describe("gallery submissions", () => {
     expect(immutablePreview.headers.get("cache-control")).toBe(
       "public, max-age=31536000, immutable",
     );
+  });
+
+  it("caches immutable preview bytes behind a live publication check", async () => {
+    const env = environment();
+    const adminCookie = await adminOf(env);
+    const id = await submitOne(env, "Cached Preview", { cookie: adminCookie });
+    const list = await route(env, new Request(`${ORIGIN}/api/gallery`));
+    const revision = (
+      (await list.json()) as {
+        entries: { previewRevision: string }[];
+      }
+    ).entries[0]!.previewRevision;
+    const previewUrl = `${ORIGIN}/api/gallery/${id}/preview.svg?v=${revision}`;
+    const cache = memoryPreviewCache();
+
+    env.galleryQueries.length = 0;
+    const first = await routeGalleryRequest(new Request(previewUrl), env, {
+      previewCache: cache,
+    });
+    expect(first?.status).toBe(200);
+    const firstSvg = await first!.text();
+    expect(firstSvg).toContain("<svg");
+    expect(cache.putCalls).toEqual([previewUrl]);
+    const coldQuery = env.galleryQueries.find((query) =>
+      query.includes("svg_text"),
+    );
+    expect(coldQuery).toBeDefined();
+    expect(coldQuery).not.toContain("project_text");
+
+    env.galleryQueries.length = 0;
+    const second = await routeGalleryRequest(new Request(previewUrl), env, {
+      previewCache: cache,
+    });
+    expect(await second!.text()).toBe(firstSvg);
+    expect(cache.putCalls).toHaveLength(1);
+    expect(env.galleryQueries.some((query) => query.includes("svg_text"))).toBe(
+      false,
+    );
+    expect(
+      env.galleryQueries.some(
+        (query) =>
+          query.includes("status") && query.includes("preview_revision"),
+      ),
+    ).toBe(true);
+
+    const recycled = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/${id}/recycle`, {
+        method: "POST",
+        headers: cookieHeaders(adminCookie),
+      }),
+    );
+    expect(recycled.status).toBe(200);
+    const hidden = await routeGalleryRequest(new Request(previewUrl), env, {
+      previewCache: cache,
+    });
+    expect(hidden?.status).toBe(404);
+    expect(hidden?.headers.get("cache-control")).toBe("no-store");
   });
 
   it("publishes and updates a hierarchical Project with its top-level Cell preview", async () => {
@@ -1593,7 +1743,8 @@ function wiredProjectText(name = "Wired", secondResistorX = 200): string {
         rotation: 0,
         mirror: "none",
       },
-      reference: "R1", netlist: { parameters: {} },
+      reference: "R1",
+      netlist: { parameters: {} },
     },
     {
       id: "R2",
@@ -1603,7 +1754,8 @@ function wiredProjectText(name = "Wired", secondResistorX = 200): string {
         rotation: 0,
         mirror: "none",
       },
-      reference: "R2", netlist: { parameters: {} },
+      reference: "R2",
+      netlist: { parameters: {} },
     },
   ];
   document.nets = [

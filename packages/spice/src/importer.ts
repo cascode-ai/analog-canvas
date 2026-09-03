@@ -4,6 +4,10 @@ import {
   deriveStableId,
 } from "@icm/model";
 import {
+  reviewedExternalBindingForTerminalCount,
+  sky130MicrometresToProjectLength,
+} from "@icm/devices";
+import {
   externalSubcircuitSymbolId,
   isRazaviProductSymbolId,
   resolvePdkSymbolMapping,
@@ -55,6 +59,27 @@ interface ImportSymbolMapping {
   symbolId: string;
   pinNames?: readonly string[];
   registryId?: string;
+}
+
+function explicitSymbolOverride(
+  modelName: string,
+  terminalCount: number,
+  symbolMappings: readonly PdkSymbolMappingOverride[],
+): ImportSymbolMapping | undefined {
+  const override = symbolMappings.find(
+    (candidate) =>
+      candidate.modelName.toLowerCase() === modelName.toLowerCase() &&
+      candidate.terminalCount === terminalCount &&
+      candidate.pinNames.length === terminalCount &&
+      isRazaviProductSymbolId(candidate.symbolId),
+  );
+  return override
+    ? {
+        symbolId: override.symbolId,
+        ...(override.pinNames ? { pinNames: override.pinNames } : {}),
+        ...(override.registryId ? { registryId: override.registryId } : {}),
+      }
+    : undefined;
 }
 
 function externalDefinitionId(masterName: string): string {
@@ -139,7 +164,7 @@ function symbolFor(
     };
   }
   if (instance.target.kind === "model") {
-    const pdkMapping = resolvePdkSymbolMapping(
+    const pdkMapping = explicitSymbolOverride(
       instance.target.modelName,
       instance.terminals.length,
       symbolMappings,
@@ -147,8 +172,8 @@ function symbolFor(
     if (pdkMapping) {
       return {
         symbolId: pdkMapping.symbolId,
-        pinNames: pdkMapping.pinNames,
-        registryId: pdkMapping.registryId,
+        ...(pdkMapping.pinNames ? { pinNames: pdkMapping.pinNames } : {}),
+        ...(pdkMapping.registryId ? { registryId: pdkMapping.registryId } : {}),
       };
     }
     const modelType = modelTypeByName.get(
@@ -167,7 +192,7 @@ function symbolFor(
     return null;
   }
   if (instance.target.kind === "opaque") {
-    const pdkMapping = resolvePdkSymbolMapping(
+    const pdkMapping = explicitSymbolOverride(
       instance.target.sourceName,
       instance.terminals.length,
       symbolMappings,
@@ -175,8 +200,10 @@ function symbolFor(
     return pdkMapping
       ? {
           symbolId: pdkMapping.symbolId,
-          pinNames: pdkMapping.pinNames,
-          registryId: pdkMapping.registryId,
+          ...(pdkMapping.pinNames ? { pinNames: pdkMapping.pinNames } : {}),
+          ...(pdkMapping.registryId
+            ? { registryId: pdkMapping.registryId }
+            : {}),
         }
       : null;
   }
@@ -210,7 +237,7 @@ function targetDescription(
     case "external-subcircuit":
       return `external-subcircuit:${instance.target.masterName}`;
     case "opaque":
-      return resolvePdkSymbolMapping(
+      return explicitSymbolOverride(
         instance.target.sourceName,
         instance.terminals.length,
         symbolMappings,
@@ -292,6 +319,37 @@ function importInstance(
     return null;
   }
   const netlistBinding = importedNetlistBinding(instance, mapping);
+  const reviewed =
+    instance.target.kind === "external-subcircuit"
+      ? reviewedExternalBindingForTerminalCount(
+          instance.target.masterName,
+          instance.terminals.length,
+        )
+      : undefined;
+  const parameters = Object.fromEntries(
+    Object.entries(instance.parameters).map(([name, parameter]) => {
+      const reviewedParameter = reviewed?.parameters.find(
+        (candidate) => candidate.name.toLowerCase() === name.toLowerCase(),
+      );
+      if (reviewedParameter?.targetUnit !== "micrometre") {
+        return [name, parameter.rawText];
+      }
+      try {
+        return [name, sky130MicrometresToProjectLength(parameter.rawText)];
+      } catch (error) {
+        diagnostics.push(
+          diagnostic(
+            "SPICE_IMPORT_INVALID_REVIEWED_GEOMETRY",
+            "error",
+            "import",
+            error instanceof Error ? error.message : String(error),
+            instance.sourceRef,
+          ),
+        );
+        return [name, parameter.rawText];
+      }
+    }),
+  );
   return {
     id: instance.id,
     symbolId: mapping.symbolId,
@@ -313,12 +371,7 @@ function importInstance(
     reference: instance.name,
     netlist: {
       ...(netlistBinding ? { binding: netlistBinding } : {}),
-      parameters: Object.fromEntries(
-        Object.entries(instance.parameters).map(([name, parameter]) => [
-          name,
-          parameter.rawText,
-        ]),
-      ),
+      parameters,
     },
   };
 }
@@ -549,21 +602,45 @@ function bindImportedChildDocuments(documents: readonly SchematicDocument[]): {
                 instance.importProvenance!.sourceMasterName,
               ),
               name: instance.importProvenance!.sourceMasterName,
-              terminals: (instance.importProvenance!.terminalMapping ?? [])
-                .toSorted(
+              terminals: (() => {
+                const sourceTerminals = (
+                  instance.importProvenance!.terminalMapping ?? []
+                ).toSorted(
                   (left, right) => left.sourcePosition - right.sourcePosition,
-                )
-                .map((terminal, index) => ({
+                );
+                const reviewed = reviewedExternalBindingForTerminalCount(
+                  instance.importProvenance!.sourceMasterName,
+                  sourceTerminals.length,
+                );
+                return sourceTerminals.map((terminal, index) => ({
                   id: deriveStableId(
                     "external-subcircuit-terminal",
                     key,
                     String(index),
                   ),
-                  name: terminal.pinName,
+                  name:
+                    reviewed?.terminals.length === sourceTerminals.length
+                      ? reviewed.terminals[index]!.targetName
+                      : terminal.pinName,
                   direction: "passive" as const,
-                })),
-              formalParameters: [],
-              interfaceStatus: "inferred-positional",
+                }));
+              })(),
+              formalParameters:
+                reviewedExternalBindingForTerminalCount(
+                  instance.importProvenance!.sourceMasterName,
+                  instance.importProvenance!.terminalMapping?.length ?? 0,
+                )?.parameters.map((parameter) => ({
+                  name: parameter.name,
+                  ...(parameter.targetDefaultValue === undefined
+                    ? {}
+                    : { defaultValue: parameter.targetDefaultValue }),
+                })) ?? [],
+              interfaceStatus: reviewedExternalBindingForTerminalCount(
+                instance.importProvenance!.sourceMasterName,
+                instance.importProvenance!.terminalMapping?.length ?? 0,
+              )
+                ? "declared"
+                : "inferred-positional",
             };
             externalDefinitions.set(key, definition);
             return definition;

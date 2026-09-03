@@ -1,15 +1,19 @@
 import {
-  planSetMosModelTarget,
+  planSetDeviceModelTarget,
   type ProjectStructureEdit,
   type SchematicEdit,
 } from "@icm/edit-engine";
+import {
+  reviewedExternalBindingForMaster,
+  reviewedExternalModelSuggestions,
+} from "@icm/devices";
 import { resolveDocumentStyleProfile } from "@icm/derived";
 import {
   type Annotation,
   type CircuitProject,
   type SchematicDocument,
 } from "@icm/model";
-import { resolvePdkSymbolMapping, type SymbolResolver } from "@icm/symbols";
+import type { SymbolResolver } from "@icm/symbols";
 
 import { instanceLabelAnnotationFor } from "../instance-display/default-instance-display";
 import { bindingForEditedModel } from "../netlist-export/netlist-authoring";
@@ -126,9 +130,13 @@ export function createSelectionPropertyCommands({
 
   const updateSelectedModelTarget = (value: string): void => {
     if (!selectedInstance?.netlist) return;
-    if (selectedInstanceIsMos) {
+    if (
+      selectedInstanceIsMos ||
+      reviewedExternalModelSuggestions(selectedInstance.symbolId).length > 0 ||
+      selectedInstance.netlist.binding?.kind === "external-subcircuit"
+    ) {
       try {
-        const edits = planSetMosModelTarget(
+        const edits = planSetDeviceModelTarget(
           project,
           document.id,
           selectedInstance.id,
@@ -137,12 +145,12 @@ export function createSelectionPropertyCommands({
         if (edits.length === 0) return;
         if (commitStructure("set-mos-model-target", edits)) {
           const target = value.trim();
-          const mapping = target
-            ? resolvePdkSymbolMapping(target, 4)
+          const reviewed = target
+            ? reviewedExternalBindingForMaster(target)
             : undefined;
           setStatus(
-            mapping
-              ? `Set external X target ${target}`
+            reviewed
+              ? `Set reviewed external target ${target} and its X Reference`
               : target
                 ? `Set model target ${target}`
                 : `Cleared model target for ${selectedInstance.id}`,
@@ -152,7 +160,7 @@ export function createSelectionPropertyCommands({
         setStatus(
           error instanceof Error
             ? error.message
-            : "Could not set MOS model target",
+            : "Could not set component model target",
         );
       }
       return;

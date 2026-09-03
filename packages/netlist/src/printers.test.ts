@@ -21,6 +21,7 @@ function device(
   return {
     id,
     reference,
+    invocationKind: deviceClass === "hierarchical" ? "subcircuit" : "primitive",
     deviceClass,
     target,
     nodes: nodeNames.map((netName, index) => ({

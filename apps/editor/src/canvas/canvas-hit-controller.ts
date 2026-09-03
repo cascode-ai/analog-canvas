@@ -7,6 +7,7 @@ import type { EditorTool } from "../interaction/interaction-state";
 import { planSelectionMove } from "../features/selection/selection-move-plan";
 import type { VisualSelection } from "../features/selection/visual-selection";
 import { resolveCanvasHitAtPoint } from "./canvas-hit-resolver";
+import { resolvePointerDownAction } from "./pointer-down-router";
 
 export interface CanvasHitControllerDependencies {
   model: {
@@ -62,6 +63,8 @@ export interface CanvasHitControllerDependencies {
      * before a target). Returns true when the verb consumed the hit.
      */
     consumeArmedVerb?: (kind: string, id: string) => boolean;
+    /** Swallow the click that follows a press an armed verb consumed. */
+    suppressNextClick?: () => void;
   };
 }
 
@@ -92,6 +95,7 @@ export function createCanvasHitController({
     endpointStatusLabel,
     setStatus,
     consumeArmedVerb,
+    suppressNextClick,
   },
 }: CanvasHitControllerDependencies) {
   const compositeSelectionOwnsHit = (
@@ -132,25 +136,6 @@ export function createCanvasHitController({
   };
 
   const handlePointerDown = (event: ReactPointerEvent<SVGSVGElement>): void => {
-    if (placementOwnsCanvas) return;
-    if (getInteractionKind() === "moving-selection") {
-      const primaryInstanceId = selection.instanceIds.at(-1);
-      if (primaryInstanceId) {
-        beginInstanceMove(event, primaryInstanceId, event.currentTarget);
-      } else {
-        beginVisualSelectionMove(event, selection, event.currentTarget);
-      }
-      return;
-    }
-    if (tool !== "pointer" || event.button !== 0) return;
-    if (
-      cellSymbolLayoutEnabled &&
-      (event.target as Element).closest(
-        '[data-testid="cell-symbol-layout-overlay"]',
-      )
-    ) {
-      return;
-    }
     // Handles outrank the scene even when another hit surface is above their
     // SVG element, such as a power-rail endpoint under its Junction circle.
     // The buried-wire warning span joins them: it exists precisely because
@@ -161,77 +146,125 @@ export function createCanvasHitController({
       .some((element) =>
         element.closest(".draft-handle, .route-handle, .wire-under-symbol-hit"),
       );
-    if (handleAtPoint) return;
-    const hit = resolveCanvasHitAtPoint(
-      event.currentTarget.ownerDocument,
-      { x: event.clientX, y: event.clientY },
-      event.altKey ? 1 : 0,
+    // The facts must describe the press as it arrived. Offering the hit to an
+    // armed verb runs the verb, and a verb such as Move puts an interaction
+    // in flight — so the interaction kind is read BEFORE the offer. Reading
+    // it afterwards makes the router answer the press with the state its own
+    // fact gathering created, which is how the armed Move first broke.
+    const interactionKind = getInteractionKind();
+    // Resolving the hit is free of side effects; offering it is not. The hit
+    // is therefore only looked up, and only offered, on the presses this
+    // dispatcher would actually claim.
+    const dispatching =
+      !placementOwnsCanvas &&
+      interactionKind !== "moving-selection" &&
+      tool === "pointer" &&
+      event.button === 0 &&
+      !handleAtPoint;
+    const hit = dispatching
+      ? resolveCanvasHitAtPoint(
+          event.currentTarget.ownerDocument,
+          { x: event.clientX, y: event.clientY },
+          event.altKey ? 1 : 0,
+        )
+      : null;
+    const armedVerbConsumesHit =
+      hit !== null &&
+      hit.kind !== "handle" &&
+      Boolean(consumeArmedVerb?.(hit.kind, hit.id));
+    const compositeOwnsHit = Boolean(
+      hit &&
+      hit.kind !== "handle" &&
+      hit.kind !== "drafting" &&
+      compositeSelectionOwnsHit(hit.kind, hit.id),
     );
-    if (!hit || hit.kind === "handle") return;
-    const hitTarget = hit.element as SVGElement;
-    event.preventDefault();
-    event.stopPropagation();
+    const primaryInstanceId = selection.instanceIds.at(-1) ?? null;
+    const action = resolvePointerDownAction({
+      button: event.button,
+      shiftKey: event.shiftKey,
+      ctrlKey: event.ctrlKey,
+      metaKey: event.metaKey,
+      tool,
+      interactionKind,
+      placementOwnsCanvas,
+      cellSymbolLayoutTarget:
+        cellSymbolLayoutEnabled &&
+        (event.target as Element).closest(
+          '[data-testid="cell-symbol-layout-overlay"]',
+        ) !== null,
+      handleAtPoint,
+      hit,
+      compositeSelectionOwnsHit: compositeOwnsHit,
+      // Planning a move is not free, so it is asked for only where the
+      // answer can change the outcome.
+      compositeMovePlanHasPreview:
+        compositeOwnsHit &&
+        planSelectionMove(document, selection).previewObjectIds.length > 0,
+      primaryInstanceId,
+      armedVerbConsumesHit,
+    });
 
-    // An armed verb (rotate/copy/move/delete pressed first) owns the click:
-    // the pointed-at object is acted on instead of picked up or selected.
-    if (consumeArmedVerb?.(hit.kind, hit.id)) return;
-
+    // Only an action this dispatcher owns claims the press; everything else
+    // is left for the gesture controller or the target's own handler.
     if (
-      !event.shiftKey &&
-      !event.ctrlKey &&
-      !event.metaKey &&
-      (hit.kind === "instance" ||
-        hit.kind === "instance-label" ||
-        hit.kind === "annotation" ||
-        hit.kind === "route" ||
-        hit.kind === "junction") &&
-      compositeSelectionOwnsHit(hit.kind, hit.id)
+      action.kind === "ignore" ||
+      action.kind === "handle-passthrough" ||
+      action.kind === "gesture-passthrough"
     ) {
-      const primaryInstanceId = selection.instanceIds.at(-1);
-      if (primaryInstanceId) {
-        beginInstanceMove(event, primaryInstanceId, hitTarget);
+      return;
+    }
+
+    // A claimed hit stops here: the target-phase handlers and the browser's
+    // own default must not act on the press as well.
+    const hitTarget = (hit?.element ?? event.currentTarget) as SVGElement;
+    if (hit) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+
+    switch (action.kind) {
+      case "consume-armed-verb":
+        // The offer already ran the verb. The click that follows this press
+        // must not also land: it would re-select the object and undo it.
+        suppressNextClick?.();
         return;
-      }
-      // Route/Junction/Annotation-only marquees still move as one body.
-      const movePlan = planSelectionMove(document, selection);
-      if (movePlan.previewObjectIds.length > 0) {
+      case "begin-instance-move":
+        beginInstanceMove(event, action.instanceId, hitTarget);
+        return;
+      case "begin-visual-selection-move":
         beginVisualSelectionMove(event, selection, hitTarget);
         return;
+      case "begin-annotation-drag": {
+        const annotation = document.annotations.find(
+          (candidate) => candidate.id === action.annotationId,
+        );
+        if (annotation) beginAnnotationDrag(event, annotation, hitTarget);
+        return;
       }
-    }
-
-    if (hit.kind === "instance") {
-      beginInstanceMove(event, hit.id, hitTarget);
-      return;
-    }
-    if (hit.kind === "annotation") {
-      const annotation = document.annotations.find(
-        (candidate) => candidate.id === hit.id,
-      );
-      if (annotation) beginAnnotationDrag(event, annotation, hitTarget);
-      return;
-    }
-    if (hit.kind === "route") {
-      handleRoutePointerDown(event, hit.id, hitTarget);
-      return;
-    }
-    if (hit.kind === "drafting") {
-      const object = document.drafting?.objects.find(
-        (candidate) => candidate.id === hit.id,
-      );
-      if (object && !beginDraftingGroupMove(event, object, hitTarget)) {
-        beginDraftingDrag(event, object, hitTarget);
+      case "route-pointer-down":
+        handleRoutePointerDown(event, action.routeId, hitTarget);
+        return;
+      case "begin-drafting-drag": {
+        const object = document.drafting?.objects.find(
+          (candidate) => candidate.id === action.draftingId,
+        );
+        if (object && !beginDraftingGroupMove(event, object, hitTarget)) {
+          beginDraftingDrag(event, object, hitTarget);
+        }
+        return;
       }
-      return;
-    }
-    const endpoint = visibleEndpoints.find(
-      (candidate) =>
-        candidate.endpoint.kind === "junction" &&
-        candidate.endpoint.junctionId === hit.id,
-    );
-    if (endpoint) {
-      selectEndpoint(endpoint);
-      setStatus(`Selected ${endpointStatusLabel(endpoint)}`);
+      case "select-junction": {
+        const endpoint = visibleEndpoints.find(
+          (candidate) =>
+            candidate.endpoint.kind === "junction" &&
+            candidate.endpoint.junctionId === action.junctionId,
+        );
+        if (endpoint) {
+          selectEndpoint(endpoint);
+          setStatus(`Selected ${endpointStatusLabel(endpoint)}`);
+        }
+        return;
+      }
     }
   };
 

@@ -79,6 +79,7 @@ for readability; these groups do not create separate mutation endpoints:
 - Net/power/MOS: `create_base_net`, `add_power_rail`, `merge_nets`,
   `upsert_connectivity_evidence`, `remove_connectivity_evidence`,
   `set_mos_bulk_defaults`,
+  `set_property_terminal_net`,
   `reconcile_mos_bulk`, `clear_mos_bulk_default`;
 - explicit open terminal: `add_no_connect`, `remove_no_connect`;
 - presentation/layout: `set_presentation_style`, `set_route_style_override`,

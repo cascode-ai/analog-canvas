@@ -116,13 +116,34 @@ jobs:
             --output /tmp/analog-canvas-stale-asset.txt \
             --write-out '%{http_code} %{content_type}' \
             https://analog-canvas.tokenzhang.com/assets/App-deploy-smoke-missing.js)"
+          # A hashed asset name is a promise about bytes, so a name with no
+          # file behind it must say 404. This check asserted the opposite
+          # until #519: it required the shell at 200, which was the bug
+          # (#493) written down as the expected answer. The first deploy of
+          # the fix was therefore rolled back by this very step, correctly
+          # following an instruction that was itself wrong.
           case "$stale_asset" in
-            "200 text/html"*)
-              grep -qi '<!doctype html>' /tmp/analog-canvas-stale-asset.txt
+            "404 "*)
               ;;
             *)
-              echo "Stale hashed asset returned: $stale_asset"
+              echo "A missing hashed asset must answer 404, got: $stale_asset"
               cat /tmp/analog-canvas-stale-asset.txt
+              exit 1
+              ;;
+          esac
+          # The other half of the boundary: a client route has no file behind
+          # it either, and must still receive the shell rather than a 404.
+          route_shell="$(curl --silent --show-error \
+            --max-time 20 \
+            --output /tmp/analog-canvas-route-shell.txt \
+            --write-out '%{http_code} %{content_type}' \
+            https://analog-canvas.tokenzhang.com/editor)"
+          case "$route_shell" in
+            "200 text/html"*)
+              grep -qi '<!doctype html>' /tmp/analog-canvas-route-shell.txt
+              ;;
+            *)
+              echo "A client route must receive the shell, got: $route_shell"
               exit 1
               ;;
           esac

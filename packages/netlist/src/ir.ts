@@ -1,4 +1,5 @@
 import type { NetlistDeviceClass, StableId } from "@icm/model";
+import type { ReviewedExternalBindingId } from "@icm/devices";
 import type { ObjectLocator } from "@icm/derived";
 
 export type DesignNetlistDeviceClass = NetlistDeviceClass | "hierarchical";
@@ -22,6 +23,9 @@ export interface DesignNetlistFormalParameter {
 export interface DesignNetlistInstance {
   id: StableId;
   reference: string;
+  /** Card family must agree with the persisted ngspice Reference designator. */
+  invocationKind: "primitive" | "subcircuit";
+  reviewedExternalBindingId?: ReviewedExternalBindingId;
   deviceClass: DesignNetlistDeviceClass;
   target: string | null;
   nodes: DesignNetlistNode[];

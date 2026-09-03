@@ -4,11 +4,14 @@ import type { Instance } from "@icm/model";
 import {
   componentParameters,
   effectiveComponentParameterValue,
-  externalMosComponentParameters,
+  reviewedExternalComponentParameters,
   initialComponentParameterValues,
   updateComponentParameterValues,
 } from "./component-parameters";
-import { deviceDescriptor } from "@icm/devices";
+import {
+  deviceDescriptor,
+  reviewedExternalBindingForMaster,
+} from "@icm/devices";
 
 describe("component parameter catalogue", () => {
   it("keeps R/L/C values as raw strings with their physical unit hints", () => {
@@ -43,13 +46,23 @@ describe("component parameter catalogue", () => {
     });
   });
 
-  it("drops only the multiplier for a reviewed external MOS call", () => {
+  it("keeps distinct reviewed external multipliers and passive geometry", () => {
+    const nmos = reviewedExternalBindingForMaster("sky130_fd_pr__nfet_01v8")!;
+    const resistor = reviewedExternalBindingForMaster(
+      "sky130_fd_pr__res_high_po",
+    )!;
+    const capacitor = reviewedExternalBindingForMaster(
+      "sky130_fd_pr__cap_mim_m3_1",
+    )!;
     expect(
-      externalMosComponentParameters("nmos").map(({ key }) => key),
-    ).toEqual(["w", "l", "nf"]);
-    expect(externalMosComponentParameters("pmos")).toEqual(
-      externalMosComponentParameters("nmos"),
-    );
+      reviewedExternalComponentParameters(nmos).map(({ key }) => key),
+    ).toEqual(["w", "l", "nf", "m"]);
+    expect(
+      reviewedExternalComponentParameters(resistor).map(({ key }) => key),
+    ).toEqual(["w", "l", "mult"]);
+    expect(
+      reviewedExternalComponentParameters(capacitor).map(({ key }) => key),
+    ).toEqual(["w", "l", "mf"]);
   });
 
   it("projects the descriptor's ordered field metadata without local defaults", () => {

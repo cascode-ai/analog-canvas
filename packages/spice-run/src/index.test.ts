@@ -3,10 +3,15 @@ import { describe, expect, it } from "vitest";
 import {
   buildSimulationDeck,
   classifySimulationOutcome,
+  createSimulationEnvironmentMetadata,
+  createSimulationInputMetadata,
   DEFAULT_SIMULATION_TIMEOUT_MS,
+  isSimulationEnvironmentMetadata,
   MAX_SIMULATION_TIMEOUT_MS,
   readNgspiceDiagnostics,
   resolveTimeoutMs,
+  simulationConfigurationMetadata,
+  verifySimulationEnvironmentMetadata,
 } from "./index.js";
 
 /**
@@ -122,13 +127,17 @@ describe("simulation deck assembly", () => {
     ".subckt amp in out\nM1 out in 0 0 nfet\n.ends\nXA in out amp";
   const testbench = "V1 in 0 DC 1\n.control\nop\nprint v(out)\n.endc";
 
-  it("contributes only the model path and keeps the testbench verbatim", () => {
+  it("selects an explicit section from a corner library", () => {
     const deck = buildSimulationDeck(
       { netlist, testbench },
-      "/opt/sky130/sky130A/libs.tech/ngspice/sky130.lib.spice",
+      {
+        directive: "lib",
+        path: "/opt/sky130/sky130A/libs.tech/ngspice/sky130.lib.spice",
+        section: "tt",
+      },
     );
     expect(deck).toContain(
-      ".include /opt/sky130/sky130A/libs.tech/ngspice/sky130.lib.spice",
+      '.lib "/opt/sky130/sky130A/libs.tech/ngspice/sky130.lib.spice" tt',
     );
     // ADR 0055: we ship no templates and infer no intent. Nothing analysis-
     // shaped may appear that the author did not write.
@@ -137,10 +146,108 @@ describe("simulation deck assembly", () => {
     expect(ours).not.toMatch(/\.ac\b|\.dc\b|\.tran\b|\.control/iu);
   });
 
+  it("includes a plain model file without inventing a section", () => {
+    const deck = buildSimulationDeck(
+      { netlist, testbench },
+      {
+        directive: "include",
+        path: "C:/PDK Files/models/plain-models.spice",
+      },
+    );
+    expect(deck).toContain('.include "C:/PDK Files/models/plain-models.spice"');
+    expect(deck).not.toMatch(/^\s*\.lib\b/mu);
+  });
+
+  it("refuses values that could inject another deck line", () => {
+    expect(() =>
+      buildSimulationDeck(
+        { netlist, testbench },
+        { directive: "include", path: 'models.spice"\n.end' },
+      ),
+    ).toThrow(/path/iu);
+    expect(() =>
+      buildSimulationDeck(
+        { netlist, testbench },
+        {
+          directive: "lib",
+          path: "models.lib.spice",
+          section: "tt\n.end",
+        },
+      ),
+    ).toThrow(/section/iu);
+  });
+
   it("does not close a deck the author already closed", () => {
     const closed = `${testbench}\n.end`;
     const deck = buildSimulationDeck({ netlist, testbench: closed }, null);
     expect(deck.match(/^\s*\.end\s*$/gimu)).toHaveLength(1);
+  });
+});
+
+describe("simulation run metadata", () => {
+  it("identifies the exact input bytes and echoes the caller revision", async () => {
+    const metadata = await createSimulationInputMetadata({
+      inputRevision: "project-17",
+      netlist: "abc",
+      testbench: "testbench",
+      deck: "deck",
+    });
+    expect(metadata).toEqual({
+      inputRevision: "project-17",
+      netlistSha256:
+        "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+      testbenchSha256:
+        "486ad88a3471e0d1b3f4786647a18e93b54c72bc10b9ea1060992ba1ae4f47bf",
+      deckSha256:
+        "d830325906c3d540ae219e6aba0f243d52cd708feea68355a3f63f76aff8da33",
+    });
+  });
+
+  it("fingerprints observed facts without claiming they are pinned", async () => {
+    const environment = await createSimulationEnvironmentMetadata({
+      executor: "hosted-container",
+      reproducibility: "observed",
+      platform: "linux/x64",
+      simulator: {
+        name: "ngspice",
+        version: "ngspice-47",
+        binarySha256:
+          "22d5cae2bd32b2e39157a8d27bf457122f68285b72a9ebefdf41551b628233ab",
+      },
+      models: {
+        id: "sky130A",
+        contentSha256:
+          "17c208a699228f5acb87bf59c09c22a4c4d3937b6766b4957737d34e8e075f64",
+      },
+    });
+    expect(environment.reproducibility).toBe("observed");
+    expect(environment.fingerprint).toMatch(/^[0-9a-f]{64}$/u);
+    expect(isSimulationEnvironmentMetadata(environment)).toBe(true);
+    expect(
+      isSimulationEnvironmentMetadata({
+        ...environment,
+        fingerprint: "declared-without-a-hash",
+      }),
+    ).toBe(false);
+    expect(await verifySimulationEnvironmentMetadata(environment)).toEqual(
+      environment,
+    );
+    expect(
+      await verifySimulationEnvironmentMetadata({
+        ...environment,
+        simulator: { ...environment.simulator, version: "ngspice-46" },
+      }),
+    ).toBeNull();
+  });
+
+  it("records the model directive and section without exposing its path", () => {
+    expect(
+      simulationConfigurationMetadata({
+        directive: "lib",
+        path: "C:/private/pdk/sky130.lib.spice",
+        section: "ff",
+      }),
+    ).toEqual({ modelLibrary: { directive: "lib", section: "ff" } });
   });
 });
 

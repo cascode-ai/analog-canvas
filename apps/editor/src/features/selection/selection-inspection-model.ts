@@ -1,4 +1,4 @@
-import { deviceDescriptor } from "@icm/devices";
+import { deviceDescriptor, resolveReviewedExternalBinding } from "@icm/devices";
 import {
   endpointKey,
   hasDifferentialInputs,
@@ -11,10 +11,7 @@ import {
   type CircuitProject,
   type SchematicDocument,
 } from "@icm/model";
-import {
-  resolvePdkSymbolMappingForTerminalOrder,
-  type SymbolResolver,
-} from "@icm/symbols";
+import type { SymbolResolver } from "@icm/symbols";
 
 import { referencedDocumentId } from "../../document/editor-session";
 import { capacitorPlatePropertyRows } from "../properties/capacitor-plate-properties";
@@ -81,18 +78,18 @@ export function deriveSelectionInspectionModel({
           (definition) => definition.id === selectedBinding.definitionId,
         )
       : undefined;
-  const selectedExternalMosMapping = selectedExternalSubcircuit
+  const selectedReviewedExternalBinding = selectedExternalSubcircuit
     ? selectedExternalSubcircuit.presentation
       ? undefined
-      : resolvePdkSymbolMappingForTerminalOrder(
+      : resolveReviewedExternalBinding(
           selectedExternalSubcircuit.name,
           selectedExternalSubcircuit.terminals.map((terminal) => terminal.name),
         )
     : undefined;
   const selectedPropertyDevice =
     selectedDevice ??
-    (selectedExternalMosMapping
-      ? deviceDescriptor(selectedExternalMosMapping.symbolId)
+    (selectedReviewedExternalBinding
+      ? deviceDescriptor(selectedReviewedExternalBinding.symbolId)
       : undefined);
   const selectedRoute = selectedRouteId
     ? document.routes.find((route) => route.id === selectedRouteId)
@@ -210,7 +207,7 @@ export function deriveSelectionInspectionModel({
     selectedDevice,
     selectedCapacitorPlateRows,
     selectedExternalSubcircuit,
-    selectedExternalMosMapping,
+    selectedReviewedExternalBinding,
     selectedPropertyDevice,
     selectedRoute,
     selectedRouteNetLabels,

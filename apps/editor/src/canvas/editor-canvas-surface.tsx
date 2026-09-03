@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import type { ComponentProps, SVGProps } from "react";
 import { schematicRoundPeriodFontFaceCss } from "@icm/derived";
 
@@ -25,11 +25,13 @@ import {
   EditorPlacementPreview,
 } from "./editor-transient-preview-overlays";
 import { EditorWiringOverlay } from "./editor-wiring-overlay";
+import type { CameraRuntime } from "./camera-runtime";
 
 export interface EditorCanvasSurfaceProps {
   empty: boolean;
   className: string;
   viewBox: string;
+  cameraRuntime: CameraRuntime;
   eventHandlers: SVGProps<SVGSVGElement>;
   /**
    * Native wheel handler, attached non-passively. React's onWheel rides the
@@ -102,6 +104,7 @@ export function EditorCanvasSurface({
   empty,
   className,
   viewBox,
+  cameraRuntime,
   eventHandlers,
   onWheel,
   onPinch,
@@ -183,6 +186,38 @@ export function EditorCanvasSurface({
       svg.removeEventListener("gestureend", gestureEnd);
     };
   }, []);
+  useLayoutEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    cameraRuntime.attach(svg);
+    return () => cameraRuntime.detach(svg);
+  }, [cameraRuntime]);
+  useLayoutEffect(() => {
+    cameraRuntime.refreshSurface();
+  }, [
+    cameraRuntime,
+    grid.visible,
+    inputPlanes.componentPlacementActive,
+    inputPlanes.copyPlacementActive,
+    inputPlanes.tool,
+  ]);
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const invalidate = () => cameraRuntime.invalidateSurfaceBounds();
+    const observer =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(invalidate);
+    observer?.observe(svg);
+    window.addEventListener("resize", invalidate);
+    window.addEventListener("scroll", invalidate, true);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", invalidate);
+      window.removeEventListener("scroll", invalidate, true);
+    };
+  }, [cameraRuntime]);
   return (
     <section className="canvas-panel">
       {empty ? (

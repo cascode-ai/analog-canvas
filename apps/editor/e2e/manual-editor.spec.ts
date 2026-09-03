@@ -3026,7 +3026,7 @@ test("Properties offers no dead Reference controls for a schematic-only block", 
   await expect(properties.getByText("Symbol")).toBeVisible();
   await expect(referenceField).toHaveCount(0);
   await expect(parametersCard).toHaveCount(0);
-  await expect(properties.getByText("Line / foreground")).toBeVisible();
+  await expect(properties.getByText("Line", { exact: true })).toBeVisible();
 
   // An ordinary device keeps both.
   await page.getByTestId("hit-R1").click();
@@ -3063,7 +3063,7 @@ test("Properties toggles reference label visibility for one or many components",
   });
   await expect(
     componentProperties.locator(":scope > .property-card"),
-  ).toHaveCount(4);
+  ).toHaveCount(5);
   await expect(
     componentProperties.getByText("Appearance", { exact: true }),
   ).toBeVisible();
@@ -3074,7 +3074,10 @@ test("Properties toggles reference label visibility for one or many components",
   ).toHaveCount(0);
   await expect(
     componentProperties.getByText("Netlist target", { exact: true }),
-  ).toHaveCount(0);
+  ).toBeVisible();
+  await expect(
+    componentProperties.getByLabel("Component model target"),
+  ).toBeVisible();
   const singleToggle = page.getByRole("checkbox", {
     name: "Reference",
     exact: true,
@@ -3144,11 +3147,9 @@ test("Properties keeps component and Annotation text colors independent", async 
   const label = page.locator('[data-object-id="instance-label-R1"]');
   const secondLabel = page.locator('[data-object-id="instance-label-R2"]');
 
+  await properties.getByRole("button", { name: "Use Red for line" }).click();
   await properties
-    .getByRole("button", { name: "Use Red for line / foreground" })
-    .click();
-  await properties
-    .getByRole("button", { name: "Use Blue for background / fill" })
+    .getByRole("button", { name: "Use Blue for background" })
     .click();
   await expect(symbol).toHaveAttribute("stroke", "#dc2626");
   await expect(
@@ -3183,6 +3184,7 @@ test("Properties keeps component and Annotation text colors independent", async 
   // Annotation remounts the keyed Text properties before the deferred blur
   // commit, so R1's draft cannot reach either Annotation.
   await page.clock.pauseAt(clockStart + 60_000);
+  await properties.locator("summary", { hasText: /^RGB$/u }).click();
   await properties.getByLabel("Text color red").fill("12");
   await page
     .getByTestId("annotation-hit-instance-label-R2")
@@ -3198,6 +3200,7 @@ test("Properties keeps component and Annotation text colors independent", async 
   await page
     .getByTestId("annotation-hit-instance-label-R1")
     .click({ force: true });
+  await properties.locator("summary", { hasText: /^RGB$/u }).click();
   await properties.getByLabel("Text color red").fill("12");
   const resetTextColor = properties.getByRole("button", {
     name: "Reset text color",
@@ -4626,20 +4629,43 @@ test("selects a reviewed SKY130 MOS through the existing Model field", async ({
   await placeComponent(page, "nmos", { x: 360, y: 220 });
   await openSelectionShelf(page);
   const properties = page.getByRole("complementary", { name: "Properties" });
-  const model = properties.getByLabel("Component model target");
+  const model = properties.getByLabel("Component model target", {
+    exact: true,
+  });
 
   await expect(
-    properties.locator('datalist option[value="sky130_fd_pr__nfet_01v8"]'),
+    model.locator('option[value="sky130_fd_pr__nfet_01v8"]'),
   ).toHaveCount(1);
-  await model.fill("sky130_fd_pr__nfet_01v8");
-  await model.press("Tab");
+  await model.selectOption("sky130_fd_pr__nfet_01v8");
 
-  await expect(properties).toContainText("External subcircuit · X reference");
-  await expect(properties.getByLabel("Component reference")).toHaveValue("X1");
+  await expect(properties).toContainText(
+    "External subcircuit · SPICE emits an X card",
+  );
+  await expect(properties.getByLabel("Component reference")).toHaveValue("XM1");
   await expect(properties.getByLabel("Component nf")).toBeVisible();
   await expect(
     properties.getByLabel("Component m", { exact: true }),
-  ).toHaveCount(0);
+  ).toBeVisible();
+
+  await model.selectOption("");
+  await expect(model).toHaveValue("");
+  await expect(properties.getByLabel("Component reference")).toHaveValue("M1");
+  await expect(properties).not.toContainText(
+    "External subcircuit · SPICE emits an X card",
+  );
+
+  await model.selectOption({ label: "Custom…" });
+  const customModel = properties.getByLabel("Custom model name");
+  await customModel.fill("generic_nmos");
+  await customModel.press("Enter");
+  await expect(customModel).toHaveValue("generic_nmos");
+  await expect(properties.getByLabel("Component reference")).toHaveValue("M1");
+
+  await model.selectOption("sky130_fd_pr__nfet_01v8");
+  await expect(properties).toContainText(
+    "External subcircuit · SPICE emits an X card",
+  );
+  await expect(properties.getByLabel("Component reference")).toHaveValue("XM1");
 
   const saved = JSON.parse(
     (await downloadBytes(page, "File", "Export Project File…")).toString(
@@ -4660,12 +4686,69 @@ test("selects a reviewed SKY130 MOS through the existing Model field", async ({
   expect(saved.documents[0].instances[0]).toMatchObject({
     id: "M1",
     symbolId: "nmos",
-    reference: "X1",
+    reference: "XM1",
     netlist: {
+      parameters: { w: "1u", l: "150n", nf: "1", m: "1" },
       binding: { kind: "external-subcircuit" },
     },
   });
 });
+
+for (const fixture of [
+  {
+    symbolId: "resistor",
+    model: "sky130_fd_pr__res_high_po",
+    externalParameter: "Component mult",
+    primitiveParameter: "Component value",
+    nativeReference: "R1",
+    externalReference: "XR1",
+  },
+  {
+    symbolId: "capacitor",
+    model: "sky130_fd_pr__cap_mim_m3_1",
+    externalParameter: "Component mf",
+    primitiveParameter: "Component value",
+    nativeReference: "C1",
+    externalReference: "XC1",
+  },
+] as const) {
+  test(`switches ${fixture.symbolId} Model parameters immediately and clears through None`, async ({
+    page,
+  }) => {
+    await page.goto("/editor");
+    await placeComponent(page, fixture.symbolId, { x: 360, y: 220 });
+    await openSelectionShelf(page);
+    const properties = page.getByRole("complementary", {
+      name: "Properties",
+    });
+    const model = properties.getByLabel("Component model target", {
+      exact: true,
+    });
+
+    await model.selectOption(fixture.model);
+    await expect(properties.getByLabel("Component reference")).toHaveValue(
+      fixture.externalReference,
+    );
+    await expect(
+      properties.getByLabel(fixture.externalParameter),
+    ).toBeVisible();
+    await expect(properties.getByLabel(fixture.primitiveParameter)).toHaveCount(
+      0,
+    );
+
+    await model.selectOption("");
+    await expect(model).toHaveValue("");
+    await expect(properties.getByLabel("Component reference")).toHaveValue(
+      fixture.nativeReference,
+    );
+    await expect(
+      properties.getByLabel(fixture.primitiveParameter),
+    ).toBeVisible();
+    await expect(properties.getByLabel(fixture.externalParameter)).toHaveCount(
+      0,
+    );
+  });
+}
 
 test("uses automatic recovery and guards shortcuts while typing", async ({
   page,

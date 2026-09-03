@@ -43,7 +43,7 @@ import {
   type CircuitProject,
 } from "@icm/model";
 
-import { sessionUserOf, type AuthNamespaceLike } from "./auth";
+import type { AuthNamespaceLike } from "./auth";
 
 /**
  * A circuit's id is its address, so it is short enough to read out loud and
@@ -148,6 +148,35 @@ export const GALLERY_MAX_VERSIONS_PER_ENTRY = 2;
 export const GALLERY_DEFAULT_LIST_LIMIT = 30;
 export const GALLERY_MAX_LIST_LIMIT = 60;
 
+export interface SvgPreviewDimensions {
+  width: number;
+  height: number;
+}
+
+/** Read the renderer-owned SVG viewBox without parsing or trusting its body. */
+export function svgPreviewDimensions(
+  svgText: string,
+): SvgPreviewDimensions | null {
+  const root = /<svg\b[^>]*>/iu.exec(svgText)?.[0];
+  const value = root
+    ? /\bviewBox\s*=\s*(["'])(.*?)\1/iu.exec(root)?.[2]
+    : undefined;
+  if (!value) return null;
+  const parts = value
+    .trim()
+    .split(/[\s,]+/u)
+    .map(Number);
+  if (
+    parts.length !== 4 ||
+    !parts.every(Number.isFinite) ||
+    parts[2]! <= 0 ||
+    parts[3]! <= 0
+  ) {
+    return null;
+  }
+  return { width: parts[2]!, height: parts[3]! };
+}
+
 type SqlResult<T> = {
   toArray(): T[];
   one(): T;
@@ -223,6 +252,9 @@ export interface GalleryEntrySummary {
    * existing immutable response.
    */
   previewRevision: string;
+  /** Intrinsic preview ratio; absent only for an invalid or legacy SVG. */
+  previewWidth?: number;
+  previewHeight?: number;
   schemaVersion: number;
   tags: string[];
   /**
@@ -290,14 +322,42 @@ interface EntryRow {
   svg_text: string;
   netlistable: number;
   preview_revision: string;
+  preview_width: number | null;
+  preview_height: number | null;
+}
+
+type EntrySummaryRow = Pick<
+  EntryRow,
+  | "id"
+  | "name"
+  | "author"
+  | "description"
+  | "created_at"
+  | "schema_version"
+  | "tags"
+  | "netlistable"
+  | "preview_revision"
+  | "preview_width"
+  | "preview_height"
+>;
+
+interface PreviewAccessRow {
+  status: string;
+  owner_user_id: string | null;
+  preview_revision: string;
+}
+
+interface PreviewRow extends PreviewAccessRow {
+  svg_text: string;
 }
 
 const TOKENZHANG_BYLINE_MIGRATION = "2026-08-26-tokenzhang-to-zhishuai-zhang";
 const TOKENZHANG_BYLINE = "Zhishuai Zhang";
 const VERSION_RETENTION_MIGRATION = "2026-08-27-gallery-version-retention-2";
+const PREVIEW_DIMENSIONS_MIGRATION = "2026-09-02-gallery-preview-dimensions";
 
 function summaryOf(
-  row: EntryRow & { likes?: number; liked_by_viewer?: number },
+  row: EntrySummaryRow & { likes?: number; liked_by_viewer?: number },
 ): GalleryEntrySummary {
   return {
     id: row.id,
@@ -309,6 +369,12 @@ function summaryOf(
     // them off the formerly mutable URL once; their next SVG write stores a
     // content hash like every new row.
     previewRevision: row.preview_revision || "legacy",
+    ...(row.preview_width !== null && row.preview_height !== null
+      ? {
+          previewWidth: row.preview_width,
+          previewHeight: row.preview_height,
+        }
+      : {}),
     schemaVersion: row.schema_version,
     tags: unwrapTags(row.tags),
     netlistable: row.netlistable === 1,
@@ -338,7 +404,9 @@ export class GalleryDO {
         submitter_provider TEXT,
         project_text TEXT NOT NULL,
         svg_text TEXT NOT NULL,
-        preview_revision TEXT NOT NULL DEFAULT ''
+        preview_revision TEXT NOT NULL DEFAULT '',
+        preview_width REAL,
+        preview_height REAL
       ) WITHOUT ROWID
     `);
     this.sql.exec(`
@@ -429,6 +497,8 @@ export class GalleryDO {
       "ALTER TABLE gallery_entries ADD COLUMN submitter_provider TEXT",
       "ALTER TABLE gallery_entries ADD COLUMN netlistable INTEGER NOT NULL DEFAULT 0",
       "ALTER TABLE gallery_entries ADD COLUMN preview_revision TEXT NOT NULL DEFAULT ''",
+      "ALTER TABLE gallery_entries ADD COLUMN preview_width REAL",
+      "ALTER TABLE gallery_entries ADD COLUMN preview_height REAL",
       "ALTER TABLE cloud_projects ADD COLUMN preview_svg TEXT NOT NULL DEFAULT ''",
     ]) {
       try {
@@ -443,6 +513,37 @@ export class GalleryDO {
         applied_at TEXT NOT NULL
       ) WITHOUT ROWID
     `);
+    this.state.storage.transactionSync(() => {
+      const applied = this.sql
+        .exec<{ id: string }>(
+          "SELECT id FROM data_migrations WHERE id = ?",
+          PREVIEW_DIMENSIONS_MIGRATION,
+        )
+        .toArray();
+      if (applied.length > 0) return;
+      const rows = this.sql
+        .exec<{ id: string; svg_text: string }>(
+          `SELECT id, svg_text FROM gallery_entries
+           WHERE preview_width IS NULL OR preview_height IS NULL`,
+        )
+        .toArray();
+      for (const row of rows) {
+        const dimensions = svgPreviewDimensions(row.svg_text);
+        if (!dimensions) continue;
+        this.sql.exec(
+          `UPDATE gallery_entries SET preview_width = ?, preview_height = ?
+           WHERE id = ?`,
+          dimensions.width,
+          dimensions.height,
+          row.id,
+        );
+      }
+      this.sql.exec(
+        "INSERT INTO data_migrations(id, applied_at) VALUES (?, ?)",
+        PREVIEW_DIMENSIONS_MIGRATION,
+        new Date().toISOString(),
+      );
+    });
     this.state.storage.transactionSync(() => {
       const applied = this.sql
         .exec<{ id: string }>(
@@ -506,6 +607,10 @@ export class GalleryDO {
         return this.entry(String(body.id), "public");
       case "any-entry":
         return this.entry(String(body.id), null);
+      case "preview-access":
+        return this.previewAccess(String(body.id));
+      case "preview":
+        return this.preview(String(body.id));
       case "set-status":
         return this.setStatus(
           String(body.id),
@@ -636,6 +741,7 @@ export class GalleryDO {
   private submit(body: Record<string, unknown>): Response {
     const entry = body.entry as EntryRow;
     const previewRevision = sha256Hex(entry.svg_text);
+    const previewDimensions = svgPreviewDimensions(entry.svg_text);
     const day = String(body.day);
     // The daily quota is anti-garbage protection for ordinary submitters;
     // admin and moderator sessions are exempt (they curate).
@@ -681,8 +787,8 @@ export class GalleryDO {
           id, name, author, description, created_at, schema_version,
           status, recycled_at, owner_user_id, submitter_email,
           submitter_provider, tags, project_text, svg_text, netlistable,
-          preview_revision
-        ) VALUES (?, ?, ?, ?, ?, ?, 'public', NULL, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          preview_revision, preview_width, preview_height
+        ) VALUES (?, ?, ?, ?, ?, ?, 'public', NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         entry.id,
         entry.name,
         entry.author,
@@ -697,6 +803,8 @@ export class GalleryDO {
         entry.svg_text,
         entry.netlistable ?? 0,
         previewRevision,
+        previewDimensions?.width ?? null,
+        previewDimensions?.height ?? null,
       );
       this.sweepRecycledRows(entry.owner_user_id ?? "");
       return { status: "stored" as const };
@@ -746,8 +854,10 @@ export class GalleryDO {
       bindings.push(cursor);
     }
     const rows = this.sql
-      .exec<EntryRow & { likes: number; liked_by_viewer: number }>(
-        `SELECT e.*,
+      .exec<EntrySummaryRow & { likes: number; liked_by_viewer: number }>(
+        `SELECT e.id, e.name, e.author, e.description, e.created_at,
+           e.schema_version, e.tags, e.netlistable, e.preview_revision,
+           e.preview_width, e.preview_height,
            (SELECT COUNT(*) FROM gallery_likes WHERE entry_id = e.id) AS likes,
            (SELECT COUNT(*) FROM gallery_likes
              WHERE entry_id = e.id AND user_id = ?) AS liked_by_viewer
@@ -764,6 +874,41 @@ export class GalleryDO {
         ? `${page.at(-1)!.created_at}|${page.at(-1)!.id}`
         : null;
     return Response.json({ entries: page.map(summaryOf), nextCursor, total });
+  }
+
+  /** Minimum row needed to decide whether an immutable preview cache hit is valid. */
+  private previewAccess(id: string): Response {
+    const row = this.sql
+      .exec<PreviewAccessRow>(
+        `SELECT status, owner_user_id, preview_revision
+         FROM gallery_entries WHERE id = ?`,
+        id,
+      )
+      .toArray()[0];
+    if (!row) return Response.json({ error: "not-found" }, { status: 404 });
+    return Response.json({
+      status: row.status,
+      ownerUserId: row.owner_user_id,
+      previewRevision: row.preview_revision || "legacy",
+    });
+  }
+
+  /** Preview bytes without the unrelated canonical Project payload. */
+  private preview(id: string): Response {
+    const row = this.sql
+      .exec<PreviewRow>(
+        `SELECT status, owner_user_id, preview_revision, svg_text
+         FROM gallery_entries WHERE id = ?`,
+        id,
+      )
+      .toArray()[0];
+    if (!row) return Response.json({ error: "not-found" }, { status: 404 });
+    return Response.json({
+      status: row.status,
+      ownerUserId: row.owner_user_id,
+      previewRevision: row.preview_revision || "legacy",
+      svgText: row.svg_text,
+    });
   }
 
   /**
@@ -829,13 +974,15 @@ export class GalleryDO {
     if (!row) return Response.json({ error: "not-found" }, { status: 404 });
     const svgText = String(body.svgText);
     const previewRevision = sha256Hex(svgText);
+    const previewDimensions = svgPreviewDimensions(svgText);
     this.state.storage.transactionSync(() => {
       this.snapshotEntry(row, String(body.at ?? row.created_at));
       this.sql.exec(
         `UPDATE gallery_entries
          SET name = ?, author = ?, description = ?, project_text = ?,
              svg_text = ?, schema_version = ?, status = ?, tags = ?,
-             netlistable = ?, preview_revision = ?
+             netlistable = ?, preview_revision = ?, preview_width = ?,
+             preview_height = ?
          WHERE id = ?`,
         String(body.name),
         String(body.author),
@@ -847,6 +994,8 @@ export class GalleryDO {
         typeof body.tags === "string" ? body.tags : "",
         Number(body.netlistable) === 1 ? 1 : 0,
         previewRevision,
+        previewDimensions?.width ?? null,
+        previewDimensions?.height ?? null,
         row.id,
       );
     });
@@ -956,13 +1105,14 @@ export class GalleryDO {
     const restoredProjectText = serializeProject(restoredProject);
     const netlistable = analyzeDesignNetlist(restoredProject).ir ? 1 : 0;
     const previewRevision = sha256Hex(version.svg_text);
+    const previewDimensions = svgPreviewDimensions(version.svg_text);
     this.state.storage.transactionSync(() => {
       this.snapshotEntry(entry, String(body.at));
       this.sql.exec(
         `UPDATE gallery_entries
          SET name = ?, author = ?, description = ?, project_text = ?,
              svg_text = ?, schema_version = ?, tags = ?, netlistable = ?,
-             preview_revision = ?
+             preview_revision = ?, preview_width = ?, preview_height = ?
          WHERE id = ?`,
         version.name,
         version.author,
@@ -973,6 +1123,8 @@ export class GalleryDO {
         version.tags ?? "",
         netlistable,
         previewRevision,
+        previewDimensions?.width ?? null,
+        previewDimensions?.height ?? null,
         entry.id,
       );
     });
@@ -1271,15 +1423,18 @@ export class GalleryDO {
         if (typeof svgText !== "string") {
           throw new Error("Backup row has invalid svg_text");
         }
+        const previewDimensions = svgPreviewDimensions(svgText);
         this.sql.exec(
           `INSERT INTO gallery_entries
            (id, name, author, description, created_at, schema_version, status,
             recycled_at, owner_user_id, submitter_email, submitter_provider,
             project_text, svg_text, reject_reason, reviewed_at, reviewed_by,
-            tags, netlistable, preview_revision)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            tags, netlistable, preview_revision, preview_width, preview_height)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           ...values,
           sha256Hex(svgText),
+          previewDimensions?.width ?? null,
+          previewDimensions?.height ?? null,
         );
       }
       for (const row of galleryEntryVersions) {
@@ -1714,15 +1869,18 @@ export class GalleryDO {
     if (!row) return Response.json({ error: "not-found" }, { status: 404 });
     const svgText = String(body.svgText);
     const previewRevision = sha256Hex(svgText);
+    const previewDimensions = svgPreviewDimensions(svgText);
     this.sql.exec(
       `UPDATE gallery_entries
        SET project_text = ?, schema_version = ?, svg_text = ?,
-           preview_revision = ?
+           preview_revision = ?, preview_width = ?, preview_height = ?
        WHERE id = ?`,
       String(body.projectText),
       Number(body.schemaVersion),
       svgText,
       previewRevision,
+      previewDimensions?.width ?? null,
+      previewDimensions?.height ?? null,
       String(body.id),
     );
     return Response.json({ id: row.id, previewRevision });

@@ -73,13 +73,14 @@ function wrapSpice(tokens: readonly string[], width = 100): string[] {
 
 function spiceInstance(instance: DesignNetlistInstance): string[] {
   const nodes = instance.nodes.map((node) => node.netName);
+  const reference = instance.reference;
   let tokens: string[];
   switch (instance.deviceClass) {
     case "resistor":
     case "capacitor":
     case "inductor":
       tokens = [
-        instance.reference,
+        reference,
         ...nodes,
         parameter(instance.parameters, "value")!,
         ...assignments(instance.parameters, ["value"]),
@@ -88,7 +89,7 @@ function spiceInstance(instance: DesignNetlistInstance): string[] {
     case "voltage-source":
       tokens = isPulseSource(instance)
         ? [
-            instance.reference,
+            reference,
             ...nodes,
             `PULSE(${PULSE_PARAMETER_NAMES.map((name) =>
               parameter(instance.parameters, name)!,
@@ -96,7 +97,7 @@ function spiceInstance(instance: DesignNetlistInstance): string[] {
             ...assignments(instance.parameters, ALL_CLOCK_PARAMETER_NAMES),
           ]
         : [
-            instance.reference,
+            reference,
             ...nodes,
             "DC",
             parameter(instance.parameters, "dc")!,
@@ -105,7 +106,7 @@ function spiceInstance(instance: DesignNetlistInstance): string[] {
       break;
     case "current-source":
       tokens = [
-        instance.reference,
+        reference,
         ...nodes,
         "DC",
         parameter(instance.parameters, "dc")!,
@@ -119,7 +120,7 @@ function spiceInstance(instance: DesignNetlistInstance): string[] {
     // as every other model-bearing primitive.
     case "switch":
       tokens = [
-        instance.reference,
+        reference,
         ...nodes,
         instance.target!,
         ...assignments(instance.parameters),
@@ -127,7 +128,7 @@ function spiceInstance(instance: DesignNetlistInstance): string[] {
       break;
     case "hierarchical":
       tokens = [
-        instance.reference,
+        reference,
         ...nodes,
         instance.target!,
         ...assignments(instance.parameters),

@@ -3,6 +3,11 @@ import type { IncomingMessage, Server, ServerResponse } from "node:http";
 import { readFile, stat } from "node:fs/promises";
 import { extname, isAbsolute, relative, resolve } from "node:path";
 
+import {
+  isSimulationInputRevision,
+  type ModelLibrarySelection,
+} from "@icm/spice-run";
+
 import { simulateLocally } from "./simulate.js";
 
 const TYPES: Readonly<Record<string, string>> = {
@@ -20,8 +25,8 @@ export interface LocalHostOptions {
   port?: number;
   /** The simulator to run; the user's own install by default. */
   ngspicePath?: string;
-  /** PDK model library the deck should include, when the user has one. */
-  modelLibraryPath?: string | null;
+  /** Explicit model-library directive, path, and optional section. */
+  modelLibrary?: ModelLibrarySelection | null;
 }
 
 /** A deck larger than this is a mistake upstream, not a simulation. */
@@ -157,7 +162,12 @@ async function handleSimulate(
     return;
   }
 
-  let body: { netlist?: unknown; testbench?: unknown; timeoutMs?: unknown };
+  let body: {
+    netlist?: unknown;
+    testbench?: unknown;
+    timeoutMs?: unknown;
+    inputRevision?: unknown;
+  };
   try {
     body = JSON.parse(Buffer.concat(chunks).toString("utf8")) as typeof body;
   } catch {
@@ -166,7 +176,11 @@ async function handleSimulate(
   }
   const netlist = typeof body.netlist === "string" ? body.netlist : null;
   const testbench = typeof body.testbench === "string" ? body.testbench : null;
-  if (!netlist || !testbench) {
+  if (
+    !netlist ||
+    !testbench ||
+    !isSimulationInputRevision(body.inputRevision)
+  ) {
     send(400, {
       error: "invalid-request",
       message:
@@ -174,6 +188,7 @@ async function handleSimulate(
     });
     return;
   }
+  const inputRevision = body.inputRevision;
 
   const outcome = await simulateLocally(
     {
@@ -182,10 +197,11 @@ async function handleSimulate(
       ...(typeof body.timeoutMs === "number"
         ? { timeoutMs: body.timeoutMs }
         : {}),
+      ...(inputRevision ? { inputRevision } : {}),
     },
     {
       ...(options.ngspicePath ? { ngspicePath: options.ngspicePath } : {}),
-      modelLibraryPath: options.modelLibraryPath ?? null,
+      modelLibrary: options.modelLibrary ?? null,
     },
   );
   if (outcome.kind === "simulator-unavailable") {

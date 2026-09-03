@@ -1,6 +1,8 @@
+import { useEffect, useRef, useState } from "react";
 import type { FocusEvent, KeyboardEvent } from "react";
 
 import type { SchematicDocument } from "@icm/model";
+import { deviceDescriptor } from "@icm/devices";
 
 import type { CapacitorPlatePropertyRow } from "./capacitor-plate-properties";
 
@@ -9,8 +11,110 @@ type Instance = SchematicDocument["instances"][number];
 export interface ComponentModelTargetView {
   defaultValue: string;
   suggestions: readonly string[];
-  listId?: string;
   externalSubcircuit: boolean;
+}
+
+const CUSTOM_MODEL_OPTION = "__custom_model__";
+
+function ModelTargetControl({
+  instanceId,
+  revision,
+  modelTarget,
+  onChange,
+}: {
+  instanceId: string;
+  revision: number;
+  modelTarget: ComponentModelTargetView;
+  onChange: (value: string) => void;
+}) {
+  const current = modelTarget.defaultValue.trim();
+  const currentIsSuggestion = modelTarget.suggestions.includes(current);
+  const currentIsCustom = current !== "" && !currentIsSuggestion;
+  const [customMode, setCustomMode] = useState(currentIsCustom);
+  const [customDraft, setCustomDraft] = useState(
+    currentIsCustom ? current : "",
+  );
+  const [focusCustom, setFocusCustom] = useState(false);
+  const customInput = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setCustomMode(currentIsCustom);
+    setCustomDraft(currentIsCustom ? current : "");
+    setFocusCustom(false);
+  }, [instanceId, revision, current, currentIsCustom]);
+
+  useEffect(() => {
+    if (!customMode || !focusCustom) return;
+    customInput.current?.focus();
+    setFocusCustom(false);
+  }, [customMode, focusCustom]);
+
+  const restoreCurrent = (): void => {
+    setCustomMode(currentIsCustom);
+    setCustomDraft(currentIsCustom ? current : "");
+  };
+  const commitCustom = (): void => {
+    const next = customDraft.trim();
+    if (!next) {
+      restoreCurrent();
+      return;
+    }
+    onChange(next);
+  };
+
+  return (
+    <>
+      <label>
+        Model
+        <select
+          key={`${instanceId}-${revision}-model-target`}
+          aria-label="Component model target"
+          value={customMode ? CUSTOM_MODEL_OPTION : current}
+          onChange={(event) => {
+            const next = event.currentTarget.value;
+            if (next === CUSTOM_MODEL_OPTION) {
+              setCustomMode(true);
+              setCustomDraft(currentIsCustom ? current : "");
+              setFocusCustom(true);
+              return;
+            }
+            setCustomMode(false);
+            setCustomDraft("");
+            onChange(next);
+          }}
+        >
+          <option value="">None</option>
+          {modelTarget.suggestions.map((model) => (
+            <option value={model} key={model}>
+              {model}
+            </option>
+          ))}
+          <option value={CUSTOM_MODEL_OPTION}>Custom…</option>
+        </select>
+      </label>
+      {customMode ? (
+        <label>
+          Custom model
+          <input
+            ref={customInput}
+            dir="auto"
+            aria-label="Custom model name"
+            value={customDraft}
+            placeholder="Model name"
+            onChange={(event) => setCustomDraft(event.currentTarget.value)}
+            onBlur={commitCustom}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                event.stopPropagation();
+                event.currentTarget.blur();
+              }
+            }}
+          />
+        </label>
+      ) : null}
+    </>
+  );
 }
 
 function commitIdentityInput(
@@ -47,6 +151,12 @@ export function componentTargetDescription(
   externalSubcircuitName?: string,
 ): string | null {
   const binding = instance.netlist?.binding;
+  if (
+    !binding &&
+    deviceDescriptor(instance.symbolId)?.targetPolicy === "builtin"
+  ) {
+    return null;
+  }
   switch (binding?.kind) {
     case "primitive":
       return null;
@@ -69,6 +179,7 @@ export function ComponentIdentityProperties({
   portNet,
   targetDescription,
   capacitorPlateRows,
+  propertyTerminal,
   modelTarget,
   onMarkerNameChange,
   onReferenceChange,
@@ -81,6 +192,13 @@ export function ComponentIdentityProperties({
   portNet: { id: string; logicalName: string; supply: boolean } | null;
   targetDescription: string | null;
   capacitorPlateRows: readonly CapacitorPlatePropertyRow[] | null;
+  propertyTerminal?: {
+    label: string;
+    pinName: string;
+    netId: string | null;
+    options: readonly { netId: string; label: string }[];
+    onChange: (netId: string | null) => void;
+  } | null;
   modelTarget: ComponentModelTargetView | null;
   onMarkerNameChange: (value: string) => void;
   onReferenceChange: (value: string) => boolean | void;
@@ -168,34 +286,48 @@ export function ComponentIdentityProperties({
           </dl>
         </div>
       ) : null}
+      {propertyTerminal ? (
+        <div
+          className="property-card property-terminal-card"
+          role="group"
+          aria-label="Property-only electrical terminals"
+        >
+          <div className="property-section-heading">Electrical terminals</div>
+          <label>
+            {propertyTerminal.label}
+            <select
+              aria-label={propertyTerminal.label}
+              value={propertyTerminal.netId ?? ""}
+              onChange={(event) =>
+                propertyTerminal.onChange(event.currentTarget.value || null)
+              }
+            >
+              <option value="">Unconnected</option>
+              {propertyTerminal.options.map((option) => (
+                <option value={option.netId} key={option.netId}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <small>Property-only terminal · no canvas pin or wire</small>
+          </label>
+        </div>
+      ) : null}
       {modelTarget ? (
         <div
           className="property-card property-target-card"
           aria-label="Netlist target"
         >
           <div className="property-section-heading">Netlist target</div>
-          <label>
-            Model
-            <input
-              dir="auto"
-              key={`${instance.id}-${revision}-model-target`}
-              aria-label="Component model target"
-              list={modelTarget.listId}
-              defaultValue={modelTarget.defaultValue}
-              placeholder="Model name"
-              onBlur={(event) => onModelTargetChange(event.currentTarget.value)}
-            />
-            {modelTarget.listId ? (
-              <datalist id={modelTarget.listId}>
-                {modelTarget.suggestions.map((model) => (
-                  <option value={model} key={model} />
-                ))}
-              </datalist>
-            ) : null}
-            {modelTarget.externalSubcircuit ? (
-              <small>External subcircuit · X reference</small>
-            ) : null}
-          </label>
+          <ModelTargetControl
+            instanceId={instance.id}
+            revision={revision}
+            modelTarget={modelTarget}
+            onChange={onModelTargetChange}
+          />
+          {modelTarget.externalSubcircuit ? (
+            <small>External subcircuit · SPICE emits an X card</small>
+          ) : null}
         </div>
       ) : null}
     </>

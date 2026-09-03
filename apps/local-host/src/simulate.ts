@@ -11,23 +11,29 @@
  * their ngspice, their PDK, their version, and no upload.
  */
 import { execFile } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
 
 import {
   buildSimulationDeck,
   classifySimulationOutcome,
+  createSimulationEnvironmentMetadata,
+  createSimulationInputMetadata,
   readNgspiceDiagnostics,
   resolveTimeoutMs,
+  simulationConfigurationMetadata,
+  type ModelLibrarySelection,
+  type SimulationEnvironmentMetadata,
   type SimulationResult,
 } from "@icm/spice-run";
 
 export interface LocalSimulationOptions {
   /** The simulator binary; the user's own install by default. */
   ngspicePath?: string;
-  /** Model library the deck should include, if the user has a PDK. */
-  modelLibraryPath?: string | null;
+  /** Explicit model-library directive, path, and optional section. */
+  modelLibrary?: ModelLibrarySelection | null;
 }
 
 /**
@@ -100,13 +106,73 @@ function runProcess(
   });
 }
 
+function probeVersion(binary: string): Promise<string> {
+  return new Promise((resolveVersion) => {
+    execFile(binary, ["--version"], (error, stdout, stderr) => {
+      const output = error ? "" : `${stdout ?? ""}${stderr ?? ""}`;
+      const match = output.match(/\bngspice[-\s]+([0-9][A-Za-z0-9.+-]*)/iu);
+      resolveVersion(match ? `ngspice-${match[1]}` : "unreported");
+    });
+  });
+}
+
+async function hashReadableFile(path: string): Promise<string | null> {
+  try {
+    return createHash("sha256")
+      .update(await readFile(path))
+      .digest("hex");
+  } catch {
+    return null;
+  }
+}
+
+async function observeLocalEnvironment(
+  binary: string,
+  modelLibrary: ModelLibrarySelection | null,
+): Promise<SimulationEnvironmentMetadata> {
+  const binaryPath =
+    isAbsolute(binary) || /[\\/]/u.test(binary) ? resolve(binary) : null;
+  const [version, binarySha256, modelSha256] = await Promise.all([
+    probeVersion(binary),
+    binaryPath ? hashReadableFile(binaryPath) : Promise.resolve(null),
+    modelLibrary ? hashReadableFile(modelLibrary.path) : Promise.resolve(null),
+  ]);
+  return createSimulationEnvironmentMetadata({
+    executor: "local-host",
+    reproducibility: "observed",
+    platform: `${process.platform}/${process.arch}`,
+    simulator: { name: "ngspice", version, binarySha256 },
+    models:
+      modelLibrary && modelSha256
+        ? { id: "configured-model-library", contentSha256: modelSha256 }
+        : null,
+  });
+}
+
 export async function simulateLocally(
-  request: { netlist: string; testbench: string; timeoutMs?: number },
+  request: {
+    netlist: string;
+    testbench: string;
+    timeoutMs?: number;
+    inputRevision?: string;
+  },
   options: LocalSimulationOptions = {},
 ): Promise<LocalSimulationOutcome> {
   const binary = options.ngspicePath ?? process.env.NGSPICE_BIN ?? "ngspice";
   const timeoutMs = resolveTimeoutMs(request.timeoutMs);
-  const deck = buildSimulationDeck(request, options.modelLibraryPath ?? null);
+  const modelLibrary = options.modelLibrary ?? null;
+  const deck = buildSimulationDeck(request, modelLibrary);
+  const [inputMetadata, environment] = await Promise.all([
+    createSimulationInputMetadata({
+      ...(request.inputRevision
+        ? { inputRevision: request.inputRevision }
+        : {}),
+      netlist: request.netlist,
+      testbench: request.testbench,
+      deck,
+    }),
+    observeLocalEnvironment(binary, modelLibrary),
+  ]);
 
   const directory = await mkdtemp(join(tmpdir(), "icm-local-sim-"));
   const deckPath = join(directory, "deck.cir");
@@ -131,6 +197,12 @@ export async function simulateLocally(
         diagnostics,
         log: run.log,
         durationMs: run.durationMs,
+        metadata: {
+          schemaVersion: 1,
+          input: inputMetadata,
+          configuration: simulationConfigurationMetadata(modelLibrary),
+          environment,
+        },
       },
     };
   } finally {

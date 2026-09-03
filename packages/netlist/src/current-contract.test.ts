@@ -394,6 +394,7 @@ describe("current formal cell interface", () => {
       {
         id: "R1",
         reference: "R1",
+        invocationKind: "primitive",
         deviceClass: "resistor",
         target: null,
         nodes: [
@@ -403,6 +404,50 @@ describe("current formal cell interface", () => {
         parameters: [{ name: "Value", rawValue: "10k" }],
       },
     ]);
+  });
+
+  it("derives a missing built-in voltage-source target from the device registry", () => {
+    const project = createEmptyProject("project", "Project");
+    const document = project.documents[0]!;
+    document.instances.push({
+      id: "V6",
+      symbolId: "voltage-source",
+      placement: null,
+      reference: "V1",
+      netlist: { parameters: { dc: "1.8" } },
+    });
+    document.nets.push(
+      {
+        id: "net-out",
+        terminals: [{ instanceId: "V6", pinName: "+" }],
+      },
+      {
+        id: "net-ground",
+        terminals: [{ instanceId: "V6", pinName: "-" }],
+      },
+    );
+    claimNet(document, "net-out", "VOUT");
+    claimNet(document, "net-ground", "0", "global", "ground");
+
+    const result = analyzeDesignNetlist(project);
+
+    expect(result.diagnostics).toEqual([]);
+    expect(printSpiceNetlist(result.ir!)).toContain("V1 VOUT 0 DC 1.8");
+  });
+
+  it("still rejects an explicitly incompatible built-in binding", () => {
+    const project = resistorProject({ value: "10k" });
+    project.documents[0]!.instances[0]!.netlist!.binding = {
+      kind: "primitive",
+      deviceClass: "capacitor",
+    };
+
+    const result = analyzeDesignNetlist(project);
+
+    expect(result.ir).toBeNull();
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({ code: "DEVICE_CLASS_MISMATCH" }),
+    );
   });
 
   it("returns stable analysis across repeated and serialized Project reads", () => {
@@ -854,7 +899,7 @@ describe("current formal cell interface", () => {
     ]);
   });
 
-  it("exports a canonical MOS symbol as an ordered external SKY130 X call", () => {
+  it("exports a canonical X-referenced MOS symbol as an ordered SKY130 call", () => {
     const project = createEmptyProject("project", "Project");
     const document = project.documents[0]!;
     project.externalSubcircuitDefinitions.push({
@@ -869,7 +914,7 @@ describe("current formal cell interface", () => {
       interfaceStatus: "declared",
     });
     document.instances.push({
-      id: "XM1",
+      id: "mos-instance",
       symbolId: "nmos",
       placement: null,
       reference: "XM1",
@@ -890,7 +935,7 @@ describe("current formal cell interface", () => {
       document.nets.push({
         id: `net-${pinName.toLowerCase()}`,
 
-        terminals: [{ instanceId: "XM1", pinName }],
+        terminals: [{ instanceId: "mos-instance", pinName }],
       });
       claimNet(document, `net-${pinName.toLowerCase()}`, netName);
     }
@@ -908,6 +953,9 @@ describe("current formal cell interface", () => {
         { pinName: "B", netName: "BODY" },
       ],
     });
+    expect(printSpiceNetlist(result.ir!)).toContain(
+      "XM1 DRAIN GATE SOURCE BODY sky130_fd_pr__nfet_01v8 l=0.15 w=2 nf=4",
+    );
   });
 });
 
@@ -985,5 +1033,86 @@ describe("voltage-controlled switch", () => {
     // and throws inside wrapSpice, so an unsimulable Symbol on the canvas took
     // the whole export down.
     expect(analysis.ir).toBeNull();
+  });
+
+  it("projects the reviewed SKY130 MOS and physical passives in production", () => {
+    const project = createEmptyProject("project", "Project");
+    const document = project.documents[0]!;
+    const definitions = [
+      {
+        id: "sky-nfet",
+        name: "sky130_fd_pr__nfet_01v8",
+        symbolId: "nmos",
+        reference: "XM1",
+        terminalNames: ["D", "G", "S", "B"],
+        pinNames: ["D", "G", "S", "B"],
+        parameters: { w: "1u", l: "150n", nf: "1", m: "2" },
+      },
+      {
+        id: "sky-res",
+        name: "sky130_fd_pr__res_high_po",
+        symbolId: "resistor",
+        reference: "XR1",
+        terminalNames: ["R0", "R1", "B"],
+        pinNames: ["1", "2", "B"],
+        parameters: { w: "1u", l: "5.5u", mult: "3" },
+      },
+      {
+        id: "sky-cap",
+        name: "sky130_fd_pr__cap_mim_m3_1",
+        symbolId: "capacitor",
+        reference: "XC1",
+        terminalNames: ["C0", "C1"],
+        pinNames: ["1", "2"],
+        parameters: { w: "5u", l: "5u", mf: "4" },
+      },
+    ] as const;
+    for (const item of definitions) {
+      project.externalSubcircuitDefinitions.push({
+        id: item.id,
+        name: item.name,
+        terminals: item.terminalNames.map((name, index) => ({
+          id: `${item.id}-terminal-${index}`,
+          name,
+          direction: "passive",
+        })),
+        formalParameters: [],
+        interfaceStatus: "declared",
+      });
+      document.instances.push({
+        id: item.reference,
+        symbolId: item.symbolId,
+        placement: null,
+        reference: item.reference,
+        netlist: {
+          binding: { kind: "external-subcircuit", definitionId: item.id },
+          parameters: { ...item.parameters },
+        },
+      });
+      item.pinNames.forEach((pinName, index) => {
+        const netId = `${item.reference}-${pinName}`;
+        document.nets.push({
+          id: netId,
+          terminals: [{ instanceId: item.reference, pinName }],
+        });
+        claimNet(document, netId, `${item.reference}_${index}`);
+      });
+    }
+
+    const analysis = analyzeDesignNetlist(project, { format: "spice" });
+    expect(analysis.diagnostics).toEqual([]);
+    const text = printSpiceNetlist(analysis.ir!);
+    expect(text).toContain(
+      "XM1 XM1_0 XM1_1 XM1_2 XM1_3 sky130_fd_pr__nfet_01v8 l=0.15 w=1 nf=1 m=2",
+    );
+    expect(text).toContain(
+      "XR1 XR1_0 XR1_1 XR1_2 sky130_fd_pr__res_high_po w=1 l=5.5 mult=3",
+    );
+    expect(text).toContain(
+      "XC1 XC1_0 XC1_1 sky130_fd_pr__cap_mim_m3_1 w=5 l=5 mf=4",
+    );
+    expect(
+      analysis.ir?.cells[0]?.instances.map((instance) => instance.reference),
+    ).toEqual(["XC1", "XM1", "XR1"]);
   });
 });

@@ -34,6 +34,17 @@ interface ResolvedPinGeometry {
   };
 }
 
+export interface EndpointObjectLookup {
+  readonly instancesById: ReadonlyMap<
+    string,
+    SchematicDocument["instances"][number]
+  >;
+  readonly junctionsById: ReadonlyMap<
+    string,
+    SchematicDocument["junctions"][number]
+  >;
+}
+
 function samePoint(left: DerivedPoint, right: DerivedPoint): boolean {
   return left.x === right.x && left.y === right.y;
 }
@@ -42,15 +53,18 @@ function resolvedTerminalPin(
   document: SchematicDocument,
   resolver: SymbolResolver,
   endpoint: Extract<RouteEndpoint, { kind: "terminal" }>,
+  lookup?: EndpointObjectLookup,
 ): {
   instance: SchematicDocument["instances"][number] & {
     placement: NonNullable<SchematicDocument["instances"][number]["placement"]>;
   };
   pin: ResolvedPinGeometry;
 } | null {
-  const instance = document.instances.find(
-    (candidate) => candidate.id === endpoint.instanceId,
-  );
+  const instance =
+    lookup?.instancesById.get(endpoint.instanceId) ??
+    document.instances.find(
+      (candidate) => candidate.id === endpoint.instanceId,
+    );
   if (!instance?.placement) return null;
   const symbol = resolver.resolve(instance.symbolId, instance.symbolVariantId);
   const basePin = symbol?.definition.pins.find(
@@ -87,10 +101,12 @@ export function resolveEndpointConnection(
   document: SchematicDocument,
   resolver: SymbolResolver,
   endpoint: RouteEndpoint,
+  lookup?: EndpointObjectLookup,
 ): EndpointConnection | null {
   if (endpoint.kind === "junction") {
-    const position = document.junctions.find(
-      (junction) => junction.id === endpoint.junctionId,
+    const position = (
+      lookup?.junctionsById.get(endpoint.junctionId) ??
+      document.junctions.find((junction) => junction.id === endpoint.junctionId)
     )?.position;
     return position
       ? {
@@ -103,7 +119,7 @@ export function resolveEndpointConnection(
       : null;
   }
 
-  const resolved = resolvedTerminalPin(document, resolver, endpoint);
+  const resolved = resolvedTerminalPin(document, resolver, endpoint, lookup);
   if (!resolved) return null;
   const { instance, pin } = resolved;
   const contactPoint = transformPoint(
@@ -195,11 +211,14 @@ export function isVisibleEndpoint(
   document: SchematicDocument,
   resolver: SymbolResolver,
   endpoint: RouteEndpoint,
+  lookup?: EndpointObjectLookup,
 ): boolean {
   if (endpoint.kind !== "terminal") return true;
-  const instance = document.instances.find(
-    (candidate) => candidate.id === endpoint.instanceId,
-  );
+  const instance =
+    lookup?.instancesById.get(endpoint.instanceId) ??
+    document.instances.find(
+      (candidate) => candidate.id === endpoint.instanceId,
+    );
   if (!instance) return false;
   const resolved = resolver.resolve(
     instance.symbolId,
@@ -223,10 +242,11 @@ export function resolveEndpointPoint(
   document: SchematicDocument,
   resolver: SymbolResolver,
   endpoint: RouteEndpoint,
+  lookup?: EndpointObjectLookup,
 ): DerivedPoint | null {
   return (
-    resolveEndpointConnection(document, resolver, endpoint)?.contactPoint ??
-    null
+    resolveEndpointConnection(document, resolver, endpoint, lookup)
+      ?.contactPoint ?? null
   );
 }
 
@@ -234,9 +254,11 @@ export function resolveEndpointOutwardDirection(
   document: SchematicDocument,
   resolver: SymbolResolver,
   endpoint: RouteEndpoint,
+  lookup?: EndpointObjectLookup,
 ): DerivedPoint | null {
   return (
-    resolveEndpointConnection(document, resolver, endpoint)?.outward ?? null
+    resolveEndpointConnection(document, resolver, endpoint, lookup)?.outward ??
+    null
   );
 }
 

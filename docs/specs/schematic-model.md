@@ -30,10 +30,12 @@ migration. Invalid coordinates are rejected with their data path.
 
 - `Instance` selects one exact canonical symbol and optional visual variant.
   `Instance.reference` is its sole authored Reference when the Instance has
-  one. The same value is projected on canvas and emitted when the Instance has
-  netlist facts. It is independent from stable `Instance.id` and typed master
-  binding. A Cell Pin instead projects `CellTerminal.name` and has no Instance
-  Reference.
+  one. The value is projected on canvas and is the exact ngspice card
+  designator: primitive/model MOS, resistor, and capacitor bindings use
+  `M/R/C`, while every internal or external subcircuit call uses `X`. Changing
+  invocation kind changes the Reference in the same undoable transaction. It
+  remains independent from stable `Instance.id` and typed master binding. A
+  Cell Pin instead projects `CellTerminal.name` and has no Instance Reference.
 - A Base Net owns physical terminal membership only. A terminal is
   `{instanceId, pinName}` and belongs to at most one Base Net.
 - `ConnectivityEvidence` records owner-addressed name claims, explicit SPICE
@@ -159,8 +161,10 @@ two explicit placements may occupy the same side/offset slot.
   Cell name is derived from that child. External bindings reference one
   project-level external definition, and unresolved imported bindings retain
   only a target name until resolution.
-- The sole authored Reference lives in `Instance.reference`; emitting Instances
-  use that same token for netlist output. Parameters live in `Instance.netlist`.
+- The sole authored Reference lives in `Instance.reference`. Primitive cards
+  and subcircuit calls use it directly. Its prefix must agree with the current
+  invocation kind and it is unique under case folding within the Cell.
+  Parameters live in `Instance.netlist`.
   Parameters are defined only by the matching Device Descriptor: every field
   declares its key, requiredness, editor kind, optional unit/example/help, and
   display role. Insert, Properties, validation, Value projection, and export

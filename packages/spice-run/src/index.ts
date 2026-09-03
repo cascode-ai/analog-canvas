@@ -19,6 +19,80 @@ export interface SimulationRequest {
   analyses: readonly SimulationAnalysis[];
   /** Wall-clock ceiling for the ngspice process, in milliseconds. */
   timeoutMs?: number;
+  /** Opaque caller revision, echoed so stale results can be rejected. */
+  inputRevision?: string;
+}
+
+/**
+ * How one simulator-readable model library enters the final deck.
+ *
+ * A plain model file is included in full. A sectioned corner library must be
+ * selected with `.lib` and an explicit section; a path alone cannot express
+ * that distinction and must never be guessed from the filename.
+ */
+export type ModelLibrarySelection =
+  | {
+      readonly directive: "include";
+      readonly path: string;
+    }
+  | {
+      readonly directive: "lib";
+      readonly path: string;
+      readonly section: string;
+    };
+
+export interface SimulationInputMetadata {
+  /** Opaque and revision-scoped; null when the caller supplied no revision. */
+  inputRevision: string | null;
+  netlistSha256: string;
+  testbenchSha256: string;
+  /** Hash of the exact bytes handed to ngspice. */
+  deckSha256: string;
+}
+
+export interface SimulationConfigurationMetadata {
+  /** The path is deliberately omitted: the deck hash already covers it. */
+  modelLibrary:
+    | { directive: "include"; section: null }
+    | { directive: "lib"; section: string }
+    | null;
+}
+
+export interface SimulationEnvironmentFacts {
+  executor: "hosted-container" | "local-host";
+  /** `pinned` is reserved for a build verified against an environment lock. */
+  reproducibility: "observed" | "pinned";
+  platform: string;
+  simulator: {
+    name: "ngspice";
+    version: string;
+    binarySha256: string | null;
+  };
+  models: {
+    id: string;
+    contentSha256: string;
+  } | null;
+}
+
+export interface SimulationEnvironmentMetadata extends SimulationEnvironmentFacts {
+  /** SHA-256 of the canonical environment facts above. */
+  fingerprint: string;
+}
+
+export interface SimulationRunMetadata {
+  schemaVersion: 1;
+  input: SimulationInputMetadata;
+  configuration: SimulationConfigurationMetadata;
+  environment: SimulationEnvironmentMetadata;
+}
+
+export function isSimulationInputRevision(
+  value: unknown,
+): value is string | undefined {
+  return (
+    value === undefined ||
+    (typeof value === "string" && value.length > 0 && value.length <= 256)
+  );
 }
 
 /**
@@ -59,6 +133,8 @@ export interface SimulationResult {
   log: string;
   /** Milliseconds the simulator process was alive. */
   durationMs: number;
+  /** Identity of the input and environment that produced this result. */
+  metadata: SimulationRunMetadata;
 }
 
 /** The ceiling a request gets when it names none. */
@@ -89,17 +165,148 @@ export function resolveTimeoutMs(requested: number | undefined): number {
  */
 export function buildSimulationDeck(
   request: Pick<SimulationRequest, "netlist" | "testbench">,
-  modelLibraryPath: string | null,
+  modelLibrary: ModelLibrarySelection | null,
 ): string {
   const lines = ["* Analog Canvas simulation deck"];
-  if (modelLibraryPath) {
-    lines.push(`.include ${modelLibraryPath}`);
+  if (modelLibrary) {
+    lines.push(formatModelLibrarySelection(modelLibrary));
   }
   lines.push(request.netlist.trimEnd(), request.testbench.trimEnd());
   // `.end` closes the deck. An author who wrote their own is not given a
   // second one, since a duplicate ends the deck early and silently.
   if (!/^\s*\.end\s*$/imu.test(request.testbench)) lines.push(".end");
   return lines.join("\n") + "\n";
+}
+
+const SHA256_PATTERN = /^[0-9a-f]{64}$/u;
+
+async function sha256Hex(value: string): Promise<string> {
+  const digest = await globalThis.crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(value),
+  );
+  return Array.from(new Uint8Array(digest), (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  ).join("");
+}
+
+export async function createSimulationInputMetadata(input: {
+  inputRevision?: string;
+  netlist: string;
+  testbench: string;
+  deck: string;
+}): Promise<SimulationInputMetadata> {
+  const [netlistSha256, testbenchSha256, deckSha256] = await Promise.all([
+    sha256Hex(input.netlist),
+    sha256Hex(input.testbench),
+    sha256Hex(input.deck),
+  ]);
+  return {
+    inputRevision: input.inputRevision ?? null,
+    netlistSha256,
+    testbenchSha256,
+    deckSha256,
+  };
+}
+
+function canonicalEnvironmentFacts(facts: SimulationEnvironmentFacts): string {
+  return JSON.stringify({
+    executor: facts.executor,
+    reproducibility: facts.reproducibility,
+    platform: facts.platform,
+    simulator: {
+      name: facts.simulator.name,
+      version: facts.simulator.version,
+      binarySha256: facts.simulator.binarySha256,
+    },
+    models: facts.models
+      ? { id: facts.models.id, contentSha256: facts.models.contentSha256 }
+      : null,
+  });
+}
+
+export async function createSimulationEnvironmentMetadata(
+  facts: SimulationEnvironmentFacts,
+): Promise<SimulationEnvironmentMetadata> {
+  return {
+    ...facts,
+    fingerprint: await sha256Hex(canonicalEnvironmentFacts(facts)),
+  };
+}
+
+export function simulationConfigurationMetadata(
+  modelLibrary: ModelLibrarySelection | null,
+): SimulationConfigurationMetadata {
+  return {
+    modelLibrary:
+      modelLibrary === null
+        ? null
+        : modelLibrary.directive === "include"
+          ? { directive: "include", section: null }
+          : { directive: "lib", section: modelLibrary.section },
+  };
+}
+
+export function isSimulationEnvironmentMetadata(
+  value: unknown,
+): value is SimulationEnvironmentMetadata {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<SimulationEnvironmentMetadata>;
+  const simulator = candidate.simulator;
+  const models = candidate.models;
+  return (
+    (candidate.executor === "hosted-container" ||
+      candidate.executor === "local-host") &&
+    (candidate.reproducibility === "observed" ||
+      candidate.reproducibility === "pinned") &&
+    typeof candidate.platform === "string" &&
+    candidate.platform.length > 0 &&
+    typeof candidate.fingerprint === "string" &&
+    SHA256_PATTERN.test(candidate.fingerprint) &&
+    !!simulator &&
+    simulator.name === "ngspice" &&
+    typeof simulator.version === "string" &&
+    simulator.version.length > 0 &&
+    (simulator.binarySha256 === null ||
+      (typeof simulator.binarySha256 === "string" &&
+        SHA256_PATTERN.test(simulator.binarySha256))) &&
+    (models === null ||
+      (!!models &&
+        typeof models.id === "string" &&
+        models.id.length > 0 &&
+        typeof models.contentSha256 === "string" &&
+        SHA256_PATTERN.test(models.contentSha256)))
+  );
+}
+
+export async function verifySimulationEnvironmentMetadata(
+  value: unknown,
+): Promise<SimulationEnvironmentMetadata | null> {
+  if (!isSimulationEnvironmentMetadata(value)) return null;
+  const { fingerprint, ...facts } = value;
+  const expected = await createSimulationEnvironmentMetadata(facts);
+  return fingerprint === expected.fingerprint ? value : null;
+}
+
+function formatModelLibrarySelection(selection: ModelLibrarySelection): string {
+  const path = selection.path.trim();
+  if (path.length === 0 || /[\r\n"]/u.test(path)) {
+    throw new Error(
+      "A simulation model-library path must be non-empty and contain no quotes or line breaks.",
+    );
+  }
+  const quotedPath = `"${path}"`;
+  if (selection.directive === "include") {
+    return `.include ${quotedPath}`;
+  }
+
+  const section = selection.section.trim();
+  if (!/^[a-z0-9_.+-]+$/iu.test(section)) {
+    throw new Error(
+      "A simulation model-library section must be one non-empty SPICE token.",
+    );
+  }
+  return `.lib ${quotedPath} ${section}`;
 }
 
 const DROPPED_INPUT_PATTERNS = [

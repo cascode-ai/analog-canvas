@@ -175,12 +175,20 @@ describe("schematic clipboard", () => {
       {
         id: "R1",
         symbolId: "resistor",
-        placement: { position: { x: 100, y: 100 }, rotation: 0, mirror: "none" },
+        placement: {
+          position: { x: 100, y: 100 },
+          rotation: 0,
+          mirror: "none",
+        },
       },
       {
         id: "R2",
         symbolId: "resistor",
-        placement: { position: { x: 300, y: 100 }, rotation: 0, mirror: "none" },
+        placement: {
+          position: { x: 300, y: 100 },
+          rotation: 0,
+          mirror: "none",
+        },
       },
     );
     const wired = executeTransaction(

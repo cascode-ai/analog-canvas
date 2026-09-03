@@ -5,6 +5,8 @@ import {
   type CircuitProject,
   type SchematicDocument,
 } from "@icm/model";
+import { routeEnd } from "@icm/model";
+import { resolveReviewedExternalBinding } from "@icm/devices";
 import {
   builtInSymbols,
   createProjectSymbolResolver,
@@ -146,6 +148,91 @@ function replaceDocument(
   );
   if (index < 0) throw new Error(`Document not found: ${document.id}`);
   project.documents[index] = document;
+}
+
+function externalCallerValidationFailure(
+  project: CircuitProject,
+): { message: string; objectIds: string[] } | null {
+  const definitions = new Map(
+    project.externalSubcircuitDefinitions.map((definition) => [
+      definition.id,
+      definition,
+    ]),
+  );
+  for (const document of project.documents) {
+    for (const instance of document.instances) {
+      const binding = instance.netlist?.binding;
+      if (binding?.kind !== "external-subcircuit") continue;
+      const definition = definitions.get(binding.definitionId);
+      if (!definition) continue;
+      const reviewed = definition.presentation
+        ? undefined
+        : resolveReviewedExternalBinding(
+            definition.name,
+            definition.terminals.map((terminal) => terminal.name),
+          );
+      const allowed = new Set(
+        (reviewed
+          ? reviewed.terminals.map((terminal) => terminal.pinName)
+          : definition.terminals.map((terminal) => terminal.name)
+        ).map((name) => name.toLowerCase()),
+      );
+      const references = [
+        ...document.nets.flatMap((net) =>
+          net.terminals
+            .filter((terminal) => terminal.instanceId === instance.id)
+            .map((terminal) => ({
+              pinName: terminal.pinName,
+              objectIds: [instance.id, net.id],
+              canvas: false,
+            })),
+        ),
+        ...document.routes.flatMap((route) =>
+          [route.start, routeEnd(route)].flatMap((endpoint) =>
+            endpoint.kind === "terminal" && endpoint.instanceId === instance.id
+              ? [
+                  {
+                    pinName: endpoint.pinName,
+                    objectIds: [instance.id, route.id],
+                    canvas: true,
+                  },
+                ]
+              : [],
+          ),
+        ),
+        ...document.noConnects.flatMap((noConnect) =>
+          noConnect.endpoint.instanceId === instance.id
+            ? [
+                {
+                  pinName: noConnect.endpoint.pinName,
+                  objectIds: [instance.id, noConnect.id],
+                  canvas: true,
+                },
+              ]
+            : [],
+        ),
+      ];
+      for (const reference of references) {
+        if (!allowed.has(reference.pinName.toLowerCase())) {
+          return {
+            message: `External subcircuit Instance ${instance.id} references unknown terminal ${reference.pinName}`,
+            objectIds: reference.objectIds,
+          };
+        }
+        const terminal = reviewed?.terminals.find(
+          (candidate) =>
+            candidate.pinName.toLowerCase() === reference.pinName.toLowerCase(),
+        );
+        if (reference.canvas && terminal?.interaction === "property") {
+          return {
+            message: `Property-only terminal ${instance.id}.${reference.pinName} cannot own canvas geometry`,
+            objectIds: reference.objectIds,
+          };
+        }
+      }
+    }
+  }
+  return null;
 }
 
 /**
@@ -516,6 +603,22 @@ export function executeProjectTransaction(
   const proposedStructureRevision =
     project.structureRevision + (applied ? 1 : 0);
   candidate.structureRevision = proposedStructureRevision;
+  const externalCallerFailure = externalCallerValidationFailure(candidate);
+  if (externalCallerFailure) {
+    return rejectProjectTransaction(
+      project,
+      "INVALID_RESULT",
+      externalCallerFailure.message,
+      [
+        {
+          code: "INVALID_RESULT",
+          severity: "error",
+          message: externalCallerFailure.message,
+          objectIds: externalCallerFailure.objectIds,
+        },
+      ],
+    );
+  }
   const validated = CircuitProjectSchema.safeParse(candidate);
   if (!validated.success) {
     return rejectProjectTransaction(

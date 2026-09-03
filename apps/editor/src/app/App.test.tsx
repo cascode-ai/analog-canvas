@@ -266,7 +266,7 @@ describe("editor shell", () => {
     expect(markup).not.toContain('data-testid="default-label-hit-M1"');
   });
 
-  it("uses the compact four-unit endpoint hit target", () => {
+  it("sizes the endpoint hit target in screen pixels, not document units", () => {
     const project = createEmptyProject("endpoint-hit", "Endpoint Hit");
     project.documents[0]!.instances.push({
       id: "M1",
@@ -278,6 +278,10 @@ describe("editor shell", () => {
       },
     });
 
+    // Four units at the default view, as before: the change is that the
+    // radius is now four SCREEN pixels, so zooming out grows it in document
+    // units instead of letting the dot shrink away. Keeping the default
+    // size identical keeps every shared-point priority where it was.
     const markup = renderToStaticMarkup(<App project={project} />);
     expect(markup).toMatch(/data-testid="terminal-M1-D"[^>]*r="4"/u);
   });

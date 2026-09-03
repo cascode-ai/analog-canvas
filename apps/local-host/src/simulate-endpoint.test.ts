@@ -62,6 +62,23 @@ describe("local simulation endpoint", () => {
     }
   });
 
+  it("rejects an invalid input revision instead of echoing ambiguous state", async () => {
+    const running = await host();
+    try {
+      const response = await simulate(running.origin, {
+        netlist: "V1 a 0 1",
+        testbench: ".control\nop\n.endc",
+        inputRevision: "",
+      });
+      expect(response.status).toBe(400);
+      expect(((await response.json()) as { error: string }).error).toBe(
+        "invalid-request",
+      );
+    } finally {
+      await running.close();
+    }
+  });
+
   it("answers 501 about the machine when there is no simulator", async () => {
     const running = await host({ ngspicePath: "/nonexistent/ngspice" });
     try {
@@ -95,11 +112,20 @@ describe("local simulation endpoint", () => {
         diagnostics: unknown[];
         log: string;
         durationMs: number;
+        metadata: {
+          schemaVersion: number;
+          environment: { executor: string; fingerprint: string };
+        };
       };
       expect(result.outcome.status).toBe("completed");
       expect(result.log).toContain("5.000000e-01");
       expect(Array.isArray(result.diagnostics)).toBe(true);
       expect(typeof result.durationMs).toBe("number");
+      expect(result.metadata.schemaVersion).toBe(1);
+      expect(result.metadata.environment.executor).toBe("local-host");
+      expect(result.metadata.environment.fingerprint).toMatch(
+        /^[0-9a-f]{64}$/u,
+      );
     } finally {
       await running.close();
     }

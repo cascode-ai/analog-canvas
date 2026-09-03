@@ -5,15 +5,93 @@
 // every run writes its deck, reads its output, and leaves nothing behind that
 // a later run could depend on.
 import { execFile } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 
 const NGSPICE_BIN = process.env.NGSPICE_BIN ?? "/usr/bin/ngspice";
+const MODEL_ROOT = process.env.SKY130_MODEL_ROOT ?? "/opt/sky130/sky130A";
 const PORT = Number(process.env.PORT ?? 8080);
 /** Refuse a deck larger than this rather than spend a container waking for it. */
 const MAX_DECK_BYTES = 2 * 1024 * 1024;
+
+function commandOutput(binary, args) {
+  return new Promise((resolve) => {
+    execFile(binary, args, (error, stdout, stderr) => {
+      resolve(error ? "unreported" : `${stdout ?? ""}${stderr ?? ""}`.trim());
+    });
+  });
+}
+
+function ngspiceVersion(output) {
+  const match = output.match(/\bngspice[-\s]+([0-9][A-Za-z0-9.+-]*)/iu);
+  return match ? `ngspice-${match[1]}` : "unreported";
+}
+
+async function sha256File(path) {
+  return createHash("sha256").update(await readFile(path)).digest("hex");
+}
+
+async function sha256Tree(root) {
+  const hash = createHash("sha256");
+  async function visit(directory) {
+    const entries = await readdir(directory, { withFileTypes: true });
+    entries.sort((left, right) =>
+      left.name < right.name ? -1 : left.name > right.name ? 1 : 0,
+    );
+    for (const entry of entries) {
+      const path = join(directory, entry.name);
+      if (entry.isDirectory()) {
+        await visit(path);
+        continue;
+      }
+      const name = relative(root, path).replaceAll("\\", "/");
+      hash.update(JSON.stringify(name));
+      hash.update("\0");
+      const bytes = await readFile(path);
+      hash.update(String(bytes.byteLength));
+      hash.update("\0");
+      hash.update(bytes);
+      hash.update("\0");
+    }
+  }
+  await visit(root);
+  return hash.digest("hex");
+}
+
+async function observeEnvironment() {
+  const [versionOutput, binarySha256, modelTreeSha256] = await Promise.all([
+    commandOutput(NGSPICE_BIN, ["--version"]),
+    sha256File(NGSPICE_BIN),
+    sha256Tree(MODEL_ROOT),
+  ]);
+  const facts = {
+    executor: "hosted-container",
+    // The current Docker inputs are not locked yet. This must not say pinned
+    // until the image is verified against the accepted environment lock.
+    reproducibility: "observed",
+    platform: `${process.platform}/${process.arch}`,
+    simulator: {
+      name: "ngspice",
+      version: ngspiceVersion(versionOutput),
+      binarySha256,
+    },
+    models: { id: "sky130A", contentSha256: modelTreeSha256 },
+  };
+  return {
+    ...facts,
+    fingerprint: createHash("sha256")
+      .update(JSON.stringify(facts))
+      .digest("hex"),
+  };
+}
+
+const environmentPromise = observeEnvironment();
+// Keep a missing binary or model tree observable through /health and /run
+// instead of letting Node treat the startup probe as an unhandled rejection.
+environmentPromise.catch(() => undefined);
 
 /**
  * Run ngspice in batch mode over one deck.
@@ -68,7 +146,10 @@ async function handleRun(body) {
   try {
     await writeFile(deckPath, deck, "utf8");
     const result = await runNgspice(deckPath, timeoutMs);
-    return { status: 200, payload: result };
+    return {
+      status: 200,
+      payload: { ...result, environment: await environmentPromise },
+    };
   } finally {
     // The disk does not survive a sleep, but a woken container serves many
     // runs before sleeping and one author's deck is not another's business.
@@ -87,7 +168,10 @@ const server = createServer((request, response) => {
   };
 
   if (request.method === "GET" && request.url === "/health") {
-    send(200, { status: "ready", ngspice: NGSPICE_BIN });
+    environmentPromise.then(
+      (environment) => send(200, { status: "ready", environment }),
+      (error) => send(503, { status: "not-ready", error: String(error) }),
+    );
     return;
   }
   if (request.method !== "POST" || request.url !== "/run") {

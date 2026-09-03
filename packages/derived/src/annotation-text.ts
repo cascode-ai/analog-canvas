@@ -6,7 +6,10 @@ import type {
 } from "@icm/model";
 
 import { displayableInstanceValue } from "./instance-value.js";
-import { resolveDocumentLogicalNets } from "./logical-net.js";
+import {
+  resolveDocumentLogicalNets,
+  type ResolvedDocumentLogicalNets,
+} from "./logical-net.js";
 
 const EMPTY_TEXT: RichTextDocument = { runs: [{ kind: "line-break" }] };
 
@@ -18,6 +21,7 @@ const EMPTY_TEXT: RichTextDocument = { runs: [{ kind: "line-break" }] };
 export function resolveAnnotationText(
   document: SchematicDocument,
   annotation: Annotation,
+  logicalNets?: ResolvedDocumentLogicalNets,
 ): RichTextDocument {
   const binding = annotation.binding;
   if (!binding) return annotation.content ?? EMPTY_TEXT;
@@ -55,9 +59,9 @@ export function resolveAnnotationText(
               evidence.owner.kind === "power-marker" &&
               evidence.owner.objectId === annotation.anchor.objectId)),
       );
-      const logicalName = resolveDocumentLogicalNets(document).byBaseNetId.get(
-        binding.netId,
-      )?.name;
+      const logicalName = (
+        logicalNets ?? resolveDocumentLogicalNets(document)
+      ).byBaseNetId.get(binding.netId)?.name;
       const ownerClaimName =
         ownerClaim?.kind === "name-claim" ? ownerClaim.name : undefined;
       return semanticTextDocument(
