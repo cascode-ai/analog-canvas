@@ -58,6 +58,25 @@ jobs:
         if: steps.gate.outputs.ran == 'true'
         env:
           VITE_ICM_TIMING_UI: disabled
+      # How the public site answers for its own script, captured BEFORE the
+      # staging deploy. On 2026-09-03 that deploy moved the production custom
+      # domain onto the staging script (wrangler's `routes` key inherits into
+      # an environment) and the public site served 401 for every script while
+      # its cached shell still loaded, so production looked up and was down.
+      # The comparison after the deploy is what would have said so, by name.
+      - name: Record how the production domain answers
+        id: production_before
+        if: steps.gate.outputs.ran == 'true'
+        run: |
+          asset="$(curl --silent --show-error --max-time 20 \
+            https://analog-canvas.tokenzhang.com/editor \
+            | grep -o '/assets/index-[^"]*\.js' | head -n 1)"
+          answer="$(curl --silent --output /dev/null --max-time 20 \
+            --write-out '%{http_code} %{content_type}' \
+            "https://analog-canvas.tokenzhang.com${asset}")"
+          echo "asset=$asset" >> "$GITHUB_OUTPUT"
+          echo "answer=$answer" >> "$GITHUB_OUTPUT"
+          echo "Production answers ${asset} with: ${answer}"
       # The deployed hostname comes from the deploy itself, not from a second
       # secret someone has to keep in step with it. A hand-entered URL that
       # drifts fails verification, and a failed staging blocks every
@@ -127,6 +146,30 @@ jobs:
           echo "public on a workers.dev hostname. Refusing to continue."
           exit 1
 
+      # A staging deploy must not change what the public site serves. The
+      # answer is compared with its own earlier answer rather than with "200",
+      # so a domain that is already wrong does not block the production
+      # deploy that puts it right: that deploy re-attaches the custom domain.
+      - name: Production domain still answers as before
+        if: steps.gate.outputs.ran == 'true'
+        env:
+          BEFORE: ${{ steps.production_before.outputs.answer }}
+          ASSET: ${{ steps.production_before.outputs.asset }}
+        run: |
+          after="$(curl --silent --output /dev/null --max-time 20 \
+            --write-out '%{http_code} %{content_type}' \
+            "https://analog-canvas.tokenzhang.com${ASSET}")"
+          echo "Production answers ${ASSET} with: ${after}"
+          if [ "$after" != "$BEFORE" ]; then
+            echo "::error::The staging deploy changed how the production domain answers (was: ${BEFORE}, now: ${after}). Staging must not have taken the production domain: env.staging in wrangler.jsonc has to declare \"routes\": [], and analog-canvas.tokenzhang.com belongs to the interactive-circuit-maker Worker, never to interactive-circuit-maker-staging."
+            exit 1
+          fi
+          case "$after" in
+            "200 text/javascript"* | "200 application/javascript"*) ;;
+            *)
+              echo "::warning::The production domain is not serving its own script (${after}); the production deploy that follows re-attaches the custom domain."
+              ;;
+          esac
       # The same checks production gets, against the staging host, with the
       # access key supplied. A path that fails here never reaches the public.
       - name: Verify staging
