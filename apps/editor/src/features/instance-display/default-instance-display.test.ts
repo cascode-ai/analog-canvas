@@ -53,6 +53,83 @@ describe("default instance display annotations", () => {
     ]);
   });
 
+  /**
+   * A Cell name is a name, not a device designator. `M1` is an identifier
+   * whose leading symbol carries a subscripted index, and typesetting it that
+   * way is house style; `sky130_fd_pr__nfet_01v8` is a word, and the same
+   * rule turns it into "s" with everything else shrunk beneath it.
+   */
+  it("sets a master Cell name upright, with no subscript", () => {
+    const document = createEmptyDocument("main", "Main");
+    const annotations = defaultInstanceDisplayAnnotations(
+      document,
+      {
+        id: "call-1",
+        symbolId: "resistor",
+        placement: {
+          position: { x: 100, y: 100 },
+          rotation: 0 as const,
+          mirror: "none" as const,
+        },
+        reference: "X1",
+        netlist: {
+          binding: {
+            kind: "external-subcircuit" as const,
+            definitionId: "master-opamp",
+          },
+          parameters: {},
+        },
+      },
+      resolver,
+      resolveSchematicStyleProfile(document.presentation.styleProfileId),
+      { masterName: "CELLNAME" },
+    );
+
+    const master = annotations.find((annotation) =>
+      annotation.id.startsWith("instance-master-"),
+    );
+    expect(master?.content).toEqual({
+      runs: [
+        {
+          kind: "span",
+          style: "bold",
+          children: [{ kind: "text", value: "CELLNAME" }],
+        },
+      ],
+    });
+  });
+
+  it("still subscripts an instance designator, which is an identifier", () => {
+    // The brake. Fixing Cell names must not flatten `M1` into upright text:
+    // there the leading symbol and its index are exactly what the reader
+    // expects to see set apart.
+    const document = createEmptyDocument("main", "Main");
+    const annotations = defaultInstanceDisplayAnnotations(
+      document,
+      {
+        id: "m1",
+        symbolId: "nmos",
+        placement: {
+          position: { x: 100, y: 100 },
+          rotation: 0 as const,
+          mirror: "none" as const,
+        },
+        reference: "M1",
+      },
+      resolver,
+      resolveSchematicStyleProfile(document.presentation.styleProfileId),
+      {},
+    );
+
+    const label = annotations.find(
+      (annotation) => annotation.binding?.kind === "instance-reference",
+    );
+    expect(label?.binding).toEqual({
+      kind: "instance-reference",
+      instanceId: "m1",
+    });
+  });
+
   it("shows a formal Port terminal name as its only visible identity", () => {
     const document = createEmptyDocument("main", "Main");
     const instance = {
