@@ -12,6 +12,7 @@ function fixture(overrides: Partial<EditorCommandContext> = {}) {
     interactionMode: "idle",
     activeTool: "pointer",
     hasDeletableSelection: true,
+    canCopyVisualSelection: true,
     hasMoveSelection: true,
     hasAlignableSelection: true,
     hasRotatableSelection: true,
@@ -41,6 +42,7 @@ function fixture(overrides: Partial<EditorCommandContext> = {}) {
     clearSelection: vi.fn(),
     deleteSelection: vi.fn(),
     beginCopy: vi.fn(),
+    copyVisualSelection: vi.fn(),
     beginMove: vi.fn(),
     alignSelection: vi.fn(),
     rotatePlacement: vi.fn(),
@@ -75,6 +77,26 @@ function fixture(overrides: Partial<EditorCommandContext> = {}) {
 }
 
 describe("editor command router", () => {
+  it("copies visual content without arming circuit copy or mutating history", () => {
+    const { router, operations } = fixture();
+    router.execute({ id: "selection.copy-image", format: "svg" });
+    expect(operations.copyVisualSelection).toHaveBeenCalledWith("svg");
+    expect(operations.beginCopy).not.toHaveBeenCalled();
+    expect(operations.undo).not.toHaveBeenCalled();
+    for (const override of [
+      { canCopyVisualSelection: false },
+      { canvasDragActive: true },
+      { hasArmedVerb: true },
+      { interactionMode: "copy-placement" as const },
+    ]) {
+      const blocked = fixture(override);
+      expect(
+        blocked.router.execute({ id: "selection.copy-image", format: "png" })
+          .status,
+      ).toBe("rejected");
+      expect(blocked.operations.copyVisualSelection).not.toHaveBeenCalled();
+    }
+  });
   it("routes every alignment surface through one selection command", () => {
     const { router, operations } = fixture();
     router.execute({ id: "selection.align", mode: "left" });

@@ -3796,6 +3796,7 @@ test("right-drag frames a region and fits the camera to it transiently", async (
   await page.mouse.up({ button: "right" });
 
   await expect(page.getByTestId("zoom-box")).toHaveCount(0);
+  await expect(page.getByTestId("canvas-context-menu")).toHaveCount(0);
   await expect(canvas).not.toHaveAttribute("viewBox", before!);
   await expect(page.getByTestId("status")).toHaveText(
     "Zoomed to framed region",
@@ -3809,12 +3810,15 @@ test("right-drag frames a region and fits the camera to it transiently", async (
   await page.mouse.down({ button: "right" });
   await page.mouse.up({ button: "right" });
   await expect(canvas).toHaveAttribute("viewBox", framed!);
+  await expect(page.getByTestId("canvas-context-menu")).toBeVisible();
 
   // Alt+left-drag frames the same region for environments whose system
   // software hooks the right button before the browser sees the drag.
   await page.keyboard.down("Alt");
   await page.mouse.move(box.x + 200, box.y + 140);
   await page.mouse.down();
+  // Dismiss the non-modal menu without consuming this framing gesture.
+  await expect(page.getByTestId("canvas-context-menu")).toHaveCount(0);
   await page.mouse.move(box.x + 460, box.y + 340, { steps: 4 });
   await expect(page.getByTestId("zoom-box")).toBeVisible();
   await page.mouse.up();

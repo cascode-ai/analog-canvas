@@ -68,92 +68,95 @@ export function CanvasContextMenu({
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
     };
+    const onPointerDown = (event: PointerEvent) => {
+      if (
+        event.target instanceof Node &&
+        !menuRef.current?.contains(event.target)
+      )
+        onClose();
+    };
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    // Non-modal dismissal: the same outside press still reaches the canvas,
+    // including marquee/Alt framing and middle-button pan gestures.
+    window.addEventListener("pointerdown", onPointerDown, true);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("pointerdown", onPointerDown, true);
+    };
   }, [onClose]);
 
   return (
     <div
-      className="canvas-context-menu-backdrop"
-      data-testid="canvas-context-menu-backdrop"
-      onPointerDown={onClose}
-      onContextMenu={(event) => {
-        event.preventDefault();
-        onClose();
-      }}
+      ref={menuRef}
+      className="canvas-context-menu"
+      data-testid="canvas-context-menu"
+      role="menu"
+      style={{ left: placed.x, top: placed.y }}
+      onPointerDown={(event) => event.stopPropagation()}
+      onContextMenu={(event) => event.preventDefault()}
     >
-      <div
-        ref={menuRef}
-        className="canvas-context-menu"
-        data-testid="canvas-context-menu"
-        role="menu"
-        style={{ left: placed.x, top: placed.y }}
-        onPointerDown={(event) => event.stopPropagation()}
-        onContextMenu={(event) => event.preventDefault()}
-      >
-        {variants.length > 0 ? (
-          <div className="context-menu-section">
-            <div className="context-menu-heading">Swap device</div>
-            <div className="context-menu-variants" role="group">
-              {variants.map((variant) => (
-                <button
-                  key={variant.symbolId}
-                  type="button"
-                  role="menuitem"
-                  className="context-menu-variant"
-                  title={variant.name}
-                  data-testid={`context-swap-${variant.symbolId}`}
-                  onClick={() => {
-                    onSwapVariant(variant.symbolId);
-                    onClose();
-                  }}
-                >
-                  {renderVariantArtwork(variant.symbolId)}
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : null}
-        {alignmentEnabled ? (
-          <div className="context-menu-section">
-            <div className="context-menu-heading">Align</div>
-            {EDGE_ALIGNMENT_MODES.map(({ mode, label }) => (
+      {variants.length > 0 ? (
+        <div className="context-menu-section">
+          <div className="context-menu-heading">Swap device</div>
+          <div className="context-menu-variants" role="group">
+            {variants.map((variant) => (
               <button
-                key={mode}
+                key={variant.symbolId}
                 type="button"
                 role="menuitem"
-                className="context-menu-item"
-                data-testid={`context-align-${mode}`}
+                className="context-menu-variant"
+                title={variant.name}
+                data-testid={`context-swap-${variant.symbolId}`}
                 onClick={() => {
-                  onAlign(mode);
+                  onSwapVariant(variant.symbolId);
                   onClose();
                 }}
               >
-                {label}
+                {renderVariantArtwork(variant.symbolId)}
               </button>
             ))}
           </div>
-        ) : null}
-        {actions.length > 0 ? (
-          <div className="context-menu-section">
-            {actions.map((action) => (
-              <button
-                key={action.label}
-                type="button"
-                role="menuitem"
-                className="context-menu-item"
-                disabled={!action.enabled}
-                onClick={() => {
-                  action.execute();
-                  onClose();
-                }}
-              >
-                {action.label}
-              </button>
-            ))}
-          </div>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
+      {alignmentEnabled ? (
+        <div className="context-menu-section">
+          <div className="context-menu-heading">Align</div>
+          {EDGE_ALIGNMENT_MODES.map(({ mode, label }) => (
+            <button
+              key={mode}
+              type="button"
+              role="menuitem"
+              className="context-menu-item"
+              data-testid={`context-align-${mode}`}
+              onClick={() => {
+                onAlign(mode);
+                onClose();
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {actions.length > 0 ? (
+        <div className="context-menu-section">
+          {actions.map((action) => (
+            <button
+              key={action.label}
+              type="button"
+              role="menuitem"
+              className="context-menu-item"
+              disabled={!action.enabled}
+              onClick={() => {
+                action.execute();
+                onClose();
+              }}
+            >
+              {action.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
