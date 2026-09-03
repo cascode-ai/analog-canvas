@@ -63,6 +63,54 @@ test("a repeated route chunk failure is not misreported as an old build", async 
   await expect(crashScreen.getByTestId("crash-reload-clean")).toBeVisible();
 });
 
+/**
+ * The recovery screen's own promise, tested end to end.
+ *
+ * #529 was reported twice by the same person. Everything shipped for it so
+ * far made the failure honest — an accurate message, a correct diagnosis —
+ * and none of it proved the way out actually works. The unit tests show the
+ * button clears the shell caches and unregisters the worker; they cannot show
+ * that the page boots afterwards, which is the only part the person cares
+ * about.
+ */
+test("the recovery button gets a stuck page back into the editor", async ({
+  page,
+}) => {
+  // A retired chunk: the shape that genuinely means "this document can no
+  // longer boot", as distinct from the transient failure above.
+  let chunkRetired = true;
+  await page.route("**/src/app/App.tsx*", (route) => {
+    if (chunkRetired) return route.fulfill({ status: 404, body: "" });
+    return route.continue();
+  });
+  await page.goto("/editor");
+
+  const crashScreen = page.getByTestId("editor-crash-screen");
+  await expect(crashScreen).toBeVisible();
+  const recover = crashScreen.getByTestId("crash-reload-clean");
+  await expect(recover).toBeVisible();
+
+  // A shell cache from the build that can no longer boot. Without this the
+  // test would pass on an ordinary reload and prove nothing about the word
+  // "clean", which is the half that gets a genuinely stuck page unstuck.
+  await page.evaluate(async () => {
+    const cache = await caches.open("icm-static-shell-stale-build");
+    await cache.put("/stale-marker", new Response("stale"));
+  });
+
+  // Reloading with a clean copy is what a person does after a deploy has
+  // finished, so the chunk it asks for exists again.
+  chunkRetired = false;
+  await recover.click();
+
+  await expect(page.getByTestId("schematic-canvas")).toBeVisible();
+  await expect(crashScreen).toHaveCount(0);
+  // The build's cached shell is gone, not merely bypassed by the reload.
+  expect(await page.evaluate(() => caches.keys())).not.toContain(
+    "icm-static-shell-stale-build",
+  );
+});
+
 test("a failed dialog chunk degrades to a scoped notice, not the crash screen", async ({
   page,
 }) => {
