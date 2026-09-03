@@ -109,6 +109,14 @@ describe("editor shell", () => {
     expect(markup).toContain("<summary>Netlist</summary>");
     expect(markup).toContain("Check Report…");
     expect(markup).toContain('data-testid="check-and-save"');
+    const checkAndSaveEnd =
+      markup.indexOf(
+        "</button>",
+        markup.indexOf('data-testid="check-and-save"'),
+      ) + "</button>".length;
+    expect(markup.slice(checkAndSaveEnd)).toMatch(
+      /^<button[^>]*data-testid="publish-gallery-button"/u,
+    );
     expect(markup).toContain("Not checked");
     expect(erc).not.toHaveBeenCalled();
     expect(checks).not.toHaveBeenCalled();

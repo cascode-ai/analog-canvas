@@ -174,16 +174,6 @@ export function EditorAppChrome({
         >
           <div className="menubar-row">
             <FileCommandMenu {...fileCommands} />
-            <button
-              type="button"
-              data-testid="check-and-save"
-              disabled={!checkAndSave.enabled}
-              onClick={checkAndSave.execute}
-              title="Check ERC and visual issues, and save this Cloud Project"
-            >
-              <span className="toolbar-check-glyph" aria-hidden="true" />
-              Check and Save
-            </button>
             <details className="command-menu" name="editor-command-menu">
               <summary>Edit</summary>
               <div className="command-popover">
@@ -306,6 +296,16 @@ export function EditorAppChrome({
                 </div>
               </details>
             ) : null}
+            <button
+              type="button"
+              data-testid="check-and-save"
+              disabled={!checkAndSave.enabled}
+              onClick={checkAndSave.execute}
+              title="Check ERC and visual issues, and save this Cloud Project"
+            >
+              <span className="toolbar-check-glyph" aria-hidden="true" />
+              Check and Save
+            </button>
             <button
               type="button"
               data-testid="publish-gallery-button"
