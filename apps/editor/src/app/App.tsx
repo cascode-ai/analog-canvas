@@ -573,6 +573,7 @@ export function App({
     x: number;
     y: number;
   } | null>(null);
+  const canvasContextMenuSuppressed = useRef(false);
   const [pendingCellReset, setPendingCellReset] = useState<{
     plan: CellResetPlan;
     command: string;
@@ -2581,6 +2582,10 @@ export function App({
       wheelBehavior: () => wheelBehaviorRef.current,
     },
     gestureSession: {
+      setContextMenuSuppressed: (suppressed) => {
+        canvasContextMenuSuppressed.current = suppressed;
+        if (suppressed) setCanvasContextMenu(null);
+      },
       boxPreview,
       setBoxPreview,
       panPreview,
@@ -3741,6 +3746,7 @@ export function App({
       },
       openContextMenu: (target, clientX, clientY) => {
         if (
+          canvasContextMenuSuppressed.current ||
           canvasDragSessionRef.current !== null ||
           simulationPickNetsActive ||
           target.closest('[data-testid="canvas-text-editor"]')
