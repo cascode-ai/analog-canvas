@@ -90,7 +90,11 @@ interface EndpointHitTargetProps {
   selectedEndpoint: WireSource | null;
   supplementalJunctionIds: readonly string[];
   endpointLabel: (endpoint: WireSource["endpoint"]) => string;
-  onEndpointActions: (endpoint: WireSource) => void;
+  onEndpointActions: (
+    endpoint: WireSource,
+    clientX: number,
+    clientY: number,
+  ) => void;
   onRouteStretch: (
     event: ReactPointerEvent<SVGCircleElement>,
     routeId: string,
@@ -375,7 +379,7 @@ function EndpointHitTargets({
         onContextMenu={(event) => {
           event.preventDefault();
           event.stopPropagation();
-          onEndpointActions(candidate);
+          onEndpointActions(candidate, event.clientX, event.clientY);
         }}
         onPointerDown={(event) => {
           if (tool === "pointer" && selectedRoute && powerRailEndIndex >= 0) {

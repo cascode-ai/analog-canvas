@@ -143,6 +143,7 @@ import {
 } from "../features/component-insert/symbol-catalog";
 import { SymbolArtwork } from "../features/component-insert/symbol-artwork";
 import { CanvasContextMenu } from "../features/selection/canvas-context-menu";
+import { useVisualClipboard } from "../features/clipboard/visual-clipboard";
 import { deriveWireUnderSymbolWarnings } from "../canvas/wire-under-symbol";
 import { createPlacementTrayCommands } from "../features/component-insert/placement-tray-commands";
 import { componentTargetDescription } from "../features/properties/component-identity-properties";
@@ -578,6 +579,7 @@ export function App({
     x: number;
     y: number;
   } | null>(null);
+  const canvasContextMenuSuppressed = useRef(false);
   const [pendingCellReset, setPendingCellReset] = useState<{
     plan: CellResetPlan;
     command: string;
@@ -1629,6 +1631,12 @@ export function App({
     clientX: number,
     clientY: number,
   ): void {
+    if (
+      tool !== "pointer" ||
+      getCurrentInteractionState().kind !== "idle" ||
+      canvasDragSessionRef.current !== null
+    )
+      return;
     const ids = typeof objectIds === "string" ? [objectIds] : objectIds;
     if (!ids.every((id) => selectedVisualIds(kind).includes(id))) {
       selectVisualObjects(kind, ids, false);
@@ -2586,6 +2594,10 @@ export function App({
       wheelBehavior: () => wheelBehaviorRef.current,
     },
     gestureSession: {
+      setContextMenuSuppressed: (suppressed) => {
+        canvasContextMenuSuppressed.current = suppressed;
+        if (suppressed) setCanvasContextMenu(null);
+      },
       boxPreview,
       setBoxPreview,
       panPreview,
@@ -3177,10 +3189,19 @@ export function App({
     };
   }, []);
 
+  const visualClipboard = useVisualClipboard({
+    document,
+    selection: visualSelection,
+    resolver,
+    report: setStatus,
+    onChunkLoadFailure: setChunkLoadFailure,
+  });
   const editorCommands = createEditorCommandRouter({
     getContext: () => ({
       interactionMode: getCurrentInteractionState().kind,
       activeTool: tool,
+      canCopyVisualSelection:
+        hasVisualSelection(visualSelection) && !visualClipboard.busy,
       hasDeletableSelection:
         hasVisualSelection(visualSelection) || selectedEndpoint !== null,
       hasMoveSelection: canBeginKeyboardSelectionMove(),
@@ -3259,6 +3280,7 @@ export function App({
         }
         armVerb("copy");
       },
+      copyVisualSelection: visualClipboard.copy,
       beginMove: (detach) => {
         if (canBeginKeyboardSelectionMove()) {
           beginKeyboardSelectionMoveFromSelection(undefined, { detach });
@@ -3377,6 +3399,13 @@ export function App({
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
+      // File flyout arrows navigate the focused menu, never pan the canvas.
+      if (
+        event.target instanceof Element &&
+        event.target.closest(".export-submenu") &&
+        ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)
+      )
+        return;
       if (
         (event.ctrlKey || event.metaKey) &&
         event.key.toLowerCase() === "f" &&
@@ -3718,6 +3747,30 @@ export function App({
       },
       handleCanvasHitPointerDown: (event) => {
         if (!simulationPickNetsActive) handleCanvasHitPointerDown(event);
+      },
+      openContextMenu: (target, clientX, clientY) => {
+        if (
+          canvasContextMenuSuppressed.current ||
+          canvasDragSessionRef.current !== null ||
+          simulationPickNetsActive ||
+          target.closest('[data-testid="canvas-text-editor"]')
+        )
+          return;
+        const hit = target.closest("[data-canvas-hit-kind]");
+        const kind = hit?.getAttribute("data-canvas-hit-kind");
+        const id = hit?.getAttribute("data-canvas-hit-id");
+        if (
+          id &&
+          (kind === "route" ||
+            kind === "drafting" ||
+            kind === "junction" ||
+            kind === "instance" ||
+            kind === "annotation")
+        ) {
+          openVisualContextMenu(kind, id, clientX, clientY);
+        } else {
+          setCanvasContextMenu({ x: clientX, y: clientY });
+        }
       },
     },
     placement: {
@@ -5222,7 +5275,20 @@ export function App({
               selectedEndpoint,
               supplementalJunctionIds: supplementalSelection.junctionIds,
               endpointLabel: endpointTestId,
-              onEndpointActions: (candidate) => {
+              onEndpointActions: (candidate, clientX, clientY) => {
+                if (
+                  candidate.endpoint.kind === "junction" &&
+                  tool === "pointer" &&
+                  getCurrentInteractionState().kind === "idle"
+                ) {
+                  openVisualContextMenu(
+                    "junction",
+                    candidate.endpoint.junctionId,
+                    clientX,
+                    clientY,
+                  );
+                  return;
+                }
                 selectEndpoint(candidate);
                 setStatus(
                   `Endpoint actions: ${endpointTestId(candidate.endpoint)}`,
@@ -5416,6 +5482,18 @@ export function App({
               editorCommands.execute({ id: "selection.align", mode })
             }
             actions={[
+              ...(["png", "svg"] as const).map((format) => ({
+                label: `Copy as ${format.toUpperCase()}`,
+                enabled: editorCommands.state({
+                  id: "selection.copy-image",
+                  format,
+                }).enabled,
+                execute: () =>
+                  editorCommands.execute({
+                    id: "selection.copy-image",
+                    format,
+                  }),
+              })),
               {
                 label: "Rotate (R)",
                 enabled: editorCommands.state({ id: "transform.rotate" })

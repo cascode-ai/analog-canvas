@@ -1,4 +1,4 @@
-import type { RefObject } from "react";
+import { useRef, useState, type ReactNode, type RefObject } from "react";
 
 import {
   CLOUD_PROJECT_LIMIT,
@@ -30,6 +30,79 @@ export interface FileCommandMenuProps {
   onOpenRecovery: () => void;
 }
 
+function ExportSubmenu({
+  title,
+  open,
+  onToggle,
+  onClose,
+  children,
+}: {
+  title: string;
+  open: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  const trigger = useRef<HTMLButtonElement>(null);
+  return (
+    <div
+      className="export-submenu"
+      onKeyDown={(event) => {
+        if (open && event.key === "ArrowLeft") {
+          event.preventDefault();
+          event.stopPropagation();
+          onClose();
+          trigger.current?.focus();
+        }
+      }}
+    >
+      <button
+        ref={trigger}
+        type="button"
+        aria-expanded={open}
+        aria-controls={
+          title === "Export netlist"
+            ? "export-netlist-options"
+            : "export-drawing-options"
+        }
+        onClick={(event) => {
+          event.stopPropagation();
+          onToggle();
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+            event.preventDefault();
+            if (!open) onToggle();
+            requestAnimationFrame(() =>
+              trigger.current?.parentElement
+                ?.querySelector<HTMLButtonElement>(
+                  ".export-submenu-options button",
+                )
+                ?.focus(),
+            );
+          }
+        }}
+      >
+        {title}
+        <span aria-hidden="true">›</span>
+      </button>
+      <div
+        className="export-submenu-options"
+        id={
+          title === "Export netlist"
+            ? "export-netlist-options"
+            : "export-drawing-options"
+        }
+        role="group"
+        aria-label={title}
+        hidden={!open}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
 export function FileCommandMenu({
   cloudProjects,
   activeCloudProjectId,
@@ -51,12 +124,16 @@ export function FileCommandMenu({
   onRevert,
   onOpenRecovery,
 }: FileCommandMenuProps) {
+  const [exportGroup, setExportGroup] = useState<"netlist" | "drawing" | null>(
+    null,
+  );
   return (
     <details
       className="command-menu"
       name="editor-command-menu"
       onToggle={(event) => {
         if (event.currentTarget.open) onRefreshCloudProjects();
+        else setExportGroup(null);
       }}
     >
       <summary>File</summary>
@@ -136,38 +213,57 @@ export function FileCommandMenu({
         <button type="button" onClick={onExportProject}>
           Export Project File…
         </button>
-        <span className="command-group-label">Export Drawing</span>
-        <button type="button" aria-label="Export SVG" onClick={onExportSvg}>
-          SVG
-        </button>
-        <button
-          type="button"
-          aria-label="Export PNG"
-          onClick={() => onExportRaster("png")}
-        >
-          PNG
-        </button>
-        <button
-          type="button"
-          aria-label="Export PDF"
-          onClick={() => onExportRaster("pdf")}
-        >
-          PDF
-        </button>
-        <button
-          type="button"
-          aria-label="Export SPICE netlist"
-          onClick={() => onExportNetlist("spice")}
-        >
-          SPICE netlist
-        </button>
-        <button
-          type="button"
-          aria-label="Export Spectre netlist"
-          onClick={() => onExportNetlist("spectre")}
-        >
-          Spectre netlist
-        </button>
+        <div>
+          <ExportSubmenu
+            title="Export netlist"
+            open={exportGroup === "netlist"}
+            onToggle={() =>
+              setExportGroup(exportGroup === "netlist" ? null : "netlist")
+            }
+            onClose={() => setExportGroup(null)}
+          >
+            <button
+              type="button"
+              aria-label="Export SPICE netlist"
+              onClick={() => onExportNetlist("spice")}
+            >
+              SPICE
+            </button>
+            <button
+              type="button"
+              aria-label="Export Spectre netlist"
+              onClick={() => onExportNetlist("spectre")}
+            >
+              Spectre
+            </button>
+          </ExportSubmenu>
+          <ExportSubmenu
+            title="Export drawing"
+            open={exportGroup === "drawing"}
+            onToggle={() =>
+              setExportGroup(exportGroup === "drawing" ? null : "drawing")
+            }
+            onClose={() => setExportGroup(null)}
+          >
+            <button type="button" aria-label="Export SVG" onClick={onExportSvg}>
+              SVG
+            </button>
+            <button
+              type="button"
+              aria-label="Export PNG"
+              onClick={() => onExportRaster("png")}
+            >
+              PNG
+            </button>
+            <button
+              type="button"
+              aria-label="Export PDF"
+              onClick={() => onExportRaster("pdf")}
+            >
+              PDF
+            </button>
+          </ExportSubmenu>
+        </div>
         <button type="button" onClick={onRefresh}>
           Refresh app
         </button>

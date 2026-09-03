@@ -88,6 +88,8 @@ export interface CanvasGestureControllerDependencies {
     paintSnapGuides: (guides: readonly SnapGuideLine[]) => void;
     noteCanvasPoint: (point: Point) => void;
     setStatus: (status: string) => void;
+    /** A completed right-button frame consumes that gesture's context menu. */
+    setContextMenuSuppressed: (suppressed: boolean) => void;
     /** Canvas size and how far floating docks reach over it; see fitView. */
     measureCanvasView?: () => {
       viewport: { width: number; height: number };
@@ -230,6 +232,7 @@ export function createCanvasGestureController({
     paintSnapGuides,
     noteCanvasPoint,
     setStatus,
+    setContextMenuSuppressed,
     measureCanvasView,
   },
   selection: {
@@ -392,10 +395,11 @@ export function createCanvasGestureController({
   };
 
   const begin = (event: ReactPointerEvent<SVGSVGElement>): void => {
+    setContextMenuSuppressed(false);
     // Visual objects own their context menu. Starting the background framing
     // gesture on any of these hit layers would capture the pointer and swallow
-    // the later contextmenu event. Routes and endpoints keep their existing
-    // canvas behavior until they expose the shared menu themselves.
+    // the later contextmenu event. Route strokes and endpoint circles are
+    // already excluded by the background-target classifier below.
     const contextMenuHitKind = (event.target as Element).getAttribute?.(
       "data-canvas-hit-kind",
     );
@@ -601,6 +605,7 @@ export function createCanvasGestureController({
         rect.width > document.presentation.grid &&
         rect.height > document.presentation.grid
       ) {
+        if (event.button === 2) setContextMenuSuppressed(true);
         setViewBox(fitCameraToBounds(rect, document.presentation.grid));
         setStatus("Zoomed to framed region");
       }

@@ -42,6 +42,17 @@ export async function clickCommand(
   button: string,
 ): Promise<void> {
   const details = await openMenu(page, menu);
+  if (
+    menu === "File" &&
+    /^Export (?:SVG|PNG|PDF|SPICE netlist|Spectre netlist)$/u.test(button)
+  ) {
+    const group = details.getByRole("button", {
+      name: button.endsWith("netlist") ? "Export netlist" : "Export drawing",
+      exact: true,
+    });
+    if ((await group.getAttribute("aria-expanded")) !== "true")
+      await group.click();
+  }
   await details.getByRole("button", { name: button, exact: true }).click();
 }
 

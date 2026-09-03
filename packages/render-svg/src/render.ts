@@ -72,6 +72,10 @@ import {
 } from "./signal-flow-formula.js";
 
 export interface SvgRenderOptions {
+  /** Read-only paint filter. Geometry and electrical facts still use the full Document. */
+  objectIds?: ReadonlySet<string>;
+  /** Page background only; explicit object fills are preserved. */
+  background?: "document" | "transparent";
   /** Explicit render crop is a caller-owned grid rectangle. */
   bounds?: GridRect;
   margin?: number;
@@ -174,10 +178,12 @@ function renderNoConnectMarkers(
   document: SchematicDocument,
   resolver: SymbolResolver,
   profile: SchematicStyleProfile,
+  objectIds?: ReadonlySet<string>,
 ): string {
   const halfExtent = Math.max(profile.strokes.normal * 3, 4);
   const strokeWidth = profile.strokes.normal;
   return [...document.noConnects]
+    .filter((item) => !objectIds || objectIds.has(item.id))
     .sort((left, right) => left.id.localeCompare(right.id, "en"))
     .flatMap((noConnect) => {
       const point = resolveEndpointPoint(
@@ -603,6 +609,7 @@ function deriveBounds(
   margin: number,
   profile: SchematicStyleProfile,
   logicalNets: ResolvedDocumentLogicalNets,
+  objectIds?: ReadonlySet<string>,
 ): DerivedRect {
   const bounds: DerivedRect[] = [];
   const estimatedTextBounds = (
@@ -627,7 +634,9 @@ function deriveBounds(
     };
   };
   for (const instance of document.instances.filter(
-    (candidate) => candidate.placement !== null,
+    (candidate) =>
+      candidate.placement !== null &&
+      (!objectIds || objectIds.has(candidate.id)),
   )) {
     const resolved = resolver.resolve(
       instance.symbolId,
@@ -640,6 +649,7 @@ function deriveBounds(
     bounds.push(instanceBox);
   }
   for (const route of document.routes) {
+    if (objectIds && !objectIds.has(route.id)) continue;
     const geometry = routingGeometry.routes.get(route.id);
     if (!geometry) {
       throw new Error(`Cannot derive bounds for unresolved route: ${route.id}`);
@@ -649,6 +659,7 @@ function deriveBounds(
     }
   }
   for (const junction of document.junctions) {
+    if (objectIds && !objectIds.has(junction.id)) continue;
     bounds.push({
       x: junction.position.x,
       y: junction.position.y,
@@ -657,6 +668,7 @@ function deriveBounds(
     });
   }
   for (const annotation of document.annotations) {
+    if (objectIds && !objectIds.has(annotation.id)) continue;
     if (!isSchematicAnnotationVisible(document, annotation, logicalNets))
       continue;
     const presentation = resolveAnnotationPresentation(
@@ -671,6 +683,7 @@ function deriveBounds(
       annotation.anchor.kind === "route"
         ? resolveRouteMarkerPlacement(routingGeometry, annotation.anchor)
         : null;
+    if (objectIds) bounds.push(presentation.bounds);
     if (!routePlacement) {
       bounds.push(presentation.bounds);
       continue;
@@ -692,10 +705,12 @@ function deriveBounds(
   // callouts and floating symbols outside the circuit are not clipped.
   // Resolved geometry is derived.
   for (const object of document.drafting?.objects ?? []) {
+    if (objectIds && !objectIds.has(object.id)) continue;
     const geometry = resolveDraftingObjectGeometry(document, resolver, object);
     bounds.push(geometry.bounds);
   }
   if (bounds.length === 0) {
+    if (objectIds) throw new Error("Select visible objects before copying");
     return { x: 0, y: 0, width: 960, height: 640 };
   }
   const minX = Math.min(...bounds.map((bound) => bound.x)) - margin;
@@ -718,6 +733,8 @@ export function buildSvgScene(
   options: SvgRenderOptions = {},
 ): SvgScene {
   const document = SchematicDocumentSchema.parse(input);
+  const objectIds = options.objectIds;
+  const included = (id: string): boolean => !objectIds || objectIds.has(id);
   const profile = resolveDocumentStyleProfile(document.presentation);
   const margin = options.margin ?? 40;
   if (!Number.isInteger(margin) || margin < 0) {
@@ -762,6 +779,7 @@ export function buildSvgScene(
         margin,
         profile,
         logicalNets,
+        objectIds,
       );
 
   const joinedJunctionIds = new Set(
@@ -793,6 +811,7 @@ export function buildSvgScene(
   }
 
   const routes = [...document.routes]
+    .filter((route) => included(route.id))
     .sort((left, right) => left.id.localeCompare(right.id, "en"))
     .map((route) => {
       const geometry = routingGeometry.routes.get(route.id);
@@ -825,7 +844,21 @@ export function buildSvgScene(
     })
     .join("");
   const junctionBridges = renderJunctionMiterBridges(
-    routingGeometry.endpointJoins,
+    routingGeometry.endpointJoins.filter((join) => {
+      if (!objectIds || join.kind !== "junction-miter") return true;
+      return document.routes
+        .filter((route) => {
+          const end = route.legs.at(-1)?.to;
+          return (
+            (route.start.kind === "junction" &&
+              route.start.junctionId === join.junctionId) ||
+            (end?.kind === "endpoint" &&
+              end.endpoint.kind === "junction" &&
+              end.endpoint.junctionId === join.junctionId)
+          );
+        })
+        .every((route) => included(route.id));
+    }),
     profile,
     junctionBridgeColors,
   );
@@ -833,6 +866,16 @@ export function buildSvgScene(
     options.contactEvidence ??
     deriveDocumentContactEvidence(document, resolver, routingGeometry);
   const junctions = contactEvidence.contacts
+    .filter(
+      (contact) =>
+        !objectIds ||
+        contact.incidents.some((incident) => included(incident.objectId)) ||
+        contact.endpoints.some((endpoint) =>
+          endpoint.kind === "junction"
+            ? included(endpoint.junctionId)
+            : included(endpoint.instanceId),
+        ),
+    )
     .filter((contact) => {
       if (
         contact.incidents.some(
@@ -888,11 +931,17 @@ export function buildSvgScene(
       return `<circle data-object-id="${escapeXml(objectId)}"${derivedAttribute} cx="${contact.point.x}" cy="${contact.point.y}" r="${profile.nodes.junctionRadius}" fill="${profile.foreground}"/>`;
     })
     .join("");
-  const noConnectMarkers = renderNoConnectMarkers(document, resolver, profile);
+  const noConnectMarkers = renderNoConnectMarkers(
+    document,
+    resolver,
+    profile,
+    objectIds,
+  );
   const noConnectLayer = noConnectMarkers
     ? `<g data-layer="no-connects">${noConnectMarkers}</g>`
     : "";
   const symbols = [...document.instances]
+    .filter((instance) => included(instance.id))
     .filter((instance) => instance.placement !== null)
     .sort((left, right) => left.id.localeCompare(right.id, "en"))
     .map((instance) => {
@@ -952,6 +1001,7 @@ export function buildSvgScene(
     })
     .join("");
   const annotations = [...document.annotations]
+    .filter((annotation) => included(annotation.id))
     .filter((annotation) =>
       isSchematicAnnotationVisible(document, annotation, logicalNets),
     )
@@ -1148,7 +1198,7 @@ export function buildSvgScene(
 
   return {
     viewBox,
-    formalBody: `<g data-layer="formal"><g data-layer="routes">${routes}${junctionBridges}</g><g data-layer="junctions">${junctions}</g><g data-layer="symbols">${symbols}</g>${noConnectLayer}<g data-layer="annotations">${annotations}</g>${renderDraftingLayer(document, resolver, profile)}</g>`,
+    formalBody: `<g data-layer="formal"><g data-layer="routes">${routes}${junctionBridges}</g><g data-layer="junctions">${junctions}</g><g data-layer="symbols">${symbols}</g>${noConnectLayer}<g data-layer="annotations">${annotations}</g>${renderDraftingLayer(document, resolver, profile, objectIds)}</g>`,
   };
 }
 
@@ -1205,11 +1255,13 @@ function renderDraftingLayer(
   document: SchematicDocument,
   resolver: SymbolResolver,
   profile: SchematicStyleProfile,
+  objectIds?: ReadonlySet<string>,
 ): string {
   const objects = document.drafting?.objects ?? [];
   if (objects.length === 0) return "";
   const sorted = [...objects].sort((left, right) => left.zIndex - right.zIndex);
   const body = sorted
+    .filter((object) => !objectIds || objectIds.has(object.id))
     .map((object) => {
       const geometry = resolveDraftingObjectGeometry(
         document,
@@ -1591,8 +1643,20 @@ export function renderDocumentSvg(
   options: SvgRenderOptions = {},
 ): string {
   const scene = buildSvgScene(document, resolver, options);
+  if (
+    options.objectIds &&
+    !/<(?:path|polyline|polygon|circle|ellipse|rect|line|text)\b/u.test(
+      scene.formalBody,
+    )
+  ) {
+    throw new Error("Select visible objects before copying");
+  }
   const profile = resolveDocumentStyleProfile(document.presentation);
   const title = escapeXml(options.title ?? document.name);
   const { x, y, width, height } = scene.viewBox;
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${x} ${y} ${width} ${height}" role="img" aria-labelledby="title" data-style-profile="${profile.id}"><title id="title">${title}</title><rect x="${x}" y="${y}" width="${width}" height="${height}" fill="${profile.background}"/><style>${schematicRoundPeriodFontFaceCss}svg{font-size:${profile.typography.annotationFontSize}px;fill:${profile.foreground}}text{font-family:${profile.typography.fontFamily}}</style>${scene.formalBody}</svg>\n`;
+  const background =
+    options.background === "transparent"
+      ? ""
+      : `<rect x="${x}" y="${y}" width="${width}" height="${height}" fill="${profile.background}"/>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${x} ${y} ${width} ${height}" role="img" aria-labelledby="title" data-style-profile="${profile.id}"><title id="title">${title}</title>${background}<style>${schematicRoundPeriodFontFaceCss}svg{font-size:${profile.typography.annotationFontSize}px;fill:${profile.foreground}}text{font-family:${profile.typography.fontFamily}}</style>${scene.formalBody}</svg>\n`;
 }

@@ -122,10 +122,23 @@ when you need to import them again.
 
 ## Export
 
-The **File** menu exports SVG, PNG, and PDF containing only formal schematic
+**File / Export drawing** exports the entire current drawing as SVG, PNG, or PDF containing only formal schematic
 layers. PNG uses 3x raster scale. Browser PDF converts the same formal SVG to
 vector paths and text on a page matching the SVG viewBox, so circuit geometry
 stays sharp when enlarged.
+
+To reuse only selected content, right-click a selected object and choose
+**Copy as PNG** or **Copy as SVG**, then paste into another application.
+Existing multi-selection is retained; right-clicking a different object selects
+that object. On empty canvas the menu uses the existing selection, never the whole
+drawing. Attached visible labels travel with their selected objects, but remote
+objects sharing a Net do not. Clipboard copies omit editor overlays, use a
+transparent page background, and do not change the circuit or Undo history.
+PNG is rendered at 3x with a bounded image size. SVG stays vector; formula glyphs
+remain paths, and the receiving application determines paste/editing support.
+Clipboard writes require HTTPS or localhost and browser permission. Failures are
+reported without silently downloading a file or substituting a different format.
+These commands do not change the existing **C** copy-placement workflow.
 
 Use the toolbar's **Check and Save** to check the whole Project for ERC and
 visual issues and save it through the existing private Cloud Project service.
@@ -142,7 +155,7 @@ The dialog reports structural netlist findings and current-revision ERC
 readiness separately; the ERC section is the same evidence used by Gallery.
 When a structural IR is available, it previews the deterministic SPICE or
 Spectre text. Use either the dialog's
-download button or **File / SPICE netlist** and **File / Spectre netlist** to
+download button or **File / Export netlist / SPICE** and **File / Export netlist / Spectre** to
 download it. These files contain structure only: they do not add PDK includes,
 models, corners, stimuli, analyses, or simulator options.
 
