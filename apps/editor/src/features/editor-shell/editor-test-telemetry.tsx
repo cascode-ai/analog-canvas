@@ -1,4 +1,5 @@
 export interface EditorTestTelemetrySnapshot {
+  diagnosticCheckStatus: import("../../app/project-check").ProjectCheckStatus;
   selectedInternalRouteCount: number;
   revision: number;
   sourceStatus: string;
@@ -19,6 +20,7 @@ export interface EditorTestTelemetrySnapshot {
 
 const telemetryFields: readonly [keyof EditorTestTelemetrySnapshot, string][] =
   [
+    ["diagnosticCheckStatus", "diagnostic-check-status"],
     ["selectedInternalRouteCount", "selected-internal-route-count"],
     ["revision", "revision"],
     ["sourceStatus", "source-status"],

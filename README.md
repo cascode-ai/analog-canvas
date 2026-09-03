@@ -41,6 +41,11 @@ Cloud Save, and Community Gallery entries remain separate public publications.
 The hosted service keeps its visitor reporting first-party and honors browser
 Do Not Track instead of embedding a third-party analytics tracker.
 
+**Check and Save** runs ERC and visual checks on demand, displays findings in
+Issues and the canvas, and saves through that same Cloud Project service.
+Findings do not block saving; editing invalidates the last check without
+automatically rerunning it. File / Save and Ctrl+S remain save-only.
+
 ## Start here
 
 - **Use the hosted product:** browse the

@@ -79,12 +79,11 @@ a moderator or admin, never on a public surface.
 
 ## Submission quality gates
 
-`evaluateSubmissionGates` in `@icm/derived` is the single evaluator; the
-worker enforces it (422 `{error: "quality-gate", failures}`) and the
-publish dialog runs the same function live, so the API can never accept
-what the UI refuses. Gates apply only to ordinary users — the bearer and
-admin/moderator sessions bypass them (failures still shown as
-informational in the dialog). Failure codes:
+`evaluateSubmissionGates` in `@icm/derived` supplies quality advice when the
+publish dialog opens. Since PR #341 these findings are informational for
+every role and never disable Publish. The worker does not enforce an ERC
+quality veto; authentication, Project parsing, ownership, and size/quota
+boundaries still apply. Diagnostic codes:
 
 - `erc-errors` — any ERC diagnostic with `severity: "error"`.
 - `floating-endpoints` — `ERC_UNCONNECTED_PIN`, `ERC_BULK_UNRESOLVED`,
@@ -114,7 +113,7 @@ submitter until the Owner restores the entry.
 - Moderators: `users.role` (`user`/`moderator`); the super-admin
   appoints by email via `POST /api/auth/users/role` `{email, role}`,
   which applies to every account carrying that verified email. A
-  moderator curates and bypasses the quality gates; the recycle bin and
+  moderator curates; quality advice is non-blocking for every role. The recycle bin and
   maintenance stay admin-only.
 
 The Gallery feed gives the super-admin direct Like and Reject (`×`) controls

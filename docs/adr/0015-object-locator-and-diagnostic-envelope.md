@@ -110,13 +110,19 @@ interface LiveDiagnosticSnapshot {
 }
 ```
 
-- A live snapshot is derived from exactly the listed Document revisions. A
-  successful transaction, undo, redo, or Project replacement publishes a new
-  Project value and therefore a new snapshot.
-- Live findings are never appended to UI state. When a producer no longer
-  emits a finding for the current revisions, it disappears. Undo may emit the
-  same stable diagnostic identity again; that is new current evidence, not a
-  retained historical row.
+- A snapshot is derived from exactly the listed Document revisions. The
+  `live` source means schematic evidence rather than an import report; it
+  does not require background execution. As of 2026-09-03, the editor runs
+  ERC and visual producers only on **Check and Save**. Save itself remains
+  ungated and uses the same current Cloud Project service as File / Save.
+- The editor retains only the last check. Its runtime identity includes the
+  Project session, structure/Document revisions and symbol resolver. Edits,
+  undo and redo invalidate the result without executing either producer.
+  Stale rows are explicitly labelled, cannot navigate, and have no canvas
+  markers. Project replacement clears the result. Rechecking replaces it.
+- Before checking, the UI says "Not checked", never "No issues". Checking
+  errors do not withhold a save; save failures do not suppress findings.
+  The checked and saved candidates must match, while newer edits stay dirty.
 - Import, file-open, migration, and rejected-operation messages are operation
   reports. They describe an event and may remain available for review, but are
   not live schematic diagnostics, do not contribute to the current count, and
@@ -124,9 +130,12 @@ interface LiveDiagnosticSnapshot {
 - Non-gating routing/visual heuristics are observations. The editor keeps them
   available behind an explicit control; the default current view contains ERC
   and gate-eligible structural findings.
-- The editor exposes one Project-wide live diagnostic surface. A contextual
+- The editor exposes one Project-wide checked diagnostic surface. A contextual
   import report must not independently re-render the same current visual
   findings.
+- Netlist Check Report/export, Gallery quality advice, and Agent requests
+  remain independent consumers of the same engines. Gallery advice does not
+  veto publication. No second diagnostic protocol or persisted report is added.
 
 ### navigateTo (frozen semantics)
 

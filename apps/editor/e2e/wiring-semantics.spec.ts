@@ -138,7 +138,17 @@ test("dragging a wire's end onto another wire joins them into one net", async ({
   await page.keyboard.press("Enter");
   await page.keyboard.press("Escape");
   await expect(page.locator('[data-canvas-hit-kind="route"]')).toHaveCount(2);
-  await expect(page.getByTestId("statusbar-issues")).toHaveText("No issues");
+  await expect(page.getByTestId("statusbar-issues")).toHaveText("Not checked");
+  await page.getByTestId("check-and-save").click();
+  await expect(page.getByTestId("statusbar-issues")).toHaveText(
+    "No issues found",
+  );
+  // Return to the drawing surface before measuring this pixel-exact drag.
+  await page.getByTestId("selection-shelf").click();
+  await expect(page.getByTestId("selection-shelf")).toHaveAttribute(
+    "aria-expanded",
+    "false",
+  );
 
   // Drag the vertical wire down so its lower end comes to rest on the
   // horizontal one. This is the gesture that used to leave two nets touching
@@ -187,7 +197,13 @@ test("dragging a wire's end onto another wire joins them into one net", async ({
   await expect(page.locator('[data-canvas-hit-kind="route"]')).toHaveCount(3);
   await expect(page.locator('g[data-layer="junctions"] circle')).toHaveCount(1);
   // Drawing and model agree, so there is nothing ambiguous left to report.
-  await expect(page.getByTestId("statusbar-issues")).toHaveText("No issues");
+  await expect(page.getByTestId("statusbar-issues")).toHaveText(
+    "Check out of date",
+  );
+  await page.getByTestId("check-and-save").click();
+  await expect(page.getByTestId("statusbar-issues")).toHaveText(
+    "No issues found",
+  );
 });
 
 test("a power rail drawn across the tops of wires connects to them", async ({
@@ -219,7 +235,11 @@ test("a power rail drawn across the tops of wires connects to them", async ({
   // three pieces — two wires plus three rail segments — rather than lying
   // over them as one unconnected conductor.
   await expect(page.locator('[data-canvas-hit-kind="route"]')).toHaveCount(5);
-  await expect(page.getByTestId("statusbar-issues")).toHaveText("No issues");
+  await page.keyboard.press("Escape");
+  await page.getByTestId("check-and-save").click();
+  await expect(page.getByTestId("statusbar-issues")).toHaveText(
+    "No issues found",
+  );
 });
 
 test("a component dragged onto a wire lands and connects", async ({ page }) => {
@@ -263,5 +283,8 @@ test("a component dragged onto a wire lands and connects", async ({ page }) => {
   // The pin became a real endpoint on the conductor, so the wire is now two
   // pieces meeting at it.
   await expect(page.locator('[data-canvas-hit-kind="route"]')).toHaveCount(2);
-  await expect(page.getByTestId("statusbar-issues")).toHaveText("No issues");
+  await page.getByTestId("check-and-save").click();
+  await expect(page.getByTestId("statusbar-issues")).toHaveText(
+    "No issues found",
+  );
 });

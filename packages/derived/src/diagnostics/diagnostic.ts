@@ -162,29 +162,61 @@ export function mergeDiagnostics(
     );
 }
 
+/** Select producers before executing them. Omission keeps the full Agent contract. */
+export interface DiagnosticDomainOptions {
+  domains?: readonly ("erc" | "visual")[];
+}
+
+/** Collect raw visual evidence once so canvas markers need no second check. */
+export function collectProjectDiagnosticEvidence(
+  project: CircuitProject,
+  resolver: SymbolResolver,
+  index = buildProjectConnectivityIndex(project, resolver),
+  options: DiagnosticDomainOptions = {},
+): {
+  diagnostics: readonly Diagnostic[];
+  visualByDocument: ReadonlyMap<string, readonly VisualDiagnostic[]>;
+} {
+  const wanted = options.domains ?? (["erc", "visual"] as const);
+  const visualByDocument = new Map<string, readonly VisualDiagnostic[]>();
+  const visual = (wanted.includes("visual") ? project.documents : []).flatMap(
+    (document) => {
+      const documentIndex = index.documents.get(document.id);
+      const findings = diagnoseVisualQuality(document, resolver, {
+        ...(documentIndex
+          ? {
+              routingGeometry: documentIndex.routingGeometry,
+              contactEvidence: documentIndex.contactEvidence,
+              spatialIndex: documentIndex.spatialIndex,
+              logicalNetResolution: documentIndex.logicalNetResolution,
+              endpointConnections: documentIndex.endpointConnections,
+            }
+          : {}),
+      });
+      visualByDocument.set(document.id, findings);
+      return findings.map((diagnostic) =>
+        adaptVisualDiagnostic(diagnostic, document.id, index),
+      );
+    },
+  );
+  return {
+    diagnostics: mergeDiagnostics(
+      wanted.includes("erc") ? runErcChecks(project, index, resolver) : [],
+      visual,
+    ),
+    visualByDocument,
+  };
+}
+
 /** Canonical Project diagnostic evidence consumed by the GUI and Agent API. */
 export function diagnoseProject(
   project: CircuitProject,
   resolver: SymbolResolver,
   index = buildProjectConnectivityIndex(project, resolver),
+  options: DiagnosticDomainOptions = {},
 ): readonly Diagnostic[] {
-  const visual = project.documents.flatMap((document) => {
-    const documentIndex = index.documents.get(document.id);
-    return diagnoseVisualQuality(document, resolver, {
-      ...(documentIndex
-        ? {
-            routingGeometry: documentIndex.routingGeometry,
-            contactEvidence: documentIndex.contactEvidence,
-            spatialIndex: documentIndex.spatialIndex,
-            logicalNetResolution: documentIndex.logicalNetResolution,
-            endpointConnections: documentIndex.endpointConnections,
-          }
-        : {}),
-    }).map((diagnostic) =>
-      adaptVisualDiagnostic(diagnostic, document.id, index),
-    );
-  });
-  return mergeDiagnostics(runErcChecks(project, index, resolver), visual);
+  return collectProjectDiagnosticEvidence(project, resolver, index, options)
+    .diagnostics;
 }
 
 /** Build one revision-stamped, non-persisted snapshot of current evidence. */
@@ -192,6 +224,7 @@ export function diagnoseProjectSnapshot(
   project: CircuitProject,
   resolver: SymbolResolver,
   index = buildProjectConnectivityIndex(project, resolver),
+  options: DiagnosticDomainOptions = {},
 ): LiveDiagnosticSnapshot {
   return {
     source: "live",
@@ -204,6 +237,6 @@ export function diagnoseProjectSnapshot(
       .sort((left, right) =>
         left.documentId.localeCompare(right.documentId, "en"),
       ),
-    diagnostics: diagnoseProject(project, resolver, index),
+    diagnostics: diagnoseProject(project, resolver, index, options),
   };
 }

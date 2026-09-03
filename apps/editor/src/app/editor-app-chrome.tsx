@@ -49,6 +49,7 @@ export interface EditorAppChromeProps {
   alignmentActions: readonly AlignmentAction[];
   instanceTableOpen: boolean;
   netlistPreflightOpen: boolean;
+  checkAndSave: CommandAction;
   onOpenInstanceTable: () => void;
   onOpenNetlistPreflight: () => void;
   agentAction: { label: string; execute: () => void } | null;
@@ -87,6 +88,7 @@ export function EditorAppChrome({
   alignmentActions,
   instanceTableOpen,
   netlistPreflightOpen,
+  checkAndSave,
   onOpenInstanceTable,
   onOpenNetlistPreflight,
   agentAction,
@@ -172,6 +174,16 @@ export function EditorAppChrome({
         >
           <div className="menubar-row">
             <FileCommandMenu {...fileCommands} />
+            <button
+              type="button"
+              data-testid="check-and-save"
+              disabled={!checkAndSave.enabled}
+              onClick={checkAndSave.execute}
+              title="Check ERC and visual issues, and save this Cloud Project"
+            >
+              <span className="toolbar-check-glyph" aria-hidden="true" />
+              Check and Save
+            </button>
             <details className="command-menu" name="editor-command-menu">
               <summary>Edit</summary>
               <div className="command-popover">

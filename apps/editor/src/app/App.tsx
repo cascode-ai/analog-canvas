@@ -26,6 +26,7 @@ import {
   deriveProjectNetNameProjection,
   deriveRoutingAffectedClosure,
   diagnosticPresentationGroup,
+  runErcChecks,
   resolveDraftingObjectGeometry,
   displayableInstanceValue,
   symbolCarriesReference,
@@ -166,6 +167,8 @@ import {
 import { EditorDialogLayer } from "./editor-dialog-layer";
 import { EditorAppChrome } from "./editor-app-chrome";
 import { EditorPropertiesDock } from "./editor-properties-dock";
+import { useProjectCheck } from "./use-project-check";
+import { summarizeVisualDiagnostics } from "../features/selection/selection-inspector-details";
 import {
   type HighlightedNetOrigin,
   type RoutingGuidanceView,
@@ -696,6 +699,8 @@ export function App({
     noteProjectSnapshotSafe,
     replaceActiveProject,
     saveProjectToCloud,
+    isSaveInFlight,
+    saveBusy,
     exportProjectFile,
     downloadCurrentProjectBackup,
     guardDirtyReplacement,
@@ -1237,14 +1242,10 @@ export function App({
     highlightedNet,
     highlightedNetId,
     selectedHighlightIsActive,
-    liveDiagnosticSnapshot,
-    electricalDiagnostics,
     searchResults,
     flightlines,
     displayedFlightlines,
     crossings,
-    visualDiagnostics,
-    visualDiagnosticSummary,
     visibleEndpoints,
     wiringEndpoints,
     contactComponents,
@@ -1347,21 +1348,59 @@ export function App({
     ],
   );
 
+  const projectCheck = useProjectCheck({
+    project,
+    sessionId: projectSessionId,
+    resolver,
+    index: projectConnectivityIndex,
+    save: saveProjectToCloud,
+    isSaving: isSaveInFlight,
+    openIssues: openIssuesPanel,
+  });
+  const checkedSnapshot = projectCheck.result?.snapshot ?? null;
+  const checkedElectricalDiagnostics = useMemo(
+    () =>
+      checkedSnapshot?.diagnostics.filter((item) => item.domain === "erc") ??
+      [],
+    [checkedSnapshot],
+  );
+  const visualDiagnostics = useMemo(
+    () => projectCheck.result?.visualByDocument.get(document.id) ?? [],
+    [projectCheck.result, document.id],
+  );
+  const visualDiagnosticSummary = useMemo(
+    () =>
+      summarizeVisualDiagnostics(
+        projectCheck.status === "current" ? visualDiagnostics : [],
+      ),
+    [visualDiagnostics, projectCheck.status],
+  );
+  // Independent Netlist adapter: creating the callback is free; only a report
+  // or export executes ERC, once per immutable Project/resolver/index tuple.
+  const requestElectricalDiagnostics = useMemo(() => {
+    let findings: ReturnType<typeof runErcChecks> | undefined;
+    return () =>
+      (findings ??= runErcChecks(project, projectConnectivityIndex, resolver));
+  }, [project, projectConnectivityIndex, resolver]);
+
   const diagnosticMarkers = useMemo(
     () =>
-      buildDiagnosticMarkers({
-        document,
-        resolver,
-        connectivityIndex: projectConnectivityIndex,
-        electricalDiagnostics,
-        visualDiagnostics,
-        reviewOpen: selectionOpen && issuesSectionOpen,
-      }),
+      projectCheck.status === "current"
+        ? buildDiagnosticMarkers({
+            document,
+            resolver,
+            connectivityIndex: projectConnectivityIndex,
+            electricalDiagnostics: checkedElectricalDiagnostics,
+            visualDiagnostics,
+            reviewOpen: selectionOpen && issuesSectionOpen,
+          })
+        : [],
     [
       document,
       resolver,
       projectConnectivityIndex,
-      electricalDiagnostics,
+      projectCheck.status,
+      checkedElectricalDiagnostics,
       visualDiagnostics,
       selectionOpen,
       issuesSectionOpen,
@@ -1370,20 +1409,20 @@ export function App({
   const issueCounts = useMemo(() => {
     let errorCount = 0;
     let warningCount = 0;
-    for (const diagnostic of liveDiagnosticSnapshot.diagnostics) {
+    for (const diagnostic of checkedSnapshot?.diagnostics ?? []) {
       if (diagnosticPresentationGroup(diagnostic) !== "actionable") continue;
       if (diagnostic.severity === "error") errorCount += 1;
       else if (diagnostic.severity === "warning") warningCount += 1;
     }
     return { errorCount, warningCount };
-  }, [liveDiagnosticSnapshot]);
-  const openIssuesPanel = (): void => {
+  }, [checkedSnapshot]);
+  function openIssuesPanel(): void {
     // Narrow layouts have room for one side panel — same rule as the dock
     // toggle, but this entry point always OPENS.
     if (compactLayout) setCompactLibraryPanelOpen(false);
     setSelectionOpen(true);
     setIssuesFocusToken((token) => token + 1);
-  };
+  }
   const simulationPickHighlight = useMemo(
     () =>
       simulationPickNetsActive && simulationHoverNetId
@@ -3247,7 +3286,10 @@ export function App({
       document,
       resolver,
       defaultViewBox: DEFAULT_VIEWBOX,
-      electricalWarningsPresent: electricalDiagnostics.length > 0,
+      // Asked at export time, which is one of the moments an
+      // electrical verdict belongs to.
+      electricalWarningsPresent: () =>
+        requestElectricalDiagnostics().length > 0,
       guardDirtyReplacement,
       replaceActiveProject,
       setNetlistPreflightOpen,
@@ -3883,6 +3925,10 @@ export function App({
         }
         instanceTableOpen={instanceTableOpen}
         netlistPreflightOpen={netlistPreflightOpen}
+        checkAndSave={{
+          enabled: !saveBusy && !projectCheck.busy,
+          execute: () => void projectCheck.checkAndSave(),
+        }}
         onOpenInstanceTable={() => setInstanceTableOpen(true)}
         onOpenNetlistPreflight={() => setNetlistPreflightOpen(true)}
         agentAction={
@@ -3982,6 +4028,7 @@ export function App({
             annotationCount: document.annotations.length,
             structuralDiagnosticCount:
               visualDiagnosticSummary.structural.length,
+            diagnosticCheckStatus: projectCheck.status,
             visualDiagnosticCount: visualDiagnosticSummary.observations.length,
             blockingDiagnosticCount: visualDiagnosticSummary.blockingCount,
           },
@@ -4159,7 +4206,9 @@ export function App({
             ? {
                 open: netlistPreflightOpen,
                 project,
-                electricalDiagnostics,
+                // The dialog only renders while open, so this IS the
+                // explicit check the author asked for.
+                electricalDiagnostics: requestElectricalDiagnostics(),
                 onClose: () => setNetlistPreflightOpen(false),
                 onNavigate: navigateToNetlistDiagnostic,
                 onNavigateElectrical: jumpToProjectDiagnostic,
@@ -4854,7 +4903,9 @@ export function App({
             onToggleHighlight: toggleHighlightedNet,
           }}
           diagnostics={{
-            snapshot: liveDiagnosticSnapshot,
+            snapshot: checkedSnapshot,
+            checkStatus: projectCheck.status,
+            checkError: projectCheck.result?.error ?? null,
             documentLabel: (documentId) =>
               project.documents.find((candidate) => candidate.id === documentId)
                 ?.name ?? documentId,
@@ -5418,6 +5469,7 @@ export function App({
         onWheelBehaviorChange={setWheelBehavior}
         zoomPercent={zoomPercent}
         issues={{
+          checkStatus: projectCheck.status,
           errorCount: issueCounts.errorCount,
           warningCount: issueCounts.warningCount,
           onOpen: openIssuesPanel,

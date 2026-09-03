@@ -5294,11 +5294,8 @@ test("surfaces and locates current-document ERC diagnostics", async ({
 }) => {
   await page.goto("/editor");
   await placeComponent(page, "resistor", { x: 380, y: 260 });
-  await openSelectionShelf(page);
-  await page
-    .getByRole("region", { name: "Project diagnostics" })
-    .locator("summary")
-    .click();
+  await page.getByTestId("check-and-save").click();
+  await expect(page.getByTestId("check-and-save")).toBeEnabled();
 
   await expect(page.getByTestId("project-diagnostics")).toContainText(
     "ERC_UNCONNECTED_PIN",
@@ -5319,16 +5316,13 @@ test("surfaces and locates current-document ERC diagnostics", async ({
   ).toBeVisible();
 });
 
-test("removes resolved live diagnostics and restores them through undo", async ({
+test("rechecks resolved diagnostics and invalidates them through undo", async ({
   page,
 }) => {
   await page.goto("/editor");
   await placeComponent(page, "resistor", { x: 380, y: 260 });
-  await openSelectionShelf(page);
-  await page
-    .getByRole("region", { name: "Project diagnostics" })
-    .locator("summary")
-    .click();
+  await page.getByTestId("check-and-save").click();
+  await expect(page.getByTestId("check-and-save")).toBeEnabled();
   const diagnostics = page.getByTestId("project-diagnostics");
   await expect(diagnostics).toContainText("ERC_UNCONNECTED_PIN");
 
@@ -5336,13 +5330,28 @@ test("removes resolved live diagnostics and restores them through undo", async (
     await page.getByTestId(`terminal-R1-${pinName}`).click({ button: "right" });
     await page.getByRole("button", { name: "Mark No Connect" }).click();
   }
+  await expect(page.getByTestId("statusbar-issues")).toHaveText(
+    "Check out of date",
+  );
+  await expect(page.locator(".diagnostic-marker")).toHaveCount(0);
+  await page.getByTestId("check-and-save").click();
+  await expect(page.getByTestId("check-and-save")).toBeEnabled();
   await expect(diagnostics).not.toContainText("ERC_UNCONNECTED_PIN");
   await expect(page.getByTestId("no-current-diagnostics")).toBeVisible();
 
   await page.keyboard.press("Control+z");
+  await expect(page.getByTestId("statusbar-issues")).toHaveText(
+    "Check out of date",
+  );
+  await page.getByTestId("check-and-save").click();
+  await expect(page.getByTestId("check-and-save")).toBeEnabled();
   await expect(diagnostics).toContainText("ERC_UNCONNECTED_PIN");
 
   await page.keyboard.press("Control+y");
+  await expect(page.getByTestId("statusbar-issues")).toHaveText(
+    "Check out of date",
+  );
+  await page.getByTestId("check-and-save").click();
   await expect(diagnostics).not.toContainText("ERC_UNCONNECTED_PIN");
 });
 
@@ -5352,11 +5361,8 @@ test("filters and navigates locator-backed visual diagnostics", async ({
   await page.goto("/editor");
   await placeComponent(page, "resistor", { x: 420, y: 300 });
   await placeComponent(page, "resistor", { x: 420, y: 300 });
-  await openSelectionShelf(page);
-  await page
-    .getByRole("region", { name: "Project diagnostics" })
-    .locator("summary")
-    .click();
+  await page.getByTestId("check-and-save").click();
+  await expect(page.getByTestId("check-and-save")).toBeEnabled();
 
   await page.getByTestId("diagnostic-observations-toggle").click();
   const diagnostics = page.getByTestId("project-diagnostics");

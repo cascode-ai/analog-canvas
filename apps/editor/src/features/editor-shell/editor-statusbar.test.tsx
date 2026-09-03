@@ -40,6 +40,7 @@ describe("editor statusbar", () => {
   });
 
   function statusbarWithIssues(issues: {
+    checkStatus?: import("../../app/project-check").ProjectCheckStatus;
     errorCount: number;
     warningCount: number;
     onOpen(): void;
@@ -86,6 +87,22 @@ describe("editor statusbar", () => {
     expect(markup).toContain("2 errors, 1 warning");
     expect(markup).toContain("Action required");
   });
+
+  it.each(["unchecked", "checking", "stale", "failed"] as const)(
+    "does not present %s evidence as a current verdict",
+    (checkStatus) => {
+      const markup = statusbarWithIssues({
+        checkStatus,
+        errorCount: 2,
+        warningCount: 3,
+        onOpen: vi.fn(),
+      });
+      expect(markup).toContain('data-severity="none"');
+      expect(markup).not.toContain("2 errors");
+      expect(markup).not.toContain("No issues");
+      expect(markup).toContain(`data-check-status="${checkStatus}"`);
+    },
+  );
 
   it("shows a warning-severity issues badge without errors", () => {
     const markup = statusbarWithIssues({
