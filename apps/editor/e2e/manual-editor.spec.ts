@@ -211,6 +211,13 @@ test("opens one digital simulation window and picks a Net from the canvas", asyn
   await expect(simulation.getByLabel("Saved Nets")).toContainText("None");
   await clickRoute(page, "route-simulation-pick", 0.5);
   await expect(simulation.getByLabel("Saved Nets")).toContainText("HORIZONTAL");
+  // A Net label names its Net as directly as the wire does, and its press
+  // is claimed by the same router that claims the wire's.
+  const clockLabel = page.getByTestId("annotation-hit-test-net-label-1");
+  await clockLabel.click();
+  await expect(simulation.getByLabel("Saved Nets")).toContainText("CK");
+  await clockLabel.click();
+  await expect(simulation.getByLabel("Saved Nets")).not.toContainText("CK");
   await page.keyboard.press("Escape");
   await expect(page.locator(".schematic-canvas")).not.toHaveClass(
     /simulation-net-pick-active/u,

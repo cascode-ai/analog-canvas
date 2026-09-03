@@ -43,6 +43,12 @@ export interface PointerDownFacts {
   readonly primaryInstanceId: string | null;
   /** A verb (rotate/copy/move/delete) was armed before a target was picked. */
   readonly armedVerbConsumesHit: boolean;
+  /**
+   * The Simulation panel is picking Nets from the canvas. A press then names
+   * the Net under it and does nothing else: no selection, no drag, and no
+   * verb, however one was armed.
+   */
+  readonly simulationPickNetsActive: boolean;
 }
 
 export type PointerDownAction =
@@ -112,6 +118,22 @@ export function resolvePointerDownAction(
   const hit = facts.hit;
   if (!hit) return { kind: "ignore", reason: "no hit under the pointer" };
   if (hit.kind === "handle") return { kind: "handle-passthrough" };
+
+  // Picking a Net for simulation reads the press for the Net it names: a
+  // conductor, a Junction, or a Net label. A part names nothing and is left
+  // alone, and so is a terminal pin, which carries no hit kind and keeps the
+  // circle handler that picks it. This used to live on the label element
+  // itself, which is how the label's pick was lost when that handler went.
+  if (facts.simulationPickNetsActive) {
+    if (
+      hit.kind === "route" ||
+      hit.kind === "annotation" ||
+      hit.kind === "junction"
+    ) {
+      return { kind: "simulation-pick", hitKind: hit.kind, id: hit.id };
+    }
+    return { kind: "ignore", reason: "picking Nets for simulation" };
+  }
 
   // An armed verb owns the press: the pointed-at object is acted on rather
   // than picked up or selected.
