@@ -3,6 +3,8 @@ import type {
   AgentHostSemanticIntentResult,
   AgentHostTransactionRequest,
   AgentOperationHost,
+  AgentAuthoringCommand,
+  AgentCommandPlan,
 } from "@icm/agent-adapter";
 import {
   rejectTransaction,
@@ -15,6 +17,7 @@ import type { CircuitProject, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
 import type { EditorDocumentController } from "../document/document-controller";
+import { planBrowserAgentCommand } from "./browser-agent-command";
 
 /**
  * Adapts a live {@link EditorDocumentController} to the
@@ -31,6 +34,18 @@ import type { EditorDocumentController } from "../document/document-controller";
  * or Worker. The session transport is layered on top in WP-WA4/WP-WA5.
  */
 export class BrowserAgentHost implements AgentOperationHost {
+  planAuthoringCommand(
+    documentId: string,
+    command: AgentAuthoringCommand,
+  ): AgentCommandPlan {
+    this.assertBound();
+    return planBrowserAgentCommand(
+      this.controller.project,
+      documentId,
+      this.controller.resolver,
+      command,
+    );
+  }
   private readonly boundProjectSessionId: string;
 
   constructor(

@@ -48,6 +48,7 @@ export const AgentFileResourceRequestSchema = z.discriminatedUnion(
         .min(1)
         .max(AGENT_FILE_RESOURCE_MAX_FILES),
       entryPath: z.string().min(1).max(512).optional(),
+      namingProfile: z.enum(["native", "cadence-bang"]).optional(),
     }),
     FileRequestBaseSchema.extend({
       operation: z.literal("inspect"),

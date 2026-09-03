@@ -1,5 +1,11 @@
 import { z } from "zod";
 import {
+  AgentAuthoringCommandSchema,
+  AgentSemanticIntentSchema,
+  AgentWireIntentSchema,
+  AgentSnapshotRequestSchema,
+} from "@icm/agent-adapter";
+import {
   AgentSessionError,
   AuthoringActionSchema,
   changedObjectIds,
@@ -19,13 +25,11 @@ import { exportFile, importFile } from "./file-operations.js";
 /**
  * The default MCP tool surface (ADR 0020): 12 compact tools. The full
  * typed edit union is deliberately NOT injected into tool descriptions; it is
- * reachable only through `advanced_transact` after reading the
- * `analog-canvas://contract/advanced-edits` resource in this session.
+ * available through `advanced_transact`; its full contract is an on-demand
+ * resource, not a session permission gate.
  */
 export interface ToolSessionState {
   client: AgentSessionClient;
-  hasReadAdvancedContract(): boolean;
-  markAdvancedContractRead(): void;
 }
 
 const ConnectArgs = z.strictObject({
@@ -67,6 +71,7 @@ const ImportFileArgs = z
     rootPath: z.string().min(1).optional(),
     entryPath: z.string().min(1).optional(),
     includePaths: z.array(z.string().min(1)).max(23).optional(),
+    namingProfile: z.enum(["native", "cadence-bang"]).optional(),
     candidateId: z.string().min(1).optional(),
   })
   .superRefine((value, context) => {
@@ -113,11 +118,17 @@ const InspectArgs = z.strictObject({
       name: z.string().min(1).optional(),
     }),
     z.strictObject({ kind: z.literal("diagnostics") }),
+    z.strictObject({ kind: z.literal("activity") }),
+    z.strictObject({
+      kind: z.literal("trace"),
+      ...AgentSnapshotRequestSchema.shape.traceNet.unwrap().shape,
+    }),
   ]),
   detail: z.enum(["compact", "full"]).optional(),
 });
 
 const SearchArgs = z.strictObject({
+  scope: z.enum(["document", "project"]).optional(),
   documentId: z.string().min(1).optional(),
   refresh: z.boolean().optional(),
   query: z.string().min(1),
@@ -141,12 +152,15 @@ const SearchArgs = z.strictObject({
 const ApplyActionsArgs = z.strictObject({
   documentId: z.string().min(1).optional(),
   actions: z.array(AuthoringActionSchema).min(1).max(256),
-  verify: z.boolean().optional(),
 });
 
 const AdvancedTransactArgs = z.strictObject({
   documentId: z.string().min(1).optional(),
-  edits: z.array(z.unknown()).min(1).max(256),
+  edits: z.array(z.unknown()).min(1).max(256).optional(),
+  structureEdits: z.array(z.unknown()).min(1).max(256).optional(),
+  wireIntent: AgentWireIntentSchema.optional(),
+  semanticIntent: AgentSemanticIntentSchema.optional(),
+  command: AgentAuthoringCommandSchema.optional(),
   dryRun: z.boolean().optional(),
 });
 
@@ -287,6 +301,9 @@ const TOOLS: readonly ToolEntry[] = [
                 action: parsed.action,
                 rootPath: parsed.rootPath!,
                 entryPath: parsed.entryPath!,
+                ...(parsed.namingProfile
+                  ? { namingProfile: parsed.namingProfile }
+                  : {}),
                 ...(parsed.includePaths
                   ? { includePaths: parsed.includePaths }
                   : {}),
@@ -319,11 +336,26 @@ const TOOLS: readonly ToolEntry[] = [
     definition: {
       name: "inspect",
       description:
-        "Read facts for one authorized document: overview, one object, net connectivity, or diagnostics. Refreshes by default so concurrent human edits are visible; detail:'full' returns complete instance/net projections.",
+        "Read a document, object, net connectivity, diagnostics, or recent MCP activity. Refreshes by default; detail:full returns the document Snapshot with appearance, formulas, interfaces, and project definitions.",
       inputSchema: jsonSchemaOf(InspectArgs),
     },
     handle: async (args, session) => {
       const parsed = InspectArgs.parse(args);
+      if (parsed.target.kind === "activity")
+        return {
+          transactions: session.client.recentTransactions(),
+          scope: "current-mcp-process",
+        };
+      if (parsed.target.kind === "trace")
+        return session.client.traceNet(
+          {
+            netId: parsed.target.netId,
+            ...(parsed.target.hierarchyPath
+              ? { hierarchyPath: parsed.target.hierarchyPath }
+              : {}),
+          },
+          parsed.documentId,
+        );
       const entry = await session.client.snapshot(parsed.documentId, {
         refresh: parsed.refresh ?? true,
       });
@@ -345,7 +377,7 @@ const TOOLS: readonly ToolEntry[] = [
     definition: {
       name: "search",
       description:
-        "Case-insensitive search over one authorized document. Refreshes by default; set refresh:false only for a deliberate cached lookup.",
+        "Case-insensitive search, including LaTeX, over one authorized document or scope:project. Results include documentId. Refreshes by default.",
       inputSchema: jsonSchemaOf(SearchArgs),
     },
     handle: async (args, session) => {
@@ -353,14 +385,31 @@ const TOOLS: readonly ToolEntry[] = [
       const entry = await session.client.snapshot(parsed.documentId, {
         refresh: parsed.refresh ?? true,
       });
+      const limit = parsed.limit ?? 20;
+      const entries = [entry];
+      if (parsed.scope === "project") {
+        const allowed = new Set((await session.client.status()).documentIds);
+        for (const document of entry.snapshot.project.documents) {
+          if (document.id !== entry.documentId && allowed.has(document.id))
+            entries.push(
+              await session.client.snapshot(document.id, {
+                refresh: parsed.refresh ?? true,
+              }),
+            );
+        }
+      }
       return {
         query: parsed.query,
-        hits: searchSnapshot(
-          entry,
-          parsed.query,
-          parsed.kinds as readonly SearchKind[] | undefined,
-          parsed.limit ?? 20,
-        ),
+        hits: entries
+          .flatMap((item) =>
+            searchSnapshot(
+              item,
+              parsed.query,
+              parsed.kinds as readonly SearchKind[] | undefined,
+              limit,
+            ).map((hit) => ({ ...hit, documentId: item.documentId })),
+          )
+          .slice(0, limit),
       };
     },
   },
@@ -368,14 +417,13 @@ const TOOLS: readonly ToolEntry[] = [
     definition: {
       name: "apply_actions",
       description:
-        "Apply one atomic batch of compact circuit actions. The Helper refreshes state, compiles to exactly one typed-edits transaction or one wireIntent, dry-runs it, and commits it with revision checks. Split create/wire phases and mixed edit/wire work across calls. Style: analog-canvas://reference/razavi-style; workflow: analog-canvas://reference/quickstart.",
+        "Apply one atomic edit batch, wire, GUI-planned command, or focus operation. Includes set-model, copy, transform, align, detach-move, unplace, reset-cell, Cell creation/rename/deletion, undo/redo. Split create/wire phases. Helper handles revisions; receipts contain authoritative changes and diagnostics. Examples: analog-canvas://reference/quickstart.",
       inputSchema: jsonSchemaOf(ApplyActionsArgs),
     },
     handle: async (args, session) => {
       const parsed = ApplyActionsArgs.parse(args);
       const report = await session.client.applyActions(parsed.actions, {
         ...(parsed.documentId ? { documentId: parsed.documentId } : {}),
-        verify: parsed.verify ?? true,
       });
       return report;
     },
@@ -384,22 +432,13 @@ const TOOLS: readonly ToolEntry[] = [
     definition: {
       name: "advanced_transact",
       description:
-        "Escape hatch: submit raw typed edits from the full edit union. Requires reading analog-canvas://contract/advanced-edits in this session first; it is not the standard workflow.",
+        "Submit exactly one API transaction form: edits, structureEdits, wireIntent, semanticIntent, or command. Helper supplies revisions and IDs. Read analog-canvas://contract/advanced-edits when unfamiliar with an edit; reading is advisory, not a permission gate.",
       inputSchema: jsonSchemaOf(AdvancedTransactArgs),
     },
     handle: async (args, session) => {
-      if (!session.hasReadAdvancedContract()) {
-        return new ToolFailure({
-          ok: false,
-          error: {
-            code: "ADVANCED_CONTRACT_NOT_READ",
-            message:
-              "read resource analog-canvas://contract/advanced-edits before using advanced_transact",
-          },
-        });
-      }
       const parsed = AdvancedTransactArgs.parse(args);
-      return session.client.advancedTransact(parsed.edits, {
+      const { documentId: _documentId, dryRun: _dryRun, ...payload } = parsed;
+      return session.client.advancedTransact(payload, {
         ...(parsed.documentId ? { documentId: parsed.documentId } : {}),
         ...(parsed.dryRun !== undefined ? { dryRun: parsed.dryRun } : {}),
       });

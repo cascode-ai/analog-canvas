@@ -39,6 +39,8 @@ import type {
   AgentSessionSnapshot,
   AgentTransactRequest,
 } from "./schema.js";
+import { AgentAuthoringCommandSchema } from "./authoring-command.js";
+import { buildProjectConnectivityIndex, traceHierarchyNet } from "@icm/derived";
 import {
   buildAgentSessionSnapshot,
   canonicalSnapshotContent,
@@ -161,6 +163,15 @@ export function agentEditCategory(
     case "set_instance_signal_flow_parameters":
       return "presentation";
     case "set_instance_netlist":
+    case "undo":
+    case "redo":
+    case "unplace_instance":
+    case "clear_cell_drawing":
+    case "reset_cell_placement":
+    case "reset_cell_body":
+    case "upsert_connectivity_evidence":
+    case "remove_connectivity_evidence":
+    case "set_property_terminal_net":
     case "set_instance_binding":
     case "bulk_patch_instance_netlist":
     case "create_cell_interface":
@@ -199,19 +210,6 @@ export function agentEditCategory(
     case "set_layout_constraint":
     case "remove_layout_constraint":
       return "presentation";
-    case "undo":
-    case "redo":
-    // The Placement Tray is a browser-editor lifecycle surface. Its edit is
-    // kept out of the retired Agent product even though the shared typed edit
-    // union must parse it for Project protocol completeness.
-    case "unplace_instance":
-    case "clear_cell_drawing":
-    case "reset_cell_placement":
-    case "reset_cell_body":
-    case "upsert_connectivity_evidence":
-    case "remove_connectivity_evidence":
-    case "set_property_terminal_net":
-      return "unsupported";
   }
 }
 
@@ -282,7 +280,7 @@ export function createAgentCircuitService(
       if (!parsed.success) {
         return parsed.response;
       }
-      const request = parsed.data;
+      let request = parsed.data;
       const fail = (
         operation: "error" | "snapshot" | "transact" | "render",
         code: string,
@@ -320,6 +318,18 @@ export function createAgentCircuitService(
             snapshotVersions: [AGENT_SNAPSHOT_VERSION],
             operations: OPERATIONS,
             editKinds: AGENT_EDIT_KINDS,
+            commandKinds: host?.planAuthoringCommand
+              ? AgentAuthoringCommandSchema.options.map(
+                  (option) => option.shape.kind.value,
+                )
+              : [],
+            transactionForms: [
+              "edits",
+              "wireIntent",
+              "structureEdits",
+              ...(semanticControl ? ["semanticIntent"] : []),
+              ...(host?.planAuthoringCommand ? ["command"] : []),
+            ],
             permissions: productionPermissions,
             limits,
             ...(fileResource ? { resources: { file: fileResource } } : {}),
@@ -400,10 +410,115 @@ export function createAgentCircuitService(
           revision: document.revision,
           snapshot,
           diagnostics: snapshot.document.diagnostics,
+          ...(request.traceNet
+            ? {
+                trace: (() => {
+                  if (!project) return null;
+                  const trace = traceHierarchyNet(
+                    buildProjectConnectivityIndex(project, resolver),
+                    document.id,
+                    request.traceNet.netId,
+                    undefined,
+                    request.traceNet.hierarchyPath ?? [],
+                  );
+                  return trace
+                    ? {
+                        highlights: trace.highlights.map(
+                          ({
+                            documentId,
+                            netId,
+                            hierarchyPath,
+                            routes,
+                            junctions,
+                            visibleEndpoints,
+                          }) => ({
+                            documentId,
+                            netId,
+                            hierarchyPath,
+                            routes,
+                            junctions,
+                            visibleEndpoints,
+                          }),
+                        ),
+                        hops: trace.hops,
+                      }
+                    : null;
+                })(),
+              }
+            : {}),
         });
       }
 
       if (request.operation === "transact") {
+        if (request.command) {
+          if (request.expectedRevision !== document.revision)
+            return fail(
+              "transact",
+              "STALE_REVISION",
+              "Refresh the document before planning",
+              document.revision,
+            );
+          if (!host?.planAuthoringCommand)
+            return fail(
+              "transact",
+              "COMMAND_HOST_REQUIRED",
+              "This operation needs the live editor planning adapter",
+              document.revision,
+            );
+          try {
+            const planned = host.planAuthoringCommand(
+              documentId,
+              request.command,
+            );
+            const { command: _command, ...base } = request;
+            if ("structureEdits" in planned) {
+              if (request.expectedStructureRevision === undefined)
+                return fail(
+                  "transact",
+                  "EDIT_PRECONDITION",
+                  "Structural commands require expectedStructureRevision",
+                  document.revision,
+                );
+              request = planned.structureEdits.length
+                ? { ...base, structureEdits: [...planned.structureEdits] }
+                : { ...base, edits: [{ kind: "noop" }] };
+            } else {
+              request = {
+                ...base,
+                edits: planned.edits.length
+                  ? [...planned.edits]
+                  : [{ kind: "noop" }],
+              };
+            }
+          } catch (error) {
+            return fail(
+              "transact",
+              "EDIT_PRECONDITION",
+              error instanceof Error ? error.message : String(error),
+              document.revision,
+            );
+          }
+        }
+        if (
+          request.edits?.some(
+            (edit) => edit.kind === "undo" || edit.kind === "redo",
+          )
+        ) {
+          if (!host)
+            return fail(
+              "transact",
+              "HISTORY_CONTEXT_REQUIRED",
+              "Undo/redo requires the editor's shared history",
+              document.revision,
+            );
+          if (!Object.values(options.permissions.edit).every(Boolean))
+            return fail(
+              "transact",
+              "PERMISSION_DENIED",
+              "Shared history requires all edit permissions",
+              document.revision,
+            );
+        }
         if (request.semanticIntent) {
           if (!options.permissions.semanticControl) {
             return fail(
@@ -574,7 +689,10 @@ export function createAgentCircuitService(
           const proposedDocument =
             result.proposedProject.documents.find(
               (item) => item.id === document.id,
-            ) ?? document;
+            ) ??
+            result.proposedProject.documents.find(
+              (item) => item.id === result.proposedProject.topDocumentId,
+            )!;
           const documentResults = result.documentResults.filter(
             (item) => item.ok,
           );
@@ -618,6 +736,10 @@ export function createAgentCircuitService(
               fromRevision: project.structureRevision,
               toRevision: result.proposedStructureRevision,
               changedDocumentIds: [...result.changedDocumentIds],
+              documentIds: result.proposedProject.documents.map(
+                (item) => item.id,
+              ),
+              topDocumentId: result.proposedProject.topDocumentId,
             },
           });
         }
@@ -734,29 +856,36 @@ export function createAgentCircuitService(
         // touched, so a caller learns the post-normalization polyline (e.g.
         // after set_route_path collapses collinear bends) without a
         // fresh Snapshot. dryRun reports the proposed geometry the same way.
+        const committedResolver =
+          result.applied && host ? host.getResolver() : resolver;
         const resolvedRoutes = collectResolvedRoutes(
           result.document,
-          resolver,
+          committedResolver,
           result.diff.changedObjectIds,
         );
-        const proposedProject = project
-          ? {
-              ...project,
-              documents: project.documents.map((candidate) =>
-                candidate.id === result.document.id
-                  ? result.document
-                  : candidate,
-              ),
-            }
+        const committedProject = result.applied
+          ? host?.getProject?.()
           : undefined;
+        const proposedProject =
+          committedProject ??
+          (project
+            ? {
+                ...project,
+                documents: project.documents.map((candidate) =>
+                  candidate.id === result.document.id
+                    ? result.document
+                    : candidate,
+                ),
+              }
+            : undefined);
         const diagnostics = proposedProject
           ? agentProjectDiagnostics(
               proposedProject,
-              resolver,
+              committedResolver,
               result.document.id,
               result.proposedRevision,
             )
-          : agentVisualDiagnostics(result.document, resolver);
+          : agentVisualDiagnostics(result.document, committedResolver);
         const beforeDiagnostics = project
           ? agentProjectDiagnostics(
               project,
@@ -778,6 +907,27 @@ export function createAgentCircuitService(
           revision: result.revision,
           proposedRevision: result.proposedRevision,
           diff: result.diff,
+          ...(committedProject &&
+          project &&
+          committedProject.structureRevision !== project.structureRevision
+            ? {
+                projectStructure: {
+                  fromRevision: project.structureRevision,
+                  toRevision: committedProject.structureRevision,
+                  documentIds: committedProject.documents.map(
+                    (item) => item.id,
+                  ),
+                  topDocumentId: committedProject.topDocumentId,
+                  changedDocumentIds: [
+                    ...new Set(
+                      [...project.documents, ...committedProject.documents].map(
+                        (item) => item.id,
+                      ),
+                    ),
+                  ],
+                },
+              }
+            : {}),
           diagnostics,
           diagnosticDelta: {
             added: diagnostics.filter(

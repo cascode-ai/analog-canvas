@@ -5,6 +5,7 @@ import {
   DocumentHistory,
   executeProjectTransaction,
   rejectTransaction,
+  diffDocumentObjectIds,
 } from "@icm/edit-engine";
 import type {
   EditActor,
@@ -331,6 +332,25 @@ export class EditorDocumentController {
         `Document ${request.documentId} is not present in the Project`,
       );
     }
+    const historyEdit =
+      request.edits.length === 1 ? request.edits[0] : undefined;
+    if (
+      historyEdit &&
+      (historyEdit.kind === "undo" || historyEdit.kind === "redo") &&
+      !(historyEdit.kind === "undo" ? history.canUndo : history.canRedo)
+    ) {
+      if (request.expectedRevision !== history.document.revision)
+        return rejectTransaction(
+          history.document,
+          "STALE_REVISION",
+          "Refresh before changing shared history",
+        );
+      return this.restoreProjectHistory(
+        historyEdit.kind,
+        request.documentId,
+        request.dryRun ?? false,
+      );
+    }
     let result: EditTransactionResult;
     try {
       result = history.transact(request);
@@ -385,7 +405,11 @@ export class EditorDocumentController {
     return result;
   }
 
-  private restoreProjectHistory(kind: "undo" | "redo"): EditTransactionResult {
+  private restoreProjectHistory(
+    kind: "undo" | "redo",
+    documentId = this.activeDocumentIdValue,
+    dryRun = false,
+  ): EditTransactionResult {
     const sourceStack =
       kind === "undo" ? this.projectUndoStack : this.projectRedoStack;
     const destinationStack =
@@ -413,6 +437,43 @@ export class EditorDocumentController {
           : structuredClone(document);
       }),
     });
+    const proposedDocument =
+      restored.documents.find((item) => item.id === documentId) ??
+      restored.documents.find((item) => item.id === restored.topDocumentId)!;
+    const previousDocument = before.documents.find(
+      (item) => item.id === documentId,
+    )!;
+    const documentIds = [
+      ...new Set(
+        [...before.documents, ...restored.documents].map((item) => item.id),
+      ),
+    ];
+    const changedIds = [
+      ...new Set(
+        documentIds.flatMap((id) =>
+          diffDocumentObjectIds(
+            before.documents.find((item) => item.id === id),
+            restored.documents.find((item) => item.id === id),
+          ),
+        ),
+      ),
+    ];
+    if (dryRun)
+      return {
+        ok: true,
+        applied: false,
+        revision: previousDocument.revision,
+        proposedRevision: proposedDocument.revision,
+        document: previousDocument,
+        diagnostics: [],
+        diff: {
+          documentId,
+          fromRevision: previousDocument.revision,
+          toRevision: proposedDocument.revision,
+          editKinds: [kind],
+          changedObjectIds: changedIds,
+        },
+      };
     sourceStack.pop();
     destinationStack.push({
       project: before,
@@ -429,7 +490,9 @@ export class EditorDocumentController {
       : restored.topDocumentId;
     this.resolverValue = createProjectSymbolResolver(restored, builtInSymbols);
     this.resetHistoriesFromProject();
-    const document = this.document;
+    const document =
+      restored.documents.find((item) => item.id === documentId) ??
+      this.document;
     return {
       ok: true,
       applied: true,
@@ -443,7 +506,7 @@ export class EditorDocumentController {
             ?.revision ?? document.revision,
         toRevision: document.revision,
         editKinds: [kind],
-        changedObjectIds: [],
+        changedObjectIds: changedIds,
       },
       diagnostics: [],
     };

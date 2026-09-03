@@ -20,6 +20,7 @@ export type ImportFileOperation =
       rootPath: string;
       entryPath: string;
       includePaths?: string[];
+      namingProfile?: "native" | "cadence-bang";
     }
   | {
       action: "inspect" | "discard" | "request-approval";
@@ -148,6 +149,9 @@ export async function importFile(
       kind: "structural-spice",
       files,
       entryPath: normalized[0]!.name,
+      ...(operation.namingProfile
+        ? { namingProfile: operation.namingProfile }
+        : {}),
     };
   } else {
     request = {

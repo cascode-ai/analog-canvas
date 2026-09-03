@@ -27,7 +27,9 @@ type ActionOfKind<K extends AuthoringAction["kind"]> = Extract<
  * sequence; each element is atomic on its own.
  */
 export interface CompiledTransaction {
-  form: "edits" | "wire-intent";
+  form: "edits" | "wire-intent" | "command" | "semantic";
+  command?: import("@icm/agent-adapter").AgentAuthoringCommand;
+  semanticIntent?: import("@icm/agent-adapter").AgentSemanticIntent;
   edits?: SchematicEdit[];
   wireIntent?: WireIntent;
   actionKinds: string[];
@@ -410,6 +412,33 @@ export function compileActions(
 
   parsed.data.forEach((action, index) => {
     switch (action.kind) {
+      case "set-model":
+      case "transform":
+      case "copy":
+      case "align":
+      case "detach-move":
+      case "unplace":
+      case "reset-cell":
+      case "create-cell":
+      case "rename-cell":
+      case "delete-cell":
+        transactions.push({
+          form: "command",
+          command: action,
+          actionKinds: [action.kind],
+        });
+        break;
+      case "focus":
+        transactions.push({
+          form: "semantic",
+          semanticIntent: action.intent,
+          actionKinds: [action.kind],
+        });
+        break;
+      case "undo":
+      case "redo":
+        pushEdit(index, action.kind, { kind: action.kind });
+        break;
       case "place-component":
         compilePlaceComponent(index, action, document, allocateId, pushEdit);
         break;
@@ -569,7 +598,7 @@ export function compileActions(
 
   return transactions.filter(
     (transaction) =>
-      transaction.form === "wire-intent" ||
+      transaction.form !== "edits" ||
       (transaction.edits !== undefined && transaction.edits.length > 0),
   );
 }
@@ -711,6 +740,7 @@ function compileConnect(
       return pin.connection.gridLanding;
     }
     const geometric = from.kind === "net" ? to : from;
+    if (geometric.kind === "route-segment") return geometric.point;
     if (geometric.kind === "point") {
       return { x: geometric.x, y: geometric.y };
     }
@@ -732,6 +762,7 @@ function compileConnect(
   })();
 
   const anchorFor = (target: ConnectTarget): Record<string, unknown> => {
+    if (target.kind === "route-segment") return target;
     if (target.kind === "pin") {
       const instance = resolveInstance(document, index, action.kind, {
         kind: "instance",
@@ -834,6 +865,8 @@ function compileConnect(
     from: anchorFor(from),
     to: anchorFor(to),
     ...(action.via ? { waypoints: action.via } : {}),
+    ...(action.routingMode ? { routingMode: action.routingMode } : {}),
+    ...(action.cornerOrder ? { cornerOrder: action.cornerOrder } : {}),
   });
 }
 

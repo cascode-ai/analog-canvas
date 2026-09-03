@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { SESSION_STATE_KEY } from "./agent-session-runtime";
 
 import {
   AGENT_SSE_KEEPALIVE_INTERVAL_MS,
@@ -358,7 +359,7 @@ describe("public Agent session routes", () => {
     expect(manifest).toMatchObject({
       format: AGENT_MCP_BOOTSTRAP_FORMAT,
       name: "analog-canvas",
-      version: "0.2.0",
+      version: "0.3.0",
       transport: "stdio",
       requirements: { node: ">=24.0.0" },
       fallback: {
@@ -367,7 +368,7 @@ describe("public Agent session routes", () => {
       },
     });
     expect(manifest.launch.args.join(" ")).toContain(
-      "analog-canvas-mcp-server-0.2.0.tgz",
+      "analog-canvas-mcp-server-0.3.0.tgz",
     );
     expect(manifest.hosts.codex.command).toContain("codex mcp add");
     expect(manifest.hosts.cursor.config.mcpServers["analog-canvas"]).toEqual(
@@ -596,9 +597,14 @@ describe("public Agent session routes", () => {
         sessionId: "session-heartbeat",
         kind: "heartbeat",
         nonce: "heartbeat-1",
+        projectId: "project",
+        documentIds: ["document-main", "new-cell"],
       }),
     );
 
+    expect(await storage.get(SESSION_STATE_KEY)).toMatchObject({
+      documentIds: ["document-main", "new-cell"],
+    });
     expect(send).toHaveBeenCalledOnce();
     expect(JSON.parse(send.mock.calls[0]![0] as string)).toEqual({
       protocolVersion: "1.0",

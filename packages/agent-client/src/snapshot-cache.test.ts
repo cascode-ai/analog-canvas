@@ -22,9 +22,10 @@ function cachedEntry(revision = 5): CachedSnapshot {
 }
 
 describe("snapshot cache", () => {
-  it("summarizes counts including response and document diagnostics", () => {
+  it("counts the authoritative response diagnostics once, not both projections", () => {
     const entry = cachedEntry();
     const extra: AgentDiagnostic[] = [
+      ...entry.snapshot.document.diagnostics,
       { code: "ERC_FLOATING", severity: "error", message: "floating pin" },
     ];
     const summary = snapshotSummary({ ...entry, diagnostics: extra });

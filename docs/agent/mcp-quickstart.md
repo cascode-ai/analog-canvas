@@ -1,54 +1,97 @@
 # Analog Canvas MCP quickstart
 
-Use the MCP tools as the only operational interface for this session. The
-Helper owns HTTP endpoints, bearer tokens, request IDs, revisions, Snapshot
-caching, dry runs, and exact-payload retries; do not reconstruct those requests
-manually.
-
 ## Connect and inspect
 
-1. Call `connect` with the Claim Code shown by the browser editor. The Helper
-   saves only the revocable connector credential; it never stores or returns
-   the short-lived bearer.
-2. Call `get_context`; provide `documentId` when the session authorizes more
-   than one Document.
-3. Read `analog-canvas://catalog/builtins` before placing a reviewed built-in
-   symbol. Read the other reference Resources only when the task needs them.
-4. Use `inspect` or `search` for current object, Net, routing, and diagnostic
-   facts. These tools refresh by default so concurrent human edits are visible.
+Call `connect` with the browser Claim Code once; omit it to resume the saved
+connector. The Helper owns HTTP endpoints, tokens, request IDs and revisions.
+Closing the browser details panel does not revoke the connection.
+Call `get_context` and read the built-in catalog before placing devices.
+Use `inspect` and `search` for IDs and pins, not screenshot coordinates.
 
-## Create and edit
+Production hides the Agent UI intentionally. Development/staging enables it
+with `VITE_ICM_AGENT_UI=enabled`.
 
-Use `apply_actions` for normal authoring. One call must compile to exactly one
-underlying atomic transaction:
+## Create and edit (MCP 0.3 / Kit 4)
 
-- group compatible placement/property/text edits in one call;
-- make each visible wire connection in its own call;
-- refresh between create and wire phases so newly created IDs and pin page
-  positions come from Snapshot;
-- use `connect.via` only for deliberate orthogonal interior points;
-- connect first, refresh, then use `rename` on the newly created Net.
+Use `apply_actions` for one atomic edit batch, wire, planned command or focus
+operation per call. Split create and wire phases so new pin geometry comes
+from Snapshot. The browser plans commands with the same planners as the GUI;
+all resulting edits use the existing controller, revision and permission checks.
 
-`connect` creates visible Route geometry. A Route ending on an existing Route
-segment uses the server-owned split/Junction behavior; do not fabricate Net or
-Junction membership from pixels.
+| Action                                        | Key arguments                                                                 |
+| --------------------------------------------- | ----------------------------------------------------------------------------- |
+| `set-model`                                   | `instanceId`, `model` (empty clears it)                                       |
+| `copy`                                        | `selection`, `offset:{x,y}`; internal wires and references follow GUI copy    |
+| `transform`                                   | `selection`, `transform:{kind:"rotate",degrees:90}`, mirror or translate      |
+| `align`                                       | `selection`, `mode:left/right/top/bottom/center-x/center-y`                   |
+| `detach-move`                                 | `instanceIds`, `delta`; wires stay behind                                     |
+| `unplace`                                     | `instanceIds`; retain electrical facts in Placement Tray                      |
+| `reset-cell`                                  | `mode:clear-drawing/reset-placement/reset-body`                               |
+| `create-cell` / `rename-cell` / `delete-cell` | Cell `id`, plus `name` for create/rename                                      |
+| `undo` / `redo`                               | Shared editor history, not a private Agent stack                              |
+| `focus`                                       | `intent`: select, highlight-net, activate-document, fit-document, clear-focus |
 
-Use `advanced_transact` only after reading
-`analog-canvas://contract/advanced-edits`, and only when the compact action
-surface cannot express a current operation.
+`selection` accepts `instanceIds`, `routeIds`, `junctionIds`,
+`annotationIds` and `draftingIds`; omitted lists are empty.
+Drafting quarter-turns match the GUI's in-place rotation; other drafting
+transforms use canonical `upsert_drafting_object` geometry rather than silently
+partially transforming a mixed selection.
+
+`connect` supports `via`, `routingMode:orthogonal/octilinear/free` and
+`cornerOrder`. A `route-segment` target uses the Route's stable `legId`
+and a `point`; the server owns splitting and Junction creation.
+Name Nets through labels/markers, never raw Base-Net fields.
+
+`advanced_transact` accepts exactly one of `edits`, `structureEdits`,
+`wireIntent`, `semanticIntent`, or `command`. The Helper supplies IDs and
+Document/Project revisions. Read `analog-canvas://contract/advanced-edits`
+when unfamiliar with a payload; reading is advisory, not a permission gate.
+Nested `transact_document` entries use their target Document revisions.
+
+Colors use existing `set_instance_style_override`, `set_route_style_override`,
+`set_presentation_style` and annotation `textColor` edits. Full inspection
+returns these fields, `signalFlowParameters`, Cell interfaces, and external
+Model definitions. Netlist parameter values are strings, for example `"1u"`.
+
+`annotate` and `edit-text` accept plain text or canonical RichText:
+
+```json
+{
+  "kind": "annotate",
+  "position": { "x": 200, "y": 100 },
+  "text": {
+    "runs": [{ "kind": "math", "latex": "\\frac{g_m}{C}", "display": "inline" }]
+  }
+}
+```
 
 ## Verify and recover
 
-After editing, call `verify`, then `render` when visual review matters. On
-`STATE_CHANGED`, inspect the reported objects and re-plan; never replay a
-changed payload. `EDITOR_OFFLINE` means the authorized browser is not attached.
+Mutation receipts already include authoritative changed objects, edit kinds,
+diagnostics and diagnostic deltas. Do not reconstruct the change from a partial
+Snapshot or count the same diagnostics twice. Use `verify` for a fresh check
+when needed and `render` when visual review matters. On `STATE_CHANGED`,
+refresh and re-plan; never blindly replay a changed payload.
 
-Calling `connect` without a Claim Code resumes the saved connector across MCP
-process restarts and refreshes the bearer automatically. `disconnect` revokes
-the browser session and removes the local connector. Closing the editor's
-details panel does neither.
+`inspect` with `detail:"full"` returns complete Document facts.
+`target:{kind:"activity"}` returns recent successful receipts in the current
+MCP process, not persistent history or other people's edits.
+`search` with `scope:"project"` searches currently authorized Cells.
+`inspect` with `target:{kind:"trace",netId:"…"}` returns the GUI's canonical
+cross-Cell/global-Net trace. Supply `hierarchyPath` for a particular reused
+Cell occurrence; do not infer cross-Cell connectivity from names yourself.
 
-Use `export_file` to write an authorized Project/SVG/PNG/PDF to an explicit
-local path. Use `import_file` to stage a Project or structural SPICE bundle;
-inspect it and request approval, but never describe staging as an import until
-the browser user approves the replacement.
+`disconnect` revokes the session. A Project replacement invalidates the old
+binding. Newly created/deleted Cells are synchronized by the trusted browser,
+without requiring another claim exchange.
+
+## Files and boundaries
+
+`export_file` writes Project/SVG/PNG/PDF to an explicit local path.
+`import_file` stages a Project or structural SPICE bundle; inspect it and
+request browser approval. Staging is not a completed import.
+For Cadence globals, use `action:"stage-spice", namingProfile:"cadence-bang"`.
+
+Exporting a Project file is not Cloud Save or Gallery publication. Account
+operations, simulation, waveforms, PVT and netlist export are outside this
+Agent feature increment.

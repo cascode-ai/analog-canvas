@@ -63,6 +63,28 @@ assets, whose deterministic default visual variant is
 
 ## Mutation safety
 
+MCP 0.3 / Kit 4 retain API and Snapshot version 2.0. Additive Snapshot fields
+include Instance `styleOverride` and `signalFlowParameters`, Cell interfaces
+and bulk defaults, and Project external definitions. Local and production
+codecs now reference one schema rather than independently maintained copies.
+
+`transact.command` is a mutually exclusive alternative for Model switching,
+Cell lifecycle, copy, alignment and selection transforms. The browser reuses
+GUI/shared planners; resulting edits still pass through the same revision,
+permission and controller boundary. `capabilities` advertises supported
+`commandKinds` and `transactionForms`. Structural commands require
+`expectedStructureRevision`.
+
+Undo/redo uses the shared browser Document/Project history and requires all
+edit permissions. Dry-run does not advance history; there is no private Agent
+stack or last-Agent-only undo guarantee. Transaction receipts retain the
+server's diff, diagnostic delta, and diagnostic locators.
+
+Optional `snapshot.traceNet` requests cross-Cell/global-Net tracing from the
+same Project Connectivity Index used by the GUI; the result is read-only
+`trace` evidence. It is not a fifth Circuit operation or a client-side Net
+inference algorithm.
+
 - Ordinary edits target one Document and one `expectedRevision`. Add/remove
   Cell and formal-interface work uses `structureEdits` plus one
   `expectedStructureRevision`; nested Document changes still carry their exact
@@ -83,10 +105,10 @@ do not replay a changed or obsolete transaction.
 
 Agent Snapshots expose resolved Logical Nets, so lookup and inspection use the
 same names, scopes, power roles, and conflicts as the GUI, ERC, and export
-paths. Naming remains marker-owned: the Agent API does not expose raw Base-Net
-name, scope, power-role, or Evidence mutation. A future reviewed marker action
-may author the same owner-addressed Net Marker operation as the GUI without
-adding a second Net-renaming protocol.
+paths. Naming remains marker-owned: raw Base-Net name/scope/power-role writes
+are not a naming API. Existing typed Evidence and non-graphical terminal-Net
+edits are available for GUI copy/property parity; they retain Edit Engine
+validation and do not create an alternate naming authority.
 
 Every Snapshot `net.id` and every `netId` reference to it is a deterministic
 Logical-Net representative scoped to that Snapshot Document revision. It is

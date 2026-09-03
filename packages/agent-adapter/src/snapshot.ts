@@ -182,6 +182,9 @@ function projectIndex(options: BuildAgentSessionSnapshotOptions) {
     name: options.project?.name ?? options.document.name,
     structureRevision: options.project?.structureRevision ?? 0,
     topDocumentId: options.project?.topDocumentId ?? options.document.id,
+    externalSubcircuitDefinitions: structuredClone(
+      options.project?.externalSubcircuitDefinitions ?? [],
+    ),
     documents: [...documents]
       .sort((left, right) => left.id.localeCompare(right.id, "en"))
       .map((document) => ({
@@ -274,6 +277,16 @@ function documentSnapshot(
         target,
         model,
         parameters,
+        ...(instance.styleOverride
+          ? { styleOverride: structuredClone(instance.styleOverride) }
+          : {}),
+        ...(instance.signalFlowParameters
+          ? {
+              signalFlowParameters: structuredClone(
+                instance.signalFlowParameters,
+              ),
+            }
+          : {}),
         ...(instance.netlist
           ? {
               netlist: {
@@ -404,6 +417,10 @@ function documentSnapshot(
         }
       : {}),
     bounds,
+    ...(document.netlist ? { netlist: structuredClone(document.netlist) } : {}),
+    ...(document.mosBulkDefaults
+      ? { mosBulkDefaults: structuredClone(document.mosBulkDefaults) }
+      : {}),
     presentation: structuredClone(document.presentation),
     cellInterface: document.netlist
       ? {

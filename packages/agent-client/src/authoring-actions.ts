@@ -1,5 +1,9 @@
 import { z } from "zod";
 import { RichTextDocumentSchema } from "@icm/model";
+import {
+  AgentAuthoringCommandSchema,
+  AgentSemanticIntentSchema,
+} from "@icm/agent-adapter";
 
 /**
  * Compact high-level actions accepted by `apply_actions`. They are a projection
@@ -74,6 +78,12 @@ const PinTargetSchema = z.strictObject({
   pin: z.string().min(1),
 });
 const ConnectTargetSchema = z.discriminatedUnion("kind", [
+  z.strictObject({
+    kind: z.literal("route-segment"),
+    routeId: z.string().min(1),
+    legId: z.string().min(1),
+    point: PointInputSchema,
+  }),
   PinTargetSchema,
   z.strictObject({ kind: z.literal("net"), net: z.string().min(1) }),
   z.strictObject({ kind: z.literal("junction"), junction: z.string().min(1) }),
@@ -90,6 +100,13 @@ const TextInputSchema = z.union([
 ]);
 
 export const AuthoringActionSchema = z.discriminatedUnion("kind", [
+  ...AgentAuthoringCommandSchema.options,
+  z.strictObject({
+    kind: z.literal("focus"),
+    intent: AgentSemanticIntentSchema,
+  }),
+  z.strictObject({ kind: z.literal("undo") }),
+  z.strictObject({ kind: z.literal("redo") }),
   z.strictObject({
     kind: z.literal("place-component"),
     /** Reviewed built-in Razavi symbol ID from the authoring catalog. */
@@ -114,6 +131,10 @@ export const AuthoringActionSchema = z.discriminatedUnion("kind", [
     to: ConnectTargetSchema,
     /** Optional orthogonal interior points for the visible wire. */
     via: z.array(PointInputSchema).max(256).optional(),
+    routingMode: z.enum(["orthogonal", "octilinear", "free"]).optional(),
+    cornerOrder: z
+      .enum(["auto", "diagonal-first", "orthogonal-first"])
+      .optional(),
   }),
   z.strictObject({
     kind: z.literal("disconnect"),
@@ -150,9 +171,7 @@ export const AuthoringActionSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("set-property"),
     target: InstanceRefSchema,
-    set: z
-      .record(z.string().min(1), z.union([z.string(), z.number(), z.boolean()]))
-      .optional(),
+    set: z.record(z.string().min(1), z.string().min(1).max(1024)).optional(),
     unset: z.array(z.string().min(1)).max(64).optional(),
   }),
   z.strictObject({

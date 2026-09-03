@@ -13,10 +13,15 @@ import type {
   ProjectTransaction,
   ProjectTransactionResult,
   SchematicEdit,
+  ProjectStructureEdit,
 } from "@icm/edit-engine";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
-import type { AgentSemanticIntent } from "./schema.js";
+import type { AgentSemanticIntent, AgentAuthoringCommand } from "./schema.js";
+
+export type AgentCommandPlan =
+  | { edits: readonly SchematicEdit[] }
+  | { structureEdits: readonly ProjectStructureEdit[] };
 
 /** An Agent transaction submitted to the host. The actor is always an Agent. */
 export interface AgentHostTransactionRequest {
@@ -52,6 +57,11 @@ export type AgentHostSemanticIntentResult =
  * construction-time state. `dispatchTransaction` is the only write path.
  */
 export interface AgentOperationHost {
+  /** Pure GUI/shared-planner adapter. It never commits or changes selection. */
+  planAuthoringCommand?(
+    documentId: string,
+    command: AgentAuthoringCommand,
+  ): AgentCommandPlan;
   getDocument(documentId: string): SchematicDocument | null;
   getProject?(): CircuitProject;
   getResolver(): SymbolResolver;

@@ -17,14 +17,7 @@ async function toolSession(
   const client = new AgentSessionClient({
     http,
   });
-  let advancedRead = false;
-  const session: ToolSessionState = {
-    client,
-    hasReadAdvancedContract: () => advancedRead,
-    markAdvancedContractRead: () => {
-      advancedRead = true;
-    },
-  };
+  const session: ToolSessionState = { client };
   return { session, http };
 }
 
@@ -222,7 +215,6 @@ describe("mcp tool surface", () => {
     const result = await callTool(
       "apply_actions",
       {
-        verify: false,
         actions: [
           {
             kind: "connect",
@@ -287,29 +279,9 @@ describe("mcp tool surface", () => {
     expect(http.circuitCalls.length).toBe(calls + 1);
   });
 
-  it("gates advanced_transact on reading the contract resource", async () => {
+  it("allows advanced transactions without a resource-read ceremony", async () => {
     const { session, http } = await toolSession();
     await callTool("connect", { claimCode: "session-1.code" }, session);
-    const calls = http.circuitCalls.length;
-    const denied = await callTool(
-      "advanced_transact",
-      {
-        edits: [
-          {
-            kind: "move_instance",
-            instanceId: "instance-1",
-            position: { x: 1, y: 2 },
-          },
-        ],
-      },
-      session,
-    );
-    expect(denied.isError).toBe(true);
-    expect(parseText(denied)).toMatchObject({
-      error: { code: "ADVANCED_CONTRACT_NOT_READ" },
-    });
-    expect(http.circuitCalls.length).toBe(calls);
-    session.markAdvancedContractRead();
     http.circuitHandler = async ({ request }) => {
       switch (request.operation) {
         case "transact":

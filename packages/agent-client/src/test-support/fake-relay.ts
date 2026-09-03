@@ -59,7 +59,7 @@ export function snapshotResponse(
     ok: true,
     revision,
     snapshot,
-    diagnostics: [],
+    diagnostics: snapshot.document.diagnostics,
   };
 }
 

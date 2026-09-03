@@ -456,6 +456,19 @@ export class AgentSessionMachine {
       : { ok: false, code: "TOKEN_SCOPE_INSUFFICIENT" };
   }
 
+  /** Only the trusted browser transport calls this, never an Agent request. */
+  updateEditorDocuments(
+    projectId: string,
+    documentIds: readonly string[],
+  ): boolean {
+    if (projectId !== this.internals.projectId || documentIds.length === 0)
+      return false;
+    const next = [...new Set(documentIds)].sort();
+    if (JSON.stringify(next) === JSON.stringify(this.documentIds)) return false;
+    this.internals.documentIds = new Set(next);
+    return true;
+  }
+
   /**
    * Begin a forwarded request: reject on pause/revoke/expiry/rate-limit, serve a
    * cached terminal result for a repeated `requestId`, or allow the forward to

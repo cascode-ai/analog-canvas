@@ -145,6 +145,15 @@ export class AgentSessionDO {
       control.data.sessionId === machine.sessionId &&
       control.data.kind === "heartbeat"
     ) {
+      if (
+        control.data.projectId &&
+        control.data.documentIds &&
+        machine.updateEditorDocuments(
+          control.data.projectId,
+          control.data.documentIds,
+        )
+      )
+        await this.persist();
       socket.send(
         JSON.stringify({
           protocolVersion: AGENT_SESSION_PROTOCOL_VERSION,

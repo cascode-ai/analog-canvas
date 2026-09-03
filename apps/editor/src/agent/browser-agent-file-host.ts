@@ -243,6 +243,8 @@ export class BrowserAgentFileHost {
         const result = await importSpiceSources(
           decoded.files.map((file) => ({ path: file.name, bytes: file.bytes })),
           entryPath,
+          {},
+          { namingProfile: request.namingProfile ?? "native" },
         );
         diagnostics = result.diagnostics.flatMap((item) =>
           item.severity === "warning" || item.severity === "error"
