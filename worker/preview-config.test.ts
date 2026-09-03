@@ -37,32 +37,38 @@ describe("the preview channel configuration (ADR 0057)", () => {
     // Two more hostnames would be two more unlisted doors to the same build.
     expect(preview.workers_dev).toBe(false);
     expect(preview.preview_urls).toBe(false);
-    // And it must never name the production domain, inherited or written.
-    expect(JSON.stringify(preview)).not.toContain(
+    // The production domain appears once, as the origin gallery reads are
+    // fetched from; never as a route this Worker would answer for.
+    expect(preview.vars?.ICM_GALLERY_UPSTREAM).toBe(
+      "https://analog-canvas.tokenzhang.com",
+    );
+    expect(JSON.stringify(preview.routes)).not.toContain(
       "analog-canvas.tokenzhang.com",
     );
+    // No environments inside this file: nothing to inherit, nothing to forget.
     expect(preview.env).toBeUndefined();
   });
 
   it("declares its channel, and production declares none", () => {
     expect(preview.vars?.ICM_CHANNEL).toBe("preview");
     expect(production.vars?.ICM_CHANNEL).toBeUndefined();
+    expect(production.vars?.ICM_GALLERY_UPSTREAM).toBeUndefined();
   });
 
-  it("reads the production gallery and owns everything else", () => {
-    const bindings = new Map(
-      preview.durable_objects!.bindings.map((binding) => [
-        binding.name,
-        binding,
-      ]),
+  it("binds no Durable Object of the production script", () => {
+    // A binding has no read-only mode, and this Worker runs code production
+    // has not accepted yet. Gallery reads go over HTTP to the public API
+    // instead; accounts, sessions, gallery store, and analytics are the
+    // preview's own, and every bound class has its migration.
+    const bindings = preview.durable_objects!.bindings;
+    for (const binding of bindings) {
+      expect(binding.script_name, binding.name).toBeUndefined();
+    }
+    const migrated = new Set(
+      preview.migrations?.flatMap((m) => m.new_sqlite_classes ?? []),
     );
-    expect(bindings.get("GALLERY")).toEqual({
-      name: "GALLERY",
-      class_name: "GalleryDO",
-      script_name: "interactive-circuit-maker",
-    });
-    for (const own of ["ANALYTICS", "AGENT_SESSION", "AUTH"]) {
-      expect(bindings.get(own)?.script_name, own).toBeUndefined();
+    for (const binding of bindings) {
+      expect(migrated.has(binding.class_name), binding.class_name).toBe(true);
     }
   });
 
@@ -76,11 +82,6 @@ describe("the preview channel configuration (ADR 0057)", () => {
       "./containers/ngspice/Dockerfile",
     );
     expect(preview.containers?.[0]?.max_instances).toBe(1);
-    expect(
-      preview.migrations?.some((migration) =>
-        migration.new_sqlite_classes?.includes("NgspiceContainer"),
-      ),
-    ).toBe(true);
     // Production has no container yet: it arrives with a promoted release.
     expect(
       production.durable_objects?.bindings.some((b) => b.name === "NGSPICE"),

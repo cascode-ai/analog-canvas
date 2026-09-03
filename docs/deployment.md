@@ -84,8 +84,9 @@ channels built from one artifact: the **preview**, its own Worker at
 and deployed by `.github/workflows/deploy-preview.yml` on every merge to
 `main`; and **production**, which will deploy only from a release once the
 preview is verified live. The preview is public but `noindex`, has no login,
-reads the production gallery and refuses every write to it, and is where the
-simulation container is bound first. Nothing in the preview file inherits from
+reads the gallery through the public site's own API with no cookie, binds
+no Durable Object of the production script, refuses every gallery and
+Cloud Project write, and is where the simulation container is bound first. Nothing in the preview file inherits from
 `wrangler.jsonc`, which is the whole point of it being a separate file. The
 staging environment below is retired once production moves to release-only
 deploys.

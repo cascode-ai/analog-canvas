@@ -20,6 +20,12 @@
   "vars": {
     // Read by worker/channel.ts and, through /api/channel, by the editor.
     "ICM_CHANNEL": "preview",
+    // Where the preview reads the gallery from: the public site's own public
+    // API, over HTTP, exactly as any anonymous visitor would. No Durable
+    // Object of the production script is bound here, because a binding has
+    // no read-only mode and this Worker runs code production has not
+    // accepted yet. Writes never leave this Worker (see channel.ts).
+    "ICM_GALLERY_UPSTREAM": "https://analog-canvas.tokenzhang.com",
   },
   "assets": {
     "binding": "ASSETS",
@@ -33,14 +39,11 @@
     "bindings": [
       { "name": "ANALYTICS", "class_name": "AnalyticsDO" },
       { "name": "AGENT_SESSION", "class_name": "AgentSessionDO" },
-      // The production gallery, live. worker/channel.ts refuses every write
-      // to it while the channel is preview, so an unreleased build can read
-      // real circuits and never change one.
-      {
-        "name": "GALLERY",
-        "class_name": "GalleryDO",
-        "script_name": "interactive-circuit-maker",
-      },
+      // The preview's own, empty gallery store. Gallery reads are served from
+      // the public site through ICM_GALLERY_UPSTREAM instead; this binding
+      // exists so the route module has something to hand a write to, and the
+      // channel rules refuse every write before it gets that far.
+      { "name": "GALLERY", "class_name": "GalleryDO" },
       // The preview's own accounts: nobody signs in here, and no login
       // provider is configured, so this namespace stays empty by design.
       { "name": "AUTH", "class_name": "AuthDO" },
@@ -53,7 +56,8 @@
     { "tag": "v1", "new_sqlite_classes": ["AnalyticsDO"] },
     { "tag": "v2", "new_sqlite_classes": ["AgentSessionDO"] },
     { "tag": "v3", "new_sqlite_classes": ["AuthDO"] },
-    { "tag": "v4", "new_sqlite_classes": ["NgspiceContainer"] },
+    { "tag": "v4", "new_sqlite_classes": ["GalleryDO"] },
+    { "tag": "v5", "new_sqlite_classes": ["NgspiceContainer"] },
   ],
   "containers": [
     {

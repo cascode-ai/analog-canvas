@@ -11,6 +11,12 @@ export type ReleaseChannel = "production" | "preview";
 export interface ChannelEnv {
   /** "preview" on the preview Worker; production leaves it unset. */
   ICM_CHANNEL?: string;
+  /**
+   * The public site's origin, set only on the preview: gallery reads are
+   * fetched from there over HTTP, so the preview can do to real data exactly
+   * what an anonymous visitor can, and nothing more.
+   */
+  ICM_GALLERY_UPSTREAM?: string;
 }
 
 export function releaseChannel(env: ChannelEnv): ReleaseChannel {
@@ -50,6 +56,58 @@ export function previewWriteRefusal(
     },
     { status: 403, headers: { "cache-control": "no-store" } },
   );
+}
+
+/**
+ * Serve a gallery read on the preview from the public site's own API.
+ *
+ * A Durable Object binding to the production script would have been simpler
+ * and would have handed unreleased code a namespace with no read-only mode.
+ * Fetching the public API instead is read-only by construction: the request
+ * carries no cookie, so it is an anonymous visitor's view, and every write
+ * has already been refused by `previewWriteRefusal` before this runs.
+ */
+export async function previewGalleryReadThrough(
+  request: Request,
+  env: ChannelEnv,
+  fetchLike: typeof fetch = fetch,
+): Promise<Response | null> {
+  if (releaseChannel(env) !== "preview") return null;
+  if (request.method !== "GET" && request.method !== "HEAD") return null;
+  const url = new URL(request.url);
+  if (!url.pathname.startsWith("/api/gallery")) return null;
+  const upstream = env.ICM_GALLERY_UPSTREAM;
+  if (!upstream) {
+    return Response.json(
+      {
+        error: "preview-gallery-unconfigured",
+        message: "This preview has no gallery upstream configured.",
+      },
+      { status: 503, headers: { "cache-control": "no-store" } },
+    );
+  }
+  const target = new URL(url.pathname + url.search, upstream);
+  let response: Response;
+  try {
+    response = await fetchLike(target.toString(), {
+      method: request.method,
+      headers: { accept: request.headers.get("accept") ?? "*/*" },
+      redirect: "manual",
+    });
+  } catch (error) {
+    return Response.json(
+      {
+        error: "preview-gallery-unavailable",
+        message: error instanceof Error ? error.message : String(error),
+      },
+      { status: 502, headers: { "cache-control": "no-store" } },
+    );
+  }
+  const headers = new Headers();
+  const contentType = response.headers.get("content-type");
+  if (contentType) headers.set("content-type", contentType);
+  headers.set("cache-control", "no-store");
+  return new Response(response.body, { status: response.status, headers });
 }
 
 /** A preview is public but not for finding: nothing on it is listed. */

@@ -19,6 +19,7 @@ import { stagingAccessGate, type StagingEnv } from "./staging-gate";
 import {
   channelResponse,
   markPreviewResponse,
+  previewGalleryReadThrough,
   previewRobotsResponse,
   previewWriteRefusal,
   releaseChannel,
@@ -132,6 +133,8 @@ async function route(request: Request, env: Env): Promise<Response> {
   }
   const readOnlyRefusal = previewWriteRefusal(request, env);
   if (readOnlyRefusal) return readOnlyRefusal;
+  const galleryReadThrough = await previewGalleryReadThrough(request, env);
+  if (galleryReadThrough) return galleryReadThrough;
 
   const agentResponse = await routeAgentSessionRequest(request, env);
   if (agentResponse) return agentResponse;

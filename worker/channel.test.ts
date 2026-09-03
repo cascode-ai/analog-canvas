@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   channelResponse,
   markPreviewResponse,
+  previewGalleryReadThrough,
   previewRobotsResponse,
   previewWriteRefusal,
   releaseChannel,
@@ -63,6 +64,64 @@ describe("release channel", () => {
     expect(
       previewWriteRefusal(req("/api/gallery/submissions", "POST"), {}),
     ).toBeNull();
+  });
+
+  it("serves gallery reads from the public site, as an anonymous visitor", async () => {
+    const env = {
+      ICM_CHANNEL: "preview",
+      ICM_GALLERY_UPSTREAM: "https://public.test",
+    };
+    const seen: { url: string; init: RequestInit }[] = [];
+    const fetchLike = (async (url: string, init: RequestInit) => {
+      seen.push({ url, init });
+      return new Response(JSON.stringify({ entries: [] }), {
+        status: 200,
+        headers: { "content-type": "application/json", "set-cookie": "x=1" },
+      });
+    }) as unknown as typeof fetch;
+    const request = new Request("https://preview.test/api/gallery?page=2", {
+      headers: { cookie: "icm_session=secret", accept: "application/json" },
+    });
+    const response = await previewGalleryReadThrough(request, env, fetchLike);
+    expect(response?.status).toBe(200);
+    expect(await response!.json()).toEqual({ entries: [] });
+    // Same path and query on the public origin; the visitor's cookie never
+    // travels, and the upstream's own cookie never comes back.
+    expect(seen[0]?.url).toBe("https://public.test/api/gallery?page=2");
+    expect(new Headers(seen[0]?.init.headers).get("cookie")).toBeNull();
+    expect(response?.headers.get("set-cookie")).toBeNull();
+    expect(response?.headers.get("cache-control")).toBe("no-store");
+  });
+
+  it("reads through only on the preview, only for gallery reads", async () => {
+    const env = {
+      ICM_CHANNEL: "preview",
+      ICM_GALLERY_UPSTREAM: "https://public.test",
+    };
+    const never = (async () => {
+      throw new Error("must not be called");
+    }) as unknown as typeof fetch;
+    expect(
+      await previewGalleryReadThrough(req("/api/gallery"), {}, never),
+    ).toBeNull();
+    expect(
+      await previewGalleryReadThrough(req("/api/projects/p1"), env, never),
+    ).toBeNull();
+    expect(
+      await previewGalleryReadThrough(
+        req("/api/gallery/x/like", "POST"),
+        env,
+        never,
+      ),
+    ).toBeNull();
+    // A preview with no upstream says so instead of showing its empty store
+    // as if it were the gallery.
+    const unconfigured = await previewGalleryReadThrough(
+      req("/api/gallery"),
+      { ICM_CHANNEL: "preview" },
+      never,
+    );
+    expect(unconfigured?.status).toBe(503);
   });
 
   it("keeps the preview out of search engines", async () => {

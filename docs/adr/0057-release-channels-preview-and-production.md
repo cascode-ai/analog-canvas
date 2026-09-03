@@ -47,15 +47,19 @@ or a manual dispatch naming a commit. Either way the commit must have a
 green preview deploy behind it. The existing rollback and re-verification
 stay.
 
-**Data.** The preview reads the production gallery live, through a Durable
-Object binding that names the production script (`script_name`), and it is
-read-only toward everything it shares: publishing, liking, moderation, and
-Cloud Project saves are refused on the preview with `preview-read-only`.
-Accounts, agent sessions, and analytics are the preview's own namespaces,
-and no login provider is configured there, so the preview has no sign-in.
-The Durable Object code that runs against shared data is production's: a
-change inside a Durable Object class cannot be previewed here and ships
-through production with its own tests and migration.
+**Data.** The preview binds no Durable Object of the production script.
+Gallery reads are fetched from the public site's own API over HTTP, with no
+cookie, so the preview sees exactly what an anonymous visitor sees and can
+do nothing an anonymous visitor cannot: that is read-only by construction,
+not by a rule in the very code being previewed. Publishing, liking,
+moderation, and Cloud Project saves are refused on the preview with
+`preview-read-only` before any handler runs. Accounts, sessions, agent
+sessions, analytics, and the preview's own (empty) gallery store are its own
+namespaces; no login provider is configured there, so the preview has no
+sign-in. Session cookies are host-only, so a visitor to the preview never
+carries a production session either. What the preview cannot show is a
+change inside a Durable Object class; that ships through production with
+its own tests and migration.
 
 **Simulation.** The ngspice container is bound on the preview and not yet on
 production. The preview is where the simulation feature lands and is tried;
@@ -89,6 +93,16 @@ deleted. Until then "merge to `main` deploys production" still holds.
 - Costs: every inheritable key is a hazard that only human memory guards.
 - Reason not selected: it took the public site down on 2026-09-03.
 
+### A Durable Object binding to the production gallery (`script_name`)
+
+- Benefits: one live store, no proxy hop, every gallery view identical.
+- Costs: a binding has no read-only mode; unreleased code would hold write
+  capability over real submissions, and the same mechanism would have
+  handed it the accounts and sessions store.
+- Reason not selected: the preview exists to run unaccepted code, so its
+  reach into real data must be bounded by construction, not by a check in
+  that code.
+
 ### An access-gated staging (Cloudflare Access or a Worker gate)
 
 - Benefits: unreleased work stays private.
@@ -114,13 +128,15 @@ deleted. Until then "merge to `main` deploys production" still holds.
 - Two Workers to pay for, including container time on the preview.
 - A hotfix to production goes through a tag like any release; when `main`
   carries unreleased work, that work ships dark behind the channel flag.
-- Durable Object changes cannot be previewed against shared data.
+- Durable Object changes cannot be previewed; the preview's gallery view is
+  the public API's view, one HTTP hop away.
 - The preview is public. Anyone with the address sees unreleased work.
 
 ## Compatibility and migration
 
 - Adds `wrangler.preview.jsonc`, `.github/workflows/deploy-preview.yml`,
-  `worker/channel.ts`, `worker/ngspice-container.ts`, and the editor's
+  `worker/channel.ts` (channel, read-through, refusals),
+  `worker/ngspice-container.ts`, and the editor's
   channel banner. Production configuration and workflow are unchanged in the
   first step.
 - The second step changes the production trigger to releases and removes
