@@ -58,12 +58,41 @@ jobs:
         if: steps.gate.outputs.ran == 'true'
         env:
           VITE_ICM_TIMING_UI: disabled
+      # The deployed hostname comes from the deploy itself, not from a second
+      # secret someone has to keep in step with it. A hand-entered URL that
+      # drifts fails verification, and a failed staging blocks every
+      # production deploy in the repository -- an outage caused entirely by
+      # bookkeeping. `secrets.STAGING_URL` still wins when set, for the day
+      # staging moves to a custom domain.
       - name: Deploy to staging
+        id: deploy
         if: steps.gate.outputs.ran == 'true'
-        run: pnpm dlx wrangler@4.120.1 deploy --env staging
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          STAGING_URL_OVERRIDE: ${{ secrets.STAGING_URL }}
+        run: |
+          set -o pipefail
+          pnpm dlx wrangler@4.120.1 deploy --env staging 2>&1 | tee deploy.log
+          url="$STAGING_URL_OVERRIDE"
+          if [ -z "$url" ]; then
+            url="$(grep -Eo 'https://[A-Za-z0-9.-]*interactive-circuit-maker-staging[A-Za-z0-9.-]*\.workers\.dev' deploy.log | head -n 1)"
+          fi
+          if [ -z "$url" ]; then
+            url="$(grep -Eo 'https://[A-Za-z0-9.-]+\.workers\.dev' deploy.log | head -n 1)"
+          fi
+          if [ -z "$url" ]; then
+            echo "Staging deployed but printed no URL to verify against."
+            exit 1
+          fi
+          echo "Staging is at $url"
+          echo "url=${url%/}" >> "$GITHUB_OUTPUT"
+          # Findable from the run, so nobody has to remember the hostname.
+          # The access key stays out of it: a run summary is readable by
+          # everyone with repository access, and a key in a query string is
+          # a key in a log.
+          echo "Staging: <$url> (append \`?key=<STAGING_ACCESS_KEY>\` once)" \
+            >> "$GITHUB_STEP_SUMMARY"
       - name: Give staging its access key
         if: steps.gate.outputs.ran == 'true'
         run: |
@@ -78,7 +107,7 @@ jobs:
       - name: Verify staging
         if: steps.gate.outputs.ran == 'true'
         env:
-          STAGING_URL: ${{ secrets.STAGING_URL }}
+          STAGING_URL: ${{ steps.deploy.outputs.url }}
           STAGING_ACCESS_KEY: ${{ secrets.STAGING_ACCESS_KEY }}
         run: |
           auth=(--header "x-staging-access-key: $STAGING_ACCESS_KEY")
