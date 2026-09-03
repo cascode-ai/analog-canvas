@@ -39,6 +39,7 @@
     "mcp:release:package": "pnpm build && node scripts/package-mcp.mjs --verify-declared-release-sha",
     "mcp:distribution:check": "node scripts/check-mcp-distribution.mjs",
     "mcp:smoke": "node scripts/mcp-release-smoke.mjs",
+    "sim:accept": "pnpm build && node scripts/simulation-acceptance.mjs",
     "dev": "pnpm --filter @icm/editor dev",
     "gate:plan": "node scripts/gate-plan.mjs",
     "gate:preflight": "node scripts/gate-run.mjs --stage preflight",
