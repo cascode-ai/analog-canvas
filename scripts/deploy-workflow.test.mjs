@@ -94,6 +94,27 @@ describe("staging before production", () => {
     // work. Being unlisted is not being private.
     expect(workflow).toContain("Staging must refuse an anonymous caller");
   });
+
+  it("fails staging when its deploy changed what the public site serves", () => {
+    const stagingJob = workflow.slice(
+      workflow.indexOf("  staging:\n"),
+      workflow.indexOf("  deploy:\n"),
+    );
+    const before = stagingJob.indexOf(
+      "Record how the production domain answers",
+    );
+    const deploy = stagingJob.indexOf("deploy --env staging");
+    const after = stagingJob.indexOf(
+      "Production domain still answers as before",
+    );
+    expect(before).toBeGreaterThan(-1);
+    expect(after).toBeGreaterThan(-1);
+    // Captured before the deploy and compared after it; the other way round
+    // the comparison could only ever agree with itself.
+    expect(before).toBeLessThan(deploy);
+    expect(deploy).toBeLessThan(after);
+    expect(stagingJob).toContain("must not have taken the production domain");
+  });
 });
 
 describe("Cloudflare deploy workflow", () => {

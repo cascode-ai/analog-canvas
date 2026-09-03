@@ -98,6 +98,19 @@ anonymous caller fails its own deploy.
 ordinary merge flows through staging to production without anyone waiting; a
 version bump stops at an approval gate.
 
+**Staging declares no routes, deliberately.** `routes` is an inheritable key
+in `wrangler.jsonc`, so an environment that does not override it inherits the
+production custom domain, and `wrangler deploy --env staging` then attaches
+`analog-canvas.tokenzhang.com` to the staging script. That happened on
+2026-09-03: the public site kept serving its cached shell while every script
+request met the staging gate's 401, so the site looked up and was blank.
+`env.staging` therefore sets `"routes": []` and is reachable only through its
+workers.dev hostname, and the staging job records how the production domain
+answers for its own script before the deploy and fails if that answer changed
+afterwards. The comparison is against the earlier answer rather than against
+"200" so that a domain which is already wrong does not block the production
+deploy that re-attaches it.
+
 **Staging has no rollback, deliberately.** Nothing public serves from it, so a
 bad staging deploy is a failed gate rather than an outage — it simply stops
 production from happening. Rollback stays where the users are.
