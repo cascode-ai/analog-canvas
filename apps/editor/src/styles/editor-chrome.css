@@ -451,6 +451,40 @@
   white-space: nowrap;
 }
 
+.command-popover .export-submenu {
+  position: relative;
+}
+
+.command-popover .export-submenu > button {
+  justify-content: space-between;
+}
+
+.command-popover .export-submenu-options {
+  position: absolute;
+  z-index: 1;
+  left: 100%;
+  top: -6px;
+  display: grid;
+  min-width: 9rem;
+  padding: 6px;
+  border: 1px solid var(--icm-border);
+  border-radius: 10px;
+  background: var(--icm-surface);
+  box-shadow: 0 8px 24px rgb(15 15 15 / 12%);
+}
+
+.command-popover .export-submenu-options[hidden] {
+  display: none;
+}
+
+@media (max-width: 480px) {
+  .command-popover .export-submenu-options {
+    position: static;
+    margin-left: 12px;
+    box-shadow: none;
+  }
+}
+
 .cloud-project-command {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

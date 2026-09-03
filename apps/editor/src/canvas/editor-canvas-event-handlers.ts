@@ -59,6 +59,11 @@ interface CanvasEventHandlerDependencies {
      */
     pressActsOnSelection: (target: Element) => boolean;
     handleCanvasHitPointerDown: (event: CanvasPointerEvent) => void;
+    openContextMenu: (
+      target: Element,
+      clientX: number,
+      clientY: number,
+    ) => void;
   };
   placement: {
     pendingSymbolId: string | null;
@@ -137,6 +142,7 @@ export function createEditorCanvasEventHandlers({
     clearDraftingSelection,
     pressActsOnSelection,
     handleCanvasHitPointerDown,
+    openContextMenu,
   },
   placement: {
     pendingSymbolId,
@@ -278,6 +284,7 @@ export function createEditorCanvasEventHandlers({
       // selection, not replacing one) and for a press on any member of the
       // current selection (the press is about to drag it or open its menu).
       if (
+        event.button === 0 &&
         selectedDrafting &&
         (selectedDrafting.kind === "arrow" ||
           selectedDrafting.kind === "construction-line" ||
@@ -474,6 +481,9 @@ export function createEditorCanvasEventHandlers({
         return;
       }
       if (tool === "wire") cancelWire();
+      if (tool === "pointer" && interactionKind() === "idle") {
+        openContextMenu(event.target as Element, event.clientX, event.clientY);
+      }
     },
     onDragOver(event: ReactDragEvent<SVGSVGElement>) {
       event.preventDefault();

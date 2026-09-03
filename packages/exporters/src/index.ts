@@ -1,5 +1,6 @@
 import type { Rect, SchematicDocument } from "@icm/model";
 import { renderDocumentSvg } from "@icm/render-svg";
+import type { SvgRenderOptions } from "@icm/render-svg";
 import type { SymbolResolver } from "@icm/symbols";
 
 export const EXPORT_VERSION = "0.1";
@@ -20,7 +21,10 @@ export interface RasterExport {
 export function createFormalExportSource(
   document: SchematicDocument,
   resolver: SymbolResolver,
-  options: { title?: string; margin?: number } = {},
+  options: Pick<
+    SvgRenderOptions,
+    "title" | "margin" | "objectIds" | "background"
+  > = {},
 ): FormalExportSource {
   const svg = renderDocumentSvg(document, resolver, options);
   const match = /viewBox="([^"]+)"/u.exec(svg);

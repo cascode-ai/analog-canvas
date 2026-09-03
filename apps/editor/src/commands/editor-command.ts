@@ -14,6 +14,7 @@ export type EditorCommandRequest =
   | { id: "selection.clear" }
   | { id: "selection.delete" }
   | { id: "selection.copy" }
+  | { id: "selection.copy-image"; format: "png" | "svg" }
   /**
    * `detach` follows Virtuoso's Shift+M: the parts move on their own and each
    * connected wire stays exactly where it was, re-anchored to a Junction stub.
@@ -49,6 +50,7 @@ export interface EditorCommandContext {
   interactionMode: InteractionMode;
   activeTool: EditorTool;
   hasDeletableSelection: boolean;
+  canCopyVisualSelection: boolean;
   hasMoveSelection: boolean;
   hasAlignableSelection: boolean;
   hasRotatableSelection: boolean;
@@ -79,6 +81,7 @@ export interface EditorCommandOperations {
   clearSelection(): void;
   deleteSelection(): void;
   beginCopy(): void;
+  copyVisualSelection(format: "png" | "svg"): void;
   beginMove(detach: boolean): void;
   alignSelection(mode: EdgeAlignmentMode): void;
   rotatePlacement(deltaDegrees: 90 | -90): void;
@@ -203,6 +206,15 @@ export function createEditorCommandRouter(
           context.interactionMode === "idle"
           ? enabled()
           : disabled("Select an object before deleting it");
+      case "selection.copy-image":
+        return context.interactionMode === "idle" &&
+          !context.canvasDragActive &&
+          !context.hasArmedVerb &&
+          context.canCopyVisualSelection
+          ? enabled()
+          : disabled(
+              "Finish the active operation and select visible objects before copying",
+            );
       case "selection.copy":
         if (
           context.interactionMode !== "idle" &&
@@ -325,6 +337,9 @@ export function createEditorCommandRouter(
         break;
       case "selection.copy":
         options.operations.beginCopy();
+        break;
+      case "selection.copy-image":
+        options.operations.copyVisualSelection(request.format);
         break;
       case "selection.move":
         options.operations.beginMove(request.detach === true);

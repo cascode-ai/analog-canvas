@@ -47,6 +47,43 @@ const definition = {
 };
 
 describe("render svg", () => {
+  it("paints selected routes using original junction decisions and crops only included geometry", () => {
+    const doc = createEmptyDocument("selection", "Selection");
+    doc.nets.push({ id: "net", terminals: [] });
+    doc.junctions.push(
+      { id: "L", netId: "net", position: { x: 0, y: 0 } },
+      { id: "J", netId: "net", position: { x: 40, y: 0 }, role: "branch" },
+      { id: "R", netId: "net", position: { x: 80, y: 0 } },
+      { id: "B", netId: "net", position: { x: 40, y: 1000 } },
+    );
+    for (const [id, from, to] of [
+      ["left", "L", "J"],
+      ["right", "J", "R"],
+      ["bottom", "J", "B"],
+    ]) {
+      doc.routes.push(
+        createRoutePath({
+          id: id!,
+          netId: "net",
+          start: { kind: "junction", junctionId: from! },
+          end: { kind: "junction", junctionId: to! },
+          bends: [],
+          modes: ["manual"],
+        }),
+      );
+    }
+    const resolver = new InMemorySymbolResolver([]);
+    const full = buildSvgScene(doc, resolver);
+    const scene = buildSvgScene(doc, resolver, {
+      objectIds: new Set(["left", "right"]),
+      margin: 10,
+    });
+    expect(scene.formalBody).toContain('<circle data-object-id="J"');
+    expect(scene.formalBody).not.toContain('data-object-id="bottom"');
+    expect(scene.formalBody).toContain('points="0,0 40,0"');
+    expect(scene.viewBox).toEqual({ x: -10, y: -10, width: 100, height: 20 });
+    expect(buildSvgScene(doc, resolver)).toEqual(full);
+  });
   it("renders identically from one shared routing read model", () => {
     const doc = createEmptyDocument("shared", "Shared read model");
     doc.nets.push({ id: "net", terminals: [] });
