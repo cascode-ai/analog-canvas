@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import mcpDistribution from "../config/agent-mcp-distribution.json";
 import { SESSION_STATE_KEY } from "./agent-session-runtime";
 
 import {
@@ -359,7 +360,7 @@ describe("public Agent session routes", () => {
     expect(manifest).toMatchObject({
       format: AGENT_MCP_BOOTSTRAP_FORMAT,
       name: "analog-canvas",
-      version: "0.3.0",
+      version: mcpDistribution.version,
       transport: "stdio",
       requirements: { node: ">=24.0.0" },
       fallback: {
@@ -368,7 +369,7 @@ describe("public Agent session routes", () => {
       },
     });
     expect(manifest.launch.args.join(" ")).toContain(
-      "analog-canvas-mcp-server-0.3.0.tgz",
+      mcpDistribution.release.asset,
     );
     expect(manifest.hosts.codex.command).toContain("codex mcp add");
     expect(manifest.hosts.cursor.config.mcpServers["analog-canvas"]).toEqual(
