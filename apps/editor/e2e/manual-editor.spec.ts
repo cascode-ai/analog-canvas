@@ -6058,6 +6058,40 @@ test("dragging a wire previews the orthogonal path it will commit", async ({
   expect(everyLegAxisAligned(await drawnPoints())).toBe(true);
 });
 
+test("the copy ghost shows the wires it is about to place", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await placeComponent(page, "resistor", { x: 260, y: 200 });
+  await placeComponent(page, "resistor", { x: 520, y: 200 });
+  await clickDrawTool(page, "wire");
+  await page.getByTestId("terminal-R1-2").click();
+  await page.getByTestId("terminal-R2-2").click();
+  await page.keyboard.press("Escape");
+  const canvas = page.getByTestId("schematic-canvas");
+  await expect(page.locator('[data-layer="routes"] polyline')).toHaveCount(1);
+
+  // Marquee both parts and the wire between them.
+  const box = (await canvas.boundingBox())!;
+  await page.mouse.move(box.x + 640, box.y + 130);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 190, box.y + 300, { steps: 10 });
+  await page.mouse.up();
+
+  await page.keyboard.press("c");
+  await canvas.hover({ position: { x: 400, y: 420 } });
+  const ghost = page.locator(".copy-placement-preview");
+  await expect(ghost).toBeVisible();
+  // The ghost draws what the drop will produce: two parts and their wire.
+  await expect(ghost.locator("polyline")).not.toHaveCount(0);
+
+  // And what it drew is what lands: the placed copy carries a wire too.
+  await canvas.click({ position: { x: 400, y: 420 } });
+  await page.keyboard.press("Escape");
+  await expect(page.locator('[data-layer="routes"] polyline')).toHaveCount(2);
+});
+
 test("draws a wire at an angle the 45-degree grid cannot reach", async ({
   page,
 }) => {

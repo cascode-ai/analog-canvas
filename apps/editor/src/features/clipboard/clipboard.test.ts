@@ -162,6 +162,100 @@ describe("schematic clipboard", () => {
     expect(() => buildSvgScene(preview, resolver)).not.toThrow();
   });
 
+  it("draws the copied wires in the ghost that sits over its source", () => {
+    // The ghost is built at the origin and translated by an SVG transform,
+    // so its document overlaps the circuit it was copied from. Commit-time
+    // canonicalisation reads that overlap as the copy landing on the
+    // original and folds the copied Net and its Route into the source, so
+    // the preview drew parts with no wires between them — reported from a
+    // screenshot where a transistor carried two wires and the ghost showed
+    // neither.
+    const document = createEmptyDocument("document-main", "Clipboard");
+    document.instances.push(
+      {
+        id: "R1",
+        symbolId: "resistor",
+        placement: {
+          position: { x: 100, y: 100 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+      {
+        id: "R2",
+        symbolId: "resistor",
+        placement: {
+          position: { x: 300, y: 100 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+    );
+    const wired = executeTransaction(
+      document,
+      {
+        transactionId: "seed-wire",
+        documentId: document.id,
+        expectedRevision: document.revision,
+        actor: { kind: "human", id: "test" },
+        edits: [
+          {
+            kind: "connect_endpoints",
+            from: { kind: "terminal", instanceId: "R1", pinName: "2" },
+            to: { kind: "terminal", instanceId: "R2", pinName: "2" },
+            newNetId: "net-wire",
+          },
+        ],
+      },
+      { symbolResolver: resolver },
+    );
+    if (!wired.ok) throw new Error(wired.error.message);
+    const routed = executeTransaction(
+      wired.document,
+      {
+        transactionId: "seed-route",
+        documentId: wired.document.id,
+        expectedRevision: wired.document.revision,
+        actor: { kind: "human", id: "test" },
+        edits: [
+          {
+            kind: "set_route_path",
+            route: createRoutePath({
+              id: "route-wire",
+              netId: "net-wire",
+              start: { kind: "terminal", instanceId: "R1", pinName: "2" },
+              end: { kind: "terminal", instanceId: "R2", pinName: "2" },
+              bends: [],
+              modes: ["manual"],
+            }),
+          },
+        ],
+      },
+      { symbolResolver: resolver },
+    );
+    if (!routed.ok) throw new Error(routed.error.message);
+
+    const clipboard = copySelection(routed.document, ["R1", "R2"], [], {
+      routeIds: ["route-wire"],
+      junctionIds: [],
+      annotationIds: [],
+    });
+    expect(clipboard?.routes).toHaveLength(1);
+
+    const ghost = clipboardPreviewDocument(
+      routed.document,
+      clipboard!,
+      { x: 0, y: 0 },
+      [],
+      resolver,
+    );
+    // What the person is about to place is two parts AND the wire between
+    // them, so the ghost has to show all three.
+    expect(ghost.instances).toHaveLength(2);
+    expect(ghost.routes).toHaveLength(1);
+    expect(() => buildSvgScene(ghost, resolver)).not.toThrow();
+  });
+
   it("duplicates selected components, their named electrical Net, and route atomically", () => {
     const document = createEmptyDocument("document-main", "Clipboard");
     document.instances.push(
