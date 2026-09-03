@@ -65,6 +65,21 @@ export const DraftArrowSchema = DraftingObjectBaseSchema.extend({
   to: VisualAnchorSchema,
   waypoints: z.array(PointSchema).optional(),
   curveControls: z.array(PointSchema.nullable()).optional(),
+  /** Full hollow shaft/head silhouette. Absent preserves legacy line arrows.
+   * Width is geometric, independent of stroke weight; direction uses from/to. */
+  outline: z.strictObject({ width: z.number().finite().positive() }).optional(),
+}).superRefine((arrow, ctx) => {
+  if (
+    arrow.outline &&
+    (arrow.waypoints?.length || arrow.curveControls?.some(Boolean))
+  ) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["outline"],
+      message:
+        "Outline arrows require a straight path; curved paths cannot be silently flattened",
+    });
+  }
 });
 export const DraftLeaderSchema = DraftingObjectBaseSchema.extend({
   kind: z.literal("leader"),

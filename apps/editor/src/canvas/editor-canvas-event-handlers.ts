@@ -90,6 +90,7 @@ interface CanvasEventHandlerDependencies {
   drafting: {
     selected: DraftingObject | null | undefined;
     sourceActive: boolean;
+    beginCreatePointer?: (event: CanvasPointerEvent) => boolean;
     handleCanvasClick: (
       point: Point,
       alternate: boolean,
@@ -169,6 +170,7 @@ export function createEditorCanvasEventHandlers({
   drafting: {
     selected: selectedDrafting,
     sourceActive: draftingSourceActive,
+    beginCreatePointer,
     handleCanvasClick: handleDraftingCanvasClick,
     beginAnnotationTextEditing,
     beginTextEditing: beginDraftingTextEditing,
@@ -268,6 +270,7 @@ export function createEditorCanvasEventHandlers({
       // pointer entry so an earlier toolbar or Project-name input cannot keep
       // swallowing canvas shortcuts after the user returns to the drawing.
       event.currentTarget.focus({ preventScroll: true });
+      if (beginCreatePointer?.(event)) return;
       if (
         cellSymbolLayoutEnabled &&
         target.closest('[data-testid="cell-symbol-layout-overlay"]')

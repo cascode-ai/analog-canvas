@@ -1,3 +1,7 @@
+import {
+  DEFAULT_ARROW_PRESET,
+  type ArrowPreset,
+} from "../features/drafting/arrow-presets";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import "../styles/editor-entry.css";
@@ -530,6 +534,8 @@ export function App({
       // Storage may be unavailable; the choice still applies to this session.
     }
   };
+  const [arrowPreset, setArrowPresetState] =
+    useState<ArrowPreset>(DEFAULT_ARROW_PRESET);
   const [drawAngleMode, setDrawAngleModeState] = useState<DrawAngleMode>(() => {
     if (typeof window === "undefined") return "free";
     const stored = window.localStorage.getItem("icm.draw-angle.v1");
@@ -2309,12 +2315,12 @@ export function App({
     deleteConstructionVertex,
     setDraftingStyle,
     setDraftingGeometry,
+    setArrowPreset,
     setDraftingTangentAngle,
     setDraftingBearing,
     toggleDraftingLock,
     addPlainText,
     addCurrentArrow,
-    reverseSelectedDrafting,
   } = createDraftingCommands({
     document,
     annotationGrid,
@@ -2339,10 +2345,16 @@ export function App({
     snapPoint: snapDraftingPoint,
     handleCanvasClick: handleDraftingCanvasClick,
     finish: finishDraftingCreate,
+    beginPointer: beginDraftingCreatePointer,
   } = createDraftingCreateController({
     document,
     annotationGrid,
     angleMode: drawAngleMode,
+    arrowPreset,
+    pointer: {
+      dragSessionRef: canvasDragSessionRef,
+      pointFromClient: (x, y, svg) => pointFromClient(x, y, svg, false),
+    },
     resolver,
     visibleEndpoints,
     routeGeometryRecords,
@@ -2628,6 +2640,7 @@ export function App({
     drafting: {
       tool,
       draftingSource,
+      outlineArrow: arrowPreset.family === "outline",
       snapDraftingPoint,
       setDraftingHover,
       setDraftingSnapPoint,
@@ -3086,7 +3099,9 @@ export function App({
           : nextTool === "circle"
             ? "Circle: click the center"
             : nextTool === "arrow"
-              ? "Arrow: click the start point"
+              ? arrowPreset.family === "outline"
+                ? "Outline arrow: click to place, or drag to size (Esc cancels)"
+                : "Arrow: click the start point"
               : nextTool === "construction-line"
                 ? "Construction line: click the start point"
                 : "Pointer ready",
@@ -3529,25 +3544,14 @@ export function App({
           return;
         case "step-drafting-style": {
           if (!selectedDrafting) return;
-          if (shortcut.target === "arrow-head") {
-            const scale = selectedDrafting.styleOverride?.arrowHeadScale ?? 1;
-            setDraftingStyle({
-              arrowHeadScale: stepBoundedScale(
-                scale,
-                [0.75, 1, 1.25, 1.5] as const,
-                shortcut.increase,
-              ),
-            });
-          } else {
-            const scale = selectedDrafting.styleOverride?.strokeScale ?? 1;
-            setDraftingStyle({
-              strokeScale: stepBoundedScale(
-                scale,
-                [0.75, 1, 1.5, 2] as const,
-                shortcut.increase,
-              ),
-            });
-          }
+          const scale = selectedDrafting.styleOverride?.strokeScale ?? 1;
+          setDraftingStyle({
+            strokeScale: stepBoundedScale(
+              scale,
+              [0.75, 1, 1.5, 2] as const,
+              shortcut.increase,
+            ),
+          });
           return;
         }
         case "finish-wire":
@@ -3803,6 +3807,7 @@ export function App({
     drafting: {
       selected: selectedDrafting,
       sourceActive: draftingSource !== null,
+      beginCreatePointer: beginDraftingCreatePointer,
       handleCanvasClick: handleDraftingCanvasClick,
       beginAnnotationTextEditing,
       beginTextEditing: beginDraftingTextEditing,
@@ -4008,6 +4013,16 @@ export function App({
         helpOpen={helpOpen}
         onOpenHelp={() => setHelpOpen(true)}
         drawingToolbar={{
+          arrowPreset,
+          onArrowPresetChange: (preset) => {
+            clearDraftingCreate();
+            setArrowPresetState(preset);
+            setStatus(
+              preset.family === "outline"
+                ? "Outline arrow: click to place, or drag to size (Esc cancels)"
+                : "Arrow: click the start point",
+            );
+          },
           leftPanelMode,
           libraryPanelOpen: visibleLibraryPanelOpen,
           tool,
@@ -4881,9 +4896,7 @@ export function App({
                   onGeometryChange: setDraftingGeometry,
                   onTangentAngleChange: setDraftingTangentAngle,
                   onBearingChange: setDraftingBearing,
-                  onReverse: reverseSelectedDrafting,
-                  onRotate: () =>
-                    editorCommands.execute({ id: "transform.rotate" }),
+                  onArrowPresetChange: setArrowPreset,
                   onToggleLock: () => toggleDraftingLock(selectedDrafting),
                 }
               : null
@@ -5421,6 +5434,7 @@ export function App({
           interactionPreviews={{
             boxPreview,
             draftingSource,
+            arrowPreset,
             draftingWaypoints,
             draftingHover,
             draftingSnapPoint,

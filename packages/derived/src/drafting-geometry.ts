@@ -19,6 +19,7 @@ import {
   wrapRichTextDocument,
 } from "./rich-text-layout.js";
 import { resolveDocumentStyleProfile } from "./style-profile.js";
+import { arrowArtwork, arrowArtworkBounds } from "./arrow-artwork.js";
 
 // ADR 0010 / WP-R1: the single derived-geometry entry for DraftingObjects.
 // Renderer, Editor overlay, and Agent Snapshot consume ONLY this result; no
@@ -155,7 +156,6 @@ export function draftTextLayoutContent(
 }
 const TEXT_PADDING_X = 6;
 const TEXT_PADDING_Y = 8;
-const ARROWHEAD_PADDING = 12;
 
 export function resolveDraftingObjectGeometry(
   document: SchematicDocument,
@@ -411,7 +411,14 @@ function resolveArrow(
       x: (fromPoint.x + toPoint.x) / 2,
       y: (fromPoint.y + toPoint.y) / 2,
     },
-    bounds: paddedBounds(unionBounds(points), ARROWHEAD_PADDING),
+    bounds: arrowArtworkBounds(
+      arrowArtwork(
+        object,
+        points,
+        object.curveControls ?? [],
+        resolveDocumentStyleProfile(document.presentation),
+      ),
+    ),
     diagnostics: [...from.diagnostics, ...to.diagnostics],
   };
 }

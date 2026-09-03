@@ -613,3 +613,93 @@
 .signal-flow-actions button {
   margin: 0;
 }
+.arrow-style-picker {
+  position: relative;
+  flex: 0 0 auto;
+}
+.arrow-style-picker > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  list-style: none;
+  cursor: pointer;
+  border: 1px solid var(--icm-border, #d0d5dd);
+  border-radius: 6px;
+  padding: 2px 6px;
+}
+.arrow-style-picker > summary::-webkit-details-marker {
+  display: none;
+}
+.arrow-style-picker > summary[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: default;
+}
+.arrow-style-picker .arrow-style-gallery {
+  position: absolute;
+  z-index: 80;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 250px;
+  padding: 10px;
+  background: var(--icm-surface, white);
+  color: var(--icm-text, #101828);
+  border: 1px solid var(--icm-border, #d0d5dd);
+  border-radius: 8px;
+  box-shadow: 0 6px 22px #0002;
+}
+.arrow-style-gallery strong {
+  display: block;
+  font-size: 12px;
+  margin: 5px 0;
+}
+.arrow-style-options {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+.arrow-style-options > button {
+  width: 100%;
+  height: 40px;
+  min-width: 0;
+  padding: 2px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 0;
+  color: inherit;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+}
+.arrow-style-options > button[aria-pressed="true"] {
+  background: #246bfd15;
+  border-color: #246bfd;
+}
+.arrow-style-options > button:hover:not(:disabled) {
+  background: #246bfd22;
+}
+.arrow-style-options > button:disabled {
+  opacity: 0.35;
+}
+.drawing-arrow-style {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.arrow-split-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.arrow-split-tool > .draw-tool > svg {
+  width: 32px;
+  height: 24px;
+}
+.arrow-split-tool > .arrow-style-picker > summary > svg {
+  display: none;
+}
+.arrow-split-tool > .arrow-style-picker > summary {
+  height: 30px;
+}

@@ -98,6 +98,9 @@ export function scaleDraftingObject(
       styleOverride,
       from,
       to,
+      ...(object.outline
+        ? { outline: { width: object.outline.width * factor } }
+        : {}),
       waypoints: object.waypoints?.map((point) =>
         scalePoint(point, pivot, factor),
       ),

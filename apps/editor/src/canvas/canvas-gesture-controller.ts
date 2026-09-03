@@ -122,6 +122,7 @@ export interface CanvasGestureControllerDependencies {
   };
   drafting: {
     tool: EditorTool;
+    outlineArrow?: boolean;
     draftingSource: Point | null;
     snapDraftingPoint: (
       point: DerivedPoint,
@@ -255,6 +256,7 @@ export function createCanvasGestureController({
   drafting: {
     tool,
     draftingSource,
+    outlineArrow = false,
     snapDraftingPoint,
     setDraftingHover,
     setDraftingSnapPoint,
@@ -545,15 +547,17 @@ export function createCanvasGestureController({
         tool === "construction-line" ||
         tool === "rectangle" ||
         tool === "circle") &&
-      draftingSource !== null
+      (draftingSource !== null || tool === "arrow")
     ) {
       // Raw pointer: the drafting snapper rounds by the annotation grid,
       // which can be finer than the Document grid this handler's point uses.
       const snapped = snapDraftingPoint(
         rawPointFromClient(event.clientX, event.clientY, event.currentTarget),
-        event.altKey,
-        event.shiftKey,
-        draftingSource,
+        event.altKey || (tool === "arrow" && outlineArrow),
+        tool === "arrow" && outlineArrow ? false : event.shiftKey,
+        tool === "arrow" && outlineArrow
+          ? undefined
+          : (draftingSource ?? undefined),
         logicalRadiusForPixels(
           event.currentTarget,
           DRAFTING_SNAP_CAPTURE_RADIUS_PX,

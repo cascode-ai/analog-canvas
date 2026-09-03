@@ -1,3 +1,4 @@
+import { applyArrowPreset, type ArrowPreset } from "./arrow-presets";
 import type { SchematicEdit } from "@icm/edit-engine";
 import { resolveDraftingObjectGeometry } from "@icm/derived";
 import {
@@ -139,6 +140,32 @@ export function createDraftingCommands({
     } else {
       setStatus("Drawing is locked; unlock it before editing its geometry");
     }
+  };
+
+  const setArrowPreset = (preset: ArrowPreset): void => {
+    const arrows = (document.drafting?.objects ?? []).filter(
+      (object): object is Extract<DraftingObject, { kind: "arrow" }> =>
+        object.kind === "arrow" &&
+        !object.locked &&
+        selection.draftingIds.includes(object.id),
+    );
+    const objects = arrows.map((object) => applyArrowPreset(object, preset));
+    if (objects.some((object) => object === null)) {
+      setStatus(
+        "Keep this arrow's existing bends; outline arrows require a straight path",
+      );
+      return;
+    }
+    if (
+      objects.length &&
+      transact(
+        objects.map((object) => ({
+          kind: "upsert_drafting_object",
+          object: object!,
+        })),
+      ).ok
+    )
+      setStatus(`Arrow style: ${preset.label}`);
   };
 
   const setDraftingTangentAngle = (angleDegrees: number): void => {
@@ -301,33 +328,17 @@ export function createDraftingCommands({
     }
   };
 
-  const reverseSelectedDrafting = (): void => {
-    if (selectedDrafting?.kind !== "arrow") return;
-    transact([
-      {
-        kind: "upsert_drafting_object",
-        object: {
-          ...selectedDrafting,
-          from: selectedDrafting.to,
-          to: selectedDrafting.from,
-          waypoints: [...(selectedDrafting.waypoints ?? [])].reverse(),
-          curveControls: [...(selectedDrafting.curveControls ?? [])].reverse(),
-        },
-      },
-    ]);
-  };
-
   return {
     insertConstructionVertex,
     insertArrowWaypoint,
     deleteConstructionVertex,
     setDraftingStyle,
     setDraftingGeometry,
+    setArrowPreset,
     setDraftingTangentAngle,
     setDraftingBearing,
     toggleDraftingLock,
     addPlainText,
     addCurrentArrow,
-    reverseSelectedDrafting,
   };
 }

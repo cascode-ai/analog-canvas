@@ -53,6 +53,29 @@ palette-first manual authoring; no Project file needs to be opened first.
 - Use `Ctrl`+mouse wheel to zoom around the cursor and middle-button drag to
   pan. View changes do not increment the Document revision.
 
+## Arrow styles
+
+Choose a style from the arrow tool's dropdown **before** drawing. Its main
+button and `A` reuse the last creation style. Line arrows use start/end clicks
+and support curves; outline arrows are complete hollow shapes: move to preview,
+click to stamp a compact default, or drag a bounding box to set width and length.
+
+Select an arrow and press `Q` for Properties. **Style** is the same icon gallery,
+including filled/open single- and double-headed line arrows and hollow outline
+arrows. **Stroke width** changes weight; an outline's **Width** changes its shape
+without changing weight.
+Drag endpoint handles to set length, the side handle for outline width, and the
+rotation handle for direction; `R` and **Bearing** also rotate. Reversed and
+headless line arrows remain supported in existing drawings but are not offered
+in the style menu. The obsolete Head size, Rotate and Reverse controls are no
+longer separate panel controls.
+
+Existing head sizes remain intact when loading or restyling old drawings.
+Converting a bent/curved line arrow to an outline is disabled: no bends are
+discarded. Changing a selected object's style does not change the next-object
+creation default. These are non-electrical drawings, separate from current
+markers attached to conductors and arrows inside device symbols.
+
 ## Save and recover
 
 **File / Save** (or `Ctrl+S`) saves the current content to one private Cloud

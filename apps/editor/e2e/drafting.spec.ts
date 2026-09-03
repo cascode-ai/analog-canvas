@@ -11,6 +11,96 @@ import {
   downloadBytes,
 } from "./editor-fixtures.js";
 
+test("outline arrow style is chosen before stamp/drag and shares editable geometry with export", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await page.getByLabel("New arrow style", { exact: true }).click();
+  await page
+    .getByRole("button", { name: "Outline end arrow", exact: true })
+    .click();
+  await page.getByLabel("New arrow style", { exact: true }).click();
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("draw-tool-arrow")).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  const canvas = page.getByTestId("schematic-canvas");
+  const box = (await canvas.boundingBox())!;
+  const at = { x: box.x + 450, y: box.y + 240 };
+  await page.mouse.move(at.x, at.y);
+  const preview = page
+    .getByTestId("drafting-create-preview")
+    .locator("polygon");
+  await expect(preview).toBeVisible();
+  const previewPoints = await preview.getAttribute("points");
+  await page.mouse.click(at.x, at.y);
+  const outline = page.locator(
+    '[data-kind="draft-arrow"] > [data-arrow-family="outline"]',
+  );
+  await expect(outline).toHaveCount(1);
+  await expect(outline).toHaveAttribute("points", previewPoints!);
+  await expect(outline).toHaveAttribute("fill", "none");
+  await expect(outline).toHaveCSS("stroke", "rgb(0, 0, 0)");
+
+  const hit = page.getByTestId(/^drafting-hit-arrow-/);
+  const hitPoint = await hit.evaluate((element) => {
+    const polygon = element as SVGPolygonElement;
+    const p = polygon.points.getItem(0);
+    const screen = new DOMPoint(p.x, p.y).matrixTransform(
+      polygon.getScreenCTM()!,
+    );
+    return { x: screen.x, y: screen.y };
+  });
+  await page.mouse.click(hitPoint.x, hitPoint.y);
+  await page.keyboard.press("q");
+  const properties = page.getByTestId("drafting-properties");
+  await properties.getByLabel("Arrow style", { exact: true }).click();
+  await page.keyboard.press("Escape");
+  await expect(properties).toBeVisible();
+  await expect(properties.getByLabel("Arrow width")).toHaveValue("30");
+  await expect(properties.getByLabel("Tangent angle")).toHaveCount(0);
+  await properties.getByLabel("Stroke width", { exact: true }).fill("2");
+  await expect(outline).toHaveAttribute("stroke-width", "3.2");
+  await expect(outline).toHaveAttribute("points", previewPoints!);
+  await properties.getByLabel("Arrow width").fill("45");
+  await expect(outline).not.toHaveAttribute("points", previewPoints!);
+  await expect(page.getByTestId(/^draft-handle-width-/)).toBeVisible();
+  await expect(page.getByTestId(/^draft-handle-rotate-/)).toBeVisible();
+  await expect(page.getByTestId(/^draft-handle-segment-/)).toHaveCount(0);
+  await properties.getByLabel("Drawing bearing").fill("45");
+  await properties.getByLabel("Drawing bearing").blur();
+  const rotated = await outline.getAttribute("points");
+  await properties.getByLabel("Arrow style", { exact: true }).click();
+  await properties
+    .getByRole("button", { name: "Outline double arrow", exact: true })
+    .click();
+  expect(await outline.getAttribute("points")).not.toBe(rotated);
+
+  await canvas.focus();
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("a");
+  const from = { x: box.x + 220, y: box.y + 150 },
+    to = { x: from.x + 80, y: from.y + 120 };
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(to.x, to.y, { steps: 12 });
+  const dragPreview = await preview.getAttribute("points");
+  await page.mouse.up();
+  await expect(outline).toHaveCount(2);
+  await expect(outline.last()).toHaveAttribute("points", dragPreview!);
+  // Editing the first object's style did not change the next-object default.
+  const pointCount = await outline
+    .last()
+    .evaluate((node) => (node as SVGPolygonElement).points.numberOfItems);
+  expect(pointCount).toBe(7);
+  await page.keyboard.press("Control+z");
+  await expect(outline).toHaveCount(1);
+  await page.keyboard.press("Control+Shift+z");
+  await expect(outline).toHaveCount(2);
+});
+
 // Two-phase drafting creation: click to set the start, move to preview, click to
 // commit. Arrow commits on the second click; construction line commits on the
 // second click too (a 2-point line). Uses real mouse clicks (not pointer
@@ -1214,9 +1304,14 @@ test("arrow Properties omits the Segment selector", async ({ page }) => {
   await properties.getByLabel("Stroke width").fill("2");
   await expect(shaft).toHaveAttribute("stroke-width", "3.2");
 
+  await expect(
+    properties.getByRole("combobox", { name: "Arrow head size" }),
+  ).toHaveCount(0);
+  await properties.getByLabel("Arrow style", { exact: true }).click();
   await properties
-    .getByRole("combobox", { name: "Arrow head size" })
-    .selectOption("1.5");
+    .getByRole("button", { name: "Open end arrow", exact: true })
+    .click();
+  await expect(head).toHaveAttribute("fill", "none");
   expect(await head.getAttribute("points")).not.toBe(originalPoints);
 });
 
