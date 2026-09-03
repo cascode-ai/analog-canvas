@@ -6,7 +6,10 @@ import type { Annotation, DraftingObject, SchematicDocument } from "@icm/model";
 import type { EditorTool } from "../interaction/interaction-state";
 import { planSelectionMove } from "../features/selection/selection-move-plan";
 import type { VisualSelection } from "../features/selection/visual-selection";
-import { resolveCanvasHitAtPoint } from "./canvas-hit-resolver";
+import {
+  resolveCanvasHitAtPoint,
+  type CanvasHitKind,
+} from "./canvas-hit-resolver";
 import { resolvePointerDownAction } from "./pointer-down-router";
 
 export interface CanvasHitControllerDependencies {
@@ -23,6 +26,8 @@ export interface CanvasHitControllerDependencies {
     placementOwnsCanvas: boolean;
     tool: EditorTool;
     cellSymbolLayoutEnabled: boolean;
+    /** The Simulation panel is picking Nets; a press names a Net, nothing more. */
+    simulationPickNetsActive: boolean;
   };
   actions: {
     beginInstanceMove: (
@@ -65,6 +70,8 @@ export interface CanvasHitControllerDependencies {
     consumeArmedVerb?: (kind: string, id: string) => boolean;
     /** Swallow the click that follows a press an armed verb consumed. */
     suppressNextClick?: () => void;
+    /** Name the Net a picked conductor, Junction, or Net label belongs to. */
+    pickSimulationNet?: (kind: CanvasHitKind, id: string) => void;
   };
 }
 
@@ -83,6 +90,7 @@ export function createCanvasHitController({
     placementOwnsCanvas,
     tool,
     cellSymbolLayoutEnabled,
+    simulationPickNetsActive,
   },
   actions: {
     beginInstanceMove,
@@ -96,6 +104,7 @@ export function createCanvasHitController({
     setStatus,
     consumeArmedVerb,
     suppressNextClick,
+    pickSimulationNet,
   },
 }: CanvasHitControllerDependencies) {
   const compositeSelectionOwnsHit = (
@@ -168,9 +177,12 @@ export function createCanvasHitController({
           event.altKey ? 1 : 0,
         )
       : null;
+    // The offer runs the verb, so it is withheld while Nets are being picked:
+    // a pick names a Net and must not rotate, copy, or delete what it names.
     const armedVerbConsumesHit =
       hit !== null &&
       hit.kind !== "handle" &&
+      !simulationPickNetsActive &&
       Boolean(consumeArmedVerb?.(hit.kind, hit.id));
     const compositeOwnsHit = Boolean(
       hit &&
@@ -202,6 +214,7 @@ export function createCanvasHitController({
         planSelectionMove(document, selection).previewObjectIds.length > 0,
       primaryInstanceId,
       armedVerbConsumesHit,
+      simulationPickNetsActive,
     });
 
     // Only an action this dispatcher owns claims the press; everything else
@@ -223,6 +236,9 @@ export function createCanvasHitController({
     }
 
     switch (action.kind) {
+      case "simulation-pick":
+        pickSimulationNet?.(action.hitKind, action.id);
+        return;
       case "consume-armed-verb":
         // The offer already ran the verb. The click that follows this press
         // must not also land: it would re-select the object and undo it.

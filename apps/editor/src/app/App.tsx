@@ -2520,6 +2520,7 @@ export function App({
       ),
       tool,
       cellSymbolLayoutEnabled,
+      simulationPickNetsActive,
     },
     actions: {
       beginInstanceMove: beginMoveFromSelection,
@@ -2549,6 +2550,19 @@ export function App({
       setStatus,
       suppressNextClick: () => {
         suppressInstanceClick.current = true;
+      },
+      pickSimulationNet: (kind, id) => {
+        const netId =
+          kind === "route"
+            ? document.routes.find((route) => route.id === id)?.netId
+            : kind === "annotation"
+              ? document.annotations.find((annotation) => annotation.id === id)
+                  ?.netId
+              : kind === "junction"
+                ? document.junctions.find((junction) => junction.id === id)
+                    ?.netId
+                : undefined;
+        if (netId) toggleSimulationSavedNet(netId);
       },
       consumeArmedVerb: (kind, id) => {
         if (kind === "instance") return consumeArmedVerbOnInstance(id);
@@ -3745,9 +3759,7 @@ export function App({
         }
         return false;
       },
-      handleCanvasHitPointerDown: (event) => {
-        if (!simulationPickNetsActive) handleCanvasHitPointerDown(event);
-      },
+      handleCanvasHitPointerDown,
       openContextMenu: (target, clientX, clientY) => {
         if (
           canvasContextMenuSuppressed.current ||

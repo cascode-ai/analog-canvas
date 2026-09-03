@@ -30,6 +30,7 @@ const facts = (
   compositeMovePlanHasPreview: false,
   primaryInstanceId: null,
   armedVerbConsumesHit: false,
+  simulationPickNetsActive: false,
   ...overrides,
 });
 
@@ -51,6 +52,39 @@ describe("who owns one press on the canvas", () => {
     expect(
       resolvePointerDownAction(facts({ hit: hitOf("junction", "j1") })),
     ).toEqual({ kind: "select-junction", junctionId: "j1" });
+  });
+
+  it("reads a press as a Net pick while the Simulation panel is picking", () => {
+    // A conductor, a Junction, or a Net label names a Net. A part does not,
+    // and nothing is selected, moved, or handed to an armed verb meanwhile.
+    // The label case is the one that was lost when its element handler went.
+    const picking = {
+      simulationPickNetsActive: true,
+      armedVerbConsumesHit: true,
+    };
+    expect(
+      resolvePointerDownAction(
+        facts({ ...picking, hit: hitOf("annotation", "label-1") }),
+      ),
+    ).toEqual({
+      kind: "simulation-pick",
+      hitKind: "annotation",
+      id: "label-1",
+    });
+    expect(
+      resolvePointerDownAction(
+        facts({ ...picking, hit: hitOf("route", "route-1") }),
+      ),
+    ).toEqual({ kind: "simulation-pick", hitKind: "route", id: "route-1" });
+    expect(
+      resolvePointerDownAction(
+        facts({ ...picking, hit: hitOf("junction", "j1") }),
+      ),
+    ).toEqual({ kind: "simulation-pick", hitKind: "junction", id: "j1" });
+    expect(resolvePointerDownAction(facts({ ...picking })).kind).toBe("ignore");
+    expect(
+      resolvePointerDownAction(facts({ ...picking, hit: null })).kind,
+    ).toBe("ignore");
   });
 
   it("gives an Instance label no press of its own", () => {
