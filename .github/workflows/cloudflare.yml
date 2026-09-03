@@ -17,8 +17,98 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # A place to look at the build before the public does. Merging to main used
+  # to deploy straight to production, so the only protection was after the
+  # fact: the bad version went live and came back seconds later.
+  #
+  # Skipped entirely when STAGING_ACCESS_KEY is absent, so this lands without
+  # blocking anyone's deploy while the environment is being provisioned. The
+  # production job does not depend on staging SUCCEEDING, only on it not
+  # FAILING, which `always()` plus an explicit result check expresses below.
+  staging:
+    name: Deploy staging
+    runs-on: ubuntu-latest
+    outputs:
+      ran: ${{ steps.gate.outputs.ran }}
+    steps:
+      - id: gate
+        run: |
+          if [ -n "${{ secrets.STAGING_ACCESS_KEY }}" ]; then
+            echo "ran=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ran=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Staging is not provisioned yet; deploying to production directly."
+          fi
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.ran == 'true'
+      - uses: pnpm/action-setup@v4
+        if: steps.gate.outputs.ran == 'true'
+        with:
+          version: 11.16.0
+      - uses: actions/setup-node@v4
+        if: steps.gate.outputs.ran == 'true'
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+        if: steps.gate.outputs.ran == 'true'
+      - run: pnpm --filter @icm/spice-run build
+        if: steps.gate.outputs.ran == 'true'
+      - run: pnpm --filter @icm/editor... build
+        if: steps.gate.outputs.ran == 'true'
+        env:
+          VITE_ICM_TIMING_UI: disabled
+      - name: Deploy to staging
+        if: steps.gate.outputs.ran == 'true'
+        run: pnpm dlx wrangler@4.120.1 deploy --env staging
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Give staging its access key
+        if: steps.gate.outputs.ran == 'true'
+        run: |
+          printf '%s' "$STAGING_ACCESS_KEY" \
+            | pnpm dlx wrangler@4.120.1 secret put STAGING_ACCESS_KEY --env staging
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          STAGING_ACCESS_KEY: ${{ secrets.STAGING_ACCESS_KEY }}
+      # The same checks production gets, against the staging host, with the
+      # access key supplied. A path that fails here never reaches the public.
+      - name: Verify staging
+        if: steps.gate.outputs.ran == 'true'
+        env:
+          STAGING_URL: ${{ secrets.STAGING_URL }}
+          STAGING_ACCESS_KEY: ${{ secrets.STAGING_ACCESS_KEY }}
+        run: |
+          auth=(--header "x-staging-access-key: $STAGING_ACCESS_KEY")
+          for path in / /editor /analytics /api/agent/mcp-manifest.json; do
+            curl --fail --silent --show-error "${auth[@]}" \
+              --retry 5 --retry-delay 2 --retry-all-errors --max-time 20 \
+              "${STAGING_URL}${path}" >/dev/null
+          done
+          stale="$(curl --silent --show-error "${auth[@]}" --max-time 20 \
+            --output /dev/null --write-out '%{http_code}' \
+            "${STAGING_URL}/assets/App-staging-smoke-missing.js")"
+          if [ "$stale" != "404" ]; then
+            echo "A missing hashed asset must answer 404 on staging, got: $stale"
+            exit 1
+          fi
+          # Staging must not be public. Without the key it must refuse, and a
+          # staging that lets an anonymous caller in is a failed deploy.
+          anon="$(curl --silent --output /dev/null --max-time 20 \
+            --write-out '%{http_code}' "${STAGING_URL}/editor")"
+          if [ "$anon" != "401" ]; then
+            echo "Staging must refuse an anonymous caller, got: $anon"
+            exit 1
+          fi
+
   deploy:
     name: Deploy Worker
+    needs: staging
+    # Runs when staging passed OR when staging is not provisioned. It must not
+    # run when staging actually failed: that is the whole point of having one.
+    if: always() && needs.staging.result == 'success'
     runs-on: ubuntu-latest
     environment:
       name: cloudflare-production
