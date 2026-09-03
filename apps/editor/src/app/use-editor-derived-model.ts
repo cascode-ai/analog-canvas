@@ -3,8 +3,6 @@ import { useMemo } from "react";
 import {
   buildProjectSearchIndex,
   deriveCrossings,
-  diagnoseProjectSnapshot,
-  diagnoseVisualQuality,
   endpointKey,
   isMosBulkTerminal,
   isVisibleEndpoint,
@@ -25,7 +23,6 @@ import type {
 } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
-import { summarizeVisualDiagnostics } from "../features/selection/selection-inspector-details";
 import {
   endpointNetId,
   type RouteGeometryRecord,
@@ -269,17 +266,6 @@ export function useEditorDerivedModel({
         endpointKey(highlightedNetOrigin.endpoint) ===
           endpointKey(selectedHighlightEndpoint))),
   );
-  const liveDiagnosticSnapshot = useMemo(
-    () => diagnoseProjectSnapshot(project, resolver, projectConnectivityIndex),
-    [project, projectConnectivityIndex, resolver],
-  );
-  const electricalDiagnostics = useMemo(
-    () =>
-      liveDiagnosticSnapshot.diagnostics.filter(
-        (diagnostic) => diagnostic.domain === "erc",
-      ),
-    [liveDiagnosticSnapshot],
-  );
   const searchResults = useMemo(() => {
     if (!searchActive || searchQuery.trim().length === 0) return [];
     return buildProjectSearchIndex(project, {
@@ -324,25 +310,6 @@ export function useEditorDerivedModel({
       ),
     [document, documentConnectivity, resolver],
   );
-  const visualDiagnostics = useMemo(
-    () =>
-      diagnoseVisualQuality(document, resolver, {
-        ...(documentConnectivity
-          ? {
-              routingGeometry: documentConnectivity.routingGeometry,
-              contactEvidence: documentConnectivity.contactEvidence,
-              spatialIndex: documentConnectivity.spatialIndex,
-              logicalNetResolution: documentConnectivity.logicalNetResolution,
-              endpointConnections: documentConnectivity.endpointConnections,
-            }
-          : {}),
-      }),
-    [document, documentConnectivity, resolver],
-  );
-  const visualDiagnosticSummary = useMemo(
-    () => summarizeVisualDiagnostics(visualDiagnostics),
-    [visualDiagnostics],
-  );
   const visibleEndpoints = useMemo(
     () => visibleWireSources(document, resolver),
     [document, resolver],
@@ -374,14 +341,10 @@ export function useEditorDerivedModel({
     highlightedNet,
     highlightedNetId,
     selectedHighlightIsActive,
-    liveDiagnosticSnapshot,
-    electricalDiagnostics,
     searchResults,
     flightlines,
     displayedFlightlines,
     crossings,
-    visualDiagnostics,
-    visualDiagnosticSummary,
     visibleEndpoints,
     wiringEndpoints,
     contactComponents,

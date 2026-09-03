@@ -15,11 +15,29 @@ function toolLabel(
   return tool.charAt(0).toUpperCase() + tool.slice(1);
 }
 
-function issuesBadge(issues: { errorCount: number; warningCount: number }): {
+function issuesBadge(issues: {
+  errorCount: number;
+  warningCount: number;
+  checkStatus?: import("../../app/project-check").ProjectCheckStatus;
+}): {
   severity: "error" | "warning" | "none";
   label: string;
   title: string;
 } {
+  if (issues.checkStatus && issues.checkStatus !== "current") {
+    return {
+      severity: "none",
+      label:
+        issues.checkStatus === "stale"
+          ? "Check out of date"
+          : issues.checkStatus === "failed"
+            ? "Check failed"
+            : issues.checkStatus === "checking"
+              ? "Checking…"
+              : "Not checked",
+      title: "Open Issues — use Check and Save to check",
+    };
+  }
   const plural = (count: number, noun: string) =>
     `${count} ${noun}${count === 1 ? "" : "s"}`;
   if (issues.errorCount > 0) {
@@ -41,7 +59,7 @@ function issuesBadge(issues: { errorCount: number; warningCount: number }): {
   }
   return {
     severity: "none",
-    label: "No issues",
+    label: "No issues found",
     title: "Open the issues list",
   };
 }
@@ -88,7 +106,12 @@ export function EditorStatusbar({
   drawAngleMode: "free" | "45" | "orthogonal";
   wheelBehavior: "auto" | "zoom" | "pan";
   zoomPercent: number;
-  issues?: { errorCount: number; warningCount: number; onOpen: () => void };
+  issues?: {
+    errorCount: number;
+    warningCount: number;
+    checkStatus?: import("../../app/project-check").ProjectCheckStatus;
+    onOpen: () => void;
+  };
   onToggleWireOptions: () => void;
   onWireRoutingModeChange: (mode: WireRoutingMode) => void;
   onWireCornerOrderChange: (order: WireCornerOrder) => void;
@@ -173,6 +196,7 @@ export function EditorStatusbar({
                   type="button"
                   className="statusbar-issues"
                   data-testid="statusbar-issues"
+                  data-check-status={issues.checkStatus ?? "current"}
                   data-severity={badge.severity}
                   title={badge.title}
                   aria-label={`${badge.label}. ${badge.title}`}

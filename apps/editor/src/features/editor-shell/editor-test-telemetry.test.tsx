@@ -21,6 +21,7 @@ describe("editor test telemetry", () => {
           displayedFlightlineCount: 1,
           crossingCount: 2,
           annotationCount: 8,
+          diagnosticCheckStatus: "current",
           structuralDiagnosticCount: 0,
           visualDiagnosticCount: 3,
           blockingDiagnosticCount: 1,

@@ -5,7 +5,8 @@ import { createEmptyProject } from "@icm/model";
 import { serializeProject } from "@icm/project-protocol";
 import { EditTransactionSchema } from "@icm/edit-engine";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import * as derived from "@icm/derived";
 
 import { App } from "./App";
 import {
@@ -86,6 +87,8 @@ describe("editor shell", () => {
   });
 
   it("renders an empty project without owning model state", () => {
+    const erc = vi.spyOn(derived, "runErcChecks");
+    const checks = vi.spyOn(derived, "collectProjectDiagnosticEvidence");
     const project = createEmptyProject("project-smoke", "Smoke Project");
     const markup = renderToStaticMarkup(<App project={project} />);
     expect(markup).toContain("Smoke Project");
@@ -105,6 +108,12 @@ describe("editor shell", () => {
     expect(markup).toContain("Instance Table…");
     expect(markup).toContain("<summary>Netlist</summary>");
     expect(markup).toContain("Check Report…");
+    expect(markup).toContain('data-testid="check-and-save"');
+    expect(markup).toContain("Not checked");
+    expect(erc).not.toHaveBeenCalled();
+    expect(checks).not.toHaveBeenCalled();
+    erc.mockRestore();
+    checks.mockRestore();
     // "Preflight" named a stage of a netlist pipeline, not the question the
     // person is asking; the toolbar carries the plain action.
     expect(markup).not.toContain("Preflight…");

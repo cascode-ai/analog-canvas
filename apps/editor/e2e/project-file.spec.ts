@@ -77,6 +77,94 @@ async function mockCloudProjects(page: Page) {
   return { stored: () => stored };
 }
 
+for (const duringSave of ["edit", "replace"] as const) {
+  test(`Check and Save keeps its snapshot safe during ${duringSave}`, async ({
+    page,
+  }) => {
+    await mockCloudProjects(page);
+    let releaseSave!: () => void;
+    const saveReleased = new Promise<void>((resolve) => {
+      releaseSave = resolve;
+    });
+    let captured: ReturnType<typeof createEmptyProject> | null = null;
+    await page.route("**/api/projects", async (route) => {
+      if (route.request().method() !== "POST") return route.fallback();
+      const body = route.request().postDataJSON() as { projectText: string };
+      captured = JSON.parse(body.projectText) as ReturnType<
+        typeof createEmptyProject
+      >;
+      await saveReleased;
+      await route.fulfill({
+        status: 201,
+        json: {
+          project: {
+            id: "cloud-checked",
+            name: captured.name,
+            revision: 1,
+            schemaVersion: captured.schemaVersion,
+            updatedAt: "2026-09-03T10:00:00Z",
+          },
+        },
+      });
+    });
+    await page.goto("/editor");
+    await chooseComponent(page, "resistor");
+    await page
+      .getByTestId("schematic-canvas")
+      .click({ position: { x: 360, y: 230 } });
+    await page.keyboard.press("Escape");
+    const check = page.getByTestId("check-and-save");
+    await check.click();
+    await expect.poll(() => captured?.documents[0]?.instances.length).toBe(1);
+    await expect(page.getByTestId("statusbar-issues")).toHaveAttribute(
+      "data-check-status",
+      "current",
+    );
+    await expect(page.getByTestId("project-diagnostics")).toContainText(
+      "ERC_UNCONNECTED_PIN",
+    );
+    await expect(check).toBeDisabled();
+    if (duringSave === "edit") {
+      await page.keyboard.press("Control+z");
+      await expect(page.getByTestId("statusbar-issues")).toHaveText(
+        "Check out of date",
+      );
+      await expect(page.locator(".diagnostic-marker")).toHaveCount(0);
+      await expect(
+        page.getByTestId("project-diagnostics").locator("button").first(),
+      ).toBeDisabled();
+    } else {
+      const fileMenu = await openMenu(page, "File");
+      await fileMenu.getByRole("button", { name: "New Project" }).click();
+      await expect(page.getByTestId("canvas-empty-state")).toBeVisible();
+      await expect(page.getByTestId("statusbar-issues")).toHaveText(
+        "Not checked",
+      );
+    }
+    releaseSave();
+    await expect(check).toBeEnabled();
+    if (duringSave === "edit") {
+      await expect(page.getByTestId("status")).toContainText(
+        "newer edits remain unsaved",
+      );
+      await expect(page.getByTestId("project-unsaved-indicator")).toBeVisible();
+    } else {
+      await expect(page.getByTestId("statusbar-issues")).toHaveText(
+        "Not checked",
+      );
+      expect(
+        await page.evaluate(() =>
+          sessionStorage.getItem("analog-canvas.recent-cloud-project.v1"),
+        ),
+      ).toBeNull();
+      await expect(
+        page.getByTestId("project-diagnostics").locator("li"),
+      ).toHaveCount(0);
+    }
+    await expect.poll(() => captured?.documents[0]?.instances.length).toBe(1);
+  });
+}
+
 test("Cloud Save updates one binding while local export stays interchange", async ({
   page,
 }) => {
@@ -102,6 +190,7 @@ test("Cloud Save updates one binding while local export stays interchange", asyn
     "Saved New Circuit to Cloud",
   );
   await expect(page.getByTestId("project-unsaved-indicator")).toHaveCount(0);
+  await expect(page.getByTestId("statusbar-issues")).toHaveText("Not checked");
   await chooseComponent(page, "resistor");
   await page
     .getByTestId("schematic-canvas")

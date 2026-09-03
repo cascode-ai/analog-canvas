@@ -23,7 +23,7 @@ export interface EditorFileCommandDependencies {
   document: SchematicDocument;
   resolver: SymbolResolver;
   defaultViewBox: GridRect;
-  electricalWarningsPresent: boolean;
+  electricalWarningsPresent: () => boolean;
   guardDirtyReplacement: (
     label: string,
     replace: () => void | Promise<void>,
@@ -76,11 +76,11 @@ export function createEditorFileCommands({
     namingProfile: NetlistNamingProfile = "native",
   ): void => {
     const analysis = analyzeDesignNetlist(project, { format, namingProfile });
+    const hasElectricalWarnings = electricalWarningsPresent();
     const plan = planDesignNetlistExport({
       format,
       ir: analysis.ir,
-      warningsPresent:
-        analysis.diagnostics.length > 0 || electricalWarningsPresent,
+      warningsPresent: analysis.diagnostics.length > 0 || hasElectricalWarnings,
       warningsReviewed,
       projectName: project.name,
     });

@@ -26,6 +26,11 @@ of one circuit consumed the bounded cloud shelf.
 - `.icproj.json` is explicit Import/Export/Backup interchange. It never clears
   Cloud dirty state and is never labeled Save.
 - Editing, Undo, rendering, and recovery do not depend on network availability.
+- **Check and Save** (2026-09-03) composes explicit ERC/visual checking with
+  this same Save operation. It creates no second storage authority. Checking
+  and saving refer to the same captured Project, their outcomes are reported
+  independently, and findings never block saving unfinished work. In-flight
+  saves cannot mark later edits clean or bind a replacement Project.
 
 ## Necessary blocking boundaries
 

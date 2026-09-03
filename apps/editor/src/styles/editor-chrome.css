@@ -324,7 +324,7 @@
   }
 }
 
-/* Check and Save keeps its green run glyph inside the File menu. */
+/* The explicit Check and Save action reuses the existing run glyph. */
 .toolbar-check-glyph {
   display: inline-block;
   width: 0;

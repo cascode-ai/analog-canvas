@@ -104,10 +104,17 @@ layers. PNG uses 3x raster scale. Browser PDF converts the same formal SVG to
 vector paths and text on a page matching the SVG viewBox, so circuit geometry
 stays sharp when enlarged.
 
-For an electrical design netlist, choose **Netlist / Check Report**. **Check and
-Save** is separate: it settles available MOS-body defaults and keeps a copy on
-your account's shelf without judging whether an abbreviated or unfinished
-drawing can be emitted as a netlist.
+Use the toolbar's **Check and Save** to check the whole Project for ERC and
+visual issues and save it through the existing private Cloud Project service.
+Findings appear in **Issues**, the bottom status summary, and existing canvas
+markers. Observations stay behind their explicit toggle. Neither producer
+runs automatically while drawing. Further edits mark the last check out of
+date and hide its markers; check again to refresh it. Save still proceeds
+when issues exist, and an offline or signed-out save still leaves the local
+check available. This command does not repair Bulk connections or rewrite
+the circuit. **File / Save** and **Ctrl+S** remain save-only.
+
+For an electrical design netlist, choose **Netlist / Check Report** instead.
 The dialog reports structural netlist findings and current-revision ERC
 readiness separately; the ERC section is the same evidence used by Gallery.
 When a structural IR is available, it previews the deterministic SPICE or

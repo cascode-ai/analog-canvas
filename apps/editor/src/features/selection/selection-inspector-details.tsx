@@ -133,7 +133,9 @@ export function SelectionInspectorDetails({
 }
 
 export interface ProjectDiagnosticsSectionProps {
-  snapshot: LiveDiagnosticSnapshot;
+  snapshot: LiveDiagnosticSnapshot | null;
+  checkStatus?: import("../../app/project-check").ProjectCheckStatus;
+  checkError?: string | null;
   documentLabel(documentId: string): string;
   onSelectDiagnostic(diagnostic: Diagnostic): void;
   /**
@@ -247,12 +249,14 @@ function DiagnosticFilters({
 /** Project-wide diagnostic workbench for compatible, locator-backed domains. */
 export function ProjectDiagnosticsSection({
   snapshot,
+  checkStatus = "current",
+  checkError = null,
   documentLabel,
   onSelectDiagnostic,
   focusRequestToken = 0,
   onOpenStateChange,
 }: ProjectDiagnosticsSectionProps) {
-  const diagnostics = snapshot.diagnostics;
+  const diagnostics = snapshot?.diagnostics ?? [];
   const [severityFilter, setSeverityFilter] =
     useState<DiagnosticSeverityFilter>("all");
   const [showObservations, setShowObservations] = useState(false);
@@ -318,10 +322,26 @@ export function ProjectDiagnosticsSection({
         onToggle={(event) => setSectionOpen(event.currentTarget.open)}
       >
         <summary>
-          <h2>Issues ({availableDiagnostics.length})</h2>
+          <h2>
+            Issues{" "}
+            {checkStatus === "unchecked" || checkStatus === "failed"
+              ? ""
+              : `(${availableDiagnostics.length})`}
+          </h2>
           <span>{hasBlockingIssue ? "Action required" : "Review"}</span>
         </summary>
         <div className="diagnostics-body">
+          {checkStatus !== "current" ? (
+            <p data-testid="diagnostic-check-state" role="status">
+              {checkStatus === "stale"
+                ? "Last check is out of date. Use Check and Save to check again."
+                : checkStatus === "failed"
+                  ? `Check failed: ${checkError ?? "Unknown error"}. Saving is independent.`
+                  : checkStatus === "checking"
+                    ? "Checking…"
+                    : "Not checked. Use Check and Save to check ERC and visual issues."}
+            </p>
+          ) : null}
           {observationCount > 0 ? (
             <button
               type="button"
@@ -338,11 +358,12 @@ export function ProjectDiagnosticsSection({
             severityFilter={severityFilter}
             onSeverityFilterChange={setSeverityFilter}
           />
-          {availableDiagnostics.length === 0 ? (
+          {availableDiagnostics.length === 0 && checkStatus === "current" ? (
             <p data-testid="no-current-diagnostics">
               No current actionable diagnostics
             </p>
-          ) : visibleDiagnostics.length === 0 ? (
+          ) : availableDiagnostics.length > 0 &&
+            visibleDiagnostics.length === 0 ? (
             <p data-testid="no-matching-diagnostics">
               No diagnostics match the current filters
             </p>
@@ -360,6 +381,7 @@ export function ProjectDiagnosticsSection({
                 <button
                   type="button"
                   data-testid={`project-diagnostic-${diagnostic.id}`}
+                  disabled={checkStatus !== "current"}
                   onClick={() => onSelectDiagnostic(diagnostic)}
                 >
                   <strong>

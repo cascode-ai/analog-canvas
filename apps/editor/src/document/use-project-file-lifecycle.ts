@@ -121,6 +121,8 @@ export function useProjectFileLifecycle({
   const saveInFlightRef = useRef<Promise<CloudProjectSaveOutcome> | null>(null);
   const liveProjectRef = useRef(project);
   liveProjectRef.current = project;
+  const liveSessionRef = useRef(projectSessionId);
+  liveSessionRef.current = projectSessionId;
   /** Change token of the last snapshot published or exported; see hasUnsafeWork. */
   const safeSnapshotTokenRef = useRef<string | null>(null);
   const [persistenceState, setPersistenceState] =
@@ -215,13 +217,18 @@ export function useProjectFileLifecycle({
     return nextDocument;
   }
 
-  async function performProjectSaveToCloud(): Promise<CloudProjectSaveOutcome> {
-    setPersistenceState("saving");
-    recovery.stage(project, { unsavedAtSnapshot: true, cloudBinding });
-    await recovery.flushNow();
-    const savedCandidate = structuredClone(project);
+  async function performProjectSaveToCloud(
+    candidate: CircuitProject,
+  ): Promise<CloudProjectSaveOutcome> {
+    // Capture before the recovery/network awaits: save exactly the checked version.
+    const savedCandidate = structuredClone(candidate);
     const savedCandidateToken = projectChangeToken(savedCandidate);
+    setPersistenceState("saving");
+    setStatus(`Saving ${savedCandidate.name} to Cloud`);
+    recovery.stage(savedCandidate, { unsavedAtSnapshot: true, cloudBinding });
+    await recovery.flushNow();
     const outcome = await saveCloudProject(savedCandidate, cloudBinding);
+    if (liveSessionRef.current !== projectSessionId) return outcome;
     if (outcome.status === "saved") {
       const nextBinding = {
         id: outcome.project.id,
@@ -234,13 +241,16 @@ export function useProjectFileLifecycle({
         viewBox: { ...viewBox },
       });
       const liveProject = liveProjectRef.current;
-      const stillMatchesSavedCandidate =
+      let stillMatchesSavedCandidate =
         projectChangeToken(liveProject) === savedCandidateToken;
       recovery.stage(liveProject, {
         unsavedAtSnapshot: !stillMatchesSavedCandidate,
         cloudBinding: nextBinding,
       });
       await recovery.flushNow();
+      if (liveSessionRef.current !== projectSessionId) return outcome;
+      stillMatchesSavedCandidate =
+        projectChangeToken(liveProjectRef.current) === savedCandidateToken;
       setPersistenceState(stillMatchesSavedCandidate ? "clean" : "dirty");
       onCloudProjectSaved(outcome.project);
       setStatus(
@@ -277,10 +287,21 @@ export function useProjectFileLifecycle({
     return outcome;
   }
 
-  function saveProjectToCloud(): Promise<CloudProjectSaveOutcome> {
+  function saveProjectToCloud(
+    candidate: CircuitProject = project,
+  ): Promise<CloudProjectSaveOutcome> {
     const inFlight = saveInFlightRef.current;
     if (inFlight) return inFlight;
-    const operation = performProjectSaveToCloud();
+    const operation = performProjectSaveToCloud(candidate).catch(
+      (error: unknown): CloudProjectSaveOutcome => {
+        const message = error instanceof Error ? error.message : "Save failed";
+        if (liveSessionRef.current === projectSessionId) {
+          setPersistenceState("failed");
+          setStatus(`Save failed; work remains local (${message})`);
+        }
+        return { status: "rejected", message };
+      },
+    );
     saveInFlightRef.current = operation;
     const clear = () => {
       if (saveInFlightRef.current === operation) saveInFlightRef.current = null;
@@ -711,6 +732,8 @@ export function useProjectFileLifecycle({
     noteProjectSnapshotSafe,
     replaceActiveProject,
     saveProjectToCloud,
+    isSaveInFlight: () => saveInFlightRef.current !== null,
+    saveBusy: persistenceState === "saving",
     exportProjectFile,
     downloadCurrentProjectBackup,
     guardDirtyReplacement,
