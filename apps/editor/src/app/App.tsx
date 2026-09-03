@@ -92,6 +92,10 @@ import {
 } from "../canvas/canvas-drag-session";
 import { startCanvasDragVisual } from "../canvas/canvas-drag-visual";
 import { instanceVisibleHitBox } from "../canvas/instance-geometry";
+import {
+  loadReleaseChannel,
+  type ReleaseChannel,
+} from "../document/release-channel";
 import { createCanvasHitController } from "../canvas/canvas-hit-controller";
 import { screenScaleHitRadius } from "../canvas/canvas-hit-resolver";
 import { buildDiagnosticMarkers } from "../canvas/diagnostic-markers";
@@ -517,6 +521,19 @@ export function App({
   const cameraRuntime = cameraRuntimeRef.current;
   useEffect(() => () => cameraRuntime.dispose(), [cameraRuntime]);
   const [gridDotsVisible, setGridDotsVisible] = useState(true);
+  // Which channel serves this build (ADR 0057). Asked once; anything but a
+  // clear "preview" is production, so the public site never wears the banner.
+  const [releaseChannel, setReleaseChannel] =
+    useState<ReleaseChannel>("production");
+  useEffect(() => {
+    let cancelled = false;
+    void loadReleaseChannel().then((channel) => {
+      if (!cancelled) setReleaseChannel(channel);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   // Annotations and drafting place on their own pitch; the Document grid
   // stays the electrical contract for devices, wires, and junctions.
   const [annotationGrid, setAnnotationGridState] = useState<1 | 5 | 10>(() => {
@@ -3859,6 +3876,7 @@ export function App({
     <main className="app-shell">
       {renderCrashRequested() ? <RenderCrashProbe /> : null}
       <EditorAppChrome
+        releaseChannel={releaseChannel}
         projectName={project.name}
         projectSchemaVersion={project.schemaVersion}
         projectNameDraft={projectNameDraft}
@@ -4020,7 +4038,17 @@ export function App({
             : null
         }
         publishGalleryOpen={publishGalleryOpen}
-        onPublishGallery={() => setPublishGalleryOpen(true)}
+        onPublishGallery={() => {
+          // The preview reads the gallery and never writes it (ADR 0057);
+          // saying so here beats a sign-in dialog with nowhere to sign in.
+          if (releaseChannel === "preview") {
+            setStatus(
+              "Preview builds cannot publish to the gallery; publish from the production site.",
+            );
+            return;
+          }
+          setPublishGalleryOpen(true);
+        }}
         helpButtonRef={helpButtonRef}
         helpOpen={helpOpen}
         onOpenHelp={() => setHelpOpen(true)}

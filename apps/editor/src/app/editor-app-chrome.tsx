@@ -3,6 +3,7 @@ import type { ComponentProps, RefObject } from "react";
 import { BugReportLink } from "../components/bug-report-link";
 import { DrawingToolbar } from "../features/editor-shell/drawing-toolbar";
 import { EditorTestTelemetry } from "../features/editor-shell/editor-test-telemetry";
+import type { ReleaseChannel } from "../document/release-channel";
 import { FileCommandMenu } from "../features/editor-shell/file-command-menu";
 import { ToolIcon } from "../features/editor-shell/tool-icon";
 import { HierarchyToolbar } from "../features/hierarchy/hierarchy-toolbar";
@@ -61,6 +62,8 @@ export interface EditorAppChromeProps {
   drawingToolbar: ComponentProps<typeof DrawingToolbar>;
   hierarchyToolbar: ComponentProps<typeof HierarchyToolbar>;
   telemetry: ComponentProps<typeof EditorTestTelemetry>;
+  /** Which channel serves this build; the preview wears a banner. */
+  releaseChannel: ReleaseChannel;
 }
 
 /** Persistent command chrome above the document workspace. */
@@ -100,10 +103,21 @@ export function EditorAppChrome({
   drawingToolbar,
   hierarchyToolbar,
   telemetry,
+  releaseChannel,
 }: EditorAppChromeProps) {
   const displayedProjectName = projectNameDraft ?? projectName;
   return (
     <header className="app-chrome">
+      {releaseChannel === "preview" ? (
+        <p
+          className="app-channel-banner"
+          role="status"
+          data-testid="release-channel-banner"
+        >
+          Preview build: unreleased features, simulation included. The gallery
+          is read-only here; publish on the production site.
+        </p>
+      ) : null}
       <div className="app-chrome-main">
         <div className="app-brand">
           <a

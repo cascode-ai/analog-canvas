@@ -967,3 +967,15 @@
     padding-inline: 0.35rem;
   }
 }
+
+/* The preview channel's banner (ADR 0057): always visible, never dismissable,
+   so a screenshot or a shared tab cannot be mistaken for the public site. */
+.app-channel-banner {
+  margin: 0;
+  padding: 2px var(--icm-space-3);
+  background: #8a4b00;
+  color: #fff;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  text-align: center;
+}

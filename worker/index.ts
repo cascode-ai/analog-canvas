@@ -16,15 +16,25 @@ import {
 import { routeGalleryRequest, type GalleryNamespaceLike } from "./gallery";
 import { routeSimulationRequest, type SimulationEnv } from "./simulation";
 import { stagingAccessGate, type StagingEnv } from "./staging-gate";
+import {
+  channelResponse,
+  markPreviewResponse,
+  previewRobotsResponse,
+  previewWriteRefusal,
+  releaseChannel,
+  type ChannelEnv,
+} from "./channel";
 import { routeAuthRequest, type AuthNamespaceLike } from "./auth";
 
 export { AnalyticsDO } from "./analytics";
 export { AgentSessionDO } from "./agent-session";
 export { GalleryDO } from "./gallery";
 export { AuthDO } from "./auth";
+export { NgspiceContainer } from "./ngspice-container";
 
 type Env = SimulationEnv &
-  StagingEnv & {
+  StagingEnv &
+  ChannelEnv & {
     ANALYTICS: DurableObjectNamespaceLike;
     ASSETS: { fetch(request: Request): Promise<Response> };
     ANALYTICS_KEY: string | undefined;
@@ -97,42 +107,59 @@ const REFERRER_CATEGORIES: readonly (readonly [string, readonly string[]])[] = [
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    // Before any route, including the APIs: a staging deployment that cannot
-    // identify its caller serves nobody. Production leaves ICM_ENVIRONMENT
-    // unset, so this returns null there and costs one comparison.
-    const stagingRefusal = stagingAccessGate(request, env);
-    if (stagingRefusal) return stagingRefusal;
-
-    const url = new URL(request.url);
-
-    const agentResponse = await routeAgentSessionRequest(request, env);
-    if (agentResponse) return agentResponse;
-
-    const authResponse = await routeAuthRequest(request, env);
-    if (authResponse) return authResponse;
-
-    const galleryResponse = await routeGalleryRequest(request, env);
-    if (galleryResponse) return galleryResponse;
-
-    const simulationResponse = await routeSimulationRequest(request, env);
-    if (simulationResponse) return simulationResponse;
-
-    if (url.pathname === "/api/track" && request.method === "POST") {
-      return trackPageView(request, env);
-    }
-    if (url.pathname === "/api/stats" && request.method === "GET") {
-      return stats(env);
-    }
-    if (url.pathname === "/api/analytics" && request.method === "GET") {
-      return analytics(request, env);
-    }
-    if (url.pathname.startsWith("/api/")) {
-      return Response.json({ error: "Not found" }, { status: 404 });
-    }
-
-    return serveAsset(request, env);
+    // Every preview response is stamped noindex on the way out (ADR 0057).
+    return markPreviewResponse(await route(request, env), env);
   },
 };
+
+async function route(request: Request, env: Env): Promise<Response> {
+  // Before any route, including the APIs: a staging deployment that cannot
+  // identify its caller serves nobody. Production leaves ICM_ENVIRONMENT
+  // unset, so this returns null there and costs one comparison.
+  const stagingRefusal = stagingAccessGate(request, env);
+  if (stagingRefusal) return stagingRefusal;
+
+  const url = new URL(request.url);
+
+  // The channel is a fact about the deployment, answered before anything
+  // that depends on it; the preview's robots answer and its refusal of
+  // shared-store writes sit here so no later handler can forget them.
+  if (url.pathname === "/api/channel" && request.method === "GET") {
+    return channelResponse(env);
+  }
+  if (url.pathname === "/robots.txt" && releaseChannel(env) === "preview") {
+    return previewRobotsResponse();
+  }
+  const readOnlyRefusal = previewWriteRefusal(request, env);
+  if (readOnlyRefusal) return readOnlyRefusal;
+
+  const agentResponse = await routeAgentSessionRequest(request, env);
+  if (agentResponse) return agentResponse;
+
+  const authResponse = await routeAuthRequest(request, env);
+  if (authResponse) return authResponse;
+
+  const galleryResponse = await routeGalleryRequest(request, env);
+  if (galleryResponse) return galleryResponse;
+
+  const simulationResponse = await routeSimulationRequest(request, env);
+  if (simulationResponse) return simulationResponse;
+
+  if (url.pathname === "/api/track" && request.method === "POST") {
+    return trackPageView(request, env);
+  }
+  if (url.pathname === "/api/stats" && request.method === "GET") {
+    return stats(env);
+  }
+  if (url.pathname === "/api/analytics" && request.method === "GET") {
+    return analytics(request, env);
+  }
+  if (url.pathname.startsWith("/api/")) {
+    return Response.json({ error: "Not found" }, { status: 404 });
+  }
+
+  return serveAsset(request, env);
+}
 
 /**
  * Serve a static asset, and let a missing one be missing.
