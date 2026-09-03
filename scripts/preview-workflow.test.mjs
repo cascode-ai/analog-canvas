@@ -41,6 +41,10 @@ describe("the preview deploy", () => {
     expect(preview).toContain("must be refused");
     expect(preview).toContain("/api/simulate");
     expect(preview).toContain("hosted-container");
+    // A 200 with a timed-out outcome is not a simulation.
+    expect(preview).toContain('"status":"completed"');
+    // The domain is created by the deploy and takes time to resolve.
+    expect(preview).toMatch(/for _ in \$\(seq 1 \d+\); do\s*\n\s*if curl/u);
   });
 
   it("does not leak into the production workflow", () => {

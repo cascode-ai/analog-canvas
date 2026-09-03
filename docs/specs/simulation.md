@@ -61,6 +61,14 @@ The following values are rejected before a simulator runs:
 A hosted configuration rejected at this boundary returns
 `simulation-environment-invalid`; it is not reported as a circuit failure.
 
+The library is added only when the deck needs a device model: when it
+contains a semiconductor device card (MOSFET, diode, BJT, JFET) or names a
+Sky130 model anywhere outside comments and continuation lines. A deck of
+passives, sources, and dependent sources runs without it, because loading the
+`tt` corner costs about 16 s of CPU before any analysis (measured 2026-09-04
+with ngspice 46 on a resistor divider) and buys such a deck nothing. The
+configuration metadata then reports `modelLibrary: null`.
+
 ## Run metadata V1
 
 Every completed, failed, dropped-input, or timed-out simulator run carries one

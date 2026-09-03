@@ -31,9 +31,12 @@
     "binding": "ASSETS",
     "directory": "./apps/editor/dist",
     "not_found_handling": "single-page-application",
-    // Same as production, plus robots.txt: the preview answers it itself
-    // with a full disallow so search engines never list unreleased work.
-    "run_worker_first": ["/api/*", "/assets/*", "/robots.txt"],
+    // Every path runs the Worker first here, unlike production. The noindex
+    // stamp and the robots answer live in the Worker, and a path the asset
+    // layer answers on its own is a path they never reach: the first live
+    // verification found the shell served without noindex for exactly that
+    // reason. What is served does not change; only that the Worker sees it.
+    "run_worker_first": true,
   },
   "durable_objects": {
     "bindings": [
@@ -67,9 +70,13 @@
       // repository root, which the preview workflow stages before deploying.
       // .dockerignore keeps everything else out of the build context.
       "image_build_context": ".",
-      // One running simulator, one person's run at a time. Measure before
-      // raising either; the harness has to guard its own concurrency.
-      "instance_type": "basic",
+      // One running simulator, one person's run at a time; the harness has
+      // to guard its own concurrency. The size was measured, not guessed:
+      // loading the Sky130 tt corner takes about 16 s of CPU on a fast core
+      // (ngspice 46, 2026-09-04), and on "basic" (a quarter core) the first
+      // live run of a resistor divider timed out at 60 s before printing a
+      // line. A full core keeps a model-backed run inside the ceiling.
+      "instance_type": "standard-2",
       "max_instances": 1,
     },
   ],

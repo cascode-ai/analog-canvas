@@ -79,6 +79,14 @@ jobs:
       - name: Verify preview
         run: |
           set -euo pipefail
+          # The custom domain is created by the deploy; the first one took a
+          # few minutes to resolve, and every check below needs the name.
+          for _ in $(seq 1 60); do
+            if curl --silent --output /dev/null --max-time 10 "${PREVIEW_URL}/api/channel"; then
+              break
+            fi
+            sleep 5
+          done
           channel="$(curl --fail --silent --show-error --max-time 20 \
             --retry 5 --retry-delay 2 --retry-all-errors \
             "${PREVIEW_URL}/api/channel")"
@@ -136,7 +144,7 @@ jobs:
           body="$(node -e '
             const netlist = [".subckt divider in out", "R1 in out 1k", "R2 out 0 1k", ".ends divider"].join("\n");
             const testbench = ["V1 in 0 DC 1", "X1 in out divider", ".op", ".end"].join("\n");
-            process.stdout.write(JSON.stringify({ netlist, testbench, inputRevision: "preview-smoke", timeoutMs: 60000 }));
+            process.stdout.write(JSON.stringify({ netlist, testbench, inputRevision: "preview-smoke", timeoutMs: 110000 }));
           ')"
           result="$(curl --silent --show-error --max-time 120 \
             --output /tmp/preview-simulation.json \
@@ -149,3 +157,10 @@ jobs:
             exit 1
           fi
           grep -q '"executor":"hosted-container"' /tmp/preview-simulation.json
+          # HTTP 200 is the route answering, not the circuit being solved: a
+          # timed-out or failed run also arrives as 200. The first live run
+          # timed out at 60 s and would have passed a status-only check.
+          if ! grep -q '"status":"completed"' /tmp/preview-simulation.json; then
+            echo "The simulation did not complete; see the outcome above."
+            exit 1
+          fi

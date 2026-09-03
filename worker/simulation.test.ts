@@ -106,6 +106,26 @@ describe("simulation route", () => {
     expect(ours).not.toMatch(/\.ac\b|\.dc\b|\.tran\b|\.control/iu);
   });
 
+  it("leaves the model library out of a deck that needs no model", async () => {
+    // A resistor divider has nothing to look up; the Sky130 corner costs
+    // about 16 s of CPU to parse, so it is added only for device cards.
+    const seen: { deck?: string; timeoutMs?: number } = {};
+    const response = await routeSimulationRequest(
+      post({
+        netlist: ".subckt divider in out\nR1 in out 1k\nR2 out 0 1k\n.ends",
+        testbench: "V1 in 0 DC 1\nX1 in out divider\n.op",
+      }),
+      stubRunner(
+        { log: "", exitCode: 0, timedOut: false, durationMs: 5 },
+        seen,
+      ),
+    );
+    expect(seen.deck).not.toMatch(/^\s*\.lib\b/mu);
+    expect((await response!.json()) as unknown).toMatchObject({
+      metadata: { configuration: { modelLibrary: null } },
+    });
+  });
+
   it("uses the deployment's explicit Sky130 path and section", async () => {
     const seen: { deck?: string; timeoutMs?: number } = {};
     const env = stubRunner(

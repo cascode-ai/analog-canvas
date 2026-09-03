@@ -20,6 +20,7 @@ function readConfig(file: string): {
     image: string;
     max_instances?: number;
     image_build_context?: string;
+    instance_type?: string;
   }[];
   env?: Record<string, unknown>;
 } {
@@ -116,10 +117,19 @@ describe("the preview channel configuration (ADR 0057)", () => {
     }
   });
 
-  it("answers robots.txt itself so the preview is never listed", () => {
+  it("runs the Worker on every path so noindex and robots reach the shell", () => {
+    // The stamp and the robots answer live in the Worker; a path the asset
+    // layer answers alone never carries them. The first live verification
+    // found /editor without noindex for exactly that reason.
     expect(preview.assets?.binding).toBe("ASSETS");
-    expect(preview.assets?.run_worker_first).toEqual(
-      expect.arrayContaining(["/api/*", "/assets/*", "/robots.txt"]),
-    );
+    expect(preview.assets?.run_worker_first).toBe(true);
+    // Production keeps its narrow list: it has nothing to stamp.
+    expect(Array.isArray(production.assets?.run_worker_first)).toBe(true);
+  });
+
+  it("gives the simulator a core that can parse the model corner", () => {
+    // Measured: about 16 s of CPU to load the Sky130 tt corner. A quarter
+    // core timed out a resistor divider at 60 s on the first live run.
+    expect(preview.containers?.[0]?.instance_type).toBe("standard-2");
   });
 });
