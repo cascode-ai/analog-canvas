@@ -410,6 +410,20 @@ function fallbackClipboardPreviewDocument(
     }
     return preview;
   });
+  // The dry run has already remapped ownership; this step only moves its
+  // isolated geometry back from the clearance position. Use the paste
+  // transforms for every drafting coordinate, including leader/callout tips
+  // and attached-anchor fallbacks, without renaming or re-snapping the copy.
+  const unchangedIds = new Map<string, string>();
+  const draftingObjects = clipboard.draftingObjects.map((object) =>
+    remapPastedDraftingAnchors(
+      translateDraftingObject(object, offset, base.presentation.grid),
+      unchangedIds,
+      unchangedIds,
+      unchangedIds,
+      offset,
+    ),
+  );
   return {
     ...base,
     instances: clipboard.instances.map((instance) => ({
@@ -460,9 +474,7 @@ function fallbackClipboardPreviewDocument(
     noConnects: structuredClone(clipboard.noConnects),
     annotations,
     drafting:
-      clipboard.draftingObjects.length > 0
-        ? { objects: structuredClone(clipboard.draftingObjects) }
-        : undefined,
+      draftingObjects.length > 0 ? { objects: draftingObjects } : undefined,
     // A copy ghost is an isolated fragment, not a filtered view of the base
     // Document. Every reference-bearing Document field must therefore be
     // owned explicitly here. Inheriting any of these through `...base` leaves

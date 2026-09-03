@@ -666,7 +666,9 @@ test("snaps quick Text creation after a non-grid viewport zoom", async ({
   expect(textObject.anchor.position.y % 5).toBe(0);
 });
 
-test("copies a selected text with C", async ({ page }) => {
+test("previews a copied text at the cursor and commits its rotated pose atomically", async ({
+  page,
+}) => {
   await page.goto("/editor");
   const canvas = page.getByTestId("schematic-canvas");
 
@@ -679,6 +681,9 @@ test("copies a selected text with C", async ({ page }) => {
   const texts = page.locator('[data-kind="draft-text"]');
   await expect(texts).toHaveCount(1);
   const origin = (await texts.first().boundingBox())!;
+  const originalId = await texts.first().getAttribute("data-object-id");
+  const original = page.locator(`[data-object-id="${originalId}"]`);
+  const revision = Number(await page.getByTestId("revision").textContent());
 
   // Select the text and copy it. A drawing-only selection used to be refused
   // outright — "Select at least one component to copy".
@@ -690,7 +695,34 @@ test("copies a selected text with C", async ({ page }) => {
   await expect(page.getByTestId("status")).toContainText("Place copy");
 
   const box = (await canvas.boundingBox())!;
+  const ghost = page.getByTestId("copy-placement-preview");
+  const previewText = ghost.locator('[data-kind="draft-text"]');
+  await page.mouse.move(box.x + 320, box.y + 280);
+  await expect(previewText).toBeInViewport();
+  await expect(previewText).toContainText("Design note");
+  const firstPreview = (await previewText.boundingBox())!;
   await page.mouse.move(box.x + 420, box.y + 380);
+  const movedPreview = (await previewText.boundingBox())!;
+  expect(movedPreview.x).toBeGreaterThan(firstPreview.x + 50);
+  expect(movedPreview.y).toBeGreaterThan(firstPreview.y + 50);
+  expect(await original.boundingBox()).toEqual(origin);
+  await expect(page.getByTestId("revision")).toHaveText(String(revision));
+
+  await page.keyboard.press("Escape");
+  await expect(ghost).toHaveCount(0);
+  await expect(texts).toHaveCount(1);
+  await expect(page.getByTestId("revision")).toHaveText(String(revision));
+
+  await page.mouse.click(
+    origin.x + origin.width / 2,
+    origin.y + origin.height / 2,
+  );
+  await page.keyboard.press("c");
+  await page.mouse.move(box.x + 420, box.y + 380);
+  await page.keyboard.press("r");
+  await expect(previewText).toBeInViewport();
+  const rotatedPreview = (await previewText.boundingBox())!;
+  expect(rotatedPreview.height).toBeGreaterThan(rotatedPreview.width);
   await canvas.click({ position: { x: 420, y: 380 } });
   await page.keyboard.press("Escape");
 
@@ -701,6 +733,16 @@ test("copies a selected text with C", async ({ page }) => {
   expect(both.filter((value) => value?.includes("Design note"))).toHaveLength(
     2,
   );
+  const placed = (await texts.last().boundingBox())!;
+  for (const key of ["x", "y", "width", "height"] as const) {
+    expect(placed[key]).toBeCloseTo(rotatedPreview[key], 1);
+  }
+  await expect(page.getByTestId("revision")).toHaveText(String(revision + 1));
+  await page.keyboard.press("Control+z");
+  await expect(texts).toHaveCount(1);
+  expect(await original.boundingBox()).toEqual(origin);
+  await page.keyboard.press("Control+Shift+z");
+  await expect(texts).toHaveCount(2);
 });
 
 test("fits drafting text with F using an integer grid camera", async ({

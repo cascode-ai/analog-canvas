@@ -4,7 +4,7 @@ import {
   resolveAnnotationText,
   resolveDocumentLogicalNets,
 } from "@icm/derived";
-import type { Annotation, Instance } from "@icm/model";
+import type { Annotation, DraftingObject, Instance } from "@icm/model";
 import {
   createEmptyDocument,
   flattenRichText,
@@ -28,6 +28,236 @@ import {
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 
 describe("schematic clipboard", () => {
+  it.each(["fallback", "dry-run"])(
+    "keeps %s drawing previews at the same coordinates as the paste",
+    (mode) => {
+      const document = createEmptyDocument(
+        "drawing-preview",
+        "Drawing preview",
+      );
+      const free = (x: number, y: number) => ({
+        kind: "free" as const,
+        position: { x, y },
+      });
+      const common = {
+        locked: false,
+        zIndex: 0,
+        anchor: free(103, 107),
+      };
+      const text = {
+        content: semanticTextDocument("Vout", "instance-label"),
+        alignment: "end" as const,
+        rotation: 90 as const,
+        styleOverride: { sizeScale: 1.5, color: "#2244AA" },
+      };
+      const objects: DraftingObject[] = [
+        { ...common, ...text, id: "note", kind: "text" },
+        {
+          ...common,
+          id: "arrow",
+          kind: "arrow",
+          from: free(103, 107),
+          to: free(143, 147),
+          waypoints: [{ x: 123, y: 107 }],
+          curveControls: [{ x: 113, y: 97 }, null],
+        },
+        {
+          ...common,
+          id: "line",
+          kind: "construction-line",
+          points: [
+            { x: 103, y: 107 },
+            { x: 143, y: 147 },
+          ],
+          curveControls: [{ x: 113, y: 97 }],
+          lineStyle: "dashed",
+        },
+        {
+          ...common,
+          id: "rectangle",
+          kind: "rectangle",
+          center: { x: 103, y: 107 },
+          width: 40,
+          height: 20,
+          rotation: 30,
+          lineStyle: "solid",
+        },
+        {
+          ...common,
+          id: "circle",
+          kind: "circle",
+          center: { x: 103, y: 107 },
+          radius: 20,
+          lineStyle: "solid",
+        },
+        { ...common, id: "leader", kind: "leader", target: free(143, 147) },
+        {
+          ...common,
+          ...text,
+          id: "callout",
+          kind: "callout",
+          target: free(143, 147),
+        },
+      ];
+      document.drafting = { objects };
+      const before = structuredClone(document);
+      const clipboard = copySelection(
+        document,
+        [],
+        objects.map((object) => object.id),
+      )!;
+      const offset = { x: 60, y: 40 };
+      const proposal = proposePaste(document, clipboard, offset, 1);
+      const paste = executeTransaction(
+        document,
+        {
+          transactionId: "drawing-paste",
+          documentId: document.id,
+          expectedRevision: document.revision,
+          actor: { kind: "human", id: "test" },
+          edits: proposal.edits,
+        },
+        { symbolResolver: resolver },
+      );
+      expect(paste.ok, JSON.stringify(paste.diagnostics)).toBe(true);
+      if (!paste.ok) return;
+      const preview = clipboardPreviewDocument(
+        document,
+        clipboard,
+        offset,
+        [],
+        mode === "dry-run" ? resolver : undefined,
+        1,
+      );
+      const expected = paste.document.drafting!.objects.filter((object) =>
+        Object.values(proposal.idRemap.draftingObjects).includes(object.id),
+      );
+      expect(
+        preview.drafting!.objects.map((object, index) => ({
+          ...object,
+          id: objects[index]!.id,
+        })),
+      ).toEqual(
+        expected.map((object, index) => ({
+          ...object,
+          id: objects[index]!.id,
+        })),
+      );
+      expect(preview.drafting!.objects[0]!.anchor).toEqual(free(163, 147));
+      expect(preview.drafting!.objects[0]).toMatchObject(text);
+      expect(() => buildSvgScene(preview, resolver)).not.toThrow();
+      expect(document).toEqual(before);
+      expect(clipboard.draftingObjects).toEqual(objects);
+    },
+  );
+
+  it("keeps rotated mixed-copy text aligned with its remapped component labels", () => {
+    const document = createEmptyDocument("mixed-preview", "Mixed preview");
+    document.instances.push({
+      id: "R1",
+      reference: "R1",
+      symbolId: "resistor",
+      placement: { position: { x: 100, y: 100 }, rotation: 0, mirror: "none" },
+    });
+    const anchor = {
+      kind: "object" as const,
+      objectId: "R1",
+      localOffset: { x: 20, y: 30 },
+      fallbackPosition: { x: 120, y: 130 },
+    };
+    document.annotations.push({
+      id: "reference",
+      kind: "instance-label",
+      locked: false,
+      binding: { kind: "instance-reference", instanceId: "R1" },
+      anchor,
+      alignment: "start",
+      rotation: 0,
+    });
+    const note = {
+      kind: "text" as const,
+      locked: false,
+      zIndex: 0,
+      content: { runs: [{ kind: "text" as const, value: "Design note" }] },
+      alignment: "middle" as const,
+      rotation: 0 as const,
+    };
+    document.drafting = {
+      objects: [
+        {
+          ...note,
+          id: "free-note",
+          anchor: { kind: "free", position: { x: 143, y: 127 } },
+        },
+        { ...note, id: "attached-note", anchor },
+      ],
+    };
+    const before = structuredClone(document);
+    const clipboard = copySelection(
+      document,
+      ["R1"],
+      ["free-note", "attached-note"],
+    )!;
+    const turns = [{ kind: "rotate" as const, deltaDegrees: 90 as const }];
+    const offset = { x: 60, y: 40 };
+    const proposal = proposePaste(
+      document,
+      orientClipboard(clipboard, turns),
+      offset,
+      1,
+    );
+    const paste = executeTransaction(
+      document,
+      {
+        transactionId: "mixed-paste",
+        documentId: document.id,
+        expectedRevision: document.revision,
+        actor: { kind: "human", id: "test" },
+        edits: proposal.edits,
+      },
+      { symbolResolver: resolver },
+    );
+    expect(paste.ok, JSON.stringify(paste.diagnostics)).toBe(true);
+    if (!paste.ok) return;
+    const preview = clipboardPreviewDocument(
+      document,
+      clipboard,
+      offset,
+      turns,
+      resolver,
+      1,
+    );
+    expect(preview.drafting!.objects).toEqual(
+      paste.document.drafting!.objects.filter((object) =>
+        Object.values(proposal.idRemap.draftingObjects).includes(object.id),
+      ),
+    );
+    expect(preview.drafting!.objects[0]).toMatchObject({
+      anchor: { kind: "free", position: { x: 133, y: 183 } },
+      rotation: 90,
+    });
+    expect(preview.drafting!.objects[1]!.anchor).toEqual({
+      kind: "object",
+      objectId: proposal.instanceIds[0],
+      localOffset: { x: -30, y: 20 },
+      fallbackPosition: { x: 130, y: 160 },
+    });
+    expect(resolveAnnotationText(preview, preview.annotations[0]!)).toEqual(
+      resolveAnnotationText(
+        paste.document,
+        paste.document.annotations.find(
+          (annotation) =>
+            annotation.id === proposal.idRemap.annotations.reference,
+        )!,
+      ),
+    );
+    expect(
+      flattenRichText(resolveAnnotationText(preview, preview.annotations[0]!)),
+    ).toBe("R2");
+    expect(() => buildSvgScene(preview, resolver)).not.toThrow();
+    expect(document).toEqual(before);
+  });
+
   it("copies a Cell Pin with an independent interface and Base Net", () => {
     const document = createEmptyDocument("document-main", "Clipboard");
     document.instances.push({
