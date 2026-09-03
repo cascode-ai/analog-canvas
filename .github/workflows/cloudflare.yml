@@ -127,32 +127,6 @@ jobs:
           echo "public on a workers.dev hostname. Refusing to continue."
           exit 1
 
-      # Staging deploying is the moment production can be taken away from
-      # itself: `routes` is inheritable, and an environment that inherits the
-      # production custom domain binds it to its own Worker. Staging overrides
-      # it with an empty array, and this asserts that the override held --
-      # against the live site, not against the file that claims it.
-      #
-      # Anonymous on purpose. Production has no gate, so an anonymous caller
-      # must be served. A 401 here means the gate is answering for
-      # production's hostname, which means production is now staging.
-      - name: Check production still owns its own domain
-        if: steps.gate.outputs.ran == 'true'
-        run: |
-          code="$(curl --silent --output /dev/null --max-time 20 \
-            --write-out '%{http_code}' \
-            https://analog-canvas.tokenzhang.com/editor || true)"
-          if [ "$code" = "401" ]; then
-            echo "The live site is answering as staging (401 anonymous)."
-            echo "The staging deploy has taken analog-canvas.tokenzhang.com."
-            echo "Recover by deploying production: wrangler deploy (no --env)."
-            exit 1
-          fi
-          if [ "$code" != "200" ]; then
-            echo "The live site answered $code, which staging should not affect."
-            exit 1
-          fi
-
       # The same checks production gets, against the staging host, with the
       # access key supplied. A path that fails here never reaches the public.
       - name: Verify staging
@@ -281,6 +255,41 @@ jobs:
             --retry 5 --retry-delay 2 --retry-all-errors \
             --max-time 20 \
             https://analog-canvas.tokenzhang.com/api/agent/mcp-manifest.json >/dev/null
+          # The shell loading proves nothing about the page rendering. On
+          # 2026-09-04 a staging deploy took this hostname, and because the
+          # asset layer answered `/editor` before the Worker, every path check
+          # above passed at 200 while the shell's own script came back
+          # 401 "Staging is not public.". The site was blank and the pipeline
+          # saw a healthy deployment.
+          #
+          # So follow the shell to the script it actually asks for, and require
+          # JavaScript to come back. This is the narrowest check that tells a
+          # page apart from a page-shaped 200.
+          shell="$(curl --fail --silent --show-error --max-time 20 \
+            https://analog-canvas.tokenzhang.com/editor)"
+          entry="$(printf '%s' "$shell" \
+            | grep -o '/assets/[A-Za-z0-9._-]*\.js' | head -n 1)"
+          if [ -z "$entry" ]; then
+            echo "The editor shell references no script; it cannot boot."
+            exit 1
+          fi
+          entry_result="$(curl --silent --output /dev/null --max-time 20 \
+            --write-out '%{http_code} %{content_type}' \
+            "https://analog-canvas.tokenzhang.com${entry}")"
+          case "$entry_result" in
+            200*javascript*) : ;;
+            401*)
+              echo "The live site answered $entry with 401."
+              echo "Its hostname is bound to the staging Worker, whose gate is"
+              echo "refusing production's own visitors. Recover with"
+              echo "wrangler deploy (no --env) to take the domain back."
+              exit 1
+              ;;
+            *)
+              echo "The editor's entry script answered: $entry_result"
+              exit 1
+              ;;
+          esac
           stale_asset="$(curl --silent --show-error \
             --max-time 20 \
             --output /tmp/analog-canvas-stale-asset.txt \

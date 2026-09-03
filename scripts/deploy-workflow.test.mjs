@@ -73,9 +73,12 @@ describe("staging before production", () => {
     expect(stagingBlock).toMatch(/"routes":\s*\[\s*\]/u);
   });
 
-  it("checks production still owns its domain after staging deploys", () => {
-    expect(workflow).toContain("Check production still owns its own domain");
-    expect(workflow).toContain("analog-canvas.tokenzhang.com");
+  it("follows the shell to its own script before calling production healthy", () => {
+    // Every path check passed at 200 on 2026-09-04 while the shell's script
+    // answered 401, so the site was blank and the pipeline saw health. A
+    // reachable shell is not a working page.
+    expect(workflow).toContain("references no script; it cannot boot");
+    expect(workflow).toMatch(/200\*javascript\*/u);
   });
 
   it("waits for the gate to be live before believing what staging says", () => {
