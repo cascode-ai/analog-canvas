@@ -127,6 +127,32 @@ jobs:
           echo "public on a workers.dev hostname. Refusing to continue."
           exit 1
 
+      # Staging deploying is the moment production can be taken away from
+      # itself: `routes` is inheritable, and an environment that inherits the
+      # production custom domain binds it to its own Worker. Staging overrides
+      # it with an empty array, and this asserts that the override held --
+      # against the live site, not against the file that claims it.
+      #
+      # Anonymous on purpose. Production has no gate, so an anonymous caller
+      # must be served. A 401 here means the gate is answering for
+      # production's hostname, which means production is now staging.
+      - name: Check production still owns its own domain
+        if: steps.gate.outputs.ran == 'true'
+        run: |
+          code="$(curl --silent --output /dev/null --max-time 20 \
+            --write-out '%{http_code}' \
+            https://analog-canvas.tokenzhang.com/editor || true)"
+          if [ "$code" = "401" ]; then
+            echo "The live site is answering as staging (401 anonymous)."
+            echo "The staging deploy has taken analog-canvas.tokenzhang.com."
+            echo "Recover by deploying production: wrangler deploy (no --env)."
+            exit 1
+          fi
+          if [ "$code" != "200" ]; then
+            echo "The live site answered $code, which staging should not affect."
+            exit 1
+          fi
+
       # The same checks production gets, against the staging host, with the
       # access key supplied. A path that fails here never reaches the public.
       - name: Verify staging

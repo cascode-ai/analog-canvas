@@ -61,6 +61,23 @@ describe("staging before production", () => {
     expect(stagingBlock).not.toMatch(/"run_worker_first":\s*\[/u);
   });
 
+  it("keeps staging off production's domain", () => {
+    // `routes` is an inheritable wrangler key. Without an override the staging
+    // environment inherits production's custom domain and binds it to the
+    // staging Worker -- which then refuses anonymous callers, so the live site
+    // answers its own script requests with 401 and users get a blank page.
+    // That happened on 2026-09-04. An empty array is the override; omitting
+    // the key inherits.
+    const config = readFileSync("wrangler.jsonc", "utf8");
+    const stagingBlock = config.slice(config.indexOf('"staging": {'));
+    expect(stagingBlock).toMatch(/"routes":\s*\[\s*\]/u);
+  });
+
+  it("checks production still owns its domain after staging deploys", () => {
+    expect(workflow).toContain("Check production still owns its own domain");
+    expect(workflow).toContain("analog-canvas.tokenzhang.com");
+  });
+
   it("waits for the gate to be live before believing what staging says", () => {
     // Putting the secret publishes a new version; the old one answers for a
     // few seconds after. Verifying across that window fails staging, and a

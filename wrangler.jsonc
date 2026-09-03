@@ -95,6 +95,17 @@
     "staging": {
       "name": "interactive-circuit-maker-staging",
       "workers_dev": true,
+      // Staging must claim NO custom domain. `routes` is an inheritable key:
+      // without this line the staging environment inherits the production
+      // block above, and `wrangler deploy --env staging` binds
+      // analog-canvas.tokenzhang.com to the staging Worker. That is not a
+      // theoretical hazard -- it happened on 2026-09-04, and because the
+      // staging Worker refuses anonymous callers, the live site answered its
+      // own script requests with 401 "Staging is not public." while the
+      // cached shell still loaded. Users saw a blank page.
+      //
+      // An empty array is the override; omitting the key inherits.
+      "routes": [],
       "vars": {
         // Switches on the access gate in worker/staging-gate.ts. Without the
         // STAGING_ACCESS_KEY secret beside it, staging serves nobody, which
