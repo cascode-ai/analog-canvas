@@ -1,5 +1,11 @@
 # 0020 - Agent-side MCP adapter over the four-operation API
 
+> Amendment (MCP 0.3.0): resource reading is advisory, not an execution gate.
+> The earlier mandatory-read rule below is superseded by
+> [the current MCP quickstart](../agent/mcp-quickstart.md).
+> HTTP retains four operations; all transaction forms share one codec and
+> convenient authoring commands run the browser's existing GUI planners.
+
 Status: `accepted`
 
 Date: 2026-08-14

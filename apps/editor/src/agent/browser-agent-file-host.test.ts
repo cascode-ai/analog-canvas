@@ -2,10 +2,45 @@ import { describe, expect, it } from "vitest";
 
 import { AGENT_API_VERSION, base64EncodeBytes } from "@icm/agent-adapter";
 import { createEmptyProject } from "@icm/model";
+import { resolveDocumentLogicalNets } from "@icm/derived";
 import { serializeProject } from "@icm/project-protocol";
 import type { SymbolResolver } from "@icm/symbols";
 
 import { BrowserAgentFileHost } from "./browser-agent-file-host";
+
+it("uses the same Cadence bang naming profile as GUI SPICE import", async () => {
+  const { host } = setup();
+  const bytes = new TextEncoder().encode(
+    "Cadence import\n.global vdd!\nR1 vdd! out 1k\nR2 out 0 2k\n.end\n",
+  );
+  const response = await host.handle({
+    apiVersion: AGENT_API_VERSION,
+    requestId: "cadence-profile",
+    operation: "stage",
+    kind: "structural-spice",
+    entryPath: "circuit.cir",
+    namingProfile: "cadence-bang",
+    files: [
+      {
+        name: "circuit.cir",
+        mediaType: "text/plain",
+        encoding: "base64",
+        data: base64EncodeBytes(bytes),
+        byteLength: bytes.byteLength,
+        sha256: await sha256(bytes),
+      },
+    ],
+  });
+  expect(response.ok).toBe(true);
+  if (!response.ok || response.operation !== "stage")
+    throw new Error(JSON.stringify(response));
+  const project = host.consumeApproved(response.candidate.candidateId)!;
+  const names = project.documents.flatMap((document) =>
+    resolveDocumentLogicalNets(document).groups.map((net) => net.name),
+  );
+  expect(names).toContain("vdd");
+  expect(names).not.toContain("vdd!");
+});
 
 async function sha256(bytes: Uint8Array): Promise<string> {
   const digest = await crypto.subtle.digest(

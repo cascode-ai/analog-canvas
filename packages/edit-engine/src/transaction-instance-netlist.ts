@@ -239,6 +239,7 @@ export function applyInstanceNetlistEdit(
         instance.id,
         changedObjectIds,
       );
+      changedObjectIds.add(instance.id);
       return { ok: true, connectivityChanged: false };
     }
     case "set_instance_binding": {

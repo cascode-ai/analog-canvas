@@ -29,6 +29,24 @@ async function freshClient(
 }
 
 describe("agent session client", () => {
+  it("probes status and clears a replaced project instead of reporting cached online", async () => {
+    const { client, http } = await freshClient();
+    await client.connect("session-1.code");
+    http.circuitHandler = async () => {
+      throw new AgentSessionError(
+        "PROJECT_REPLACED",
+        "replaced",
+        "unrecoverable-credential",
+        410,
+      );
+    };
+    expect((await client.status()).state).toBe("online");
+    expect(await client.status({ refresh: true })).toMatchObject({
+      state: "revoked",
+      projectId: null,
+      documentIds: [],
+    });
+  });
   it("claims a code, caches capabilities, snapshots once, and reports online", async () => {
     const { client, http } = await freshClient();
     const report = await client.connect("session-1.claim-code");
@@ -191,7 +209,7 @@ describe("agent session client", () => {
     });
   });
 
-  it("applies actions through dry-run, commit, and verify refresh", async () => {
+  it("uses the commit receipt without a redundant post-commit snapshot", async () => {
     const transactCalls: {
       dryRun: boolean | undefined;
       expectedRevision: number;
@@ -261,10 +279,14 @@ describe("agent session client", () => {
       { dryRun: true, expectedRevision: 5 },
       { dryRun: false, expectedRevision: 5 },
     ]);
-    // the simulated post-commit snapshot contains exactly the new instance
+    // The API diff is authoritative, even if a later Snapshot would differ.
     expect(report.changedObjectIds).toEqual(["instance-3"]);
     expect(report.errors).toBe(0);
-    expect(report.warnings).toBe(1);
+    expect(report.warnings).toBe(0);
+    expect(
+      http.circuitCalls.filter((call) => call.request.operation === "snapshot"),
+    ).toHaveLength(2);
+    expect(client.recentTransactions()).toHaveLength(1);
   });
 
   it("surfaces STATE_CHANGED with affected objects instead of overwriting", async () => {
@@ -391,7 +413,7 @@ describe("agent session client", () => {
           position: { x: 340, y: 240 },
         },
       ],
-      { documentId: "child", verify: false },
+      { documentId: "child" },
     );
     expect(report.ok).toBe(true);
     const documentIds = http.circuitCalls.flatMap((call) =>

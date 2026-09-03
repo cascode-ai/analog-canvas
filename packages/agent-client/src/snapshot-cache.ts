@@ -40,10 +40,7 @@ export function countDiagnostics(diagnostics: readonly AgentDiagnostic[]): {
 }
 
 export function snapshotSummary(entry: CachedSnapshot): SnapshotSummary {
-  const { errors, warnings } = countDiagnostics([
-    ...entry.diagnostics,
-    ...entry.snapshot.document.diagnostics,
-  ]);
+  const { errors, warnings } = countDiagnostics(entry.diagnostics);
   return {
     projectId: entry.snapshot.project.id,
     documentId: entry.snapshot.document.id,

@@ -13,7 +13,7 @@ export { agentRazaviAuthoringCatalog };
  */
 
 export const AGENT_OPERATING_KIT_FORMAT = "icm-agent-kit-v1";
-export const AGENT_OPERATING_KIT_VERSION = "3";
+export const AGENT_OPERATING_KIT_VERSION = "4";
 
 export interface AgentOperatingKitFile {
   path: string;
@@ -138,8 +138,10 @@ expired, or replaced Project state, stop and ask for a new connection.
       content: `# Session contract quick reference
 
 Circuit operations are exactly \`capabilities\`, \`snapshot\`, \`transact\`,
-and \`render\`. The API has no dynamic catalog-query, planning, whole-Project
-mutation, simulation, waveform, or filesystem operation. The Kit's static
+and \`render\`. Inside transact, use exactly one of edits, structureEdits,
+wireIntent, semanticIntent, or a browser-planned command. Commands reuse GUI
+planners and the same Edit Engine. There is no separate planning, simulation,
+waveform, or filesystem operation. The Kit's static
 authoring catalog is not Project state and is not a Circuit operation.
 
 Use request IDs only for an exact-payload retry. A changed request gets a new

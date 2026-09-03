@@ -23,7 +23,10 @@ import type {
  */
 export const DEFAULT_DOCUMENT_HISTORY_LIMIT = 64;
 
-function collectObjects(document: SchematicDocument): Map<string, unknown> {
+function collectObjects(
+  document: SchematicDocument | undefined,
+): Map<string, unknown> {
+  if (!document) return new Map();
   return new Map(
     [
       ...document.instances,
@@ -39,9 +42,9 @@ function collectObjects(document: SchematicDocument): Map<string, unknown> {
   );
 }
 
-function changedObjectIds(
-  left: SchematicDocument,
-  right: SchematicDocument,
+export function diffDocumentObjectIds(
+  left: SchematicDocument | undefined,
+  right: SchematicDocument | undefined,
 ): string[] {
   const leftObjects = collectObjects(left);
   const rightObjects = collectObjects(right);
@@ -162,7 +165,7 @@ export class DocumentHistory {
       fromRevision: this.#document.revision,
       toRevision: proposedRevision,
       editKinds: [historyEdit.kind],
-      changedObjectIds: changedObjectIds(this.#document, restored),
+      changedObjectIds: diffDocumentObjectIds(this.#document, restored),
     };
 
     if (transaction.dryRun === true) {

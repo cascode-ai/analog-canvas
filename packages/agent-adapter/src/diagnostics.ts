@@ -1,9 +1,19 @@
 import { diagnoseProject, diagnoseVisualQuality } from "@icm/derived";
-import type { Diagnostic } from "@icm/derived";
+import type { Diagnostic, ObjectLocator } from "@icm/derived";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
 import type { AgentDiagnostic } from "./schema.js";
+
+function locatorWithoutSource({
+  sourceRef: _sourceRef,
+  ...locator
+}: ObjectLocator) {
+  return {
+    ...locator,
+    hierarchyPath: locator.hierarchyPath.map((frame) => ({ ...frame })),
+  };
+}
 
 function diagnosticObjectIds(diagnostic: Diagnostic): string[] {
   return [diagnostic.primary, ...diagnostic.related]
@@ -46,6 +56,8 @@ export function agentProjectDiagnostics(
       gateEligible: diagnostic.gateEligible,
       message: diagnostic.message,
       objectIds: diagnosticObjectIds(diagnostic),
+      primary: locatorWithoutSource(diagnostic.primary),
+      related: diagnostic.related.map(locatorWithoutSource),
       revision,
       parameters: { ...diagnostic.parameters },
     }));

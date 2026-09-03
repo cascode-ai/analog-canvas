@@ -67,6 +67,8 @@ function isCreatedSessionResponse(
 }
 
 type LiveSession = {
+  projectId: string;
+  documentIds: () => string[];
   sessionId: string;
   editorSecret: string;
   claimCode: string | null;
@@ -104,8 +106,18 @@ function stopHeartbeat(live: LiveSession): void {
 
 function sendHeartbeat(live: LiveSession, socket: WebSocket): void {
   if (socket.readyState !== WebSocket.OPEN) return;
+  let documentIds: string[];
+  try {
+    documentIds = live.documentIds();
+  } catch {
+    return;
+  } // A replaced Project invalidates the bound host; its effect closes the socket.
   socket.send(
-    JSON.stringify(createHeartbeat(live.sessionId, crypto.randomUUID())),
+    JSON.stringify({
+      ...createHeartbeat(live.sessionId, crypto.randomUUID()),
+      projectId: live.projectId,
+      documentIds,
+    }),
   );
 }
 
@@ -302,6 +314,11 @@ export function useAgentSession(
           created = payload;
         }
         const live: LiveSession = {
+          projectId: options.project.id,
+          documentIds: () =>
+            (options.host.getProject?.() ?? options.project).documents.map(
+              (document) => document.id,
+            ),
           sessionId: recovery?.sessionId ?? created!.session.sessionId,
           editorSecret: recovery?.editorSecret ?? created!.session.editorSecret,
           claimCode: recovery ? null : created!.session.claimCode,
@@ -598,6 +615,13 @@ export function useAgentSession(
               live.requestCache.delete(oldest);
               live.requestCacheBytes -= entry?.byteLength ?? 0;
             }
+            if (
+              result.ok &&
+              result.operation === "transact" &&
+              result.applied &&
+              result.projectStructure
+            )
+              sendHeartbeat(live, socket);
             sendResponse(result);
             if (
               result.ok &&
@@ -788,6 +812,16 @@ export function useAgentSession(
     if (!options.enabled) return;
     if (projectSessionRef.current !== options.projectSessionId) return;
     const live = liveRef.current;
+    const ids = new Set(
+      options.project.documents.map((document) => document.id),
+    );
+    const rosterChanged =
+      ids.size !== revisionRef.current.size ||
+      [...ids].some((id) => !revisionRef.current.has(id));
+    if (rosterChanged && live?.socket?.readyState === WebSocket.OPEN)
+      sendHeartbeat(live, live.socket);
+    for (const id of revisionRef.current.keys())
+      if (!ids.has(id)) revisionRef.current.delete(id);
     for (const document of options.project.documents) {
       const previousRevision = revisionRef.current.get(document.id);
       revisionRef.current.set(document.id, document.revision);

@@ -1,13 +1,14 @@
 import {
   AgentCapabilitiesResponseSchema,
   AgentRenderResponseSchema,
-  AgentSchematicEditSchema,
+  AgentTransactionPayloadSchema,
+  AgentTransactSuccessResponseSchema,
   AGENT_API_VERSION,
   type AgentCircuitRequest,
   type AgentCircuitResponse,
+  type AgentSnapshotRequest,
   type AgentFileResourceRequest,
   type AgentFileResourceResponse,
-  type AgentTransactRequest,
 } from "@icm/agent-adapter";
 import { z } from "zod";
 import {
@@ -19,6 +20,7 @@ type AgentCapabilitiesResponse = z.infer<
   typeof AgentCapabilitiesResponseSchema
 >;
 type AgentRenderResponse = z.infer<typeof AgentRenderResponseSchema>;
+type AgentTransactResponse = z.infer<typeof AgentTransactSuccessResponseSchema>;
 import { AgentSessionError } from "./errors.js";
 import { AgentHttpClient, type ClaimSuccess } from "./http-client.js";
 import {
@@ -81,6 +83,16 @@ export interface StatusReport extends ConnectionSnapshot {
 }
 
 export interface ApplyActionsReport {
+  documentId?: string;
+  requestId?: string;
+  applied?: boolean;
+  proposedRevision?: number;
+  editKinds?: string[];
+  diagnostics?: AgentTransactResponse["diagnostics"];
+  diagnosticDelta?: AgentTransactResponse["diagnosticDelta"];
+  projectStructure?: AgentTransactResponse["projectStructure"];
+  semantic?: AgentTransactResponse["semantic"];
+  resolvedRoutes?: AgentTransactResponse["resolvedRoutes"];
   ok: boolean;
   stage: "compile" | "dry-run" | "commit" | "done";
   /** Machine code for a failure (`STATE_CHANGED`, engine code, ...). */
@@ -156,6 +168,9 @@ export class AgentSessionClient {
     this.connection.apply("claim-started");
     try {
       const claim: ClaimSuccess = await this.http.claim(claimCode.trim());
+      this.cache.clear();
+      this.receipts.length = 0;
+      this.capabilitiesCache = null;
       this.session = this.activeSession(claim);
       await this.persistConnector(claim);
       return await this.establishContext("claimed");
@@ -232,7 +247,21 @@ export class AgentSessionClient {
     };
   }
 
-  async status(): Promise<StatusReport> {
+  async status(options: { refresh?: boolean } = {}): Promise<StatusReport> {
+    if (options.refresh && this.session) {
+      try {
+        await this.capabilities({ force: true });
+      } catch (error) {
+        if (!(error instanceof AgentSessionError)) throw error;
+        // dispatch already records offline/revoked. Other failed probes must
+        // not leave a stale green status (nor destroy a usable credential).
+        if (
+          error.category !== "editor-offline" &&
+          error.category !== "unrecoverable-credential"
+        )
+          this.connection.apply("transport-interrupted", error.code);
+      }
+    }
     return {
       ...this.connection.snapshot,
       sessionId: this.session?.sessionId ?? null,
@@ -312,6 +341,12 @@ export class AgentSessionClient {
       );
     }
     const snapshotResponse = response;
+    this.updateDocumentRoster(
+      snapshotResponse.snapshot.project.documents.map(
+        (document) => document.id,
+      ),
+      snapshotResponse.snapshot.project.topDocumentId,
+    );
     const entry: CachedSnapshot = {
       documentId: target,
       revision: snapshotResponse.revision,
@@ -328,6 +363,25 @@ export class AgentSessionClient {
   summary(documentId?: string): SnapshotSummary | null {
     const target = documentId ?? this.defaultDocumentId();
     return this.cache.summary(target);
+  }
+
+  async traceNet(
+    traceNet: NonNullable<AgentSnapshotRequest["traceNet"]>,
+    documentId?: string,
+  ) {
+    const response = await this.send({
+      ...baseRequest(this.newRequestId()),
+      operation: "snapshot",
+      documentId: documentId ?? this.defaultDocumentId(),
+      traceNet,
+    });
+    if (!response.ok || response.operation !== "snapshot")
+      throw new AgentSessionError(
+        response.ok ? "INVALID_RESPONSE" : response.error.code,
+        response.ok ? "Expected a Snapshot trace" : response.error.message,
+        "request-rejected",
+      );
+    return { revision: response.revision, trace: response.trace ?? null };
   }
 
   cachedSnapshot(documentId?: string): CachedSnapshot | null {
@@ -370,13 +424,10 @@ export class AgentSessionClient {
     actions: readonly unknown[],
     options: {
       documentId?: string;
-      verify?: boolean;
       dryRunOnly?: boolean;
     } = {},
   ): Promise<ApplyActionsReport> {
-    const verify = options.verify ?? true;
     const entry = await this.snapshot(options.documentId, { refresh: true });
-    const documentId = entry.documentId;
     let compiled: CompiledTransaction[];
     try {
       compiled = compileActions(actions, {
@@ -386,178 +437,189 @@ export class AgentSessionClient {
           this.capabilitiesCache?.capabilities.limits.maxTransactionEdits ?? 64,
       });
     } catch (error) {
-      if (error instanceof ActionCompileError) {
-        return {
-          ok: false,
-          stage: "compile",
-          code: "ACTION_COMPILE_FAILED",
-          message: error.message,
-          actionIndex: error.index,
-          actionKind: error.actionKind,
-          revision: entry.revision,
-        };
-      }
-      throw error;
+      if (!(error instanceof ActionCompileError)) throw error;
+      return {
+        ok: false,
+        stage: "compile",
+        code: "ACTION_COMPILE_FAILED",
+        message: error.message,
+        actionIndex: error.index,
+        actionKind: error.actionKind,
+        revision: entry.revision,
+      };
     }
-
-    if (compiled.length !== 1) {
+    if (compiled.length !== 1)
       return {
         ok: false,
         stage: "compile",
         code: "ACTION_BATCH_NOT_ATOMIC",
         message:
-          "this action batch requires multiple underlying transactions; split it at the edit/wire boundary and refresh between calls",
+          "Split work into one edit batch, wire, command, or focus operation per call.",
         revision: entry.revision,
         transactions: compiled.length,
       };
-    }
-
-    let revision = entry.revision;
     const transaction = compiled[0]!;
-    const dryRunResponse = await this.send(
-      this.transactRequest(transaction, documentId, revision, true),
-    );
-    if (!dryRunResponse.ok) {
-      return {
-        ok: false,
-        stage: "dry-run",
-        code: dryRunResponse.error.code,
-        message: dryRunResponse.error.message,
-        revision,
-      };
-    }
-    if (options.dryRunOnly) {
-      return {
-        ok: true,
-        stage: "done",
-        dryRun: true,
-        transactions: 1,
-        revision,
-      };
-    }
-
-    const response = await this.send(
-      this.transactRequest(transaction, documentId, revision, false),
-    );
-    if (!response.ok) {
-      if (response.error.code === "STALE_REVISION") {
-        return this.stateChangedReport(entry, response.error.message);
-      }
-      return {
-        ok: false,
-        stage: "commit",
-        code: response.error.code,
-        message: response.error.message,
-        revision,
-      };
-    }
-    if (response.operation !== "transact") {
-      return {
-        ok: false,
-        stage: "commit",
-        code: "INVALID_RESPONSE",
-        message: "unexpected operation for transact",
-        revision,
-      };
-    }
-    revision = response.revision;
-    this.cache.markDirty(documentId, revision);
-
-    const report: ApplyActionsReport = {
-      ok: true,
-      stage: "done",
-      transactions: 1,
-      revision,
-    };
-    if (verify) {
-      const fresh = await this.refreshSnapshot(documentId);
-      const { errors, warnings } = snapshotSummary(fresh);
-      report.changedObjectIds = changedObjectIds(
-        entry.snapshot,
-        fresh.snapshot,
-      );
-      report.errors = errors;
-      report.warnings = warnings;
-    }
-    return report;
+    const payload =
+      transaction.form === "edits"
+        ? { edits: transaction.edits }
+        : transaction.form === "command"
+          ? { command: transaction.command }
+          : transaction.form === "semantic"
+            ? { semanticIntent: transaction.semanticIntent }
+            : { wireIntent: transaction.wireIntent };
+    return this.submitTransaction(entry, payload, {
+      dryRun: options.dryRunOnly ?? false,
+      preview: true,
+    });
   }
 
-  /** Escape hatch for callers that read the advanced-edits resource. */
+  /** Same four-operation API; the helper only supplies identity and revisions. */
   async advancedTransact(
-    edits: readonly unknown[],
+    payload: unknown,
     options: { documentId?: string; dryRun?: boolean } = {},
   ): Promise<ApplyActionsReport> {
-    const cached = this.cachedSnapshot(options.documentId);
-    const validated: AgentTransactRequest["edits"] = [];
-    for (const edit of edits) {
-      const parsed = AgentSchematicEditSchema.safeParse(edit);
-      if (!parsed.success) {
-        const issue = parsed.error.issues[0];
-        return {
-          ok: false,
-          stage: "compile",
-          code: "EDIT_SCHEMA_INVALID",
-          message: issue
-            ? `${issue.path.join(".")}: ${issue.message}`
-            : "edit failed contract validation",
-          ...(cached ? { revision: cached.revision } : {}),
-        };
-      }
-      validated.push(parsed.data);
-    }
-    if (validated.length === 0) {
+    const normalized = Array.isArray(payload) ? { edits: payload } : payload;
+    const parsed = AgentTransactionPayloadSchema.safeParse(normalized);
+    if (!parsed.success)
       return {
         ok: false,
         stage: "compile",
         code: "EDIT_SCHEMA_INVALID",
-        message: "at least one edit is required",
-        ...(cached ? { revision: cached.revision } : {}),
+        message: parsed.error.issues[0]?.message ?? "Invalid transaction",
       };
-    }
     const entry = await this.snapshot(options.documentId, { refresh: true });
-    const documentId = entry.documentId;
-    const response = await this.send({
+    return this.submitTransaction(entry, parsed.data, options);
+  }
+
+  recentTransactions(): readonly ApplyActionsReport[] {
+    return this.receipts.map((item) => structuredClone(item));
+  }
+
+  private readonly receipts: ApplyActionsReport[] = [];
+
+  private updateDocumentRoster(
+    ids: readonly string[],
+    topDocumentId?: string,
+  ): void {
+    if (!this.session) return;
+    const previous = this.session.documentIds[0];
+    const preferred =
+      previous && ids.includes(previous) ? previous : topDocumentId;
+    this.session.documentIds =
+      preferred && ids.includes(preferred)
+        ? [preferred, ...ids.filter((id) => id !== preferred)]
+        : [...ids];
+  }
+
+  private async submitTransaction(
+    entry: CachedSnapshot,
+    payload: unknown,
+    options: { dryRun?: boolean; preview?: boolean },
+  ): Promise<ApplyActionsReport> {
+    const parsed = AgentTransactionPayloadSchema.safeParse(payload);
+    if (!parsed.success)
+      return {
+        ok: false,
+        stage: "compile",
+        code: "EDIT_SCHEMA_INVALID",
+        message: parsed.error.issues[0]?.message ?? "Invalid transaction",
+      };
+    const request = (dryRun: boolean): AgentCircuitRequest => ({
       ...baseRequest(this.newRequestId()),
       operation: "transact",
-      documentId,
+      documentId: entry.documentId,
       transactionId: `txn-${crypto.randomUUID()}`,
       expectedRevision: entry.revision,
-      ...(options.dryRun !== undefined ? { dryRun: options.dryRun } : {}),
-      edits: validated,
+      expectedStructureRevision: entry.snapshot.project.structureRevision,
+      dryRun,
+      ...parsed.data,
     });
-    if (!response.ok) {
-      if (response.error.code === "STALE_REVISION") {
-        return this.stateChangedReport(entry, response.error.message);
+    if (options.preview && !options.dryRun && !parsed.data.semanticIntent) {
+      const preview = await this.send(request(true));
+      if (!preview.ok) {
+        if (
+          preview.error.code === "STALE_REVISION" ||
+          preview.error.code === "STALE_STRUCTURE_REVISION"
+        )
+          return this.stateChangedReport(entry, preview.error.message);
+        return {
+          ok: false,
+          stage: "dry-run",
+          code: preview.error.code,
+          message: preview.error.message,
+          diagnostics: preview.diagnostics,
+          revision: entry.revision,
+        };
       }
+    }
+    const response = await this.send(request(options.dryRun ?? false));
+    if (!response.ok) {
+      if (
+        response.error.code === "STALE_REVISION" ||
+        response.error.code === "STALE_STRUCTURE_REVISION"
+      )
+        return this.stateChangedReport(entry, response.error.message);
       return {
         ok: false,
         stage: "commit",
         code: response.error.code,
         message: response.error.message,
+        diagnostics: response.diagnostics,
         revision: entry.revision,
+        requestId: response.requestId,
       };
     }
-    if (response.operation !== "transact") {
+    if (response.operation !== "transact")
       return {
         ok: false,
         stage: "commit",
         code: "INVALID_RESPONSE",
-        message: "unexpected operation for transact",
-        revision: entry.revision,
+        message: "Expected a transact response",
       };
-    }
-    if (response.applied && !options.dryRun) {
-      this.cache.markDirty(documentId, response.revision);
+    if (response.applied) {
+      if (response.projectStructure?.documentIds)
+        this.updateDocumentRoster(
+          response.projectStructure.documentIds,
+          response.projectStructure.topDocumentId,
+        );
+      if (response.projectStructure) this.cache.clear();
+      else this.cache.markDirty(entry.documentId, response.revision);
     }
     const report: ApplyActionsReport = {
       ok: true,
       stage: "done",
+      documentId: response.diff.documentId,
       transactions: 1,
       revision: response.revision,
+      applied: response.applied,
+      requestId: response.requestId,
+      proposedRevision: response.proposedRevision,
+      dryRun: options.dryRun ?? false,
+      changedObjectIds: response.diff.changedObjectIds,
+      editKinds: response.diff.editKinds,
+      diagnostics: response.diagnostics,
+      errors: response.diagnostics.filter((item) => item.severity === "error")
+        .length,
+      warnings: response.diagnostics.filter(
+        (item) => item.severity === "warning",
+      ).length,
+      ...(response.diagnosticDelta
+        ? { diagnosticDelta: response.diagnosticDelta }
+        : {}),
+      ...(response.projectStructure
+        ? { projectStructure: response.projectStructure }
+        : {}),
+      ...(response.semantic ? { semantic: response.semantic } : {}),
+      ...(response.resolvedRoutes
+        ? { resolvedRoutes: response.resolvedRoutes }
+        : {}),
     };
+    if (!options.dryRun) {
+      this.receipts.push(report);
+      if (this.receipts.length > 32) this.receipts.shift();
+    }
     return report;
   }
-
   private async stateChangedReport(
     entry: CachedSnapshot,
     message: string,
@@ -575,30 +637,6 @@ export class AgentSessionClient {
     };
   }
 
-  private transactRequest(
-    transaction: CompiledTransaction,
-    documentId: string,
-    expectedRevision: number,
-    dryRun: boolean,
-  ): AgentCircuitRequest {
-    return {
-      ...baseRequest(this.newRequestId()),
-      operation: "transact",
-      documentId,
-      transactionId: `txn-${crypto.randomUUID()}`,
-      expectedRevision,
-      dryRun,
-      ...(transaction.form === "edits"
-        ? { edits: transaction.edits ?? [] }
-        : { wireIntent: transaction.wireIntent }),
-    };
-  }
-
-  /**
-   * Send one four-operation request. Identical request IDs share the
-   * in-flight promise, and a local network failure retries the exact same
-   * payload once, which the relay deduplicates server-side.
-   */
   private async send(
     request: AgentCircuitRequest,
   ): Promise<AgentCircuitResponse> {
@@ -651,6 +689,8 @@ export class AgentSessionClient {
     this.connection.apply("credential-revoked", code);
     this.session = null;
     this.capabilitiesCache = null;
+    this.cache.clear();
+    this.receipts.length = 0;
     await this.connectorStore?.clear();
   }
 

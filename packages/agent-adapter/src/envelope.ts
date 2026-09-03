@@ -84,12 +84,15 @@ export const AgentSessionMessageSchema = z.strictObject({
   payload: z.unknown(),
 });
 
-/** Lightweight authenticated WebSocket control frame used only for liveness. */
+/** Authenticated browser liveness and current Project document roster. */
 export const AgentSessionControlMessageSchema = z.strictObject({
   protocolVersion: z.literal(AGENT_SESSION_PROTOCOL_VERSION),
   sessionId: OpaqueIdSchema,
   kind: z.enum(["heartbeat", "heartbeat-ack"]),
   nonce: OpaqueIdSchema,
+  /** Current roster, supplied only by the authenticated editor of this Project. */
+  projectId: OpaqueIdSchema.optional(),
+  documentIds: z.array(OpaqueIdSchema).min(1).max(1024).optional(),
 });
 
 /** Agent-facing event types. `document.replaced` terminates the session. */

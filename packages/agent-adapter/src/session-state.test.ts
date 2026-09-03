@@ -180,6 +180,18 @@ describe("AgentSessionMachine", () => {
     expect(machine.assertDocument("project-1", "document-1").ok).toBe(true);
     expect(machine.assertDocument("project-2", "document-1").ok).toBe(false);
     expect(machine.assertDocument("project-1", "document-2").ok).toBe(false);
+    expect(machine.updateEditorDocuments("project-2", ["document-2"])).toBe(
+      false,
+    );
+    expect(machine.assertDocument("project-1", "document-2").ok).toBe(false);
+    expect(
+      machine.updateEditorDocuments("project-1", ["document-1", "document-2"]),
+    ).toBe(true);
+    expect(machine.assertDocument("project-1", "document-2").ok).toBe(true);
+    expect(machine.updateEditorDocuments("project-1", ["document-1"])).toBe(
+      true,
+    );
+    expect(machine.assertDocument("project-1", "document-2").ok).toBe(false);
   });
 
   it("serves the cached result for a repeated requestId and never re-runs", () => {

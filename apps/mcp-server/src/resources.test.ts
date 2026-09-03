@@ -27,6 +27,18 @@ interface ManifestResource {
  * kit — with no copied or drifting knowledge.
  */
 describe("mcp resources single-source projection", () => {
+  it("serves compact per-edit schemas from the canonical contract", () => {
+    const resource = readResourceContent(
+      "analog-canvas://contract/edits/set_instance_reference",
+    );
+    const schema = JSON.parse(resource.text);
+    expect(schema.properties.kind.const).toBe("set_instance_reference");
+    expect(schema.required).toContain("reference");
+    expect(resource.text.length).toBeLessThan(3000);
+    expect(() =>
+      readResourceContent("analog-canvas://contract/edits/not_an_edit"),
+    ).toThrow("Unknown edit kind");
+  });
   const manifest = JSON.parse(
     readFileSync(
       resolve(repoRoot, "docs/agent/resource-manifest.json"),

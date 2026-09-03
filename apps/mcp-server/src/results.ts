@@ -1,5 +1,6 @@
 import type { AgentDiagnostic, AgentSessionSnapshot } from "@icm/agent-adapter";
 import type { CachedSnapshot } from "@icm/agent-client";
+import { RichTextDocumentSchema, flattenRichText } from "@icm/model";
 
 /**
  * Compact result projections (ADR 0020): every tool answer is bounded to what
@@ -37,13 +38,7 @@ export interface SearchHit {
 function diagnosticCompact(
   diagnostic: AgentDiagnostic,
 ): Record<string, unknown> {
-  return {
-    code: diagnostic.code,
-    ...(diagnostic.domain ? { domain: diagnostic.domain } : {}),
-    severity: diagnostic.severity,
-    message: diagnostic.message,
-    ...(diagnostic.objectIds ? { objectIds: diagnostic.objectIds } : {}),
-  };
+  return { ...diagnostic };
 }
 
 export interface DiagnosticsReport {
@@ -53,7 +48,7 @@ export interface DiagnosticsReport {
 }
 
 export function diagnosticsCompact(entry: CachedSnapshot): DiagnosticsReport {
-  const all = [...entry.diagnostics, ...entry.snapshot.document.diagnostics];
+  const all = entry.diagnostics;
   const errors = all.filter((d) => d.severity === "error");
   const warnings = all.filter((d) => d.severity === "warning");
   return {
@@ -63,7 +58,7 @@ export function diagnosticsCompact(entry: CachedSnapshot): DiagnosticsReport {
       warnings: warnings.length,
       total: all.length,
     },
-    items: [...errors, ...warnings].slice(0, 50).map(diagnosticCompact),
+    items: all.map(diagnosticCompact),
   };
 }
 
@@ -99,8 +94,8 @@ export function inspectDocument(
   if (detail === "compact") return compact;
   return {
     ...compact,
-    instances: document.instances.map(inspectInstanceValue),
-    nets: document.nets.map(inspectNetValue),
+    project: entry.snapshot.project,
+    ...document,
   };
 }
 
@@ -109,6 +104,12 @@ export function inspectInstanceValue(
 ): Record<string, unknown> {
   return {
     id: instance.id,
+    ...(instance.styleOverride
+      ? { styleOverride: instance.styleOverride }
+      : {}),
+    ...(instance.signalFlowParameters
+      ? { signalFlowParameters: instance.signalFlowParameters }
+      : {}),
     reference: instance.reference,
     masterName: instance.masterName,
     symbolId: instance.symbolId,
@@ -194,6 +195,10 @@ export function inspectObject(
   if (annotation) {
     return { ...annotation } as unknown as Record<string, unknown>;
   }
+  const noConnect = document.noConnects.find(
+    (candidate) => candidate.id === reference,
+  );
+  if (noConnect) return { ...noConnect };
   const drafting = document.drafting.objects.find(
     (candidate) => candidate.object.id === reference,
   );
@@ -261,29 +266,9 @@ export function inspectConnectivity(
 }
 
 function richTextToPlainText(content: unknown): string {
-  if (typeof content !== "object" || content === null) return "";
-  const runs = (content as { runs?: unknown }).runs;
-  if (!Array.isArray(runs)) return "";
-  const parts: string[] = [];
-  const visit = (run: unknown): void => {
-    if (typeof run !== "object" || run === null) return;
-    const record = run as {
-      kind?: unknown;
-      value?: unknown;
-      children?: unknown;
-    };
-    if (record.kind === "text" && typeof record.value === "string") {
-      parts.push(record.value);
-    } else if (record.kind === "line-break") {
-      parts.push(" ");
-    } else if (Array.isArray(record.children)) {
-      record.children.forEach(visit);
-    }
-  };
-  runs.forEach(visit);
-  return parts.join("").trim();
+  const parsed = RichTextDocumentSchema.safeParse(content);
+  return parsed.success ? flattenRichText(parsed.data) : "";
 }
-
 export function searchSnapshot(
   entry: CachedSnapshot,
   query: string,
@@ -397,7 +382,7 @@ export function searchSnapshot(
       }
     }
   }
-  for (const diagnostic of [...entry.diagnostics, ...document.diagnostics]) {
+  for (const diagnostic of entry.diagnostics) {
     if (
       diagnostic.code.toLowerCase().includes(needle) ||
       diagnostic.message.toLowerCase().includes(needle)

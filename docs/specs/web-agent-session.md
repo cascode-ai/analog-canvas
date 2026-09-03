@@ -43,7 +43,11 @@ whole-Project mutation access.
 ## Binding and authority
 
 A session binds one browser `projectSessionId`, one Project identity, an exact
-Document allowlist, scopes, expiry, and editor secret. The Agent uses only the
+Document allowlist, scopes, expiry, and editor secret. The authenticated
+browser synchronizes the Cell roster of the same authorized Project in its
+existing heartbeat, immediately after structural changes. This allows new
+Cells without pairing again and removes deleted Cells. Agent requests cannot
+update this roster or switch the session to another Project. The Agent uses only the
 `sessionId` and `documentIds` returned by the latest successful claim. Switching
 the active browser Document never retargets a request.
 

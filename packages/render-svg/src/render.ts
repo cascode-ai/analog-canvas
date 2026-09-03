@@ -1714,5 +1714,5 @@ export function renderDocumentSvg(
   const profile = resolveDocumentStyleProfile(document.presentation);
   const title = escapeXml(options.title ?? document.name);
   const { x, y, width, height } = scene.viewBox;
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${x} ${y} ${width} ${height}" role="img" aria-labelledby="title" data-style-profile="${profile.id}"><title id="title">${title}</title><rect x="${x}" y="${y}" width="${width}" height="${height}" fill="${profile.background}"/><style>${schematicRoundPeriodFontFaceCss}svg{font-size:${profile.typography.annotationFontSize}px}text{fill:${profile.foreground};font-family:${profile.typography.fontFamily}}</style>${scene.formalBody}</svg>\n`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${x} ${y} ${width} ${height}" role="img" aria-labelledby="title" data-style-profile="${profile.id}"><title id="title">${title}</title><rect x="${x}" y="${y}" width="${width}" height="${height}" fill="${profile.background}"/><style>${schematicRoundPeriodFontFaceCss}svg{font-size:${profile.typography.annotationFontSize}px;fill:${profile.foreground}}text{font-family:${profile.typography.fontFamily}}</style>${scene.formalBody}</svg>\n`;
 }

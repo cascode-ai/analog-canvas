@@ -27,7 +27,9 @@ type ActionOfKind<K extends AuthoringAction["kind"]> = Extract<
  * sequence; each element is atomic on its own.
  */
 export interface CompiledTransaction {
-  form: "edits" | "wire-intent";
+  form: "edits" | "wire-intent" | "command" | "semantic";
+  command?: import("@icm/agent-adapter").AgentAuthoringCommand;
+  semanticIntent?: import("@icm/agent-adapter").AgentSemanticIntent;
   edits?: SchematicEdit[];
   wireIntent?: WireIntent;
   actionKinds: string[];
@@ -57,6 +59,7 @@ interface SnapshotInstance {
   id: string;
   reference: string | null;
   symbolId: string;
+  placed: boolean;
   pins: readonly {
     name: string;
     connection: {
@@ -105,6 +108,7 @@ function resolvedDocument(snapshot: AgentSessionSnapshot): ResolvedDocument {
       id: instance.id,
       reference: instance.reference,
       symbolId: instance.symbolId,
+      placed: instance.placement !== null,
       pins: instance.pins.map((pin) => ({
         name: pin.name,
         connection: pin.connection,
@@ -410,6 +414,35 @@ export function compileActions(
 
   parsed.data.forEach((action, index) => {
     switch (action.kind) {
+      case "set-model":
+      case "place-existing":
+      case "set-net-label":
+      case "transform":
+      case "copy":
+      case "align":
+      case "detach-move":
+      case "unplace":
+      case "reset-cell":
+      case "create-cell":
+      case "rename-cell":
+      case "delete-cell":
+        transactions.push({
+          form: "command",
+          command: action,
+          actionKinds: [action.kind],
+        });
+        break;
+      case "focus":
+        transactions.push({
+          form: "semantic",
+          semanticIntent: action.intent,
+          actionKinds: [action.kind],
+        });
+        break;
+      case "undo":
+      case "redo":
+        pushEdit(index, action.kind, { kind: action.kind });
+        break;
       case "place-component":
         compilePlaceComponent(index, action, document, allocateId, pushEdit);
         break;
@@ -443,6 +476,22 @@ export function compileActions(
             action.kind,
             action.target,
           );
+          if (!instance.placed) {
+            transactions.push({
+              form: "command",
+              actionKinds: [action.kind],
+              command: {
+                kind: "place-existing",
+                instanceId: instance.id,
+                placement: {
+                  position: action.position,
+                  rotation: 0,
+                  mirror: "none",
+                },
+              },
+            });
+            break;
+          }
           pushEdit(index, action.kind, {
             kind: "move_instance",
             instanceId: instance.id,
@@ -520,11 +569,39 @@ export function compileActions(
         break;
       }
       case "add-label":
-        compileAddLabel(index, action, document, allocateId, pushEdit);
+        transactions.push({
+          form: "command",
+          command: compileAddLabel(index, action, document, allocateId),
+          actionKinds: [action.kind],
+        });
         break;
-      case "edit-text":
+      case "edit-text": {
+        const annotation =
+          action.target.kind === "annotation"
+            ? document.annotations.find(
+                (entry) =>
+                  entry.id === (action.target.id ?? action.target.name),
+              )
+            : undefined;
+        if (
+          annotation?.kind === "net-label" ||
+          annotation?.kind === "power-label"
+        ) {
+          transactions.push({
+            form: "command",
+            actionKinds: [action.kind],
+            command: {
+              kind: "set-net-label",
+              annotationId: String(annotation.id),
+              netId: String(annotation.netId),
+              text: richText(action.text),
+            },
+          });
+          break;
+        }
         compileEditText(index, action, document, pushEdit);
         break;
+      }
       case "annotate":
         pushEdit(index, action.kind, {
           kind: "upsert_drafting_object",
@@ -569,7 +646,7 @@ export function compileActions(
 
   return transactions.filter(
     (transaction) =>
-      transaction.form === "wire-intent" ||
+      transaction.form !== "edits" ||
       (transaction.edits !== undefined && transaction.edits.length > 0),
   );
 }
@@ -602,7 +679,19 @@ function compilePlaceComponent(
       `"${action.symbol}" is not in the reviewed built-in catalog; a custom, imported, or PDK symbol is a human-fact boundary (see analog-canvas://reference/authoring)`,
     );
   }
+  const powerMarker =
+    action.symbol === "ground" || action.symbol === "vdd-port";
+  if (powerMarker ? action.reference !== undefined : !action.reference) {
+    throw new ActionCompileError(
+      index,
+      action.kind,
+      powerMarker
+        ? "Power markers use Net names; omit reference"
+        : "A device requires an Instance Reference",
+    );
+  }
   if (
+    action.reference !== undefined &&
     document.instances.some(
       (instance) => instance.reference === action.reference,
     )
@@ -626,9 +715,9 @@ function compilePlaceComponent(
         rotation: action.rotation ?? 0,
         mirror: action.mirror ?? "none",
       },
-      netlist: {
-        parameters: action.parameters ?? {},
-      },
+      ...(!powerMarker
+        ? { netlist: { parameters: action.parameters ?? {} } }
+        : {}),
     },
   });
 }
@@ -695,7 +784,9 @@ function compileConnect(
     if (pinSide) {
       const instance = resolveInstance(document, index, action.kind, {
         kind: "instance",
-        reference: pinSide.instance,
+        ...(typeof pinSide.instance === "string"
+          ? { reference: pinSide.instance }
+          : pinSide.instance),
       });
       requirePin(index, action.kind, instance, pinSide.pin);
       const pin = instance.pins.find(
@@ -711,6 +802,7 @@ function compileConnect(
       return pin.connection.gridLanding;
     }
     const geometric = from.kind === "net" ? to : from;
+    if (geometric.kind === "route-segment") return geometric.point;
     if (geometric.kind === "point") {
       return { x: geometric.x, y: geometric.y };
     }
@@ -732,10 +824,13 @@ function compileConnect(
   })();
 
   const anchorFor = (target: ConnectTarget): Record<string, unknown> => {
+    if (target.kind === "route-segment") return target;
     if (target.kind === "pin") {
       const instance = resolveInstance(document, index, action.kind, {
         kind: "instance",
-        reference: target.instance,
+        ...(typeof target.instance === "string"
+          ? { reference: target.instance }
+          : target.instance),
       });
       requirePin(index, action.kind, instance, target.pin);
       return {
@@ -834,6 +929,8 @@ function compileConnect(
     from: anchorFor(from),
     to: anchorFor(to),
     ...(action.via ? { waypoints: action.via } : {}),
+    ...(action.routingMode ? { routingMode: action.routingMode } : {}),
+    ...(action.cornerOrder ? { cornerOrder: action.cornerOrder } : {}),
   });
 }
 
@@ -846,7 +943,9 @@ function compileDisconnect(
   if (action.target.kind === "pin") {
     const instance = resolveInstance(document, index, action.kind, {
       kind: "instance",
-      reference: action.target.instance,
+      ...(typeof action.target.instance === "string"
+        ? { reference: action.target.instance }
+        : action.target.instance),
     });
     requirePin(index, action.kind, instance, action.target.pin);
     pushEdit(index, action.kind, {
@@ -870,8 +969,10 @@ function compileAddLabel(
   action: ActionOfKind<"add-label">,
   document: ResolvedDocument,
   allocateId: AllocateId,
-  pushEdit: PushEdit,
-): void {
+): Extract<
+  import("@icm/agent-adapter").AgentAuthoringCommand,
+  { kind: "set-net-label" }
+> {
   const net = resolveNet(document, index, action.kind, {
     kind: "net",
     ...(action.target.name ? { name: action.target.name } : {}),
@@ -915,23 +1016,13 @@ function compileAddLabel(
       `net "${net.name ?? net.id}" has no geometry to anchor a label; provide position`,
     );
   }
-  const kind =
-    net.powerDomain === "vdd" || net.powerDomain === "ground"
-      ? "power-label"
-      : "net-label";
-  pushEdit(index, action.kind, {
-    kind: "upsert_schematic_annotation",
-    annotation: {
-      id: allocateId("label"),
-      kind,
-      content: richText(action.text),
-      anchor: { kind: "free", position },
-      netId: net.id,
-      alignment: "middle",
-      rotation: 0,
-      locked: false,
-    },
-  });
+  return {
+    kind: "set-net-label",
+    annotationId: allocateId("label"),
+    netId: net.id,
+    text: richText(action.text),
+    position,
+  };
 }
 
 function compileEditText(

@@ -53,6 +53,12 @@ export interface McpServerHandler {
   listTools(): McpToolDefinition[];
   callTool(name: string, args: unknown): Promise<McpToolCallResult>;
   listResources(): McpResourceEntry[];
+  listResourceTemplates?(): {
+    uriTemplate: string;
+    name: string;
+    description?: string;
+    mimeType?: string;
+  }[];
   readResource(uri: string): McpResourceContent;
   /** Notified once after a host completes the initialize handshake. */
   onInitialized?(): void;
@@ -234,6 +240,10 @@ export class McpStdioServer {
       }
       case "resources/list":
         return { resources: this.handler.listResources() };
+      case "resources/templates/list":
+        return {
+          resourceTemplates: this.handler.listResourceTemplates?.() ?? [],
+        };
       case "resources/read": {
         const uri =
           typeof params === "object" && params !== null

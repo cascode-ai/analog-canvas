@@ -23,6 +23,23 @@ function mos(id: string, symbolId: "nmos" | "pmos" | "ndmos" | "pdmos") {
 }
 
 describe("MOS bulk resolution", () => {
+  it.each(["nmos", "pmos"] as const)(
+    "keeps imported %s default bulk implicit without changing electrical membership",
+    (kind) => {
+      const document = createEmptyDocument("main", "Main");
+      document.instances.push(mos("M1", kind));
+      document.nets.push(
+        { id: "supply", terminals: [{ instanceId: "M1", pinName: "B" }] },
+        { id: "tail", terminals: [{ instanceId: "M1", pinName: "S" }] },
+      );
+      document.mosBulkDefaults =
+        kind === "nmos" ? { nmosNetId: "supply" } : { pmosNetId: "supply" };
+      const before = JSON.stringify(document);
+      expect(resolveMosBulkConnection(document, "M1")?.status).toBe("explicit");
+      expect(mosBulkShouldBeVisible(document, "M1")).toBe(false);
+      expect(JSON.stringify(document)).toBe(before);
+    },
+  );
   it("maps expanded DMOS artwork to the existing N/P bulk domains", () => {
     expect(mosBulkKind(mos("M1", "ndmos"))).toBe("nmos");
     expect(mosBulkKind(mos("M2", "pdmos"))).toBe("pmos");

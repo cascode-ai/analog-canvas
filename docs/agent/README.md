@@ -21,8 +21,9 @@ engine.
    directory, redeem the claim, and call the four operations directly.
 3. **Advanced: direct OpenAPI.** `GET /api/agent/openapi.json` is the
    wire-contract authority for direct API integrations. An MCP-based Agent
-   does not need it; `advanced_transact` requires reading the
-   `analog-canvas://contract/advanced-edits` resource first.
+   does not need it; `advanced_transact` reuses existing transaction forms.
+   Read `analog-canvas://contract/advanced-edits` on demand, without a
+   read-to-unlock ceremony.
 
 For an MCP session: start the adapter, call `connect` with a Claim Code, read
 `analog-canvas://reference/quickstart`, call

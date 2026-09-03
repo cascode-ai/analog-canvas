@@ -31,6 +31,56 @@ function expectCompileError(actions: unknown[], fragment: string): void {
 }
 
 describe("authoring helper compilation", () => {
+  it("connects and disconnects stable IDs without guessing a Reference", () => {
+    const snapshot = testSnapshot();
+    snapshot.document.instances[0]!.reference = null;
+    const pin = {
+      kind: "pin",
+      instance: { kind: "instance", id: "instance-1" },
+      pin: "G",
+    };
+    const [wire] = compile(
+      [{ kind: "connect", from: pin, to: { kind: "point", x: 20, y: 240 } }],
+      snapshot,
+    );
+    expect(wire?.wireIntent?.from).toEqual({
+      kind: "endpoint",
+      endpoint: { kind: "terminal", instanceId: "instance-1", pinName: "G" },
+    });
+    const [cut] = compile([{ kind: "disconnect", target: pin }], snapshot);
+    expect(cut?.edits?.[0]).toMatchObject({
+      kind: "disconnect_endpoint",
+      endpoint: { instanceId: "instance-1" },
+    });
+  });
+  it("permits unnamed Ground but never an unnamed device or a marker Reference", () => {
+    expect(
+      compile([
+        { kind: "place-component", symbol: "ground", position: { x: 0, y: 0 } },
+      ])[0]?.edits?.[0],
+    ).toMatchObject({ kind: "add_instance", instance: { symbolId: "ground" } });
+    expectCompileError(
+      [
+        {
+          kind: "place-component",
+          symbol: "resistor",
+          position: { x: 0, y: 0 },
+        },
+      ],
+      "requires an Instance Reference",
+    );
+    expectCompileError(
+      [
+        {
+          kind: "place-component",
+          symbol: "ground",
+          reference: "GND1",
+          position: { x: 0, y: 0 },
+        },
+      ],
+      "omit reference",
+    );
+  });
   it("compiles place-component into a catalog-validated add_instance edit", () => {
     const [transaction] = compile([
       {
@@ -402,20 +452,15 @@ describe("authoring helper compilation", () => {
         text: "Vout",
       },
     ]);
-    const edit = transaction?.edits?.[0];
-    expect(edit?.kind).toBe("upsert_schematic_annotation");
-    if (edit?.kind === "upsert_schematic_annotation") {
-      expect(edit.annotation.kind).toBe("net-label");
-      expect(edit.annotation.netId).toBe("net-vout");
-      // midpoint of route-1 polyline ((460,160)), lifted 20 above
-      expect(edit.annotation.anchor).toEqual({
-        kind: "free",
-        position: { x: 460, y: 140 },
-      });
-    }
+    expect(transaction?.command).toMatchObject({
+      kind: "set-net-label",
+      netId: "net-vout",
+      position: { x: 460, y: 140 },
+      text: { runs: [{ kind: "text", value: "Vout" }] },
+    });
   });
 
-  it("labels supply nets as power-labels", () => {
+  it("leaves supply naming policy to the shared server planner", () => {
     const [transaction] = compile([
       {
         kind: "add-label",
@@ -424,11 +469,10 @@ describe("authoring helper compilation", () => {
         position: { x: 5, y: 5 },
       },
     ]);
-    const edit = transaction?.edits?.[0];
-    expect(edit?.kind).toBe("upsert_schematic_annotation");
-    if (edit?.kind === "upsert_schematic_annotation") {
-      expect(edit.annotation.kind).toBe("power-label");
-    }
+    expect(transaction?.command).toMatchObject({
+      kind: "set-net-label",
+      netId: "net-vdd",
+    });
   });
 
   it("compiles annotate into a drafting text object and edit-text onto it", () => {
@@ -450,15 +494,11 @@ describe("authoring helper compilation", () => {
         text: "Vout node",
       },
     ]);
-    const annotationEdit = edited?.edits?.[0];
-    expect(annotationEdit?.kind).toBe("upsert_schematic_annotation");
-    if (annotationEdit?.kind === "upsert_schematic_annotation") {
-      expect(annotationEdit.annotation.id).toBe("label-1");
-      expect(annotationEdit.annotation.content!.runs[0]).toEqual({
-        kind: "text",
-        value: "Vout node",
-      });
-    }
+    expect(edited?.command).toMatchObject({
+      kind: "set-net-label",
+      annotationId: "label-1",
+      text: { runs: [{ kind: "text", value: "Vout node" }] },
+    });
   });
 
   it("preserves structured RichText instead of flattening it", () => {

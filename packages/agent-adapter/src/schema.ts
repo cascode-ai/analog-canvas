@@ -21,23 +21,27 @@ import {
   SourceSpanSchema,
   StableIdSchema,
   SymbolLocalPointSchema,
+  InstanceStyleOverrideSchema,
+  SignalFlowParametersSchema,
+  ExternalSubcircuitDefinitionSchema,
+  CellNetlistInterfaceSchema,
+  MosBulkDefaultsSchema,
 } from "@icm/model";
-import { ObjectLocatorSchema } from "@icm/derived";
+import { ObjectLocatorSchema, HierarchyFrameSchema } from "@icm/derived";
 import {
   ProjectStructureEditSchema,
   SchematicEditSchema,
 } from "@icm/edit-engine";
 import { z } from "zod";
+import { AgentAuthoringCommandSchema } from "./authoring-command.js";
+export { AgentAuthoringCommandSchema } from "./authoring-command.js";
+export type { AgentAuthoringCommand } from "./authoring-command.js";
 
 export const AGENT_API_VERSION = "2.0" as const;
 export const AGENT_SNAPSHOT_VERSION = "2.0" as const;
 export const AgentApiVersionSchema = z.literal(AGENT_API_VERSION);
 const RequestBaseSchema = z.strictObject({
   apiVersion: AgentApiVersionSchema,
-  requestId: StableIdSchema,
-});
-const ProductionRequestBaseSchema = z.strictObject({
-  apiVersion: z.literal(AGENT_API_VERSION),
   requestId: StableIdSchema,
 });
 
@@ -77,6 +81,12 @@ export const AgentSnapshotRequestSchema = RequestBaseSchema.extend({
   operation: z.literal("snapshot"),
   documentId: StableIdSchema,
   includeSourceSpans: z.boolean().optional(),
+  traceNet: z
+    .strictObject({
+      netId: StableIdSchema,
+      hierarchyPath: z.array(HierarchyFrameSchema).max(32).optional(),
+    })
+    .optional(),
 });
 export const AgentWireIntentAnchorSchema = z.discriminatedUnion("kind", [
   z.strictObject({
@@ -96,7 +106,7 @@ export const AgentWireIntentSchema = z.strictObject({
   from: AgentWireIntentAnchorSchema,
   to: AgentWireIntentAnchorSchema,
   waypoints: z.array(PointSchema).max(256).optional(),
-  routingMode: z.enum(["orthogonal", "octilinear"]).optional(),
+  routingMode: z.enum(["orthogonal", "octilinear", "free"]).optional(),
   cornerOrder: z
     .enum(["auto", "diagonal-first", "orthogonal-first"])
     .optional(),
@@ -188,35 +198,55 @@ export const AgentSchematicEditSchema = SchematicEditSchema.superRefine(
     }
   },
 );
-export const AgentTransactRequestSchema = RequestBaseSchema.extend({
-  operation: z.literal("transact"),
-  documentId: StableIdSchema,
-  transactionId: StableIdSchema,
-  expectedRevision: z.number().int().nonnegative(),
-  dryRun: z.boolean().optional(),
+const TransactionPayloadShape = {
   edits: z.array(AgentSchematicEditSchema).min(1).max(256).optional(),
   wireIntent: AgentWireIntentSchema.optional(),
   semanticIntent: AgentSemanticIntentSchema.optional(),
-  expectedStructureRevision: z.number().int().nonnegative().optional(),
+  command: AgentAuthoringCommandSchema.optional(),
   structureEdits: z
     .array(ProjectStructureEditSchema)
     .min(1)
     .max(256)
     .optional(),
-}).superRefine((request, context) => {
+};
+function oneTransactionForm(
+  request: {
+    edits?: unknown;
+    wireIntent?: unknown;
+    semanticIntent?: unknown;
+    structureEdits?: unknown;
+    command?: unknown;
+  },
+  context: z.RefinementCtx,
+): void {
   const forms = [
     request.edits,
     request.wireIntent,
     request.semanticIntent,
     request.structureEdits,
+    request.command,
   ];
   if (forms.filter((form) => form !== undefined).length !== 1) {
     context.addIssue({
       code: "custom",
       message:
-        "Provide exactly one of edits, wireIntent, semanticIntent, or structureEdits",
+        "Provide exactly one of edits, wireIntent, semanticIntent, structureEdits, or command",
     });
   }
+}
+export const AgentTransactionPayloadSchema = z
+  .strictObject(TransactionPayloadShape)
+  .superRefine(oneTransactionForm);
+export const AgentTransactRequestSchema = RequestBaseSchema.extend({
+  operation: z.literal("transact"),
+  documentId: StableIdSchema,
+  transactionId: StableIdSchema,
+  expectedRevision: z.number().int().nonnegative(),
+  expectedStructureRevision: z.number().int().nonnegative().optional(),
+  dryRun: z.boolean().optional(),
+  ...TransactionPayloadShape,
+}).superRefine((request, context) => {
+  oneTransactionForm(request, context);
   if (
     request.structureEdits &&
     request.expectedStructureRevision === undefined
@@ -235,77 +265,17 @@ export const AgentRenderRequestSchema = RequestBaseSchema.extend({
   bounds: GridRectSchema.optional(),
 });
 
-/** Sole Circuit request schema. */
-const AgentProductionCapabilitiesRequestSchema =
-  ProductionRequestBaseSchema.extend({
-    operation: z.literal("capabilities"),
-  });
-const AgentProductionSnapshotRequestSchema = ProductionRequestBaseSchema.extend(
-  {
-    operation: z.literal("snapshot"),
-    documentId: StableIdSchema,
-    includeSourceSpans: z.boolean().optional(),
-  },
-);
-const AgentProductionTransactRequestSchema = ProductionRequestBaseSchema.extend(
-  {
-    operation: z.literal("transact"),
-    documentId: StableIdSchema,
-    transactionId: StableIdSchema,
-    expectedRevision: z.number().int().nonnegative(),
-    dryRun: z.boolean().optional(),
-    edits: z.array(AgentSchematicEditSchema).min(1).max(256).optional(),
-    wireIntent: AgentWireIntentSchema.optional(),
-    semanticIntent: AgentSemanticIntentSchema.optional(),
-    expectedStructureRevision: z.number().int().nonnegative().optional(),
-    structureEdits: z
-      .array(ProjectStructureEditSchema)
-      .min(1)
-      .max(256)
-      .optional(),
-  },
-).superRefine((request, context) => {
-  const forms = [
-    request.edits,
-    request.wireIntent,
-    request.semanticIntent,
-    request.structureEdits,
-  ];
-  if (forms.filter((form) => form !== undefined).length !== 1) {
-    context.addIssue({
-      code: "custom",
-      message:
-        "Provide exactly one of edits, wireIntent, semanticIntent, or structureEdits",
-    });
-  }
-  if (
-    request.structureEdits &&
-    request.expectedStructureRevision === undefined
-  ) {
-    context.addIssue({
-      code: "custom",
-      path: ["expectedStructureRevision"],
-      message: "Structural transactions require expectedStructureRevision",
-    });
-  }
-});
-const AgentProductionRenderRequestSchema = ProductionRequestBaseSchema.extend({
-  operation: z.literal("render"),
-  documentId: StableIdSchema,
-  mode: z.enum(["formal", "diagnostics"]),
-  bounds: GridRectSchema.optional(),
-});
+/** Production and local clients use exactly the same four-operation contract. */
 export const AgentProductionCircuitRequestSchema = z.discriminatedUnion(
   "operation",
   [
-    AgentProductionCapabilitiesRequestSchema,
-    AgentProductionSnapshotRequestSchema,
-    AgentProductionTransactRequestSchema,
-    AgentProductionRenderRequestSchema,
+    AgentCapabilitiesRequestSchema,
+    AgentSnapshotRequestSchema,
+    AgentTransactRequestSchema,
+    AgentRenderRequestSchema,
   ],
 );
 export const AgentCircuitRequestSchema = AgentProductionCircuitRequestSchema;
-
 // Visual diagnostics are derived from rendered geometry. Text measurement and
 // rotated drafting AABBs legitimately produce fractional coordinates even
 // though persisted schematic coordinates remain integer-grid values.
@@ -317,6 +287,8 @@ const AgentDiagnosticBoundsSchema = z.strictObject({
 });
 
 export const AgentDiagnosticSchema = z.strictObject({
+  primary: ObjectLocatorSchema.omit({ sourceRef: true }).optional(),
+  related: z.array(ObjectLocatorSchema.omit({ sourceRef: true })).optional(),
   code: z.string().min(1),
   domain: z.enum(["schema", "spice", "erc", "routing", "visual"]).optional(),
   severity: z.enum(["error", "warning", "info"]),
@@ -408,6 +380,8 @@ const AgentNetlistFactsSchema = z.strictObject({
 });
 
 export const AgentSnapshotInstanceSchema = z.strictObject({
+  styleOverride: InstanceStyleOverrideSchema.optional(),
+  signalFlowParameters: SignalFlowParametersSchema.optional(),
   id: StableIdSchema,
   reference: z.string().min(1).nullable(),
   masterName: z.string().min(1).nullable(),
@@ -470,6 +444,8 @@ export const AgentSnapshotJunctionSchema = z.strictObject({
 export const AgentSnapshotNoConnectSchema = NoConnectSchema;
 
 export const AgentSnapshotDocumentSchema = z.strictObject({
+  netlist: CellNetlistInterfaceSchema.optional(),
+  mosBulkDefaults: MosBulkDefaultsSchema.optional(),
   id: StableIdSchema,
   name: z.string().min(1),
   revision: z.number().int().nonnegative(),
@@ -546,6 +522,9 @@ export const AgentSessionSnapshotSchema = z.strictObject({
   electricalTopologyHash: z.string().regex(/^[a-f0-9]{64}$/u),
   byteLength: z.number().int().nonnegative(),
   project: z.strictObject({
+    externalSubcircuitDefinitions: z
+      .array(ExternalSubcircuitDefinitionSchema)
+      .optional(),
     id: StableIdSchema,
     name: z.string().min(1),
     structureRevision: z.number().int().nonnegative(),
@@ -565,16 +544,59 @@ export const AgentCapabilitiesResponseSchema = ResponseBaseSchema.extend({
   capabilities: z.strictObject({
     apiVersions: z.tuple([z.literal(AGENT_API_VERSION)]),
     snapshotVersions: z.tuple([z.literal(AGENT_SNAPSHOT_VERSION)]),
-    operations: z.array(
-      z.enum(["capabilities", "snapshot", "transact", "render"]),
-    ),
+    operations: z.tuple([
+      z.literal("capabilities"),
+      z.literal("snapshot"),
+      z.literal("transact"),
+      z.literal("render"),
+    ]),
     editKinds: z.array(z.string().min(1)),
+    commandKinds: z.array(z.string()).optional(),
+    transactionForms: z.array(z.string()).optional(),
     permissions: AgentPermissionsSchema,
     limits: AgentLimitsSchema,
     resources: z
       .strictObject({ file: AgentFileResourceCapabilitySchema })
       .optional(),
   }),
+});
+const TraceNetRefSchema = z.strictObject({
+  documentId: StableIdSchema,
+  netId: StableIdSchema,
+  hierarchyPath: z.array(HierarchyFrameSchema),
+});
+const TraceInterfaceSchema = z.strictObject({
+  parentDocumentId: StableIdSchema,
+  instanceId: StableIdSchema,
+  parentPinName: z.string(),
+  childDocumentId: StableIdSchema,
+  childTerminalName: z.string(),
+  childNetId: StableIdSchema,
+});
+export const AgentNetTraceSchema = z.strictObject({
+  highlights: z.array(
+    TraceNetRefSchema.extend({
+      routes: z.array(StableIdSchema),
+      junctions: z.array(StableIdSchema),
+      visibleEndpoints: z.array(RouteEndpointSchema),
+    }),
+  ),
+  hops: z.array(
+    z.union([
+      z.strictObject({
+        direction: z.enum(["up", "down"]),
+        from: TraceNetRefSchema,
+        to: TraceNetRefSchema,
+        frame: TraceInterfaceSchema,
+      }),
+      z.strictObject({
+        direction: z.literal("global"),
+        from: TraceNetRefSchema,
+        to: TraceNetRefSchema,
+        foldedName: z.string(),
+      }),
+    ]),
+  ),
 });
 export const AgentSnapshotResponseSchema = ResponseBaseSchema.extend({
   apiVersion: z.literal(AGENT_API_VERSION),
@@ -583,6 +605,7 @@ export const AgentSnapshotResponseSchema = ResponseBaseSchema.extend({
   revision: z.number().int().nonnegative(),
   snapshot: AgentSessionSnapshotSchema,
   diagnostics: z.array(AgentDiagnosticSchema),
+  trace: AgentNetTraceSchema.nullable().optional(),
 });
 
 export const AgentSemanticIntentResultSchema = z.strictObject({
@@ -626,6 +649,8 @@ export const AgentTransactSuccessResponseSchema = ResponseBaseSchema.extend({
       fromRevision: z.number().int().nonnegative(),
       toRevision: z.number().int().nonnegative(),
       changedDocumentIds: z.array(StableIdSchema),
+      documentIds: z.array(StableIdSchema).optional(),
+      topDocumentId: StableIdSchema.optional(),
     })
     .optional(),
 });
@@ -654,47 +679,14 @@ export const AgentErrorResponseSchema = ResponseBaseSchema.extend({
   diagnostics: z.array(AgentDiagnosticSchema),
 });
 
-const AgentProductionCapabilitiesResponseSchema = ResponseBaseSchema.extend({
-  apiVersion: z.literal(AGENT_API_VERSION),
-  operation: z.literal("capabilities"),
-  ok: z.literal(true),
-  capabilities: z.strictObject({
-    apiVersions: z.tuple([z.literal(AGENT_API_VERSION)]),
-    snapshotVersions: z.tuple([z.literal(AGENT_SNAPSHOT_VERSION)]),
-    operations: z.tuple([
-      z.literal("capabilities"),
-      z.literal("snapshot"),
-      z.literal("transact"),
-      z.literal("render"),
-    ]),
-    editKinds: z.array(z.string().min(1)),
-    permissions: AgentPermissionsSchema,
-    limits: AgentLimitsSchema,
-    resources: z
-      .strictObject({ file: AgentFileResourceCapabilitySchema })
-      .optional(),
-  }),
-});
-const AgentProductionTransactSuccessResponseSchema =
-  AgentTransactSuccessResponseSchema.extend({
-    apiVersion: z.literal(AGENT_API_VERSION),
-  });
-const AgentProductionRenderResponseSchema = AgentRenderResponseSchema.extend({
-  apiVersion: z.literal(AGENT_API_VERSION),
-});
-const AgentProductionErrorResponseSchema = AgentErrorResponseSchema.extend({
-  apiVersion: z.literal(AGENT_API_VERSION),
-  operation: z.enum(["error", "snapshot", "transact", "render"]),
-});
 export const AgentProductionCircuitResponseSchema = z.union([
-  AgentProductionCapabilitiesResponseSchema,
+  AgentCapabilitiesResponseSchema,
   AgentSnapshotResponseSchema,
-  AgentProductionTransactSuccessResponseSchema,
-  AgentProductionRenderResponseSchema,
-  AgentProductionErrorResponseSchema,
+  AgentTransactSuccessResponseSchema,
+  AgentRenderResponseSchema,
+  AgentErrorResponseSchema,
 ]);
 export const AgentCircuitResponseSchema = AgentProductionCircuitResponseSchema;
-
 export const AgentCircuitRequestJsonSchema = z.toJSONSchema(
   AgentProductionCircuitRequestSchema,
   { target: "draft-2020-12", reused: "ref" },
