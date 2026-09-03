@@ -46,7 +46,12 @@ ENV SKY130_MODEL_ROOT=/opt/sky130/sky130A \
 # nature. Declaring it here documents that nothing survives a sleep.
 WORKDIR /run/simulation
 
-COPY entrypoint.mjs /opt/harness/entrypoint.mjs
+# The build context is the repository root (wrangler.preview.jsonc sets
+# image_build_context to "."), because the model files above are staged
+# there. Every COPY is therefore repo-root relative, this one included; the
+# first preview deploy failed on exactly this line when it was not.
+ARG HARNESS_DIR=containers/ngspice
+COPY ${HARNESS_DIR}/entrypoint.mjs /opt/harness/entrypoint.mjs
 RUN apt-get update \
     && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
