@@ -95,6 +95,17 @@
     "staging": {
       "name": "interactive-circuit-maker-staging",
       "workers_dev": true,
+      // Staging must claim NO custom domain. `routes` is an inheritable key:
+      // without this line the staging environment inherits the production
+      // block above, and `wrangler deploy --env staging` binds
+      // analog-canvas.tokenzhang.com to the staging Worker. That is not a
+      // theoretical hazard -- it happened on 2026-09-04, and because the
+      // staging Worker refuses anonymous callers, the live site answered its
+      // own script requests with 401 "Staging is not public." while the
+      // cached shell still loaded. Users saw a blank page.
+      //
+      // An empty array is the override; omitting the key inherits.
+      "routes": [],
       "vars": {
         // Switches on the access gate in worker/staging-gate.ts. Without the
         // STAGING_ACCESS_KEY secret beside it, staging serves nobody, which
@@ -105,7 +116,16 @@
         "binding": "ASSETS",
         "directory": "./apps/editor/dist",
         "not_found_handling": "single-page-application",
-        "run_worker_first": ["/api/*", "/assets/*"],
+        // Staging runs the Worker on EVERY path, where production runs it only
+        // where it has something to add. The access gate lives in the Worker,
+        // and a path the Worker never sees is a path the gate never guards:
+        // with the production list here, `/api/*` refused anonymous callers
+        // while `/` and `/editor` were served straight off the asset layer at
+        // 200, which is the whole application in public on a guessable
+        // hostname. Everything the Worker does not answer still reaches the
+        // same `env.ASSETS.fetch`, so what is served is unchanged -- only who
+        // is let through it.
+        "run_worker_first": true,
       },
       "durable_objects": {
         "bindings": [

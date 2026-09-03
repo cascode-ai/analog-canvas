@@ -102,6 +102,31 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           STAGING_ACCESS_KEY: ${{ secrets.STAGING_ACCESS_KEY }}
+      # Putting a secret publishes a new version of the Worker, and for a
+      # few seconds afterwards the old one is still answering. Verifying
+      # across that window reads the deployment being replaced, and a
+      # transient 404 there fails staging -- which freezes production deploys
+      # for the whole repository over nothing. So wait for the gate itself to
+      # be the thing answering before asking it anything.
+      - name: Wait for the access key to take effect
+        if: steps.gate.outputs.ran == 'true'
+        env:
+          STAGING_URL: ${{ steps.deploy.outputs.url }}
+        run: |
+          for _ in $(seq 1 30); do
+            code="$(curl --silent --output /dev/null --max-time 10 \
+              --write-out '%{http_code}' "${STAGING_URL}/editor" || true)"
+            if [ "$code" = "401" ]; then
+              echo "The gate is live."
+              exit 0
+            fi
+            sleep 4
+          done
+          echo "Staging never started refusing anonymous callers (last: $code)."
+          echo "The access gate is not in front of every path, so the build is"
+          echo "public on a workers.dev hostname. Refusing to continue."
+          exit 1
+
       # The same checks production gets, against the staging host, with the
       # access key supplied. A path that fails here never reaches the public.
       - name: Verify staging
@@ -230,6 +255,41 @@ jobs:
             --retry 5 --retry-delay 2 --retry-all-errors \
             --max-time 20 \
             https://analog-canvas.tokenzhang.com/api/agent/mcp-manifest.json >/dev/null
+          # The shell loading proves nothing about the page rendering. On
+          # 2026-09-04 a staging deploy took this hostname, and because the
+          # asset layer answered `/editor` before the Worker, every path check
+          # above passed at 200 while the shell's own script came back
+          # 401 "Staging is not public.". The site was blank and the pipeline
+          # saw a healthy deployment.
+          #
+          # So follow the shell to the script it actually asks for, and require
+          # JavaScript to come back. This is the narrowest check that tells a
+          # page apart from a page-shaped 200.
+          shell="$(curl --fail --silent --show-error --max-time 20 \
+            https://analog-canvas.tokenzhang.com/editor)"
+          entry="$(printf '%s' "$shell" \
+            | grep -o '/assets/[A-Za-z0-9._-]*\.js' | head -n 1)"
+          if [ -z "$entry" ]; then
+            echo "The editor shell references no script; it cannot boot."
+            exit 1
+          fi
+          entry_result="$(curl --silent --output /dev/null --max-time 20 \
+            --write-out '%{http_code} %{content_type}' \
+            "https://analog-canvas.tokenzhang.com${entry}")"
+          case "$entry_result" in
+            200*javascript*) : ;;
+            401*)
+              echo "The live site answered $entry with 401."
+              echo "Its hostname is bound to the staging Worker, whose gate is"
+              echo "refusing production's own visitors. Recover with"
+              echo "wrangler deploy (no --env) to take the domain back."
+              exit 1
+              ;;
+            *)
+              echo "The editor's entry script answered: $entry_result"
+              exit 1
+              ;;
+          esac
           stale_asset="$(curl --silent --show-error \
             --max-time 20 \
             --output /tmp/analog-canvas-stale-asset.txt \

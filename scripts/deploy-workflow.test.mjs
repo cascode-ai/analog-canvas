@@ -48,6 +48,47 @@ describe("staging before production", () => {
     expect(stagingJob).toContain("must answer 404");
   });
 
+  it("puts the gate in front of every staging path, not just the API", () => {
+    // The gate runs inside the Worker. Cloudflare's asset layer answers
+    // before the Worker on any path outside `run_worker_first`, so with
+    // production's narrow list staging refused anonymous callers on
+    // `/api/*` and served them `/` and `/editor` at 200 -- the entire
+    // unreleased application, public on a workers.dev hostname. Production
+    // has no gate to lose, so it keeps the narrow list; staging must not.
+    const config = readFileSync("wrangler.jsonc", "utf8");
+    const stagingBlock = config.slice(config.indexOf('"staging": {'));
+    expect(stagingBlock).toMatch(/"run_worker_first":\s*true/u);
+    expect(stagingBlock).not.toMatch(/"run_worker_first":\s*\[/u);
+  });
+
+  it("keeps staging off production's domain", () => {
+    // `routes` is an inheritable wrangler key. Without an override the staging
+    // environment inherits production's custom domain and binds it to the
+    // staging Worker -- which then refuses anonymous callers, so the live site
+    // answers its own script requests with 401 and users get a blank page.
+    // That happened on 2026-09-04. An empty array is the override; omitting
+    // the key inherits.
+    const config = readFileSync("wrangler.jsonc", "utf8");
+    const stagingBlock = config.slice(config.indexOf('"staging": {'));
+    expect(stagingBlock).toMatch(/"routes":\s*\[\s*\]/u);
+  });
+
+  it("follows the shell to its own script before calling production healthy", () => {
+    // Every path check passed at 200 on 2026-09-04 while the shell's script
+    // answered 401, so the site was blank and the pipeline saw health. A
+    // reachable shell is not a working page.
+    expect(workflow).toContain("references no script; it cannot boot");
+    expect(workflow).toMatch(/200\*javascript\*/u);
+  });
+
+  it("waits for the gate to be live before believing what staging says", () => {
+    // Putting the secret publishes a new version; the old one answers for a
+    // few seconds after. Verifying across that window fails staging, and a
+    // failed staging freezes production deploys for the whole repository.
+    expect(workflow).toContain("Wait for the access key to take effect");
+    expect(workflow).toMatch(/The gate is live/u);
+  });
+
   it("fails the deploy if staging is reachable without the key", () => {
     // A staging anyone can open is a second public site showing half-built
     // work. Being unlisted is not being private.
