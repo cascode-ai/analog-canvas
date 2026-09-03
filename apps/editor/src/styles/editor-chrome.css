@@ -27,7 +27,8 @@
   overflow-x: auto;
 }
 
-.toolbar-row:has(.command-menu[open]) {
+.toolbar-row:has(.command-menu[open]),
+.toolbar-row:has(.arrow-style-picker[open]) {
   overflow: visible;
 }
 

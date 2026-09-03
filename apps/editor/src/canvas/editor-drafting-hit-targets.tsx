@@ -3,7 +3,11 @@ import type {
   PointerEvent as ReactPointerEvent,
 } from "react";
 
-import { resolveDraftingObjectGeometry } from "@icm/derived";
+import {
+  arrowArtwork,
+  resolveDocumentStyleProfile,
+  resolveDraftingObjectGeometry,
+} from "@icm/derived";
 import type {
   DraftingObject,
   LayoutGroup,
@@ -120,28 +124,60 @@ export function EditorDraftingHitTargets({
       );
     }
     if (object.kind === "arrow" && geometry.kind === "arrow") {
+      const art = arrowArtwork(
+        object,
+        geometry.points,
+        geometry.curveControls,
+        resolveDocumentStyleProfile(document.presentation),
+      );
+      if (art.outline)
+        return (
+          <polygon
+            key={object.id}
+            {...common}
+            className={`${selectedClass} drafting-outline-arrow-hit`}
+            points={serializePolylinePoints(art.outline)}
+            fill="none"
+          />
+        );
       const doubleClick = (event: ReactMouseEvent<SVGElement>) =>
         onArrowEdit(event, object);
-      return geometry.curveControls.some(Boolean) ? (
-        <path
-          key={object.id}
-          {...common}
-          className={selectedClass}
-          fill="none"
-          d={draftingPathData(geometry.points, geometry.curveControls)}
-          onDoubleClick={doubleClick}
-        />
-      ) : (
-        <polyline
-          key={object.id}
-          {...common}
-          className={selectedClass}
-          fill="none"
-          points={geometry.points
-            .map((point) => `${point.x},${point.y}`)
-            .join(" ")}
-          onDoubleClick={doubleClick}
-        />
+      const { "data-testid": _testId, ...headCommon } = common;
+      return (
+        <g key={object.id}>
+          {geometry.curveControls.some(Boolean) ? (
+            <path
+              key={object.id}
+              {...common}
+              className={selectedClass}
+              fill="none"
+              d={draftingPathData(geometry.points, geometry.curveControls)}
+              onDoubleClick={doubleClick}
+            />
+          ) : (
+            <polyline
+              key={object.id}
+              {...common}
+              className={selectedClass}
+              fill="none"
+              points={geometry.points
+                .map((point) => `${point.x},${point.y}`)
+                .join(" ")}
+              onDoubleClick={doubleClick}
+            />
+          )}
+          {art.heads.map((head, index) => (
+            <polygon
+              key={`head-${index}`}
+              {...headCommon}
+              className={selectedClass}
+              points={serializePolylinePoints(head)}
+              fill="transparent"
+              pointerEvents={tool === "wire" ? "none" : "all"}
+              onDoubleClick={doubleClick}
+            />
+          ))}
+        </g>
       );
     }
     if (object.kind === "rectangle" && geometry.kind === "rectangle") {
@@ -327,8 +363,40 @@ export function EditorDraftingHandles({
     );
   };
   if (object.kind === "arrow" && geometry.kind === "arrow") {
+    const dx = geometry.to.x - geometry.from.x,
+      dy = geometry.to.y - geometry.from.y;
+    const length = Math.hypot(dx, dy) || 1;
+    const offset = object.outline ? object.outline.width / 2 + 18 : 25;
+    const rotationHandle = {
+      x: geometry.center.x + (dy / length) * offset,
+      y: geometry.center.y - (dx / length) * offset,
+    };
+    const widthHandle = {
+      x: geometry.center.x - ((dy / length) * (object.outline?.width ?? 0)) / 2,
+      y: geometry.center.y + ((dx / length) * (object.outline?.width ?? 0)) / 2,
+    };
     return (
       <g data-testid={`drafting-handles-${object.id}`}>
+        {object.from.kind === "free" && object.to.kind === "free" ? (
+          <>
+            <line
+              className="draft-rotation-stem"
+              x1={geometry.center.x}
+              y1={geometry.center.y}
+              x2={rotationHandle.x}
+              y2={rotationHandle.y}
+              pointerEvents="none"
+            />
+            {circle(rotationHandle, `draft-handle-rotate-${object.id}`, {
+              kind: "rotate",
+            })}
+          </>
+        ) : null}
+        {object.outline
+          ? circle(widthHandle, `draft-handle-width-${object.id}`, {
+              kind: "outline-width",
+            })
+          : null}
         {circle(geometry.from, `draft-handle-from-${object.id}`, {
           kind: "from",
         })}
@@ -338,16 +406,17 @@ export function EditorDraftingHandles({
             index,
           }),
         )}
-        {geometry.points
-          .slice(0, -1)
-          .map((point, index) =>
-            curve(
-              point,
-              geometry.curveControls[index] ?? null,
-              geometry.points[index + 1]!,
-              index,
-            ),
-          )}
+        {!object.outline &&
+          geometry.points
+            .slice(0, -1)
+            .map((point, index) =>
+              curve(
+                point,
+                geometry.curveControls[index] ?? null,
+                geometry.points[index + 1]!,
+                index,
+              ),
+            )}
         {circle(geometry.to, `draft-handle-to-${object.id}`, { kind: "to" })}
       </g>
     );

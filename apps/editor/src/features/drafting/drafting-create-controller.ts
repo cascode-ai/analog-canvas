@@ -16,6 +16,20 @@ import {
   type SnapGuideLine,
 } from "../../snap/engine";
 import type { RouteGeometryRecord } from "../wiring/route-interaction-geometry";
+import {
+  applyArrowPreset,
+  DEFAULT_ARROW_PRESET,
+  outlinePlacement,
+  type ArrowPreset,
+} from "./arrow-presets";
+import type {
+  MutableRefObject,
+  PointerEvent as ReactPointerEvent,
+} from "react";
+import {
+  startCanvasDragSession,
+  type CanvasDragSession,
+} from "../../canvas/canvas-drag-session";
 
 type TransactionResult = { ok: boolean };
 type DraftingTool = Extract<
@@ -49,6 +63,8 @@ export function createDraftingCreateController({
   visibleEndpoints,
   routeGeometryRecords,
   tool,
+  arrowPreset = DEFAULT_ARROW_PRESET,
+  pointer,
   source,
   hover,
   waypoints,
@@ -71,6 +87,11 @@ export function createDraftingCreateController({
   visibleEndpoints: readonly WireSource[];
   routeGeometryRecords: readonly RouteGeometryRecord[];
   tool: EditorTool;
+  arrowPreset?: ArrowPreset;
+  pointer?: {
+    dragSessionRef: MutableRefObject<CanvasDragSession | null>;
+    pointFromClient: (x: number, y: number, svg: SVGSVGElement) => Point;
+  };
   source: Point | null;
   hover: Point | null;
   waypoints: Point[];
@@ -258,15 +279,18 @@ export function createDraftingCreateController({
         transact([
           {
             kind: "upsert_drafting_object",
-            object: {
-              id,
-              kind: "arrow",
-              locked: false,
-              zIndex: 0,
-              anchor: { kind: "free", position: snappedStart },
-              from: { kind: "free", position: snappedStart },
-              to: { kind: "free", position: snappedEnd },
-            },
+            object: applyArrowPreset(
+              {
+                id,
+                kind: "arrow",
+                locked: false,
+                zIndex: 0,
+                anchor: { kind: "free", position: snappedStart },
+                from: { kind: "free", position: snappedStart },
+                to: { kind: "free", position: snappedEnd },
+              },
+              arrowPreset,
+            )!,
           },
         ]).ok
       ) {
@@ -301,6 +325,7 @@ export function createDraftingCreateController({
   ): void => {
     const active = activeTool();
     if (!active) return;
+    if (active === "arrow" && arrowPreset.family === "outline") return;
     const resolved = snapPoint(
       rawPoint,
       altKey,
@@ -340,6 +365,7 @@ export function createDraftingCreateController({
   const finish = (): void => {
     const active = activeTool();
     if (!active || source === null) return;
+    if (active === "arrow" && arrowPreset.family === "outline") return;
     const end = hover ?? source;
     if (active === "arrow" || active === "rectangle" || active === "circle") {
       if (source.x !== end.x || source.y !== end.y) commit(active, source, end);
@@ -356,5 +382,65 @@ export function createDraftingCreateController({
     clear();
   };
 
-  return { snapPoint, handleCanvasClick, finish };
+  const beginPointer = (event: ReactPointerEvent<SVGSVGElement>): boolean => {
+    if (
+      tool !== "arrow" ||
+      arrowPreset.family !== "outline" ||
+      !pointer ||
+      event.button !== 0
+    )
+      return false;
+    event.preventDefault();
+    event.stopPropagation();
+    const svg = event.currentTarget;
+    const pointAt = (x: number, y: number) =>
+      snapGridPoint(pointer.pointFromClient(x, y, svg), annotationGrid);
+    const start = pointAt(event.clientX, event.clientY);
+    pointer.dragSessionRef.current?.cancel();
+    setSource(null);
+    setHover(start);
+    pointer.dragSessionRef.current = startCanvasDragSession({
+      target: svg,
+      pointerId: event.pointerId,
+      startClient: { x: event.clientX, y: event.clientY },
+      thresholdPx: 4,
+      onPreview: (client) => {
+        setSource(start);
+        setHover(pointAt(client.x, client.y));
+      },
+      onFinish: ({ client, dragged }) => {
+        const placement = outlinePlacement(
+          dragged ? start : null,
+          pointAt(client.x, client.y),
+        );
+        const id = nextId("arrow");
+        const object = applyArrowPreset(
+          {
+            id,
+            kind: "arrow",
+            locked: false,
+            zIndex: 0,
+            anchor: { kind: "free", position: placement.from },
+            from: { kind: "free", position: placement.from },
+            to: { kind: "free", position: placement.to },
+            outline: { width: placement.width },
+          },
+          arrowPreset,
+        )!;
+        if (transact([{ kind: "upsert_drafting_object", object }]).ok) {
+          setStatus(`Added ${arrowPreset.label}`);
+          setTool("pointer");
+        }
+        clear();
+        pointer.dragSessionRef.current = null;
+      },
+      onCancel: () => {
+        clear();
+        pointer.dragSessionRef.current = null;
+      },
+    });
+    return true;
+  };
+
+  return { snapPoint, handleCanvasClick, finish, beginPointer };
 }

@@ -167,3 +167,11 @@
   line-height: var(--icm-line-tight);
   text-align: center;
 }
+.draft-rotation-stem {
+  stroke: #246bfd;
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+.drafting-outline-arrow-hit {
+  pointer-events: stroke;
+}

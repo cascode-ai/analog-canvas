@@ -1,3 +1,10 @@
+import { ArrowStylePicker } from "./arrow-style-picker";
+import { useState } from "react";
+import {
+  arrowPresetFor,
+  canApplyArrowPreset,
+  type ArrowPreset,
+} from "./arrow-presets";
 import {
   resolveDocumentStyleProfile,
   resolveDraftingObjectGeometry,
@@ -13,6 +20,52 @@ import type {
   DraftingStylePatch,
 } from "./drafting-manipulation";
 import { quadraticTangentAngle } from "./drafting-path";
+
+/** Keep incomplete keyboard input local; only valid values edit the document. */
+function DrawingNumberInput({
+  label,
+  value,
+  min,
+  max,
+  step,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max?: number;
+  step: number;
+  disabled: boolean;
+  onChange: (value: number) => void;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+  return (
+    <input
+      aria-label={label}
+      type="number"
+      min={min}
+      max={max}
+      step={step}
+      disabled={disabled}
+      value={draft ?? String(value)}
+      onFocus={() => setDraft(String(value))}
+      onChange={(event) => {
+        const text = event.currentTarget.value;
+        setDraft(text);
+        const next = Number(text);
+        if (
+          text !== "" &&
+          Number.isFinite(next) &&
+          next >= min &&
+          (max === undefined || next <= max)
+        )
+          onChange(next);
+      }}
+      onBlur={() => setDraft(null)}
+    />
+  );
+}
 
 export interface DraftingPropertiesPanelProps {
   document: SchematicDocument;
@@ -33,8 +86,7 @@ export interface DraftingPropertiesPanelProps {
   onGeometryChange: (patch: DraftingGeometryPatch) => void;
   onTangentAngleChange: (angle: number) => void;
   onBearingChange: (bearing: number) => void;
-  onReverse: () => void;
-  onRotate: () => void;
+  onArrowPresetChange?: (preset: ArrowPreset) => void;
   onToggleLock: () => void;
 }
 
@@ -54,8 +106,7 @@ export function DraftingPropertiesPanel({
   onGeometryChange,
   onTangentAngleChange,
   onBearingChange,
-  onReverse,
-  onRotate,
+  onArrowPresetChange,
   onToggleLock,
 }: DraftingPropertiesPanelProps) {
   const geometry = resolveDraftingObjectGeometry(document, resolver, object);
@@ -106,6 +157,7 @@ export function DraftingPropertiesPanel({
       : "solid");
   const isRectangle = geometry.kind === "rectangle";
   const isCircle = geometry.kind === "circle";
+  const isOutline = object.kind === "arrow" && Boolean(object.outline);
   const points = isRectangle
     ? geometry.corners
     : isCircle
@@ -151,6 +203,31 @@ export function DraftingPropertiesPanel({
       data-testid="drafting-properties"
     >
       <h2>Drawing style</h2>
+      {object.kind === "arrow" ? (
+        <div className="drawing-arrow-style">
+          <span>Style</span>
+          <ArrowStylePicker
+            value={arrowPresetFor(object)}
+            disabled={object.locked}
+            canChoose={(preset) => canApplyArrowPreset(object, preset)}
+            onChange={(preset) => onArrowPresetChange?.(preset)}
+          />
+        </div>
+      ) : null}
+      {object.kind === "arrow" && object.outline ? (
+        <label>
+          Width
+          <DrawingNumberInput
+            key={`${object.id}-width`}
+            label="Arrow width"
+            value={object.outline.width}
+            min={1}
+            step={1}
+            disabled={object.locked}
+            onChange={(width) => onGeometryChange({ width })}
+          />
+        </label>
+      ) : null}
       <label>
         Line style
         <select
@@ -171,22 +248,15 @@ export function DraftingPropertiesPanel({
       </label>
       <label>
         Stroke width (×)
-        <input
-          aria-label="Stroke width"
-          type="number"
-          min="0.25"
-          max="4"
-          step="0.05"
-          value={String(object.styleOverride?.strokeScale ?? 1)}
+        <DrawingNumberInput
+          key={`${object.id}-stroke`}
+          label="Stroke width"
+          value={object.styleOverride?.strokeScale ?? 1}
+          min={0.25}
+          max={4}
+          step={0.05}
           disabled={object.locked}
-          onChange={(event) => {
-            const scale = Number(event.currentTarget.value);
-            if (Number.isFinite(scale)) {
-              onStyleChange({
-                strokeScale: Math.min(4, Math.max(0.25, scale)),
-              });
-            }
-          }}
+          onChange={(strokeScale) => onStyleChange({ strokeScale })}
         />
       </label>
       <ColorOverrideControl
@@ -276,7 +346,7 @@ export function DraftingPropertiesPanel({
           </select>
         </label>
       ) : null}
-      {!isRectangle && !isCircle ? (
+      {!isRectangle && !isCircle && !isOutline ? (
         <label>
           Tangent angle (°)
           <input
@@ -329,82 +399,6 @@ export function DraftingPropertiesPanel({
             onBlur={() => onBearingInputChange(null)}
           />
         </label>
-      ) : null}
-      {object.kind === "arrow" ? (
-        <>
-          <label>
-            Arrow head
-            <select
-              aria-label="Arrow head"
-              value={object.styleOverride?.arrowHead ?? "filled"}
-              disabled={object.locked}
-              onChange={(event) =>
-                onStyleChange({
-                  arrowHead: event.currentTarget.value as
-                    "none" | "filled" | "open",
-                })
-              }
-            >
-              <option value="none">No head</option>
-              <option value="filled">Filled</option>
-              <option value="open">Open</option>
-            </select>
-          </label>
-          {/* Placement is its own question, kept beside style rather than
-              multiplied into it: one combined list would need seven entries
-              to say what two short lists say, and the entries would grow
-              again the moment another head style appears. Hidden when there
-              is no head to place, so the panel never offers a choice that
-              cannot change anything. */}
-          {(object.styleOverride?.arrowHead ?? "filled") !== "none" ? (
-            <label>
-              Arrow head at
-              <select
-                aria-label="Arrow head at"
-                value={object.styleOverride?.arrowHeadAt ?? "end"}
-                disabled={object.locked}
-                onChange={(event) =>
-                  onStyleChange({
-                    arrowHeadAt: event.currentTarget.value as
-                      "end" | "start" | "both",
-                  })
-                }
-              >
-                <option value="end">End</option>
-                <option value="start">Start</option>
-                <option value="both">Both ends</option>
-              </select>
-            </label>
-          ) : null}
-          <label>
-            Arrow head size
-            <select
-              aria-label="Arrow head size"
-              value={String(object.styleOverride?.arrowHeadScale ?? 1)}
-              disabled={object.locked}
-              onChange={(event) =>
-                onStyleChange({
-                  arrowHeadScale: Number(event.currentTarget.value) as
-                    0.75 | 1 | 1.25 | 1.5,
-                })
-              }
-            >
-              <option value="0.75">0.75×</option>
-              <option value="1">1×</option>
-              <option value="1.25">1.25×</option>
-              <option value="1.5">1.5×</option>
-            </select>
-          </label>
-          <button type="button" disabled={object.locked} onClick={onReverse}>
-            Reverse
-          </button>
-        </>
-      ) : null}
-      {!isCircle ? (
-        <button type="button" disabled={object.locked} onClick={onRotate}>
-          <ToolIcon name="rotate" />
-          Rotate
-        </button>
       ) : null}
       <button type="button" onClick={onToggleLock}>
         <ToolIcon name="lock" />

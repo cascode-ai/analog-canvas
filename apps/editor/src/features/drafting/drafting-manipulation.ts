@@ -18,7 +18,7 @@ import {
 } from "../../canvas/canvas-geometry";
 
 export type DraftingHandle =
-  | { kind: "from" | "to" }
+  | { kind: "from" | "to" | "outline-width" | "rotate" }
   | {
       kind:
         "waypoint" | "vertex" | "curve" | "rectangle-corner" | "circle-radius";
@@ -55,6 +55,10 @@ export function applyDraftingGeometryPatch(
 ): DraftingObject | null {
   if (object.locked) return null;
   const size = (value: number): number => Math.max(1, Math.round(value));
+  if (object.kind === "arrow" && object.outline && patch.width !== undefined) {
+    if (!Number.isFinite(patch.width) || patch.width < 1) return null;
+    return { ...object, outline: { width: size(patch.width) } };
+  }
   if (object.kind === "circle" && patch.radius !== undefined) {
     if (!Number.isFinite(patch.radius)) return null;
     return { ...object, radius: size(patch.radius) };
@@ -105,7 +109,39 @@ export function applyDraftingHandle(
   originalGeometry: ResolvedDraftingGeometry,
   grid: number,
 ): DraftingObject {
+  if (handle.kind === "rotate") {
+    if (object.kind !== "arrow" || originalGeometry.kind !== "arrow")
+      return object;
+    const bearing = normalizedBearing(originalGeometry.center, point) + 90;
+    const result = setDraftingBearing(object, originalGeometry, bearing, grid);
+    return result.kind === "updated" ? result.object : object;
+  }
+  if (handle.kind === "outline-width") {
+    if (
+      object.kind !== "arrow" ||
+      !object.outline ||
+      originalGeometry.kind !== "arrow"
+    )
+      return object;
+    const dx = originalGeometry.to.x - originalGeometry.from.x;
+    const dy = originalGeometry.to.y - originalGeometry.from.y;
+    const length = Math.hypot(dx, dy) || 1;
+    const distance =
+      Math.abs(
+        (point.x - originalGeometry.center.x) * -dy +
+          (point.y - originalGeometry.center.y) * dx,
+      ) / length;
+    return {
+      ...object,
+      outline: { width: Math.max(1, Math.round(distance * 2)) },
+    };
+  }
   if (object.kind === "arrow") {
+    if (
+      object.outline &&
+      (handle.kind === "curve" || handle.kind === "waypoint")
+    )
+      return object;
     if (handle.kind === "waypoint") {
       if (handle.index < 0 || handle.index >= (object.waypoints?.length ?? 0)) {
         return object;
@@ -248,7 +284,7 @@ export function insertArrowWaypoint(
   object: Extract<DraftingObject, { kind: "arrow" }>;
   index: number;
 } | null {
-  if (object.locked) return null;
+  if (object.locked || object.outline) return null;
   let bestIndex = 0;
   let bestDistance = Infinity;
   for (let index = 0; index < geometry.points.length - 1; index += 1) {
@@ -445,6 +481,7 @@ export function setDraftingTangentAngle(
   if (
     object.locked ||
     !Number.isFinite(angleDegrees) ||
+    (object.kind === "arrow" && Boolean(object.outline)) ||
     index < 0 ||
     index >= geometry.points.length - 1
   ) {

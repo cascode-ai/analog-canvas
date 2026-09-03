@@ -1,3 +1,4 @@
+import { arrowArtwork, arrowPathData } from "@icm/derived";
 import {
   RectSchema,
   SchematicDocumentSchema,
@@ -1476,124 +1477,18 @@ function draftingPathData(
   return data;
 }
 
-// A free arrow may end with either a straight or a quadratic segment.  Its
-// head must be based on the *visible final segment's* end tangent, never on
-// the overall from→to chord.  Keeping this calculation here makes the shaft
-// truncation and the triangle share one direction even when an arrow has
-// waypoints or an earlier zero-length segment.
-function finalDraftArrowTangent(
-  points: readonly Point[],
-  curveControls: readonly (Point | null)[],
-): Point {
-  for (let index = points.length - 2; index >= 0; index -= 1) {
-    const end = points[index + 1]!;
-    const predecessor = curveControls[index] ?? points[index]!;
-    const tangent = {
-      x: end.x - predecessor.x,
-      y: end.y - predecessor.y,
-    };
-    if (Math.hypot(tangent.x, tangent.y) > 1e-6) return tangent;
-  }
-  return { x: 1, y: 0 };
-}
-
-/**
- * The direction a head at the START must point: outward along the first drawn
- * segment, away from the shaft. Walks forward for the first segment with real
- * length, mirroring the trailing tangent's walk backward, so a degenerate
- * first leg or a curve control is handled the same way at both ends.
- */
-function initialDraftArrowTangent(
-  points: readonly Point[],
-  curveControls: readonly (Point | null)[],
-): Point {
-  for (let index = 0; index < points.length - 1; index += 1) {
-    const start = points[index]!;
-    const successor = curveControls[index] ?? points[index + 1]!;
-    const tangent = {
-      x: start.x - successor.x,
-      y: start.y - successor.y,
-    };
-    if (Math.hypot(tangent.x, tangent.y) > 1e-6) return tangent;
-  }
-  return { x: -1, y: 0 };
-}
-
-/**
- * One arrow head, as markup plus the point the shaft must stop at.
- *
- * Both ends use the same profile-calibrated proportions: a double-headed
- * arrow whose two heads differed in size would read as a drawing mistake, and
- * the Razavi calibration owns that size for the whole product.
- */
-function draftArrowHead(
-  tip: Point,
-  tangent: Point,
-  style: "none" | "filled" | "open",
-  head: number,
-  halfHeadWidth: number,
-  stroke: string,
-  strokeWidth: number,
-): { markup: string; shaftEnd: Point } {
-  const length = Math.hypot(tangent.x, tangent.y) || 1;
-  if (style === "none") return { markup: "", shaftEnd: tip };
-  const nx = (-tangent.y / length) * halfHeadWidth;
-  const ny = (tangent.x / length) * halfHeadWidth;
-  const base = {
-    x: tip.x - (tangent.x / length) * head,
-    y: tip.y - (tangent.y / length) * head,
-  };
-  const paint =
-    style === "open"
-      ? `fill="none" stroke="${stroke}" stroke-width="${strokeWidth}"`
-      : `fill="${stroke}"`;
-  return {
-    markup: `<polygon points="${tip.x},${tip.y} ${base.x + nx},${base.y + ny} ${base.x - nx},${base.y - ny}" ${paint}/>`,
-    // The shaft terminates on the head's base plane, not underneath its tip.
-    // This preserves the clean triangular point of Razavi-style arrows at
-    // every angle and head scale, and it must hold at both ends alike.
-    shaftEnd: base,
-  };
-}
-
 function renderDraftArrow(
   object: Extract<DraftingObject, { kind: "arrow" }>,
   geometry: Extract<ResolvedDraftingGeometry, { kind: "arrow" }>,
   profile: SchematicStyleProfile,
   unresolved: string,
 ): string {
-  const to = geometry.to;
-  const points = geometry.points;
-  const tipX = to.x;
-  const tipY = to.y;
-  // The head follows the final non-zero segment, not the overall chord. This
-  // keeps a bent arrow's shaft cleanly terminated at its head base plane.
-  const tangent = finalDraftArrowTangent(points, geometry.curveControls);
-  const dx = tangent.x;
-  const dy = tangent.y;
-  const length = Math.hypot(dx, dy);
-  // strokeScale widens/narrows the shaft; arrowHeadScale grows/shrinks the head
-  // independently. Both multiply the Razavi profile baseline so formal export
-  // and the editor canvas share one visual parameter (no raw px in objects).
-  const strokeScale = object.styleOverride?.strokeScale ?? 1;
-  const headScale = object.styleOverride?.arrowHeadScale ?? 1;
-  const strokeWidth = profile.strokes.annotation * strokeScale;
-  // Free arrows and route-mounted current arrows intentionally share the
-  // profile-owned head proportions. They differ only in shaft ownership: a
-  // route marker reuses its conductor, while a free arrow draws its own.
-  //
-  // The head follows the shaft's weight. A head held at profile size while the
-  // shaft thickened stopped being a head: at the widest stroke its base
-  // corners barely cleared the shaft, so the point read as a stub and the
-  // shaft showed through on either side of it. arrowHeadScale still tunes the
-  // head on top of that, which is what it is for.
-  const headWeight = headScale * strokeScale;
-  const head = profile.annotations.arrowHeadLength * headWeight;
-  const halfHeadWidth = (profile.annotations.arrowHeadWidth * headWeight) / 2;
-  const arrowHead = object.styleOverride?.arrowHead ?? "filled";
-  // Absent means the trailing end alone: every arrow drawn before this field
-  // existed meant exactly that, so old documents keep their appearance.
-  const arrowHeadAt = object.styleOverride?.arrowHeadAt ?? "end";
+  const artwork = arrowArtwork(
+    object,
+    geometry.points,
+    geometry.curveControls,
+    profile,
+  );
   const stroke = object.styleOverride?.color ?? profile.foreground;
   const lineStyle = object.styleOverride?.lineStyle ?? "solid";
   const dash =
@@ -1602,37 +1497,22 @@ function renderDraftArrow(
       : lineStyle === "dotted"
         ? ' stroke-dasharray="2 3"'
         : "";
-  const trailing = draftArrowHead(
-    { x: tipX, y: tipY },
-    { x: dx, y: dy },
-    arrowHeadAt === "start" ? "none" : arrowHead,
-    head,
-    halfHeadWidth,
-    stroke,
-    strokeWidth,
-  );
-  const leading = draftArrowHead(
-    points[0]!,
-    initialDraftArrowTangent(points, geometry.curveControls),
-    arrowHeadAt === "end" ? "none" : arrowHead,
-    head,
-    halfHeadWidth,
-    stroke,
-    strokeWidth,
-  );
-  const headBody = leading.markup + trailing.markup;
-  const shaftPoints = [
-    leading.shaftEnd,
-    ...points.slice(1, -1),
-    trailing.shaftEnd,
-  ]
-    .map((point) => `${point.x},${point.y}`)
-    .join(" ");
-  const hasCurve = geometry.curveControls.some(Boolean);
-  const shaft = hasCurve
-    ? `<path d="${draftingPathData(points, geometry.curveControls, trailing.shaftEnd, leading.shaftEnd)}" fill="none"`
-    : `<polyline points="${shaftPoints}" fill="none"`;
-  return `<g data-object-id="${object.id}" data-kind="draft-arrow"${unresolved}>${shaft} stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linecap="${profile.lineCap}" stroke-linejoin="${profile.lineJoin}"${dash}/>${headBody}</g>`;
+  const serialize = (points: readonly Point[]) =>
+    points.map((point) => `${point.x},${point.y}`).join(" ");
+  const paint = `stroke="${stroke}" stroke-width="${artwork.strokeWidth}" stroke-linecap="${profile.lineCap}" stroke-linejoin="${profile.lineJoin}" stroke-miterlimit="${profile.miterLimit}"`;
+  if (artwork.outline) {
+    return `<g data-object-id="${object.id}" data-kind="draft-arrow"${unresolved}><polygon data-arrow-family="outline" points="${serialize(artwork.outline)}" fill="none" ${paint}${dash}/></g>`;
+  }
+  const shaft = geometry.curveControls.some(Boolean)
+    ? `<path d="${arrowPathData(artwork.shaft, artwork.controls)}" fill="none"`
+    : `<polyline points="${serialize(artwork.shaft)}" fill="none"`;
+  const heads = artwork.heads
+    .map(
+      (head) =>
+        `<polygon points="${serialize(head)}" ${artwork.headStyle === "open" ? `fill="none" stroke="${stroke}" stroke-width="${artwork.strokeWidth}"` : `fill="${stroke}"`}/>`,
+    )
+    .join("");
+  return `<g data-object-id="${object.id}" data-kind="draft-arrow"${unresolved}>${shaft} ${paint}${dash}/>${heads}</g>`;
 }
 
 function renderDraftLeader(

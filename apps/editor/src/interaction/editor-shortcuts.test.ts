@@ -298,14 +298,12 @@ describe("editor shortcut contract", () => {
     expect(resolve("]")).toBeNull();
     expect(resolve("]", { hasDraftingSelection: true })).toEqual({
       kind: "step-drafting-style",
-      target: "stroke",
       increase: true,
     });
     expect(
       resolve("[", { hasDraftingSelection: true }, { shiftKey: true }),
     ).toEqual({
       kind: "step-drafting-style",
-      target: "arrow-head",
       increase: false,
     });
     expect(stepBoundedScale(1, [0.75, 1, 1.5, 2] as const, true)).toBe(1.5);

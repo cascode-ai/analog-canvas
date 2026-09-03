@@ -1,3 +1,7 @@
+import {
+  DEFAULT_ARROW_PRESET,
+  type ArrowPreset,
+} from "../features/drafting/arrow-presets";
 import type { DerivedRect, GridRect, Point } from "@icm/model";
 import type { SchematicStyleProfile } from "@icm/derived";
 import type { SymbolDefinition } from "@icm/symbols";
@@ -75,6 +79,7 @@ export function EditorPlacementPreview({
 export function EditorInteractionPreviews({
   boxPreview,
   draftingSource,
+  arrowPreset = DEFAULT_ARROW_PRESET,
   draftingWaypoints,
   draftingHover,
   draftingSnapPoint,
@@ -94,6 +99,7 @@ export function EditorInteractionPreviews({
 }: {
   boxPreview: BoxPreview | null;
   draftingSource: Point | null;
+  arrowPreset?: ArrowPreset;
   draftingWaypoints: Point[];
   draftingHover: Point | null;
   draftingSnapPoint: Point | null;
@@ -129,10 +135,13 @@ export function EditorInteractionPreviews({
           {...normalizedRect(boxPreview.start, boxPreview.end)}
         />
       ) : null}
-      {draftingSource && draftingHover ? (
+      {draftingHover &&
+      (draftingSource ||
+        (tool === "arrow" && arrowPreset.family === "outline")) ? (
         <DraftingCreatePreview
           tool={tool}
           start={draftingSource}
+          arrowPreset={arrowPreset}
           waypoints={draftingWaypoints}
           hover={draftingHover}
           snap={draftingSnapPoint}

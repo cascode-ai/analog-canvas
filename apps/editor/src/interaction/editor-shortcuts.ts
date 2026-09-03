@@ -45,7 +45,6 @@ export type EditorShortcutIntent =
     }
   | {
       kind: "step-drafting-style";
-      target: "stroke" | "arrow-head";
       increase: boolean;
     }
   | { kind: "finish-wire" | "finish-drafting" }
@@ -382,7 +381,6 @@ export function resolveEditorShortcut(
   ) {
     return {
       kind: "step-drafting-style",
-      target: event.shiftKey ? "arrow-head" : "stroke",
       increase: event.key === "]",
     };
   }

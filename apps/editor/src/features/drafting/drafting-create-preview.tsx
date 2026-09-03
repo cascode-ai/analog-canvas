@@ -6,10 +6,17 @@ import {
   serializePolylinePoints,
 } from "../../canvas/canvas-geometry";
 import type { EditorTool } from "../../interaction/interaction-state";
+import {
+  DEFAULT_ARROW_PRESET,
+  outlinePlacement,
+  type ArrowPreset,
+} from "./arrow-presets";
+import { ArrowArtworkView } from "./arrow-artwork-view";
 
 export interface DraftingCreatePreviewProps {
   tool: EditorTool;
-  start: Point;
+  start: Point | null;
+  arrowPreset?: ArrowPreset;
   waypoints: Point[];
   hover: Point;
   snap: Point | null;
@@ -19,33 +26,44 @@ export interface DraftingCreatePreviewProps {
 /** Transient Canvas overlay for two-phase drafting creation. */
 export function DraftingCreatePreview({
   tool,
-  start,
+  start: source,
+  arrowPreset = DEFAULT_ARROW_PRESET,
   waypoints,
   hover,
   snap,
   styleProfile,
 }: DraftingCreatePreviewProps) {
-  const path = [start, ...waypoints, hover];
-  const dx = hover.x - start.x;
-  const dy = hover.y - start.y;
+  const isOutline = tool === "arrow" && arrowPreset.family === "outline";
+  const placement = isOutline ? outlinePlacement(source, hover) : null;
+  const start = placement?.from ?? source ?? hover;
+  const end = placement?.to ?? hover;
+  const path = [start, ...waypoints, end];
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
   const length = Math.hypot(dx, dy);
   const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
   const rectangle = normalizedRect(start, hover);
   const isRectangle = tool === "rectangle";
   const isCircle = tool === "circle";
-  const showHead = tool === "arrow" && length > 1;
-  const head = styleProfile.annotations.arrowHeadLength;
-  const halfHeadWidth = styleProfile.annotations.arrowHeadWidth / 2;
-  const nx = length === 0 ? 0 : (-dy / length) * halfHeadWidth;
-  const ny = length === 0 ? 0 : (dx / length) * halfHeadWidth;
-  const baseX = length === 0 ? hover.x : hover.x - (dx / length) * head;
-  const baseY = length === 0 ? hover.y : hover.y - (dy / length) * head;
   const labelX = start.x + dx / 2;
   const labelY = start.y + dy / 2 - 8;
 
   return (
     <g data-testid="drafting-create-preview" pointerEvents="none">
-      {isRectangle ? (
+      {tool === "arrow" ? (
+        <ArrowArtworkView
+          object={{
+            styleOverride: {
+              arrowHead: arrowPreset.head,
+              arrowHeadAt: arrowPreset.at,
+            },
+            ...(placement ? { outline: { width: placement.width } } : {}),
+          }}
+          points={path}
+          profile={styleProfile}
+          color="#246bfd"
+        />
+      ) : isRectangle ? (
         <rect className="drafting-create-preview" {...rectangle} fill="none" />
       ) : isCircle ? (
         <circle
@@ -70,8 +88,8 @@ export function DraftingCreatePreview({
       />
       <circle
         className="drafting-create-anchor draft-create-anchor-end"
-        cx={hover.x}
-        cy={hover.y}
+        cx={end.x}
+        cy={end.y}
         r="3"
       />
       {!isRectangle &&
@@ -85,12 +103,6 @@ export function DraftingCreatePreview({
             r="2.5"
           />
         ))}
-      {showHead ? (
-        <polygon
-          className="drafting-create-head"
-          points={`${hover.x},${hover.y} ${baseX + nx},${baseY + ny} ${baseX - nx},${baseY - ny}`}
-        />
-      ) : null}
       {snap ? (
         <circle
           className="drafting-create-snap"

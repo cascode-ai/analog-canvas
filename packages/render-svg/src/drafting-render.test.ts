@@ -16,6 +16,34 @@ import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 
 describe("drafting layer rendering", () => {
+  it("exports a transparent complete outline, without a center shaft or duplicated head", () => {
+    const document = createEmptyDocument("doc", "Outline arrow");
+    document.drafting = {
+      objects: [
+        {
+          id: "outline",
+          kind: "arrow",
+          locked: false,
+          zIndex: 0,
+          anchor: { kind: "free", position: { x: 20, y: 20 } },
+          from: { kind: "free", position: { x: 20, y: 20 } },
+          to: { kind: "free", position: { x: 20, y: 64 } },
+          outline: { width: 30 },
+          styleOverride: { color: "#ff0000", strokeScale: 2 },
+        },
+      ],
+    };
+    const svg = renderDocumentSvg(document, resolver);
+    const group = svg.match(
+      /<g data-object-id="outline"[^>]*>(.*?)<\/g>/u,
+    )?.[1];
+    expect(group).toContain('data-arrow-family="outline"');
+    expect(group).toContain('fill="none"');
+    expect(group).toContain('stroke="#ff0000"');
+    expect(group).toContain('stroke-width="3.2"');
+    expect(group).not.toContain("polyline");
+    expect(group?.match(/<polygon/gu)).toHaveLength(1);
+  });
   it("embeds the round full-stop face without changing canonical text", () => {
     const document = createEmptyDocument("doc", "Punctuation");
     document.drafting = {

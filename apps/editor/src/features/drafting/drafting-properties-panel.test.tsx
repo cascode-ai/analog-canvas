@@ -41,54 +41,36 @@ function render(object: DraftingObject): string {
       onGeometryChange={noop}
       onTangentAngleChange={noop}
       onBearingChange={noop}
-      onReverse={noop}
-      onRotate={noop}
+      onArrowPresetChange={noop}
       onToggleLock={noop}
     />,
   );
 }
 
-describe("arrow head placement control", () => {
-  it("offers both ends as a choice, not as a separate kind of arrow", () => {
-    // Placement is its own question beside style, rather than multiplied into
-    // one combined list: two short lists say what a seven-entry list would.
+describe("unified arrow styles", () => {
+  it("offers one gallery and no redundant head/rotate/reverse controls", () => {
     const markup = render(arrow());
-
-    expect(markup).toContain('aria-label="Arrow head at"');
-    expect(markup).toContain("Both ends");
-    expect(markup).toContain('aria-label="Arrow head"');
+    expect(markup).toContain('aria-label="Arrow style"');
+    expect(markup).toContain('aria-label="Filled double arrow"');
+    expect(markup).toContain('aria-label="Outline end arrow"');
+    expect(markup).not.toContain('aria-label="Arrow head');
+    expect(markup).not.toContain(">Reverse<");
+    expect(markup).not.toContain(">Rotate<");
+    expect(markup).toContain('aria-label="Drawing bearing"');
   });
-
-  /** The value a rendered select shows, read from its selected option. */
-  function selectedValue(markup: string, label: string): string | null {
-    const control = new RegExp(
-      `aria-label="${label}"[\\s\\S]*?</select>`,
-      "u",
-    ).exec(markup)?.[0];
-    if (!control) return null;
-    for (const option of control.match(/<option[^>]*>/gu) ?? []) {
-      if (!option.includes("selected")) continue;
-      return /value="([^"]*)"/u.exec(option)?.[1] ?? null;
-    }
-    return null;
-  }
-
-  it("starts on the trailing end, matching every arrow drawn so far", () => {
-    expect(selectedValue(render(arrow()), "Arrow head at")).toBe("end");
+  it("recognizes legacy trailing, both and no-head styles", () => {
+    expect(render(arrow())).toContain('title="Arrow style: Filled end arrow"');
+    expect(render(arrow({ arrowHeadAt: "both" }))).toContain(
+      'title="Arrow style: Filled double arrow"',
+    );
+    expect(render(arrow({ arrowHead: "none" }))).toContain(
+      'title="Arrow style: No head"',
+    );
   });
-
-  it("shows the author's own choice when there is one", () => {
-    expect(
-      selectedValue(render(arrow({ arrowHeadAt: "both" })), "Arrow head at"),
-    ).toBe("both");
-  });
-
-  it("hides placement when there is no head to place", () => {
-    // Offering a choice that cannot change anything is worse than offering
-    // nothing: it invites the author to try, and then does nothing.
-    const markup = render(arrow({ arrowHead: "none" }));
-
-    expect(markup).not.toContain('aria-label="Arrow head at"');
-    expect(markup).toContain('aria-label="Arrow head"');
+  it("shows geometric width instead of curve controls for an outline", () => {
+    const object = { ...arrow(), outline: { width: 30 } } as DraftingObject;
+    const markup = render(object);
+    expect(markup).toContain('aria-label="Arrow width"');
+    expect(markup).not.toContain('aria-label="Tangent angle"');
   });
 });

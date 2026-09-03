@@ -1,5 +1,13 @@
 import type { EditorTool } from "../../interaction/interaction-state";
 import { ToolIcon } from "./tool-icon";
+import {
+  ArrowStylePicker,
+  ArrowStyleIcon,
+} from "../drafting/arrow-style-picker";
+import {
+  DEFAULT_ARROW_PRESET,
+  type ArrowPreset,
+} from "../drafting/arrow-presets";
 
 interface ToolbarCommand {
   enabled: boolean;
@@ -10,6 +18,8 @@ export interface DrawingToolbarProps {
   leftPanelMode: "examples" | "library";
   libraryPanelOpen: boolean;
   tool: EditorTool;
+  arrowPreset?: ArrowPreset;
+  onArrowPresetChange?: (preset: ArrowPreset) => void;
   documentSettingsOpen: boolean;
   undo: ToolbarCommand;
   redo: ToolbarCommand;
@@ -26,6 +36,8 @@ export function DrawingToolbar({
   leftPanelMode,
   libraryPanelOpen,
   tool,
+  arrowPreset = DEFAULT_ARROW_PRESET,
+  onArrowPresetChange,
   documentSettingsOpen,
   undo,
   redo,
@@ -133,17 +145,27 @@ export function DrawingToolbar({
         <span>Text</span>
       </button>
       <span className="toolbar-divider" aria-hidden="true" />
-      <button
-        type="button"
-        className="draw-tool"
-        data-testid="draw-tool-arrow"
-        aria-pressed={tool === "arrow"}
-        title="Arrow (A)"
-        onClick={() => onActivateTool("arrow")}
-      >
-        <ToolIcon name="arrow" />
-        <span>Arrow</span>
-      </button>
+      <div className="arrow-split-tool">
+        <button
+          type="button"
+          className="draw-tool"
+          data-testid="draw-tool-arrow"
+          aria-pressed={tool === "arrow"}
+          title="Arrow (A)"
+          onClick={() => onActivateTool("arrow")}
+        >
+          <ArrowStyleIcon preset={arrowPreset} />
+          <span>Arrow</span>
+        </button>
+        <ArrowStylePicker
+          label="New arrow style"
+          value={arrowPreset}
+          onChange={(preset) => {
+            onActivateTool("arrow");
+            onArrowPresetChange?.(preset);
+          }}
+        />
+      </div>
       <button
         type="button"
         className="draw-tool"
