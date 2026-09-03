@@ -15,7 +15,12 @@ function readConfig(file: string): {
     bindings: { name: string; class_name: string; script_name?: string }[];
   };
   migrations?: { tag: string; new_sqlite_classes?: string[] }[];
-  containers?: { class_name: string; image: string; max_instances?: number }[];
+  containers?: {
+    class_name: string;
+    image: string;
+    max_instances?: number;
+    image_build_context?: string;
+  }[];
   env?: Record<string, unknown>;
 } {
   const source = readFileSync(resolve(process.cwd(), file), "utf8");
@@ -86,6 +91,29 @@ describe("the preview channel configuration (ADR 0057)", () => {
     expect(
       production.durable_objects?.bindings.some((b) => b.name === "NGSPICE"),
     ).toBe(false);
+  });
+
+  it("builds the container from the repository root, and the Dockerfile agrees", () => {
+    // The model files are staged at pdk/ in the repository root, so the build
+    // context is the root and every COPY in the Dockerfile must be written
+    // relative to it. The first preview deploy failed on a COPY that was
+    // relative to the Dockerfile's own directory instead.
+    expect(preview.containers?.[0]?.image_build_context).toBe(".");
+    const dockerfile = readFileSync(
+      resolve(process.cwd(), "containers/ngspice/Dockerfile"),
+      "utf8",
+    );
+    for (const line of dockerfile.split("\n")) {
+      if (!line.startsWith("COPY ") || line.includes("--from=")) continue;
+      const source = line.split(/\s+/u)[1] ?? "";
+      expect(
+        source.startsWith("pdk/") ||
+          source.startsWith("containers/") ||
+          source.startsWith("${SKY130_ROOT}") ||
+          source.startsWith("${HARNESS_DIR}"),
+        line,
+      ).toBe(true);
+    }
   });
 
   it("answers robots.txt itself so the preview is never listed", () => {
