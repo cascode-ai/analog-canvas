@@ -1,0 +1,12 @@
+* RC low pass, step response. Same R and C, so tau = 1 ms: at t = tau the
+* output is 1 - 1/e = 0.6321 of the step. Points are NOT evenly spaced --
+* ngspice chooses them -- which is the property the parser must not assume away.
+V1 in 0 PULSE(0 1 0 1n 1n 10m 20m)
+R1 in out 1k
+C1 out 0 1u
+.control
+set filetype=ascii
+tran 100u 4m
+write rc-tran.raw
+.endc
+.end
