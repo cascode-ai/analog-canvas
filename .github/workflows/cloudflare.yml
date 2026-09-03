@@ -102,6 +102,31 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           STAGING_ACCESS_KEY: ${{ secrets.STAGING_ACCESS_KEY }}
+      # Putting a secret publishes a new version of the Worker, and for a
+      # few seconds afterwards the old one is still answering. Verifying
+      # across that window reads the deployment being replaced, and a
+      # transient 404 there fails staging -- which freezes production deploys
+      # for the whole repository over nothing. So wait for the gate itself to
+      # be the thing answering before asking it anything.
+      - name: Wait for the access key to take effect
+        if: steps.gate.outputs.ran == 'true'
+        env:
+          STAGING_URL: ${{ steps.deploy.outputs.url }}
+        run: |
+          for _ in $(seq 1 30); do
+            code="$(curl --silent --output /dev/null --max-time 10 \
+              --write-out '%{http_code}' "${STAGING_URL}/editor" || true)"
+            if [ "$code" = "401" ]; then
+              echo "The gate is live."
+              exit 0
+            fi
+            sleep 4
+          done
+          echo "Staging never started refusing anonymous callers (last: $code)."
+          echo "The access gate is not in front of every path, so the build is"
+          echo "public on a workers.dev hostname. Refusing to continue."
+          exit 1
+
       # The same checks production gets, against the staging host, with the
       # access key supplied. A path that fails here never reaches the public.
       - name: Verify staging

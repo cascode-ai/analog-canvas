@@ -48,6 +48,27 @@ describe("staging before production", () => {
     expect(stagingJob).toContain("must answer 404");
   });
 
+  it("puts the gate in front of every staging path, not just the API", () => {
+    // The gate runs inside the Worker. Cloudflare's asset layer answers
+    // before the Worker on any path outside `run_worker_first`, so with
+    // production's narrow list staging refused anonymous callers on
+    // `/api/*` and served them `/` and `/editor` at 200 -- the entire
+    // unreleased application, public on a workers.dev hostname. Production
+    // has no gate to lose, so it keeps the narrow list; staging must not.
+    const config = readFileSync("wrangler.jsonc", "utf8");
+    const stagingBlock = config.slice(config.indexOf('"staging": {'));
+    expect(stagingBlock).toMatch(/"run_worker_first":\s*true/u);
+    expect(stagingBlock).not.toMatch(/"run_worker_first":\s*\[/u);
+  });
+
+  it("waits for the gate to be live before believing what staging says", () => {
+    // Putting the secret publishes a new version; the old one answers for a
+    // few seconds after. Verifying across that window fails staging, and a
+    // failed staging freezes production deploys for the whole repository.
+    expect(workflow).toContain("Wait for the access key to take effect");
+    expect(workflow).toMatch(/The gate is live/u);
+  });
+
   it("fails the deploy if staging is reachable without the key", () => {
     // A staging anyone can open is a second public site showing half-built
     // work. Being unlisted is not being private.

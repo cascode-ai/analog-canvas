@@ -105,7 +105,16 @@
         "binding": "ASSETS",
         "directory": "./apps/editor/dist",
         "not_found_handling": "single-page-application",
-        "run_worker_first": ["/api/*", "/assets/*"],
+        // Staging runs the Worker on EVERY path, where production runs it only
+        // where it has something to add. The access gate lives in the Worker,
+        // and a path the Worker never sees is a path the gate never guards:
+        // with the production list here, `/api/*` refused anonymous callers
+        // while `/` and `/editor` were served straight off the asset layer at
+        // 200, which is the whole application in public on a guessable
+        // hostname. Everything the Worker does not answer still reaches the
+        // same `env.ASSETS.fetch`, so what is served is unchanged -- only who
+        // is let through it.
+        "run_worker_first": true,
       },
       "durable_objects": {
         "bindings": [
