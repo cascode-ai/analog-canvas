@@ -132,7 +132,17 @@ benchmark base image by digest — so the numbers do not depend on the choice:
   `/run` only to the bearer token in its `SIMULATION_ACCESS_TOKEN`; the
   Worker presents the same value from its secret `SIMULATION_UPSTREAM_TOKEN`,
   which `deploy-preview.yml` sets from the repository secret of the same name
-  on every deploy. When the var is set the container binding is never woken.
+  on every deploy.
+
+Preview registers both executors at once. `SIMULATION_DEFAULT_EXECUTOR` chooses
+the normal route (`operator-host` today), while a diagnostic request may name
+`cloudflare-container` or `operator-host` explicitly. The Worker never retries
+one executor on the other: an unavailable target is reported as infrastructure
+failure instead of hiding it behind fallback. Every response reports the
+selected transport in `execution.target`; `metadata.environment` continues to
+identify the image, simulator, and model bytes that actually performed the
+run. The Preview deploy sends the same divider through both explicit targets
+and requires the numerical result and environment fingerprint to agree.
 
 The current operator host is the Frankfurt machine, under its `analogcanvas`
 account, in `~/analog-canvas-sim/`. `bin/up.sh` runs the image with a
@@ -167,7 +177,8 @@ contract gains a concurrency count.
 
 Either way `metadata.environment.executor` reads `hosted-container`: the
 harness is the same container image, and the fingerprint identifies it, not
-the machine underneath.
+the machine underneath. `execution.target` is the separate transport identity
+that distinguishes Cloudflare from the operator host.
 
 ### The retired staging environment
 

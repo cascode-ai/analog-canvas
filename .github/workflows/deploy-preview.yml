@@ -121,43 +121,8 @@ jobs:
             echo "A gallery write on the preview must be refused, got: $write"
             exit 1
           fi
-      # A resistor divider, the smallest circuit ngspice can answer for. It
-      # proves the whole chain: runner available, harness up, Worker talking
-      # to it, rawfile parsed, and the expected number returned.
-      - name: Simulate one circuit on the preview
-        run: |
-          set -euo pipefail
-          body="$(node -e '
-            const netlist = [".subckt divider in out", "R1 in out 1k", "R2 out 0 1k", ".ends divider"].join("\n");
-            const testbench = ["V1 in 0 DC 1", "X1 in out divider", ".control", "op", "write out.raw", ".endc", ".end"].join("\n");
-            process.stdout.write(JSON.stringify({ netlist, testbench, inputRevision: "preview-smoke", timeoutMs: 110000 }));
-          ')"
-          result="$(curl --silent --show-error --max-time 120 \
-            --output /tmp/preview-simulation.json \
-            --write-out '%{http_code}' \
-            -H 'content-type: application/json' --data "$body" \
-            "${PREVIEW_URL}/api/simulate")"
-          cat /tmp/preview-simulation.json; echo
-          if [ "$result" != "200" ]; then
-            node -e '
-              const body = require("/tmp/preview-simulation.json");
-              console.error(`Preview execution infrastructure failed: ${body.error ?? "unknown"}${body.reason ? ` (${body.reason})` : ""}: ${body.message ?? "no message"}`);
-            '
-            exit 1
-          fi
-          node -e '
-            const result = require("/tmp/preview-simulation.json");
-            if (result.metadata?.environment?.executor !== "hosted-container") {
-              throw new Error("the runner did not identify the hosted execution environment");
-            }
-            if (result.outcome?.status !== "completed") {
-              const detail = (result.diagnostics ?? []).map(one => one.text).join("; ");
-              throw new Error(`the circuit reached ${result.outcome?.status ?? "no terminal state"}: ${detail}`);
-            }
-            const op = result.data?.analyses?.find(one => one.analysis === "op");
-            const out = op?.probes?.find(one => one.name.toLowerCase() === "v(out)");
-            if (!out || Math.abs(out.value - 0.5) > 1e-9) {
-              throw new Error(`the divider OP result is ${out?.value ?? "missing"}, expected 0.5`);
-            }
-            console.log(`divider v(out): ${out.value}`);
-          '
+      # The same divider must cross both Preview execution substrates and
+      # produce the same measured environment identity and numerical result.
+      # This is an explicit parity check, never an automatic fallback.
+      - name: Simulate one circuit on both preview executors
+        run: node scripts/preview-simulation-smoke.mjs "$PREVIEW_URL"
