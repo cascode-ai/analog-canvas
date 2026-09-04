@@ -29,7 +29,6 @@ export { AnalyticsDO } from "./analytics";
 export { AgentSessionDO } from "./agent-session";
 export { GalleryDO } from "./gallery";
 export { AuthDO } from "./auth";
-export { NgspiceContainer } from "./ngspice-container";
 
 type Env = SimulationEnv &
   ChannelEnv & {

@@ -14,7 +14,11 @@ function readConfig(file: string): {
   durable_objects?: {
     bindings: { name: string; class_name: string; script_name?: string }[];
   };
-  migrations?: { tag: string; new_sqlite_classes?: string[] }[];
+  migrations: {
+    tag: string;
+    new_sqlite_classes?: string[];
+    deleted_classes?: string[];
+  }[];
   containers?: {
     class_name: string;
     image: string;
@@ -71,42 +75,45 @@ describe("the preview channel configuration (ADR 0057)", () => {
       expect(binding.script_name, binding.name).toBeUndefined();
     }
     const migrated = new Set(
-      preview.migrations?.flatMap((m) => m.new_sqlite_classes ?? []),
+      preview.migrations.flatMap((m) => m.new_sqlite_classes ?? []),
     );
     for (const binding of bindings) {
       expect(migrated.has(binding.class_name), binding.class_name).toBe(true);
     }
   });
 
-  it("binds the simulation container to a migrated class", () => {
-    const binding = preview.durable_objects!.bindings.find(
-      (candidate) => candidate.name === "NGSPICE",
-    );
-    expect(binding?.class_name).toBe("NgspiceContainer");
-    expect(preview.containers?.[0]?.class_name).toBe("NgspiceContainer");
-    expect(preview.containers?.[0]?.image).toBe(
-      "./containers/ngspice/Dockerfile",
-    );
-    expect(preview.containers?.[0]?.max_instances).toBe(1);
-    // Preview builds both substrates behind one Worker contract. The host is
-    // the current default, but the binding remains available for explicit
-    // parity checks; configuring one must not erase the other.
+  it("simulates on the operator host and binds no container", () => {
+    // The Cloudflare Container was a cold spare: switching to it meant
+    // editing this file and redeploying, yet every merge woke and paid for
+    // it to prove parity. Removed 2026-09-04; the migration that deletes the
+    // class must follow the one that created it.
     expect(preview.vars?.SIMULATION_UPSTREAM_URL).toBe(
       "https://sim-fra.analog-canvas.tokenzhang.com",
     );
     expect(preview.vars?.SIMULATION_DEFAULT_EXECUTOR).toBe("operator-host");
-    // Production has no container yet: it arrives with a promoted release.
+    expect(
+      preview.durable_objects?.bindings.some((b) => b.name === "NGSPICE"),
+    ).toBe(false);
+    expect(preview.containers).toBeUndefined();
+    const created = preview.migrations.findIndex((migration) =>
+      migration.new_sqlite_classes?.includes("NgspiceContainer"),
+    );
+    const deleted = preview.migrations.findIndex((migration) =>
+      migration.deleted_classes?.includes("NgspiceContainer"),
+    );
+    expect(created).toBeGreaterThanOrEqual(0);
+    expect(deleted).toBeGreaterThan(created);
+    // Production never had one and gets the host with a promoted release.
     expect(
       production.durable_objects?.bindings.some((b) => b.name === "NGSPICE"),
     ).toBe(false);
   });
 
-  it("builds the container from the repository root, and the Dockerfile agrees", () => {
-    // The model files are staged at pdk/ in the repository root, so the build
-    // context is the root and every COPY in the Dockerfile must be written
-    // relative to it. The first preview deploy failed on a COPY that was
-    // relative to the Dockerfile's own directory instead.
-    expect(preview.containers?.[0]?.image_build_context).toBe(".");
+  it("writes the Dockerfile for a repository-root build context", () => {
+    // The host builds the image with the repository root as context
+    // (containers/ngspice/host/compose.yaml), so every COPY in the Dockerfile
+    // must be written relative to the root. The first container deploy failed
+    // on a COPY that was relative to the Dockerfile's own directory instead.
     const dockerfile = readFileSync(
       resolve(process.cwd(), "containers/ngspice/Dockerfile"),
       "utf8",
@@ -148,11 +155,5 @@ describe("the preview channel configuration (ADR 0057)", () => {
     expect(preview.assets?.run_worker_first).toBe(true);
     // Production keeps its narrow list: it has nothing to stamp.
     expect(Array.isArray(production.assets?.run_worker_first)).toBe(true);
-  });
-
-  it("gives the simulator a core that can parse the model corner", () => {
-    // Measured: about 16 s of CPU to load the Sky130 tt corner. A quarter
-    // core timed out a resistor divider at 60 s on the first live run.
-    expect(preview.containers?.[0]?.instance_type).toBe("standard-2");
   });
 });

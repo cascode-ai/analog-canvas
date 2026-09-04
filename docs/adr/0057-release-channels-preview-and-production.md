@@ -61,10 +61,13 @@ carries a production session either. What the preview cannot show is a
 change inside a Durable Object class; that ships through production with
 its own tests and migration.
 
-**Simulation.** The ngspice container is bound on the preview and not yet on
-production. The preview is where the simulation feature lands and is tried;
-production gains the binding when the owner promotes a release that carries
-it.
+**Simulation.** The preview is where the simulation feature lands and is
+tried; production gains the simulator configuration when the owner promotes a
+release that carries it. _Amended 2026-09-04:_ the simulator is the same
+harness image on an operator-run host behind a Cloudflare Tunnel
+(`docs/deployment.md`, "Where the simulator runs"). The preview's Cloudflare
+Container binding, kept for a day as a second executor, was removed: a cold
+spare that every merge had to wake and pay for.
 
 **Features.** A feature that must not show on the public site yet is
 merged to `main` behind the channel: the editor reads `/api/channel` once
@@ -125,7 +128,8 @@ deleted. Until then "merge to `main` deploys production" still holds.
 
 ### Negative or limiting
 
-- Two Workers to pay for, including container time on the preview.
+- Two Workers to pay for. (Container time on the preview ended with the
+  2026-09-04 amendment above.)
 - A hotfix to production goes through a tag like any release; when `main`
   carries unreleased work, that work ships dark behind the channel flag.
 - Durable Object changes cannot be previewed; the preview's gallery view is
@@ -135,9 +139,9 @@ deleted. Until then "merge to `main` deploys production" still holds.
 ## Compatibility and migration
 
 - Adds `wrangler.preview.jsonc`, `.github/workflows/deploy-preview.yml`,
-  `worker/channel.ts` (channel, read-through, refusals),
-  `worker/ngspice-container.ts`, and the editor's
-  channel banner. Production configuration and workflow are unchanged in the
+  `worker/channel.ts` (channel, read-through, refusals), and the editor's
+  channel banner; the `worker/ngspice-container.ts` class it also added was
+  removed on 2026-09-04 with the container binding. Production configuration and workflow are unchanged in the
   first step.
 - The second step changes the production trigger to releases and removes
   `env.staging`, the staging job, and `worker/staging-gate.ts`, with

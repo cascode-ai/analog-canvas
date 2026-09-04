@@ -1,11 +1,13 @@
 /**
- * Preview's dual-executor numerical smoke.
+ * Preview's numerical simulation smoke.
  *
- * The same deck is sent through both hosted transports. A green HTTP response
- * is not enough: the selected executor, terminal outcome, rawfile-derived
- * operating-point value, and measured simulator/model identity all have to be
- * present. The two environment fingerprints must agree because both Preview
- * substrates run the same pinned image.
+ * The deck is sent through every configured hosted transport — since
+ * 2026-09-04 that is the operator host alone; the Cloudflare Container was
+ * removed. A green HTTP response is not enough: the selected executor,
+ * terminal outcome, rawfile-derived operating-point value, and measured
+ * simulator/model identity all have to be present, and when more than one
+ * transport is configured their environment fingerprints must agree because
+ * they run the same pinned image.
  */
 import { pathToFileURL } from "node:url";
 import { readFileSync } from "node:fs";
@@ -47,7 +49,7 @@ if (
   );
 }
 
-const EXECUTORS = ["cloudflare-container", "operator-host"];
+const EXECUTORS = ["operator-host"];
 const SHA256 = /^[0-9a-f]{64}$/u;
 const REQUEST_ERRORS = new Set([
   "deck-too-large",
@@ -352,10 +354,8 @@ export async function runPreviewSimulationSmoke({
 }
 
 export function validateExecutorParity(results) {
-  if (results.length !== EXECUTORS.length) {
-    throw new Error(
-      `expected ${EXECUTORS.length} executor results, received ${results.length}.`,
-    );
+  if (results.length === 0) {
+    throw new Error("expected at least one executor result, received none.");
   }
   const fingerprints = new Set(
     results.map((result) => result.environmentFingerprint),

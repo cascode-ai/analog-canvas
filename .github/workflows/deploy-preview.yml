@@ -121,8 +121,8 @@ jobs:
             echo "A gallery write on the preview must be refused, got: $write"
             exit 1
           fi
-      # The same divider must cross both Preview execution substrates and
-      # produce the same measured environment identity and numerical result.
-      # This is an explicit parity check, never an automatic fallback.
-      - name: Simulate one circuit on both preview executors
+      # The divider runs on the preview's simulator host, and the answer has
+      # to be a number with a measured environment identity behind it, not a
+      # green status.
+      - name: Simulate one circuit on the preview's simulator host
         run: node scripts/preview-simulation-smoke.mjs "$PREVIEW_URL"

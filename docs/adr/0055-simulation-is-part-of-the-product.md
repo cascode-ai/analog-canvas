@@ -60,6 +60,11 @@ and sweeps come from the author. We ship no templates and infer no intent.
 This is deliberate: a testbench encodes what the designer is trying to prove,
 and guessing it would produce confident answers to questions nobody asked.
 
+_Amended 2026-09-04: the hosted simulator runs on an operator-run host
+(Frankfurt) behind a Cloudflare Tunnel, as the same container image; the
+Cloudflare Container binding on the preview was removed the same day. The
+reasoning below about what runs where and why is otherwise unchanged._
+
 **Simulation runs server-side first, on Cloudflare Containers**, with the
 local host as the second surface behind the same interface. Both consume the
 same netlist and return the same result shape; only the location of ngspice
