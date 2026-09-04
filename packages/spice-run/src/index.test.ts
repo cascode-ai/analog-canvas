@@ -12,6 +12,8 @@ import {
   MAX_SIMULATION_TIMEOUT_MS,
   readNgspiceDiagnostics,
   resolveTimeoutMs,
+  SKY130_LIBRARY_PATH,
+  SKY130_LIBRARY_SECTION,
   simulationConfigurationMetadata,
   verifySimulationEnvironmentMetadata,
 } from "./index.js";
@@ -176,6 +178,15 @@ Note: No ".plot", ".print", or ".fourier" lines; no simulations run
         timeoutMs: 30_000,
       }),
     ).toEqual({ status: "timed-out", timeoutMs: 30_000 });
+  });
+});
+
+describe("the model library", () => {
+  it("names the pinned image's library, and only that one", () => {
+    // Every surface reads this constant, so a change here is a change
+    // everywhere rather than a fourth spelling that drifts from the others.
+    expect(SKY130_LIBRARY_PATH).toBe("/opt/sky130/continuous/sky130.lib.spice");
+    expect(SKY130_LIBRARY_SECTION).toBe("tt");
   });
 });
 
