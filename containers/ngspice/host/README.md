@@ -13,6 +13,12 @@ harness. Neither service publishes a host port. `deploy.sh` and `health.sh` are
 thin operators over that definition; `../verify-host-runtime.sh` independently
 checks the security and resource boundary after deployment.
 
+The image root remains read-only. Ngspice still calls the operating system's
+`tmpfile()` even though each authored run has its own private work directory,
+so Compose mounts a 64 MiB, non-executable tmpfs at `/tmp`, owned only by the
+unprivileged simulation account. It is memory-backed scratch, not a persistent
+volume, and disappears with the container.
+
 ## Repository-owned deployment
 
 The **Simulator host** GitHub workflow copies the exact
@@ -56,6 +62,8 @@ in this directory.
    ```
 
    An unauthenticated `POST /run` must return HTTP 401; the workflow checks it.
+   `health.sh` also runs an equal-resistor divider and requires `v(mid) = 0.5`,
+   so a ready HTTP process without writable simulator scratch cannot pass.
 
 For a destructive drill, use a disposable host, run Compose `down --volumes`
 against its current tracked file, remove `~/analog-canvas-sim`, and repeat the

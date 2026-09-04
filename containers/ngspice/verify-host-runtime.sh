@@ -48,5 +48,14 @@ run_root_rw="$(value '{{range .Mounts}}{{if eq .Destination "/var/lib/simulation
 [ "$run_root_rw" = "true" ] \
   || fail "the private run-root volume is absent or read-only"
 
-printf 'simulator host runtime verified: restart=%s pids=%s cpus=8 memory=16GiB\n' \
+tmpfs_options="$(value '{{index .HostConfig.Tmpfs "/tmp"}}')"
+[ -n "$tmpfs_options" ] || fail "the private /tmp tmpfs is absent"
+for option in noexec nosuid nodev uid=10001 gid=10001 mode=0700; do
+  case ",$tmpfs_options," in
+    *",$option,"*) ;;
+    *) fail "the /tmp tmpfs is missing option $option: $tmpfs_options" ;;
+  esac
+done
+
+printf 'simulator host runtime verified: restart=%s pids=%s cpus=8 memory=16GiB tmpfs=/tmp\n' \
   "$restart" "$pids"

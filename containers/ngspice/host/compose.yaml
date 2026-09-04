@@ -11,6 +11,8 @@ services:
       SIMULATION_ACCESS_TOKEN: ${SIMULATION_ACCESS_TOKEN:?set SIMULATION_ACCESS_TOKEN in the host runtime env}
     restart: unless-stopped
     read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m,uid=10001,gid=10001,mode=0700
     cap_drop:
       - ALL
     security_opt:
