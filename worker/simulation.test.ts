@@ -379,6 +379,93 @@ describe("simulation route", () => {
     });
   });
 
+  /** Stands in for a container that answered, but refused the run. */
+  function refusingRunner(status: number, body: string): SimulationEnv {
+    return {
+      NGSPICE: {
+        getByName: () => ({
+          fetch: async () =>
+            new Response(body, {
+              status,
+              headers: { "content-type": "application/json" },
+            }),
+        }),
+      },
+    };
+  }
+
+  async function refusal(status: number, body: string) {
+    const response = await routeSimulationRequest(
+      post({ netlist: NETLIST, testbench: TESTBENCH }),
+      refusingRunner(status, body),
+    );
+    expect(response?.status).toBe(502);
+    return (await response!.json()) as Record<string, unknown>;
+  }
+
+  it("says why the simulator refused, in the container's own words", async () => {
+    // The outage of 2026-09-04. A container that could not make a run
+    // directory held its only slot, so every later request was refused as
+    // busy; from outside, the bare status was indistinguishable from a
+    // simulator honestly running someone else's circuit.
+    const payload = await refusal(
+      503,
+      JSON.stringify({
+        error: "simulator-busy",
+        message:
+          "This simulator runs one circuit at a time and is running another one.",
+        retryAfterSeconds: 2,
+      }),
+    );
+    expect(payload).toMatchObject({
+      error: "simulator-refused",
+      status: 503,
+      reason: "simulator-busy",
+    });
+    expect(String(payload.message)).toContain("one circuit at a time");
+  });
+
+  it("separates a container that cannot start a run from one that is busy", async () => {
+    const payload = await refusal(
+      500,
+      JSON.stringify({
+        error: "run-directory-unavailable",
+        message:
+          "The simulator could not make a directory for this run: Error: EACCES",
+      }),
+    );
+    expect(payload).toMatchObject({
+      error: "simulator-refused",
+      status: 500,
+      reason: "run-directory-unavailable",
+    });
+  });
+
+  it("relays a refusal that is not JSON, which is when it is the only clue", async () => {
+    const payload = await refusal(502, "upstream connect error");
+    expect(payload).toMatchObject({
+      error: "simulator-refused",
+      status: 502,
+      message: "upstream connect error",
+    });
+    expect(payload.reason).toBeUndefined();
+  });
+
+  it("carries a status alone when the refusal said nothing", async () => {
+    const payload = await refusal(500, "");
+    expect(payload).toEqual({ error: "simulator-refused", status: 500 });
+  });
+
+  it("clips a refusal that answers with a payload instead of a sentence", async () => {
+    const payload = await refusal(
+      500,
+      JSON.stringify({ error: "x".repeat(5_000) }),
+    );
+    // Bounded: another service's output does not get to set the size of this
+    // one's response.
+    expect(String(payload.reason).length).toBeLessThanOrEqual(401);
+  });
+
   it("distinguishes an unreachable simulator from a failing circuit", async () => {
     const env: SimulationEnv = {
       NGSPICE: {
