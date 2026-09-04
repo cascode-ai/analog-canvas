@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const workflow = readFileSync(".github/workflows/simulator-host.yml", "utf8");
 const compose = readFileSync("containers/ngspice/host/compose.yaml", "utf8");
+const bootstrap = readFileSync("containers/ngspice/host/bootstrap.sh", "utf8");
 const deploy = readFileSync("containers/ngspice/host/deploy.sh", "utf8");
 
 describe("the operator simulator host", () => {
@@ -16,6 +17,16 @@ describe("the operator simulator host", () => {
     expect(workflow).not.toMatch(
       /analog-canvas-sim\/(?:bin\/)?(?:up|rebuild|health)\.sh/u,
     );
+  });
+
+  it("can provision the pinned Compose v2 dependency", () => {
+    expect(bootstrap).toContain("docker compose version");
+    expect(bootstrap).toContain('compose_version="2.33.1"');
+    expect(bootstrap).toContain(
+      "docker/compose/releases/download/v$compose_version",
+    );
+    expect(bootstrap).toContain("sha256sum --check --status");
+    expect(bootstrap).toContain("sudo -n");
   });
 
   it("keeps the harness private and resource bounded in one desired-state file", () => {
