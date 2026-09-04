@@ -38,7 +38,13 @@ RUN apt-get update \
 ARG RUN_UID=10001
 ARG RUN_GID=10001
 ARG RUN_USER=simulate
-ARG RUN_ROOT=/run/simulation
+# Not under /run. A container runtime may mount its own tmpfs there, and if
+# it does, the directory this image prepared and chowned is replaced by a
+# root-owned one the run account cannot write — which is what took the
+# preview simulator down on 2026-09-04. /var/lib is ordinary image state that
+# nothing mounts over. The harness probes whatever it is given at startup and
+# falls back if it has to, but the right answer is not to need the fallback.
+ARG RUN_ROOT=/var/lib/simulation
 RUN set -eu; \
     if ! getent group "${RUN_GID}" >/dev/null 2>&1; then \
         groupadd --system --gid "${RUN_GID}" "${RUN_USER}"; \

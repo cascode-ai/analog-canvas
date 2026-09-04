@@ -255,6 +255,40 @@ const LIMITS = {
   concurrentRuns: 1,
 };
 
+/**
+ * Settle on a directory this container can actually make run directories in.
+ *
+ * The image prepares one and hands it over in `SIMULATION_RUN_ROOT`, and that
+ * is the one to use — it belongs to the run account and to nothing else. But
+ * a container runtime may mount over it, and a run root that cannot be
+ * written is not a circuit problem and must not look like one. So it is
+ * probed once, at startup, by making and removing a directory in it; a root
+ * that fails the probe falls back to the platform's temporary directory, and
+ * `/health` says which one is in use so a deploy check can see the
+ * difference.
+ */
+let runRootFailures = [];
+
+async function resolveRunRoot() {
+  const candidates = [RUN_ROOT, tmpdir()];
+  const failures = [];
+  for (const candidate of candidates) {
+    try {
+      await mkdir(candidate, { recursive: true });
+      const probe = await mkdtemp(join(candidate, "probe-"));
+      await rm(probe, { recursive: true, force: true });
+      return candidate;
+    } catch (error) {
+      failures.push(`${candidate}: ${String(error)}`);
+    }
+  }
+  // Nothing worked. Hand back the configured one so the per-run failure names
+  // the directory the image meant to use, and report the probe's findings.
+  runRootFailures = failures;
+  return RUN_ROOT;
+}
+
+const runRootPromise = resolveRunRoot();
 const ngspiceBinaryPromise = resolveNgspiceBinary();
 const environmentPromise = ngspiceBinaryPromise.then(observeEnvironment);
 // Keep a missing binary or model tree observable through /health and /run
@@ -581,13 +615,34 @@ async function handleRun(body) {
     };
   }
 
-  // Every run gets its own directory, made fresh and removed whole. It is the
-  // cwd, so a deck's relative file access lands here and nowhere else; it is
-  // HOME, so the `.spiceinit` ngspice reads is the one written below and
-  // never a shared file another run could have left; and it is TMPDIR. The
-  // model tree the deck includes is outside it and read-only.
-  const directory = await mkdtemp(join(RUN_ROOT, "run-"));
+  /** Assigned inside the try, read by the finally; null if it never got made. */
+  let directory = null;
+  // Everything from here to the end of the run is inside the slot, so it is
+  // all inside the try that gives the slot back. Making the run's directory
+  // used to sit between the two: a container whose run root was not writable
+  // answered one 500 and then refused every later request as busy, forever,
+  // because the only path that released the slot was never reached. Measured
+  // on the preview channel, 2026-09-04.
   try {
+    // Every run gets its own directory, made fresh and removed whole. It is
+    // the cwd, so a deck's relative file access lands here and nowhere else;
+    // it is HOME, so the `.spiceinit` ngspice reads is the one written below
+    // and never a shared file another run could have left; and it is TMPDIR.
+    // The model tree the deck includes is outside it and read-only.
+    try {
+      directory = await mkdtemp(join(await runRootPromise, "run-"));
+    } catch (error) {
+      // A run that could not start is not a run that failed. Only this
+      // failure is named here; anything later is the run's own and reaches
+      // the generic handler with its own words.
+      return {
+        status: 500,
+        payload: {
+          error: "run-directory-unavailable",
+          message: `The simulator could not make a directory for this run: ${String(error)}`,
+        },
+      };
+    }
     await writeFile(join(directory, DECK_NAME), deck, "utf8");
     // ASCII rawfiles, so `write` produces something a reader can read.
     // ngspice's default is binary; this is the environment's setting, not an
@@ -634,7 +689,9 @@ async function handleRun(body) {
   } finally {
     // The disk does not survive a sleep, but a woken container serves many
     // runs before sleeping and one author's deck is not another's business.
-    await rm(directory, { recursive: true, force: true }).catch(() => {});
+    if (directory) {
+      await rm(directory, { recursive: true, force: true }).catch(() => {});
+    }
     releaseSlot();
   }
 }
@@ -653,10 +710,19 @@ const server = createServer((request, response) => {
   if (request.method === "GET" && request.url === "/health") {
     // Answered while a run is in flight, on purpose: a deploy check that can
     // only ask when the container is idle cannot tell a busy simulator from a
-    // broken one.
-    environmentPromise.then(
-      (environment) =>
-        send(200, { status: "ready", busy, limits: LIMITS, environment }),
+    // broken one. The run root is reported because a container that cannot
+    // write one answers every run with the same failure, and a deploy check
+    // should be able to see that before a circuit does.
+    Promise.all([environmentPromise, runRootPromise]).then(
+      ([environment, runRoot]) =>
+        send(200, {
+          status: "ready",
+          busy,
+          limits: LIMITS,
+          runRoot,
+          ...(runRootFailures.length > 0 ? { runRootFailures } : {}),
+          environment,
+        }),
       (error) =>
         send(503, {
           status: "not-ready",
