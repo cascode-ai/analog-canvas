@@ -1,0 +1,12 @@
+VDD vdd 0 DC 1.8
+VINP vinp 0 DC 0.9
+VINN vinn 0 DC 0.9
+IBIAS vdd ibias DC 15u
+XDUT 0 ibias vdd vinn vinp vout ota_5t
+CL vout 0 1p
+.control
+set filetype=ascii
+op
+write out.raw v(vout) v(ibias) v(xdut.tail) v(xdut.nleft)
+.endc
+.end

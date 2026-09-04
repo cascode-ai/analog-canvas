@@ -36,6 +36,8 @@ import { join, relative } from "node:path";
 import { SimulationRunSupervisor } from "./run-supervisor.mjs";
 
 const MODEL_ROOT = process.env.SKY130_MODEL_ROOT ?? "/opt/sky130/sky130A";
+const PROFILE_PATH = process.env.SIMULATION_PROFILE_PATH?.trim() || null;
+const STARTUP_PATH = process.env.SIMULATION_STARTUP_PATH?.trim() || null;
 const PORT = Number(process.env.PORT ?? 8080);
 
 /**
@@ -123,6 +125,7 @@ const PROBE_TIMEOUT_MS = positiveEnv("SIMULATION_PROBE_TIMEOUT_MS", 5_000);
 /** The deck, and the only file this harness itself puts in the run directory. */
 const DECK_NAME = "deck.cir";
 const SPICEINIT_NAME = ".spiceinit";
+const DEFAULT_STARTUP = "set filetype=ascii\n";
 
 function positiveEnv(name, fallback) {
   const raw = Number(process.env[name]);
@@ -219,6 +222,34 @@ async function sha256File(path) {
     .digest("hex");
 }
 
+function isSha256(value) {
+  return typeof value === "string" && /^[0-9a-f]{64}$/u.test(value);
+}
+
+async function loadEnvironmentProfile() {
+  if (PROFILE_PATH === null) return null;
+  const profile = JSON.parse(await readFile(PROFILE_PATH, "utf8"));
+  if (
+    profile?.schemaVersion !== 1 ||
+    typeof profile.id !== "string" ||
+    typeof profile.platform !== "string" ||
+    profile.simulator?.name !== "ngspice" ||
+    typeof profile.simulator.version !== "string" ||
+    !isSha256(profile.simulator.binarySha256) ||
+    typeof profile.models?.id !== "string" ||
+    !isSha256(profile.models.contentSha256) ||
+    !isSha256(profile.startup?.contentSha256)
+  ) {
+    throw new Error(`Simulation Profile ${PROFILE_PATH} is malformed.`);
+  }
+  if (STARTUP_PATH === null) {
+    throw new Error(
+      "A pinned Simulation Profile requires SIMULATION_STARTUP_PATH.",
+    );
+  }
+  return profile;
+}
+
 async function sha256Tree(root) {
   const hash = createHash("sha256");
   async function visit(directory) {
@@ -247,29 +278,62 @@ async function sha256Tree(root) {
 }
 
 async function observeEnvironment(ngspiceBin) {
-  const [versionOutput, binarySha256, modelTreeSha256] = await Promise.all([
-    commandOutput(ngspiceBin, ["--version"]),
-    sha256File(ngspiceBin),
-    sha256Tree(MODEL_ROOT),
-  ]);
+  const profile = await loadEnvironmentProfile();
+  const startupText =
+    STARTUP_PATH === null
+      ? DEFAULT_STARTUP
+      : await readFile(STARTUP_PATH, "utf8");
+  const [versionOutput, binarySha256, modelTreeSha256, startupSha256] =
+    await Promise.all([
+      commandOutput(ngspiceBin, ["--version"]),
+      sha256File(ngspiceBin),
+      sha256Tree(MODEL_ROOT),
+      Promise.resolve(createHash("sha256").update(startupText).digest("hex")),
+    ]);
+  const platform = `${process.platform}/${process.arch}`;
+  const version = ngspiceVersion(versionOutput);
+  if (profile !== null) {
+    const mismatches = [
+      ["platform", profile.platform, platform],
+      ["simulator version", profile.simulator.version, version],
+      ["simulator binary SHA-256", profile.simulator.binarySha256, binarySha256],
+      ["model tree SHA-256", profile.models.contentSha256, modelTreeSha256],
+      ["startup SHA-256", profile.startup.contentSha256, startupSha256],
+    ].filter(([, expected, actual]) => expected !== actual);
+    if (mismatches.length > 0) {
+      throw new Error(
+        `Simulation environment does not match Profile ${profile.id}: ${mismatches
+          .map(([label, expected, actual]) =>
+            `${label} expected ${expected}, observed ${actual}`,
+          )
+          .join("; ")}`,
+      );
+    }
+  }
   const facts = {
     executor: "hosted-container",
-    // The current Docker inputs are not locked yet. This must not say pinned
-    // until the image is verified against the accepted environment lock.
-    reproducibility: "observed",
-    platform: `${process.platform}/${process.arch}`,
+    reproducibility: profile === null ? "observed" : "pinned",
+    profileId: profile?.id ?? null,
+    platform,
     simulator: {
       name: "ngspice",
-      version: ngspiceVersion(versionOutput),
+      version,
       binarySha256,
     },
-    models: { id: "sky130A", contentSha256: modelTreeSha256 },
+    models: {
+      id: profile?.models.id ?? "sky130A",
+      contentSha256: modelTreeSha256,
+    },
+    startupSha256: profile === null ? null : startupSha256,
   };
   return {
-    ...facts,
-    fingerprint: createHash("sha256")
-      .update(JSON.stringify(facts))
-      .digest("hex"),
+    environment: {
+      ...facts,
+      fingerprint: createHash("sha256")
+        .update(JSON.stringify(facts))
+        .digest("hex"),
+    },
+    startupText,
   };
 }
 
@@ -598,7 +662,7 @@ async function handleRun(body) {
     };
   }
 
-  const [binary, environment, runRoot] = runtime;
+  const [binary, observed, runRoot] = runtime;
   const admission = await runSupervisor.tryExecute(
     { timeoutMs: body?.timeoutMs },
     async (run) => {
@@ -620,7 +684,7 @@ async function handleRun(body) {
         await writeFile(join(directory, DECK_NAME), deck, "utf8");
         await writeFile(
           join(directory, SPICEINIT_NAME),
-          "set filetype=ascii\n",
+          observed.startupText,
           "utf8",
         );
 
@@ -654,7 +718,7 @@ async function handleRun(body) {
             rawfileName: raw.rawfileName,
             rawfileFormat: raw.rawfileFormat,
             limits: { ...LIMITS, timeoutMs: run.timeoutMs },
-            environment,
+            environment: observed.environment,
           },
         };
       } finally {
@@ -699,7 +763,7 @@ const server = createServer((request, response) => {
     // write one answers every run with the same failure, and a deploy check
     // should be able to see that before a circuit does.
     runtimeReadyPromise.then(
-      ([, environment, runRoot]) => {
+      ([, observed, runRoot]) => {
         const activity = runSupervisor.snapshot();
         send(activity.state === "fatal" ? 503 : 200, {
           status: activity.state === "fatal" ? "not-ready" : "ready",
@@ -707,7 +771,7 @@ const server = createServer((request, response) => {
           limits: LIMITS,
           runRoot,
           ...(runRootFailures.length > 0 ? { runRootFailures } : {}),
-          environment,
+          environment: observed.environment,
         });
       },
       (error) =>

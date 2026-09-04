@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "id": "sky130-core-continuous-ngspice46-v1",
+  "sourceImage": "ghcr.io/arcadia-1/circuit-bench-sky130-ngspice@sha256:2da03dc7f1ead7ddc33f2f930a0487ae8618e51518009344584a98fca41a621d",
+  "platform": "linux/x64",
+  "simulator": {
+    "name": "ngspice",
+    "version": "ngspice-46",
+    "binarySha256": "e9b0e776ac656de5e470f6b339c4a7254c961d77714b4b94f4b71be2422e7b46"
+  },
+  "models": {
+    "id": "sky130A-continuous",
+    "contentSha256": "0bf299f0e3e1616478203d370107865635fd08935bb1a9cf9db18efd31703100",
+    "library": {
+      "directive": "lib",
+      "runtimePath": "/opt/sky130/continuous/sky130.lib.spice",
+      "sections": ["tt"]
+    }
+  },
+  "startup": {
+    "filetype": "ascii",
+    "contentSha256": "5ad94681e17bba379ac84d01fe7773458b34f9bbd77c127a3738f1af47ad5634"
+  },
+  "qualifiedScope": {
+    "devices": ["sky130_fd_pr__nfet_01v8", "sky130_fd_pr__pfet_01v8"],
+    "sections": ["tt"],
+    "analyses": ["op"]
+  }
+}

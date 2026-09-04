@@ -58,7 +58,9 @@ RUN set -eu; \
 # The base image already sets SKY130_MODEL_LIB to the continuous library; the
 # Worker selects that same path (worker/simulation.ts).
 ENV NGSPICE_BIN=/opt/ngspice/bin/ngspice \
-    SKY130_MODEL_ROOT=/opt/sky130
+    SKY130_MODEL_ROOT=/opt/sky130 \
+    SIMULATION_PROFILE_PATH=/opt/harness/hosted-sky130-profile.json \
+    SIMULATION_STARTUP_PATH=/opt/harness/hosted.spiceinit
 
 # A container wakes with a fresh disk, so the run directory is scratch by
 # nature. Declaring it here documents that nothing survives a sleep.
@@ -68,6 +70,8 @@ WORKDIR ${RUN_ROOT}
 # image_build_context to "."), so every COPY is repo-root relative.
 ARG HARNESS_DIR=containers/ngspice
 COPY ${HARNESS_DIR}/entrypoint.mjs ${HARNESS_DIR}/run-supervisor.mjs /opt/harness/
+COPY ${HARNESS_DIR}/hosted-sky130-profile.json /opt/harness/hosted-sky130-profile.json
+COPY ${HARNESS_DIR}/hosted.spiceinit /opt/harness/hosted.spiceinit
 
 # Nothing a deck can reach is writable except its own run directory.
 #
