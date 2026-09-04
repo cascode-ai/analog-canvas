@@ -48,8 +48,10 @@ describe("component identity properties", () => {
           suggestions: ["sky130_fd_pr__nfet_01v8"],
           externalSubcircuit: false,
         }}
+        label={null}
         onMarkerNameChange={vi.fn()}
         onReferenceChange={vi.fn()}
+        onLabelChange={vi.fn()}
         onModelTargetChange={vi.fn()}
       />,
     );
@@ -77,12 +79,55 @@ describe("component identity properties", () => {
         targetDescription={null}
         capacitorPlateRows={null}
         modelTarget={null}
+        label={null}
         onMarkerNameChange={vi.fn()}
         onReferenceChange={vi.fn()}
+        onLabelChange={vi.fn()}
         onModelTargetChange={vi.fn()}
       />,
     );
     expect(markup).toContain("Symbol");
     expect(markup).not.toContain('aria-label="Component reference"');
+    // A retained Instance has nowhere to stand a label yet.
+    expect(markup).not.toContain('aria-label="Component label"');
+  });
+
+  it("offers a free Label beside the Reference, showing the attached text", () => {
+    const document = createEmptyDocument("cell", "Cell");
+    const instance: (typeof document.instances)[number] = {
+      id: "R1",
+      symbolId: "resistor",
+      placement: {
+        position: { x: 100, y: 100 },
+        rotation: 0,
+        mirror: "none",
+      },
+      reference: "R1",
+      netlist: {
+        parameters: {},
+        binding: { kind: "primitive", deviceClass: "resistor" },
+      },
+    };
+    const markup = renderToStaticMarkup(
+      <ComponentIdentityProperties
+        instance={instance}
+        revision={2}
+        cellName="Cell"
+        formalTerminalSelected={false}
+        portNet={null}
+        targetDescription={null}
+        capacitorPlateRows={null}
+        modelTarget={null}
+        label="gm"
+        onMarkerNameChange={vi.fn()}
+        onReferenceChange={vi.fn()}
+        onLabelChange={vi.fn()}
+        onModelTargetChange={vi.fn()}
+      />,
+    );
+    expect(markup).toContain('aria-label="Component reference"');
+    expect(markup).toContain('aria-label="Component label"');
+    expect(markup).toContain('value="gm"');
+    expect(markup).toContain('value="R1"');
   });
 });

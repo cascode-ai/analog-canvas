@@ -32,8 +32,15 @@ import {
   textDeletionEdit,
   updateTextEditingSession,
 } from "../text-editing/text-editing";
-import type { TextEditingSession } from "../text-editing/text-editing";
+import type {
+  ReferenceLabelOffer,
+  TextEditingSession,
+} from "../text-editing/text-editing";
 import { attachedInstanceFormulaAnnotation } from "../text-editing/bound-formula";
+import {
+  literalLabelFromReferenceEdit,
+  referencePrefixConflict,
+} from "../instance-display/literal-instance-label";
 import { planElectricalMarkerName } from "./electrical-marker-name";
 
 export interface InstancePropertyDraft {
@@ -159,6 +166,13 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
   const [textEditing, setTextEditing] = useState<TextEditingSession | null>(
     null,
   );
+  const [referenceLabelOffer, setReferenceLabelOffer] =
+    useState<ReferenceLabelOffer | null>(null);
+  // The offer answers one typed text in one session; anything else moving on
+  // withdraws it.
+  useEffect(() => {
+    setReferenceLabelOffer(null);
+  }, [textEditing?.owner, textEditing?.id]);
   const netLabelDraftRouteRef = useRef<string | null>(null);
   const lastSelectedInstanceKeyRef = useRef<string | null>(null);
   const instancePropertyDraftRef = useRef<InstancePropertyDraft>(
@@ -634,6 +648,7 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
       Pick<TextEditingSession, "content" | "sizeScale" | "alignment">
     >,
   ): void => {
+    if (change.content) setReferenceLabelOffer(null);
     setTextEditing((current) =>
       current ? updateTextEditingSession(current, change) : null,
     );
@@ -810,6 +825,27 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
             setTextEditing(null);
             return;
           }
+          if (name !== currentName) {
+            // A text the prefix policy refuses is more often a label than a
+            // typo: offer to keep the Reference and show the text as literal
+            // attached text, instead of ending in the Edit Engine's refusal.
+            const referenceBinding = boundAnnotation.binding;
+            const instance = options.document.instances.find(
+              (candidate) => candidate.id === referenceBinding.instanceId,
+            );
+            const conflict = instance
+              ? referencePrefixConflict(instance, name)
+              : null;
+            if (conflict && instance?.reference) {
+              setReferenceLabelOffer({
+                annotationId: boundAnnotation.id,
+                text: name,
+                reference: instance.reference,
+                prefix: conflict.prefix,
+              });
+              return;
+            }
+          }
           if (
             options.transact([
               ...(name !== currentName
@@ -881,6 +917,43 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     setTextEditing(null);
   };
 
+  const acceptReferenceLabelOffer = (): void => {
+    if (
+      !referenceLabelOffer ||
+      !textEditing ||
+      textEditing.owner !== "annotation" ||
+      textEditing.id !== referenceLabelOffer.annotationId
+    ) {
+      return;
+    }
+    const source = options.document.annotations.find(
+      (annotation) => annotation.id === textEditing.id,
+    );
+    if (!source) return;
+    const conversion = literalLabelFromReferenceEdit({
+      source,
+      content: textEditing.content,
+      sizeScale: textEditing.sizeScale,
+      alignment: textEditing.alignment,
+      id: options.nextId("instance-text"),
+    });
+    if (!conversion) {
+      options.setStatus("This text cannot become a component label");
+      return;
+    }
+    if (!options.transact([...conversion.edits]).ok) return;
+    setReferenceLabelOffer(null);
+    setTextEditing(null);
+    options.selectOnly("annotation", [conversion.label.id]);
+    options.setStatus(
+      `Showing “${referenceLabelOffer.text}” as a label; Reference ${referenceLabelOffer.reference} is unchanged`,
+    );
+  };
+
+  const declineReferenceLabelOffer = (): void => {
+    setReferenceLabelOffer(null);
+  };
+
   const convertFormulaToAttachedLiteral = (
     formula: RichTextDocument,
   ): boolean => {
@@ -915,6 +988,7 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
   };
 
   return {
+    acceptReferenceLabelOffer,
     additionalParameterDraft,
     additionalParameterDraftChanges: !sameAdditionalParameterDrafts(
       additionalParameterDraft,
@@ -935,6 +1009,8 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     commitTextEditing,
     convertFormulaToAttachedLiteral,
     cancelAdditionalParameters,
+    declineReferenceLabelOffer,
+    referenceLabelOffer,
     clearTextEditing: () => setTextEditing(null),
     deleteSelectedRouteNetLabel,
     deleteTextEditing,

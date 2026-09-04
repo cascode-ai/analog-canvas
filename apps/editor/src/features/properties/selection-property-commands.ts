@@ -16,6 +16,7 @@ import {
 import type { SymbolResolver } from "@icm/symbols";
 
 import { instanceLabelAnnotationFor } from "../instance-display/default-instance-display";
+import { planLiteralInstanceLabel } from "../instance-display/literal-instance-label";
 import { bindingForEditedModel } from "../netlist-export/netlist-authoring";
 import {
   defaultInstanceLabel,
@@ -42,6 +43,7 @@ export interface SelectionPropertyCommandDependencies {
   transact: (edits: SchematicEdit[]) => TransactionResult;
   replaceAnnotationSelection: (ids: readonly string[]) => void;
   setStatus: (status: string) => void;
+  nextId: (prefix: string) => string;
 }
 
 /** Property-panel write commands and their annotation projection policy. */
@@ -56,6 +58,7 @@ export function createSelectionPropertyCommands({
   transact,
   replaceAnnotationSelection,
   setStatus,
+  nextId,
 }: SelectionPropertyCommandDependencies) {
   const styleProfile = resolveDocumentStyleProfile(document.presentation);
 
@@ -209,6 +212,33 @@ export function createSelectionPropertyCommands({
     return false;
   };
 
+  /** The Properties `Label` field: free attached text, never the Reference. */
+  const updateSelectedLabel = (value: string): boolean => {
+    if (!selectedInstance) return false;
+    const plan = planLiteralInstanceLabel({
+      document,
+      instance: selectedInstance,
+      text: value,
+      resolver,
+      nextId: () => nextId("instance-text"),
+    });
+    switch (plan.kind) {
+      case "unchanged":
+        return true;
+      case "rejected":
+        setStatus(plan.message);
+        return false;
+      default:
+        if (!transact([...plan.edits]).ok) return false;
+        setStatus(
+          plan.kind === "removed"
+            ? "Removed the component label"
+            : `Set label to ${value.trim()}`,
+        );
+        return true;
+    }
+  };
+
   const deleteSelectedAnnotation = (): void => {
     if (!selectedAnnotation) return;
     const result = transact([
@@ -245,6 +275,7 @@ export function createSelectionPropertyCommands({
     valueVisibilityEdits,
     updateSelectedModelTarget,
     updateSelectedReference,
+    updateSelectedLabel,
     deleteSelectedAnnotation,
     reverseSelectedCurrentArrow,
   };

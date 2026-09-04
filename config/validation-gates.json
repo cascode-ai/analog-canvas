@@ -29,7 +29,8 @@
       "apps/editor/src/features/wiring/**",
       "apps/editor/e2e/drafting.spec.ts",
       "apps/editor/e2e/instance-table.spec.ts",
-      "apps/editor/e2e/manual-editor.spec.ts"
+      "apps/editor/e2e/manual-editor.spec.ts",
+      "apps/editor/e2e/reference-label.spec.ts"
     ],
     "editorCommands": [
       "apps/editor/src/app/editor-transaction-commands*",
@@ -301,7 +302,8 @@
         "e2eArgs": [
           "apps/editor/e2e/manual-editor.spec.ts",
           "apps/editor/e2e/drafting.spec.ts",
-          "apps/editor/e2e/instance-table.spec.ts"
+          "apps/editor/e2e/instance-table.spec.ts",
+          "apps/editor/e2e/reference-label.spec.ts"
         ]
       }
     },
