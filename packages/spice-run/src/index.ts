@@ -8,6 +8,11 @@
  * designer nothing they can act on.
  */
 
+export * from "./rawfile.js";
+export * from "./result-data.js";
+
+import type { SimulationResultData } from "./result-data.js";
+
 export type SimulationAnalysis = "op" | "ac";
 
 export interface SimulationRequest {
@@ -135,6 +140,16 @@ export interface SimulationResult {
   durationMs: number;
   /** Identity of the input and environment that produced this result. */
   metadata: SimulationRunMetadata;
+  /**
+   * The numbers, when the runner read the simulator's rawfile. Absent when it
+   * produced none to read — a testbench that never called `write`, or a
+   * failure before any analysis ran.
+   *
+   * Present is not the same as non-empty: `analyses` is never an empty list,
+   * because a run that produced no vectors is an unusable result carrying a
+   * diagnostic, not a success carrying nothing. See `readSimulationData`.
+   */
+  data?: SimulationResultData;
 }
 
 /**

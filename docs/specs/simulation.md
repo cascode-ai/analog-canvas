@@ -125,9 +125,9 @@ the facts it can observe from the user's installation. `pinned` is reserved
 for a later image that verifies every input against an accepted environment
 lock; metadata plumbing alone must never claim reproducibility.
 
-This envelope establishes provenance only. Structured operating-point and AC
-results, rawfile parsing, and circuit-object bindings are a separate result
-protocol and are not introduced here.
+This envelope establishes provenance only. The numbers themselves are
+[Result data](#result-data). Bindings from a probe back to circuit objects
+are produced at compile time and are not part of reading a rawfile.
 
 ## Ownership boundary
 
@@ -157,6 +157,23 @@ into the Project, undo history, Gallery, or recovery copy.
 - `packages/spice-run/src/index.test.ts` verifies exact `.lib` and `.include`
   emission, quoted paths, verbatim testbench preservation, and rejected deck
   injection.
+- `packages/spice-run/src/rawfile.test.ts` and `result-data.test.ts` run
+  against three rawfiles ngspice 46 wrote, under
+  `fixtures/ngspice-rawfile/`, each beside the deck that produced it. Every
+  numeric assertion is arithmetic, never a recorded parser output: the divider
+  is exactly 0.5 V; all 17 AC points are checked against
+  `H(f) = 1/(1 + jf/f_c)` with `f_c = 159.1549 Hz`, agreeing to 4.7e-16 in
+  magnitude and 2.1e-14 degrees; and the transient run's `v(in)` column is
+  reproduced bit-exactly by evaluating the deck's own `PULSE` card at the
+  recovered timesteps, which a reconstructed grid cannot do. The step response
+  `1 - exp(-t/tau)` is asserted over the 57 points from 1 µs onward, where the
+  worst relative deviation is 4.8e-4. That residual is the deck's, not the
+  reader's, and has two causes of opposite sign: the source ramps over 1 ns
+  rather than stepping, which leaves the output a fixed `t_r/(2*tau)` = 5e-7 V
+  below the ideal curve and accounts for the whole error near 1 µs; and
+  trapezoidal integration over 80 µs steps overshoots by 3.8e-5 relative by
+  the end of the run. Both are asserted, so a later tolerance change has to
+  argue with the physics rather than with a number.
 - `worker/simulation.test.ts` verifies the hosted Sky130 `tt` default,
   deployment overrides, configuration-error classification, and the verified
   run metadata envelope.
@@ -268,6 +285,139 @@ plus the hierarchy occurrence; the mapping from probe to simulator vector
 name is produced at compile time and never inferred from result text. Raw
 input carries no Canvas mapping unless one is proven valid.
 
+### Reading the rawfile
+
+Three properties of the ASCII rawfile are load-bearing, and all three were
+taken from files ngspice 46 wrote rather than from a description of the
+format:
+
+- **A point is separated from the next by a blank line.** One point is an
+  indexed line followed by one line per remaining variable, then a blank line.
+  The value block is split on the blank line and the recovered count is
+  checked against the header's `No. Points`. A mismatch is an error, never a
+  shorter result. A reader that instead advances a fixed number of lines, or
+  groups numeric tokens by variable count, happens to agree on a real-valued
+  file and silently misreads a complex one, where each line carries two
+  numbers.
+- **A complex plot writes every value as `real,imaginary`.** `Flags: complex`
+  is what says so. A real plot reports no imaginary part rather than a column
+  of zeros, so an absent one cannot be mistaken for a measured one.
+- **The sweep column is declared, not positional.** The frequency or time axis
+  is taken by the quantity ngspice declared for it. A plot that declares none
+  is refused rather than having an axis guessed for it.
+
+A rawfile may hold several plots back to back, and each is read on its own
+terms. A binary rawfile is refused by name: a testbench that wants numbers
+sets `filetype=ascii` before it writes.
+
+A plot this release does not read -- a DC sweep, a noise analysis -- is
+reported by name as a `warning` beside the analyses that were read, and as an
+`error` when it was the only plot in the file. It is never dropped in silence.
+
+### No number is invented
+
+A missing or unusable value produces a diagnostic naming the variable and the
+rawfile line. Nothing is padded, interpolated, or carried forward from a
+neighbouring point, because a fabricated number is indistinguishable from a
+measured one once it reaches a chart. The refusals are:
+
+| code | what the file did |
+| --- | --- |
+| `empty-file` | no rawfile content at all |
+| `unsupported-format` | a binary rawfile, or not a rawfile |
+| `header-incomplete` | ends before a plot is fully described |
+| `header-invalid` | a header line is unreadable or missing |
+| `variable-line-invalid` | a `Variables:` line declares no index, name, quantity |
+| `point-block-invalid` | a point has the wrong number of values, or no index |
+| `point-count-mismatch` | recovered points disagree with `No. Points` |
+| `value-malformed` | a value is not a number |
+| `value-not-finite` | a value is `nan`, `inf`, or an overflow |
+
+Checking that a *requested* vector is present belongs to the caller, because
+only the compiled setup knows what was asked for. This layer reports what the
+file holds.
+
+### The shape it takes
+
+```ts
+interface SimulationResultData {
+  schemaVersion: 1;
+  analyses: readonly SimulationAnalysisResult[]; // never empty
+}
+
+interface SimulationProbe {
+  name: string; // ngspice's own vector name: `v(out)`, `i(v1)`
+  quantity: string; // ngspice's own word: `voltage`, `current`
+  unit: string | null; // the SI symbol, or null when unrecognised
+}
+
+type SimulationAnalysisResult =
+  | {
+      analysis: "op";
+      plotName: string;
+      probes: (SimulationProbe & { value: number })[];
+    }
+  | {
+      analysis: "ac";
+      plotName: string;
+      frequencyHz: readonly number[];
+      probes: (SimulationProbe & {
+        real: readonly number[];
+        imag: readonly number[];
+      })[];
+    }
+  | {
+      analysis: "tran";
+      plotName: string;
+      timeSeconds: readonly number[];
+      probes: (SimulationProbe & { value: readonly number[] })[];
+    };
+```
+
+`quantity` is ngspice's own word, kept unedited for the same reason a
+diagnostic keeps ngspice's own text. `unit` is the SI symbol when the quantity
+is one we recognise and `null` when it is not, because a wrong unit on an axis
+is worse than no unit. `SimulationResult` gains an optional `data` field
+carrying this; it is absent when the runner had no rawfile to read.
+
+### A run with no vectors is not a success
+
+A simulator can exit 0, print a plausible batch log, and leave behind a
+rawfile with nothing in it. Reported as a success carrying an empty result,
+that reaches the author as a blank chart and no explanation, which is the
+least actionable thing this product can do. So reading a rawfile yields either
+analyses or a reason there are none:
+
+```ts
+type SimulationDataReading =
+  | {
+      status: "read";
+      data: SimulationResultData;
+      diagnostics: SimulationDiagnostic[];
+    }
+  | { status: "unusable"; diagnostics: SimulationDiagnostic[] };
+```
+
+There is no reading that succeeded with nothing in it: `analyses` is never
+empty, and an `unusable` reading always carries at least one `error`
+diagnostic saying what to go look at. Those diagnostics join the run's own, so
+a rawfile with no vectors classifies as `failed` -- reached, like every other
+failure, through an error diagnostic rather than through an exit code.
+
+### CSV
+
+`simulationAnalysisToCsv` is a pure function over one parsed analysis. Its
+shape follows the analysis rather than one universal table:
+
+- **op** -- `variable,value,unit`, one row per probe.
+- **ac** -- `frequency [Hz]`, then `re(<probe>)` and `im(<probe>)` per probe.
+  Both parts, never a magnitude.
+- **tran** -- `time [s]`, then one column per probe, one row per point, over
+  the run's own uneven time points.
+
+Values are written as the shortest decimal that reads back as the same double,
+so a round trip through the CSV loses nothing the rawfile carried.
+
 ## Rollout
 
 The hosted route ships on the preview channel first (ADR 0057), where the
@@ -283,6 +433,21 @@ release. A deployment without the binding answers
   arithmetic, not against itself: AC to a relative tolerance of `1e-12`,
   transient to `1e-3`, on a time axis whose step spans six orders of
   magnitude.
+  `packages/spice-run/src/rawfile.test.ts` and `result-data.test.ts` hold
+  those assertions. `v(mid)` is exactly 0.5 V. All 17 AC points are checked
+  against `H(f) = 1/(1 + jf/f_c)` with `f_c = 159.1549 Hz`, agreeing to
+  4.7e-16 in magnitude and 2.1e-14 degrees. The transient `v(in)` column is
+  reproduced bit-exactly by evaluating the deck's own `PULSE` card at the
+  recovered timesteps, which a reconstructed grid cannot do, and Ohm's law on
+  R1 ties every column together at every point. The step response
+  `1 - exp(-t/tau)` is asserted over the 57 points from 1 us onward, where the
+  worst relative deviation is 4.8e-4. That residual is the deck's, not the
+  reader's, and has two causes of opposite sign, asserted separately: the
+  source ramps over 1 ns rather than stepping, leaving the output a fixed
+  `t_r/(2*tau)` = 5e-7 V below the ideal curve, which is the whole error near
+  1 us; and trapezoidal integration over 80 us steps overshoots by 3.8e-5
+  relative by the end of the run. Below 1 ns the source is still ramping, so
+  the step formula describes a different circuit and is not asserted there.
 - `scripts/simulation-acceptance.mjs`: the five-transistor OTA from
   `analog-arena`, exported by this product and simulated against the
   reference netlist under one testbench, agreeing on node voltages, gain,
