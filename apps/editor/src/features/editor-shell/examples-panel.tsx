@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { renderDocumentSvg } from "@icm/render-svg";
-import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
+import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 
 import {
   libraryProjectExamples,
@@ -33,8 +33,6 @@ export interface ExamplesPanelProps {
   /** Injected in tests; production uses the global. */
   fetchImpl?: typeof fetch;
 }
-
-const resolver = new InMemorySymbolResolver(builtInSymbols);
 
 interface FeedState {
   status: "loading" | "ready" | "unavailable";
@@ -207,7 +205,16 @@ export function ExamplesPanel({
           const topDocument = example.project.documents.find(
             (candidate) => candidate.id === example.project.topDocumentId,
           )!;
-          return [example.id, renderDocumentSvg(topDocument, resolver)];
+          // A Cell instance draws with artwork derived from the Project, not
+          // from the built-in library, so the preview needs the same
+          // Project-aware resolver the canvas uses.
+          return [
+            example.id,
+            renderDocumentSvg(
+              topDocument,
+              createProjectSymbolResolver(example.project, builtInSymbols),
+            ),
+          ];
         }),
       ),
     [],
