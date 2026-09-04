@@ -1,0 +1,11 @@
+* Resistive divider, operating point. The simplest circuit whose answer is
+* known without a simulator: 1 V across 1k + 1k puts 0.5 V on the middle.
+V1 in 0 1
+R1 in mid 1k
+R2 mid 0 1k
+.control
+set filetype=ascii
+op
+write divider-op.raw
+.endc
+.end

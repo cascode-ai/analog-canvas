@@ -1,0 +1,11 @@
+* RC low pass, AC sweep. R=1k, C=1u gives a corner at 1/(2*pi*R*C) = 159.15 Hz,
+* so a parser can be checked against a number nobody had to measure.
+V1 in 0 DC 0 AC 1
+R1 in out 1k
+C1 out 0 1u
+.control
+set filetype=ascii
+ac dec 4 1 10k
+write rc-ac.raw
+.endc
+.end
