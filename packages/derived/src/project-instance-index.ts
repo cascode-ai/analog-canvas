@@ -2,10 +2,12 @@ import {
   createReferenceIndex,
   deviceDescriptor,
   referenceIssuesForInstance,
+  referencePolicyForInstance,
   type ReferenceIssue,
 } from "@icm/devices";
 import { type CircuitProject, type InstanceNetlistBinding } from "@icm/model";
 
+import { instanceReferenceAnnotation } from "./annotation-text.js";
 import type { ProjectConnectivityIndex } from "./connectivity-index.js";
 import { findHierarchyPaths } from "./hierarchy-navigation.js";
 import {
@@ -27,6 +29,14 @@ export interface ProjectInstanceRow {
   readonly binding?: InstanceNetlistBinding;
   readonly parameters: Readonly<Record<string, string>>;
   readonly referenceIssues: readonly ReferenceIssue[];
+  /**
+   * Present only while the row has a drawn Reference that a device prefix
+   * policy governs — the one case where hiding the prefix is a real choice.
+   */
+  readonly referenceDisplay?: {
+    readonly prefix: string;
+    readonly prefixHidden: boolean;
+  };
   readonly locator: ObjectLocator & { readonly kind: "instance" };
   readonly callerPaths: readonly (readonly HierarchyFrame[])[];
 }
@@ -98,6 +108,11 @@ export function buildProjectInstanceIndex(
       return document.instances.map((instance): ProjectInstanceRow => {
         const descriptor = deviceDescriptor(instance.symbolId);
         const masterName = masterNameFor(project, instance.netlist?.binding);
+        const referencePolicy = referencePolicyForInstance(instance);
+        const referenceAnnotation = instanceReferenceAnnotation(
+          document,
+          instance.id,
+        );
         return {
           key: `${document.id}\u0000${instance.id}`,
           documentId: document.id,
@@ -112,6 +127,15 @@ export function buildProjectInstanceIndex(
             : {}),
           parameters: structuredClone(instance.netlist?.parameters ?? {}),
           referenceIssues: referenceIssuesForInstance(references, instance.id),
+          ...(referencePolicy.kind === "required" && referenceAnnotation
+            ? {
+                referenceDisplay: {
+                  prefix: referencePolicy.prefix,
+                  prefixHidden:
+                    referenceAnnotation.referencePrefixHidden === true,
+                },
+              }
+            : {}),
           locator: directObjectLocator(document.id, "instance", instance.id),
           callerPaths,
         };

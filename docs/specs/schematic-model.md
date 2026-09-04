@@ -5,7 +5,7 @@ Status: `accepted`
 Primary owner: `packages/model`
 
 The Project contains Documents; each Document owns revisioned electrical,
-geometric, and presentation facts. The current model is strict schema 36 and has
+geometric, and presentation facts. The current model is strict schema 37 and has
 no compatibility shape.
 
 ## Coordinate domains
@@ -126,6 +126,15 @@ or export authority. Renderers never derive visible Instance text from IDs,
 master bindings, provenance, or copied properties. Drafting objects are
 visual-only and cannot create connectivity.
 
+An Annotation bound to an `instance-reference` may independently persist
+presentation-only `referencePrefixHidden`. It draws the Reference without its
+device prefix, so a resistor authored as `RG1` presents the conductance `G1`.
+The Reference itself does not move: allocation, uniqueness, the device prefix
+policy, ERC, and every exported netlist still read `RG1`, and name editing
+still shows and commits the whole Reference. Without an authored
+`formatOverride` the shortened name is recompiled to house style; with one,
+the authored styling of every surviving character is retained.
+
 An Annotation may independently persist presentation-only `textColor`. With
 that field absent, an `instance-label` or `instance-value` inherits the owning
 Instance's effective foreground; all other annotation kinds use the Document
@@ -193,8 +202,8 @@ ordinary Schematic edits inside one Project structural transaction. The
 Project's `structureRevision` protects this cross-Document boundary and the
 editor records it as one undoable structural commit.
 
-Persistence writes only schema 36. The reader carries every schema in its
-explicit 24→36 upgrade chain forward, then supplies the current model only; no
+Persistence writes only schema 37. The reader carries every schema in its
+explicit 24→37 upgrade chain forward, then supplies the current model only; no
 compatibility shape enters runtime electrical derivation. The 32→33 step
 rejects ownerless equivalence rather than guessing replacement connectivity.
 The 33→34 step converts hidden imported names into non-electrical hints or
@@ -203,3 +212,5 @@ one is available. The 34→35 step converges parallel Instance naming fields to
 one Reference and materializes distinct visible text as an Annotation. The
 35→36 step repairs reference-shaped labels that were materialized as literal
 text, maps them to the owning Reference, and retains their RichText styling.
+The 36→37 step adds presentation-only `Annotation.referencePrefixHidden` and
+rewrites nothing: an absent flag already means the whole Reference is drawn.

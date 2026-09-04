@@ -5,6 +5,7 @@ import {
 } from "@icm/derived";
 import {
   planBatchProperty,
+  planReferencePrefixDisplay,
   planReferenceRenumber,
   type ProjectStructureEdit,
 } from "@icm/edit-engine";
@@ -118,6 +119,23 @@ export function InstanceTableDialog({
       return next;
     });
   };
+  /**
+   * The prefix switch applies to its own row immediately. It is a per-device
+   * display choice rather than a batch field, and it writes only the label's
+   * presentation flag — the Reference itself, and every netlist built from
+   * it, is untouched.
+   */
+  const toggleReferencePrefix = (row: ProjectInstanceRow): void => {
+    const display = row.referenceDisplay;
+    if (!display) return;
+    const preview = planReferencePrefixDisplay(
+      project,
+      [{ documentId: row.documentId, instanceId: row.instanceId }],
+      !display.prefixHidden,
+    );
+    if (preview.edits.length === 0) return;
+    onApply("instance-reference-prefix", [...preview.edits]);
+  };
   const toggleVisible = (): void => {
     setSelected((current) => {
       const next = new Set(current);
@@ -195,6 +213,9 @@ export function InstanceTableDialog({
                 <th aria-label="Selection" />
                 <th>ID</th>
                 <th>Reference</th>
+                <th title="Draw the Reference with its device prefix">
+                  Prefix
+                </th>
                 <th>Master</th>
                 <th>Symbol</th>
                 <th>Cell</th>
@@ -227,6 +248,21 @@ export function InstanceTableDialog({
                     </button>
                   </td>
                   <td>{row.reference ?? "—"}</td>
+                  <td>
+                    {row.referenceDisplay ? (
+                      <label className="instance-table-prefix">
+                        <input
+                          type="checkbox"
+                          aria-label={`Show the ${row.referenceDisplay.prefix} prefix on ${row.reference ?? row.instanceId}`}
+                          checked={!row.referenceDisplay.prefixHidden}
+                          onChange={() => toggleReferencePrefix(row)}
+                        />
+                        <span>{row.referenceDisplay.prefix}</span>
+                      </label>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
                   <td>{row.masterName ?? "—"}</td>
                   <td>{row.symbolId}</td>
                   <td>{row.documentName}</td>

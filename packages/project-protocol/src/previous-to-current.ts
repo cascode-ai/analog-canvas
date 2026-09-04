@@ -99,3 +99,11 @@ export type {
   Schema35To36MigrationReport,
   Schema35To36MigrationResult,
 } from "./transforms/instance-reference-annotation.js";
+export {
+  upgradeSchema36To37,
+  upgradeSchema36To37WithReport,
+} from "./transforms/annotation-reference-prefix.js";
+export type {
+  Schema36To37MigrationReport,
+  Schema36To37MigrationResult,
+} from "./transforms/annotation-reference-prefix.js";

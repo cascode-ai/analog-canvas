@@ -8,7 +8,10 @@ import type {
 import type { SymbolResolver } from "@icm/symbols";
 
 import { resolveVisualAnchor, type ResolvedAnchor } from "./anchor.js";
-import { resolveAnnotationText } from "./annotation-text.js";
+import {
+  resolveAnnotationDisplayText,
+  resolveAnnotationText,
+} from "./annotation-text.js";
 import {
   resolveDocumentRoutingGeometry,
   type ResolvedDocumentRoutingGeometry,
@@ -103,7 +106,9 @@ export function resolveAnnotationPresentation(
   );
   const sizeScale = annotation.sizeScale ?? 1;
   const fontSize = annotationFontSize(annotation, styleProfile) * sizeScale;
-  const text = resolveAnnotationText(document, annotation, logicalNets);
+  // Bounds are measured from what is painted, so a hidden Reference prefix
+  // shrinks the hit box and the export extent with the glyphs.
+  const text = resolveAnnotationDisplayText(document, annotation, logicalNets);
   const textLayout = measureRichTextDocument(text, {
     ...richTextMetrics(styleProfile, "label", sizeScale),
     fontSize,

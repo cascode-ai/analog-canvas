@@ -36,6 +36,8 @@ describe("component electrical properties", () => {
         parameterValues={{ w: "2u", nf: "2" }}
         firstInputRef={createRef<HTMLInputElement>()}
         referenceVisible
+        referencePrefix={null}
+        referencePrefixHidden={false}
         valueVisible
         valueAvailable
         valueSupported
@@ -47,6 +49,7 @@ describe("component electrical properties", () => {
         additionalParametersChanged
         onParameterChange={vi.fn()}
         onReferenceVisibilityChange={vi.fn()}
+        onReferencePrefixHiddenChange={vi.fn()}
         onValueVisibilityChange={vi.fn()}
         onAdditionalParameterChange={vi.fn()}
         onAdditionalParameterRemove={vi.fn()}
@@ -81,6 +84,8 @@ describe("component electrical properties", () => {
         parameterValues={{ w: "1u", l: "150n", nf: "1", m: "1" }}
         firstInputRef={createRef<HTMLInputElement>()}
         referenceVisible
+        referencePrefix={null}
+        referencePrefixHidden={false}
         valueVisible
         valueAvailable
         valueSupported
@@ -90,6 +95,7 @@ describe("component electrical properties", () => {
         additionalParametersChanged={false}
         onParameterChange={vi.fn()}
         onReferenceVisibilityChange={vi.fn()}
+        onReferencePrefixHiddenChange={vi.fn()}
         onValueVisibilityChange={vi.fn()}
         onAdditionalParameterChange={vi.fn()}
         onAdditionalParameterRemove={vi.fn()}
@@ -120,6 +126,8 @@ describe("component electrical properties", () => {
         parameterValues={{}}
         firstInputRef={createRef<HTMLInputElement>()}
         referenceVisible={false}
+        referencePrefix={null}
+        referencePrefixHidden={false}
         valueVisible={false}
         valueAvailable={false}
         valueSupported={false}
@@ -129,6 +137,7 @@ describe("component electrical properties", () => {
         additionalParametersChanged={false}
         onParameterChange={vi.fn()}
         onReferenceVisibilityChange={vi.fn()}
+        onReferencePrefixHiddenChange={vi.fn()}
         onValueVisibilityChange={vi.fn()}
         onAdditionalParameterChange={vi.fn()}
         onAdditionalParameterRemove={vi.fn()}
@@ -158,6 +167,8 @@ describe("component electrical properties", () => {
         parameterValues={{}}
         firstInputRef={createRef<HTMLInputElement>()}
         referenceVisible={false}
+        referencePrefix={null}
+        referencePrefixHidden={false}
         valueVisible={false}
         valueAvailable
         valueSupported
@@ -167,6 +178,7 @@ describe("component electrical properties", () => {
         additionalParametersChanged={false}
         onParameterChange={vi.fn()}
         onReferenceVisibilityChange={vi.fn()}
+        onReferencePrefixHiddenChange={vi.fn()}
         onValueVisibilityChange={vi.fn()}
         onAdditionalParameterChange={vi.fn()}
         onAdditionalParameterRemove={vi.fn()}
@@ -188,6 +200,8 @@ describe("the Display row only offers what the drawing can show", () => {
       valueSupported?: boolean;
       valueAvailable?: boolean;
       referenceLabelRenderable?: boolean;
+      referencePrefix?: string | null;
+      referencePrefixHidden?: boolean;
     },
   ) =>
     renderToStaticMarkup(
@@ -197,6 +211,8 @@ describe("the Display row only offers what the drawing can show", () => {
         parameterValues={{}}
         firstInputRef={createRef<HTMLInputElement>()}
         referenceVisible
+        referencePrefix={flags.referencePrefix ?? null}
+        referencePrefixHidden={flags.referencePrefixHidden ?? false}
         valueVisible
         valueAvailable={flags.valueAvailable ?? false}
         valueSupported={flags.valueSupported ?? false}
@@ -206,6 +222,7 @@ describe("the Display row only offers what the drawing can show", () => {
         additionalParametersChanged={false}
         onParameterChange={vi.fn()}
         onReferenceVisibilityChange={vi.fn()}
+        onReferencePrefixHiddenChange={vi.fn()}
         onValueVisibilityChange={vi.fn()}
         onAdditionalParameterChange={vi.fn()}
         onAdditionalParameterRemove={vi.fn()}
@@ -258,6 +275,42 @@ describe("the Display row only offers what the drawing can show", () => {
     );
     expect(markup).toContain("Reference");
     expect(markup).not.toContain(">Value<");
+  });
+
+  it("offers the prefix switch only where a device prefix is drawn", () => {
+    const withPrefix = render(
+      { id: "R1", symbolId: "resistor", placement: null, reference: "RG1" },
+      { referenceAvailable: true, referencePrefix: "R" },
+    );
+    expect(withPrefix).toContain("Prefix R");
+    expect(withPrefix).toContain('data-testid="reference-prefix-toggle"');
+
+    // No label to shorten, no switch: the row never offers a dead control.
+    const withoutLabel = render(
+      { id: "R1", symbolId: "resistor", placement: null, reference: "RG1" },
+      {
+        referenceAvailable: true,
+        referenceLabelRenderable: false,
+        referencePrefix: "R",
+      },
+    );
+    expect(withoutLabel).not.toContain("Prefix R");
+  });
+
+  it("shows the prefix switch cleared once the prefix is hidden", () => {
+    const markup = render(
+      { id: "R1", symbolId: "resistor", placement: null, reference: "RG1" },
+      {
+        referenceAvailable: true,
+        referencePrefix: "R",
+        referencePrefixHidden: true,
+      },
+    );
+    const toggle = /<label[^>]*reference-prefix-toggle[\s\S]*?<\/label>/u.exec(
+      markup,
+    )?.[0];
+    expect(toggle).toBeDefined();
+    expect(toggle).not.toContain("checked");
   });
 
   it("still hides the reference for a Symbol that draws no label", () => {

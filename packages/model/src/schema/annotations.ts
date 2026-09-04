@@ -85,6 +85,13 @@ export const AnnotationSchema = z
     visible: z.boolean().optional(),
     /** Optional presentation-only rendered text color override. */
     textColor: HexColorSchema.optional(),
+    /**
+     * Presentation-only: draw the bound Instance Reference without its device
+     * reference prefix, so `RG1` reads as `G1` on the sheet. The Reference
+     * itself is untouched — allocation, uniqueness, the prefix policy, and
+     * every exported netlist still use the whole authored name.
+     */
+    referencePrefixHidden: z.boolean().optional(),
   })
   .superRefine((annotation, context) => {
     if (Boolean(annotation.content) === Boolean(annotation.binding)) {
@@ -106,6 +113,17 @@ export const AnnotationSchema = z
         path: ["formatOverride"],
         message:
           "RichText format overrides require an editable Instance, Net, or Cell-terminal name binding",
+      });
+    }
+    if (
+      annotation.referencePrefixHidden !== undefined &&
+      annotation.binding?.kind !== "instance-reference"
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["referencePrefixHidden"],
+        message:
+          "Hiding a reference prefix requires an Instance-reference binding",
       });
     }
     if (annotation.markerKind && annotation.kind !== "route-marker") {

@@ -19,7 +19,7 @@ import {
   annotationOwningInstanceId,
   resolveAnnotationTextColor,
   isSchematicAnnotationVisible,
-  resolveAnnotationText,
+  resolveAnnotationDisplayText,
   resolveDocumentStyleProfile,
   resolveDocumentLogicalNets,
   draftTextLayoutContent,
@@ -102,7 +102,7 @@ function renderAnnotationText(
     schematicTextFontSize(annotation.kind, profile) *
     (annotation.sizeScale ?? 1);
   return renderRichTextDocument(
-    resolveAnnotationText(document, annotation, logicalNets),
+    resolveAnnotationDisplayText(document, annotation, logicalNets),
     profile,
     { fontSize },
   );
@@ -692,7 +692,7 @@ function deriveBounds(
     bounds.push(
       estimatedTextBounds(
         flattenRichText(
-          resolveAnnotationText(document, annotation, logicalNets),
+          resolveAnnotationDisplayText(document, annotation, logicalNets),
         ),
         textPosition.x,
         textPosition.y,
@@ -1007,7 +1007,11 @@ export function buildSvgScene(
     )
     .sort((left, right) => left.id.localeCompare(right.id, "en"))
     .map((annotation) => {
-      const content = resolveAnnotationText(document, annotation, logicalNets);
+      const content = resolveAnnotationDisplayText(
+        document,
+        annotation,
+        logicalNets,
+      );
       const attachment = ` data-anchor-kind="${annotation.anchor.kind}"`;
       const presentation = resolveAnnotationPresentation(
         document,

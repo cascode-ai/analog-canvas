@@ -377,7 +377,12 @@ label exists. Reference label display is a Properties toggle for one or many
 selected components: hiding sets the annotation's optional `visible: false`
 flag, which renderers and hit/marquee surfaces skip while the annotation stays
 in the Project, so hiding is recoverable and a missing label can be re-created
-from the same toggle. Component value display is the paired `Value` toggle on
+from the same toggle. The device prefix on that label is its own switch on the
+same row: clearing `Prefix <letter>` sets the annotation's presentation-only
+`referencePrefixHidden`, so `RG1` is drawn as `G1` while the Reference, its
+allocation, and every exported netlist keep the whole name. The Instance Table
+offers the same per-device switch as a Prefix column, applied one row at a
+time. Component value display is the paired `Value` toggle on
 the same control row: MOS devices project `W/L` as a stacked fraction with a
 fraction bar, passives and independent sources project their scalar parameter,
 and every projected value is upright bold text carrying its engineering unit
@@ -429,8 +434,8 @@ Open, demo load, restore, and human-approved staged import replace the entire
 Project through one replacement boundary; they are not Edit Engine
 transactions. Replacement cancels pending recovery for the outgoing Project
 and terminates its Agent session. A complete Project covered by the schema
-24→36 upgrade chain may be upgraded at the read boundary and then enters the
-editor only as schema-36; migrated files are marked as needing save.
+24→37 upgrade chain may be upgraded at the read boundary and then enters the
+editor only as schema-37; migrated files are marked as needing save.
 
 Selection, viewport, active tool, previews, Agent tokens, and approval UI are
 transient and never enter Project JSON. Recovery is scheduled only after a

@@ -717,6 +717,12 @@
   background: var(--icm-surface-muted);
 }
 
+.instance-table-prefix {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
 .instance-table-link {
   min-height: auto;
   padding: 0;

@@ -6,7 +6,10 @@ import {
 } from "@icm/model";
 import { describe, expect, it } from "vitest";
 
-import { resolveAnnotationText } from "./annotation-text.js";
+import {
+  resolveAnnotationDisplayText,
+  resolveAnnotationText,
+} from "./annotation-text.js";
 
 describe("bound annotation text", () => {
   it("projects one Reference and keeps RichText formatting in the annotation", () => {
@@ -204,5 +207,102 @@ describe("bound annotation text", () => {
     expect(flattenRichText(resolveAnnotationText(document, annotation))).toBe(
       "sky130_nfet",
     );
+  });
+});
+
+describe("hidden reference prefix display", () => {
+  const documentWithResistor = (reference: string) => {
+    const document = createEmptyDocument("document-main", "Main");
+    document.instances.push({
+      id: "instance-1",
+      symbolId: "resistor",
+      placement: null,
+      reference,
+      netlist: { parameters: {} },
+    });
+    return document;
+  };
+  const label: Annotation = {
+    id: "instance-label-1",
+    kind: "instance-label",
+    binding: { kind: "instance-reference", instanceId: "instance-1" },
+    anchor: { kind: "free", position: { x: 0, y: 0 } },
+    alignment: "start",
+    rotation: 0,
+    locked: false,
+    referencePrefixHidden: true,
+  };
+
+  it("draws a conductance-styled Reference while the Reference keeps its prefix", () => {
+    const document = documentWithResistor("RG1");
+    expect(resolveAnnotationDisplayText(document, label)).toEqual(
+      semanticTextDocument("G1", "instance-label"),
+    );
+    // The semantic projection every non-rendering reader uses is untouched.
+    expect(flattenRichText(resolveAnnotationText(document, label))).toBe("RG1");
+    expect(document.instances[0]!.reference).toBe("RG1");
+  });
+
+  it("shows the whole Reference until the flag is set", () => {
+    const document = documentWithResistor("RG1");
+    const { referencePrefixHidden: _hidden, ...shown } = label;
+    expect(resolveAnnotationDisplayText(document, shown)).toEqual(
+      semanticTextDocument("RG1", "instance-label"),
+    );
+  });
+
+  it("retains authored formatting for the characters that survive", () => {
+    const document = documentWithResistor("RG1");
+    const formatOverride = {
+      runs: [
+        {
+          kind: "span" as const,
+          style: "bold" as const,
+          children: [{ kind: "text" as const, value: "RG1" }],
+        },
+      ],
+    };
+    expect(
+      resolveAnnotationDisplayText(document, { ...label, formatOverride }),
+    ).toEqual({
+      runs: [
+        {
+          kind: "span",
+          style: "bold",
+          children: [{ kind: "text", value: "G1" }],
+        },
+      ],
+    });
+  });
+
+  it("refuses to hide a prefix that is the whole Reference or is not there", () => {
+    // Hiding `R` from `R` would leave an empty projection, which the canvas
+    // reads as "no label" rather than as a shorter one.
+    expect(
+      flattenRichText(
+        resolveAnnotationDisplayText(documentWithResistor("R"), label),
+      ),
+    ).toBe("R");
+    expect(
+      flattenRichText(
+        resolveAnnotationDisplayText(documentWithResistor("Q1"), label),
+      ),
+    ).toBe("Q1");
+  });
+
+  it("leaves a non-Reference binding alone", () => {
+    const document = documentWithResistor("RG1");
+    const literal = {
+      id: "note",
+      kind: "instance-label" as const,
+      content: semanticTextDocument("RG1", "instance-label"),
+      anchor: { kind: "free" as const, position: { x: 0, y: 0 } },
+      alignment: "start" as const,
+      rotation: 0 as const,
+      locked: false,
+    };
+    expect(
+      flattenRichText(resolveAnnotationDisplayText(document, literal)),
+    ).toBe("RG1");
   });
 });

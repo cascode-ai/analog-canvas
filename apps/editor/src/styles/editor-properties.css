@@ -77,7 +77,10 @@
 
 .property-display-card .display-toggle-row {
   display: grid;
-  grid-template-columns: repeat(2, max-content);
+  /* The row carries Reference, its prefix switch, and Value, and only some
+     devices offer all three, so the columns follow the switches present. */
+  grid-auto-flow: column;
+  grid-auto-columns: max-content;
   justify-content: end;
   gap: 0.7rem;
 }

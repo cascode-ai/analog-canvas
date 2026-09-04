@@ -1,4 +1,5 @@
 import {
+  annotationWithReferencePrefixHidden,
   planSetDeviceModelTarget,
   type ProjectStructureEdit,
   type SchematicEdit,
@@ -7,7 +8,10 @@ import {
   reviewedExternalBindingForMaster,
   reviewedExternalModelSuggestions,
 } from "@icm/devices";
-import { resolveDocumentStyleProfile } from "@icm/derived";
+import {
+  instanceReferenceAnnotation,
+  resolveDocumentStyleProfile,
+} from "@icm/derived";
 import {
   type Annotation,
   type CircuitProject,
@@ -90,6 +94,27 @@ export function createSelectionPropertyCommands({
           });
         }
       }
+    }
+    return edits;
+  };
+
+  /**
+   * Show or hide the device prefix on the drawn Reference. This writes only
+   * the label's presentation flag: the Instance keeps the whole authored
+   * Reference, so nothing electrical and nothing exported moves.
+   */
+  const referencePrefixHiddenEdits = (
+    instanceIds: readonly string[],
+    hidden: boolean,
+  ): SchematicEdit[] => {
+    const edits: SchematicEdit[] = [];
+    for (const instanceId of instanceIds) {
+      const label = instanceReferenceAnnotation(document, instanceId);
+      if (!label || (label.referencePrefixHidden === true) === hidden) continue;
+      edits.push({
+        kind: "upsert_schematic_annotation",
+        annotation: annotationWithReferencePrefixHidden(label, hidden),
+      });
     }
     return edits;
   };
@@ -242,6 +267,7 @@ export function createSelectionPropertyCommands({
 
   return {
     referenceLabelVisibilityEdits,
+    referencePrefixHiddenEdits,
     valueVisibilityEdits,
     updateSelectedModelTarget,
     updateSelectedReference,

@@ -33,6 +33,7 @@ import {
   runErcChecks,
   resolveDraftingObjectGeometry,
   displayableInstanceValue,
+  instanceReferenceAnnotation,
   symbolCarriesReference,
   symbolSupportsValueAnnotation,
   resolveMosBulkConnection,
@@ -49,6 +50,7 @@ import {
   flattenRichText,
 } from "@icm/model";
 import {
+  referencePolicyForInstance,
   resolveReviewedExternalBinding,
   reviewedExternalModelSuggestions,
 } from "@icm/devices";
@@ -1533,6 +1535,7 @@ export function App({
   });
   const {
     referenceLabelVisibilityEdits,
+    referencePrefixHiddenEdits,
     valueVisibilityEdits,
     updateSelectedModelTarget,
     updateSelectedReference,
@@ -1581,6 +1584,7 @@ export function App({
     removeAdditionalParameter,
     setNetLabelEditorOpen,
     setReferenceLabelsVisible,
+    setReferencePrefixHidden,
     setValueLabelsVisible,
     showSelectedInstanceValue,
     textEditing,
@@ -1610,6 +1614,7 @@ export function App({
     netNameEditsForAnnotation,
     instancePropertyEdits,
     referenceLabelVisibilityEdits,
+    referencePrefixHiddenEdits,
     valueVisibilityEdits,
     isCellPinAnnotation: (annotation) => {
       const anchor = annotation.anchor;
@@ -1755,6 +1760,15 @@ export function App({
   const selectedInstanceValue = selectedInstance
     ? instanceValueAnnotation(document, selectedInstance.id)
     : null;
+  // The prefix switch reads the Reference-bound label rather than whichever
+  // label sits on the Instance: a Cell Pin's terminal name has no designator
+  // prefix to hide.
+  const selectedInstanceReferenceLabel = selectedInstance
+    ? instanceReferenceAnnotation(document, selectedInstance.id)
+    : undefined;
+  const selectedInstanceReferencePolicy = selectedInstance
+    ? referencePolicyForInstance(selectedInstance)
+    : undefined;
   // Availability follows the live property draft, not only committed state:
   // typing a value must enable the Value toggle immediately. Geometry edits
   // in the draft are irrelevant to the projection.
@@ -4738,6 +4752,14 @@ export function App({
                     referenceVisible:
                       selectedInstanceLabel !== undefined &&
                       selectedInstanceLabel.visible !== false,
+                    referencePrefix:
+                      selectedInstanceReferencePolicy?.kind === "required" &&
+                      selectedInstanceReferenceLabel !== undefined
+                        ? selectedInstanceReferencePolicy.prefix
+                        : null,
+                    referencePrefixHidden:
+                      selectedInstanceReferenceLabel?.referencePrefixHidden ===
+                      true,
                     valueVisible:
                       selectedInstanceValue !== null &&
                       selectedInstanceValue.visible !== false,
@@ -4764,6 +4786,8 @@ export function App({
                       })),
                     onReferenceVisibilityChange: (checked) =>
                       setReferenceLabelsVisible([selectedInstance.id], checked),
+                    onReferencePrefixHiddenChange: (hidden) =>
+                      setReferencePrefixHidden([selectedInstance.id], hidden),
                     onValueVisibilityChange: (checked) => {
                       if (checked) showSelectedInstanceValue();
                       else setValueLabelsVisible([selectedInstance.id], false);

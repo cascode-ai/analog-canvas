@@ -1,6 +1,6 @@
 # Project File Compatibility
 
-The released Project schema version is `36`. It retains schematic-only
+The released Project schema version is `37`. It retains schematic-only
 hierarchy integrity, a Project structural revision, stable formal Cell ports,
 and definition-level Cell symbol presentation. It also has one typed Instance
 netlist authority, formal Cell parameters, and Project-local external
@@ -22,7 +22,10 @@ placements, route bends, and Junctions stay aligned to the Document grid. An
 Instance may carry an optional `styleOverride` with independent foreground and
 background colors; when absent, document style defaults remain authoritative.
 Each Annotation may independently carry an optional presentation-only
-`textColor`. An Instance Reference or value with Automatic text color inherits
+`textColor`, and one bound to an Instance Reference may carry
+`referencePrefixHidden`, which draws that Reference without its device prefix
+(`RG1` as `G1`) while the Reference itself, and every netlist built from it,
+keeps the whole name. An Instance Reference or value with Automatic text color inherits
 its owning Instance foreground; other annotations inherit the document
 foreground. Drafting text keeps its separate drawing-object color override.
 An Instance may also carry optional schematic-only `signalFlowParameters`
@@ -33,7 +36,7 @@ text, a fraction, or a coefficient needs more room, and never clips or shrinks
 the formula to satisfy an undersized request. A canonical v34 file can be
 opened, saved, reopened, and saved again without byte drift.
 
-Schemas v24 through v36 are accepted through the explicit chained upgrades.
+Schemas v24 through v37 are accepted through the explicit chained upgrades.
 Schema v32 adds optional `Annotation.textColor`; schema v33 removes the
 ownerless `explicit-equivalence` record. A v32 file without that record changes
 only its version stamp. A file containing it is rejected at the exact evidence
@@ -44,9 +47,11 @@ non-electrical round-trip hints, explicit SPICE globals retain declaration
 authority, and visible power objects become the owner where one already exists.
 Schema v35 unifies Instance References, and schema v36 restores Gallery-copied
 reference-shaped RichText labels as mapped Reference presentations while
-retaining descriptive attached text.
+retaining descriptive attached text. Schema v37 adds the optional
+presentation-only `Annotation.referencePrefixHidden` display flag; a v36 file
+changes only its version stamp.
 The original file is never overwritten silently. Schemas older than v24 and
-versions newer than v36 are rejected by the project-file boundary.
+versions newer than v37 are rejected by the project-file boundary.
 
 The canonical-current corpus at
 [`fixtures/projects/compatibility-corpus.json`](../../fixtures/projects/compatibility-corpus.json)

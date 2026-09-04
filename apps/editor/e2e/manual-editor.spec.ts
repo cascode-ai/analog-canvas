@@ -3137,6 +3137,40 @@ test("Properties toggles reference label visibility for one or many components",
   ).toHaveCount(1);
 });
 
+test("a resistor authored as RG1 can present the conductance G1", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "resistor", { x: 300, y: 200 });
+  await page.getByTestId("hit-R1").click();
+  await openSelectionShelf(page);
+  const properties = page.getByRole("complementary", { name: "Properties" });
+  const reference = properties.getByLabel("Component reference");
+  await reference.fill("RG1");
+  await reference.press("Tab");
+
+  const drawnLabel = page.locator('[data-object-id="instance-label-R1"]');
+  await expect(drawnLabel).toHaveText("RG1");
+
+  const prefix = page.getByRole("checkbox", { name: "Prefix R", exact: true });
+  await expect(prefix).toBeChecked();
+  await prefix.uncheck();
+
+  // The sheet reads as a conductance while the Reference is untouched, so
+  // the saved Project and every netlist built from it still say RG1.
+  await expect(drawnLabel).toHaveText("G1");
+  await expect(reference).toHaveValue("RG1");
+  await expect
+    .poll(() => recoveryProjectTexts(page))
+    .toContain('"reference": "RG1"');
+  await expect
+    .poll(() => recoveryProjectTexts(page))
+    .toContain('"referencePrefixHidden": true');
+
+  await prefix.check();
+  await expect(drawnLabel).toHaveText("RG1");
+});
+
 test("Properties keeps component and Annotation text colors independent", async ({
   page,
 }) => {

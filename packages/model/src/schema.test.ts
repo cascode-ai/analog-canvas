@@ -720,6 +720,44 @@ describe("CircuitProject schema", () => {
     expect(CircuitProjectSchema.safeParse(project).success).toBe(false);
   });
 
+  it("allows a hidden reference prefix only on an Instance-reference binding", () => {
+    const project = createEmptyProject("project-prefix", "Prefix");
+    const document = project.documents[0]!;
+    document.instances.push({
+      id: "R1",
+      symbolId: "resistor",
+      placement: null,
+      reference: "RG1",
+      netlist: { parameters: {} },
+    });
+    const anchor = { kind: "free" as const, position: { x: 20, y: 20 } };
+    document.annotations.push({
+      id: "label-1",
+      kind: "instance-label" as const,
+      binding: { kind: "instance-reference" as const, instanceId: "R1" },
+      anchor,
+      alignment: "middle" as const,
+      rotation: 0 as const,
+      locked: false,
+      referencePrefixHidden: true,
+    });
+    expect(CircuitProjectSchema.safeParse(project).success).toBe(true);
+
+    // Literal text and every other binding own no device prefix, so the flag
+    // would describe something that is not there.
+    document.annotations[0] = {
+      id: "label-1",
+      kind: "instance-label" as const,
+      content: { runs: [{ kind: "text" as const, value: "RG1" }] },
+      anchor,
+      alignment: "middle" as const,
+      rotation: 0 as const,
+      locked: false,
+      referencePrefixHidden: true,
+    };
+    expect(CircuitProjectSchema.safeParse(project).success).toBe(false);
+  });
+
   it("validates definition-level Cell symbol placement against stable formal terminals", () => {
     const project = createEmptyProject("project-cell-symbol", "Cell symbol");
     const document = project.documents[0]!;

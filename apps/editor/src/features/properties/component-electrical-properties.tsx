@@ -17,6 +17,8 @@ export function ComponentElectricalProperties({
   parameterValues,
   firstInputRef,
   referenceVisible,
+  referencePrefix,
+  referencePrefixHidden,
   valueVisible,
   valueAvailable,
   valueSupported,
@@ -26,6 +28,7 @@ export function ComponentElectricalProperties({
   additionalParametersChanged,
   onParameterChange,
   onReferenceVisibilityChange,
+  onReferencePrefixHiddenChange,
   onValueVisibilityChange,
   onAdditionalParameterChange,
   onAdditionalParameterRemove,
@@ -38,6 +41,13 @@ export function ComponentElectricalProperties({
   parameterValues: Readonly<Record<string, string>>;
   firstInputRef: Ref<HTMLInputElement>;
   referenceVisible: boolean;
+  /**
+   * The device Reference prefix this instance is designated with, or null
+   * when the device policy demands none. It labels the prefix switch, so a
+   * capacitor offers `C` rather than a hard-coded `R`.
+   */
+  referencePrefix: string | null;
+  referencePrefixHidden: boolean;
   valueVisible: boolean;
   valueAvailable: boolean;
   /**
@@ -65,6 +75,7 @@ export function ComponentElectricalProperties({
   additionalParametersChanged: boolean;
   onParameterChange: (key: string, value: string) => void;
   onReferenceVisibilityChange: (visible: boolean) => void;
+  onReferencePrefixHiddenChange: (hidden: boolean) => void;
   onValueVisibilityChange: (visible: boolean) => void;
   onAdditionalParameterChange: (
     id: string,
@@ -142,6 +153,16 @@ export function ComponentElectricalProperties({
                 }
                 checked={referenceVisible}
                 onChange={onReferenceVisibilityChange}
+              />
+            ) : null}
+            {referenceToggleable && referencePrefix ? (
+              <DisplayToggle
+                label={`Prefix ${referencePrefix}`}
+                checked={!referencePrefixHidden}
+                disabled={!referenceVisible}
+                help={`Clear this to draw the Reference without its leading ${referencePrefix}. The Reference itself is unchanged, so allocation and the exported netlist keep it.`}
+                testId="reference-prefix-toggle"
+                onChange={(checked) => onReferencePrefixHiddenChange(!checked)}
               />
             ) : null}
             {valueSupported ? (

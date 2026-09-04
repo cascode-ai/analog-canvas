@@ -1078,7 +1078,7 @@ test("carries a manual Value through placement and Q property editing", async ({
   const displayCard = page.locator(".property-display-card");
   await expect(
     displayCard.getByLabel("Component display toggles"),
-  ).toContainText("ReferenceValue");
+  ).toContainText("ReferencePrefix RValue");
   expect(
     await displayCard.evaluate((element) => ({
       columns: getComputedStyle(element).gridTemplateColumns.split(" ").length,
@@ -1091,7 +1091,11 @@ test("carries a manual Value through placement and Q property editing", async ({
   ).toEqual({
     columns: 2,
     height: expect.any(Number),
-    toggleBackgrounds: ["rgba(0, 0, 0, 0)", "rgba(0, 0, 0, 0)"],
+    toggleBackgrounds: [
+      "rgba(0, 0, 0, 0)",
+      "rgba(0, 0, 0, 0)",
+      "rgba(0, 0, 0, 0)",
+    ],
   });
   expect((await displayCard.boundingBox())?.height).toBeLessThan(48);
   await expect(page.getByText("Placement", { exact: true })).toBeVisible();

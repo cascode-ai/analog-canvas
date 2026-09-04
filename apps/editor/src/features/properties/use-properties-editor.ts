@@ -137,6 +137,10 @@ export interface UsePropertiesEditorOptions {
     instanceIds: readonly string[],
     visible: boolean,
   ) => SchematicEdit[];
+  referencePrefixHiddenEdits: (
+    instanceIds: readonly string[],
+    hidden: boolean,
+  ) => SchematicEdit[];
   valueVisibilityEdits: (
     source: SchematicDocument,
     instanceIds: readonly string[],
@@ -505,6 +509,22 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     if (options.transact(edits).ok) {
       options.setStatus(
         `${visible ? "Showing" : "Hiding"} reference labels on ${edits.length} component${edits.length === 1 ? "" : "s"}`,
+      );
+    }
+  };
+
+  const setReferencePrefixHidden = (
+    instanceIds: readonly string[],
+    hidden: boolean,
+  ): void => {
+    const edits = options.referencePrefixHiddenEdits(instanceIds, hidden);
+    if (edits.length === 0) {
+      options.setStatus("Selected components draw no reference prefix");
+      return;
+    }
+    if (options.transact(edits).ok) {
+      options.setStatus(
+        `${hidden ? "Hiding" : "Showing"} the reference prefix on ${edits.length} component${edits.length === 1 ? "" : "s"}`,
       );
     }
   };
@@ -952,6 +972,7 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     updateNetLabelDraft,
     setNetLabelEditorOpen,
     setReferenceLabelsVisible,
+    setReferencePrefixHidden,
     setValueLabelsVisible,
     showSelectedInstanceValue,
     textEditing,
