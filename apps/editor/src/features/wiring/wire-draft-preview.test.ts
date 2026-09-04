@@ -196,12 +196,12 @@ function bothWays(
     commitDocument,
     commitTarget,
     wireSource(commitDocument, sourceEndpoint).netId,
-    {
+    () => ({
       junctionId: "junction-ui-1",
       firstRouteId: "route-a-1",
       secondRouteId: "route-b-1",
       newNetId: "net-ui-1",
-    },
+    }),
   )!;
   expect(to, "the target resolves to a committable endpoint").toBeTruthy();
   const committed = committedCenterline(

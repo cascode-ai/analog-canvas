@@ -65,12 +65,17 @@ export function wireDraftTargetFromSnap(
  * The `WireSource` a target commits as. The preview passes preview identity
  * and the press passes the session's next routing suffix; nothing else about
  * the two calls differs, which is the whole point of having one function.
+ *
+ * `nextIds` is a thunk because an endpoint target needs no identity at all —
+ * the pin is already on the sheet. Taking the ids eagerly would spend a
+ * routing suffix on every press that lands on a pin, and those suffixes name
+ * objects an author can see.
  */
 export function wireSourceForTarget(
   document: SchematicDocument,
   target: WireDraftTarget,
   activeNetId: string | null,
-  ids: WireDraftTargetIds,
+  nextIds: () => WireDraftTargetIds,
 ): WireSource | null {
   switch (target.kind) {
     case "endpoint":
@@ -86,16 +91,18 @@ export function wireSourceForTarget(
         target.point,
         target.segmentIndex,
         document.presentation.grid,
-        ids,
+        nextIds(),
       );
     }
-    case "free":
+    case "free": {
+      const ids = nextIds();
       return createFreeWireAnchor(
         target.point,
         activeNetId ?? ids.newNetId,
         activeNetId === null,
         ids.junctionId,
       );
+    }
   }
 }
 
@@ -221,7 +228,7 @@ export function resolveWireDraftPreview({
     document,
     target,
     source.netId,
-    PREVIEW_TARGET_IDS,
+    () => PREVIEW_TARGET_IDS,
   );
   if (!to) return EMPTY_WIRE_DRAFT_PREVIEW;
   const contacts = wirePassThroughContacts(visibleEndpoints);

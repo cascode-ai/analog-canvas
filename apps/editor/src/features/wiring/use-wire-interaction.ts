@@ -188,7 +188,7 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
       options.document,
       target,
       options.wireSource?.netId ?? null,
-      wireDraftTargetIdsForSuffix(target, options.nextRoutingSuffix()),
+      () => wireDraftTargetIdsForSuffix(target, options.nextRoutingSuffix()),
     );
 
   const commitWire = (candidate: WireSource): void => {
