@@ -32,7 +32,7 @@
   "externalSubcircuitDefinitions": [],
   "id": "project-rejected",
   "name": "Rejected",
-  "schemaVersion": 36,
+  "schemaVersion": 37,
   "source": {
     "dialect": "none",
     "entry": null,

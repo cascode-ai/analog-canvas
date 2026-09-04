@@ -267,10 +267,12 @@ describe("current Agent Circuit API service", () => {
     }
 
     // RichText recursively unfolds into both part documents. Schema 30 added
-    // one safe atomic formula leaf to every top-level RichText projection;
-    // this raised ceiling still guards accidental projection bloat.
+    // one safe atomic formula leaf to every top-level RichText projection, and
+    // schema 37 added the `set_simulation_setup` structure edit, whose
+    // SimulationSetup payload is inlined once (about 2.5 KB); this raised
+    // ceiling still guards accidental projection bloat.
     expect(JSON.stringify(AgentCircuitRequestJsonSchema).length).toBeLessThan(
-      155_000,
+      165_000,
     );
     expect(JSON.stringify(AgentCircuitResponseJsonSchema).length).toBeLessThan(
       180_000,

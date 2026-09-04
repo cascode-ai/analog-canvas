@@ -30,6 +30,7 @@ import {
 } from "./transforms/net-name-provenance.js";
 import { upgradeSchema34To35 } from "./transforms/instance-reference.js";
 import { upgradeSchema35To36 } from "./transforms/instance-reference-annotation.js";
+import { upgradeSchema36To37 } from "./transforms/simulation-setup.js";
 
 describe("schema migrations through hidden Net-name retirement", () => {
   it("keeps each retained historical transform independently usable", () => {
@@ -44,6 +45,7 @@ describe("schema migrations through hidden Net-name retirement", () => {
     const v34 = upgradeSchema33To34(v33);
     const v35 = upgradeSchema34To35(v34);
     const v36 = upgradeSchema35To36(v35);
+    const v37 = upgradeSchema36To37(v36);
 
     expect(v29.schemaVersion).toBe(29);
     expect(v30.schemaVersion).toBe(30);
@@ -52,7 +54,8 @@ describe("schema migrations through hidden Net-name retirement", () => {
     expect(v33.schemaVersion).toBe(33);
     expect(v34.schemaVersion).toBe(34);
     expect(v35.schemaVersion).toBe(35);
-    expect(v36.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
+    expect(v36.schemaVersion).toBe(36);
+    expect(v37.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
   });
 
   it("reports non-rewriting 28→29 through 32→33 upgrades as unchanged", () => {
@@ -76,7 +79,7 @@ describe("schema migrations through hidden Net-name retirement", () => {
     ).toBe(false);
   });
 
-  it("migrates schema 31 through 36 at the project boundary", () => {
+  it("migrates schema 31 through the current schema at the project boundary", () => {
     const current = JSON.parse(
       serializeProject(createEmptyProject("test", "Test")),
     ) as Record<string, unknown>;

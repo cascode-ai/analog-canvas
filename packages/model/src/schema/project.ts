@@ -4,6 +4,7 @@ import { CURRENT_PROJECT_SCHEMA_VERSION, StableIdSchema } from "./common.js";
 import { SourceManifestSchema, SymbolLibraryLockSchema } from "./source.js";
 import { SchematicDocumentSchema } from "./document.js";
 import { CellSymbolPresentationSchema } from "./presentation.js";
+import { SimulationSetupSchema } from "./simulation.js";
 import { reportDuplicateIds } from "./validation.js";
 import { projectCellInterface } from "../cell-interface-projection.js";
 
@@ -41,6 +42,12 @@ export const CircuitProjectSchema = z
       .array(ExternalSubcircuitDefinitionSchema)
       .max(256)
       .default([]),
+    /**
+     * The Project's only persisted simulation authority (ADR 0055). Absent
+     * for every Project that has not authored a setup; a run's results never
+     * land here.
+     */
+    simulation: SimulationSetupSchema.optional(),
   })
   .superRefine((project, context) => {
     const cellNames = new Set<string>();
@@ -123,6 +130,17 @@ export const CircuitProjectSchema = z
         code: "custom",
         message: `Unknown top document: ${project.topDocumentId}`,
         path: ["topDocumentId"],
+      });
+    }
+    const simulationRootId = project.simulation?.input.rootDocumentId;
+    if (
+      simulationRootId !== undefined &&
+      !project.documents.some((document) => document.id === simulationRootId)
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: `Unknown simulation root document: ${simulationRootId}`,
+        path: ["simulation", "input", "rootDocumentId"],
       });
     }
     const documentById = new Map(

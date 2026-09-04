@@ -18,6 +18,28 @@ export const voltageSourceDevice = {
       help: "DC voltage",
       displayRole: "value",
     },
+    // Small-signal stimulus for `.ac` (ADR 0055): printed as `AC <mag> <phase>`
+    // after the DC value. A source with no magnitude stays DC-only.
+    {
+      name: "acMagnitude",
+      label: "AC magnitude",
+      required: false,
+      editor: "text",
+      unitHint: "V",
+      placeholder: "1",
+      help: "Small-signal magnitude for AC analysis; leave empty for a DC-only source",
+      displayRole: "none",
+    },
+    {
+      name: "acPhase",
+      label: "AC phase",
+      required: false,
+      editor: "text",
+      unitHint: "deg",
+      placeholder: "0",
+      help: "Small-signal phase in degrees; printed only with an AC magnitude, 0 when empty",
+      displayRole: "none",
+    },
   ],
   dialects: ["spice", "spectre"],
   capabilities: {

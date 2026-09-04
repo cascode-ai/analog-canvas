@@ -185,6 +185,64 @@ hierarchy, and structural-export behavior. The setup follows the ordinary
 Project save, recovery, Gallery, revision, and undo/redo boundaries; it is not
 stored in a simulation-only sidecar or a second persistence service.
 
+Schema 37 lands the field as the optional `CircuitProject.simulation`, with
+this shape. The structured form is the first one persisted; the raw form joins
+`input` as a second `kind` when it lands, and `tran` joins
+`SimulationAnalysisSpec` when its parameters are persisted.
+
+```ts
+interface SimulationSetup {
+  version: 1;
+  input: {
+    kind: "structured";
+    rootDocumentId: StableId; // the Testbench Cell, a Document of the Project
+    analyses: SimulationAnalysisSpec[]; // non-empty; at most one entry per kind
+    probes: SimulationProbeSpec[]; // ids unique
+    environment: { profileId: string; corner?: string; temperatureC?: number };
+  };
+}
+type SimulationAnalysisSpec =
+  | { kind: "op" }
+  | {
+      kind: "ac";
+      sweep: "dec" | "oct" | "lin";
+      points: number; // positive integer
+      startHz: number; // > 0
+      stopHz: number; // > startHz
+    };
+type SimulationProbeSpec =
+  | {
+      id: StableId;
+      kind: "net-voltage";
+      documentId: StableId;
+      netId: StableId;
+      occurrence: StableId[];
+    }
+  | {
+      id: StableId;
+      kind: "source-current";
+      documentId: StableId;
+      instanceId: StableId;
+      occurrence: StableId[];
+    };
+```
+
+`occurrence` lists the hierarchy Instance ids from the root down to the
+Document that owns the probed object; it is empty when that object is in the
+root itself. `profileId` is the hosted Profile ID (today
+`sky130-core-continuous-ngspice46-v1`). The schema refuses a
+`rootDocumentId` that names no Document of the Project, a repeated analysis
+kind, and duplicate probe ids. Whether a probe's Net or Instance still exists
+is a preparation-time diagnostic, not a schema rule: a Document edit that
+removes a probed Net must never make the Project unsaveable.
+
+The setup is written through the Project structure edit
+`set_simulation_setup` (`{ setup: SimulationSetup | null }`), which replaces
+or clears it whole under the Project `structureRevision`; undo/redo, the
+Agent API's `structureEdits`, and Gallery convergence therefore treat it like
+any other structural change. Deleting the Cell a setup names as its root is
+refused until the setup is cleared or re-rooted.
+
 Prepared decks and bundles are transient execution data. Environment-local
 model paths, run ids, receipts, logs, rawfiles, parsed results, simulator
 outputs, and caches are never persisted in the Project. A raw setup's authored
@@ -295,6 +353,17 @@ Those values are persisted only on the source Instance in the Testbench. A
 Setup or Simulation UI may address and edit that Instance through the ordinary
 typed Project edit path, but must not retain an override or a second copy of
 its source values.
+
+On the voltage-source and current-source descriptors the DC value is `dc` and
+the small-signal stimulus is the optional pair `acMagnitude` (volts or
+amperes) and `acPhase` (degrees). The SPICE printer emits
+`DC <dc> AC <acMagnitude> <acPhase>` for a source that has a magnitude, with
+the phase defaulting to `0` when it is not authored, and exactly `DC <dc>` for
+a source that has none; Spectre prints the same facts as `dc=`, `mag=`, and
+`phase=`. A phase authored without a magnitude has no card to ride on and is
+not printed. The fields are ordinary descriptor parameters, so the Properties
+panel and the Agent's `patch_instance_netlist_parameters` edit them with no
+source-specific code.
 
 `VDD`, `GND`, and Net labels are markers, never energy: a marker does not
 become a source in the deck.
