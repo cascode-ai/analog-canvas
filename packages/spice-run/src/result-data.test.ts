@@ -234,7 +234,7 @@ describe("a transient run", () => {
     // produced, it reproduces the file's v(in) column to the last bit at all
     // 79 points — which it could not do if any time had been reconstructed.
     for (const [index, time] of analysis.timeSeconds.entries()) {
-      expect(vin.values[index]).toBe(pulseVolts(time));
+      expect(vin.value[index]).toBe(pulseVolts(time));
     }
 
     // The grid a stride-assuming reader would build instead: it puts the
@@ -245,7 +245,7 @@ describe("a transient run", () => {
     );
     expect(reconstructed[1]).toBeGreaterThan(5e-5);
     expect(pulseVolts(reconstructed[1]!)).toBe(1);
-    expect(vin.values[1]).toBe(0.01);
+    expect(vin.value[1]).toBe(0.01);
   });
 
   it("keeps every point's current consistent with Ohm's law on R1", () => {
@@ -254,12 +254,12 @@ describe("a transient run", () => {
     const vout = probe(analysis, "v(out)");
     const current = probe(analysis, "i(v1)");
     for (let index = 0; index < analysis.timeSeconds.length; index += 1) {
-      const expected = -(vin.values[index]! - vout.values[index]!) / R1;
+      const expected = -(vin.value[index]! - vout.value[index]!) / R1;
       if (expected === 0) {
-        expect(current.values[index]).toBe(0);
+        expect(current.value[index]).toBe(0);
         continue;
       }
-      expect(relative(current.values[index]!, expected)).toBeLessThan(1e-12);
+      expect(relative(current.value[index]!, expected)).toBeLessThan(1e-12);
     }
   });
 
@@ -282,7 +282,7 @@ describe("a transient run", () => {
     let worst = 0;
     for (const point of domain) {
       const ideal = 1 - Math.exp(-point.time / TAU);
-      worst = Math.max(worst, relative(vout.values[point.index]!, ideal));
+      worst = Math.max(worst, relative(vout.value[point.index]!, ideal));
     }
     expect(worst).toBeLessThan(1e-3);
     // Measured 4.76e-4, and the residual has two identifiable causes with
@@ -305,7 +305,7 @@ describe("a transient run", () => {
     expect(deficit).toBe(5e-7);
     for (const [index, time] of analysis.timeSeconds.entries()) {
       if (time < 1e-6 || time > 1e-5) continue;
-      const signed = ideal(time) - vout.values[index]!;
+      const signed = ideal(time) - vout.value[index]!;
       expect(relative(signed, deficit)).toBeLessThan(0.05);
     }
 
@@ -314,10 +314,10 @@ describe("a transient run", () => {
     // end of the run the output is ABOVE the ideal curve, which the rise time
     // alone can never produce.
     const last = analysis.timeSeconds.length - 1;
-    const overshoot = vout.values[last]! - ideal(analysis.timeSeconds[last]!);
+    const overshoot = vout.value[last]! - ideal(analysis.timeSeconds[last]!);
     expect(overshoot).toBeGreaterThan(0);
     expect(
-      relative(vout.values[last]!, ideal(analysis.timeSeconds[last]!)),
+      relative(vout.value[last]!, ideal(analysis.timeSeconds[last]!)),
     ).toBeLessThan(1e-4);
   });
 });
@@ -342,9 +342,10 @@ describe("a run that produced no numbers", () => {
 
   it("is a failure even when the simulator exited zero and logged normally", () => {
     // The measured shape of this trap: ngspice returns 0, prints a plausible
-    // batch log, and leaves nothing behind. Read as a success it reaches the
-    // author as a blank chart with no explanation, so the reading's own
-    // diagnostics carry it into the outcome the rest of the pipeline sees.
+    // batch log, and leaves nothing behind. Since #572 an exit code is not a
+    // verdict at all, so nothing about the process can catch this -- only the
+    // rawfile can. The reading's own error diagnostic is what carries it into
+    // the outcome the rest of the pipeline sees.
     const log = [
       "Circuit: * rc low pass",
       "",
@@ -358,14 +359,13 @@ describe("a run that produced no numbers", () => {
       classifySimulationOutcome(readNgspiceDiagnostics(log), {
         timedOut: false,
         timeoutMs: 30_000,
-        exitCode: 0,
       }),
     ).toEqual({ status: "completed" });
 
     expect(
       classifySimulationOutcome(
         [...readNgspiceDiagnostics(log), ...reading.diagnostics],
-        { timedOut: false, timeoutMs: 30_000, exitCode: 0 },
+        { timedOut: false, timeoutMs: 30_000 },
       ),
     ).toEqual({ status: "failed" });
   });
@@ -463,7 +463,7 @@ describe("CSV derived from the same parse", () => {
 
     const vout = analysis.probes.find((probe) => probe.name === "v(out)")!;
     const column = lines.slice(1).map((line) => Number(line.split(",")[2]));
-    expect(column).toEqual([...vout.values]);
+    expect(column).toEqual([...vout.value]);
   });
 
   it("quotes a field that would otherwise split a row", () => {

@@ -70,7 +70,13 @@ export interface AcResult {
 }
 
 export interface TransientProbe extends SimulationProbe {
-  readonly values: readonly number[];
+  /**
+   * Named `value` to match the frozen result contract in
+   * `docs/specs/simulation.md`, where an operating point's scalar and a
+   * transient's series carry the same field name and the analysis tag is what
+   * distinguishes them.
+   */
+  readonly value: readonly number[];
 }
 
 export interface TransientResult {
@@ -302,7 +308,7 @@ function readTransient(plot: RawfilePlot): PlotReading {
   const probes: TransientProbe[] = [];
   for (const vector of plot.vectors) {
     if (vector === axis) continue;
-    probes.push({ ...probeOf(vector), values: vector.real });
+    probes.push({ ...probeOf(vector), value: vector.real });
   }
   return {
     analysis: {
@@ -395,7 +401,7 @@ function transientRows(analysis: TransientResult): string[][] {
     // happened.
     ...analysis.timeSeconds.map((time, point) => {
       const row = [csvNumber(time)];
-      for (const probe of analysis.probes) row.push(cell(probe.values, point));
+      for (const probe of analysis.probes) row.push(cell(probe.value, point));
       return row;
     }),
   ];

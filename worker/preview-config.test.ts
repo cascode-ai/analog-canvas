@@ -117,6 +117,22 @@ describe("the preview channel configuration (ADR 0057)", () => {
     }
   });
 
+  it("builds the simulator on the benchmark image, pinned by digest", () => {
+    // Simulator and models byte-identical to what analog-arena runs, so an
+    // acceptance disagreement can only mean our export is wrong (#551); and
+    // the continuous library has no device-width ceiling.
+    const dockerfile = readFileSync(
+      resolve(process.cwd(), "containers/ngspice/Dockerfile"),
+      "utf8",
+    );
+    expect(dockerfile).toMatch(
+      /^ARG BASE_IMAGE=ghcr\.io\/arcadia-1\/circuit-bench-sky130-ngspice@sha256:[0-9a-f]{64}$/mu,
+    );
+    expect(dockerfile).toMatch(/^FROM \$\{BASE_IMAGE\}$/mu);
+    // No second simulator installed over the pinned one.
+    expect(dockerfile).not.toMatch(/apt-get install[^\n]*\bngspice\b/u);
+  });
+
   it("runs the Worker on every path so noindex and robots reach the shell", () => {
     // The stamp and the robots answer live in the Worker; a path the asset
     // layer answers alone never carries them. The first live verification

@@ -400,20 +400,60 @@ export function readNgspiceDiagnostics(output: string): SimulationDiagnostic[] {
 }
 
 /**
+ * The diagnostic a non-zero exit deserves, or null when the exit says nothing.
+ *
+ * ngspice's exit status is not a verdict on the circuit. Version 39 exits
+ * non-zero after a batch pass that has already run the author's `.control`
+ * block and printed every value asked for, because that pass then finds no
+ * `.plot`/`.print`/`.fourier` card and says so; version 46 exits 0 for the
+ * identical deck. So the status varies with the build, not with the run.
+ *
+ * It is still worth reporting. A caller that ignored it entirely would hide
+ * the one clue available when a run goes wrong in a way nothing printed.
+ */
+export function describeExitStatus(
+  exitCode: number | null,
+): SimulationDiagnostic | null {
+  if (exitCode === null || exitCode === 0) return null;
+  return {
+    severity: "warning",
+    text:
+      `The simulator exited with code ${exitCode}. Some builds of ngspice do ` +
+      `this after a run that produced everything asked of it, so check the ` +
+      `results below before treating it as a problem.`,
+  };
+}
+
+/**
  * The outcome, from the diagnostics rather than the exit status — except for
  * a timeout, which only the caller can know about.
+ *
+ * The exit status was once enough on its own to fail a run, which discarded
+ * correct answers: on 2026-09-04 every simulation the hosted container ran
+ * came back `failed` with an empty `diagnostics` array while the response
+ * carried the right values, including a five-transistor OTA whose operating
+ * point matched ngspice 46 with a full PDK to every digit (#568). Nothing had
+ * gone wrong; ngspice 39 exits non-zero for its own reasons.
+ *
+ * A run therefore fails only when something said so. That is a deliberate
+ * trade: an exit code that is the sole evidence of a real failure now reports
+ * `completed` beside the warning from `describeExitStatus`, which is the
+ * lesser harm — the author sees the fact and their results, instead of a
+ * refusal with no reason attached. It also makes `failed` with no diagnostic
+ * unreachable rather than merely unlikely.
+ *
+ * The stronger criterion is whether the requested measurements came back, and
+ * that needs the result parsing this cannot see yet (F3-1). It should replace
+ * this reading rather than sit beside it.
  */
 export function classifySimulationOutcome(
   diagnostics: readonly SimulationDiagnostic[],
-  options: { timedOut: boolean; timeoutMs: number; exitCode: number | null },
+  options: { timedOut: boolean; timeoutMs: number },
 ): SimulationOutcome {
   if (options.timedOut) {
     return { status: "timed-out", timeoutMs: options.timeoutMs };
   }
-  if (
-    diagnostics.some((diagnostic) => diagnostic.severity === "error") ||
-    (options.exitCode !== null && options.exitCode !== 0)
-  ) {
+  if (diagnostics.some((diagnostic) => diagnostic.severity === "error")) {
     return { status: "failed" };
   }
   if (diagnostics.some((diagnostic) => diagnostic.droppedInput)) {

@@ -14,106 +14,34 @@ import { describe, expect, it } from "vitest";
  */
 const workflow = readFileSync(".github/workflows/cloudflare.yml", "utf8");
 
-describe("staging before production", () => {
-  it("puts a staging job in front of the production one", () => {
-    expect(workflow).toContain("Deploy staging");
-    expect(workflow).toMatch(
-      /deploy:\s*\n\s*name: Deploy Worker\s*\n\s*needs: staging/u,
-    );
+describe("production deploys only from a release (ADR 0057)", () => {
+  it("is triggered by a version tag or a named commit, never by a merge", () => {
+    expect(workflow).toMatch(/tags:\s*\n\s*- "v\*"/u);
+    expect(workflow).not.toMatch(/branches:\s*\n\s*- main/u);
+    expect(workflow).toMatch(/workflow_dispatch:\s*\n\s*inputs:\s*\n\s*sha:/u);
   });
 
-  it("does not block production when staging is not provisioned yet", () => {
-    // This lands before the Cloudflare environment exists. If an unprovisioned
-    // staging blocked deploys, it would jam the pipeline for everyone — the
-    // exact failure this repository spent a night recovering from.
-    expect(workflow).toContain("Staging is not provisioned yet");
-    expect(workflow).toMatch(/needs\.staging\.result == 'success'/u);
+  it("deploys the named commit, not a branch head", () => {
+    expect(workflow).toContain("ref: ${{ inputs.sha || github.ref }}");
+    expect(workflow).toContain("git rev-parse 'HEAD^{commit}'");
   });
 
-  it("refuses to reach production when staging actually failed", () => {
-    // always() alone would run production regardless. The result check is
-    // what makes staging a gate rather than a decoration.
-    const gate = workflow.slice(workflow.indexOf("needs: staging"));
-    expect(gate).toContain("always() && needs.staging.result == 'success'");
+  it("refuses a commit the preview never proved", () => {
+    // The preview is the one place a commit is looked at before the public
+    // sees it. A release of a commit with no green preview deploy is the
+    // 2026-09-01 outage waiting to happen again.
+    expect(workflow).toContain("The release must have a green preview deploy");
+    expect(workflow).toContain("--workflow deploy-preview.yml");
+    expect(workflow).toContain("--status success");
+    expect(workflow).toContain("No successful preview deploy exists");
   });
 
-  it("checks staging with the same paths production is checked with", () => {
-    const stagingJob = workflow.slice(
-      workflow.indexOf("Verify staging"),
-      workflow.indexOf("deploy:\n"),
-    );
-    for (const path of ["/editor", "/analytics", "mcp-manifest.json"]) {
-      expect(stagingJob).toContain(path);
-    }
-    expect(stagingJob).toContain("must answer 404");
-  });
-
-  it("puts the gate in front of every staging path, not just the API", () => {
-    // The gate runs inside the Worker. Cloudflare's asset layer answers
-    // before the Worker on any path outside `run_worker_first`, so with
-    // production's narrow list staging refused anonymous callers on
-    // `/api/*` and served them `/` and `/editor` at 200 -- the entire
-    // unreleased application, public on a workers.dev hostname. Production
-    // has no gate to lose, so it keeps the narrow list; staging must not.
-    const config = readFileSync("wrangler.jsonc", "utf8");
-    const stagingBlock = config.slice(config.indexOf('"staging": {'));
-    expect(stagingBlock).toMatch(/"run_worker_first":\s*true/u);
-    expect(stagingBlock).not.toMatch(/"run_worker_first":\s*\[/u);
-  });
-
-  it("keeps staging off production's domain", () => {
-    // `routes` is an inheritable wrangler key. Without an override the staging
-    // environment inherits production's custom domain and binds it to the
-    // staging Worker -- which then refuses anonymous callers, so the live site
-    // answers its own script requests with 401 and users get a blank page.
-    // That happened on 2026-09-04. An empty array is the override; omitting
-    // the key inherits.
-    const config = readFileSync("wrangler.jsonc", "utf8");
-    const stagingBlock = config.slice(config.indexOf('"staging": {'));
-    expect(stagingBlock).toMatch(/"routes":\s*\[\s*\]/u);
-  });
-
-  it("follows the shell to its own script before calling production healthy", () => {
-    // Every path check passed at 200 on 2026-09-04 while the shell's script
-    // answered 401, so the site was blank and the pipeline saw health. A
-    // reachable shell is not a working page.
-    expect(workflow).toContain("references no script; it cannot boot");
-    expect(workflow).toMatch(/200\*javascript\*/u);
-  });
-
-  it("waits for the gate to be live before believing what staging says", () => {
-    // Putting the secret publishes a new version; the old one answers for a
-    // few seconds after. Verifying across that window fails staging, and a
-    // failed staging freezes production deploys for the whole repository.
-    expect(workflow).toContain("Wait for the access key to take effect");
-    expect(workflow).toMatch(/The gate is live/u);
-  });
-
-  it("fails the deploy if staging is reachable without the key", () => {
-    // A staging anyone can open is a second public site showing half-built
-    // work. Being unlisted is not being private.
-    expect(workflow).toContain("Staging must refuse an anonymous caller");
-  });
-
-  it("fails staging when its deploy changed what the public site serves", () => {
-    const stagingJob = workflow.slice(
-      workflow.indexOf("  staging:\n"),
-      workflow.indexOf("  deploy:\n"),
-    );
-    const before = stagingJob.indexOf(
-      "Record how the production domain answers",
-    );
-    const deploy = stagingJob.indexOf("deploy --env staging");
-    const after = stagingJob.indexOf(
-      "Production domain still answers as before",
-    );
-    expect(before).toBeGreaterThan(-1);
-    expect(after).toBeGreaterThan(-1);
-    // Captured before the deploy and compared after it; the other way round
-    // the comparison could only ever agree with itself.
-    expect(before).toBeLessThan(deploy);
-    expect(deploy).toBeLessThan(after);
-    expect(stagingJob).toContain("must not have taken the production domain");
+  it("has no staging job and deploys no environment", () => {
+    // env.staging inherited the production custom domain on 2026-09-03 and
+    // took the public site down; the preview replaced it (ADR 0057).
+    expect(workflow).not.toContain("Deploy staging");
+    expect(workflow).not.toContain("--env");
+    expect(workflow).not.toContain("STAGING_ACCESS_KEY");
   });
 });
 
