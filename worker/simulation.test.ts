@@ -99,9 +99,7 @@ describe("simulation route", () => {
     expect(seen.deck).toContain(NETLIST);
     // Our own contribution is the model selection and nothing analysis-shaped.
     const ours = seen.deck!.replace(TESTBENCH, "").replace(NETLIST, "");
-    expect(ours).toContain(
-      '.lib "/opt/sky130/sky130A/libs.tech/ngspice/sky130.lib.spice" tt',
-    );
+    expect(ours).toContain('.lib "/opt/sky130/continuous/sky130.lib.spice" tt');
     expect(ours).not.toMatch(/^\s*\.include\b/mu);
     expect(ours).not.toMatch(/\.ac\b|\.dc\b|\.tran\b|\.control/iu);
   });

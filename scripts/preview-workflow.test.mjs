@@ -20,12 +20,13 @@ describe("the preview deploy", () => {
     expect(preview).toContain("analog-canvas-preview.tokenzhang.com");
   });
 
-  it("pins the model files it bakes into the container image", () => {
-    expect(preview).toMatch(/SKY130_TAG: sky130-[0-9a-f]{40}/u);
-    expect(preview).toMatch(/SKY130_COMMON_SHA256: [0-9a-f]{64}/u);
-    expect(preview).toMatch(/SKY130_FD_PR_SHA256: [0-9a-f]{64}/u);
-    expect(preview).toContain("sha256sum --check");
-    expect(preview).toContain("sky130.lib.spice");
+  it("stages nothing for the image: the benchmark base image carries the models", () => {
+    // The Dockerfile's FROM is the environment lock (see
+    // worker/preview-config.test.ts); the workflow has no model download
+    // to pin or verify any more.
+    expect(preview).not.toContain("SKY130_TAG");
+    expect(preview).not.toContain("sha256sum");
+    expect(preview).not.toContain("volare");
   });
 
   it("verifies what a preview is for", () => {
