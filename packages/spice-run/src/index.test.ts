@@ -4,6 +4,7 @@ import {
   buildSimulationDeck,
   deckNeedsModelLibrary,
   classifySimulationOutcome,
+  describeExitStatus,
   createSimulationEnvironmentMetadata,
   createSimulationInputMetadata,
   DEFAULT_SIMULATION_TIMEOUT_MS,
@@ -76,7 +77,6 @@ describe("ngspice output reading", () => {
       classifySimulationOutcome(diagnostics, {
         timedOut: false,
         timeoutMs: 30_000,
-        exitCode: 0,
       }),
     ).toEqual({ status: "completed-with-dropped-input" });
   });
@@ -93,7 +93,6 @@ describe("ngspice output reading", () => {
       classifySimulationOutcome(diagnostics, {
         timedOut: false,
         timeoutMs: 30_000,
-        exitCode: 1,
       }),
     ).toEqual({ status: "failed" });
   });
@@ -105,9 +104,67 @@ describe("ngspice output reading", () => {
       classifySimulationOutcome(diagnostics, {
         timedOut: false,
         timeoutMs: 30_000,
-        exitCode: 0,
       }),
     ).toEqual({ status: "completed" });
+  });
+
+  /**
+   * Captured from the hosted container (ngspice 39) on 2026-09-04. The author's
+   * testbench was a `.control` block, which ran and printed every value asked
+   * for -- and then the batch pass found no `.plot`/`.print` card and said so,
+   * and the process exited non-zero. ngspice 46 exits 0 for the same deck.
+   */
+  const CONTROL_BLOCK_OUTPUT = `
+Circuit: * Analog Canvas simulation deck
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+v(vout) = 7.661889e-01
+v(ibias) = 6.018893e-01
+
+Note: No ".plot", ".print", or ".fourier" lines; no simulations run
+`;
+
+  it("does not fail a run that printed its results, whatever ngspice exited", () => {
+    // #568: every hosted simulation came back failed while the response
+    // carried the right values, because the exit status alone was enough to
+    // condemn it. That status varies with the ngspice build, not with the run.
+    const diagnostics = readNgspiceDiagnostics(CONTROL_BLOCK_OUTPUT);
+    expect(
+      diagnostics.some((diagnostic) => diagnostic.severity === "error"),
+    ).toBe(false);
+    expect(
+      classifySimulationOutcome(diagnostics, {
+        timedOut: false,
+        timeoutMs: 30_000,
+      }),
+    ).toEqual({ status: "completed" });
+  });
+
+  it("reports the odd exit rather than hiding it", () => {
+    // Not failing on it is not the same as pretending it did not happen.
+    const noted = describeExitStatus(1);
+    expect(noted?.severity).toBe("warning");
+    expect(noted?.text).toContain("exited with code 1");
+    expect(describeExitStatus(0)).toBeNull();
+    expect(describeExitStatus(null)).toBeNull();
+  });
+
+  it("never fails without saying why", () => {
+    // A refusal with an empty diagnostics array leaves the author nothing to
+    // act on and the next debugger nothing to follow. Failure is reachable
+    // only through an error diagnostic now, so the pairing cannot recur.
+    const outcome = classifySimulationOutcome([], {
+      timedOut: false,
+      timeoutMs: 30_000,
+    });
+    expect(outcome.status).not.toBe("failed");
+
+    const silent = classifySimulationOutcome(
+      [{ severity: "error", text: "The simulator produced no output." }],
+      { timedOut: false, timeoutMs: 30_000 },
+    );
+    expect(silent).toEqual({ status: "failed" });
   });
 
   it("says a timeout is a timeout, not a broken circuit", () => {
@@ -117,7 +174,6 @@ describe("ngspice output reading", () => {
       classifySimulationOutcome(readNgspiceDiagnostics(CLEAN_OUTPUT), {
         timedOut: true,
         timeoutMs: 30_000,
-        exitCode: null,
       }),
     ).toEqual({ status: "timed-out", timeoutMs: 30_000 });
   });

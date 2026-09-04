@@ -21,6 +21,7 @@ import {
   classifySimulationOutcome,
   createSimulationEnvironmentMetadata,
   createSimulationInputMetadata,
+  describeExitStatus,
   readNgspiceDiagnostics,
   resolveTimeoutMs,
   simulationConfigurationMetadata,
@@ -186,13 +187,26 @@ export async function simulateLocally(
       };
     }
     const diagnostics = readNgspiceDiagnostics(run.log);
+    // The rule the hosted route has carried since #566, which this path had
+    // been getting only by accident of the exit code: a batch run always
+    // prints at least its banner, so silence is not a result. It has to be
+    // stated here now that the exit code no longer decides anything.
+    if (!run.timedOut && run.log.trim().length === 0) {
+      diagnostics.push({
+        severity: "error",
+        text: "The simulator produced no output, so this run has no result.",
+      });
+    }
+    // Reported, never decisive: see describeExitStatus. Pushed after the
+    // check above so a silent run still reads as the error it is.
+    const exitStatus = describeExitStatus(run.exitCode);
+    if (exitStatus) diagnostics.push(exitStatus);
     return {
       kind: "ran",
       result: {
         outcome: classifySimulationOutcome(diagnostics, {
           timedOut: run.timedOut,
           timeoutMs,
-          exitCode: run.exitCode,
         }),
         diagnostics,
         log: run.log,
