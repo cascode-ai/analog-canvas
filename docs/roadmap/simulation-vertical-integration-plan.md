@@ -84,9 +84,23 @@ flowchart TD
 | simulator 向量名与电路对象映射 | 本次编译产物，使用现有 ObjectLocator / HierarchyFrame | 新的永久 Net ID、显示文本推断 |
 | 数值、日志、运行身份 | 临时 SimulationResult | Net/Instance 持久化字段 |
 
+这里有四条不能在实现阶段重新解释的边界：
+
+1. `SimulationSetup.rootDocumentId` 唯一指向 Testbench Cell；DUT 是该 TB
+   中普通的 project-local subcircuit Instance，不存在第二个 DUT root。
+   `prepare` 从 Setup 读取 root，不接受同级参数覆盖它。
+2. 激励源的连接和 DC/AC/PULSE/SIN 参数只保存在 TB 的 V/I source
+   Instance；Simulation UI 复用普通 typed edit 修改该 Instance，Setup
+   不保存 override 或副本。
+3. runId、receipt 和“最近运行”引用属于临时 Run Resource 或会话缓存，
+   不进入 Project。输入是否过期由 prepared identity/input revision 判断。
+4. Setup 只保存 `environmentProfileId` 与允许的 corner/temperature 选择；
+   Profile manifest、模型路径、simulator digest 和实测 fingerprint 分别由
+   部署合同、prepared artifact 与 run result 承担。
+
 ### 保存建议
 
-Testbench Cell 自然随现有 Project 保存。建议 Project 加一个可选 `SimulationSetup`，首版一个 setup 即可；仅存 TB root、分析、观测引用、环境 ID/允许的 corner、温度。结果、服务器路径、runId、运行缓存不进入 Project。
+Testbench Cell 自然随现有 Project 保存。建议 Project 加一个可选 `SimulationSetup`，首版一个 setup 即可；仅存 TB root、分析、观测引用、environment Profile ID、允许的 corner 和温度。激励参数仍随 TB source Instance 保存；结果、服务器路径、runId、最近运行引用和运行缓存不进入 Project。
 
 这是一个明确的最小持久化扩展，而不是声称完全不改 schema。目前代码 schema 为 36；执行时按最新版本安排，不预先抢占下一版本。与 Cloud Save、project-protocol、Gallery 导入/保存、JSON 导出/重载一起验证；缺失 setup 的工程行为不变。不要为省一次 schema 变更再创造 sidecar 电路文件和第二套保存服务。
 
@@ -147,9 +161,9 @@ Agent relay 与客户端目前默认 30 秒，runner 上限 120 秒。因此采�
 
 ### 5.1 分析根和实际顶层执行
 
-`analyzeDesignNetlist` 当前以 `project.topDocumentId` 为唯一根。增加明确的只读 `rootDocumentId` 选项，遍历该根可达层次，不修改工程 top，不复制 DUT。
+`analyzeDesignNetlist` 当前以 `project.topDocumentId` 为唯一根。增加明确的只读 `rootDocumentId` 选项，遍历该根可达层次，不修改工程 top，不复制 DUT。该底层选项由 prepare 从 `SimulationSetup.rootDocumentId` 传入；公开 prepare 调用不再接受另一个可覆盖 Setup 的 root。
 
-当前 printer 输出所有 `.subckt` 定义，只有定义不会执行 DUT。保留结构 exporter 的这个契约；编排器额外生成且只生成一次 Testbench 根实例。首版建议 TB root 没有外部 formal pins，所有源/负载在 TB 内；如允许外部 pins，必须另有明确根绑定，不能自动接地或悬空后仍声称正确。
+当前 printer 输出所有 `.subckt` 定义，只有定义不会执行 DUT。保留结构 exporter 的这个契约；编排器额外生成且只生成一次 Testbench 根实例。DUT 是该 TB 中按现有 hierarchy binding 放置的普通 subcircuit Instance，不是第二个 root。首版建议 TB root 没有外部 formal pins，所有源/负载在 TB 内；如允许外部 pins，必须另有明确根绑定，不能自动接地或悬空后仍声称正确。
 
 顶层 DUT symbol 直接从现有 formal interface 派生并放入 TB。所谓“symbol 导出”首先是内部复用，不必经过文件导出/重导入。单独 symbol 文件格式不是本次前置条件。
 
