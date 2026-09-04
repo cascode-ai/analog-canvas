@@ -126,6 +126,48 @@ describe("simulation route", () => {
     });
   });
 
+  it("never reports a silent or signal-killed run as completed", async () => {
+    // Measured 2026-09-04: the kernel killed ngspice mid-corner-load on a
+    // 1 GiB instance; the harness reported exit 0 and an empty log, and the
+    // route said "completed". A run with no output has no result.
+    const silent = await routeSimulationRequest(
+      post({ netlist: NETLIST, testbench: TESTBENCH }),
+      stubRunner({ log: "", exitCode: 0, timedOut: false, durationMs: 45295 }),
+    );
+    const silentBody = (await silent!.json()) as {
+      outcome: { status: string };
+      diagnostics: { severity: string; text: string }[];
+    };
+    expect(silentBody.outcome.status).toBe("failed");
+    expect(silentBody.diagnostics[0]?.text).toContain("no output");
+
+    const killed = await routeSimulationRequest(
+      post({ netlist: NETLIST, testbench: TESTBENCH }),
+      stubRunner({
+        log: "",
+        exitCode: 128,
+        signal: "SIGKILL",
+        timedOut: false,
+        durationMs: 45295,
+      }),
+    );
+    const killedBody = (await killed!.json()) as {
+      outcome: { status: string };
+      diagnostics: { severity: string; text: string }[];
+    };
+    expect(killedBody.outcome.status).toBe("failed");
+    expect(killedBody.diagnostics[0]?.text).toContain("SIGKILL");
+
+    // A timeout stays a timeout, whatever the log holds.
+    const late = await routeSimulationRequest(
+      post({ netlist: NETLIST, testbench: TESTBENCH, timeoutMs: 5000 }),
+      stubRunner({ log: "", exitCode: null, timedOut: true, durationMs: 5010 }),
+    );
+    expect(
+      ((await late!.json()) as { outcome: { status: string } }).outcome.status,
+    ).toBe("timed-out");
+  });
+
   it("uses the deployment's explicit Sky130 path and section", async () => {
     const seen: { deck?: string; timeoutMs?: number } = {};
     const env = stubRunner(

@@ -169,6 +169,7 @@ export async function routeSimulationRequest(
   const raw = (await containerResponse.json()) as {
     log?: unknown;
     exitCode?: unknown;
+    signal?: unknown;
     timedOut?: unknown;
     durationMs?: unknown;
     environment?: unknown;
@@ -187,9 +188,26 @@ export async function routeSimulationRequest(
   }
   const log = typeof raw.log === "string" ? raw.log : "";
   const diagnostics = readNgspiceDiagnostics(log);
+  const timedOut = raw.timedOut === true;
+  // A simulator that died by a signal, or that printed nothing at all,
+  // did not complete: a batch run always prints at least its banner and
+  // the analysis it did. Exit 0 with no output was measured on 2026-09-04
+  // when the kernel killed ngspice mid-corner-load; it must never read as
+  // success (ADR 0055 amendment, item 10).
+  if (!timedOut && typeof raw.signal === "string" && raw.signal) {
+    diagnostics.push({
+      severity: "error",
+      text: `The simulator was terminated by ${raw.signal} before it finished.`,
+    });
+  } else if (!timedOut && log.trim().length === 0) {
+    diagnostics.push({
+      severity: "error",
+      text: "The simulator produced no output, so this run has no result.",
+    });
+  }
   const result: SimulationResult = {
     outcome: classifySimulationOutcome(diagnostics, {
-      timedOut: raw.timedOut === true,
+      timedOut,
       timeoutMs,
       exitCode: typeof raw.exitCode === "number" ? raw.exitCode : null,
     }),
