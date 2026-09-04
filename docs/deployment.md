@@ -87,7 +87,7 @@ and deployed by `.github/workflows/deploy-preview.yml` on every merge to
 preview is verified live. The preview is public but `noindex`, has no login,
 reads the gallery through the public site's own API with no cookie, binds
 no Durable Object of the production script, refuses every gallery and
-Cloud Project write, and is where the simulation container is bound first. Nothing in the preview file inherits from
+Cloud Project write, and is where the simulation feature lands first. Nothing in the preview file inherits from
 `wrangler.jsonc`, which is the whole point of it being a separate file. The
 staging environment below is retired once production moves to release-only
 deploys.
@@ -95,7 +95,7 @@ deploys.
 ## Releasing to production
 
 Every merge to `main` deploys the **preview** (`deploy-preview.yml`) and
-verifies it, container and all. Production deploys only from a release, and
+verifies it, simulation included. Production deploys only from a release, and
 the release workflow refuses a commit that has no successful preview deploy
 behind it. Two ways to release a commit `<sha>` that the preview has proved:
 
@@ -112,37 +112,34 @@ verify, tag that commit. Work on `main` that is not ready for the public
 ships dark behind the channel flag (`ICM_CHANNEL`), never on a long-lived
 branch.
 
-The simulation container is bound on the preview (`wrangler.preview.jsonc`)
-and not yet in `wrangler.jsonc`; production gains it when a release carries
-that configuration change, like any other.
+The preview's simulator is configured in `wrangler.preview.jsonc` and not
+yet in `wrangler.jsonc`; production gains it when a release carries that
+configuration change, like any other.
 
 ### Where the simulator runs
 
 The Worker never runs ngspice itself; it hands the deck to a harness over
-HTTP (`worker/simulation.ts`). Two places can hold that harness, and the
-image is the same in both — `containers/ngspice/Dockerfile`, pinned to the
-benchmark base image by digest — so the numbers do not depend on the choice:
+HTTP (`worker/simulation.ts`). The harness is the image
+`containers/ngspice/Dockerfile`, pinned to the benchmark base image by
+digest, and it runs on **an operator-run host**, named by the var
+`SIMULATION_UPSTREAM_URL`: Docker behind a Cloudflare Tunnel, so the host
+opens no inbound port and its only public name is the tunnel's. It answers
+`/run` only to the bearer token in its `SIMULATION_ACCESS_TOKEN`; the Worker
+presents the same value from its secret `SIMULATION_UPSTREAM_TOKEN`, which
+`deploy-preview.yml` sets from the repository secret of the same name on
+every deploy.
 
-- **A Cloudflare Container**, bound as `NGSPICE`. One `standard-2` instance
-  (1 vCPU, 6 GiB) that sleeps ten minutes after its last request. Billed per
-  second while awake, on top of the Workers Paid plan.
-- **An operator-run host**, named by the var `SIMULATION_UPSTREAM_URL`. The
-  harness runs there under Docker behind a Cloudflare Tunnel, so the host
-  opens no inbound port and its only public name is the tunnel's. It answers
-  `/run` only to the bearer token in its `SIMULATION_ACCESS_TOKEN`; the
-  Worker presents the same value from its secret `SIMULATION_UPSTREAM_TOKEN`,
-  which `deploy-preview.yml` sets from the repository secret of the same name
-  on every deploy.
-
-Preview registers both executors at once. `SIMULATION_DEFAULT_EXECUTOR` chooses
-the normal route (`operator-host` today), while a diagnostic request may name
-`cloudflare-container` or `operator-host` explicitly. The Worker never retries
-one executor on the other: an unavailable target is reported as infrastructure
-failure instead of hiding it behind fallback. Every response reports the
-selected transport in `execution.target`; `metadata.environment` continues to
-identify the image, simulator, and model bytes that actually performed the
-run. The Preview deploy sends the same divider through both explicit targets
-and requires the numerical result and environment fingerprint to agree.
+Until 2026-09-04 the preview also bound a Cloudflare Container (`NGSPICE`,
+one `standard-2` instance billed per second while awake) as a second,
+explicitly selectable executor, and every deploy woke it to prove the two
+agreed. It was a cold spare — switching to it meant editing the config and
+redeploying — that cost about one GiB-hour per merge to keep verified, so
+the owner had it removed (migration `v6` deletes the class). The Worker still
+understands `executorTarget: "cloudflare-container"` and answers it "not
+configured"; it never routes a request to another executor than the one
+named. `execution.target` reports the transport that ran, and
+`metadata.environment` identifies the image, simulator, and model bytes that
+performed the run.
 
 The current operator host is the Frankfurt machine, under its `analogcanvas`
 account, in `~/analog-canvas-sim/`. Its desired state is not private machine
@@ -174,10 +171,9 @@ exit would become a permanent outage. The host has 32 cores; the harness still
 runs one job at a time, by its own slot, until the executor contract gains a
 concurrency count.
 
-Either way `metadata.environment.executor` reads `hosted-container`: the
-harness is the same container image, and the fingerprint identifies it, not
-the machine underneath. `execution.target` is the separate transport identity
-that distinguishes Cloudflare from the operator host.
+`metadata.environment.executor` reads `hosted-container`: the harness is a
+container image, and the fingerprint identifies it, not the machine
+underneath. `execution.target` is the separate transport identity.
 
 ### The retired staging environment
 

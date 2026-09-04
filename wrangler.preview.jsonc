@@ -26,11 +26,15 @@
     // no read-only mode and this Worker runs code production has not
     // accepted yet. Writes never leave this Worker (see channel.ts).
     "ICM_GALLERY_UPSTREAM": "https://analog-canvas.tokenzhang.com",
-    // Preview carries both execution substrates while the simulation
-    // foundation is built. The Worker chooses the default below, and a
-    // diagnostic/acceptance request may name either one explicitly; there is
-    // no automatic fallback after a run starts. Production has neither of
-    // these Preview decisions until a release deliberately promotes them.
+    // Where simulations run: the operator-run host behind its Cloudflare
+    // Tunnel (docs/deployment.md, "Where the simulator runs"). The Worker
+    // presents the host's token from the secret SIMULATION_UPSTREAM_TOKEN.
+    // The preview's Cloudflare Container was removed on 2026-09-04 (migration
+    // v6): a cold spare that had to be woken and paid for on every merge, for
+    // a switch nobody would make without editing this file anyway. A request
+    // that names `cloudflare-container` explicitly is answered "not
+    // configured", never routed elsewhere. Production has none of this until
+    // a release deliberately promotes it.
     "SIMULATION_UPSTREAM_URL": "https://sim-fra.analog-canvas.tokenzhang.com",
     "SIMULATION_DEFAULT_EXECUTOR": "operator-host",
   },
@@ -57,9 +61,6 @@
       // The preview's own accounts: nobody signs in here, and no login
       // provider is configured, so this namespace stays empty by design.
       { "name": "AUTH", "class_name": "AuthDO" },
-      // The simulation container (ADR 0055). Bound here first; production
-      // receives it when a release that carries the feature is promoted.
-      { "name": "NGSPICE", "class_name": "NgspiceContainer" },
     ],
   },
   "migrations": [
@@ -68,24 +69,9 @@
     { "tag": "v3", "new_sqlite_classes": ["AuthDO"] },
     { "tag": "v4", "new_sqlite_classes": ["GalleryDO"] },
     { "tag": "v5", "new_sqlite_classes": ["NgspiceContainer"] },
-  ],
-  "containers": [
-    {
-      "class_name": "NgspiceContainer",
-      "image": "./containers/ngspice/Dockerfile",
-      // The Dockerfile copies the Sky130 model files from pdk/ at the
-      // repository root, which the preview workflow stages before deploying.
-      // .dockerignore keeps everything else out of the build context.
-      "image_build_context": ".",
-      // One running simulator, one person's run at a time; the harness has
-      // to guard its own concurrency. The size was measured, not guessed:
-      // loading the Sky130 tt corner takes about 16 s of CPU on a fast core
-      // (ngspice 46, 2026-09-04), and on "basic" (a quarter core) the first
-      // live run of a resistor divider timed out at 60 s before printing a
-      // line. A full core keeps a model-backed run inside the ceiling.
-      "instance_type": "standard-2",
-      "max_instances": 1,
-    },
+    // The simulator moved to the operator host; the container class, its
+    // namespace, and its billed instance go with this migration.
+    { "tag": "v6", "deleted_classes": ["NgspiceContainer"] },
   ],
   "observability": {
     "enabled": true,

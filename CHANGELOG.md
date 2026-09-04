@@ -31,8 +31,9 @@ ship no templates and infer no intent, because a testbench encodes what you are
 trying to prove and guessing it would produce confident answers to questions
 you never asked.
 
-**Where it runs.** Simulation runs on hosted containers, which means the
-circuit netlist is uploaded to run. If your circuit is not yours to upload, the
+**Where it runs.** Simulation runs on a hosted simulator (the same container
+image, on a server we operate), which means the circuit netlist is uploaded
+to run. If your circuit is not yours to upload, the
 local host runs the same simulation on your own machine against your own PDK
 version, and returns the same results.
 

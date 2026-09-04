@@ -1,10 +1,10 @@
 name: Simulation container
 
-# Nothing else in CI builds this image. The preview deploy builds it, on push
+# Nothing else in CI builds this image. The operator host builds it, on push
 # to main — which is after a merge, so a Dockerfile that does not build takes
-# the preview channel down rather than failing a review. This job is the check
-# that happens first: the image builds, it runs as the account it claims to,
-# nothing a deck can reach is writable, and it still answers a circuit.
+# the preview's simulator down rather than failing a review. This job is the
+# check that happens first: the image builds, it runs as the account it claims
+# to, nothing a deck can reach is writable, and it still answers a circuit.
 
 on:
   pull_request:
@@ -12,7 +12,6 @@ on:
       - "containers/ngspice/**"
       - ".github/workflows/container.yml"
       - ".dockerignore"
-      - "wrangler.preview.jsonc"
   workflow_dispatch:
 
 permissions:
@@ -121,8 +120,8 @@ jobs:
           '
           # A resistor divider, the smallest circuit ngspice can answer for,
           # and one that needs no device model — the models are covered by the
-          # preview deploy, which simulates through the real container on
-          # every merge. What is asked here is whether a deck runs at all
+          # preview deploy, which simulates on the operator host on every
+          # merge. What is asked here is whether a deck runs at all
           # under the account, the limits, and the directory this image gives
           # it, and whether the rawfile it asked for comes back.
           node -e '
