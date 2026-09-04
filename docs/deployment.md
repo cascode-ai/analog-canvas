@@ -134,8 +134,11 @@ benchmark base image by digest — so the numbers do not depend on the choice:
   which `deploy-preview.yml` sets from the repository secret of the same name
   on every deploy. When the var is set the container binding is never woken.
 
-The current operator host is the Frankfurt machine, under its `analogcanvas`
-account, in `~/analog-canvas-sim/`. `bin/up.sh` runs the image with a
+The preview runs its simulations on the operator host: `wrangler.preview.jsonc`
+sets `SIMULATION_UPSTREAM_URL` to `https://sim-fra.analog-canvas.tokenzhang.com`,
+so its container binding stays asleep and costs nothing. The current operator
+host is the Frankfurt machine, under its `analogcanvas` account, in
+`~/analog-canvas-sim/`. `bin/up.sh` runs the image with a
 read-only root filesystem, the run root on a volume the image initialised
 for the run account, no capabilities, a pid limit, 8 CPUs and 16 GiB, on an
 internal Docker network that has no route to the internet; `cloudflared` is

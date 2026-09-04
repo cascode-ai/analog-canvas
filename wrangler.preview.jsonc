@@ -32,7 +32,7 @@
     // container is never woken; the host's token arrives as the Worker
     // secret SIMULATION_UPSTREAM_TOKEN (deploy-preview.yml). See
     // docs/deployment.md, "Where the simulator runs".
-    // "SIMULATION_UPSTREAM_URL": "https://sim-fra.analog-canvas.tokenzhang.com",
+    "SIMULATION_UPSTREAM_URL": "https://sim-fra.analog-canvas.tokenzhang.com",
   },
   "assets": {
     "binding": "ASSETS",
