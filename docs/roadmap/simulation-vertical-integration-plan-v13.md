@@ -4,6 +4,8 @@
 
 历史快照均独立保留并可由 [roadmap 索引](README.md#simulation-plan-history) 查阅。本文件只描述当前目标、合同、边界、owner 和退出条件，不再重复版本变迁；现行产品行为仍以已接受 spec 与 ADR 为准。
 
+> **合入说明（2026-09-04）：** 本方案最初以 `origin/main@a86dac5c`（#570）为实现审查基线；在本分支合入前，#571–#594 中的 rawfile/result、执行隔离、单一模型库、operator-host 和部署修复已经继续进入 `main@35a05434`。因此本文保留完整目标、合同讨论、依赖图和验收边界，但其中对“当前缺口/已有能力”的逐项陈述是当时快照，执行前必须以最新 `main` 复核。第一阶段 MVP 的后续裁剪与未决项记录在 [Issue #585](https://github.com/cascode-ai/analog-canvas/issues/585)；它和本文都不覆盖 accepted spec/ADR，也不把已开始的工作误记为已完成。
+
 ## 0. 当前范围、决策状态与证据基线
 
 目标：用户或 Agent 从本工程或有权读取的其他工程复用一个或多个 Cell 创建 Testbench，选择 OP/AC/TRAN 与观测量，或直接提交原始 SPICE，通过同一服务调用 ngspice，得到真实结果、频域/时间波形与 CSV，并能导出编辑输入、编排产物和运行原件。只有映射可靠的结果才定位回 Canvas，不能以无法回标为由阻止 raw 运行。
