@@ -81,14 +81,29 @@ jobs:
             *'"preview"'*) ;;
             *) echo "The preview does not know it is the preview: $channel"; exit 1 ;;
           esac
-          shell="$(curl --fail --silent --show-error --max-time 20 "${PREVIEW_URL}/editor")"
-          entry="$(printf '%s' "$shell" | grep -o '/assets/[A-Za-z0-9._-]*\.js' | head -n 1)"
-          if [ -z "$entry" ]; then
-            echo "The editor shell references no script; it cannot boot."
-            exit 1
-          fi
-          entry_result="$(curl --silent --output /dev/null --max-time 20 \
-            --write-out '%{http_code} %{content_type}' "${PREVIEW_URL}${entry}")"
+          # The shell and its hashed entry script come from one build, but the
+          # edge does not switch them in the same instant: right after a
+          # deploy it served the previous shell (a cache HIT) whose script the
+          # new deployment had already replaced, and the check read 404 for a
+          # preview that was healthy a minute later (2026-09-04, #618). So the
+          # pair is read together and re-read until they agree, for up to two
+          # minutes; a real mismatch still fails, just not on the first look.
+          entry_result=""
+          for _ in $(seq 1 12); do
+            shell="$(curl --fail --silent --show-error --max-time 20 \
+              -H 'Cache-Control: no-cache' "${PREVIEW_URL}/editor")"
+            entry="$(printf '%s' "$shell" | grep -o '/assets/[A-Za-z0-9._-]*\.js' | head -n 1)"
+            if [ -z "$entry" ]; then
+              echo "The editor shell references no script; it cannot boot."
+              exit 1
+            fi
+            entry_result="$(curl --silent --output /dev/null --max-time 20 \
+              --write-out '%{http_code} %{content_type}' "${PREVIEW_URL}${entry}")"
+            case "$entry_result" in
+              200*javascript*) break ;;
+              *) echo "Entry script ${entry} answered ${entry_result}; waiting for the edge to catch up"; sleep 10 ;;
+            esac
+          done
           case "$entry_result" in
             200*javascript*) ;;
             *) echo "The editor's entry script answered: $entry_result"; exit 1 ;;
