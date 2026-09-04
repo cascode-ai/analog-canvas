@@ -1,8 +1,10 @@
 import {
   deriveMosBulkRouteFamily,
   derivePowerRailComponent,
+  endpointKey,
   isMosBulkRoute,
   isMosBulkTerminal,
+  isVisibleEndpoint,
   pointOnSegment,
   resolveEndpointConnection,
   resolveRouteGeometry,
@@ -43,6 +45,7 @@ import {
 import type { SymbolResolver } from "@icm/symbols";
 
 import type { SchematicEdit } from "./transaction.js";
+import { endpointOwnerNetId } from "./transaction-routing.js";
 import { planDirectEndpointConnection } from "./direct-contact-planner.js";
 import { rebuildRoutePath } from "./route-leg-mutation.js";
 
@@ -565,24 +568,15 @@ function looseRouteAnchorIds(
 
 /**
  * A landing that rests on another Net's conductor, in one of the two shapes
- * the model can express: against a bare END of that conductor, or part-way
- * along its SPAN. They are the same gesture electrically and different
- * structurally — splicing a wire in two at a point that is already its end
- * would ask for a zero-length conductor, so an end meeting an end is stated
- * as the direct contact it is.
+ * the model can express: against a bare END of that conductor — or against a
+ * pin, which is an end too — or part-way along its SPAN. They are the same
+ * gesture electrically and different structurally: splicing a wire in two at
+ * a point that is already its end would ask for a zero-length conductor, so
+ * an end meeting an end is stated as the direct contact it is.
  */
-type LooseRouteLanding =
-  | {
-      kind: "span";
-      routeId: string;
-      request: EndpointRouteAttachmentRequest;
-    }
-  | {
-      kind: "endpoint";
-      routeId: string;
-      movedJunctionId: string;
-      targetEndpoint: RouteEndpoint;
-    };
+type EndpointLanding =
+  | { kind: "span"; routeId: string; segmentIndex: number }
+  | { kind: "contact"; targetEndpoint: RouteEndpoint };
 
 /** The endpoint of `candidate` that sits exactly at `point`, if either does. */
 function routeEndpointAt(
@@ -603,80 +597,136 @@ function routeEndpointAt(
   return null;
 }
 
-/**
- * Where a moved loose end comes to rest on a conductor of another Net.
- *
- * Only the two ENDS are considered. A wire whose middle crosses another wire
- * touches it at an interior point of both and connects nothing — a Crossing is
- * not a Junction, and that invariant is the reason this looks at anchors
- * rather than at the whole translated path.
- */
-function looseRouteLandingContacts(
+/** The visible pin whose exact contact point is `point`, if one is there. */
+function terminalEndpointAt(
   document: SchematicDocument,
   resolver: SymbolResolver,
-  route: RouteBranch,
-  anchorIds: readonly string[],
-  delta: Point,
-): LooseRouteLanding[] {
-  const contacts: LooseRouteLanding[] = [];
-  for (const junctionId of anchorIds) {
-    const junction = document.junctions.find(
-      (candidate) => candidate.id === junctionId,
+  point: Point,
+): RouteEndpoint | null {
+  for (const instance of document.instances) {
+    if (!instance.placement) continue;
+    const resolved = resolver.resolve(
+      instance.symbolId,
+      instance.symbolVariantId,
     );
-    if (!junction) continue;
-    const landing = {
-      x: junction.position.x + delta.x,
-      y: junction.position.y + delta.y,
-    };
-    for (const candidate of document.routes) {
-      // The moved wire's own conductors are geometry travelling with it, and
-      // a conductor already on this Net has nothing to merge.
-      if (candidate.id === route.id || candidate.netId === route.netId) {
-        continue;
-      }
-      // An end resting on the other wire's end is checked first: such a point
-      // also satisfies "on the segment", and taking it as a span landing is
-      // exactly the splice that cannot be made.
-      const targetEndpoint = routeEndpointAt(document, candidate, landing);
-      if (targetEndpoint) {
-        contacts.push({
-          kind: "endpoint",
-          routeId: candidate.id,
-          movedJunctionId: junctionId,
-          targetEndpoint,
-        });
-        break;
-      }
-      const geometry = resolveRouteGeometry(document, resolver, candidate);
-      const segmentIndex = geometry?.segments.findIndex((segment) =>
-        pointOnSegment(landing, segment.from, segment.to),
+    if (!resolved) continue;
+    for (const pin of resolved.definition.pins) {
+      const endpoint: RouteEndpoint = {
+        kind: "terminal",
+        instanceId: instance.id,
+        pinName: pin.name,
+      };
+      if (!isVisibleEndpoint(document, resolver, endpoint)) continue;
+      const connection = resolveEndpointConnection(
+        document,
+        resolver,
+        endpoint,
       );
-      if (segmentIndex === undefined || segmentIndex < 0) continue;
-      contacts.push({
-        kind: "span",
-        routeId: candidate.id,
-        request: {
-          endpoint: { kind: "junction", junctionId },
-          endpointNetId: route.netId,
-          point: landing,
-          segmentIndex,
-        },
-      });
-      break;
+      if (!connection) continue;
+      if (
+        connection.contactPoint.x === point.x &&
+        connection.contactPoint.y === point.y
+      ) {
+        return endpoint;
+      }
     }
   }
-  return contacts;
+  return null;
+}
+
+/**
+ * What one moved end comes to rest on, once it is let go of at `point`.
+ *
+ * Only the moved END is considered. A wire whose middle crosses another wire
+ * touches it at an interior point of both and connects nothing — a Crossing is
+ * not a Junction, and that invariant is the reason this looks at the released
+ * end rather than at the whole translated path.
+ *
+ * Conductors already on `movedNetId` are skipped because there is nothing to
+ * merge, as are the ones travelling with the gesture: their coincidence is
+ * geometry moving together, not an end being put somewhere.
+ */
+function endpointLandingAt(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  point: Point,
+  movedNetId: string | null,
+  travellingRouteIds: ReadonlySet<string>,
+): EndpointLanding | null {
+  const terminal = terminalEndpointAt(document, resolver, point);
+  if (terminal && endpointOwnerNetId(document, terminal) !== movedNetId) {
+    return { kind: "contact", targetEndpoint: terminal };
+  }
+  for (const candidate of document.routes) {
+    if (travellingRouteIds.has(candidate.id)) continue;
+    if (candidate.netId === movedNetId) continue;
+    // An end resting on the other wire's end is checked first: such a point
+    // also satisfies "on the segment", and taking it as a span landing is
+    // exactly the splice that cannot be made.
+    const targetEndpoint = routeEndpointAt(document, candidate, point);
+    if (targetEndpoint) return { kind: "contact", targetEndpoint };
+    const geometry = resolveRouteGeometry(document, resolver, candidate);
+    const segmentIndex = geometry?.segments.findIndex((segment) =>
+      pointOnSegment(point, segment.from, segment.to),
+    );
+    if (segmentIndex === undefined || segmentIndex < 0) continue;
+    return { kind: "span", routeId: candidate.id, segmentIndex };
+  }
+  return null;
+}
+
+/**
+ * Turn one landing into the edits that state it.
+ *
+ * The two shapes need different primitives and must not be collapsed into
+ * one: a contact is an explicit zero-length bond between two real endpoints,
+ * while a span landing makes the moved end the common node of two Route
+ * halves. Both are primitives the routing gate reads for itself, so no
+ * expected-effect declaration is written here and none is needed.
+ */
+function landingEdits(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  movedEndpoint: RouteEndpoint,
+  movedNetId: string | null,
+  landing: EndpointLanding,
+  point: Point,
+  suffix: string,
+): SchematicEdit[] {
+  if (landing.kind === "contact") {
+    const direct = planDirectEndpointConnection(document, {
+      from: movedEndpoint,
+      to: landing.targetEndpoint,
+      newNetId: `net-${suffix}`,
+    });
+    // Incompatible power domains are the one case this gesture cannot settle:
+    // joining a VDD conductor to a ground one is not something a drag should
+    // decide. The move still happens and the ends still touch, leaving the
+    // existing finding standing for the author to resolve deliberately.
+    return direct.ok ? [...direct.edits] : [];
+  }
+  return [
+    ...proposeEndpointRouteAttachment(
+      document,
+      movedEndpoint,
+      movedNetId,
+      landing.routeId,
+      point,
+      landing.segmentIndex,
+      suffix,
+    ).edits,
+  ];
 }
 
 /**
  * Plan translation of an isolated loose route and its two endpoint anchors.
  *
- * Given a resolver, an end that comes to rest on another Net's conductor also
- * joins it: dragging an end onto a wire is the same deliberate gesture as
- * dropping a pin on one, and it is not ambiguous. The join is emitted as an
- * ordinary attach, which is a primitive the routing gate reads for itself —
- * no declaration is written here, and none is needed. With no landing contact
- * no attach is emitted and the move stays pure geometry.
+ * Given a resolver, an end that comes to rest on another Net's conductor or on
+ * a pin also joins it: dragging an end onto a wire is the same deliberate
+ * gesture as dropping a pin on one, and it is not ambiguous. The join is
+ * emitted as an ordinary contact or attach, which are primitives the routing
+ * gate reads for itself — no declaration is written here, and none is needed.
+ * With no landing contact nothing is emitted and the move stays pure geometry.
  */
 export function proposeLooseRouteTranslation(
   document: SchematicDocument,
@@ -723,37 +773,52 @@ export function proposeLooseRouteTranslation(
   ];
   if (!landing) return { routeId, edits };
 
-  const contacts = looseRouteLandingContacts(
-    document,
-    landing.resolver,
-    route,
-    anchors,
-    delta,
-  );
-  if (contacts.length === 0) return { routeId, edits };
-
-  const byTargetRoute = new Map<string, EndpointRouteAttachmentRequest[]>();
-  for (const contact of contacts) {
-    if (contact.kind === "endpoint") {
-      // End against end: state the contact directly rather than splicing the
-      // target at a point that is already its own end.
-      const direct = planDirectEndpointConnection(document, {
-        from: { kind: "junction", junctionId: contact.movedJunctionId },
-        to: contact.targetEndpoint,
-        newNetId: `net-${landing.suffix}`,
-      });
-      // Two differently NAMED Nets are the one case this gesture cannot
-      // settle: joining them would retire a name its author chose. The move
-      // still happens, the ends still touch, and the existing ambiguity
-      // finding is left standing for the author to resolve deliberately.
-      if (direct.ok) edits.push(...direct.edits);
+  // Both anchors may land, and two landings on one target Route have to be
+  // spliced together so the second addresses the leg identity the first left
+  // behind. Contacts carry no such ordering and are emitted as they are found.
+  const spanRequests = new Map<string, EndpointRouteAttachmentRequest[]>();
+  for (const junctionId of anchors) {
+    const junction = document.junctions.find(
+      (candidate) => candidate.id === junctionId,
+    );
+    if (!junction) continue;
+    const movedEndpoint: RouteEndpoint = { kind: "junction", junctionId };
+    const point = {
+      x: junction.position.x + delta.x,
+      y: junction.position.y + delta.y,
+    };
+    const landed = endpointLandingAt(
+      document,
+      landing.resolver,
+      point,
+      route.netId,
+      new Set([route.id]),
+    );
+    if (!landed) continue;
+    if (landed.kind === "contact") {
+      edits.push(
+        ...landingEdits(
+          document,
+          landing.resolver,
+          movedEndpoint,
+          route.netId,
+          landed,
+          point,
+          landing.suffix,
+        ),
+      );
       continue;
     }
-    const requests = byTargetRoute.get(contact.routeId) ?? [];
-    requests.push(contact.request);
-    byTargetRoute.set(contact.routeId, requests);
+    const requests = spanRequests.get(landed.routeId) ?? [];
+    requests.push({
+      endpoint: movedEndpoint,
+      endpointNetId: route.netId,
+      point,
+      segmentIndex: landed.segmentIndex,
+    });
+    spanRequests.set(landed.routeId, requests);
   }
-  for (const [targetRouteId, requests] of byTargetRoute) {
+  for (const [targetRouteId, requests] of spanRequests) {
     edits.push(
       ...proposeEndpointsRouteAttachment(
         document,
@@ -767,11 +832,131 @@ export function proposeLooseRouteTranslation(
   return { routeId, edits };
 }
 
+/** One end of a Route, and the document that stands once it is free geometry. */
+interface FreedRouteEnd {
+  /** The document as it will be once `edits` have run. */
+  document: SchematicDocument;
+  /** The Junction the freed end has become. */
+  junctionId: string;
+  edits: SchematicEdit[];
+}
+
 /**
- * Move one grid-backed Route endpoint through the same Junction translation
- * contract used by segment, group, and rail edits. Terminal endpoints remain
- * electrically anchored to their symbols; callers must disconnect them before
- * they can become free geometry.
+ * Make a terminal-anchored Route end into ordinary free geometry.
+ *
+ * The end becomes a Junction resting exactly where the pin's contact point
+ * was, so the drawing does not shift and every downstream step — the stretch,
+ * the landing, the previews — is the same computation an already-loose end
+ * gets. The pin then leaves the Net, unless some other Route still holds it.
+ *
+ * The result is returned as edits AND as the document those edits produce,
+ * because the planning that follows has to read a document in which this end
+ * is already a Junction. Projecting it here is what lets one implementation
+ * serve both kinds of end instead of a second one that reasons about pins.
+ */
+function freeRouteTerminalEnd(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  route: RouteBranch,
+  side: "start" | "end",
+  terminal: Extract<RouteEndpoint, { kind: "terminal" }>,
+  suffix: string,
+): FreedRouteEnd {
+  const connection = resolveEndpointConnection(document, resolver, terminal);
+  if (!connection) {
+    throw new Error(
+      `Wire end has no resolvable pin geometry: ${endpointKey(terminal)}`,
+    );
+  }
+  const junctionId = `junction-${suffix}`;
+  const junction = {
+    id: junctionId,
+    netId: route.netId,
+    position: {
+      x: connection.contactPoint.x,
+      y: connection.contactPoint.y,
+    },
+    role: "route-anchor" as const,
+  };
+  const anchor: RouteEndpoint = { kind: "junction", junctionId };
+  const repointed = rebuildRoutePath(
+    route,
+    side === "start" ? anchor : route.start,
+    side === "end" ? anchor : routeEnd(route),
+    routeBends(route),
+    routeModes(route),
+    `endpoint-repoint-${suffix}`,
+  );
+  const heldElsewhere = document.routes.some(
+    (candidate) =>
+      candidate.id !== route.id &&
+      routeEndpoints(candidate).some(
+        (endpoint) => endpointKey(endpoint) === endpointKey(terminal),
+      ),
+  );
+  const edits: SchematicEdit[] = [
+    {
+      kind: "add_junction",
+      junctionId,
+      netId: route.netId,
+      position: junction.position,
+      role: "route-anchor",
+    },
+    { kind: "set_route_path", route: repointed },
+  ];
+  if (!heldElsewhere) {
+    // Order matters: the pin is still a Route endpoint until the path above
+    // is replaced, and disconnecting one is refused for as long as it is.
+    edits.push({ kind: "disconnect_endpoint", endpoint: terminal });
+    if (isMosBulkTerminal(document, terminal)) {
+      // The same pairing the deletion planner uses when a B lead loses its
+      // wire: the binding is cleared, then reconciled against the defaults.
+      edits.push({
+        kind: "reconcile_mos_bulk",
+        instanceIds: [terminal.instanceId],
+      });
+    }
+  }
+  return {
+    junctionId,
+    edits,
+    document: {
+      ...document,
+      junctions: [...document.junctions, junction],
+      routes: document.routes.map((candidate) =>
+        candidate.id === route.id ? repointed : candidate,
+      ),
+      nets: heldElsewhere
+        ? document.nets
+        : document.nets.map((net) => ({
+            ...net,
+            terminals: net.terminals.filter(
+              (member) =>
+                member.instanceId !== terminal.instanceId ||
+                member.pinName !== terminal.pinName,
+            ),
+          })),
+    },
+  };
+}
+
+/**
+ * Move one Route endpoint through the same Junction translation contract used
+ * by segment, group, and rail edits.
+ *
+ * With a `suffix` the move is a complete authoring gesture rather than pure
+ * geometry, and two things follow from it. A terminal-anchored end may be
+ * dragged: it is detached from its pin first, because rewiring an existing
+ * wire is an ordinary edit and deleting it to draw it again is not an answer.
+ * And wherever the end is released — on a pin, on another wire's end, or
+ * part-way along a conductor — the contact it makes is stated electrically,
+ * so the picture and the Netlist say the same thing. Released over nothing it
+ * is simply a loose end, which is a legitimate state and not an error.
+ *
+ * Without a `suffix` nothing new can be named, so the move stays geometry and
+ * a terminal-anchored end stays anchored. That is the preview-only contract.
+ * A caller that does pass one owes ids its own generator will not reissue:
+ * the detached end's Junction is named by the suffix alone.
  */
 export function proposeRouteEndpointMove(
   document: SchematicDocument,
@@ -779,34 +964,79 @@ export function proposeRouteEndpointMove(
   routeId: string,
   side: "start" | "end",
   point: Point,
+  suffix?: string,
 ): RouteEditPlan {
   const route = document.routes.find((candidate) => candidate.id === routeId);
   if (!route) throw new Error(`Route not found: ${routeId}`);
   const endpoint = side === "start" ? route.start : routeEnd(route);
-  if (endpoint.kind !== "junction") {
-    throw new Error("A terminal-connected wire end is electrically anchored");
-  }
-  const junction = document.junctions.find(
-    (candidate) => candidate.id === endpoint.junctionId,
-  );
-  if (!junction) throw new Error(`Junction not found: ${endpoint.junctionId}`);
-  if (junction.position.x === point.x && junction.position.y === point.y) {
+  // One check for both kinds of end: a Junction resolves at its position and
+  // a pin at its contact point, and an end released where it already was has
+  // nothing to plan either way.
+  const resting = resolveEndpointConnection(
+    document,
+    resolver,
+    endpoint,
+  )?.contactPoint;
+  if (resting && resting.x === point.x && resting.y === point.y) {
     return { routeId, edits: [] };
   }
-  const proposal = proposeJunctionGroupTranslation(document, resolver, [
-    { junctionId: junction.id, position: point },
+  const detachEdits: SchematicEdit[] = [];
+  let base = document;
+  let junctionId: string;
+  if (endpoint.kind === "terminal") {
+    if (!suffix) {
+      throw new Error("A terminal-connected wire end is electrically anchored");
+    }
+    const freed = freeRouteTerminalEnd(
+      document,
+      resolver,
+      route,
+      side,
+      endpoint,
+      suffix,
+    );
+    base = freed.document;
+    junctionId = freed.junctionId;
+    detachEdits.push(...freed.edits);
+  } else {
+    junctionId = endpoint.junctionId;
+  }
+  const proposal = proposeJunctionGroupTranslation(base, resolver, [
+    { junctionId, position: point },
   ]);
-  return {
-    routeId,
-    preview: proposal,
-    edits: [
-      ...proposal.junctions.map((move): SchematicEdit => ({
-        kind: "move_junction",
-        ...move,
-      })),
-      ...routeEdits(document, proposal.routes),
-    ],
-  };
+  const edits: SchematicEdit[] = [
+    ...detachEdits,
+    ...proposal.junctions.map((move): SchematicEdit => ({
+      kind: "move_junction",
+      ...move,
+    })),
+    // Read from the detached document, not the original: rebuilding this
+    // Route against its persisted endpoint would put the end back on the pin.
+    ...routeEdits(base, proposal.routes),
+  ];
+  const landing = suffix
+    ? endpointLandingAt(
+        base,
+        resolver,
+        point,
+        route.netId,
+        new Set(proposal.routes.map((moved) => moved.routeId)),
+      )
+    : null;
+  if (landing && suffix) {
+    edits.push(
+      ...landingEdits(
+        base,
+        resolver,
+        { kind: "junction", junctionId },
+        route.netId,
+        landing,
+        point,
+        suffix,
+      ),
+    );
+  }
+  return { routeId, preview: proposal, edits };
 }
 
 /**

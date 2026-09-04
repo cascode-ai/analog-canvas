@@ -20,7 +20,11 @@ import {
 import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { diagnoseVisualQuality } from "@icm/derived";
+import {
+  contactRequiresJunctionDot,
+  deriveDocumentContactEvidence,
+  diagnoseVisualQuality,
+} from "@icm/derived";
 import { parseProject } from "@icm/project-protocol";
 import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
@@ -28,11 +32,13 @@ import { describe, expect, it } from "vitest";
 import {
   proposeEndpointRouteAttachment,
   proposeLooseRouteTranslation,
+  proposeRouteEndpointMove,
 } from "./routing-planner.js";
 import {
   createRoutingOperationPlan,
   gateRoutingOperationPlan,
 } from "./routing-operation-plan.js";
+import type { SchematicEdit } from "./edit-schema.js";
 import { executeTransaction } from "./transaction.js";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
@@ -97,21 +103,18 @@ function twoLooseWires(): SchematicDocument {
   return document;
 }
 
-/** Plan, gate, and commit a move exactly as the editor's wire tool does. */
-function moveLooseRoute(
+/** Gate and commit one geometry gesture the way the editor's wire tool does. */
+function commitRouteGesture(
   document: SchematicDocument,
-  routeId: string,
-  delta: { x: number; y: number },
+  edits: SchematicEdit[],
+  label: string,
 ) {
-  const proposal = proposeLooseRouteTranslation(document, routeId, delta, {
-    resolver,
-    suffix: "t1",
-  });
   // No declaration is threaded through: the gate derives the join from the
-  // attach primitive in the edits, which is the whole point of the move.
+  // contact and attach primitives in the edits, which is the whole point of
+  // the move.
   const plan = createRoutingOperationPlan(document, {
     intent: "route-geometry",
-    edits: proposal.edits,
+    edits,
     diagnostics: [],
   });
   const gate = gateRoutingOperationPlan(document, plan, context);
@@ -123,7 +126,7 @@ function moveLooseRoute(
   const result = executeTransaction(
     document,
     {
-      transactionId: `move-${routeId}`,
+      transactionId: label,
       documentId: document.id,
       expectedRevision: document.revision,
       actor: { kind: "human", id: "test" },
@@ -137,6 +140,37 @@ function moveLooseRoute(
     );
   }
   return result.document;
+}
+
+/** Plan, gate, and commit a move exactly as the editor's wire tool does. */
+function moveLooseRoute(
+  document: SchematicDocument,
+  routeId: string,
+  delta: { x: number; y: number },
+) {
+  const proposal = proposeLooseRouteTranslation(document, routeId, delta, {
+    resolver,
+    suffix: "t1",
+  });
+  return commitRouteGesture(document, proposal.edits, `move-${routeId}`);
+}
+
+/** Plan, gate, and commit one endpoint drag exactly as its handle does. */
+function dragRouteEnd(
+  document: SchematicDocument,
+  routeId: string,
+  side: "start" | "end",
+  point: { x: number; y: number },
+) {
+  const proposal = proposeRouteEndpointMove(
+    document,
+    resolver,
+    routeId,
+    side,
+    point,
+    "e1",
+  );
+  return commitRouteGesture(document, proposal.edits, `resize-${routeId}`);
 }
 
 /** Base Nets that still carry conductor geometry, ignoring emptied records. */
@@ -512,5 +546,250 @@ describe("bringing two wire ends head to head", () => {
     const movedAgain = moveLooseRoute(joined, joinedRouteId, { x: 0, y: -40 });
     expect(conductingNetIds(movedAgain)).toHaveLength(1);
     expect(ambiguousJunctionErrors(movedAgain)).toEqual([]);
+  });
+});
+
+/**
+ * A loose conductor and a second wire whose start is anchored to a VDD port's
+ * pin — the ordinary shape of "this wire comes off that part". The port's P
+ * pin sits 20 below its placement, so the anchored end is at (150, 80).
+ */
+function pinnedWireAndConductor(): SchematicDocument {
+  const document = createEmptyDocument("pinned-wire", "Pinned wire");
+  document.presentation.grid = 10;
+  document.instances.push({
+    id: "VDD1",
+    symbolId: "vdd-port",
+    placement: { position: { x: 150, y: 60 }, rotation: 0, mirror: "none" },
+  } as SchematicDocument["instances"][number]);
+  document.nets.push(
+    { id: "net-horizontal", terminals: [] },
+    { id: "net-supply", terminals: [{ instanceId: "VDD1", pinName: "P" }] },
+  );
+  document.junctions.push(
+    {
+      id: "H1",
+      netId: "net-horizontal",
+      position: { x: 100, y: 200 },
+      role: "route-anchor",
+    },
+    {
+      id: "H2",
+      netId: "net-horizontal",
+      position: { x: 300, y: 200 },
+      role: "route-anchor",
+    },
+    {
+      id: "S2",
+      netId: "net-supply",
+      position: { x: 150, y: 140 },
+      role: "route-anchor",
+    },
+  );
+  document.routes.push(
+    createRoutePath({
+      id: "wire-horizontal",
+      netId: "net-horizontal",
+      start: { kind: "junction", junctionId: "H1" },
+      end: { kind: "junction", junctionId: "H2" },
+      bends: [],
+      modes: ["manual"],
+    }),
+    createRoutePath({
+      id: "wire-supply",
+      netId: "net-supply",
+      start: { kind: "terminal", instanceId: "VDD1", pinName: "P" },
+      end: { kind: "junction", junctionId: "S2" },
+      bends: [],
+      modes: ["manual"],
+    }),
+  );
+  return document;
+}
+
+/** The Net a pin belongs to, or null when it is connected to nothing. */
+function terminalNetId(
+  document: SchematicDocument,
+  instanceId: string,
+  pinName: string,
+): string | null {
+  return (
+    document.nets.find((net) =>
+      net.terminals.some(
+        (terminal) =>
+          terminal.instanceId === instanceId && terminal.pinName === pinName,
+      ),
+    )?.id ?? null
+  );
+}
+
+/** Junction dots the drawing would paint — a phantom one is a visible lie. */
+function junctionDots(document: SchematicDocument) {
+  return deriveDocumentContactEvidence(document, resolver).contacts.filter(
+    (contact) => contactRequiresJunctionDot(contact),
+  );
+}
+
+/**
+ * Dragging ONE END of a wire, rather than the whole wire.
+ *
+ * The same rule as #478 reached by the other handle. Both gestures put an end
+ * somewhere on purpose, and the schematic they leave behind is identical, so
+ * the connectivity they record has to be identical too — otherwise whether a
+ * wire is connected depends on which handle its author happened to grab, and
+ * nothing in the picture says which that was.
+ */
+describe("dragging one end of a wire", () => {
+  it("joins the Nets when the end lands part-way along another conductor", () => {
+    // The vertical wire's lower end is at (200, 160); drop it onto the middle
+    // of the horizontal wire, which spans x = 100..300 at y = 200.
+    const moved = dragRouteEnd(twoLooseWires(), "wire-vertical", "end", {
+      x: 200,
+      y: 200,
+    });
+
+    expect(conductingNetIds(moved)).toHaveLength(1);
+    expect(ambiguousJunctionErrors(moved)).toEqual([]);
+  });
+
+  it("joins the Nets when the end lands on another wire's bare end", () => {
+    // End against end: (200, 200) is the left wire's end and lies in no
+    // conductor's span, so this is a direct contact rather than a splice.
+    const moved = dragRouteEnd(twoHeadToHeadWires(), "wire-right", "start", {
+      x: 200,
+      y: 200,
+    });
+
+    expect(conductingNetIds(moved)).toHaveLength(1);
+    expect(ambiguousJunctionErrors(moved)).toEqual([]);
+  });
+
+  it("joins the Nets when the end lands on a pin", () => {
+    // Dragging a wire end onto a pin is the same act as drawing a wire to it.
+    const moved = dragRouteEnd(
+      pinnedWireAndConductor(),
+      "wire-horizontal",
+      "start",
+      { x: 150, y: 80 },
+    );
+
+    expect(conductingNetIds(moved)).toHaveLength(1);
+    // The membership, not the coordinates: the pin and the conductor it was
+    // dropped on are now one node.
+    expect(terminalNetId(moved, "VDD1", "P")).toBe(moved.routes[0]!.netId);
+    expect(ambiguousJunctionErrors(moved)).toEqual([]);
+  });
+
+  it("connects nothing when the end is released over empty page", () => {
+    // The guard against overshooting, restated for this handle.
+    const document = twoLooseWires();
+    const before = netMembership(document);
+    const moved = dragRouteEnd(document, "wire-vertical", "end", {
+      x: 260,
+      y: 160,
+    });
+
+    expect(netMembership(moved)).toEqual(before);
+    expect(junctionDots(moved)).toEqual([]);
+    expect(ambiguousJunctionErrors(moved)).toEqual([]);
+  });
+
+  it("keeps a wire stretched across another one a crossing", () => {
+    // Stretching the end PAST the horizontal wire puts the conductor's middle
+    // over it and the end on empty page. Interior contact is a crossing, and
+    // reaching it by this handle does not make it a connection.
+    const moved = dragRouteEnd(twoLooseWires(), "wire-vertical", "end", {
+      x: 200,
+      y: 260,
+    });
+
+    expect(conductingNetIds(moved)).toHaveLength(2);
+    expect(ambiguousJunctionErrors(moved)).toEqual([]);
+  });
+});
+
+/**
+ * Re-pointing an end that is anchored to a pin.
+ *
+ * Rewiring an existing wire is the most ordinary edit there is, and before
+ * this the only way to do it was to delete the wire and draw a new one: the
+ * handle refused with "A terminal-connected wire end is electrically
+ * anchored". Detaching from the pin and landing wherever the end is dropped
+ * is one gesture, so it is one transaction and one undo.
+ */
+describe("re-pointing a wire end anchored to a pin", () => {
+  it("takes the pin off the Net and lands the end on what it was dropped on", () => {
+    const document = pinnedWireAndConductor();
+    const moved = dragRouteEnd(document, "wire-supply", "start", {
+      x: 200,
+      y: 200,
+    });
+
+    // The pin is no longer wired to anything: the wire that held it moved.
+    expect(terminalNetId(moved, "VDD1", "P")).toBeNull();
+    // And the end it now rests on is electrically joined, not merely touching.
+    expect(conductingNetIds(moved)).toHaveLength(1);
+    expect(ambiguousJunctionErrors(moved)).toEqual([]);
+  });
+
+  it("is one undoable step", () => {
+    const document = pinnedWireAndConductor();
+    const moved = dragRouteEnd(document, "wire-supply", "start", {
+      x: 200,
+      y: 200,
+    });
+
+    // Detach, move, and join are one transaction, so one undo puts the wire
+    // back on the pin rather than leaving it half-rewired.
+    expect(moved.revision).toBe(document.revision + 1);
+  });
+
+  it("leaves a loose end, and no phantom junction, when dropped on nothing", () => {
+    const document = pinnedWireAndConductor();
+    const moved = dragRouteEnd(document, "wire-supply", "start", {
+      x: 400,
+      y: 140,
+    });
+
+    expect(terminalNetId(moved, "VDD1", "P")).toBeNull();
+    // Two conductors, still on their own Nets: nothing was dropped on
+    // anything.
+    expect(conductingNetIds(moved)).toHaveLength(2);
+    // A loose end is a legitimate state. What it must not be is a dot,
+    // which would claim a branch that is not there.
+    expect(junctionDots(moved)).toEqual([]);
+    const supply = moved.routes.find((route) => route.id === "wire-supply");
+    expect(supply?.start.kind).toBe("junction");
+    expect(ambiguousJunctionErrors(moved)).toEqual([]);
+  });
+
+  it("keeps the pin connected when another wire still holds it", () => {
+    // Only the wire being dragged lets go. A pin with two wires on it keeps
+    // its membership through the second one, and disconnecting it here would
+    // silently open a node the author never touched.
+    const document = pinnedWireAndConductor();
+    document.junctions.push({
+      id: "S3",
+      netId: "net-supply",
+      position: { x: 250, y: 80 },
+      role: "route-anchor",
+    });
+    document.routes.push(
+      createRoutePath({
+        id: "wire-supply-2",
+        netId: "net-supply",
+        start: { kind: "terminal", instanceId: "VDD1", pinName: "P" },
+        end: { kind: "junction", junctionId: "S3" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+
+    const moved = dragRouteEnd(document, "wire-supply", "start", {
+      x: 400,
+      y: 140,
+    });
+
+    expect(terminalNetId(moved, "VDD1", "P")).toBe("net-supply");
   });
 });

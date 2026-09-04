@@ -272,4 +272,87 @@ describe("RoutingOperationPlan", () => {
       expect(gate.message).toMatch(/did not join/u);
     });
   });
+  /**
+   * A preserve declaration is derived, and `disconnect_endpoint` changes what
+   * it can honestly say.
+   *
+   * The guard exists to catch membership that moved by accident. An endpoint
+   * the edits explicitly release did not move by accident — the primitive
+   * says so, and the transaction already reads it that way when it suppresses
+   * the normalization that would reconnect it. Naming such an endpoint in the
+   * preserve set makes the guard refuse the one operation that was explicit,
+   * which is what stopped a wire end from being re-pointed off its pin.
+   */
+  describe("what a derived preserve declaration names", () => {
+    function pinnedDocument() {
+      const document = createEmptyDocument("main", "Main");
+      document.instances.push({
+        id: "VDD1",
+        symbolId: "vdd-port",
+        placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+      } as (typeof document)["instances"][number]);
+      document.nets.push({
+        id: "net-a",
+        terminals: [{ instanceId: "VDD1", pinName: "P" }],
+      });
+      document.junctions.push({
+        id: "J1",
+        netId: "net-a",
+        position: { x: 100, y: 20 },
+      });
+      return document;
+    }
+
+    it("leaves out an endpoint the edits explicitly release", () => {
+      const document = pinnedDocument();
+      const plan = createRoutingOperationPlan(document, {
+        intent: "route-geometry",
+        diagnostics: [],
+        edits: [
+          {
+            kind: "disconnect_endpoint",
+            endpoint: { kind: "terminal", instanceId: "VDD1", pinName: "P" },
+          },
+        ],
+      });
+
+      expect(plan.expectedElectricalEffect).toEqual({
+        kind: "preserve",
+        endpointKeys: ["junction:J1"],
+      });
+      const gate = gateRoutingOperationPlan(document, plan, {
+        symbolResolver: resolver,
+      });
+      expect(
+        gate.ok,
+        gate.ok ? "" : `${gate.message} :: ${gate.diagnostics[0]?.message}`,
+      ).toBe(true);
+    });
+
+    it("still names every endpoint the edits did not release", () => {
+      // The guard is not weakened, only made honest: a second pin that was
+      // never disconnected is still declared preserved, so membership that
+      // moves without saying so is still caught.
+      const document = pinnedDocument();
+      document.nets[0]!.terminals.push({ instanceId: "VDD1", pinName: "Q" });
+      const plan = createRoutingOperationPlan(document, {
+        intent: "route-geometry",
+        diagnostics: [],
+        edits: [
+          {
+            kind: "disconnect_endpoint",
+            endpoint: { kind: "terminal", instanceId: "VDD1", pinName: "P" },
+          },
+        ],
+      });
+
+      const effect = plan.expectedElectricalEffect;
+      expect(effect.kind).toBe("preserve");
+      if (effect.kind !== "preserve") return;
+      expect([...effect.endpointKeys].sort()).toEqual([
+        "junction:J1",
+        "terminal:VDD1:Q",
+      ]);
+    });
+  });
 });

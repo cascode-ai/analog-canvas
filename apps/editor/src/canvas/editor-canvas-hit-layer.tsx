@@ -2,6 +2,7 @@ import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
 
 import {
   derivePowerRailComponent,
+  endpointKey,
   isSchematicAnnotationVisible,
   resolveDocumentStyleProfile,
   type ResolvedRouteGeometry,
@@ -312,16 +313,16 @@ function EndpointHitTargets({
   onNetPointerLeave,
 }: EndpointHitTargetProps) {
   const selectedRouteEnd = selectedRoute ? routeEnd(selectedRoute) : null;
-  const selectedRouteStartJunctionId =
-    selectedRoute?.presentation !== "power-rail" &&
-    selectedRoute?.start.kind === "junction"
-      ? selectedRoute.start.junctionId
-      : null;
-  const selectedRouteEndJunctionId =
-    selectedRoute?.presentation !== "power-rail" &&
-    selectedRouteEnd?.kind === "junction"
-      ? selectedRouteEnd.junctionId
-      : null;
+  // Which end of the selected wire an endpoint IS, by identity rather than by
+  // Junction id: a pin-anchored end is one of its ends too, and matching only
+  // Junctions left the resize grip drawn under this layer unreachable there.
+  const selectedRouteEndKeys =
+    selectedRoute && selectedRoute.presentation !== "power-rail"
+      ? {
+          start: endpointKey(selectedRoute.start),
+          end: selectedRouteEnd ? endpointKey(selectedRouteEnd) : null,
+        }
+      : { start: null, end: null };
   const powerRailEnds =
     selectedRoute?.presentation === "power-rail"
       ? (derivePowerRailComponent(document, selectedRoute.id)
@@ -344,12 +345,11 @@ function EndpointHitTargets({
             (junction) => junction.id === candidateJunctionId,
           )
         : -1;
+    const candidateKey = endpointKey(candidate.endpoint);
     const selectedRouteEndSide =
-      candidateJunctionId !== null &&
-      candidateJunctionId === selectedRouteStartJunctionId
+      candidateKey === selectedRouteEndKeys.start
         ? "start"
-        : candidateJunctionId !== null &&
-            candidateJunctionId === selectedRouteEndJunctionId
+        : candidateKey === selectedRouteEndKeys.end
           ? "end"
           : null;
     const label = endpointLabel(candidate.endpoint);

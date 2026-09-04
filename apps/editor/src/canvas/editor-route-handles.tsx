@@ -4,7 +4,7 @@ import {
   derivePowerRailComponent,
   type ResolvedRouteGeometry,
 } from "@icm/derived";
-import { routeEnd, type RouteBranch, type SchematicDocument } from "@icm/model";
+import type { RouteBranch, SchematicDocument } from "@icm/model";
 
 import type { RouteStretchPreview } from "../features/wiring/use-wire-interaction";
 import { looseRouteAnchorIds } from "../features/wiring/route-interaction-geometry";
@@ -65,22 +65,15 @@ export function EditorRouteHandles({
             ? left.position.y - right.position.y
             : left.position.x - right.position.x,
         );
+      // Both ends are draggable, including one anchored to a pin: re-pointing
+      // an existing wire is an ordinary edit, and offering no handle there
+      // left deleting the wire and drawing it again as the only way to do it.
       const ordinaryRouteEnds = powerRail
         ? []
-        : ([route.start, routeEnd(route)] as const).flatMap(
-            (endpoint, index) =>
-              endpoint.kind === "junction"
-                ? [
-                    {
-                      side: index === 0 ? ("start" as const) : ("end" as const),
-                      point:
-                        index === 0
-                          ? geometry.centerline[0]!
-                          : geometry.centerline.at(-1)!,
-                    },
-                  ]
-                : [],
-          );
+        : [
+            { side: "start" as const, point: geometry.centerline[0]! },
+            { side: "end" as const, point: geometry.centerline.at(-1)! },
+          ];
       const routeCenter = centerOfBounds(polylineBounds(geometry.centerline));
       const preview =
         routeStretchPreview?.routeId === route.id

@@ -376,6 +376,41 @@ function endpointKeysFromEdits(edits: readonly SchematicEdit[]): string[] {
   });
 }
 
+/**
+ * Endpoints this edit list explicitly takes off their Net.
+ *
+ * `disconnect_endpoint` is a statement, not an accident: it says this pin is
+ * leaving, and the transaction already reads it that way when it suppresses
+ * the normalization that would otherwise reconnect it. A preserve declaration
+ * must therefore not name it — otherwise the guard against silent rewiring
+ * refuses the one operation that said out loud what it was doing, which is
+ * what happened to re-pointing a wire off its pin.
+ */
+function disconnectedEndpointKeys(
+  edits: readonly SchematicEdit[],
+): readonly string[] {
+  return edits.flatMap((edit) =>
+    edit.kind === "disconnect_endpoint" ? [endpointKey(edit.endpoint)] : [],
+  );
+}
+
+/** Preserve everything named, minus whatever the edits deliberately release. */
+function preserveEffect(
+  document: SchematicDocument,
+  edits: readonly SchematicEdit[],
+  named: readonly string[] = [],
+): ExpectedElectricalEffect {
+  const released = new Set(disconnectedEndpointKeys(edits));
+  const keep = (keys: readonly string[]) =>
+    keys.filter((key) => !released.has(key));
+  const explicit = keep(named);
+  return {
+    kind: "preserve",
+    endpointKeys:
+      explicit.length > 0 ? explicit : keep(existingEndpointKeys(document)),
+  };
+}
+
 function existingEndpointKeys(document: SchematicDocument): readonly string[] {
   return unique([
     ...document.nets.flatMap((net) =>
@@ -437,7 +472,7 @@ export function expectedElectricalEffectForOperation(
   if (intent === "connect" || intent === "attach-to-route") {
     return mergeGroups.length > 0
       ? { kind: "merge", endpointGroups: mergeGroups }
-      : { kind: "preserve", endpointKeys: existingEndpointKeys(document) };
+      : preserveEffect(document, edits);
   }
   if (intent === "cut") {
     const cutRouteIds = edits.flatMap((edit) =>
@@ -482,14 +517,7 @@ export function expectedElectricalEffectForOperation(
   if (mergeGroups.length > 0) {
     return { kind: "merge", endpointGroups: mergeGroups };
   }
-  const editedEndpointKeys = endpointKeysFromEdits(edits);
-  return {
-    kind: "preserve",
-    endpointKeys:
-      editedEndpointKeys.length > 0
-        ? editedEndpointKeys
-        : existingEndpointKeys(document),
-  };
+  return preserveEffect(document, edits, endpointKeysFromEdits(edits));
 }
 
 export function createRoutingOperationPlan(

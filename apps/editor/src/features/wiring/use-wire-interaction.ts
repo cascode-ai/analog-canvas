@@ -78,6 +78,16 @@ export interface RouteStretchPreview {
     | "resize-route-end";
   start: Point;
   point: Point;
+  /**
+   * Ids for whatever this drag has to author — the Junction a pin-anchored
+   * end becomes, and the Route halves a landing splits. Allocated once when
+   * the drag starts so the preview and the commit plan the same gesture, and
+   * shaped `ui-<n>` so that `maxRoutingCounter` can see the ids it produces:
+   * the Junction is named by the suffix alone, so a counter blind to it would
+   * hand the same number out again after a reload and the next re-point would
+   * be refused with "Junction already exists".
+   */
+  suffix?: string;
 }
 
 type TransactionResult = {
@@ -524,11 +534,25 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
             x: snapCoordinate(point.x, options.document.presentation.grid),
             y: snapCoordinate(point.y, options.document.presentation.grid),
           },
+          preview.suffix ?? `ui-${options.nextRoutingSuffix()}`,
+        );
+        // A contact or an attach among the edits means the end came to rest
+        // on something; the gate derives the join from those primitives.
+        const landed = proposal.edits.some(
+          (edit) =>
+            edit.kind === "attach_endpoint_to_route" ||
+            edit.kind === "connect_endpoints",
         );
         const result = transactProposal(
           proposalFor("route-geometry", proposal.edits),
         );
-        if (result.ok) options.setStatus(`Resized wire ${record.route.id}`);
+        if (result.ok) {
+          options.setStatus(
+            landed
+              ? `Resized wire ${record.route.id} and connected it where it landed`
+              : `Resized wire ${record.route.id}`,
+          );
+        }
       } else {
         const grid = options.document.presentation.grid;
         const planAt = (at: Point) =>
@@ -634,12 +658,17 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
         ...translatedRouteIds,
         ...anchorIds,
       ]));
+    const resizesRouteEnd =
+      intent === "resize-route-start" || intent === "resize-route-end";
     const preview: RouteStretchPreview = {
       routeId,
       segmentIndex,
       intent,
       start,
       point: start,
+      ...(resizesRouteEnd
+        ? { suffix: `ui-${options.nextRoutingSuffix()}` }
+        : {}),
     };
     options.setRouteStretchPreview(preview);
     options.canvasDragSessionRef.current = startCanvasDragSession({
@@ -667,22 +696,27 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
               x: snapCoordinate(point.x, options.document.presentation.grid),
               y: snapCoordinate(point.y, options.document.presentation.grid),
             };
-            const plan =
-              intent === "resize-route-start" || intent === "resize-route-end"
-                ? proposeRouteEndpointMove(
-                    options.document,
-                    options.resolver,
-                    routeId,
-                    intent === "resize-route-start" ? "start" : "end",
-                    snapped,
-                  )
-                : proposePowerRailEndpointResize(
-                    options.document,
-                    options.resolver,
-                    routeId,
-                    intent === "resize-power-rail-start" ? "start" : "end",
-                    snapped,
-                  );
+            const draggedSide = resizesRouteEnd
+              ? intent === "resize-route-start"
+                ? ("start" as const)
+                : ("end" as const)
+              : null;
+            const plan = draggedSide
+              ? proposeRouteEndpointMove(
+                  options.document,
+                  options.resolver,
+                  routeId,
+                  draggedSide,
+                  snapped,
+                  preview.suffix,
+                )
+              : proposePowerRailEndpointResize(
+                  options.document,
+                  options.resolver,
+                  routeId,
+                  intent === "resize-power-rail-start" ? "start" : "end",
+                  snapped,
+                );
             const movedJunctions = new Map(
               plan.preview?.junctions.map((junction) => [
                 junction.junctionId,
@@ -695,16 +729,27 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
               );
               if (!routeRecord) continue;
               const routeEndPoint = routeEnd(routeRecord.route);
+              // The dragged end follows the pointer whatever it is anchored
+              // to. A pin-anchored end has no Junction to look up — the one
+              // it becomes is authored by this same plan — so pinning it to
+              // the persisted endpoint left it stuck on the pin while the
+              // rest of the wire moved.
+              const dragged =
+                routeProposal.routeId === routeId ? draggedSide : null;
               const from =
-                routeRecord.route.start.kind === "junction"
-                  ? (movedJunctions.get(routeRecord.route.start.junctionId) ??
-                    routeRecord.geometry.centerline[0]!)
-                  : routeRecord.geometry.centerline[0]!;
+                dragged === "start"
+                  ? snapped
+                  : routeRecord.route.start.kind === "junction"
+                    ? (movedJunctions.get(routeRecord.route.start.junctionId) ??
+                      routeRecord.geometry.centerline[0]!)
+                    : routeRecord.geometry.centerline[0]!;
               const to =
-                routeEndPoint.kind === "junction"
-                  ? (movedJunctions.get(routeEndPoint.junctionId) ??
-                    routeRecord.geometry.centerline.at(-1)!)
-                  : routeRecord.geometry.centerline.at(-1)!;
+                dragged === "end"
+                  ? snapped
+                  : routeEndPoint.kind === "junction"
+                    ? (movedJunctions.get(routeEndPoint.junctionId) ??
+                      routeRecord.geometry.centerline.at(-1)!)
+                    : routeRecord.geometry.centerline.at(-1)!;
               dragVisual().setObjectPolyline(routeProposal.routeId, [
                 from,
                 ...routeProposal.waypoints,

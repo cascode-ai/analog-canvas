@@ -62,13 +62,33 @@ Route transaction.
   an explicit Junction, a drawn power rail, or a typed attach reaches its
   final coordinates, the Edit Engine deterministically creates or merges the
   participating Base Net; incompatible power domains or Net-name contracts
-  reject the whole transaction. Moving, rotating, mirroring, aligning, or
-  re-pointing EXISTING geometry never bonds: a transform that parks endpoints
-  on foreign conductors leaves them visually coincident but electrically
-  separate, exactly like a Crossing — rearranging a schematic can neither
-  silently merge Nets nor be rejected by a merge it never asked for. An
-  explicit `disconnect_endpoint` in the same transaction suppresses
-  normalization so deletion cannot immediately reconnect itself.
+  reject the whole transaction. Transforming EXISTING geometry never bonds:
+  a move, rotation, mirror, or align that parks endpoints on foreign
+  conductors leaves them visually coincident but electrically separate,
+  exactly like a Crossing — rearranging a schematic can neither silently
+  merge Nets nor be rejected by a merge it never asked for. An explicit
+  `disconnect_endpoint` in the same transaction suppresses normalization so
+  deletion cannot immediately reconnect itself, and it is read the same way
+  by the expected-effect derivation, which never declares an endpoint the
+  edits explicitly released as preserved.
+- Releasing a wire END on a conductor bonds, whether the end arrived there by
+  dragging the whole loose wire or by dragging that one endpoint handle. It is
+  the same deliberate act as drawing a wire to that point, and the schematic
+  the two gestures leave behind is identical, so the connectivity they record
+  is identical: which handle the author happened to grab is not visible in the
+  drawing and must not decide what is connected. The end joins whatever it is
+  released on — a pin, another conductor's bare end, or a point part-way along
+  a span, which splits that conductor at an explicit Junction. Only the
+  released END is considered: a conductor whose middle comes to lie across
+  another is still a Crossing and still bonds nothing. Two differently named
+  Nets do join, and both names are retired rather than the join being refused.
+  An end released over empty page is simply loose, which is a legitimate state
+  and not a finding.
+- A wire end anchored to a terminal is re-pointable. Dragging it detaches the
+  end from its pin and lands it wherever it is released, in one transaction
+  and therefore one undo; the pin leaves the Net unless another Route still
+  holds it. Rewiring is an ordinary edit, and requiring the wire to be deleted
+  and drawn again was not an answer.
 - If a move, rotation, or mirror separates a confirmed direct contact, the
   transaction materializes one ordinary manual Route after all transforms have
   reached their final positions. Jointly transformed endpoints remain a
