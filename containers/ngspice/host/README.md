@@ -25,8 +25,8 @@ writes its connector token without printing it.
 The host account needs:
 
 - an x86-64 or ARM64 Linux host with Docker Engine; the tracked bootstrap
-  installs the digest-pinned Docker Compose 2.33.1 plugin when it is absent;
-- passwordless `sudo` for that one-time plugin installation;
+  installs the digest-pinned Docker Compose 2.33.1 plugin into the operator's
+  user-level Docker CLI directory when it is absent;
 - permission to use the Docker daemon without an interactive elevation;
 - enough capacity for the declared 8 CPU and 16 GiB harness limit;
 - the SSH key and host identity represented by the repository's
@@ -38,8 +38,8 @@ in this directory.
 ## Recover onto a clean host
 
 1. Install Docker Engine plus `curl` and `sha256sum`, create the non-root
-   operator account, grant it access to Docker, and allow passwordless `sudo`
-   for repository-owned bootstrap.
+   operator account, and grant it access to Docker. Bootstrap does not require
+   root or `sudo`.
 2. Point `SIM_HOST_ADDR`, `SIM_HOST_USER`, `SIM_HOST_SSH_KEY`, and
    `SIM_HOST_KNOWN_HOSTS` at the replacement machine.
 3. Run **Simulator host / bootstrap-tunnel**. This installs the tracked bundle,
