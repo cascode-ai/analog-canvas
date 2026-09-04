@@ -21,12 +21,6 @@ concurrency:
 
 env:
   PREVIEW_URL: https://analog-canvas-preview.tokenzhang.com
-  # The Sky130 model files the container image copies, pinned to one volare
-  # release by tag and by the SHA-256 of each archive. Changing the models is
-  # a deliberate edit here, never a drift.
-  SKY130_TAG: sky130-c6d73a35f524070e85faff4a6a9eef49553ebc2b
-  SKY130_COMMON_SHA256: 8a7f06212c6d9fa5a1da6145f559f48a903434a5c5b6cd5352363700b6cadb94
-  SKY130_FD_PR_SHA256: dcb49c7450dfb55c91ce315d258563895df1ed75d4a9090064aade8290030a87
 
 jobs:
   preview:
@@ -49,26 +43,6 @@ jobs:
       - run: pnpm --filter @icm/editor... build
         env:
           VITE_ICM_TIMING_UI: disabled
-      # The Dockerfile copies pdk/sky130A/libs.tech/ngspice and
-      # pdk/sky130A/libs.ref/sky130_fd_pr from the build context. Only those
-      # two trees are extracted: the archives also carry sky130B and every
-      # other tool's files, none of which ngspice reads.
-      - name: Stage the Sky130 model files for the container image
-        run: |
-          set -euo pipefail
-          mkdir -p pdk/download
-          for asset in common sky130_fd_pr; do
-            curl --fail --silent --show-error --location --max-time 300 \
-              --output "pdk/download/${asset}.tar.zst" \
-              "https://github.com/efabless/volare/releases/download/${SKY130_TAG}/${asset}.tar.zst"
-          done
-          echo "${SKY130_COMMON_SHA256}  pdk/download/common.tar.zst" | sha256sum --check -
-          echo "${SKY130_FD_PR_SHA256}  pdk/download/sky130_fd_pr.tar.zst" | sha256sum --check -
-          tar --zstd -xf pdk/download/common.tar.zst -C pdk --wildcards 'sky130A/libs.tech/ngspice/*'
-          tar --zstd -xf pdk/download/sky130_fd_pr.tar.zst -C pdk --wildcards 'sky130A/libs.ref/sky130_fd_pr/spice/*'
-          rm -rf pdk/download
-          test -f pdk/sky130A/libs.tech/ngspice/sky130.lib.spice
-          du -sh pdk/sky130A/libs.tech/ngspice pdk/sky130A/libs.ref/sky130_fd_pr/spice
       - name: Deploy to preview
         run: pnpm dlx wrangler@4.120.1 deploy --config wrangler.preview.jsonc
         env:

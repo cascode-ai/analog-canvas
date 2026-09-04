@@ -18,10 +18,13 @@ import {
   buildSimulationDeck,
   classifySimulationOutcome,
   deckNeedsModelLibrary,
+  describeExitStatus,
   createSimulationInputMetadata,
   isSimulationInputRevision,
   readNgspiceDiagnostics,
   resolveTimeoutMs,
+  SKY130_LIBRARY_PATH,
+  SKY130_LIBRARY_SECTION,
   simulationConfigurationMetadata,
   verifySimulationEnvironmentMetadata,
   type ModelLibrarySelection,
@@ -42,9 +45,8 @@ export interface SimulationEnv {
   SKY130_LIB_SECTION?: string;
 }
 
-const DEFAULT_LIB_PATH =
-  "/opt/sky130/sky130A/libs.tech/ngspice/sky130.lib.spice";
-const DEFAULT_LIB_SECTION = "tt";
+// The continuous (unbinned) Sky130 library the benchmark image ships; the
+// binned checkout it also carries caps device width at 100 µm (#551).
 
 /** A deck this large is a mistake upstream, not a simulation worth waking for. */
 const MAX_INPUT_BYTES = 2 * 1024 * 1024;
@@ -125,8 +127,8 @@ export async function routeSimulationRequest(
     modelLibrary = deckNeedsModelLibrary(`${netlist}\n${testbench}`)
       ? {
           directive: "lib",
-          path: env.SKY130_LIB_PATH ?? DEFAULT_LIB_PATH,
-          section: env.SKY130_LIB_SECTION ?? DEFAULT_LIB_SECTION,
+          path: env.SKY130_LIB_PATH ?? SKY130_LIBRARY_PATH,
+          section: env.SKY130_LIB_SECTION ?? SKY130_LIBRARY_SECTION,
         }
       : null;
     deck = buildSimulationDeck({ netlist, testbench }, modelLibrary);
@@ -205,11 +207,16 @@ export async function routeSimulationRequest(
       text: "The simulator produced no output, so this run has no result.",
     });
   }
+  // Reported, never decisive: see describeExitStatus. Pushed after the checks
+  // above so a signal or a silent run still reads as the error it is.
+  const exitStatus = describeExitStatus(
+    typeof raw.exitCode === "number" ? raw.exitCode : null,
+  );
+  if (exitStatus) diagnostics.push(exitStatus);
   const result: SimulationResult = {
     outcome: classifySimulationOutcome(diagnostics, {
       timedOut,
       timeoutMs,
-      exitCode: typeof raw.exitCode === "number" ? raw.exitCode : null,
     }),
     diagnostics,
     log,
