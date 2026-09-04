@@ -88,8 +88,13 @@ jobs:
           set -euo pipefail
           api() { curl --silent --output /dev/null --write-out '%{http_code}' -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "$@"; }
           base=https://api.cloudflare.com/client/v4
+          # The account id secret has been empty since it was made — wrangler
+          # never needed it, a token that sees one account implies it — so the
+          # token's own view of its accounts is the source when the secret is.
+          account_id="${CLOUDFLARE_ACCOUNT_ID:-$(curl --silent -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "$base/accounts?per_page=2" | jq -r 'if (.result | length) == 1 then .result[0].id else empty end')}"
+          echo "account id:    ${account_id:-(none: the secret is empty and the token does not see exactly one account)}"
           echo "token verify:  $(api "$base/user/tokens/verify")"
-          echo "list tunnels:  $(api "$base/accounts/$CLOUDFLARE_ACCOUNT_ID/cfd_tunnel?per_page=1")"
+          echo "list tunnels:  $(api "$base/accounts/$account_id/cfd_tunnel?per_page=1")"
           echo "list zones:    $(api "$base/zones?name=$SIM_ZONE")"
           zone="$(curl --silent -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "$base/zones?name=$SIM_ZONE" | jq -r '.result[0].id // empty')"
           if [ -n "$zone" ]; then
@@ -112,12 +117,15 @@ jobs:
           base=https://api.cloudflare.com/client/v4
           auth=(-H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H "content-type: application/json")
           fail() { echo "::error::$1"; echo "$2" | jq -c '{success, errors}' || true; exit 1; }
+          account_id="${CLOUDFLARE_ACCOUNT_ID:-$(curl --silent "${auth[@]}" "$base/accounts?per_page=2" | jq -r 'if (.result | length) == 1 then .result[0].id else empty end')}"
+          [ -n "$account_id" ] || fail "no account id: the secret is empty and the token does not see exactly one account" '{}'
+          echo "account $account_id"
 
           # One tunnel of this name; reuse it if an earlier run made it.
-          existing="$(curl --silent "${auth[@]}" "$base/accounts/$CLOUDFLARE_ACCOUNT_ID/cfd_tunnel?name=$TUNNEL_NAME&is_deleted=false")"
+          existing="$(curl --silent "${auth[@]}" "$base/accounts/$account_id/cfd_tunnel?name=$TUNNEL_NAME&is_deleted=false")"
           tunnel_id="$(echo "$existing" | jq -r '.result[0].id // empty')"
           if [ -z "$tunnel_id" ]; then
-            created="$(curl --silent "${auth[@]}" -X POST "$base/accounts/$CLOUDFLARE_ACCOUNT_ID/cfd_tunnel" \
+            created="$(curl --silent "${auth[@]}" -X POST "$base/accounts/$account_id/cfd_tunnel" \
               --data "$(jq -cn --arg name "$TUNNEL_NAME" '{name: $name, config_src: "cloudflare"}')")"
             echo "$created" | jq -e '.success' >/dev/null || fail "creating the tunnel failed" "$created"
             tunnel_id="$(echo "$created" | jq -r '.result.id')"
@@ -127,7 +135,7 @@ jobs:
           fi
 
           # Ingress: the public name to the harness, everything else 404.
-          ingress="$(curl --silent "${auth[@]}" -X PUT "$base/accounts/$CLOUDFLARE_ACCOUNT_ID/cfd_tunnel/$tunnel_id/configurations" \
+          ingress="$(curl --silent "${auth[@]}" -X PUT "$base/accounts/$account_id/cfd_tunnel/$tunnel_id/configurations" \
             --data "$(jq -cn --arg host "$SIM_HOSTNAME" --arg svc "$SIM_SERVICE" \
               '{config: {ingress: [{hostname: $host, service: $svc}, {service: "http_status:404"}]}}')")"
           echo "$ingress" | jq -e '.success' >/dev/null || fail "configuring the tunnel ingress failed" "$ingress"
@@ -148,7 +156,7 @@ jobs:
           echo "dns: $SIM_HOSTNAME -> $tunnel_id.cfargotunnel.com"
 
           # The connector token goes to the host and nowhere else.
-          token_json="$(curl --silent "${auth[@]}" "$base/accounts/$CLOUDFLARE_ACCOUNT_ID/cfd_tunnel/$tunnel_id/token")"
+          token_json="$(curl --silent "${auth[@]}" "$base/accounts/$account_id/cfd_tunnel/$tunnel_id/token")"
           echo "$token_json" | jq -e '.success' >/dev/null || fail "reading the tunnel token failed" "$token_json"
           echo "$token_json" | jq -r '.result' | ssh sim 'umask 077; { printf "TUNNEL_TOKEN="; cat; } > ~/analog-canvas-sim/tunnel.env && echo "tunnel.env written ($(wc -c < ~/analog-canvas-sim/tunnel.env) bytes)"'
           ssh sim '~/analog-canvas-sim/bin/up.sh'
