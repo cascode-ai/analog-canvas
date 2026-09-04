@@ -145,6 +145,11 @@ Focused validation is the normal development loop. Delivery keeps full unit,
 release, and performance protection for every implementation change while the
 browser layer is selected by impact.
 
+Merging to `main` deploys the **preview** channel, not the public site.
+Production deploys only from a `v*` release tag, or a dispatch naming a
+commit, whose commit already has a green preview deploy; see ADR 0057 and
+`docs/deployment.md`.
+
 Before a non-document change is merged or pushed to `main`:
 
 1. Start from a clean dependency state with

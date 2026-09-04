@@ -15,7 +15,6 @@ import {
 } from "./agent-session";
 import { routeGalleryRequest, type GalleryNamespaceLike } from "./gallery";
 import { routeSimulationRequest, type SimulationEnv } from "./simulation";
-import { stagingAccessGate, type StagingEnv } from "./staging-gate";
 import {
   channelResponse,
   markPreviewResponse,
@@ -34,7 +33,6 @@ export { AuthDO } from "./auth";
 export { NgspiceContainer } from "./ngspice-container";
 
 type Env = SimulationEnv &
-  StagingEnv &
   ChannelEnv & {
     ANALYTICS: DurableObjectNamespaceLike;
     ASSETS: { fetch(request: Request): Promise<Response> };
@@ -114,12 +112,6 @@ export default {
 };
 
 async function route(request: Request, env: Env): Promise<Response> {
-  // Before any route, including the APIs: a staging deployment that cannot
-  // identify its caller serves nobody. Production leaves ICM_ENVIRONMENT
-  // unset, so this returns null there and costs one comparison.
-  const stagingRefusal = stagingAccessGate(request, env);
-  if (stagingRefusal) return stagingRefusal;
-
   const url = new URL(request.url);
 
   // The channel is a fact about the deployment, answered before anything
