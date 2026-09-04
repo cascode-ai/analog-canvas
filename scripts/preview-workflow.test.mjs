@@ -40,13 +40,13 @@ describe("the preview deploy", () => {
     expect(preview).toContain("noindex");
     expect(preview).toContain("must read the production gallery");
     expect(preview).toContain("must be refused");
-    expect(preview).toContain("/api/simulate");
-    expect(preview).toContain("hosted-container");
-    // A 200 with a timed-out outcome is not a simulation, and a completed
-    // outcome without the expected number is not an end-to-end proof.
-    expect(preview).toContain('outcome?.status !== "completed"');
-    expect(preview).toContain('one.name.toLowerCase() === "v(out)"');
-    expect(preview).toContain("Math.abs(out.value - 0.5)");
+    expect(preview).toContain(
+      'node scripts/preview-simulation-smoke.mjs "$PREVIEW_URL"',
+    );
+    // The reusable smoke is responsible for explicit transport selection,
+    // numeric validation, and environment parity; the workflow must not
+    // quietly restore an inline, default-executor-only probe.
+    expect(preview).not.toContain('"${PREVIEW_URL}/api/simulate"');
     // The domain is created by the deploy and takes time to resolve.
     expect(preview).toMatch(/for _ in \$\(seq 1 \d+\); do\s*\n\s*if curl/u);
   });

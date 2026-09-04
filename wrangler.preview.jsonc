@@ -26,13 +26,13 @@
     // no read-only mode and this Worker runs code production has not
     // accepted yet. Writes never leave this Worker (see channel.ts).
     "ICM_GALLERY_UPSTREAM": "https://analog-canvas.tokenzhang.com",
-    // Where simulations run. Unset, the NGSPICE container binding below is
-    // the simulator. Set to the public hostname of an operator-run harness
-    // (the same image, behind a Cloudflare Tunnel), it takes over and the
-    // container is never woken; the host's token arrives as the Worker
-    // secret SIMULATION_UPSTREAM_TOKEN (deploy-preview.yml). See
-    // docs/deployment.md, "Where the simulator runs".
-    // "SIMULATION_UPSTREAM_URL": "https://sim-fra.analog-canvas.tokenzhang.com",
+    // Preview carries both execution substrates while the simulation
+    // foundation is built. The Worker chooses the default below, and a
+    // diagnostic/acceptance request may name either one explicitly; there is
+    // no automatic fallback after a run starts. Production has neither of
+    // these Preview decisions until a release deliberately promotes them.
+    "SIMULATION_UPSTREAM_URL": "https://sim-fra.analog-canvas.tokenzhang.com",
+    "SIMULATION_DEFAULT_EXECUTOR": "operator-host",
   },
   "assets": {
     "binding": "ASSETS",

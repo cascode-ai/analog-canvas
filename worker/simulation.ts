@@ -49,6 +49,11 @@ export interface SimulationEnv {
    */
   SIMULATION_UPSTREAM_URL?: string;
   SIMULATION_UPSTREAM_TOKEN?: string;
+  /**
+   * Preview policy, not circuit state. Both executors may be configured at
+   * once; this chooses the one used when a caller names no target.
+   */
+  SIMULATION_DEFAULT_EXECUTOR?: string;
   /** Where the models live inside the image. */
   SKY130_LIB_PATH?: string;
   /** Section in the sectioned Sky130 library; `tt` when omitted. */
@@ -66,6 +71,18 @@ interface SimulationRequestBody {
   testbench?: unknown;
   timeoutMs?: unknown;
   inputRevision?: unknown;
+  executorTarget?: unknown;
+}
+
+export type SimulationExecutorTarget = "cloudflare-container" | "operator-host";
+
+interface SelectedRunner {
+  target: SimulationExecutorTarget;
+  runner: NgspiceRunner;
+}
+
+interface HostedExecutionMetadata {
+  target: SimulationExecutorTarget;
 }
 
 /**
@@ -86,18 +103,42 @@ function remoteRunner(base: string, token: string | undefined): NgspiceRunner {
 }
 
 /**
- * A container instance per author, so one person's long analysis never queues
- * behind another's. The name is opaque; nothing about a run is kept between
- * runs, because a woken container starts with a fresh disk.
- *
- * An operator-run host takes precedence over the container binding: a
- * deployment that names one has decided where its simulations run, and the
- * container's only cost is being woken, which this never does.
+ * Resolve one explicitly named executor. A Preview deployment may register
+ * both at once; selecting one never wakes, probes, or retries through the
+ * other. An uncertain run must not be duplicated on a fallback executor.
  */
-function runnerFor(env: SimulationEnv, key: string): NgspiceRunner | null {
-  const upstream = env.SIMULATION_UPSTREAM_URL?.trim();
-  if (upstream) return remoteRunner(upstream, env.SIMULATION_UPSTREAM_TOKEN);
-  return env.NGSPICE ? env.NGSPICE.getByName(key) : null;
+function runnerFor(
+  env: SimulationEnv,
+  key: string,
+  target: SimulationExecutorTarget,
+): SelectedRunner | null {
+  if (target === "operator-host") {
+    const upstream = env.SIMULATION_UPSTREAM_URL?.trim();
+    return upstream
+      ? {
+          target,
+          runner: remoteRunner(upstream, env.SIMULATION_UPSTREAM_TOKEN),
+        }
+      : null;
+  }
+  return env.NGSPICE ? { target, runner: env.NGSPICE.getByName(key) } : null;
+}
+
+function isExecutorTarget(value: unknown): value is SimulationExecutorTarget {
+  return value === "cloudflare-container" || value === "operator-host";
+}
+
+function defaultExecutorTarget(
+  env: SimulationEnv,
+): SimulationExecutorTarget | "invalid" {
+  const configured = env.SIMULATION_DEFAULT_EXECUTOR?.trim();
+  if (configured) return isExecutorTarget(configured) ? configured : "invalid";
+
+  // Backwards-compatible default: a deployment that configured only the
+  // upstream host keeps using it; otherwise the bound container is canonical.
+  return env.SIMULATION_UPSTREAM_URL?.trim()
+    ? "operator-host"
+    : "cloudflare-container";
 }
 
 /**
@@ -184,26 +225,58 @@ export async function routeSimulationRequest(
     return Response.json({ error: "method-not-allowed" }, { status: 405 });
   }
 
-  const runner = runnerFor(env, runnerKey);
-  if (!runner) {
-    // Deployment state, not circuit state. Said plainly so an author is not
-    // left wondering what is wrong with their design.
-    return Response.json(
-      {
-        error: "simulation-not-configured",
-        message:
-          "This deployment has neither a simulation container bound nor a simulator host configured, so no circuit can be run here.",
-      },
-      { status: 503 },
-    );
-  }
-
   let body: SimulationRequestBody;
   try {
     body = (await request.json()) as SimulationRequestBody;
   } catch {
     return Response.json({ error: "invalid-json" }, { status: 400 });
   }
+  if (
+    body.executorTarget !== undefined &&
+    !isExecutorTarget(body.executorTarget)
+  ) {
+    return Response.json(
+      {
+        error: "invalid-executor-target",
+        message:
+          'executorTarget must be "cloudflare-container" or "operator-host".',
+      },
+      { status: 400 },
+    );
+  }
+
+  const configuredDefault = defaultExecutorTarget(env);
+  if (configuredDefault === "invalid") {
+    return Response.json(
+      {
+        error: "simulation-executor-configuration-invalid",
+        message:
+          "SIMULATION_DEFAULT_EXECUTOR does not name a supported Preview executor.",
+      },
+      { status: 503 },
+    );
+  }
+  const target = body.executorTarget ?? configuredDefault;
+  const selected = runnerFor(env, runnerKey, target);
+  if (!selected) {
+    const noExecutorConfigured =
+      !env.NGSPICE && !env.SIMULATION_UPSTREAM_URL?.trim();
+    return Response.json(
+      noExecutorConfigured
+        ? {
+            error: "simulation-not-configured",
+            message:
+              "This deployment has neither a simulation container bound nor a simulator host configured, so no circuit can be run here.",
+          }
+        : {
+            error: "simulation-executor-unavailable",
+            execution: { target },
+            message: `The Preview executor "${target}" is not configured in this deployment.`,
+          },
+      { status: 503 },
+    );
+  }
+  const execution: HostedExecutionMetadata = { target: selected.target };
   const netlist = typeof body.netlist === "string" ? body.netlist : null;
   const testbench = typeof body.testbench === "string" ? body.testbench : null;
   if (
@@ -253,7 +326,7 @@ export async function routeSimulationRequest(
 
   let containerResponse: Response;
   try {
-    containerResponse = await runner.fetch("http://container/run", {
+    containerResponse = await selected.runner.fetch("http://container/run", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ deck, timeoutMs }),
@@ -262,6 +335,7 @@ export async function routeSimulationRequest(
     return Response.json(
       {
         error: "simulator-unreachable",
+        execution,
         message: error instanceof Error ? error.message : String(error),
       },
       { status: 502 },
@@ -273,6 +347,7 @@ export async function routeSimulationRequest(
     return Response.json(
       {
         error: "simulator-unauthorized",
+        execution,
         message:
           "The simulator host refused this deployment's credentials; check SIMULATION_UPSTREAM_TOKEN.",
       },
@@ -283,6 +358,7 @@ export async function routeSimulationRequest(
     return Response.json(
       {
         error: "simulator-refused",
+        execution,
         status: containerResponse.status,
         ...(await describeRefusal(containerResponse)),
       },
@@ -309,6 +385,7 @@ export async function routeSimulationRequest(
     return Response.json(
       {
         error: "simulator-protocol-invalid",
+        execution,
         message: "The simulator did not identify its execution environment.",
       },
       { status: 502 },
@@ -366,7 +443,8 @@ export async function routeSimulationRequest(
     typeof raw.exitCode === "number" ? raw.exitCode : null,
   );
   if (exitStatus) diagnostics.push(exitStatus);
-  const result: SimulationResult = {
+  const result: SimulationResult & { execution: HostedExecutionMetadata } = {
+    execution,
     outcome: classifySimulationOutcome(diagnostics, {
       timedOut,
       timeoutMs,

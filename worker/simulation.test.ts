@@ -78,6 +78,51 @@ describe("simulation route", () => {
     expect(payload.message).toContain("deployment");
   });
 
+  it("rejects an executor target that is not part of the Preview contract", async () => {
+    const response = await routeSimulationRequest(
+      post({
+        netlist: NETLIST,
+        testbench: TESTBENCH,
+        executorTarget: "automatic-fallback",
+      }),
+      stubRunner({}),
+    );
+    expect(response?.status).toBe(400);
+    expect((await response!.json()) as unknown).toMatchObject({
+      error: "invalid-executor-target",
+    });
+  });
+
+  it("reports an invalid deployment default before attempting a run", async () => {
+    const response = await routeSimulationRequest(
+      post({ netlist: NETLIST, testbench: TESTBENCH }),
+      {
+        ...stubRunner({}),
+        SIMULATION_DEFAULT_EXECUTOR: "somewhere-cheaper",
+      },
+    );
+    expect(response?.status).toBe(503);
+    expect((await response!.json()) as unknown).toMatchObject({
+      error: "simulation-executor-configuration-invalid",
+    });
+  });
+
+  it("names an explicitly selected executor that this deployment lacks", async () => {
+    const response = await routeSimulationRequest(
+      post({
+        netlist: NETLIST,
+        testbench: TESTBENCH,
+        executorTarget: "operator-host",
+      }),
+      stubRunner({}),
+    );
+    expect(response?.status).toBe(503);
+    expect((await response!.json()) as unknown).toMatchObject({
+      error: "simulation-executor-unavailable",
+      execution: { target: "operator-host" },
+    });
+  });
+
   it("requires the author's testbench and never invents one", async () => {
     const response = await routeSimulationRequest(
       post({ netlist: NETLIST }),
@@ -281,6 +326,7 @@ describe("simulation route", () => {
     );
     const payload = (await response!.json()) as {
       outcome: { status: string };
+      execution?: { target: string };
       data?: {
         analyses: {
           analysis: string;
@@ -289,6 +335,7 @@ describe("simulation route", () => {
       };
     };
     expect(payload.outcome.status).toBe("completed");
+    expect(payload.execution?.target).toBe("cloudflare-container");
     const analysis = payload.data?.analyses[0];
     expect(analysis?.analysis).toBe("op");
     const mid = analysis?.probes.find((probe) => probe.name === "v(mid)");
@@ -453,7 +500,11 @@ describe("simulation route", () => {
 
   it("carries a status alone when the refusal said nothing", async () => {
     const payload = await refusal(500, "");
-    expect(payload).toEqual({ error: "simulator-refused", status: 500 });
+    expect(payload).toEqual({
+      error: "simulator-refused",
+      execution: { target: "cloudflare-container" },
+      status: 500,
+    });
   });
 
   it("clips a refusal that answers with a payload instead of a sentence", async () => {
@@ -501,9 +552,94 @@ describe("simulation route", () => {
         env,
       );
       expect(response?.status).toBe(200);
+      expect((await response!.clone().json()) as unknown).toMatchObject({
+        execution: { target: "operator-host" },
+      });
       expect(seen.url).toBe("https://sim-fra.example.test/run");
       expect(seen.authorization).toBe("Bearer host-token");
       expect(JSON.parse(seen.body!)).toMatchObject({ timeoutMs: 60_000 });
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  });
+
+  it("can select the bound Cloudflare container while the operator host is configured", async () => {
+    let containerRuns = 0;
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async () => {
+      throw new Error("the operator host must not be called");
+    }) as typeof fetch;
+    try {
+      const response = await routeSimulationRequest(
+        post({
+          netlist: NETLIST,
+          testbench: TESTBENCH,
+          executorTarget: "cloudflare-container",
+        }),
+        {
+          NGSPICE: {
+            getByName: () => ({
+              fetch: async () => {
+                containerRuns += 1;
+                return Response.json({
+                  environment: HOSTED_ENVIRONMENT,
+                  log: "ok",
+                  exitCode: 0,
+                });
+              },
+            }),
+          },
+          SIMULATION_UPSTREAM_URL: "https://sim-fra.example.test/",
+          SIMULATION_UPSTREAM_TOKEN: "host-token",
+          SIMULATION_DEFAULT_EXECUTOR: "operator-host",
+        },
+      );
+      expect(response?.status).toBe(200);
+      expect(containerRuns).toBe(1);
+      expect((await response!.json()) as unknown).toMatchObject({
+        execution: { target: "cloudflare-container" },
+      });
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  });
+
+  it("can select the operator host while the Cloudflare container is the default", async () => {
+    let hostRuns = 0;
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async () => {
+      hostRuns += 1;
+      return Response.json({
+        environment: HOSTED_ENVIRONMENT,
+        log: "ok",
+        exitCode: 0,
+      });
+    }) as typeof fetch;
+    try {
+      const response = await routeSimulationRequest(
+        post({
+          netlist: NETLIST,
+          testbench: TESTBENCH,
+          executorTarget: "operator-host",
+        }),
+        {
+          NGSPICE: {
+            getByName: () => ({
+              fetch: async () => {
+                throw new Error("the container must not be woken");
+              },
+            }),
+          },
+          SIMULATION_UPSTREAM_URL: "https://sim-fra.example.test/",
+          SIMULATION_UPSTREAM_TOKEN: "host-token",
+          SIMULATION_DEFAULT_EXECUTOR: "cloudflare-container",
+        },
+      );
+      expect(response?.status).toBe(200);
+      expect(hostRuns).toBe(1);
+      expect((await response!.json()) as unknown).toMatchObject({
+        execution: { target: "operator-host" },
+      });
     } finally {
       globalThis.fetch = realFetch;
     }

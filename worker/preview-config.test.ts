@@ -88,6 +88,13 @@ describe("the preview channel configuration (ADR 0057)", () => {
       "./containers/ngspice/Dockerfile",
     );
     expect(preview.containers?.[0]?.max_instances).toBe(1);
+    // Preview builds both substrates behind one Worker contract. The host is
+    // the current default, but the binding remains available for explicit
+    // parity checks; configuring one must not erase the other.
+    expect(preview.vars?.SIMULATION_UPSTREAM_URL).toBe(
+      "https://sim-fra.analog-canvas.tokenzhang.com",
+    );
+    expect(preview.vars?.SIMULATION_DEFAULT_EXECUTOR).toBe("operator-host");
     // Production has no container yet: it arrives with a promoted release.
     expect(
       production.durable_objects?.bindings.some((b) => b.name === "NGSPICE"),
