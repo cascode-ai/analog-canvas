@@ -18,6 +18,7 @@ import {
   buildSimulationDeck,
   classifySimulationOutcome,
   deckNeedsModelLibrary,
+  describeExitStatus,
   createSimulationInputMetadata,
   isSimulationInputRevision,
   readNgspiceDiagnostics,
@@ -206,11 +207,16 @@ export async function routeSimulationRequest(
       text: "The simulator produced no output, so this run has no result.",
     });
   }
+  // Reported, never decisive: see describeExitStatus. Pushed after the checks
+  // above so a signal or a silent run still reads as the error it is.
+  const exitStatus = describeExitStatus(
+    typeof raw.exitCode === "number" ? raw.exitCode : null,
+  );
+  if (exitStatus) diagnostics.push(exitStatus);
   const result: SimulationResult = {
     outcome: classifySimulationOutcome(diagnostics, {
       timedOut,
       timeoutMs,
-      exitCode: typeof raw.exitCode === "number" ? raw.exitCode : null,
     }),
     diagnostics,
     log,
