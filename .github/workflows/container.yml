@@ -1,0 +1,182 @@
+name: Simulation container
+
+# Nothing else in CI builds this image. The preview deploy builds it, on push
+# to main — which is after a merge, so a Dockerfile that does not build takes
+# the preview channel down rather than failing a review. This job is the check
+# that happens first: the image builds, it runs as the account it claims to,
+# nothing a deck can reach is writable, and it still answers a circuit.
+
+on:
+  pull_request:
+    paths:
+      - "containers/ngspice/**"
+      - ".github/workflows/container.yml"
+      - ".dockerignore"
+      - "wrangler.preview.jsonc"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: container-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  image:
+    name: Build and exercise the image
+    runs-on: ubuntu-latest
+    # The base image carries a source-built ngspice and the Sky130 models in
+    # both forms; pulling it is the slow part, not the build.
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the image
+        run: docker build -t icm-ngspice:pr -f containers/ngspice/Dockerfile .
+
+      # What the image promises about itself, asked of the image rather than
+      # read off the Dockerfile. Each check runs as the image's own user,
+      # which is the account a deck's `.control` block would run as.
+      - name: Check the execution boundary
+        run: |
+          set -euo pipefail
+          uid="$(docker run --rm icm-ngspice:pr id -u)"
+          if [ "$uid" != "10001" ]; then
+            echo "The image must run as the unprivileged account, got uid $uid"
+            exit 1
+          fi
+          # The model tree and the simulator are the base image's, not ours,
+          # so their permissions are asserted rather than assumed.
+          for path in /opt/sky130 /opt/ngspice /opt/harness; do
+            if docker run --rm icm-ngspice:pr \
+                sh -c "touch $path/written-by-a-deck" 2>/dev/null; then
+              echo "$path is writable by the account a deck runs as."
+              exit 1
+            fi
+          done
+          if docker run --rm icm-ngspice:pr \
+              sh -c 'touch /opt/harness/entrypoint.mjs' 2>/dev/null; then
+            echo "The harness itself is writable by the account a deck runs as."
+            exit 1
+          fi
+          docker run --rm icm-ngspice:pr sh -c 'test -w /run/simulation' \
+            || { echo "The run root must be writable, or no run can start."; exit 1; }
+          # The continuous library is the reason for this base image (#551).
+          # The Worker points every model-backed deck at exactly this path.
+          docker run --rm icm-ngspice:pr \
+            sh -c 'test -f /opt/sky130/continuous/sky130.lib.spice' \
+            || { echo "The pinned base no longer carries the continuous library."; exit 1; }
+
+      - name: Simulate one circuit in the image
+        run: |
+          set -euo pipefail
+          docker run -d --name icm-ngspice-check -p 127.0.0.1:8080:8080 icm-ngspice:pr
+          trap 'docker logs icm-ngspice-check || true; docker rm -f icm-ngspice-check >/dev/null 2>&1 || true' EXIT
+          # Readiness waits on the model-tree fingerprint, which is a hash of
+          # every file the image ships; that is the slow part of a cold start.
+          for _ in $(seq 1 180); do
+            if curl --silent --fail --max-time 5 http://127.0.0.1:8080/health > /tmp/health.json; then
+              break
+            fi
+            sleep 1
+          done
+          cat /tmp/health.json; echo
+          node -e '
+            const health = require("/tmp/health.json");
+            if (health.status !== "ready") throw new Error("container not ready");
+            if (health.busy !== false) throw new Error("a fresh container is not busy");
+            if (health.limits.concurrentRuns !== 1) throw new Error("the slot is not single");
+            if (health.environment.simulator.name !== "ngspice") throw new Error("no simulator identified");
+            if (!/^[0-9a-f]{64}$/.test(health.environment.fingerprint)) throw new Error("no fingerprint");
+            console.log("simulator:", health.environment.simulator.version);
+          '
+          # A resistor divider, the smallest circuit ngspice can answer for,
+          # and one that needs no device model — the models are covered by the
+          # preview deploy, which simulates through the real container on
+          # every merge. What is asked here is whether a deck runs at all
+          # under the account, the limits, and the directory this image gives
+          # it, and whether the rawfile it asked for comes back.
+          node -e '
+            const deck = [
+              "* container check",
+              "V1 in 0 DC 1",
+              "R1 in out 1k",
+              "R2 out 0 1k",
+              ".control",
+              "op",
+              "print v(out)",
+              "write out.raw",
+              ".endc",
+              ".end",
+              "",
+            ].join("\n");
+            process.stdout.write(JSON.stringify({ deck, timeoutMs: 30000 }));
+          ' > /tmp/run-request.json
+          curl --silent --show-error --fail --max-time 60 \
+            -H 'content-type: application/json' \
+            --data @/tmp/run-request.json \
+            http://127.0.0.1:8080/run > /tmp/run-result.json
+          node -e '
+            const result = require("/tmp/run-result.json");
+            console.log(result.log);
+            if (result.timedOut) throw new Error("the divider timed out");
+            if (result.exitCode !== 0) throw new Error(`exit ${result.exitCode} signal ${result.signal}`);
+            if (result.truncated) throw new Error("a divider must not reach the output cap");
+            if (!/0\.5|5\.0+e-01/.test(result.log)) {
+              throw new Error("the divider did not report half a volt");
+            }
+            // The rawfile the deck asked for comes back as text, uninterpreted.
+            if (result.rawfileFormat !== "ascii") {
+              throw new Error(`rawfile format ${result.rawfileFormat}`);
+            }
+            if (!/Plotname/i.test(result.rawfile ?? "")) {
+              throw new Error("the rawfile does not look like one");
+            }
+            console.log("rawfile:", result.rawfileName, result.rawfile.length, "bytes");
+          '
+          # The single slot, asked of the running container rather than only
+          # of the harness in unit tests: a second request during a run is
+          # refused with Retry-After, not queued behind it.
+          node -e '
+            const deck = [
+              "* a run long enough to still be running",
+              "V1 in 0 DC 1",
+              "R1 in out 1k",
+              "C1 out 0 1u",
+              ".tran 1n 200m",
+              ".end",
+              "",
+            ].join("\n");
+            process.stdout.write(JSON.stringify({ deck, timeoutMs: 30000 }));
+          ' > /tmp/slow-request.json
+          curl --silent --show-error --max-time 90 -o /tmp/slow-result.json \
+            -H 'content-type: application/json' --data @/tmp/slow-request.json \
+            http://127.0.0.1:8080/run &
+          slow=$!
+          busy=""
+          for _ in $(seq 1 100); do
+            if curl --silent --fail --max-time 5 http://127.0.0.1:8080/health \
+                | grep -q '"busy":true'; then
+              busy=yes
+              break
+            fi
+            sleep 0.2
+          done
+          if [ -z "$busy" ]; then
+            echo "The container never reported itself busy; the guard cannot be observed."
+            wait "$slow" || true
+            exit 1
+          fi
+          second="$(curl --silent --max-time 20 -o /tmp/second.json -D /tmp/second.head \
+            --write-out '%{http_code}' \
+            -H 'content-type: application/json' --data @/tmp/run-request.json \
+            http://127.0.0.1:8080/run)"
+          wait "$slow" || true
+          cat /tmp/second.json; echo
+          if [ "$second" != "503" ]; then
+            echo "A second concurrent run must be refused with 503, got $second"
+            exit 1
+          fi
+          grep -iq '^retry-after:' /tmp/second.head \
+            || { echo "A refusal must say when to come back."; cat /tmp/second.head; exit 1; }
