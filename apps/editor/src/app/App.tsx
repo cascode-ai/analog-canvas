@@ -344,7 +344,7 @@ const LIBRARY_PANEL_STORAGE_KEY = "icm.library-panel-open.v1";
 const LIBRARY_WIDTH_STORAGE_KEY = "icm.library-panel-width.v1";
 const COMPACT_LAYOUT_MEDIA_QUERY = "(max-width: 860px)";
 const DRAG_START_DISTANCE_PX = 4;
-const SNAP_CAPTURE_RADIUS_PX = 7;
+const SNAP_CAPTURE_RADIUS_PX = 4;
 
 /** Persisted Junctions are grid points, including on ±45° Route segments. */
 

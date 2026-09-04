@@ -101,9 +101,9 @@ test("outline arrow style is chosen before stamp/drag and shares editable geomet
   await expect(outline).toHaveCount(2);
 });
 
-// Two-phase drafting creation: click to set the start, move to preview, click to
-// commit. Arrow commits on the second click; construction line commits on the
-// second click too (a 2-point line). Uses real mouse clicks (not pointer
+// Multi-phase drafting creation: click to set the start, move to preview, click
+// a final vertex, then Enter. Line arrows and construction lines retain clicks
+// as bends until Enter or double-click finishes. Uses real mouse clicks (not pointer
 // dispatch) so the editor's onClick handler — which gates on event.detail === 1
 // — fires, and a pointermove drives the hover preview between the two clicks.
 async function clickCreate(
@@ -119,8 +119,7 @@ async function clickCreate(
   await page.mouse.click(start.x, start.y);
   await page.mouse.move(end.x, end.y);
   await page.mouse.click(end.x, end.y);
-  // Arrows commit on the second click. Construction lines retain that click as
-  // a vertex so users can add bends; Enter accepts the current preview end.
+  // The click is a vertex; Enter accepts it as the current endpoint.
   await page.keyboard.press("Enter");
 }
 
@@ -971,6 +970,99 @@ test("two-phase click-creates an arrow", async ({ page }) => {
   await expect(
     page.locator('[data-layer="drafting"] g[data-kind="draft-arrow"]'),
   ).toHaveCount(1);
+});
+
+test("line arrow clicks add bends and snap through to an arbitrary rectangle edge", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await clickDrawTool(page, "rectangle");
+  await clickCreate(page, { x: 430, y: 220 }, { x: 650, y: 400 });
+  const rectangle = page.locator('[data-kind="draft-rectangle"]');
+  const target = await rectangle.evaluate((element) => {
+    const polygon = element as SVGPolygonElement;
+    const matrix = polygon.getScreenCTM();
+    if (!matrix || polygon.points.numberOfItems < 2) return null;
+    const from = polygon.points.getItem(0);
+    const to = polygon.points.getItem(1);
+    const logical = {
+      x: from.x + (to.x - from.x) * 0.37,
+      y: from.y + (to.y - from.y) * 0.37,
+    };
+    const screen = new DOMPoint(logical.x, logical.y).matrixTransform(matrix);
+    const screenFrom = new DOMPoint(from.x, from.y).matrixTransform(matrix);
+    const screenTo = new DOMPoint(to.x, to.y).matrixTransform(matrix);
+    const dx = screenTo.x - screenFrom.x;
+    const dy = screenTo.y - screenFrom.y;
+    const length = Math.hypot(dx, dy) || 1;
+    return {
+      exact: { x: screen.x, y: screen.y },
+      near: {
+        x: screen.x + (-dy / length) * 2,
+        y: screen.y + (dx / length) * 2,
+      },
+    };
+  });
+  if (!target) throw new Error("Rectangle edge is not measurable");
+
+  await clickDrawTool(page, "arrow");
+  await page.mouse.click(target.exact.x - 110, target.exact.y - 80);
+  await page.mouse.click(target.exact.x - 55, target.exact.y - 25);
+  await page.mouse.move(target.near.x, target.near.y);
+  await expect(page.locator(".drafting-create-snap")).toHaveCount(1);
+  await page.mouse.dblclick(target.near.x, target.near.y);
+
+  const line = page.locator(
+    '[data-layer="drafting"] g[data-kind="draft-arrow"] > polyline',
+  );
+  const head = page.locator(
+    '[data-layer="drafting"] g[data-kind="draft-arrow"] > polygon',
+  );
+  await expect(line).toHaveCount(1);
+  const geometry = await Promise.all([
+    line.evaluate((element) => {
+      const polyline = element as SVGPolylineElement;
+      return Array.from(
+        { length: polyline.points.numberOfItems },
+        (_, index) => {
+          const point = polyline.points.getItem(index);
+          return { x: point.x, y: point.y };
+        },
+      );
+    }),
+    rectangle.evaluate((element) => {
+      const polygon = element as SVGPolygonElement;
+      return [polygon.points.getItem(0), polygon.points.getItem(1)].map(
+        (point) => ({ x: point.x, y: point.y }),
+      );
+    }),
+    head.evaluate((element) => {
+      const polygon = element as SVGPolygonElement;
+      return Array.from(
+        { length: polygon.points.numberOfItems },
+        (_, index) => {
+          const point = polygon.points.getItem(index);
+          return { x: point.x, y: point.y };
+        },
+      );
+    }),
+  ]);
+  expect(geometry[0]).toHaveLength(3);
+  const edge = geometry[1];
+  const edgeLength = Math.hypot(
+    edge[1]!.x - edge[0]!.x,
+    edge[1]!.y - edge[0]!.y,
+  );
+  const distanceToEdge = (point: { x: number; y: number }): number =>
+    Math.abs(
+      (point.x - edge[0]!.x) * (edge[1]!.y - edge[0]!.y) -
+        (point.y - edge[0]!.y) * (edge[1]!.x - edge[0]!.x),
+    ) / edgeLength;
+  // The shaft is shortened under the head; its triangle tip owns the exact
+  // persisted endpoint and therefore the edge capture.
+  expect(Math.min(...geometry[2].map(distanceToEdge))).toBeLessThanOrEqual(0.5);
+  await expect(page.locator(".drafting-create-snap")).toHaveCount(0);
 });
 
 // Shape-based hit — a construction line selects via its stroke and does not

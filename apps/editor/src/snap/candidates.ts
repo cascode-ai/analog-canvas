@@ -3,6 +3,7 @@ import type { WireSource } from "@icm/edit-engine";
 import type { Point, Rect, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
+import { closestPointOnSegment } from "../canvas/canvas-geometry";
 import { instanceVisibleHitBox } from "../canvas/instance-geometry";
 import type { SnapAnchor, SnapTargetKind } from "./engine";
 
@@ -141,6 +142,118 @@ export function buildRectangleEdgeSnapAnchors(
       }));
     });
   });
+}
+
+function quadraticPoint(
+  from: Point,
+  control: Point,
+  to: Point,
+  t: number,
+): Point {
+  const inverse = 1 - t;
+  return {
+    x: inverse * inverse * from.x + 2 * inverse * t * control.x + t * t * to.x,
+    y: inverse * inverse * from.y + 2 * inverse * t * control.y + t * t * to.y,
+  };
+}
+
+/** Exact point on a quadratic selected through a bounded one-dimensional search. */
+function closestPointOnQuadratic(
+  point: Point,
+  from: Point,
+  control: Point,
+  to: Point,
+): Point {
+  const distanceSquared = (t: number): number => {
+    const candidate = quadraticPoint(from, control, to, t);
+    return (candidate.x - point.x) ** 2 + (candidate.y - point.y) ** 2;
+  };
+  const samples = 24;
+  let best = 0;
+  for (let index = 1; index <= samples; index += 1) {
+    if (distanceSquared(index / samples) < distanceSquared(best / samples))
+      best = index;
+  }
+  let left = Math.max(0, (best - 1) / samples);
+  let right = Math.min(1, (best + 1) / samples);
+  for (let iteration = 0; iteration < 18; iteration += 1) {
+    const first = left + (right - left) / 3;
+    const second = right - (right - left) / 3;
+    if (distanceSquared(first) <= distanceSquared(second)) right = second;
+    else left = first;
+  }
+  return quadraticPoint(from, control, to, (left + right) / 2);
+}
+
+/**
+ * Pointer-local visual projections. They are transient coordinate candidates,
+ * never persisted attachments or electrical contacts.
+ */
+export function buildDraftingProjectionSnapTargets(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  point: Point,
+  excludedDraftingIds: ReadonlySet<string> = new Set(),
+): SnapAnchor[] {
+  const targets: SnapAnchor[] = [];
+  const segment = (
+    objectId: string,
+    index: number,
+    from: Point,
+    to: Point,
+    control?: Point | null,
+  ): void => {
+    targets.push({
+      id: `drafting:${objectId}:projection-${index}`,
+      point: control
+        ? closestPointOnQuadratic(point, from, control, to)
+        : closestPointOnSegment(point, from, to),
+      kind: "drafting",
+    });
+  };
+  for (const object of document.drafting?.objects ?? []) {
+    if (excludedDraftingIds.has(object.id)) continue;
+    const geometry = resolveDraftingObjectGeometry(document, resolver, object);
+    if (geometry.kind === "arrow" || geometry.kind === "construction-line") {
+      for (let index = 0; index < geometry.vertices.length - 1; index += 1) {
+        segment(
+          object.id,
+          index,
+          geometry.vertices[index]!,
+          geometry.vertices[index + 1]!,
+          geometry.curveControls[index],
+        );
+      }
+    } else if (geometry.kind === "rectangle") {
+      for (let index = 0; index < geometry.corners.length; index += 1) {
+        segment(
+          object.id,
+          index,
+          geometry.corners[index]!,
+          geometry.corners[(index + 1) % geometry.corners.length]!,
+        );
+      }
+    } else if (geometry.kind === "circle") {
+      const dx = point.x - geometry.center.x;
+      const dy = point.y - geometry.center.y;
+      const length = Math.hypot(dx, dy);
+      if (length > 0) {
+        targets.push({
+          id: `drafting:${object.id}:projection-circle`,
+          point: {
+            x: geometry.center.x + (dx / length) * geometry.radius,
+            y: geometry.center.y + (dy / length) * geometry.radius,
+          },
+          kind: "drafting",
+        });
+      }
+    } else if (geometry.kind === "leader") {
+      segment(object.id, 0, geometry.anchor, geometry.target);
+    } else if (geometry.kind === "callout") {
+      segment(object.id, 0, geometry.textPosition, geometry.target);
+    }
+  }
+  return targets;
 }
 
 export function buildInstanceAnchors(

@@ -9,7 +9,10 @@ import type { SymbolResolver } from "@icm/symbols";
 
 import { closestPointOnSegment } from "../../canvas/canvas-geometry";
 import type { EditorTool } from "../../interaction/interaction-state";
-import { buildSceneSnapTargets } from "../../snap/candidates";
+import {
+  buildDraftingProjectionSnapTargets,
+  buildSceneSnapTargets,
+} from "../../snap/candidates";
 import {
   resolvePointSnap,
   SNAP_PROFILES,
@@ -149,10 +152,15 @@ export function createDraftingCreateController({
         kind: "route" as const,
       })),
     );
+    const constrained =
+      angleStep && origin
+        ? constrainDraftingAngle(origin, point, angleStep)
+        : point;
     const resolved = resolvePointSnap(
-      point,
+      constrained,
       [
         ...buildSceneSnapTargets(document, resolver, visibleEndpoints),
+        ...buildDraftingProjectionSnapTargets(document, resolver, constrained),
         ...routeTargets,
       ],
       {
@@ -161,19 +169,19 @@ export function createDraftingCreateController({
         profile: SNAP_PROFILES.draftingHandle,
       },
     );
-    let snapped: DerivedPoint = {
-      x: point.x + resolved.delta.x,
-      y: point.y + resolved.delta.y,
+    let snapped: DerivedPoint = resolved.pointMatch?.point ?? {
+      x: constrained.x + resolved.delta.x,
+      y: constrained.y + resolved.delta.y,
     };
     const hasObjectSnap =
       (resolved.xMatch && resolved.xMatch.targetKind !== "grid") ||
       (resolved.yMatch && resolved.yMatch.targetKind !== "grid");
-    if (angleStep && origin)
-      snapped = constrainDraftingAngle(origin, snapped, angleStep);
-    const gridPoint = snapGridPoint(snapped, annotationGrid);
+    const finalPoint = resolved.pointMatch
+      ? snapGridPoint(snapped, 1)
+      : snapGridPoint(snapped, annotationGrid);
     return {
-      point: gridPoint,
-      snap: hasObjectSnap ? gridPoint : null,
+      point: finalPoint,
+      snap: hasObjectSnap ? finalPoint : null,
       guides: resolved.guides,
     };
   };
@@ -181,9 +189,9 @@ export function createDraftingCreateController({
   const commitVertices = (points: Point[]): void => {
     if (points.length < 2) return;
     const id = nextId("construction");
-    const snappedPoints = points.map((point) =>
-      snapGridPoint(point, annotationGrid),
-    );
+    // snapPoint already applies either an exact visual capture (one logical
+    // unit precision) or the Annotation Grid. Do not erase edge captures here.
+    const snappedPoints = points.map((point) => ({ ...point }));
     if (
       transact([
         {
@@ -205,7 +213,38 @@ export function createDraftingCreateController({
     }
   };
 
-  const commit = (active: DraftingTool, start: Point, end: Point): void => {
+  const commitArrow = (points: Point[]): void => {
+    if (points.length < 2) return;
+    const id = nextId("arrow");
+    const snappedPoints = points.map((point) => ({ ...point }));
+    const from = snappedPoints[0]!;
+    const to = snappedPoints.at(-1)!;
+    const object = applyArrowPreset(
+      {
+        id,
+        kind: "arrow",
+        locked: false,
+        zIndex: 0,
+        anchor: { kind: "free", position: from },
+        from: { kind: "free", position: from },
+        to: { kind: "free", position: to },
+        ...(snappedPoints.length > 2
+          ? { waypoints: snappedPoints.slice(1, -1) }
+          : {}),
+      },
+      arrowPreset,
+    );
+    if (object && transact([{ kind: "upsert_drafting_object", object }]).ok) {
+      setStatus(`Added free arrow ${id}`);
+      setTool("pointer");
+    }
+  };
+
+  const commit = (
+    active: Exclude<DraftingTool, "arrow">,
+    start: Point,
+    end: Point,
+  ): void => {
     const id = nextId(active === "construction-line" ? "construction" : active);
     const snappedStart = snapGridPoint(start, annotationGrid);
     const snappedEnd = snapGridPoint(end, annotationGrid);
@@ -274,28 +313,6 @@ export function createDraftingCreateController({
       ) {
         setStatus(`Added rectangle ${id}`);
       }
-    } else if (active === "arrow") {
-      if (
-        transact([
-          {
-            kind: "upsert_drafting_object",
-            object: applyArrowPreset(
-              {
-                id,
-                kind: "arrow",
-                locked: false,
-                zIndex: 0,
-                anchor: { kind: "free", position: snappedStart },
-                from: { kind: "free", position: snappedStart },
-                to: { kind: "free", position: snappedEnd },
-              },
-              arrowPreset,
-            )!,
-          },
-        ]).ok
-      ) {
-        setStatus(`Added free arrow ${id}`);
-      }
     } else if (
       transact([
         {
@@ -340,25 +357,25 @@ export function createDraftingCreateController({
       setWaypoints([]);
       setStatus(
         active === "arrow"
-          ? "Arrow: click the end point (Enter to finish, Esc to cancel)"
+          ? "Arrow: click bends; double-click or Enter to finish (Esc cancels)"
           : active === "rectangle"
             ? "Rectangle: click the opposite corner (Esc to cancel)"
             : active === "circle"
               ? "Circle: click the radius point (Esc to cancel)"
               : "Construction line: click next vertex (Enter to finish, Esc to cancel)",
       );
-    } else if (
-      active === "arrow" ||
-      active === "rectangle" ||
-      active === "circle"
-    ) {
+    } else if (active === "rectangle" || active === "circle") {
       commit(active, source, resolved.point);
       clear();
     } else {
       setWaypoints((current) => [...current, resolved.point]);
       setHover(resolved.point);
       setSnapPoint(resolved.snap);
-      setStatus(`Construction line: ${waypoints.length + 1} bend(s)`);
+      setStatus(
+        active === "arrow"
+          ? `Arrow: ${waypoints.length + 1} bend(s) · double-click or Enter to finish`
+          : `Construction line: ${waypoints.length + 1} bend(s)`,
+      );
     }
   };
 
@@ -367,7 +384,15 @@ export function createDraftingCreateController({
     if (!active || source === null) return;
     if (active === "arrow" && arrowPreset.family === "outline") return;
     const end = hover ?? source;
-    if (active === "arrow" || active === "rectangle" || active === "circle") {
+    if (active === "arrow") {
+      const points = [source, ...waypoints];
+      if (
+        end.x !== points[points.length - 1]!.x ||
+        end.y !== points[points.length - 1]!.y
+      )
+        points.push(end);
+      commitArrow(points);
+    } else if (active === "rectangle" || active === "circle") {
       if (source.x !== end.x || source.y !== end.y) commit(active, source, end);
     } else {
       const points = [source, ...waypoints];
