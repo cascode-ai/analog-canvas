@@ -466,6 +466,70 @@ describe("simulation route", () => {
     expect(String(payload.reason).length).toBeLessThanOrEqual(401);
   });
 
+  it("sends the run to an operator-run host when one is configured, with its token", async () => {
+    const seen: { url?: string; authorization?: string | null; body?: string } =
+      {};
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async (
+      input: RequestInfo | URL,
+      init?: RequestInit,
+    ) => {
+      seen.url = String(input instanceof Request ? input.url : input);
+      seen.authorization = new Headers(init?.headers).get("authorization");
+      seen.body = String(init?.body);
+      return Response.json({
+        environment: HOSTED_ENVIRONMENT,
+        log: "ok",
+        exitCode: 0,
+      });
+    }) as typeof fetch;
+    try {
+      const env: SimulationEnv = {
+        // A bound container as well, to prove the host wins and stays asleep.
+        NGSPICE: {
+          getByName: () => ({
+            fetch: async () => {
+              throw new Error("the container must not be woken");
+            },
+          }),
+        },
+        SIMULATION_UPSTREAM_URL: "https://sim-fra.example.test/",
+        SIMULATION_UPSTREAM_TOKEN: "host-token",
+      };
+      const response = await routeSimulationRequest(
+        post({ netlist: NETLIST, testbench: TESTBENCH }),
+        env,
+      );
+      expect(response?.status).toBe(200);
+      expect(seen.url).toBe("https://sim-fra.example.test/run");
+      expect(seen.authorization).toBe("Bearer host-token");
+      expect(JSON.parse(seen.body!)).toMatchObject({ timeoutMs: 60_000 });
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  });
+
+  it("names a host that refuses the deployment's token as a deployment fault", async () => {
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      Response.json(
+        { error: "unauthorized" },
+        { status: 401 },
+      )) as typeof fetch;
+    try {
+      const response = await routeSimulationRequest(
+        post({ netlist: NETLIST, testbench: TESTBENCH }),
+        { SIMULATION_UPSTREAM_URL: "https://sim-fra.example.test" },
+      );
+      expect(response?.status).toBe(502);
+      expect((await response!.json()) as unknown).toMatchObject({
+        error: "simulator-unauthorized",
+      });
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  });
+
   it("distinguishes an unreachable simulator from a failing circuit", async () => {
     const env: SimulationEnv = {
       NGSPICE: {

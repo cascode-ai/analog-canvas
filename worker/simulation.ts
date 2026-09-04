@@ -41,6 +41,14 @@ export interface NgspiceRunner {
 export interface SimulationEnv {
   /** Present once Containers is enabled for the account and bound. */
   NGSPICE?: { getByName(name: string): NgspiceRunner };
+  /**
+   * A harness running elsewhere — the same image, on a host the operator
+   * runs, reached over HTTPS through a tunnel. When set it is the simulator;
+   * the container binding, if any, is left asleep. The Worker stays the only
+   * public door: the host answers only to this token.
+   */
+  SIMULATION_UPSTREAM_URL?: string;
+  SIMULATION_UPSTREAM_TOKEN?: string;
   /** Where the models live inside the image. */
   SKY130_LIB_PATH?: string;
   /** Section in the sectioned Sky130 library; `tt` when omitted. */
@@ -61,11 +69,34 @@ interface SimulationRequestBody {
 }
 
 /**
+ * The harness on an operator-run host, spoken to exactly as the container
+ * is: the same `/run` path, the same body, plus the bearer token the host
+ * requires. Only the path of the caller's URL is kept, so the route module
+ * never has to know which kind of runner it was handed.
+ */
+function remoteRunner(base: string, token: string | undefined): NgspiceRunner {
+  return {
+    fetch: (input, init) => {
+      const target = new URL(new URL(input).pathname, base);
+      const headers = new Headers(init?.headers);
+      if (token) headers.set("authorization", `Bearer ${token}`);
+      return fetch(target, { ...init, headers });
+    },
+  };
+}
+
+/**
  * A container instance per author, so one person's long analysis never queues
  * behind another's. The name is opaque; nothing about a run is kept between
  * runs, because a woken container starts with a fresh disk.
+ *
+ * An operator-run host takes precedence over the container binding: a
+ * deployment that names one has decided where its simulations run, and the
+ * container's only cost is being woken, which this never does.
  */
 function runnerFor(env: SimulationEnv, key: string): NgspiceRunner | null {
+  const upstream = env.SIMULATION_UPSTREAM_URL?.trim();
+  if (upstream) return remoteRunner(upstream, env.SIMULATION_UPSTREAM_TOKEN);
   return env.NGSPICE ? env.NGSPICE.getByName(key) : null;
 }
 
@@ -161,7 +192,7 @@ export async function routeSimulationRequest(
       {
         error: "simulation-not-configured",
         message:
-          "This deployment has no simulation container bound, so no circuit can be run here.",
+          "This deployment has neither a simulation container bound nor a simulator host configured, so no circuit can be run here.",
       },
       { status: 503 },
     );
@@ -232,6 +263,18 @@ export async function routeSimulationRequest(
       {
         error: "simulator-unreachable",
         message: error instanceof Error ? error.message : String(error),
+      },
+      { status: 502 },
+    );
+  }
+  if (containerResponse.status === 401 || containerResponse.status === 403) {
+    // The host did not accept this deployment's token. A deployment fact,
+    // named as one, so nobody reads it as the circuit being refused.
+    return Response.json(
+      {
+        error: "simulator-unauthorized",
+        message:
+          "The simulator host refused this deployment's credentials; check SIMULATION_UPSTREAM_TOKEN.",
       },
       { status: 502 },
     );

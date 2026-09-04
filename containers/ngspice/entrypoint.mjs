@@ -17,7 +17,7 @@
 // every run writes its deck, reads its output, and leaves nothing behind
 // that a later run could depend on.
 import { execFile, spawn } from "node:child_process";
-import { createHash } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { constants as fsConstants } from "node:fs";
 import {
   access,
@@ -35,6 +35,30 @@ import { join, relative } from "node:path";
 
 const MODEL_ROOT = process.env.SKY130_MODEL_ROOT ?? "/opt/sky130/sky130A";
 const PORT = Number(process.env.PORT ?? 8080);
+
+/**
+ * Who may start a run. Inside Cloudflare the only caller is the Worker that
+ * owns the container binding, so nothing is configured and every `/run` is
+ * accepted. On an operator's own host the harness sits behind a tunnel with a
+ * public hostname, and then the Worker must present this token or the host
+ * is a free simulator for whoever finds the name. `/health` stays open either
+ * way: it reports the image's identity, not a circuit, and an uptime check
+ * should not need a secret.
+ */
+const ACCESS_TOKEN = (process.env.SIMULATION_ACCESS_TOKEN ?? "").trim();
+
+/** Constant-time: a token compared byte by byte leaks its prefix by timing. */
+function authorized(request) {
+  if (!ACCESS_TOKEN) return true;
+  const header = request.headers.authorization ?? "";
+  const match = /^Bearer\s+(\S+)$/u.exec(header);
+  if (!match) return false;
+  const presented = Buffer.from(match[1], "utf8");
+  const expected = Buffer.from(ACCESS_TOKEN, "utf8");
+  return (
+    presented.length === expected.length && timingSafeEqual(presented, expected)
+  );
+}
 
 /**
  * Where a run's private directory is made. A directory the image gives to the
@@ -735,6 +759,13 @@ const server = createServer((request, response) => {
   }
   if (request.method !== "POST" || request.url !== "/run") {
     send(404, { error: "not-found" });
+    return;
+  }
+  if (!authorized(request)) {
+    // Refused before the body is read: an unauthorized caller gets no say in
+    // how much this process buffers, and no hint about the slot's state.
+    send(401, { error: "unauthorized" }, { "www-authenticate": "Bearer" });
+    request.resume();
     return;
   }
 
