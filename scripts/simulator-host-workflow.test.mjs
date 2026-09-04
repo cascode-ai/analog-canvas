@@ -26,7 +26,8 @@ describe("the operator simulator host", () => {
       "docker/compose/releases/download/v$compose_version",
     );
     expect(bootstrap).toContain("sha256sum --check --status");
-    expect(bootstrap).toContain("sudo -n");
+    expect(bootstrap).toContain("$HOME/.docker/cli-plugins");
+    expect(bootstrap).not.toContain("sudo");
   });
 
   it("keeps the harness private and resource bounded in one desired-state file", () => {

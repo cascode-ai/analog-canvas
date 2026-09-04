@@ -11,19 +11,6 @@ fail() {
 command -v docker >/dev/null 2>&1 || fail "docker is not installed"
 compose_version="2.33.1"
 
-as_root() {
-  if [ "$(id -u)" -eq 0 ]; then
-    "$@"
-    return
-  fi
-
-  command -v sudo >/dev/null 2>&1 \
-    || fail "installing the Docker Compose plugin requires root or sudo"
-  sudo -n true >/dev/null 2>&1 \
-    || fail "installing the Docker Compose plugin requires passwordless sudo"
-  sudo -n "$@"
-}
-
 install_compose_plugin() {
   command -v curl >/dev/null 2>&1 \
     || fail "installing the Docker Compose plugin requires curl"
@@ -51,9 +38,9 @@ install_compose_plugin() {
     --output "$compose_tmp"
   printf '%s  %s\n' "$compose_sha256" "$compose_tmp" | sha256sum --check --status \
     || fail "the Docker Compose download did not match its pinned digest"
-  as_root install -d -m 755 /usr/local/lib/docker/cli-plugins
-  as_root install -m 755 "$compose_tmp" \
-    /usr/local/lib/docker/cli-plugins/docker-compose
+  compose_plugin_dir="$HOME/.docker/cli-plugins"
+  install -d -m 755 "$compose_plugin_dir"
+  install -m 755 "$compose_tmp" "$compose_plugin_dir/docker-compose"
   rm -f "$compose_tmp"
   trap - 0 1 2 15
 }
