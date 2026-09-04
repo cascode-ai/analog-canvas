@@ -148,7 +148,11 @@ tunnel; run by hand it can `probe` what the Cloudflare token may do or
 `bootstrap-tunnel` — create the named tunnel, its ingress, and the DNS name,
 and hand the connector token to the host over SSH without ever printing it.
 It reaches the host with the repository secrets `SIM_HOST_ADDR`,
-`SIM_HOST_USER`, `SIM_HOST_SSH_KEY`, and `SIM_HOST_KNOWN_HOSTS`; on the host
+`SIM_HOST_USER`, `SIM_HOST_SSH_KEY`, and `SIM_HOST_KNOWN_HOSTS`, and speaks to
+Cloudflare with `CLOUDFLARE_TUNNEL_API_TOKEN` (Account → Cloudflare Tunnel:
+Edit, Zone → DNS: Edit on the site's zone), a token separate from the deploy
+token on purpose; before the tunnel exists, an automatic rebuild verifies the
+harness from inside the host's network instead; on the host
 `bin/health.sh` asks the harness for its health from inside that network. The host has 32 cores; the
 harness still runs one job at a time, by its own slot, until the executor
 contract gains a concurrency count.

@@ -74,7 +74,11 @@ jobs:
       - name: Probe what the Cloudflare token may do
         if: github.event_name == 'workflow_dispatch' && inputs.action == 'probe'
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          # A token of its own for the tunnel and the DNS name — the deploy
+          # token can see the zone but may not touch tunnels or records, and
+          # widening it would widen every deploy. Falls back to the deploy
+          # token so the probe can still say what that one may do.
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TUNNEL_API_TOKEN || secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -euo pipefail
@@ -93,7 +97,11 @@ jobs:
       - name: Create the tunnel, its ingress, and its DNS name; hand the token to the host
         if: github.event_name == 'workflow_dispatch' && inputs.action == 'bootstrap-tunnel'
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          # A token of its own for the tunnel and the DNS name — the deploy
+          # token can see the zone but may not touch tunnels or records, and
+          # widening it would widen every deploy. Falls back to the deploy
+          # token so the probe can still say what that one may do.
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TUNNEL_API_TOKEN || secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -euo pipefail
@@ -154,6 +162,16 @@ jobs:
         if: github.event_name == 'push' || inputs.action != 'probe'
         run: |
           set -euo pipefail
+          # Until the tunnel has been bootstrapped there is no public name to
+          # ask; a rebuild is then verified from inside the host's own network,
+          # and says so, rather than failing for the tunnel's absence.
+          if [ -z "$(ssh sim 'docker ps --quiet --filter name=^analog-canvas-tunnel$')" ]; then
+            echo "::notice::no tunnel is running on the host yet; verifying inside its network"
+            ssh sim '~/analog-canvas-sim/bin/health.sh' > /tmp/health.json
+            jq -e '.status == "ready"' /tmp/health.json >/dev/null || { echo "::error::the harness is not ready on the host"; cat /tmp/health.json || true; exit 1; }
+            echo "ready on the host: ngspice $(jq -r '.environment.simulator.version' /tmp/health.json)"
+            exit 0
+          fi
           for _ in $(seq 1 30); do
             if curl --silent --fail --max-time 10 "https://$SIM_HOSTNAME/health" > /tmp/health.json; then break; fi
             sleep 10
