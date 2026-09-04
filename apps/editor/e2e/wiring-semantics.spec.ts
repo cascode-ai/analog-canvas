@@ -1,5 +1,5 @@
 import { createEmptyProject } from "@icm/model";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import { chooseComponent, clickDrawTool } from "./editor-fixtures";
 
@@ -19,6 +19,65 @@ async function instanceIds(page: Page): Promise<string[]> {
     .evaluateAll((elements) =>
       elements.map((element) => element.getAttribute("data-canvas-hit-id")!),
     );
+}
+
+/**
+ * Where document points are on screen, through the canvas's own screen CTM.
+ *
+ * That matrix is the transform the editor inverts to read every pointer, so
+ * aiming a gesture through it is aiming at exactly the document coordinate
+ * named. A rendered bounding box is not a substitute: Chromium's box model
+ * counts an SVG stroke as part of the shape, and the hit polylines carry a
+ * 14px non-scaling one.
+ */
+async function onScreen(
+  canvas: Locator,
+  points: readonly { x: number; y: number }[],
+): Promise<{ x: number; y: number }[]> {
+  const screen = await canvas.evaluate((element, logical) => {
+    const matrix = (element as SVGSVGElement).getScreenCTM();
+    if (!matrix) return null;
+    return logical.map((point) => {
+      const mapped = new DOMPoint(point.x, point.y).matrixTransform(matrix);
+      return { x: mapped.x, y: mapped.y };
+    });
+  }, points);
+  if (!screen) throw new Error("Canvas geometry is not measurable");
+  return screen;
+}
+
+/**
+ * Hold until the canvas has stopped moving under the pointer.
+ *
+ * Panel toggles animate the workspace grid, and the canvas keeps growing into
+ * the freed column for the whole transition: the drawing slides sideways and
+ * the document-to-pixel scale climbs as it goes. The aria attribute a toggle
+ * flips is set on the click, not at the end of that animation, so a pixel-
+ * exact gesture measured straight afterwards aims at where the drawing WAS.
+ */
+async function awaitCanvasSettled(canvas: Locator): Promise<void> {
+  await canvas.evaluate(
+    (element) =>
+      new Promise<void>((resolve) => {
+        const svg = element as SVGSVGElement;
+        const read = () => {
+          const matrix = svg.getScreenCTM();
+          return matrix
+            ? `${matrix.a} ${matrix.d} ${matrix.e} ${matrix.f}`
+            : "";
+        };
+        let previous = read();
+        let stillFrames = 0;
+        const step = () => {
+          const current = read();
+          stillFrames = current === previous ? stillFrames + 1 : 0;
+          previous = current;
+          if (stillFrames >= 3) resolve();
+          else requestAnimationFrame(step);
+        };
+        requestAnimationFrame(step);
+      }),
+  );
 }
 
 test("wire can start from any interior point of an existing net", async ({
@@ -151,11 +210,14 @@ test("dragging a wire's end onto another wire joins them into one net", async ({
     "false",
   );
 
+  await awaitCanvasSettled(canvas);
+
   // Drag the vertical wire down so its lower end comes to rest on the
   // horizontal one. This is the gesture that used to leave two nets touching
   // at a point, with an ambiguous-junction error the author could not clear.
-  // The travel is measured from what is actually rendered rather than assumed
-  // from the click coordinates, so page scale cannot leave the end just shy.
+  // The travel is read from what is actually rendered rather than assumed from
+  // the click coordinates, and aimed through the canvas transform, so the end
+  // is released ON the wire instead of a rounding step past it.
   const routes = page.locator('[data-canvas-hit-kind="route"]');
   const drawn = await routes.evaluateAll((elements) =>
     elements.map((element) => {
@@ -175,22 +237,17 @@ test("dragging a wire's end onto another wire joins them into one net", async ({
   );
   const horizontal = drawn.find((route) => route.maxX - route.minX > 0)!;
   const vertical = drawn.find((route) => route.maxY - route.minY > 0)!;
-  // Drawn coordinates are document units; the drag is in screen pixels, so
-  // derive the scale from a span that is known in both.
-  const horizontalBox = (await routes
-    .nth(drawn.indexOf(horizontal))
-    .boundingBox())!;
-  const verticalBox = (await routes
-    .nth(drawn.indexOf(vertical))
-    .boundingBox())!;
-  const scale = horizontalBox.width / (horizontal.maxX - horizontal.minX);
-  const travel = (horizontal.minY - vertical.maxY) * scale;
-  const grabX = verticalBox.x + verticalBox.width / 2;
-  const grabY = verticalBox.y + verticalBox.height / 2;
-  await page.mouse.move(grabX, grabY);
+  const grabbedAt = (vertical.minY + vertical.maxY) / 2;
+  const travel = horizontal.minY - vertical.maxY;
+  const [grab, halfway, release] = await onScreen(canvas, [
+    { x: vertical.minX, y: grabbedAt },
+    { x: vertical.minX, y: grabbedAt + travel / 2 },
+    { x: vertical.minX, y: grabbedAt + travel },
+  ]);
+  await page.mouse.move(grab!.x, grab!.y);
   await page.mouse.down();
-  await page.mouse.move(grabX, grabY + travel / 2, { steps: 6 });
-  await page.mouse.move(grabX, grabY + travel, { steps: 6 });
+  await page.mouse.move(halfway!.x, halfway!.y, { steps: 6 });
+  await page.mouse.move(release!.x, release!.y, { steps: 6 });
   await page.mouse.up();
 
   // The landing tapped the horizontal wire: it splits, and a junction dot
@@ -320,19 +377,7 @@ test("the preview draws the wire the release commits, contacts and all", async (
     buffer: Buffer.from(JSON.stringify(project)),
   });
   const canvas = page.getByTestId("schematic-canvas");
-  const onScreen = async (points: readonly { x: number; y: number }[]) => {
-    const screen = await canvas.evaluate((element, logical) => {
-      const matrix = (element as SVGSVGElement).getScreenCTM();
-      if (!matrix) return null;
-      return logical.map((point) => {
-        const mapped = new DOMPoint(point.x, point.y).matrixTransform(matrix);
-        return { x: mapped.x, y: mapped.y };
-      });
-    }, points);
-    if (!screen) throw new Error("Canvas geometry is not measurable");
-    return screen;
-  };
-  const [start, end] = await onScreen([
+  const [start, end] = await onScreen(canvas, [
     { x: 40, y: 100 },
     { x: 200, y: 100 },
   ]);
