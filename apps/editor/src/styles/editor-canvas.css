@@ -312,6 +312,15 @@
   stroke-dasharray: 3 3;
 }
 
+/* A pin the draft passes straight through becomes a real contact on release.
+   Solid, like the Junction dot it is about to become, so it reads as a
+   connection rather than as another dash of the dashed preview line. */
+.wire-preview-contact {
+  fill: var(--icm-accent);
+  stroke: none;
+  pointer-events: none;
+}
+
 .vdd-rail-preview {
   stroke: #000;
   stroke-linecap: butt;

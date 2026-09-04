@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   activateInteractionTool,
+  freeWireDraftTarget,
   interactionReducer,
   interactionTool,
 } from "./interaction-state";
@@ -19,7 +20,7 @@ describe("editor interaction state", () => {
       kind: "wire",
       source: null,
       sourceRevision: null,
-      previewPoint: null,
+      preview: null,
       steps: [],
       routingMode: "orthogonal",
       cornerOrder: "auto",
@@ -152,7 +153,7 @@ describe("editor interaction state", () => {
     });
     state = interactionReducer(state, {
       type: "set-wire-preview",
-      point: { x: 30, y: 20 },
+      target: freeWireDraftTarget({ x: 30, y: 20 }),
     });
     state = interactionReducer(state, {
       type: "set-wire-waypoints",
@@ -163,7 +164,7 @@ describe("editor interaction state", () => {
       kind: "wire",
       source: null,
       sourceRevision: null,
-      previewPoint: null,
+      preview: null,
       steps: [],
       routingMode: "orthogonal",
       cornerOrder: "auto",
@@ -255,7 +256,7 @@ describe("editor interaction state", () => {
       kind: "wire",
       source: null,
       sourceRevision: null,
-      previewPoint: null,
+      preview: null,
       steps: [],
       routingMode: "orthogonal",
       cornerOrder: "auto",
