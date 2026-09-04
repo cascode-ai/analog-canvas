@@ -20,6 +20,17 @@ services:
     mem_limit: 16g
     volumes:
       - run-root:/var/lib/simulation
+      # ngspice opens its scratch files with tmpfile(), which glibc always
+      # places under /tmp — TMPDIR is not consulted. With a read-only root and
+      # no mount here every run died at once ("tmpfile(): Read-only file
+      # system") and the preview's simulation was down from 15:11Z to the fix
+      # on 2026-09-04. A private tmpfs, world-writable with the sticky bit
+      # (Docker's default mode for a tmpfs mount), is what the simulator needs
+      # and nothing a deck writes there survives the container.
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 1073741824
     networks:
       - simulation
 
