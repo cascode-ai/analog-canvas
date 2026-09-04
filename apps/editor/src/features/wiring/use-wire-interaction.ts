@@ -204,7 +204,11 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
       options.wireSource,
       candidate,
       options.wireWaypoints,
-      wirePassThroughContacts(options.visibleEndpoints),
+      wirePassThroughContacts(options.visibleEndpoints, {
+        from: options.wireSource,
+        to: candidate,
+        steps: options.wireDraftSteps,
+      }),
       options.nextRoutingSuffix(),
       {
         steps: options.wireDraftSteps,

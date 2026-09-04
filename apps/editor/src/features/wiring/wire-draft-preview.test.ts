@@ -46,6 +46,23 @@ function nmos(
   });
 }
 
+/** A bare free anchor at one point, for bounding a gesture in a test. */
+function freePoint(point: Point): WireSource {
+  const endpoint = { kind: "junction" as const, junctionId: `at-${point.x}` };
+  return {
+    endpoint,
+    netId: null,
+    preludeEdits: [],
+    connection: {
+      endpoint,
+      contactPoint: point,
+      gridLanding: point,
+      escapePath: [],
+      outward: null,
+    },
+  };
+}
+
 function terminal(instanceId: string, pinName: string): RouteEndpoint {
   return { kind: "terminal", instanceId, pinName };
 }
@@ -110,7 +127,11 @@ function committedCenterline(
     source,
     to,
     (draft.steps ?? []).map((step) => step.point),
-    wirePassThroughContacts(visibleTerminals(document)),
+    wirePassThroughContacts(visibleTerminals(document), {
+      from: source,
+      to,
+      steps: draft.steps ?? [],
+    }),
     1,
     {
       steps: draft.steps ?? [],
@@ -421,27 +442,75 @@ describe("the wire a draft preview promises is the wire that lands", () => {
 });
 
 describe("wirePassThroughContacts", () => {
-  it("offers pins and never Junctions, which are already wire ends", () => {
-    const document = createEmptyDocument("main", "Main");
-    nmos(document, "M1", { x: 200, y: 200 });
-    const pins = visibleTerminals(document);
-    const junction: WireSource = {
+  const document = createEmptyDocument("main", "Main");
+  nmos(document, "M1", { x: 200, y: 200 });
+  nmos(document, "M2", { x: 900, y: 900 });
+  const junction: WireSource = {
+    endpoint: { kind: "junction", junctionId: "j1" },
+    netId: null,
+    preludeEdits: [],
+    connection: {
       endpoint: { kind: "junction", junctionId: "j1" },
-      netId: null,
-      preludeEdits: [],
-      connection: {
-        endpoint: { kind: "junction", junctionId: "j1" },
-        contactPoint: { x: 0, y: 0 },
-        gridLanding: { x: 0, y: 0 },
-        escapePath: [],
-        outward: null,
-      },
-    };
+      contactPoint: { x: 210, y: 210 },
+      gridLanding: { x: 210, y: 210 },
+      escapePath: [],
+      outward: null,
+    },
+  };
+  const across = (from: Point, to: Point) => ({
+    from: freePoint(from),
+    to: freePoint(to),
+    steps: [],
+  });
+
+  it("offers pins and never Junctions, which are already wire ends", () => {
+    const inRange = visibleTerminals(document).filter(
+      (source) => source.connection.contactPoint.x < 500,
+    );
 
     expect(
-      wirePassThroughContacts([...pins, junction]).map((source) =>
-        endpointKey(source.endpoint),
+      wirePassThroughContacts(
+        [...visibleTerminals(document), junction],
+        across({ x: 0, y: 0 }, { x: 500, y: 500 }),
+      ).map((source) => endpointKey(source.endpoint)),
+    ).toEqual(inRange.map((source) => endpointKey(source.endpoint)));
+  });
+
+  it("drops pins the gesture cannot reach, which the planner would drop too", () => {
+    // The narrowing is only sound because a contact off the drawn path is
+    // never selected. Hold it against the planner's own answer over the
+    // complete pin list: the same wire, the same contacts.
+    const build = () => {
+      const wide = createEmptyDocument("main", "Main");
+      nmos(wide, "M1", { x: 200, y: 200 });
+      nmos(wide, "M2", { x: 400, y: 200 });
+      nmos(wide, "M3", { x: 600, y: 200 });
+      nmos(wide, "Far", { x: 2000, y: 2000 });
+      return wide;
+    };
+    const wide = build();
+    const source = wireSource(wide, terminal("M1", "G"));
+    const target: WireDraftTarget = {
+      kind: "endpoint",
+      point: resolveEndpointConnection(wide, resolver, terminal("M3", "G"))!
+        .contactPoint,
+      source: wireSource(wide, terminal("M3", "G")),
+    };
+    const narrowed = wirePassThroughContacts(visibleTerminals(wide), {
+      from: source,
+      to: target.source,
+      steps: [],
+    });
+
+    expect(
+      narrowed.some(
+        (contact) =>
+          contact.endpoint.kind === "terminal" &&
+          contact.endpoint.instanceId === "Far",
       ),
-    ).toEqual(pins.map((source) => endpointKey(source.endpoint)));
+    ).toBe(false);
+    expect(previewFor(wide, source, target).contacts).toEqual([
+      { x: 380, y: 200 },
+    ]);
   });
 });
