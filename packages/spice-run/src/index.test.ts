@@ -275,6 +275,7 @@ describe("simulation run metadata", () => {
     const environment = await createSimulationEnvironmentMetadata({
       executor: "hosted-container",
       reproducibility: "observed",
+      profileId: null,
       platform: "linux/x64",
       simulator: {
         name: "ngspice",
@@ -287,6 +288,7 @@ describe("simulation run metadata", () => {
         contentSha256:
           "17c208a699228f5acb87bf59c09c22a4c4d3937b6766b4957737d34e8e075f64",
       },
+      startupSha256: null,
     });
     expect(environment.reproducibility).toBe("observed");
     expect(environment.fingerprint).toMatch(/^[0-9a-f]{64}$/u);

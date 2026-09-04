@@ -19,6 +19,12 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
+// The stand-in simulator below is deliberately a POSIX shell program because
+// the production harness is a Linux container and its process-group/ulimit
+// behavior is part of the contract. Windows cannot execute that fixture
+// (`spawn EFTYPE`); pure Profile and metadata contracts remain cross-platform.
+const describeHarness = process.platform === "win32" ? describe.skip : describe;
+
 const ENTRYPOINT = join(
   dirname(fileURLToPath(import.meta.url)),
   "entrypoint.mjs",
@@ -129,7 +135,7 @@ const wait = (ms) =>
     setTimeout(resolve, ms).unref?.();
   });
 
-describe("the run directory", () => {
+describeHarness("the run directory", () => {
   it("gives every run its own, and takes it away again", async () => {
     // The simulator reports where it was started. Two runs must not answer
     // with the same place: a shared working directory is how one author's
@@ -168,7 +174,7 @@ describe("the run directory", () => {
   });
 });
 
-describe("the single slot", () => {
+describeHarness("the single slot", () => {
   it(
     "refuses a second run while one is in flight, and says when to come back",
     { timeout: SLOW_TEST_MS },
@@ -232,7 +238,7 @@ describe("the single slot", () => {
   );
 });
 
-describe("the deadline", () => {
+describeHarness("the deadline", () => {
   it(
     "kills the whole process group, not just the process it started",
     { timeout: SLOW_TEST_MS },
@@ -290,7 +296,7 @@ describe("the deadline", () => {
   );
 });
 
-describe("the output cap", () => {
+describeHarness("the output cap", () => {
   it("truncates past the cap and says so, rather than shortening quietly", async () => {
     const { port } = await startHarness(
       await simulator(
@@ -342,7 +348,7 @@ describe("the output cap", () => {
   });
 });
 
-describe("the rawfile", () => {
+describeHarness("the rawfile", () => {
   it("comes back as text when the deck asked for one", async () => {
     const { port } = await startHarness(
       await simulator(
@@ -375,7 +381,7 @@ describe("the rawfile", () => {
   });
 });
 
-describe("the access token", () => {
+describeHarness("the access token", () => {
   it("is not asked for when none is configured", async () => {
     const binary = await simulator("quiet.sh", "echo ok\n");
     const { port } = await startHarness(binary);
@@ -419,7 +425,7 @@ describe("the access token", () => {
   });
 });
 
-describe("health", () => {
+describeHarness("health", () => {
   it("reports the environment and the limits it enforces", async () => {
     const { port } = await startHarness(
       await simulator("v.sh", "echo ngspice-46\n"),
@@ -448,9 +454,45 @@ describe("health", () => {
     expect(response.status).toBe(503);
     expect((await response.json()).status).toBe("not-ready");
   });
+
+  it("fails closed when measured runtime identity differs from the Profile", async () => {
+    const startupPath = join(workspace, "profile.spiceinit");
+    const profilePath = join(workspace, "mismatched-profile.json");
+    await writeFile(startupPath, "set filetype=ascii\n", "utf8");
+    await writeFile(
+      profilePath,
+      JSON.stringify({
+        schemaVersion: 1,
+        id: "test-profile-v1",
+        platform: `${process.platform}/${process.arch}`,
+        simulator: {
+          name: "ngspice",
+          version: "ngspice-46",
+          binarySha256: "0".repeat(64),
+        },
+        models: { id: "test-models", contentSha256: "1".repeat(64) },
+        startup: { contentSha256: "2".repeat(64) },
+      }),
+      "utf8",
+    );
+    const { port } = await startHarness(
+      await simulator("profile-mismatch.sh", "echo should-not-run\n"),
+      {
+        SIMULATION_PROFILE_PATH: profilePath,
+        SIMULATION_STARTUP_PATH: startupPath,
+      },
+    );
+
+    const response = await fetch(`http://127.0.0.1:${port}/health`);
+    const payload = await response.json();
+    expect(response.status).toBe(503);
+    expect(payload.status).toBe("not-ready");
+    expect(payload.error).toContain("test-profile-v1");
+    expect(payload.error).toContain("expected");
+  });
 });
 
-describe("a run root that cannot be written", () => {
+describeHarness("a run root that cannot be written", () => {
   it(
     "says so, and does not keep the slot it took",
     { timeout: SLOW_TEST_MS },
@@ -507,7 +549,7 @@ describe("a run root that cannot be written", () => {
   });
 });
 
-describe("the kernel limits", () => {
+describeHarness("the kernel limits", () => {
   it("runs the deck under the limits the image sets", async () => {
     const { port } = await startHarness(
       await simulator("limits.sh", "ulimit -f\necho ran\n"),

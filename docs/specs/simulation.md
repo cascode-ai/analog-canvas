@@ -52,6 +52,31 @@ configuration may override the path and section. Its valid default output is:
 The binned models a PDK checkout provides cap device width at 100 µm and
 refuse wide devices (#551); they are not the hosted default.
 
+### Hosted SKY130 Profile
+
+`containers/ngspice/hosted-sky130-profile.json` is the single machine-readable
+contract for the first hosted environment. It names the digest-pinned source
+image, platform, ngspice version and binary digest, complete model-tree digest,
+continuous-library mapping, accepted corner, startup-policy digest, and the
+device/analysis scope that has actually passed qualification. A Profile is a
+runtime contract, not a sample circuit and not a promise about every device in
+the SKY130 PDK.
+
+At container startup the harness measures the real binary, model tree,
+platform, and `.spiceinit` bytes. It reports `reproducibility: "pinned"` and the
+Profile ID only when every measured identity matches. A missing, malformed, or
+mismatched Profile leaves `/health` and `/run` not ready; it is never silently
+downgraded to an observed hosted run. An ordinary local host remains
+`observed` and may use its explicitly configured library without claiming this
+Profile.
+
+The first qualified scope is deliberately narrow and factual: the continuous
+`sky130_fd_pr__nfet_01v8` and `sky130_fd_pr__pfet_01v8` wrappers, `tt`, and an
+operating-point analysis. Adding AC, transient, another corner, or another
+device family extends this same Profile contract only after a model-backed
+fixture passes the hosted gate; a locally available PDK is not evidence by
+itself.
+
 It must not include that top-level sectioned library with `.include`, because
 doing so expands multiple corner sections into the same deck and redefines
 device wrappers. A local host with a plain standalone model file may instead
@@ -103,6 +128,7 @@ interface SimulationRunMetadata {
     fingerprint: string;
     executor: "hosted-container" | "local-host";
     reproducibility: "observed" | "pinned";
+    profileId: string | null;
     platform: string;
     simulator: {
       name: "ngspice";
@@ -110,6 +136,7 @@ interface SimulationRunMetadata {
       binarySha256: string | null;
     };
     models: { id: string; contentSha256: string } | null;
+    startupSha256: string | null;
   };
 }
 ```
@@ -122,11 +149,10 @@ still covers its exact emitted spelling.
 
 An environment fingerprint is the SHA-256 of canonical environment facts. A
 consumer verifies that fingerprint before accepting a runner response. The
-current container and local host report `observed`: the container measures its
-ngspice binary and complete runtime model tree, while the local host reports
-the facts it can observe from the user's installation. `pinned` is reserved
-for a later image that verifies every input against an accepted environment
-lock; metadata plumbing alone must never claim reproducibility.
+hosted container reports `pinned` only after matching the Profile at startup;
+the local host reports `observed` facts from the user's installation with null
+Profile and startup identities. Metadata plumbing alone never claims
+reproducibility.
 
 This envelope establishes provenance only. The numbers themselves are
 [Result data](#result-data). Bindings from a probe back to circuit objects
@@ -195,6 +221,12 @@ into the Project, undo history, Gallery, or recovery copy.
 - `worker/simulation.test.ts` verifies the hosted Sky130 `tt` default,
   deployment overrides, configuration-error classification, and the verified
   run metadata envelope.
+- `containers/ngspice/profile-contract.test.mjs` binds the Profile to the
+  digest-pinned image and exact startup bytes. The Preview gate then sends the
+  tracked five-transistor OTA through both hosted executors, requires the
+  Profile identity and `tt` model selection, reads structured OP data, and
+  compares four internal/output voltages against the recorded qualification
+  fixture. Missing local ngspice never skips this hosted gate.
 - The pinned local authority pack under ignored `.reference-src/` demonstrates
   that ngspice 47 completes a Sky130 NFET operating-point deck with
   `.lib ... tt`, while top-level `.include` produces repeated subcircuit

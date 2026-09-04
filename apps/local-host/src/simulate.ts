@@ -141,12 +141,14 @@ async function observeLocalEnvironment(
   return createSimulationEnvironmentMetadata({
     executor: "local-host",
     reproducibility: "observed",
+    profileId: null,
     platform: `${process.platform}/${process.arch}`,
     simulator: { name: "ngspice", version, binarySha256 },
     models:
       modelLibrary && modelSha256
         ? { id: "configured-model-library", contentSha256: modelSha256 }
         : null,
+    startupSha256: null,
   });
 }
 

@@ -10,6 +10,7 @@
 
 export * from "./rawfile.js";
 export * from "./result-data.js";
+export * from "./environment-profile.js";
 
 import type { SimulationResultData } from "./result-data.js";
 
@@ -67,6 +68,8 @@ export interface SimulationEnvironmentFacts {
   executor: "hosted-container" | "local-host";
   /** `pinned` is reserved for a build verified against an environment lock. */
   reproducibility: "observed" | "pinned";
+  /** Named runtime contract, or null for an unqualified local environment. */
+  profileId: string | null;
   platform: string;
   simulator: {
     name: "ngspice";
@@ -77,6 +80,8 @@ export interface SimulationEnvironmentFacts {
     id: string;
     contentSha256: string;
   } | null;
+  /** Exact startup-policy bytes used for this run, when managed by a Profile. */
+  startupSha256: string | null;
 }
 
 export interface SimulationEnvironmentMetadata extends SimulationEnvironmentFacts {
@@ -277,6 +282,7 @@ function canonicalEnvironmentFacts(facts: SimulationEnvironmentFacts): string {
   return JSON.stringify({
     executor: facts.executor,
     reproducibility: facts.reproducibility,
+    profileId: facts.profileId,
     platform: facts.platform,
     simulator: {
       name: facts.simulator.name,
@@ -286,6 +292,7 @@ function canonicalEnvironmentFacts(facts: SimulationEnvironmentFacts): string {
     models: facts.models
       ? { id: facts.models.id, contentSha256: facts.models.contentSha256 }
       : null,
+    startupSha256: facts.startupSha256,
   });
 }
 
@@ -323,6 +330,9 @@ export function isSimulationEnvironmentMetadata(
       candidate.executor === "local-host") &&
     (candidate.reproducibility === "observed" ||
       candidate.reproducibility === "pinned") &&
+    (candidate.profileId === null ||
+      (typeof candidate.profileId === "string" &&
+        candidate.profileId.length > 0)) &&
     typeof candidate.platform === "string" &&
     candidate.platform.length > 0 &&
     typeof candidate.fingerprint === "string" &&
@@ -339,7 +349,12 @@ export function isSimulationEnvironmentMetadata(
         typeof models.id === "string" &&
         models.id.length > 0 &&
         typeof models.contentSha256 === "string" &&
-        SHA256_PATTERN.test(models.contentSha256)))
+        SHA256_PATTERN.test(models.contentSha256))) &&
+    (candidate.startupSha256 === null ||
+      (typeof candidate.startupSha256 === "string" &&
+        SHA256_PATTERN.test(candidate.startupSha256))) &&
+    (candidate.reproducibility !== "pinned" ||
+      (candidate.profileId !== null && candidate.startupSha256 !== null))
   );
 }
 

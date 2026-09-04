@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "fixtureId": "ota-5t-balanced-op-v1",
+  "profileId": "sky130-core-continuous-ngspice46-v1",
+  "analysis": "op",
+  "inputs": {
+    "netlist": "fixtures/simulation-acceptance/ota-5t.spi",
+    "testbench": "fixtures/simulation-acceptance/ota-5t-hosted.testbench.spice"
+  },
+  "modelLibrary": {
+    "directive": "lib",
+    "section": "tt"
+  },
+  "expectedProbes": {
+    "v(vout)": { "value": 0.7589797395133877, "absoluteTolerance": 1e-8 },
+    "v(ibias)": { "value": 0.6044031364286973, "absoluteTolerance": 1e-8 },
+    "v(xdut.tail)": { "value": 0.2848671983031419, "absoluteTolerance": 1e-8 },
+    "v(xdut.nleft)": { "value": 0.7589797395214736, "absoluteTolerance": 1e-8 }
+  }
+}
