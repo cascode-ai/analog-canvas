@@ -37,13 +37,17 @@ type ModelLibrarySelection =
 - Paths are quoted when emitted and must contain no quote or line break.
 - A library section is one non-empty SPICE token.
 
-The hosted Sky130 environment selects the `tt` section of
-`sky130.lib.spice` by default and may override the path and section through
-deployment configuration. Its valid default output is:
+The hosted Sky130 environment runs the benchmark suite's own simulator image
+(pinned by digest in `containers/ngspice/Dockerfile`) and selects the `tt`
+section of its **continuous** (unbinned) library by default; deployment
+configuration may override the path and section. Its valid default output is:
 
 ```spice
-.lib "/opt/sky130/sky130A/libs.tech/ngspice/sky130.lib.spice" tt
+.lib "/opt/sky130/continuous/sky130.lib.spice" tt
 ```
+
+The binned models a PDK checkout provides cap device width at 100 µm and
+refuse wide devices (#551); they are not the hosted default.
 
 It must not include that top-level sectioned library with `.include`, because
 doing so expands multiple corner sections into the same deck and redefines

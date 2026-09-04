@@ -42,8 +42,9 @@ export interface SimulationEnv {
   SKY130_LIB_SECTION?: string;
 }
 
-const DEFAULT_LIB_PATH =
-  "/opt/sky130/sky130A/libs.tech/ngspice/sky130.lib.spice";
+// The continuous (unbinned) Sky130 library the benchmark image ships; the
+// binned checkout it also carries caps device width at 100 µm (#551).
+const DEFAULT_LIB_PATH = "/opt/sky130/continuous/sky130.lib.spice";
 const DEFAULT_LIB_SECTION = "tt";
 
 /** A deck this large is a mistake upstream, not a simulation worth waking for. */
