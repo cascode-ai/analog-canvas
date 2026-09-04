@@ -287,6 +287,12 @@ describe("the wire a draft preview promises is the wire that lands", () => {
     );
 
     expect(preview.points).toEqual(committed);
+    // Named outright so the equality above cannot pass on two empty answers.
+    expect(preview.points).toEqual([
+      { x: 180, y: 200 },
+      { x: 480, y: 200 },
+      { x: 480, y: 400 },
+    ]);
     expect(preview.contacts).toEqual([]);
   });
 
@@ -333,6 +339,11 @@ describe("the wire a draft preview promises is the wire that lands", () => {
     }));
 
     expect(preview.points).toEqual(committed);
+    expect(preview.points).toEqual([
+      { x: 180, y: 200 },
+      { x: 60, y: 200 },
+      { x: 60, y: 340 },
+    ]);
   });
 
   it("lands on a conductor a run arrives at off the grid", () => {
