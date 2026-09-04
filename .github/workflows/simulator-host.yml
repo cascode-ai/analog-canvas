@@ -46,6 +46,10 @@ jobs:
   host:
     name: ${{ github.event_name == 'push' && 'deploy' || inputs.action }}
     runs-on: ubuntu-latest
+    # The account id and the deploy token live in this environment's secrets,
+    # as the preview deploy reads them; without it CLOUDFLARE_ACCOUNT_ID is
+    # empty and every account-scoped request routes to /accounts//… (7003).
+    environment: cloudflare-preview
     steps:
       - uses: actions/checkout@v4
 
