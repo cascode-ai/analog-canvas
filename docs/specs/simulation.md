@@ -247,6 +247,10 @@ minimums before either is offered to the public:
 - A timeout terminates the whole process tree and the result says
   `timedOut`. Deck size, log size, result-file size, and duration are
   capped; anything cut is reported as truncated rather than presented whole.
+- One process-local Run Supervisor owns admission, phase, timeout, process
+  termination, result collection, cleanup, and the slot's absolute lifetime.
+  If an admitted operation cannot settle inside that lifetime, the harness
+  exits rather than clear the slot beside a process it cannot prove ended.
 - Raw `.control` is permitted. Isolation, not prohibition, keeps a control
   script inside its own job.
 - `GET /health` reports the observed environment facts of the metadata
@@ -306,6 +310,14 @@ signals the whole process group. A deck whose `.control` block shells out
 otherwise leaves a child running past the deadline it was started under,
 still writing, with the container's slot already given to the next caller.
 
+The process timeout is a normal terminal outcome when the group stops and
+cleanup completes. A separate lease watchdog covers the entire interval from
+admission through directory removal. It is not a second circuit timeout: if
+it expires, the harness has lost the ability to prove the slot safe, marks
+itself fatal, kills the group best-effort, and exits so the container runtime
+can replace the instance. Health traffic neither extends nor resets this
+deadline.
+
 **Limits.**
 
 | Limit | Value | Enforced by |
@@ -315,6 +327,7 @@ still writing, with the container's slot already given to the next caller.
 | Returned output | 1 MiB per run | truncation, reported |
 | Default deadline | 30 s | applied when the caller names none |
 | Maximum deadline | 120 s | a longer request is clamped to it |
+| Lifecycle grace | 10 s | hard lease watchdog after the run deadline |
 | Identity probe | 5 s | given up on, not waited for |
 | Processes | 128 (`RLIMIT_NPROC`) | image-set `ulimit` before `exec` |
 | Written file size | 256 MiB (`RLIMIT_FSIZE`) | image-set `ulimit` before `exec` |
@@ -351,10 +364,12 @@ under the same cap; turning its vectors into numbers is
 [Result data](#result-data) and is not done here.
 
 **Readiness.** `GET /health` answers during a run as well as between runs,
-reporting the environment facts, the limits, and whether the slot is taken. A
-check that can only ask when the container is idle cannot tell a busy
-simulator from a broken one. A missing simulator binary or model tree answers
-`503 not-ready` rather than a success with absent facts.
+reporting the environment facts, limits, and the Run Supervisor's one
+`activity` projection. It is `idle`, or it names the active phase, elapsed
+time, and remaining hard-deadline time; it contains no lease id, deck, user,
+or circuit data. A missing simulator binary or model tree answers `503
+not-ready` rather than a success with absent facts. Health is a read-only
+snapshot and never changes the run or its timers.
 
 ## Run lifecycle
 

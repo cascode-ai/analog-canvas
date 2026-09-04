@@ -67,7 +67,7 @@ WORKDIR ${RUN_ROOT}
 # The build context is the repository root (wrangler.preview.jsonc sets
 # image_build_context to "."), so every COPY is repo-root relative.
 ARG HARNESS_DIR=containers/ngspice
-COPY ${HARNESS_DIR}/entrypoint.mjs /opt/harness/entrypoint.mjs
+COPY ${HARNESS_DIR}/entrypoint.mjs ${HARNESS_DIR}/run-supervisor.mjs /opt/harness/
 
 # Nothing a deck can reach is writable except its own run directory.
 #

@@ -153,7 +153,15 @@ Cloudflare with `CLOUDFLARE_TUNNEL_API_TOKEN` (Account → Cloudflare Tunnel:
 Edit, Zone → DNS: Edit on the site's zone), a token separate from the deploy
 token on purpose; before the tunnel exists, an automatic rebuild verifies the
 harness from inside the host's network instead; on the host
-`bin/health.sh` asks the harness for its health from inside that network. The host has 32 cores; the
+`bin/health.sh` asks the harness for its health from inside that network.
+The host's operator-owned `up.sh` and `rebuild.sh` remain outside the
+repository, but their result is no longer trusted by description alone: the
+workflow installs the tracked `containers/ngspice/verify-host-runtime.sh` and
+requires the running container to have an automatic restart policy, a
+read-only root, all capabilities dropped, bounded PIDs, 8 CPUs, 16 GiB, no
+published host port, and a writable private run-root volume. Automatic restart
+is part of the Run Supervisor's fail-stop contract; without it a safe harness
+exit would become a permanent outage. The host has 32 cores; the
 harness still runs one job at a time, by its own slot, until the executor
 contract gains a concurrency count.
 

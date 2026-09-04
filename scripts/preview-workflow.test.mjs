@@ -42,8 +42,11 @@ describe("the preview deploy", () => {
     expect(preview).toContain("must be refused");
     expect(preview).toContain("/api/simulate");
     expect(preview).toContain("hosted-container");
-    // A 200 with a timed-out outcome is not a simulation.
-    expect(preview).toContain('"status":"completed"');
+    // A 200 with a timed-out outcome is not a simulation, and a completed
+    // outcome without the expected number is not an end-to-end proof.
+    expect(preview).toContain('outcome?.status !== "completed"');
+    expect(preview).toContain('one.name.toLowerCase() === "v(out)"');
+    expect(preview).toContain("Math.abs(out.value - 0.5)");
     // The domain is created by the deploy and takes time to resolve.
     expect(preview).toMatch(/for _ in \$\(seq 1 \d+\); do\s*\n\s*if curl/u);
   });

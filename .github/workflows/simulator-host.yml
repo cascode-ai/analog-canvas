@@ -165,10 +165,13 @@ jobs:
         if: github.event_name == 'push' || inputs.action == 'deploy'
         run: |
           set -euo pipefail
-          ssh sim 'mkdir -p ~/analog-canvas-sim/build/containers/ngspice'
-          scp -q containers/ngspice/Dockerfile containers/ngspice/entrypoint.mjs sim:~/analog-canvas-sim/build/containers/ngspice/
+          ssh sim 'mkdir -p ~/analog-canvas-sim/build/containers/ngspice ~/analog-canvas-sim/bin'
+          scp -q containers/ngspice/Dockerfile containers/ngspice/entrypoint.mjs containers/ngspice/run-supervisor.mjs sim:~/analog-canvas-sim/build/containers/ngspice/
+          scp -q containers/ngspice/verify-host-runtime.sh sim:~/analog-canvas-sim/bin/verify-runtime.sh
+          ssh sim 'chmod 755 ~/analog-canvas-sim/bin/verify-runtime.sh'
           echo "${GITHUB_SHA::8}" | ssh sim 'cat > ~/analog-canvas-sim/build/SOURCE_COMMIT'
           ssh sim '~/analog-canvas-sim/bin/rebuild.sh'
+          ssh sim '~/analog-canvas-sim/bin/verify-runtime.sh'
 
       - name: Verify the host answers through its tunnel
         if: github.event_name == 'push' || inputs.action != 'probe'
