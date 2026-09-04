@@ -1,0 +1,16 @@
+Title: * resistive divider, operating point. the simplest circuit whose answer is
+Date: Fri Sep  4 01:30:02  2026
+Command: ngspice-46, Build 
+Plotname: Operating Point
+Flags: real
+No. Variables: 3
+No. Points: 1
+Variables:
+	0	v(in)	voltage
+	1	v(mid)	voltage
+	2	i(v1)	current
+Values:
+ 0	1.000000000000000e+00
+	5.000000000000000e-01
+	-5.000000000000000e-04
+
