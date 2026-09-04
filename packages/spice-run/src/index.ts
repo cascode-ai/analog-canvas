@@ -137,8 +137,13 @@ export interface SimulationResult {
   metadata: SimulationRunMetadata;
 }
 
-/** The ceiling a request gets when it names none. */
-export const DEFAULT_SIMULATION_TIMEOUT_MS = 30_000;
+/**
+ * The ceiling a request gets when it names none. Loading the Sky130 `tt`
+ * corner alone costs about 16 s of CPU on a fast core (measured 2026-09-04
+ * with ngspice 46 on a resistor divider), so a circuit that needs models
+ * cannot fit a 30 s ceiling on a shared container core.
+ */
+export const DEFAULT_SIMULATION_TIMEOUT_MS = 60_000;
 /**
  * The ceiling a request cannot exceed. A container bills for the time it is
  * awake, not the time it computes, so an unbounded analysis is an unbounded
@@ -154,6 +159,29 @@ export function resolveTimeoutMs(requested: number | undefined): number {
     Math.max(Math.trunc(requested), 1),
     MAX_SIMULATION_TIMEOUT_MS,
   );
+}
+
+/**
+ * Whether a deck needs the environment's device-model library at all.
+ *
+ * Loading the Sky130 corner is the single most expensive thing a run does:
+ * about 16 s of CPU for the `tt` section alone, before any analysis. A
+ * resistor divider or an RC network has no model card to look up, so it
+ * pays that cost for nothing. The library is added when the deck contains a
+ * semiconductor device card (MOSFET, diode, BJT, JFET) or names a Sky130
+ * model anywhere; passives, sources, and dependent sources run without it.
+ * Comments and continuation lines are skipped so a remark cannot trigger it.
+ */
+export function deckNeedsModelLibrary(text: string): boolean {
+  for (const raw of text.split(/\r?\n/u)) {
+    const line = raw.trim();
+    if (line.length === 0 || line.startsWith("*") || line.startsWith("+")) {
+      continue;
+    }
+    if (/sky130_/iu.test(line)) return true;
+    if (/^[mdqj][a-z0-9_$.:-]*\s/iu.test(line)) return true;
+  }
+  return false;
 }
 
 /**

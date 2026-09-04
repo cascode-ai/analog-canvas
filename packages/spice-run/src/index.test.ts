@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildSimulationDeck,
+  deckNeedsModelLibrary,
   classifySimulationOutcome,
   createSimulationEnvironmentMetadata,
   createSimulationInputMetadata,
@@ -261,6 +262,33 @@ describe("timeout ceiling", () => {
     // unbounded bill as much as a user waiting on nothing.
     expect(resolveTimeoutMs(10 * MAX_SIMULATION_TIMEOUT_MS)).toBe(
       MAX_SIMULATION_TIMEOUT_MS,
+    );
+  });
+});
+
+describe("model library on demand", () => {
+  it("asks for the library only when a device needs a model", () => {
+    // Passives, sources, and a subcircuit of them: no model card to look up,
+    // so no 16 s corner load.
+    expect(
+      deckNeedsModelLibrary(
+        ".subckt divider in out\nR1 in out 1k\nR2 out 0 1k\n.ends\nV1 in 0 DC 1\nX1 in out divider\n.op",
+      ),
+    ).toBe(false);
+    expect(deckNeedsModelLibrary("C1 a 0 1p\nL1 a b 1n\nE1 c 0 a 0 2")).toBe(
+      false,
+    );
+    // A MOSFET, a diode, a BJT, or a JFET card, or any Sky130 name.
+    expect(deckNeedsModelLibrary("M1 out in 0 0 nfet")).toBe(true);
+    expect(deckNeedsModelLibrary("D1 a 0 dmod")).toBe(true);
+    expect(deckNeedsModelLibrary("Q1 c b e npn")).toBe(true);
+    expect(deckNeedsModelLibrary("J1 d g s jmod")).toBe(true);
+    expect(
+      deckNeedsModelLibrary("XM1 d g s b sky130_fd_pr__nfet_01v8 w=1 l=0.15"),
+    ).toBe(true);
+    // A comment or a continuation line is not a device.
+    expect(deckNeedsModelLibrary("* M1 would need a model\n+ M2 too")).toBe(
+      false,
     );
   });
 });

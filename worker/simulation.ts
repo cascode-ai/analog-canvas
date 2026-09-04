@@ -17,6 +17,7 @@
 import {
   buildSimulationDeck,
   classifySimulationOutcome,
+  deckNeedsModelLibrary,
   createSimulationInputMetadata,
   isSimulationInputRevision,
   readNgspiceDiagnostics,
@@ -117,13 +118,17 @@ export async function routeSimulationRequest(
     typeof body.timeoutMs === "number" ? body.timeoutMs : undefined,
   );
   let deck: string;
-  let modelLibrary: ModelLibrarySelection;
+  let modelLibrary: ModelLibrarySelection | null;
   try {
-    modelLibrary = {
-      directive: "lib",
-      path: env.SKY130_LIB_PATH ?? DEFAULT_LIB_PATH,
-      section: env.SKY130_LIB_SECTION ?? DEFAULT_LIB_SECTION,
-    };
+    // The corner load is the expensive part of every run; a deck with no
+    // device to model is spared it (see deckNeedsModelLibrary).
+    modelLibrary = deckNeedsModelLibrary(`${netlist}\n${testbench}`)
+      ? {
+          directive: "lib",
+          path: env.SKY130_LIB_PATH ?? DEFAULT_LIB_PATH,
+          section: env.SKY130_LIB_SECTION ?? DEFAULT_LIB_SECTION,
+        }
+      : null;
     deck = buildSimulationDeck({ netlist, testbench }, modelLibrary);
   } catch (error) {
     return Response.json(
