@@ -646,12 +646,7 @@ export function applyRouteTopologyEdit(
             changedObjectIds.add(remainingRoute.id);
           }
         }
-        retargetOwnerEvidenceAfterSplit(
-          draft,
-          net.id,
-          netIdByEndpoint,
-          changedObjectIds,
-        );
+        retargetOwnerEvidenceAfterSplit(draft, net.id, changedObjectIds);
         propagateSpiceSourceEvidenceAfterSplit(
           draft,
           net.id,

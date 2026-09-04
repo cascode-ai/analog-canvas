@@ -203,7 +203,6 @@ function routeEndpointDirections(
 function contactIncidents(
   document: SchematicDocument,
   resolver: SymbolResolver,
-  netId: string,
   endpoints: readonly RouteEndpoint[],
   point: Point,
   geometry: ResolvedDocumentRoutingGeometry,
@@ -288,7 +287,6 @@ function netContacts(
       const incidents = contactIncidents(
         document,
         resolver,
-        net.id,
         endpoints,
         point,
         geometry,
