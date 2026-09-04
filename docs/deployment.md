@@ -116,6 +116,47 @@ The simulation container is bound on the preview (`wrangler.preview.jsonc`)
 and not yet in `wrangler.jsonc`; production gains it when a release carries
 that configuration change, like any other.
 
+### Where the simulator runs
+
+The Worker never runs ngspice itself; it hands the deck to a harness over
+HTTP (`worker/simulation.ts`). Two places can hold that harness, and the
+image is the same in both — `containers/ngspice/Dockerfile`, pinned to the
+benchmark base image by digest — so the numbers do not depend on the choice:
+
+- **A Cloudflare Container**, bound as `NGSPICE`. One `standard-2` instance
+  (1 vCPU, 6 GiB) that sleeps ten minutes after its last request. Billed per
+  second while awake, on top of the Workers Paid plan.
+- **An operator-run host**, named by the var `SIMULATION_UPSTREAM_URL`. The
+  harness runs there under Docker behind a Cloudflare Tunnel, so the host
+  opens no inbound port and its only public name is the tunnel's. It answers
+  `/run` only to the bearer token in its `SIMULATION_ACCESS_TOKEN`; the
+  Worker presents the same value from its secret `SIMULATION_UPSTREAM_TOKEN`,
+  which `deploy-preview.yml` sets from the repository secret of the same name
+  on every deploy. When the var is set the container binding is never woken.
+
+The current operator host is the Frankfurt machine, under its `analogcanvas`
+account, in `~/analog-canvas-sim/`. `bin/up.sh` runs the image with a
+read-only root filesystem, the run root on a volume the image initialised
+for the run account, no capabilities, a pid limit, 8 CPUs and 16 GiB, on an
+internal Docker network that has no route to the internet; `cloudflared` is
+the only other member of that network and the only container with egress,
+and it starts only once `tunnel.env` holds `TUNNEL_TOKEN`. The
+`Simulator host` workflow (`.github/workflows/simulator-host.yml`) does the
+operating: on every merge that touches `containers/ngspice/` it copies the
+harness to the host, rebuilds, restarts, and verifies `/health` through the
+tunnel; run by hand it can `probe` what the Cloudflare token may do or
+`bootstrap-tunnel` — create the named tunnel, its ingress, and the DNS name,
+and hand the connector token to the host over SSH without ever printing it.
+It reaches the host with the repository secrets `SIM_HOST_ADDR`,
+`SIM_HOST_USER`, `SIM_HOST_SSH_KEY`, and `SIM_HOST_KNOWN_HOSTS`; on the host
+`bin/health.sh` asks the harness for its health from inside that network. The host has 32 cores; the
+harness still runs one job at a time, by its own slot, until the executor
+contract gains a concurrency count.
+
+Either way `metadata.environment.executor` reads `hosted-container`: the
+harness is the same container image, and the fingerprint identifies it, not
+the machine underneath.
+
 ### The retired staging environment
 
 `env.staging` and the Worker-side access gate were retired by ADR 0057 after

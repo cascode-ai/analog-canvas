@@ -1,0 +1,166 @@
+# The operator-run simulator host (docs/deployment.md, "Where the simulator
+# runs"). Three jobs behind one manual switch, plus an automatic rebuild when
+# the harness changes on main:
+#
+#   probe             what the Cloudflare token may do, as HTTP statuses only
+#   bootstrap-tunnel  create the named tunnel, its ingress, and the DNS name;
+#                     hand the connector token to the host over SSH; verify
+#   deploy            copy containers/ngspice to the host, rebuild, restart,
+#                     and verify /health through the tunnel
+#
+# Nothing here prints a secret: the tunnel token goes straight from the
+# Cloudflare API into tunnel.env on the host through the SSH session.
+name: Simulator host
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: What to do on the host
+        required: true
+        default: probe
+        type: choice
+        options: [probe, bootstrap-tunnel, deploy]
+  push:
+    branches: [main]
+    paths:
+      - containers/ngspice/**
+      - .github/workflows/simulator-host.yml
+
+concurrency:
+  group: simulator-host
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  # The tunnel's public name and the name of the tunnel object itself.
+  SIM_HOSTNAME: sim-fra.analog-canvas.tokenzhang.com
+  SIM_ZONE: tokenzhang.com
+  TUNNEL_NAME: analog-canvas-sim-fra
+  # Where the harness answers inside the host's internal Docker network.
+  SIM_SERVICE: http://analog-canvas-ngspice:8080
+
+jobs:
+  host:
+    name: ${{ github.event_name == 'push' && 'deploy' || inputs.action }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Reach the host over SSH
+        env:
+          SIM_HOST_SSH_KEY: ${{ secrets.SIM_HOST_SSH_KEY }}
+          SIM_HOST_KNOWN_HOSTS: ${{ secrets.SIM_HOST_KNOWN_HOSTS }}
+          SIM_HOST_ADDR: ${{ secrets.SIM_HOST_ADDR }}
+          SIM_HOST_USER: ${{ secrets.SIM_HOST_USER }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$SIM_HOST_SSH_KEY" > ~/.ssh/sim_host && chmod 600 ~/.ssh/sim_host
+          printf '%s\n' "$SIM_HOST_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<CFG
+          Host sim
+            HostName $SIM_HOST_ADDR
+            User $SIM_HOST_USER
+            IdentityFile ~/.ssh/sim_host
+            IdentitiesOnly yes
+            BatchMode yes
+            ConnectTimeout 20
+          CFG
+          ssh sim 'echo "host reachable: $(hostname)"; docker ps --format "{{.Names}} {{.Status}}" | sed "s/^/  /"'
+
+      - name: Probe what the Cloudflare token may do
+        if: github.event_name == 'workflow_dispatch' && inputs.action == 'probe'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          api() { curl --silent --output /dev/null --write-out '%{http_code}' -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "$@"; }
+          base=https://api.cloudflare.com/client/v4
+          echo "token verify:  $(api "$base/user/tokens/verify")"
+          echo "list tunnels:  $(api "$base/accounts/$CLOUDFLARE_ACCOUNT_ID/cfd_tunnel?per_page=1")"
+          echo "list zones:    $(api "$base/zones?name=$SIM_ZONE")"
+          zone="$(curl --silent -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "$base/zones?name=$SIM_ZONE" | jq -r '.result[0].id // empty')"
+          if [ -n "$zone" ]; then
+            echo "list dns:      $(api "$base/zones/$zone/dns_records?per_page=1")"
+          else
+            echo "list dns:      (zone not visible to this token)"
+          fi
+
+      - name: Create the tunnel, its ingress, and its DNS name; hand the token to the host
+        if: github.event_name == 'workflow_dispatch' && inputs.action == 'bootstrap-tunnel'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          base=https://api.cloudflare.com/client/v4
+          auth=(-H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H "content-type: application/json")
+          fail() { echo "::error::$1"; echo "$2" | jq -c '{success, errors}' || true; exit 1; }
+
+          # One tunnel of this name; reuse it if an earlier run made it.
+          existing="$(curl --silent "${auth[@]}" "$base/accounts/$CLOUDFLARE_ACCOUNT_ID/cfd_tunnel?name=$TUNNEL_NAME&is_deleted=false")"
+          tunnel_id="$(echo "$existing" | jq -r '.result[0].id // empty')"
+          if [ -z "$tunnel_id" ]; then
+            created="$(curl --silent "${auth[@]}" -X POST "$base/accounts/$CLOUDFLARE_ACCOUNT_ID/cfd_tunnel" \
+              --data "$(jq -cn --arg name "$TUNNEL_NAME" '{name: $name, config_src: "cloudflare"}')")"
+            echo "$created" | jq -e '.success' >/dev/null || fail "creating the tunnel failed" "$created"
+            tunnel_id="$(echo "$created" | jq -r '.result.id')"
+            echo "created tunnel $tunnel_id"
+          else
+            echo "reusing tunnel $tunnel_id"
+          fi
+
+          # Ingress: the public name to the harness, everything else 404.
+          ingress="$(curl --silent "${auth[@]}" -X PUT "$base/accounts/$CLOUDFLARE_ACCOUNT_ID/cfd_tunnel/$tunnel_id/configurations" \
+            --data "$(jq -cn --arg host "$SIM_HOSTNAME" --arg svc "$SIM_SERVICE" \
+              '{config: {ingress: [{hostname: $host, service: $svc}, {service: "http_status:404"}]}}')")"
+          echo "$ingress" | jq -e '.success' >/dev/null || fail "configuring the tunnel ingress failed" "$ingress"
+
+          # DNS: the public name is a proxied CNAME to the tunnel.
+          zone="$(curl --silent "${auth[@]}" "$base/zones?name=$SIM_ZONE" | jq -r '.result[0].id // empty')"
+          [ -n "$zone" ] || fail "the zone $SIM_ZONE is not visible to this token" '{}'
+          record="$(curl --silent "${auth[@]}" "$base/zones/$zone/dns_records?type=CNAME&name=$SIM_HOSTNAME")"
+          record_id="$(echo "$record" | jq -r '.result[0].id // empty')"
+          body="$(jq -cn --arg name "$SIM_HOSTNAME" --arg content "$tunnel_id.cfargotunnel.com" \
+            '{type: "CNAME", name: $name, content: $content, proxied: true, ttl: 1}')"
+          if [ -z "$record_id" ]; then
+            dns="$(curl --silent "${auth[@]}" -X POST "$base/zones/$zone/dns_records" --data "$body")"
+          else
+            dns="$(curl --silent "${auth[@]}" -X PUT "$base/zones/$zone/dns_records/$record_id" --data "$body")"
+          fi
+          echo "$dns" | jq -e '.success' >/dev/null || fail "writing the DNS record failed" "$dns"
+          echo "dns: $SIM_HOSTNAME -> $tunnel_id.cfargotunnel.com"
+
+          # The connector token goes to the host and nowhere else.
+          token_json="$(curl --silent "${auth[@]}" "$base/accounts/$CLOUDFLARE_ACCOUNT_ID/cfd_tunnel/$tunnel_id/token")"
+          echo "$token_json" | jq -e '.success' >/dev/null || fail "reading the tunnel token failed" "$token_json"
+          echo "$token_json" | jq -r '.result' | ssh sim 'umask 077; { printf "TUNNEL_TOKEN="; cat; } > ~/analog-canvas-sim/tunnel.env && echo "tunnel.env written ($(wc -c < ~/analog-canvas-sim/tunnel.env) bytes)"'
+          ssh sim '~/analog-canvas-sim/bin/up.sh'
+
+      - name: Copy the harness to the host, rebuild, restart
+        if: github.event_name == 'push' || inputs.action == 'deploy'
+        run: |
+          set -euo pipefail
+          ssh sim 'mkdir -p ~/analog-canvas-sim/build/containers/ngspice'
+          scp -q containers/ngspice/Dockerfile containers/ngspice/entrypoint.mjs sim:~/analog-canvas-sim/build/containers/ngspice/
+          echo "${GITHUB_SHA::8}" | ssh sim 'cat > ~/analog-canvas-sim/build/SOURCE_COMMIT'
+          ssh sim '~/analog-canvas-sim/bin/rebuild.sh'
+
+      - name: Verify the host answers through its tunnel
+        if: github.event_name == 'push' || inputs.action != 'probe'
+        run: |
+          set -euo pipefail
+          for _ in $(seq 1 30); do
+            if curl --silent --fail --max-time 10 "https://$SIM_HOSTNAME/health" > /tmp/health.json; then break; fi
+            sleep 10
+          done
+          jq -e '.status == "ready"' /tmp/health.json >/dev/null || { echo "::error::the host is not ready through the tunnel"; cat /tmp/health.json || true; exit 1; }
+          echo "ready: ngspice $(jq -r '.environment.simulator.version' /tmp/health.json), models $(jq -r '.environment.models.id' /tmp/health.json)"
+          # /run must refuse a caller without the token: the host is public by name, not by use.
+          status="$(curl --silent --output /dev/null --write-out '%{http_code}' --max-time 10 -X POST -H 'content-type: application/json' --data '{"deck":"x\n.end\n"}' "https://$SIM_HOSTNAME/run")"
+          [ "$status" = "401" ] || { echo "::error::/run answered $status to a caller without the token; it must answer 401"; exit 1; }
+          echo "/run without the token: 401, as required"

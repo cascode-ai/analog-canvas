@@ -4,6 +4,7 @@
     "jsx": "react-jsx",
     "noEmit": true,
     "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "paths": {
       "@icm/agent-adapter": ["./packages/agent-adapter/src/index.ts"],
       "@icm/agent-adapter/kit": ["./packages/agent-adapter/src/agent-kit.ts"],

@@ -3727,7 +3727,6 @@ export function App({
       pendingSymbolId,
       pendingComponentPlacement: Boolean(pendingComponentPlacement),
       vddRailMode,
-      copyPlacementActive: copyPlacement !== null,
       waveformPlacementActive: pendingWaveformPlacement !== null,
       snapPlacementPoint: (point) => {
         const pitch =
