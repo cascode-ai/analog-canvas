@@ -42,6 +42,20 @@ export interface TextEditingSession {
   defaultFormula?: string;
 }
 
+/**
+ * A Reference edit the prefix policy refused, held while the person decides
+ * whether the typed text should become attached literal text instead.
+ */
+export interface ReferenceLabelOffer {
+  readonly annotationId: string;
+  /** The typed text, as plain characters. */
+  readonly text: string;
+  /** The Reference that stays, and is printed by the netlist. */
+  readonly reference: string;
+  /** The prefix the component's Reference has to start with. */
+  readonly prefix: string;
+}
+
 export type TextEditingCommitProposal =
   | { kind: "update"; edit: SchematicEdit; id: string }
   | { kind: "delete"; edit: SchematicEdit; id: string }

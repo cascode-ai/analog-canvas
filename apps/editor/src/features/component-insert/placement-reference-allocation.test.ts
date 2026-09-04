@@ -93,6 +93,7 @@ describe("placement Reference allocation", () => {
         return { ok: true };
       },
       replaceAnnotationSelection: () => {},
+      nextId: (prefix) => `${prefix}-1`,
       setStatus: () => {},
     });
 

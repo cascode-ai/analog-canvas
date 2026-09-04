@@ -1128,8 +1128,10 @@ test("carries a manual Value through placement and Q property editing", async ({
   await expect(
     page.getByRole("button", { name: "Discard changes" }),
   ).toHaveCount(0);
+  // Reference, then the free Label, then Symbol: the Label row is the
+  // attached text a Reference cannot be, and it sits next to the Reference.
   await expect(page.getByLabel("Component identity")).toContainText(
-    "ReferenceSymbolresistorCell",
+    "ReferenceLabelSymbolresistorCell",
   );
   await expect(page.getByLabel("Component identity")).not.toContainText(
     "Device class",

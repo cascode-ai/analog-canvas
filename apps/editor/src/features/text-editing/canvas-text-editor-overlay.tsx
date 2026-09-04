@@ -10,7 +10,7 @@ import type { DerivedRect, GridRect } from "@icm/model";
 import { flattenRichText } from "@icm/model";
 
 import { RichTextEditor } from "./rich-text-editor";
-import type { TextEditingSession } from "./text-editing";
+import type { ReferenceLabelOffer, TextEditingSession } from "./text-editing";
 
 type TextEditingUpdate = Partial<
   Pick<TextEditingSession, "content" | "sizeScale" | "alignment">
@@ -27,6 +27,9 @@ export interface CanvasTextEditorOverlayProps {
   onDelete(): void;
   onReverseCurrentArrow?(): void;
   onConvertFormulaToLiteral?(formula: TextEditingSession["content"]): boolean;
+  referenceLabelOffer?: ReferenceLabelOffer | null;
+  onAcceptReferenceLabelOffer?(): void;
+  onDeclineReferenceLabelOffer?(): void;
 }
 
 /**
@@ -126,6 +129,9 @@ export function CanvasTextEditorOverlay({
   onDelete,
   onReverseCurrentArrow,
   onConvertFormulaToLiteral,
+  referenceLabelOffer,
+  onAcceptReferenceLabelOffer,
+  onDeclineReferenceLabelOffer,
 }: CanvasTextEditorOverlayProps) {
   const anchorRef = useRef<SVGGElement | null>(null);
   const [canvasSize, setCanvasSize] = useState<{
@@ -228,6 +234,19 @@ export function CanvasTextEditorOverlay({
           {...(session.bindingKind === "instance-reference" &&
           onConvertFormulaToLiteral
             ? { onConvertFormulaToLiteral }
+            : {})}
+          {...(session.bindingKind === "instance-reference" &&
+          referenceLabelOffer &&
+          referenceLabelOffer.annotationId === session.id
+            ? {
+                referenceLabelOffer,
+                ...(onAcceptReferenceLabelOffer
+                  ? { onAcceptReferenceLabelOffer }
+                  : {}),
+                ...(onDeclineReferenceLabelOffer
+                  ? { onDeclineReferenceLabelOffer }
+                  : {}),
+              }
             : {})}
           onLayoutHeightChange={handleLayoutHeightChange}
           {...(onReverseCurrentArrow ? { onReverseCurrentArrow } : {})}

@@ -369,6 +369,20 @@ and displayable.
 Properties and character editing of the bound canvas label both rename the one
 Instance Reference. Same-text RichText formatting stays in the Annotation and
 ordinary attached literal text never becomes a Reference.
+A character edit whose text the component's Reference prefix policy refuses
+(`gm` on a resistor, whose Reference the netlist prints as `R…`) is not
+committed as a rename and does not end in the Edit Engine's refusal: the
+editor offers to keep the Reference and show the typed text as attached
+literal text in the label's place. Accepting hides the `instance-reference`
+projection (`visible: false`), creates one literal `instance-label` Annotation
+at the same anchor with the edited size, alignment, and colour, and leaves
+`Instance.reference` unchanged; declining keeps the editor open. Properties
+exposes the same attached text as a `Label` field for every placed component,
+including one with no Reference at all: setting it creates or rewrites the one
+literal `instance-label` Annotation of that Instance — in the hidden Reference
+projection's place, otherwise on the next free label line below the Reference
+and a shown value — and clearing it removes that Annotation. Neither direction
+touches the Reference, the netlist, or export.
 For a Cell Pin, a character edit renames the terminal while a formatting-only
 edit persists a same-text annotation `formatOverride`. Properties exposes the
 Cell Pin name and direction. Net naming remains a Net Label operation.

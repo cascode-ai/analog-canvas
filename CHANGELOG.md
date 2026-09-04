@@ -122,6 +122,17 @@ it now accepts anything the upgrade chain can carry forward.
 **A missing code chunk answers with a refresh rather than a stack trace**, and
 a stuck page can get itself unstuck.
 
+### Labels
+
+**A component can wear any label.** A Reference still follows its device
+prefix — a resistor is `R…` — because the netlist prints it as the element
+token. Typing something else over the Reference label, such as `gm`, no longer
+ends in a refusal: the editor offers to keep the Reference for the netlist and
+show the typed text as a label in its place. Properties gains a `Label` field
+for the same free text on any placed component, including blocks that have no
+Reference at all. The label is presentation only; it never reaches the
+netlist.
+
 ### Unchanged
 
 The electrical model is untouched. Connectivity is still explicit, a crossing

@@ -19,6 +19,7 @@ import {
 import type { RichTextDocument, RichTextRun } from "@icm/model";
 
 import { boundFormulaPresentation } from "./bound-formula";
+import type { ReferenceLabelOffer } from "./text-editing";
 
 export interface RichTextEditorProps {
   targetKey: string;
@@ -46,6 +47,10 @@ export interface RichTextEditorProps {
   formulaSemanticText?: string;
   /** Convert a non-equivalent Formula into literal attached text. */
   onConvertFormulaToLiteral?(formula: RichTextDocument): boolean;
+  /** A refused Reference edit, offered as attached literal text instead. */
+  referenceLabelOffer?: ReferenceLabelOffer;
+  onAcceptReferenceLabelOffer?(): void;
+  onDeclineReferenceLabelOffer?(): void;
   onLayoutHeightChange?(height: number): void;
 }
 
@@ -444,6 +449,9 @@ export function RichTextEditor({
   onReverseCurrentArrow,
   formulaSemanticText,
   onConvertFormulaToLiteral,
+  referenceLabelOffer,
+  onAcceptReferenceLabelOffer,
+  onDeclineReferenceLabelOffer,
   onLayoutHeightChange,
 }: RichTextEditorProps) {
   const shellRef = useRef<HTMLDivElement>(null);
@@ -1113,6 +1121,37 @@ export function RichTextEditor({
           }}
         />
       )}
+      {referenceLabelOffer ? (
+        <div
+          className="rich-text-formula-conversion"
+          data-testid="reference-label-offer"
+          role="alert"
+        >
+          <div>
+            <strong>
+              “{referenceLabelOffer.text}” cannot be this component’s Reference
+            </strong>
+            <span>
+              Its Reference starts with “{referenceLabelOffer.prefix}” because
+              the netlist prints it. Keep Reference “
+              {referenceLabelOffer.reference}” and show “
+              {referenceLabelOffer.text}” as a label in its place?
+            </span>
+          </div>
+          <div className="rich-text-formula-conversion-actions">
+            <button type="button" onClick={onDeclineReferenceLabelOffer}>
+              Keep editing
+            </button>
+            <button
+              className="rich-text-formula-primary-action"
+              type="button"
+              onClick={onAcceptReferenceLabelOffer}
+            >
+              Show as label
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

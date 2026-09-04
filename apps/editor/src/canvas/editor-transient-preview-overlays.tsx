@@ -95,6 +95,9 @@ export function EditorInteractionPreviews({
   onTextCancel,
   onTextDelete,
   onConvertFormulaToLiteral,
+  referenceLabelOffer,
+  onAcceptReferenceLabelOffer,
+  onDeclineReferenceLabelOffer,
   onReverseCurrentArrow,
 }: {
   boxPreview: BoxPreview | null;
@@ -115,6 +118,9 @@ export function EditorInteractionPreviews({
   onTextCancel: () => void;
   onTextDelete: () => void;
   onConvertFormulaToLiteral?: CanvasTextEditorOverlayProps["onConvertFormulaToLiteral"];
+  referenceLabelOffer?: CanvasTextEditorOverlayProps["referenceLabelOffer"];
+  onAcceptReferenceLabelOffer?: () => void;
+  onDeclineReferenceLabelOffer?: () => void;
   onReverseCurrentArrow?: () => void;
 }) {
   return (
@@ -167,6 +173,13 @@ export function EditorInteractionPreviews({
           onCancel={onTextCancel}
           onDelete={onTextDelete}
           {...(onConvertFormulaToLiteral ? { onConvertFormulaToLiteral } : {})}
+          {...(referenceLabelOffer ? { referenceLabelOffer } : {})}
+          {...(onAcceptReferenceLabelOffer
+            ? { onAcceptReferenceLabelOffer }
+            : {})}
+          {...(onDeclineReferenceLabelOffer
+            ? { onDeclineReferenceLabelOffer }
+            : {})}
           {...(onReverseCurrentArrow ? { onReverseCurrentArrow } : {})}
         />
       ) : null}
