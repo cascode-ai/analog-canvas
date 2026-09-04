@@ -396,6 +396,62 @@ describe("health", () => {
   });
 });
 
+describe("a run root that cannot be written", () => {
+  it(
+    "says so, and does not keep the slot it took",
+    { timeout: SLOW_TEST_MS },
+    async () => {
+      // The failure that took the preview simulator down on 2026-09-04. The
+      // slot was taken before the run directory was made and given back only
+      // by the path that made it, so one container whose run root was not
+      // writable answered a single 500 and then refused every later request
+      // as busy — forever, or until it slept. The run root here is a FILE, so
+      // neither it nor a fallback under it can hold a directory.
+      const notADirectory = join(workspace, "run-root-that-is-a-file");
+      await writeFile(notADirectory, "", "utf8");
+      const { port } = await startHarness(
+        await simulator("quick.sh", "echo ran\n"),
+        {
+          SIMULATION_RUN_ROOT: notADirectory,
+          // Without this the probe falls back to the platform's temporary
+          // directory, which works, and there is no failure to observe.
+          TMPDIR: notADirectory,
+        },
+      );
+
+      const first = await json(await run(port, { deck: "* one\n.end\n" }));
+      expect(first.status).toBe(500);
+      expect(first.payload.error).toBe("run-directory-unavailable");
+
+      // The slot is the point: a second request must be refused for its own
+      // reasons, not because the first one never gave the slot back.
+      const second = await json(await run(port, { deck: "* two\n.end\n" }));
+      expect(second.status).toBe(500);
+      expect(second.payload.error).toBe("run-directory-unavailable");
+      expect(
+        (await (await fetch(`http://127.0.0.1:${port}/health`)).json()).busy,
+      ).toBe(false);
+    },
+  );
+
+  it("falls back to the platform temporary directory and says which", async () => {
+    const missing = join(workspace, "no-such-run-root", "deeper");
+    const { port } = await startHarness(await simulator("quick2.sh", "pwd\n"), {
+      SIMULATION_RUN_ROOT: missing,
+    });
+
+    // A run root the image named but the runtime did not provide is made if
+    // it can be, so this one is used rather than the fallback.
+    const health = await (
+      await fetch(`http://127.0.0.1:${port}/health`)
+    ).json();
+    expect(health.status).toBe("ready");
+    expect(health.runRoot).toBe(missing);
+    const { payload } = await json(await run(port, { deck: "* one\n.end\n" }));
+    expect(payload.log.trim().startsWith(missing)).toBe(true);
+  });
+});
+
 describe("the kernel limits", () => {
   it("runs the deck under the limits the image sets", async () => {
     const { port } = await startHarness(

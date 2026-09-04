@@ -60,7 +60,19 @@ jobs:
             echo "The harness itself is writable by the account a deck runs as."
             exit 1
           fi
-          docker run --rm icm-ngspice:pr sh -c 'test -w /run/simulation' \
+          # The run root the image prepared, read from the image rather than
+          # written out again here, and writable by the account that has to
+          # make a directory in it for every run.
+          run_root="$(docker run --rm icm-ngspice:pr \
+            sh -c 'printf %s "$SIMULATION_RUN_ROOT"')"
+          echo "run root: $run_root"
+          case "$run_root" in
+            /run|/run/*)
+              echo "The run root is under /run, which a container runtime may mount over."
+              exit 1
+              ;;
+          esac
+          docker run --rm icm-ngspice:pr sh -c 'test -w "$SIMULATION_RUN_ROOT"' \
             || { echo "The run root must be writable, or no run can start."; exit 1; }
           # The continuous library is the reason for this base image (#551).
           # The Worker points every model-backed deck at exactly this path.
@@ -89,7 +101,12 @@ jobs:
             if (health.limits.concurrentRuns !== 1) throw new Error("the slot is not single");
             if (health.environment.simulator.name !== "ngspice") throw new Error("no simulator identified");
             if (!/^[0-9a-f]{64}$/.test(health.environment.fingerprint)) throw new Error("no fingerprint");
-            console.log("simulator:", health.environment.simulator.version);
+            // A container that fell back to the platform temp directory still
+            // runs circuits, but it is not the image it was built to be.
+            if (health.runRootFailures) {
+              throw new Error(`the run root fell back: ${health.runRootFailures.join("; ")}`);
+            }
+            console.log("simulator:", health.environment.simulator.version, "run root:", health.runRoot);
           '
           # A resistor divider, the smallest circuit ngspice can answer for,
           # and one that needs no device model — the models are covered by the

@@ -269,6 +269,15 @@ double the image for a tree that is already root-owned. That the property
 holds is asserted, not assumed: the container workflow tries to write each
 path as the run account and requires failure.
 
+The directory those run directories are made under is prepared by the image
+and belongs to the run account. It is deliberately not under `/run`: a
+container runtime may mount its own filesystem there, replacing the prepared
+directory with one the run account cannot write. The harness probes the root
+it is given once at startup and falls back to the platform temporary
+directory if it must, reporting both through `GET /health`, and a run that
+still cannot get a directory is answered `run-directory-unavailable` — a
+statement about the container, never about the circuit.
+
 Each run gets a private directory, made immediately before it and removed
 whole immediately after it however it ended. That directory is the
 simulator's working directory, its `HOME`, and its `TMPDIR`, and it is the
