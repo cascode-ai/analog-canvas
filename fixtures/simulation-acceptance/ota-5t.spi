@@ -1,0 +1,18 @@
+* A five-transistor OTA in Sky130, used as the fixture for ADR 0055's
+* acceptance check. The topology is the textbook one: XM1/XM2 are the input
+* pair, XM3/XM4 the mirror load, XM5 the tail source, XM6 the diode-connected
+* bias replica that sets it.
+*
+* Device widths stay inside the binned model library's widest bin (100 um for
+* nfet_01v8). That is a property of the model set installed, not of the
+* circuit: see issue #551. A circuit written past the bin ceiling is refused
+* by ngspice before any of this is exercised, which would test the library
+* rather than the export.
+.subckt ota_5t vss ibias vdd vinn vinp vout
+XM1 nleft vinp tail vss sky130_fd_pr__nfet_01v8 l=1.0 w=96 nf=12
+XM2 vout vinn tail vss sky130_fd_pr__nfet_01v8 l=1.0 w=96 nf=12
+XM3 nleft nleft vdd vdd sky130_fd_pr__pfet_01v8 l=1.0 w=64 nf=8
+XM4 vout nleft vdd vdd sky130_fd_pr__pfet_01v8 l=1.0 w=64 nf=8
+XM5 tail ibias vss vss sky130_fd_pr__nfet_01v8 l=3 w=100 nf=20
+XM6 ibias ibias vss vss sky130_fd_pr__nfet_01v8 l=3 w=60 nf=6
+.ends ota_5t
