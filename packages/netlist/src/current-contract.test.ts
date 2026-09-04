@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  createEmptyDocument,
   createEmptyProject,
   deriveStableId,
   type CircuitProject,
@@ -460,6 +461,88 @@ describe("current formal cell interface", () => {
 
     expect(repeated).toEqual(first);
     expect(reopened).toEqual(first);
+  });
+
+  it("preserves the Project top when analyzing an explicit Testbench root", () => {
+    const project = createEmptyProject("project", "Project", "dut");
+    const dut = project.documents[0]!;
+    dut.netlist!.name = "dut";
+    const testbench = createEmptyDocument("tb", "Testbench");
+    testbench.netlist!.name = "testbench";
+    testbench.instances.push({
+      id: "X_DUT",
+      symbolId: "dut-symbol",
+      placement: null,
+      reference: "X_DUT",
+      netlist: {
+        binding: { kind: "subcircuit", childDocumentId: dut.id },
+        parameters: {},
+      },
+    });
+    const unrelated = createEmptyDocument("unrelated", "Unrelated");
+    for (const [document, netId, spelling] of [
+      [dut, "net-dut-vdd", "VDD"],
+      [testbench, "net-tb-vdd", "vdd"],
+      [unrelated, "net-unrelated-vdd", "VDd"],
+    ] as const) {
+      document.nets.push({ id: netId, terminals: [] });
+      claimNet(document, netId, spelling, "global");
+    }
+    project.documents.push(testbench, unrelated);
+    const before = JSON.stringify(project);
+
+    const result = analyzeDesignNetlist(project, { rootDocumentId: "tb" });
+
+    expect(
+      result.diagnostics.filter((item) => item.severity === "error"),
+    ).toEqual([]);
+    expect(result.ir?.topCellId).toBe("tb");
+    expect(result.ir?.cells.map((cell) => cell.id)).toEqual(["dut", "tb"]);
+    expect(result.ir?.globals).toEqual(["vdd"]);
+    expect(
+      result.ir?.cells.map(
+        (cell) => cell.nets.find((net) => net.scope === "global")?.name,
+      ),
+    ).toEqual(["vdd", "vdd"]);
+    expect(result.ir?.cells.some((cell) => cell.id === "unrelated")).toBe(
+      false,
+    );
+    expect(project.topDocumentId).toBe("dut");
+    expect(JSON.stringify(project)).toBe(before);
+  });
+
+  it("keeps omitted and explicit Project-top analysis identical", () => {
+    const project = resistorProject({ value: "10k" });
+
+    expect(
+      analyzeDesignNetlist(project, {
+        rootDocumentId: project.topDocumentId,
+      }),
+    ).toEqual(analyzeDesignNetlist(project));
+  });
+
+  it("diagnoses an unknown explicit root without throwing", () => {
+    const project = createEmptyProject("project", "Project");
+
+    const result = analyzeDesignNetlist(project, {
+      rootDocumentId: "missing-testbench",
+    });
+
+    expect(result.ir).toBeNull();
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({
+        code: "MISSING_ROOT_CELL",
+        documentId: project.topDocumentId,
+        objectIds: [],
+        message:
+          "Simulation root references unknown Document missing-testbench",
+        primary: expect.objectContaining({
+          documentId: project.topDocumentId,
+          kind: "document",
+          objectId: project.topDocumentId,
+        }),
+      }),
+    ]);
   });
 
   it("rejects parameters that would become ambiguous under case folding", () => {

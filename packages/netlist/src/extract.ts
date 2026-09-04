@@ -96,11 +96,21 @@ function attachDiagnosticLocators(
 
 function reachableDocuments(
   project: CircuitProject,
+  rootDocumentId: StableId,
   diagnostics: NetlistDiagnostic[],
 ): SchematicDocument[] {
   const byId = new Map(
     project.documents.map((document) => [document.id, document]),
   );
+  if (!byId.has(rootDocumentId)) {
+    diagnostic(
+      diagnostics,
+      project.topDocumentId,
+      "MISSING_ROOT_CELL",
+      `Simulation root references unknown Document ${rootDocumentId}`,
+    );
+    return [];
+  }
   const ordered: SchematicDocument[] = [];
   const visiting = new Set<string>();
   const visited = new Set<string>();
@@ -125,7 +135,7 @@ function reachableDocuments(
     if (!document) {
       diagnostic(
         diagnostics,
-        parentId ?? project.topDocumentId,
+        parentId ?? rootDocumentId,
         "MISSING_CHILD_CELL",
         `Hierarchy binding references unknown Document ${documentId}`,
         instanceId ? [instanceId] : [],
@@ -147,11 +157,11 @@ function reachableDocuments(
     ordered.push(document);
   }
 
-  visit(project.topDocumentId);
+  visit(rootDocumentId);
   if (ordered.length > MAX_CELLS) {
     diagnostic(
       diagnostics,
-      project.topDocumentId,
+      rootDocumentId,
       "CELL_LIMIT_EXCEEDED",
       `Reachable hierarchy has ${ordered.length} cells; maximum is ${MAX_CELLS}`,
     );
@@ -169,6 +179,8 @@ interface CellNetContext {
 export interface DesignNetlistAnalysisOptions {
   format?: NetlistFormat;
   namingProfile?: NetlistNamingProfile;
+  /** Read-only analysis root. Omission preserves structural-export behavior. */
+  rootDocumentId?: StableId;
 }
 
 type ResolvedDesignNetlistAnalysisOptions =
@@ -1258,10 +1270,19 @@ export function analyzeDesignNetlist(
   const resolvedOptions: ResolvedDesignNetlistAnalysisOptions = {
     format: options.format ?? "spice",
     namingProfile: options.namingProfile ?? "native",
+    rootDocumentId: options.rootDocumentId ?? project.topDocumentId,
   };
   const diagnostics: NetlistDiagnostic[] = [];
-  const documents = reachableDocuments(project, diagnostics);
-  const nameProjection = deriveProjectNetNameProjection(project);
+  const documents = reachableDocuments(
+    project,
+    resolvedOptions.rootDocumentId,
+    diagnostics,
+  );
+  const nameProjection = deriveProjectNetNameProjection(
+    resolvedOptions.rootDocumentId === project.topDocumentId
+      ? project
+      : { ...project, topDocumentId: resolvedOptions.rootDocumentId },
+  );
   const documentsById = new Map(
     project.documents.map((document) => [document.id, document]),
   );
@@ -1317,7 +1338,7 @@ export function analyzeDesignNetlist(
   ].sort(compareText);
   return {
     ir: {
-      topCellId: project.topDocumentId,
+      topCellId: resolvedOptions.rootDocumentId,
       cells,
       globals,
       externalMasters: [
