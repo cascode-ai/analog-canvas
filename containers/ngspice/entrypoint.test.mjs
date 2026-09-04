@@ -396,6 +396,53 @@ describe("health", () => {
   });
 });
 
+describe("a failure does not wedge the simulator", () => {
+  it("hands the slot back when the run directory cannot be made", async () => {
+    // The measured outage, 2026-09-04: `mkdtemp` sat between taking the single
+    // run slot and the `try` that returns it, so the first failure kept the
+    // slot forever. One 500 went out and every request after it was answered
+    // "busy" — by a container running nothing at all. The deploy check saw a
+    // 500 once and 503 from then on, which reads like load and was not.
+    const { port, runRoot } = await startHarness(
+      await simulator("wedge.sh", "echo ngspice-46\n"),
+    );
+    // Take the run root away underneath a started harness, which is what a
+    // tmpfs mounted over it amounts to.
+    await rm(runRoot, { recursive: true, force: true });
+    await writeFile(runRoot, "not a directory\n", "utf8");
+
+    const first = await run(port, { deck: "* one\n.end\n" });
+    expect(first.status).not.toBe(503);
+
+    const second = await run(port, { deck: "* two\n.end\n" });
+    const body = await second.json();
+    // Whatever the answer is, it must not be "another circuit is running".
+    expect(body.error).not.toBe("simulator-busy");
+
+    const health = await fetch(`http://127.0.0.1:${port}/health`);
+    expect((await health.json()).busy).toBe(false);
+  });
+
+  it("says its run root is unusable instead of calling itself ready", async () => {
+    // Swallowing the startup mkdir is how a container came up reporting
+    // "ready" while every run failed. A deploy that trusts /health has to be
+    // told the truth by it.
+    const notADirectory = join(workspace, "run-root-is-a-file");
+    await writeFile(notADirectory, "occupied\n", "utf8");
+    const { port } = await startHarness(
+      await simulator("wedge2.sh", "echo ngspice-46\n"),
+      { SIMULATION_RUN_ROOT: notADirectory },
+    );
+
+    const health = await fetch(`http://127.0.0.1:${port}/health`);
+    expect(health.status).toBe(503);
+    expect((await health.json()).status).toBe("not-ready");
+
+    const response = await run(port, { deck: "* x\n.end\n" });
+    expect((await response.json()).error).toBe("simulator-unusable");
+  });
+});
+
 describe("the kernel limits", () => {
   it("runs the deck under the limits the image sets", async () => {
     const { port } = await startHarness(

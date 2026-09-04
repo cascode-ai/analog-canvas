@@ -38,7 +38,12 @@ RUN apt-get update \
 ARG RUN_UID=10001
 ARG RUN_GID=10001
 ARG RUN_USER=simulate
-ARG RUN_ROOT=/run/simulation
+# Not /run. A container runtime commonly mounts a tmpfs there, which replaces
+# whatever the image built underneath it -- so the directory created and
+# chowned during the build is gone at runtime, and a non-root process finds a
+# root-owned mount where its home is supposed to be. Every run then fails
+# inside mkdtemp. /var/lib is where a service's own working files belong.
+ARG RUN_ROOT=/var/lib/simulation
 RUN set -eu; \
     if ! getent group "${RUN_GID}" >/dev/null 2>&1; then \
         groupadd --system --gid "${RUN_GID}" "${RUN_USER}"; \

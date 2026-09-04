@@ -44,6 +44,9 @@ const PORT = Number(process.env.PORT ?? 8080);
  */
 const RUN_ROOT = process.env.SIMULATION_RUN_ROOT ?? tmpdir();
 
+/** Set at startup when RUN_ROOT cannot hold a run; see the check below. */
+let runRootError = null;
+
 /** Refuse a deck larger than this rather than spend a container waking for it. */
 const MAX_DECK_BYTES = 2 * 1024 * 1024;
 
@@ -568,6 +571,13 @@ async function handleRun(body) {
   }
   const timeoutMs = resolveTimeoutMs(body?.timeoutMs);
 
+  if (runRootError) {
+    return {
+      status: 503,
+      payload: { error: "simulator-unusable", message: runRootError },
+    };
+  }
+
   if (!acquireSlot()) {
     return {
       status: 503,
@@ -586,8 +596,9 @@ async function handleRun(body) {
   // HOME, so the `.spiceinit` ngspice reads is the one written below and
   // never a shared file another run could have left; and it is TMPDIR. The
   // model tree the deck includes is outside it and read-only.
-  const directory = await mkdtemp(join(RUN_ROOT, "run-"));
+  let directory;
   try {
+    directory = await mkdtemp(join(RUN_ROOT, "run-"));
     await writeFile(join(directory, DECK_NAME), deck, "utf8");
     // ASCII rawfiles, so `write` produces something a reader can read.
     // ngspice's default is binary; this is the environment's setting, not an
@@ -634,7 +645,9 @@ async function handleRun(body) {
   } finally {
     // The disk does not survive a sleep, but a woken container serves many
     // runs before sleeping and one author's deck is not another's business.
-    await rm(directory, { recursive: true, force: true }).catch(() => {});
+    if (directory) {
+      await rm(directory, { recursive: true, force: true }).catch(() => {});
+    }
     releaseSlot();
   }
 }
@@ -656,7 +669,15 @@ const server = createServer((request, response) => {
     // broken one.
     environmentPromise.then(
       (environment) =>
-        send(200, { status: "ready", busy, limits: LIMITS, environment }),
+        runRootError
+          ? send(503, {
+              status: "not-ready",
+              busy,
+              limits: LIMITS,
+              environment,
+              error: runRootError,
+            })
+          : send(200, { status: "ready", busy, limits: LIMITS, environment }),
       (error) =>
         send(503, {
           status: "not-ready",
@@ -698,7 +719,25 @@ const server = createServer((request, response) => {
   });
 });
 
-await mkdir(RUN_ROOT, { recursive: true }).catch(() => {});
+// Whether the run root exists and is writable, decided once at startup.
+//
+// This used to be `mkdir(...).catch(() => {})`, and swallowing it was how a
+// container came up reporting itself ready while every run failed: the first
+// request threw inside `mkdtemp`, and the answer to that is a 500 with a
+// stringified errno that names a path and explains nothing.
+//
+// `/run` is the reason it can fail at all. A runtime commonly mounts a tmpfs
+// there, which replaces whatever the image built underneath -- including the
+// directory this harness was given and the ownership it was granted -- so a
+// non-root process finds a root-owned mount where its home used to be.
+try {
+  await mkdir(RUN_ROOT, { recursive: true });
+  const probe = await mkdtemp(join(RUN_ROOT, "startup-"));
+  await rm(probe, { recursive: true, force: true });
+} catch (error) {
+  runRootError = `The run root ${RUN_ROOT} is not usable: ${String(error)}`;
+  console.error(runRootError);
+}
 server.listen(PORT, () => {
   const address = server.address();
   const port = typeof address === "object" && address ? address.port : PORT;
