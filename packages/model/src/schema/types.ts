@@ -17,6 +17,20 @@ export type Mirror = z.infer<typeof Schema.MirrorSchema>;
 export type Orientation = z.infer<typeof Schema.OrientationSchema>;
 export type SourcePosition = z.infer<typeof Schema.SourcePositionSchema>;
 export type SourceSpan = z.infer<typeof Schema.SourceSpanSchema>;
+export type ObjectLocatorKind = z.infer<typeof Schema.ObjectLocatorKindSchema>;
+export interface HierarchyFrame {
+  parentDocumentId: string;
+  instanceId: string;
+  childDocumentId: string;
+}
+export interface ObjectLocator {
+  documentId: string;
+  hierarchyPath: readonly HierarchyFrame[];
+  kind: ObjectLocatorKind;
+  objectId: string;
+  endpoint?: RouteEndpoint;
+  sourceRef?: SourceSpan;
+}
 export type SourceManifest = z.infer<typeof Schema.SourceManifestSchema>;
 export type SymbolLibraryLock = z.infer<typeof Schema.SymbolLibraryLockSchema>;
 export type InstanceImportProvenance = z.infer<

@@ -1,5 +1,6 @@
 export * from "./common.js";
 export * from "./source.js";
+export * from "./object-locator.js";
 export * from "./instance.js";
 export * from "./connectivity.js";
 export * from "./routing.js";
