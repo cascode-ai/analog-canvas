@@ -69,6 +69,79 @@ function runnerFor(env: SimulationEnv, key: string): NgspiceRunner | null {
   return env.NGSPICE ? env.NGSPICE.getByName(key) : null;
 }
 
+/**
+ * How much of a refusal's body is worth carrying back. A refusal is a
+ * sentence, not a payload; more than this is a container misbehaving, and it
+ * is clipped rather than relayed.
+ */
+const MAX_REFUSAL_MESSAGE_CHARS = 400;
+
+function clipRefusalText(text: string): string {
+  return text.length > MAX_REFUSAL_MESSAGE_CHARS
+    ? `${text.slice(0, MAX_REFUSAL_MESSAGE_CHARS)}\u2026`
+    : text;
+}
+
+/**
+ * Why the container refused, in its own words.
+ *
+ * The status code alone is not a diagnosis, and this route used to answer
+ * every refusal with nothing else. The harness already distinguishes a
+ * container that is running someone else's circuit (`simulator-busy`, with a
+ * retry hint) from one that could not make a directory for the run at all
+ * (`run-directory-unavailable`, naming the failure it hit) — and both arrived
+ * here as a bare number.
+ *
+ * On 2026-09-04 that cost the preview channel an outage: a container whose
+ * run root was unwritable answered one 500 and then held its single slot
+ * forever, so every later request came back `503`. From outside, `503` is
+ * also what an honestly busy simulator says. The fault was one line in the
+ * harness, and finding it meant inferring container state from the sequence
+ * of status codes across repeated probes, because the sentence that named it
+ * was discarded here. Carrying that sentence costs nothing.
+ *
+ * Carried, never trusted: this is another service's output, so it is read as
+ * text, bounded, and reported under its own keys rather than spread into the
+ * response where it could shadow a field of this route's own.
+ */
+async function describeRefusal(
+  response: Response,
+): Promise<{ reason?: string; message?: string }> {
+  let body: string;
+  try {
+    body = await response.text();
+  } catch {
+    // A refusal whose body cannot even be read still has its status, which
+    // is what the caller had before this existed.
+    return {};
+  }
+  const trimmed = body.trim();
+  if (trimmed.length === 0) return {};
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    // Not JSON. A proxy in front of the container, or a harness that died
+    // before it could answer in its own format, replies in plain text — and
+    // that text is then the only clue there is.
+    return { message: clipRefusalText(trimmed) };
+  }
+  if (typeof parsed !== "object" || parsed === null) {
+    return { message: clipRefusalText(trimmed) };
+  }
+  const fields = parsed as { error?: unknown; message?: unknown };
+  const reason = typeof fields.error === "string" ? fields.error : null;
+  const message = typeof fields.message === "string" ? fields.message : null;
+  if (reason === null && message === null) {
+    return { message: clipRefusalText(trimmed) };
+  }
+  return {
+    ...(reason === null ? {} : { reason: clipRefusalText(reason) }),
+    ...(message === null ? {} : { message: clipRefusalText(message) }),
+  };
+}
+
 export async function routeSimulationRequest(
   request: Request,
   env: SimulationEnv,
@@ -165,7 +238,11 @@ export async function routeSimulationRequest(
   }
   if (!containerResponse.ok) {
     return Response.json(
-      { error: "simulator-refused", status: containerResponse.status },
+      {
+        error: "simulator-refused",
+        status: containerResponse.status,
+        ...(await describeRefusal(containerResponse)),
+      },
       { status: 502 },
     );
   }
