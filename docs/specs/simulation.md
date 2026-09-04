@@ -267,6 +267,13 @@ into the Project, undo history, Gallery, or recovery copy.
 - `packages/spice-run/src/index.test.ts` verifies exact `.lib` and `.include`
   emission, quoted paths, verbatim testbench preservation, and rejected deck
   injection.
+- `packages/netlist/src/simulation-compile.test.ts` asserts the compiled deck
+  and vector bindings byte for byte and every refusal, then runs the compiled
+  decks through local ngspice when the machine has one: an equal divider
+  solved at exactly 0.5 V with both plots in one rawfile, a Net probed through
+  an occurrence, and a source probed through one. The last is the check that
+  cannot be faked, because the wrong hierarchical spelling leaves no rawfile
+  to read rather than a wrong number.
 - `packages/spice-run/src/rawfile.test.ts` and `result-data.test.ts` run
   against three rawfiles ngspice 46 wrote, under
   `fixtures/ngspice-rawfile/`, each beside the deck that produced it. Every
@@ -326,6 +333,49 @@ Instance placed in that Testbench; its referenced Cell is reached through the
 normal hierarchy. Extraction, diagnostics, dependency collection, occurrence
 mapping, and input identity all use the same Testbench root. A deck that only
 defines `.subckt`s and instantiates nothing is not a run.
+
+### Compiling a structured setup
+
+`compileStructuredSimulation` in `@icm/netlist` is that compilation. It is
+pure: same Project and setup, byte-identical output, ordered by the printer.
+It returns the runner's `netlist` and `testbench` plus the probe-to-vector
+bindings, or diagnostics naming the objects to go look at; it never throws and
+never selects a model library.
+
+The `netlist` half is every reached Cell except the root, printed by the same
+`.subckt` printer the structural export uses. The `testbench` half is the root
+Cell's own instance cards -- the same printing, without the `.subckt` wrapper
+-- then one `.control` block: `set filetype=ascii`, `set appendwrite`, and for
+each analysis its ngspice command (`op`, `ac dec 10 1 1000000`) followed by
+`write out.raw` with every probe vector. There are deliberately **no** `.op` or
+`.ac` cards beside the block: ngspice 46 then runs the deck's own analyses
+again after the block and reports
+`Error: no data saved for A.C. Small signal analysis`, which classifies as a
+failed run. `set appendwrite` is equally load-bearing, because `write`
+truncates by default and a second analysis would silently replace the first
+one's plot instead of adding to it.
+
+Vector names are ngspice's, measured on ngspice 46 and lower-cased because the
+rawfile lower-cases them whatever the deck spelled:
+
+| probe                                  | vector         |
+| -------------------------------------- | -------------- |
+| Net in the root                        | `v(mid)`       |
+| Net through occurrence `X1`, then `X2` | `v(x1.x2.mid)` |
+| Voltage source in the root             | `i(v1)`        |
+| Voltage source through occurrence `X1` | `i(v.x1.v2)`   |
+
+The nested source is the one that cannot be guessed: `i(x1.v2)` is refused
+outright ("no such function as i"), because ngspice expands a device inside a
+call to `<type letter>.<call path>.<device>`. One refused vector aborts the
+whole `write`, so a wrong name leaves no rawfile at all rather than one missing
+column. For the same reason a `source-current` probe on an independent current
+source is refused at compile time: ngspice solves no branch current for one.
+
+`inputRevision` is `structured-1-<sha256>` over both halves and the canonical
+setup. The setup is in the hash because the environment selection -- Profile,
+corner, temperature -- changes the run without changing one character of the
+deck.
 
 ## Sources and analyses
 
@@ -455,17 +505,17 @@ deadline.
 
 **Limits.**
 
-| Limit | Value | Enforced by |
-| --- | --- | --- |
-| Deck size | 2 MiB | rejected `413 deck-too-large` |
-| Request body | 4 MiB | connection closed, `413 request-too-large` |
-| Returned output | 1 MiB per run | truncation, reported |
-| Default deadline | 30 s | applied when the caller names none |
-| Maximum deadline | 120 s | a longer request is clamped to it |
-| Lifecycle grace | 10 s | hard lease watchdog after the run deadline |
-| Identity probe | 5 s | given up on, not waited for |
-| Processes | 128 (`RLIMIT_NPROC`) | image-set `ulimit` before `exec` |
-| Written file size | 256 MiB (`RLIMIT_FSIZE`) | image-set `ulimit` before `exec` |
+| Limit             | Value                    | Enforced by                                |
+| ----------------- | ------------------------ | ------------------------------------------ |
+| Deck size         | 2 MiB                    | rejected `413 deck-too-large`              |
+| Request body      | 4 MiB                    | connection closed, `413 request-too-large` |
+| Returned output   | 1 MiB per run            | truncation, reported                       |
+| Default deadline  | 30 s                     | applied when the caller names none         |
+| Maximum deadline  | 120 s                    | a longer request is clamped to it          |
+| Lifecycle grace   | 10 s                     | hard lease watchdog after the run deadline |
+| Identity probe    | 5 s                      | given up on, not waited for                |
+| Processes         | 128 (`RLIMIT_NPROC`)     | image-set `ulimit` before `exec`           |
+| Written file size | 256 MiB (`RLIMIT_FSIZE`) | image-set `ulimit` before `exec`           |
 
 The returned-output cap is divided between the simulator's two streams, so a
 flood of printed values on one cannot push the single line that explains the
@@ -576,19 +626,19 @@ rawfile line. Nothing is padded, interpolated, or carried forward from a
 neighbouring point, because a fabricated number is indistinguishable from a
 measured one once it reaches a chart. The refusals are:
 
-| code | what the file did |
-| --- | --- |
-| `empty-file` | no rawfile content at all |
-| `unsupported-format` | a binary rawfile, or not a rawfile |
-| `header-incomplete` | ends before a plot is fully described |
-| `header-invalid` | a header line is unreadable or missing |
+| code                    | what the file did                                     |
+| ----------------------- | ----------------------------------------------------- |
+| `empty-file`            | no rawfile content at all                             |
+| `unsupported-format`    | a binary rawfile, or not a rawfile                    |
+| `header-incomplete`     | ends before a plot is fully described                 |
+| `header-invalid`        | a header line is unreadable or missing                |
 | `variable-line-invalid` | a `Variables:` line declares no index, name, quantity |
-| `point-block-invalid` | a point has the wrong number of values, or no index |
-| `point-count-mismatch` | recovered points disagree with `No. Points` |
-| `value-malformed` | a value is not a number |
-| `value-not-finite` | a value is `nan`, `inf`, or an overflow |
+| `point-block-invalid`   | a point has the wrong number of values, or no index   |
+| `point-count-mismatch`  | recovered points disagree with `No. Points`           |
+| `value-malformed`       | a value is not a number                               |
+| `value-not-finite`      | a value is `nan`, `inf`, or an overflow               |
 
-Checking that a *requested* vector is present belongs to the caller, because
+Checking that a _requested_ vector is present belongs to the caller, because
 only the compiled setup knows what was asked for. This layer reports what the
 file holds.
 

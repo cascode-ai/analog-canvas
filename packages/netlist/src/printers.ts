@@ -170,6 +170,20 @@ function spiceInstance(instance: DesignNetlistInstance): string[] {
   return wrapSpice(tokens);
 }
 
+/**
+ * The device cards of one Cell, without the `.subckt` wrapper that would make
+ * them a definition.
+ *
+ * A simulation testbench is the same Cell printed as top-level cards
+ * (`docs/specs/simulation.md`, "Inputs and root"), so it must be the same
+ * printing: a second implementation of a card is a second chance to disagree
+ * with the `.subckt` body about pin order, a parameter spelling, or a source's
+ * AC stimulus.
+ */
+export function printSpiceInstanceCards(cell: DesignNetlistCell): string[] {
+  return cell.instances.flatMap((instance) => spiceInstance(instance));
+}
+
 function spiceCell(cell: DesignNetlistCell): string[] {
   const lines = wrapSpice([
     ".subckt",
@@ -184,7 +198,7 @@ function spiceCell(cell: DesignNetlistCell): string[] {
         ]
       : []),
   ]);
-  for (const instance of cell.instances) lines.push(...spiceInstance(instance));
+  lines.push(...printSpiceInstanceCards(cell));
   lines.push(`.ends ${cell.name}`);
   return lines;
 }

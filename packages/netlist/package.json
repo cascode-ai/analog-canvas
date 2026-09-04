@@ -17,6 +17,7 @@
     "@icm/derived": "workspace:*",
     "@icm/devices": "workspace:*",
     "@icm/model": "workspace:*",
+    "@icm/spice-run": "workspace:*",
     "@icm/symbols": "workspace:*"
   },
   "devDependencies": {
