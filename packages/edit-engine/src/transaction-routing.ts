@@ -5,7 +5,7 @@ import type {
   RouteEndpoint,
   SchematicDocument,
 } from "@icm/model";
-import { createRoutePath, routeEnd } from "@icm/model";
+import { routeEnd } from "@icm/model";
 import {
   derivePowerRailComponent,
   deriveDocumentContactEvidence,

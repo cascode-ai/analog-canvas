@@ -1,4 +1,4 @@
-import { createRoutePath, routeBends, routeEnd, routeModes } from "@icm/model";
+import { createRoutePath, routeEnd, routeModes } from "@icm/model";
 import type {
   Point,
   RouteBranch,

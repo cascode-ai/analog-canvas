@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createEmptyProject } from "@icm/model";
 
-import {
-  externalSubcircuitSymbolId,
-  hierarchicalSymbolId,
-} from "./hierarchical-block.js";
+import { externalSubcircuitSymbolId } from "./hierarchical-block.js";
 import {
   createProjectSymbolResolver,
   findUnsupportedProjectSymbolIds,

@@ -17,7 +17,6 @@ import {
   RouteEndpointSchema,
   RouteLegSchema,
   RoutePresentationSchema,
-  SegmentModeSchema,
   SourceSpanSchema,
   StableIdSchema,
   SymbolLocalPointSchema,

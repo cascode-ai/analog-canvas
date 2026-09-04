@@ -3185,7 +3185,7 @@ describe("gallery owner lifecycle (withdrawal and history)", () => {
   it("owners browse their version history; a restore stays published", async () => {
     const { authDurable, env } = reviewHarness();
     const ownerCookie = await signIn(authDurable, "maker@example.com");
-    const adminCookie = await signIn(authDurable, "owner@example.com");
+    await signIn(authDurable, "owner@example.com");
     const strangerCookie = await signIn(authDurable, "other@example.com");
     const id = await submitPublished(env, ownerCookie, "Hist v1");
 

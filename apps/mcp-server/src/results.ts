@@ -317,7 +317,6 @@ export function searchSnapshot(
     }
   }
   for (const net of document.nets) {
-    const name = net.name ?? net.id;
     if (
       net.id.toLowerCase().includes(needle) ||
       (net.name ?? "").toLowerCase().includes(needle)

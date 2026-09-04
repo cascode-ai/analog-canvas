@@ -109,11 +109,6 @@ export interface ProjectConnectivityIndex {
   objectIndex: ProjectObjectIndex;
 }
 
-const junctionEndpoint = (junctionId: string): EndpointRef => ({
-  kind: "junction",
-  junctionId,
-});
-
 const terminalEndpoint = (
   instanceId: string,
   pinName: string,

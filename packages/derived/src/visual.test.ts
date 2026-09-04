@@ -9,7 +9,6 @@ import { describe, expect, it } from "vitest";
 import {
   diagnoseVisualQuality,
   hasBlockingVisualDiagnostics,
-  isVisualDiagnosticGateFailure,
 } from "./visual.js";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);

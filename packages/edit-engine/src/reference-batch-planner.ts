@@ -3,7 +3,7 @@ import {
   referenceSuffixForPolicy,
   type ReferencePolicy,
 } from "@icm/devices";
-import type { CircuitProject, Instance, SchematicDocument } from "@icm/model";
+import type { CircuitProject, Instance } from "@icm/model";
 
 import type { ProjectStructureEdit } from "./project-transaction.js";
 

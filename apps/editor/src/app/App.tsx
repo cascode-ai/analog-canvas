@@ -10,11 +10,6 @@ import type {
   AgentHostSemanticIntentResult,
 } from "@icm/agent-adapter";
 import {
-  proposeEndpointRouteAttachment,
-  proposeLooseRouteTranslation,
-  proposePowerRailEndpointResize,
-  proposePowerRailTranslation,
-  proposeWireSegmentMove,
   planCellReset,
   type CellResetPlan,
   type WireSource,
@@ -23,7 +18,6 @@ import {
   buildProjectConnectivityIndex,
   computeNetHighlight,
   annotationOwningInstanceId,
-  deriveNetConnectivity,
   deriveProjectNetNameProjection,
   deriveRoutingAffectedClosure,
   diagnosticPresentationGroup,
@@ -34,17 +28,11 @@ import {
   symbolSupportsValueAnnotation,
   resolveMosBulkConnection,
   resolveDocumentStyleProfile,
-  resolveRouteTap,
   summarizeProjectCells,
   resolveRouteAttachment,
 } from "@icm/derived";
 import type { HierarchyFrame } from "@icm/derived";
-import {
-  createEmptyProject,
-  createId,
-  foldNetName,
-  flattenRichText,
-} from "@icm/model";
+import { createEmptyProject } from "@icm/model";
 import {
   resolveReviewedExternalBinding,
   reviewedExternalModelSuggestions,
@@ -62,20 +50,11 @@ import type {
 import { buildSvgScene } from "@icm/render-svg";
 import { renderCrashRequested, sceneCrashRequested } from "./crash-test-hooks";
 import { buildSceneSafely } from "./scene-safety";
-import {
-  builtInSymbols,
-  externalSubcircuitSymbolId,
-  findUnsupportedProjectSymbolIds,
-  hierarchicalSymbolId,
-} from "@icm/symbols";
-import {
-  clipboardPreviewDocument,
-  copySelection,
-} from "../features/clipboard/clipboard";
+import { externalSubcircuitSymbolId, hierarchicalSymbolId } from "@icm/symbols";
+import { clipboardPreviewDocument } from "../features/clipboard/clipboard";
 import type { SchematicClipboard } from "../features/clipboard/clipboard";
 import {
   canvasInsetsFromOverlays,
-  fitCameraToBounds,
   type CameraRectInput,
   type CanvasInsets,
 } from "../canvas/fit-view";
@@ -100,7 +79,6 @@ import {
   type RouteStretchPreview,
   useWireInteraction,
 } from "../features/wiring/use-wire-interaction";
-import { closestPointOnSegment } from "../canvas/canvas-geometry";
 import type { BoxPreview, PanPreview } from "../canvas/canvas-gesture-model";
 import {
   createCanvasGestureController,
@@ -149,16 +127,6 @@ import { deriveWireUnderSymbolWarnings } from "../canvas/wire-under-symbol";
 import { createPlacementTrayCommands } from "../features/component-insert/placement-tray-commands";
 import { componentTargetDescription } from "../features/properties/component-identity-properties";
 import { literalInstanceLabelText } from "../features/instance-display/literal-instance-label";
-import {
-  constrainedPowerRailEndpoint,
-  constructVddRailEdits,
-} from "../features/component-insert/vdd-rail";
-import { vddPowerLabelAnnotation } from "../features/component-insert/vdd-power-label";
-import {
-  powerConnectionForSymbol,
-  proposePlacementContact,
-  proposedStandalonePowerConnection,
-} from "../features/component-insert/placement-connectivity";
 import {
   endpointTestId,
   instanceLabelAnnotationFor,
@@ -225,10 +193,7 @@ import { useDocumentController } from "../document/document-controller";
 import { useProjectFileLifecycle } from "../document/use-project-file-lifecycle";
 import { useUnsavedWorkGuard } from "../document/use-unsaved-work-guard";
 import { authoredObjectCount } from "../document/project-content";
-import {
-  draftingDragOrigin,
-  translateDraftingObject,
-} from "../features/drafting/drafting-manipulation";
+import { translateDraftingObject } from "../features/drafting/drafting-manipulation";
 import {
   draftingGroupScaleRange,
   scaleDraftingGroup,
@@ -266,11 +231,8 @@ import {
   type CloudProjectSummary,
 } from "../features/editor-shell/cloud-projects";
 import {
-  defaultRazaviSymbolVariantId,
   materializeRazaviProjectBulkConnections,
   razaviHiddenBulkRisk,
-  razaviManualBulkConnectionEdits,
-  razaviMosPresentationEdits,
 } from "../presentation/razavi-presentation";
 import { useRecoveryCoordinator } from "../document/recovery-coordinator";
 import { useSelectionController } from "../features/selection/selection-controller";
@@ -283,11 +245,7 @@ import {
   LIBRARY_WIDTH_MIN,
   useEditorPanels,
 } from "../features/editor-shell/use-editor-panels";
-import {
-  type InstanceMovePreview,
-  type ProjectedInstanceMove,
-  useSelectionInteraction,
-} from "../features/selection/use-selection-interaction";
+import { useSelectionInteraction } from "../features/selection/use-selection-interaction";
 import {
   EMPTY_VISUAL_SELECTION,
   hasVisualSelection,
@@ -296,23 +254,14 @@ import {
 import { createSelectionMoveController } from "../features/selection/selection-move-controller";
 import { createSelectionTransformController } from "../features/selection/selection-transform-controller";
 import { EDGE_ALIGNMENT_MODES } from "../features/selection/align-selection";
-import type {
-  VisualSelection,
-  VisualSelectionKind,
-} from "../features/selection/visual-selection";
-import {
-  planSelectionMove,
-  type SchematicMoveIntent,
-  type SelectionMovePlan,
-} from "../features/selection/selection-move-plan";
+import type { VisualSelectionKind } from "../features/selection/visual-selection";
+import { planSelectionMove } from "../features/selection/selection-move-plan";
 import {
   annotationAnchor,
   annotationHitBox,
-  attachmentAtPoint,
   effectiveRouteAttachment,
   instanceValueAnnotation,
   isRoutedMarker,
-  looseRouteAnchorIds,
 } from "../features/wiring/route-interaction-geometry";
 import { useWireCanvasController } from "../features/wiring/use-wire-canvas-controller";
 import {
@@ -320,19 +269,9 @@ import {
   resolveWireDraftPreview,
 } from "../features/wiring/wire-draft-preview";
 import type { ScreenFlip } from "../interaction/shortcut-orientation";
-import {
-  buildDraftingAnchors,
-  buildInstanceAnchors,
-  buildSceneSnapTargetIndex,
-  buildSceneSnapTargets,
-} from "../snap/candidates";
-import {
-  resolvePointSnap,
-  resolveTranslationSnap,
-  SNAP_PROFILES,
-  snapCoordinate,
-} from "../snap/engine";
-import type { SnapAnchor, SnapGuideLine, SnapResult } from "../snap/engine";
+import { buildSceneSnapTargetIndex } from "../snap/candidates";
+import { snapCoordinate } from "../snap/engine";
+import type { SnapGuideLine } from "../snap/engine";
 
 interface PendingWaveformPlacement {
   groupId: string;
@@ -349,8 +288,6 @@ const DRAG_START_DISTANCE_PX = 4;
 const SNAP_CAPTURE_RADIUS_PX = 4;
 
 /** Persisted Junctions are grid points, including on ±45° Route segments. */
-
-type DragPreview = InstanceMovePreview;
 
 // Handle drags are geometry edits rather than translations.  Keep a complete
 // transient object so the formal SVG renderer can redraw both a curved shaft
@@ -388,15 +325,12 @@ export function App({
   } | null>(null);
   const {
     libraryPanelOpen,
-    setLibraryPanelOpen,
     libraryWidth,
     setLibraryWidth,
     compactLayout,
-    setCompactLayout,
     compactLibraryPanelOpen,
     setCompactLibraryPanelOpen,
     leftPanelMode,
-    setLeftPanelMode,
     selectionOpen,
     setSelectionOpen,
     helpOpen,
@@ -413,7 +347,6 @@ export function App({
     setAgentStatusDismissed,
     closeHelp,
     closeSearch,
-    showLeftPanel,
     toggleExamplesPanel: toggleExamplesPanelFromShell,
     toggleLibraryPanel,
   } = useEditorPanels({
@@ -427,7 +360,7 @@ export function App({
   const visibleLibraryPanelOpen = compactLayout
     ? compactLibraryPanelOpen
     : libraryPanelOpen;
-  const [galleryRefreshSignal, setGalleryRefreshSignal] = useState(0);
+  const [, setGalleryRefreshSignal] = useState(0);
   const galleryLoadGenerationRef = useRef(0);
   useEffect(() => {
     if (!visibleLibraryPanelOpen) return;
@@ -464,7 +397,6 @@ export function App({
     canRedo,
     openDocument,
     replaceProject,
-    commitProjectStructure,
     dispatchProjectTransaction,
     transact: transactDocument,
     controller: editorDocumentController,
@@ -916,7 +848,6 @@ export function App({
     setCellSymbolPortPlacement,
     editCellTerminalAnnotation,
     removeCellTerminalSelection,
-    deleteCellTerminal,
     renameProject,
   } = createProjectStructureCommands({
     project,
@@ -1339,14 +1270,16 @@ export function App({
    *
    * The setters have no caller yet by design, not by omission: the producer is
    * the SPICE panel's run result, and the run route is still being built. This
-   * is the seam it attaches to — `setOperatingPointVoltages(result.operating
+   * is the seam it attaches to — `_setOperatingPointVoltages(result.operating
    * Point)` on success and `new Map()` on a new run. Do not delete it as dead
    * code; deleting it would silently remove the canvas half of the feature.
+   * The leading underscore is what keeps `noUnusedLocals` from reading a
+   * reserved seam as dead code; drop it when the run route lands a caller.
    */
-  const [operatingPointVoltages, setOperatingPointVoltages] = useState<
+  const [operatingPointVoltages, _setOperatingPointVoltages] = useState<
     ReadonlyMap<string, number>
   >(() => new Map());
-  const [operatingPointDisplay, setOperatingPointDisplay] =
+  const [operatingPointDisplay, _setOperatingPointDisplay] =
     useState<OperatingPointDisplay>("named");
   const operatingPointBadges = useMemo(
     () =>
@@ -2860,14 +2793,6 @@ export function App({
     });
   }
 
-  function showLibraryPanel(): void {
-    showLeftPanel("library");
-  }
-
-  function showExamplesPanel(): void {
-    showLeftPanel("examples");
-  }
-
   function toggleExamplesPanel(): void {
     toggleExamplesPanelFromShell();
   }
@@ -3014,13 +2939,6 @@ export function App({
       document.id,
       "rename-cell-pin",
     );
-  }
-
-  function deleteSelectedFormalPort(): void {
-    if (!selectedFormalTerminal || !selectedInstance) return;
-    if (deleteCellTerminal(selectedFormalTerminal.id, selectedInstance.id)) {
-      resetSelection();
-    }
   }
 
   function approveAgentFileCandidate(): void {

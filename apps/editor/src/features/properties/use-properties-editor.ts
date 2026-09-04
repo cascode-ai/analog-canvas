@@ -289,7 +289,6 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
   }, [options.selectedRoute, options.selectedRouteNetLabel]);
 
   useEffect(() => {
-    const instanceId = options.selectedInstance?.id ?? null;
     const instanceKey = options.selectedInstance
       ? `${options.selectedInstance.id}:${options.selectedInstance.symbolId}`
       : null;

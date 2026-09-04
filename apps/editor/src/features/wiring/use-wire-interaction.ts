@@ -57,7 +57,6 @@ import {
   type CanvasDragSession,
 } from "../../canvas/canvas-drag-session";
 import { startCanvasDragVisual } from "../../canvas/canvas-drag-visual";
-import { closestPointOnSegment } from "../../canvas/canvas-geometry";
 import {
   endpointNetId,
   looseRouteAnchorIds,

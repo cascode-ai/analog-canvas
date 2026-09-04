@@ -9,7 +9,7 @@ import {
 import { serializeProject } from "@icm/project-protocol";
 import { hierarchicalSymbolId } from "@icm/symbols";
 
-import { chooseComponent, clickCommand, openMenu } from "./editor-fixtures.js";
+import { chooseComponent, openMenu } from "./editor-fixtures.js";
 import { CLOUD_PROJECT_LIMIT } from "../src/features/editor-shell/cloud-projects";
 
 const ENTRY = {

@@ -1,34 +1,15 @@
-import {
-  ConnectivityEvidenceSchema,
-  DraftingObjectSchema,
-  deriveStableId,
-  foldNetName,
-} from "@icm/model";
-import type {
-  Annotation,
-  Point,
-  RouteEndpoint,
-  SchematicDocument,
-} from "@icm/model";
+import { deriveStableId, foldNetName } from "@icm/model";
+import type { Point, RouteEndpoint, SchematicDocument } from "@icm/model";
 import {
   endpointKey,
   hasExplicitMosBulkRoute,
-  isMosBulkRoute,
   mosBulkKind,
-  resolveDetachedMosBulkDefault,
   resolveDocumentLogicalNets,
-  resolveEndpointConnection,
-  resolveMosBulkConnection,
 } from "@icm/derived";
 import type { SymbolResolver } from "@icm/symbols";
 
 import type { EditTransaction } from "./edit-schema.js";
-import {
-  endpointOwnerNetId,
-  netEndpointGroups,
-  pointOnSegment,
-  replaceLayoutReference,
-} from "./transaction-routing.js";
+import { replaceLayoutReference } from "./transaction-routing.js";
 
 function retargetConnectivityEvidence(
   draft: SchematicDocument,

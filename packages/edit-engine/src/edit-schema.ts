@@ -21,7 +21,6 @@ import {
   RoutePresentationSchema,
   RouteStyleOverrideSchema,
   RotationSchema,
-  SegmentModeSchema,
   StableIdSchema,
   StyleOverridesSchema,
 } from "@icm/model";

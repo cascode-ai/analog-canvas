@@ -9,22 +9,15 @@ import {
   createProjectSymbolResolver,
   type SymbolResolver,
 } from "@icm/symbols";
-import {
-  CURRENT_PROJECT_SCHEMA_VERSION,
-  type CircuitProject,
-} from "@icm/model";
+import { type CircuitProject } from "@icm/model";
 
-import { sessionUserOf, type AuthNamespaceLike } from "./auth";
+import { sessionUserOf } from "./auth";
 import {
-  GALLERY_DAILY_SUBMISSION_LIMIT,
-  GALLERY_DEFAULT_LIST_LIMIT,
   GALLERY_MAX_AUTHOR_LENGTH,
   GALLERY_MAX_DESCRIPTION_LENGTH,
-  GALLERY_MAX_LIST_LIMIT,
   GALLERY_MAX_NAME_LENGTH,
   GALLERY_MAX_PROJECT_BYTES,
   GALLERY_MAX_REJECT_REASON_LENGTH,
-  GALLERY_MAX_VERSIONS_PER_ENTRY,
   sanitizeGalleryTags,
   shortId,
   wrapTags,

@@ -1,5 +1,4 @@
 import {
-  AnalyticsDO,
   queryAnalyticsSummary,
   queryVisitStats,
   readSessionSource,

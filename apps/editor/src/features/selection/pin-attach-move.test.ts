@@ -22,7 +22,6 @@ import {
   type RoutingOperationIntent,
   type SchematicEdit,
 } from "@icm/edit-engine";
-import { resolveEndpointConnection } from "@icm/derived";
 import { describe, expect, it } from "vitest";
 
 import { createSelectionMoveController } from "./selection-move-controller";

@@ -1,11 +1,7 @@
 import { createRoutePath } from "@icm/model";
 import { describe, expect, it } from "vitest";
 
-import {
-  createEmptyDocument,
-  createEmptyProject,
-  flattenRichText,
-} from "@icm/model";
+import { createEmptyDocument, createEmptyProject } from "@icm/model";
 import { externalSubcircuitSymbolId, hierarchicalSymbolId } from "@icm/symbols";
 
 import {

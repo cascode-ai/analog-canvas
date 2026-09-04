@@ -214,8 +214,6 @@ export function upgradeSchema34To35WithReport(
         migratedDisplayIds.add(instanceId);
         if (!instance || !oldDisplay) continue;
         const oldHadSchematicName = oldSchematicNameInstanceIds.has(instanceId);
-        const oldSchematicReference =
-          oldSchematicReferenceByInstanceId.get(instanceId);
         if (
           !oldHadSchematicName &&
           oldSchematicReferenceMatchedChosen.has(instanceId)

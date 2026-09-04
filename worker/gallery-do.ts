@@ -14,7 +14,7 @@
 // independently so browsing survives an entry the current window can no
 // longer open.
 
-import { evaluateSubmissionGates, sha256Hex } from "@icm/derived";
+import { sha256Hex } from "@icm/derived";
 import { analyzeDesignNetlist } from "@icm/netlist";
 import {
   parseProject,
@@ -32,12 +32,6 @@ import {
   upgradeSchema34To35WithReport,
   upgradeSchema35To36WithReport,
 } from "@icm/project-protocol";
-import { renderDocumentSvg } from "@icm/render-svg";
-import {
-  builtInSymbols,
-  createProjectSymbolResolver,
-  type SymbolResolver,
-} from "@icm/symbols";
 import {
   CURRENT_PROJECT_SCHEMA_VERSION,
   type CircuitProject,

@@ -90,7 +90,6 @@ export class McpStdioServer {
   private readonly input: Readable;
   private readonly output: Writable;
   private readonly log: (message: string) => void;
-  private initialized = false;
 
   constructor(
     handler: McpServerHandler,
@@ -166,7 +165,6 @@ export class McpStdioServer {
     // A missing id marks a notification: never reply, never fail the channel.
     if (id === undefined || id === null) {
       if (method === "notifications/initialized") {
-        this.initialized = true;
         this.handler.onInitialized?.();
       }
       return;

@@ -3,10 +3,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import worker, {
-  normalizeAcquisitionSource,
-  normalizeTrackedPath,
-} from "./index";
+import { normalizeAcquisitionSource, normalizeTrackedPath } from "./index";
 
 describe("analytics request normalization", () => {
   it("keeps bounded page paths and excludes analytics/API routes", () => {
