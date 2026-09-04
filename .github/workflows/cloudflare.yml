@@ -1,217 +1,59 @@
 name: Deploy Cloudflare
 
+# Production deploys only from a release (ADR 0057): a v* tag, or a manual
+# dispatch naming a commit. Merging to main deploys the preview instead
+# (deploy-preview.yml); this workflow promotes a commit the preview has
+# already proved. Nothing here can be triggered by an ordinary merge.
 on:
   push:
-    branches:
-      - main
-    paths-ignore:
-      - "**/*.md"
-      - "docs/**"
+    tags:
+      - "v*"
   workflow_dispatch:
+    inputs:
+      sha:
+        description: "Full commit SHA to release; it must have a successful Deploy Preview run"
+        required: true
+        type: string
 
 permissions:
   contents: read
+  # To ask whether the preview deployed this commit.
+  actions: read
 
 concurrency:
   group: cloudflare-production
   cancel-in-progress: false
 
 jobs:
-  # A place to look at the build before the public does. Merging to main used
-  # to deploy straight to production, so the only protection was after the
-  # fact: the bad version went live and came back seconds later.
-  #
-  # Skipped entirely when STAGING_ACCESS_KEY is absent, so this lands without
-  # blocking anyone's deploy while the environment is being provisioned. The
-  # production job does not depend on staging SUCCEEDING, only on it not
-  # FAILING, which `always()` plus an explicit result check expresses below.
-  staging:
-    name: Deploy staging
-    runs-on: ubuntu-latest
-    outputs:
-      ran: ${{ steps.gate.outputs.ran }}
-    steps:
-      - id: gate
-        run: |
-          if [ -n "${{ secrets.STAGING_ACCESS_KEY }}" ]; then
-            echo "ran=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "ran=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::Staging is not provisioned yet; deploying to production directly."
-          fi
-      - uses: actions/checkout@v4
-        if: steps.gate.outputs.ran == 'true'
-      - uses: pnpm/action-setup@v4
-        if: steps.gate.outputs.ran == 'true'
-        with:
-          version: 11.16.0
-      - uses: actions/setup-node@v4
-        if: steps.gate.outputs.ran == 'true'
-        with:
-          node-version: 24
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-        if: steps.gate.outputs.ran == 'true'
-      - run: pnpm --filter @icm/spice-run build
-        if: steps.gate.outputs.ran == 'true'
-      - run: pnpm --filter @icm/editor... build
-        if: steps.gate.outputs.ran == 'true'
-        env:
-          VITE_ICM_TIMING_UI: disabled
-      # How the public site answers for its own script, captured BEFORE the
-      # staging deploy. On 2026-09-03 that deploy moved the production custom
-      # domain onto the staging script (wrangler's `routes` key inherits into
-      # an environment) and the public site served 401 for every script while
-      # its cached shell still loaded, so production looked up and was down.
-      # The comparison after the deploy is what would have said so, by name.
-      - name: Record how the production domain answers
-        id: production_before
-        if: steps.gate.outputs.ran == 'true'
-        run: |
-          asset="$(curl --silent --show-error --max-time 20 \
-            https://analog-canvas.tokenzhang.com/editor \
-            | grep -o '/assets/index-[^"]*\.js' | head -n 1)"
-          answer="$(curl --silent --output /dev/null --max-time 20 \
-            --write-out '%{http_code} %{content_type}' \
-            "https://analog-canvas.tokenzhang.com${asset}")"
-          echo "asset=$asset" >> "$GITHUB_OUTPUT"
-          echo "answer=$answer" >> "$GITHUB_OUTPUT"
-          echo "Production answers ${asset} with: ${answer}"
-      # The deployed hostname comes from the deploy itself, not from a second
-      # secret someone has to keep in step with it. A hand-entered URL that
-      # drifts fails verification, and a failed staging blocks every
-      # production deploy in the repository -- an outage caused entirely by
-      # bookkeeping. `secrets.STAGING_URL` still wins when set, for the day
-      # staging moves to a custom domain.
-      - name: Deploy to staging
-        id: deploy
-        if: steps.gate.outputs.ran == 'true'
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          STAGING_URL_OVERRIDE: ${{ secrets.STAGING_URL }}
-        run: |
-          set -o pipefail
-          pnpm dlx wrangler@4.120.1 deploy --env staging 2>&1 | tee deploy.log
-          url="$STAGING_URL_OVERRIDE"
-          if [ -z "$url" ]; then
-            url="$(grep -Eo 'https://[A-Za-z0-9.-]*interactive-circuit-maker-staging[A-Za-z0-9.-]*\.workers\.dev' deploy.log | head -n 1)"
-          fi
-          if [ -z "$url" ]; then
-            url="$(grep -Eo 'https://[A-Za-z0-9.-]+\.workers\.dev' deploy.log | head -n 1)"
-          fi
-          if [ -z "$url" ]; then
-            echo "Staging deployed but printed no URL to verify against."
-            exit 1
-          fi
-          echo "Staging is at $url"
-          echo "url=${url%/}" >> "$GITHUB_OUTPUT"
-          # Findable from the run, so nobody has to remember the hostname.
-          # The access key stays out of it: a run summary is readable by
-          # everyone with repository access, and a key in a query string is
-          # a key in a log.
-          echo "Staging: <$url> (append \`?key=<STAGING_ACCESS_KEY>\` once)" \
-            >> "$GITHUB_STEP_SUMMARY"
-      - name: Give staging its access key
-        if: steps.gate.outputs.ran == 'true'
-        run: |
-          printf '%s' "$STAGING_ACCESS_KEY" \
-            | pnpm dlx wrangler@4.120.1 secret put STAGING_ACCESS_KEY --env staging
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          STAGING_ACCESS_KEY: ${{ secrets.STAGING_ACCESS_KEY }}
-      # Putting a secret publishes a new version of the Worker, and for a
-      # few seconds afterwards the old one is still answering. Verifying
-      # across that window reads the deployment being replaced, and a
-      # transient 404 there fails staging -- which freezes production deploys
-      # for the whole repository over nothing. So wait for the gate itself to
-      # be the thing answering before asking it anything.
-      - name: Wait for the access key to take effect
-        if: steps.gate.outputs.ran == 'true'
-        env:
-          STAGING_URL: ${{ steps.deploy.outputs.url }}
-        run: |
-          for _ in $(seq 1 30); do
-            code="$(curl --silent --output /dev/null --max-time 10 \
-              --write-out '%{http_code}' "${STAGING_URL}/editor" || true)"
-            if [ "$code" = "401" ]; then
-              echo "The gate is live."
-              exit 0
-            fi
-            sleep 4
-          done
-          echo "Staging never started refusing anonymous callers (last: $code)."
-          echo "The access gate is not in front of every path, so the build is"
-          echo "public on a workers.dev hostname. Refusing to continue."
-          exit 1
-
-      # A staging deploy must not change what the public site serves. The
-      # answer is compared with its own earlier answer rather than with "200",
-      # so a domain that is already wrong does not block the production
-      # deploy that puts it right: that deploy re-attaches the custom domain.
-      - name: Production domain still answers as before
-        if: steps.gate.outputs.ran == 'true'
-        env:
-          BEFORE: ${{ steps.production_before.outputs.answer }}
-          ASSET: ${{ steps.production_before.outputs.asset }}
-        run: |
-          after="$(curl --silent --output /dev/null --max-time 20 \
-            --write-out '%{http_code} %{content_type}' \
-            "https://analog-canvas.tokenzhang.com${ASSET}")"
-          echo "Production answers ${ASSET} with: ${after}"
-          if [ "$after" != "$BEFORE" ]; then
-            echo "::error::The staging deploy changed how the production domain answers (was: ${BEFORE}, now: ${after}). Staging must not have taken the production domain: env.staging in wrangler.jsonc has to declare \"routes\": [], and analog-canvas.tokenzhang.com belongs to the interactive-circuit-maker Worker, never to interactive-circuit-maker-staging."
-            exit 1
-          fi
-          case "$after" in
-            "200 text/javascript"* | "200 application/javascript"*) ;;
-            *)
-              echo "::warning::The production domain is not serving its own script (${after}); the production deploy that follows re-attaches the custom domain."
-              ;;
-          esac
-      # The same checks production gets, against the staging host, with the
-      # access key supplied. A path that fails here never reaches the public.
-      - name: Verify staging
-        if: steps.gate.outputs.ran == 'true'
-        env:
-          STAGING_URL: ${{ steps.deploy.outputs.url }}
-          STAGING_ACCESS_KEY: ${{ secrets.STAGING_ACCESS_KEY }}
-        run: |
-          auth=(--header "x-staging-access-key: $STAGING_ACCESS_KEY")
-          for path in / /editor /analytics /api/agent/mcp-manifest.json; do
-            curl --fail --silent --show-error "${auth[@]}" \
-              --retry 5 --retry-delay 2 --retry-all-errors --max-time 20 \
-              "${STAGING_URL}${path}" >/dev/null
-          done
-          stale="$(curl --silent --show-error "${auth[@]}" --max-time 20 \
-            --output /dev/null --write-out '%{http_code}' \
-            "${STAGING_URL}/assets/App-staging-smoke-missing.js")"
-          if [ "$stale" != "404" ]; then
-            echo "A missing hashed asset must answer 404 on staging, got: $stale"
-            exit 1
-          fi
-          # Staging must not be public. Without the key it must refuse, and a
-          # staging that lets an anonymous caller in is a failed deploy.
-          anon="$(curl --silent --output /dev/null --max-time 20 \
-            --write-out '%{http_code}' "${STAGING_URL}/editor")"
-          if [ "$anon" != "401" ]; then
-            echo "Staging must refuse an anonymous caller, got: $anon"
-            exit 1
-          fi
-
   deploy:
     name: Deploy Worker
-    needs: staging
-    # Runs when staging passed OR when staging is not provisioned. It must not
-    # run when staging actually failed: that is the whole point of having one.
-    if: always() && needs.staging.result == 'success'
     runs-on: ubuntu-latest
     environment:
       name: cloudflare-production
       url: https://analog-canvas.tokenzhang.com
     steps:
+      # A tag names its commit; a dispatch names one explicitly. Everything
+      # below deploys exactly that commit, never a branch head.
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sha || github.ref }}
+      # The preview is where a commit is looked at before the public sees it
+      # (ADR 0057). A commit that never deployed there, or deployed and
+      # failed, cannot be released: this is the one gate between main and
+      # the live site, and it asks a question CI cannot answer.
+      - name: The release must have a green preview deploy
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          release_sha="$(git rev-parse 'HEAD^{commit}')"
+          count="$(gh run list --repo "$GITHUB_REPOSITORY" \
+            --workflow deploy-preview.yml --commit "$release_sha" \
+            --status success --json databaseId --jq 'length')"
+          if [ "$count" = "0" ]; then
+            echo "::error::No successful preview deploy exists for $release_sha. Merge it to main, let the preview deploy and verify it, then release that commit."
+            exit 1
+          fi
+          echo "Preview deploy verified for $release_sha ($count successful run(s))."
       - uses: pnpm/action-setup@v4
         with:
           version: 11.16.0
@@ -322,10 +164,10 @@ jobs:
           case "$entry_result" in
             200*javascript*) : ;;
             401*)
-              echo "The live site answered $entry with 401."
-              echo "Its hostname is bound to the staging Worker, whose gate is"
-              echo "refusing production's own visitors. Recover with"
-              echo "wrangler deploy (no --env) to take the domain back."
+              echo "The live site answered $entry with 401: another Worker"
+              echo "holds this domain (on 2026-09-03 it was a staging deploy)."
+              echo "Recover by deploying this Worker again, which re-attaches"
+              echo "the custom domain."
               exit 1
               ;;
             *)
