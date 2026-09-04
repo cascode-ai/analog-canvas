@@ -215,7 +215,6 @@ export function ExamplesPanel({
 
   const { showGallery, visibleEntries, countLabel, emptyMessage } =
     deriveGalleryPanelView(feed, { searchQuery, selectedTags });
-  const normalizedQuery = searchQuery.trim().toLowerCase();
   const exhausted = feed.nextCursor === null;
 
   function toggleTag(tag: string): void {

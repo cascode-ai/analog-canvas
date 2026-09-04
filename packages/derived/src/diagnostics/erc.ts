@@ -28,14 +28,6 @@ import type { Diagnostic, DiagnosticSeverity } from "./diagnostic.js";
 export type ErcSeverity = DiagnosticSeverity;
 export type ErcDiagnostic = Diagnostic & { domain: "erc" };
 
-function noConnectKey(endpoint: {
-  kind: "terminal";
-  instanceId: string;
-  pinName: string;
-}): string {
-  return `terminal:${endpoint.instanceId}:${endpoint.pinName}`;
-}
-
 function terminalLocator(
   documentId: string,
   instanceId: string,

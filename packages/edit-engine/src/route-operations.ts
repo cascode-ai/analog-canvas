@@ -16,7 +16,6 @@ import type { SymbolResolver } from "@icm/symbols";
 
 import {
   deriveInternalGroupSelection as deriveRoutingInternalGroupSelection,
-  derivePowerRailComponent,
   isSegmentAllowed,
   polylineSatisfiesConstraint,
   resolveDocumentRoutingGeometry,

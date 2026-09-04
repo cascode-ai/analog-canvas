@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   createFreeWireAnchor,
-  createRouteWireAnchor,
   proposeWireCommit,
   proposeWireCommitThroughContacts,
 } from "./routing-planner.js";

@@ -34,11 +34,9 @@ import type {
 import type { SymbolResolver } from "@icm/symbols";
 import {
   createRoutePath,
-  inverseTransformPoint,
   rewriteRichTextPlainText,
   routeBends,
   routeEnd,
-  transformPoint,
 } from "@icm/model";
 
 import {
@@ -799,7 +797,6 @@ export function copySelection(
     },
   );
   const netIds = new Set(capture.clonedNetIds);
-  const internalNetIds = new Set(capture.internalNetIds);
   const routeIds = new Set(capture.affected.internalRoutes);
   const junctionIds = new Set(capture.affected.internalJunctions);
   const attachedIds = new Set<string>([

@@ -1,10 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import {
-  clickCommand,
-  clickDrawTool,
-  downloadBytes,
-} from "./editor-fixtures.js";
+import { clickCommand, downloadBytes } from "./editor-fixtures.js";
 
 async function runCellCommand(
   page: import("@playwright/test").Page,
@@ -435,7 +431,6 @@ test("returns a formal Cell Pin to the Tray without deleting its interface", asy
 }) => {
   await page.goto("/editor");
   await createCell(page, "ReusableStage");
-  const canvas = page.getByTestId("schematic-canvas");
   await placeCellPin(page, {
     name: "Vout",
     position: { x: 300, y: 180 },
@@ -505,7 +500,6 @@ test("deletes a wired child Cell Pin through the ordinary instance path", async 
 }) => {
   await page.goto("/editor");
   await createCell(page, "ReusableStage");
-  const canvas = page.getByTestId("schematic-canvas");
   await placeCellPin(page, {
     name: "Vout",
     position: { x: 300, y: 180 },

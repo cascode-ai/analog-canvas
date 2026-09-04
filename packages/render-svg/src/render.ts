@@ -1069,8 +1069,6 @@ export function buildSvgScene(
         const y = position.y;
         const vertical = rotation === 90 || rotation === 270;
         const label = routeMarkerPlacement?.labelPosition;
-        const textX = vertical ? x + 15 : x;
-        const textY = vertical ? y + 4 : y - 7;
         const textAnchor = routeMarkerPlacement
           ? "middle"
           : vertical

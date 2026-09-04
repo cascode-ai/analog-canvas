@@ -6,7 +6,6 @@ import {
   SchematicEditSchema,
 } from "@icm/edit-engine";
 import type { SchematicEdit } from "@icm/edit-engine";
-import { flattenRichText } from "@icm/model";
 import type { CircuitProject, Point, SchematicDocument } from "@icm/model";
 import { buildSvgScene, renderDocumentSvg } from "@icm/render-svg";
 import {
@@ -37,14 +36,10 @@ import type {
   AgentPermissions,
   AgentRenderRequest,
   AgentSessionSnapshot,
-  AgentTransactRequest,
 } from "./schema.js";
 import { AgentAuthoringCommandSchema } from "./authoring-command.js";
 import { buildProjectConnectivityIndex, traceHierarchyNet } from "@icm/derived";
-import {
-  buildAgentSessionSnapshot,
-  canonicalSnapshotContent,
-} from "./snapshot.js";
+import { buildAgentSessionSnapshot } from "./snapshot.js";
 
 const OPERATIONS = ["capabilities", "snapshot", "transact", "render"] as const;
 /**

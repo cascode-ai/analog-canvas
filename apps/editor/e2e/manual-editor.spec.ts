@@ -1,6 +1,5 @@
 import { createRoutePath } from "@icm/model";
 import { razaviProductSymbols } from "@icm/symbols";
-import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 import type { Locator, Page } from "@playwright/test";
 import { resolve } from "node:path";

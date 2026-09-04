@@ -1,6 +1,6 @@
 import { buildProjectConnectivityIndex } from "@icm/derived";
 import type { Diagnostic, VisualDiagnostic } from "@icm/derived";
-import { createEmptyDocument, createEmptyProject } from "@icm/model";
+import { createEmptyProject } from "@icm/model";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 

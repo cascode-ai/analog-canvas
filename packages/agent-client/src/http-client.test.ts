@@ -4,7 +4,6 @@ import {
   snapshotResponse,
 } from "./test-support/fake-relay.js";
 import { AgentHttpClient } from "./http-client.js";
-import { AgentSessionError } from "./errors.js";
 
 const BASE = "https://relay.test";
 

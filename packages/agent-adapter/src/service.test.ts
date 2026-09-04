@@ -2,10 +2,9 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { executeTransaction, SchematicEditSchema } from "@icm/edit-engine";
-import { resolveDocumentRoutingGeometry } from "@icm/derived";
 import { createEmptyDocument } from "@icm/model";
 import { parseProject } from "@icm/project-protocol";
-import type { CircuitProject, SchematicDocument } from "@icm/model";
+import type { CircuitProject } from "@icm/model";
 import {
   InMemorySymbolResolver,
   builtInSymbols,
@@ -76,10 +75,6 @@ function fixtureProject(): CircuitProject {
       "utf8",
     ),
   );
-}
-
-function fixtureDocument(): SchematicDocument {
-  return structuredClone(fixtureProject().documents[0]!);
 }
 
 function serviceFixture(

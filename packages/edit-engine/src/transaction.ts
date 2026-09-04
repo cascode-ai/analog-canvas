@@ -20,10 +20,6 @@ import {
 import {
   captureNetLabelRouteAnchors,
   captureRouteMarkerAnchors,
-  closestRouteMarkerAnchor,
-  pointAtArcFraction,
-  type NetLabelRouteAnchor,
-  type RouteMarkerAnchor,
 } from "./transaction-route-annotations.js";
 import {
   applyInstancesRouteFollow,

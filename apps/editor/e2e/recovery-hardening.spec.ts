@@ -3,7 +3,6 @@ import type { Page } from "@playwright/test";
 
 import {
   chooseComponent,
-  clickCommand,
   readRecoveryRecords,
   recoveryProjectTexts,
 } from "./editor-fixtures.js";

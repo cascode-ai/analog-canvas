@@ -28,7 +28,7 @@ import type {
   RouteEndpoint,
   SchematicDocument,
 } from "@icm/model";
-import { defaultDraftTextDocument, deriveStableId } from "@icm/model";
+import { defaultDraftTextDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
 import type { ComponentInsertRequest } from "./component-insert-request";

@@ -37,22 +37,6 @@ function stable(values: Iterable<string>): string[] {
   );
 }
 
-function junctionDegree(
-  document: SchematicDocument,
-  junctionId: string,
-): number {
-  return document.routes.reduce((degree, route) => {
-    const endpoints = [route.start, routeEnd(route)];
-    return (
-      degree +
-      endpoints.filter(
-        (endpoint) =>
-          endpoint.kind === "junction" && endpoint.junctionId === junctionId,
-      ).length
-    );
-  }, 0);
-}
-
 function isInside(
   endpoint: RouteEndpoint,
   instanceIds: ReadonlySet<string>,

@@ -7,7 +7,6 @@ import {
   type ResolvedLogicalNet,
 } from "@icm/derived";
 import type {
-  RouteEndpoint,
   CircuitProject,
   ExternalSubcircuitDefinition,
   Instance,

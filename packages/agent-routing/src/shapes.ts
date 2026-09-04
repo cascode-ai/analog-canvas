@@ -56,8 +56,7 @@ export function buildSharedTrunkGraph(args: {
   trunkAxis: AlignAxis;
   trunkCoord: number;
 }): RouteGraph {
-  const { netId, documentId, revision, endpoints, trunkAxis, trunkCoord } =
-    args;
+  const { netId, documentId, revision, endpoints, trunkAxis } = args;
   const nodes: RouteGraphNode[] = [];
   const edges: RouteGraphEdge[] = [];
   // A tap per endpoint, aligned with the endpoint on the perpendicular axis and

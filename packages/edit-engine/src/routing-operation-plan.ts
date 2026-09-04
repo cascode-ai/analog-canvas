@@ -194,14 +194,6 @@ function actualEffect(
   };
 }
 
-function sameMapEntries(
-  before: ReadonlyMap<string, string>,
-  after: ReadonlyMap<string, string>,
-  keys: readonly string[],
-): boolean {
-  return keys.every((key) => before.get(key) === after.get(key));
-}
-
 /**
  * A successful conductor merge may immediately canonicalize away the exact
  * degree-two Junctions named by the Wire gesture. In that case the original
