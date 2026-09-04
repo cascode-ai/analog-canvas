@@ -18,10 +18,9 @@ import { isAbsolute, join, resolve } from "node:path";
 
 import {
   buildSimulationDeck,
-  classifySimulationOutcome,
   createSimulationEnvironmentMetadata,
   createSimulationInputMetadata,
-  readNgspiceDiagnostics,
+  readNgspiceRun,
   resolveTimeoutMs,
   simulationConfigurationMetadata,
   type ModelLibrarySelection,
@@ -56,6 +55,7 @@ function runProcess(
 ): Promise<{
   log: string;
   exitCode: number | null;
+  signal: string | null;
   timedOut: boolean;
   durationMs: number;
   spawnError: Error | null;
@@ -91,6 +91,10 @@ function runProcess(
               : error
                 ? 1
                 : 0,
+          // A run the kernel killed is a fragment, not an answer, and the
+          // hosted surface already says so; ADR 0055 keeps the two surfaces
+          // behind one result shape, so this one reports it too.
+          signal: timedOut ? null : (error?.signal ?? null),
           timedOut,
           durationMs: Date.now() - startedAt,
           spawnError,
@@ -185,15 +189,17 @@ export async function simulateLocally(
         message: `No simulator at "${binary}". Install ngspice, or set NGSPICE_BIN to its path.`,
       };
     }
-    const diagnostics = readNgspiceDiagnostics(run.log);
+    const { outcome, diagnostics } = readNgspiceRun({
+      log: run.log,
+      exitCode: run.exitCode,
+      signal: run.signal,
+      timedOut: run.timedOut,
+      timeoutMs,
+    });
     return {
       kind: "ran",
       result: {
-        outcome: classifySimulationOutcome(diagnostics, {
-          timedOut: run.timedOut,
-          timeoutMs,
-          exitCode: run.exitCode,
-        }),
+        outcome,
         diagnostics,
         log: run.log,
         durationMs: run.durationMs,

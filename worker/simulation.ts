@@ -16,11 +16,10 @@
  */
 import {
   buildSimulationDeck,
-  classifySimulationOutcome,
   deckNeedsModelLibrary,
   createSimulationInputMetadata,
   isSimulationInputRevision,
-  readNgspiceDiagnostics,
+  readNgspiceRun,
   resolveTimeoutMs,
   simulationConfigurationMetadata,
   verifySimulationEnvironmentMetadata,
@@ -187,30 +186,18 @@ export async function routeSimulationRequest(
     );
   }
   const log = typeof raw.log === "string" ? raw.log : "";
-  const diagnostics = readNgspiceDiagnostics(log);
-  const timedOut = raw.timedOut === true;
-  // A simulator that died by a signal, or that printed nothing at all,
-  // did not complete: a batch run always prints at least its banner and
-  // the analysis it did. Exit 0 with no output was measured on 2026-09-04
-  // when the kernel killed ngspice mid-corner-load; it must never read as
-  // success (ADR 0055 amendment, item 10).
-  if (!timedOut && typeof raw.signal === "string" && raw.signal) {
-    diagnostics.push({
-      severity: "error",
-      text: `The simulator was terminated by ${raw.signal} before it finished.`,
-    });
-  } else if (!timedOut && log.trim().length === 0) {
-    diagnostics.push({
-      severity: "error",
-      text: "The simulator produced no output, so this run has no result.",
-    });
-  }
+  // What ngspice said and what it produced decide the outcome together, in
+  // the one place both surfaces share, so a failure always arrives with a
+  // reason and a run that returned its measurements is never called failed.
+  const { outcome, diagnostics } = readNgspiceRun({
+    log,
+    exitCode: typeof raw.exitCode === "number" ? raw.exitCode : null,
+    signal: typeof raw.signal === "string" && raw.signal ? raw.signal : null,
+    timedOut: raw.timedOut === true,
+    timeoutMs,
+  });
   const result: SimulationResult = {
-    outcome: classifySimulationOutcome(diagnostics, {
-      timedOut,
-      timeoutMs,
-      exitCode: typeof raw.exitCode === "number" ? raw.exitCode : null,
-    }),
+    outcome,
     diagnostics,
     log,
     durationMs: typeof raw.durationMs === "number" ? raw.durationMs : 0,

@@ -3,16 +3,19 @@ import { describe, expect, it } from "vitest";
 import {
   buildSimulationDeck,
   deckNeedsModelLibrary,
-  classifySimulationOutcome,
   createSimulationEnvironmentMetadata,
   createSimulationInputMetadata,
   DEFAULT_SIMULATION_TIMEOUT_MS,
   isSimulationEnvironmentMetadata,
   MAX_SIMULATION_TIMEOUT_MS,
   readNgspiceDiagnostics,
+  readNgspiceRun,
+  readNgspiceRunEvidence,
   resolveTimeoutMs,
   simulationConfigurationMetadata,
   verifySimulationEnvironmentMetadata,
+  type NgspiceProcessResult,
+  type NgspiceRunReading,
 } from "./index.js";
 
 /**
@@ -61,6 +64,104 @@ v(out) = 5.000000e-01
 Note: Simulation executed from .control section
 `;
 
+/**
+ * Captured from ngspice 46 on 2026-09-04 by running the deck this repository
+ * builds. `op` and `print` are inside the author's `.control` block, which is
+ * what ADR 0055 means by "the testbench is the author's" and what the ngspice
+ * documentation tells an author to write. Exit status 0, and no note.
+ */
+const CONTROL_BLOCK_OUTPUT = `
+Note: No compatibility mode selected!
+
+
+Circuit: * analog canvas simulation deck
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+No. of Data Rows : 1
+v(mid) = 5.000000e-01
+Note: Simulation executed from .control section
+`;
+
+/**
+ * The same run through the preview container, whose ngspice is 39 (issue
+ * #568). The control block ran every analysis and printed every value asked
+ * for; ngspice's batch pass then noted, for its own reasons, that the deck
+ * carried no `.plot`/`.print`/`.fourier` card and exited non-zero.
+ *
+ * The banner lines are the measured ngspice-46 run above; the closing note
+ * and the values are quoted from the issue's recorded ngspice-39 responses.
+ */
+const NGSPICE_39_CONTROL_BLOCK_OUTPUT = `
+Note: No compatibility mode selected!
+
+
+Circuit: * analog canvas simulation deck
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+No. of Data Rows : 1
+v(vout)       = 7.661889e-01
+v(ibias)      = 6.018893e-01
+v(xdut.tail)  = 2.907461e-01
+v(xdut.nleft) = 7.661889e-01
+gain_db       = 4.183501e+01
+ugb           = 3.302606e+07
+Note: Simulation executed from .control section
+
+Note: No ".plot", ".print", or ".fourier" lines; no simulations run
+`;
+
+/**
+ * Captured from ngspice 46 on 2026-09-04: a deck with a circuit and no
+ * analysis at all. Nothing was solved and no vector exists, and ngspice says
+ * so in as many words before exiting 1.
+ */
+const NO_ANALYSIS_OUTPUT = `
+Error: incomplete or empty netlist
+       or no ".plot", ".print", or ".fourier" lines in batch mode;
+no simulations run!
+
+Note: No compatibility mode selected!
+
+
+Circuit: * analog canvas simulation deck
+
+`;
+
+/**
+ * Captured from ngspice 46 on 2026-09-04: an `op` inside a `.control` block
+ * with no `print`. The author asked for no value, but the analysis ran and
+ * ngspice counted its rows, so the run produced a result.
+ */
+const CONTROL_BLOCK_NO_PRINT_OUTPUT = `
+Note: No compatibility mode selected!
+
+
+Circuit: * analog canvas simulation deck
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+No. of Data Rows : 1
+Note: Simulation executed from .control section
+`;
+
+function read(
+  log: string,
+  overrides: Partial<NgspiceProcessResult> = {},
+): NgspiceRunReading {
+  return readNgspiceRun({
+    log,
+    exitCode: 0,
+    signal: null,
+    timedOut: false,
+    timeoutMs: 30_000,
+    ...overrides,
+  });
+}
+
 describe("ngspice output reading", () => {
   it("never calls a run clean when ngspice discarded part of the deck", () => {
     const diagnostics = readNgspiceDiagnostics(DROPPED_RESISTOR_OUTPUT);
@@ -72,54 +173,200 @@ describe("ngspice output reading", () => {
 
     // The measured trap: ngspice exits 0 here. Reading the status alone would
     // report success for a circuit missing a resistor.
-    expect(
-      classifySimulationOutcome(diagnostics, {
-        timedOut: false,
-        timeoutMs: 30_000,
-        exitCode: 0,
-      }),
-    ).toEqual({ status: "completed-with-dropped-input" });
+    expect(read(DROPPED_RESISTOR_OUTPUT).outcome).toEqual({
+      status: "completed-with-dropped-input",
+    });
   });
 
   it("keeps ngspice's own words for a missing model", () => {
-    const diagnostics = readNgspiceDiagnostics(MISSING_MODEL_OUTPUT);
+    const { outcome, diagnostics } = read(MISSING_MODEL_OUTPUT, {
+      exitCode: 1,
+    });
     expect(diagnostics.map((diagnostic) => diagnostic.text)).toContain(
       "could not find a valid modelname",
     );
     expect(
       diagnostics.some((diagnostic) => diagnostic.severity === "error"),
     ).toBe(true);
-    expect(
-      classifySimulationOutcome(diagnostics, {
-        timedOut: false,
-        timeoutMs: 30_000,
-        exitCode: 1,
-      }),
-    ).toEqual({ status: "failed" });
+    expect(outcome).toEqual({ status: "failed" });
   });
 
   it("reports a clean run as clean", () => {
-    const diagnostics = readNgspiceDiagnostics(CLEAN_OUTPUT);
-    expect(diagnostics).toEqual([]);
-    expect(
-      classifySimulationOutcome(diagnostics, {
-        timedOut: false,
-        timeoutMs: 30_000,
-        exitCode: 0,
-      }),
-    ).toEqual({ status: "completed" });
+    expect(read(CLEAN_OUTPUT)).toEqual({
+      outcome: { status: "completed" },
+      diagnostics: [],
+    });
   });
 
   it("says a timeout is a timeout, not a broken circuit", () => {
     // A long analysis and a wrong circuit look identical from the outside;
     // the author is told which one happened.
     expect(
-      classifySimulationOutcome(readNgspiceDiagnostics(CLEAN_OUTPUT), {
-        timedOut: true,
-        timeoutMs: 30_000,
-        exitCode: null,
-      }),
+      read(CLEAN_OUTPUT, { timedOut: true, exitCode: null }).outcome,
     ).toEqual({ status: "timed-out", timeoutMs: 30_000 });
+  });
+});
+
+describe("what a run produced", () => {
+  it("counts a printed value and an analysis, and ignores ngspice's prose", () => {
+    const evidence = readNgspiceRunEvidence(CONTROL_BLOCK_OUTPUT);
+    expect(evidence.printedValueNames).toEqual(["v(mid)"]);
+    expect(evidence.analysisDataRows).toEqual([1]);
+    expect(evidence.producedResults).toBe(true);
+
+    // ngspice's own chatter contains `=` and a number on several lines. None
+    // of it is a value the author asked for, and none of it may stand in for
+    // one, or a run that measured nothing would look like a run that did.
+    const chatter = readNgspiceRunEvidence(
+      [
+        "Doing analysis at TEMP = 27.000000 and TNOM = 27.000000",
+        "Total analysis time (seconds) = 0.000642",
+        "Total DRAM available = 16384.000 MB.",
+        "DRAM currently available =  155.172 MB.",
+        "Maximum ngspice program size =    9.844 MB.",
+        "No. of Data Rows : 0",
+      ].join("\n"),
+    );
+    expect(chatter.printedValueNames).toEqual([]);
+    expect(chatter.analysisDataRows).toEqual([]);
+    expect(chatter.producedResults).toBe(false);
+  });
+
+  it("counts an analysis that ran without the author printing anything", () => {
+    // `op` with no `print`: no value was requested, but a vector exists.
+    const evidence = readNgspiceRunEvidence(CONTROL_BLOCK_NO_PRINT_OUTPUT);
+    expect(evidence.printedValueNames).toEqual([]);
+    expect(evidence.producedResults).toBe(true);
+    expect(read(CONTROL_BLOCK_NO_PRINT_OUTPUT).outcome).toEqual({
+      status: "completed",
+    });
+  });
+});
+
+describe("a run whose measurements came back is not a failure", () => {
+  it("completes a `.control` testbench that ngspice 39 exited non-zero on", () => {
+    // Issue #568. The container simulated a five-transistor sky130 OTA and
+    // got exactly the right answer; the service reported `failed` with an
+    // empty `diagnostics` array, because the only thing consulted was the
+    // exit status. ngspice 39 ends a batch pass over a `.control` deck with
+    // a note about the `.print` cards it did not find, and exits non-zero,
+    // after the control block has already run and printed.
+    const { outcome, diagnostics } = read(NGSPICE_39_CONTROL_BLOCK_OUTPUT, {
+      exitCode: 1,
+    });
+    expect(outcome).toEqual({ status: "completed" });
+    expect(diagnostics).toEqual([]);
+
+    // The measurements the author asked for are the reason it completed.
+    const evidence = readNgspiceRunEvidence(NGSPICE_39_CONTROL_BLOCK_OUTPUT);
+    expect(evidence.printedValueNames).toEqual([
+      "v(vout)",
+      "v(ibias)",
+      "v(xdut.tail)",
+      "v(xdut.nleft)",
+      "gain_db",
+      "ugb",
+    ]);
+  });
+
+  it("does not decide success from that note's absence either", () => {
+    // The note is ngspice 39's wording. A simulator that prints a different
+    // one, or none, must not change the verdict: results decide it. Same
+    // deck, same values, note removed, still non-zero.
+    const withoutNote = NGSPICE_39_CONTROL_BLOCK_OUTPUT.replace(
+      /^Note: No "\.plot".*$/mu,
+      "",
+    );
+    expect(withoutNote).not.toContain('No ".plot"');
+    expect(read(withoutNote, { exitCode: 1 }).outcome).toEqual({
+      status: "completed",
+    });
+  });
+});
+
+describe("a run that produced nothing is a failure that says so", () => {
+  it("fails a deck no analysis ran on", () => {
+    // Measured ngspice 46: a circuit with no analysis. No vector exists, so
+    // there is nothing to report however the process exited.
+    const { outcome, diagnostics } = read(NO_ANALYSIS_OUTPUT, { exitCode: 1 });
+    expect(readNgspiceRunEvidence(NO_ANALYSIS_OUTPUT).producedResults).toBe(
+      false,
+    );
+    expect(outcome).toEqual({ status: "failed" });
+    expect(diagnostics.map((diagnostic) => diagnostic.text)).toContain(
+      "Error: incomplete or empty netlist",
+    );
+    expect(
+      diagnostics.some((diagnostic) =>
+        /no analysis results/iu.test(diagnostic.text),
+      ),
+    ).toBe(true);
+  });
+
+  it("keeps a silent or signal-killed run a failure (#566)", () => {
+    const silent = read("", { exitCode: 0 });
+    expect(silent.outcome).toEqual({ status: "failed" });
+    expect(silent.diagnostics[0]!.text).toContain("no output");
+
+    const killed = read("", { exitCode: 128, signal: "SIGKILL" });
+    expect(killed.outcome).toEqual({ status: "failed" });
+    expect(killed.diagnostics[0]!.text).toContain("SIGKILL");
+
+    // A kill that lands after some values were printed is still a kill: what
+    // came back is a fragment of the answer, not the answer.
+    const cutOff = read(CONTROL_BLOCK_OUTPUT, {
+      exitCode: 128,
+      signal: "SIGKILL",
+    });
+    expect(cutOff.outcome).toEqual({ status: "failed" });
+    expect(cutOff.diagnostics[0]!.text).toContain("SIGKILL");
+  });
+
+  it("never reports a failure without a diagnostic", () => {
+    // The half of #568 that has nothing to do with which ngspice is running:
+    // `status: "failed"` beside `diagnostics: []` gives the author nothing to
+    // act on and the next debugger no thread to pull. Whatever a process does,
+    // a failed verdict comes with at least one line explaining it.
+    const logs = [
+      "",
+      "   \n  \n",
+      CLEAN_OUTPUT,
+      CONTROL_BLOCK_OUTPUT,
+      CONTROL_BLOCK_NO_PRINT_OUTPUT,
+      NGSPICE_39_CONTROL_BLOCK_OUTPUT,
+      NO_ANALYSIS_OUTPUT,
+      MISSING_MODEL_OUTPUT,
+      DROPPED_RESISTOR_OUTPUT,
+      "ngspice said something nobody has a pattern for yet",
+    ];
+    const exitCodes = [0, 1, 2, 128, null];
+    const signals = [null, "SIGKILL", "SIGSEGV"];
+
+    let failures = 0;
+    for (const log of logs) {
+      for (const exitCode of exitCodes) {
+        for (const signal of signals) {
+          for (const timedOut of [false, true]) {
+            const { outcome, diagnostics } = read(log, {
+              exitCode,
+              signal,
+              timedOut,
+            });
+            if (outcome.status !== "failed") continue;
+            failures += 1;
+            expect(
+              diagnostics.length,
+              `failed with no diagnostic: exit ${String(exitCode)}, signal ${String(signal)}, log ${JSON.stringify(log.slice(0, 40))}`,
+            ).toBeGreaterThanOrEqual(1);
+            expect(
+              diagnostics.some((diagnostic) => diagnostic.severity === "error"),
+            ).toBe(true);
+          }
+        }
+      }
+    }
+    // The sweep has to actually reach the failed branch to prove anything.
+    expect(failures).toBeGreaterThan(0);
   });
 });
 

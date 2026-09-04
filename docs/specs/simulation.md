@@ -154,8 +154,14 @@ into the Project, undo history, Gallery, or recovery copy.
   emission, quoted paths, verbatim testbench preservation, and rejected deck
   injection.
 - `worker/simulation.test.ts` verifies the hosted Sky130 `tt` default,
-  deployment overrides, configuration-error classification, and the verified
-  run metadata envelope.
+  deployment overrides, configuration-error classification, the verified
+  run metadata envelope, that a `.control` testbench whose measurements came
+  back is not reported as failed whatever the exit status, and that no failed
+  response is returned without a diagnostic.
+- `packages/spice-run/src/index.test.ts` verifies the outcome table above
+  against captured ngspice output, including the ngspice-39 `.control` shape
+  of issue #568, a deck no analysis ran on, and a sweep over logs, exit
+  statuses, and signals asserting that no failure is ever returned bare.
 - The pinned local authority pack under ignored `.reference-src/` demonstrates
   that ngspice 47 completes a Sky130 NFET operating-point deck with
   `.lib ... tt`, while top-level `.include` produces repeated subcircuit
@@ -239,6 +245,55 @@ result and may wait briefly; `cancel` terminates the process and frees the
 slot. A run id is bound to the session or Project owner that started it.
 There is no run history store: a receipt that outlives the runner's memory
 reads as lost, and a lost run is never silently rerun.
+
+## Run outcome
+
+A finished simulator process is classified from what ngspice said and what it
+produced. The process exit status is never on its own a verdict:
+
+- **Exit status zero is not evidence that results exist.** A deck whose
+  resistor line is malformed exits zero while discarding the device and
+  solving what remains.
+- **A non-zero exit status is not evidence that they do not.** ngspice 39
+  ends a batch pass over an author's `.control` block by printing
+  `Note: No ".plot", ".print", or ".fourier" lines; no simulations run` and
+  exiting non-zero — after that block has already run every analysis and
+  printed every value asked for. Failing on that status reported correct
+  simulations as failed for every `.control` testbench (issue #568), and a
+  `.control` block is both what the ngspice documentation tells an author to
+  write and what ADR 0055 leaves in the author's hands.
+
+Success is therefore decided by whether the requested measurements came back,
+not by the absence of any particular note. A run produced results when ngspice
+reported an analysis producing data rows, or printed a value for a name. That
+evidence is read from console text for classification only; the numbers
+themselves still come from the ASCII rawfile and never from the log.
+
+The classification is:
+
+| condition                          | outcome                        |
+| ---------------------------------- | ------------------------------ |
+| the ceiling terminated it          | `timed-out`                    |
+| a diagnostic of severity `error`   | `failed`                       |
+| no analysis produced results       | `failed`                       |
+| ngspice discarded part of the deck | `completed-with-dropped-input` |
+| otherwise                          | `completed`                    |
+
+A signal killed the process is a failure even when values were already
+printed, because what came back is a fragment of the answer rather than the
+answer. So is an empty log: a batch run always prints at least its banner.
+
+**A failed outcome always carries at least one diagnostic.** `status: "failed"`
+beside an empty `diagnostics` array leaves the author with nothing to act on
+and the next debugger with no thread to pull, whatever the cause. Where
+ngspice explains itself, its own words are kept unedited; where it does not,
+the harness states the fact it does have — the signal that killed the run,
+that no analysis produced results and the status it exited with, or, if it
+can say nothing else, that the run was classified as failed without a
+reason, which is itself the finding to report.
+
+Both execution surfaces classify through the same reader in `@icm/spice-run`,
+so a container run and a local run cannot drift apart on this.
 
 ## Result data
 

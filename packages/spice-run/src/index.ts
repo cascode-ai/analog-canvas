@@ -96,9 +96,12 @@ export function isSimulationInputRevision(
 }
 
 /**
- * One line ngspice said about the run. `severity` is our reading of it; `text`
- * is always ngspice's own, unedited, because a designer reads the original and
- * a paraphrase would lose the node names and line numbers that make it useful.
+ * One line about the run. `severity` is our reading of it; `text` is ngspice's
+ * own and unedited whenever ngspice said it, because a designer reads the
+ * original and a paraphrase would lose the node names and line numbers that
+ * make it useful. The harness writes a line itself only to state something
+ * ngspice did not: that the process was killed, or that it returned no
+ * results at all.
  */
 export interface SimulationDiagnostic {
   severity: "error" | "warning" | "info";
@@ -121,7 +124,10 @@ export type SimulationOutcome =
    * plain success.
    */
   | { status: "completed-with-dropped-input" }
-  /** ngspice refused the deck or stopped partway. */
+  /**
+   * ngspice refused the deck, stopped partway, or returned no results. Always
+   * accompanied by at least one diagnostic saying which; see readNgspiceRun.
+   */
   | { status: "failed" }
   /** We stopped ngspice at the ceiling. Says so in as many words. */
   | { status: "timed-out"; timeoutMs: number };
@@ -385,24 +391,162 @@ export function readNgspiceDiagnostics(output: string): SimulationDiagnostic[] {
 }
 
 /**
- * The outcome, from the diagnostics rather than the exit status — except for
- * a timeout, which only the caller can know about.
+ * `name = number`, which is how ngspice reports a scalar the author asked
+ * for — `print v(out)` and `meas ac gain_db ...` both land here. The name
+ * must be a single token ending at the `=`, which is what separates a
+ * requested value from ngspice's own prose: "Doing analysis at TEMP =
+ * 27.000000" and "Total DRAM available = 16384.000 MB." have a word boundary
+ * before the `=` and never match.
  */
-export function classifySimulationOutcome(
+const PRINTED_VALUE_PATTERN = /^\s*([A-Za-z_][^\s=]*)\s*=\s*[+-]?(?:\d|\.\d)/u;
+
+/** ngspice's own count of what an analysis produced, one line per plot. */
+const DATA_ROWS_PATTERN = /^\s*no\.\s*of\s*data\s*rows\s*:\s*(\d+)/iu;
+
+/**
+ * What a run produced, in ngspice's own report of it.
+ *
+ * This is evidence that vectors exist, never the numbers themselves: the
+ * simulation spec reads results from the ASCII rawfile and never from console
+ * text, so only names and counts are collected here.
+ */
+export interface SimulationRunEvidence {
+  /** Names ngspice printed a value for. The value itself is not read. */
+  readonly printedValueNames: readonly string[];
+  /** Row counts ngspice reported, one entry per analysis that produced data. */
+  readonly analysisDataRows: readonly number[];
+  /** True when ngspice said at least one analysis produced something. */
+  readonly producedResults: boolean;
+}
+
+export function readNgspiceRunEvidence(output: string): SimulationRunEvidence {
+  const printedValueNames: string[] = [];
+  const analysisDataRows: number[] = [];
+  for (const line of output.split(/\r?\n/u)) {
+    const rows = DATA_ROWS_PATTERN.exec(line);
+    if (rows) {
+      const count = Number(rows[1]);
+      if (count > 0) analysisDataRows.push(count);
+      continue;
+    }
+    const printed = PRINTED_VALUE_PATTERN.exec(line);
+    if (printed) printedValueNames.push(printed[1]!);
+  }
+  return {
+    printedValueNames,
+    analysisDataRows,
+    producedResults:
+      printedValueNames.length > 0 || analysisDataRows.length > 0,
+  };
+}
+
+/**
+ * The outcome, from what ngspice said and what it produced.
+ *
+ * The exit status is not an argument here, and that is the point. ngspice 39
+ * ends a batch run over an author's `.control` block by printing
+ * `Note: No ".plot", ".print", or ".fourier" lines; no simulations run` and
+ * exiting non-zero — after the control block has already run every analysis
+ * and printed every value asked for. Failing on that status reported a
+ * correct simulation as failed (issue #568), and reading the absence of that
+ * note as success would only move the guess to the next simulator's wording.
+ * A run succeeded when the measurements came back; the status merely helps
+ * explain a run where they did not.
+ */
+function classifySimulationOutcome(
   diagnostics: readonly SimulationDiagnostic[],
-  options: { timedOut: boolean; timeoutMs: number; exitCode: number | null },
+  options: {
+    timedOut: boolean;
+    timeoutMs: number;
+    producedResults: boolean;
+  },
 ): SimulationOutcome {
   if (options.timedOut) {
     return { status: "timed-out", timeoutMs: options.timeoutMs };
   }
-  if (
-    diagnostics.some((diagnostic) => diagnostic.severity === "error") ||
-    (options.exitCode !== null && options.exitCode !== 0)
-  ) {
+  if (diagnostics.some((diagnostic) => diagnostic.severity === "error")) {
+    return { status: "failed" };
+  }
+  if (!options.producedResults) {
     return { status: "failed" };
   }
   if (diagnostics.some((diagnostic) => diagnostic.droppedInput)) {
     return { status: "completed-with-dropped-input" };
   }
   return { status: "completed" };
+}
+
+/** How the simulator process ended, as the surface running it observed it. */
+export interface NgspiceProcessResult {
+  /** Everything ngspice wrote, both streams, in the order captured. */
+  log: string;
+  /** The process exit status, or null when we stopped it ourselves. */
+  exitCode: number | null;
+  /** The signal that killed it, when one did. */
+  signal?: string | null;
+  timedOut: boolean;
+  timeoutMs: number;
+}
+
+/** An outcome and the diagnostics that account for it, read together. */
+export interface NgspiceRunReading {
+  outcome: SimulationOutcome;
+  diagnostics: SimulationDiagnostic[];
+}
+
+/**
+ * Read one finished ngspice process into an outcome and its diagnostics.
+ *
+ * Both surfaces go through here so a container run and a local run classify
+ * identically, and so one rule holds in one place: **a failed run always
+ * carries at least one diagnostic.** `status: "failed"` beside an empty
+ * `diagnostics` array leaves the author nothing to act on and the next
+ * debugger nothing to pull, which is how issue #568 stayed invisible; when
+ * the harness cannot say why a run failed, saying that is the finding.
+ */
+export function readNgspiceRun(run: NgspiceProcessResult): NgspiceRunReading {
+  const diagnostics = readNgspiceDiagnostics(run.log);
+  const signal = run.signal ?? null;
+  const evidence = readNgspiceRunEvidence(run.log);
+
+  // A signal death is a failure even when values were already printed: the
+  // run was cut off, so whatever came back is a fragment of the answer.
+  // Measured 2026-09-04, the kernel killing ngspice mid-corner-load on a
+  // 1 GiB instance (ADR 0055 amendment, item 10).
+  if (!run.timedOut && signal) {
+    diagnostics.push({
+      severity: "error",
+      text: `The simulator was terminated by ${signal} before it finished.`,
+    });
+  } else if (!run.timedOut && !evidence.producedResults) {
+    diagnostics.push({
+      severity: "error",
+      text:
+        run.log.trim().length === 0
+          ? "The simulator produced no output, so this run has no result."
+          : `The simulator reported no analysis results${
+              run.exitCode ? ` and exited with status ${run.exitCode}` : ""
+            }, so this run produced no numbers to return.`,
+    });
+  }
+
+  const outcome = classifySimulationOutcome(diagnostics, {
+    timedOut: run.timedOut,
+    timeoutMs: run.timeoutMs,
+    producedResults: evidence.producedResults,
+  });
+
+  // The invariant, enforced rather than assumed. Nothing above should reach
+  // this, and if a later change does, the gap reports itself instead of
+  // reaching an author as a bare "failed".
+  if (outcome.status === "failed" && diagnostics.length === 0) {
+    diagnostics.push({
+      severity: "error",
+      text: `The simulator run was classified as failed, but nothing in its output says why (exit status ${
+        run.exitCode === null ? "unreported" : run.exitCode
+      }). Please report this run.`,
+    });
+  }
+
+  return { outcome, diagnostics };
 }

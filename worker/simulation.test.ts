@@ -54,6 +54,35 @@ function stubRunner(
 const NETLIST = ".subckt amp in out\nM1 out in 0 0 nfet\n.ends\nXA in out amp";
 const TESTBENCH = "V1 in 0 DC 1\n.control\nop\nprint v(out)\n.endc";
 
+/**
+ * The container's ngspice 39 over a `.control` testbench (issue #568): every
+ * requested value printed, then a batch-pass note about the `.print` cards
+ * the deck does not carry, then a non-zero exit. Values quoted from the
+ * issue's recorded responses.
+ */
+const NGSPICE_39_CONTROL_BLOCK_LOG = `
+Circuit: * analog canvas simulation deck
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+No. of Data Rows : 1
+v(vout)       = 7.661889e-01
+v(ibias)      = 6.018893e-01
+gain_db       = 4.183501e+01
+ugb           = 3.302606e+07
+Note: Simulation executed from .control section
+
+Note: No ".plot", ".print", or ".fourier" lines; no simulations run
+`;
+
+/** ngspice 46 over a deck naming a model it cannot resolve. */
+const MISSING_MODEL_LOG = `
+Circuit: * analog canvas simulation deck
+
+could not find a valid modelname
+    Simulation interrupted due to error!
+`;
+
 describe("simulation route", () => {
   it("ignores paths that are not its own", async () => {
     expect(
@@ -166,6 +195,84 @@ describe("simulation route", () => {
     expect(
       ((await late!.json()) as { outcome: { status: string } }).outcome.status,
     ).toBe("timed-out");
+  });
+
+  it("returns the numbers when a `.control` testbench produced them", async () => {
+    // Issue #568. The preview container's ngspice is 39: it ends a batch pass
+    // over an author's `.control` deck by noting the `.print` cards it did
+    // not find and exiting non-zero, AFTER the control block has run every
+    // analysis and printed every value. The route reported `failed` with an
+    // empty `diagnostics` array, so the correct answer in the same response
+    // never reached the author and nothing said why.
+    //
+    // A `.control` block is how the ngspice documentation says to write a
+    // testbench and what ADR 0055 leaves to the author, so this shape is the
+    // normal case. A `.print`-directive testbench would pass either way.
+    const response = await routeSimulationRequest(
+      post({ netlist: NETLIST, testbench: TESTBENCH }),
+      stubRunner({
+        log: NGSPICE_39_CONTROL_BLOCK_LOG,
+        exitCode: 1,
+        signal: null,
+        timedOut: false,
+        durationMs: 30_853,
+      }),
+    );
+    const payload = (await response!.json()) as {
+      outcome: { status: string };
+      diagnostics: unknown[];
+      log: string;
+    };
+    expect(payload.outcome).toEqual({ status: "completed" });
+    expect(payload.diagnostics).toEqual([]);
+    expect(payload.log).toContain("v(vout)       = 7.661889e-01");
+  });
+
+  it("never returns a failed outcome without a diagnostic", async () => {
+    // The half of #568 independent of which ngspice runs: an author reading
+    // `failed` with nothing beside it has no action, and the next debugger
+    // has no thread. Every route response that says failed carries a reason.
+    const runs = [
+      { log: "", exitCode: 0, timedOut: false, durationMs: 45_295 },
+      { log: "", exitCode: 1, timedOut: false, durationMs: 12 },
+      {
+        log: "",
+        exitCode: 128,
+        signal: "SIGKILL",
+        timedOut: false,
+        durationMs: 45_295,
+      },
+      {
+        log: "Circuit: * deck\nsomething nobody has a pattern for\n",
+        exitCode: 3,
+        timedOut: false,
+        durationMs: 40,
+      },
+      { log: MISSING_MODEL_LOG, exitCode: 1, timedOut: false, durationMs: 22 },
+    ];
+    let failures = 0;
+    for (const run of runs) {
+      const response = await routeSimulationRequest(
+        post({ netlist: NETLIST, testbench: TESTBENCH }),
+        stubRunner(run),
+      );
+      const payload = (await response!.json()) as {
+        outcome: { status: string };
+        diagnostics: { severity: string; text: string }[];
+      };
+      if (payload.outcome.status !== "failed") continue;
+      failures += 1;
+      expect(payload.diagnostics.length, JSON.stringify(run)).toBeGreaterThan(
+        0,
+      );
+      expect(
+        payload.diagnostics.some(
+          (diagnostic) =>
+            diagnostic.severity === "error" && diagnostic.text.length > 0,
+        ),
+      ).toBe(true);
+    }
+    expect(failures).toBe(runs.length);
   });
 
   it("uses the deployment's explicit Sky130 path and section", async () => {
