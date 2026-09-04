@@ -56,9 +56,16 @@ palette-first manual authoring; no Project file needs to be opened first.
 ## Arrow styles
 
 Choose a style from the arrow tool's dropdown **before** drawing. Its main
-button and `A` reuse the last creation style. Line arrows use start/end clicks
-and support curves; outline arrows are complete hollow shapes: move to preview,
+button and `A` reuse the last creation style. For a line arrow, click each bend
+in sequence and double-click or press `Enter` at the endpoint; it can later be
+curved. Outline arrows are complete straight hollow shapes: move to preview,
 click to stamp a compact default, or drag a bounding box to set width and length.
+
+Arrow and construction-line points snap quietly to nearby pins, wires and
+drawing geometry, including any point along a rectangle, circle, line or curve.
+Only the transient capture marker is shown; no snap points are added to the
+drawing. Hold `Alt` to suppress snapping. A visual snap aligns coordinates but
+does not create electrical connectivity or make one drawing follow another.
 
 Select an arrow and press `Q` for Properties. **Style** is the same icon gallery,
 including filled/open single- and double-headed line arrows and hollow outline

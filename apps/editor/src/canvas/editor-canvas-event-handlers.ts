@@ -321,15 +321,16 @@ export function createEditorCanvasEventHandlers({
     onPointerCancel: finishCanvasGesture,
     onClick(event: CanvasMouseEvent) {
       const target = event.target as Element;
-      const onBackground =
-        target === event.currentTarget || target.tagName === "rect";
+      const acceptsDraftingPoint = !target.closest(
+        '[data-testid="canvas-text-editor"]',
+      );
       if (
         (tool === "arrow" ||
           tool === "construction-line" ||
           tool === "rectangle" ||
           tool === "circle") &&
         event.detail === 1 &&
-        onBackground
+        acceptsDraftingPoint
       ) {
         handleDraftingCanvasClick(
           // Raw pointer: the drafting controller rounds by the annotation
@@ -423,7 +424,7 @@ export function createEditorCanvasEventHandlers({
         tool === "rectangle" ||
         tool === "circle"
       ) {
-        if (target !== event.currentTarget && target.tagName !== "rect") return;
+        if (target.closest('[data-testid="canvas-text-editor"]')) return;
         finishDraftingCreate();
         return;
       }

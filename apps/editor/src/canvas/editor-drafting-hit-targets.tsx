@@ -66,6 +66,12 @@ export function EditorDraftingHitTargets({
   ) => void;
 }) {
   return (document.drafting?.objects ?? []).map((object) => {
+    const drawingThroughScene =
+      tool === "wire" ||
+      tool === "arrow" ||
+      tool === "construction-line" ||
+      tool === "rectangle" ||
+      tool === "circle";
     const geometry = resolveDraftingObjectGeometry(document, resolver, object);
     const draggable = !object.locked && Boolean(draftingDragOrigin(object));
     const selected =
@@ -93,7 +99,9 @@ export function EditorDraftingHitTargets({
             },
           }
         : {}),
-      pointerEvents: tool === "wire" ? ("none" as const) : undefined,
+      // Active drawing tools see the underlying scene as snap geometry, not
+      // as interactive hit targets. Nothing new is painted for this behavior.
+      pointerEvents: drawingThroughScene ? ("none" as const) : undefined,
     };
     if (
       object.kind === "construction-line" &&
@@ -173,7 +181,7 @@ export function EditorDraftingHitTargets({
               className={selectedClass}
               points={serializePolylinePoints(head)}
               fill="transparent"
-              pointerEvents={tool === "wire" ? "none" : "all"}
+              pointerEvents={drawingThroughScene ? "none" : "all"}
               onDoubleClick={doubleClick}
             />
           ))}

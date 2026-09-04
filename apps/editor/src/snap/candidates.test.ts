@@ -3,6 +3,7 @@ import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
 import {
+  buildDraftingProjectionSnapTargets,
   buildRectangleEdgeSnapAnchors,
   buildSceneSnapTargetIndex,
   buildSceneSnapTargets,
@@ -21,6 +22,72 @@ function expectPointsCloseTo(
 }
 
 describe("snap candidate builder", () => {
+  it("projects to arbitrary rectangle edges without adding visible anchors", () => {
+    const document = createEmptyDocument("doc", "Snap");
+    document.drafting = {
+      objects: [
+        {
+          id: "rectangle-1",
+          kind: "rectangle",
+          locked: false,
+          zIndex: 0,
+          anchor: { kind: "free", position: { x: 100, y: 100 } },
+          center: { x: 100, y: 100 },
+          width: 40,
+          height: 20,
+          rotation: 0,
+          lineStyle: "solid",
+        },
+      ],
+    };
+
+    const targets = buildDraftingProjectionSnapTargets(
+      document,
+      new InMemorySymbolResolver(builtInSymbols),
+      { x: 93, y: 92 },
+    );
+
+    expect(targets).toHaveLength(4);
+    expect(targets.map((target) => target.point)).toContainEqual({
+      x: 93,
+      y: 90,
+    });
+    expect(targets.every((target) => target.kind === "drafting")).toBe(true);
+  });
+
+  it("projects to a circle perimeter and excludes the object being edited", () => {
+    const document = createEmptyDocument("doc", "Snap");
+    document.drafting = {
+      objects: [
+        {
+          id: "circle-1",
+          kind: "circle",
+          locked: false,
+          zIndex: 0,
+          anchor: { kind: "free", position: { x: 50, y: 50 } },
+          center: { x: 50, y: 50 },
+          radius: 20,
+          lineStyle: "solid",
+        },
+      ],
+    };
+    const resolver = new InMemorySymbolResolver(builtInSymbols);
+
+    expect(
+      buildDraftingProjectionSnapTargets(document, resolver, {
+        x: 66,
+        y: 62,
+      }).at(0)?.point,
+    ).toEqual({ x: 66, y: 62 });
+    expect(
+      buildDraftingProjectionSnapTargets(
+        document,
+        resolver,
+        { x: 66, y: 62 },
+        new Set(["circle-1"]),
+      ),
+    ).toEqual([]);
+  });
   it("excludes every moving instance from static snap targets", () => {
     const document = createEmptyDocument("doc", "Snap");
     document.instances.push({

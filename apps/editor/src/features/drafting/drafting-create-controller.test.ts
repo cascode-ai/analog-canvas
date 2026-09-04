@@ -74,7 +74,7 @@ describe("drafting create controller", () => {
       tool: "arrow",
       source: { x: 10, y: 20 },
       hover: { x: 90, y: 20 },
-      waypoints: [],
+      waypoints: [{ x: 50, y: 60 }],
       setSource: vi.fn(),
       setHover: vi.fn(),
       setWaypoints: vi.fn(),
@@ -91,11 +91,49 @@ describe("drafting create controller", () => {
     expect(transact).toHaveBeenCalledWith([
       expect.objectContaining({
         kind: "upsert_drafting_object",
-        object: expect.objectContaining({ id: "arrow-1", kind: "arrow" }),
+        object: expect.objectContaining({
+          id: "arrow-1",
+          kind: "arrow",
+          waypoints: [{ x: 50, y: 60 }],
+        }),
       }),
     ]);
     expect(setTool).toHaveBeenCalledWith("pointer");
     expect(clear).toHaveBeenCalledOnce();
+  });
+
+  it("keeps a line arrow active while clicks add visible bends", () => {
+    const setWaypoints = vi.fn();
+    const transact = vi.fn(() => ({ ok: true }));
+    const controller = createDraftingCreateController({
+      document: createEmptyDocument("cell", "Cell"),
+      angleMode: "free",
+      annotationGrid: 5,
+      resolver: new InMemorySymbolResolver(builtInSymbols),
+      visibleEndpoints: [],
+      routeGeometryRecords: [],
+      tool: "arrow",
+      source: { x: 10, y: 20 },
+      hover: { x: 10, y: 20 },
+      waypoints: [],
+      setSource: vi.fn(),
+      setHover: vi.fn(),
+      setWaypoints,
+      setSnapPoint: vi.fn(),
+      clear: vi.fn(),
+      setTool: vi.fn(),
+      transact,
+      setStatus: vi.fn(),
+      nextId: () => "arrow-1",
+    });
+
+    controller.handleCanvasClick({ x: 43, y: 37 }, false, false, 4);
+
+    expect(setWaypoints).toHaveBeenCalledOnce();
+    expect(transact).not.toHaveBeenCalled();
+    expect(
+      (setWaypoints.mock.calls[0]![0] as (points: never[]) => unknown)([]),
+    ).toEqual([{ x: 45, y: 35 }]);
   });
 
   it("creates a circle from its center and radius point", () => {
