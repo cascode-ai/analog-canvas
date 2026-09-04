@@ -327,6 +327,71 @@ normal hierarchy. Extraction, diagnostics, dependency collection, occurrence
 mapping, and input identity all use the same Testbench root. A deck that only
 defines `.subckt`s and instantiates nothing is not a run.
 
+### Compiling a structured setup
+
+`compileStructuredSimulation` in `@icm/netlist` turns a setup and its Project
+into the netlist and testbench halves of one request, plus the probe-to-vector
+bindings. The netlist half is every reached Cell **except** the root, printed
+by the same `printSpiceNetlist` the structural export uses, carrying the
+`.global` declarations. The testbench half is the root's own Instances as
+top-level cards, the authored `.temp` when the setup names one, and then a
+`.control` block. The layout below was settled against ngspice 46, not against
+the manual.
+
+Analyses are control-block commands, not deck cards. A deck carrying both
+`.op` and `.ac` and a single `run` fails: ngspice 46 answers
+`doAnalyses: not found` and `run simulation(s) aborted`, exits 1, and leaves
+one plot behind. Issuing `op` and `ac <sweep> <points> <start> <stop>` inside
+`.control` runs both and exits 0 -- the convention the hosted smoke deck
+already uses.
+
+Each analysis is followed by its own `write out.raw <vectors>`, because
+`write` saves the current plot only and truncates the file it writes. `set
+appendwrite` before them keeps the earlier plot, so one rawfile holds both
+back to back, which is what [Reading the rawfile](#reading-the-rawfile)
+already parses. It is emitted only when there is more than one analysis, so a
+single-analysis deck keeps `write`'s truncating behaviour and cannot append to
+a stale file at all; a multi-analysis deck relies on the fresh per-run
+directory the harness makes. The alternative -- naming the plot in the
+expression, `op1.mid` -- also keeps both plots in one `write`, but ngspice
+then records the variable as `v(op1.mid)`, putting a plot ordinal that depends
+on how many analyses ran into every probe name. A setup with no probes emits a
+bare `write out.raw`, saving the whole plot rather than nothing.
+
+Vector names are produced here and never inferred from result text:
+
+| probe | vector |
+| --- | --- |
+| Net in the root | `v(mid)` |
+| Net under occurrence `X1`, `XI1` | `v(x1.xi1.mid)` |
+| voltage source in the root | `i(v1)` |
+| voltage source under `X1`, `XI1` | `i(v.x1.xi1.vsi)` |
+
+They are lower case because ngspice folds case on the way into the rawfile: a
+card may read `R1 IN MID 1k`, and `V(MidNode)` still comes back as
+`v(midnode)`. A nested device carries its own type letter ahead of the
+occurrence path. Net names come from the Logical-Net resolver the printer
+already used, read back off the extracted Cell rather than derived a second
+time.
+
+An independent current source has no branch-current vector at all -- ngspice
+builds one for `V` sources and not for `I` sources, and `i(i1)` answers "not
+available" -- so a `source-current` probe on one is refused, with the advice
+to probe a series voltage source instead. The other refusals are a missing
+root, a root that instantiates nothing, a probe naming a Document, Net, or
+Instance that is not there, an occurrence that does not follow hierarchy
+Instances from the root or that reaches a different Document than the probe
+claims, an analysis kind this release does not compile, and a source-current
+probe on a device that is not a source. Each is a typed diagnostic carrying an
+occurrence-aware `ObjectLocator`, never a thrown error.
+
+`inputRevision` is the SHA-256 of the two compiled texts and a canonical
+serialization of the setup, computed with Web Crypto so the function stays
+browser-safe. `packages/netlist/src/simulation-compile.test.ts` asserts the
+exact texts, every diagnostic, and byte-identical output across repeated and
+re-serialized reads, then runs the divider deck through a local ngspice and
+reads both plots back.
+
 ## Sources and analyses
 
 `SimulationAnalysis` is `"op" | "ac" | "tran"`.

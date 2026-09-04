@@ -300,6 +300,9 @@ importers:
       "@icm/model":
         specifier: workspace:*
         version: link:../model
+      "@icm/spice-run":
+        specifier: workspace:*
+        version: link:../spice-run
       "@icm/symbols":
         specifier: workspace:*
         version: link:../symbols
