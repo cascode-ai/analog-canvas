@@ -10,13 +10,10 @@ import type {
   AgentHostSemanticIntentResult,
 } from "@icm/agent-adapter";
 import {
-  compileWireDraft,
-  createFreeWireAnchor,
   proposeEndpointRouteAttachment,
   proposeLooseRouteTranslation,
   proposePowerRailEndpointResize,
   proposePowerRailTranslation,
-  proposeWireCommitThroughContacts,
   proposeWireSegmentMove,
   planCellReset,
   type CellResetPlan,
@@ -317,6 +314,10 @@ import {
   looseRouteAnchorIds,
 } from "../features/wiring/route-interaction-geometry";
 import { useWireCanvasController } from "../features/wiring/use-wire-canvas-controller";
+import {
+  EMPTY_WIRE_DRAFT_PREVIEW,
+  resolveWireDraftPreview,
+} from "../features/wiring/wire-draft-preview";
 import type { ScreenFlip } from "../interaction/shortcut-orientation";
 import {
   buildDraftingAnchors,
@@ -846,6 +847,7 @@ export function App({
     wireSource,
     wireSourceRevision,
     wirePreviewPoint,
+    wirePreviewTarget,
     wireWaypoints,
     wireDraftSteps,
     wireRoutingMode,
@@ -876,7 +878,7 @@ export function App({
     rotateCopyPlacement,
     mirrorCopyPlacement,
     setWireSource,
-    setWirePreviewPoint,
+    setWirePreview,
     setWireDraftSteps,
     setWireRoutingMode,
     setWireCornerOrder,
@@ -1835,7 +1837,7 @@ export function App({
   ]);
 
   const {
-    createRouteAnchor,
+    sourceForTarget,
     beginRouteStretch,
     drawSelectedMosBulk,
     deleteSelectedRouteConnection,
@@ -1873,7 +1875,7 @@ export function App({
       wireCornerOrder,
       setTool,
       setWireSource,
-      setWirePreviewPoint,
+      setWirePreview,
       setWireDraftSteps,
       completeWire,
       clearTransientCanvasState,
@@ -2289,26 +2291,18 @@ export function App({
     ...internalSelection.internalJunctions,
     ...internalSelection.electricalAnnotationIds,
   ]);
-  const wireFixedPoints = wireSource
-    ? compileWireDraft(wireSource, wireSource, wireDraftSteps).points
-    : [];
-  const wireDraftPoints =
-    wireSource && wirePreviewPoint
-      ? compileWireDraft(
-          wireSource,
-          {
-            connection: {
-              contactPoint: wirePreviewPoint,
-              gridLanding: wirePreviewPoint,
-              escapePath: [],
-              outward: null,
-            },
-          },
-          wireDraftSteps,
-          wireRoutingMode,
-          wireCornerOrder,
-        ).points
-      : wireFixedPoints;
+  const wireDraftPreview =
+    wireSource && wirePreviewTarget
+      ? resolveWireDraftPreview({
+          document,
+          source: wireSource,
+          target: wirePreviewTarget,
+          steps: wireDraftSteps,
+          routingMode: wireRoutingMode,
+          cornerOrder: wireCornerOrder,
+          visibleEndpoints,
+        })
+      : EMPTY_WIRE_DRAFT_PREVIEW;
   const projectInstanceCount = project.documents.reduce(
     (count, candidate) => count + candidate.instances.length,
     0,
@@ -2490,7 +2484,7 @@ export function App({
       getInteractionKind: () => getCurrentInteractionState().kind,
       cancelInteraction,
       setWireSource,
-      setWirePreviewPoint,
+      setWirePreview,
       setWireDraftSteps,
       setWireRoutingMode,
       setWireCornerOrder,
@@ -2505,7 +2499,7 @@ export function App({
       handlePointerDown: handleWireRoutePointerDown,
       select: selectRoute,
       beginStretch: beginRouteStretch,
-      createAnchor: createRouteAnchor,
+      sourceForTarget,
     },
     viewport: {
       pointFromClient: (clientX, clientY, svg) =>
@@ -2679,7 +2673,7 @@ export function App({
     wiring: {
       wireActive: wireSource !== null,
       resolveWireCanvasSnap,
-      setWirePreviewPoint,
+      setWirePreview,
       cycleWireCornerShape,
     },
     cellSymbolLayout: {
@@ -3857,7 +3851,7 @@ export function App({
       complete: completeWire,
       cancel: () => {
         setWireSource(null, null);
-        setWirePreviewPoint(null);
+        setWirePreview(null);
         setWireDraftSteps([]);
         setTool("pointer");
         setBulkDrawInstanceId(null);
@@ -5192,7 +5186,7 @@ export function App({
             },
             flightlines: displayedFlightlines,
             onFlightlineClick: handleFlightline,
-            wireDraftPoints,
+            wireDraftPreview,
             bulkRoutePreview: wireSource?.routePresentation === "bulk-dashed",
             snapGuideLayerRef,
           }}

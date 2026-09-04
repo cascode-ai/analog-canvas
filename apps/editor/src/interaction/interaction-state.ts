@@ -17,6 +17,36 @@ import {
 
 export type { WireSource } from "@icm/edit-engine";
 
+/**
+ * Where the far end of an in-flight wire draft currently rests.
+ *
+ * The pointer resolves to one of exactly three things, and the commit builds a
+ * different `WireSource` for each. Keeping only the resolved POINT meant the
+ * preview had to invent a far end whose contact point, grid landing, and
+ * escape path were all that one point — true of a free grid anchor and of
+ * nothing else — so the drawn wire and the committed wire were two answers to
+ * one question. The session keeps the target; `features/wiring` owns every
+ * reading of it.
+ */
+export type WireDraftTarget =
+  | {
+      readonly kind: "endpoint";
+      readonly point: Point;
+      readonly source: WireSource;
+    }
+  | {
+      readonly kind: "route";
+      readonly point: Point;
+      readonly routeId: string;
+      readonly segmentIndex: number;
+    }
+  | { readonly kind: "free"; readonly point: Point };
+
+/** A plain grid point: what an empty-canvas hover or a fixed step resolves to. */
+export function freeWireDraftTarget(point: Point): WireDraftTarget {
+  return { kind: "free", point };
+}
+
 export type EditorTool =
   "pointer" | "wire" | "construction-line" | "arrow" | "rectangle" | "circle";
 
@@ -86,7 +116,7 @@ export type InteractionState<TClipboard = never> =
       kind: "wire";
       source: WireSource | null;
       sourceRevision: number | null;
-      previewPoint: Point | null;
+      preview: WireDraftTarget | null;
       steps: WireDraftStep[];
       routingMode: WireRoutingMode;
       cornerOrder: WireCornerOrder;
@@ -125,7 +155,7 @@ export type InteractionAction<TClipboard = never> =
       source: WireSource | null;
       sourceRevision: number | null;
     }
-  | { type: "set-wire-preview"; point: Point | null }
+  | { type: "set-wire-preview"; target: WireDraftTarget | null }
   | { type: "set-wire-steps"; update: SetStateAction<WireDraftStep[]> }
   /** Compatibility adapter for existing callers; new code owns authored steps. */
   | { type: "set-wire-waypoints"; update: SetStateAction<Point[]> }
@@ -165,7 +195,7 @@ export function activateInteractionTool<TClipboard>(
         kind: "wire",
         source: null,
         sourceRevision: null,
-        previewPoint: null,
+        preview: null,
         steps: [],
         routingMode: "orthogonal",
         cornerOrder: "auto",
@@ -347,7 +377,7 @@ export function interactionReducer<TClipboard>(
         : state;
     case "set-wire-preview":
       return state.kind === "wire"
-        ? { ...state, previewPoint: action.point }
+        ? { ...state, preview: action.target }
         : state;
     case "set-wire-steps":
       return state.kind === "wire"
@@ -381,7 +411,7 @@ export function interactionReducer<TClipboard>(
             kind: "wire",
             source: null,
             sourceRevision: null,
-            previewPoint: null,
+            preview: null,
             steps: [],
             routingMode: state.routingMode,
             cornerOrder: state.cornerOrder,
@@ -466,7 +496,9 @@ export function useInteractionState<TClipboard>() {
     copyPlacement,
     wireSource: state.kind === "wire" ? state.source : null,
     wireSourceRevision: state.kind === "wire" ? state.sourceRevision : null,
-    wirePreviewPoint: state.kind === "wire" ? state.previewPoint : null,
+    wirePreviewPoint:
+      state.kind === "wire" ? (state.preview?.point ?? null) : null,
+    wirePreviewTarget: state.kind === "wire" ? state.preview : null,
     wireWaypoints:
       state.kind === "wire" ? state.steps.map((step) => step.point) : [],
     wireDraftSteps: state.kind === "wire" ? state.steps : [],
@@ -504,8 +536,8 @@ export function useInteractionState<TClipboard>() {
     beginSelectionMove: () => dispatch({ type: "begin-selection-move" }),
     setWireSource: (source: WireSource | null, sourceRevision: number | null) =>
       dispatch({ type: "set-wire-source", source, sourceRevision }),
-    setWirePreviewPoint: (point: Point | null) =>
-      dispatch({ type: "set-wire-preview", point }),
+    setWirePreview: (target: WireDraftTarget | null) =>
+      dispatch({ type: "set-wire-preview", target }),
     setWireDraftSteps: (update: SetStateAction<WireDraftStep[]>) =>
       dispatch({ type: "set-wire-steps", update }),
     setWireWaypoints: (update: SetStateAction<Point[]>) =>

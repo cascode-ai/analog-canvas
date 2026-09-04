@@ -36,10 +36,14 @@ describe("editor wiring overlay", () => {
           onNetLabelEscape={vi.fn()}
           flightlines={[flightline]}
           onFlightlineClick={vi.fn()}
-          wireDraftPoints={[
-            { x: 0, y: 0 },
-            { x: 20, y: 20 },
-          ]}
+          wireDraftPreview={{
+            points: [
+              { x: 0, y: 0 },
+              { x: 10, y: 10 },
+              { x: 20, y: 20 },
+            ],
+            contacts: [{ x: 10, y: 10 }],
+          }}
           bulkRoutePreview
           snapGuideLayerRef={createRef<SVGGElement>()}
         />
@@ -50,6 +54,10 @@ describe("editor wiring overlay", () => {
     expect(markup).toContain('value="OUT"');
     expect(markup).toContain('data-testid="flightline-hit"');
     expect(markup).toContain('class="wire-preview bulk-route-preview"');
+    // A pass-through contact is drawn, so a wire crossing a pin looks the way
+    // it will behave once the release makes that connection.
+    expect(markup).toContain('data-testid="wire-preview-contact"');
+    expect(markup).toContain('cx="10"');
     expect(markup).toContain('data-layer="snap-guides"');
   });
 });

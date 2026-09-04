@@ -15,7 +15,11 @@ import {
 import type { Point, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
-import type { EditorTool } from "../../interaction/interaction-state";
+import {
+  freeWireDraftTarget,
+  type EditorTool,
+  type WireDraftTarget,
+} from "../../interaction/interaction-state";
 import type { SnapGuideLine } from "../../snap/engine";
 import type { VisualSelection } from "../selection/visual-selection";
 import { planSelectionMove } from "../selection/selection-move-plan";
@@ -29,6 +33,7 @@ import {
   resolveWireCanvasSnap as resolveWireCanvasSnapModel,
   type WireCanvasSnapResult,
 } from "./wire-canvas-snap";
+import { wireDraftTargetFromSnap } from "./wire-draft-preview";
 
 const SNAP_CAPTURE_RADIUS_PX = 7;
 const WIRE_CORNER_SHAPES = [
@@ -83,7 +88,7 @@ export interface UseWireCanvasControllerOptions {
     getInteractionKind: () => string;
     cancelInteraction: () => void;
     setWireSource: (source: WireSource, revision: number) => void;
-    setWirePreviewPoint: (point: Point | null) => void;
+    setWirePreview: (target: WireDraftTarget | null) => void;
     setWireDraftSteps: (steps: WireDraftStep[]) => void;
     setWireRoutingMode: (mode: WireRoutingMode) => void;
     setWireCornerOrder: (order: WireCornerOrder) => void;
@@ -116,11 +121,7 @@ export interface UseWireCanvasControllerOptions {
       intent: RouteStretchPreview["intent"],
       hitTarget: SVGElement,
     ) => void;
-    createAnchor: (
-      routeId: string,
-      point: Point,
-      segmentIndex: number,
-    ) => WireSource;
+    sourceForTarget: (target: WireDraftTarget) => WireSource | null;
   };
   viewport: {
     pointFromClient: (
@@ -160,7 +161,7 @@ export function useWireCanvasController({
     getInteractionKind,
     cancelInteraction,
     setWireSource,
-    setWirePreviewPoint,
+    setWirePreview,
     setWireDraftSteps,
     setWireRoutingMode,
     setWireCornerOrder,
@@ -175,7 +176,7 @@ export function useWireCanvasController({
     handlePointerDown: handleWireRoutePointerDown,
     select: selectRoute,
     beginStretch: beginRouteStretch,
-    createAnchor: createRouteAnchor,
+    sourceForTarget,
   },
   viewport: { pointFromClient, logicalRadiusForPixels, paintSnapGuides },
   commands: { commitWire, fixWirePoint, finishWireAtPoint, setStatus },
@@ -265,38 +266,31 @@ export function useWireCanvasController({
       );
       return;
     }
-    if (resolved.endpoint) {
-      if (!wireSource) {
-        setWireSource(resolved.endpoint, document.revision);
-        setWirePreviewPoint(resolved.endpoint.connection.contactPoint);
-        setWireDraftSteps([]);
-      } else if (
-        endpointKey(wireSource.endpoint) !==
-        endpointKey(resolved.endpoint.endpoint)
-      ) {
-        commitWire(resolved.endpoint);
-      } else {
-        setStatus("Choose a different endpoint");
-      }
+    // The press reads the snap through the same function the hover preview
+    // reads it through, so what the draft has been drawing is what this
+    // click acts on.
+    const target = wireDraftTargetFromSnap(resolved);
+    if (target.kind === "free") {
+      if (finish) finishWireAtPoint(target.point);
+      else fixWirePoint(target.point);
       return;
     }
-    if (resolved.route) {
-      const anchor = createRouteAnchor(
-        resolved.route.routeId,
-        resolved.route.point,
-        resolved.route.segmentIndex,
-      );
-      if (!wireSource) {
-        setWireSource(anchor, document.revision);
-        setWirePreviewPoint(anchor.connection.contactPoint);
-        setWireDraftSteps([]);
-      } else {
-        commitWire(anchor);
-      }
+    const candidate = sourceForTarget(target);
+    if (!candidate) {
+      setStatus("That connection target is no longer on the sheet");
       return;
     }
-    if (finish) finishWireAtPoint(resolved.point);
-    else fixWirePoint(resolved.point);
+    if (!wireSource) {
+      setWireSource(candidate, document.revision);
+      setWirePreview(freeWireDraftTarget(candidate.connection.contactPoint));
+      setWireDraftSteps([]);
+      return;
+    }
+    if (endpointKey(wireSource.endpoint) === endpointKey(candidate.endpoint)) {
+      setStatus("Choose a different endpoint");
+      return;
+    }
+    commitWire(candidate);
   };
 
   const handleRoutePointerDown = (

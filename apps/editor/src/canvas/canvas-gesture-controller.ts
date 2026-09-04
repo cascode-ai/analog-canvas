@@ -20,7 +20,11 @@ import {
 } from "../features/selection/visual-selection";
 import type { RouteGeometryRecord } from "../features/wiring/route-interaction-geometry";
 import type { WireCanvasSnapResult } from "../features/wiring/wire-canvas-snap";
-import type { EditorTool } from "../interaction/interaction-state";
+import { wireDraftTargetFromSnap } from "../features/wiring/wire-draft-preview";
+import type {
+  EditorTool,
+  WireDraftTarget,
+} from "../interaction/interaction-state";
 import { snapCoordinate, type SnapGuideLine } from "../snap/engine";
 import {
   classifyCanvasGestureStart,
@@ -141,7 +145,7 @@ export interface CanvasGestureControllerDependencies {
       svg: SVGSVGElement,
       suppressSnap: boolean,
     ) => WireCanvasSnapResult;
-    setWirePreviewPoint: (point: Point | null) => void;
+    setWirePreview: (target: WireDraftTarget | null) => void;
     cycleWireCornerShape: () => void;
   };
   cellSymbolLayout: {
@@ -264,7 +268,7 @@ export function createCanvasGestureController({
   wiring: {
     wireActive,
     resolveWireCanvasSnap,
-    setWirePreviewPoint,
+    setWirePreview,
     cycleWireCornerShape,
   },
   cellSymbolLayout: {
@@ -573,7 +577,10 @@ export function createCanvasGestureController({
         event.currentTarget,
         event.altKey,
       );
-      setWirePreviewPoint(resolved.point);
+      // Keep what the pointer resolved TO, not merely where it landed: the
+      // draft preview builds its far end from the same target the press will
+      // commit, so the two cannot describe different wires.
+      setWirePreview(wireDraftTargetFromSnap(resolved));
       paintSnapGuides(resolved.guides);
     }
   };

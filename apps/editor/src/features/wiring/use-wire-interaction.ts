@@ -5,12 +5,15 @@ import type {
 } from "react";
 
 import { segmentDragPreviewPolyline } from "./segment-drag-preview";
+import {
+  wireDraftTargetIdsForSuffix,
+  wirePassThroughContacts,
+  wireSourceForTarget,
+} from "./wire-draft-preview";
 
 import {
   type WireDraftStep,
   createRoutingOperationPlan,
-  createFreeWireAnchor,
-  createRouteWireAnchor,
   gateRoutingOperationPlan,
   planRoutingDeletion,
   proposeLooseRouteTranslation,
@@ -45,6 +48,10 @@ import {
 } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
+import {
+  freeWireDraftTarget,
+  type WireDraftTarget,
+} from "../../interaction/interaction-state";
 import {
   startCanvasDragSession,
   type CanvasDragSession,
@@ -104,7 +111,7 @@ export interface UseWireInteractionOptions {
     wireCornerOrder: WireCornerOrder;
     setTool: (tool: "wire") => void;
     setWireSource: (source: WireSource | null, revision: number | null) => void;
-    setWirePreviewPoint: (point: Point | null) => void;
+    setWirePreview: (target: WireDraftTarget | null) => void;
     setWireDraftSteps: (steps: WireDraftStep[]) => void;
     completeWire: () => void;
     clearTransientCanvasState: () => void;
@@ -169,32 +176,20 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
       ...(expectedElectricalEffect ? { expectedElectricalEffect } : {}),
     });
 
-  const freeWireAnchor = (
-    point: Point,
-    netId: string,
-    createNet: boolean,
-  ): WireSource =>
-    createFreeWireAnchor(point, netId, createNet, options.nextRoutingSuffix());
-
-  const routeAnchor = (
-    routeId: string,
-    point: Point,
-    segmentIndex: number,
-  ): WireSource => {
-    const route = options.document.routes.find(
-      (candidate) => candidate.id === routeId,
-    )!;
-    // Persisted route taps must be projected back onto the document grid;
-    // createRouteWireAnchor owns that normalization and split validation.
-    return createRouteWireAnchor(
+  /**
+   * The far end a gesture commits to, whatever the pointer resolved to.
+   *
+   * The one place a committed `WireSource` is built. The draft preview asks
+   * the same function with preview identity, so the wire drawn during the
+   * gesture and the wire the release lands cannot describe different geometry.
+   */
+  const sourceForTarget = (target: WireDraftTarget): WireSource | null =>
+    wireSourceForTarget(
       options.document,
-      route,
-      point,
-      segmentIndex,
-      options.document.presentation.grid,
-      options.nextRoutingSuffix(),
+      target,
+      options.wireSource?.netId ?? null,
+      () => wireDraftTargetIdsForSuffix(target, options.nextRoutingSuffix()),
     );
-  };
 
   const commitWire = (candidate: WireSource): void => {
     if (!options.wireSource) return;
@@ -209,9 +204,11 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
       options.wireSource,
       candidate,
       options.wireWaypoints,
-      options.visibleEndpoints.filter(
-        (endpoint) => endpoint.endpoint.kind === "terminal",
-      ),
+      wirePassThroughContacts(options.visibleEndpoints, {
+        from: options.wireSource,
+        to: candidate,
+        steps: options.wireDraftSteps,
+      }),
       options.nextRoutingSuffix(),
       {
         steps: options.wireDraftSteps,
@@ -280,7 +277,9 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
     options.setTool("wire");
     if (!options.wireSource) {
       options.setWireSource(candidate, options.document.revision);
-      options.setWirePreviewPoint(candidate.connection.contactPoint);
+      options.setWirePreview(
+        freeWireDraftTarget(candidate.connection.contactPoint),
+      );
       options.setWireDraftSteps([]);
       options.setStatus(`Wire source: ${endpointKey(candidate.endpoint)}`);
       return;
@@ -347,7 +346,7 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
       return;
     }
     options.setWireSource(from, options.document.revision);
-    options.setWirePreviewPoint(to.connection.contactPoint);
+    options.setWirePreview(freeWireDraftTarget(to.connection.contactPoint));
     options.setWireDraftSteps([]);
     options.setStatus(`Wire source: flightline on ${flightline.netId}`);
   };
@@ -387,7 +386,7 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
     options.setBulkDrawInstanceId(instance.id);
     options.setTool("wire");
     options.setWireSource(source, options.document.revision);
-    options.setWirePreviewPoint(source.connection.contactPoint);
+    options.setWirePreview(freeWireDraftTarget(source.connection.contactPoint));
     options.setWireDraftSteps([]);
     options.setStatus(`Drawing ${instance.id}.B bulk connection`);
   };
@@ -844,10 +843,19 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
       );
       return;
     }
-    const anchor = routeAnchor(routeId, tapPoint, tap.address.segmentIndex);
+    const anchor = sourceForTarget({
+      kind: "route",
+      point: tapPoint,
+      routeId,
+      segmentIndex: tap.address.segmentIndex,
+    });
+    if (!anchor) {
+      options.setStatus("That conductor segment is no longer on the sheet");
+      return;
+    }
     if (!options.wireSource) {
       options.setWireSource(anchor, options.document.revision);
-      options.setWirePreviewPoint(tapPoint);
+      options.setWirePreview(freeWireDraftTarget(tapPoint));
       options.setWireDraftSteps([]);
       options.setStatus(`Wire source: route ${routeId}`);
       return;
@@ -857,13 +865,9 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
 
   const fixWirePoint = (point: Point): void => {
     if (!options.wireSource) {
-      const source = freeWireAnchor(
-        point,
-        `net-ui-${options.nextRoutingSuffix()}`,
-        true,
-      );
+      const source = sourceForTarget(freeWireDraftTarget(point))!;
       options.setWireSource(source, options.document.revision);
-      options.setWirePreviewPoint(point);
+      options.setWirePreview(freeWireDraftTarget(point));
       options.setWireDraftSteps([]);
       options.setStatus("Wire source: free grid point");
       return;
@@ -876,7 +880,7 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
         cornerOrder: options.wireCornerOrder,
       },
     ]);
-    options.setWirePreviewPoint(point);
+    options.setWirePreview(freeWireDraftTarget(point));
     options.setStatus("Wire step fixed; double-click or Enter to finish");
   };
 
@@ -885,13 +889,11 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
       fixWirePoint(point);
       return;
     }
-    const netId =
-      options.wireSource.netId ?? `net-ui-${options.nextRoutingSuffix()}`;
-    commitWire(freeWireAnchor(point, netId, options.wireSource.netId === null));
+    commitWire(sourceForTarget(freeWireDraftTarget(point))!);
   };
 
   return {
-    createRouteAnchor: routeAnchor,
+    sourceForTarget,
     beginRouteStretch,
     commitWire,
     completeRouteStretch,

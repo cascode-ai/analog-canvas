@@ -1,6 +1,7 @@
+import { createEmptyProject } from "@icm/model";
 import { expect, test, type Page } from "@playwright/test";
 
-import { chooseComponent } from "./editor-fixtures";
+import { chooseComponent, clickDrawTool } from "./editor-fixtures";
 
 async function placeComponent(
   page: Page,
@@ -287,4 +288,91 @@ test("a component dragged onto a wire lands and connects", async ({ page }) => {
   await expect(page.getByTestId("statusbar-issues")).toHaveText(
     "No issues found",
   );
+});
+
+test("the preview draws the wire the release commits, contacts and all", async ({
+  page,
+}) => {
+  // The defect this pins: the draft used to be computed one way and the
+  // committed wire another, so the line the author watched was not the line
+  // they got. One straight run across three pins is where the two answers
+  // used to differ most — the commit splits at every crossed pin and the
+  // preview drew none of them.
+  const project = createEmptyProject("wire-preview-truth", "Wire preview");
+  const document = project.documents[0]!;
+  document.instances.push(
+    {
+      id: "C1",
+      symbolId: "capacitor",
+      placement: { position: { x: 80, y: 120 }, rotation: 0, mirror: "none" },
+    },
+    {
+      id: "R1",
+      symbolId: "resistor",
+      placement: { position: { x: 120, y: 120 }, rotation: 0, mirror: "none" },
+    },
+  );
+
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "wire-preview-truth.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  const canvas = page.getByTestId("schematic-canvas");
+  const onScreen = async (points: readonly { x: number; y: number }[]) => {
+    const screen = await canvas.evaluate((element, logical) => {
+      const matrix = (element as SVGSVGElement).getScreenCTM();
+      if (!matrix) return null;
+      return logical.map((point) => {
+        const mapped = new DOMPoint(point.x, point.y).matrixTransform(matrix);
+        return { x: mapped.x, y: mapped.y };
+      });
+    }, points);
+    if (!screen) throw new Error("Canvas geometry is not measurable");
+    return screen;
+  };
+  const [start, end] = await onScreen([
+    { x: 40, y: 100 },
+    { x: 200, y: 100 },
+  ]);
+
+  await clickDrawTool(page, "wire");
+  await page.mouse.click(start!.x, start!.y);
+  // Hover, do not release: this is the moment the author is looking at.
+  await page.mouse.move(end!.x, end!.y);
+
+  const previewPoints = await page
+    .getByTestId("wire-preview")
+    .evaluate((element) =>
+      Array.from((element as SVGPolylineElement).points).map((point) => ({
+        x: point.x,
+        y: point.y,
+      })),
+    );
+  // Both crossed pins are drawn as contacts, so the run reads as joining them
+  // rather than passing over them.
+  await expect(page.getByTestId("wire-preview-contact")).toHaveCount(2);
+
+  await page.mouse.dblclick(end!.x, end!.y);
+  await expect(page.getByTestId("status")).toContainText("Committed route");
+
+  // Every leg of this gesture lies on one horizontal line, so ordering the
+  // committed vertices by x reassembles the single conductor the author drew.
+  const committedPoints = await page
+    .locator('[data-testid^="route-hit-"]')
+    .evaluateAll((elements) => {
+      const seen = new Map<string, { x: number; y: number }>();
+      for (const element of elements) {
+        for (const point of Array.from(
+          (element as SVGPolylineElement).points,
+        )) {
+          seen.set(`${point.x}:${point.y}`, { x: point.x, y: point.y });
+        }
+      }
+      return [...seen.values()].sort((left, right) => left.x - right.x);
+    });
+
+  expect(previewPoints.length).toBeGreaterThan(2);
+  expect(previewPoints).toEqual(committedPoints);
 });
