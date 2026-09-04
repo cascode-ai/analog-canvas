@@ -212,9 +212,12 @@ supersede the sentences of the original decision they contradict; the
    runs, and a numerical disagreement can only mean the export is wrong,
    never that two ngspice builds differ. The binned Sky130 models a volare
    checkout provides cap device width at 100 µm and refuse the benchmark's
-   own reference circuit (#551). **Open until the owner confirms** that the
-   image is pullable by the deploy runner, or provides a read token; until
-   then the volare subset stays and #551 stays open.
+   own reference circuit (#551). **Decided (owner, 2026-09-04):** the image
+   is public, so the deploy runner pulls it without a token. #570 builds the
+   simulator on it by digest, and the hosted default library is the
+   continuous `sky130.lib.spice` it ships; on the preview that library
+   loads in under a second and simulates the w=200 device that opened #551,
+   which is closed with the measurements.
 8. **Execution boundary.** Before the hosted route is public: the process
    runs as a non-root user, in a fresh working directory per run, with a
    minimal environment carrying no platform secret; a timeout terminates
