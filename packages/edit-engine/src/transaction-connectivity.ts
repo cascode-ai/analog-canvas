@@ -387,7 +387,6 @@ export function retargetConnectivityEvidenceOwner(
 export function retargetOwnerEvidenceAfterSplit(
   draft: SchematicDocument,
   originalNetId: string,
-  netIdByEndpoint: ReadonlyMap<string, string>,
   changedObjectIds: Set<string>,
 ): void {
   const instanceNetId = (instanceId: string): string | undefined =>

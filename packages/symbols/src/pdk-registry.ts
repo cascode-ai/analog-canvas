@@ -29,9 +29,8 @@ export const reviewedSky130MosModels = {
 export function reviewedSky130MosModelSuggestions(
   symbolId: string,
 ): readonly string[] {
-  return reviewedExternalModelSuggestions(symbolId).filter(
-    (name) => symbolId === "nmos" || symbolId === "pmos",
-  );
+  if (symbolId !== "nmos" && symbolId !== "pmos") return [];
+  return reviewedExternalModelSuggestions(symbolId);
 }
 
 export function resolvePdkSymbolMapping(

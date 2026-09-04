@@ -686,7 +686,6 @@ function endpointLandingAt(
  */
 function landingEdits(
   document: SchematicDocument,
-  resolver: SymbolResolver,
   movedEndpoint: RouteEndpoint,
   movedNetId: string | null,
   landing: EndpointLanding,
@@ -799,7 +798,6 @@ export function proposeLooseRouteTranslation(
       edits.push(
         ...landingEdits(
           document,
-          landing.resolver,
           movedEndpoint,
           route.netId,
           landed,
@@ -1027,7 +1025,6 @@ export function proposeRouteEndpointMove(
     edits.push(
       ...landingEdits(
         base,
-        resolver,
         { kind: "junction", junctionId },
         route.netId,
         landing,

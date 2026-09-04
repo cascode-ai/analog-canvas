@@ -69,7 +69,6 @@ interface CanvasEventHandlerDependencies {
     pendingSymbolId: string | null;
     pendingComponentPlacement: boolean;
     vddRailMode: boolean;
-    copyPlacementActive: boolean;
     waveformPlacementActive: boolean;
     snapPlacementPoint: (point: Point) => Point;
     commitCopyPlacement: (point: Point) => void;
@@ -149,7 +148,6 @@ export function createEditorCanvasEventHandlers({
     pendingSymbolId,
     pendingComponentPlacement,
     vddRailMode,
-    copyPlacementActive,
     waveformPlacementActive,
     snapPlacementPoint,
     commitCopyPlacement,
