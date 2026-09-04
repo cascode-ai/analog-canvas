@@ -31,7 +31,9 @@ function ngspiceVersion(output) {
 }
 
 async function sha256File(path) {
-  return createHash("sha256").update(await readFile(path)).digest("hex");
+  return createHash("sha256")
+    .update(await readFile(path))
+    .digest("hex");
 }
 
 async function sha256Tree(root) {
@@ -109,14 +111,32 @@ function runNgspice(deckPath, timeoutMs) {
     const child = execFile(
       NGSPICE_BIN,
       ["-b", deckPath],
-      { timeout: timeoutMs, maxBuffer: 16 * 1024 * 1024, killSignal: "SIGKILL" },
+      {
+        timeout: timeoutMs,
+        maxBuffer: 16 * 1024 * 1024,
+        killSignal: "SIGKILL",
+      },
       (error, stdout, stderr) => {
         // execFile reports a timeout as a killed process, which is also what
         // a crash looks like; the flag set by the timer is what separates
         // them, because a timeout is an answer and a crash is not.
+        //
+        // A child that died by a signal we did not send (the kernel's OOM
+        // killer, measured on 2026-09-04 while a 1 GiB instance parsed the
+        // Sky130 corner) reports error.code as null, which the first version
+        // of this harness read as exit 0 — a "completed" run with an empty
+        // log. A signal death is a failure, and it says which signal.
+        const signal = error?.signal ?? null;
+        const numericCode = typeof error?.code === "number" ? error.code : null;
+        const exitCode = timedOut
+          ? null
+          : error
+            ? (numericCode ?? (signal ? 128 : 1))
+            : 0;
         resolve({
           log: `${stdout ?? ""}${stderr ?? ""}`,
-          exitCode: timedOut ? null : (error?.code ?? 0),
+          exitCode,
+          signal: timedOut ? null : signal,
           timedOut,
           durationMs: Date.now() - startedAt,
         });
