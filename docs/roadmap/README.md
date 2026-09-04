@@ -8,7 +8,7 @@ boundaries.
 | Area                                                  | Status                                                        | Current authority                                                                                                       |
 | ----------------------------------------------------- | ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | SKY130 production export contract                     | implemented; full-delivery validation complete                | [bounded contract repair](sky130-production-export-contract.md)                                                         |
-| Analog simulation: Cell reuse, Testbench, OP, AC, TRAN, raw SPICE | v11 current discussion plan; contracts and owners consolidated, first hosted Profile pending qualification | [current vertical integration plan](simulation-vertical-integration-plan-v11.md) |
+| Analog simulation: Cell reuse, Testbench, OP, AC, TRAN, raw SPICE | v12 current discussion plan; remote authority, accountable ownership, and hosted simulator lock made executable | [current vertical integration plan](simulation-vertical-integration-plan-v12.md) |
 | Net naming, global projection, and export correctness | proposed C0, P0-P2                                            | [staged boundary and delivery plan](net-naming-resolution-export-p0.md)                                                 |
 | Connectivity, routing, and electrical debugging       | active                                                        | [unification plan](connectivity-routing-debugging-plan.md)                                                              |
 | Browser-authorized Agent sessions                     | implementation validation complete; deployment review pending | [session integration plan](web-agent-session-integration-plan.md) and [web-session spec](../specs/web-agent-session.md) |
@@ -26,7 +26,8 @@ product authority: [v1](simulation-vertical-integration-plan.md) ·
 [v7](simulation-vertical-integration-plan-v7.md) ·
 [v8](simulation-vertical-integration-plan-v8.md) ·
 [v9](simulation-vertical-integration-plan-v9.md) ·
-[v10](simulation-vertical-integration-plan-v10.md).
+[v10](simulation-vertical-integration-plan-v10.md) ·
+[v11](simulation-vertical-integration-plan-v11.md).
 
 ## Active planning rules
 
