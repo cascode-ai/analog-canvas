@@ -32,6 +32,7 @@ import {
   type SimulationResult,
   type SimulationResultData,
 } from "@icm/spice-run";
+import hostedSky130Profile from "../containers/ngspice/hosted-sky130-profile.json";
 
 /** What a container-backed runner has to offer this module. */
 export interface NgspiceRunner {
@@ -65,6 +66,15 @@ export interface SimulationEnv {
 
 /** A deck this large is a mistake upstream, not a simulation worth waking for. */
 const MAX_INPUT_BYTES = 2 * 1024 * 1024;
+
+/**
+ * Cloudflare Containers are owned by a named Durable Object. An image deploy
+ * does not evict an already-warm object immediately, so a fixed key can route
+ * a new Worker to the previous Profile for the rest of its idle lifetime.
+ * Keying the object by the versioned Profile identity makes a Profile change
+ * start a fresh container while unchanged deploys keep their warm instance.
+ */
+const CLOUDFLARE_CONTAINER_INSTANCE_KEY = `profile:${hostedSky130Profile.id}`;
 
 interface SimulationRequestBody {
   netlist?: unknown;
@@ -217,7 +227,7 @@ async function describeRefusal(
 export async function routeSimulationRequest(
   request: Request,
   env: SimulationEnv,
-  runnerKey = "shared",
+  runnerKey = CLOUDFLARE_CONTAINER_INSTANCE_KEY,
 ): Promise<Response | null> {
   const url = new URL(request.url);
   if (url.pathname !== "/api/simulate") return null;

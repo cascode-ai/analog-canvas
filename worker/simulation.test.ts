@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import { createSimulationEnvironmentMetadata } from "@icm/spice-run";
+import hostedSky130Profile from "../containers/ngspice/hosted-sky130-profile.json";
 
 import { routeSimulationRequest, type SimulationEnv } from "./simulation";
 
@@ -59,6 +60,37 @@ const NETLIST = ".subckt amp in out\nM1 out in 0 0 nfet\n.ends\nXA in out amp";
 const TESTBENCH = "V1 in 0 DC 1\n.control\nop\nprint v(out)\n.endc";
 
 describe("simulation route", () => {
+  it("starts a new Cloudflare container generation when the Profile changes", async () => {
+    let selectedKey: string | undefined;
+    const environment: SimulationEnv = {
+      NGSPICE: {
+        getByName: (key) => {
+          selectedKey = key;
+          return {
+            fetch: async () =>
+              Response.json({
+                environment: HOSTED_ENVIRONMENT,
+                log: "ngspice completed",
+                exitCode: 0,
+                timedOut: false,
+                durationMs: 5,
+              }),
+          };
+        },
+      },
+    };
+
+    await routeSimulationRequest(
+      post({
+        netlist: ".subckt divider in out\nR1 in out 1k\n.ends",
+        testbench: "V1 in 0 DC 1\nX1 in out divider\n.op",
+      }),
+      environment,
+    );
+
+    expect(selectedKey).toBe(`profile:${hostedSky130Profile.id}`);
+  });
+
   it("ignores paths that are not its own", async () => {
     expect(
       await routeSimulationRequest(post({}, "/api/gallery"), {}),
