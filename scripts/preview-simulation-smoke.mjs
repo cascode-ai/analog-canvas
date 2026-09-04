@@ -11,6 +11,12 @@ import { pathToFileURL } from "node:url";
 
 const EXECUTORS = ["cloudflare-container", "operator-host"];
 const SHA256 = /^[0-9a-f]{64}$/u;
+const REQUEST_ERRORS = new Set([
+  "deck-too-large",
+  "invalid-json",
+  "invalid-request",
+  "method-not-allowed",
+]);
 
 export const DIVIDER_REQUEST = {
   netlist: [
@@ -58,18 +64,26 @@ export function validatePreviewSimulationResult(payload, expectedTarget) {
   const execution = object(result.execution, "execution metadata");
   if (execution.target !== expectedTarget) {
     throw new Error(
-      `requested ${expectedTarget}, but the Worker reported ${String(execution.target)}.`,
+      `[result:wrong-executor] requested ${expectedTarget}, but the Worker reported ${String(execution.target)}.`,
     );
   }
 
   const outcome = object(result.outcome, "simulation outcome");
   if (outcome.status !== "completed") {
+    const layer = outcome.status === "timed-out" ? "run" : "simulation";
     throw new Error(
-      `${expectedTarget} ended as ${String(outcome.status)}: ${diagnosticSummary(result)}`,
+      `[${layer}:${String(outcome.status)}] ${expectedTarget} did not complete: ${diagnosticSummary(result)}`,
     );
   }
 
   const metadata = object(result.metadata, "run metadata");
+  const input = object(metadata.input, "input metadata");
+  const expectedRevision = `preview-smoke-${expectedTarget}`;
+  if (input.inputRevision !== expectedRevision) {
+    throw new Error(
+      `[result:stale-input] requested ${expectedRevision}, but the Worker returned ${String(input.inputRevision)}.`,
+    );
+  }
   const environment = object(metadata.environment, "environment metadata");
   const simulator = object(environment.simulator, "simulator identity");
   const models = object(environment.models, "model identity");
@@ -147,13 +161,15 @@ export async function runPreviewSimulationSmoke({
     payload = JSON.parse(text);
   } catch {
     throw new Error(
-      `${target} answered HTTP ${response.status} with non-JSON: ${text.slice(0, 400)}`,
+      `[protocol:non-json] ${target} answered HTTP ${response.status}: ${text.slice(0, 400)}`,
     );
   }
   if (!response.ok) {
     const error = object(payload, "simulation refusal");
+    const code = String(error.error ?? `http-${response.status}`);
+    const layer = REQUEST_ERRORS.has(code) ? "request" : "infrastructure";
     throw new Error(
-      `${target} answered HTTP ${response.status}: ${String(error.error ?? "unknown-error")}` +
+      `[${layer}:${code}] ${target} answered HTTP ${response.status}` +
         `${error.reason ? ` (${String(error.reason)})` : ""}` +
         `${error.message ? `: ${String(error.message)}` : ""}`,
     );
@@ -172,7 +188,7 @@ export function validateExecutorParity(results) {
   );
   if (fingerprints.size !== 1) {
     throw new Error(
-      `Preview executors do not share one environment: ${results
+      `[result:environment-mismatch] Preview executors do not share one environment: ${results
         .map((result) => `${result.target}=${result.environmentFingerprint}`)
         .join(", ")}`,
     );

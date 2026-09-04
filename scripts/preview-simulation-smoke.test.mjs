@@ -14,6 +14,7 @@ function result(target, overrides = {}) {
     outcome: { status: "completed" },
     diagnostics: [],
     metadata: {
+      input: { inputRevision: `preview-smoke-${target}` },
       environment: {
         fingerprint: SHA,
         simulator: {
@@ -69,6 +70,20 @@ describe("the Preview dual-executor smoke", () => {
     ).toThrow(/operating-point/u);
   });
 
+  it("refuses a result for a different input revision", () => {
+    expect(() =>
+      validatePreviewSimulationResult(
+        result("operator-host", {
+          metadata: {
+            input: { inputRevision: "preview-smoke-cloudflare-container" },
+            environment: result("operator-host").metadata.environment,
+          },
+        }),
+        "operator-host",
+      ),
+    ).toThrow(/\[result:stale-input\].*preview-smoke-cloudflare-container/u);
+  });
+
   it("refuses two executors that measured different environments", () => {
     expect(() =>
       validateExecutorParity([
@@ -100,7 +115,54 @@ describe("the Preview dual-executor smoke", () => {
           ),
       }),
     ).rejects.toThrow(
-      "operator-host answered HTTP 502: simulator-refused (simulator-busy): one circuit at a time",
+      "[infrastructure:simulator-refused] operator-host answered HTTP 502 (simulator-busy): one circuit at a time",
+    );
+  });
+
+  it("names a malformed smoke request separately from executor failure", async () => {
+    await expect(
+      runPreviewSimulationSmoke({
+        baseUrl: "https://preview.example",
+        target: "cloudflare-container",
+        fetchImpl: async () =>
+          Response.json(
+            {
+              error: "invalid-request",
+              message: "a circuit and testbench are required",
+            },
+            { status: 400 },
+          ),
+      }),
+    ).rejects.toThrow(
+      "[request:invalid-request] cloudflare-container answered HTTP 400: a circuit and testbench are required",
+    );
+  });
+
+  it("keeps a timed-out run separate from an infrastructure refusal", () => {
+    expect(() =>
+      validatePreviewSimulationResult(
+        result("operator-host", {
+          outcome: { status: "timed-out" },
+          diagnostics: [{ text: "the deadline expired" }],
+        }),
+        "operator-host",
+      ),
+    ).toThrow(/\[run:timed-out\].*the deadline expired/u);
+  });
+
+  it("names a non-JSON response as a protocol failure", async () => {
+    await expect(
+      runPreviewSimulationSmoke({
+        baseUrl: "https://preview.example",
+        target: "operator-host",
+        fetchImpl: async () =>
+          new Response("bad gateway", {
+            status: 502,
+            headers: { "content-type": "text/plain" },
+          }),
+      }),
+    ).rejects.toThrow(
+      "[protocol:non-json] operator-host answered HTTP 502: bad gateway",
     );
   });
 });
