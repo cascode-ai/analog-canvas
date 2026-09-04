@@ -3,6 +3,7 @@ import type { MouseEvent as ReactMouseEvent, Ref } from "react";
 import type { Flightline } from "@icm/derived";
 import type { Point } from "@icm/model";
 
+import type { WireDraftPreview } from "../features/wiring/wire-draft-preview";
 import { serializePolylinePoints } from "./canvas-geometry";
 
 type RouteGeometryRecord = {
@@ -22,7 +23,7 @@ export function EditorWiringOverlay({
   onNetLabelEscape,
   flightlines,
   onFlightlineClick,
-  wireDraftPoints,
+  wireDraftPreview,
   bulkRoutePreview,
   snapGuideLayerRef,
 }: {
@@ -40,7 +41,7 @@ export function EditorWiringOverlay({
     event: ReactMouseEvent<SVGLineElement>,
     flightline: Flightline,
   ) => void;
-  wireDraftPoints: readonly Point[];
+  wireDraftPreview: WireDraftPreview;
   bulkRoutePreview: boolean;
   snapGuideLayerRef: Ref<SVGGElement>;
 }) {
@@ -121,7 +122,7 @@ export function EditorWiringOverlay({
           />
         </g>
       ))}
-      {wireDraftPoints.length >= 2 ? (
+      {wireDraftPreview.points.length >= 2 ? (
         <polyline
           data-testid="wire-preview"
           className={
@@ -129,9 +130,25 @@ export function EditorWiringOverlay({
               ? "wire-preview bulk-route-preview"
               : "wire-preview"
           }
-          points={serializePolylinePoints(wireDraftPoints)}
+          points={serializePolylinePoints(wireDraftPreview.points)}
         />
       ) : null}
+      {/* A pin the run passes straight through is a connection the release
+          will make. Drawing the contact is the difference between a wire
+          that looks like it crosses a pin and one that reads as joining
+          it. */}
+      {wireDraftPreview.points.length >= 2
+        ? wireDraftPreview.contacts.map((contact) => (
+            <circle
+              key={`${contact.x}:${contact.y}`}
+              data-testid="wire-preview-contact"
+              className="wire-preview-contact"
+              cx={contact.x}
+              cy={contact.y}
+              r={3}
+            />
+          ))
+        : null}
       <g ref={snapGuideLayerRef} data-layer="snap-guides" />
     </>
   );
