@@ -140,10 +140,16 @@ read-only root filesystem, the run root on a volume the image initialised
 for the run account, no capabilities, a pid limit, 8 CPUs and 16 GiB, on an
 internal Docker network that has no route to the internet; `cloudflared` is
 the only other member of that network and the only container with egress,
-and it starts only once `tunnel.env` holds `TUNNEL_TOKEN`. After a harness
-change, copy `containers/ngspice/` to `build/`, write the commit to
-`build/SOURCE_COMMIT`, and run `bin/rebuild.sh`; `bin/health.sh` asks the
-harness for its health from inside that network. The host has 32 cores; the
+and it starts only once `tunnel.env` holds `TUNNEL_TOKEN`. The
+`Simulator host` workflow (`.github/workflows/simulator-host.yml`) does the
+operating: on every merge that touches `containers/ngspice/` it copies the
+harness to the host, rebuilds, restarts, and verifies `/health` through the
+tunnel; run by hand it can `probe` what the Cloudflare token may do or
+`bootstrap-tunnel` — create the named tunnel, its ingress, and the DNS name,
+and hand the connector token to the host over SSH without ever printing it.
+It reaches the host with the repository secrets `SIM_HOST_ADDR`,
+`SIM_HOST_USER`, `SIM_HOST_SSH_KEY`, and `SIM_HOST_KNOWN_HOSTS`; on the host
+`bin/health.sh` asks the harness for its health from inside that network. The host has 32 cores; the
 harness still runs one job at a time, by its own slot, until the executor
 contract gains a concurrency count.
 
