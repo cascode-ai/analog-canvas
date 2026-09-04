@@ -122,15 +122,14 @@ jobs:
             exit 1
           fi
       # A resistor divider, the smallest circuit ngspice can answer for. It
-      # proves the whole chain: container built, models present, harness up,
-      # Worker talking to it. The circuit's own answer is checked by tests
-      # elsewhere; here the question is only "did a simulation happen".
+      # proves the whole chain: runner available, harness up, Worker talking
+      # to it, rawfile parsed, and the expected number returned.
       - name: Simulate one circuit on the preview
         run: |
           set -euo pipefail
           body="$(node -e '
             const netlist = [".subckt divider in out", "R1 in out 1k", "R2 out 0 1k", ".ends divider"].join("\n");
-            const testbench = ["V1 in 0 DC 1", "X1 in out divider", ".op", ".end"].join("\n");
+            const testbench = ["V1 in 0 DC 1", "X1 in out divider", ".control", "op", "write out.raw", ".endc", ".end"].join("\n");
             process.stdout.write(JSON.stringify({ netlist, testbench, inputRevision: "preview-smoke", timeoutMs: 110000 }));
           ')"
           result="$(curl --silent --show-error --max-time 120 \
@@ -140,14 +139,25 @@ jobs:
             "${PREVIEW_URL}/api/simulate")"
           cat /tmp/preview-simulation.json; echo
           if [ "$result" != "200" ]; then
-            echo "The preview simulator answered HTTP $result; see the body above."
+            node -e '
+              const body = require("/tmp/preview-simulation.json");
+              console.error(`Preview execution infrastructure failed: ${body.error ?? "unknown"}${body.reason ? ` (${body.reason})` : ""}: ${body.message ?? "no message"}`);
+            '
             exit 1
           fi
-          grep -q '"executor":"hosted-container"' /tmp/preview-simulation.json
-          # HTTP 200 is the route answering, not the circuit being solved: a
-          # timed-out or failed run also arrives as 200. The first live run
-          # timed out at 60 s and would have passed a status-only check.
-          if ! grep -q '"status":"completed"' /tmp/preview-simulation.json; then
-            echo "The simulation did not complete; see the outcome above."
-            exit 1
-          fi
+          node -e '
+            const result = require("/tmp/preview-simulation.json");
+            if (result.metadata?.environment?.executor !== "hosted-container") {
+              throw new Error("the runner did not identify the hosted execution environment");
+            }
+            if (result.outcome?.status !== "completed") {
+              const detail = (result.diagnostics ?? []).map(one => one.text).join("; ");
+              throw new Error(`the circuit reached ${result.outcome?.status ?? "no terminal state"}: ${detail}`);
+            }
+            const op = result.data?.analyses?.find(one => one.analysis === "op");
+            const out = op?.probes?.find(one => one.name.toLowerCase() === "v(out)");
+            if (!out || Math.abs(out.value - 0.5) > 1e-9) {
+              throw new Error(`the divider OP result is ${out?.value ?? "missing"}, expected 0.5`);
+            }
+            console.log(`divider v(out): ${out.value}`);
+          '

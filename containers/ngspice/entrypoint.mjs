@@ -33,6 +33,8 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 
+import { SimulationRunSupervisor } from "./run-supervisor.mjs";
+
 const MODEL_ROOT = process.env.SKY130_MODEL_ROOT ?? "/opt/sky130/sky130A";
 const PORT = Number(process.env.PORT ?? 8080);
 
@@ -93,6 +95,10 @@ const DEFAULT_TIMEOUT_MS = 30_000;
  * here because this is the side that pays for it.
  */
 const MAX_TIMEOUT_MS = positiveEnv("SIMULATION_MAX_TIMEOUT_MS", 120_000);
+const LIFECYCLE_GRACE_MS = positiveEnv(
+  "SIMULATION_RUN_LIFECYCLE_GRACE_MS",
+  10_000,
+);
 
 /**
  * Kernel limits handed to the simulator. `RLIMIT_NPROC` is the fork bomb's
@@ -110,9 +116,6 @@ const MAX_TIMEOUT_MS = positiveEnv("SIMULATION_MAX_TIMEOUT_MS", 120_000);
 const MAX_PROCESSES = optionalPositiveEnv("SIMULATION_MAX_PROCESSES");
 /** `ulimit -f` counts 512-byte blocks in dash and 1 KiB blocks in bash. */
 const MAX_FILE_BLOCKS = optionalPositiveEnv("SIMULATION_MAX_FILE_BLOCKS");
-
-/** Seconds a caller is asked to wait when the single slot is taken. */
-const BUSY_RETRY_AFTER_SECONDS = 2;
 
 /** How long the startup identity probe may take before it is given up on. */
 const PROBE_TIMEOUT_MS = positiveEnv("SIMULATION_PROBE_TIMEOUT_MS", 5_000);
@@ -132,6 +135,12 @@ function optionalPositiveEnv(name) {
   const raw = Number(process.env[name]);
   return Number.isFinite(raw) && raw > 0 ? Math.trunc(raw) : null;
 }
+
+const runSupervisor = new SimulationRunSupervisor({
+  defaultTimeoutMs: DEFAULT_TIMEOUT_MS,
+  maxTimeoutMs: MAX_TIMEOUT_MS,
+  lifecycleGraceMs: LIFECYCLE_GRACE_MS,
+});
 
 /**
  * Ask a binary something, with a deadline.
@@ -272,11 +281,9 @@ async function observeEnvironment(ngspiceBin) {
 const LIMITS = {
   deckBytes: MAX_DECK_BYTES,
   outputBytes: MAX_OUTPUT_BYTES,
-  defaultTimeoutMs: DEFAULT_TIMEOUT_MS,
-  maxTimeoutMs: MAX_TIMEOUT_MS,
+  ...runSupervisor.limits,
   maxProcesses: MAX_PROCESSES,
   maxFileBlocks: MAX_FILE_BLOCKS,
-  concurrentRuns: 1,
 };
 
 /**
@@ -318,28 +325,12 @@ const environmentPromise = ngspiceBinaryPromise.then(observeEnvironment);
 // Keep a missing binary or model tree observable through /health and /run
 // instead of letting Node treat the startup probe as an unhandled rejection.
 environmentPromise.catch(() => undefined);
-
-/**
- * One job at a time, held by a flag rather than a queue.
- *
- * This is not `max_instances` wearing another hat. That setting bounds how
- * many containers Cloudflare will run; this bounds how many runs one of them
- * accepts, and it is the only one of the two that a second request inside an
- * already-busy container can see. Refusing is the honest answer: two ngspice
- * processes on one core do not both finish sooner, they both miss their
- * deadline, and the second caller would rather be told to come back.
- */
-let busy = false;
-
-function acquireSlot() {
-  if (busy) return false;
-  busy = true;
-  return true;
-}
-
-function releaseSlot() {
-  busy = false;
-}
+const runtimeReadyPromise = Promise.all([
+  ngspiceBinaryPromise,
+  environmentPromise,
+  runRootPromise,
+]);
+runtimeReadyPromise.catch(() => undefined);
 
 /**
  * A capped sink for one of the simulator's two streams.
@@ -434,28 +425,6 @@ function simulatorCommand(binary) {
 }
 
 /**
- * Kill the run's whole process group.
- *
- * `detached: true` gives the simulator its own session, so its pid is also
- * its process-group id and the negative pid reaches everything it started.
- * Signalling the pid alone was the bug: a deck whose `.control` block shells
- * out leaves the child running with the pipes still open, so the deadline
- * expired and the work did not stop.
- */
-function killProcessGroup(child, signal) {
-  if (typeof child.pid !== "number") return;
-  try {
-    process.kill(-child.pid, signal);
-  } catch {
-    try {
-      child.kill(signal);
-    } catch {
-      // Already gone; nothing to stop.
-    }
-  }
-}
-
-/**
  * Run ngspice in batch mode over one deck, inside one directory.
  *
  * `-b` is batch, so the author's own `.control` block drives the run and we
@@ -464,13 +433,12 @@ function killProcessGroup(child, signal) {
  * streams are captured because ngspice splits its diagnostics across them,
  * and the caller needs both to tell a dropped device from a clean run.
  */
-function runNgspice(binary, directory, timeoutMs) {
+function runNgspice(binary, directory, run) {
   return new Promise((resolve) => {
     const startedAt = Date.now();
     const stdout = createCappedSink(Math.ceil(MAX_OUTPUT_BYTES / 2));
     const stderr = createCappedSink(Math.floor(MAX_OUTPUT_BYTES / 2));
     const { command, args } = simulatorCommand(binary);
-    let timedOut = false;
     let settled = false;
     let exited = null;
     let spawnError = null;
@@ -486,17 +454,14 @@ function runNgspice(binary, directory, timeoutMs) {
       // way for a deck to hang forever waiting on it.
       stdio: ["ignore", "pipe", "pipe"],
     });
-
-    const timer = setTimeout(() => {
-      timedOut = true;
-      killProcessGroup(child, "SIGKILL");
-    }, timeoutMs);
+    run.attachProcess(child);
 
     const settle = () => {
       if (settled) return;
       settled = true;
-      clearTimeout(timer);
       if (graceTimer) clearTimeout(graceTimer);
+      const timedOut = run.timedOut;
+      run.detachProcess(child);
       const signal = exited?.signal ?? null;
       const numericCode = typeof exited?.code === "number" ? exited.code : null;
       // A child that died by a signal we did not send (the kernel's OOM
@@ -531,7 +496,7 @@ function runNgspice(binary, directory, timeoutMs) {
       // Reap anything the deck left behind, then stop waiting for the pipes.
       // A grandchild holding the inherited stdout open is exactly why `close`
       // alone is not the end of a run.
-      killProcessGroup(child, "SIGKILL");
+      run.terminateAttachedProcess();
       graceTimer = setTimeout(settle, 200);
       graceTimer.unref?.();
     });
@@ -613,111 +578,107 @@ async function readRawfile(directory) {
   }
 }
 
-function resolveTimeoutMs(requested) {
-  if (!Number.isFinite(requested)) return DEFAULT_TIMEOUT_MS;
-  return Math.min(Math.max(Math.trunc(requested), 1), MAX_TIMEOUT_MS);
-}
-
 async function handleRun(body) {
   const deck = typeof body?.deck === "string" ? body.deck : null;
   if (!deck) return { status: 400, payload: { error: "missing-deck" } };
   if (Buffer.byteLength(deck, "utf8") > MAX_DECK_BYTES) {
     return { status: 413, payload: { error: "deck-too-large" } };
   }
-  const timeoutMs = resolveTimeoutMs(body?.timeoutMs);
 
-  if (!acquireSlot()) {
+  let runtime;
+  try {
+    runtime = await runtimeReadyPromise;
+  } catch (error) {
     return {
       status: 503,
-      headers: { "retry-after": String(BUSY_RETRY_AFTER_SECONDS) },
+      payload: {
+        error: "simulator-not-ready",
+        message: `The simulator runtime is not ready: ${String(error)}`,
+      },
+    };
+  }
+
+  const [binary, environment, runRoot] = runtime;
+  const admission = await runSupervisor.tryExecute(
+    { timeoutMs: body?.timeoutMs },
+    async (run) => {
+      let directory = null;
+      try {
+        // Every run gets a private cwd, HOME and TMPDIR. The model tree is
+        // outside it and read-only.
+        try {
+          directory = await mkdtemp(join(runRoot, "run-"));
+        } catch (error) {
+          return {
+            status: 500,
+            payload: {
+              error: "run-directory-unavailable",
+              message: `The simulator could not make a directory for this run: ${String(error)}`,
+            },
+          };
+        }
+        await writeFile(join(directory, DECK_NAME), deck, "utf8");
+        await writeFile(
+          join(directory, SPICEINIT_NAME),
+          "set filetype=ascii\n",
+          "utf8",
+        );
+
+        const result = await runNgspice(binary, directory, run);
+        run.phase("collecting");
+        const raw = deckRequestsRawfile(deck)
+          ? await readRawfile(directory)
+          : { rawfile: null, rawfileName: null, rawfileFormat: null };
+
+        const truncatedOutputs = [
+          ...(result.truncated ? ["log"] : []),
+          ...(raw.truncated ? ["rawfile"] : []),
+        ];
+        const log = `${result.stdout}${result.stderr}${
+          result.truncated
+            ? `\n*** output truncated by the simulation harness at ${MAX_OUTPUT_BYTES} bytes ***\n`
+            : ""
+        }`;
+
+        return {
+          status: 200,
+          payload: {
+            log,
+            exitCode: result.exitCode,
+            signal: result.signal,
+            timedOut: result.timedOut,
+            durationMs: result.durationMs,
+            truncated: truncatedOutputs.length > 0,
+            truncatedOutputs,
+            rawfile: raw.rawfile,
+            rawfileName: raw.rawfileName,
+            rawfileFormat: raw.rawfileFormat,
+            limits: { ...LIMITS, timeoutMs: run.timeoutMs },
+            environment,
+          },
+        };
+      } finally {
+        run.phase("cleaning");
+        if (directory) {
+          await rm(directory, { recursive: true, force: true }).catch(() => {});
+        }
+      }
+    },
+  );
+
+  if (admission.kind === "busy") {
+    return {
+      status: 503,
+      headers: { "retry-after": String(admission.retryAfterSeconds) },
       payload: {
         error: "simulator-busy",
         message:
           "This simulator runs one circuit at a time and is running another one.",
-        retryAfterSeconds: BUSY_RETRY_AFTER_SECONDS,
+        retryAfterSeconds: admission.retryAfterSeconds,
       },
     };
   }
-
-  /** Assigned inside the try, read by the finally; null if it never got made. */
-  let directory = null;
-  // Everything from here to the end of the run is inside the slot, so it is
-  // all inside the try that gives the slot back. Making the run's directory
-  // used to sit between the two: a container whose run root was not writable
-  // answered one 500 and then refused every later request as busy, forever,
-  // because the only path that released the slot was never reached. Measured
-  // on the preview channel, 2026-09-04.
-  try {
-    // Every run gets its own directory, made fresh and removed whole. It is
-    // the cwd, so a deck's relative file access lands here and nowhere else;
-    // it is HOME, so the `.spiceinit` ngspice reads is the one written below
-    // and never a shared file another run could have left; and it is TMPDIR.
-    // The model tree the deck includes is outside it and read-only.
-    try {
-      directory = await mkdtemp(join(await runRootPromise, "run-"));
-    } catch (error) {
-      // A run that could not start is not a run that failed. Only this
-      // failure is named here; anything later is the run's own and reaches
-      // the generic handler with its own words.
-      return {
-        status: 500,
-        payload: {
-          error: "run-directory-unavailable",
-          message: `The simulator could not make a directory for this run: ${String(error)}`,
-        },
-      };
-    }
-    await writeFile(join(directory, DECK_NAME), deck, "utf8");
-    // ASCII rawfiles, so `write` produces something a reader can read.
-    // ngspice's default is binary; this is the environment's setting, not an
-    // edit to the deck, and the author's own `.control` block overrides it.
-    await writeFile(
-      join(directory, SPICEINIT_NAME),
-      "set filetype=ascii\n",
-      "utf8",
-    );
-
-    const binary = await ngspiceBinaryPromise;
-    const result = await runNgspice(binary, directory, timeoutMs);
-    const raw = deckRequestsRawfile(deck)
-      ? await readRawfile(directory)
-      : { rawfile: null, rawfileName: null, rawfileFormat: null };
-
-    const truncatedOutputs = [
-      ...(result.truncated ? ["log"] : []),
-      ...(raw.truncated ? ["rawfile"] : []),
-    ];
-    const log = `${result.stdout}${result.stderr}${
-      result.truncated
-        ? `\n*** output truncated by the simulation harness at ${MAX_OUTPUT_BYTES} bytes ***\n`
-        : ""
-    }`;
-
-    return {
-      status: 200,
-      payload: {
-        log,
-        exitCode: result.exitCode,
-        signal: result.signal,
-        timedOut: result.timedOut,
-        durationMs: result.durationMs,
-        truncated: truncatedOutputs.length > 0,
-        truncatedOutputs,
-        rawfile: raw.rawfile,
-        rawfileName: raw.rawfileName,
-        rawfileFormat: raw.rawfileFormat,
-        limits: { ...LIMITS, timeoutMs },
-        environment: await environmentPromise,
-      },
-    };
-  } finally {
-    // The disk does not survive a sleep, but a woken container serves many
-    // runs before sleeping and one author's deck is not another's business.
-    if (directory) {
-      await rm(directory, { recursive: true, force: true }).catch(() => {});
-    }
-    releaseSlot();
-  }
+  return admission.value;
 }
 
 const server = createServer((request, response) => {
@@ -737,20 +698,22 @@ const server = createServer((request, response) => {
     // broken one. The run root is reported because a container that cannot
     // write one answers every run with the same failure, and a deploy check
     // should be able to see that before a circuit does.
-    Promise.all([environmentPromise, runRootPromise]).then(
-      ([environment, runRoot]) =>
-        send(200, {
-          status: "ready",
-          busy,
+    runtimeReadyPromise.then(
+      ([, environment, runRoot]) => {
+        const activity = runSupervisor.snapshot();
+        send(activity.state === "fatal" ? 503 : 200, {
+          status: activity.state === "fatal" ? "not-ready" : "ready",
+          activity,
           limits: LIMITS,
           runRoot,
           ...(runRootFailures.length > 0 ? { runRootFailures } : {}),
           environment,
-        }),
+        });
+      },
       (error) =>
         send(503, {
           status: "not-ready",
-          busy,
+          activity: runSupervisor.snapshot(),
           limits: LIMITS,
           error: String(error),
         }),

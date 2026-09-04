@@ -195,13 +195,23 @@ describe("the single slot", () => {
       });
       // Wait for the slot to actually be taken rather than for a duration:
       // /health answers during a run precisely so this is observable.
+      let activeHealth = null;
       for (let attempt = 0; attempt < 100; attempt += 1) {
         const health = await (
           await fetch(`http://127.0.0.1:${port}/health`)
         ).json();
-        if (health.busy === true) break;
+        if (health.activity?.state === "active") {
+          activeHealth = health;
+          break;
+        }
         await wait(50);
       }
+      expect(activeHealth?.activity).toMatchObject({
+        state: "active",
+        phase: "running",
+      });
+      expect(activeHealth?.activity.heldMs).toBeGreaterThanOrEqual(0);
+      expect(activeHealth?.activity.deadlineInMs).toBeGreaterThan(0);
 
       const second = await run(port, { deck: "* second\n.end\n" });
       expect(second.status).toBe(503);
@@ -417,11 +427,11 @@ describe("health", () => {
 
     const response = await fetch(`http://127.0.0.1:${port}/health`);
     const payload = await response.json();
-
     expect(response.status).toBe(200);
     expect(payload.status).toBe("ready");
-    expect(payload.busy).toBe(false);
+    expect(payload.activity).toEqual({ state: "idle" });
     expect(payload.limits.concurrentRuns).toBe(1);
+    expect(payload.limits.lifecycleGraceMs).toBeGreaterThan(0);
     expect(payload.limits.outputBytes).toBeGreaterThan(0);
     expect(payload.environment.executor).toBe("hosted-container");
     expect(payload.environment.simulator.name).toBe("ngspice");
@@ -473,8 +483,9 @@ describe("a run root that cannot be written", () => {
       expect(second.status).toBe(500);
       expect(second.payload.error).toBe("run-directory-unavailable");
       expect(
-        (await (await fetch(`http://127.0.0.1:${port}/health`)).json()).busy,
-      ).toBe(false);
+        (await (await fetch(`http://127.0.0.1:${port}/health`)).json())
+          .activity,
+      ).toEqual({ state: "idle" });
     },
   );
 
