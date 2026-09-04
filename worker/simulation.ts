@@ -23,6 +23,8 @@ import {
   isSimulationInputRevision,
   readNgspiceDiagnostics,
   resolveTimeoutMs,
+  SKY130_LIBRARY_PATH,
+  SKY130_LIBRARY_SECTION,
   simulationConfigurationMetadata,
   verifySimulationEnvironmentMetadata,
   type ModelLibrarySelection,
@@ -45,8 +47,6 @@ export interface SimulationEnv {
 
 // The continuous (unbinned) Sky130 library the benchmark image ships; the
 // binned checkout it also carries caps device width at 100 µm (#551).
-const DEFAULT_LIB_PATH = "/opt/sky130/continuous/sky130.lib.spice";
-const DEFAULT_LIB_SECTION = "tt";
 
 /** A deck this large is a mistake upstream, not a simulation worth waking for. */
 const MAX_INPUT_BYTES = 2 * 1024 * 1024;
@@ -127,8 +127,8 @@ export async function routeSimulationRequest(
     modelLibrary = deckNeedsModelLibrary(`${netlist}\n${testbench}`)
       ? {
           directive: "lib",
-          path: env.SKY130_LIB_PATH ?? DEFAULT_LIB_PATH,
-          section: env.SKY130_LIB_SECTION ?? DEFAULT_LIB_SECTION,
+          path: env.SKY130_LIB_PATH ?? SKY130_LIBRARY_PATH,
+          section: env.SKY130_LIB_SECTION ?? SKY130_LIBRARY_SECTION,
         }
       : null;
     deck = buildSimulationDeck({ netlist, testbench }, modelLibrary);

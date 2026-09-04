@@ -206,6 +206,27 @@ export function deckNeedsModelLibrary(text: string): boolean {
  * The model library line is the one thing we contribute, because the author
  * cannot know the container's paths. Everything after it is theirs verbatim.
  */
+/**
+ * The one Sky130 library this product simulates against, at the path the
+ * pinned container image puts it.
+ *
+ * There is deliberately no search. A machine with a volare or ciel checkout
+ * has the BINNED model set, which is a different library: its widest
+ * `nfet_01v8` bin stops at 100 um, so the benchmark suite's own reference
+ * devices do not resolve at all, and the circuits that do resolve answer
+ * differently -- on the five-transistor OTA the unity-gain bandwidth moves
+ * 11% (#551). Falling back to whatever a machine happens to have would mean
+ * two runs of the same circuit disagreeing with no way to tell which library
+ * answered, which is worse than not running.
+ *
+ * `SKY130_LIB_PATH` overrides it for a host that mounts the same library
+ * somewhere else. It is not a way to select a different one.
+ */
+export const SKY130_LIBRARY_PATH = "/opt/sky130/continuous/sky130.lib.spice";
+
+/** The corner every surface defaults to. */
+export const SKY130_LIBRARY_SECTION = "tt";
+
 export function buildSimulationDeck(
   request: Pick<SimulationRequest, "netlist" | "testbench">,
   modelLibrary: ModelLibrarySelection | null,

@@ -18,7 +18,7 @@
 import { execFile } from "node:child_process";
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { homedir, tmpdir } from "node:os";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 
@@ -30,6 +30,7 @@ import {
   printSpiceNetlist,
 } from "../packages/netlist/dist/index.js";
 import { importSpiceSources } from "../packages/spice/dist/index.js";
+import { SKY130_LIBRARY_PATH } from "../packages/spice-run/dist/index.js";
 
 const run = promisify(execFile);
 const workspace = process.cwd();
@@ -51,25 +52,20 @@ function skip(reason) {
   process.exit(0);
 }
 
-// The binned Sky130 library, wherever this machine keeps it. A volare or ciel
-// checkout is the usual answer; the container image lays it out under /opt.
+// The one library, at the path the pinned container image puts it. There is
+// deliberately no search of the machine: a volare or ciel checkout holds the
+// BINNED model set, which is a different library that answers differently and
+// refuses the benchmark's own reference devices outright. Silently using it
+// would make this script's numbers incomparable with the product's, which is
+// the one thing it exists to rule out.
 function findModelLibrary() {
-  // An explicitly given path that is not there is an error, never a reason to
-  // quietly use a different one. Which library answers decides the numbers
-  // this script compares, so substituting one silently would report a
-  // comparison the caller did not ask for.
   const fromEnv = process.env.SKY130_LIB_PATH;
   if (fromEnv && !existsSync(fromEnv)) {
     console.error(`SKY130_LIB_PATH points at nothing: ${fromEnv}`);
     process.exit(1);
   }
-  const candidates = [
-    ...(fromEnv ? [fromEnv] : []),
-    join(homedir(), ".volare/sky130A/libs.tech/ngspice/sky130.lib.spice"),
-    join(homedir(), ".ciel/sky130A/libs.tech/ngspice/sky130.lib.spice"),
-    "/opt/sky130/sky130A/libs.tech/ngspice/sky130.lib.spice",
-  ];
-  return candidates.find((path) => existsSync(path));
+  const path = fromEnv ?? SKY130_LIBRARY_PATH;
+  return existsSync(path) ? path : undefined;
 }
 
 async function findNgspice() {
@@ -149,7 +145,11 @@ const ngspice = await findNgspice();
 if (!ngspice) skip("ngspice is not on PATH");
 const libraryPath = findModelLibrary();
 if (!libraryPath) {
-  skip("no Sky130 ngspice library found (set SKY130_LIB_PATH to point at one)");
+  skip(
+    `no Sky130 library at ${SKY130_LIBRARY_PATH}. It comes from the pinned ` +
+      `container image, not from a PDK checkout; set SKY130_LIB_PATH if this ` +
+      `host mounts that same library elsewhere.`,
+  );
 }
 
 const referencePath = resolve(
