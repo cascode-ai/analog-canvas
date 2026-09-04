@@ -103,6 +103,23 @@ jobs:
             echo "list dns:      (zone not visible to this token)"
           fi
 
+      - name: Install the tracked host lifecycle bundle
+        if: github.event_name == 'push' || inputs.action != 'probe'
+        env:
+          SIMULATION_ACCESS_TOKEN: ${{ secrets.SIMULATION_UPSTREAM_TOKEN }}
+        run: |
+          set -euo pipefail
+          [ -n "$SIMULATION_ACCESS_TOKEN" ] || { echo "::error::SIMULATION_UPSTREAM_TOKEN is empty"; exit 1; }
+          release="analog-canvas-sim/releases/$GITHUB_SHA"
+          ssh sim "rm -rf ~/$release && mkdir -p ~/$release"
+          tar -cf - containers/ngspice | ssh sim "tar -xf - -C ~/$release"
+          printf '%s\n' "$GITHUB_SHA" | ssh sim "cat > ~/$release/SOURCE_COMMIT"
+          ssh sim "chmod 755 ~/$release/containers/ngspice/host/*.sh ~/$release/containers/ngspice/verify-host-runtime.sh"
+          ssh sim "~/$release/containers/ngspice/host/bootstrap.sh"
+          # The access token travels over SSH on stdin and is never an
+          # argument, a log line, or a file in the checkout.
+          printf '%s' "$SIMULATION_ACCESS_TOKEN" | ssh sim 'umask 077; { printf "SIMULATION_ACCESS_TOKEN="; cat; printf "\n"; } > ~/analog-canvas-sim/secrets/runtime.env'
+
       - name: Create the tunnel, its ingress, and its DNS name; hand the token to the host
         if: github.event_name == 'workflow_dispatch' && inputs.action == 'bootstrap-tunnel'
         env:
@@ -158,20 +175,15 @@ jobs:
           # The connector token goes to the host and nowhere else.
           token_json="$(curl --silent "${auth[@]}" "$base/accounts/$account_id/cfd_tunnel/$tunnel_id/token")"
           echo "$token_json" | jq -e '.success' >/dev/null || fail "reading the tunnel token failed" "$token_json"
-          echo "$token_json" | jq -r '.result' | ssh sim 'umask 077; { printf "TUNNEL_TOKEN="; cat; } > ~/analog-canvas-sim/tunnel.env && echo "tunnel.env written ($(wc -c < ~/analog-canvas-sim/tunnel.env) bytes)"'
-          ssh sim '~/analog-canvas-sim/bin/up.sh'
+          echo "$token_json" | jq -r '.result' | ssh sim 'umask 077; { printf "TUNNEL_TOKEN="; cat; } > ~/analog-canvas-sim/secrets/tunnel.env && echo "tunnel.env written ($(wc -c < ~/analog-canvas-sim/secrets/tunnel.env) bytes)"'
+          ssh sim "~/analog-canvas-sim/releases/$GITHUB_SHA/containers/ngspice/host/deploy.sh"
 
-      - name: Copy the harness to the host, rebuild, restart
+      - name: Build and deploy the tracked host topology
         if: github.event_name == 'push' || inputs.action == 'deploy'
         run: |
           set -euo pipefail
-          ssh sim 'mkdir -p ~/analog-canvas-sim/build/containers/ngspice ~/analog-canvas-sim/bin'
-          scp -q containers/ngspice/Dockerfile containers/ngspice/entrypoint.mjs containers/ngspice/run-supervisor.mjs sim:~/analog-canvas-sim/build/containers/ngspice/
-          scp -q containers/ngspice/verify-host-runtime.sh sim:~/analog-canvas-sim/bin/verify-runtime.sh
-          ssh sim 'chmod 755 ~/analog-canvas-sim/bin/verify-runtime.sh'
-          echo "${GITHUB_SHA::8}" | ssh sim 'cat > ~/analog-canvas-sim/build/SOURCE_COMMIT'
-          ssh sim '~/analog-canvas-sim/bin/rebuild.sh'
-          ssh sim '~/analog-canvas-sim/bin/verify-runtime.sh'
+          ssh sim "~/analog-canvas-sim/releases/$GITHUB_SHA/containers/ngspice/host/deploy.sh"
+          ssh sim '~/analog-canvas-sim/current/containers/ngspice/verify-host-runtime.sh'
 
       - name: Verify the host answers through its tunnel
         if: github.event_name == 'push' || inputs.action != 'probe'
@@ -182,7 +194,7 @@ jobs:
           # and says so, rather than failing for the tunnel's absence.
           if [ -z "$(ssh sim 'docker ps --quiet --filter name=^analog-canvas-tunnel$')" ]; then
             echo "::notice::no tunnel is running on the host yet; verifying inside its network"
-            ssh sim '~/analog-canvas-sim/bin/health.sh' > /tmp/health.json
+            ssh sim '~/analog-canvas-sim/current/containers/ngspice/host/health.sh' > /tmp/health.json
             jq -e '.status == "ready"' /tmp/health.json >/dev/null || { echo "::error::the harness is not ready on the host"; cat /tmp/health.json || true; exit 1; }
             echo "ready on the host: ngspice $(jq -r '.environment.simulator.version' /tmp/health.json)"
             exit 0

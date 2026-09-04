@@ -32,6 +32,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Validate the operator-host topology
+        env:
+          SIMULATION_ACCESS_TOKEN: ci-contract-token
+          TUNNEL_TOKEN: ci-contract-token
+          SIMULATION_IMAGE_TAG: pr
+        run: |
+          docker compose --project-name analog-canvas-sim \
+            --profile tunnel \
+            -f containers/ngspice/host/compose.yaml \
+            config --quiet
+
       - name: Build the image
         run: docker build -t icm-ngspice:pr -f containers/ngspice/Dockerfile .
 

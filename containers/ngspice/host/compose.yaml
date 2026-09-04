@@ -1,0 +1,58 @@
+name: analog-canvas-sim
+
+services:
+  simulator:
+    image: analog-canvas-ngspice:${SIMULATION_IMAGE_TAG:-local}
+    build:
+      context: ../../..
+      dockerfile: containers/ngspice/Dockerfile
+    container_name: analog-canvas-ngspice
+    environment:
+      SIMULATION_ACCESS_TOKEN: ${SIMULATION_ACCESS_TOKEN:?set SIMULATION_ACCESS_TOKEN in the host runtime env}
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    cpus: 8.0
+    mem_limit: 16g
+    volumes:
+      - run-root:/var/lib/simulation
+    networks:
+      - simulation
+
+  tunnel:
+    image: cloudflare/cloudflared:2025.8.1@sha256:b77d84e8704db38db22c22661cf7e56468c526e3a6a5fe9c8b7c151452fa1472
+    container_name: analog-canvas-tunnel
+    profiles:
+      - tunnel
+    command:
+      - tunnel
+      - --no-autoupdate
+      - run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:-}
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    networks:
+      tunnel-egress:
+        gw_priority: 1
+      simulation: {}
+
+volumes:
+  run-root:
+    name: analog-canvas-simulation-run-root
+
+networks:
+  simulation:
+    name: analog-canvas-sim-internal
+    internal: true
+  tunnel-egress:
+    name: analog-canvas-tunnel-egress
