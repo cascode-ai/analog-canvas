@@ -1,12 +1,13 @@
 # Deployment
 
-How a merge to `main` becomes the live site, what protects it, and — the part
-worth reading twice — what those protections do **not** cover.
+How a release becomes the live site, what a merge to `main` becomes instead
+(the preview), what protects production, and — the part worth reading twice —
+what those protections do **not** cover.
 
 ## Today: deploy, verify, roll back
 
-A push to `main` deploys the Worker, then verifies it against the running
-site: `/`, `/editor`, `/analytics`, the MCP manifest, and the stale-asset
+A release (a `v*` tag, or a manual dispatch naming a commit) deploys the
+Worker, then verifies it against the running site: `/`, `/editor`, `/analytics`, the MCP manifest, and the stale-asset
 fallback. If verification fails, the pipeline restores the version that was
 serving before the deploy, verifies **that**, and fails the run anyway.
 
@@ -91,81 +92,38 @@ Cloud Project write, and is where the simulation container is bound first. Nothi
 staging environment below is retired once production moves to release-only
 deploys.
 
-## Staging before production
+## Releasing to production
 
-A staging environment (`env.staging` in `wrangler.jsonc`) deploys first, gets
-the same verification against its own hostname, and production runs only if
-staging did not fail. Merging to `main` no longer reaches the public without
-something having looked at the build first.
+Every merge to `main` deploys the **preview** (`deploy-preview.yml`) and
+verifies it, container and all. Production deploys only from a release, and
+the release workflow refuses a commit that has no successful preview deploy
+behind it. Two ways to release a commit `<sha>` that the preview has proved:
 
-**Staging is private, and it fails closed.** The gate in
-`worker/staging-gate.ts` refuses every request unless the caller carries the
-shared key, and refuses _everyone_ when no key is configured at all — which is
-the state a freshly provisioned environment starts in. An unlisted hostname is
-not privacy: search engines index what gets linked, and a half-built product
-answering to the public is worse than having no staging. The key may arrive as
-a header, a cookie, or a one-time `?key=` that is immediately traded for a
-cookie so the secret leaves the address bar and the browser history. The
-staging verification asserts the refusal too: a staging that admits an
-anonymous caller fails its own deploy.
+```bash
+git tag v0.3.0 <sha> && git push origin v0.3.0
+```
 
-**Promotion is automatic by default, and manual when the version changes.** An
-ordinary merge flows through staging to production without anyone waiting; a
-version bump stops at an approval gate.
+```bash
+gh workflow run "Deploy Cloudflare" -f sha=<sha>
+```
 
-**Staging declares no routes, deliberately.** `routes` is an inheritable key
-in `wrangler.jsonc`, so an environment that does not override it inherits the
-production custom domain, and `wrangler deploy --env staging` then attaches
-`analog-canvas.tokenzhang.com` to the staging script. That happened on
-2026-09-03: the public site kept serving its cached shell while every script
-request met the staging gate's 401, so the site looked up and was blank.
-`env.staging` therefore sets `"routes": []` and is reachable only through its
-workers.dev hostname, and the staging job records how the production domain
-answers for its own script before the deploy and fails if that answer changed
-afterwards. The comparison is against the earlier answer rather than against
-"200" so that a domain which is already wrong does not block the production
-deploy that re-attaches it.
+A hotfix takes the same road: merge to `main`, let the preview deploy and
+verify, tag that commit. Work on `main` that is not ready for the public
+ships dark behind the channel flag (`ICM_CHANNEL`), never on a long-lived
+branch.
 
-**Staging has no rollback, deliberately.** Nothing public serves from it, so a
-bad staging deploy is a failed gate rather than an outage — it simply stops
-production from happening. Rollback stays where the users are.
+The simulation container is bound on the preview (`wrangler.preview.jsonc`)
+and not yet in `wrangler.jsonc`; production gains it when a release carries
+that configuration change, like any other.
 
-### Until it is provisioned
+### The retired staging environment
 
-The staging job **skips itself** when `STAGING_ACCESS_KEY` is absent, and
-production proceeds exactly as before. This is why the code could land before
-the Cloudflare environment existed: an unprovisioned staging that blocked
-deploys would jam the pipeline for everybody, which is the failure this
-repository already spent a night recovering from. Provisioning needs a second
-Worker script, a hostname for it, and three repository secrets
-(`STAGING_ACCESS_KEY`, `STAGING_URL`, and the existing Cloudflare credentials
-already present).
-
-### The limit to state plainly
-
-**Staging's Durable Object namespaces are empty.** They bind to the Worker
-script name, so a separate script gets separate, empty storage — no gallery
-entries, no accounts, no agent sessions. That is good for safety: staging
-cannot touch real data.
-
-It also means staging proves less than it appears to:
-
-- It **does** catch "the site does not come up", which is exactly the class of
-  failure that caused the 2026-09-01 outage.
-- It **does not** catch "this particular circuit breaks when opened", or any
-  defect that needs real accounts, real gallery entries, or real sessions to
-  reproduce.
-
-Passing staging is evidence that the deployment is viable, never that the
-change is correct. The production verification and the rollback remain the
-protection that matters for everything staging cannot see.
-
-### Simulation is not enabled on staging
-
-The ngspice container is deliberately absent there. Container time is billed
-per environment, and a broken simulation route does not take the site down.
-Staging verifies only that the route exists and refuses correctly — which is
-what the route does when no container is bound.
+`env.staging` and the Worker-side access gate were retired by ADR 0057 after
+the 2026-09-03 outage, when a staging deploy inherited the production custom
+domain. **Deleting the configuration does not delete the deployed Worker.**
+`interactive-circuit-maker-staging` keeps answering with its last build until
+someone deletes it in the Cloudflare dashboard, which also discards the
+`STAGING_ACCESS_KEY` secret that was set on it.
 
 ## When production is broken
 
