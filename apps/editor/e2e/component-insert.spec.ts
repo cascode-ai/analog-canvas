@@ -1606,7 +1606,9 @@ test("opens named full-width Project examples from the toolbar", async ({
   const exampleList = panel.locator(".shapes-example-list");
   const examples = exampleList.locator(".shapes-example-card");
   await expect(panel).toHaveAttribute("data-open", "true");
-  await expect(examples).toHaveCount(4);
+  // One card per bundled example in apps/editor/src/examples/library-examples.ts;
+  // the fifth is the Sky130 five-transistor OTA with its testbench.
+  await expect(examples).toHaveCount(5);
   expect(
     await exampleList.evaluate(
       (element) =>
