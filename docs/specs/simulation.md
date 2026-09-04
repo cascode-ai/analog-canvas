@@ -2,7 +2,8 @@
 
 Status: accepted
 
-Owners: `packages/spice-run`, `apps/local-host`, `worker`
+Owners: `packages/spice-run`, `apps/local-host`, `worker`,
+`containers/ngspice`
 
 Related decision: [ADR 0055](../adr/0055-simulation-is-part-of-the-product.md)
 
@@ -251,6 +252,101 @@ minimums before either is offered to the public:
 - `GET /health` reports the observed environment facts of the metadata
   envelope so a deployment can be verified without running a circuit.
 
+### How the hosted container meets it
+
+The numbers below belong to `containers/ngspice` and are enforced there,
+independently of anything the Worker in front of it checked. The Worker's
+request shape is unchanged by any of it; the response fields are additive.
+None of it depends on which base image is pinned: the base is a build
+argument and its digest is the environment lock.
+
+**Account and filesystem.** The harness and the simulator run as uid 10001.
+The simulator, the model tree, and the harness are not writable by that
+account — the harness is stripped of every write bit at build time, while the
+base image's own trees are corrected only where a file is group- or
+other-writable, because a recursive `chmod` over gigabytes of models would
+double the image for a tree that is already root-owned. That the property
+holds is asserted, not assumed: the container workflow tries to write each
+path as the run account and requires failure.
+
+Each run gets a private directory, made immediately before it and removed
+whole immediately after it however it ended. That directory is the
+simulator's working directory, its `HOME`, and its `TMPDIR`, and it is the
+only writable location the simulator is given, so one author's deck can
+neither read nor overwrite what another's wrote. The deck is written there as
+`deck.cir` and named relatively, so no host path appears in the log the
+author reads.
+
+**Environment.** The simulator's environment is constructed, not inherited:
+`PATH`, `HOME`, `TMPDIR`, `TERM`, and a `C` locale, and nothing else. A
+`.control` block can print its environment, and nothing the hosting platform
+placed in the harness's own is a simulator input. The identity probe that
+names the simulator at startup runs under the same environment, and under a
+five-second deadline — `/health` and the first run both wait on its answer,
+so a binary that never returns from `--version` would otherwise leave the
+container permanently not-ready and unable to say why.
+
+The run's directory holds a `.spiceinit` containing `set filetype=ascii`, so
+`write` produces the ASCII rawfile that [Result data](#result-data) is read
+from.
+That is an environment setting, not an edit to the deck: the author's own
+`.control` block overrides it, and the deck's text is never modified.
+
+**Deadline.** The simulator is started in its own session and the deadline
+signals the whole process group. A deck whose `.control` block shells out
+otherwise leaves a child running past the deadline it was started under,
+still writing, with the container's slot already given to the next caller.
+
+**Limits.**
+
+| Limit | Value | Enforced by |
+| --- | --- | --- |
+| Deck size | 2 MiB | rejected `413 deck-too-large` |
+| Request body | 4 MiB | connection closed, `413 request-too-large` |
+| Returned output | 1 MiB per run | truncation, reported |
+| Default deadline | 30 s | applied when the caller names none |
+| Maximum deadline | 120 s | a longer request is clamped to it |
+| Identity probe | 5 s | given up on, not waited for |
+| Processes | 128 (`RLIMIT_NPROC`) | image-set `ulimit` before `exec` |
+| Written file size | 256 MiB (`RLIMIT_FSIZE`) | image-set `ulimit` before `exec` |
+
+The returned-output cap is divided between the simulator's two streams, so a
+flood of printed values on one cannot push the single line that explains the
+run off the end of the other. The two kernel limits are set by the image
+rather than defaulted by the harness, because `RLIMIT_NPROC` counts every
+process the account owns and a number chosen for a container that runs one
+simulator is wrong anywhere else.
+
+**Added response fields.** A consumer that does not read these is unaffected.
+
+```ts
+interface ContainerRunResponse {
+  /** Capped; carries a one-line notice in the text when it was cut. */
+  log: string;
+  /** True when the log or the rawfile reached the cap. */
+  truncated: boolean;
+  truncatedOutputs: ("log" | "rawfile")[];
+  /** The rawfile's text when the deck asked for one and it is ASCII. */
+  rawfile: string | null;
+  rawfileName: string | null;
+  rawfileFormat: "ascii" | "binary" | null;
+  /** The limits above, with the deadline this run actually got. */
+  limits: Record<string, number | null>;
+}
+```
+
+A truncated result says so rather than arriving quietly shortened, because a
+shortened log read as a whole one is a wrong answer about a circuit. The
+rawfile is returned when the deck contains `.save` or `write`, verbatim and
+under the same cap; turning its vectors into numbers is
+[Result data](#result-data) and is not done here.
+
+**Readiness.** `GET /health` answers during a run as well as between runs,
+reporting the environment facts, the limits, and whether the slot is taken. A
+check that can only ask when the container is idle cannot tell a busy
+simulator from a broken one. A missing simulator binary or model tree answers
+`503 not-ready` rather than a success with absent facts.
+
 ## Run lifecycle
 
 The service exposes `prepare`, `start`, `read`, `cancel`, and `export`.
@@ -452,5 +548,17 @@ release. A deployment without the binding answers
   `analog-arena`, exported by this product and simulated against the
   reference netlist under one testbench, agreeing on node voltages, gain,
   and unity-gain bandwidth.
+- `containers/ngspice/entrypoint.test.mjs` starts the harness as a real
+  process and asserts the execution boundary against stand-in simulators
+  that misbehave deliberately: a private directory per run that is removed
+  afterwards, a constructed environment, the single slot's `503` and
+  `Retry-After`, a deadline that kills a forked grandchild, the clamped
+  deadline ceiling, output and rawfile truncation, and readiness.
+- `.github/workflows/container.yml` builds the image on every pull request
+  that touches it and asks the built image itself: that it runs as the
+  unprivileged account, that the simulator, models, and harness refuse that
+  account's writes, that the pinned base still carries the continuous
+  library, that a resistor divider comes back with its operating point and
+  its rawfile, and that a second concurrent run is refused.
 - The preview deploy simulates one circuit through the real container on
   every merge.
