@@ -775,6 +775,254 @@ describe("Project structural transaction", () => {
     });
   });
 
+  it("sets, keeps, and clears the Project simulation setup as structural edits", () => {
+    const project = createEmptyProject("project", "Project");
+    const testbench = createEmptyDocument("document-testbench", "Testbench");
+    project.documents.push(testbench);
+    const setup = {
+      version: 1 as const,
+      input: {
+        kind: "structured" as const,
+        rootDocumentId: testbench.id,
+        analyses: [
+          { kind: "op" as const },
+          {
+            kind: "ac" as const,
+            sweep: "dec" as const,
+            points: 10,
+            startHz: 1,
+            stopHz: 1e6,
+          },
+        ],
+        probes: [
+          {
+            id: "probe-out",
+            kind: "net-voltage" as const,
+            documentId: testbench.id,
+            netId: "net-out",
+            occurrence: [],
+          },
+        ],
+        environment: { profileId: "sky130-core-continuous-ngspice46-v1" },
+      },
+    };
+    const actor = { kind: "human" as const, id: "human-local" };
+
+    const set = executeProjectTransaction(project, {
+      transactionId: "set-setup",
+      projectId: project.id,
+      expectedStructureRevision: 0,
+      actor,
+      edits: [{ kind: "set_simulation_setup", setup }],
+    });
+    expect(set).toMatchObject({
+      ok: true,
+      applied: true,
+      structureRevision: 1,
+      project: { simulation: setup },
+    });
+    expect(project).not.toHaveProperty("simulation");
+    if (!set.ok) return;
+
+    // The same setup again is not a change and does not spend a revision.
+    const unchanged = executeProjectTransaction(set.project, {
+      transactionId: "same-setup",
+      projectId: project.id,
+      expectedStructureRevision: 1,
+      actor,
+      edits: [{ kind: "set_simulation_setup", setup: structuredClone(setup) }],
+    });
+    expect(unchanged).toMatchObject({
+      ok: true,
+      applied: false,
+      structureRevision: 1,
+    });
+
+    const rerooted = executeProjectTransaction(set.project, {
+      transactionId: "replace-setup",
+      projectId: project.id,
+      expectedStructureRevision: 1,
+      actor,
+      edits: [
+        {
+          kind: "set_simulation_setup",
+          setup: {
+            ...setup,
+            input: {
+              ...setup.input,
+              rootDocumentId: project.topDocumentId,
+              analyses: [{ kind: "op" }],
+            },
+          },
+        },
+      ],
+    });
+    expect(rerooted).toMatchObject({
+      ok: true,
+      applied: true,
+      structureRevision: 2,
+      project: {
+        simulation: {
+          input: {
+            rootDocumentId: project.topDocumentId,
+            analyses: [{ kind: "op" }],
+          },
+        },
+      },
+    });
+    if (!rerooted.ok) return;
+
+    const cleared = executeProjectTransaction(rerooted.project, {
+      transactionId: "clear-setup",
+      projectId: project.id,
+      expectedStructureRevision: 2,
+      actor,
+      edits: [{ kind: "set_simulation_setup", setup: null }],
+    });
+    expect(cleared).toMatchObject({
+      ok: true,
+      applied: true,
+      structureRevision: 3,
+    });
+    if (!cleared.ok) return;
+    expect(cleared.project).not.toHaveProperty("simulation");
+
+    expect(
+      executeProjectTransaction(cleared.project, {
+        transactionId: "clear-absent-setup",
+        projectId: project.id,
+        expectedStructureRevision: 3,
+        actor,
+        edits: [{ kind: "set_simulation_setup", setup: null }],
+      }),
+    ).toMatchObject({ ok: true, applied: false, structureRevision: 3 });
+  });
+
+  it("rejects a simulation setup whose root is not a Cell and protects the root Cell", () => {
+    const project = createEmptyProject("project", "Project");
+    const testbench = createEmptyDocument("document-testbench", "Testbench");
+    project.documents.push(testbench);
+    const actor = { kind: "agent" as const, id: "agent" };
+    const setupFor = (rootDocumentId: string) => ({
+      version: 1 as const,
+      input: {
+        kind: "structured" as const,
+        rootDocumentId,
+        analyses: [{ kind: "op" as const }],
+        probes: [],
+        environment: { profileId: "sky130-core-continuous-ngspice46-v1" },
+      },
+    });
+
+    expect(
+      executeProjectTransaction(project, {
+        transactionId: "unknown-root",
+        projectId: project.id,
+        expectedStructureRevision: 0,
+        actor,
+        edits: [
+          { kind: "set_simulation_setup", setup: setupFor("document-missing") },
+        ],
+      }),
+    ).toMatchObject({
+      ok: false,
+      error: {
+        code: "OBJECT_NOT_FOUND",
+        message: "Simulation root Document does not exist: document-missing",
+      },
+    });
+
+    expect(
+      executeProjectTransaction(project, {
+        transactionId: "stale-setup",
+        projectId: project.id,
+        expectedStructureRevision: 4,
+        actor,
+        edits: [
+          { kind: "set_simulation_setup", setup: setupFor(testbench.id) },
+        ],
+      }),
+    ).toMatchObject({ ok: false, error: { code: "STALE_STRUCTURE_REVISION" } });
+
+    expect(
+      executeProjectTransaction(project, {
+        transactionId: "malformed-setup",
+        projectId: project.id,
+        expectedStructureRevision: 0,
+        actor,
+        edits: [
+          {
+            kind: "set_simulation_setup",
+            setup: {
+              ...setupFor(testbench.id),
+              input: { ...setupFor(testbench.id).input, lastRunId: "run-1" },
+            },
+          },
+        ],
+      }),
+    ).toMatchObject({ ok: false, error: { code: "INVALID_TRANSACTION" } });
+
+    // A root that is added in the same transaction is a valid root; a root
+    // removed in the same transaction is not.
+    const bench2 = createEmptyDocument("document-bench-2", "Bench2");
+    expect(
+      executeProjectTransaction(project, {
+        transactionId: "add-and-root",
+        projectId: project.id,
+        expectedStructureRevision: 0,
+        actor,
+        edits: [
+          { kind: "add_document", document: bench2 },
+          { kind: "set_simulation_setup", setup: setupFor(bench2.id) },
+        ],
+      }),
+    ).toMatchObject({
+      ok: true,
+      applied: true,
+      project: { simulation: { input: { rootDocumentId: bench2.id } } },
+    });
+
+    const configured = executeProjectTransaction(project, {
+      transactionId: "root-testbench",
+      projectId: project.id,
+      expectedStructureRevision: 0,
+      actor,
+      edits: [{ kind: "set_simulation_setup", setup: setupFor(testbench.id) }],
+    });
+    if (!configured.ok) throw new Error("setup was not applied");
+    expect(
+      executeProjectTransaction(configured.project, {
+        transactionId: "delete-root",
+        projectId: project.id,
+        expectedStructureRevision: 1,
+        actor,
+        edits: [{ kind: "remove_document", documentId: testbench.id }],
+      }),
+    ).toMatchObject({
+      ok: false,
+      error: {
+        code: "EDIT_PRECONDITION",
+        message: `Cell ${testbench.id} is the simulation root; clear or re-root the simulation setup first`,
+      },
+    });
+    expect(
+      executeProjectTransaction(configured.project, {
+        transactionId: "clear-then-delete-root",
+        projectId: project.id,
+        expectedStructureRevision: 1,
+        actor,
+        edits: [
+          { kind: "set_simulation_setup", setup: null },
+          { kind: "remove_document", documentId: testbench.id },
+        ],
+      }),
+    ).toMatchObject({
+      ok: true,
+      applied: true,
+      project: { documents: [{ id: project.topDocumentId }] },
+    });
+  });
+
   it("removes an Instance before deleting its now-unreferenced Cell", () => {
     const project = createEmptyProject("project", "Project");
     const child = createEmptyDocument("document-child", "Child");

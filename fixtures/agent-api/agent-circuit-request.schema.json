@@ -14713,6 +14713,69 @@
           "properties": {
             "kind": {
               "type": "string",
+              "const": "set_simulation_setup"
+            },
+            "setup": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "version": {
+                      "type": "number",
+                      "const": 1
+                    },
+                    "input": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "$ref": "#/$defs/__schema372"
+                        },
+                        "rootDocumentId": {
+                          "$ref": "#/$defs/__schema1"
+                        },
+                        "analyses": {
+                          "$ref": "#/$defs/__schema373"
+                        },
+                        "probes": {
+                          "$ref": "#/$defs/__schema380"
+                        },
+                        "environment": {
+                          "$ref": "#/$defs/__schema383"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "rootDocumentId",
+                        "analyses",
+                        "probes",
+                        "environment"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "version",
+                    "input"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "setup"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
               "const": "transact_document"
             },
             "documentId": {
@@ -15051,6 +15114,185 @@
       },
       "required": [
         "name"
+      ],
+      "additionalProperties": false
+    },
+    "__schema372": {
+      "type": "string",
+      "const": "structured"
+    },
+    "__schema373": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/__schema374"
+      }
+    },
+    "__schema374": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "op"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "$ref": "#/$defs/__schema375"
+            },
+            "sweep": {
+              "$ref": "#/$defs/__schema376"
+            },
+            "points": {
+              "$ref": "#/$defs/__schema377"
+            },
+            "startHz": {
+              "$ref": "#/$defs/__schema378"
+            },
+            "stopHz": {
+              "$ref": "#/$defs/__schema379"
+            }
+          },
+          "required": [
+            "kind",
+            "sweep",
+            "points",
+            "startHz",
+            "stopHz"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "__schema375": {
+      "type": "string",
+      "const": "ac"
+    },
+    "__schema376": {
+      "type": "string",
+      "enum": [
+        "dec",
+        "oct",
+        "lin"
+      ]
+    },
+    "__schema377": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991
+    },
+    "__schema378": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "__schema379": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "__schema380": {
+      "maxItems": 1024,
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/__schema381"
+      }
+    },
+    "__schema381": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/__schema1"
+            },
+            "kind": {
+              "type": "string",
+              "const": "net-voltage"
+            },
+            "documentId": {
+              "$ref": "#/$defs/__schema1"
+            },
+            "netId": {
+              "$ref": "#/$defs/__schema1"
+            },
+            "occurrence": {
+              "$ref": "#/$defs/__schema382"
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "documentId",
+            "netId",
+            "occurrence"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/__schema1"
+            },
+            "kind": {
+              "type": "string",
+              "const": "source-current"
+            },
+            "documentId": {
+              "$ref": "#/$defs/__schema1"
+            },
+            "instanceId": {
+              "$ref": "#/$defs/__schema1"
+            },
+            "occurrence": {
+              "$ref": "#/$defs/__schema382"
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "documentId",
+            "instanceId",
+            "occurrence"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "__schema382": {
+      "maxItems": 64,
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/__schema1"
+      }
+    },
+    "__schema383": {
+      "type": "object",
+      "properties": {
+        "profileId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "corner": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "temperatureC": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "profileId"
       ],
       "additionalProperties": false
     }

@@ -1,5 +1,6 @@
 import {
   createEmptyProject,
+  CURRENT_PROJECT_SCHEMA_VERSION,
   flattenRichText,
   semanticTextDocument,
 } from "@icm/model";
@@ -96,12 +97,12 @@ describe("schema 35 to 36 Instance Reference Annotation migration", () => {
     });
   });
 
-  it("loads schema 35 through the contiguous chain into schema 36", () => {
+  it("loads schema 35 through the contiguous chain into the current schema", () => {
     const parsed = parseProjectWithMetadata(JSON.stringify(schema35Project()));
 
     expect(parsed.sourceSchemaVersion).toBe(35);
     expect(parsed.migrated).toBe(true);
-    expect(parsed.project.schemaVersion).toBe(36);
+    expect(parsed.project.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
     expect(parsed.project.documents[0]!.annotations[0]!.binding).toEqual({
       kind: "instance-reference",
       instanceId: "copied-mos",

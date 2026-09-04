@@ -171,6 +171,54 @@ describe("design netlist printers", () => {
     expect(printSpectreNetlist(ir)).not.toContain("initial=");
   });
 
+  it("prints an independent source's AC magnitude and phase after its DC value", () => {
+    const ir = structuralIr();
+    // The extractor sorts parameters by name, so `acMagnitude` precedes `dc`
+    // in the IR; the card order is the printer's, not the author's.
+    ir.cells[1]!.instances.push(
+      device("vin", "VIN", "voltage-source", ["vin", "0"], null, [
+        ["acMagnitude", "1"],
+        ["dc", "0.9"],
+      ]),
+      device("iac", "IAC", "current-source", ["vout", "0"], null, [
+        ["acMagnitude", "1u"],
+        ["acPhase", "-90"],
+        ["dc", "0"],
+      ]),
+    );
+
+    const spice = printSpiceNetlist(ir);
+    expect(spice).toContain("\nVIN vin 0 DC 0.9 AC 1 0\n");
+    expect(spice).toContain("\nIAC vout 0 DC 0 AC 1u -90\n");
+    expect(spice).not.toContain("acMagnitude=");
+    expect(spice).not.toContain("acPhase=");
+    const spectre = printSpectreNetlist(ir);
+    expect(spectre).toContain("\nVIN (vin 0) vsource dc=0.9 mag=1 phase=0\n");
+    expect(spectre).toContain("\nIAC (vout 0) isource dc=0 mag=1u phase=-90\n");
+    expect(spectre).not.toContain("acMagnitude=");
+    // The DC-only sources beside them print exactly as they always have.
+    expect(spice).toContain("\nV1 vin 0 DC 1.2\n");
+    expect(spice).toContain("\nI1 VDD 0 DC 10u\n");
+    expect(spectre).toContain("\nV1 (vin 0) vsource dc=1.2\n");
+    expect(spectre).toContain("\nI1 (VDD 0) isource dc=10u\n");
+  });
+
+  it("does not print an AC phase that has no magnitude to accompany", () => {
+    const ir = structuralIr();
+    ir.cells[1]!.instances.push(
+      device("vphase", "VPHASE", "voltage-source", ["vin", "0"], null, [
+        ["acPhase", "45"],
+        ["dc", "1"],
+        ["temp", "27"],
+      ]),
+    );
+
+    expect(printSpiceNetlist(ir)).toContain("\nVPHASE vin 0 DC 1 temp=27\n");
+    expect(printSpectreNetlist(ir)).toContain(
+      "\nVPHASE (vin 0) vsource dc=1 temp=27\n",
+    );
+  });
+
   it("prints a voltage-controlled switch as its four-node S card", () => {
     const ir = structuralIr();
     ir.cells[1]!.instances.push(

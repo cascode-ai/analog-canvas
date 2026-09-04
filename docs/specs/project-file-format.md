@@ -2,14 +2,14 @@
 
 Status: `accepted`
 
-Current Project schema: `36`
+Current Project schema: `37`
 
 Primary owners: `packages/model` (current shape) and
 `packages/project-protocol` (file boundary)
 
 An `.icproj.json` file is canonical JSON for one complete `CircuitProject`.
 `@icm/project-protocol` exposes `parseProject`. The file boundary accepts every
-schema covered by its explicit 24→36 upgrade chain. Schema 32 added optional
+schema covered by its explicit 24→37 upgrade chain. Schema 32 added optional
 presentation-only `Annotation.textColor`; schema 33 removes ownerless
 `explicit-equivalence` connectivity. The 32→33 adapter advances the version
 stamp only when that retired record is absent. If one exists, it rejects at the
@@ -25,8 +25,13 @@ attached literal Annotation, converts ordinary default labels to
 `instance-reference`, and removes fabricated marker references. Schema 36
 repairs reference-shaped labels that schema 35 accidentally materialized as
 literal text and preserves their RichText as a mapped same-text presentation.
-The public file boundary supplies only schema 36 in memory and writes only
-schema 36; versions older than 24 or newer than 36 are rejected.
+Schema 37 adds the optional Project `simulation` field: one persisted
+`SimulationSetup` (ADR 0055) naming the Testbench root Cell, the analyses, the
+probes, and the environment Profile selection. Results and run data never
+enter the file. An absent field means no authored setup, which is every
+existing Project, so the 36→37 adapter rewrites nothing.
+The public file boundary supplies only schema 37 in memory and writes only
+schema 37; versions older than 24 or newer than 37 are rejected.
 
 ## Current authorities
 
@@ -91,12 +96,20 @@ schema 36; versions older than 24 or newer than 36 are rejected.
   Symbol geometry remains derived and caller Instances never persist a copy.
 - MOS assets are canonical `nmos`/`pmos`; visual variant selection does not
   change persisted terminal connectivity.
+- `Project.simulation` is the optional `SimulationSetup` defined in the
+  [simulation spec](simulation.md#persistence-and-compatibility): a
+  `version: 1` envelope around one structured input whose `rootDocumentId`
+  must name a Document of the Project, whose analyses hold at most one entry
+  per kind, and whose probe ids are unique. It stores only a Profile ID plus
+  the author's corner and temperature selections. Source stimulus values
+  (`dc`, `acMagnitude`, `acPhase`) are typed netlist parameters of the source
+  Instances, never a copy inside the setup.
 
 ## Read and write
 
 ```text
-import text -> parse JSON -> require Project schema 24 through 36
--> converge to schema 36 -> strict schema-36 validation -> install unbound
+import text -> parse JSON -> require Project schema 24 through 37
+-> converge to schema 37 -> strict schema-37 validation -> install unbound
 export -> strict validation -> canonical key ordering -> Blob download
 ```
 
@@ -107,7 +120,7 @@ after explicit human approval in the editor.
 A migrated imported file is marked dirty. The editor never overwrites a source
 selected through the browser file input; the user may Save it as a Cloud
 Project or explicitly export upgraded bytes. Browser recovery records may be
-canonicalized to v36 only after a successful validated write.
+canonicalized to v37 only after a successful validated write.
 
 Project entry does not physically merge Base Nets. Matching authoritative names
 resolve as one Logical Net; conflicting claims remain a blocking diagnostic.
@@ -120,7 +133,7 @@ open, and recovery remain exact.
 Canonical serialization ends with one newline and is byte-stable across
 serialize/parse/serialize. The current corpus is listed in
 `fixtures/projects/compatibility-corpus.json`; its accepted entries must all be
-already canonical Project schema 36. The rejected corpus names expected
+already canonical Project schema 37. The rejected corpus names expected
 validation failures.
 
 Viewport, selection, undo history, canvas overlays, Agent credentials,

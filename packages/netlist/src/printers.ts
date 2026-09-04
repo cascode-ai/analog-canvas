@@ -55,6 +55,48 @@ function isPulseSource(instance: DesignNetlistInstance): boolean {
   return parameter(instance.parameters, "period") !== undefined;
 }
 
+/**
+ * The small-signal stimulus of an independent source, authored as the formal
+ * `acMagnitude`/`acPhase` parameters of its device descriptor
+ * (`docs/specs/simulation.md`, "Sources and analyses"). The phase defaults
+ * to 0 once a magnitude exists; a phase without a magnitude has no card to
+ * ride on and is not printed, so the deck never carries a stimulus the
+ * schematic does not.
+ */
+const AC_PARAMETER_NAMES = ["acMagnitude", "acPhase"] as const;
+
+function acStimulus(
+  instance: DesignNetlistInstance,
+): { magnitude: string; phase: string } | null {
+  const magnitude = parameter(instance.parameters, "acMagnitude");
+  if (magnitude === undefined) return null;
+  return {
+    magnitude,
+    phase: parameter(instance.parameters, "acPhase") ?? "0",
+  };
+}
+
+/** `DC <dc> [AC <magnitude> <phase>]` plus every remaining assignment. */
+function spiceDcSourceTokens(instance: DesignNetlistInstance): string[] {
+  const ac = acStimulus(instance);
+  return [
+    "DC",
+    parameter(instance.parameters, "dc")!,
+    ...(ac ? ["AC", ac.magnitude, ac.phase] : []),
+    ...assignments(instance.parameters, ["dc", ...AC_PARAMETER_NAMES]),
+  ];
+}
+
+/** `dc=<dc> [mag=<magnitude> phase=<phase>]` plus every remaining assignment. */
+function spectreDcSourceValues(instance: DesignNetlistInstance): string[] {
+  const ac = acStimulus(instance);
+  return [
+    `dc=${parameter(instance.parameters, "dc")!}`,
+    ...(ac ? [`mag=${ac.magnitude}`, `phase=${ac.phase}`] : []),
+    ...assignments(instance.parameters, ["dc", ...AC_PARAMETER_NAMES]),
+  ];
+}
+
 function wrapSpice(tokens: readonly string[], width = 100): string[] {
   const lines: string[] = [];
   let line = "";
@@ -96,22 +138,10 @@ function spiceInstance(instance: DesignNetlistInstance): string[] {
             ).join(" ")})`,
             ...assignments(instance.parameters, ALL_CLOCK_PARAMETER_NAMES),
           ]
-        : [
-            reference,
-            ...nodes,
-            "DC",
-            parameter(instance.parameters, "dc")!,
-            ...assignments(instance.parameters, ["dc"]),
-          ];
+        : [reference, ...nodes, ...spiceDcSourceTokens(instance)];
       break;
     case "current-source":
-      tokens = [
-        reference,
-        ...nodes,
-        "DC",
-        parameter(instance.parameters, "dc")!,
-        ...assignments(instance.parameters, ["dc"]),
-      ];
+      tokens = [reference, ...nodes, ...spiceDcSourceTokens(instance)];
       break;
     case "mos":
     case "diode":
@@ -209,17 +239,11 @@ function spectreInstance(instance: DesignNetlistInstance): string {
             ),
             ...assignments(instance.parameters, ALL_CLOCK_PARAMETER_NAMES),
           ]
-        : [
-            `dc=${parameter(instance.parameters, "dc")!}`,
-            ...assignments(instance.parameters, ["dc"]),
-          ];
+        : spectreDcSourceValues(instance);
       break;
     case "current-source":
       master = "isource";
-      values = [
-        `dc=${parameter(instance.parameters, "dc")!}`,
-        ...assignments(instance.parameters, ["dc"]),
-      ];
+      values = spectreDcSourceValues(instance);
       break;
     case "mos":
     case "diode":

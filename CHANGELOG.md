@@ -40,6 +40,13 @@ version, and returns the same results.
 **This release covers DC operating point and AC analysis.** Transient, sweeps,
 and corner runs follow once this path is proven.
 
+**A Project remembers its simulation setup.** Which Cell is the testbench,
+which analyses and probes to run, and which simulator profile to use are saved
+in the Project file beside the circuit (schema 37) and follow save, undo, and
+the Gallery like everything else; voltage and current sources gain AC magnitude
+and phase fields for the small-signal stimulus, and results themselves are
+never saved.
+
 ### Drawing
 
 **Move a part without dragging its wires along.** `Shift+M` arms the move and

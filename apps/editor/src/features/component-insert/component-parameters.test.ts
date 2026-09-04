@@ -79,6 +79,32 @@ describe("component parameter catalogue", () => {
     );
   });
 
+  it("offers a source's AC magnitude and phase through the ordinary parameter path", () => {
+    // No source-specific UI: the descriptor's formal AC parameters arrive as
+    // ordinary optional fields, blank on placement so a new source stays
+    // DC-only until an author types a magnitude.
+    for (const [symbolId, unit] of [
+      ["voltage-source", "V"],
+      ["current-source", "A"],
+    ] as const) {
+      expect(componentParameters(symbolId)).toMatchObject([
+        { key: "dc", unit },
+        { key: "acMagnitude", label: "AC magnitude", unit },
+        { key: "acPhase", label: "AC phase", unit: "deg" },
+      ]);
+      expect(
+        componentParameters(symbolId).some(
+          (parameter) => parameter.compatibilityOnly,
+        ),
+      ).toBe(false);
+      expect(initialComponentParameterValues(symbolId)).toEqual({
+        dc: "",
+        acMagnitude: "",
+        acPhase: "",
+      });
+    }
+  });
+
   it("uses typed netlist parameters as the single component-value authority", () => {
     const parameter = componentParameters("nmos")[0]!;
     const instance: Instance = {

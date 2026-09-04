@@ -7,7 +7,9 @@ import {
   CircuitProjectSchema,
   DraftTextSchema,
   SchematicDocumentSchema,
+  SimulationSetupSchema,
 } from "./schema.js";
+import type { SimulationSetup } from "./schema.js";
 
 describe("CircuitProject schema", () => {
   it("accepts only the three persisted polarity-label forms", () => {
@@ -793,6 +795,166 @@ describe("presentation style overrides", () => {
     expect(
       CircuitProjectSchema.safeParse(projectWithOverrides({ glowIntensity: 1 }))
         .success,
+    ).toBe(false);
+  });
+});
+
+describe("SimulationSetup schema", () => {
+  function setup(): SimulationSetup {
+    return {
+      version: 1,
+      input: {
+        kind: "structured",
+        rootDocumentId: "testbench",
+        analyses: [
+          { kind: "op" },
+          { kind: "ac", sweep: "dec", points: 20, startHz: 1, stopHz: 1e9 },
+        ],
+        probes: [
+          {
+            id: "probe-out",
+            kind: "net-voltage",
+            documentId: "testbench",
+            netId: "net-out",
+            occurrence: [],
+          },
+          {
+            id: "probe-tail",
+            kind: "source-current",
+            documentId: "ota",
+            instanceId: "I1",
+            occurrence: ["X1"],
+          },
+        ],
+        environment: {
+          profileId: "sky130-core-continuous-ngspice46-v1",
+          corner: "tt",
+          temperatureC: 27,
+        },
+      },
+    };
+  }
+
+  function projectWithSetup(simulation: unknown) {
+    const project = createEmptyProject("simulated", "Simulated", "testbench");
+    project.documents.push(createEmptyDocument("ota", "OTA"));
+    return { ...project, simulation };
+  }
+
+  it("is optional on a Project and round-trips the frozen structured shape", () => {
+    const project = createEmptyProject("plain", "Plain");
+    expect(CircuitProjectSchema.parse(project)).not.toHaveProperty(
+      "simulation",
+    );
+    expect(SimulationSetupSchema.parse(setup())).toEqual(setup());
+    const parsed = CircuitProjectSchema.parse(projectWithSetup(setup()));
+    expect(parsed.simulation).toEqual(setup());
+    expect(CircuitProjectJsonSchema).toMatchObject({
+      properties: { simulation: expect.anything() },
+    });
+  });
+
+  it("requires the simulation root to be a Document of the Project", () => {
+    const orphaned = setup();
+    orphaned.input.rootDocumentId = "missing-testbench";
+    const result = CircuitProjectSchema.safeParse(projectWithSetup(orphaned));
+    expect(result.success).toBe(false);
+    expect(result.error?.issues).toEqual([
+      expect.objectContaining({
+        message: "Unknown simulation root document: missing-testbench",
+        path: ["simulation", "input", "rootDocumentId"],
+      }),
+    ]);
+  });
+
+  it("holds one analysis per kind and unique probe ids", () => {
+    const repeatedAnalysis = setup();
+    repeatedAnalysis.input.analyses.push({ kind: "op" });
+    expect(
+      SimulationSetupSchema.safeParse(repeatedAnalysis).error?.issues,
+    ).toEqual([
+      expect.objectContaining({
+        message: "Duplicate simulation analysis: op",
+        path: ["input", "analyses", 2, "kind"],
+      }),
+    ]);
+    const repeatedProbe = setup();
+    repeatedProbe.input.probes.push({ ...repeatedProbe.input.probes[0]! });
+    expect(
+      SimulationSetupSchema.safeParse(repeatedProbe).error?.issues,
+    ).toEqual([
+      expect.objectContaining({
+        message: "Duplicate ID: probe-out",
+        path: ["input", "probes", 2, "id"],
+      }),
+    ]);
+    const noAnalysis = setup();
+    noAnalysis.input.analyses = [];
+    expect(SimulationSetupSchema.safeParse(noAnalysis).success).toBe(false);
+  });
+
+  it("bounds the AC sweep and the environment selection", () => {
+    const ac = (overrides: Record<string, unknown>) => {
+      const candidate = setup();
+      candidate.input.analyses = [
+        {
+          kind: "ac",
+          sweep: "dec",
+          points: 10,
+          startHz: 10,
+          stopHz: 1e6,
+          ...overrides,
+        } as SimulationSetup["input"]["analyses"][number],
+      ];
+      return SimulationSetupSchema.safeParse(candidate).success;
+    };
+    expect(ac({})).toBe(true);
+    expect(ac({ sweep: "lin" })).toBe(true);
+    expect(ac({ sweep: "log" })).toBe(false);
+    expect(ac({ points: 0 })).toBe(false);
+    expect(ac({ points: 2.5 })).toBe(false);
+    expect(ac({ startHz: 0 })).toBe(false);
+    expect(ac({ stopHz: 10 })).toBe(false);
+    expect(ac({ stopHz: 5 })).toBe(false);
+    expect(ac({ stopHz: Number.POSITIVE_INFINITY })).toBe(false);
+    expect(ac({ tstop: 1 })).toBe(false);
+    expect(
+      SimulationSetupSchema.safeParse({
+        ...setup(),
+        input: { ...setup().input, analyses: [{ kind: "tran" }] },
+      }).success,
+    ).toBe(false);
+
+    const environment = (overrides: Record<string, unknown>) => {
+      const candidate = setup();
+      candidate.input.environment = {
+        ...candidate.input.environment,
+        ...overrides,
+      } as SimulationSetup["input"]["environment"];
+      return SimulationSetupSchema.safeParse(candidate).success;
+    };
+    expect(environment({ corner: undefined, temperatureC: undefined })).toBe(
+      true,
+    );
+    expect(environment({ profileId: "" })).toBe(false);
+    expect(environment({ corner: "" })).toBe(false);
+    expect(environment({ temperatureC: Number.NaN })).toBe(false);
+    expect(environment({ modelLibraryPath: "/opt/sky130" })).toBe(false);
+  });
+
+  it("rejects transient run data and unknown input forms", () => {
+    expect(
+      SimulationSetupSchema.safeParse({ ...setup(), lastRunId: "run-1" })
+        .success,
+    ).toBe(false);
+    expect(
+      SimulationSetupSchema.safeParse({ ...setup(), version: 2 }).success,
+    ).toBe(false);
+    expect(
+      SimulationSetupSchema.safeParse({
+        version: 1,
+        input: { kind: "raw", entryPath: "tb.cir", files: [] },
+      }).success,
     ).toBe(false);
   });
 });

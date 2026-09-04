@@ -2,6 +2,7 @@ import {
   CircuitProjectSchema,
   ExternalSubcircuitDefinitionSchema,
   SchematicDocumentSchema,
+  SimulationSetupSchema,
   type CircuitProject,
   type SchematicDocument,
 } from "@icm/model";
@@ -53,6 +54,16 @@ export const ProjectStructureEditSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("remove_external_subcircuit_definition"),
     definitionId: z.string().min(1),
+  }),
+  /**
+   * Replace or clear the Project's one persisted `SimulationSetup` (ADR 0055).
+   * A non-null setup replaces the current one whole and must name a Document
+   * of the Project as its root; `null` clears it. Source values stay on the
+   * source Instances and are edited through ordinary Document edits.
+   */
+  z.strictObject({
+    kind: z.literal("set_simulation_setup"),
+    setup: SimulationSetupSchema.nullable(),
   }),
   z.strictObject({
     kind: z.literal("transact_document"),
@@ -322,6 +333,16 @@ export function executeProjectTransaction(
           "The top Cell cannot be deleted",
         );
       }
+      if (edit.documentId === candidate.simulation?.input.rootDocumentId) {
+        // Deleting the Testbench would leave the setup pointing nowhere, and
+        // dropping the setup silently would lose authored intent; the author
+        // clears or re-roots it first, in the same transaction if they like.
+        return rejectProjectTransaction(
+          project,
+          "EDIT_PRECONDITION",
+          `Cell ${edit.documentId} is the simulation root; clear or re-root the simulation setup first`,
+        );
+      }
       const caller = candidate.documents.flatMap((document) =>
         document.instances.flatMap((instance) => {
           const binding = instance.netlist?.binding;
@@ -477,6 +498,37 @@ export function executeProjectTransaction(
         );
       }
       candidate.externalSubcircuitDefinitions.splice(index, 1);
+      structuralChange = true;
+      continue;
+    }
+
+    if (edit.kind === "set_simulation_setup") {
+      if (edit.setup === null) {
+        if (candidate.simulation === undefined) continue;
+        delete candidate.simulation;
+        structuralChange = true;
+        continue;
+      }
+      const rootDocumentId = edit.setup.input.rootDocumentId;
+      if (
+        !candidate.documents.some((document) => document.id === rootDocumentId)
+      ) {
+        return rejectProjectTransaction(
+          project,
+          "OBJECT_NOT_FOUND",
+          `Simulation root Document does not exist: ${rootDocumentId}`,
+        );
+      }
+      // Both sides are schema outputs with the schema's key order, so equal
+      // JSON is equal intent; an unchanged setup does not advance the
+      // structure revision, matching `rename_project`.
+      if (
+        candidate.simulation !== undefined &&
+        JSON.stringify(candidate.simulation) === JSON.stringify(edit.setup)
+      ) {
+        continue;
+      }
+      candidate.simulation = structuredClone(edit.setup);
       structuralChange = true;
       continue;
     }

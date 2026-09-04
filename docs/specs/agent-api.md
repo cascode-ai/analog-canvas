@@ -96,7 +96,8 @@ inference algorithm.
 - Reuse a `requestId` only for an exact-payload retry. A different payload with
   the same ID is rejected.
 - A Snapshot or whole Project is never accepted as a mutation payload;
-  structural transactions contain only typed add/remove/transact operations.
+  structural transactions contain only typed add/remove/transact operations
+  and the Project-level `set_simulation_setup` edit.
 - GUI and Agent writes cross the same Edit Engine and permission checks.
 
 After commit, render and then request a fresh Snapshot for final verification.

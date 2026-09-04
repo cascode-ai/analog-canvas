@@ -138,6 +138,44 @@ describe("built-in device registry", () => {
     });
   });
 
+  it("gives independent sources formal AC magnitude and phase beside their DC value", () => {
+    for (const [id, unit] of [
+      ["voltage-source", "V"],
+      ["current-source", "A"],
+    ] as const) {
+      expect(deviceDescriptor(id)).toMatchObject({
+        parameters: [
+          { name: "dc", required: true, unitHint: unit, displayRole: "value" },
+          {
+            name: "acMagnitude",
+            required: false,
+            unitHint: unit,
+            displayRole: "none",
+          },
+          {
+            name: "acPhase",
+            required: false,
+            unitHint: "deg",
+            displayRole: "none",
+          },
+        ],
+      });
+      // The AC fields are optional and default to nothing: a placed source is
+      // DC-only until an author writes a magnitude, and the printed card never
+      // carries a value the schematic does not.
+      expect(
+        deviceDescriptor(id)!
+          .parameters.filter((parameter) => parameter.name.startsWith("ac"))
+          .every((parameter) => parameter.defaultValue === undefined),
+      ).toBe(true);
+    }
+    expect(
+      deviceDescriptor("pulse-voltage-source")!.parameters.map(
+        (parameter) => parameter.name,
+      ),
+    ).not.toContain("acMagnitude");
+  });
+
   it("defines a Digital Clock authoring profile over the two-terminal pulse protocol", () => {
     expect(deviceDescriptor("pulse-voltage-source")).toMatchObject({
       deviceClass: "voltage-source",

@@ -108,4 +108,20 @@ export type PresentationIntent = z.infer<
 export type LayoutGroup = z.infer<typeof Schema.LayoutGroupSchema>;
 export type LayoutConstraint = z.infer<typeof Schema.LayoutConstraintSchema>;
 export type SchematicDocument = z.infer<typeof Schema.SchematicDocumentSchema>;
+export type SimulationAcAnalysis = z.infer<
+  typeof Schema.SimulationAcAnalysisSchema
+>;
+export type SimulationAnalysisSpec = z.infer<
+  typeof Schema.SimulationAnalysisSpecSchema
+>;
+export type SimulationProbeSpec = z.infer<
+  typeof Schema.SimulationProbeSpecSchema
+>;
+export type SimulationEnvironmentSelection = z.infer<
+  typeof Schema.SimulationEnvironmentSelectionSchema
+>;
+export type SimulationStructuredInput = z.infer<
+  typeof Schema.SimulationStructuredInputSchema
+>;
+export type SimulationSetup = z.infer<typeof Schema.SimulationSetupSchema>;
 export type CircuitProject = z.infer<typeof Schema.CircuitProjectSchema>;
