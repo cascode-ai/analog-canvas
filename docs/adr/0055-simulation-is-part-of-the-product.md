@@ -157,3 +157,95 @@ The version moves `0.1.0` to `0.2.0` to mark the scope change, and a
 - ADR 0054 for the single Instance Reference authority the netlist prints.
 - `analog-arena` `benchmarks/v2` for the circuit and testbench shapes this
   targets.
+
+## Amendment — 2026-09-04: the contract of the first release, frozen
+
+The owner asked for the simulation feature to be finished on the preview
+channel (ADR 0057) and promoted to production afterwards. The vertical
+integration plan written for that work (v3, in the roadmap branch) reviewed
+the implementation as it stood and found the pieces present but not joined:
+the panel not mounted, no producer of operating-point results, the
+requested analyses not driving the deck, runs returning only a log, and no
+container bound anywhere. This amendment freezes what the first release is,
+so the joining work has one contract to build against. The rules below
+supersede the sentences of the original decision they contradict; the
+[simulation spec](../specs/simulation.md) carries the normative detail.
+
+1. **Analyses.** The first structured release covers DC operating point,
+   AC, and transient. Transient uses `.tran tstep tstop [tstart [tmax]]`
+   with no `UIC` unless the author asks; the solver's real time axis is the
+   result, never a resampled one.
+2. **What is simulatable.** A circuit is simulatable when every placed
+   instance resolves either to a native SPICE primitive the deck printer
+   knows (resistors, capacitors, inductors, independent voltage and current
+   sources, ground) or to a device model present in the selected
+   environment. The original rule required a PDK model behind every
+   instance; that would have refused an ideal resistor. Abstract blocks are
+   still refused, by name, before anything runs.
+3. **Two inputs, one run.** The author's intent is the authority. It is
+   expressed either as a **structured** setup the product compiles into a
+   deck, or as **raw SPICE** the author submits as an entry file with its
+   dependencies. Exactly one of the two drives a run; the product never
+   appends stimulus, analyses, or a root call to raw text and never guesses
+   a testbench. "The testbench is the author's" keeps its meaning and drops
+   the implied requirement that it be hand-written: helpers may generate
+   text, and the author submits it.
+4. **Roots.** The simulation root is a Cell chosen for one setup
+   (`rootDocumentId`); it is not the Project's top and choosing it never
+   changes the top. The compiled deck instantiates that root exactly once;
+   a document that only defines `.subckt`s is not a run.
+5. **Sources.** DC bias, AC magnitude and phase, and a transient waveform
+   are components of the same source instance, printed by the descriptor.
+   `PULSE` and `SIN` are formal parameters in the first release; `PWL`
+   arrives through raw input. The existing pulse source keeps its symbol
+   and its clock-style parameters, which are normalised into the same
+   waveform parameters rather than becoming a second authority.
+6. **Persistence.** A Project may carry one optional `SimulationSetup`
+   holding either the structured input or the raw files. Results, run ids,
+   simulator paths, and caches are never persisted. The schema version
+   moves when the setup lands, not before.
+7. **Environment.** The hosted simulator is a container image pinned by
+   digest, and the model set is part of that pin. Direction chosen: the
+   image is built on the benchmark toolchain image
+   `ghcr.io/arcadia-1/circuit-bench-sky130-ngspice` by digest, so the
+   simulator and the model library are the same bytes the benchmark suite
+   runs, and a numerical disagreement can only mean the export is wrong,
+   never that two ngspice builds differ. The binned Sky130 models a volare
+   checkout provides cap device width at 100 µm and refuse the benchmark's
+   own reference circuit (#551). **Open until the owner confirms** that the
+   image is pullable by the deploy runner, or provides a read token; until
+   then the volare subset stays and #551 stays open.
+8. **Execution boundary.** Before the hosted route is public: the process
+   runs as a non-root user, in a fresh working directory per run, with a
+   minimal environment carrying no platform secret; a timeout terminates
+   the whole process tree; one container runs one job at a time and answers
+   `busy` otherwise; deck size, output size, and duration are capped, and
+   truncation is reported rather than hidden. Raw `.control` is a real
+   capability, so isolation is the answer to it, not a ban.
+9. **Run lifecycle.** A run is started from an immutable prepared input and
+   answered with a receipt; status and results are read, and a cancel
+   really terminates the process. The input identity covers the whole
+   hierarchy the root reaches plus the setup, so editing a sub-Cell makes a
+   result stale; a stale result is kept, marked, and never re-bound to the
+   changed circuit.
+10. **Results.** Numbers come from ngspice's rawfile, not from console text.
+    The result carries per-probe operating-point scalars with units, AC as
+    a frequency axis with complex values per probe, and transient as the
+    real time axis with real values per probe. CSV is derived from that
+    same data. A magnitude is never labelled a gain until the author has
+    named an input and an output.
+11. **Rollout.** The feature lands on the preview channel first, with the
+    container bound there; production receives the binding with a promoted
+    release.
+12. **Not in the first release.** DC sweeps, corners and Monte Carlo with
+    dedicated UI, Verilog-A, a second simulator, cross-Project live library
+    references, automatic two-way sync between arbitrary SPICE and the
+    drawing, and any run history store. Raw input may still express what
+    the environment's ngspice can execute; absence of a dedicated control is
+    not a refusal to run.
+
+Validation grows accordingly: closed-form fixtures (a resistor divider, an
+RC low-pass, an RC step) whose rawfiles are asserted against arithmetic;
+the five-transistor OTA acceptance comparison against ngspice on the
+reference netlist; and the preview deploy simulating one circuit through
+the real container on every merge.
