@@ -48,5 +48,11 @@ run_root_rw="$(value '{{range .Mounts}}{{if eq .Destination "/var/lib/simulation
 [ "$run_root_rw" = "true" ] \
   || fail "the private run-root volume is absent or read-only"
 
+# ngspice's tmpfile() always goes to /tmp; on a read-only root that must be a
+# private tmpfs or every run dies with "tmpfile(): Read-only file system".
+tmp_type="$(value '{{range .Mounts}}{{if eq .Destination "/tmp"}}{{.Type}}{{end}}{{end}}')"
+[ "$tmp_type" = "tmpfs" ] \
+  || fail "/tmp is not a private tmpfs, so the simulator cannot open its scratch files"
+
 printf 'simulator host runtime verified: restart=%s pids=%s cpus=8 memory=16GiB\n' \
   "$restart" "$pids"
