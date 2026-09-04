@@ -1,5 +1,5 @@
 import { renderDocumentSvg } from "@icm/render-svg";
-import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
+import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 
 import { libraryProjectExamples } from "../examples/library-examples";
 
@@ -16,7 +16,6 @@ export interface BundledGalleryTile {
  * downloads the renderer, symbol catalogue, or bundled Project fixtures.
  */
 export function loadBundledGalleryTiles(): BundledGalleryTile[] {
-  const resolver = new InMemorySymbolResolver(builtInSymbols);
   return libraryProjectExamples.map((example) => {
     const topDocument = example.project.documents.find(
       (document) => document.id === example.project.topDocumentId,
@@ -25,7 +24,13 @@ export function loadBundledGalleryTiles(): BundledGalleryTile[] {
       id: example.id,
       name: example.name,
       description: example.description,
-      svg: renderDocumentSvg(topDocument, resolver),
+      // A hierarchical example draws its child Cell as a block whose Symbol
+      // is derived from that example's own Project, so the built-in
+      // catalogue alone cannot resolve it.
+      svg: renderDocumentSvg(
+        topDocument,
+        createProjectSymbolResolver(example.project, builtInSymbols),
+      ),
     };
   });
 }

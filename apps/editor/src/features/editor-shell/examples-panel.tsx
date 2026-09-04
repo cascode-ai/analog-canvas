@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { renderDocumentSvg } from "@icm/render-svg";
-import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
+import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 
 import {
   libraryProjectExamples,
@@ -33,8 +33,6 @@ export interface ExamplesPanelProps {
   /** Injected in tests; production uses the global. */
   fetchImpl?: typeof fetch;
 }
-
-const resolver = new InMemorySymbolResolver(builtInSymbols);
 
 interface FeedState {
   status: "loading" | "ready" | "unavailable";
@@ -207,7 +205,16 @@ export function ExamplesPanel({
           const topDocument = example.project.documents.find(
             (candidate) => candidate.id === example.project.topDocumentId,
           )!;
-          return [example.id, renderDocumentSvg(topDocument, resolver)];
+          // A hierarchical example draws its child Cell as a block whose
+          // Symbol is derived from that example's own Project, so the
+          // built-in catalogue alone cannot resolve it.
+          return [
+            example.id,
+            renderDocumentSvg(
+              topDocument,
+              createProjectSymbolResolver(example.project, builtInSymbols),
+            ),
+          ];
         }),
       ),
     [],

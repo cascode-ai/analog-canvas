@@ -5,6 +5,7 @@ import commonSourceAmplifier from "./common-source-amplifier.icproj.json";
 import currentMirrorLoadedDifferentialPair from "./current-mirror-loaded-differential-pair.icproj.json";
 import fullyDifferentialTwoStageOpAmp from "./fully-differential-two-stage-op-amp.icproj.json";
 import twoStageOpAmp from "./two-stage-op-amp.icproj.json";
+import fiveTransistorOtaSky130 from "./five-transistor-ota-sky130.icproj.json";
 
 export interface LibraryProjectExample {
   id: string;
@@ -46,6 +47,12 @@ export const libraryProjectExamples: readonly LibraryProjectExample[] = [
     name: "Fully Differential Two-Stage Op Amp",
     description: "Differential CMOS amplifier with capacitive loads",
     project: bundledProject(fullyDifferentialTwoStageOpAmp),
+  },
+  {
+    id: "five-transistor-ota-sky130",
+    name: "Five-Transistor OTA (Sky130)",
+    description: "Textbook 5T OTA as a Cell, with its testbench",
+    project: bundledProject(fiveTransistorOtaSky130),
   },
 ];
 
