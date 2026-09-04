@@ -175,6 +175,14 @@ concurrency count.
 container image, and the fingerprint identifies it, not the machine
 underneath. `execution.target` is the separate transport identity.
 
+The preview's `/api/simulate` is open on purpose — no login, no rate limit,
+no daily budget — by the owner's decision of 2026-09-04, after the cost
+question went away with the Cloudflare Container: the host is the owner's
+own machine, and the harness's isolation (an unprivileged account, a
+read-only root, no network route, one slot, a deadline that kills the
+process tree) is the whole boundary. Do not add an admission gate to the
+preview's simulation without the owner asking for one.
+
 ### The retired staging environment
 
 `env.staging` and the Worker-side access gate were retired by ADR 0057 after
