@@ -12,8 +12,10 @@ Related decision: [ADR 0055](../adr/0055-simulation-is-part-of-the-product.md)
 Analog Canvas produces the reusable circuit netlist. The author supplies the
 testbench intent and analysis commands. The execution environment supplies the
 simulator-readable model libraries. These are separate responsibilities and
-are assembled only in the transient simulation deck; none changes the Project
-schema or the structural netlist export.
+are assembled into simulation input without changing circuit Documents or the
+structural netlist export. Authored simulation intent may be saved only through
+the optional Project `SimulationSetup` defined below; that field moves the
+Project schema when it lands.
 
 This contract covers deck assembly, model-library selection, and, since the
 2026-09-04 amendment of ADR 0055, the shape of a run: its inputs, root,
@@ -142,9 +144,24 @@ are produced at compile time and are not part of reading a rawfile.
 
 ## Persistence and compatibility
 
-The selection and assembled deck are transient execution data. No model path,
-corner, testbench, simulator output, or result is persisted in the circuit
-Project by this contract. It therefore requires no Project schema migration.
+One optional `SimulationSetup` is the Project's only persisted simulation
+authority. It contains exactly one input form:
+
+- a structured setup with its simulation root, analyses, parameters, and
+  probes; or
+- a raw setup with its entry path, authored files, and declared dependencies.
+
+Adding that optional field requires one Project schema migration. Existing
+Projects migrate with the field absent and retain their existing circuit,
+hierarchy, and structural-export behavior. The setup follows the ordinary
+Project save, recovery, Gallery, revision, and undo/redo boundaries; it is not
+stored in a simulation-only sidecar or a second persistence service.
+
+Prepared decks and bundles are transient execution data. Environment-local
+model paths, run ids, receipts, logs, rawfiles, parsed results, simulator
+outputs, and caches are never persisted in the Project. A raw setup's authored
+source files are durable input; a prepared deck or copied execution workspace
+derived from them is not.
 
 `ModelLibrarySelection` replaces the unpublished raw
 `modelLibraryPath: string | null` package API. There is no file-format or
