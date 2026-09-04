@@ -22,6 +22,7 @@ import {
   createSimulationInputMetadata,
   isSimulationInputRevision,
   readNgspiceDiagnostics,
+  readSimulationData,
   resolveTimeoutMs,
   SKY130_LIBRARY_PATH,
   SKY130_LIBRARY_SECTION,
@@ -29,6 +30,7 @@ import {
   verifySimulationEnvironmentMetadata,
   type ModelLibrarySelection,
   type SimulationResult,
+  type SimulationResultData,
 } from "@icm/spice-run";
 
 /** What a container-backed runner has to offer this module. */
@@ -175,6 +177,10 @@ export async function routeSimulationRequest(
     timedOut?: unknown;
     durationMs?: unknown;
     environment?: unknown;
+    // Present once the harness reads back the file a deck wrote. Optional
+    // because a deck that never calls `write` leaves nothing to send.
+    rawfile?: unknown;
+    rawfileFormat?: unknown;
   };
   const environment = await verifySimulationEnvironmentMetadata(
     raw.environment,
@@ -207,6 +213,33 @@ export async function routeSimulationRequest(
       text: "The simulator produced no output, so this run has no result.",
     });
   }
+  // The numbers, when the harness sent a rawfile back.
+  //
+  // This is where a simulation stops being a wall of console text. Until it
+  // was wired up, `@icm/spice-run` could read a rawfile and nothing asked it
+  // to: the route returned `log` and the editor had no numbers to draw. A
+  // deck that never calls `write` still returns no data, and that is a fact
+  // about the testbench rather than a failure.
+  //
+  // The reading's own diagnostics join the run's, which is what finally makes
+  // the outcome depend on whether the measurements came back. `#568` could
+  // only stop an exit code from condemning a correct run; this is the other
+  // half — a run that printed a batch log and wrote no vectors is now the
+  // failure it always was, where an exit code of zero called it a success.
+  let data: SimulationResultData | undefined;
+  const rawfile = typeof raw.rawfile === "string" ? raw.rawfile : null;
+  if (raw.rawfileFormat === "binary") {
+    diagnostics.push({
+      severity: "error",
+      text:
+        "The simulator wrote a binary rawfile, which carries no numbers this " +
+        "reader can use. Put `set filetype=ascii` before `write`.",
+    });
+  } else if (rawfile !== null && rawfile.trim().length > 0) {
+    const reading = readSimulationData(rawfile);
+    diagnostics.push(...reading.diagnostics);
+    if (reading.status === "read") data = reading.data;
+  }
   // Reported, never decisive: see describeExitStatus. Pushed after the checks
   // above so a signal or a silent run still reads as the error it is.
   const exitStatus = describeExitStatus(
@@ -220,6 +253,9 @@ export async function routeSimulationRequest(
     }),
     diagnostics,
     log,
+    // Omitted rather than null when there is nothing to carry: the field's
+    // contract is that its presence means numbers were read.
+    ...(data ? { data } : {}),
     durationMs: typeof raw.durationMs === "number" ? raw.durationMs : 0,
     metadata: {
       schemaVersion: 1,

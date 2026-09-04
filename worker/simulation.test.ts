@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
 import { createSimulationEnvironmentMetadata } from "@icm/spice-run";
@@ -255,6 +257,111 @@ describe("simulation route", () => {
     expect(payload.outcome.status).toBe("completed-with-dropped-input");
     expect(payload.diagnostics[0]!.droppedInput).toBe(true);
     expect(payload.diagnostics[0]!.text).toContain("ignored!");
+  });
+
+  /** Written by ngspice 46, not by hand. See fixtures/ngspice-rawfile/README.md. */
+  const DIVIDER_RAWFILE = readFileSync(
+    "fixtures/ngspice-rawfile/divider-op.raw",
+    "utf8",
+  );
+
+  it("returns the numbers when the harness sends a rawfile back", async () => {
+    // The whole point of the route: an author gets values, not a wall of
+    // console text they have to read with their eyes.
+    const response = await routeSimulationRequest(
+      post({ netlist: NETLIST, testbench: TESTBENCH }),
+      stubRunner({
+        log: "Circuit: * divider\nNo. of Data Rows : 1\n",
+        exitCode: 0,
+        timedOut: false,
+        durationMs: 11,
+        rawfile: DIVIDER_RAWFILE,
+        rawfileFormat: "ascii",
+      }),
+    );
+    const payload = (await response!.json()) as {
+      outcome: { status: string };
+      data?: {
+        analyses: {
+          analysis: string;
+          probes: { name: string; value?: number }[];
+        }[];
+      };
+    };
+    expect(payload.outcome.status).toBe("completed");
+    const analysis = payload.data?.analyses[0];
+    expect(analysis?.analysis).toBe("op");
+    const mid = analysis?.probes.find((probe) => probe.name === "v(mid)");
+    // A resistive divider of two equal resistors. Arithmetic, not a snapshot.
+    expect(mid?.value).toBeCloseTo(0.5, 12);
+  });
+
+  it("carries no data when the testbench wrote no rawfile", async () => {
+    // Not every deck asks for one, and not asking is not a failure.
+    const response = await routeSimulationRequest(
+      post({ netlist: NETLIST, testbench: TESTBENCH }),
+      stubRunner({
+        log: "Circuit: * divider\nv(mid) = 5.000000e-01\n",
+        exitCode: 0,
+        timedOut: false,
+        durationMs: 8,
+      }),
+    );
+    const payload = (await response!.json()) as {
+      outcome: { status: string };
+      data?: unknown;
+    };
+    expect(payload.outcome.status).toBe("completed");
+    expect(payload.data).toBeUndefined();
+  });
+
+  it("fails a run that printed a log and wrote no vectors", async () => {
+    // The other half of #568. An exit code of zero called this a success, and
+    // it reached the author as an empty chart with nothing to explain it.
+    const response = await routeSimulationRequest(
+      post({ netlist: NETLIST, testbench: TESTBENCH }),
+      stubRunner({
+        log: "Circuit: * divider\nNo. of Data Rows : 0\n",
+        exitCode: 0,
+        timedOut: false,
+        durationMs: 9,
+        rawfile: "Title: nothing\n",
+        rawfileFormat: "ascii",
+      }),
+    );
+    const payload = (await response!.json()) as {
+      outcome: { status: string };
+      diagnostics: { severity: string; text: string }[];
+      data?: unknown;
+    };
+    expect(payload.outcome.status).toBe("failed");
+    expect(payload.data).toBeUndefined();
+    // A failure always says why.
+    expect(payload.diagnostics.some((one) => one.severity === "error")).toBe(
+      true,
+    );
+  });
+
+  it("says what to change when the rawfile is binary", async () => {
+    const response = await routeSimulationRequest(
+      post({ netlist: NETLIST, testbench: TESTBENCH }),
+      stubRunner({
+        log: "Circuit: * divider\n",
+        exitCode: 0,
+        timedOut: false,
+        durationMs: 7,
+        rawfile: null,
+        rawfileFormat: "binary",
+      }),
+    );
+    const payload = (await response!.json()) as {
+      outcome: { status: string };
+      diagnostics: { text: string }[];
+    };
+    expect(payload.outcome.status).toBe("failed");
+    expect(payload.diagnostics.map((one) => one.text).join(" ")).toContain(
+      "set filetype=ascii",
+    );
   });
 
   it("passes a timeout through as a timeout, carrying the ceiling", async () => {
