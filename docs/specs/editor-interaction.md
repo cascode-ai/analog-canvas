@@ -337,9 +337,10 @@ external callers; the GUI does not call it.
 
 The editor's finite direct-manipulation vocabulary is transient only:
 `move-selection`, `stretch-segment`, `move-loose-route`, `move-power-rail`,
-and the two explicit power-rail endpoint resizes. It is not Project data, an
-Edit Engine command, or an Agent API extension; each intent compiles to the
-existing typed edits.
+the two ordinary Route endpoint resizes, and the two explicit power-rail
+endpoint resizes. It is not Project data, an Edit Engine command, or an Agent
+API extension; each intent compiles to the existing typed edits. Both ends of
+an ordinary Route offer a resize grip, including one anchored to a pin.
 
 No movement intent searches for a new path. An internal Route translates every
 point by one common delta. A boundary stretch may alter only geometry adjacent

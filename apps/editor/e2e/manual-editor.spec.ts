@@ -1416,6 +1416,64 @@ test("splices a transistor into a wire only through its declared D/S pin pair", 
   await expect(page.getByTestId("terminal-M1-G")).toBeVisible();
 });
 
+/**
+ * Drag a handle onto an exact Document point, rather than by a screen delta.
+ * Landing on a conductor is the whole assertion, so the drop has to be aimed
+ * at the drawing's own coordinates and not at a guess about the camera.
+ */
+async function dragHandleToPoint(
+  page: Page,
+  handle: Locator,
+  routeIdForFrame: string,
+  point: { x: number; y: number },
+): Promise<void> {
+  const box = await handle.boundingBox();
+  if (!box) throw new Error("Drag target is not measurable");
+  const target = await page
+    .locator(`[data-layer="routes"] [data-object-id="${routeIdForFrame}"]`)
+    .evaluate((element, wanted) => {
+      const matrix = (element as SVGGraphicsElement).getScreenCTM();
+      if (!matrix) return null;
+      const screen = new DOMPoint(wanted.x, wanted.y).matrixTransform(matrix);
+      return { x: screen.x, y: screen.y };
+    }, point);
+  if (!target) throw new Error(`Point is not measurable in ${routeIdForFrame}`);
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(target.x, target.y, { steps: 4 });
+  await page.mouse.up();
+}
+
+/** The persisted Nets and Routes, read back through the Project file. */
+async function exportedConnectivity(page: Page) {
+  const saved = JSON.parse(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  ) as {
+    documents: Array<{
+      nets: Array<{
+        id: string;
+        terminals: Array<{ instanceId: string; pinName: string }>;
+      }>;
+      routes: Array<{ id: string; netId: string }>;
+    }>;
+  };
+  const document = saved.documents[0]!;
+  return {
+    conductingNetIds: [
+      ...new Set(document.routes.map((route) => route.netId)),
+    ].sort(),
+    terminalNetId: (instanceId: string, pinName: string) =>
+      document.nets.find((net) =>
+        net.terminals.some(
+          (terminal) =>
+            terminal.instanceId === instanceId && terminal.pinName === pinName,
+        ),
+      )?.id ?? null,
+  };
+}
+
 test("resizes a loose Wire from either endpoint without redrawing it", async ({
   page,
 }) => {
@@ -1467,6 +1525,159 @@ test("resizes a loose Wire from either endpoint without redrawing it", async ({
   expect(after[0]).toEqual(before[0]);
   expect(after.at(-1)!.x).toBeGreaterThan(before.at(-1)!.x);
   expect(after.at(-1)!.y).toBe(before.at(-1)!.y);
+});
+
+test("lands a dragged Wire end on the conductor under it", async ({ page }) => {
+  // Reported as the two gestures disagreeing: dragging a whole loose wire onto
+  // another one connected it, dragging one END of the same wire to the same
+  // place did not — and the two drawings are identical, so nothing on the page
+  // said which had happened.
+  const project = createEmptyProject("endpoint-landing", "Endpoint Landing");
+  const document = project.documents[0]!;
+  document.nets.push(
+    { id: "net-a", terminals: [] },
+    { id: "net-b", terminals: [] },
+  );
+  document.junctions.push(
+    {
+      id: "A1",
+      netId: "net-a",
+      position: { x: 200, y: 240 },
+      role: "route-anchor",
+    },
+    {
+      id: "A2",
+      netId: "net-a",
+      position: { x: 400, y: 240 },
+      role: "route-anchor",
+    },
+    {
+      id: "B1",
+      netId: "net-b",
+      position: { x: 300, y: 140 },
+      role: "route-anchor",
+    },
+    {
+      id: "B2",
+      netId: "net-b",
+      position: { x: 300, y: 180 },
+      role: "route-anchor",
+    },
+  );
+  document.routes.push(
+    createRoutePath({
+      id: "route-a",
+      netId: "net-a",
+      start: { kind: "junction", junctionId: "A1" },
+      end: { kind: "junction", junctionId: "A2" },
+      bends: [],
+      modes: ["manual"],
+    }),
+    createRoutePath({
+      id: "route-b",
+      netId: "net-b",
+      start: { kind: "junction", junctionId: "B1" },
+      end: { kind: "junction", junctionId: "B2" },
+      bends: [],
+      modes: ["manual"],
+    }),
+  );
+
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "endpoint-landing.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await clickRoute(page, "route-b");
+  await dragHandleToPoint(
+    page,
+    page.getByTestId("route-endpoint-handle-route-b-end"),
+    "route-a",
+    { x: 300, y: 240 },
+  );
+
+  // The landing splits the conductor it tees into, so three Routes remain —
+  // and every one of them is on the same Net, which is the actual claim.
+  await expect(page.locator('[data-testid^="route-hit-"]')).toHaveCount(3);
+  const connectivity = await exportedConnectivity(page);
+  expect(connectivity.conductingNetIds).toHaveLength(1);
+});
+
+test("re-points a Wire end that is anchored to a pin", async ({ page }) => {
+  // Before this the handle refused with "A terminal-connected wire end is
+  // electrically anchored", so rewiring meant deleting the wire and drawing a
+  // new one.
+  const project = createEmptyProject("endpoint-repoint", "Endpoint Repoint");
+  const document = project.documents[0]!;
+  document.instances.push({
+    id: "VDD1",
+    symbolId: "vdd-port",
+    placement: { position: { x: 300, y: 120 }, rotation: 0, mirror: "none" },
+  } as (typeof document)["instances"][number]);
+  document.nets.push(
+    { id: "net-a", terminals: [] },
+    { id: "net-supply", terminals: [{ instanceId: "VDD1", pinName: "P" }] },
+  );
+  document.junctions.push(
+    {
+      id: "A1",
+      netId: "net-a",
+      position: { x: 200, y: 260 },
+      role: "route-anchor",
+    },
+    {
+      id: "A2",
+      netId: "net-a",
+      position: { x: 420, y: 260 },
+      role: "route-anchor",
+    },
+    {
+      id: "S2",
+      netId: "net-supply",
+      position: { x: 300, y: 190 },
+      role: "route-anchor",
+    },
+  );
+  document.routes.push(
+    createRoutePath({
+      id: "route-a",
+      netId: "net-a",
+      start: { kind: "junction", junctionId: "A1" },
+      end: { kind: "junction", junctionId: "A2" },
+      bends: [],
+      modes: ["manual"],
+    }),
+    createRoutePath({
+      id: "route-supply",
+      netId: "net-supply",
+      // The VDD port's P pin sits 20 below its placement, at (300, 140).
+      start: { kind: "terminal", instanceId: "VDD1", pinName: "P" },
+      end: { kind: "junction", junctionId: "S2" },
+      bends: [],
+      modes: ["manual"],
+    }),
+  );
+
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "endpoint-repoint.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await clickRoute(page, "route-supply");
+  await dragHandleToPoint(
+    page,
+    page.getByTestId("route-endpoint-handle-route-supply-start"),
+    "route-a",
+    { x: 300, y: 260 },
+  );
+
+  const connectivity = await exportedConnectivity(page);
+  // The pin let go of the wire that was on it, and the wire landed where it
+  // was dropped. Both halves are the gesture; neither alone is.
+  expect(connectivity.terminalNetId("VDD1", "P")).toBeNull();
+  expect(connectivity.conductingNetIds).toHaveLength(1);
 });
 
 test("connects one MOS Gate to Drain without false contact ambiguity", async ({
