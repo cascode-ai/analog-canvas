@@ -145,35 +145,34 @@ run. The Preview deploy sends the same divider through both explicit targets
 and requires the numerical result and environment fingerprint to agree.
 
 The current operator host is the Frankfurt machine, under its `analogcanvas`
-account, in `~/analog-canvas-sim/`. `bin/up.sh` runs the image with a
-read-only root filesystem, the run root on a volume the image initialised
-for the run account, no capabilities, a pid limit, 8 CPUs and 16 GiB, on an
-internal Docker network that has no route to the internet; `cloudflared` is
-the only other member of that network and the only container with egress,
-and it starts only once `tunnel.env` holds `TUNNEL_TOKEN`. The
-`Simulator host` workflow (`.github/workflows/simulator-host.yml`) does the
-operating: on every merge that touches `containers/ngspice/` it copies the
-harness to the host, rebuilds, restarts, and verifies `/health` through the
-tunnel; run by hand it can `probe` what the Cloudflare token may do or
-`bootstrap-tunnel` — create the named tunnel, its ingress, and the DNS name,
-and hand the connector token to the host over SSH without ever printing it.
-It reaches the host with the repository secrets `SIM_HOST_ADDR`,
+account, in `~/analog-canvas-sim/`. Its desired state is not private machine
+configuration: [`containers/ngspice/host/compose.yaml`](../containers/ngspice/host/compose.yaml)
+is the sole definition of the harness container, tunnel container, internal
+network, egress boundary, private run-root volume, restart policy, and resource
+limits. The harness has a read-only root, no capabilities, bounded PIDs, 8 CPUs
+and 16 GiB, no published host port, and no egress. `cloudflared` alone joins
+both the internal network and an egress network.
+
+The `Simulator host` workflow (`.github/workflows/simulator-host.yml`) copies
+the exact tracked `containers/ngspice/` tree into a commit-addressed release on
+the host. It writes the protected access token over SSH, runs the tracked
+bootstrap/deploy scripts, and verifies `/health`; run by hand it can `probe`
+what the Cloudflare token may do or `bootstrap-tunnel` — create or reuse the
+named tunnel, its ingress, and DNS name, and hand the connector token to the
+host without printing it. It reaches the host with `SIM_HOST_ADDR`,
 `SIM_HOST_USER`, `SIM_HOST_SSH_KEY`, and `SIM_HOST_KNOWN_HOSTS`, and speaks to
 Cloudflare with `CLOUDFLARE_TUNNEL_API_TOKEN` (Account → Cloudflare Tunnel:
-Edit, Zone → DNS: Edit on the site's zone), a token separate from the deploy
-token on purpose; before the tunnel exists, an automatic rebuild verifies the
-harness from inside the host's network instead; on the host
-`bin/health.sh` asks the harness for its health from inside that network.
-The host's operator-owned `up.sh` and `rebuild.sh` remain outside the
-repository, but their result is no longer trusted by description alone: the
-workflow installs the tracked `containers/ngspice/verify-host-runtime.sh` and
-requires the running container to have an automatic restart policy, a
-read-only root, all capabilities dropped, bounded PIDs, 8 CPUs, 16 GiB, no
-published host port, and a writable private run-root volume. Automatic restart
+Edit, Zone → DNS: Edit on the site's zone), separate from the deploy token.
+
+No lifecycle script is operator-owned. A clean Docker-capable replacement can
+be reconstructed from the repository and protected environment secrets by the
+procedure in [`containers/ngspice/host/README.md`](../containers/ngspice/host/README.md).
+The independent `containers/ngspice/verify-host-runtime.sh` still checks the
+running result rather than trusting the Compose description. Automatic restart
 is part of the Run Supervisor's fail-stop contract; without it a safe harness
-exit would become a permanent outage. The host has 32 cores; the
-harness still runs one job at a time, by its own slot, until the executor
-contract gains a concurrency count.
+exit would become a permanent outage. The host has 32 cores; the harness still
+runs one job at a time, by its own slot, until the executor contract gains a
+concurrency count.
 
 Either way `metadata.environment.executor` reads `hosted-container`: the
 harness is the same container image, and the fingerprint identifies it, not
