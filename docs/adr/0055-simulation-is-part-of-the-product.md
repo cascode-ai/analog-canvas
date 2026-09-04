@@ -193,20 +193,26 @@ supersede the sentences of the original decision they contradict; the
    a testbench. "The testbench is the author's" keeps its meaning and drops
    the implied requirement that it be hand-written: helpers may generate
    text, and the author submits it.
-4. **Roots.** The simulation root is a Cell chosen for one setup
-   (`rootDocumentId`); it is not the Project's top and choosing it never
-   changes the top. The compiled deck instantiates that root exactly once;
-   a document that only defines `.subckt`s is not a run.
+4. **Roots.** The simulation root (`rootDocumentId`) is the Testbench Cell
+   chosen for one setup; it is neither the DUT Cell nor necessarily the
+   Project's top, and choosing it never changes the top. The DUT is an ordinary
+   project-local subcircuit Instance in that Testbench. Preparation reads the
+   root from the setup rather than accepting a second caller override. The
+   compiled deck instantiates that root exactly once; a document that only
+   defines `.subckt`s is not a run.
 5. **Sources.** DC bias, AC magnitude and phase, and a transient waveform
-   are components of the same source instance, printed by the descriptor.
+   are components of the same source Instance in the Testbench, printed by the
+   descriptor and edited through the ordinary Project edit path. A setup or UI
+   does not retain a second copy or override of those values.
    `PULSE` and `SIN` are formal parameters in the first release; `PWL`
    arrives through raw input. The existing pulse source keeps its symbol
    and its clock-style parameters, which are normalised into the same
    waveform parameters rather than becoming a second authority.
 6. **Persistence.** A Project may carry one optional `SimulationSetup`
    holding either the structured input or the raw files. Results, run ids,
-   simulator paths, and caches are never persisted. The schema version
-   moves when the setup lands, not before.
+   receipts, simulator paths, and caches are never persisted, including a
+   "recent run" link. The schema version moves when the setup lands, not
+   before.
 7. **Environment.** The hosted simulator is a container image pinned by
    digest, and the model set is part of that pin. Direction chosen: the
    image is built on the benchmark toolchain image
@@ -221,6 +227,9 @@ supersede the sentences of the original decision they contradict; the
    continuous `sky130.lib.spice` it ships; on the preview that library
    loads in under a second and simulates the w=200 device that opened #551,
    which is closed with the measurements.
+   A structured setup names only a Profile ID plus allowed author selections
+   such as corner and temperature; it does not copy the Profile manifest,
+   model path, binary digest, or measured environment fingerprint.
 8. **Execution boundary.** Before the hosted route is public: the process
    runs as a non-root user, in a fresh working directory per run, with a
    minimal environment carrying no platform secret; a timeout terminates
