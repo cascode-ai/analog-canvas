@@ -130,10 +130,13 @@ boundary, and nothing in this feature edits a document.
 
 ## Compatibility and migration
 
-No change to the persisted Project. No schema version bump, no migration, and
-no existing file loads differently. Simulation is additive: a document that
-could be opened yesterday opens identically today and merely gains an action
-that may report it is not simulatable.
+The original 2026-09-01 decision introduced execution without persisted
+simulation configuration. The 2026-09-04 amendment below replaces that
+boundary: when the optional Project `SimulationSetup` lands, the schema version
+moves and existing Projects migrate with the field absent. Their circuit,
+hierarchy, and structural-export behavior remains unchanged. Results, run ids,
+simulator paths, prepared decks, and caches remain transient and require no
+Project migration.
 
 The version moves `0.1.0` to `0.2.0` to mark the scope change, and a
 `CHANGELOG.md` starts at that entry.
