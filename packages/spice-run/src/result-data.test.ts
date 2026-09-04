@@ -358,14 +358,13 @@ describe("a run that produced no numbers", () => {
       classifySimulationOutcome(readNgspiceDiagnostics(log), {
         timedOut: false,
         timeoutMs: 30_000,
-        exitCode: 0,
       }),
     ).toEqual({ status: "completed" });
 
     expect(
       classifySimulationOutcome(
         [...readNgspiceDiagnostics(log), ...reading.diagnostics],
-        { timedOut: false, timeoutMs: 30_000, exitCode: 0 },
+        { timedOut: false, timeoutMs: 30_000 },
       ),
     ).toEqual({ status: "failed" });
   });

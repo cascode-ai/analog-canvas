@@ -14,10 +14,13 @@ simulator-readable model libraries. These are separate responsibilities and
 are assembled only in the transient simulation deck; none changes the Project
 schema or the structural netlist export.
 
-This contract covers deck assembly, model-library selection, and the numeric
-result protocol: how a simulator's rawfile is read and what shape the numbers
-take when they leave this layer. It does not define persisted simulation
-profiles, chart rendering, or the editor workflow.
+This contract covers deck assembly, model-library selection, and, since the
+2026-09-04 amendment of ADR 0055, the shape of a run: its inputs, root,
+sources and analyses, execution boundary, lifecycle, and result data --
+including the numeric result protocol, which says how a simulator's rawfile is
+read and what shape the numbers take when they leave this layer. It does not
+define persisted simulation profiles, chart rendering, or the editor workflow,
+which follows the editor interaction spec once the pieces exist.
 
 ## Model-library selection
 
@@ -36,13 +39,17 @@ type ModelLibrarySelection =
 - Paths are quoted when emitted and must contain no quote or line break.
 - A library section is one non-empty SPICE token.
 
-The hosted Sky130 environment selects the `tt` section of
-`sky130.lib.spice` by default and may override the path and section through
-deployment configuration. Its valid default output is:
+The hosted Sky130 environment runs the benchmark suite's own simulator image
+(pinned by digest in `containers/ngspice/Dockerfile`) and selects the `tt`
+section of its **continuous** (unbinned) library by default; deployment
+configuration may override the path and section. Its valid default output is:
 
 ```spice
-.lib "/opt/sky130/sky130A/libs.tech/ngspice/sky130.lib.spice" tt
+.lib "/opt/sky130/continuous/sky130.lib.spice" tt
 ```
+
+The binned models a PDK checkout provides cap device width at 100 µm and
+refuse wide devices (#551); they are not the hosted default.
 
 It must not include that top-level sectioned library with `.include`, because
 doing so expands multiple corner sections into the same deck and redefines
@@ -294,6 +301,124 @@ circuit netlist and testbench, while the execution environment owns the model
 selection. Run metadata is returned with a transient result and is never saved
 into the Project, undo history, Gallery, or recovery copy.
 
+## Inputs and root
+
+A run has exactly one input form:
+
+- **Structured**: a `SimulationSetup` naming a `rootDocumentId` in the
+  Project, the analyses to run with their parameters, and the probes to
+  record. The product compiles it: the design netlist of everything the root
+  reaches, one instantiation of the root, the environment's model library,
+  the analyses, the saves, and `.end`.
+- **Raw**: an entry SPICE file and its dependency files as submitted by the
+  author or an Agent. The product resolves declared dependencies and the
+  environment's library mapping, and adds nothing else: no stimulus, no
+  analysis, no root call, no `.control`.
+
+Both feed the same immutable prepared input, whose identity covers the exact
+file bytes, the environment selection, and, for the structured form, every
+Document the root reaches plus the setup. A change to any of them is a new
+input; a result computed from an older input is stale and says so.
+
+The simulation root is a Cell chosen for the setup. It is not
+`project.topDocumentId`, and selecting it never changes the top. Extraction,
+diagnostics, dependency collection, occurrence mapping, and input identity
+all use the same root. A deck that only defines `.subckt`s and instantiates
+nothing is not a run.
+
+## Sources and analyses
+
+`SimulationAnalysis` is `"op" | "ac" | "tran"`.
+
+- `.op` has no parameters.
+- `.ac` takes the sweep kind (`dec`, `oct`, or `lin`), the points per
+  interval or in total, and the start and stop frequencies in hertz.
+- `.tran` takes `tstep` and `tstop`, optionally `tstart` and `tmax`, all in
+  seconds, finite and positive with `tstart < tstop`. No `UIC` is emitted
+  unless the author asks. `tstart` does not move the start of integration,
+  and `tstep` does not make the output equally spaced; the solver's time
+  axis is returned as computed.
+
+A voltage or current source instance carries its DC value, its AC magnitude
+and phase, and its transient waveform as formal parameters printed by the
+device descriptor. The first release's waveforms are `PULSE` (low, high,
+delay, rise, fall, width, period) and `SIN` (offset, amplitude, frequency,
+optional delay, damping, phase). `PWL` is reachable through raw input. The
+existing pulse voltage source keeps its symbol; its clock-style parameters
+are normalised into the same waveform parameters so that only one set is
+authoritative.
+
+`VDD`, `GND`, and Net labels are markers, never energy: a marker does not
+become a source in the deck.
+
+## Execution boundary
+
+The hosted runner (`containers/ngspice`) and the local host share these
+minimums before either is offered to the public:
+
+- ngspice runs as a non-root user, in a working directory created for the
+  run and removed afterwards, with a minimal environment that carries no
+  platform or user secret. The model tree is read-only.
+- One container runs one job at a time. A second request while a job is
+  running is answered `503` with `Retry-After`; `max_instances` limits
+  containers, not processes, so the harness guards its own slot.
+- A timeout terminates the whole process tree and the result says
+  `timedOut`. Deck size, log size, result-file size, and duration are
+  capped; anything cut is reported as truncated rather than presented whole.
+- Raw `.control` is permitted. Isolation, not prohibition, keeps a control
+  script inside its own job.
+- `GET /health` reports the observed environment facts of the metadata
+  envelope so a deployment can be verified without running a circuit.
+
+## Run lifecycle
+
+The service exposes `prepare`, `start`, `read`, `cancel`, and `export`.
+`start` executes exactly the prepared input whose digest it was given and
+returns a short receipt with a run id; `read` returns status or the final
+result and may wait briefly; `cancel` terminates the process and frees the
+slot. A run id is bound to the session or Project owner that started it.
+There is no run history store: a receipt that outlives the runner's memory
+reads as lost, and a lost run is never silently rerun.
+
+## Result data
+
+Defined in full by [Result protocol V1](#result-protocol-v1) above, which this
+section states normatively and does not repeat.
+
+Numbers are read from ngspice's ASCII rawfile, never from console text. Array
+lengths, analysis and probe identities, non-finite values, an empty or
+truncated rawfile, and a requested vector that is missing are all checked; an
+exit code of zero is not evidence that the requested results exist, and
+neither is a non-zero one evidence of failure. CSV is derived from this data
+(AC keeps real and imaginary parts; transient keeps the real time points) and
+never from a second parse.
+
+**Amendment, 2026-09-04.** This section first named three fields on
+`SimulationResult` — `op`, `ac`, and `tran`. The implementation carries one
+`analyses` array of tagged entries instead, and the change is recorded here
+rather than left to be discovered, because a spec that describes a shape the
+code does not have stops being the authority.
+
+The substance is unchanged: an operating point is still a scalar and a unit
+per probe, an AC sweep still keeps `frequencyHz` with real and imaginary parts
+that no layer here calls a gain, and a transient run still keeps the solver's
+own `timeSeconds`. What the array adds is the case three fixed fields cannot
+express — a rawfile holding several plots, including two sweeps of the same
+kind — which is what this section already required when it said different
+plots keep their own axes and are not resampled to share a table.
+
+Probes name existing objects (a terminal, a Route, a Junction, or a Base Net)
+plus the hierarchy occurrence; the mapping from probe to simulator vector
+name is produced at compile time and never inferred from result text. Raw
+input carries no Canvas mapping unless one is proven valid.
+
+## Rollout
+
+The hosted route ships on the preview channel first (ADR 0057), where the
+container is bound; production receives the binding with a promoted
+release. A deployment without the binding answers
+`simulation-not-configured`, a fact about the deployment.
+
 ## Deterministic validation
 
 - `packages/spice-run/src/index.test.ts` verifies exact `.lib` and `.include`
@@ -323,3 +448,10 @@ into the Project, undo history, Gallery, or recovery copy.
   that ngspice 47 completes a Sky130 NFET operating-point deck with
   `.lib ... tt`, while top-level `.include` produces repeated subcircuit
   definitions across sections.
+- `scripts/simulation-acceptance.mjs`: the five-transistor OTA from
+  `analog-arena`, exported by this product and simulated against the reference
+  netlist under one testbench, agreeing on node voltages, gain, and unity-gain
+  bandwidth to zero relative deviation.
+- The preview deploy simulates one circuit through the real container on every
+  merge, so the evidence above is joined by evidence that the thing still runs
+  where people use it.
