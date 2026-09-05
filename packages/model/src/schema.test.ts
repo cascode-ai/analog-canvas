@@ -9,7 +9,11 @@ import {
   SchematicDocumentSchema,
   SimulationSetupSchema,
 } from "./schema.js";
-import type { SimulationSetup } from "./schema.js";
+import type {
+  SimulationRawSetup,
+  SimulationStructuredInput,
+  SimulationStructuredSetup,
+} from "./schema.js";
 
 describe("CircuitProject schema", () => {
   it("accepts only the three persisted polarity-label forms", () => {
@@ -800,7 +804,7 @@ describe("presentation style overrides", () => {
 });
 
 describe("SimulationSetup schema", () => {
-  function setup(): SimulationSetup {
+  function setup(): SimulationStructuredSetup {
     return {
       version: 1,
       input: {
@@ -904,7 +908,7 @@ describe("SimulationSetup schema", () => {
           startHz: 10,
           stopHz: 1e6,
           ...overrides,
-        } as SimulationSetup["input"]["analyses"][number],
+        } as SimulationStructuredInput["analyses"][number],
       ];
       return SimulationSetupSchema.safeParse(candidate).success;
     };
@@ -947,7 +951,7 @@ describe("SimulationSetup schema", () => {
       candidate.input.environment = {
         ...candidate.input.environment,
         ...overrides,
-      } as SimulationSetup["input"]["environment"];
+      } as SimulationStructuredInput["environment"];
       return SimulationSetupSchema.safeParse(candidate).success;
     };
     expect(environment({ corner: undefined, temperatureC: undefined })).toBe(
@@ -957,6 +961,88 @@ describe("SimulationSetup schema", () => {
     expect(environment({ corner: "" })).toBe(false);
     expect(environment({ temperatureC: Number.NaN })).toBe(false);
     expect(environment({ modelLibraryPath: "/opt/sky130" })).toBe(false);
+  });
+
+  it("persists a bounded raw authoring bundle without host paths", () => {
+    const raw: SimulationRawSetup = {
+      version: 1,
+      input: {
+        kind: "raw",
+        entry: "tb.cir",
+        files: [
+          { path: "tb.cir", text: ".include dut.spi\n.end\n" },
+          { path: "dut.spi", text: ".subckt DUT a b\n.ends DUT\n" },
+        ],
+        dependencies: [
+          {
+            id: "sky130-core",
+            mountPath: "models/sky130.lib.spice",
+            sha256: "0".repeat(64),
+          },
+        ],
+        environment: { profileId: "custom-ngspice46-v1" },
+      },
+    };
+    expect(SimulationSetupSchema.parse(raw)).toEqual(raw);
+    expect(
+      CircuitProjectSchema.parse(projectWithSetup(raw)).simulation,
+    ).toEqual(raw);
+  });
+
+  it("rejects ambiguous, unsafe, and oversized raw bundles", () => {
+    const rawInput = (overrides: Record<string, unknown> = {}) => ({
+      version: 1,
+      input: {
+        kind: "raw",
+        entry: "tb.cir",
+        files: [{ path: "tb.cir", text: ".end\n" }],
+        dependencies: [],
+        environment: { profileId: "profile" },
+        ...overrides,
+      },
+    });
+    expect(SimulationSetupSchema.safeParse(rawInput()).success).toBe(true);
+    expect(
+      SimulationSetupSchema.safeParse(rawInput({ entry: "missing.cir" }))
+        .success,
+    ).toBe(false);
+    for (const path of ["../tb.cir", "/tb.cir", "C:/tb.cir", ".spiceinit"]) {
+      expect(
+        SimulationSetupSchema.safeParse(
+          rawInput({ files: [{ path, text: ".end\n" }], entry: path }),
+        ).success,
+      ).toBe(false);
+    }
+    expect(
+      SimulationSetupSchema.safeParse(
+        rawInput({
+          files: [
+            { path: "tb.cir", text: "" },
+            { path: "tb.cir", text: "" },
+          ],
+        }),
+      ).success,
+    ).toBe(false);
+    expect(
+      SimulationSetupSchema.safeParse(
+        rawInput({
+          files: [{ path: "tb.cir", text: "x".repeat(1024 * 1024 + 1) }],
+        }),
+      ).success,
+    ).toBe(false);
+    expect(
+      SimulationSetupSchema.safeParse(
+        rawInput({
+          dependencies: [
+            {
+              id: "model",
+              mountPath: "tb.cir",
+              sha256: "0".repeat(64),
+            },
+          ],
+        }),
+      ).success,
+    ).toBe(false);
   });
 
   it("rejects transient run data and unknown input forms", () => {
@@ -970,7 +1056,7 @@ describe("SimulationSetup schema", () => {
     expect(
       SimulationSetupSchema.safeParse({
         version: 1,
-        input: { kind: "raw", entryPath: "tb.cir", files: [] },
+        input: { kind: "legacy-raw", entryPath: "tb.cir", files: [] },
       }).success,
     ).toBe(false);
   });

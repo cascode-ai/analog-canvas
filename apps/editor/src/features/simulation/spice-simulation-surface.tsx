@@ -3,6 +3,7 @@ import {
   SimulationSetupSchema,
   type CircuitProject,
   type SimulationSetup,
+  type SimulationStructuredInput,
 } from "@icm/model";
 import type {
   ArtifactRef,
@@ -187,7 +188,11 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     (candidate) => candidate.id === props.draftContext?.dutDocumentId,
   );
   const savedRoot = project.documents.find(
-    (candidate) => candidate.id === project.simulation?.input.rootDocumentId,
+    (candidate) =>
+      candidate.id ===
+      (project.simulation?.input.kind === "structured"
+        ? project.simulation.input.rootDocumentId
+        : undefined),
   );
   const hasDutInstance = Boolean(
     activeCell?.instances.some(
@@ -236,9 +241,14 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
         ? "The probe selection needs attention. Open Console for details."
         : "Simulation needs attention. Open Console for details."
     : attention;
-  const analysisLabel = project.simulation?.input.analyses
-    .map((analysis) => analysis.kind.toUpperCase())
-    .join(" + ");
+  const analysisLabel =
+    project.simulation?.input.kind === "structured"
+      ? project.simulation.input.analyses
+          .map((analysis) => analysis.kind.toUpperCase())
+          .join(" + ")
+      : project.simulation?.input.kind === "raw"
+        ? "RAW"
+        : undefined;
   return (
     <section
       hidden={!open}
@@ -651,7 +661,10 @@ function SetupEditor({
   onDirty(value: boolean): void;
   onError(value: string): void;
 }) {
-  const saved = project.simulation?.input;
+  const saved =
+    project.simulation?.input.kind === "structured"
+      ? project.simulation.input
+      : undefined;
   const [rootId, setRootId] = useState(
     saved?.rootDocumentId ?? draftContext?.rootDocumentId ?? activeDocumentId,
   );
@@ -870,7 +883,7 @@ function SetupEditor({
 
 function probeFromOption(
   option: SimulationProbeOption,
-): SimulationSetup["input"]["probes"][number] {
+): SimulationStructuredInput["probes"][number] {
   const target = option.target;
   if (target.kind === "net-voltage") {
     return {
@@ -900,7 +913,7 @@ function ProbeSelect({
   label: string;
   placeholder: string;
   options: readonly SimulationProbeOption[];
-  probes: SimulationSetup["input"]["probes"];
+  probes: SimulationStructuredInput["probes"];
   onAdd(option: SimulationProbeOption): void;
 }) {
   const selected = new Set(probes.map(simulationProbeTargetKey));

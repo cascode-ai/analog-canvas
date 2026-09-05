@@ -66,6 +66,7 @@ import type {
   SimulationAnalysisSpec,
   SimulationProbeSpec,
   SimulationSetup,
+  SimulationStructuredInput,
   StableId,
 } from "@icm/model";
 import type { HierarchyFrame, ObjectLocator } from "@icm/derived";
@@ -177,10 +178,9 @@ function analysisCommand(analysis: SimulationAnalysisSpec): string {
  * fact about the setup and not about its construction. Follows the same
  * canonical-then-hash shape `@icm/spice-run` uses for environment facts.
  */
-function canonicalSetup(setup: SimulationSetup): string {
-  const input = setup.input;
+function canonicalSetup(input: SimulationStructuredInput): string {
   return JSON.stringify({
-    version: setup.version,
+    version: 1,
     kind: input.kind,
     rootDocumentId: input.rootDocumentId,
     analyses: input.analyses.map((analysis) =>
@@ -238,7 +238,7 @@ function canonicalSetup(setup: SimulationSetup): string {
 async function inputRevisionOf(
   netlist: string,
   testbench: string,
-  setup: SimulationSetup,
+  input: SimulationStructuredInput,
 ): Promise<string> {
   const digest = await globalThis.crypto.subtle.digest(
     "SHA-256",
@@ -247,7 +247,7 @@ async function inputRevisionOf(
         "analog-canvas/simulation-compile/1",
         netlist,
         testbench,
-        canonicalSetup(setup),
+        canonicalSetup(input),
       ].join(" "),
     ),
   );
@@ -454,6 +454,19 @@ export async function compileStructuredSimulation(
   setup: SimulationSetup,
   options: CompileStructuredSimulationOptions = {},
 ): Promise<CompiledSimulation> {
+  if (setup.input.kind !== "structured") {
+    return {
+      ok: false,
+      diagnostics: [
+        diagnostic(
+          "SIMULATION_INPUT_MODE_MISMATCH",
+          project.id,
+          "Structured compilation requires a structured SimulationSetup",
+          locator(project.topDocumentId, [], "document", project.topDocumentId),
+        ),
+      ],
+    };
+  }
   const input = setup.input;
   const analysis = analyzeDesignNetlist(project, {
     format: "spice",
@@ -565,7 +578,7 @@ export async function compileStructuredSimulation(
       netlist,
       testbench: `${testbench}\n`,
       analyses,
-      inputRevision: await inputRevisionOf(netlist, testbench, setup),
+      inputRevision: await inputRevisionOf(netlist, testbench, input),
       ...(options.timeoutMs === undefined
         ? {}
         : { timeoutMs: options.timeoutMs }),

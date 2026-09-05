@@ -276,9 +276,11 @@ describe("the bundled five-transistor Sky130 OTA", () => {
 
   it("persists and compiles its OP and AC acceptance setup", async () => {
     expect(project.simulation).toBeDefined();
+    expect(project.simulation?.input.kind).toBe("structured");
+    if (project.simulation?.input.kind !== "structured") return;
     const compiled = await compileStructuredSimulation(
       project,
-      project.simulation!,
+      project.simulation,
     );
     expect(compiled.ok).toBe(true);
     if (!compiled.ok) return;

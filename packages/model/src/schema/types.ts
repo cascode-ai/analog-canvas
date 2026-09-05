@@ -123,5 +123,20 @@ export type SimulationEnvironmentSelection = z.infer<
 export type SimulationStructuredInput = z.infer<
   typeof Schema.SimulationStructuredInputSchema
 >;
+export type SimulationRawFile = z.infer<typeof Schema.SimulationRawFileSchema>;
+export type SimulationRawDependency = z.infer<
+  typeof Schema.SimulationRawDependencySchema
+>;
+export type SimulationRawInput = z.infer<
+  typeof Schema.SimulationRawInputSchema
+>;
+export type SimulationStructuredSetup = {
+  version: 1;
+  input: SimulationStructuredInput;
+};
+export type SimulationRawSetup = {
+  version: 1;
+  input: SimulationRawInput;
+};
 export type SimulationSetup = z.infer<typeof Schema.SimulationSetupSchema>;
 export type CircuitProject = z.infer<typeof Schema.CircuitProjectSchema>;

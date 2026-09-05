@@ -1,5 +1,10 @@
 import { z } from "zod";
 import {
+  isSimulationInputPath,
+  MAX_SIMULATION_INPUT_BYTES,
+  MAX_SIMULATION_INPUT_FILES,
+} from "@icm/model";
+import {
   ArtifactRefSchema,
   Id,
   problem,
@@ -7,7 +12,7 @@ import {
   type Problem,
 } from "./contract.js";
 
-export const MAX_SIMULATION_INPUT_BYTES = 1024 * 1024;
+export { MAX_SIMULATION_INPUT_BYTES };
 const TTL = 15 * 60_000;
 export const WorkspaceSchema = z.strictObject({
   id: Id,
@@ -68,14 +73,7 @@ export async function sha256(text: string): Promise<string> {
     .join("");
 }
 export function safeInputPath(path: string): boolean {
-  return (
-    path.length > 0 &&
-    path.length <= 240 &&
-    !path.startsWith("/") &&
-    !/[\\:\u0000-\u001f]/u.test(path) &&
-    path.split("/").every((p) => p !== "" && p !== "." && p !== "..") &&
-    path.toLowerCase() !== ".spiceinit"
-  );
+  return isSimulationInputPath(path);
 }
 
 /** File Resource owns mutable drafts and immutable artifact bytes. No Project mutation. */
@@ -202,7 +200,10 @@ export class SimulationFiles {
       (n, t) => n + new TextEncoder().encode(t).byteLength,
       0,
     );
-    if (files.size > 24 || size > MAX_SIMULATION_INPUT_BYTES)
+    if (
+      files.size > MAX_SIMULATION_INPUT_FILES ||
+      size > MAX_SIMULATION_INPUT_BYTES
+    )
       return problem(
         "INPUT_TOO_LARGE",
         "At most 24 files and 1 MiB are accepted per workspace",

@@ -156,9 +156,10 @@ export class SimulationService {
           } else {
             const project = structuredClone(this.getProject()),
               setup = run.source.setup ?? project.simulation;
-            const compiled = setup
-              ? await compileStructuredSimulation(project, setup)
-              : null;
+            const compiled =
+              setup?.input.kind === "structured"
+                ? await compileStructuredSimulation(project, setup)
+                : null;
             run.view.inputStatus = !compiled?.ok
               ? "unavailable"
               : compiled.request.inputRevision === run.view.inputRevision
@@ -237,6 +238,13 @@ export class SimulationService {
           "SIMULATION_SETUP_MISSING",
           "Configure the Project with set_simulation_setup or supply a setup",
           "prepare",
+        );
+      if (setup.input.kind !== "structured")
+        return problem(
+          "SIMULATION_INPUT_MODE_MISMATCH",
+          "This prepare source requires a structured SimulationSetup",
+          "prepare",
+          "fix-input",
         );
       const compiled = await compileStructuredSimulation(project, setup);
       if (!compiled.ok)

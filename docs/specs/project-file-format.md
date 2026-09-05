@@ -2,14 +2,14 @@
 
 Status: `accepted`
 
-Current Project schema: `38`
+Current Project schema: `39`
 
 Primary owners: `packages/model` (current shape) and
 `packages/project-protocol` (file boundary)
 
 An `.icproj.json` file is canonical JSON for one complete `CircuitProject`.
 `@icm/project-protocol` exposes `parseProject`. The file boundary accepts every
-schema covered by its explicit 24→38 upgrade chain. Schema 32 added optional
+schema covered by its explicit 24→39 upgrade chain. Schema 32 added optional
 presentation-only `Annotation.textColor`; schema 33 removes ownerless
 `explicit-equivalence` connectivity. The 32→33 adapter advances the version
 stamp only when that retired record is absent. If one exists, it rejects at the
@@ -32,9 +32,11 @@ enter the file. An absent field means no authored setup, which is every
 existing Project, so the 36→37 adapter rewrites nothing. Schema 38 adds
 structured TRAN with explicit seconds-valued step, stop, optional start, and
 optional maximum-step fields. Existing setups remain valid, so the 37→38
-adapter also rewrites nothing. The public file boundary supplies only schema
-38 in memory and writes only schema 38; versions older than 24 or newer than
-38 are rejected.
+adapter also rewrites nothing. Schema 39 adds the raw `SimulationSetup` branch:
+a safe relative entry, small authored text files, external dependency identity,
+and environment selection. The 38→39 adapter invents no setup. The public file
+boundary supplies only schema 39 in memory and writes only schema 39; versions
+older than 24 or newer than 39 are rejected.
 
 ## Current authorities
 
@@ -101,18 +103,21 @@ adapter also rewrites nothing. The public file boundary supplies only schema
   change persisted terminal connectivity.
 - `Project.simulation` is the optional `SimulationSetup` defined in the
   [simulation spec](simulation.md#persistence-and-compatibility): a
-  `version: 1` envelope around one structured input whose `rootDocumentId`
-  must name a Document of the Project, whose analyses hold at most one entry
-  per kind, and whose probe ids are unique. It stores only a Profile ID plus
-  the author's corner and temperature selections. Source stimulus values
+  `version: 1` envelope around exactly one structured or raw input. A
+  structured root must name a Document of the Project, analyses hold at most
+  one entry per kind, and probe ids are unique. A raw input owns bounded author
+  files in the shared virtual relative namespace and declares external bytes
+  by logical identity, mount path, and digest; it never stores a host path. Both
+  forms store only a Profile ID plus the author's corner and temperature
+  selections. Source stimulus values
   (`dc`, `acMagnitude`, `acPhase`) are typed netlist parameters of the source
   Instances, never a copy inside the setup.
 
 ## Read and write
 
 ```text
-import text -> parse JSON -> require Project schema 24 through 38
--> converge to schema 38 -> strict schema-38 validation -> install unbound
+import text -> parse JSON -> require Project schema 24 through 39
+-> converge to schema 39 -> strict schema-39 validation -> install unbound
 export -> strict validation -> canonical key ordering -> Blob download
 ```
 
@@ -123,7 +128,7 @@ after explicit human approval in the editor.
 A migrated imported file is marked dirty. The editor never overwrites a source
 selected through the browser file input; the user may Save it as a Cloud
 Project or explicitly export upgraded bytes. Browser recovery records may be
-canonicalized to v38 only after a successful validated write.
+canonicalized to v39 only after a successful validated write.
 
 Project entry does not physically merge Base Nets. Matching authoritative names
 resolve as one Logical Net; conflicting claims remain a blocking diagnostic.
@@ -136,7 +141,7 @@ open, and recovery remain exact.
 Canonical serialization ends with one newline and is byte-stable across
 serialize/parse/serialize. The current corpus is listed in
 `fixtures/projects/compatibility-corpus.json`; its accepted entries must all be
-already canonical Project schema 38. The rejected corpus names expected
+already canonical Project schema 39. The rejected corpus names expected
 validation failures.
 
 Viewport, selection, undo history, canvas overlays, Agent credentials,
