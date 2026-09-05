@@ -6,6 +6,8 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "paths": {
+      "@icm/simulation-service": ["./packages/simulation-service/src/index.ts"],
+      "@icm/simulation-service/*": ["./packages/simulation-service/src/*"],
       "@icm/agent-adapter": ["./packages/agent-adapter/src/index.ts"],
       "@icm/agent-adapter/kit": ["./packages/agent-adapter/src/agent-kit.ts"],
       "@icm/agent-client": ["./packages/agent-client/src/index.ts"],

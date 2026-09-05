@@ -18,6 +18,7 @@
     "start": "node dist/main.js"
   },
   "dependencies": {
+    "@icm/simulation-service": "workspace:*",
     "@icm/model": "workspace:*",
     "@icm/agent-adapter": "workspace:*",
     "@icm/agent-client": "workspace:*",

@@ -1,0 +1,32 @@
+{
+  "name": "@icm/simulation-service",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./contract": {
+      "development": "./src/contract.ts",
+      "types": "./dist/contract.d.ts",
+      "default": "./dist/contract.js"
+    },
+    "./files": {
+      "development": "./src/files.ts",
+      "types": "./dist/files.d.ts",
+      "default": "./dist/files.js"
+    },
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@icm/model": "workspace:*",
+    "@icm/netlist": "workspace:*",
+    "@icm/spice-run": "workspace:*",
+    "zod": "4.4.3"
+  }
+}
