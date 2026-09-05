@@ -27,9 +27,31 @@ export const SimulationAcAnalysisSchema = z
     message: "AC stop frequency must be greater than the start frequency",
     path: ["stopHz"],
   });
+export const SimulationTransientAnalysisSchema = z
+  .strictObject({
+    kind: z.literal("tran"),
+    /** Requested output interval, in seconds (`tstep` in ngspice). */
+    stepSeconds: z.number().finite().positive(),
+    /** End of the transient interval, in seconds (`tstop`). */
+    stopSeconds: z.number().finite().positive(),
+    /** Optional first saved time, in seconds (`tstart`); defaults to zero. */
+    startSeconds: z.number().finite().nonnegative().optional(),
+    /** Optional maximum internal timestep, in seconds (`tmax`). */
+    maxStepSeconds: z.number().finite().positive().optional(),
+  })
+  .refine(
+    (analysis) =>
+      analysis.startSeconds === undefined ||
+      analysis.stopSeconds > analysis.startSeconds,
+    {
+      message: "TRAN stop time must be greater than the start time",
+      path: ["stopSeconds"],
+    },
+  );
 export const SimulationAnalysisSpecSchema = z.discriminatedUnion("kind", [
   SimulationOperatingPointAnalysisSchema,
   SimulationAcAnalysisSchema,
+  SimulationTransientAnalysisSchema,
 ]);
 
 /**

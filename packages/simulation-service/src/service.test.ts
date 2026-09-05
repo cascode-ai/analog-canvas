@@ -351,4 +351,32 @@ describe("shared simulation lifecycle", () => {
       error: { code: "SIMULATION_ANALYSIS_UNQUALIFIED" },
     });
   });
+
+  it("prepares qualified TRAN and keeps an oversized estimate advisory", async () => {
+    const project = CircuitProjectSchema.parse(ota);
+    if (!project.simulation) throw new Error("fixture has no setup");
+    project.simulation.input.analyses = [
+      { kind: "tran", stepSeconds: 1e-9, stopSeconds: 1e-3 },
+    ];
+    project.simulation.input.environment.profileId = "test";
+    const f = fixture();
+    f.executor.capabilities = async () => ({
+      ...caps,
+      analyses: ["op", "ac", "tran"],
+      maxOutputBytes: 1024,
+    });
+    const service = new SimulationService(f.files, f.executor, () => project);
+    const prepared = unwrap(
+      await service.handle(
+        { operation: "prepare", source: { kind: "structured" } },
+        "tran",
+      ),
+      "prepared",
+    );
+    expect(prepared.mode).toBe("structured");
+    expect(prepared.warnings).toEqual([
+      expect.stringContaining("run remains allowed"),
+    ]);
+    expect(f.executor.execute).not.toHaveBeenCalled();
+  });
 });

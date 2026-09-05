@@ -918,12 +918,29 @@ describe("SimulationSetup schema", () => {
     expect(ac({ stopHz: 5 })).toBe(false);
     expect(ac({ stopHz: Number.POSITIVE_INFINITY })).toBe(false);
     expect(ac({ tstop: 1 })).toBe(false);
-    expect(
+    const tran = (overrides: Record<string, unknown>) =>
       SimulationSetupSchema.safeParse({
         ...setup(),
-        input: { ...setup().input, analyses: [{ kind: "tran" }] },
-      }).success,
-    ).toBe(false);
+        input: {
+          ...setup().input,
+          analyses: [
+            {
+              kind: "tran",
+              stepSeconds: 1e-9,
+              stopSeconds: 1e-6,
+              ...overrides,
+            },
+          ],
+        },
+      }).success;
+    expect(tran({})).toBe(true);
+    expect(tran({ startSeconds: 0, maxStepSeconds: 1e-10 })).toBe(true);
+    expect(tran({ stepSeconds: 0 })).toBe(false);
+    expect(tran({ stopSeconds: Number.POSITIVE_INFINITY })).toBe(false);
+    expect(tran({ startSeconds: -1 })).toBe(false);
+    expect(tran({ startSeconds: 2e-6 })).toBe(false);
+    expect(tran({ maxStepSeconds: 0 })).toBe(false);
+    expect(tran({ tstop: 1 })).toBe(false);
 
     const environment = (overrides: Record<string, unknown>) => {
       const candidate = setup();

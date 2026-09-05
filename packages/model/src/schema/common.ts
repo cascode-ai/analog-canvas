@@ -1,5 +1,5 @@
 import { z } from "zod";
-export const CURRENT_PROJECT_SCHEMA_VERSION = 37;
+export const CURRENT_PROJECT_SCHEMA_VERSION = 38;
 
 export const StableIdSchema = z.string().min(1).max(256);
 /** Strict persisted/presentation hex color token. Format: `#RRGGBB`. */

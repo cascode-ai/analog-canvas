@@ -2778,7 +2778,7 @@
   "externalSubcircuitDefinitions": [],
   "id": "project-main",
   "name": "LTC3452",
-  "schemaVersion": 37,
+  "schemaVersion": 38,
   "source": {
     "dialect": "none",
     "entry": null,

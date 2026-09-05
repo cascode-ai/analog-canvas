@@ -90,7 +90,7 @@ export const AgentSimulationResourceCapabilitySchema = z.strictObject({
   operations: z.array(
     z.enum(["prepare", "start", "read", "cancel", "export", "capabilities"]),
   ),
-  analyses: z.array(z.enum(["op", "ac"])),
+  analyses: z.array(z.enum(["op", "ac", "tran"])),
   maxTimeoutMs: z.number().int().positive(),
   synchronous: z.literal(false),
 });

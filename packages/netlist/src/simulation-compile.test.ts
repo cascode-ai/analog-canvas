@@ -705,18 +705,28 @@ describe("refusing a setup that cannot be simulated", () => {
     });
   });
 
-  it("reports an analysis kind this release does not compile", async () => {
+  it("writes explicit-SI transient parameters in ngspice argument order", async () => {
     const result = await compile(
       dividerProject(),
       setupWith({
         analyses: [
-          { kind: "tran" },
-        ] as unknown as SimulationSetup["input"]["analyses"],
+          {
+            kind: "tran",
+            stepSeconds: 1e-6,
+            stopSeconds: 1e-3,
+            startSeconds: 1e-4,
+            maxStepSeconds: 1e-7,
+          },
+        ],
       }),
     );
 
-    expect(result.ok).toBe(false);
-    expect(codes(result)).toEqual(["SIMULATION_UNSUPPORTED_ANALYSIS"]);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.request.analyses).toEqual(["tran"]);
+    expect(result.request.testbench).toContain(
+      "\ntran 0.000001 0.001 0.0001 1e-7\nwrite out.raw",
+    );
   });
 
   it("reports a source-current probe on an Instance that is not a source", async () => {

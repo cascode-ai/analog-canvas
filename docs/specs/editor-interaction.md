@@ -444,8 +444,8 @@ Open, demo load, restore, and human-approved staged import replace the entire
 Project through one replacement boundary; they are not Edit Engine
 transactions. Replacement cancels pending recovery for the outgoing Project
 and terminates its Agent session. A complete Project covered by the schema
-24→37 upgrade chain may be upgraded at the read boundary and then enters the
-editor only as schema-37; migrated files are marked as needing save.
+24→38 upgrade chain may be upgraded at the read boundary and then enters the
+editor only as schema-38; migrated files are marked as needing save.
 
 Selection, viewport, active tool, previews, Agent tokens, and approval UI are
 transient and never enter Project JSON. Recovery is scheduled only after a

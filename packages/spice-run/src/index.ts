@@ -18,14 +18,14 @@ import {
   type SimulationResultData,
 } from "./result-data.js";
 
-export type SimulationAnalysis = "op" | "ac";
+export type SimulationAnalysis = "op" | "ac" | "tran";
 
 export interface SimulationRequest {
   /** Circuit netlist from @icm/netlist. Subcircuits and device cards only. */
   netlist: string;
   /** The author's testbench: stimulus, loads, analysis, prints. Theirs. */
   testbench: string;
-  /** Which analyses the caller expects; the first release covers two. */
+  /** Which analyses the caller expects from the prepared deck. */
   analyses: readonly SimulationAnalysis[];
   /** Wall-clock ceiling for the ngspice process, in milliseconds. */
   timeoutMs?: number;

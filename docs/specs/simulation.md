@@ -71,9 +71,10 @@ downgraded to an observed hosted run. An ordinary local host remains
 Profile.
 
 The first qualified scope is deliberately narrow and factual: the continuous
-`sky130_fd_pr__nfet_01v8` and `sky130_fd_pr__pfet_01v8` wrappers, `tt`, and an
-operating-point analysis plus the OTA AC sweep covered by the hosted acceptance
-fixture. Adding transient, another corner, or another device family extends
+`sky130_fd_pr__nfet_01v8` and `sky130_fd_pr__pfet_01v8` wrappers, `tt`, and
+OP/AC/TRAN covered by the hosted acceptance fixture. TRAN qualification
+includes an ideal RC step and a structured SKY130 OTA pulse response on the
+pinned ngspice 46 environment. Adding another corner or device family extends
 this same Profile contract only after a model-backed fixture passes the hosted
 gate; a locally available PDK is not evidence by itself.
 
@@ -185,10 +186,9 @@ hierarchy, and structural-export behavior. The setup follows the ordinary
 Project save, recovery, Gallery, revision, and undo/redo boundaries; it is not
 stored in a simulation-only sidecar or a second persistence service.
 
-Schema 37 lands the field as the optional `CircuitProject.simulation`, with
-this shape. The structured form is the first one persisted; the raw form joins
-`input` as a second `kind` when it lands, and `tran` joins
-`SimulationAnalysisSpec` when its parameters are persisted.
+Schema 37 landed the optional `CircuitProject.simulation`; schema 38 extends
+its structured analysis union with explicit-SI transient parameters. The raw
+form joins `input` as a second `kind` when it lands.
 
 ```ts
 interface SimulationSetup {
@@ -209,6 +209,13 @@ type SimulationAnalysisSpec =
       points: number; // positive integer
       startHz: number; // > 0
       stopHz: number; // > startHz
+    }
+  | {
+      kind: "tran";
+      stepSeconds: number; // > 0, requested output interval
+      stopSeconds: number; // > 0
+      startSeconds?: number; // >= 0 and < stopSeconds
+      maxStepSeconds?: number; // > 0, optional solver ceiling
     };
 type SimulationProbeSpec =
   | {
@@ -871,10 +878,12 @@ release. A deployment without the binding answers
 - `scripts/preview-simulation-smoke.mjs`: the bundled five-transistor OTA
   Project is the vertical acceptance asset. Its saved `SimulationSetup` is
   parsed and compiled by the production Project/netlist packages before the
-  generated OP+AC request reaches Preview. The returned input revision,
-  environment Profile, model corner, frequency axis, probe series, OP values,
-  and selected AC complex samples must all agree with the tracked
-  qualification evidence; a handwritten deck cannot satisfy this path.
+  generated OP+AC and structured TRAN requests reach Preview. The same gate
+  also runs an ideal RC pulse deck. Returned input revisions, environment
+  Profile, model corner, frequency/time axes, probe series, OP values,
+  selected AC complex samples, and OTA transient extrema must agree with the
+  tracked ngspice 46 qualification evidence; a handwritten deck alone cannot
+  satisfy this path.
 - `containers/ngspice/entrypoint.test.mjs` starts the harness as a real
   process and asserts the execution boundary against stand-in simulators
   that misbehave deliberately: a private directory per run that is removed
