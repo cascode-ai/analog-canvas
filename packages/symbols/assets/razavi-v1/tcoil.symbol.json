@@ -1,0 +1,295 @@
+{
+  "schemaVersion": 1,
+  "id": "tcoil",
+  "name": "T-Coil",
+  "viewBox": {
+    "x": -54,
+    "y": -42,
+    "width": 108,
+    "height": 76
+  },
+  "pins": [
+    {
+      "name": "1",
+      "role": "passive",
+      "at": {
+        "x": -50,
+        "y": 0
+      },
+      "direction": "west",
+      "presentation": {
+        "visibility": "visible",
+        "leadLength": 10
+      }
+    },
+    {
+      "name": "2",
+      "role": "passive",
+      "at": {
+        "x": 50,
+        "y": 0
+      },
+      "direction": "east",
+      "presentation": {
+        "visibility": "visible",
+        "leadLength": 10
+      }
+    },
+    {
+      "name": "3",
+      "role": "passive",
+      "at": {
+        "x": 0,
+        "y": 30
+      },
+      "direction": "south",
+      "presentation": {
+        "visibility": "visible",
+        "leadLength": 10
+      }
+    }
+  ],
+  "primitives": [
+    {
+      "kind": "line",
+      "from": {
+        "x": -50,
+        "y": 0
+      },
+      "to": {
+        "x": -39.5,
+        "y": 0
+      },
+      "part": "terminal-1-lead",
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "butt",
+        "lineJoin": "miter"
+      }
+    },
+    {
+      "kind": "path",
+      "data": "M -40 0 L -39.4953 0 C -39.4953 0 -39.4953 0 -38.2174 0 C -36.9409 0 -34.3851 0 -33.1087 0 C -31.8308 0 -31.8308 0 -31.8308 0 C -31.8308 0 -31.8308 0 -31.5749 -1.2452 C -31.319 -2.4889 -30.8087 -4.9763 -29.7867 -6.1873 C -28.7647 -7.3983 -27.2323 -7.3313 -26.2088 -4.8439 C -25.1868 -2.355 -24.6765 2.5543 -25.4427 5.009 C -26.2088 7.4637 -28.2544 7.4637 -28.7201 4.9763 C -29.1872 2.4874 -28.0759 -2.4889 -26.3874 -5.0209 C -24.6988 -7.5545 -22.4331 -7.6422 -20.9439 -5.1548 C -19.4563 -2.6659 -18.7451 2.3996 -19.4116 4.9317 C -20.0781 7.4637 -22.1222 7.4637 -22.6325 4.9317 C -23.1442 2.3996 -22.1222 -2.6659 -20.456 -5.1325 C -18.7898 -7.5991 -16.4794 -7.4652 -14.9456 -4.9317 C -13.4133 -2.3996 -12.6575 2.532 -13.3017 4.9986 C -13.9459 7.4637 -15.99 7.4637 -16.6237 4.9986 C -17.256 2.532 -16.4794 -2.3996 -15.2015 -4.8885 C -13.9236 -7.3759 -12.1458 -7.4205 -11.0017 -6.1992 C -9.8577 -4.9763 -9.3475 -2.4889 -9.0916 -1.2452 C -8.8357 0 -8.8357 0 -8.8357 0 C -8.8357 0 -8.8357 0 -7.4477 0 C -6.0597 0 -3.2822 0 -1.8927 0 C -0.5047 0 -0.5047 0 -0.5047 0 L 0 0",
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "butt",
+        "lineJoin": "round"
+      },
+      "part": "winding-1"
+    },
+    {
+      "kind": "path",
+      "data": "M 0 0 L 0.5047 0 C 0.5047 0 0.5047 0 1.7826 0 C 3.0591 0 5.6149 0 6.8913 0 C 8.1692 0 8.1692 0 8.1692 0 C 8.1692 0 8.1692 0 8.4251 -1.2452 C 8.681 -2.4889 9.1913 -4.9763 10.2133 -6.1873 C 11.2353 -7.3983 12.7677 -7.3313 13.7912 -4.8439 C 14.8132 -2.355 15.3235 2.5543 14.5573 5.009 C 13.7912 7.4637 11.7456 7.4637 11.2799 4.9763 C 10.8128 2.4874 11.9241 -2.4889 13.6126 -5.0209 C 15.3012 -7.5545 17.5669 -7.6422 19.0561 -5.1548 C 20.5437 -2.6659 21.2549 2.3996 20.5884 4.9317 C 19.9219 7.4637 17.8778 7.4637 17.3675 4.9317 C 16.8558 2.3996 17.8778 -2.6659 19.544 -5.1325 C 21.2102 -7.5991 23.5206 -7.4652 25.0544 -4.9317 C 26.5867 -2.3996 27.3425 2.532 26.6983 4.9986 C 26.0541 7.4637 24.01 7.4637 23.3763 4.9986 C 22.744 2.532 23.5206 -2.3996 24.7985 -4.8885 C 26.0764 -7.3759 27.8542 -7.4205 28.9983 -6.1992 C 30.1423 -4.9763 30.6525 -2.4889 30.9084 -1.2452 C 31.1643 0 31.1643 0 31.1643 0 C 31.1643 0 31.1643 0 32.5523 0 C 33.9403 0 36.7178 0 38.1073 0 C 39.4953 0 39.4953 0 39.4953 0 L 40 0",
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "butt",
+        "lineJoin": "round"
+      },
+      "part": "winding-2"
+    },
+    {
+      "kind": "line",
+      "from": {
+        "x": 39.5,
+        "y": 0
+      },
+      "to": {
+        "x": 50,
+        "y": 0
+      },
+      "part": "terminal-2-lead",
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "butt",
+        "lineJoin": "miter"
+      }
+    },
+    {
+      "kind": "line",
+      "from": {
+        "x": 0,
+        "y": -0.5
+      },
+      "to": {
+        "x": 0,
+        "y": 30
+      },
+      "part": "terminal-3-lead",
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "butt",
+        "lineJoin": "miter"
+      }
+    },
+    {
+      "kind": "polyline",
+      "points": [
+        {
+          "x": -40,
+          "y": 0
+        },
+        {
+          "x": -40,
+          "y": -30
+        },
+        {
+          "x": -19.5,
+          "y": -30
+        }
+      ],
+      "part": "bridge-left-route",
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "butt",
+        "lineJoin": "miter"
+      }
+    },
+    {
+      "kind": "line",
+      "from": {
+        "x": -3.2336,
+        "y": -38.0506
+      },
+      "to": {
+        "x": -3.2336,
+        "y": -21.9494
+      },
+      "style": {
+        "strokeRole": "emphasis",
+        "lineCap": "butt",
+        "lineJoin": "miter"
+      },
+      "part": "bridge-capacitor-1"
+    },
+    {
+      "kind": "line",
+      "from": {
+        "x": 3.2336,
+        "y": -38.0506
+      },
+      "to": {
+        "x": 3.2336,
+        "y": -21.9494
+      },
+      "style": {
+        "strokeRole": "emphasis",
+        "lineCap": "butt",
+        "lineJoin": "miter"
+      },
+      "part": "bridge-capacitor-2"
+    },
+    {
+      "kind": "line",
+      "from": {
+        "x": -3.2336,
+        "y": -30
+      },
+      "to": {
+        "x": -20,
+        "y": -30
+      },
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "butt",
+        "lineJoin": "miter"
+      },
+      "part": "bridge-capacitor-3"
+    },
+    {
+      "kind": "line",
+      "from": {
+        "x": 3.2336,
+        "y": -30
+      },
+      "to": {
+        "x": 20,
+        "y": -30
+      },
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "butt",
+        "lineJoin": "miter"
+      },
+      "part": "bridge-capacitor-4"
+    },
+    {
+      "kind": "polyline",
+      "points": [
+        {
+          "x": 19.5,
+          "y": -30
+        },
+        {
+          "x": 40,
+          "y": -30
+        },
+        {
+          "x": 40,
+          "y": 0
+        }
+      ],
+      "part": "bridge-right-route",
+      "style": {
+        "strokeRole": "normal",
+        "lineCap": "butt",
+        "lineJoin": "miter"
+      }
+    },
+    {
+      "kind": "circle",
+      "center": {
+        "x": -31,
+        "y": -9
+      },
+      "radius": 3.2,
+      "fill": "foreground",
+      "stroke": "none",
+      "part": "winding-1-polarity"
+    },
+    {
+      "kind": "circle",
+      "center": {
+        "x": 9,
+        "y": -9
+      },
+      "radius": 3.2,
+      "fill": "foreground",
+      "stroke": "none",
+      "part": "winding-2-polarity"
+    },
+    {
+      "kind": "circle",
+      "center": {
+        "x": -40,
+        "y": 0
+      },
+      "radius": 3.2,
+      "fill": "foreground",
+      "stroke": "none",
+      "part": "internal-junction-1"
+    },
+    {
+      "kind": "circle",
+      "center": {
+        "x": 0,
+        "y": 0
+      },
+      "radius": 3.2,
+      "fill": "foreground",
+      "stroke": "none",
+      "part": "internal-junction-2"
+    },
+    {
+      "kind": "circle",
+      "center": {
+        "x": 40,
+        "y": 0
+      },
+      "radius": 3.2,
+      "fill": "foreground",
+      "stroke": "none",
+      "part": "internal-junction-3"
+    }
+  ],
+  "variants": []
+}

@@ -39,6 +39,8 @@ describe("component insertion catalog", () => {
       "resistor",
     ]);
     expect(symbolCategory("capacitor")).toBe("Passives");
+    expect(symbolCategory("tcoil")).toBe("Passives");
+    expect(symbolCategory("xfmr")).toBe("Passives");
     expect(symbolCategory("variable-resistor")).toBe("Extended Devices");
     expect(symbolCategory("variable-capacitor")).toBe("Extended Devices");
     expect(symbolCategory("variable-inductor")).toBe("Extended Devices");
@@ -262,6 +264,8 @@ describe("reach order inside a category", () => {
       "capacitor",
       "inductor-compact",
       "inductor",
+      "tcoil",
+      "xfmr",
     ]);
   });
 

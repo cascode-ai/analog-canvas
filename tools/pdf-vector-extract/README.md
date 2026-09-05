@@ -7,6 +7,11 @@ the raster comparison workflow.
 The family extractors currently cover:
 
 - `extract-razavi-inductor.py`: continuous inductor path from Figure 15.21;
+- `extract-razavi-magnetic-components.py`: native-vector layout, topology, and
+  polarity-dot evidence for the OJSSCS Figure 19(a) transformer and the
+  _Bridged T-Coil_ Figure 2 network. Product generation reuses the reviewed
+  Inductor and Capacitor artwork instead of copying either paper's passive
+  curves;
 - `extract-razavi-opamp.py`: triangle, three leads, and polarity marks from
   Figure 8.26;
 - `extract-razavi-differential-opamp.py`: direct four-terminal amplifier body,
@@ -51,3 +56,9 @@ The common extractor accepts `--asset all` (default) or one symbol ID. It
 records `selection.method` and `derivation` whenever electrical pin extensions
 or other semantic normalization are added, so they cannot be mistaken for
 native PDF artwork.
+
+The magnetic-component extractor accepts the two external PDFs independently.
+It records native object fingerprints and emits one tight source crop per
+component. The extract's normalized product layout is the only bridge to the
+family generator; source paths, local machine paths, and PDF files never enter
+the runtime catalog.

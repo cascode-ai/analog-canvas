@@ -436,6 +436,44 @@
       "scope": [
         "generic D/CK/Q/Q-bar flip-flop block without external circuit ports"
       ]
+    },
+    {
+      "id": "razavi-ojsscs-figure-19-xfmr",
+      "kind": "pdf-vector-extract",
+      "source": {
+        "title": "LO Generation Techniques for Millimeter-Wave Receivers",
+        "sha256": "489edabe3248a336806a249d099401c94aab0b26913a6dee16d754e9e36baf31",
+        "pdfPage": 8,
+        "printedPage": 8,
+        "figure": "19(a)"
+      },
+      "extractPath": "xfmr-vector-source.json",
+      "extractSha256": "1f6d973a80a742b831660ab2cf5615a2365abbddcdf69a992ad8c2457ed60d0f",
+      "rasterPath": "xfmr-reference.png",
+      "rasterSha256": "590a8a622514b117db6f9580952605d717e24654f972278d095eebaf404537dd",
+      "scope": [
+        "two-winding transformer topology and separation",
+        "same-name polarity-dot placement relative to each winding"
+      ]
+    },
+    {
+      "id": "razavi-bridged-tcoil-figure-2",
+      "kind": "pdf-vector-extract",
+      "source": {
+        "title": "The Bridged T-Coil",
+        "sha256": "30543c6d78f1ca1e3019746520319eeb39948899294bb8f4d792870b84b2b676",
+        "pdfPage": 1,
+        "printedPage": 9,
+        "figure": "2"
+      },
+      "extractPath": "tcoil-vector-source.json",
+      "extractSha256": "c8611500d82547bf5fde153587fc71d5a42700a8747abcf5a2021fdd0d302d57",
+      "rasterPath": "tcoil-reference.png",
+      "rasterSha256": "5bf1ef2f5055e659365b2f447765d33a11aeaac8a96339157bef66a03fca146d",
+      "scope": [
+        "three-terminal bridged T-coil topology",
+        "winding, bridge-capacitor, junction, and polarity-dot placement"
+      ]
     }
   ],
   "mosGeometryPath": "mos-geometry.json",
@@ -489,6 +527,8 @@
     "PDF-derived logic-gate bodies, bubbles, and lead junctions",
     "PDF-derived Buffer and generic D flip-flop geometry",
     "PDF-derived page-331 Delay Cell geometry and Delta-T mark",
+    "PDF-derived transformer winding and polarity-dot layout",
+    "PDF-derived bridged T-coil topology and passive placement",
     "PDF-derived clock-pulse presentation from Figure 16.8",
     "PDF-derived stacked digital waveform presentation from Figure 20.54"
   ],
@@ -498,6 +538,7 @@
     "PDF vector evidence is scoped, hash-pinned source evidence and carries a raster witness for the existing comparison workflow.",
     "The pulse source combines the existing independent voltage-source body with the Figure 16.8 square-step presentation; the PDF figure does not define the source's electrical contract.",
     "Figure 20.54 is visual evidence for waveform presentation only; simulation semantics remain product-owned.",
+    "XFMR and T-coil reuse the reviewed Inductor and Capacitor artwork; their PDF evidence governs topology, placement, and polarity rather than introducing duplicate passive geometry.",
     "Visio/VSS may establish legacy pin semantics but must not determine visual geometry."
   ],
   "deltaSigmaGeometryPath": "delta-sigma-geometry.json",

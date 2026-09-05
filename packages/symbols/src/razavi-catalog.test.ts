@@ -179,6 +179,8 @@ describe("Razavi symbol catalog", () => {
       ["ideal-switch", "reviewed", "razavi-reference-v1"],
       ["inductor", "reviewed", "razavi-reference-v1"],
       ["inductor-compact", "reviewed", "razavi-reference-v1"],
+      ["tcoil", "reviewed", "razavi-reference-v1"],
+      ["xfmr", "reviewed", "razavi-reference-v1"],
       ["inverter", "reviewed", "razavi-reference-v1"],
       ["nand-gate", "reviewed", "razavi-reference-v1"],
       ["nmos", "reviewed", "razavi-reference-v1"],
@@ -561,7 +563,7 @@ describe("Razavi symbol catalog", () => {
   });
 
   it("uses reviewed catalog objects as the sole built-in product library", () => {
-    expect(razaviCatalogSymbols).toHaveLength(59);
+    expect(razaviCatalogSymbols).toHaveLength(61);
     for (const catalogSymbol of razaviProductSymbols) {
       expect(
         builtInSymbols.find((symbol) => symbol.id === catalogSymbol.id),
@@ -595,6 +597,8 @@ describe("Razavi symbol catalog", () => {
       "ideal-switch",
       "inductor",
       "inductor-compact",
+      "tcoil",
+      "xfmr",
       "inverter",
       "nand-gate",
       "nmos",
@@ -1078,6 +1082,75 @@ describe("Razavi symbol catalog", () => {
       kind: "razavi-pdf-vector-reference",
       converterPath: "scripts/generate-razavi-inductor-asset.mjs",
     });
+  });
+
+  it("composes the PDF-positioned XFMR from two reviewed Inductor paths", () => {
+    const xfmr = requireRazaviCatalogSymbol("xfmr");
+    expect(xfmr.pins).toMatchObject([
+      { name: "P-", at: { x: -30, y: -10 }, direction: "west" },
+      { name: "P+", at: { x: 30, y: -10 }, direction: "east" },
+      { name: "S-", at: { x: -30, y: 10 }, direction: "west" },
+      { name: "S+", at: { x: 30, y: 10 }, direction: "east" },
+    ]);
+    expect(
+      xfmr.primitives.filter((primitive) => primitive.kind === "path"),
+    ).toHaveLength(2);
+    expect(
+      xfmr.primitives.filter(
+        (primitive) =>
+          primitive.kind === "circle" && primitive.fill === "foreground",
+      ),
+    ).toMatchObject([
+      { center: { x: 19.15, y: -20.4 }, radius: 3.2 },
+      { center: { x: 19.15, y: 20.4 }, radius: 3.2 },
+    ]);
+    expect(
+      xfmr.primitives.some(
+        (primitive) =>
+          primitive.kind === "circle" &&
+          xfmr.pins.some(
+            (pin) =>
+              pin.at.x === primitive.center.x &&
+              pin.at.y === primitive.center.y,
+          ),
+      ),
+    ).toBe(false);
+  });
+
+  it("keeps the bridged T-coil atomic while reusing reviewed L and C artwork", () => {
+    const tcoil = requireRazaviCatalogSymbol("tcoil");
+    expect(tcoil.pins).toMatchObject([
+      { name: "1", at: { x: -50, y: 0 }, direction: "west" },
+      { name: "2", at: { x: 50, y: 0 }, direction: "east" },
+      { name: "3", at: { x: 0, y: 30 }, direction: "south" },
+    ]);
+    expect(
+      tcoil.primitives.filter((primitive) => primitive.kind === "path"),
+    ).toHaveLength(2);
+    expect(
+      tcoil.primitives.filter((primitive) =>
+        primitive.part?.startsWith("bridge-capacitor-"),
+      ),
+    ).toHaveLength(4);
+    expect(
+      tcoil.primitives.filter((primitive) =>
+        primitive.part?.startsWith("internal-junction-"),
+      ),
+    ).toHaveLength(3);
+    expect(
+      tcoil.primitives.some(
+        (primitive) =>
+          primitive.kind === "circle" &&
+          tcoil.pins.some(
+            (pin) =>
+              pin.at.x === primitive.center.x &&
+              pin.at.y === primitive.center.y,
+          ),
+      ),
+    ).toBe(false);
+    expect(getRazaviCatalogEntry("tcoil")?.manualOnlyReason).toContain(
+      "composite L1/L2/K/CB network",
+    );
   });
 
   it("uses the PDF-derived three-terminal op-amp geometry and polarity marks", () => {

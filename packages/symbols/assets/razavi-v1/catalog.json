@@ -562,6 +562,60 @@
       }
     },
     {
+      "symbolId": "tcoil",
+      "name": "T-Coil",
+      "category": "passive",
+      "reviewStatus": "reviewed",
+      "pinOrder": ["1", "2", "3"],
+      "palette": true,
+      "automaticMappings": [],
+      "manualOnlyReason": "A bridged T-coil is a composite L1/L2/K/CB network; structural export requires an explicit fixed-cell or subcircuit mapping.",
+      "assetPath": "tcoil.symbol.json",
+      "assetHash": "a7b3f59ba520508254a35be3632b9958e64c283756990ba617e6cc8c1ae44d68",
+      "visualAuthority": {
+        "kind": "razavi-reference-v1",
+        "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+        "referencePaths": [
+          "fixtures/visual-reference/razavi-reference-v1/tcoil-vector-source.json",
+          "fixtures/visual-reference/razavi-reference-v1/tcoil-reference.png"
+        ]
+      },
+      "generation": {
+        "kind": "razavi-pdf-vector-reference",
+        "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+        "referencePath": "fixtures/visual-reference/razavi-reference-v1/tcoil-vector-source.json",
+        "converterPath": "scripts/generate-razavi-magnetic-components.mjs",
+        "converterVersion": 1
+      }
+    },
+    {
+      "symbolId": "xfmr",
+      "name": "XFMR",
+      "category": "passive",
+      "reviewStatus": "reviewed",
+      "pinOrder": ["P-", "P+", "S-", "S+"],
+      "palette": true,
+      "automaticMappings": [],
+      "manualOnlyReason": "A transformer lowers to two inductors plus mutual coupling; structural export requires an explicit compound-device or subcircuit mapping.",
+      "assetPath": "xfmr.symbol.json",
+      "assetHash": "effb7af2245042c8729c6d1da854c718c76e95d51f59b1f9cb554d475be8c0aa",
+      "visualAuthority": {
+        "kind": "razavi-reference-v1",
+        "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+        "referencePaths": [
+          "fixtures/visual-reference/razavi-reference-v1/xfmr-vector-source.json",
+          "fixtures/visual-reference/razavi-reference-v1/xfmr-reference.png"
+        ]
+      },
+      "generation": {
+        "kind": "razavi-pdf-vector-reference",
+        "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+        "referencePath": "fixtures/visual-reference/razavi-reference-v1/xfmr-vector-source.json",
+        "converterPath": "scripts/generate-razavi-magnetic-components.mjs",
+        "converterVersion": 1
+      }
+    },
+    {
       "symbolId": "inverter",
       "name": "Inverter",
       "category": "logic",

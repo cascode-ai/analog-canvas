@@ -30,6 +30,8 @@ const PRODUCT_IDS = [
   "ideal-switch",
   "inductor",
   "inductor-compact",
+  "tcoil",
+  "xfmr",
   "inverter",
   "nand-gate",
   "nmos",
