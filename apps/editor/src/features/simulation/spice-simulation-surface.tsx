@@ -20,6 +20,15 @@ import {
   type SimulationProbeOption,
 } from "./simulation-probe-options";
 
+const RESULT_TABS = [
+  ["summary", "Summary"],
+  ["plot", "Plot"],
+  ["operating-point", "Operating Point"],
+  ["console", "Console"],
+  ["files", "Files"],
+] as const;
+type ResultTab = (typeof RESULT_TABS)[number][0];
+
 export interface SpiceSimulationSurfaceProps {
   open: boolean;
   project: CircuitProject;
@@ -45,6 +54,14 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [setupOpen, setSetupOpen] = useState(!project.simulation);
+  const [resultsOpen, setResultsOpen] = useState(false);
+  const [resultTab, setResultTab] = useState<ResultTab>("summary");
+  useEffect(() => {
+    if (!open || project.simulation) return;
+    setResultsOpen(false);
+    setSetupOpen(true);
+  }, [open, project.simulation, props.activeDocumentId]);
   const lock = useRef(false);
   const alive = useRef(true);
   useEffect(() => {
@@ -59,12 +76,32 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
       setError(
         `${reply.error.code}: ${reply.error.message}${reply.error.diagnostics?.map((d) => `\n${d.code}: ${d.message}`).join("") ?? ""}`,
       );
+      if (project.simulation) {
+        setSetupOpen(false);
+        setResultsOpen(true);
+        setResultTab("console");
+      } else {
+        setSetupOpen(true);
+        setResultsOpen(false);
+      }
     } else if ("run" in reply) {
       setRun(reply.run);
       setError("");
+      if (
+        reply.run.result ||
+        reply.run.error ||
+        ["finished", "cancelled", "lost"].includes(reply.run.state)
+      ) {
+        setSetupOpen(false);
+        setResultsOpen(true);
+        setResultTab("summary");
+      }
     } else if ("prepared" in reply) {
       setPrepared(reply.prepared);
       setError("");
+      setSetupOpen(false);
+      setResultsOpen(true);
+      setResultTab("files");
     } else if ("capabilities" in reply) {
       setCapabilities(reply.capabilities);
       setError("");
@@ -174,6 +211,31 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
         ]
       : []),
   ];
+  const statusLabel = busy
+    ? "Preparing…"
+    : run
+      ? `${run.state}${run.result ? ` · ${run.result.outcome.status}` : ""}`
+      : prepared
+        ? "Deck prepared"
+        : "No run yet";
+  const staleMessage =
+    run?.inputStatus === "changed"
+      ? "Result belongs to an earlier Project revision. Run again to use the current circuit."
+      : "";
+  const attention =
+    error ||
+    staleMessage ||
+    (run?.error ? `${run.error.code}: ${run.error.message}` : "");
+  const attentionSummary = error
+    ? error.startsWith("SIMULATION_CAPABILITIES_UNAVAILABLE")
+      ? "Simulation service is unavailable in this environment."
+      : /probe/i.test(error)
+        ? "The probe selection needs attention. Open Console for details."
+        : "Simulation needs attention. Open Console for details."
+    : attention;
+  const analysisLabel = project.simulation?.input.analyses
+    .map((analysis) => analysis.kind.toUpperCase())
+    .join(" + ");
   return (
     <section
       hidden={!open}
@@ -184,56 +246,171 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
         if (e.key === "Escape") props.onClose();
       }}
     >
-      <header>
-        <strong>Simulation · Preview</strong>
-        <button onClick={props.onClose} aria-label="Close simulation">
-          ×
-        </button>
-      </header>
-      <div className="spice-simulation-body">
-        <p>
-          Build the testbench on the canvas. Source DC/AC values live in
-          instance Properties. Run sends the prepared circuit to the configured
-          simulator.
-        </p>
-        <div className="spice-simulation-actions">
-          <button onClick={props.onNewTestbench}>New Testbench Cell…</button>
-          {project.simulation && (
-            <button
-              onClick={() => {
-                props.onOpenCell(project.simulation!.input.rootDocumentId);
-                props.onClose();
-              }}
-            >
-              Edit testbench
-            </button>
-          )}
+      <header className="simulation-taskbar">
+        <div className="simulation-brand">
+          <strong>Simulation</strong>
+          <span>Preview</span>
         </div>
-        <p data-testid="simulation-cell-flow">
+        <div
+          className="simulation-cell-context"
+          data-testid="simulation-cell-flow"
+        >
           {props.draftContext ? (
             <>
-              DUT: <strong>{draftDut?.name ?? "Missing Cell"}</strong>
-              {" → "}Symbol View{" → "}Testbench:{" "}
-              <strong>{draftRoot?.name ?? "Missing Cell"}</strong>
+              <button
+                disabled={!draftDut}
+                onClick={() => draftDut && props.onOpenCell(draftDut.id)}
+              >
+                <small>DUT</small>
+                {draftDut?.name ?? "Missing Cell"}
+              </button>
+              <span aria-hidden="true">→</span>
+              <span className="simulation-symbol-stage">Symbol View</span>
+              <span aria-hidden="true">→</span>
+              <button
+                disabled={!draftRoot}
+                onClick={() => draftRoot && props.onOpenCell(draftRoot.id)}
+              >
+                <small>Testbench</small>
+                {draftRoot?.name ?? "Missing Cell"}
+              </button>
             </>
           ) : project.simulation ? (
             <>
-              Testbench: <strong>{savedRoot?.name ?? "Missing Cell"}</strong>
-              {activeCell && activeCell.id !== savedRoot?.id
-                ? ` · editing ${activeCell.name}`
-                : ""}
+              <button
+                disabled={!savedRoot}
+                onClick={() => savedRoot && props.onOpenCell(savedRoot.id)}
+              >
+                <small>Testbench</small>
+                {savedRoot?.name ?? "Missing Cell"}
+              </button>
+              {activeCell && activeCell.id !== savedRoot?.id ? (
+                <span className="simulation-editing-cell">
+                  Editing {activeCell.name}
+                </span>
+              ) : null}
             </>
           ) : (
             <>
-              DUT: <strong>{activeCell?.name ?? "Missing Cell"}</strong>
-              {" → "}Symbol View:{" "}
-              {activeCell?.presentation.cellSymbol
-                ? "reviewed"
-                : "auto-derived"}
-              {" → "}create a Testbench
+              <button
+                disabled={!activeCell}
+                onClick={() => activeCell && props.onOpenCell(activeCell.id)}
+              >
+                <small>DUT</small>
+                {activeCell?.name ?? "Missing Cell"}
+              </button>
+              <span aria-hidden="true">→</span>
+              <span className="simulation-symbol-stage">
+                {activeCell?.presentation.cellSymbol
+                  ? "Reviewed Symbol"
+                  : "Derived Symbol"}
+              </span>
+              <span aria-hidden="true">→</span>
+              <button onClick={props.onNewTestbench}>Create Testbench</button>
             </>
           )}
-        </p>
+        </div>
+        {analysisLabel ? (
+          <span className="simulation-analysis-chip">{analysisLabel}</span>
+        ) : null}
+        <span
+          className={`simulation-status-chip simulation-status-${run?.state ?? (prepared ? "prepared" : "idle")}`}
+          role="status"
+        >
+          {dirty ? "Setup changed" : statusLabel}
+        </span>
+        <div className="simulation-task-actions">
+          <button
+            type="button"
+            aria-pressed={setupOpen}
+            onClick={() => {
+              if (!setupOpen) setResultsOpen(false);
+              setSetupOpen(!setupOpen);
+            }}
+          >
+            Setup
+          </button>
+          <button
+            type="button"
+            aria-pressed={resultsOpen}
+            onClick={() => {
+              if (!resultsOpen) setSetupOpen(false);
+              setResultsOpen(!resultsOpen);
+            }}
+          >
+            Results
+          </button>
+          <button
+            disabled={busy || !!running || dirty || !project.simulation}
+            onClick={() => void execute(false)}
+          >
+            Prepare deck
+          </button>
+          {running ? (
+            <button
+              className="simulation-stop-button"
+              disabled={run.state === "cancelling"}
+              onClick={() =>
+                void session
+                  .handle({ operation: "cancel", runId: run.id })
+                  .then(receive)
+              }
+            >
+              Cancel run
+            </button>
+          ) : project.simulation ? (
+            <button
+              className="simulation-primary-button"
+              disabled={busy || dirty}
+              onClick={() => void execute(true)}
+            >
+              Run
+            </button>
+          ) : (
+            <button
+              className="simulation-primary-button"
+              onClick={props.onNewTestbench}
+            >
+              New Testbench Cell…
+            </button>
+          )}
+          <button
+            className="simulation-close-button"
+            onClick={props.onClose}
+            aria-label="Close simulation"
+          >
+            ×
+          </button>
+        </div>
+      </header>
+
+      {attention ? (
+        <div className="simulation-workspace-notice" role="alert">
+          <strong>Needs attention</strong>
+          <span>{attentionSummary}</span>
+          {error && run ? (
+            <button
+              onClick={() =>
+                void session
+                  .handle({ operation: "read", runId: run.id })
+                  .then(receive)
+              }
+            >
+              Refresh run status
+            </button>
+          ) : null}
+        </div>
+      ) : capabilities?.configured === false ? (
+        <div className="simulation-workspace-notice">
+          Simulator not configured. You can still edit the Project and setup.
+        </div>
+      ) : dirty ? (
+        <div className="simulation-workspace-notice">
+          Apply setup changes before running.
+        </div>
+      ) : null}
+
+      {setupOpen ? (
         <SetupEditor
           key={
             JSON.stringify(project.simulation) ??
@@ -243,183 +420,228 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
           capabilities={capabilities}
           onDirty={setDirty}
           onError={setError}
+          onDismiss={() => setSetupOpen(false)}
         />
-        <div className="spice-simulation-actions">
-          <button
-            disabled={busy || !!running || dirty || !project.simulation}
-            onClick={() => void execute(false)}
-          >
-            Prepare deck
-          </button>
-          <button
-            disabled={busy || !!running || dirty || !project.simulation}
-            onClick={() => void execute(true)}
-          >
-            Run
-          </button>
-          <button
-            disabled={!running || run.state === "cancelling"}
-            onClick={() =>
-              void session
-                .handle({ operation: "cancel", runId: run!.id })
-                .then(receive)
-            }
-          >
-            Cancel run
-          </button>
-        </div>
-        {dirty && <p>Apply setup changes before running.</p>}
-        {capabilities?.configured === false && (
-          <p>
-            Simulator not configured. You can still edit the Project and setup.
-          </p>
-        )}
-        <p role="status">
-          {busy
-            ? "Preparing…"
-            : run
-              ? `${run.state}${run.result ? ` · ${run.result.outcome.status}` : ""}`
-              : prepared
-                ? "Deck prepared"
-                : "No run yet"}
-        </p>
-        {error && <pre role="alert">{error}</pre>}
-        {error && run && (
-          <button
-            onClick={() =>
-              void session
-                .handle({ operation: "read", runId: run.id })
-                .then(receive)
-            }
-          >
-            Refresh run status
-          </button>
-        )}
-        {run?.state === "lost" && (
-          <p>
-            The executor response is unknown. This run was not automatically
-            resubmitted; inspect its evidence before choosing a new run.
-          </p>
-        )}
-        {(run || prepared) && (
-          <details>
-            <summary>Input identity</summary>
-            <pre>
-              {prepared &&
-                `Prepared ${prepared.id}\nInput ${prepared.inputRevision}\n`}
-              {run &&
-                `Run ${run.id}\nPrepared ${run.preparedId}\nInput ${run.inputRevision}`}
-            </pre>
-          </details>
-        )}
-        {prepared?.warnings.map((warning, i) => (
-          <p key={i}>{warning}</p>
-        ))}
-        {run?.inputStatus === "changed" && (
-          <p role="alert">
-            Result belongs to an earlier Project revision. Run again to use the
-            current circuit.
-          </p>
-        )}
-        {run?.error && (
-          <pre role="alert">
-            {run.error.code}: {run.error.message}
-          </pre>
-        )}
-        {run?.result && (
-          <>
-            {run.resultPreview && (
-              <p>
-                Result preview is bounded. Export artifacts for complete data.
-              </p>
-            )}
-            {run.result.data?.analyses.map((analysis, i) => (
-              <section
-                key={i}
-                aria-label={`${analysis.analysis.toUpperCase()} results`}
-              >
-                <h3>{analysis.plotName}</h3>
-                {analysis.analysis === "op" && (
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Vector</th>
-                        <th>Value</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {analysis.probes.map((p) => (
-                        <tr key={p.name}>
-                          <td>{p.name}</td>
-                          <td>
-                            {p.value.toPrecision(6)} {p.unit}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-                {analysis.analysis === "ac" && (
-                  <div
-                    className="spice-ac-plot"
-                    dangerouslySetInnerHTML={{
-                      __html:
-                        acResponseSvg(
-                          analysis.probes.map((p) => ({
-                            label: p.name,
-                            points: analysis.frequencyHz.map(
-                              (frequency, index) => ({
-                                frequency,
-                                magnitudeDb:
-                                  20 *
-                                  Math.log10(
-                                    Math.max(
-                                      Math.hypot(
-                                        p.real[index] ?? 0,
-                                        p.imag[index] ?? 0,
+      ) : null}
+
+      {resultsOpen ? (
+        <section
+          className="simulation-results-dock"
+          aria-label="Simulation results"
+        >
+          <header className="simulation-results-header">
+            <div role="tablist" aria-label="Result views">
+              {RESULT_TABS.map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  role="tab"
+                  aria-selected={resultTab === id}
+                  onClick={() => setResultTab(id)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              aria-label="Close results"
+              onClick={() => setResultsOpen(false)}
+            >
+              ×
+            </button>
+          </header>
+          <div className="simulation-results-body">
+            {resultTab === "summary" ? (
+              <div className="simulation-result-summary">
+                <div>
+                  <small>Run state</small>
+                  <strong>{statusLabel}</strong>
+                </div>
+                <div>
+                  <small>Input</small>
+                  <strong>{run?.inputStatus ?? "current"}</strong>
+                </div>
+                <div>
+                  <small>Analyses</small>
+                  <strong>{analysisLabel || "Not configured"}</strong>
+                </div>
+                {run?.state === "lost" ? (
+                  <p>
+                    The executor response is unknown. This run was not
+                    automatically resubmitted; inspect its evidence before
+                    choosing a new run.
+                  </p>
+                ) : null}
+                {prepared?.warnings.map((warning, index) => (
+                  <p key={index}>{warning}</p>
+                ))}
+                {run?.resultPreview ? (
+                  <p>
+                    Result preview is bounded. Export artifacts for complete
+                    data.
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+
+            {resultTab === "plot" ? (
+              <div className="simulation-analysis-view">
+                {run?.result?.data?.analyses
+                  .filter((analysis) => analysis.analysis === "ac")
+                  .map((analysis, index) => (
+                    <section key={index} aria-label="AC results">
+                      <h3>{analysis.plotName}</h3>
+                      <div
+                        className="spice-ac-plot"
+                        dangerouslySetInnerHTML={{
+                          __html:
+                            acResponseSvg(
+                              analysis.probes.map((probe) => ({
+                                label: probe.name,
+                                points: analysis.frequencyHz.map(
+                                  (frequency, pointIndex) => ({
+                                    frequency,
+                                    magnitudeDb:
+                                      20 *
+                                      Math.log10(
+                                        Math.max(
+                                          Math.hypot(
+                                            probe.real[pointIndex] ?? 0,
+                                            probe.imag[pointIndex] ?? 0,
+                                          ),
+                                          1e-30,
+                                        ),
                                       ),
-                                      1e-30,
-                                    ),
-                                  ),
-                                phaseDeg:
-                                  (Math.atan2(
-                                    p.imag[index] ?? 0,
-                                    p.real[index] ?? 0,
-                                  ) *
-                                    180) /
-                                  Math.PI,
-                              }),
-                            ),
-                          })),
-                          { width: 640, height: 320 },
-                        ) ?? "",
-                    }}
-                  />
+                                    phaseDeg:
+                                      (Math.atan2(
+                                        probe.imag[pointIndex] ?? 0,
+                                        probe.real[pointIndex] ?? 0,
+                                      ) *
+                                        180) /
+                                      Math.PI,
+                                  }),
+                                ),
+                              })),
+                              { width: 760, height: 300 },
+                            ) ?? "",
+                        }}
+                      />
+                    </section>
+                  ))}
+                {!run?.result?.data?.analyses.some(
+                  (analysis) => analysis.analysis === "ac",
+                ) ? (
+                  <p className="simulation-empty-result">
+                    Run an AC analysis to see a plot.
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+
+            {resultTab === "operating-point" ? (
+              <div className="simulation-analysis-view">
+                {run?.result?.data?.analyses
+                  .filter((analysis) => analysis.analysis === "op")
+                  .map((analysis, index) => (
+                    <section key={index} aria-label="OP results">
+                      <h3>{analysis.plotName}</h3>
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Vector</th>
+                            <th>Value</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {analysis.probes.map((probe) => (
+                            <tr key={probe.name}>
+                              <td>{probe.name}</td>
+                              <td>
+                                {probe.value.toPrecision(6)} {probe.unit}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </section>
+                  ))}
+                {!run?.result?.data?.analyses.some(
+                  (analysis) => analysis.analysis === "op",
+                ) ? (
+                  <p className="simulation-empty-result">
+                    Run an operating-point analysis to see values.
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+
+            {resultTab === "console" ? (
+              <div className="simulation-console-view">
+                {error ? <pre>{error}</pre> : null}
+                {run?.error ? (
+                  <pre>
+                    {run.error.code}: {run.error.message}
+                  </pre>
+                ) : null}
+                {run?.result ? (
+                  <pre>
+                    {run.result.diagnostics
+                      .map((diagnostic) => diagnostic.text)
+                      .join("\n")}
+                    {"\n"}
+                    {run.result.log}
+                  </pre>
+                ) : null}
+                {!error && !run?.error && !run?.result ? (
+                  <p className="simulation-empty-result">
+                    Simulator diagnostics will appear here.
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+
+            {resultTab === "files" ? (
+              <div className="simulation-files-view">
+                {(run || prepared) && (
+                  <details>
+                    <summary>Input identity</summary>
+                    <pre>
+                      {prepared &&
+                        `Prepared ${prepared.id}\nInput ${prepared.inputRevision}\n`}
+                      {run &&
+                        `Run ${run.id}\nPrepared ${run.preparedId}\nInput ${run.inputRevision}`}
+                    </pre>
+                  </details>
                 )}
-              </section>
-            ))}
-            <details>
-              <summary>Diagnostics and console</summary>
-              <pre>
-                {run.result.diagnostics.map((d) => d.text).join("\n")}
-                {"\n"}
-                {run.result.log}
-              </pre>
-            </details>
-          </>
-        )}
-        {artifactGroups.map((group) => (
-          <details open key={group.label} aria-label={group.label}>
-            <summary>{group.label}</summary>
-            <small>{group.identity}</small>
-            {group.artifacts.map((a) => (
-              <button key={a.id} onClick={() => void download(a)}>
-                {a.name}
-              </button>
-            ))}
-          </details>
-        ))}
-      </div>
+                {artifactGroups.map((group) => (
+                  <section key={group.label} aria-label={group.label}>
+                    <div>
+                      <strong>{group.label}</strong>
+                      <small>{group.identity}</small>
+                    </div>
+                    <div className="simulation-artifact-list">
+                      {group.artifacts.map((artifact) => (
+                        <button
+                          key={artifact.id}
+                          onClick={() => void download(artifact)}
+                        >
+                          {artifact.name}
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+                ))}
+                {artifactGroups.length === 0 ? (
+                  <p className="simulation-empty-result">
+                    Prepare a deck or run the simulation to create files.
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
     </section>
   );
 }
@@ -432,10 +654,12 @@ function SetupEditor({
   onSaveSetup,
   onDirty,
   onError,
+  onDismiss,
 }: SpiceSimulationSurfaceProps & {
   capabilities: Capabilities | undefined;
   onDirty(value: boolean): void;
   onError(value: string): void;
+  onDismiss(): void;
 }) {
   const saved = project.simulation?.input;
   const [rootId, setRootId] = useState(
@@ -455,8 +679,16 @@ function SetupEditor({
     onDirty(false);
   }, []);
   return (
-    <details open={!saved}>
-      <summary>Setup</summary>
+    <aside className="simulation-setup-panel" aria-label="Simulation setup">
+      <header>
+        <div>
+          <small>Simulation</small>
+          <strong>Setup</strong>
+        </div>
+        <button type="button" aria-label="Close setup" onClick={onDismiss}>
+          ×
+        </button>
+      </header>
       <form
         onChange={() => onDirty(true)}
         onSubmit={(event) => {
@@ -645,7 +877,7 @@ function SetupEditor({
           </button>
         )}
       </form>
-    </details>
+    </aside>
   );
 }
 

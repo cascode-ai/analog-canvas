@@ -290,10 +290,13 @@ test("human simulation uses saved setup, survives closing, recovers a bad input 
   release();
   await page.getByTestId("open-analog-simulation").click();
   await expect(panel.getByRole("status")).toHaveText("finished · completed");
+  await panel.getByRole("tab", { name: "Operating Point" }).click();
   await expect(panel.getByRole("region", { name: "OP results" })).toContainText(
     "0.500000",
   );
+  await panel.getByRole("tab", { name: "Plot" }).click();
   await expect(panel.locator(".spice-ac-plot svg")).toHaveCount(1);
+  await panel.getByRole("tab", { name: "Files" }).click();
   const download = page.waitForEvent("download");
   await panel
     .getByRole("button", { name: /\.csv$/ })
