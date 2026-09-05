@@ -142,6 +142,7 @@ same contract as `/api/agent/sessions/{sessionId}/simulation`:
    page through full evidence. Local `outputPath` exports assemble all slices.
 
 For **graphless/raw** authoring, call `simulation_files` to `create`, then
+use `list` if a lost response left the workspace ID unknown. Continue with
 `update` with `workspaceId`, `expectedRevision`, `entry`, and `writes` of
 `{path,text}`. Author a complete SPICE entry and relative include files; helpers
 are optional. Prepare with `source:{kind:"raw",workspaceId,expectedRevision,

@@ -30,7 +30,7 @@ import {
 } from "./file-operations.js";
 
 /**
- * The default MCP tool surface (ADR 0020): 12 compact tools. The full
+ * The default MCP tool surface (ADR 0020): 14 compact tools. The full
  * typed edit union is deliberately NOT injected into tool descriptions; it is
  * available through `advanced_transact`; its full contract is an on-demand
  * resource, not a session permission gate.
@@ -291,18 +291,39 @@ const TOOLS: readonly ToolEntry[] = [
     },
     handle: async (args, session) => {
       const { request, requestId } = SimulationArgs.parse(args);
-      return session.client.simulationResource({
-        ...request,
-        apiVersion: AGENT_API_VERSION,
-        requestId: requestId ?? crypto.randomUUID(),
-      });
+      const effectiveRequestId = requestId ?? crypto.randomUUID();
+      try {
+        return await session.client.simulationResource({
+          ...request,
+          apiVersion: AGENT_API_VERSION,
+          requestId: effectiveRequestId,
+        });
+      } catch (error) {
+        if (!(error instanceof AgentSessionError)) throw error;
+        return {
+          ok: false,
+          requestId: effectiveRequestId,
+          error: {
+            code: error.code,
+            message: error.message,
+            stage: request.operation,
+            recovery:
+              error.category === "unrecoverable-credential"
+                ? "reauthorize"
+                : error.category === "request-rejected" &&
+                    error.code !== "INVALID_RESPONSE"
+                  ? "fix-input"
+                  : "retry-same-request",
+          },
+        };
+      }
     },
   },
   {
     definition: {
       name: "simulation_files",
       description:
-        "Use the canonical File Resource for an isolated raw testbench workspace: create/read/update/discard. Writes accept complete authored SPICE text and relative include files, without Canvas or helper-only restrictions. update uses expectedRevision. Fetch an immutable artifact by ID; optional outputPath saves it locally after digest verification. Does not replace the open Project or require import approval.",
+        "Use the canonical File Resource for an isolated raw testbench workspace: create/list/read/update/discard. list recovers workspace IDs after a lost create response. Writes accept complete authored SPICE text and relative include files, without Canvas or helper-only restrictions. update uses expectedRevision. Fetch an immutable artifact by ID; optional outputPath saves it locally after digest verification. Does not replace the open Project or require import approval.",
       inputSchema: jsonSchemaOf(SimulationFilesArgs),
     },
     handle: async (args, session) => {

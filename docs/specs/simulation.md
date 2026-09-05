@@ -765,6 +765,10 @@ through the existing supervisor, whose process-tree cleanup still owns slot
 release. A private random run token authorizes cancellation; health responses
 and Agent artifacts do not expose that token. Cancel-before-admission is remembered
 for the maximum run window. Network uncertainty is never an automatic rerun.
+MCP transport failures return the effective request ID, including when the tool
+generated it, so an Agent can retry the identical start rather than duplicate it.
+File Resource `list` recovers session draft IDs after a lost create response;
+it returns revision/entry/expiry metadata, not file bodies.
 
 The browser owns receipts, not a persistent queue: tab loss/reload may lose run
 state, and normal executor deadlines still apply. Revoking the session cancels

@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it, expect, vi } from "vitest";
-import { AgentSessionClient } from "@icm/agent-client";
+import { AgentSessionClient, AgentSessionError } from "@icm/agent-client";
 import {
   AgentSimulationResourceResponseSchema,
   type AgentSimulationResourceRequest,
@@ -18,6 +18,36 @@ import profile from "../../../containers/ngspice/hosted-sky130-profile.json";
 import { callTool } from "./tools.js";
 
 describe("MCP / browser Simulation Resource parity", () => {
+  it("returns the generated start identity after a lost response so the same session can retry safely", async () => {
+    const http = new FakeAgentHttp();
+    const client = new AgentSessionClient({ http });
+    await client.connect("session-1.code");
+    const send = vi
+      .spyOn(client, "simulationResource")
+      .mockRejectedValue(
+        new AgentSessionError("NETWORK_FAILURE", "Response lost", "network"),
+      );
+    const request = {
+      operation: "start",
+      preparedId: "prepared",
+      digest: "a".repeat(64),
+    };
+    const first = JSON.parse(
+      (await callTool("simulation", { request }, { client })).content[0]!.text!,
+    );
+    expect(first).toMatchObject({
+      ok: false,
+      error: { recovery: "retry-same-request" },
+    });
+    expect(first.requestId).toBeTruthy();
+    await callTool(
+      "simulation",
+      { request, requestId: first.requestId },
+      { client },
+    );
+    expect(send.mock.calls[1]![0]).toEqual(send.mock.calls[0]![0]);
+    expect(http.claims).toHaveLength(1);
+  });
   it("authors a raw workspace, recovers an input error, runs, reads numbers and exports verified CSV using the same session", async () => {
     const directory = await mkdtemp(join(tmpdir(), "icm-agent-simulation-"));
     const files = new SimulationFiles(),

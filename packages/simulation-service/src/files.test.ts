@@ -1,6 +1,27 @@
 import { describe, it, expect } from "vitest";
 import { SimulationFiles, sha256 } from "./files.js";
 describe("simulation File Resource evidence", () => {
+  it("recovers draft identities after a lost create reply without leaking file bodies", async () => {
+    const files = new SimulationFiles();
+    const created = await files.handle({ action: "create" });
+    if (!created.ok || !("workspace" in created)) throw Error("create failed");
+    expect(await files.handle({ action: "list" })).toEqual({
+      ok: true,
+      workspaces: [
+        {
+          id: created.workspace.id,
+          revision: 0,
+          entry: null,
+          expiresAt: created.workspace.expiresAt,
+        },
+      ],
+    });
+    files.clear();
+    expect(await files.handle({ action: "list" })).toEqual({
+      ok: true,
+      workspaces: [],
+    });
+  });
   it("cannot publish an in-flight artifact into a cleared session", async () => {
     const files = new SimulationFiles();
     const pending = files.put("old", "text/plain", "old content");

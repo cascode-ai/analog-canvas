@@ -18,6 +18,7 @@ export const WorkspaceSchema = z.strictObject({
 });
 export type Workspace = z.infer<typeof WorkspaceSchema>;
 export const SimulationFileOperationSchema = z.discriminatedUnion("action", [
+  z.strictObject({ action: z.literal("list") }),
   z.strictObject({ action: z.literal("create") }),
   z.strictObject({ action: z.literal("read"), workspaceId: Id }),
   z.strictObject({ action: z.literal("discard"), workspaceId: Id }),
@@ -43,6 +44,10 @@ export type SimulationFileOperation = z.infer<
   typeof SimulationFileOperationSchema
 >;
 export const SimulationFileResultSchema = z.union([
+  z.strictObject({
+    ok: z.literal(true),
+    workspaces: z.array(WorkspaceSchema.omit({ files: true })),
+  }),
   z.strictObject({ ok: z.literal(true), workspace: WorkspaceSchema }),
   z.strictObject({ ok: z.literal(true), discarded: z.literal(true) }),
   z.strictObject({
@@ -108,6 +113,13 @@ export class SimulationFiles {
         "input",
       );
     const op = parsed.data;
+    if (op.action === "list")
+      return {
+        ok: true,
+        workspaces: [...this.workspaces.values()].map(
+          ({ files: _files, ...summary }) => summary,
+        ),
+      };
     if (op.action === "create") {
       if (this.workspaces.size >= 8)
         return problem(
