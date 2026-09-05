@@ -44,13 +44,18 @@
   grid-template-columns: minmax(0, 1fr) auto;
   grid-template-areas:
     "brand status"
-    "context context"
     "actions actions";
   align-items: center;
   gap: 8px var(--icm-space-2);
   padding: 12px;
   border-bottom: 1px solid var(--icm-border);
   background: var(--icm-surface);
+}
+.simulation-taskbar:has(.simulation-cell-context) {
+  grid-template-areas:
+    "brand status"
+    "context context"
+    "actions actions";
 }
 .simulation-brand {
   grid-area: brand;
@@ -219,15 +224,79 @@
   font-size: 18px;
 }
 .simulation-setup-panel form {
-  padding: 10px 12px 16px;
+  padding: 8px 10px 12px;
 }
 .simulation-setup-panel label {
   display: grid;
   grid-template-columns: minmax(110px, 0.8fr) minmax(130px, 1.2fr);
   align-items: center;
   gap: 8px;
-  margin: 9px 0;
+  margin: 6px 0;
   font-size: var(--icm-font-sm);
+}
+.simulation-inline-fields {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  margin: 6px 0;
+}
+.simulation-inline-fields.columns-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.simulation-inline-fields.columns-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.simulation-inline-fields > label {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 4px;
+  min-width: 0;
+  margin: 0;
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+}
+.simulation-setup-group {
+  margin: 8px 0;
+  padding: 8px;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  background: color-mix(
+    in srgb,
+    var(--icm-surface-muted) 34%,
+    var(--icm-surface)
+  );
+}
+.simulation-analysis-row {
+  display: grid;
+  grid-template-columns: auto repeat(3, minmax(54px, 1fr));
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+  margin: 8px 0;
+  padding: 7px 8px;
+}
+.simulation-analysis-row legend {
+  float: left;
+  margin-right: 4px;
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+}
+.simulation-analysis-row > label {
+  display: flex;
+  grid-template-columns: none;
+  gap: 5px;
+  justify-content: center;
+  min-width: 0;
+  min-height: 30px;
+  margin: 0;
+  padding: 4px 6px;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  background: var(--icm-surface-muted);
+  white-space: nowrap;
+}
+.simulation-analysis-settings {
+  padding: 7px 8px 8px;
 }
 .spice-simulation-surface input:not([type="checkbox"]),
 .spice-simulation-surface select {
@@ -254,6 +323,20 @@
 }
 .simulation-setup-panel form > button {
   margin: 8px 8px 0 0;
+}
+.simulation-probe-select {
+  grid-template-columns: minmax(110px, 0.8fr) minmax(130px, 1.2fr);
+}
+.simulation-probe-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+}
+.simulation-probe-control > button {
+  min-height: 32px;
+  white-space: nowrap;
 }
 .simulation-pick-active {
   border-color: var(--icm-accent) !important;
@@ -500,6 +583,97 @@
   cursor: crosshair;
   touch-action: none;
 }
+.ac-plot-shell {
+  position: relative;
+  min-width: 0;
+}
+.ac-plot-toolbar {
+  position: absolute;
+  z-index: 2;
+  top: 7px;
+  right: 7px;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  background: color-mix(in srgb, var(--icm-surface) 94%, transparent);
+  box-shadow: var(--icm-shadow-sm);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 100ms ease;
+}
+.ac-plot-shell:hover .ac-plot-toolbar,
+.ac-plot-shell:focus-within .ac-plot-toolbar,
+.ac-plot-toolbar.expanded {
+  opacity: 1;
+  pointer-events: auto;
+}
+.ac-plot-toolbar button {
+  min-width: 27px;
+  min-height: 25px;
+  padding: 2px 6px;
+  background: var(--icm-surface);
+  font-size: var(--icm-font-xs);
+}
+.ac-plot-dialog-backdrop {
+  position: fixed;
+  z-index: 80;
+  inset: 0;
+  display: grid;
+  padding: 4vh 4vw;
+  place-items: center;
+  background: rgb(15 23 42 / 42%);
+}
+.ac-plot-dialog {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: min(1400px, 92vw);
+  height: min(820px, 92vh);
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--icm-border-strong);
+  border-radius: var(--icm-radius-md);
+  background: var(--icm-surface);
+  box-shadow: var(--icm-shadow-md);
+}
+.ac-plot-dialog > header {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--icm-border);
+  background: var(--icm-surface-muted);
+}
+.ac-plot-dialog > header > div {
+  display: grid;
+}
+.ac-plot-dialog > header span {
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+  text-transform: capitalize;
+}
+.ac-plot-dialog > header button {
+  min-width: 30px;
+  margin-left: auto;
+  padding: 2px;
+  font-size: 18px;
+}
+.ac-plot-shell.expanded {
+  display: grid;
+  min-height: 0;
+  padding: 12px;
+}
+.ac-plot-shell.expanded .spice-ac-plot {
+  display: grid;
+  min-height: 0;
+  place-items: center;
+}
+.ac-plot-shell.expanded svg {
+  width: 100%;
+  max-height: calc(92vh - 90px);
+}
 .ac-cursor-readout {
   position: sticky;
   bottom: 0;
@@ -517,8 +691,14 @@
   .simulation-taskbar {
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas:
+      "status status"
+      "actions actions";
+  }
+  .simulation-taskbar:has(.simulation-cell-context) {
+    grid-template-areas:
       "context context"
-      "status actions";
+      "status status"
+      "actions actions";
   }
   .simulation-brand,
   .simulation-task-actions > button:nth-child(3) {
@@ -876,6 +1056,19 @@
   fill: none;
   stroke-width: 1.5;
   stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.ac-response .ac-trace.ac-trace-selected {
+  stroke-width: 3;
+}
+
+.ac-response .ac-trace-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 12;
+  pointer-events: stroke;
+  cursor: pointer;
 }
 
 .ac-response .ac-trace.ac-phase {

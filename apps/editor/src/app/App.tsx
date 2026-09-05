@@ -111,7 +111,10 @@ import {
   operatingPointLabels,
   type OperatingPointDisplay,
 } from "../features/simulation/operating-point-labels";
-import { resolveSimulationVoltageProbeNetId } from "../features/simulation/simulation-probe-options";
+import {
+  resolveSimulationVoltageProbeNetId,
+  simulationProbeHierarchyPath,
+} from "../features/simulation/simulation-probe-options";
 import { TimingSimulationPanel } from "../features/simulation/timing-simulation-panel";
 import { TIMING_UI_ENABLED } from "../features/simulation/timing-ui";
 import { updateComponentParameterValues } from "../features/component-insert/component-parameters";
@@ -4629,14 +4632,60 @@ export function App({
               pickedNet={analogPickedNet}
               onPickNetsChange={setSimulationPickMode}
               onFocusProbe={(probe) => {
-                if (probe.kind === "net-voltage") {
-                  switchDocument(probe.documentId);
-                  const netId = resolveSimulationVoltageProbeNetId(
-                    project,
-                    probe,
+                const targetDocument = project.documents.find(
+                  (candidate) => candidate.id === probe.documentId,
+                );
+                const voltageNetId =
+                  probe.kind === "net-voltage"
+                    ? resolveSimulationVoltageProbeNetId(project, probe)
+                    : undefined;
+                const targetExists =
+                  probe.kind === "net-voltage"
+                    ? voltageNetId !== undefined
+                    : targetDocument?.instances.some(
+                        (instance) => instance.id === probe.instanceId,
+                      ) === true;
+                if (!targetExists) {
+                  setStatus(
+                    "This Output no longer matches the current Project; update the Setup and run again",
                   );
-                  if (netId) highlightNet(netId, probe.documentId);
+                  return;
                 }
+                const input = project.simulation?.input;
+                const rootDocumentId =
+                  input?.kind === "structured"
+                    ? input.rootDocumentId
+                    : probe.documentId;
+                const hierarchyPath = simulationProbeHierarchyPath(
+                  project,
+                  rootDocumentId,
+                  probe.occurrence,
+                );
+                if (hierarchyPath === null) {
+                  setStatus("The Output occurrence no longer exists");
+                  return;
+                }
+                navigateToLocator(
+                  probe.kind === "net-voltage"
+                    ? {
+                        documentId: probe.documentId,
+                        hierarchyPath,
+                        kind: "net",
+                        objectId: voltageNetId!,
+                      }
+                    : {
+                        documentId: probe.documentId,
+                        hierarchyPath,
+                        kind: "instance",
+                        objectId: probe.instanceId,
+                      },
+                  probe.kind === "net-voltage"
+                    ? `Located simulation Net ${voltageNetId}`
+                    : `Located simulation source ${probe.instanceId}`,
+                );
+                // Back-annotation should not unexpectedly open the ordinary
+                // Properties dock over the simulation workspace.
+                setSelectionOpen(false);
               }}
             />
           </Suspense>

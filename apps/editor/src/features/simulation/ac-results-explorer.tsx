@@ -1,4 +1,10 @@
-import { useMemo, useState, type PointerEvent, type WheelEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+  type PointerEvent,
+} from "react";
 import type { SimulationProbeSpec } from "@icm/model";
 import type { AcResult } from "@icm/spice-run";
 import type { Prepared } from "@icm/simulation-service/contract";
@@ -7,6 +13,8 @@ import {
   acResponseSvg,
   formatFrequency,
   layoutAcPlot,
+  type AcPlotKind,
+  type AcPlotSize,
   type AcPoint,
   type AcTrace,
 } from "./ac-response-plot";
@@ -17,6 +25,11 @@ interface OutputTrace extends AcTrace {
   probe?: SimulationProbeSpec;
 }
 
+interface ExpandedPlot {
+  quantity: OutputTrace["quantity"];
+  kind: AcPlotKind;
+}
+
 export interface AcResultsExplorerProps {
   analysis: AcResult;
   vectors: Prepared["vectors"];
@@ -25,7 +38,8 @@ export interface AcResultsExplorerProps {
   onFocusProbe?(probe: SimulationProbeSpec): void;
 }
 
-const PLOT_SIZE = { width: 760, height: 220 } as const;
+const PLOT_SIZE = { width: 760, height: 280 } as const;
+const EXPANDED_PLOT_SIZE = { width: 1400, height: 700 } as const;
 
 /** Keep phase continuous instead of drawing artificial 360-degree jumps. */
 export function unwrapPhaseDegrees(values: readonly number[]): number[] {
@@ -51,18 +65,6 @@ function closestPoint(points: readonly AcPoint[], frequency: number): AcPoint {
       ? point
       : best,
   );
-}
-
-function cropTrace(
-  trace: OutputTrace,
-  range?: readonly [number, number],
-): OutputTrace {
-  if (!range) return trace;
-  const inside = trace.points.filter(
-    (point) => point.frequency >= range[0] && point.frequency <= range[1],
-  );
-  if (inside.length >= 2) return { ...trace, points: inside };
-  return trace;
 }
 
 function outputTraces(
@@ -111,6 +113,70 @@ function outputTraces(
   });
 }
 
+function normalizedLogRange(
+  low: number,
+  high: number,
+  fullRange: readonly [number, number],
+): readonly [number, number] {
+  const fullLow = Math.log(fullRange[0]);
+  const fullHigh = Math.log(fullRange[1]);
+  if (high - low >= fullHigh - fullLow - 1e-12) return fullRange;
+  const requestedSpan = Math.min(high - low, fullHigh - fullLow);
+  let nextLow = low;
+  let nextHigh = high;
+  if (nextLow < fullLow) {
+    nextLow = fullLow;
+    nextHigh = fullLow + requestedSpan;
+  }
+  if (nextHigh > fullHigh) {
+    nextHigh = fullHigh;
+    nextLow = fullHigh - requestedSpan;
+  }
+  return [Math.exp(nextLow), Math.exp(nextHigh)];
+}
+
+/** Explicit axes-toolbar zoom; the document or panel wheel is never captured. */
+export function zoomFrequencyRange(
+  currentRange: readonly [number, number],
+  fullRange: readonly [number, number],
+  direction: "in" | "out",
+  centerFrequency = Math.sqrt(currentRange[0] * currentRange[1]),
+): readonly [number, number] {
+  const low = Math.log(currentRange[0]);
+  const high = Math.log(currentRange[1]);
+  const center = Math.log(
+    Math.min(currentRange[1], Math.max(currentRange[0], centerFrequency)),
+  );
+  const scale = direction === "in" ? 0.6 : 1.7;
+  return normalizedLogRange(
+    center - (center - low) * scale,
+    center + (high - center) * scale,
+    fullRange,
+  );
+}
+
+/** Pan one fifth of the visible logarithmic span without leaving the sweep. */
+export function panFrequencyRange(
+  currentRange: readonly [number, number],
+  fullRange: readonly [number, number],
+  direction: "left" | "right",
+): readonly [number, number] {
+  const low = Math.log(currentRange[0]);
+  const high = Math.log(currentRange[1]);
+  const shift = (high - low) * 0.2 * (direction === "left" ? -1 : 1);
+  return normalizedLogRange(low + shift, high + shift, fullRange);
+}
+
+function rangesEqual(
+  left: readonly [number, number],
+  right: readonly [number, number],
+): boolean {
+  return (
+    Math.abs(Math.log(left[0] / right[0])) < 1e-9 &&
+    Math.abs(Math.log(left[1] / right[1])) < 1e-9
+  );
+}
+
 export function AcResultsExplorer({
   analysis,
   vectors,
@@ -125,9 +191,11 @@ export function AcResultsExplorer({
   const [hidden, setHidden] = useState<ReadonlySet<string>>(() => new Set());
   const [solo, setSolo] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
-  const [cursorFrequency, setCursorFrequency] = useState<number>();
+  const [hoverFrequency, setHoverFrequency] = useState<number>();
+  const [markerFrequency, setMarkerFrequency] = useState<number>();
   const [frequencyRange, setFrequencyRange] =
     useState<readonly [number, number]>();
+  const [expandedPlot, setExpandedPlot] = useState<ExpandedPlot | null>(null);
   const fullRange = useMemo<readonly [number, number]>(() => {
     const frequencies = analysis.frequencyHz.filter(
       (frequency) => frequency > 0,
@@ -137,6 +205,7 @@ export function AcResultsExplorer({
   const visible = traces.filter(
     (trace) => !hidden.has(trace.id) && (solo === null || solo === trace.id),
   );
+  const cursorFrequency = hoverFrequency ?? markerFrequency;
   const cursorRows =
     cursorFrequency === undefined
       ? []
@@ -145,43 +214,173 @@ export function AcResultsExplorer({
           point: closestPoint(trace.points, cursorFrequency),
         }));
 
-  const pointAtPointer = (event: PointerEvent<HTMLDivElement>) => {
+  useEffect(() => {
+    if (!expandedPlot) return;
+    const close = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setExpandedPlot(null);
+    };
+    window.addEventListener("keydown", close);
+    return () => window.removeEventListener("keydown", close);
+  }, [expandedPlot]);
+
+  const frequencyAtPointer = (
+    event: PointerEvent<HTMLDivElement> | ReactMouseEvent<HTMLDivElement>,
+    size: AcPlotSize,
+    plotTraces: readonly OutputTrace[],
+  ): number | undefined => {
     const bounds = event.currentTarget.getBoundingClientRect();
-    const trace = cropTrace(visible[0] ?? traces[0]!, frequencyRange);
-    const layout = layoutAcPlot([trace], PLOT_SIZE);
-    if (!layout) return;
-    const svgX =
-      ((event.clientX - bounds.left) / bounds.width) * PLOT_SIZE.width;
+    const layout = layoutAcPlot(plotTraces, size, frequencyRange);
+    if (!layout) return undefined;
+    const svgX = ((event.clientX - bounds.left) / bounds.width) * size.width;
     const frequency = layout.frequencyAt(svgX);
-    setCursorFrequency(
-      Math.min(layout.frequency.max, Math.max(layout.frequency.min, frequency)),
+    return Math.min(
+      layout.frequency.max,
+      Math.max(layout.frequency.min, frequency),
     );
   };
-  const zoom = (event: WheelEvent<HTMLDivElement>) => {
-    if (fullRange[0] === fullRange[1]) return;
-    event.preventDefault();
+
+  const focusTrace = (traceId: string): void => {
+    const trace = traces.find((candidate) => candidate.id === traceId);
+    if (!trace) return;
+    setSelected(trace.id);
+    if (trace.probe) onFocusProbe?.(trace.probe);
+  };
+
+  const updateRange = (
+    action: "zoom-in" | "zoom-out" | "pan-left" | "pan-right" | "fit",
+  ): void => {
+    if (action === "fit" || fullRange[0] === fullRange[1]) {
+      setFrequencyRange(undefined);
+      return;
+    }
     const current = frequencyRange ?? fullRange;
-    const center = cursorFrequency ?? Math.sqrt(current[0] * current[1]);
-    const scale = event.deltaY < 0 ? 0.72 : 1.38;
-    const left = Math.log(center / current[0]) * scale;
-    const right = Math.log(current[1] / center) * scale;
-    const next: readonly [number, number] = [
-      Math.max(fullRange[0], center / Math.exp(left)),
-      Math.min(fullRange[1], center * Math.exp(right)),
-    ];
-    setFrequencyRange(next[1] > next[0] ? next : undefined);
+    const next = action.startsWith("zoom")
+      ? zoomFrequencyRange(
+          current,
+          fullRange,
+          action === "zoom-in" ? "in" : "out",
+          cursorFrequency,
+        )
+      : panFrequencyRange(
+          current,
+          fullRange,
+          action === "pan-left" ? "left" : "right",
+        );
+    setFrequencyRange(rangesEqual(next, fullRange) ? undefined : next);
+  };
+
+  const plotToolbar = (plot: ExpandedPlot, expanded: boolean) => (
+    <div
+      className={`ac-plot-toolbar${expanded ? " expanded" : ""}`}
+      aria-label="Plot tools"
+      onClick={(event) => event.stopPropagation()}
+      onDoubleClick={(event) => event.stopPropagation()}
+      onPointerMove={(event) => event.stopPropagation()}
+    >
+      <button
+        type="button"
+        aria-label="Zoom in"
+        onClick={() => updateRange("zoom-in")}
+      >
+        +
+      </button>
+      <button
+        type="button"
+        aria-label="Zoom out"
+        onClick={() => updateRange("zoom-out")}
+      >
+        −
+      </button>
+      <button
+        type="button"
+        aria-label="Pan left"
+        onClick={() => updateRange("pan-left")}
+      >
+        ←
+      </button>
+      <button
+        type="button"
+        aria-label="Pan right"
+        onClick={() => updateRange("pan-right")}
+      >
+        →
+      </button>
+      <button
+        type="button"
+        aria-label="Fit plot"
+        onClick={() => updateRange("fit")}
+      >
+        Fit
+      </button>
+      {markerFrequency !== undefined ? (
+        <button
+          type="button"
+          aria-label="Clear marker"
+          onClick={() => setMarkerFrequency(undefined)}
+        >
+          ×│
+        </button>
+      ) : null}
+      {!expanded ? (
+        <button
+          type="button"
+          aria-label="Open plot"
+          onClick={() => setExpandedPlot(plot)}
+        >
+          ⛶
+        </button>
+      ) : null}
+    </div>
+  );
+
+  const renderPlot = (
+    plot: ExpandedPlot,
+    plotTraces: readonly OutputTrace[],
+    expanded = false,
+  ) => {
+    const size = expanded ? EXPANDED_PLOT_SIZE : PLOT_SIZE;
+    const svg = acResponseSvg(plotTraces, size, {
+      kind: plot.kind,
+      showLegend: false,
+      ...(frequencyRange === undefined ? {} : { frequencyRange }),
+      ...(cursorFrequency === undefined ? {} : { cursorFrequency }),
+      ...(selected === null ? {} : { selectedTraceId: selected }),
+    });
+    return (
+      <div
+        className={`ac-plot-shell${expanded ? " expanded" : ""}`}
+        title={expanded ? undefined : "Double-click to open this plot"}
+      >
+        <div
+          className="spice-ac-plot interactive"
+          onPointerMove={(event) => {
+            const frequency = frequencyAtPointer(event, size, plotTraces);
+            if (frequency !== undefined) setHoverFrequency(frequency);
+          }}
+          onPointerLeave={() => setHoverFrequency(undefined)}
+          onClick={(event) => {
+            const traceElement = (event.target as Element).closest(
+              "[data-trace-id]",
+            );
+            const traceId = traceElement?.getAttribute("data-trace-id");
+            if (traceId) focusTrace(traceId);
+            const frequency = frequencyAtPointer(event, size, plotTraces);
+            if (frequency !== undefined) setMarkerFrequency(frequency);
+          }}
+          onDoubleClick={() => {
+            if (!expanded) setExpandedPlot(plot);
+          }}
+          dangerouslySetInnerHTML={{ __html: svg ?? "" }}
+        />
+        {plotToolbar(plot, expanded)}
+      </div>
+    );
   };
 
   return (
     <div className="ac-results-explorer">
       <header>
-        <div>
-          <strong>{analysis.plotName}</strong>
-          <small>Wheel to zoom · move over either plot to inspect</small>
-        </div>
-        <button type="button" onClick={() => setFrequencyRange(undefined)}>
-          Fit
-        </button>
+        <strong>{analysis.plotName}</strong>
       </header>
       <div
         className="simulation-output-browser"
@@ -211,10 +410,7 @@ export function AcResultsExplorer({
               <button
                 type="button"
                 className="simulation-output-name"
-                onClick={() => {
-                  setSelected(trace.id);
-                  if (trace.probe) onFocusProbe?.(trace.probe);
-                }}
+                onClick={() => focusTrace(trace.id)}
               >
                 <strong>{trace.label}</strong>
                 <small>
@@ -235,34 +431,19 @@ export function AcResultsExplorer({
         })}
       </div>
       {(["voltage", "current"] as const).map((quantity) => {
-        const quantityTraces = visible
-          .filter((trace) => trace.quantity === quantity)
-          .map((trace) => cropTrace(trace, frequencyRange));
+        const quantityTraces = visible.filter(
+          (trace) => trace.quantity === quantity,
+        );
         if (quantityTraces.length === 0) return null;
         return (
           <section key={quantity} className="ac-quantity-group">
             <h4>{quantity === "voltage" ? "Voltage" : "Current"}</h4>
-            {(["magnitude", "phase"] as const).map((kind) => {
-              const svg = acResponseSvg(quantityTraces, PLOT_SIZE, {
-                kind,
-                showLegend: false,
-                ...(cursorFrequency === undefined ? {} : { cursorFrequency }),
-              });
-              return (
-                <div key={kind} className="ac-plot-row">
-                  <strong>
-                    {kind === "magnitude" ? "Magnitude" : "Phase"}
-                  </strong>
-                  <div
-                    className="spice-ac-plot interactive"
-                    onPointerMove={pointAtPointer}
-                    onPointerLeave={() => setCursorFrequency(undefined)}
-                    onWheel={zoom}
-                    dangerouslySetInnerHTML={{ __html: svg ?? "" }}
-                  />
-                </div>
-              );
-            })}
+            {(["magnitude", "phase"] as const).map((kind) => (
+              <div key={kind} className="ac-plot-row">
+                <strong>{kind === "magnitude" ? "Magnitude" : "Phase"}</strong>
+                {renderPlot({ quantity, kind }, quantityTraces)}
+              </div>
+            ))}
           </section>
         );
       })}
@@ -278,6 +459,45 @@ export function AcResultsExplorer({
               {point.phaseDeg.toFixed(2)}°
             </span>
           ))}
+        </div>
+      ) : null}
+      {expandedPlot ? (
+        <div
+          className="ac-plot-dialog-backdrop"
+          onMouseDown={(event) => {
+            if (event.currentTarget === event.target) setExpandedPlot(null);
+          }}
+        >
+          <section
+            className="ac-plot-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`${expandedPlot.quantity} ${expandedPlot.kind} plot`}
+          >
+            <header>
+              <div>
+                <strong>{analysis.plotName}</strong>
+                <span>
+                  {expandedPlot.quantity === "voltage" ? "Voltage" : "Current"}{" "}
+                  · {expandedPlot.kind === "magnitude" ? "Magnitude" : "Phase"}
+                </span>
+              </div>
+              <button
+                type="button"
+                aria-label="Close plot"
+                onClick={() => setExpandedPlot(null)}
+              >
+                ×
+              </button>
+            </header>
+            {renderPlot(
+              expandedPlot,
+              visible.filter(
+                (trace) => trace.quantity === expandedPlot.quantity,
+              ),
+              true,
+            )}
+          </section>
         </div>
       ) : null}
     </div>

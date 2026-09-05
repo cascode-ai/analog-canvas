@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 
-import { AcResultsExplorer, unwrapPhaseDegrees } from "./ac-results-explorer";
+import {
+  AcResultsExplorer,
+  panFrequencyRange,
+  unwrapPhaseDegrees,
+  zoomFrequencyRange,
+} from "./ac-results-explorer";
 
 describe("AC Results Explorer", () => {
   it("unwraps phase without inventing 360-degree discontinuities", () => {
@@ -50,5 +55,20 @@ describe("AC Results Explorer", () => {
     expect(markup).toContain('aria-label="AC magnitude"');
     expect(markup).toContain('aria-label="AC phase"');
     expect(markup.match(/data-trace-index="0"/gu)).toHaveLength(2);
+    expect(markup).toContain('aria-label="Plot tools"');
+    expect(markup).toContain('aria-label="Open plot"');
+    expect(markup).not.toContain("Wheel to zoom");
+  });
+
+  it("keeps explicit zoom and pan inside the simulated frequency sweep", () => {
+    const full = [1, 1e6] as const;
+    const zoomed = zoomFrequencyRange(full, full, "in");
+    expect(zoomed[0]).toBeGreaterThan(full[0]);
+    expect(zoomed[1]).toBeLessThan(full[1]);
+
+    const panned = panFrequencyRange(zoomed, full, "right");
+    expect(panned[0]).toBeGreaterThan(zoomed[0]);
+    expect(panned[1]).toBeLessThanOrEqual(full[1]);
+    expect(panFrequencyRange(full, full, "left")).toEqual(full);
   });
 });

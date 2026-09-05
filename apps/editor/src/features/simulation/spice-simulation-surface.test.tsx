@@ -22,14 +22,30 @@ describe("SpiceSimulationSurface workspace", () => {
     );
 
     expect(markup).toContain('class="simulation-taskbar"');
-    expect(markup).toContain('data-testid="simulation-cell-flow"');
+    expect(markup).not.toContain('data-testid="simulation-cell-flow"');
     expect(markup).toContain("This Cell has no DUT instance");
     expect(markup).toContain("Edit → New Testbench Cell");
     expect(markup).toContain('aria-label="Simulation setup"');
-    expect(markup).toContain('aria-pressed="true">Setup');
+    expect(markup).toContain('aria-pressed="true">Settings');
     expect(markup).toContain('aria-pressed="false">Results');
-    expect(markup).toContain("Pick voltage on canvas");
+    expect(markup).toContain('<select name="profileId"');
+    expect(markup).not.toContain("<datalist");
+    expect(markup).toContain("sky130-core-continuous-ngspice46-v1");
+    expect(markup).toContain('class="simulation-probe-control"');
+    expect(markup).toContain("Choose a Net");
+    expect(markup).toContain("Pick on canvas");
+    expect(markup).not.toContain("Pick voltage on canvas");
     expect(markup).toContain("Add current output");
+    expect(markup).toContain(
+      'class="simulation-setup-group simulation-analysis-row"',
+    );
+    expect(markup).toContain(
+      'class="simulation-setup-group simulation-inline-fields columns-2"',
+    );
+    expect(markup).toContain("TRAN");
+    expect(markup).not.toContain("Voltage Outputs target Nets");
+    expect(markup).not.toContain("Current Outputs target a measurable");
+    expect(markup).not.toContain("<span>Preview</span>");
     expect(markup).not.toContain('class="simulation-results-dock"');
   });
 });

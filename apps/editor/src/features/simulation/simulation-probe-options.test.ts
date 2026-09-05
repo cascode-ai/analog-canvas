@@ -5,6 +5,7 @@ import fiveTransistorOtaSky130 from "../../examples/five-transistor-ota-sky130.i
 import {
   deriveSimulationProbeOptions,
   resolveSimulationVoltageProbeNetId,
+  simulationProbeHierarchyPath,
   simulationProbeTargetKey,
   simulationVoltageProbeTargetsNet,
 } from "./simulation-probe-options";
@@ -94,5 +95,26 @@ describe("simulation probe choices", () => {
     expect(
       simulationVoltageProbeTargetsNet(project, target, "net-dut-vout"),
     ).toBe(false);
+  });
+
+  it("resolves a probe occurrence to the canvas hierarchy path", () => {
+    const project = CircuitProjectSchema.parse(fiveTransistorOtaSky130);
+
+    expect(
+      simulationProbeHierarchyPath(project, "document-ota-5t-testbench", [
+        "XDUT",
+      ]),
+    ).toEqual([
+      {
+        parentDocumentId: "document-ota-5t-testbench",
+        instanceId: "XDUT",
+        childDocumentId: "document-ota-5t",
+      },
+    ]);
+    expect(
+      simulationProbeHierarchyPath(project, "document-ota-5t-testbench", [
+        "missing-instance",
+      ]),
+    ).toBeNull();
   });
 });
