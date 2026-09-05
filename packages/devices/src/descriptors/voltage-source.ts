@@ -7,6 +7,7 @@ export const voltageSourceDevice = {
   referencePrefix: "V",
   pinOrder: ["+", "-"],
   targetPolicy: "builtin",
+  sourceWaveformDefault: "dc",
   parameters: [
     {
       name: "dc",
@@ -18,8 +19,6 @@ export const voltageSourceDevice = {
       help: "DC voltage",
       displayRole: "value",
     },
-    // Small-signal stimulus for `.ac` (ADR 0055): printed as `AC <mag> <phase>`
-    // after the DC value. A source with no magnitude stays DC-only.
     {
       name: "acMagnitude",
       label: "AC magnitude",

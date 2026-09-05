@@ -419,9 +419,15 @@ and phase, and its transient waveform as formal parameters printed by the
 device descriptor. The first release's waveforms are `PULSE` (low, high,
 delay, rise, fall, width, period) and `SIN` (offset, amplitude, frequency,
 optional delay, damping, phase). `PWL` is reachable through raw input. The
-existing pulse voltage source keeps its symbol; its clock-style parameters
-are normalised into the same waveform parameters so that only one set is
-authoritative.
+`waveform` parameter explicitly selects `dc`, `pulse`, or `sin`; timing fields
+never select a waveform by their presence. An absent selector on a pre-contract
+Project is projected from the device descriptor (`dc` for ordinary sources,
+`pulse` for the existing Digital Clock) without rewriting the Project. The
+Digital Clock keeps its symbol while using the same formal PULSE fields and
+the same printer as ordinary voltage and current sources. Its
+`dutyCycle`/`initial` convenience controls may still author the canonical
+PULSE fields, but they are neither a second output authority nor emitted as
+simulator assignments.
 
 Those values are persisted only on the source Instance in the Testbench. A
 Setup or Simulation UI may address and edit that Instance through the ordinary

@@ -164,6 +164,26 @@ export function validateDeviceDescriptors(
       });
     }
     if (
+      descriptor.sourceWaveformDefault !== undefined &&
+      descriptor.deviceClass !== "voltage-source" &&
+      descriptor.deviceClass !== "current-source"
+    ) {
+      issues.push({
+        deviceId: descriptor.id,
+        message: "Only independent sources may declare a waveform default",
+      });
+    }
+    if (
+      (descriptor.deviceClass === "voltage-source" ||
+        descriptor.deviceClass === "current-source") &&
+      descriptor.sourceWaveformDefault === undefined
+    ) {
+      issues.push({
+        deviceId: descriptor.id,
+        message: "Independent sources require a waveform default",
+      });
+    }
+    if (
       descriptor.mosBulkClass !== undefined &&
       descriptor.deviceClass !== "mos"
     ) {

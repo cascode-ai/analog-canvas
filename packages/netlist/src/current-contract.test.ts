@@ -436,6 +436,95 @@ describe("current formal cell interface", () => {
     expect(printSpiceNetlist(result.ir!)).toContain("V1 VOUT 0 DC 1.8");
   });
 
+  it("projects legacy Digital Clock instances onto explicit PULSE intent", () => {
+    const project = createEmptyProject("project", "Project");
+    const document = project.documents[0]!;
+    document.instances.push({
+      id: "VCLK",
+      symbolId: "pulse-voltage-source",
+      placement: null,
+      reference: "VCLK",
+      netlist: {
+        parameters: {
+          low: "0",
+          high: "1",
+          delay: "1ns",
+          rise: "1ps",
+          fall: "1ps",
+          width: "5ns",
+          period: "10ns",
+          dutyCycle: "50",
+          initial: "0",
+        },
+      },
+    });
+    document.nets.push(
+      {
+        id: "net-clock",
+        terminals: [{ instanceId: "VCLK", pinName: "+" }],
+      },
+      {
+        id: "net-ground",
+        terminals: [{ instanceId: "VCLK", pinName: "-" }],
+      },
+    );
+    claimNet(document, "net-clock", "CLK");
+    claimNet(document, "net-ground", "0", "global", "ground");
+    const before = JSON.stringify(project);
+
+    const result = analyzeDesignNetlist(project);
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.ir?.cells[0]?.instances[0]?.parameters).toContainEqual({
+      name: "waveform",
+      rawValue: "pulse",
+    });
+    expect(printSpiceNetlist(result.ir!)).toContain(
+      "VCLK CLK 0 PULSE(0 1 1ns 1ps 1ps 5ns 10ns)",
+    );
+    expect(JSON.stringify(project)).toBe(before);
+  });
+
+  it("uses explicit waveform intent and diagnoses incomplete sources", () => {
+    const project = createEmptyProject("project", "Project");
+    const document = project.documents[0]!;
+    document.instances.push({
+      id: "I1",
+      symbolId: "current-source",
+      placement: null,
+      reference: "I1",
+      netlist: {
+        parameters: {
+          dc: "1u",
+          waveform: "pulse",
+          period: "10ns",
+        },
+      },
+    });
+    document.nets.push(
+      {
+        id: "net-out",
+        terminals: [{ instanceId: "I1", pinName: "+" }],
+      },
+      {
+        id: "net-ground",
+        terminals: [{ instanceId: "I1", pinName: "-" }],
+      },
+    );
+    claimNet(document, "net-out", "OUT");
+    claimNet(document, "net-ground", "0", "global", "ground");
+
+    const result = analyzeDesignNetlist(project);
+
+    expect(result.ir).toBeNull();
+    expect(
+      result.diagnostics.filter(
+        (item) => item.code === "MISSING_SOURCE_WAVEFORM_PARAMETER",
+      ),
+    ).toHaveLength(6);
+    expect(result.diagnostics[0]).toMatchObject({ objectIds: ["I1"] });
+  });
+
   it("still rejects an explicitly incompatible built-in binding", () => {
     const project = resistorProject({ value: "10k" });
     project.documents[0]!.instances[0]!.netlist!.binding = {

@@ -5,6 +5,7 @@ import type {
   DesignNetlistParameter,
 } from "./ir.js";
 import type { NetlistFormat } from "./net-name-codec.js";
+import { normalizeIndependentSource } from "./source-waveform.js";
 
 export type { NetlistFormat } from "./net-name-codec.js";
 
@@ -33,67 +34,78 @@ function assignments(
     .map((item) => `${item.name}=${item.rawValue}`);
 }
 
-const PULSE_PARAMETER_NAMES = [
-  "low",
-  "high",
-  "delay",
-  "rise",
-  "fall",
-  "width",
-  "period",
-] as const;
-const DIGITAL_CLOCK_AUTHORING_PARAMETER_NAMES = [
-  "dutyCycle",
-  "initial",
-] as const;
-const ALL_CLOCK_PARAMETER_NAMES = [
-  ...PULSE_PARAMETER_NAMES,
-  ...DIGITAL_CLOCK_AUTHORING_PARAMETER_NAMES,
-] as const;
-
-function isPulseSource(instance: DesignNetlistInstance): boolean {
-  return parameter(instance.parameters, "period") !== undefined;
-}
-
-/**
- * The small-signal stimulus of an independent source, authored as the formal
- * `acMagnitude`/`acPhase` parameters of its device descriptor
- * (`docs/specs/simulation.md`, "Sources and analyses"). The phase defaults
- * to 0 once a magnitude exists; a phase without a magnitude has no card to
- * ride on and is not printed, so the deck never carries a stimulus the
- * schematic does not.
- */
-const AC_PARAMETER_NAMES = ["acMagnitude", "acPhase"] as const;
-
-function acStimulus(
-  instance: DesignNetlistInstance,
-): { magnitude: string; phase: string } | null {
-  const magnitude = parameter(instance.parameters, "acMagnitude");
-  if (magnitude === undefined) return null;
-  return {
-    magnitude,
-    phase: parameter(instance.parameters, "acPhase") ?? "0",
-  };
-}
-
-/** `DC <dc> [AC <magnitude> <phase>]` plus every remaining assignment. */
-function spiceDcSourceTokens(instance: DesignNetlistInstance): string[] {
-  const ac = acStimulus(instance);
+function spiceSourceTokens(instance: DesignNetlistInstance): string[] {
+  const source = normalizeIndependentSource(instance.parameters);
+  const transient = source.transient;
   return [
-    "DC",
-    parameter(instance.parameters, "dc")!,
-    ...(ac ? ["AC", ac.magnitude, ac.phase] : []),
-    ...assignments(instance.parameters, ["dc", ...AC_PARAMETER_NAMES]),
+    ...(source.dc === undefined ? [] : ["DC", source.dc]),
+    ...(source.ac ? ["AC", source.ac.magnitude, source.ac.phase] : []),
+    ...(transient.kind === "pulse"
+      ? [
+          `PULSE(${[
+            transient.low,
+            transient.high,
+            transient.delay,
+            transient.rise,
+            transient.fall,
+            transient.width,
+            transient.period,
+          ].join(" ")})`,
+        ]
+      : transient.kind === "sin"
+        ? [
+            `SIN(${[
+              transient.offset,
+              transient.amplitude,
+              transient.frequency,
+              transient.delay,
+              transient.damping,
+              transient.phase,
+            ].join(" ")})`,
+          ]
+        : []),
+    ...assignments(source.extraParameters),
   ];
 }
 
-/** `dc=<dc> [mag=<magnitude> phase=<phase>]` plus every remaining assignment. */
-function spectreDcSourceValues(instance: DesignNetlistInstance): string[] {
-  const ac = acStimulus(instance);
+function spectreSourceValues(instance: DesignNetlistInstance): string[] {
+  const source = normalizeIndependentSource(instance.parameters);
+  const transient = source.transient;
+  const ac = source.ac
+    ? [`mag=${source.ac.magnitude}`, `phase=${source.ac.phase}`]
+    : [];
+  if (transient.kind === "pulse") {
+    return [
+      "type=pulse",
+      `val0=${transient.low}`,
+      `val1=${transient.high}`,
+      `delay=${transient.delay}`,
+      `rise=${transient.rise}`,
+      `fall=${transient.fall}`,
+      `width=${transient.width}`,
+      `period=${transient.period}`,
+      ...(source.dc === undefined ? [] : [`dc=${source.dc}`]),
+      ...ac,
+      ...assignments(source.extraParameters),
+    ];
+  }
+  if (transient.kind === "sin") {
+    return [
+      "type=sine",
+      `dc=${transient.offset}`,
+      `ampl=${transient.amplitude}`,
+      `freq=${transient.frequency}`,
+      `delay=${transient.delay}`,
+      `damp=${transient.damping}`,
+      `sinephase=${transient.phase}`,
+      ...ac,
+      ...assignments(source.extraParameters),
+    ];
+  }
   return [
-    `dc=${parameter(instance.parameters, "dc")!}`,
-    ...(ac ? [`mag=${ac.magnitude}`, `phase=${ac.phase}`] : []),
-    ...assignments(instance.parameters, ["dc", ...AC_PARAMETER_NAMES]),
+    ...(source.dc === undefined ? [] : [`dc=${source.dc}`]),
+    ...ac,
+    ...assignments(source.extraParameters),
   ];
 }
 
@@ -129,19 +141,8 @@ function spiceInstance(instance: DesignNetlistInstance): string[] {
       ];
       break;
     case "voltage-source":
-      tokens = isPulseSource(instance)
-        ? [
-            reference,
-            ...nodes,
-            `PULSE(${PULSE_PARAMETER_NAMES.map((name) =>
-              parameter(instance.parameters, name)!,
-            ).join(" ")})`,
-            ...assignments(instance.parameters, ALL_CLOCK_PARAMETER_NAMES),
-          ]
-        : [reference, ...nodes, ...spiceDcSourceTokens(instance)];
-      break;
     case "current-source":
-      tokens = [reference, ...nodes, ...spiceDcSourceTokens(instance)];
+      tokens = [reference, ...nodes, ...spiceSourceTokens(instance)];
       break;
     case "mos":
     case "diode":
@@ -242,21 +243,11 @@ function spectreInstance(instance: DesignNetlistInstance): string {
       break;
     case "voltage-source":
       master = "vsource";
-      values = isPulseSource(instance)
-        ? [
-            "type=pulse",
-            `val0=${parameter(instance.parameters, "low")!}`,
-            `val1=${parameter(instance.parameters, "high")!}`,
-            ...PULSE_PARAMETER_NAMES.slice(2).map(
-              (name) => `${name}=${parameter(instance.parameters, name)!}`,
-            ),
-            ...assignments(instance.parameters, ALL_CLOCK_PARAMETER_NAMES),
-          ]
-        : spectreDcSourceValues(instance);
+      values = spectreSourceValues(instance);
       break;
     case "current-source":
       master = "isource";
-      values = spectreDcSourceValues(instance);
+      values = spectreSourceValues(instance);
       break;
     case "mos":
     case "diode":

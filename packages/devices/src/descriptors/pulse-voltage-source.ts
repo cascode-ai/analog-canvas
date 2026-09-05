@@ -7,6 +7,7 @@ export const pulseVoltageSourceDevice = {
   referencePrefix: "V",
   pinOrder: ["+", "-"],
   targetPolicy: "builtin",
+  sourceWaveformDefault: "pulse",
   parameters: [
     {
       name: "period",

@@ -162,12 +162,13 @@ describe("built-in device registry", () => {
     });
   });
 
-  it("gives independent sources formal AC magnitude and phase beside their DC value", () => {
+  it("gives independent sources formal AC controls and a DC waveform default", () => {
     for (const [id, unit] of [
       ["voltage-source", "V"],
       ["current-source", "A"],
     ] as const) {
       expect(deviceDescriptor(id)).toMatchObject({
+        sourceWaveformDefault: "dc",
         parameters: [
           { name: "dc", required: true, unitHint: unit, displayRole: "value" },
           {
@@ -193,19 +194,15 @@ describe("built-in device registry", () => {
           .every((parameter) => parameter.defaultValue === undefined),
       ).toBe(true);
     }
-    expect(
-      deviceDescriptor("pulse-voltage-source")!.parameters.map(
-        (parameter) => parameter.name,
-      ),
-    ).not.toContain("acMagnitude");
   });
 
-  it("defines a Digital Clock authoring profile over the two-terminal pulse protocol", () => {
+  it("keeps Digital Clock artwork and compatibility controls on formal PULSE intent", () => {
     expect(deviceDescriptor("pulse-voltage-source")).toMatchObject({
       deviceClass: "voltage-source",
       referencePrefix: "V",
       pinOrder: ["+", "-"],
       targetPolicy: "builtin",
+      sourceWaveformDefault: "pulse",
       parameters: [
         { name: "period", defaultValue: "10ns" },
         { name: "dutyCycle", defaultValue: "50" },

@@ -149,6 +149,7 @@ describe("design netlist printers", () => {
     const ir = structuralIr();
     ir.cells[1]!.instances.push(
       device("vclock", "VCLOCK", "voltage-source", ["vin", "0"], null, [
+        ["waveform", "pulse"],
         ["low", "0"],
         ["high", "1"],
         ["delay", "1ns"],
@@ -169,6 +170,87 @@ describe("design netlist printers", () => {
     );
     expect(printSpiceNetlist(ir)).not.toContain("dutyCycle=");
     expect(printSpectreNetlist(ir)).not.toContain("initial=");
+  });
+
+  it("prints formal PULSE and SIN waveforms for voltage and current sources", () => {
+    const ir = structuralIr();
+    ir.cells[1]!.instances.push(
+      device("vp", "VP", "voltage-source", ["vin", "0"], null, [
+        ["dc", "0"],
+        ["acMagnitude", "1"],
+        ["waveform", "pulse"],
+        ["low", "0"],
+        ["high", "1.8"],
+        ["delay", "1ns"],
+        ["rise", "2ps"],
+        ["fall", "3ps"],
+        ["width", "4ns"],
+        ["period", "8ns"],
+      ]),
+      device("ip", "IP", "current-source", ["vout", "0"], null, [
+        ["dc", "1u"],
+        ["waveform", "pulse"],
+        ["low", "0"],
+        ["high", "10u"],
+        ["delay", "2ns"],
+        ["rise", "1ps"],
+        ["fall", "1ps"],
+        ["width", "3ns"],
+        ["period", "6ns"],
+      ]),
+      device("vs", "VS", "voltage-source", ["vin", "0"], null, [
+        ["dc", "0.9"],
+        ["waveform", "sin"],
+        ["offset", "0.9"],
+        ["amplitude", "10m"],
+        ["frequency", "1Meg"],
+      ]),
+      device("is", "IS", "current-source", ["vout", "0"], null, [
+        ["dc", "2u"],
+        ["waveform", "sin"],
+        ["offset", "2u"],
+        ["amplitude", "500n"],
+        ["frequency", "10k"],
+        ["delay", "1us"],
+        ["damping", "2"],
+        ["phase", "90"],
+      ]),
+    );
+
+    const spice = printSpiceNetlist(ir);
+    expect(spice).toContain(
+      "VP vin 0 DC 0 AC 1 0 PULSE(0 1.8 1ns 2ps 3ps 4ns 8ns)",
+    );
+    expect(spice).toContain("IP vout 0 DC 1u PULSE(0 10u 2ns 1ps 1ps 3ns 6ns)");
+    expect(spice).toContain("VS vin 0 DC 0.9 SIN(0.9 10m 1Meg 0 0 0)");
+    expect(spice).toContain("IS vout 0 DC 2u SIN(2u 500n 10k 1us 2 90)");
+
+    const spectre = printSpectreNetlist(ir);
+    expect(spectre).toContain(
+      "VP (vin 0) vsource type=pulse val0=0 val1=1.8 delay=1ns rise=2ps fall=3ps width=4ns period=8ns dc=0 mag=1 phase=0",
+    );
+    expect(spectre).toContain(
+      "IP (vout 0) isource type=pulse val0=0 val1=10u delay=2ns rise=1ps fall=1ps width=3ns period=6ns dc=1u",
+    );
+    expect(spectre).toContain(
+      "VS (vin 0) vsource type=sine dc=0.9 ampl=10m freq=1Meg delay=0 damp=0 sinephase=0",
+    );
+    expect(spectre).toContain(
+      "IS (vout 0) isource type=sine dc=2u ampl=500n freq=10k delay=1us damp=2 sinephase=90",
+    );
+  });
+
+  it("does not infer PULSE from a period parameter", () => {
+    const ir = structuralIr();
+    ir.cells[1]!.instances.push(
+      device("vdc", "VDC", "voltage-source", ["vin", "0"], null, [
+        ["dc", "1"],
+        ["waveform", "dc"],
+        ["period", "10ns"],
+      ]),
+    );
+    expect(printSpiceNetlist(ir)).toContain("\nVDC vin 0 DC 1\n");
+    expect(printSpiceNetlist(ir)).not.toContain("VDC vin 0 PULSE");
   });
 
   it("prints an independent source's AC magnitude and phase after its DC value", () => {

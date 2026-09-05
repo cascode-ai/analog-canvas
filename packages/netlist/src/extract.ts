@@ -34,6 +34,7 @@ import {
   type NetlistFormat,
   type NetlistNamingProfile,
 } from "./net-name-codec.js";
+import { normalizeIndependentSource } from "./source-waveform.js";
 
 const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/u;
 const MAX_CELLS = 1024;
@@ -1073,6 +1074,26 @@ function extractDeviceInstance(
       [instance.id],
     );
   }
+  const authoredParameters = Object.entries(netlist.parameters)
+    .sort(([a], [b]) => compareText(a, b))
+    .map(([name, rawValue]) => ({ name, rawValue }));
+  const projectedParameters =
+    definition.deviceClass === "voltage-source" ||
+    definition.deviceClass === "current-source"
+      ? normalizeIndependentSource(
+          authoredParameters,
+          definition.sourceWaveformDefault ?? "dc",
+        )
+      : null;
+  for (const issue of projectedParameters?.issues ?? []) {
+    diagnostic(
+      diagnostics,
+      document.id,
+      issue.code,
+      `Instance ${instance.reference!}: ${issue.message}`,
+      [instance.id],
+    );
+  }
   return {
     id: instance.id,
     reference: instance.reference!,
@@ -1080,9 +1101,9 @@ function extractDeviceInstance(
     deviceClass: definition.deviceClass,
     target,
     nodes,
-    parameters: Object.entries(netlist.parameters)
-      .sort(([a], [b]) => compareText(a, b))
-      .map(([name, rawValue]) => ({ name, rawValue })),
+    parameters: projectedParameters
+      ? [...projectedParameters.parameters]
+      : authoredParameters,
   };
 }
 
