@@ -16,13 +16,11 @@
  */
 import {
   buildSimulationDeck,
-  classifySimulationOutcome,
   deckNeedsModelLibrary,
-  describeExitStatus,
+  deckRequestsRawfile,
+  evaluateSimulationRun,
   createSimulationInputMetadata,
   isSimulationInputRevision,
-  readNgspiceDiagnostics,
-  readSimulationData,
   resolveTimeoutMs,
   SKY130_LIBRARY_PATH,
   SKY130_LIBRARY_SECTION,
@@ -30,7 +28,6 @@ import {
   verifySimulationEnvironmentMetadata,
   type ModelLibrarySelection,
   type SimulationResult,
-  type SimulationResultData,
 } from "@icm/spice-run";
 import hostedSky130Profile from "../containers/ngspice/hosted-sky130-profile.json";
 
@@ -378,6 +375,8 @@ export async function routeSimulationRequest(
 
   const raw = (await containerResponse.json()) as {
     log?: unknown;
+    stdout?: unknown;
+    stderr?: unknown;
     exitCode?: unknown;
     signal?: unknown;
     timedOut?: unknown;
@@ -387,6 +386,8 @@ export async function routeSimulationRequest(
     // because a deck that never calls `write` leaves nothing to send.
     rawfile?: unknown;
     rawfileFormat?: unknown;
+    rawfileRequested?: unknown;
+    truncatedOutputs?: unknown;
   };
   const environment = await verifySimulationEnvironmentMetadata(
     raw.environment,
@@ -402,68 +403,56 @@ export async function routeSimulationRequest(
     );
   }
   const log = typeof raw.log === "string" ? raw.log : "";
-  const diagnostics = readNgspiceDiagnostics(log);
-  const timedOut = raw.timedOut === true;
-  // A simulator that died by a signal, or that printed nothing at all,
-  // did not complete: a batch run always prints at least its banner and
-  // the analysis it did. Exit 0 with no output was measured on 2026-09-04
-  // when the kernel killed ngspice mid-corner-load; it must never read as
-  // success (ADR 0055 amendment, item 10).
-  if (!timedOut && typeof raw.signal === "string" && raw.signal) {
-    diagnostics.push({
-      severity: "error",
-      text: `The simulator was terminated by ${raw.signal} before it finished.`,
-    });
-  } else if (!timedOut && log.trim().length === 0) {
-    diagnostics.push({
-      severity: "error",
-      text: "The simulator produced no output, so this run has no result.",
-    });
+  const rawfileExpected = deckRequestsRawfile(deck);
+  // New harnesses report the same fact they used when collecting artifacts.
+  // Accept an absent field during a rolling deployment, but never accept an
+  // explicit disagreement: one side would otherwise judge a different run
+  // contract from the other.
+  if (
+    typeof raw.rawfileRequested === "boolean" &&
+    raw.rawfileRequested !== rawfileExpected
+  ) {
+    return Response.json(
+      {
+        error: "simulator-protocol-invalid",
+        execution,
+        message:
+          "The simulator disagreed with the Worker about whether the deck requested a rawfile.",
+      },
+      { status: 502 },
+    );
   }
-  // The numbers, when the harness sent a rawfile back.
-  //
-  // This is where a simulation stops being a wall of console text. Until it
-  // was wired up, `@icm/spice-run` could read a rawfile and nothing asked it
-  // to: the route returned `log` and the editor had no numbers to draw. A
-  // deck that never calls `write` still returns no data, and that is a fact
-  // about the testbench rather than a failure.
-  //
-  // The reading's own diagnostics join the run's, which is what finally makes
-  // the outcome depend on whether the measurements came back. `#568` could
-  // only stop an exit code from condemning a correct run; this is the other
-  // half — a run that printed a batch log and wrote no vectors is now the
-  // failure it always was, where an exit code of zero called it a success.
-  let data: SimulationResultData | undefined;
   const rawfile = typeof raw.rawfile === "string" ? raw.rawfile : null;
-  if (raw.rawfileFormat === "binary") {
-    diagnostics.push({
-      severity: "error",
-      text:
-        "The simulator wrote a binary rawfile, which carries no numbers this " +
-        "reader can use. Put `set filetype=ascii` before `write`.",
-    });
-  } else if (rawfile !== null && rawfile.trim().length > 0) {
-    const reading = readSimulationData(rawfile);
-    diagnostics.push(...reading.diagnostics);
-    if (reading.status === "read") data = reading.data;
-  }
-  // Reported, never decisive: see describeExitStatus. Pushed after the checks
-  // above so a signal or a silent run still reads as the error it is.
-  const exitStatus = describeExitStatus(
-    typeof raw.exitCode === "number" ? raw.exitCode : null,
+  const truncatedOutputs = Array.isArray(raw.truncatedOutputs)
+    ? raw.truncatedOutputs
+    : [];
+  const evaluated = evaluateSimulationRun(
+    { rawfile: rawfileExpected ? "required" : "not-required" },
+    {
+      log,
+      ...(typeof raw.stdout === "string" ? { stdout: raw.stdout } : {}),
+      ...(typeof raw.stderr === "string" ? { stderr: raw.stderr } : {}),
+      exitCode: typeof raw.exitCode === "number" ? raw.exitCode : null,
+      signal: typeof raw.signal === "string" ? raw.signal : null,
+      timedOut: raw.timedOut === true,
+      durationMs: typeof raw.durationMs === "number" ? raw.durationMs : 0,
+      rawfile,
+      rawfileFormat:
+        raw.rawfileFormat === "ascii" || raw.rawfileFormat === "binary"
+          ? raw.rawfileFormat
+          : null,
+      rawfileTruncated: truncatedOutputs.includes("rawfile"),
+    },
+    { timeoutMs },
   );
-  if (exitStatus) diagnostics.push(exitStatus);
   const result: SimulationResult & { execution: HostedExecutionMetadata } = {
     execution,
-    outcome: classifySimulationOutcome(diagnostics, {
-      timedOut,
-      timeoutMs,
-    }),
-    diagnostics,
+    outcome: evaluated.outcome,
+    diagnostics: evaluated.diagnostics,
     log,
     // Omitted rather than null when there is nothing to carry: the field's
     // contract is that its presence means numbers were read.
-    ...(data ? { data } : {}),
+    ...(evaluated.data ? { data: evaluated.data } : {}),
     durationMs: typeof raw.durationMs === "number" ? raw.durationMs : 0,
     metadata: {
       schemaVersion: 1,

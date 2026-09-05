@@ -54,6 +54,28 @@ describe("local simulation", () => {
   });
 
   withSimulator(
+    "returns requested vectors through the shared result policy",
+    async () => {
+      const outcome = await simulateLocally({
+        netlist: "V1 in 0 DC 1\nR1 in out 1k\nR2 out 0 1k",
+        testbench:
+          ".control\nset filetype=ascii\nop\nwrite out.raw v(out)\n.endc",
+      });
+      expect(outcome.kind).toBe("ran");
+      if (outcome.kind !== "ran") return;
+      expect(outcome.result.outcome.status).toBe("completed");
+      const operatingPoint = outcome.result.data?.analyses.find(
+        (analysis) => analysis.analysis === "op",
+      );
+      expect(operatingPoint?.analysis).toBe("op");
+      if (operatingPoint?.analysis !== "op") return;
+      expect(
+        operatingPoint.probes.find((probe) => probe.name === "v(out)")?.value,
+      ).toBeCloseTo(0.5, 12);
+    },
+  );
+
+  withSimulator(
     "never calls a run clean when the simulator dropped a device",
     async () => {
       // The measured trap: ngspice exits 0 having discarded the resistor.

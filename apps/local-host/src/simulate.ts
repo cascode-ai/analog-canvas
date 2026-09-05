@@ -12,17 +12,23 @@
  */
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
 
 import {
   buildSimulationDeck,
-  classifySimulationOutcome,
   createSimulationEnvironmentMetadata,
   createSimulationInputMetadata,
-  describeExitStatus,
-  readNgspiceDiagnostics,
+  deckRequestsRawfile,
+  evaluateSimulationRun,
   resolveTimeoutMs,
   simulationConfigurationMetadata,
   type ModelLibrarySelection,
@@ -50,13 +56,19 @@ export interface LocalSimulatorUnavailable {
 export type LocalSimulationOutcome =
   { kind: "ran"; result: SimulationResult } | LocalSimulatorUnavailable;
 
+const LOCAL_RAWFILE_MAX_BYTES = 16 * 1024 * 1024;
+
 function runProcess(
   binary: string,
   deckPath: string,
+  workingDirectory: string,
   timeoutMs: number,
 ): Promise<{
   log: string;
+  stdout: string;
+  stderr: string;
   exitCode: number | null;
+  signal: string | null;
   timedOut: boolean;
   durationMs: number;
   spawnError: Error | null;
@@ -69,6 +81,7 @@ function runProcess(
       binary,
       ["-b", deckPath],
       {
+        cwd: workingDirectory,
         timeout: timeoutMs,
         maxBuffer: 16 * 1024 * 1024,
         killSignal: "SIGKILL",
@@ -84,6 +97,8 @@ function runProcess(
           spawnError = error;
         }
         resolve({
+          stdout: stdout ?? "",
+          stderr: stderr ?? "",
           log: `${stdout ?? ""}${stderr ?? ""}`,
           exitCode: timedOut
             ? null
@@ -92,6 +107,8 @@ function runProcess(
               : error
                 ? 1
                 : 0,
+          signal:
+            timedOut || typeof error?.signal !== "string" ? null : error.signal,
           timedOut,
           durationMs: Date.now() - startedAt,
           spawnError,
@@ -105,6 +122,35 @@ function runProcess(
     child.on("exit", () => clearTimeout(timer));
     child.on("error", () => clearTimeout(timer));
   });
+}
+
+async function readRunRawfile(directory: string): Promise<{
+  rawfile: string | null;
+  rawfileFormat: "ascii" | "binary" | null;
+  rawfileTruncated: boolean;
+}> {
+  const candidates = (await readdir(directory, { withFileTypes: true }))
+    .filter((entry) => entry.isFile() && entry.name !== "deck.cir")
+    .map((entry) => entry.name)
+    .sort();
+  const name =
+    candidates.find((candidate) => candidate.toLowerCase().endsWith(".raw")) ??
+    candidates[0];
+  if (!name) {
+    return { rawfile: null, rawfileFormat: null, rawfileTruncated: false };
+  }
+  const path = join(directory, name);
+  if ((await stat(path)).size > LOCAL_RAWFILE_MAX_BYTES) {
+    return { rawfile: null, rawfileFormat: null, rawfileTruncated: true };
+  }
+  const content = await readFile(path);
+  return content.includes(0)
+    ? { rawfile: null, rawfileFormat: "binary", rawfileTruncated: false }
+    : {
+        rawfile: content.toString("utf8"),
+        rawfileFormat: "ascii",
+        rawfileTruncated: false,
+      };
 }
 
 function probeVersion(binary: string): Promise<string> {
@@ -163,7 +209,12 @@ export async function simulateLocally(
 ): Promise<LocalSimulationOutcome> {
   const binary = options.ngspicePath ?? process.env.NGSPICE_BIN ?? "ngspice";
   const timeoutMs = resolveTimeoutMs(request.timeoutMs);
-  const modelLibrary = options.modelLibrary ?? null;
+  // ngspice runs inside the private per-run directory so authored output
+  // cannot leak into the host's process cwd. Preserve the existing meaning of
+  // a relative configured model path by resolving it before changing cwd.
+  const modelLibrary = options.modelLibrary
+    ? { ...options.modelLibrary, path: resolve(options.modelLibrary.path) }
+    : null;
   const deck = buildSimulationDeck(request, modelLibrary);
   const [inputMetadata, environment] = await Promise.all([
     createSimulationInputMetadata({
@@ -181,37 +232,44 @@ export async function simulateLocally(
   const deckPath = join(directory, "deck.cir");
   try {
     await writeFile(deckPath, deck, "utf8");
-    const run = await runProcess(binary, deckPath, timeoutMs);
+    const run = await runProcess(binary, deckPath, directory, timeoutMs);
     if (run.spawnError) {
       return {
         kind: "simulator-unavailable",
         message: `No simulator at "${binary}". Install ngspice, or set NGSPICE_BIN to its path.`,
       };
     }
-    const diagnostics = readNgspiceDiagnostics(run.log);
-    // The rule the hosted route has carried since #566, which this path had
-    // been getting only by accident of the exit code: a batch run always
-    // prints at least its banner, so silence is not a result. It has to be
-    // stated here now that the exit code no longer decides anything.
-    if (!run.timedOut && run.log.trim().length === 0) {
-      diagnostics.push({
-        severity: "error",
-        text: "The simulator produced no output, so this run has no result.",
-      });
-    }
-    // Reported, never decisive: see describeExitStatus. Pushed after the
-    // check above so a silent run still reads as the error it is.
-    const exitStatus = describeExitStatus(run.exitCode);
-    if (exitStatus) diagnostics.push(exitStatus);
+    const rawfileExpected = deckRequestsRawfile(deck);
+    const artifact = rawfileExpected
+      ? await readRunRawfile(directory)
+      : {
+          rawfile: null,
+          rawfileFormat: null,
+          rawfileTruncated: false,
+        };
+    const evaluated = evaluateSimulationRun(
+      { rawfile: rawfileExpected ? "required" : "not-required" },
+      {
+        log: run.log,
+        stdout: run.stdout,
+        stderr: run.stderr,
+        exitCode: run.exitCode,
+        signal: run.signal,
+        timedOut: run.timedOut,
+        durationMs: run.durationMs,
+        rawfile: artifact.rawfile,
+        rawfileFormat: artifact.rawfileFormat,
+        rawfileTruncated: artifact.rawfileTruncated,
+      },
+      { timeoutMs },
+    );
     return {
       kind: "ran",
       result: {
-        outcome: classifySimulationOutcome(diagnostics, {
-          timedOut: run.timedOut,
-          timeoutMs,
-        }),
-        diagnostics,
+        outcome: evaluated.outcome,
+        diagnostics: evaluated.diagnostics,
         log: run.log,
+        ...(evaluated.data ? { data: evaluated.data } : {}),
         durationMs: run.durationMs,
         metadata: {
           schemaVersion: 1,

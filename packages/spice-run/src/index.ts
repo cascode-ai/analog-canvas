@@ -12,7 +12,10 @@ export * from "./rawfile.js";
 export * from "./result-data.js";
 export * from "./environment-profile.js";
 
-import type { SimulationResultData } from "./result-data.js";
+import {
+  readSimulationData,
+  type SimulationResultData,
+} from "./result-data.js";
 
 export type SimulationAnalysis = "op" | "ac";
 
@@ -200,6 +203,25 @@ export function deckNeedsModelLibrary(text: string): boolean {
     }
     if (/sky130_/iu.test(line)) return true;
     if (/^[mdqj][a-z0-9_$.:-]*\s/iu.test(line)) return true;
+  }
+  return false;
+}
+
+/**
+ * Whether a prepared deck promises a numeric rawfile.
+ *
+ * This is an execution expectation, not an attempt to understand SPICE. The
+ * harness makes the same observation before collecting output; the Worker
+ * uses this copy to decide what result the submitted deck promised. Keeping
+ * the expectation beside the result evaluator prevents each consumer from
+ * inventing its own meaning for an absent file.
+ */
+export function deckRequestsRawfile(deck: string): boolean {
+  for (const raw of deck.split(/\r?\n/u)) {
+    const line = raw.trim();
+    if (line.length === 0 || line.startsWith("*")) continue;
+    if (/^\.save\b/iu.test(line)) return true;
+    if (/(^|\s|;)write(\s|$)/iu.test(line)) return true;
   }
   return false;
 }
@@ -471,16 +493,11 @@ export function describeExitStatus(
  * point matched ngspice 46 with a full PDK to every digit (#568). Nothing had
  * gone wrong; ngspice 39 exits non-zero for its own reasons.
  *
- * A run therefore fails only when something said so. That is a deliberate
- * trade: an exit code that is the sole evidence of a real failure now reports
- * `completed` beside the warning from `describeExitStatus`, which is the
- * lesser harm — the author sees the fact and their results, instead of a
- * refusal with no reason attached. It also makes `failed` with no diagnostic
- * unreachable rather than merely unlikely.
- *
- * The stronger criterion is whether the requested measurements came back, and
- * that needs the result parsing this cannot see yet (F3-1). It should replace
- * this reading rather than sit beside it.
+ * This remains the small final reduction from diagnostics to a terminal
+ * outcome. `evaluateSimulationRun` below owns the stronger evidence policy:
+ * it first proves that the run produced what its deck requested, then calls
+ * this function. Consumers must use that evaluator rather than treating this
+ * reduction as a complete run policy.
  */
 export function classifySimulationOutcome(
   diagnostics: readonly SimulationDiagnostic[],
@@ -496,4 +513,140 @@ export function classifySimulationOutcome(
     return { status: "completed-with-dropped-input" };
   }
   return { status: "completed" };
+}
+
+/** Facts observed after the simulator process stopped. No field is a verdict. */
+export interface SimulationExecutionObservation {
+  /** Human-readable combined output retained by the public result contract. */
+  readonly log: string;
+  /** Separate streams when the harness supplies them; optional during rollout. */
+  readonly stdout?: string;
+  readonly stderr?: string;
+  readonly exitCode: number | null;
+  readonly signal: string | null;
+  readonly timedOut: boolean;
+  readonly durationMs: number;
+  readonly rawfile: string | null;
+  readonly rawfileFormat: "ascii" | "binary" | null;
+  readonly rawfileTruncated: boolean;
+}
+
+/** What the submitted deck promised to produce for this run. */
+export interface SimulationRunExpectations {
+  readonly rawfile: "required" | "not-required";
+}
+
+/** The policy-owned part of a SimulationResult, before metadata is attached. */
+export interface EvaluatedSimulationRun {
+  readonly outcome: SimulationOutcome;
+  readonly diagnostics: readonly SimulationDiagnostic[];
+  readonly data?: SimulationResultData;
+}
+
+/**
+ * Evidence that ngspice at least accepted and entered a batch run.
+ *
+ * This is deliberately a fallback for decks that requested no rawfile. A
+ * readable rawfile is stronger evidence and does not need a console banner.
+ * Keep the test narrow: arbitrary non-empty stderr is not proof that a deck
+ * ran, which is the exact hole recorded by #613.
+ */
+export function hasNgspiceExecutionEvidence(output: string): boolean {
+  return (
+    /^\s*circuit\s*:/imu.test(output) ||
+    /^\s*doing analysis at\b/imu.test(output) ||
+    /^\s*no\. of data rows\s*:/imu.test(output) ||
+    /^\s*note:\s*simulation executed from \.control section\b/imu.test(output)
+  );
+}
+
+/**
+ * Turn one execution observation into the only product terminal verdict.
+ *
+ * Success is positive evidence, not the absence of a recognised error line:
+ * a deck that requested vectors must return readable vectors; a deck that did
+ * not must at least show that ngspice accepted the deck. The exit code remains
+ * diagnostic because supported ngspice builds can exit non-zero after
+ * producing every requested result.
+ */
+export function evaluateSimulationRun(
+  expectations: SimulationRunExpectations,
+  observation: SimulationExecutionObservation,
+  options: { timeoutMs: number },
+): EvaluatedSimulationRun {
+  const diagnostics = readNgspiceDiagnostics(observation.log);
+
+  if (
+    !observation.timedOut &&
+    observation.signal !== null &&
+    observation.signal.length > 0
+  ) {
+    diagnostics.push({
+      severity: "error",
+      text: `The simulator was terminated by ${observation.signal} before it finished.`,
+    });
+  }
+
+  let data: SimulationResultData | undefined;
+  if (observation.rawfileTruncated) {
+    diagnostics.push({
+      severity: "error",
+      text: "The simulator rawfile was truncated, so its numeric result is incomplete.",
+    });
+  } else if (observation.rawfileFormat === "binary") {
+    diagnostics.push({
+      severity: "error",
+      text:
+        "The simulator wrote a binary rawfile, which carries no numbers this " +
+        "reader can use. Put `set filetype=ascii` before `write`.",
+    });
+  } else if (
+    observation.rawfile !== null &&
+    observation.rawfile.trim().length > 0
+  ) {
+    const reading = readSimulationData(observation.rawfile);
+    diagnostics.push(...reading.diagnostics);
+    if (reading.status === "read") data = reading.data;
+  }
+
+  if (!observation.timedOut && data === undefined) {
+    if (expectations.rawfile === "required") {
+      const alreadyExplained = diagnostics.some(
+        (diagnostic) => diagnostic.severity === "error",
+      );
+      if (!alreadyExplained) {
+        diagnostics.push({
+          severity: "error",
+          text: "The deck requested a rawfile, but the simulator returned no readable vectors.",
+        });
+      }
+    } else if (
+      !hasNgspiceExecutionEvidence(
+        observation.stdout === undefined && observation.stderr === undefined
+          ? observation.log
+          : `${observation.stdout ?? ""}${observation.stderr ?? ""}`,
+      )
+    ) {
+      diagnostics.push({
+        severity: "error",
+        text:
+          observation.log.trim().length === 0
+            ? "The simulator produced no output, so this run has no result."
+            : "The simulator output contains no evidence that ngspice accepted or ran the deck.",
+      });
+    }
+  }
+
+  const exitStatus = describeExitStatus(observation.exitCode);
+  if (exitStatus) diagnostics.push(exitStatus);
+
+  const outcome = classifySimulationOutcome(diagnostics, {
+    timedOut: observation.timedOut,
+    timeoutMs: options.timeoutMs,
+  });
+  return {
+    outcome,
+    diagnostics,
+    ...(data === undefined ? {} : { data }),
+  };
 }

@@ -690,7 +690,8 @@ async function handleRun(body) {
 
         const result = await runNgspice(binary, directory, run);
         run.phase("collecting");
-        const raw = deckRequestsRawfile(deck)
+        const rawfileRequested = deckRequestsRawfile(deck);
+        const raw = rawfileRequested
           ? await readRawfile(directory)
           : { rawfile: null, rawfileName: null, rawfileFormat: null };
 
@@ -708,10 +709,15 @@ async function handleRun(body) {
           status: 200,
           payload: {
             log,
+            // Keep the streams separate as execution facts. `log` remains
+            // during the rolling protocol transition and for human display.
+            stdout: result.stdout,
+            stderr: result.stderr,
             exitCode: result.exitCode,
             signal: result.signal,
             timedOut: result.timedOut,
             durationMs: result.durationMs,
+            rawfileRequested,
             truncated: truncatedOutputs.length > 0,
             truncatedOutputs,
             rawfile: raw.rawfile,

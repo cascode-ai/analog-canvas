@@ -1,13 +1,18 @@
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
 import {
   buildSimulationDeck,
   deckNeedsModelLibrary,
+  deckRequestsRawfile,
   classifySimulationOutcome,
   describeExitStatus,
   createSimulationEnvironmentMetadata,
   createSimulationInputMetadata,
   DEFAULT_SIMULATION_TIMEOUT_MS,
+  evaluateSimulationRun,
+  hasNgspiceExecutionEvidence,
   isSimulationEnvironmentMetadata,
   MAX_SIMULATION_TIMEOUT_MS,
   readNgspiceDiagnostics,
@@ -178,6 +183,157 @@ Note: No ".plot", ".print", or ".fourier" lines; no simulations run
         timeoutMs: 30_000,
       }),
     ).toEqual({ status: "timed-out", timeoutMs: 30_000 });
+  });
+});
+
+describe("simulation run evidence", () => {
+  const dividerRawfile = readFileSync(
+    new URL(
+      "../../../fixtures/ngspice-rawfile/divider-op.raw",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const observation = (
+    overrides: Partial<Parameters<typeof evaluateSimulationRun>[1]> = {},
+  ): Parameters<typeof evaluateSimulationRun>[1] => ({
+    log: CLEAN_OUTPUT,
+    stdout: CLEAN_OUTPUT,
+    stderr: "",
+    exitCode: 0,
+    signal: null,
+    timedOut: false,
+    durationMs: 10,
+    rawfile: null,
+    rawfileFormat: null,
+    rawfileTruncated: false,
+    ...overrides,
+  });
+
+  it("requires positive ngspice evidence rather than any non-empty log", () => {
+    const evaluated = evaluateSimulationRun(
+      { rawfile: "not-required" },
+      observation({
+        log: "tmpfile(): Read-only file system\n",
+        stdout: "",
+        stderr: "tmpfile(): Read-only file system\n",
+        exitCode: 1,
+      }),
+      { timeoutMs: 30_000 },
+    );
+
+    expect(evaluated.outcome).toEqual({ status: "failed" });
+    expect(
+      evaluated.diagnostics.some(
+        (diagnostic) =>
+          diagnostic.severity === "error" &&
+          diagnostic.text.includes("no evidence"),
+      ),
+    ).toBe(true);
+    expect(
+      evaluated.diagnostics.some((diagnostic) =>
+        diagnostic.text.includes("exited with code 1"),
+      ),
+    ).toBe(true);
+  });
+
+  it("accepts a no-rawfile run only when ngspice execution is visible", () => {
+    expect(
+      evaluateSimulationRun({ rawfile: "not-required" }, observation(), {
+        timeoutMs: 30_000,
+      }).outcome,
+    ).toEqual({ status: "completed" });
+
+    const dropped = evaluateSimulationRun(
+      { rawfile: "not-required" },
+      observation({
+        log: DROPPED_RESISTOR_OUTPUT,
+        stdout: DROPPED_RESISTOR_OUTPUT,
+      }),
+      { timeoutMs: 30_000 },
+    );
+    expect(dropped.outcome).toEqual({
+      status: "completed-with-dropped-input",
+    });
+  });
+
+  it("fails when the deck promised a rawfile but returned no vectors", () => {
+    const evaluated = evaluateSimulationRun(
+      { rawfile: "required" },
+      observation(),
+      { timeoutMs: 30_000 },
+    );
+
+    expect(evaluated.outcome).toEqual({ status: "failed" });
+    expect(evaluated.diagnostics.map((item) => item.text).join(" ")).toContain(
+      "requested a rawfile",
+    );
+  });
+
+  it("accepts readable requested vectors despite a non-zero exit", () => {
+    const evaluated = evaluateSimulationRun(
+      { rawfile: "required" },
+      observation({
+        log: "",
+        stdout: "",
+        exitCode: 1,
+        rawfile: dividerRawfile,
+        rawfileFormat: "ascii",
+      }),
+      { timeoutMs: 30_000 },
+    );
+
+    expect(evaluated.outcome).toEqual({ status: "completed" });
+    expect(evaluated.data?.analyses).toHaveLength(1);
+    expect(evaluated.diagnostics).toEqual([
+      expect.objectContaining({ severity: "warning" }),
+    ]);
+  });
+
+  it("refuses a truncated requested rawfile even when its prefix parses", () => {
+    const evaluated = evaluateSimulationRun(
+      { rawfile: "required" },
+      observation({
+        rawfile: dividerRawfile,
+        rawfileFormat: "ascii",
+        rawfileTruncated: true,
+      }),
+      { timeoutMs: 30_000 },
+    );
+    expect(evaluated.outcome).toEqual({ status: "failed" });
+    expect(evaluated.data).toBeUndefined();
+    expect(evaluated.diagnostics.map((item) => item.text).join(" ")).toContain(
+      "truncated",
+    );
+  });
+
+  it("keeps timeout and signal termination distinct from exit status", () => {
+    expect(
+      evaluateSimulationRun(
+        { rawfile: "not-required" },
+        observation({ timedOut: true, log: "", stdout: "" }),
+        { timeoutMs: 5_000 },
+      ).outcome,
+    ).toEqual({ status: "timed-out", timeoutMs: 5_000 });
+
+    const killed = evaluateSimulationRun(
+      { rawfile: "not-required" },
+      observation({ signal: "SIGKILL", log: "", stdout: "" }),
+      { timeoutMs: 30_000 },
+    );
+    expect(killed.outcome).toEqual({ status: "failed" });
+    expect(killed.diagnostics.map((item) => item.text).join(" ")).toContain(
+      "SIGKILL",
+    );
+  });
+
+  it("detects the artifact promise and only recognised execution evidence", () => {
+    expect(
+      deckRequestsRawfile(".control\nop\nwrite out.raw v(out)\n.endc"),
+    ).toBe(true);
+    expect(deckRequestsRawfile("* write ignored.raw\n.op\n.end")).toBe(false);
+    expect(hasNgspiceExecutionEvidence(CLEAN_OUTPUT)).toBe(true);
+    expect(hasNgspiceExecutionEvidence("tmpfile(): failed\n")).toBe(false);
   });
 });
 

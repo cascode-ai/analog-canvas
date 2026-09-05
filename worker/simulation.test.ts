@@ -396,6 +396,85 @@ describe("simulation route", () => {
     expect(payload.data).toBeUndefined();
   });
 
+  it("fails a non-empty runtime error that contains no execution evidence", async () => {
+    // #613: this exact host failure was reported as completed for four hours
+    // because a non-empty log plus a non-decisive exit code fell through the
+    // old diagnostic-only classifier.
+    const response = await routeSimulationRequest(
+      post({ netlist: NETLIST, testbench: TESTBENCH }),
+      stubRunner({
+        log: "tmpfile(): Read-only file system\n",
+        stdout: "",
+        stderr: "tmpfile(): Read-only file system\n",
+        exitCode: 1,
+        timedOut: false,
+        durationMs: 6,
+        rawfileRequested: false,
+      }),
+    );
+    const payload = (await response!.json()) as {
+      outcome: { status: string };
+      diagnostics: { severity: string; text: string }[];
+    };
+    expect(payload.outcome.status).toBe("failed");
+    expect(payload.diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          severity: "error",
+          text: expect.stringContaining("no evidence"),
+        }),
+      ]),
+    );
+  });
+
+  it("requires vectors when the submitted deck requested a rawfile", async () => {
+    const response = await routeSimulationRequest(
+      post({
+        netlist: NETLIST,
+        testbench: "V1 in 0 DC 1\n.control\nop\nwrite out.raw v(out)\n.endc",
+      }),
+      stubRunner({
+        log: "Circuit: * amp\nNo. of Data Rows : 1\n",
+        stdout: "Circuit: * amp\nNo. of Data Rows : 1\n",
+        stderr: "",
+        exitCode: 0,
+        timedOut: false,
+        durationMs: 8,
+        rawfileRequested: true,
+        rawfile: null,
+        rawfileFormat: null,
+      }),
+    );
+    const payload = (await response!.json()) as {
+      outcome: { status: string };
+      diagnostics: { text: string }[];
+    };
+    expect(payload.outcome.status).toBe("failed");
+    expect(payload.diagnostics.map((item) => item.text).join(" ")).toContain(
+      "requested a rawfile",
+    );
+  });
+
+  it("refuses a harness that disagrees about the deck's artifact promise", async () => {
+    const response = await routeSimulationRequest(
+      post({
+        netlist: NETLIST,
+        testbench: "V1 in 0 DC 1\n.control\nop\nwrite out.raw v(out)\n.endc",
+      }),
+      stubRunner({
+        log: "Circuit: * amp\n",
+        exitCode: 0,
+        timedOut: false,
+        durationMs: 5,
+        rawfileRequested: false,
+      }),
+    );
+    expect(response?.status).toBe(502);
+    expect((await response!.json()) as unknown).toMatchObject({
+      error: "simulator-protocol-invalid",
+    });
+  });
+
   it("fails a run that printed a log and wrote no vectors", async () => {
     // The other half of #568. An exit code of zero called this a success, and
     // it reached the author as an empty chart with nothing to explain it.
