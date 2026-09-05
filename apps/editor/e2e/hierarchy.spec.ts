@@ -106,6 +106,53 @@ test("reviews an unreferenced top Symbol and places that DUT in an ordinary new 
   await expect(page.getByTestId("active-instance-count")).toHaveText("1");
 });
 
+test("creates a Testbench and places a same-Project Cell from the canvas menu", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  const canvas = page.getByTestId("schematic-canvas");
+  await canvas.click({ button: "right", position: { x: 360, y: 220 } });
+  await page
+    .getByTestId("canvas-context-menu")
+    .getByRole("menuitem", { name: "New Testbench Cell…" })
+    .click();
+
+  const dialog = page.getByRole("dialog", { name: "New Testbench Cell" });
+  await dialog
+    .getByLabel("Place the DUT Symbol View after creating the testbench")
+    .uncheck();
+  await dialog.getByRole("button", { name: "Create Testbench" }).click();
+  await expect(page.getByTestId("active-document-name")).toHaveText("Main_tb");
+  await expect(page.getByTestId("active-instance-count")).toHaveText("0");
+
+  await canvas.click({ button: "right", position: { x: 360, y: 220 } });
+  await page
+    .getByTestId("canvas-context-menu")
+    .getByRole("menuitem", { name: "Place Cell from this Project…" })
+    .click();
+  await page
+    .getByRole("dialog", { name: "Place Hierarchical Cell" })
+    .getByRole("option", { name: /Main/u })
+    .click();
+  await canvas.click({ position: { x: 360, y: 220 } });
+  await page.keyboard.press("Escape");
+
+  const project = JSON.parse(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  );
+  expect(project.topDocumentId).toBe("document-main");
+  const testbench = project.documents.find(
+    (candidate: { name: string }) => candidate.name === "Main_tb",
+  );
+  expect(testbench.instances).toHaveLength(1);
+  expect(testbench.instances[0].netlist.binding).toEqual({
+    kind: "subcircuit",
+    childDocumentId: "document-main",
+  });
+});
+
 test("shows the hierarchy row only once there is a hierarchy", async ({
   page,
 }) => {

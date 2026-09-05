@@ -10,7 +10,7 @@ import {
 } from "../components/recovery-banners";
 import {
   LazyCellManagerDialog,
-  LazySpiceSimulationSurface,
+  LazyNewTestbenchDialog,
   LazyConnectAgentPanel,
   LazyEditorHelpDialog,
   LazyInsertComponentDialog,
@@ -24,11 +24,6 @@ import {
 } from "./lazy-editor-dialogs";
 
 export interface EditorDialogLayerProps {
-  simulation?:
-    | (ComponentProps<typeof LazySpiceSimulationSurface> & {
-        sessionKey: string;
-      })
-    | undefined;
   help: ComponentProps<typeof LazyEditorHelpDialog> | null;
   chunkLoadFailure: ComponentProps<typeof ChunkLoadBanner> | null;
   recoveryFailure: ComponentProps<typeof RecoveryFailureBanner> | null;
@@ -45,6 +40,7 @@ export interface EditorDialogLayerProps {
     onConfirm: () => void;
   } | null;
   cellManager: ComponentProps<typeof LazyCellManagerDialog> | null;
+  newTestbench: ComponentProps<typeof LazyNewTestbenchDialog> | null;
   netlistPreflight: ComponentProps<typeof LazyNetlistPreflightDialog> | null;
   publishGallery: ComponentProps<typeof LazyPublishGalleryDialog> | null;
   versionHistory: ComponentProps<typeof LazyVersionHistoryDialog> | null;
@@ -58,7 +54,6 @@ export interface EditorDialogLayerProps {
 
 /** All modal/overlay UI kept outside the persistent editor workspace. */
 export function EditorDialogLayer({
-  simulation,
   help,
   chunkLoadFailure,
   recoveryFailure,
@@ -70,6 +65,7 @@ export function EditorDialogLayer({
   insertComponent,
   cellReset,
   cellManager,
+  newTestbench,
   netlistPreflight,
   publishGallery,
   versionHistory,
@@ -79,12 +75,6 @@ export function EditorDialogLayer({
   return (
     <>
       <Suspense fallback={null}>
-        {simulation ? (
-          <LazySpiceSimulationSurface
-            key={simulation.sessionKey}
-            {...simulation}
-          />
-        ) : null}
         {help ? <LazyEditorHelpDialog {...help} /> : null}
         {chunkLoadFailure ? <ChunkLoadBanner {...chunkLoadFailure} /> : null}
         {recoveryFailure ? (
@@ -147,6 +137,7 @@ export function EditorDialogLayer({
           </div>
         ) : null}
         {cellManager ? <LazyCellManagerDialog {...cellManager} /> : null}
+        {newTestbench ? <LazyNewTestbenchDialog {...newTestbench} /> : null}
         {netlistPreflight ? (
           <LazyNetlistPreflightDialog {...netlistPreflight} />
         ) : null}

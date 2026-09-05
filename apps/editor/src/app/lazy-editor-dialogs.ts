@@ -37,6 +37,12 @@ export const LazySpiceSimulationSurface = lazyChunk("inline", () =>
   })),
 );
 
+export const LazyNewTestbenchDialog = lazyChunk("dialog", () =>
+  import("../features/simulation/new-testbench-dialog").then((module) => ({
+    default: module.NewTestbenchDialog,
+  })),
+);
+
 export const LazyNetlistPreflightDialog = lazyChunk("dialog", () =>
   import("../features/netlist-export/netlist-preflight-dialog").then(
     (module) => ({ default: module.NetlistPreflightDialog }),

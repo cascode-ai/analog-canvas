@@ -14,6 +14,12 @@
   grid-template-columns: 0 minmax(0, 1fr) auto;
 }
 
+.app-workspace.simulation-mode {
+  grid-template-columns: minmax(320px, 34vw) minmax(0, 1fr) auto;
+  grid-template-areas: "simulation canvas props";
+  transition: grid-template-columns 160ms ease;
+}
+
 /* Sits on the Library's right edge, overlapping the canvas by a few pixels so
    the grab target is comfortable without stealing layout width. */
 .library-resize-handle {
@@ -592,6 +598,11 @@
       min(220px, var(--icm-shapes-width)) minmax(0, 1fr)
       auto;
   }
+
+  .app-workspace.simulation-mode {
+    grid-template-columns: minmax(300px, 40vw) minmax(0, 1fr) auto;
+    grid-template-areas: "simulation canvas props";
+  }
 }
 
 @media (max-width: 860px) {
@@ -608,6 +619,11 @@
 
   .app-workspace.library-collapsed {
     grid-template-columns: 0 minmax(0, 1fr);
+  }
+
+  .app-workspace.simulation-mode {
+    grid-template-columns: minmax(290px, 44vw) minmax(0, 1fr);
+    grid-template-areas: "simulation canvas";
   }
 
   .app-workspace.library-collapsed .shapes-panel {

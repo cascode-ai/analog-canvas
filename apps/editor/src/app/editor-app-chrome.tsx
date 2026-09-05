@@ -39,6 +39,8 @@ export interface EditorAppChromeProps {
   fileCommands: ComponentProps<typeof FileCommandMenu>;
   searchOpen: boolean;
   onManageCells: () => void;
+  onNewTestbench: () => void;
+  placeProjectCell: CommandAction;
   onOpenSearch: () => void;
   undo: CommandAction;
   redo: CommandAction;
@@ -55,6 +57,7 @@ export interface EditorAppChromeProps {
   onOpenNetlistPreflight: () => void;
   agentAction: { label: string; execute: () => void } | null;
   simulationAction?: () => void;
+  simulationState?: "closed" | "open" | "minimized";
   publishGalleryOpen: boolean;
   onPublishGallery: () => void;
   helpButtonRef: RefObject<HTMLButtonElement | null>;
@@ -81,6 +84,8 @@ export function EditorAppChrome({
   fileCommands,
   searchOpen,
   onManageCells,
+  onNewTestbench,
+  placeProjectCell,
   onOpenSearch,
   undo,
   redo,
@@ -97,6 +102,7 @@ export function EditorAppChrome({
   onOpenNetlistPreflight,
   agentAction,
   simulationAction,
+  simulationState = "closed",
   publishGalleryOpen,
   onPublishGallery,
   helpButtonRef,
@@ -199,6 +205,16 @@ export function EditorAppChrome({
                   onClick={onManageCells}
                 >
                   Manage Cells…
+                </button>
+                <button type="button" onClick={onNewTestbench}>
+                  New Testbench Cell…
+                </button>
+                <button
+                  type="button"
+                  onClick={placeProjectCell.execute}
+                  disabled={!placeProjectCell.enabled}
+                >
+                  Place Cell from this Project…
                 </button>
                 <button
                   type="button"
@@ -307,9 +323,12 @@ export function EditorAppChrome({
                 type="button"
                 data-testid="open-analog-simulation"
                 aria-label="Analog simulation"
+                aria-pressed={simulationState === "open"}
                 onClick={simulationAction}
               >
-                Simulation
+                {simulationState === "minimized"
+                  ? "Simulation · Minimized"
+                  : "Simulation"}
               </button>
             ) : null}
             {agentAction ? (
