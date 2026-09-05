@@ -3,17 +3,15 @@
 /* Analog simulation is a lazy workspace layer. Only its task bar and open
    docks accept pointer input, so the testbench canvas stays fully editable. */
 .spice-simulation-surface {
-  position: fixed;
-  top: 92px;
-  right: clamp(300px, 23vw, 390px);
-  bottom: 44px;
-  left: clamp(230px, 19vw, 320px);
-  z-index: 29;
+  grid-area: simulation;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border-right: 1px solid var(--icm-border-strong);
   color: var(--icm-text);
-  pointer-events: none;
-}
-.spice-simulation-surface > * {
-  pointer-events: auto;
+  background: var(--icm-surface);
 }
 .spice-simulation-surface button,
 .spice-simulation-surface input,
@@ -42,24 +40,17 @@
 }
 
 .simulation-taskbar {
-  position: absolute;
-  top: 0;
-  right: 0;
-  left: 0;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   grid-template-areas:
-    "brand context context"
-    "analysis status actions";
+    "brand status"
+    "context context"
+    "actions actions";
   align-items: center;
-  gap: 5px var(--icm-space-2);
-  min-height: 70px;
-  padding: 7px 8px;
-  border: 1px solid var(--icm-border-strong);
-  border-radius: var(--icm-radius-md);
-  background: color-mix(in srgb, var(--icm-surface) 96%, transparent);
-  box-shadow: var(--icm-shadow-md);
-  backdrop-filter: blur(10px);
+  gap: 8px var(--icm-space-2);
+  padding: 12px;
+  border-bottom: 1px solid var(--icm-border);
+  background: var(--icm-surface);
 }
 .simulation-brand {
   grid-area: brand;
@@ -67,11 +58,10 @@
   line-height: 1.05;
 }
 .simulation-brand strong {
-  font-size: var(--icm-font-sm);
+  font-size: var(--icm-font-lg);
 }
 .simulation-brand span,
-.simulation-taskbar small,
-.simulation-editing-cell {
+.simulation-taskbar small {
   color: var(--icm-text-muted);
   font-size: var(--icm-font-xs);
 }
@@ -84,12 +74,12 @@
 }
 .simulation-cell-context {
   grid-area: context;
-  flex: 1;
-  overflow: hidden;
+  flex-wrap: wrap;
 }
 .simulation-task-actions {
   grid-area: actions;
-  justify-self: end;
+  flex-wrap: wrap;
+  justify-self: stretch;
 }
 .simulation-cell-context button {
   display: grid;
@@ -103,25 +93,17 @@
 .simulation-cell-context button:not(:last-child) {
   max-width: 150px;
 }
-.simulation-cell-context button,
-.simulation-symbol-stage,
-.simulation-editing-cell {
+.simulation-cell-context button {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.simulation-symbol-stage,
-.simulation-analysis-chip,
 .simulation-status-chip {
   padding: 4px 8px;
   border-radius: 999px;
   background: var(--icm-surface-muted);
   font-size: var(--icm-font-xs);
   white-space: nowrap;
-}
-.simulation-analysis-chip {
-  grid-area: analysis;
-  color: var(--icm-text-muted);
 }
 .simulation-status-chip {
   grid-area: status;
@@ -149,6 +131,10 @@
   color: #b42318 !important;
   border-color: #fda29b !important;
 }
+.simulation-minimize-button {
+  margin-left: auto;
+}
+.simulation-minimize-button,
 .simulation-close-button {
   width: 30px;
   padding: 0 !important;
@@ -156,19 +142,15 @@
 }
 
 .simulation-workspace-notice {
-  position: absolute;
-  top: 80px;
-  right: 0;
-  left: 0;
   display: flex;
   align-items: flex-start;
   gap: var(--icm-space-2);
+  margin: 8px 10px 0;
   padding: 8px 10px;
   border: 1px solid #fdb022;
   border-radius: var(--icm-radius-sm);
   color: #7a2e0e;
   background: #fffaeb;
-  box-shadow: var(--icm-shadow-sm);
   font-size: var(--icm-font-xs);
 }
 .simulation-workspace-notice span {
@@ -176,20 +158,38 @@
   white-space: pre-wrap;
 }
 
-.simulation-setup-panel {
-  position: absolute;
-  top: 80px;
-  right: 0;
-  bottom: 0;
-  width: min(380px, 46vw);
-  overflow: auto;
-  border: 1px solid var(--icm-border-strong);
-  border-radius: var(--icm-radius-md);
-  background: var(--icm-surface);
-  box-shadow: var(--icm-shadow-md);
+.simulation-context-hint {
+  margin: 10px 12px 0;
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+  line-height: 1.45;
 }
-.simulation-workspace-notice + .simulation-setup-panel {
-  top: 126px;
+
+.simulation-exit-confirmation {
+  margin: 10px 12px 0;
+  padding: 10px;
+  border: 1px solid #fda29b;
+  border-radius: var(--icm-radius-sm);
+  background: #fff4f2;
+  font-size: var(--icm-font-sm);
+}
+.simulation-exit-confirmation p {
+  margin: 5px 0 10px;
+  color: var(--icm-text-muted);
+  line-height: 1.4;
+}
+.simulation-exit-confirmation > div {
+  display: flex;
+  gap: 6px;
+}
+
+.simulation-setup-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  border: 0;
+  border-top: 1px solid var(--icm-border);
+  background: var(--icm-surface);
 }
 .simulation-setup-panel > header,
 .simulation-results-header {
@@ -257,20 +257,14 @@
 }
 
 .simulation-results-dock {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
+  flex: 1 1 auto;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
-  height: min(38vh, 370px);
-  min-height: 190px;
+  min-height: 0;
   overflow: hidden;
-  resize: vertical;
-  border: 1px solid var(--icm-border-strong);
-  border-radius: var(--icm-radius-md) var(--icm-radius-md) 0 0;
+  border: 0;
+  border-top: 1px solid var(--icm-border);
   background: var(--icm-surface);
-  box-shadow: var(--icm-shadow-md);
 }
 .simulation-results-header [role="tablist"] {
   display: flex;
@@ -370,20 +364,7 @@
   height: auto;
 }
 
-@media (max-width: 1050px) {
-  .spice-simulation-surface {
-    right: 12px;
-    left: 12px;
-  }
-  .simulation-symbol-stage {
-    display: none;
-  }
-}
-
 @media (max-width: 700px) {
-  .spice-simulation-surface {
-    top: 82px;
-  }
   .simulation-taskbar {
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas:
@@ -391,16 +372,8 @@
       "status actions";
   }
   .simulation-brand,
-  .simulation-analysis-chip,
   .simulation-task-actions > button:nth-child(3) {
     display: none;
-  }
-  .simulation-setup-panel {
-    left: 0;
-    width: auto;
-  }
-  .simulation-results-dock {
-    height: 44vh;
   }
   .simulation-result-summary {
     grid-template-columns: 1fr;

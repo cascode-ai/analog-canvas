@@ -29,6 +29,7 @@ import type { CameraRuntime } from "./camera-runtime";
 
 export interface EditorCanvasSurfaceProps {
   empty: boolean;
+  showQuickStart?: boolean;
   className: string;
   viewBox: string;
   cameraRuntime: CameraRuntime;
@@ -102,6 +103,7 @@ function CanvasShortcutChord({ keys }: { keys: readonly string[] }) {
 /** SVG scene composition; interaction semantics arrive through typed models. */
 export function EditorCanvasSurface({
   empty,
+  showQuickStart = true,
   className,
   viewBox,
   cameraRuntime,
@@ -220,7 +222,7 @@ export function EditorCanvasSurface({
   }, [cameraRuntime]);
   return (
     <section className="canvas-panel">
-      {empty ? (
+      {empty && showQuickStart ? (
         <aside
           className="canvas-shortcut-menu"
           data-testid="canvas-empty-state"

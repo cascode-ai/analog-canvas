@@ -104,7 +104,7 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
     expect(deck).toContain(vector);
   expect(deck).toMatch(/ac dec 10 1 (?:1000000000|1e\+?9)/i);
   expect(executions).toBe(0);
-  await panel.getByRole("button", { name: "Close simulation" }).click();
+  await panel.getByRole("button", { name: "Minimize simulation" }).click();
   const saved = JSON.parse(
     (await downloadBytes(page, "File", "Export Project File…")).toString(),
   );
@@ -143,7 +143,7 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
   await expect(panel.getByLabel("Stop (Hz)")).toHaveValue("1000000000");
 });
 
-test("human simulation uses saved setup, survives closing, recovers a bad input and exports results", async ({
+test("human simulation uses saved setup, survives minimizing, recovers a bad input and exports results", async ({
   page,
 }) => {
   const project = CircuitProjectSchema.parse(ota);
@@ -285,7 +285,7 @@ test("human simulation uses saved setup, survives closing, recovers a bad input 
   await panel.getByRole("button", { name: "Apply setup" }).click();
   await panel.getByRole("button", { name: "Run", exact: true }).click();
   await expect.poll(() => executions).toBe(1);
-  await panel.getByRole("button", { name: "Close simulation" }).click();
+  await panel.getByRole("button", { name: "Minimize simulation" }).click();
   expect(cancellations).toBe(0);
   release();
   await page.getByTestId("open-analog-simulation").click();
@@ -329,7 +329,7 @@ test("human simulation uses saved setup, survives closing, recovers a bad input 
   await panel.getByRole("button", { name: "Cancel run" }).click();
   await expect(panel.getByRole("status")).toContainText("cancelled");
   expect(cancellations).toBe(1);
-  await panel.getByRole("button", { name: "Close simulation" }).click();
+  await panel.getByRole("button", { name: "Minimize simulation" }).click();
   const saved = await downloadBytes(page, "File", "Export Project File…");
   expect(
     JSON.parse(saved.toString()).simulation.input.environment.temperatureC,
@@ -351,7 +351,10 @@ test("Simulation creates an ordinary testbench and offers the current Cell at th
   page,
 }) => {
   await page.goto("/editor");
-  await page.getByTestId("open-analog-simulation").click();
+  await page
+    .locator(".command-menu > summary")
+    .filter({ hasText: "Edit" })
+    .click();
   await page.getByRole("button", { name: "New Testbench Cell…" }).click();
   const dialog = page.getByRole("dialog", { name: "New Testbench Cell" });
   await expect(dialog.getByLabel("DUT Cell")).toHaveValue("document-main");
@@ -375,6 +378,30 @@ test("Simulation creates an ordinary testbench and offers the current Cell at th
   expect(saved.simulation).toBeUndefined();
   await page.getByTestId("open-analog-simulation").click();
   await expect(page.getByLabel("Testbench Cell")).toHaveValue(tb.id);
+  await expect(page.getByTestId("library-toggle")).toBeDisabled();
+  await expect(page.getByTestId("examples-toggle")).toBeDisabled();
+  await page.getByRole("button", { name: "Minimize simulation" }).click();
+  await expect(page.getByTestId("library-toggle")).toBeEnabled();
+  await expect(page.getByTestId("open-analog-simulation")).toContainText(
+    "Minimized",
+  );
+  await page.getByTestId("open-analog-simulation").click();
+  await page.getByRole("button", { name: "Exit simulation" }).click();
+  const exitConfirmation = page.getByRole("alertdialog");
+  await expect(exitConfirmation).toContainText("temporary run files");
+  await exitConfirmation.getByRole("button", { name: "Keep working" }).click();
+  await expect(
+    page.getByRole("region", { name: "Analog simulation" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Exit simulation" }).click();
+  await page
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "Exit Simulation" })
+    .click();
+  await expect(
+    page.getByRole("region", { name: "Analog simulation" }),
+  ).toHaveCount(0);
+  await expect(page.getByTestId("library-toggle")).toBeEnabled();
 });
 
 test("Agent raw simulation recovers input errors, returns a run receipt and exports through Files", async ({

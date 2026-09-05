@@ -2,7 +2,14 @@ import {
   DEFAULT_ARROW_PRESET,
   type ArrowPreset,
 } from "../features/drafting/arrow-presets";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import "../styles/editor-entry.css";
 import type {
@@ -144,6 +151,7 @@ import {
 import { EditorDialogLayer } from "./editor-dialog-layer";
 import { EditorAppChrome } from "./editor-app-chrome";
 import { EditorPropertiesDock } from "./editor-properties-dock";
+import { LazySpiceSimulationSurface } from "./lazy-editor-dialogs";
 import type { NewTestbenchRequest } from "../features/simulation/new-testbench-dialog";
 import { useProjectCheck } from "./use-project-check";
 import { summarizeVisualDiagnostics } from "../features/selection/selection-inspector-details";
@@ -667,8 +675,12 @@ export function App({
       }),
     [editorDocumentController, projectSessionId],
   );
-  const [analogSimulationOpened, setAnalogSimulationOpened] = useState(false);
-  const [analogSimulationOpen, setAnalogSimulationOpen] = useState(false);
+  const [analogSimulationState, setAnalogSimulationState] = useState<
+    "closed" | "open" | "minimized"
+  >("closed");
+  const simulationPropertiesOpenBeforeRef = useRef(false);
+  const analogSimulationOpened = analogSimulationState !== "closed";
+  const analogSimulationOpen = analogSimulationState === "open";
   const humanSimulationSession = useMemo(
     () =>
       new BrowserSimulationSession({
@@ -683,6 +695,21 @@ export function App({
     },
     [humanSimulationSession],
   );
+  const openAnalogSimulation = (): void => {
+    simulationPropertiesOpenBeforeRef.current = selectionOpen;
+    setSelectionOpen(false);
+    setAnalogSimulationState("open");
+  };
+  const minimizeAnalogSimulation = (): void => {
+    setAnalogSimulationState("minimized");
+    setSelectionOpen(simulationPropertiesOpenBeforeRef.current);
+  };
+  const exitAnalogSimulation = (): void => {
+    void humanSimulationSession.clear();
+    setAnalogSimulationState("closed");
+    setSimulationDraftContext(null);
+    setSelectionOpen(simulationPropertiesOpenBeforeRef.current);
+  };
   const {
     cloudBinding,
     savedProjectBaseline,
@@ -2997,7 +3024,7 @@ export function App({
       dutDocumentId: dut.id,
       rootDocumentId: testbench.id,
     });
-    setAnalogSimulationOpen(false);
+    if (analogSimulationOpen) minimizeAnalogSimulation();
     if (request.placeDut) {
       beginProjectCellPlacement(dut.id);
       setStatus(
@@ -3915,10 +3942,8 @@ export function App({
     <main className="app-shell">
       {renderCrashRequested() ? <RenderCrashProbe /> : null}
       <EditorAppChrome
-        simulationAction={() => {
-          setAnalogSimulationOpened(true);
-          setAnalogSimulationOpen(true);
-        }}
+        simulationAction={openAnalogSimulation}
+        simulationState={analogSimulationState}
         releaseChannel={releaseChannel}
         projectName={project.name}
         projectSchemaVersion={project.schemaVersion}
@@ -4112,7 +4137,8 @@ export function App({
             );
           },
           leftPanelMode,
-          libraryPanelOpen: visibleLibraryPanelOpen,
+          libraryPanelOpen: !analogSimulationOpen && visibleLibraryPanelOpen,
+          leftPanelsDisabled: analogSimulationOpen,
           tool,
           documentSettingsOpen,
           undo: {
@@ -4191,30 +4217,6 @@ export function App({
         }}
       />
       <EditorDialogLayer
-        simulation={
-          analogSimulationOpened
-            ? {
-                sessionKey: projectSessionId,
-                session: humanSimulationSession,
-                project,
-                activeDocumentId: document.id,
-                ...(simulationDraftContext
-                  ? { draftContext: simulationDraftContext }
-                  : {}),
-                open: analogSimulationOpen,
-                onClose: () => setAnalogSimulationOpen(false),
-                onSaveSetup: (setup) => {
-                  const committed = commitStructure("set-simulation-setup", [
-                    { kind: "set_simulation_setup", setup },
-                  ]);
-                  if (committed) setSimulationDraftContext(null);
-                  return committed;
-                },
-                onOpenCell: (id) => switchDocument(id),
-                onNewTestbench: () => openNewTestbenchDialog(),
-              }
-            : undefined
-        }
         help={
           helpOpen ? { closeButtonRef: helpCloseRef, onClose: closeHelp } : null
         }
@@ -4540,13 +4542,39 @@ export function App({
       />
       <div
         className={
-          visibleLibraryPanelOpen
-            ? "app-workspace"
-            : "app-workspace library-collapsed"
+          analogSimulationOpen
+            ? "app-workspace simulation-mode"
+            : visibleLibraryPanelOpen
+              ? "app-workspace"
+              : "app-workspace library-collapsed"
         }
         style={{ "--icm-shapes-width": `${libraryWidth}px` } as CSSProperties}
       >
-        {leftPanelMode === "library" ? (
+        {analogSimulationOpened ? (
+          <Suspense fallback={null}>
+            <LazySpiceSimulationSurface
+              key={projectSessionId}
+              session={humanSimulationSession}
+              project={project}
+              activeDocumentId={document.id}
+              {...(simulationDraftContext
+                ? { draftContext: simulationDraftContext }
+                : {})}
+              open={analogSimulationOpen}
+              onMinimize={minimizeAnalogSimulation}
+              onExit={exitAnalogSimulation}
+              onSaveSetup={(setup) => {
+                const committed = commitStructure("set-simulation-setup", [
+                  { kind: "set_simulation_setup", setup },
+                ]);
+                if (committed) setSimulationDraftContext(null);
+                return committed;
+              }}
+              onOpenCell={(id) => switchDocument(id)}
+            />
+          </Suspense>
+        ) : null}
+        {!analogSimulationOpen && leftPanelMode === "library" ? (
           <ShapesPanel
             styleProfileId={document.presentation.styleProfileId}
             open={visibleLibraryPanelOpen}
@@ -4554,14 +4582,14 @@ export function App({
               editorCommands.execute({ id: "insert.start", launch })
             }
           />
-        ) : (
+        ) : !analogSimulationOpen ? (
           <ExamplesPanel
             open={visibleLibraryPanelOpen}
             onOpenGalleryExample={(id) => void insertGalleryEntryById(id)}
             onOpenExample={openLibraryExample}
           />
-        )}
-        {visibleLibraryPanelOpen ? (
+        ) : null}
+        {!analogSimulationOpen && visibleLibraryPanelOpen ? (
           <div
             className="library-resize-handle"
             role="separator"
@@ -5181,6 +5209,7 @@ export function App({
         />
         <EditorCanvasSurface
           empty={canvasIsEmpty}
+          showQuickStart={!analogSimulationOpen}
           cameraRuntime={cameraRuntime}
           onWheel={handleWheel}
           onPinch={zoomAtClientPoint}

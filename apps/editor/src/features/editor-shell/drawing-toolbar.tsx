@@ -17,6 +17,7 @@ interface ToolbarCommand {
 export interface DrawingToolbarProps {
   leftPanelMode: "examples" | "library";
   libraryPanelOpen: boolean;
+  leftPanelsDisabled?: boolean;
   tool: EditorTool;
   arrowPreset?: ArrowPreset;
   onArrowPresetChange?: (preset: ArrowPreset) => void;
@@ -35,6 +36,7 @@ export interface DrawingToolbarProps {
 export function DrawingToolbar({
   leftPanelMode,
   libraryPanelOpen,
+  leftPanelsDisabled = false,
   tool,
   arrowPreset = DEFAULT_ARROW_PRESET,
   onArrowPresetChange,
@@ -68,6 +70,7 @@ export function DrawingToolbar({
         aria-controls="examples-panel"
         aria-expanded={examplesOpen}
         data-testid="examples-toggle"
+        disabled={leftPanelsDisabled}
         onClick={onToggleExamples}
       >
         <ToolIcon name="examples" />
@@ -83,6 +86,7 @@ export function DrawingToolbar({
         aria-controls="shapes-library-panel"
         aria-expanded={libraryOpen}
         data-testid="library-toggle"
+        disabled={leftPanelsDisabled}
         onClick={onToggleLibrary}
       >
         <ToolIcon name="library" />

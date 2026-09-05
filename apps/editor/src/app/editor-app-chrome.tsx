@@ -57,6 +57,7 @@ export interface EditorAppChromeProps {
   onOpenNetlistPreflight: () => void;
   agentAction: { label: string; execute: () => void } | null;
   simulationAction?: () => void;
+  simulationState?: "closed" | "open" | "minimized";
   publishGalleryOpen: boolean;
   onPublishGallery: () => void;
   helpButtonRef: RefObject<HTMLButtonElement | null>;
@@ -101,6 +102,7 @@ export function EditorAppChrome({
   onOpenNetlistPreflight,
   agentAction,
   simulationAction,
+  simulationState = "closed",
   publishGalleryOpen,
   onPublishGallery,
   helpButtonRef,
@@ -321,9 +323,12 @@ export function EditorAppChrome({
                 type="button"
                 data-testid="open-analog-simulation"
                 aria-label="Analog simulation"
+                aria-pressed={simulationState === "open"}
                 onClick={simulationAction}
               >
-                Simulation
+                {simulationState === "minimized"
+                  ? "Simulation · Minimized"
+                  : "Simulation"}
               </button>
             ) : null}
             {agentAction ? (

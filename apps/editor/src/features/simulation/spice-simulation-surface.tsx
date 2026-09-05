@@ -38,10 +38,10 @@ export interface SpiceSimulationSurfaceProps {
     readonly rootDocumentId: string;
   };
   session: BrowserSimulationSession;
-  onClose(): void;
+  onMinimize(): void;
+  onExit(): void;
   onSaveSetup(setup: SimulationSetup | null): boolean;
   onOpenCell(documentId: string): void;
-  onNewTestbench(): void;
 }
 
 /** A projection of the same prepare/start/read/cancel service used by MCP.
@@ -57,6 +57,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   const [setupOpen, setSetupOpen] = useState(!project.simulation);
   const [resultsOpen, setResultsOpen] = useState(false);
   const [resultTab, setResultTab] = useState<ResultTab>("summary");
+  const [exitConfirmationOpen, setExitConfirmationOpen] = useState(false);
   useEffect(() => {
     if (!open || project.simulation) return;
     setResultsOpen(false);
@@ -185,11 +186,13 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   const draftDut = project.documents.find(
     (candidate) => candidate.id === props.draftContext?.dutDocumentId,
   );
-  const draftRoot = project.documents.find(
-    (candidate) => candidate.id === props.draftContext?.rootDocumentId,
-  );
   const savedRoot = project.documents.find(
     (candidate) => candidate.id === project.simulation?.input.rootDocumentId,
+  );
+  const hasDutInstance = Boolean(
+    activeCell?.instances.some(
+      (instance) => instance.netlist?.binding?.kind === "subcircuit",
+    ),
   );
   const artifactGroups = [
     ...(prepared
@@ -243,76 +246,38 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
       aria-label="Analog simulation"
       onKeyDown={(e) => {
         e.stopPropagation();
-        if (e.key === "Escape") props.onClose();
+        if (e.key === "Escape") props.onMinimize();
       }}
     >
       <header className="simulation-taskbar">
         <div className="simulation-brand">
           <strong>Simulation</strong>
-          <span>Preview</span>
+          <span>{analysisLabel || "Preview"}</span>
         </div>
         <div
           className="simulation-cell-context"
           data-testid="simulation-cell-flow"
         >
-          {props.draftContext ? (
-            <>
-              <button
-                disabled={!draftDut}
-                onClick={() => draftDut && props.onOpenCell(draftDut.id)}
-              >
-                <small>DUT</small>
-                {draftDut?.name ?? "Missing Cell"}
-              </button>
-              <span aria-hidden="true">→</span>
-              <span className="simulation-symbol-stage">Symbol View</span>
-              <span aria-hidden="true">→</span>
-              <button
-                disabled={!draftRoot}
-                onClick={() => draftRoot && props.onOpenCell(draftRoot.id)}
-              >
-                <small>Testbench</small>
-                {draftRoot?.name ?? "Missing Cell"}
-              </button>
-            </>
-          ) : project.simulation ? (
-            <>
-              <button
-                disabled={!savedRoot}
-                onClick={() => savedRoot && props.onOpenCell(savedRoot.id)}
-              >
-                <small>Testbench</small>
-                {savedRoot?.name ?? "Missing Cell"}
-              </button>
-              {activeCell && activeCell.id !== savedRoot?.id ? (
-                <span className="simulation-editing-cell">
-                  Editing {activeCell.name}
-                </span>
-              ) : null}
-            </>
-          ) : (
-            <>
-              <button
-                disabled={!activeCell}
-                onClick={() => activeCell && props.onOpenCell(activeCell.id)}
-              >
-                <small>DUT</small>
-                {activeCell?.name ?? "Missing Cell"}
-              </button>
-              <span aria-hidden="true">→</span>
-              <span className="simulation-symbol-stage">
-                {activeCell?.presentation.cellSymbol
-                  ? "Reviewed Symbol"
-                  : "Derived Symbol"}
-              </span>
-              <span aria-hidden="true">→</span>
-              <button onClick={props.onNewTestbench}>Create Testbench</button>
-            </>
-          )}
+          <button
+            disabled={!activeCell}
+            onClick={() => activeCell && props.onOpenCell(activeCell.id)}
+          >
+            <small>Cell</small>
+            {activeCell?.name ?? "Missing Cell"}
+          </button>
+          {draftDut ? (
+            <button onClick={() => props.onOpenCell(draftDut.id)}>
+              <small>DUT</small>
+              {draftDut.name}
+            </button>
+          ) : null}
+          {savedRoot && savedRoot.id !== activeCell?.id ? (
+            <button onClick={() => props.onOpenCell(savedRoot.id)}>
+              <small>Setup root</small>
+              {savedRoot.name}
+            </button>
+          ) : null}
         </div>
-        {analysisLabel ? (
-          <span className="simulation-analysis-chip">{analysisLabel}</span>
-        ) : null}
         <span
           className={`simulation-status-chip simulation-status-${run?.state ?? (prepared ? "prepared" : "idle")}`}
           role="status"
@@ -324,8 +289,8 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
             type="button"
             aria-pressed={setupOpen}
             onClick={() => {
-              if (!setupOpen) setResultsOpen(false);
-              setSetupOpen(!setupOpen);
+              setResultsOpen(false);
+              setSetupOpen(true);
             }}
           >
             Setup
@@ -334,8 +299,8 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
             type="button"
             aria-pressed={resultsOpen}
             onClick={() => {
-              if (!resultsOpen) setSetupOpen(false);
-              setResultsOpen(!resultsOpen);
+              setSetupOpen(false);
+              setResultsOpen(true);
             }}
           >
             Results
@@ -369,20 +334,55 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
           ) : (
             <button
               className="simulation-primary-button"
-              onClick={props.onNewTestbench}
+              onClick={() => {
+                setResultsOpen(false);
+                setSetupOpen(true);
+              }}
             >
-              New Testbench Cell…
+              Set up
             </button>
           )}
           <button
+            className="simulation-minimize-button"
+            onClick={props.onMinimize}
+            aria-label="Minimize simulation"
+          >
+            —
+          </button>
+          <button
             className="simulation-close-button"
-            onClick={props.onClose}
-            aria-label="Close simulation"
+            onClick={() => setExitConfirmationOpen(true)}
+            aria-label="Exit simulation"
           >
             ×
           </button>
         </div>
       </header>
+
+      {!project.simulation && !hasDutInstance ? (
+        <p className="simulation-context-hint">
+          This Cell has no DUT instance. You can continue here, or use Edit →
+          New Testbench Cell before simulation.
+        </p>
+      ) : null}
+
+      {exitConfirmationOpen ? (
+        <div className="simulation-exit-confirmation" role="alertdialog">
+          <strong>Exit Simulation?</strong>
+          <p>
+            Unapplied setup changes and temporary run files will be discarded.
+            An active run will be cancelled.
+          </p>
+          <div>
+            <button onClick={() => setExitConfirmationOpen(false)}>
+              Keep working
+            </button>
+            <button className="simulation-stop-button" onClick={props.onExit}>
+              Exit Simulation
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {attention ? (
         <div className="simulation-workspace-notice" role="alert">
@@ -420,7 +420,6 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
           capabilities={capabilities}
           onDirty={setDirty}
           onError={setError}
-          onDismiss={() => setSetupOpen(false)}
         />
       ) : null}
 
@@ -443,13 +442,6 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
                 </button>
               ))}
             </div>
-            <button
-              type="button"
-              aria-label="Close results"
-              onClick={() => setResultsOpen(false)}
-            >
-              ×
-            </button>
           </header>
           <div className="simulation-results-body">
             {resultTab === "summary" ? (
@@ -654,12 +646,10 @@ function SetupEditor({
   onSaveSetup,
   onDirty,
   onError,
-  onDismiss,
 }: SpiceSimulationSurfaceProps & {
   capabilities: Capabilities | undefined;
   onDirty(value: boolean): void;
   onError(value: string): void;
-  onDismiss(): void;
 }) {
   const saved = project.simulation?.input;
   const [rootId, setRootId] = useState(
@@ -685,9 +675,6 @@ function SetupEditor({
           <small>Simulation</small>
           <strong>Setup</strong>
         </div>
-        <button type="button" aria-label="Close setup" onClick={onDismiss}>
-          ×
-        </button>
       </header>
       <form
         onChange={() => onDirty(true)}
