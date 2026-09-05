@@ -187,7 +187,7 @@ const tcoil = {
   schemaVersion: 1,
   id: "tcoil",
   name: "T-Coil",
-  viewBox: { x: -64, y: -38, width: 118, height: 62 },
+  viewBox: { x: -84, y: -46, width: 158, height: 70 },
   pins: [
     pin("1", tcoilPins[0], "west"),
     pin("2", tcoilPins[1], "east"),

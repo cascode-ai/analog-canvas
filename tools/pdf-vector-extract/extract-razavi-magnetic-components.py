@@ -290,31 +290,34 @@ def extract_tcoil(pdf_path: Path, output_dir: Path, pdftoppm: str) -> None:
             "coilPaths": [box_of(left_coil), box_of(right_coil)],
             "polarityDots": [center(left_dot), center(right_dot)],
             "sourceLineWidthPdfPt": rounded(left_coil["linewidth"]),
+            "sourceWindingBodySpanPdfPt": 14.093,
         },
         "normalization": {
             "reuseSymbolIds": ["inductor-compact", "capacitor"],
+            # Normalize from the curved winding body, not the complete PDF
+            # path. The reusable inductor has longer built-in straight leads;
+            # using total path width compressed every T-coil route around it.
+            "productWindingBodySpanLogical": 22.7392,
+            "productLayoutScaleLogicalPerPdfPt": 1.6135103,
             "productCoilCentersLogical": [
-                {"x": -23.396, "y": 0},
-                {"x": 21.4476, "y": 0},
+                {"x": -30.7575, "y": 0},
+                {"x": 28.1961, "y": 0},
             ],
-            "productCapacitorCenterLogical": {"x": -1.6749, "y": -25.3563},
+            "productCapacitorCenterLogical": {"x": -2.202, "y": -33.3346},
             "productPinAnchorsLogical": [
-                {"name": "1", "x": -60, "y": 0},
-                {"name": "2", "x": 50, "y": 0},
-                {"name": "3", "x": 0, "y": 10},
+                {"name": "1", "x": -80, "y": 0},
+                {"name": "2", "x": 70, "y": 0},
+                {"name": "3", "x": 0, "y": 20},
             ],
-            "productBridgeBranchXsLogical": [-44.7175, 38.5644],
-            # The reviewed product inductor is taller than the paper's native
-            # coil curve. Preserve the paper's dot-to-straight-lead relation
-            # instead of allowing the dots to overlap the reused winding.
+            "productBridgeBranchXsLogical": [-58.9853, 50.5332],
             "productPolarityDotsLogical": [
-                {"x": -38.396, "y": -4.6207, "radius": 3.77907},
-                {"x": 6.4476, "y": -4.6207, "radius": 3.77907},
+                {"x": -45.0745, "y": -6.0745, "radius": 3.77907},
+                {"x": 13.9101, "y": -6.0745, "radius": 3.77907},
             ],
             "productJunctionDotsLogical": [
-                {"x": -44.7175, "y": 0, "radius": 3.77907},
+                {"x": -58.9853, "y": 0, "radius": 3.77907},
                 {"x": 0, "y": 0, "radius": 3.77907},
-                {"x": 38.5644, "y": 0, "radius": 3.77907},
+                {"x": 50.5332, "y": 0, "radius": 3.77907},
             ],
             "canvasVisualContract": {
                 "routeStrokeRole": "normal",
