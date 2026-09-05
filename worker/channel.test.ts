@@ -134,4 +134,25 @@ describe("release channel", () => {
     const untouched = markPreviewResponse(new Response("shell"), {});
     expect(untouched.headers.get("x-robots-tag")).toBeNull();
   });
+
+  it("preserves the WebSocket upgrade response without rebuilding or mutating it", () => {
+    // Node's Response rejects 101; model the workerd-only extension on a
+    // real Response. The original implementation throws on reconstruction.
+    const upgrade = new Response(null, {
+      headers: { "sec-websocket-protocol": "icm-editor" },
+    });
+    const socket = {};
+    Object.defineProperties(upgrade, {
+      status: { value: 101 },
+      webSocket: { value: socket },
+    });
+    const marked = markPreviewResponse(upgrade, { ICM_CHANNEL: "preview" });
+    expect(marked).toBe(upgrade);
+    expect(marked.status).toBe(101);
+    expect((marked as Response & { webSocket: unknown }).webSocket).toBe(
+      socket,
+    );
+    expect(marked.headers.get("sec-websocket-protocol")).toBe("icm-editor");
+    expect(marked.headers.get("x-robots-tag")).toBeNull();
+  });
 });
