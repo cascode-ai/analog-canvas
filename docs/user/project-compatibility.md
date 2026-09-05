@@ -1,6 +1,6 @@
 # Project File Compatibility
 
-The released Project schema version is `39`. It retains schematic-only
+The released Project schema version is `40`. It retains schematic-only
 hierarchy integrity, a Project structural revision, stable formal Cell ports,
 and definition-level Cell symbol presentation. It also has one typed Instance
 netlist authority, formal Cell parameters, and Project-local external
@@ -33,7 +33,7 @@ text, a fraction, or a coefficient needs more room, and never clips or shrinks
 the formula to satisfy an undersized request. A canonical v34 file can be
 opened, saved, reopened, and saved again without byte drift.
 
-Schemas v24 through v39 are accepted through the explicit chained upgrades.
+Schemas v24 through v40 are accepted through the explicit chained upgrades.
 Schema v32 adds optional `Annotation.textColor`; schema v33 removes the
 ownerless `explicit-equivalence` record. A v32 file without that record changes
 only its version stamp. A file containing it is rejected at the exact evidence

@@ -3588,7 +3588,7 @@
   "externalSubcircuitDefinitions": [],
   "id": "project-main",
   "name": "deadtime",
-  "schemaVersion": 39,
+  "schemaVersion": 40,
   "source": {
     "dialect": "none",
     "entry": null,

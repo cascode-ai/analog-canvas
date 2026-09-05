@@ -98,10 +98,11 @@ add/remove Document operations under one Project `structureRevision`. The
 Project-level `set_simulation_setup` edit is a structure edit too: it replaces
 or clears the one persisted `SimulationSetup` whole (`setup: SimulationSetup |
 null`), refuses a structured root that is not a Document of the Project, treats
-an identical setup as no change, and deleting the Cell a structured setup names
-as its root is refused until the setup is cleared or re-rooted, in the same
-transaction if the author likes. A raw setup owns files instead of a Canvas
-root and therefore does not block unrelated Cell deletion. Agent
+an identical setup as no change, and preserves authored intent when a later
+ordinary edit removes its root Cell or probe anchor. Such references become
+prepare-time diagnostics instead of blocking deletion or making the Project
+unsaveable. A raw setup owns files instead of a Canvas root and therefore does
+not interact with Cell deletion. Agent
 capability `wire`
 advertises the mutually exclusive high-level `wireIntent` transaction form; it
 is not another `SchematicEdit` member.

@@ -50,7 +50,11 @@ describe("schema 36 to 37 migration (persisted SimulationSetup)", () => {
           id: "probe-out",
           kind: "net-voltage",
           documentId: "testbench",
-          netId: "net-out",
+          anchor: {
+            kind: "terminal",
+            instanceId: "load",
+            pinName: "1",
+          },
           occurrence: [],
         },
       ],
@@ -96,7 +100,7 @@ describe("schema 36 to 37 migration (persisted SimulationSetup)", () => {
     expect(serializeProject(reloaded.project)).toBe(serialized);
   });
 
-  it("rejects a setup whose root is not a Document of the Project", () => {
+  it("preserves a setup whose root was removed for prepare-time diagnostics", () => {
     const project = createEmptyProject("orphan", "Orphan");
     const candidate = {
       ...JSON.parse(serializeProject(project)),
@@ -105,14 +109,8 @@ describe("schema 36 to 37 migration (persisted SimulationSetup)", () => {
 
     const result = tryParseProjectWithMetadata(JSON.stringify(candidate));
 
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    expect(result.diagnostics).toEqual([
-      {
-        code: "INVALID_PROJECT",
-        message: "Unknown simulation root document: testbench",
-        path: ["simulation", "input", "rootDocumentId"],
-      },
-    ]);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.project.simulation).toEqual(setup());
   });
 });

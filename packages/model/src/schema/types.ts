@@ -117,6 +117,9 @@ export type SimulationAnalysisSpec = z.infer<
 export type SimulationProbeSpec = z.infer<
   typeof Schema.SimulationProbeSpecSchema
 >;
+export type SimulationVoltageProbeAnchor = z.infer<
+  typeof Schema.SimulationVoltageProbeAnchorSchema
+>;
 export type SimulationEnvironmentSelection = z.infer<
   typeof Schema.SimulationEnvironmentSelectionSchema
 >;

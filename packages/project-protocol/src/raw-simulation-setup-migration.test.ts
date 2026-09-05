@@ -16,9 +16,7 @@ describe("schema 38 to 39 migration (raw SimulationSetup)", () => {
       schemaVersion: 38,
     } as unknown as Record<string, unknown>;
 
-    expect(upgradeSchema38To39(previous)).toMatchObject({
-      schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
-    });
+    expect(upgradeSchema38To39(previous)).toMatchObject({ schemaVersion: 39 });
     expect(upgradeSchema38To39WithReport(previous).report).toEqual({
       changed: false,
     });

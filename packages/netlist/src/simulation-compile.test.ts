@@ -156,14 +156,14 @@ const DIVIDER_SETUP: SimulationStructuredSetup = {
         id: "probe-mid",
         kind: "net-voltage",
         documentId: "tb",
-        netId: "net-mid",
+        anchor: { kind: "terminal", instanceId: "inst-r1", pinName: "2" },
         occurrence: [],
       },
       {
         id: "probe-in",
         kind: "net-voltage",
         documentId: "tb",
-        netId: "net-in",
+        anchor: { kind: "terminal", instanceId: "inst-v1", pinName: "+" },
         occurrence: [],
       },
       {
@@ -388,14 +388,22 @@ describe("compiling a structured simulation setup", () => {
             id: "probe-inner",
             kind: "net-voltage",
             documentId: "dut",
-            netId: "dut-net-out",
+            anchor: {
+              kind: "terminal",
+              instanceId: "dut-rt",
+              pinName: "2",
+            },
             occurrence: ["inst-x1"],
           },
           {
             id: "probe-root",
             kind: "net-voltage",
             documentId: "tb",
-            netId: "net-in",
+            anchor: {
+              kind: "terminal",
+              instanceId: "inst-v1",
+              pinName: "+",
+            },
             occurrence: [],
           },
         ],
@@ -537,14 +545,22 @@ describe("compiling a structured simulation setup", () => {
             id: "probe-a",
             kind: "net-voltage",
             documentId: "tb",
-            netId: "net-mid",
+            anchor: {
+              kind: "terminal",
+              instanceId: "inst-r1",
+              pinName: "2",
+            },
             occurrence: [],
           },
           {
             id: "probe-b",
             kind: "net-voltage",
             documentId: "tb",
-            netId: "net-mid",
+            anchor: {
+              kind: "terminal",
+              instanceId: "inst-r2",
+              pinName: "1",
+            },
             occurrence: [],
           },
         ],
@@ -557,6 +573,64 @@ describe("compiling a structured simulation setup", () => {
     expect(result.vectors.map((item) => item.probeId)).toEqual([
       "probe-a",
       "probe-b",
+    ]);
+  });
+
+  it("resolves Junction and Route voltage anchors through their current Base Net", async () => {
+    const project = dividerProject();
+    const document = project.documents[0]!;
+    document.junctions.push({
+      id: "mid-junction",
+      netId: "net-mid",
+      position: { x: 100, y: 100 },
+    });
+    document.routes.push({
+      id: "mid-route",
+      netId: "net-mid",
+      start: { kind: "terminal", instanceId: "inst-r1", pinName: "2" },
+      legs: [
+        {
+          id: "mid-route-leg",
+          mode: "manual",
+          to: {
+            kind: "endpoint",
+            endpoint: {
+              kind: "terminal",
+              instanceId: "inst-r2",
+              pinName: "1",
+            },
+          },
+        },
+      ],
+    });
+    const result = await compile(
+      project,
+      setupWith({
+        analyses: [{ kind: "op" }],
+        probes: [
+          {
+            id: "probe-junction",
+            kind: "net-voltage",
+            documentId: "tb",
+            anchor: { kind: "junction", junctionId: "mid-junction" },
+            occurrence: [],
+          },
+          {
+            id: "probe-route",
+            kind: "net-voltage",
+            documentId: "tb",
+            anchor: { kind: "route", routeId: "mid-route" },
+            occurrence: [],
+          },
+        ],
+      }),
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.vectors).toEqual([
+      { probeId: "probe-junction", vector: "v(mid)", quantity: "voltage" },
+      { probeId: "probe-route", vector: "v(mid)", quantity: "voltage" },
     ]);
   });
 });
@@ -595,7 +669,11 @@ describe("refusing a setup that cannot be simulated", () => {
             id: "probe-lost",
             kind: "net-voltage",
             documentId: "no-such-document",
-            netId: "net-mid",
+            anchor: {
+              kind: "terminal",
+              instanceId: "inst-r1",
+              pinName: "2",
+            },
             occurrence: [],
           },
         ],
@@ -606,7 +684,7 @@ describe("refusing a setup that cannot be simulated", () => {
     expect(codes(result)).toEqual(["SIMULATION_PROBE_UNKNOWN_DOCUMENT"]);
   });
 
-  it("reports a probe naming a Net the Document does not hold", async () => {
+  it("reports a voltage-probe anchor the Document no longer holds", async () => {
     const result = await compile(
       dividerProject(),
       setupWith({
@@ -615,7 +693,11 @@ describe("refusing a setup that cannot be simulated", () => {
             id: "probe-lost",
             kind: "net-voltage",
             documentId: "tb",
-            netId: "no-such-net",
+            anchor: {
+              kind: "terminal",
+              instanceId: "no-such-instance",
+              pinName: "out",
+            },
             occurrence: [],
           },
         ],
@@ -623,12 +705,17 @@ describe("refusing a setup that cannot be simulated", () => {
     );
 
     expect(result.ok).toBe(false);
-    expect(codes(result)).toEqual(["SIMULATION_PROBE_UNKNOWN_NET"]);
+    expect(codes(result)).toEqual(["SIMULATION_PROBE_ANCHOR_UNAVAILABLE"]);
     expect(result.ok === false && result.diagnostics[0]!.primary).toEqual({
       documentId: "tb",
       hierarchyPath: [],
-      kind: "net",
-      objectId: "no-such-net",
+      kind: "instance",
+      objectId: "no-such-instance",
+      endpoint: {
+        kind: "terminal",
+        instanceId: "no-such-instance",
+        pinName: "out",
+      },
     });
   });
 
@@ -661,7 +748,11 @@ describe("refusing a setup that cannot be simulated", () => {
             id: "probe-lost",
             kind: "net-voltage",
             documentId: "tb",
-            netId: "net-mid",
+            anchor: {
+              kind: "terminal",
+              instanceId: "inst-r1",
+              pinName: "2",
+            },
             occurrence: ["inst-r1"],
           },
         ],
@@ -681,7 +772,11 @@ describe("refusing a setup that cannot be simulated", () => {
             id: "probe-lost",
             kind: "net-voltage",
             documentId: "tb",
-            netId: "net-in",
+            anchor: {
+              kind: "terminal",
+              instanceId: "inst-v1",
+              pinName: "+",
+            },
             occurrence: ["inst-x1"],
           },
         ],

@@ -111,6 +111,7 @@ import {
   operatingPointLabels,
   type OperatingPointDisplay,
 } from "../features/simulation/operating-point-labels";
+import { resolveSimulationVoltageProbeNetId } from "../features/simulation/simulation-probe-options";
 import { TimingSimulationPanel } from "../features/simulation/timing-simulation-panel";
 import { TIMING_UI_ENABLED } from "../features/simulation/timing-ui";
 import { updateComponentParameterValues } from "../features/component-insert/component-parameters";
@@ -4630,7 +4631,11 @@ export function App({
               onFocusProbe={(probe) => {
                 if (probe.kind === "net-voltage") {
                   switchDocument(probe.documentId);
-                  highlightNet(probe.netId, probe.documentId);
+                  const netId = resolveSimulationVoltageProbeNetId(
+                    project,
+                    probe,
+                  );
+                  if (netId) highlightNet(netId, probe.documentId);
                 }
               }}
             />

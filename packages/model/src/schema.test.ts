@@ -819,7 +819,11 @@ describe("SimulationSetup schema", () => {
             id: "probe-out",
             kind: "net-voltage",
             documentId: "testbench",
-            netId: "net-out",
+            anchor: {
+              kind: "terminal",
+              instanceId: "load",
+              pinName: "1",
+            },
             occurrence: [],
           },
           {
@@ -858,17 +862,12 @@ describe("SimulationSetup schema", () => {
     });
   });
 
-  it("requires the simulation root to be a Document of the Project", () => {
+  it("preserves an unresolved simulation root for preparation diagnostics", () => {
     const orphaned = setup();
     orphaned.input.rootDocumentId = "missing-testbench";
     const result = CircuitProjectSchema.safeParse(projectWithSetup(orphaned));
-    expect(result.success).toBe(false);
-    expect(result.error?.issues).toEqual([
-      expect.objectContaining({
-        message: "Unknown simulation root document: missing-testbench",
-        path: ["simulation", "input", "rootDocumentId"],
-      }),
-    ]);
+    expect(result.success).toBe(true);
+    expect(result.data?.simulation).toEqual(orphaned);
   });
 
   it("holds one analysis per kind and unique probe ids", () => {

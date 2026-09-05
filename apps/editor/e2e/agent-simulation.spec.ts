@@ -127,7 +127,11 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
     {
       kind: "net-voltage",
       documentId: "document-ota-5t",
-      netId: "net-cell-pin-pvinp",
+      anchor: {
+        kind: "terminal",
+        instanceId: "PVINP",
+        pinName: "P",
+      },
       occurrence: ["XDUT"],
     },
     {
@@ -171,7 +175,11 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
           id: "out",
           kind: "net-voltage",
           documentId: project.topDocumentId,
-          netId: "missing-net",
+          anchor: {
+            kind: "terminal",
+            instanceId: "missing-instance",
+            pinName: "out",
+          },
           occurrence: [],
         },
       ],

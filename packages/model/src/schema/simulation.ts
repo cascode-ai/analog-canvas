@@ -60,12 +60,36 @@ export const SimulationAnalysisSpecSchema = z.discriminatedUnion("kind", [
  */
 const SimulationProbeOccurrenceSchema = z.array(StableIdSchema).max(64);
 
+/**
+ * A concrete object that locates a voltage measurement on its current Base
+ * Net. The referenced object may later be deleted; that leaves an unresolved
+ * authored probe for preparation to diagnose instead of making the Project
+ * invalid or silently rebinding it.
+ */
+export const SimulationVoltageProbeAnchorSchema = z.discriminatedUnion("kind", [
+  z.strictObject({
+    kind: z.literal("terminal"),
+    instanceId: StableIdSchema,
+    pinName: z.string().min(1),
+  }),
+  z.strictObject({
+    kind: z.literal("junction"),
+    junctionId: StableIdSchema,
+  }),
+  z.strictObject({ kind: z.literal("route"), routeId: StableIdSchema }),
+  z.strictObject({
+    /** Schema-39 fallback when no more durable attached object exists. */
+    kind: z.literal("base-net"),
+    netId: StableIdSchema,
+  }),
+]);
+
 export const SimulationProbeSpecSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     id: StableIdSchema,
     kind: z.literal("net-voltage"),
     documentId: StableIdSchema,
-    netId: StableIdSchema,
+    anchor: SimulationVoltageProbeAnchorSchema,
     occurrence: SimulationProbeOccurrenceSchema,
   }),
   z.strictObject({

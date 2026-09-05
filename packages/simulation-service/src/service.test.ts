@@ -435,7 +435,11 @@ describe("shared simulation lifecycle", () => {
             id: "out",
             kind: "net-voltage",
             documentId: project.topDocumentId,
-            netId: "tb-vout-net",
+            anchor: {
+              kind: "terminal",
+              instanceId: "XDUT",
+              pinName: "vout",
+            },
             occurrence: [],
           },
         ],

@@ -18,6 +18,7 @@ import { AcResultsExplorer } from "./ac-results-explorer";
 import {
   deriveSimulationProbeOptions,
   simulationProbeTargetKey,
+  simulationVoltageProbeTargetsNet,
   type SimulationProbeOption,
 } from "./simulation-probe-options";
 
@@ -687,7 +688,11 @@ function SetupEditor({
     const option = probeOptions.voltage.find(
       (candidate) =>
         candidate.target.documentId === pickedNet.documentId &&
-        candidate.target.netId === pickedNet.netId,
+        simulationVoltageProbeTargetsNet(
+          project,
+          candidate.target,
+          pickedNet.netId,
+        ),
     );
     if (!option) {
       onError(
@@ -892,7 +897,9 @@ function SetupEditor({
                   value={outputLabels[p.id] ?? ""}
                   placeholder={
                     probeLabels.get(simulationProbeTargetKey(p)) ??
-                    (p.kind === "net-voltage" ? p.netId : p.instanceId)
+                    (p.kind === "net-voltage"
+                      ? simulationProbeTargetKey(p)
+                      : p.instanceId)
                   }
                   onChange={(event) => {
                     event.stopPropagation();
@@ -944,7 +951,7 @@ function probeFromOption(
       id: crypto.randomUUID(),
       kind: target.kind,
       documentId: target.documentId,
-      netId: target.netId,
+      anchor: structuredClone(target.anchor),
       occurrence: [...target.occurrence],
     };
   }

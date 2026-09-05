@@ -132,20 +132,6 @@ export const CircuitProjectSchema = z
         path: ["topDocumentId"],
       });
     }
-    const simulationRootId =
-      project.simulation?.input.kind === "structured"
-        ? project.simulation.input.rootDocumentId
-        : undefined;
-    if (
-      simulationRootId !== undefined &&
-      !project.documents.some((document) => document.id === simulationRootId)
-    ) {
-      context.addIssue({
-        code: "custom",
-        message: `Unknown simulation root document: ${simulationRootId}`,
-        path: ["simulation", "input", "rootDocumentId"],
-      });
-    }
     const documentById = new Map(
       project.documents.map((document) => [document.id, document]),
     );

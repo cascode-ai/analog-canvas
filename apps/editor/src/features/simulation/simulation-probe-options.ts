@@ -2,6 +2,7 @@ import type {
   CircuitProject,
   SchematicDocument,
   SimulationProbeSpec,
+  SimulationVoltageProbeAnchor,
 } from "@icm/model";
 import { resolveDocumentLogicalNets } from "@icm/derived";
 
@@ -30,9 +31,80 @@ export interface SimulationProbeOptions {
 
 export function simulationProbeTargetKey(target: ProbeTarget): string {
   const occurrence = target.occurrence.join("/");
-  return target.kind === "net-voltage"
-    ? `voltage:${occurrence}:${target.documentId}:${target.netId}`
-    : `current:${occurrence}:${target.documentId}:${target.instanceId}`;
+  if (target.kind === "source-current")
+    return `current:${occurrence}:${target.documentId}:${target.instanceId}`;
+  const anchor = target.anchor;
+  const anchorKey =
+    anchor.kind === "terminal"
+      ? `terminal:${anchor.instanceId}:${anchor.pinName}`
+      : anchor.kind === "junction"
+        ? `junction:${anchor.junctionId}`
+        : anchor.kind === "route"
+          ? `route:${anchor.routeId}`
+          : `base-net:${anchor.netId}`;
+  return `voltage:${occurrence}:${target.documentId}:${anchorKey}`;
+}
+
+/** Resolve a saved voltage anchor to the Base Net it currently belongs to. */
+export function resolveSimulationVoltageProbeNetId(
+  project: CircuitProject,
+  target: VoltageProbeTarget,
+): string | undefined {
+  const document = project.documents.find(
+    (candidate) => candidate.id === target.documentId,
+  );
+  if (!document) return undefined;
+  const anchor = target.anchor;
+  if (anchor.kind === "terminal")
+    return document.nets.find((net) =>
+      net.terminals.some(
+        (terminal) =>
+          terminal.instanceId === anchor.instanceId &&
+          terminal.pinName === anchor.pinName,
+      ),
+    )?.id;
+  if (anchor.kind === "junction")
+    return document.junctions.find(
+      (junction) => junction.id === anchor.junctionId,
+    )?.netId;
+  if (anchor.kind === "route")
+    return document.routes.find((route) => route.id === anchor.routeId)?.netId;
+  return document.nets.find((net) => net.id === anchor.netId)?.id;
+}
+
+/** Match a canvas Base Net against the Logical Net selected by one probe. */
+export function simulationVoltageProbeTargetsNet(
+  project: CircuitProject,
+  target: VoltageProbeTarget,
+  netId: string,
+): boolean {
+  const document = project.documents.find(
+    (candidate) => candidate.id === target.documentId,
+  );
+  if (!document) return false;
+  const anchoredNetId = resolveSimulationVoltageProbeNetId(project, target);
+  if (!anchoredNetId) return false;
+  return (
+    resolveDocumentLogicalNets(document)
+      .byBaseNetId.get(anchoredNetId)
+      ?.baseNetIds.includes(netId) ?? false
+  );
+}
+
+function voltageAnchor(
+  document: SchematicDocument,
+  baseNetIds: readonly string[],
+): SimulationVoltageProbeAnchor | undefined {
+  const ids = new Set(baseNetIds);
+  for (const net of document.nets) {
+    if (!ids.has(net.id)) continue;
+    const terminal = net.terminals[0];
+    if (terminal) return { kind: "terminal", ...terminal };
+  }
+  const junction = document.junctions.find((item) => ids.has(item.netId));
+  if (junction) return { kind: "junction", junctionId: junction.id };
+  const route = document.routes.find((item) => ids.has(item.netId));
+  return route ? { kind: "route", routeId: route.id } : undefined;
 }
 
 /**
@@ -67,10 +139,12 @@ export function deriveSimulationProbeOptions(
     // joined by the same scoped label (notably repeated Ground markers); the
     // user should not have to choose among indistinguishable aliases.
     for (const net of logicalNets.groups) {
+      const anchor = voltageAnchor(document, net.baseNetIds);
+      if (!anchor) continue;
       const target: VoltageProbeTarget = {
         kind: "net-voltage",
         documentId: document.id,
-        netId: net.id,
+        anchor,
         occurrence: [...occurrence],
       };
       voltage.push({

@@ -334,19 +334,6 @@ export function executeProjectTransaction(
           "The top Cell cannot be deleted",
         );
       }
-      if (
-        candidate.simulation?.input.kind === "structured" &&
-        edit.documentId === candidate.simulation.input.rootDocumentId
-      ) {
-        // Deleting the Testbench would leave the setup pointing nowhere, and
-        // dropping the setup silently would lose authored intent; the author
-        // clears or re-roots it first, in the same transaction if they like.
-        return rejectProjectTransaction(
-          project,
-          "EDIT_PRECONDITION",
-          `Cell ${edit.documentId} is the simulation root; clear or re-root the simulation setup first`,
-        );
-      }
       const caller = candidate.documents.flatMap((document) =>
         document.instances.flatMap((instance) => {
           const binding = instance.netlist?.binding;

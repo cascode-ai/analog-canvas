@@ -3294,8 +3294,82 @@
             "documentId": {
               "$ref": "#/$defs/__schema1"
             },
-            "netId": {
-              "$ref": "#/$defs/__schema1"
+            "anchor": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "terminal"
+                    },
+                    "instanceId": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "pinName": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "instanceId",
+                    "pinName"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "junction"
+                    },
+                    "junctionId": {
+                      "$ref": "#/$defs/__schema1"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "junctionId"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "route"
+                    },
+                    "routeId": {
+                      "$ref": "#/$defs/__schema1"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "routeId"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "base-net"
+                    },
+                    "netId": {
+                      "$ref": "#/$defs/__schema1"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "netId"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
             },
             "occurrence": {
               "$ref": "#/$defs/__schema22"
@@ -3305,7 +3379,7 @@
             "id",
             "kind",
             "documentId",
-            "netId",
+            "anchor",
             "occurrence"
           ],
           "additionalProperties": false

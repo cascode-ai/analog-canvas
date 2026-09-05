@@ -799,7 +799,11 @@ describe("Project structural transaction", () => {
             id: "probe-out",
             kind: "net-voltage" as const,
             documentId: testbench.id,
-            netId: "net-out",
+            anchor: {
+              kind: "terminal" as const,
+              instanceId: "load",
+              pinName: "1",
+            },
             occurrence: [],
           },
         ],
@@ -898,7 +902,7 @@ describe("Project structural transaction", () => {
     ).toMatchObject({ ok: true, applied: false, structureRevision: 3 });
   });
 
-  it("rejects a simulation setup whose root is not a Cell and protects the root Cell", () => {
+  it("rejects a newly configured missing root but preserves setup when its root Cell is deleted", () => {
     const project = createEmptyProject("project", "Project");
     const testbench = createEmptyDocument("document-testbench", "Testbench");
     project.documents.push(testbench);
@@ -962,8 +966,8 @@ describe("Project structural transaction", () => {
       }),
     ).toMatchObject({ ok: false, error: { code: "INVALID_TRANSACTION" } });
 
-    // A root that is added in the same transaction is a valid root; a root
-    // removed in the same transaction is not.
+    // A root that is added in the same transaction is a valid new binding.
+    // Later deletion preserves that authored binding as unresolved intent.
     const bench2 = createEmptyDocument("document-bench-2", "Bench2");
     expect(
       executeProjectTransaction(project, {
@@ -990,19 +994,19 @@ describe("Project structural transaction", () => {
       edits: [{ kind: "set_simulation_setup", setup: setupFor(testbench.id) }],
     });
     if (!configured.ok) throw new Error("setup was not applied");
-    expect(
-      executeProjectTransaction(configured.project, {
-        transactionId: "delete-root",
-        projectId: project.id,
-        expectedStructureRevision: 1,
-        actor,
-        edits: [{ kind: "remove_document", documentId: testbench.id }],
-      }),
-    ).toMatchObject({
-      ok: false,
-      error: {
-        code: "EDIT_PRECONDITION",
-        message: `Cell ${testbench.id} is the simulation root; clear or re-root the simulation setup first`,
+    const deleted = executeProjectTransaction(configured.project, {
+      transactionId: "delete-root",
+      projectId: project.id,
+      expectedStructureRevision: 1,
+      actor,
+      edits: [{ kind: "remove_document", documentId: testbench.id }],
+    });
+    expect(deleted).toMatchObject({
+      ok: true,
+      applied: true,
+      project: {
+        simulation: { input: { rootDocumentId: testbench.id } },
+        documents: [{ id: project.topDocumentId }],
       },
     });
     expect(

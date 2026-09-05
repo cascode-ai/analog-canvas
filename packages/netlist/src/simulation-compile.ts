@@ -208,7 +208,27 @@ function canonicalSetup(input: SimulationStructuredInput): string {
             id: probe.id,
             kind: probe.kind,
             documentId: probe.documentId,
-            netId: probe.netId,
+            anchor:
+              probe.anchor.kind === "terminal"
+                ? {
+                    kind: probe.anchor.kind,
+                    instanceId: probe.anchor.instanceId,
+                    pinName: probe.anchor.pinName,
+                  }
+                : probe.anchor.kind === "junction"
+                  ? {
+                      kind: probe.anchor.kind,
+                      junctionId: probe.anchor.junctionId,
+                    }
+                  : probe.anchor.kind === "route"
+                    ? {
+                        kind: probe.anchor.kind,
+                        routeId: probe.anchor.routeId,
+                      }
+                    : {
+                        kind: probe.anchor.kind,
+                        netId: probe.anchor.netId,
+                      },
             occurrence: [...probe.occurrence],
           }
         : {
@@ -348,14 +368,45 @@ function netVoltageVector(
   diagnostics: NetlistDiagnostic[],
 ): CompiledSimulationVector | null {
   const { document, cell, path, hierarchyPath } = occurrence;
-  if (!document.nets.some((net) => net.id === probe.netId)) {
+  const anchor = probe.anchor;
+  const netId =
+    anchor.kind === "terminal"
+      ? document.nets.find((net) =>
+          net.terminals.some(
+            (terminal) =>
+              terminal.instanceId === anchor.instanceId &&
+              terminal.pinName === anchor.pinName,
+          ),
+        )?.id
+      : anchor.kind === "junction"
+        ? document.junctions.find(
+            (junction) => junction.id === anchor.junctionId,
+          )?.netId
+        : anchor.kind === "route"
+          ? document.routes.find((route) => route.id === anchor.routeId)?.netId
+          : document.nets.find((net) => net.id === anchor.netId)?.id;
+  if (!netId) {
+    const primary: ObjectLocator =
+      anchor.kind === "terminal"
+        ? {
+            documentId: document.id,
+            hierarchyPath,
+            kind: "instance",
+            objectId: anchor.instanceId,
+            endpoint: anchor,
+          }
+        : anchor.kind === "junction"
+          ? locator(document.id, hierarchyPath, "junction", anchor.junctionId)
+          : anchor.kind === "route"
+            ? locator(document.id, hierarchyPath, "route", anchor.routeId)
+            : locator(document.id, hierarchyPath, "net", anchor.netId);
     diagnostics.push(
       diagnostic(
-        "SIMULATION_PROBE_UNKNOWN_NET",
+        "SIMULATION_PROBE_ANCHOR_UNAVAILABLE",
         document.id,
-        `Probe ${probe.id} references unknown Net ${probe.netId} in Document ${document.id}`,
-        locator(document.id, hierarchyPath, "net", probe.netId),
-        [probe.netId],
+        `Probe ${probe.id} ${anchor.kind} anchor no longer resolves in Document ${document.id}`,
+        primary,
+        [primary.objectId],
       ),
     );
     return null;
@@ -363,20 +414,19 @@ function netVoltageVector(
   // The Logical Net the printer resolved, then the name it actually printed.
   // Reading the extraction's own output is what keeps a probe name and a node
   // name from being derived twice and disagreeing once.
-  const logicalNet = resolveDocumentLogicalNets(document).byBaseNetId.get(
-    probe.netId,
-  );
+  const logicalNet =
+    resolveDocumentLogicalNets(document).byBaseNetId.get(netId);
   const netName = cell.nets.find(
-    (net) => net.id === (logicalNet?.id ?? probe.netId),
+    (net) => net.id === (logicalNet?.id ?? netId),
   )?.name;
   if (!netName) {
     diagnostics.push(
       diagnostic(
         "SIMULATION_PROBE_NET_NOT_EXPORTED",
         document.id,
-        `Probe ${probe.id} references Net ${probe.netId}, which the netlist does not export under a node name`,
-        locator(document.id, hierarchyPath, "net", probe.netId),
-        [probe.netId],
+        `Probe ${probe.id} anchor resolves to Net ${netId}, which the netlist does not export under a node name`,
+        locator(document.id, hierarchyPath, "net", netId),
+        [netId],
       ),
     );
     return null;
