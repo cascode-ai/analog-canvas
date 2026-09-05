@@ -6,6 +6,7 @@ const input: ExecutionInput = {
   netlist: "",
   testbench: "* test",
   files: [],
+  dependencies: [],
   inputRevision: "rev",
   environment: { profileId: "p" },
 };

@@ -29,6 +29,7 @@ export interface ExecutionInput {
   inputRevision: string;
   environment: Prepared["environment"];
   files: { path: string; text: string }[];
+  dependencies: { id: string; mountPath: string; sha256: string }[];
   entryPath?: string;
   preparedDeck?: string;
 }
@@ -61,6 +62,7 @@ type PrepareSource = Extract<
 >["source"];
 type InternalRun = {
   view: Run;
+  prepared: Prepared;
   token: string;
   expiresAt: number;
   done: Promise<void>;
@@ -325,6 +327,7 @@ export class SimulationService {
           inputRevision: compiled.request.inputRevision!,
           environment: setup.input.environment,
           files: [],
+          dependencies: [],
         };
         vectors = [...compiled.vectors];
         warnings = compiled.warnings.map((w) => w.message);
@@ -342,8 +345,6 @@ export class SimulationService {
         );
       } else {
         const rawInput = setup.input;
-        if (rawInput.dependencies.length > 0)
-          return unresolvedDependencyProblem(rawInput);
         const entry = rawInput.files.find(
           (file) => file.path === rawInput.entry,
         );
@@ -360,6 +361,9 @@ export class SimulationService {
           inputRevision: await rawInputRevision(rawInput),
           environment: rawInput.environment,
           files: rawInput.files.map((file) => ({ ...file })),
+          dependencies: rawInput.dependencies.map((dependency) => ({
+            ...dependency,
+          })),
           entryPath: rawInput.entry,
         };
       }
@@ -384,6 +388,7 @@ export class SimulationService {
         ),
         environment: op.source.environment,
         files: workspace.files.map((f) => ({ ...f })),
+        dependencies: [],
       };
       // Preserve entry-relative includes by running the actual entry path.
       input.entryPath = workspace.entry!;
@@ -397,6 +402,26 @@ export class SimulationService {
         "Select a Profile advertised by capabilities",
         "prepare",
       );
+    if (input.mode === "raw" && input.dependencies.length > 0) {
+      const available = new Map(
+        (profile.dependencies ?? []).map((dependency) => [
+          dependency.id,
+          dependency.sha256,
+        ]),
+      );
+      if (
+        input.dependencies.some(
+          (dependency) => available.get(dependency.id) !== dependency.sha256,
+        )
+      )
+        return unresolvedDependencyProblem({
+          kind: "raw",
+          entry: input.entryPath!,
+          files: input.files,
+          dependencies: input.dependencies,
+          environment: input.environment,
+        });
+    }
     if (
       input.environment.corner &&
       !profile.corners.includes(input.environment.corner)
@@ -571,6 +596,7 @@ export class SimulationService {
     };
     const entry: InternalRun = {
       view,
+      prepared: structuredClone(prepared.view),
       token: crypto.randomUUID(),
       expiresAt: this.now() + TTL,
       done: Promise.resolve(),
@@ -619,6 +645,31 @@ export class SimulationService {
           "text/csv",
           simulationAnalysisToCsv(analysis),
         );
+      const evidenceArtifacts = run.view.artifacts.map((item) => ({ ...item }));
+      await artifact(
+        "evidence-manifest.json",
+        "application/json",
+        JSON.stringify(
+          {
+            schemaVersion: 1,
+            run: {
+              id: run.view.id,
+              preparedId: run.view.preparedId,
+              inputRevision: run.view.inputRevision,
+            },
+            prepared: {
+              digest: run.prepared.digest,
+              mode: run.prepared.mode,
+              environment: run.prepared.environment,
+              vectors: run.prepared.vectors,
+            },
+            environment: output.result.metadata.environment,
+            artifacts: evidenceArtifacts,
+          },
+          null,
+          2,
+        ),
+      );
       if (epoch === this.epoch)
         run.view.state = output.cancelled ? "cancelled" : "finished";
     } catch (error) {

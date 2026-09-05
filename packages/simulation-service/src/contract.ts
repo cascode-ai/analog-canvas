@@ -107,7 +107,16 @@ export const CapabilitiesSchema = z.strictObject({
   inputs: z.array(z.enum(["structured", "raw"])),
   analyses: z.array(z.enum(["op", "ac", "tran"])),
   parsedAnalyses: z.array(z.enum(["op", "ac", "tran"])),
-  profiles: z.array(z.strictObject({ id: Id, corners: z.array(z.string()) })),
+  profiles: z.array(
+    z.strictObject({
+      id: Id,
+      corners: z.array(z.string()),
+      /** Environment-owned files addressable by raw Project dependencies. */
+      dependencies: z
+        .array(z.strictObject({ id: Id, sha256: Digest }))
+        .optional(),
+    }),
+  ),
   modelLibrary: z
     .strictObject({ path: z.string(), section: z.string() })
     .optional(),

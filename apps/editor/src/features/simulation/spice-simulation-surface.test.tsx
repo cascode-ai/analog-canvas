@@ -48,4 +48,35 @@ describe("SpiceSimulationSurface workspace", () => {
     expect(markup).not.toContain("<span>Preview</span>");
     expect(markup).not.toContain('class="simulation-results-dock"');
   });
+
+  it("keeps a saved raw setup distinct from the structured editor", () => {
+    const project = createEmptyProject("raw-simulation", "Raw");
+    project.simulation = {
+      version: 1,
+      input: {
+        kind: "raw",
+        entry: "tb.cir",
+        files: [{ path: "tb.cir", text: ".end\n" }],
+        dependencies: [],
+        environment: { profileId: "raw-profile" },
+      },
+    };
+    const markup = renderToStaticMarkup(
+      <SpiceSimulationSurface
+        open
+        project={project}
+        activeDocumentId={project.topDocumentId}
+        session={{} as BrowserSimulationSession}
+        onMinimize={() => undefined}
+        onExit={() => undefined}
+        onSaveSetup={() => true}
+        onOpenCell={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain("Raw setup");
+    expect(markup).toContain("tb.cir");
+    expect(markup).toContain("Switch to structured setup");
+    expect(markup).not.toContain("Add voltage probe");
+  });
 });

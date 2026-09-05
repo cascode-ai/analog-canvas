@@ -29,6 +29,12 @@ export interface SimulationProbeOptions {
   readonly sourceCurrent: readonly SimulationProbeOption<SourceCurrentProbeTarget>[];
 }
 
+export interface PickedSimulationNet {
+  readonly documentId: string;
+  readonly netId: string;
+  readonly occurrence?: readonly string[];
+}
+
 export function simulationProbeTargetKey(target: ProbeTarget): string {
   const occurrence = target.occurrence.join("/");
   if (target.kind === "source-current")
@@ -88,6 +94,28 @@ export function simulationVoltageProbeTargetsNet(
     resolveDocumentLogicalNets(document)
       .byBaseNetId.get(anchoredNetId)
       ?.baseNetIds.includes(netId) ?? false
+  );
+}
+
+/**
+ * Resolve a canvas pick without collapsing repeated Cell occurrences. A
+ * definition-only pick intentionally returns every matching occurrence so the
+ * caller can ask instead of silently choosing X1 over X2.
+ */
+export function matchSimulationVoltageProbeOptions(
+  project: CircuitProject,
+  options: readonly SimulationProbeOption<VoltageProbeTarget>[],
+  picked: PickedSimulationNet,
+): readonly SimulationProbeOption<VoltageProbeTarget>[] {
+  return options.filter(
+    (candidate) =>
+      candidate.target.documentId === picked.documentId &&
+      (picked.occurrence === undefined ||
+        (candidate.target.occurrence.length === picked.occurrence.length &&
+          candidate.target.occurrence.every(
+            (id, index) => id === picked.occurrence?.[index],
+          ))) &&
+      simulationVoltageProbeTargetsNet(project, candidate.target, picked.netId),
   );
 }
 

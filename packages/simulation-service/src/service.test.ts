@@ -220,6 +220,81 @@ describe("shared simulation lifecycle", () => {
     expect(f.executor.execute).not.toHaveBeenCalled();
   });
 
+  it("resolves a declared raw dependency only through the selected Profile", async () => {
+    const f = fixture();
+    const modelDigest = "a".repeat(64);
+    f.executor.capabilities = async () => ({
+      ...caps,
+      profiles: [
+        {
+          id: "test",
+          corners: ["tt"],
+          dependencies: [{ id: "device-models", sha256: modelDigest }],
+        },
+      ],
+    });
+    f.project.simulation = {
+      version: 1,
+      input: {
+        kind: "raw",
+        entry: "tb.cir",
+        files: [
+          {
+            path: "tb.cir",
+            text: '.lib "models/device.lib" tt\n.end\n',
+          },
+        ],
+        dependencies: [
+          {
+            id: "device-models",
+            mountPath: "models/device.lib",
+            sha256: modelDigest,
+          },
+        ],
+        environment: { profileId: "test" },
+      },
+    };
+
+    const prepared = unwrap(
+      await f.service.handle(
+        {
+          operation: "prepare",
+          source: {
+            kind: "project-setup",
+            expectedStructureRevision: f.project.structureRevision,
+          },
+        },
+        "project-dependency-resolved",
+      ),
+      "prepared",
+    );
+    unwrap(
+      await f.service.handle(
+        {
+          operation: "start",
+          preparedId: prepared.id,
+          digest: prepared.digest,
+        },
+        "run-dependency-resolved",
+      ),
+      "run",
+    );
+    expect(f.executor.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        dependencies: [
+          {
+            id: "device-models",
+            mountPath: "models/device.lib",
+            sha256: modelDigest,
+          },
+        ],
+      }),
+      expect.any(String),
+      undefined,
+    );
+    f.release();
+  });
+
   it("rejects stale Project setup preparation by structure revision", async () => {
     const f = fixture();
     expect(
@@ -304,8 +379,27 @@ describe("shared simulation lifecycle", () => {
         "op-0.csv",
         "result.json",
         "executed.cir",
+        "evidence-manifest.json",
       ]),
     );
+    const evidence = finished.artifacts.find(
+      (artifact) => artifact.name === "evidence-manifest.json",
+    )!;
+    const evidenceRead = await f.files.handle({
+      action: "artifact",
+      artifactId: evidence.id,
+    });
+    expect(evidenceRead).toMatchObject({ ok: true });
+    if (!evidenceRead.ok || !("text" in evidenceRead)) throw Error("evidence");
+    expect(JSON.parse(evidenceRead.text)).toMatchObject({
+      schemaVersion: 1,
+      run: { id: finished.id, preparedId: prepared.id },
+      prepared: { digest: prepared.digest },
+      artifacts: expect.arrayContaining([
+        expect.objectContaining({ name: "out.raw" }),
+        expect.objectContaining({ name: "result.json" }),
+      ]),
+    });
     expect(unwrap(await f.service.handle(op, "next"), "run").id).not.toBe(
       run.id,
     );

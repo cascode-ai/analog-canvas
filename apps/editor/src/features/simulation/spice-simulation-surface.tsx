@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
+  type ObjectLocator,
   SimulationSetupSchema,
   type CircuitProject,
   type SimulationSetup,
@@ -9,6 +10,7 @@ import type {
   ArtifactRef,
   Capabilities,
   Prepared,
+  Problem,
   Run,
   SimulationReply,
 } from "@icm/simulation-service/contract";
@@ -18,8 +20,8 @@ import { AcResultsExplorer } from "./ac-results-explorer";
 import { TransientResultsExplorer } from "./transient-results-explorer";
 import {
   deriveSimulationProbeOptions,
+  matchSimulationVoltageProbeOptions,
   simulationProbeTargetKey,
-  simulationVoltageProbeTargetsNet,
   type SimulationProbeOption,
 } from "./simulation-probe-options";
 
@@ -57,9 +59,27 @@ export interface SpiceSimulationSurfaceProps {
     readonly sequence: number;
     readonly documentId: string;
     readonly netId: string;
+    /** Instance ids from the selected Testbench root to this Cell. */
+    readonly occurrence?: readonly string[];
   } | null;
   onPickNetsChange?(active: boolean): void;
-  onFocusProbe?(probe: SimulationStructuredInput["probes"][number]): void;
+  onFocusProbe?(
+    probe: SimulationStructuredInput["probes"][number],
+    rootDocumentId?: string,
+  ): void;
+  onFocusDiagnostic?(locator: ObjectLocator): void;
+}
+
+interface PreparedPresentation {
+  readonly prepared: Prepared;
+  readonly probes: SimulationStructuredInput["probes"];
+  readonly labels: Readonly<Record<string, string>>;
+  readonly analysisLabel: string;
+  readonly rootDocumentId?: string;
+}
+
+function uiProblem(code: string, message: string): Problem {
+  return { code, message, stage: "input", recovery: "fix-input" };
 }
 
 /** A projection of the same prepare/start/read/cancel service used by MCP.
@@ -69,11 +89,12 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   const [capabilities, setCapabilities] = useState<Capabilities>();
   const [prepared, setPrepared] = useState<Prepared>();
   const [run, setRun] = useState<Run>();
-  const [error, setError] = useState("");
+  const [problem, setProblem] = useState<Problem>();
   const [busy, setBusy] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [outputLabels, setOutputLabels] = useState<Record<string, string>>({});
-  const [setupOpen, setSetupOpen] = useState(!project.simulation);
+  const preparedPresentations = useRef(new Map<string, PreparedPresentation>());
+  const [setupOpen, setSetupOpen] = useState(true);
   const [resultsOpen, setResultsOpen] = useState(false);
   const [resultTab, setResultTab] = useState<ResultTab>("summary");
   const [exitConfirmationOpen, setExitConfirmationOpen] = useState(false);
@@ -93,9 +114,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   const receive = (reply: SimulationReply) => {
     if (!alive.current) return;
     if (!reply.ok) {
-      setError(
-        `${reply.error.code}: ${reply.error.message}${reply.error.diagnostics?.map((d) => `\n${d.code}: ${d.message}`).join("") ?? ""}`,
-      );
+      setProblem(reply.error);
       if (project.simulation) {
         setSetupOpen(false);
         setResultsOpen(true);
@@ -106,7 +125,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
       }
     } else if ("run" in reply) {
       setRun(reply.run);
-      setError("");
+      setProblem(undefined);
       if (
         reply.run.result ||
         reply.run.error ||
@@ -118,13 +137,13 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
       }
     } else if ("prepared" in reply) {
       setPrepared(reply.prepared);
-      setError("");
+      setProblem(undefined);
       setSetupOpen(false);
       setResultsOpen(true);
       setResultTab("files");
     } else if ("capabilities" in reply) {
       setCapabilities(reply.capabilities);
-      setError("");
+      setProblem(undefined);
     }
   };
   useEffect(() => {
@@ -158,7 +177,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     if (lock.current) return;
     lock.current = true;
     setBusy(true);
-    setError("");
+    setProblem(undefined);
     try {
       const reply = await session.handle({
         operation: "prepare",
@@ -167,6 +186,26 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
           expectedStructureRevision: project.structureRevision,
         },
       });
+      if (reply.ok && "prepared" in reply) {
+        const input = project.simulation?.input;
+        preparedPresentations.current.set(reply.prepared.id, {
+          prepared: structuredClone(reply.prepared),
+          probes:
+            input?.kind === "structured" ? structuredClone(input.probes) : [],
+          labels: { ...outputLabels },
+          analysisLabel:
+            input?.kind === "structured"
+              ? input.analyses
+                  .map((analysis) => analysis.kind.toUpperCase())
+                  .join(" + ")
+              : input?.kind === "raw"
+                ? "RAW"
+                : "",
+          ...(input?.kind === "structured"
+            ? { rootDocumentId: input.rootDocumentId }
+            : {}),
+        });
+      }
       receive(reply);
       if (start && reply.ok && "prepared" in reply && alive.current)
         receive(
@@ -191,7 +230,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
         offset,
       });
       if (!chunk.ok) {
-        setError(chunk.error.message);
+        setProblem(chunk.error);
         return;
       }
       if (!("text" in chunk)) return;
@@ -199,7 +238,8 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
       offset = chunk.nextOffset;
     }
     const result = downloadTextArtifact(text, artifact.name);
-    if (result.status === "failed") setError(result.message);
+    if (result.status === "failed")
+      setProblem(uiProblem("ARTIFACT_DOWNLOAD_FAILED", result.message));
   };
   const running = run && ["running", "cancelling"].includes(run.state);
   const activeCell = project.documents.find(
@@ -251,25 +291,29 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     run?.inputStatus === "changed"
       ? "Result belongs to an earlier Project revision. Run again to use the current circuit."
       : "";
-  const attention =
-    error ||
-    staleMessage ||
-    (run?.error ? `${run.error.code}: ${run.error.message}` : "");
-  const attentionSummary = error
-    ? error.startsWith("SIMULATION_CAPABILITIES_UNAVAILABLE")
+  const activeProblem = problem ?? run?.error;
+  const attention = activeProblem || staleMessage;
+  const problemSearchText = activeProblem
+    ? [
+        activeProblem.code,
+        activeProblem.message,
+        ...(activeProblem.diagnostics ?? []).flatMap((diagnostic) => [
+          diagnostic.code,
+          diagnostic.message,
+        ]),
+      ].join(" ")
+    : "";
+  const attentionSummary = activeProblem
+    ? activeProblem.code === "SIMULATION_CAPABILITIES_UNAVAILABLE"
       ? "Simulation service is unavailable in this environment."
-      : /probe/i.test(error)
+      : /probe/i.test(problemSearchText)
         ? "The probe selection needs attention. Open Console for details."
         : "Simulation needs attention. Open Console for details."
-    : attention;
-  const analysisLabel =
-    project.simulation?.input.kind === "structured"
-      ? project.simulation.input.analyses
-          .map((analysis) => analysis.kind.toUpperCase())
-          .join(" + ")
-      : project.simulation?.input.kind === "raw"
-        ? "RAW"
-        : undefined;
+    : staleMessage;
+  const runPresentation = run
+    ? preparedPresentations.current.get(run.preparedId)
+    : undefined;
+  const analysisLabel = runPresentation?.analysisLabel;
   return (
     <section
       hidden={!open}
@@ -413,7 +457,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
         <div className="simulation-workspace-notice" role="alert">
           <strong>Needs attention</strong>
           <span>{attentionSummary}</span>
-          {error && run ? (
+          {activeProblem?.recovery === "retry-same-request" && run ? (
             <button
               onClick={() =>
                 void session
@@ -444,7 +488,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
           {...props}
           capabilities={capabilities}
           onDirty={setDirty}
-          onError={setError}
+          onProblem={setProblem}
           outputLabels={outputLabels}
           onOutputLabelChange={(probeId, label) =>
             setOutputLabels((current) => {
@@ -499,7 +543,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
                     choosing a new run.
                   </p>
                 ) : null}
-                {prepared?.warnings.map((warning, index) => (
+                {runPresentation?.prepared.warnings.map((warning, index) => (
                   <p key={index}>{warning}</p>
                 ))}
                 {run?.resultPreview ? (
@@ -519,15 +563,19 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
                     <AcResultsExplorer
                       key={index}
                       analysis={analysis}
-                      vectors={prepared?.vectors ?? []}
-                      probes={
-                        project.simulation?.input.kind === "structured"
-                          ? project.simulation.input.probes
-                          : []
-                      }
-                      labels={outputLabels}
+                      vectors={runPresentation?.prepared.vectors ?? []}
+                      probes={runPresentation?.probes ?? []}
+                      labels={runPresentation?.labels ?? {}}
                       {...(props.onFocusProbe
-                        ? { onFocusProbe: props.onFocusProbe }
+                        ? {
+                            onFocusProbe: (
+                              probe: SimulationStructuredInput["probes"][number],
+                            ) =>
+                              props.onFocusProbe?.(
+                                probe,
+                                runPresentation?.rootDocumentId,
+                              ),
+                          }
                         : {})}
                     />
                   ))}
@@ -537,15 +585,19 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
                     <TransientResultsExplorer
                       key={`tran-${index}`}
                       analysis={analysis}
-                      vectors={prepared?.vectors ?? []}
-                      probes={
-                        project.simulation?.input.kind === "structured"
-                          ? project.simulation.input.probes
-                          : []
-                      }
-                      labels={outputLabels}
+                      vectors={runPresentation?.prepared.vectors ?? []}
+                      probes={runPresentation?.probes ?? []}
+                      labels={runPresentation?.labels ?? {}}
                       {...(props.onFocusProbe
-                        ? { onFocusProbe: props.onFocusProbe }
+                        ? {
+                            onFocusProbe: (
+                              probe: SimulationStructuredInput["probes"][number],
+                            ) =>
+                              props.onFocusProbe?.(
+                                probe,
+                                runPresentation?.rootDocumentId,
+                              ),
+                          }
                         : {})}
                     />
                   ))}
@@ -599,11 +651,13 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
 
             {resultTab === "console" ? (
               <div className="simulation-console-view">
-                {error ? <pre>{error}</pre> : null}
-                {run?.error ? (
-                  <pre>
-                    {run.error.code}: {run.error.message}
-                  </pre>
+                {activeProblem ? (
+                  <SimulationProblemView
+                    problem={activeProblem}
+                    {...(props.onFocusDiagnostic
+                      ? { onFocus: props.onFocusDiagnostic }
+                      : {})}
+                  />
                 ) : null}
                 {run?.result ? (
                   <pre>
@@ -614,7 +668,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
                     {run.result.log}
                   </pre>
                 ) : null}
-                {!error && !run?.error && !run?.result ? (
+                {!activeProblem && !run?.result ? (
                   <p className="simulation-empty-result">
                     Simulator diagnostics will appear here.
                   </p>
@@ -667,6 +721,75 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   );
 }
 
+const RECOVERY_LABELS: Record<Problem["recovery"], string> = {
+  "fix-input": "Review the highlighted input and apply the correction.",
+  reprepare: "The input changed. Prepare it again before running.",
+  "retry-same-request":
+    "The response is uncertain. Refresh this run; do not start a duplicate.",
+  "retry-after":
+    "Keep the current work and try again after the service recovers.",
+  reauthorize:
+    "Reconnect the simulation session, then continue with the same Project.",
+  "not-retryable":
+    "This run will not be retried automatically. Preserve its files before starting another.",
+};
+
+function SimulationProblemView({
+  problem,
+  onFocus,
+}: {
+  problem: Problem;
+  onFocus?: (locator: ObjectLocator) => void;
+}) {
+  const locator = (
+    value: NonNullable<NonNullable<Problem["diagnostics"]>[number]["primary"]>,
+  ): ObjectLocator => ({
+    documentId: value.documentId,
+    hierarchyPath: value.hierarchyPath.map((frame) => ({ ...frame })),
+    kind: value.kind,
+    objectId: value.objectId,
+    ...(value.endpoint === undefined ? {} : { endpoint: value.endpoint }),
+    ...(value.sourceRef === undefined ? {} : { sourceRef: value.sourceRef }),
+  });
+  return (
+    <section className="simulation-problem" aria-label="Simulation problem">
+      <header>
+        <strong>{problem.code}</strong>
+        <small>
+          {problem.stage} · {problem.recovery}
+        </small>
+      </header>
+      <p>{problem.message}</p>
+      <p>{RECOVERY_LABELS[problem.recovery]}</p>
+      {problem.retryAfterMs !== undefined ? (
+        <small>
+          Try again after {Math.ceil(problem.retryAfterMs / 1000)} s.
+        </small>
+      ) : null}
+      {problem.diagnostics?.length ? (
+        <ul>
+          {problem.diagnostics.map((diagnostic, index) => (
+            <li key={`${diagnostic.code}:${index}`}>
+              <span>
+                <strong>{diagnostic.code}</strong> {diagnostic.message}
+                {diagnostic.field ? <small>{diagnostic.field}</small> : null}
+              </span>
+              {diagnostic.primary && onFocus ? (
+                <button
+                  type="button"
+                  onClick={() => onFocus(locator(diagnostic.primary!))}
+                >
+                  Show
+                </button>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </section>
+  );
+}
+
 function SetupEditor({
   project,
   activeDocumentId,
@@ -674,7 +797,7 @@ function SetupEditor({
   capabilities,
   onSaveSetup,
   onDirty,
-  onError,
+  onProblem,
   pickNetsActive,
   pickedNet,
   onPickNetsChange,
@@ -683,7 +806,7 @@ function SetupEditor({
 }: SpiceSimulationSurfaceProps & {
   capabilities: Capabilities | undefined;
   onDirty(value: boolean): void;
-  onError(value: string): void;
+  onProblem(value: Problem | undefined): void;
   outputLabels: Readonly<Record<string, string>>;
   onOutputLabelChange(probeId: string, label: string): void;
 }) {
@@ -710,6 +833,14 @@ function SetupEditor({
   const [profileId, setProfileId] = useState(
     saved?.environment.profileId ?? DEVELOPMENT_PROFILE_ID,
   );
+  const rawSaved =
+    project.simulation?.input.kind === "raw"
+      ? project.simulation.input
+      : undefined;
+  const [switchFromRaw, setSwitchFromRaw] = useState(false);
+  const [pickCandidates, setPickCandidates] = useState<
+    readonly SimulationProbeOption[]
+  >([]);
   useEffect(() => {
     const defaultProfileId = capabilities?.profiles[0]?.id;
     if (
@@ -721,18 +852,23 @@ function SetupEditor({
   }, [capabilities?.profiles[0]?.id, profileId, saved?.environment.profileId]);
   useEffect(() => {
     if (!pickedNet) return;
-    const option = probeOptions.voltage.find(
-      (candidate) =>
-        candidate.target.documentId === pickedNet.documentId &&
-        simulationVoltageProbeTargetsNet(
-          project,
-          candidate.target,
-          pickedNet.netId,
-        ),
+    const candidates = matchSimulationVoltageProbeOptions(
+      project,
+      probeOptions.voltage,
+      pickedNet,
     );
+    if (candidates.length > 1) {
+      setPickCandidates(candidates);
+      onProblem(undefined);
+      return;
+    }
+    const option = candidates[0];
     if (!option) {
-      onError(
-        "That Net is outside the selected Testbench occurrence. Choose it from the Output list or change the Testbench Cell.",
+      onProblem(
+        uiProblem(
+          "PROBE_TARGET_UNAVAILABLE",
+          "That Net is outside the selected Testbench occurrence. Choose it from the Output list or change the Testbench Cell.",
+        ),
       );
       return;
     }
@@ -740,11 +876,40 @@ function SetupEditor({
     if (probes.some((probe) => simulationProbeTargetKey(probe) === key)) return;
     setProbes((current) => [...current, probeFromOption(option)]);
     onDirty(true);
-    onError("");
+    setPickCandidates([]);
+    onProblem(undefined);
   }, [pickedNet?.sequence]);
   useEffect(() => {
     onDirty(false);
   }, []);
+  if (rawSaved && !switchFromRaw) {
+    return (
+      <aside className="simulation-setup-panel" aria-label="Simulation setup">
+        <header>
+          <div>
+            <small>Simulation</small>
+            <strong>Raw setup</strong>
+          </div>
+        </header>
+        <div className="simulation-raw-summary">
+          <p>
+            <strong>{rawSaved.entry}</strong>
+          </p>
+          <p>
+            {rawSaved.files.length} authored file(s) ·{" "}
+            {rawSaved.dependencies.length} dependency declaration(s)
+          </p>
+          <p>Profile: {rawSaved.environment.profileId}</p>
+          <button type="button" onClick={() => setSwitchFromRaw(true)}>
+            Switch to structured setup…
+          </button>
+          <button type="button" onClick={() => onSaveSetup(null)}>
+            Delete setup
+          </button>
+        </div>
+      </aside>
+    );
+  }
   return (
     <aside className="simulation-setup-panel" aria-label="Simulation setup">
       <header>
@@ -807,15 +972,23 @@ function SetupEditor({
             },
           });
           if (!parsed.success) {
-            onError(parsed.error.issues.map((i) => i.message).join("\n"));
+            onProblem(
+              uiProblem(
+                "SIMULATION_SETUP_INVALID",
+                parsed.error.issues.map((i) => i.message).join("\n"),
+              ),
+            );
             return;
           }
           if (onSaveSetup(parsed.data)) {
             onDirty(false);
-            onError("");
+            onProblem(undefined);
           } else
-            onError(
-              "Setup was not applied. See the editor status; your draft is retained.",
+            onProblem(
+              uiProblem(
+                "SIMULATION_SETUP_NOT_APPLIED",
+                "Setup was not applied. See the editor status; your draft is retained.",
+              ),
             );
         }}
       >
@@ -1012,6 +1185,27 @@ function SetupEditor({
             </button>
           }
         />
+        {pickCandidates.length > 1 ? (
+          <fieldset
+            className="simulation-setup-group"
+            aria-label="Choose Net occurrence"
+          >
+            <legend>Choose occurrence</legend>
+            {pickCandidates.map((option) => (
+              <button
+                type="button"
+                key={option.key}
+                onClick={() => {
+                  setProbes((current) => [...current, probeFromOption(option)]);
+                  setPickCandidates([]);
+                  onDirty(true);
+                }}
+              >
+                {option.label}
+              </button>
+            ))}
+          </fieldset>
+        ) : null}
         <ProbeSelect
           label="Add current output"
           placeholder="Choose a voltage-source branch"

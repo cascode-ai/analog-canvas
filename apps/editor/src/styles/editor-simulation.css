@@ -324,6 +324,19 @@
 .simulation-setup-panel form > button {
   margin: 8px 8px 0 0;
 }
+.simulation-raw-summary {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  font-size: var(--icm-font-sm);
+}
+.simulation-raw-summary p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.simulation-raw-summary button {
+  justify-self: start;
+}
 .simulation-probe-select {
   grid-template-columns: minmax(110px, 0.8fr) minmax(130px, 1.2fr);
 }
@@ -466,6 +479,44 @@
   overflow-wrap: anywhere;
   max-height: 260px;
   overflow: auto;
+}
+.simulation-problem {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #fdb022;
+  border-radius: var(--icm-radius-sm);
+  background: #fffaeb;
+}
+.simulation-problem > header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.simulation-problem > header small,
+.simulation-problem li small {
+  color: var(--icm-text-muted);
+}
+.simulation-problem p {
+  margin: 0;
+}
+.simulation-problem ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.simulation-problem li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 6px;
+  border-top: 1px solid color-mix(in srgb, #fdb022 45%, transparent);
+}
+.simulation-problem li span {
+  display: grid;
+  flex: 1;
 }
 .spice-simulation-surface table {
   width: 100%;

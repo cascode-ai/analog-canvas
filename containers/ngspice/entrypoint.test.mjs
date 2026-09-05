@@ -152,6 +152,20 @@ describeHarness("the run directory", () => {
       expect(
         (await run(port, { ...request, files: [{ path, text: "x" }] })).status,
       ).toBe(400);
+    expect(
+      (
+        await run(port, {
+          ...request,
+          dependencies: [
+            {
+              id: "unadvertised-model",
+              sha256: "a".repeat(64),
+              mountPath: "models/device.lib",
+            },
+          ],
+        })
+      ).status,
+    ).toBe(400);
   });
   it(
     "cancels an owning run, releases its slot, and remembers a pre-admission cancellation",
@@ -526,7 +540,11 @@ describeHarness("health", () => {
           version: "ngspice-46",
           binarySha256: "0".repeat(64),
         },
-        models: { id: "test-models", contentSha256: "1".repeat(64) },
+        models: {
+          id: "test-models",
+          contentSha256: "1".repeat(64),
+          library: { runtimePath: "/opt/models/test-models.spice" },
+        },
         startup: { contentSha256: "2".repeat(64) },
       }),
       "utf8",
