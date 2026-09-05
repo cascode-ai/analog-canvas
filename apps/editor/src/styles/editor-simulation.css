@@ -482,6 +482,54 @@
   height: auto;
 }
 
+.transient-results-explorer {
+  display: grid;
+  gap: 10px;
+}
+.transient-results-explorer > header > div {
+  display: grid;
+  gap: 2px;
+}
+.transient-results-explorer > header small {
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+}
+.transient-quantity-group svg {
+  width: 100%;
+  height: auto;
+  color: var(--icm-text-muted);
+  font-size: 12px;
+}
+.transient-axis {
+  stroke: var(--icm-border-strong);
+  stroke-width: 1;
+}
+.transient-trace {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+.transient-trace.ac-trace-0 {
+  color: #175cd3;
+}
+.transient-trace.ac-trace-1 {
+  color: #b54708;
+}
+.transient-trace.ac-trace-2 {
+  color: #067647;
+}
+.transient-trace.ac-trace-3 {
+  color: #6941c6;
+}
+.transient-trace.ac-trace-4 {
+  color: #b42318;
+}
+.transient-trace.ac-trace-5 {
+  color: #026aa2;
+}
+
 .ac-results-explorer {
   position: relative;
   display: grid;
