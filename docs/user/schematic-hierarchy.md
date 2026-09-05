@@ -77,6 +77,19 @@ symbol layout on canvas** reveals explicit drag grips for the body and pins;
 the Properties values remain the precise fallback. These are definition operations,
 not top-level drawing tools.
 
+Before the first Instance exists, **Manage Cells… → Review Symbol** previews
+the selected Cell definition using the same derived artwork. Size and pin
+changes stay local until **Apply Symbol**; **Use default Symbol** removes the
+explicit presentation. An unreferenced top Cell is reusable too: create another
+ordinary Cell, then use **Place Cell** to place the original top there. The
+Project top does not change. A valid zero-port interface is allowed; an absent
+formal interface must be authored first.
+
+Agents use the existing `create-cell` action and `place-cell` with
+`childDocumentId`, `instanceId`, optional `reference`, and `placement`, targeting
+the parent Document. The same Project transaction owns validation and history;
+these actions do not create or modify a SimulationSetup.
+
 Hierarchy presentation is saved as definition-level size and pin-placement
 intent in current Project schema 26. Schema-25 projects open through the
 bounded upgrade; schema-23 and older files remain unsupported. The block uses

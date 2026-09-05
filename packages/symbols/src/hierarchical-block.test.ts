@@ -10,6 +10,18 @@ import {
 } from "./hierarchical-block.js";
 
 describe("hierarchical block formal terminals", () => {
+  it("derives an unreferenced manual top before its first placement without persisting defaults", () => {
+    const project = createEmptyProject("p", "Top", "dut");
+    const before = JSON.stringify(project);
+    expect(createProjectHierarchicalSymbols(project)).toEqual([
+      expect.objectContaining({
+        name: project.documents[0]!.name,
+        hierarchicalBlock: true,
+        pins: [],
+      }),
+    ]);
+    expect(JSON.stringify(project)).toBe(before);
+  });
   it("derives pins only from the private formal cell interface", () => {
     const symbol = createHierarchicalBlockSymbol({
       name: "Child",

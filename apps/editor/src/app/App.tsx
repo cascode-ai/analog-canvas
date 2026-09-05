@@ -11,6 +11,7 @@ import type {
 } from "@icm/agent-adapter";
 import {
   planCellReset,
+  planSetCellSymbolPresentation,
   type CellResetPlan,
   type WireSource,
 } from "@icm/edit-engine";
@@ -4237,6 +4238,16 @@ export function App({
                   setCellFormalParameters(formalParameters, documentId),
                 externalDefinitions: project.externalSubcircuitDefinitions,
                 onSetExternalDefinition: setExternalSubcircuitDefinition,
+                onSetSymbolPresentation: (documentId, presentation) => {
+                  commitStructure(
+                    "review-cell-symbol",
+                    planSetCellSymbolPresentation(
+                      project,
+                      documentId,
+                      presentation,
+                    ),
+                  );
+                },
               }
             : null
         }

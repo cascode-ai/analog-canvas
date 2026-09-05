@@ -2,10 +2,12 @@ import { useEffect, useState } from "react";
 
 import type {
   ExternalSubcircuitDefinition,
+  CellSymbolPresentation,
   SchematicDocument,
 } from "@icm/model";
 
 import { CellInterfaceEditor } from "./cell-interface-dialog";
+import { CellSymbolReview } from "./cell-symbol-review";
 
 export interface CellManagerEntry {
   readonly id: string;
@@ -36,6 +38,7 @@ export function CellManagerDialog({
   onSetFormalParameters,
   externalDefinitions,
   onSetExternalDefinition,
+  onSetSymbolPresentation,
 }: {
   open: boolean;
   cells: readonly CellManagerEntry[];
@@ -62,6 +65,10 @@ export function CellManagerDialog({
   ): void;
   externalDefinitions: readonly ExternalSubcircuitDefinition[];
   onSetExternalDefinition(definition: ExternalSubcircuitDefinition): void;
+  onSetSymbolPresentation(
+    documentId: string,
+    presentation: CellSymbolPresentation | null,
+  ): void;
 }) {
   const [selectedId, setSelectedId] = useState(activeDocumentId);
   const [draftName, setDraftName] = useState("");
@@ -213,6 +220,13 @@ export function CellManagerDialog({
                   </div>
                 </header>
 
+                <CellSymbolReview
+                  key={`${selectedDocument.id}:${selectedDocument.revision}`}
+                  cell={selectedDocument}
+                  onApply={(presentation) =>
+                    onSetSymbolPresentation(selectedDocument.id, presentation)
+                  }
+                />
                 <CellInterfaceEditor
                   cell={selectedDocument}
                   callerCount={selectedEntry.callers.length}
