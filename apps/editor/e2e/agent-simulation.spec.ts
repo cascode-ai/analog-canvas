@@ -13,7 +13,7 @@ const profile = JSON.parse(
     ),
     "utf8",
   ),
-) as { id: string };
+) as { id: string; simulator: { version: string } };
 import { openMenu, downloadBytes } from "./editor-fixtures.js";
 import { CircuitProjectSchema } from "@icm/model";
 const ota = JSON.parse(
@@ -25,6 +25,89 @@ const ota = JSON.parse(
     "utf8",
   ),
 );
+
+test("the qualified OTA setup opens unchanged and preserves all root and hierarchical probes", async ({
+  page,
+}) => {
+  const project = CircuitProjectSchema.parse(ota);
+  expect(project.simulation!.input.probes).toHaveLength(4);
+  expect(
+    project.simulation!.input.probes.filter((p) => p.occurrence.length > 0),
+  ).toHaveLength(2);
+  let executions = 0;
+  await page.route("**/api/simulate", async (route) => {
+    if (route.request().postDataJSON().operation !== "capabilities") {
+      executions++;
+      return route.abort();
+    }
+    return route.fulfill({
+      json: {
+        configured: true,
+        inputs: ["structured", "raw"],
+        analyses: ["op", "ac"],
+        parsedAnalyses: ["op", "ac", "tran"],
+        profiles: [{ id: profile.id, corners: ["tt"] }],
+        maxTimeoutMs: 120000,
+        maxInputBytes: 1048576,
+        cancel: true,
+      },
+    });
+  });
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "qualified-ota.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await page
+    .getByRole("button", { name: "Analog simulation", exact: true })
+    .click();
+  const panel = page.getByRole("region", { name: "Analog simulation" });
+  await panel.getByText("Setup", { exact: true }).click();
+  await expect(panel.getByLabel("Testbench Cell")).toHaveValue(
+    project.simulation!.input.rootDocumentId,
+  );
+  await expect(panel.getByLabel("Stop (Hz)")).toHaveValue("1000000000");
+  await expect(panel.getByLabel("Environment profile")).toHaveValue(profile.id);
+  await expect(panel.getByRole("button", { name: "Remove probe" })).toHaveCount(
+    4,
+  );
+  await expect(
+    panel.getByText("net-dut-tail (XDUT)", { exact: false }),
+  ).toBeVisible();
+  await panel.getByRole("button", { name: "Apply setup" }).click();
+  await panel.getByRole("button", { name: "Prepare deck" }).click();
+  const deckDownload = page.waitForEvent("download");
+  await panel
+    .getByRole("button", { name: "prepared.cir", exact: true })
+    .click();
+  const stream = await (await deckDownload).createReadStream();
+  let deck = "";
+  for await (const chunk of stream!) deck += chunk.toString();
+  for (const vector of ["v(vout)", "v(ibias)", "v(xdut.tail)", "v(xdut.nleft)"])
+    expect(deck).toContain(vector);
+  expect(deck).toMatch(/ac dec 10 1 (?:1000000000|1e\+?9)/i);
+  expect(executions).toBe(0);
+  await panel.getByRole("button", { name: "Close simulation" }).click();
+  const saved = JSON.parse(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(),
+  );
+  expect(saved.simulation).toEqual(project.simulation);
+  await page.reload();
+  await page.getByTestId("project-file").setInputFiles({
+    name: "reopened.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(saved)),
+  });
+  await page
+    .getByRole("button", { name: "Analog simulation", exact: true })
+    .click();
+  await panel.getByText("Setup", { exact: true }).click();
+  await expect(panel.getByRole("button", { name: "Remove probe" })).toHaveCount(
+    4,
+  );
+  await expect(panel.getByLabel("Stop (Hz)")).toHaveValue("1000000000");
+});
 
 test("human simulation uses saved setup, survives closing, recovers a bad input and exports results", async ({
   page,
@@ -133,7 +216,11 @@ test("human simulation uses saved setup, survives closing, recovers a bad input 
             reproducibility: "observed",
             profileId: profile.id,
             platform: "linux/x64",
-            simulator: { name: "ngspice", version: "47", binarySha256: null },
+            simulator: {
+              name: "ngspice",
+              version: profile.simulator.version,
+              binarySha256: null,
+            },
             models: null,
             startupSha256: null,
           }),
@@ -333,7 +420,11 @@ test("Agent raw simulation recovers input errors, returns a run receipt and expo
             reproducibility: "observed",
             profileId: profile.id,
             platform: "linux/x64",
-            simulator: { name: "ngspice", version: "47", binarySha256: null },
+            simulator: {
+              name: "ngspice",
+              version: profile.simulator.version,
+              binarySha256: null,
+            },
             models: null,
             startupSha256: null,
           }),
