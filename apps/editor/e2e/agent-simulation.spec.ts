@@ -149,7 +149,9 @@ test("human simulation uses saved setup, survives closing, recovers a bad input 
   });
   await expect(page.getByTestId("schematic-canvas")).toBeVisible();
   expect(calls).toBe(0);
-  await page.getByTestId("open-analog-simulation").click();
+  await page
+    .getByRole("button", { name: "Analog simulation", exact: true })
+    .click();
   const panel = page.getByRole("region", { name: "Analog simulation" });
   await panel.getByRole("button", { name: "Run", exact: true }).click();
   await expect(panel.getByRole("alert")).toContainText(/PROBE|probe/);

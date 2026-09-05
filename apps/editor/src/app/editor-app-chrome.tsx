@@ -306,6 +306,7 @@ export function EditorAppChrome({
               <button
                 type="button"
                 data-testid="open-analog-simulation"
+                aria-label="Analog simulation"
                 onClick={simulationAction}
               >
                 Simulation
