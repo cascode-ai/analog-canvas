@@ -11,6 +11,7 @@ import {
   type AgentFileResourceRequest,
   type AgentSessionLimits,
   type AgentSessionScope,
+  type AgentSimulationResourceRequest,
   type AgentTransportErrorCode,
   type AgentTransportErrorResponse,
 } from "@icm/agent-adapter";
@@ -20,6 +21,8 @@ export const SESSION_STATE_KEY = "agent-session-v1";
 export const EDITOR_SOCKET_TAG = "editor";
 export const EDITOR_PROTOCOL = "icm-agent-session";
 export const FORWARD_TIMEOUT_MS = 30_000;
+/** Simulation start returns a receipt; it uses the ordinary RPC deadline. */
+export const SIMULATION_FORWARD_TIMEOUT_MS = FORWARD_TIMEOUT_MS;
 export const EXPIRY_WARNING_MS = 60_000;
 export const CREATE_BODY_LIMIT = 64_000;
 export const CLAIM_BODY_LIMIT = 8_000;
@@ -296,7 +299,7 @@ export async function routeAgentSessionRequest(
   }
 
   const match =
-    /^\/api\/agent\/sessions\/([^/]+)(?:\/(circuit|files|events|editor|control))?$/u.exec(
+    /^\/api\/agent\/sessions\/([^/]+)(?:\/(circuit|files|simulation|events|editor|control))?$/u.exec(
       url.pathname,
     );
   if (!match) return jsonResponse({ error: "Not found" }, 404, allowedOrigin);
@@ -406,6 +409,8 @@ export function errorMessage(code: AgentTransportErrorCode): string {
     FILE_CANDIDATE_NOT_FOUND: "Candidate is unavailable or has expired",
     FILE_IMPORT_FAILED: "Structural SPICE import failed",
     FILE_EXPORT_FAILED: "Formal file export failed",
+    SIMULATION_REQUEST_INVALID:
+      "Simulation Resource request does not match its strict schema",
   };
   return messages[code];
 }
@@ -462,6 +467,8 @@ export function fileOperationScopes(
   request: AgentFileResourceRequest,
 ): AgentSessionScope[] {
   switch (request.operation) {
+    case "simulation-input":
+      return ["simulation.run"];
     case "download":
       return [
         request.artifact === "project" ? "project.download" : "visual.download",
@@ -471,6 +478,27 @@ export function fileOperationScopes(
     case "discard":
     case "request-approval":
       return ["project.import"];
+  }
+}
+
+/**
+ * `capabilities` is free, exactly as it is on the Circuit endpoint: asking
+ * what a deployment can do is not doing it, and an Agent that must hold a
+ * spending scope merely to discover it has none is being told to guess.
+ * Running costs the deployment simulator time, so `run` needs its own grant.
+ */
+export function simulationOperationScopes(
+  request: AgentSimulationResourceRequest,
+): AgentSessionScope[] {
+  switch (request.operation) {
+    case "capabilities":
+      return [];
+    case "prepare":
+    case "start":
+    case "read":
+    case "cancel":
+    case "export":
+      return ["simulation.run"];
   }
 }
 

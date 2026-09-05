@@ -3,6 +3,7 @@ import {
   AGENT_SESSION_PROTOCOL_VERSION,
   AgentCircuitResponseSchema,
   AgentFileResourceResponseSchema,
+  AgentSimulationResourceResponseSchema,
   AgentSessionControlMessageSchema,
   AgentSessionEventSchema,
   AgentSessionMachine,
@@ -11,8 +12,10 @@ import {
   invalidAgentRequestResponse,
   parseAgentCircuitRequest,
   parseAgentFileResourceRequest,
+  parseAgentSimulationResourceRequest,
   type AgentCircuitRequest,
   type AgentFileResourceRequest,
+  type AgentSimulationResourceRequest,
   type AgentSessionEvent,
   type AgentSessionScope,
   type AgentTransportErrorCode,
@@ -24,6 +27,7 @@ import {
   EDITOR_SOCKET_TAG,
   EXPIRY_WARNING_MS,
   FORWARD_TIMEOUT_MS,
+  SIMULATION_FORWARD_TIMEOUT_MS,
   SESSION_STATE_KEY,
   bearerToken,
   editorSecret,
@@ -35,6 +39,7 @@ import {
   redeemClaimResponse,
   relayHeaders,
   sha256Text,
+  simulationOperationScopes,
   transportStatus,
   type AgentSessionEnv,
   type DurableStateLike,
@@ -90,6 +95,9 @@ export class AgentSessionDO {
     }
     if (request.method === "POST" && url.pathname === "/files") {
       return this.files(request, machine, allowedOrigin);
+    }
+    if (request.method === "POST" && url.pathname === "/simulation") {
+      return this.simulation(request, machine, allowedOrigin);
     }
     if (request.method === "GET" && url.pathname === "/events") {
       return this.events(request, machine, allowedOrigin);
@@ -159,14 +167,17 @@ export class AgentSessionDO {
     if (envelope.sessionId !== machine.sessionId) return;
     if (
       envelope.kind === "circuit-response" ||
-      envelope.kind === "file-response"
+      envelope.kind === "file-response" ||
+      envelope.kind === "simulation-response"
     ) {
       const pending = this.pendingForwards.get(envelope.requestId);
       if (!pending) return;
       const response =
         envelope.kind === "circuit-response"
           ? AgentCircuitResponseSchema.safeParse(envelope.payload)
-          : AgentFileResourceResponseSchema.safeParse(envelope.payload);
+          : envelope.kind === "file-response"
+            ? AgentFileResourceResponseSchema.safeParse(envelope.payload)
+            : AgentSimulationResourceResponseSchema.safeParse(envelope.payload);
       if (!response.success) {
         clearTimeout(pending.timeout);
         this.pendingForwards.delete(envelope.requestId);
@@ -716,6 +727,133 @@ export class AgentSessionDO {
     }
   }
 
+  /**
+   * Relay one Simulation Resource request to the browser.
+   *
+   * Structurally the same as `files`, with two deliberate differences. The
+   * forward waits on the simulation ceiling rather than the edit ceiling, and
+   * a completed run IS cached against its requestId: a retry after a dropped
+   * response must return the numbers that were already computed, not start a
+   * second container run and bill the deployment twice for one question.
+   */
+  private async simulation(
+    request: Request,
+    machine: AgentSessionMachine,
+    allowedOrigin: string | null,
+  ): Promise<Response> {
+    const raw = await request.text();
+    const size = machine.checkSize(new TextEncoder().encode(raw).byteLength);
+    if (!size.ok) {
+      return jsonResponse(
+        errorBody(size.code, errorMessage(size.code)),
+        transportStatus(size.code),
+        allowedOrigin,
+      );
+    }
+    let input: unknown;
+    try {
+      input = JSON.parse(raw);
+    } catch {
+      return jsonResponse(
+        errorBody(
+          "SIMULATION_REQUEST_INVALID",
+          "Simulation Resource request must be valid JSON",
+        ),
+        400,
+        allowedOrigin,
+      );
+    }
+    const parsed = parseAgentSimulationResourceRequest(input);
+    if (!parsed.success) {
+      return jsonResponse(
+        errorBody(
+          "SIMULATION_REQUEST_INVALID",
+          errorMessage("SIMULATION_REQUEST_INVALID"),
+        ),
+        400,
+        allowedOrigin,
+      );
+    }
+    const simulationRequest = parsed.data;
+    const auth = machine.authorize(bearerToken(request), Date.now());
+    if (!auth.ok)
+      return jsonResponse(
+        errorBody(auth.code, errorMessage(auth.code)),
+        transportStatus(auth.code),
+        allowedOrigin,
+      );
+    const scopeAllowed = simulationOperationScopes(simulationRequest).every(
+      (required) => machine.assertScope(auth.session.scopes, required).ok,
+    );
+    if (!scopeAllowed) {
+      return jsonResponse(
+        errorBody(
+          "TOKEN_SCOPE_INSUFFICIENT",
+          errorMessage("TOKEN_SCOPE_INSUFFICIENT"),
+        ),
+        403,
+        allowedOrigin,
+      );
+    }
+    const begin = machine.beginRequest(
+      simulationRequest.requestId,
+      Date.now(),
+      await sha256Text(raw),
+    );
+    if (begin.kind === "cached")
+      return jsonResponse(begin.result, 200, allowedOrigin);
+    if (begin.kind === "rejected")
+      return jsonResponse(
+        errorBody(begin.code, errorMessage(begin.code)),
+        transportStatus(begin.code),
+        allowedOrigin,
+      );
+    await this.persist();
+    this.emit({
+      type: "operation.started",
+      sessionId: machine.sessionId,
+      requestId: simulationRequest.requestId,
+    });
+    try {
+      const result = await this.forwardToEditor(
+        machine,
+        simulationRequest,
+        "simulation-request",
+      );
+      machine.completeRequest(simulationRequest.requestId, result, Date.now());
+      await this.persist();
+      this.emit({
+        type: "operation.completed",
+        sessionId: machine.sessionId,
+        requestId: simulationRequest.requestId,
+      });
+      return jsonResponse(result, 200, allowedOrigin);
+    } catch (error) {
+      const value = error instanceof Error ? error.message : "";
+      const code: AgentTransportErrorCode =
+        value === "REQUEST_TIMEOUT" || value === "MESSAGE_TOO_LARGE"
+          ? value
+          : value === "EDITOR_OFFLINE"
+            ? "EDITOR_OFFLINE"
+            : "EDITOR_DISCONNECTED";
+      machine.failRequest(
+        simulationRequest.requestId,
+        code === "EDITOR_OFFLINE",
+      );
+      await this.persist();
+      this.emit({
+        type: "operation.failed",
+        sessionId: machine.sessionId,
+        requestId: simulationRequest.requestId,
+      });
+      return jsonResponse(
+        errorBody(code, errorMessage(code)),
+        transportStatus(code),
+        allowedOrigin,
+      );
+    }
+  }
+
   private async events(
     request: Request,
     machine: AgentSessionMachine,
@@ -832,8 +970,14 @@ export class AgentSessionDO {
 
   private async forwardToEditor(
     machine: AgentSessionMachine,
-    payload: AgentCircuitRequest | AgentFileResourceRequest,
-    kind: "circuit-request" | "file-request" = "circuit-request",
+    payload:
+      | AgentCircuitRequest
+      | AgentFileResourceRequest
+      | AgentSimulationResourceRequest,
+    kind:
+      | "circuit-request"
+      | "file-request"
+      | "simulation-request" = "circuit-request",
   ): Promise<unknown> {
     const sockets = this.state.getWebSockets?.(EDITOR_SOCKET_TAG) ?? [];
     const socket = sockets.find(
@@ -842,10 +986,15 @@ export class AgentSessionDO {
     if (!socket) throw new Error("EDITOR_OFFLINE");
     const requestId = payload.requestId;
     const response = new Promise<unknown>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        this.pendingForwards.delete(requestId);
-        reject(new Error("REQUEST_TIMEOUT"));
-      }, FORWARD_TIMEOUT_MS);
+      const timeout = setTimeout(
+        () => {
+          this.pendingForwards.delete(requestId);
+          reject(new Error("REQUEST_TIMEOUT"));
+        },
+        kind === "simulation-request"
+          ? SIMULATION_FORWARD_TIMEOUT_MS
+          : FORWARD_TIMEOUT_MS,
+      );
       this.pendingForwards.set(requestId, { resolve, reject, timeout });
     });
     socket.send(

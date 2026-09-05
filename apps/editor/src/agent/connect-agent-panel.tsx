@@ -67,6 +67,7 @@ export const AGENT_PERMISSION_PRESETS: readonly PermissionPreset[] = [
       "project.download",
       "visual.download",
       "project.import",
+      "simulation.run",
     ],
   },
 ];

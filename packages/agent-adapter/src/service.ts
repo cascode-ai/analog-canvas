@@ -36,6 +36,7 @@ import type {
   AgentPermissions,
   AgentRenderRequest,
   AgentSessionSnapshot,
+  AgentSimulationResourceCapability,
 } from "./schema.js";
 import { AgentAuthoringCommandSchema } from "./authoring-command.js";
 import { buildProjectConnectivityIndex, traceHierarchyNet } from "@icm/derived";
@@ -91,6 +92,8 @@ export interface AgentCircuitHostServiceOptions {
   limits?: Partial<AgentLimits>;
   /** Advertised independently from the four Circuit operations. */
   fileResource?: AgentFileResourceCapability;
+  /** The Simulation Resource sibling, advertised the same way. */
+  simulationResource?: AgentSimulationResourceCapability;
 }
 
 export interface AgentCircuitService {
@@ -264,6 +267,9 @@ export function createAgentCircuitService(
   const fileResource = useHost
     ? (options as AgentCircuitHostServiceOptions).fileResource
     : undefined;
+  const simulationResource = useHost
+    ? (options as AgentCircuitHostServiceOptions).simulationResource
+    : undefined;
   const storeOptions = (
     useHost ? null : options
   ) as AgentCircuitServiceOptions | null;
@@ -327,7 +333,19 @@ export function createAgentCircuitService(
             ],
             permissions: productionPermissions,
             limits,
-            ...(fileResource ? { resources: { file: fileResource } } : {}),
+            // `resources` exists only when the file sibling does: the schema
+            // makes `file` its required member, so a simulation-only advert
+            // has nowhere to go and would be a lie about what is reachable.
+            ...(fileResource
+              ? {
+                  resources: {
+                    file: fileResource,
+                    ...(simulationResource
+                      ? { simulation: simulationResource }
+                      : {}),
+                  },
+                }
+              : {}),
           },
         });
       }

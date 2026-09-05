@@ -113,5 +113,46 @@ request browser approval. Staging is not a completed import.
 For Cadence globals, use `action:"stage-spice", namingProfile:"cadence-bang"`.
 
 Exporting a Project file is not Cloud Save or Gallery publication. Account
-operations, simulation, waveforms, PVT and netlist export are outside this
-Agent feature increment.
+operations and PVT remain separate work.
+
+## Simulation
+
+Full Circuit Edit includes `simulation.run`; there is no per-run approval or
+mandatory helper-reading gate. `simulation` accepts a `request` using the
+same contract as `/api/agent/sessions/{sessionId}/simulation`:
+
+1. `capabilities`: discover the selected deployment Profile and limits without
+   starting the simulator.
+2. Configure the Project through `advanced_transact` with the existing
+   `set_simulation_setup` structure edit. Sources, DUT instances, formal ports,
+   and wiring remain ordinary Project edits. Alternatively provide an inline
+   setup to `prepare`; this does not replace the saved setup.
+3. `prepare` with `source:{kind:"structured"}` freezes the saved setup and
+   circuit. It returns `prepared.id`, `digest`, vectors, and export references.
+4. `start` with `preparedId` and `digest` returns `run.id` immediately. Supply
+   an explicit outer `requestId` and reuse it unchanged for a transport retry.
+5. `read` / `cancel` use `runId`. Each new poll uses a new request ID. A result
+   identifies its input revision and environment; `inputStatus` reports changes
+   since preparation. Editing the circuit does not rewrite an active run.
+6. `export` lists artifact references. `simulation_files` with
+   `request:{action:"artifact",artifactId}` retrieves bytes; `outputPath` saves
+   them locally after verifying length and SHA-256. Deck, rawfile, JSON, log
+   and per-analysis CSV use the same File Resource, not a second filesystem.
+   Large run reads set `resultPreview`; use artifact `offset`/`nextOffset` to
+   page through full evidence. Local `outputPath` exports assemble all slices.
+
+For **graphless/raw** authoring, call `simulation_files` to `create`, then
+`update` with `workspaceId`, `expectedRevision`, `entry`, and `writes` of
+`{path,text}`. Author a complete SPICE entry and relative include files; helpers
+are optional. Prepare with `source:{kind:"raw",workspaceId,expectedRevision,
+environment:{profileId}}`. Raw deck text owns analyses, temperature and model
+directives; the service does not append sources, analysis commands or `.end`.
+Capabilities identifies the installed model library for an explicit `.lib`.
+Paths are workspace-relative, without traversal or overriding `.spiceinit`.
+This does not replace the Project and needs no Project import approval.
+
+An input error, missing model, busy executor, timeout or failed simulation
+does not revoke the session. Read `error.code`, `stage`, `recovery` and any
+located diagnostics, fix input, and continue. An uncertain accepted execution
+is `lost`, never automatically submitted again. There is no promise of durable
+jobs across browser reload: export evidence before leaving the session.

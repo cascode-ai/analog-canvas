@@ -216,6 +216,7 @@ import { createEditorTransactionCommands } from "./editor-transaction-commands";
 import { recoveryStateLabel } from "../components/recovery-banners";
 import { BrowserAgentHost } from "../agent/browser-agent-host";
 import { BrowserAgentFileHost } from "../agent/browser-agent-file-host";
+import { BrowserAgentSimulationHost } from "../agent/browser-agent-simulation-host";
 import { createAgentSemanticIntentHandler } from "../agent/agent-semantic-intent-handler";
 import { PUBLIC_AGENT_UI_ENABLED } from "../agent/public-agent-ui";
 import { useAgentSession } from "../agent/use-agent-session";
@@ -642,6 +643,15 @@ export function App({
       }),
     [editorDocumentController, projectSessionId],
   );
+  const browserAgentSimulationHost = useMemo(
+    () =>
+      new BrowserAgentSimulationHost({
+        files: browserAgentFileHost.simulationFiles,
+        getProjectSessionId: () => editorDocumentController.projectSessionId,
+        getProject: () => editorDocumentController.project,
+      }),
+    [editorDocumentController, projectSessionId],
+  );
   const {
     cloudBinding,
     savedProjectBaseline,
@@ -757,6 +767,7 @@ export function App({
     projectSessionId,
     host: browserAgentHost,
     fileHost: browserAgentFileHost,
+    simulationHost: browserAgentSimulationHost,
   });
   useEffect(() => {
     if (!publicAgentUiEnabled) return;

@@ -8,6 +8,14 @@
 
 Status: `accepted`
 
+Simulation amendment: the four operations remain the Circuit API, not a ban
+on named sibling resources. `simulation` and `simulation_files` MCP tools are
+thin projections of Simulation and File Resource contracts. They share the
+browser-authorized session; Full Circuit Edit grants simulation without
+per-operation prompts. Raw SPICE authoring is permitted in the isolated File
+workspace. Domain errors return recoverable results and do not revoke access.
+See [the current quickstart](../agent/mcp-quickstart.md).
+
 Date: 2026-08-14
 
 Owners: `apps/mcp-server`, `packages/agent-client`

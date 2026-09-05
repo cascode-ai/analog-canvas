@@ -29,12 +29,14 @@ function parseText(result: {
 }
 
 describe("mcp tool surface", () => {
-  it("exposes twelve compact tools with JSON-schema inputs", () => {
+  it("exposes compact Circuit, File and Simulation tools with JSON-schema inputs", () => {
     const tools = listToolDefinitions();
     expect(tools.map((tool) => tool.name)).toEqual([
       "connect",
       "disconnect",
       "connection_status",
+      "simulation",
+      "simulation_files",
       "export_file",
       "import_file",
       "get_context",

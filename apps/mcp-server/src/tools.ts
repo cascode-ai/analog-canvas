@@ -1,4 +1,7 @@
 import { z } from "zod";
+import { SimulationOperationSchema } from "@icm/simulation-service/contract";
+import { SimulationFileOperationSchema } from "@icm/simulation-service/files";
+import { AGENT_API_VERSION } from "@icm/agent-adapter";
 import {
   AgentAuthoringCommandSchema,
   AgentSemanticIntentSchema,
@@ -20,7 +23,11 @@ import {
   searchSnapshot,
   type SearchKind,
 } from "./results.js";
-import { exportFile, importFile } from "./file-operations.js";
+import {
+  exportFile,
+  importFile,
+  exportSimulationArtifact,
+} from "./file-operations.js";
 
 /**
  * The default MCP tool surface (ADR 0020): 12 compact tools. The full
@@ -40,6 +47,15 @@ const ConnectArgs = z.strictObject({
     .describe(
       "Claim code from the editor connect panel. Omit to resume the browser-approved connector saved for this MCP host.",
     ),
+});
+const SimulationArgs = z.strictObject({
+  request: SimulationOperationSchema,
+  requestId: z.string().min(1).optional(),
+});
+const SimulationFilesArgs = z.strictObject({
+  request: SimulationFileOperationSchema,
+  requestId: z.string().min(1).optional(),
+  outputPath: z.string().min(1).optional(),
 });
 
 const ExportFileArgs = z
@@ -265,6 +281,87 @@ const TOOLS: readonly ToolEntry[] = [
       inputSchema: jsonSchemaOf(z.strictObject({})),
     },
     handle: async (_args, session) => session.client.status({ refresh: true }),
+  },
+  {
+    definition: {
+      name: "simulation",
+      description:
+        "Prepare structured Project setup or raw File Resource input, start once, poll/read, cancel, and list export artifacts. Supply the SAME requestId for a start retry. Ordinary failures are recoverable result objects, not session failures. Configure persisted settings through advanced_transact set_simulation_setup; use ordinary Cell/source edits for DUT/testbench.",
+      inputSchema: jsonSchemaOf(SimulationArgs),
+    },
+    handle: async (args, session) => {
+      const { request, requestId } = SimulationArgs.parse(args);
+      return session.client.simulationResource({
+        ...request,
+        apiVersion: AGENT_API_VERSION,
+        requestId: requestId ?? crypto.randomUUID(),
+      });
+    },
+  },
+  {
+    definition: {
+      name: "simulation_files",
+      description:
+        "Use the canonical File Resource for an isolated raw testbench workspace: create/read/update/discard. Writes accept complete authored SPICE text and relative include files, without Canvas or helper-only restrictions. update uses expectedRevision. Fetch an immutable artifact by ID; optional outputPath saves it locally after digest verification. Does not replace the open Project or require import approval.",
+      inputSchema: jsonSchemaOf(SimulationFilesArgs),
+    },
+    handle: async (args, session) => {
+      const { request, requestId, outputPath } =
+        SimulationFilesArgs.parse(args);
+      if (outputPath && request.action !== "artifact")
+        return {
+          ok: false,
+          error: {
+            code: "OUTPUT_REQUIRES_ARTIFACT",
+            message: "outputPath is only used for artifact downloads",
+            recovery: "fix-input",
+          },
+        };
+      const response = await session.client.fileResource({
+        apiVersion: AGENT_API_VERSION,
+        requestId: requestId ?? crypto.randomUUID(),
+        operation: "simulation-input",
+        input: request,
+      });
+      if (!response.ok || response.operation !== "simulation-input")
+        return response;
+      if (outputPath && response.result.ok && "artifact" in response.result) {
+        let chunk = response.result;
+        if (chunk.offset !== 0)
+          return {
+            ok: false,
+            error: {
+              code: "EXPORT_REQUIRES_START",
+              message: "A local export starts at offset 0",
+              recovery: "fix-input",
+            },
+          };
+        let text = chunk.text;
+        while (chunk.nextOffset !== null) {
+          const next = await session.client.fileResource({
+            apiVersion: AGENT_API_VERSION,
+            requestId: crypto.randomUUID(),
+            operation: "simulation-input",
+            input: {
+              action: "artifact",
+              artifactId: chunk.artifact.id,
+              offset: chunk.nextOffset,
+              maxChars: 65536,
+            },
+          });
+          if (!next.ok || next.operation !== "simulation-input") return next;
+          if (!next.result.ok || !("artifact" in next.result))
+            return next.result;
+          chunk = next.result;
+          text += chunk.text;
+        }
+        return exportSimulationArtifact(
+          { artifact: chunk.artifact, text },
+          outputPath,
+        );
+      }
+      return response.result;
+    },
   },
   {
     definition: {

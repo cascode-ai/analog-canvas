@@ -1,4 +1,9 @@
 import { z } from "zod";
+import {
+  SimulationFileOperationSchema,
+  SimulationFileResultSchema,
+} from "@icm/simulation-service/files";
+import { ProblemSchema } from "@icm/simulation-service/contract";
 
 import { AGENT_API_VERSION } from "./schema.js";
 
@@ -27,6 +32,10 @@ const FileRequestBaseSchema = z.strictObject({
 export const AgentFileResourceRequestSchema = z.discriminatedUnion(
   "operation",
   [
+    FileRequestBaseSchema.extend({
+      operation: z.literal("simulation-input"),
+      input: SimulationFileOperationSchema,
+    }),
     FileRequestBaseSchema.extend({
       operation: z.literal("download"),
       artifact: z.enum(["project", "svg", "png", "pdf"]),
@@ -85,6 +94,14 @@ export const AgentFileCandidateSummarySchema = z.strictObject({
 });
 export const AgentFileResourceResponseSchema = z.union([
   FileResponseBaseSchema.extend({
+    operation: z.literal("simulation-input"),
+    ok: z.literal(true),
+    result: z.union([
+      SimulationFileResultSchema,
+      z.strictObject({ ok: z.literal(false), error: ProblemSchema }),
+    ]),
+  }),
+  FileResponseBaseSchema.extend({
     operation: z.literal("download"),
     ok: z.literal(true),
     artifact: AgentFileBlobSchema,
@@ -113,6 +130,7 @@ export const AgentFileResourceResponseSchema = z.union([
       "inspect",
       "discard",
       "request-approval",
+      "simulation-input",
     ]),
     ok: z.literal(false),
     error: z.strictObject({

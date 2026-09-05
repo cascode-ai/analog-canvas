@@ -8,6 +8,7 @@ import {
   type AgentFileResourceRequest,
   type AgentFileResourceResponse,
 } from "@icm/agent-adapter";
+import { SimulationFiles } from "@icm/simulation-service/files";
 import { createFormalExportSource } from "@icm/exporters";
 import { parseProject, serializeProject } from "@icm/project-protocol";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
@@ -35,6 +36,7 @@ export interface BrowserAgentFileHostOptions {
  * A staged candidate has no authority to replace the live project by itself.
  */
 export class BrowserAgentFileHost {
+  readonly simulationFiles = new SimulationFiles();
   private readonly candidates = new Map<string, StoredCandidate>();
   private readonly boundProjectSessionId: string;
 
@@ -54,6 +56,14 @@ export class BrowserAgentFileHost {
     }
     this.removeExpired();
     switch (request.operation) {
+      case "simulation-input":
+        return {
+          apiVersion: AGENT_API_VERSION,
+          requestId: request.requestId,
+          operation: request.operation,
+          ok: true,
+          result: await this.simulationFiles.handle(request.input),
+        };
       case "download":
         return this.download(request);
       case "stage":
@@ -125,6 +135,7 @@ export class BrowserAgentFileHost {
   }
 
   clear(): void {
+    this.simulationFiles.clear();
     this.candidates.clear();
   }
 

@@ -13,6 +13,32 @@ export interface ExportFileOptions {
   outputPath: string;
 }
 
+export async function exportSimulationArtifact(
+  value: {
+    artifact: { byteLength: number; sha256: string; name: string };
+    text: string;
+  },
+  path: string,
+) {
+  const bytes = Buffer.from(value.text, "utf8");
+  if (
+    bytes.length !== value.artifact.byteLength ||
+    sha256(bytes) !== value.artifact.sha256
+  )
+    return {
+      ok: false,
+      error: {
+        code: "FILE_INTEGRITY_FAILED",
+        message: "Artifact bytes do not match the receipt; no file was written",
+        recovery: "not-retryable",
+      },
+    };
+  const outputPath = resolve(path);
+  await mkdir(dirname(outputPath), { recursive: true });
+  await writeFile(outputPath, bytes);
+  return { ok: true, outputPath, ...value.artifact };
+}
+
 export type ImportFileOperation =
   | { action: "stage-project"; path: string }
   | {

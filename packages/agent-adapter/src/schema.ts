@@ -25,6 +25,7 @@ import {
   ExternalSubcircuitDefinitionSchema,
   CellNetlistInterfaceSchema,
   MosBulkDefaultsSchema,
+  SimulationSetupSchema,
 } from "@icm/model";
 import { ObjectLocatorSchema, HierarchyFrameSchema } from "@icm/derived";
 import {
@@ -71,10 +72,27 @@ export const AgentCapabilitiesRequestSchema = RequestBaseSchema.extend({
 export const AgentFileResourceCapabilitySchema = z.strictObject({
   path: z.literal("/api/agent/sessions/{sessionId}/files"),
   operations: z.array(
-    z.enum(["download", "stage", "inspect", "discard", "request-approval"]),
+    z.enum([
+      "download",
+      "stage",
+      "inspect",
+      "discard",
+      "request-approval",
+      "simulation-input",
+    ]),
   ),
   maxBytes: z.number().int().positive(),
   humanApprovalRequired: z.literal(true),
+});
+/** Separate, short-request Simulation Resource over the shared run registry. */
+export const AgentSimulationResourceCapabilitySchema = z.strictObject({
+  path: z.literal("/api/agent/sessions/{sessionId}/simulation"),
+  operations: z.array(
+    z.enum(["prepare", "start", "read", "cancel", "export", "capabilities"]),
+  ),
+  analyses: z.array(z.enum(["op", "ac"])),
+  maxTimeoutMs: z.number().int().positive(),
+  synchronous: z.literal(false),
 });
 export const AgentSnapshotRequestSchema = RequestBaseSchema.extend({
   operation: z.literal("snapshot"),
@@ -529,6 +547,15 @@ export const AgentSessionSnapshotSchema = z.strictObject({
     structureRevision: z.number().int().nonnegative(),
     topDocumentId: StableIdSchema,
     documents: z.array(AgentProjectIndexDocumentSchema).min(1),
+    /**
+     * The Project's saved simulation intent, exactly as persisted, or null
+     * when none is configured. An Agent reads what a human set up here rather
+     * than guessing a Testbench root, and the Simulation Resource runs this
+     * same setup when a `run` carries no inline one. It is the setup, never a
+     * result: results, run ids, and prepared decks are transient by contract
+     * (`docs/specs/simulation.md`, "Persistence and compatibility").
+     */
+    simulation: SimulationSetupSchema.nullable(),
   }),
   document: AgentSnapshotDocumentSchema,
 });
@@ -555,7 +582,10 @@ export const AgentCapabilitiesResponseSchema = ResponseBaseSchema.extend({
     permissions: AgentPermissionsSchema,
     limits: AgentLimitsSchema,
     resources: z
-      .strictObject({ file: AgentFileResourceCapabilitySchema })
+      .strictObject({
+        file: AgentFileResourceCapabilitySchema,
+        simulation: AgentSimulationResourceCapabilitySchema.optional(),
+      })
       .optional(),
   }),
 });
@@ -721,4 +751,7 @@ export type AgentSessionSnapshot = z.infer<typeof AgentSessionSnapshotSchema>;
 export type AgentSnapshotDocument = z.infer<typeof AgentSnapshotDocumentSchema>;
 export type AgentFileResourceCapability = z.infer<
   typeof AgentFileResourceCapabilitySchema
+>;
+export type AgentSimulationResourceCapability = z.infer<
+  typeof AgentSimulationResourceCapabilitySchema
 >;

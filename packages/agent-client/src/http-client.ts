@@ -2,16 +2,22 @@ import {
   AgentConnectionCredentialResponseSchema,
   AgentCircuitResponseSchema,
   AgentFileResourceResponseSchema,
+  AgentSimulationResourceResponseSchema,
   type AgentCircuitRequest,
   type AgentCircuitResponse,
   type AgentFileResourceRequest,
   type AgentFileResourceResponse,
+  type AgentSimulationResourceRequest,
+  type AgentSimulationResourceResponse,
 } from "@icm/agent-adapter";
 import {
   invalidResponseFailure,
   networkFailure,
   transportFailure,
 } from "./errors.js";
+
+/** Short receipt/read RPCs; the long executor HTTP request stays in the browser host. */
+export const SIMULATION_REQUEST_TIMEOUT_MS = 35_000;
 
 export interface ClaimSuccess {
   sessionId: string;
@@ -163,6 +169,42 @@ export class AgentHttpClient {
     return parsed.data;
   }
 
+  /**
+   * Invoke the browser-hosted Simulation Resource.
+   *
+   * It gets its own timeout rather than the client-wide one: a run
+   * legitimately occupies the route's full 120 s ceiling, and a 30 s edit
+   * timeout would abandon runs that were about to answer -- while the
+   * deployment still paid for the container time.
+   */
+  async simulation(
+    sessionId: string,
+    agentToken: string,
+    request: AgentSimulationResourceRequest,
+  ): Promise<AgentSimulationResourceResponse> {
+    const response = await this.send(
+      `/api/agent/sessions/${encodeURIComponent(sessionId)}/simulation`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${agentToken}`,
+        },
+        body: JSON.stringify(request),
+      },
+      SIMULATION_REQUEST_TIMEOUT_MS,
+    );
+    const body: unknown = await response.json().catch(() => null);
+    if (!response.ok) throw this.transportError(response.status, body);
+    const parsed = AgentSimulationResourceResponseSchema.safeParse(body);
+    if (!parsed.success) {
+      throw invalidResponseFailure(
+        "Simulation response failed schema validation",
+      );
+    }
+    return parsed.data;
+  }
+
   async disconnect(sessionId: string, agentToken: string): Promise<void> {
     const response = await this.send(
       `/api/agent/sessions/${encodeURIComponent(sessionId)}`,
@@ -177,13 +219,17 @@ export class AgentHttpClient {
     }
   }
 
-  private async send(path: string, init: RequestInit): Promise<Response> {
+  private async send(
+    path: string,
+    init: RequestInit,
+    timeoutMs = this.timeoutMs,
+  ): Promise<Response> {
     for (let attempt = 0; ; attempt += 1) {
       let response: Response;
       try {
         response = await this.fetchImpl(joinUrl(this.baseUrl, path), {
           ...init,
-          signal: AbortSignal.timeout(this.timeoutMs),
+          signal: AbortSignal.timeout(timeoutMs),
         });
       } catch (error) {
         throw networkFailure(
@@ -203,7 +249,7 @@ export class AgentHttpClient {
         ? Math.max(0, requestedDelay)
         : 1000 * 2 ** attempt;
       // Do not wait indefinitely or retry earlier than the server permits.
-      if (delay > this.timeoutMs) return response;
+      if (delay > timeoutMs) return response;
       await response.body?.cancel();
       await this.sleep(delay);
     }

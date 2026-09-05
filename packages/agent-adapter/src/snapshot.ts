@@ -185,6 +185,10 @@ function projectIndex(options: BuildAgentSessionSnapshotOptions) {
     externalSubcircuitDefinitions: structuredClone(
       options.project?.externalSubcircuitDefinitions ?? [],
     ),
+    // The saved simulation intent travels with the Project index so an Agent
+    // reads what a human configured in the same call it reads the roster,
+    // rather than discovering it only by attempting a run.
+    simulation: structuredClone(options.project?.simulation ?? null),
     documents: [...documents]
       .sort((left, right) => left.id.localeCompare(right.id, "en"))
       .map((document) => ({

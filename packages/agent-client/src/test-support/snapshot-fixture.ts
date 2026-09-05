@@ -25,6 +25,7 @@ export function testSnapshot(): AgentSessionSnapshot {
       name: "Test Project",
       structureRevision: 0,
       topDocumentId: "main",
+      simulation: null,
       documents: [
         {
           id: "main",
