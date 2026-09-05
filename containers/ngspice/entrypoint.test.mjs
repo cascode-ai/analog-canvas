@@ -316,6 +316,8 @@ describeHarness("the output cap", () => {
     expect(payload.truncated).toBe(true);
     expect(payload.truncatedOutputs).toContain("log");
     expect(payload.log).toContain("output truncated by the simulation harness");
+    expect(payload.stdout).toContain("0123456789");
+    expect(payload.stderr).toContain("a diagnosis that must survive the flood");
     // The cap, plus the one line that says the cap was reached.
     expect(payload.log.length).toBeLessThan(700);
     // Each stream gets its own half of the budget, so a flood on stdout
@@ -345,6 +347,7 @@ describeHarness("the output cap", () => {
     expect(payload.truncatedOutputs).toContain("rawfile");
     expect(payload.rawfileName).toBe("out.raw");
     expect(payload.rawfile.length).toBeLessThanOrEqual(512);
+    expect(payload.rawfileRequested).toBe(true);
   });
 });
 
@@ -365,6 +368,9 @@ describeHarness("the rawfile", () => {
     expect(payload.rawfileName).toBe("out.raw");
     expect(payload.rawfileFormat).toBe("ascii");
     expect(payload.rawfile).toContain("Plotname: op");
+    expect(payload.rawfileRequested).toBe(true);
+    expect(payload.stdout).toContain("analysis done");
+    expect(payload.stderr).toBe("");
     // Read, not parsed: turning vectors into results is a separate contract.
     expect(payload.truncated).toBe(false);
   });
@@ -378,6 +384,7 @@ describeHarness("the rawfile", () => {
 
     expect(payload.rawfile).toBe(null);
     expect(payload.rawfileName).toBe(null);
+    expect(payload.rawfileRequested).toBe(false);
   });
 });
 

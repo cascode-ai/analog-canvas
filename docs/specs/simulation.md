@@ -545,9 +545,14 @@ simulator is wrong anywhere else.
 interface ContainerRunResponse {
   /** Capped; carries a one-line notice in the text when it was cut. */
   log: string;
+  /** The same capped output before human-readable concatenation. */
+  stdout: string;
+  stderr: string;
   /** True when the log or the rawfile reached the cap. */
   truncated: boolean;
   truncatedOutputs: ("log" | "rawfile")[];
+  /** What the harness observed in the submitted deck before collection. */
+  rawfileRequested: boolean;
   /** The rawfile's text when the deck asked for one and it is ASCII. */
   rawfile: string | null;
   rawfileName: string | null;
@@ -562,6 +567,14 @@ shortened log read as a whole one is a wrong answer about a circuit. The
 rawfile is returned when the deck contains `.save` or `write`, verbatim and
 under the same cap; turning its vectors into numbers is
 [Result data](#result-data) and is not done here.
+
+`stdout` and `stderr` remain separate execution facts even though `log`
+retains their human-readable concatenation. A runtime or libc failure on
+stderr is not evidence that ngspice accepted a deck merely because it made
+the combined log non-empty. `rawfileRequested` records the collection
+decision made by the harness; the Worker independently derives the same
+expectation from the prepared deck and rejects an explicit disagreement as a
+protocol failure.
 
 **Readiness.** `GET /health` answers during a run as well as between runs,
 reporting the environment facts, limits, and the Run Supervisor's one
@@ -723,6 +736,22 @@ empty, and an `unusable` reading always carries at least one `error`
 diagnostic saying what to go look at. Those diagnostics join the run's own, so
 a rawfile with no vectors classifies as `failed` -- reached, like every other
 failure, through an error diagnostic rather than through an exit code.
+
+The same evidence policy covers the absence of a file. One pure evaluator in
+`@icm/spice-run` owns the terminal verdict consumed by the Worker, Agent, GUI,
+and Preview checks:
+
+- when the deck requested a rawfile, `completed` requires a readable file with
+  at least one supported analysis and its vectors;
+- when the deck requested no rawfile, `completed` requires positive evidence
+  that ngspice accepted the deck, such as its `Circuit:` banner or analysis
+  output; arbitrary non-empty stderr is not evidence;
+- a non-zero exit code remains diagnostic rather than decisive when all
+  requested results arrived, because supported ngspice builds disagree about
+  the exit status of otherwise identical completed control-block runs.
+
+Preview qualification may additionally require a named environment, probes,
+and numeric tolerances. It does not reclassify the underlying run.
 
 ### CSV
 
