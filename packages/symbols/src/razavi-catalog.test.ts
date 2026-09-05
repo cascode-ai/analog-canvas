@@ -1120,9 +1120,9 @@ describe("Razavi symbol catalog", () => {
   it("keeps the bridged T-coil atomic while reusing reviewed L and C artwork", () => {
     const tcoil = requireRazaviCatalogSymbol("tcoil");
     expect(tcoil.pins).toMatchObject([
-      { name: "1", at: { x: -80, y: 0 }, direction: "west" },
-      { name: "2", at: { x: 70, y: 0 }, direction: "east" },
-      { name: "3", at: { x: 0, y: 20 }, direction: "south" },
+      { name: "1", at: { x: -100, y: 0 }, direction: "west" },
+      { name: "2", at: { x: 100, y: 0 }, direction: "east" },
+      { name: "3", at: { x: 0, y: 30 }, direction: "south" },
     ]);
     expect(
       tcoil.primitives.filter((primitive) => primitive.kind === "path"),
@@ -1138,8 +1138,8 @@ describe("Razavi symbol catalog", () => {
       ),
     ).toMatchObject({
       kind: "line",
-      from: { x: -5.4356, y: -41.3852 },
-      to: { x: -5.4356, y: -25.284 },
+      from: { x: -3.2336, y: -51.3856 },
+      to: { x: -3.2336, y: -35.2844 },
     });
     expect(
       tcoil.primitives.filter((primitive) =>
@@ -1152,8 +1152,8 @@ describe("Razavi symbol catalog", () => {
       ),
     ).toMatchObject({
       kind: "line",
-      from: { x: -11.2575, y: 0 },
-      to: { x: 8.6961, y: 0 },
+      from: { x: -12.9698, y: 0 },
+      to: { x: 12.9698, y: 0 },
     });
     const polarityDots = tcoil.primitives.filter(
       (primitive) =>

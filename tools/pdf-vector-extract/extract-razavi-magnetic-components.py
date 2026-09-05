@@ -299,25 +299,29 @@ def extract_tcoil(pdf_path: Path, output_dir: Path, pdftoppm: str) -> None:
             # using total path width compressed every T-coil route around it.
             "productWindingBodySpanLogical": 22.7392,
             "productLayoutScaleLogicalPerPdfPt": 1.6135103,
+            # Keep the reusable L/C bodies unchanged, then extend each free
+            # route segment by 30% so the composite retains the paper's open
+            # spacing after adopting the larger canvas junction contract.
+            "productInternalRouteExtension": 1.3,
             "productCoilCentersLogical": [
-                {"x": -30.7575, "y": 0},
-                {"x": 28.1961, "y": 0},
+                {"x": -32.4698, "y": 0},
+                {"x": 32.4698, "y": 0},
             ],
-            "productCapacitorCenterLogical": {"x": -2.202, "y": -33.3346},
+            "productCapacitorCenterLogical": {"x": 0, "y": -43.335},
             "productPinAnchorsLogical": [
-                {"name": "1", "x": -80, "y": 0},
-                {"name": "2", "x": 70, "y": 0},
-                {"name": "3", "x": 0, "y": 20},
+                {"name": "1", "x": -100, "y": 0},
+                {"name": "2", "x": 100, "y": 0},
+                {"name": "3", "x": 0, "y": 30},
             ],
-            "productBridgeBranchXsLogical": [-58.9853, 50.5332],
+            "productBridgeBranchXsLogical": [-70.2169, 70.2169],
             "productPolarityDotsLogical": [
-                {"x": -45.0745, "y": -6.0745, "radius": 3.77907},
-                {"x": 13.9101, "y": -6.0745, "radius": 3.77907},
+                {"x": -51.0618, "y": -6.0745, "radius": 3.77907},
+                {"x": 13.8778, "y": -6.0745, "radius": 3.77907},
             ],
             "productJunctionDotsLogical": [
-                {"x": -58.9853, "y": 0, "radius": 3.77907},
+                {"x": -70.2169, "y": 0, "radius": 3.77907},
                 {"x": 0, "y": 0, "radius": 3.77907},
-                {"x": 50.5332, "y": 0, "radius": 3.77907},
+                {"x": 70.2169, "y": 0, "radius": 3.77907},
             ],
             "canvasVisualContract": {
                 "routeStrokeRole": "normal",
