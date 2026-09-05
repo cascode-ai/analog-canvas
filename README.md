@@ -21,8 +21,9 @@ edit model.
   and child Cells.
 - **Projects and interchange:** save a private Cloud Project, import/export
   canonical `.icproj.json`, import structural `.cir`, `.sp`, and `.spi` files, and export
-  deterministic structural SPICE or Spectre. Analog Canvas does not supply
-  simulation, PDKs, device models, corners, stimuli, or analyses.
+  deterministic structural SPICE or Spectre. The Preview editor also provides
+  a saved Testbench setup and a fixed ngspice/SKY130 environment for qualified
+  OP, AC, and TRAN runs; Production availability remains release-controlled.
 - **Publication-ready output:** the web editor's SVG and PDF exports remain
   vector graphics; PNG is rendered at 3× raster scale.
 - **Community publishing:** signed-in users can publish selected circuits with

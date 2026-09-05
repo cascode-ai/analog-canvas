@@ -92,6 +92,7 @@ interface SimulationRequestBody {
     temperatureC?: unknown;
   };
   files?: unknown;
+  dependencies?: unknown;
   entryPath?: unknown;
   runToken?: unknown;
   preparedDeck?: unknown;
@@ -298,6 +299,12 @@ export async function routeSimulationRequest(
         {
           id: hostedSky130Profile.id,
           corners: [env.SKY130_LIB_SECTION ?? SKY130_LIBRARY_SECTION],
+          dependencies: [
+            {
+              id: hostedSky130Profile.models.id,
+              sha256: hostedSky130Profile.models.contentSha256,
+            },
+          ],
         },
       ],
       modelLibrary: {
@@ -371,6 +378,7 @@ export async function routeSimulationRequest(
       { status: 400 },
     );
   const files = body.files ?? [];
+  const dependencies = body.dependencies ?? [];
   const safePath = (p: unknown): p is string =>
     typeof p === "string" &&
     p.length > 0 &&
@@ -385,6 +393,26 @@ export async function routeSimulationRequest(
     files.some((f) => !f || !safePath(f.path) || typeof f.text !== "string") ||
     files.reduce((n, f) => n + new TextEncoder().encode(f.text).length, 0) >
       MAX_INPUT_BYTES ||
+    !Array.isArray(dependencies) ||
+    dependencies.length > 24 ||
+    dependencies.some(
+      (dependency) =>
+        !dependency ||
+        dependency.id !== hostedSky130Profile.models.id ||
+        dependency.sha256 !== hostedSky130Profile.models.contentSha256 ||
+        !safePath(dependency.mountPath),
+    ) ||
+    dependencies.some((dependency, index) =>
+      dependencies.some(
+        (candidate, candidateIndex) =>
+          candidateIndex !== index &&
+          candidate.mountPath === dependency.mountPath,
+      ),
+    ) ||
+    dependencies.some((dependency) =>
+      files.some((file) => file.path === dependency.mountPath),
+    ) ||
+    (dependencies.length > 0 && body.mode !== "raw") ||
     (body.entryPath !== undefined && !safePath(body.entryPath))
   )
     return Response.json({ error: "invalid-input-files" }, { status: 400 });
@@ -459,6 +487,7 @@ export async function routeSimulationRequest(
         deck,
         timeoutMs,
         files,
+        dependencies,
         ...(body.entryPath ? { entryPath: body.entryPath } : {}),
         ...(body.runToken ? { runToken: body.runToken } : {}),
       }),

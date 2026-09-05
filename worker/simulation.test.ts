@@ -37,7 +37,11 @@ const HOSTED_ENVIRONMENT = await createSimulationEnvironmentMetadata({
 /** Stands in for the container, recording the deck it was handed. */
 function stubRunner(
   reply: Record<string, unknown>,
-  seen: { deck?: string; timeoutMs?: number } = {},
+  seen: {
+    deck?: string;
+    timeoutMs?: number;
+    dependencies?: unknown;
+  } = {},
 ): SimulationEnv {
   return {
     NGSPICE: {
@@ -46,9 +50,11 @@ function stubRunner(
           const sent = JSON.parse(String(init?.body)) as {
             deck: string;
             timeoutMs: number;
+            dependencies?: unknown;
           };
           seen.deck = sent.deck;
           seen.timeoutMs = sent.timeoutMs;
+          seen.dependencies = sent.dependencies;
           return Response.json({ environment: HOSTED_ENVIRONMENT, ...reply });
         },
       }),
@@ -70,13 +76,28 @@ describe("simulation route", () => {
       inputs: ["structured", "raw"],
       analyses: hostedSky130Profile.qualifiedScope.analyses,
       parsedAnalyses: ["op", "ac", "tran"],
+      profiles: [
+        {
+          id: hostedSky130Profile.id,
+          dependencies: [
+            {
+              id: hostedSky130Profile.models.id,
+              sha256: hostedSky130Profile.models.contentSha256,
+            },
+          ],
+        },
+      ],
       maxInputBytes: 2 * 1024 * 1024,
       maxOutputBytes: 1024 * 1024,
       cancel: true,
     });
   });
   it("raw mode preserves a complete deck and relative files; exact prepared input is checked", async () => {
-    const seen: { deck?: string; timeoutMs?: number } = {};
+    const seen: {
+      deck?: string;
+      timeoutMs?: number;
+      dependencies?: unknown;
+    } = {};
     const deck = "raw title\n.include parts.inc\nV1 in 0 1\n.op\n.end";
     const body = {
       mode: "raw",
@@ -86,6 +107,13 @@ describe("simulation route", () => {
       files: [{ path: "parts.inc", text: "R1 in 0 1k" }],
       entryPath: "main.cir",
       inputRevision: "revision-raw",
+      dependencies: [
+        {
+          id: hostedSky130Profile.models.id,
+          sha256: hostedSky130Profile.models.contentSha256,
+          mountPath: "models/sky130.lib.spice",
+        },
+      ],
     };
     const response = await routeSimulationRequest(
       post(body),
@@ -93,6 +121,7 @@ describe("simulation route", () => {
     );
     expect(response!.status).toBe(200);
     expect(seen.deck).toBe(deck);
+    expect(seen.dependencies).toEqual(body.dependencies);
     expect(
       (await routeSimulationRequest(
         post({ ...body, preparedDeck: "other" }),

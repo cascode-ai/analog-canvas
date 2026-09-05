@@ -27,6 +27,7 @@ import {
   readFile,
   readdir,
   rm,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import { createServer } from "node:http";
@@ -238,6 +239,8 @@ async function loadEnvironmentProfile() {
     !isSha256(profile.simulator.binarySha256) ||
     typeof profile.models?.id !== "string" ||
     !isSha256(profile.models.contentSha256) ||
+    typeof profile.models.library?.runtimePath !== "string" ||
+    !profile.models.library.runtimePath.startsWith("/") ||
     !isSha256(profile.startup?.contentSha256)
   ) {
     throw new Error(`Simulation Profile ${PROFILE_PATH} is malformed.`);
@@ -339,6 +342,14 @@ async function observeEnvironment(ngspiceBin) {
         .digest("hex"),
     },
     startupText,
+    dependency:
+      profile === null
+        ? null
+        : {
+            id: profile.models.id,
+            sha256: profile.models.contentSha256,
+            runtimePath: profile.models.library.runtimePath,
+          },
   };
 }
 
@@ -663,6 +674,7 @@ async function handleRun(body) {
   if (token && cancelledTokens.has(token))
     return { status: 409, payload: { error: "run-cancelled" } };
   const files = body.files ?? [];
+  const dependencies = body.dependencies ?? [];
   const entryPath = body.entryPath ?? DECK_NAME;
   const safePath = (p) =>
     typeof p === "string" &&
@@ -675,8 +687,29 @@ async function handleRun(body) {
   if (
     !Array.isArray(files) ||
     files.length > 24 ||
+    !Array.isArray(dependencies) ||
+    dependencies.length > 24 ||
     !safePath(entryPath) ||
     files.some((f) => !f || !safePath(f.path) || typeof f.text !== "string") ||
+    dependencies.some(
+      (dependency) =>
+        !dependency ||
+        typeof dependency.id !== "string" ||
+        typeof dependency.sha256 !== "string" ||
+        !safePath(dependency.mountPath),
+    ) ||
+    dependencies.some((dependency, index) =>
+      dependencies.some(
+        (candidate, candidateIndex) =>
+          candidateIndex !== index &&
+          candidate.mountPath === dependency.mountPath,
+      ),
+    ) ||
+    dependencies.some(
+      (dependency) =>
+        dependency.mountPath === entryPath ||
+        files.some((file) => file.path === dependency.mountPath),
+    ) ||
     files.reduce((n, f) => n + Buffer.byteLength(f.text, "utf8"), 0) >
       MAX_DECK_BYTES
   )
@@ -699,6 +732,18 @@ async function handleRun(body) {
   }
 
   const [binary, observed, runRoot] = runtime;
+  if (
+    dependencies.some(
+      (dependency) =>
+        observed.dependency === null ||
+        dependency.id !== observed.dependency.id ||
+        dependency.sha256 !== observed.dependency.sha256,
+    )
+  )
+    return {
+      status: 400,
+      payload: { error: "simulation-dependency-unavailable" },
+    };
   const admission = await runSupervisor.tryExecute(
     { timeoutMs: body?.timeoutMs, token },
     async (run) => {
@@ -720,6 +765,15 @@ async function handleRun(body) {
         for (const file of files) {
           await mkdir(dirname(join(directory, file.path)), { recursive: true });
           await writeFile(join(directory, file.path), file.text, "utf8");
+        }
+        for (const dependency of dependencies) {
+          await mkdir(dirname(join(directory, dependency.mountPath)), {
+            recursive: true,
+          });
+          await symlink(
+            observed.dependency.runtimePath,
+            join(directory, dependency.mountPath),
+          );
         }
         await mkdir(dirname(join(directory, entryPath)), { recursive: true });
         await writeFile(join(directory, entryPath), deck, "utf8");

@@ -293,6 +293,13 @@ electrical syntax. Project raw dependencies that no available environment
 owner can resolve produce located, recoverable preparation diagnostics; the
 service never falls back to arbitrary host paths.
 
+A raw dependency resolves only when its logical id and SHA-256 match a
+dependency advertised by the selected Profile. The author chooses a safe
+relative mount path; the Worker and harness validate the declaration again,
+then the harness links that path to the Profile-owned, read-only model file in
+the private run directory. Client-supplied absolute paths, URLs, and unverified
+model substitutions are never resolution mechanisms.
+
 A structured setup stores only a stable environment Profile ID and the
 author's allowed selections such as corner and temperature. It never copies a
 Profile manifest, model path, simulator digest, or measured environment
@@ -883,6 +890,19 @@ in File Resource artifacts, read in bounded UTF-16 `offset`/`maxChars` slices
 with `nextOffset`. MCP local export assembles and verifies the complete file.
 Storage-capacity failures keep available evidence and return an explicit error;
 they are not permission failures or proof of simulation success.
+
+Each completed run also publishes `evidence-manifest.json`. It binds the run,
+prepared digest, input revision, environment identity, probe-vector mapping,
+and the names, sizes, and hashes of every preceding artifact. The manifest is
+the portable inventory for the existing File Resource artifacts; it is not a
+second result store and does not claim an external model tree is embedded.
+
+The human Results view binds mappings and authored probe labels by the Run's
+own `preparedId`, never by the latest Setup or most recent Prepare. Historical
+numeric data remains viewable after the Project changes, while stale object
+locations are refused by normal locator resolution. AC and TRAN share the same
+output browser, explicit plot tools, marker, expanded view, and back-annotation
+boundary; TRAN uses a linear time axis and does not revive Digital Simulation.
 
 Recoverable problems use `{code,message,stage,recovery,diagnostics?}`. Ordinary
 compile errors, unavailable Profiles, simulator failures and busy responses do

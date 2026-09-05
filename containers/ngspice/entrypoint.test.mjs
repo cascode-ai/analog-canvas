@@ -152,6 +152,20 @@ describeHarness("the run directory", () => {
       expect(
         (await run(port, { ...request, files: [{ path, text: "x" }] })).status,
       ).toBe(400);
+    expect(
+      (
+        await run(port, {
+          ...request,
+          dependencies: [
+            {
+              id: "unadvertised-model",
+              sha256: "a".repeat(64),
+              mountPath: "models/device.lib",
+            },
+          ],
+        })
+      ).status,
+    ).toBe(400);
   });
   it(
     "cancels an owning run, releases its slot, and remembers a pre-admission cancellation",
