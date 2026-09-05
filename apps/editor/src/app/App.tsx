@@ -1029,6 +1029,7 @@ export function App({
     sequence: number;
     documentId: string;
     netId: string;
+    occurrence?: readonly string[];
   } | null>(null);
   const [pendingWaveformPlacement, setPendingWaveformPlacement] =
     useState<PendingWaveformPlacement | null>(null);
@@ -1529,10 +1530,21 @@ export function App({
     }
     const group = logicalNets.byBaseNetId.get(baseNetId);
     if (analogSimulationOpen) {
+      const setupRootId =
+        project.simulation?.input.kind === "structured"
+          ? project.simulation.input.rootDocumentId
+          : undefined;
+      const occurrence =
+        documentStack.length > 0
+          ? documentStack.map((frame) => frame.instanceId)
+          : setupRootId === document.id
+            ? []
+            : undefined;
       setAnalogPickedNet((current) => ({
         sequence: (current?.sequence ?? 0) + 1,
         documentId: document.id,
         netId: baseNetId,
+        ...(occurrence === undefined ? {} : { occurrence }),
       }));
       setStatus(`Added voltage Output ${group?.name ?? baseNetId}`);
       return;
@@ -4631,7 +4643,10 @@ export function App({
               pickNetsActive={simulationPickNetsActive}
               pickedNet={analogPickedNet}
               onPickNetsChange={setSimulationPickMode}
-              onFocusProbe={(probe) => {
+              onFocusDiagnostic={(locator) =>
+                navigateToLocator(locator, `Located ${locator.kind}`)
+              }
+              onFocusProbe={(probe, preparedRootDocumentId) => {
                 const targetDocument = project.documents.find(
                   (candidate) => candidate.id === probe.documentId,
                 );
@@ -4653,9 +4668,10 @@ export function App({
                 }
                 const input = project.simulation?.input;
                 const rootDocumentId =
-                  input?.kind === "structured"
+                  preparedRootDocumentId ??
+                  (input?.kind === "structured"
                     ? input.rootDocumentId
-                    : probe.documentId;
+                    : probe.documentId);
                 const hierarchyPath = simulationProbeHierarchyPath(
                   project,
                   rootDocumentId,

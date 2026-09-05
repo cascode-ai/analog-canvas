@@ -4,6 +4,7 @@ import { CircuitProjectSchema } from "@icm/model";
 import fiveTransistorOtaSky130 from "../../examples/five-transistor-ota-sky130.icproj.json";
 import {
   deriveSimulationProbeOptions,
+  matchSimulationVoltageProbeOptions,
   resolveSimulationVoltageProbeNetId,
   simulationProbeHierarchyPath,
   simulationProbeTargetKey,
@@ -72,6 +73,20 @@ describe("simulation probe choices", () => {
     expect(
       targets.map((option) => simulationProbeTargetKey(option.target)),
     ).toEqual(targets.map((option) => option.key));
+
+    expect(
+      matchSimulationVoltageProbeOptions(project, targets, {
+        documentId: "document-ota-5t",
+        netId: "net-dut-tail",
+      }),
+    ).toHaveLength(2);
+    expect(
+      matchSimulationVoltageProbeOptions(project, targets, {
+        documentId: "document-ota-5t",
+        netId: "net-dut-tail",
+        occurrence: ["XDUT2"],
+      }).map((option) => option.target.occurrence),
+    ).toEqual([["XDUT2"]]);
   });
 
   it("resolves an object anchor for canvas focus and matches its whole Logical Net", () => {

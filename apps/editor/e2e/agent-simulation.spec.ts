@@ -257,7 +257,7 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
               timeSeconds: [0, 1e-9, 10e-9],
               probes: [
                 {
-                  name: "v(out)",
+                  name: requestedVector,
                   quantity: "voltage",
                   unit: "V",
                   value: [0, 0.5, 1],
@@ -319,6 +319,7 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   await panel.getByLabel("TRAN step (s)").fill("1e-9");
   await panel.getByLabel("TRAN stop (s)").fill("1e-6");
   await panel.getByLabel("TRAN maximum step (s)").fill("5e-10");
+  await panel.getByLabel(/Output name for/).fill("first-output");
   await panel.getByRole("button", { name: "Apply setup" }).click();
   await panel.getByRole("button", { name: "Run", exact: true }).click();
   await expect.poll(() => executions).toBe(1);
@@ -332,9 +333,10 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
     "0.500000",
   );
   await panel.getByRole("tab", { name: "Plot" }).click();
-  await expect(panel.locator(".spice-ac-plot svg")).toHaveCount(2);
+  await expect(panel.locator(".spice-ac-plot svg")).toHaveCount(3);
   await expect(panel.locator('svg[aria-label="AC magnitude"]')).toBeVisible();
   await expect(panel.locator('svg[aria-label="AC phase"]')).toBeVisible();
+  await expect(panel.getByText("first-output", { exact: true })).toHaveCount(2);
   const magnitudePlot = panel
     .locator(".ac-plot-row")
     .filter({ hasText: "Magnitude" })
@@ -361,6 +363,9 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
     panel.locator('svg[aria-label="Transient voltage"]'),
   ).toBeVisible();
   await panel.getByRole("tab", { name: "Files" }).click();
+  await expect(
+    panel.getByRole("button", { name: "evidence-manifest.json" }),
+  ).toBeVisible();
   const download = page.waitForEvent("download");
   await panel
     .getByRole("button", { name: /\.csv$/ })
@@ -380,11 +385,16 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   );
   expect(executions).toBe(1);
   await panel.getByRole("button", { name: "Settings" }).click();
+  await panel.getByLabel(/Output name for/).fill("new-output");
   await panel.getByLabel("Temperature (°C)").fill("30");
   await panel.getByRole("button", { name: "Apply setup" }).click();
   await expect(panel.getByRole("alert")).toContainText(
     "earlier Project revision",
   );
+  await panel.getByRole("button", { name: "Results" }).click();
+  await panel.getByRole("tab", { name: "Plot" }).click();
+  await expect(panel.getByText("first-output", { exact: true })).toHaveCount(2);
+  await expect(panel.getByText("new-output", { exact: true })).toHaveCount(0);
   pending = new Promise<void>((r) => {
     release = r;
   });
