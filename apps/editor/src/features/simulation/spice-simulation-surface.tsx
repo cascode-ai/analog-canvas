@@ -4,7 +4,6 @@ import {
   type CircuitProject,
   type SimulationSetup,
 } from "@icm/model";
-import { resolveDocumentLogicalNets } from "@icm/derived";
 import type {
   ArtifactRef,
   Capabilities,
@@ -15,6 +14,11 @@ import type {
 import { downloadTextArtifact } from "../../document/project-file-service";
 import type { BrowserSimulationSession } from "./browser-simulation-session";
 import { acResponseSvg } from "./ac-response-plot";
+import {
+  deriveSimulationProbeOptions,
+  simulationProbeTargetKey,
+  type SimulationProbeOption,
+} from "./simulation-probe-options";
 
 export interface SpiceSimulationSurfaceProps {
   open: boolean;
@@ -399,7 +403,13 @@ function SetupEditor({
   );
   const [probes, setProbes] = useState(saved?.probes ?? []);
   const root = project.documents.find((d) => d.id === rootId);
-  const nets = root ? resolveDocumentLogicalNets(root) : undefined;
+  const probeOptions = deriveSimulationProbeOptions(project, rootId);
+  const probeLabels = new Map(
+    [...probeOptions.voltage, ...probeOptions.sourceCurrent].map((option) => [
+      option.key,
+      option.label,
+    ]),
+  );
   const ac = saved?.analyses.find((a) => a.kind === "ac");
   useEffect(() => {
     onDirty(false);
@@ -550,37 +560,31 @@ function SetupEditor({
             defaultValue={ac?.stopHz ?? 1e6}
           />
         </label>
-        <label>
-          Add voltage probe
-          <select
-            value=""
-            onChange={(e) => {
-              if (!e.target.value) return;
-              setProbes([
-                ...probes,
-                {
-                  id: crypto.randomUUID(),
-                  kind: "net-voltage",
-                  documentId: rootId,
-                  netId: e.target.value,
-                  occurrence: [],
-                },
-              ]);
-            }}
-          >
-            <option value="">Choose a Net in the testbench</option>
-            {root?.nets.map((n) => (
-              <option key={n.id} value={n.id}>
-                {nets?.byBaseNetId.get(n.id)?.name ?? n.id}
-              </option>
-            ))}
-          </select>
-        </label>
+        <ProbeSelect
+          label="Add voltage probe"
+          placeholder="Choose a Net in the testbench hierarchy"
+          options={probeOptions.voltage}
+          probes={probes}
+          onAdd={(option) => {
+            setProbes([...probes, probeFromOption(option)]);
+            onDirty(true);
+          }}
+        />
+        <ProbeSelect
+          label="Add source-current probe"
+          placeholder="Choose a voltage source"
+          options={probeOptions.sourceCurrent}
+          probes={probes}
+          onAdd={(option) => {
+            setProbes([...probes, probeFromOption(option)]);
+            onDirty(true);
+          }}
+        />
         <ul>
           {probes.map((p) => (
             <li key={p.id}>
-              {p.kind === "net-voltage" ? p.netId : p.instanceId}
-              {p.occurrence.length ? ` (${p.occurrence.join("/")})` : ""}
+              {probeLabels.get(simulationProbeTargetKey(p)) ??
+                `Unavailable: ${p.kind === "net-voltage" ? p.netId : p.instanceId}${p.occurrence.length ? ` (${p.occurrence.join("/")})` : ""}`}
               <button
                 type="button"
                 onClick={() => {
@@ -593,10 +597,7 @@ function SetupEditor({
             </li>
           ))}
         </ul>
-        <p>
-          Existing hierarchical/current probes are preserved. Sources are edited
-          on the testbench canvas.
-        </p>
+        <p>Sources are edited on the testbench canvas.</p>
         <button type="submit">Apply setup</button>
         {saved && (
           <button type="button" onClick={() => onSaveSetup(null)}>
@@ -605,5 +606,68 @@ function SetupEditor({
         )}
       </form>
     </details>
+  );
+}
+
+function probeFromOption(
+  option: SimulationProbeOption,
+): SimulationSetup["input"]["probes"][number] {
+  const target = option.target;
+  if (target.kind === "net-voltage") {
+    return {
+      id: crypto.randomUUID(),
+      kind: target.kind,
+      documentId: target.documentId,
+      netId: target.netId,
+      occurrence: [...target.occurrence],
+    };
+  }
+  return {
+    id: crypto.randomUUID(),
+    kind: target.kind,
+    documentId: target.documentId,
+    instanceId: target.instanceId,
+    occurrence: [...target.occurrence],
+  };
+}
+
+function ProbeSelect({
+  label,
+  placeholder,
+  options,
+  probes,
+  onAdd,
+}: {
+  label: string;
+  placeholder: string;
+  options: readonly SimulationProbeOption[];
+  probes: SimulationSetup["input"]["probes"];
+  onAdd(option: SimulationProbeOption): void;
+}) {
+  const selected = new Set(probes.map(simulationProbeTargetKey));
+  return (
+    <label>
+      {label}
+      <select
+        value=""
+        onChange={(event) => {
+          const option = options.find(
+            (candidate) => candidate.key === event.target.value,
+          );
+          if (option) onAdd(option);
+        }}
+      >
+        <option value="">{placeholder}</option>
+        {options.map((option) => (
+          <option
+            key={option.key}
+            value={option.key}
+            disabled={selected.has(option.key)}
+          >
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }

@@ -73,8 +73,17 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
     4,
   );
   await expect(
-    panel.getByText("net-dut-tail (XDUT)", { exact: false }),
+    panel.locator("li").filter({ hasText: "XDUT · ota_5t · tail" }),
   ).toBeVisible();
+  await panel
+    .getByLabel("Add voltage probe")
+    .selectOption({ label: "XDUT · ota_5t · vinp" });
+  await panel
+    .getByLabel("Add source-current probe")
+    .selectOption({ label: "Testbench · VINP current" });
+  await expect(panel.getByRole("button", { name: "Remove probe" })).toHaveCount(
+    6,
+  );
   await panel.getByRole("button", { name: "Apply setup" }).click();
   await panel.getByRole("button", { name: "Prepare deck" }).click();
   const deckDownload = page.waitForEvent("download");
@@ -84,7 +93,14 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
   const stream = await (await deckDownload).createReadStream();
   let deck = "";
   for await (const chunk of stream!) deck += chunk.toString();
-  for (const vector of ["v(vout)", "v(ibias)", "v(xdut.tail)", "v(xdut.nleft)"])
+  for (const vector of [
+    "v(vout)",
+    "v(ibias)",
+    "v(xdut.tail)",
+    "v(xdut.nleft)",
+    "v(xdut.vinp)",
+    "i(vinp)",
+  ])
     expect(deck).toContain(vector);
   expect(deck).toMatch(/ac dec 10 1 (?:1000000000|1e\+?9)/i);
   expect(executions).toBe(0);
@@ -92,7 +108,25 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
   const saved = JSON.parse(
     (await downloadBytes(page, "File", "Export Project File…")).toString(),
   );
-  expect(saved.simulation).toEqual(project.simulation);
+  const { probes: savedProbes, ...savedInput } = saved.simulation.input;
+  const { probes: originalProbes, ...originalInput } =
+    project.simulation!.input;
+  expect(savedInput).toEqual(originalInput);
+  expect(savedProbes.slice(0, 4)).toEqual(originalProbes);
+  expect(savedProbes.slice(4)).toMatchObject([
+    {
+      kind: "net-voltage",
+      documentId: "document-ota-5t",
+      netId: "net-cell-pin-pvinp",
+      occurrence: ["XDUT"],
+    },
+    {
+      kind: "source-current",
+      documentId: "document-ota-5t-testbench",
+      instanceId: "VINP",
+      occurrence: [],
+    },
+  ]);
   await page.reload();
   await page.getByTestId("project-file").setInputFiles({
     name: "reopened.icproj.json",
@@ -104,7 +138,7 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
     .click();
   await panel.getByText("Setup", { exact: true }).click();
   await expect(panel.getByRole("button", { name: "Remove probe" })).toHaveCount(
-    4,
+    6,
   );
   await expect(panel.getByLabel("Stop (Hz)")).toHaveValue("1000000000");
 });
@@ -245,7 +279,9 @@ test("human simulation uses saved setup, survives closing, recovers a bad input 
   expect(executions).toBe(0);
   await panel.getByText("Setup", { exact: true }).click();
   await panel.getByRole("button", { name: "Remove probe" }).click();
-  await panel.getByLabel("Add voltage probe").selectOption("tb-vout-net");
+  await panel
+    .getByLabel("Add voltage probe")
+    .selectOption({ label: "Testbench · vout" });
   await panel.getByRole("button", { name: "Apply setup" }).click();
   await panel.getByRole("button", { name: "Run", exact: true }).click();
   await expect.poll(() => executions).toBe(1);
