@@ -68,6 +68,8 @@ export interface DeviceDescriptor {
   /** Optional fixed semantics for canonical pins; pin order remains electrical authority. */
   readonly pinSemantics?: readonly DevicePinSemantic[];
   readonly targetPolicy: DeviceNetlistTargetPolicy;
+  /** Default transient intent projected when an older source has no explicit waveform. */
+  readonly sourceWaveformDefault?: "dc" | "pulse" | "sin";
   /** Ordered authoring metadata; placeholders never create persisted values. */
   readonly parameters: readonly DeviceParameterDefinition[];
   readonly dialects: readonly ["spice", "spectre"];
