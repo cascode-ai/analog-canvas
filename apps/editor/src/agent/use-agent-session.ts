@@ -368,7 +368,7 @@ export function useAgentSession(
                     "simulation-input",
                   ] as const,
                   maxBytes: AGENT_FILE_RESOURCE_MAX_BYTES,
-                  humanApprovalRequired: true as const,
+                  humanApprovalOperations: ["request-approval"] as const,
                 },
                 ...(options.simulationHost
                   ? {

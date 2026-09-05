@@ -310,9 +310,23 @@ try {
   const first = startMcp();
   await first.request("initialize", { protocolVersion: "2025-03-26" });
   const listed = await first.request("tools/list");
-  if (listed.tools.length !== 12)
+  if (
+    listed.tools.length !== 14 ||
+    !["simulation", "simulation_files"].every((name) =>
+      listed.tools.some((tool) => tool.name === name),
+    )
+  )
     throw new Error("Packaged MCP tool surface mismatch");
   await first.tool("connect", { claimCode: `${sessionId}.claim` });
+  const invalidSimulation = await first.request("tools/call", {
+    name: "simulation",
+    arguments: { request: { operation: "prepare" } },
+  });
+  if (!invalidSimulation.isError)
+    throw new Error(
+      "Packaged simulation tool did not validate its shared input contract",
+    );
+  // The next ordinary call must still work after a recoverable tool failure.
   await first.tool("get_context");
   await first.tool("apply_actions", {
     actions: [

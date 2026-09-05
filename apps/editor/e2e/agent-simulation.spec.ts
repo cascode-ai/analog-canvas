@@ -5,7 +5,15 @@ import {
   createSimulationInputMetadata,
   readSimulationData,
 } from "@icm/spice-run";
-import profile from "../../../containers/ngspice/hosted-sky130-profile.json";
+const profile = JSON.parse(
+  readFileSync(
+    new URL(
+      "../../../containers/ngspice/hosted-sky130-profile.json",
+      import.meta.url,
+    ),
+    "utf8",
+  ),
+) as { id: string };
 import { openMenu } from "./editor-fixtures.js";
 
 test("Agent raw simulation recovers input errors, returns a run receipt and exports through Files", async ({

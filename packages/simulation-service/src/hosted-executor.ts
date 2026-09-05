@@ -52,7 +52,19 @@ export function createHostedExecutor(
               ? "retry-after"
               : code === "simulator-unreachable"
                 ? "retry-same-request"
-                : "fix-input",
+                : [
+                      "simulation-not-configured",
+                      "simulation-executor-unavailable",
+                      "simulator-not-ready",
+                      "simulator-unauthorized",
+                    ].includes(code)
+                  ? "retry-after"
+                  : [
+                        "prepared-environment-changed",
+                        "simulation-profile-unavailable",
+                      ].includes(code)
+                    ? "reprepare"
+                    : "fix-input",
           ...(code === "simulator-busy" ? { retryAfterMs: 2000 } : {}),
         },
         code === "simulator-unreachable",
@@ -66,6 +78,15 @@ export function createHostedExecutor(
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ operation: "capabilities" }),
+        signal: AbortSignal.timeout(10000),
+      }).catch(() => {
+        throw new ExecutionFailure({
+          code: "SIMULATION_CAPABILITIES_UNAVAILABLE",
+          message:
+            "Cannot read deployment capabilities; the session remains usable",
+          stage: "read",
+          recovery: "retry-after",
+        });
       });
       const parsed = CapabilitiesSchema.safeParse(
         await response.json().catch(() => null),

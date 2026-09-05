@@ -4,7 +4,6 @@ import {
   SimulationReplySchema,
 } from "@icm/simulation-service/contract";
 import { AGENT_API_VERSION } from "./schema.js";
-export const AGENT_SIMULATION_RESOURCE_MAX_BYTES = 4_000_000;
 export const AGENT_SIMULATION_MAX_TIMEOUT_MS = 120_000;
 const envelope = {
   apiVersion: z.literal(AGENT_API_VERSION),

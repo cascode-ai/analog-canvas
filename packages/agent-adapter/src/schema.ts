@@ -82,7 +82,7 @@ export const AgentFileResourceCapabilitySchema = z.strictObject({
     ]),
   ),
   maxBytes: z.number().int().positive(),
-  humanApprovalRequired: z.literal(true),
+  humanApprovalOperations: z.array(z.literal("request-approval")),
 });
 /** Separate, short-request Simulation Resource over the shared run registry. */
 export const AgentSimulationResourceCapabilitySchema = z.strictObject({
