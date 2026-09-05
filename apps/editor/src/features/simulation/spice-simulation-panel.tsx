@@ -100,8 +100,19 @@ function ResultView({ run }: { run: SimulationRunState }) {
       </section>
     );
   }
-  const acSvg = run.acTraces?.length
-    ? acResponseSvg(run.acTraces, { width: 640, height: 320 })
+  const acMagnitudeSvg = run.acTraces?.length
+    ? acResponseSvg(
+        run.acTraces,
+        { width: 640, height: 220 },
+        { kind: "magnitude" },
+      )
+    : null;
+  const acPhaseSvg = run.acTraces?.length
+    ? acResponseSvg(
+        run.acTraces,
+        { width: 640, height: 220 },
+        { kind: "phase" },
+      )
     : null;
   return (
     <section aria-label="Simulation result">
@@ -112,15 +123,13 @@ function ResultView({ run }: { run: SimulationRunState }) {
           voltage on the canvas; select or hover any other net to read it.
         </p>
       ) : null}
-      {acSvg ? (
-        <div
-          className="simulation-ac-plot"
-          data-testid="simulation-ac-plot"
-          // The plot is produced as an SVG string by a pure module so it can
-          // be tested and later exported through the same path as any other
-          // drawing.
-          dangerouslySetInnerHTML={{ __html: acSvg }}
-        />
+      {acMagnitudeSvg && acPhaseSvg ? (
+        <div className="simulation-ac-plot" data-testid="simulation-ac-plot">
+          <strong>Magnitude</strong>
+          <div dangerouslySetInnerHTML={{ __html: acMagnitudeSvg }} />
+          <strong>Phase</strong>
+          <div dangerouslySetInnerHTML={{ __html: acPhaseSvg }} />
+        </div>
       ) : null}
       <pre className="simulation-log" data-testid="simulation-log">
         {run.log}

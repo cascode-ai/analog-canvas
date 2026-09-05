@@ -55,14 +55,24 @@ describe("AC response plot", () => {
     ).toBeCloseTo(1e3, 6);
   });
 
-  it("draws magnitude and phase as separate traces on one frame", () => {
-    const svg = acResponseSvg([singlePole()], { width: 600, height: 300 })!;
+  it("draws magnitude and phase as separate Bode plots", () => {
+    const magnitude = acResponseSvg(
+      [singlePole()],
+      { width: 600, height: 300 },
+      { kind: "magnitude" },
+    )!;
+    const phase = acResponseSvg(
+      [singlePole()],
+      { width: 600, height: 300 },
+      { kind: "phase" },
+    )!;
 
-    expect(svg.startsWith("<svg")).toBe(true);
-    // One polyline for magnitude and one for phase, per trace.
-    expect(svg.match(/<polyline/gu)).toHaveLength(2);
-    expect(svg).toContain('class="ac-trace ac-trace-0 ac-phase"');
-    expect(svg).toContain('aria-label="AC response"');
+    expect(magnitude.match(/<polyline/gu)).toHaveLength(1);
+    expect(phase.match(/<polyline/gu)).toHaveLength(1);
+    expect(magnitude).toContain('aria-label="AC magnitude"');
+    expect(phase).toContain('aria-label="AC phase"');
+    expect(magnitude).toContain("dB");
+    expect(phase).toContain("°");
   });
 
   it("declines to invent a plot when there is nothing to draw", () => {
@@ -102,6 +112,7 @@ describe("AC response plot", () => {
         { label: "vdb(vout_loaded)", points: singlePole().points },
       ],
       { width: 600, height: 300 },
+      { kind: "magnitude" },
     )!;
 
     expect(svg).toContain("vdb(vout)");

@@ -31,6 +31,8 @@ export interface AcPoint {
 export interface AcTrace {
   /** The expression the author asked for, printed verbatim as the legend. */
   label: string;
+  /** Stable Results Browser colour slot, independent of hide/show filtering. */
+  colorIndex?: number;
   points: readonly AcPoint[];
 }
 
@@ -55,6 +57,17 @@ export interface AcPlotLayout {
   phase: AcPlotAxis;
   /** Frequency in Hz for an x in SVG units, for crosshair readout. */
   frequencyAt: (x: number) => number;
+}
+
+export type AcPlotKind = "magnitude" | "phase";
+
+export interface AcResponseSvgOptions {
+  /** One physical quantity per plot. Bode magnitude and phase never share an axis. */
+  kind: AcPlotKind;
+  /** Shared cursor frequency for paired magnitude/phase plots. */
+  cursorFrequency?: number;
+  /** The interactive Results Browser owns the legend when false. */
+  showLegend?: boolean;
 }
 
 const MARGIN = { left: 56, right: 56, top: 16, bottom: 32 };
@@ -174,67 +187,69 @@ function polyline(
     .join(" ");
 }
 
-/**
- * Magnitude and phase on one frame: magnitude solid against the left axis,
- * phase dashed against the right. Two stacked frames read better on paper but
- * halve the vertical resolution of each in a side panel, and the pairing that
- * matters — gain and phase at the same frequency — is read along one vertical
- * line.
- */
 export function acResponseSvg(
   traces: readonly AcTrace[],
   size: AcPlotSize,
+  options: AcResponseSvgOptions = { kind: "magnitude" },
 ): string | null {
   const layout = layoutAcPlot(traces, size);
   if (!layout) return null;
   const project = projection(layout);
   const { frame } = layout;
+  const axis = options.kind === "magnitude" ? layout.magnitude : layout.phase;
+  const axisY =
+    options.kind === "magnitude" ? project.magnitudeY : project.phaseY;
+  const unit = options.kind === "magnitude" ? "dB" : "°";
 
   const gridLines = [
     ...layout.frequency.ticks.map((hz) => {
       const x = project.x(hz).toFixed(2);
       return `<line class="ac-grid" x1="${x}" y1="${frame.y}" x2="${x}" y2="${frame.y + frame.height}"/><text class="ac-axis-label" x="${x}" y="${frame.y + frame.height + 18}" text-anchor="middle">${escapeXml(formatFrequency(hz))}</text>`;
     }),
-    ...layout.magnitude.ticks.map((db) => {
-      const y = project.magnitudeY(db).toFixed(2);
-      return `<line class="ac-grid" x1="${frame.x}" y1="${y}" x2="${frame.x + frame.width}" y2="${y}"/><text class="ac-axis-label" x="${frame.x - 8}" y="${y}" text-anchor="end" dominant-baseline="middle">${db} dB</text>`;
-    }),
-    ...layout.phase.ticks.map((deg) => {
-      const y = project.phaseY(deg).toFixed(2);
-      return `<text class="ac-axis-label ac-phase" x="${frame.x + frame.width + 8}" y="${y}" dominant-baseline="middle">${deg}°</text>`;
+    ...axis.ticks.map((value) => {
+      const y = axisY(value).toFixed(2);
+      return `<line class="ac-grid" x1="${frame.x}" y1="${y}" x2="${frame.x + frame.width}" y2="${y}"/><text class="ac-axis-label" x="${frame.x - 8}" y="${y}" text-anchor="end" dominant-baseline="middle">${value}${unit}</text>`;
     }),
   ].join("");
 
   const curves = traces
     .map((trace, index) => {
-      const magnitude = polyline(trace, project, "magnitude");
-      const phase = polyline(trace, project, "phase");
-      return (
-        `<polyline class="ac-trace ac-trace-${index % 6}" points="${magnitude}"/>` +
-        `<polyline class="ac-trace ac-trace-${index % 6} ac-phase" points="${phase}"/>`
-      );
+      const colorIndex = trace.colorIndex ?? index;
+      const points = polyline(trace, project, options.kind);
+      return `<polyline class="ac-trace ac-trace-${colorIndex % 6}" data-trace-index="${index}" points="${points}"/>`;
     })
     .join("");
 
   // The author asked for these expressions by name; printing them back is the
   // only way to tell two curves apart, and colour alone would leave anyone
   // who cannot separate the hues with an unreadable plot.
-  const legend = traces
-    .map((trace, index) => {
-      const y = frame.y + 12 + index * 14;
-      const swatchX = frame.x + 10;
-      return (
-        `<line class="ac-trace ac-trace-${index % 6}" x1="${swatchX}" y1="${y}" x2="${swatchX + 16}" y2="${y}"/>` +
-        `<text class="ac-legend-text" x="${swatchX + 22}" y="${y + 3}">${escapeXml(trace.label)}</text>`
-      );
-    })
-    .join("");
+  const legend =
+    (options.showLegend ?? true)
+      ? traces
+          .map((trace, index) => {
+            const colorIndex = trace.colorIndex ?? index;
+            const y = frame.y + 12 + index * 14;
+            const swatchX = frame.x + 10;
+            return (
+              `<line class="ac-trace ac-trace-${colorIndex % 6}" x1="${swatchX}" y1="${y}" x2="${swatchX + 16}" y2="${y}"/>` +
+              `<text class="ac-legend-text" x="${swatchX + 22}" y="${y + 3}">${escapeXml(trace.label)}</text>`
+            );
+          })
+          .join("")
+      : "";
+  const cursor =
+    options.cursorFrequency !== undefined &&
+    options.cursorFrequency >= layout.frequency.min &&
+    options.cursorFrequency <= layout.frequency.max
+      ? `<line class="ac-cursor" x1="${project.x(options.cursorFrequency).toFixed(2)}" y1="${frame.y}" x2="${project.x(options.cursorFrequency).toFixed(2)}" y2="${frame.y + frame.height}"/>`
+      : "";
 
   return (
-    `<svg xmlns="http://www.w3.org/2000/svg" class="ac-response" viewBox="0 0 ${size.width} ${size.height}" width="${size.width}" height="${size.height}" role="img" aria-label="AC response">` +
+    `<svg xmlns="http://www.w3.org/2000/svg" class="ac-response" viewBox="0 0 ${size.width} ${size.height}" width="${size.width}" height="${size.height}" role="img" aria-label="AC ${options.kind}">` +
     `<rect class="ac-frame" x="${frame.x}" y="${frame.y}" width="${frame.width}" height="${frame.height}"/>` +
     gridLines +
     curves +
+    cursor +
     legend +
     `</svg>`
   );

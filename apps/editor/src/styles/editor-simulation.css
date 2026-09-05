@@ -255,6 +255,41 @@
 .simulation-setup-panel form > button {
   margin: 8px 8px 0 0;
 }
+.simulation-pick-active {
+  border-color: var(--icm-accent) !important;
+  color: #fff !important;
+  background: var(--icm-accent) !important;
+}
+
+.simulation-probe-list {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0;
+  padding: 0;
+  list-style: none;
+}
+.simulation-probe-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: center;
+  padding: 7px;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  background: var(--icm-surface-muted);
+}
+.simulation-probe-list li > span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.simulation-probe-list small {
+  overflow: hidden;
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .simulation-results-dock {
   flex: 1 1 auto;
@@ -362,6 +397,120 @@
 .spice-ac-plot svg {
   width: 100%;
   height: auto;
+}
+
+.ac-results-explorer {
+  position: relative;
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.ac-results-explorer > header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ac-results-explorer > header > div {
+  display: grid;
+  min-width: 0;
+}
+.ac-results-explorer > header small {
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+}
+.ac-results-explorer > header button {
+  margin-left: auto;
+}
+.simulation-output-browser {
+  display: grid;
+  gap: 4px;
+}
+.simulation-output-browser > div {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  gap: 5px;
+  align-items: center;
+  padding: 3px;
+  border: 1px solid transparent;
+  border-radius: var(--icm-radius-sm);
+}
+.simulation-output-browser > div.selected {
+  border-color: var(--icm-accent);
+  background: var(--icm-surface-muted);
+}
+.simulation-output-browser button {
+  min-height: 26px;
+  padding: 3px 7px;
+}
+.simulation-output-browser .simulation-output-swatch {
+  width: 18px;
+  min-height: 18px;
+  padding: 0;
+  border: 4px solid currentColor;
+  border-radius: 50%;
+  background: currentColor;
+}
+.simulation-output-swatch[aria-pressed="false"] {
+  background: transparent;
+  opacity: 0.45;
+}
+.simulation-output-name {
+  display: grid;
+  min-width: 0;
+  border-color: transparent !important;
+  background: transparent !important;
+  text-align: left;
+}
+.simulation-output-name strong,
+.simulation-output-name small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.simulation-output-name small {
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+}
+.ac-quantity-group {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.ac-quantity-group > h4 {
+  margin: 4px 0 0;
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.ac-plot-row {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.ac-plot-row > strong {
+  font-size: var(--icm-font-xs);
+}
+.spice-ac-plot.interactive {
+  position: relative;
+  min-width: 0;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  background: #fff;
+  cursor: crosshair;
+  touch-action: none;
+}
+.ac-cursor-readout {
+  position: sticky;
+  bottom: 0;
+  display: grid;
+  gap: 2px;
+  padding: 7px 9px;
+  border: 1px solid var(--icm-border-strong);
+  border-radius: var(--icm-radius-sm);
+  background: color-mix(in srgb, var(--icm-surface) 94%, transparent);
+  box-shadow: var(--icm-shadow-sm);
+  font-size: var(--icm-font-xs);
 }
 
 @media (max-width: 700px) {
@@ -734,6 +883,13 @@
   stroke-width: 1.2;
 }
 
+.ac-response .ac-cursor {
+  stroke: #101828;
+  stroke-width: 1;
+  stroke-dasharray: 2 2;
+  pointer-events: none;
+}
+
 .ac-response .ac-frame {
   fill: none;
   stroke: var(--icm-border, #d5d9e0);
@@ -771,6 +927,25 @@
 }
 .ac-response .ac-trace-5 {
   stroke: #026aa2;
+}
+
+.simulation-output-swatch.ac-trace-0 {
+  color: #175cd3;
+}
+.simulation-output-swatch.ac-trace-1 {
+  color: #b54708;
+}
+.simulation-output-swatch.ac-trace-2 {
+  color: #067647;
+}
+.simulation-output-swatch.ac-trace-3 {
+  color: #6941c6;
+}
+.simulation-output-swatch.ac-trace-4 {
+  color: #b42318;
+}
+.simulation-output-swatch.ac-trace-5 {
+  color: #026aa2;
 }
 
 .ac-response .ac-legend-text {

@@ -14,7 +14,7 @@ import type {
 } from "@icm/simulation-service/contract";
 import { downloadTextArtifact } from "../../document/project-file-service";
 import type { BrowserSimulationSession } from "./browser-simulation-session";
-import { acResponseSvg } from "./ac-response-plot";
+import { AcResultsExplorer } from "./ac-results-explorer";
 import {
   deriveSimulationProbeOptions,
   simulationProbeTargetKey,
@@ -43,6 +43,14 @@ export interface SpiceSimulationSurfaceProps {
   onExit(): void;
   onSaveSetup(setup: SimulationSetup | null): boolean;
   onOpenCell(documentId: string): void;
+  pickNetsActive?: boolean;
+  pickedNet?: {
+    readonly sequence: number;
+    readonly documentId: string;
+    readonly netId: string;
+  } | null;
+  onPickNetsChange?(active: boolean): void;
+  onFocusProbe?(probe: SimulationStructuredInput["probes"][number]): void;
 }
 
 /** A projection of the same prepare/start/read/cancel service used by MCP.
@@ -55,6 +63,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [outputLabels, setOutputLabels] = useState<Record<string, string>>({});
   const [setupOpen, setSetupOpen] = useState(!project.simulation);
   const [resultsOpen, setResultsOpen] = useState(false);
   const [resultTab, setResultTab] = useState<ResultTab>("summary");
@@ -430,6 +439,15 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
           capabilities={capabilities}
           onDirty={setDirty}
           onError={setError}
+          outputLabels={outputLabels}
+          onOutputLabelChange={(probeId, label) =>
+            setOutputLabels((current) => {
+              if (label.trim()) return { ...current, [probeId]: label };
+              const next = { ...current };
+              delete next[probeId];
+              return next;
+            })
+          }
         />
       ) : null}
 
@@ -492,44 +510,20 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
                 {run?.result?.data?.analyses
                   .filter((analysis) => analysis.analysis === "ac")
                   .map((analysis, index) => (
-                    <section key={index} aria-label="AC results">
-                      <h3>{analysis.plotName}</h3>
-                      <div
-                        className="spice-ac-plot"
-                        dangerouslySetInnerHTML={{
-                          __html:
-                            acResponseSvg(
-                              analysis.probes.map((probe) => ({
-                                label: probe.name,
-                                points: analysis.frequencyHz.map(
-                                  (frequency, pointIndex) => ({
-                                    frequency,
-                                    magnitudeDb:
-                                      20 *
-                                      Math.log10(
-                                        Math.max(
-                                          Math.hypot(
-                                            probe.real[pointIndex] ?? 0,
-                                            probe.imag[pointIndex] ?? 0,
-                                          ),
-                                          1e-30,
-                                        ),
-                                      ),
-                                    phaseDeg:
-                                      (Math.atan2(
-                                        probe.imag[pointIndex] ?? 0,
-                                        probe.real[pointIndex] ?? 0,
-                                      ) *
-                                        180) /
-                                      Math.PI,
-                                  }),
-                                ),
-                              })),
-                              { width: 760, height: 300 },
-                            ) ?? "",
-                        }}
-                      />
-                    </section>
+                    <AcResultsExplorer
+                      key={index}
+                      analysis={analysis}
+                      vectors={prepared?.vectors ?? []}
+                      probes={
+                        project.simulation?.input.kind === "structured"
+                          ? project.simulation.input.probes
+                          : []
+                      }
+                      labels={outputLabels}
+                      {...(props.onFocusProbe
+                        ? { onFocusProbe: props.onFocusProbe }
+                        : {})}
+                    />
                   ))}
                 {!run?.result?.data?.analyses.some(
                   (analysis) => analysis.analysis === "ac",
@@ -656,10 +650,17 @@ function SetupEditor({
   onSaveSetup,
   onDirty,
   onError,
+  pickNetsActive,
+  pickedNet,
+  onPickNetsChange,
+  outputLabels,
+  onOutputLabelChange,
 }: SpiceSimulationSurfaceProps & {
   capabilities: Capabilities | undefined;
   onDirty(value: boolean): void;
   onError(value: string): void;
+  outputLabels: Readonly<Record<string, string>>;
+  onOutputLabelChange(probeId: string, label: string): void;
 }) {
   const saved =
     project.simulation?.input.kind === "structured"
@@ -678,6 +679,25 @@ function SetupEditor({
     ]),
   );
   const ac = saved?.analyses.find((a) => a.kind === "ac");
+  useEffect(() => {
+    if (!pickedNet) return;
+    const option = probeOptions.voltage.find(
+      (candidate) =>
+        candidate.target.documentId === pickedNet.documentId &&
+        candidate.target.netId === pickedNet.netId,
+    );
+    if (!option) {
+      onError(
+        "That Net is outside the selected Testbench occurrence. Choose it from the Output list or change the Testbench Cell.",
+      );
+      return;
+    }
+    const key = simulationProbeTargetKey(option.target);
+    if (probes.some((probe) => simulationProbeTargetKey(probe) === key)) return;
+    setProbes((current) => [...current, probeFromOption(option)]);
+    onDirty(true);
+    onError("");
+  }, [pickedNet?.sequence]);
   useEffect(() => {
     onDirty(false);
   }, []);
@@ -842,9 +862,17 @@ function SetupEditor({
             onDirty(true);
           }}
         />
+        <button
+          type="button"
+          className={pickNetsActive ? "simulation-pick-active" : undefined}
+          aria-pressed={pickNetsActive}
+          onClick={() => onPickNetsChange?.(!pickNetsActive)}
+        >
+          {pickNetsActive ? "Picking voltage Nets…" : "Pick voltage on canvas"}
+        </button>
         <ProbeSelect
-          label="Add source-current probe"
-          placeholder="Choose a voltage source"
+          label="Add current output"
+          placeholder="Choose a voltage-source branch"
           options={probeOptions.sourceCurrent}
           probes={probes}
           onAdd={(option) => {
@@ -852,15 +880,35 @@ function SetupEditor({
             onDirty(true);
           }}
         />
-        <ul>
+        <ul className="simulation-probe-list" aria-label="Configured Outputs">
           {probes.map((p) => (
             <li key={p.id}>
-              {probeLabels.get(simulationProbeTargetKey(p)) ??
-                `Unavailable: ${p.kind === "net-voltage" ? p.netId : p.instanceId}${p.occurrence.length ? ` (${p.occurrence.join("/")})` : ""}`}
+              <span>
+                <input
+                  aria-label={`Output name for ${probeLabels.get(simulationProbeTargetKey(p)) ?? p.id}`}
+                  value={outputLabels[p.id] ?? ""}
+                  placeholder={
+                    probeLabels.get(simulationProbeTargetKey(p)) ??
+                    (p.kind === "net-voltage" ? p.netId : p.instanceId)
+                  }
+                  onChange={(event) => {
+                    event.stopPropagation();
+                    const label = event.currentTarget.value;
+                    onOutputLabelChange(p.id, label);
+                  }}
+                />
+                <small>
+                  {p.kind === "net-voltage" ? "Voltage" : "Current"} ·{" "}
+                  {probeLabels.get(simulationProbeTargetKey(p)) ??
+                    "Target unavailable"}
+                </small>
+              </span>
               <button
                 type="button"
+                aria-label="Remove probe"
                 onClick={() => {
                   setProbes(probes.filter((v) => v.id !== p.id));
+                  onOutputLabelChange(p.id, "");
                   onDirty(true);
                 }}
               >
@@ -869,7 +917,10 @@ function SetupEditor({
             </li>
           ))}
         </ul>
-        <p>Sources are edited on the testbench canvas.</p>
+        <p>
+          Voltage Outputs target Nets. Current Outputs target a measurable
+          device branch; sources are edited on the testbench canvas.
+        </p>
         <button type="submit">Apply setup</button>
         {saved && (
           <button type="button" onClick={() => onSaveSetup(null)}>
