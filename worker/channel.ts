@@ -130,6 +130,10 @@ export function markPreviewResponse(
   env: ChannelEnv,
 ): Response {
   if (releaseChannel(env) !== "preview") return response;
+  // A 101 response transfers a live WebSocket, not an indexable document.
+  // Rebuilding it as an ordinary HTTP response drops workerd's webSocket
+  // attachment and turns a successful Agent handshake into HTTP 500.
+  if (response.status === 101) return response;
   const headers = new Headers(response.headers);
   headers.set("x-robots-tag", "noindex, nofollow, noarchive");
   return new Response(response.body, {
