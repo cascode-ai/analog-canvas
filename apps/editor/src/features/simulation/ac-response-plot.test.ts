@@ -55,6 +55,24 @@ describe("AC response plot", () => {
     ).toBeCloseTo(1e3, 6);
   });
 
+  it("uses an explicit toolbar range without changing the trace data", () => {
+    const range = [10, 1e4] as const;
+    const layout = layoutAcPlot(
+      [singlePole()],
+      { width: 600, height: 300 },
+      range,
+    )!;
+    const svg = acResponseSvg(
+      [singlePole()],
+      { width: 600, height: 300 },
+      { kind: "magnitude", frequencyRange: range },
+    )!;
+
+    expect(layout.frequency.min).toBe(range[0]);
+    expect(layout.frequency.max).toBe(range[1]);
+    expect(svg).toContain("clip-path");
+  });
+
   it("draws magnitude and phase as separate Bode plots", () => {
     const magnitude = acResponseSvg(
       [singlePole()],
@@ -67,12 +85,31 @@ describe("AC response plot", () => {
       { kind: "phase" },
     )!;
 
-    expect(magnitude.match(/<polyline/gu)).toHaveLength(1);
-    expect(phase.match(/<polyline/gu)).toHaveLength(1);
+    expect(
+      magnitude.match(/<polyline class="ac-trace ac-trace-/gu),
+    ).toHaveLength(1);
+    expect(phase.match(/<polyline class="ac-trace ac-trace-/gu)).toHaveLength(
+      1,
+    );
     expect(magnitude).toContain('aria-label="AC magnitude"');
     expect(phase).toContain('aria-label="AC phase"');
     expect(magnitude).toContain("dB");
     expect(phase).toContain("°");
+  });
+
+  it("keeps a trace addressable and emphasizes the selected line", () => {
+    const trace = { ...singlePole(), id: "probe-output" };
+    const svg = acResponseSvg(
+      [trace],
+      { width: 600, height: 300 },
+      {
+        kind: "magnitude",
+        selectedTraceId: trace.id,
+      },
+    )!;
+
+    expect(svg).toContain('data-trace-id="probe-output"');
+    expect(svg).toContain("ac-trace-selected");
   });
 
   it("declines to invent a plot when there is nothing to draw", () => {

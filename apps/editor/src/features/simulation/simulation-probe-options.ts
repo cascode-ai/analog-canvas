@@ -4,7 +4,7 @@ import type {
   SimulationProbeSpec,
   SimulationVoltageProbeAnchor,
 } from "@icm/model";
-import { resolveDocumentLogicalNets } from "@icm/derived";
+import { resolveDocumentLogicalNets, type HierarchyFrame } from "@icm/derived";
 
 type VoltageProbeTarget = Omit<
   Extract<SimulationProbeSpec, { kind: "net-voltage" }>,
@@ -105,6 +105,40 @@ function voltageAnchor(
   if (junction) return { kind: "junction", junctionId: junction.id };
   const route = document.routes.find((item) => ids.has(item.netId));
   return route ? { kind: "route", routeId: route.id } : undefined;
+}
+
+/**
+ * Resolve the persisted occurrence ids into the same hierarchy frames used by
+ * canvas navigation. This is presentation-only: probe identity remains the
+ * authored document/object/occurrence tuple.
+ */
+export function simulationProbeHierarchyPath(
+  project: CircuitProject,
+  rootDocumentId: string,
+  occurrence: readonly string[],
+): readonly HierarchyFrame[] | null {
+  const documents = new Map(
+    project.documents.map((document) => [document.id, document]),
+  );
+  let parent = documents.get(rootDocumentId);
+  if (!parent) return null;
+  const frames: HierarchyFrame[] = [];
+  for (const instanceId of occurrence) {
+    const instance = parent.instances.find(
+      (candidate) => candidate.id === instanceId,
+    );
+    const binding = instance?.netlist?.binding;
+    if (binding?.kind !== "subcircuit") return null;
+    const child = documents.get(binding.childDocumentId);
+    if (!child) return null;
+    frames.push({
+      parentDocumentId: parent.id,
+      instanceId,
+      childDocumentId: child.id,
+    });
+    parent = child;
+  }
+  return frames;
 }
 
 /**

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   SimulationSetupSchema,
   type CircuitProject,
@@ -29,6 +29,13 @@ const RESULT_TABS = [
   ["console", "Console"],
   ["files", "Files"],
 ] as const;
+
+// Vite's UI-only development server has no execution capabilities endpoint.
+// Keep its single Preview profile visible for setup authoring; a deployed
+// executor's advertised profiles remain authoritative whenever available.
+const DEVELOPMENT_PROFILE_ID = import.meta.env.DEV
+  ? "sky130-core-continuous-ngspice46-v1"
+  : "";
 type ResultTab = (typeof RESULT_TABS)[number][0];
 
 export interface SpiceSimulationSurfaceProps {
@@ -275,32 +282,26 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
       <header className="simulation-taskbar">
         <div className="simulation-brand">
           <strong>Simulation</strong>
-          <span>{analysisLabel || "Preview"}</span>
         </div>
-        <div
-          className="simulation-cell-context"
-          data-testid="simulation-cell-flow"
-        >
-          <button
-            disabled={!activeCell}
-            onClick={() => activeCell && props.onOpenCell(activeCell.id)}
+        {draftDut || (savedRoot && savedRoot.id !== activeCell?.id) ? (
+          <div
+            className="simulation-cell-context"
+            data-testid="simulation-cell-flow"
           >
-            <small>Cell</small>
-            {activeCell?.name ?? "Missing Cell"}
-          </button>
-          {draftDut ? (
-            <button onClick={() => props.onOpenCell(draftDut.id)}>
-              <small>DUT</small>
-              {draftDut.name}
-            </button>
-          ) : null}
-          {savedRoot && savedRoot.id !== activeCell?.id ? (
-            <button onClick={() => props.onOpenCell(savedRoot.id)}>
-              <small>Setup root</small>
-              {savedRoot.name}
-            </button>
-          ) : null}
-        </div>
+            {draftDut ? (
+              <button onClick={() => props.onOpenCell(draftDut.id)}>
+                <small>DUT</small>
+                {draftDut.name}
+              </button>
+            ) : null}
+            {savedRoot && savedRoot.id !== activeCell?.id ? (
+              <button onClick={() => props.onOpenCell(savedRoot.id)}>
+                <small>Setup root</small>
+                {savedRoot.name}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
         <span
           className={`simulation-status-chip simulation-status-${run?.state ?? (prepared ? "prepared" : "idle")}`}
           role="status"
@@ -316,7 +317,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
               setSetupOpen(true);
             }}
           >
-            Setup
+            Settings
           </button>
           <button
             type="button"
@@ -683,6 +684,21 @@ function SetupEditor({
     ]),
   );
   const ac = saved?.analyses.find((a) => a.kind === "ac");
+  const tran = saved?.analyses.find((a) => a.kind === "tran");
+  const [acEnabled, setAcEnabled] = useState(!!ac);
+  const [tranEnabled, setTranEnabled] = useState(!!tran);
+  const [profileId, setProfileId] = useState(
+    saved?.environment.profileId ?? DEVELOPMENT_PROFILE_ID,
+  );
+  useEffect(() => {
+    const defaultProfileId = capabilities?.profiles[0]?.id;
+    if (
+      !saved?.environment.profileId &&
+      defaultProfileId &&
+      (!profileId || profileId === DEVELOPMENT_PROFILE_ID)
+    )
+      setProfileId(defaultProfileId);
+  }, [capabilities?.profiles[0]?.id, profileId, saved?.environment.profileId]);
   useEffect(() => {
     if (!pickedNet) return;
     const option = probeOptions.voltage.find(
@@ -740,6 +756,15 @@ function SetupEditor({
                       },
                     ]
                   : []),
+                ...(data.has("tran")
+                  ? [
+                      {
+                        kind: "tran",
+                        stepSeconds: Number(data.get("tranStepSeconds")),
+                        stopSeconds: Number(data.get("tranStopSeconds")),
+                      },
+                    ]
+                  : []),
               ],
               probes,
               environment: {
@@ -777,107 +802,164 @@ function SetupEditor({
         </label>
         <label>
           Environment profile
-          <input
+          <select
             name="profileId"
             required
-            list="simulation-profiles"
-            defaultValue={
-              saved?.environment.profileId ??
-              capabilities?.profiles[0]?.id ??
-              ""
-            }
-          />
-        </label>
-        <datalist id="simulation-profiles">
-          {capabilities?.profiles.map((p) => (
-            <option key={p.id} value={p.id} />
-          ))}
-        </datalist>
-        <label>
-          Corner
-          <input
-            name="corner"
-            defaultValue={saved?.environment.corner ?? ""}
-            placeholder="Profile default"
-          />
-        </label>
-        <label>
-          Temperature (°C)
-          <input
-            name="temperatureC"
-            type="number"
-            step="any"
-            defaultValue={saved?.environment.temperatureC ?? ""}
-            placeholder="Profile default"
-          />
-        </label>
-        <label>
-          <input
-            name="op"
-            type="checkbox"
-            defaultChecked={
-              !saved || saved.analyses.some((a) => a.kind === "op")
-            }
-          />
-          Operating point (OP)
-        </label>
-        <label>
-          <input name="ac" type="checkbox" defaultChecked={!!ac} />
-          AC sweep
-        </label>
-        <label>
-          Sweep
-          <select name="sweep" defaultValue={ac?.sweep ?? "dec"}>
-            <option value="dec">Decade</option>
-            <option value="oct">Octave</option>
-            <option value="lin">Linear</option>
+            value={profileId}
+            onChange={(event) => setProfileId(event.currentTarget.value)}
+          >
+            {!profileId ? (
+              <option value="" disabled>
+                {capabilities ? "No profiles available" : "Loading profiles…"}
+              </option>
+            ) : null}
+            {profileId &&
+            !capabilities?.profiles.some(
+              (profile) => profile.id === profileId,
+            ) ? (
+              <option value={profileId}>{profileId}</option>
+            ) : null}
+            {capabilities?.profiles.map((profile) => (
+              <option key={profile.id} value={profile.id}>
+                {profile.id}
+              </option>
+            ))}
           </select>
         </label>
-        <label>
-          Points
-          <input
-            name="points"
-            type="number"
-            min="1"
-            defaultValue={ac?.points ?? 20}
-          />
-        </label>
-        <label>
-          Start (Hz)
-          <input
-            name="startHz"
-            type="number"
-            step="any"
-            defaultValue={ac?.startHz ?? 1}
-          />
-        </label>
-        <label>
-          Stop (Hz)
-          <input
-            name="stopHz"
-            type="number"
-            step="any"
-            defaultValue={ac?.stopHz ?? 1e6}
-          />
-        </label>
+        <div className="simulation-setup-group simulation-inline-fields columns-2">
+          <label>
+            Corner
+            <input
+              name="corner"
+              defaultValue={saved?.environment.corner ?? ""}
+              placeholder="Profile default"
+            />
+          </label>
+          <label>
+            Temperature (°C)
+            <input
+              name="temperatureC"
+              type="number"
+              step="any"
+              defaultValue={saved?.environment.temperatureC ?? ""}
+              placeholder="Profile default"
+            />
+          </label>
+        </div>
+        <fieldset className="simulation-setup-group simulation-analysis-row">
+          <legend>Analyses</legend>
+          <label>
+            <input
+              name="op"
+              type="checkbox"
+              defaultChecked={
+                !saved || saved.analyses.some((a) => a.kind === "op")
+              }
+            />
+            OP
+          </label>
+          <label>
+            <input
+              name="ac"
+              type="checkbox"
+              checked={acEnabled}
+              onChange={(event) => setAcEnabled(event.currentTarget.checked)}
+            />
+            AC
+          </label>
+          <label>
+            <input
+              name="tran"
+              type="checkbox"
+              checked={tranEnabled}
+              onChange={(event) => setTranEnabled(event.currentTarget.checked)}
+            />
+            TRAN
+          </label>
+        </fieldset>
+        {acEnabled ? (
+          <div className="simulation-setup-group simulation-analysis-settings">
+            <label>
+              AC sweep
+              <select name="sweep" defaultValue={ac?.sweep ?? "dec"}>
+                <option value="dec">Decade</option>
+                <option value="oct">Octave</option>
+                <option value="lin">Linear</option>
+              </select>
+            </label>
+            <div className="simulation-inline-fields columns-3">
+              <label>
+                Points
+                <input
+                  name="points"
+                  type="number"
+                  min="1"
+                  defaultValue={ac?.points ?? 20}
+                />
+              </label>
+              <label>
+                Start (Hz)
+                <input
+                  name="startHz"
+                  type="number"
+                  step="any"
+                  defaultValue={ac?.startHz ?? 1}
+                />
+              </label>
+              <label>
+                Stop (Hz)
+                <input
+                  name="stopHz"
+                  type="number"
+                  step="any"
+                  defaultValue={ac?.stopHz ?? 1e6}
+                />
+              </label>
+            </div>
+          </div>
+        ) : null}
+        {tranEnabled ? (
+          <div className="simulation-setup-group simulation-inline-fields columns-2">
+            <label>
+              TRAN step (s)
+              <input
+                name="tranStepSeconds"
+                type="number"
+                step="any"
+                defaultValue={tran?.stepSeconds ?? 1e-9}
+              />
+            </label>
+            <label>
+              TRAN stop (s)
+              <input
+                name="tranStopSeconds"
+                type="number"
+                step="any"
+                defaultValue={tran?.stopSeconds ?? 1e-6}
+              />
+            </label>
+          </div>
+        ) : null}
         <ProbeSelect
           label="Add voltage probe"
-          placeholder="Choose a Net in the testbench hierarchy"
+          placeholder="Choose a Net"
           options={probeOptions.voltage}
           probes={probes}
           onAdd={(option) => {
             setProbes([...probes, probeFromOption(option)]);
             onDirty(true);
           }}
+          trailingAction={
+            <button
+              type="button"
+              className={pickNetsActive ? "simulation-pick-active" : undefined}
+              aria-pressed={pickNetsActive}
+              onClick={() => onPickNetsChange?.(!pickNetsActive)}
+            >
+              {pickNetsActive ? "Picking Nets…" : "Pick on canvas"}
+            </button>
+          }
         />
-        <button
-          type="button"
-          className={pickNetsActive ? "simulation-pick-active" : undefined}
-          aria-pressed={pickNetsActive}
-          onClick={() => onPickNetsChange?.(!pickNetsActive)}
-        >
-          {pickNetsActive ? "Picking voltage Nets…" : "Pick voltage on canvas"}
-        </button>
         <ProbeSelect
           label="Add current output"
           placeholder="Choose a voltage-source branch"
@@ -927,10 +1009,6 @@ function SetupEditor({
             </li>
           ))}
         </ul>
-        <p>
-          Voltage Outputs target Nets. Current Outputs target a measurable
-          device branch; sources are edited on the testbench canvas.
-        </p>
         <button type="submit">Apply setup</button>
         {saved && (
           <button type="button" onClick={() => onSaveSetup(null)}>
@@ -970,37 +1048,42 @@ function ProbeSelect({
   options,
   probes,
   onAdd,
+  trailingAction,
 }: {
   label: string;
   placeholder: string;
   options: readonly SimulationProbeOption[];
   probes: SimulationStructuredInput["probes"];
   onAdd(option: SimulationProbeOption): void;
+  trailingAction?: ReactNode;
 }) {
   const selected = new Set(probes.map(simulationProbeTargetKey));
   return (
-    <label>
-      {label}
-      <select
-        value=""
-        onChange={(event) => {
-          const option = options.find(
-            (candidate) => candidate.key === event.target.value,
-          );
-          if (option) onAdd(option);
-        }}
-      >
-        <option value="">{placeholder}</option>
-        {options.map((option) => (
-          <option
-            key={option.key}
-            value={option.key}
-            disabled={selected.has(option.key)}
-          >
-            {option.label}
-          </option>
-        ))}
-      </select>
+    <label className="simulation-probe-select">
+      <span>{label}</span>
+      <span className="simulation-probe-control">
+        <select
+          value=""
+          onChange={(event) => {
+            const option = options.find(
+              (candidate) => candidate.key === event.target.value,
+            );
+            if (option) onAdd(option);
+          }}
+        >
+          <option value="">{placeholder}</option>
+          {options.map((option) => (
+            <option
+              key={option.key}
+              value={option.key}
+              disabled={selected.has(option.key)}
+            >
+              {option.label}
+            </option>
+          ))}
+        </select>
+        {trailingAction}
+      </span>
     </label>
   );
 }

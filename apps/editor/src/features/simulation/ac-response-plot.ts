@@ -29,6 +29,8 @@ export interface AcPoint {
 }
 
 export interface AcTrace {
+  /** Stable result-browser identity used for line selection. */
+  id?: string;
   /** The expression the author asked for, printed verbatim as the legend. */
   label: string;
   /** Stable Results Browser colour slot, independent of hide/show filtering. */
@@ -68,6 +70,10 @@ export interface AcResponseSvgOptions {
   cursorFrequency?: number;
   /** The interactive Results Browser owns the legend when false. */
   showLegend?: boolean;
+  /** Selected Results Browser trace, emphasized on the plot. */
+  selectedTraceId?: string;
+  /** Explicit axes-toolbar range; traces are clipped to this interval. */
+  frequencyRange?: readonly [number, number];
 }
 
 const MARGIN = { left: 56, right: 56, top: 16, bottom: 32 };
@@ -96,6 +102,7 @@ function niceLinear(min: number, max: number, step: number): AcPlotAxis {
 export function layoutAcPlot(
   traces: readonly AcTrace[],
   size: AcPlotSize,
+  frequencyRange?: readonly [number, number],
 ): AcPlotLayout | null {
   const points = traces.flatMap((trace) => trace.points);
   const usable = points.filter((point) => point.frequency > 0);
@@ -110,13 +117,17 @@ export function layoutAcPlot(
     width: Math.max(1, size.width - MARGIN.left - MARGIN.right),
     height: Math.max(1, size.height - MARGIN.top - MARGIN.bottom),
   };
-  const fMin = Math.min(...frequencies);
-  const fMax = Math.max(...frequencies);
-  const decades = niceDecades(fMin, fMax);
+  const dataMin = Math.min(...frequencies);
+  const dataMax = Math.max(...frequencies);
+  const fMin = frequencyRange?.[0] ?? dataMin;
+  const fMax = frequencyRange?.[1] ?? dataMax;
+  const decades = niceDecades(fMin, fMax).filter(
+    (frequency) => frequency >= fMin && frequency <= fMax,
+  );
   const frequency: AcPlotAxis = {
     ticks: decades,
-    min: decades[0]!,
-    max: decades.at(-1)!,
+    min: frequencyRange ? fMin : niceDecades(dataMin, dataMax)[0]!,
+    max: frequencyRange ? fMax : niceDecades(dataMin, dataMax).at(-1)!,
   };
   const logMin = Math.log10(frequency.min);
   const logSpan = Math.log10(frequency.max) - logMin || 1;
@@ -192,7 +203,7 @@ export function acResponseSvg(
   size: AcPlotSize,
   options: AcResponseSvgOptions = { kind: "magnitude" },
 ): string | null {
-  const layout = layoutAcPlot(traces, size);
+  const layout = layoutAcPlot(traces, size, options.frequencyRange);
   if (!layout) return null;
   const project = projection(layout);
   const { frame } = layout;
@@ -216,9 +227,17 @@ export function acResponseSvg(
     .map((trace, index) => {
       const colorIndex = trace.colorIndex ?? index;
       const points = polyline(trace, project, options.kind);
-      return `<polyline class="ac-trace ac-trace-${colorIndex % 6}" data-trace-index="${index}" points="${points}"/>`;
+      const id = trace.id ?? trace.label;
+      const selected =
+        options.selectedTraceId === id ? " ac-trace-selected" : "";
+      const identity = `data-trace-index="${index}" data-trace-id="${escapeXml(id)}"`;
+      return (
+        `<polyline class="ac-trace-hit" ${identity} points="${points}"/>` +
+        `<polyline class="ac-trace ac-trace-${colorIndex % 6}${selected}" points="${points}"/>`
+      );
     })
     .join("");
+  const clipId = `ac-clip-${options.kind}-${size.width}-${size.height}`;
 
   // The author asked for these expressions by name; printing them back is the
   // only way to tell two curves apart, and colour alone would leave anyone
@@ -246,9 +265,10 @@ export function acResponseSvg(
 
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" class="ac-response" viewBox="0 0 ${size.width} ${size.height}" width="${size.width}" height="${size.height}" role="img" aria-label="AC ${options.kind}">` +
+    `<defs><clipPath id="${clipId}"><rect x="${frame.x}" y="${frame.y}" width="${frame.width}" height="${frame.height}"/></clipPath></defs>` +
     `<rect class="ac-frame" x="${frame.x}" y="${frame.y}" width="${frame.width}" height="${frame.height}"/>` +
     gridLines +
-    curves +
+    `<g clip-path="url(#${clipId})">${curves}</g>` +
     cursor +
     legend +
     `</svg>`

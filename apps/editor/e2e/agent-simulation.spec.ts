@@ -67,7 +67,7 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
     .getByRole("button", { name: "Analog simulation", exact: true })
     .click();
   const panel = page.getByRole("region", { name: "Analog simulation" });
-  await panel.getByText("Setup", { exact: true }).click();
+  await panel.getByRole("button", { name: "Settings" }).click();
   await expect(panel.getByLabel("Testbench Cell")).toHaveValue(
     originalSetupInput.rootDocumentId,
   );
@@ -79,13 +79,13 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
   await expect(
     panel.locator("li").filter({ hasText: "XDUT · ota_5t · tail" }),
   ).toBeVisible();
-  await panel.getByRole("button", { name: "Pick voltage on canvas" }).click();
+  await panel.getByRole("button", { name: "Pick on canvas" }).click();
   await page.getByTestId("route-hit-tb-vinp-route").click({ force: true });
   await expect(panel.getByRole("button", { name: "Remove probe" })).toHaveCount(
     5,
   );
   await panel.getByRole("button", { name: "Remove probe" }).last().click();
-  await panel.getByRole("button", { name: "Picking voltage Nets…" }).click();
+  await panel.getByRole("button", { name: "Picking Nets…" }).click();
   await panel
     .getByLabel("Add voltage probe")
     .selectOption({ label: "XDUT · ota_5t · vinp" });
@@ -150,7 +150,7 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
   await page
     .getByRole("button", { name: "Analog simulation", exact: true })
     .click();
-  await panel.getByText("Setup", { exact: true }).click();
+  await panel.getByRole("button", { name: "Settings" }).click();
   await expect(panel.getByRole("button", { name: "Remove probe" })).toHaveCount(
     6,
   );
@@ -216,6 +216,8 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
     }
     executions++;
     await pending;
+    const requestedVector =
+      /write\s+out\.raw\s+([^\s]+)/iu.exec(body.preparedDeck)?.[1] ?? "v(out)";
     const rawfile = readFileSync(
       new URL(
         "../../../fixtures/ngspice-rawfile/divider-op.raw",
@@ -241,7 +243,7 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
               frequencyHz: [1, 10, 100],
               probes: [
                 {
-                  name: "v(out)",
+                  name: requestedVector,
                   quantity: "voltage",
                   unit: "V",
                   real: [10, 7, 1],
@@ -295,7 +297,7 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   await panel.getByRole("button", { name: "Run", exact: true }).click();
   await expect(panel.getByRole("alert")).toContainText(/PROBE|probe/);
   expect(executions).toBe(0);
-  await panel.getByText("Setup", { exact: true }).click();
+  await panel.getByRole("button", { name: "Settings" }).click();
   await panel.getByRole("button", { name: "Remove probe" }).click();
   await panel
     .getByLabel("Add voltage probe")
@@ -316,6 +318,28 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   await expect(panel.locator(".spice-ac-plot svg")).toHaveCount(2);
   await expect(panel.locator('svg[aria-label="AC magnitude"]')).toBeVisible();
   await expect(panel.locator('svg[aria-label="AC phase"]')).toBeVisible();
+  const magnitudePlot = panel
+    .locator(".ac-plot-row")
+    .filter({ hasText: "Magnitude" })
+    .locator(".spice-ac-plot")
+    .first();
+  const plotBeforeWheel = await magnitudePlot.innerHTML();
+  await magnitudePlot.dispatchEvent("wheel", { deltaY: -120 });
+  await expect(magnitudePlot).toHaveJSProperty("innerHTML", plotBeforeWheel);
+  await magnitudePlot.hover();
+  await expect(
+    panel.getByRole("button", { name: "Zoom in" }).first(),
+  ).toBeVisible();
+  await magnitudePlot.dblclick();
+  await expect(
+    page.getByRole("dialog", { name: "voltage magnitude plot" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Close plot" }).click();
+  await magnitudePlot.locator("polyline[data-trace-id]").dispatchEvent("click");
+  await expect(
+    panel.locator(".simulation-output-browser > .selected"),
+  ).toHaveCount(1);
+  await expect(page.getByTestId("net-highlight-overlay")).toBeVisible();
   await panel.getByRole("tab", { name: "Files" }).click();
   const download = page.waitForEvent("download");
   await panel
@@ -335,7 +359,7 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
     oldRunIdentity,
   );
   expect(executions).toBe(1);
-  await panel.getByText("Setup", { exact: true }).click();
+  await panel.getByRole("button", { name: "Settings" }).click();
   await panel.getByLabel("Temperature (°C)").fill("30");
   await panel.getByRole("button", { name: "Apply setup" }).click();
   await expect(panel.getByRole("alert")).toContainText(
@@ -362,7 +386,7 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
     buffer: saved,
   });
   await page.getByTestId("open-analog-simulation").click();
-  await panel.getByText("Setup", { exact: true }).click();
+  await panel.getByRole("button", { name: "Settings" }).click();
   await expect(panel.getByLabel("Temperature (°C)")).toHaveValue("30");
   await expect(panel.getByRole("status")).toHaveText("No run yet");
 });
