@@ -10,6 +10,7 @@ import {
 } from "../components/recovery-banners";
 import {
   LazyCellManagerDialog,
+  LazyNewTestbenchDialog,
   LazySpiceSimulationSurface,
   LazyConnectAgentPanel,
   LazyEditorHelpDialog,
@@ -45,6 +46,7 @@ export interface EditorDialogLayerProps {
     onConfirm: () => void;
   } | null;
   cellManager: ComponentProps<typeof LazyCellManagerDialog> | null;
+  newTestbench: ComponentProps<typeof LazyNewTestbenchDialog> | null;
   netlistPreflight: ComponentProps<typeof LazyNetlistPreflightDialog> | null;
   publishGallery: ComponentProps<typeof LazyPublishGalleryDialog> | null;
   versionHistory: ComponentProps<typeof LazyVersionHistoryDialog> | null;
@@ -70,6 +72,7 @@ export function EditorDialogLayer({
   insertComponent,
   cellReset,
   cellManager,
+  newTestbench,
   netlistPreflight,
   publishGallery,
   versionHistory,
@@ -147,6 +150,7 @@ export function EditorDialogLayer({
           </div>
         ) : null}
         {cellManager ? <LazyCellManagerDialog {...cellManager} /> : null}
+        {newTestbench ? <LazyNewTestbenchDialog {...newTestbench} /> : null}
         {netlistPreflight ? (
           <LazyNetlistPreflightDialog {...netlistPreflight} />
         ) : null}

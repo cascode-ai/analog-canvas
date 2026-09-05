@@ -144,6 +144,7 @@ import {
 import { EditorDialogLayer } from "./editor-dialog-layer";
 import { EditorAppChrome } from "./editor-app-chrome";
 import { EditorPropertiesDock } from "./editor-properties-dock";
+import type { NewTestbenchRequest } from "../features/simulation/new-testbench-dialog";
 import { useProjectCheck } from "./use-project-check";
 import { summarizeVisualDiagnostics } from "../features/selection/selection-inspector-details";
 import {
@@ -530,6 +531,17 @@ export function App({
   );
   const [importReviewOpen, setImportReviewOpen] = useState(false);
   const [cellManagerOpen, setCellManagerOpen] = useState(false);
+  const [newTestbenchDutId, setNewTestbenchDutId] = useState<string | null>(
+    null,
+  );
+  const [simulationDraftContext, setSimulationDraftContext] = useState<{
+    dutDocumentId: string;
+    rootDocumentId: string;
+  } | null>(null);
+  useEffect(() => {
+    setNewTestbenchDutId(null);
+    setSimulationDraftContext(null);
+  }, [project.id]);
   const [canvasContextMenu, setCanvasContextMenu] = useState<{
     x: number;
     y: number;
@@ -2919,6 +2931,83 @@ export function App({
     setStatus("Choose a Cell, then place it on the canvas");
   }
 
+  function openNewTestbenchDialog(dutDocumentId = document.id): void {
+    cancelAllTransientInteraction();
+    setCanvasContextMenu(null);
+    setNewTestbenchDutId(dutDocumentId);
+  }
+
+  function beginProjectCellPlacement(childDocumentId: string): void {
+    const child = project.documents.find(
+      (candidate) => candidate.id === childDocumentId,
+    );
+    if (!child?.netlist) {
+      setStatus("The selected DUT Cell no longer exists");
+      return;
+    }
+    const cellName =
+      child.sourceBinding?.cellName ?? child.netlist.name ?? child.name;
+    beginComponentPlacement({
+      kind: "cell",
+      symbolId: hierarchicalSymbolId(cellName),
+      childDocumentId: child.id,
+      cellName,
+      parameters: {},
+      initialRotation: 0,
+      showReference: true,
+      referenceText: null,
+      showValue: true,
+    });
+  }
+
+  function createTestbenchCell(request: NewTestbenchRequest): void {
+    const dut = project.documents.find(
+      (candidate) => candidate.id === request.dutDocumentId,
+    );
+    if (!dut?.netlist) {
+      setStatus("Could not create Testbench: the selected DUT Cell is missing");
+      return;
+    }
+    if (
+      project.documents.some(
+        (candidate) =>
+          candidate.name.toLowerCase() === request.name.toLowerCase(),
+      )
+    ) {
+      setStatus(
+        `Could not create Testbench: Cell ${request.name} already exists`,
+      );
+      return;
+    }
+    const testbench = createEmptyDocument(createId("document"), request.name);
+    testbench.netlist!.name = request.name;
+    testbench.presentation = structuredClone(dut.presentation);
+    if (
+      !commitStructure(
+        "create-testbench-cell",
+        planCreateCell(testbench),
+        testbench.id,
+      )
+    ) {
+      return;
+    }
+    setDocumentStack([]);
+    setNewTestbenchDutId(null);
+    setSimulationDraftContext({
+      dutDocumentId: dut.id,
+      rootDocumentId: testbench.id,
+    });
+    setAnalogSimulationOpen(false);
+    if (request.placeDut) {
+      beginProjectCellPlacement(dut.id);
+      setStatus(
+        `Created Testbench ${testbench.name}. Click to place the ${dut.name} Symbol View; Esc exits.`,
+      );
+    } else {
+      setStatus(`Created Testbench Cell ${testbench.name}`);
+    }
+  }
+
   const selectedFormalTerminal = selectedInstance
     ? document.netlist?.terminals.find((terminal) =>
         terminal.interfaceInstanceIds.includes(selectedInstance.id),
@@ -3890,6 +3979,11 @@ export function App({
         }}
         searchOpen={searchOpen}
         onManageCells={() => setCellManagerOpen(true)}
+        onNewTestbench={() => openNewTestbenchDialog()}
+        placeProjectCell={{
+          enabled: cellInsertCandidates.length > 0,
+          execute: placeCellInstance,
+        }}
         onOpenSearch={() => setSearchOpen(true)}
         undo={{
           enabled: editorCommands.state({ id: "history.undo" }).enabled,
@@ -4104,53 +4198,20 @@ export function App({
                 session: humanSimulationSession,
                 project,
                 activeDocumentId: document.id,
+                ...(simulationDraftContext
+                  ? { draftContext: simulationDraftContext }
+                  : {}),
                 open: analogSimulationOpen,
                 onClose: () => setAnalogSimulationOpen(false),
-                onSaveSetup: (setup) =>
-                  commitStructure("set-simulation-setup", [
+                onSaveSetup: (setup) => {
+                  const committed = commitStructure("set-simulation-setup", [
                     { kind: "set_simulation_setup", setup },
-                  ]),
-                onOpenCell: (id) => switchDocument(id),
-                onCreateTestbench: () => {
-                  let name = `${document.name}_tb`;
-                  for (
-                    let i = 2;
-                    project.documents.some((d) => d.name === name);
-                    i++
-                  )
-                    name = `${document.name}_tb_${i}`;
-                  const tb = createEmptyDocument(createId("document"), name);
-                  tb.netlist!.name = name;
-                  tb.presentation = structuredClone(document.presentation);
-                  if (
-                    commitStructure(
-                      "create-testbench-cell",
-                      planCreateCell(tb),
-                      tb.id,
-                    )
-                  ) {
-                    setDocumentStack([]);
-                    setAnalogSimulationOpen(false);
-                    const cellName =
-                      document.sourceBinding?.cellName ??
-                      document.netlist?.name ??
-                      document.name;
-                    beginComponentPlacement({
-                      kind: "cell",
-                      symbolId: hierarchicalSymbolId(cellName),
-                      childDocumentId: document.id,
-                      cellName,
-                      parameters: {},
-                      initialRotation: 0,
-                      showReference: true,
-                      referenceText: null,
-                      showValue: true,
-                    });
-                    setStatus(
-                      `Created ${name}. Click to place ${cellName}; configure Simulation setup when ready.`,
-                    );
-                  }
+                  ]);
+                  if (committed) setSimulationDraftContext(null);
+                  return committed;
                 },
+                onOpenCell: (id) => switchDocument(id),
+                onNewTestbench: () => openNewTestbenchDialog(),
               }
             : undefined
         }
@@ -4327,6 +4388,16 @@ export function App({
                     ),
                   );
                 },
+              }
+            : null
+        }
+        newTestbench={
+          newTestbenchDutId
+            ? {
+                documents: project.documents,
+                initialDutDocumentId: newTestbenchDutId,
+                onCancel: () => setNewTestbenchDutId(null),
+                onCreate: createTestbenchCell,
               }
             : null
         }
@@ -5550,6 +5621,16 @@ export function App({
               editorCommands.execute({ id: "selection.align", mode })
             }
             actions={[
+              {
+                label: "New Testbench Cell…",
+                enabled: true,
+                execute: () => openNewTestbenchDialog(),
+              },
+              {
+                label: "Place Cell from this Project…",
+                enabled: cellInsertCandidates.length > 0,
+                execute: placeCellInstance,
+              },
               ...(["png", "svg"] as const).map((format) => ({
                 label: `Copy as ${format.toUpperCase()}`,
                 enabled: editorCommands.state({
