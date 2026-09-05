@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import {
+  changeTransientTimeRange,
   TransientResultsExplorer,
   transientPolylinePoints,
 } from "./transient-results-explorer";
@@ -64,5 +65,19 @@ describe("Transient Results Explorer", () => {
     expect(markup).toContain('aria-label="Transient voltage"');
     expect(markup).toContain('aria-label="Transient current"');
     expect(markup.match(/data-trace-index=/gu)).toHaveLength(2);
+    expect(markup).toContain('aria-label="Plot tools"');
+    expect(markup.match(/aria-label="Open plot"/gu)).toHaveLength(2);
+  });
+
+  it("keeps explicit linear zoom and pan inside the transient interval", () => {
+    expect(changeTransientTimeRange([0, 10], [0, 10], "zoom-in")).toEqual([
+      2, 8,
+    ]);
+    expect(changeTransientTimeRange([2, 8], [0, 10], "pan-right")).toEqual([
+      3.2, 9.2,
+    ]);
+    expect(changeTransientTimeRange([0, 10], [0, 10], "pan-left")).toEqual([
+      0, 10,
+    ]);
   });
 });
