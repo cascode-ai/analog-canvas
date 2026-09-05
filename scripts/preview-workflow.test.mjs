@@ -43,6 +43,13 @@ describe("the preview deploy", () => {
     expect(preview).toContain(
       'node scripts/preview-simulation-smoke.mjs "$PREVIEW_URL"',
     );
+    expect(preview).toContain("VITE_ICM_AGENT_UI: enabled");
+    expect(preview).toContain("pnpm --filter @icm/mcp-server... build");
+    expect(preview).toContain("playwright install --with-deps chromium");
+    expect(preview).toContain(
+      'node scripts/preview-agent-simulation-journey.mjs "$PREVIEW_URL"',
+    );
+    expect(preview).toContain("preview-agent-simulation-${{ github.sha }}");
     // The reusable smoke is responsible for explicit transport selection,
     // numeric validation, and environment parity; the workflow must not
     // quietly restore an inline, default-executor-only probe.
@@ -53,5 +60,7 @@ describe("the preview deploy", () => {
 
   it("does not leak into the production workflow", () => {
     expect(production).not.toContain("wrangler.preview.jsonc");
+    expect(production).not.toContain("VITE_ICM_AGENT_UI: enabled");
+    expect(production).not.toContain("preview-agent-simulation-journey.mjs");
   });
 });
