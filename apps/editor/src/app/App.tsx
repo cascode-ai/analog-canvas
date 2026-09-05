@@ -11,6 +11,7 @@ import type {
 } from "@icm/agent-adapter";
 import {
   planCellReset,
+  planCreateCell,
   planSetCellSymbolPresentation,
   type CellResetPlan,
   type WireSource,
@@ -33,7 +34,7 @@ import {
   resolveRouteAttachment,
 } from "@icm/derived";
 import type { HierarchyFrame } from "@icm/derived";
-import { createEmptyProject } from "@icm/model";
+import { createEmptyProject, createEmptyDocument, createId } from "@icm/model";
 import {
   resolveReviewedExternalBinding,
   reviewedExternalModelSuggestions,
@@ -218,6 +219,7 @@ import { recoveryStateLabel } from "../components/recovery-banners";
 import { BrowserAgentHost } from "../agent/browser-agent-host";
 import { BrowserAgentFileHost } from "../agent/browser-agent-file-host";
 import { BrowserAgentSimulationHost } from "../agent/browser-agent-simulation-host";
+import { BrowserSimulationSession } from "../features/simulation/browser-simulation-session";
 import { createAgentSemanticIntentHandler } from "../agent/agent-semantic-intent-handler";
 import { PUBLIC_AGENT_UI_ENABLED } from "../agent/public-agent-ui";
 import { useAgentSession } from "../agent/use-agent-session";
@@ -652,6 +654,22 @@ export function App({
         getProject: () => editorDocumentController.project,
       }),
     [editorDocumentController, projectSessionId],
+  );
+  const [analogSimulationOpened, setAnalogSimulationOpened] = useState(false);
+  const [analogSimulationOpen, setAnalogSimulationOpen] = useState(false);
+  const humanSimulationSession = useMemo(
+    () =>
+      new BrowserSimulationSession({
+        getProjectSessionId: () => editorDocumentController.projectSessionId,
+        getProject: () => editorDocumentController.project,
+      }),
+    [editorDocumentController, projectSessionId],
+  );
+  useEffect(
+    () => () => {
+      void humanSimulationSession.clear();
+    },
+    [humanSimulationSession],
   );
   const {
     cloudBinding,
@@ -3808,6 +3826,10 @@ export function App({
     <main className="app-shell">
       {renderCrashRequested() ? <RenderCrashProbe /> : null}
       <EditorAppChrome
+        simulationAction={() => {
+          setAnalogSimulationOpened(true);
+          setAnalogSimulationOpen(true);
+        }}
         releaseChannel={releaseChannel}
         projectName={project.name}
         projectSchemaVersion={project.schemaVersion}
@@ -4075,6 +4097,63 @@ export function App({
         }}
       />
       <EditorDialogLayer
+        simulation={
+          analogSimulationOpened
+            ? {
+                sessionKey: projectSessionId,
+                session: humanSimulationSession,
+                project,
+                activeDocumentId: document.id,
+                open: analogSimulationOpen,
+                onClose: () => setAnalogSimulationOpen(false),
+                onSaveSetup: (setup) =>
+                  commitStructure("set-simulation-setup", [
+                    { kind: "set_simulation_setup", setup },
+                  ]),
+                onOpenCell: (id) => switchDocument(id),
+                onCreateTestbench: () => {
+                  let name = `${document.name}_tb`;
+                  for (
+                    let i = 2;
+                    project.documents.some((d) => d.name === name);
+                    i++
+                  )
+                    name = `${document.name}_tb_${i}`;
+                  const tb = createEmptyDocument(createId("document"), name);
+                  tb.netlist!.name = name;
+                  tb.presentation = structuredClone(document.presentation);
+                  if (
+                    commitStructure(
+                      "create-testbench-cell",
+                      planCreateCell(tb),
+                      tb.id,
+                    )
+                  ) {
+                    setDocumentStack([]);
+                    setAnalogSimulationOpen(false);
+                    const cellName =
+                      document.sourceBinding?.cellName ??
+                      document.netlist?.name ??
+                      document.name;
+                    beginComponentPlacement({
+                      kind: "cell",
+                      symbolId: hierarchicalSymbolId(cellName),
+                      childDocumentId: document.id,
+                      cellName,
+                      parameters: {},
+                      initialRotation: 0,
+                      showReference: true,
+                      referenceText: null,
+                      showValue: true,
+                    });
+                    setStatus(
+                      `Created ${name}. Click to place ${cellName}; configure Simulation setup when ready.`,
+                    );
+                  }
+                },
+              }
+            : undefined
+        }
         help={
           helpOpen ? { closeButtonRef: helpCloseRef, onClose: closeHelp } : null
         }

@@ -10,6 +10,7 @@ import {
 } from "../components/recovery-banners";
 import {
   LazyCellManagerDialog,
+  LazySpiceSimulationSurface,
   LazyConnectAgentPanel,
   LazyEditorHelpDialog,
   LazyInsertComponentDialog,
@@ -23,6 +24,11 @@ import {
 } from "./lazy-editor-dialogs";
 
 export interface EditorDialogLayerProps {
+  simulation?:
+    | (ComponentProps<typeof LazySpiceSimulationSurface> & {
+        sessionKey: string;
+      })
+    | undefined;
   help: ComponentProps<typeof LazyEditorHelpDialog> | null;
   chunkLoadFailure: ComponentProps<typeof ChunkLoadBanner> | null;
   recoveryFailure: ComponentProps<typeof RecoveryFailureBanner> | null;
@@ -52,6 +58,7 @@ export interface EditorDialogLayerProps {
 
 /** All modal/overlay UI kept outside the persistent editor workspace. */
 export function EditorDialogLayer({
+  simulation,
   help,
   chunkLoadFailure,
   recoveryFailure,
@@ -72,6 +79,12 @@ export function EditorDialogLayer({
   return (
     <>
       <Suspense fallback={null}>
+        {simulation ? (
+          <LazySpiceSimulationSurface
+            key={simulation.sessionKey}
+            {...simulation}
+          />
+        ) : null}
         {help ? <LazyEditorHelpDialog {...help} /> : null}
         {chunkLoadFailure ? <ChunkLoadBanner {...chunkLoadFailure} /> : null}
         {recoveryFailure ? (
