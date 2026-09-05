@@ -4,6 +4,20 @@ Use the top **Simulation** button. Opening the editor alone does not contact
 the simulator. The simulation drawer loads on demand and leaves the existing
 canvas available; it is separate from the development-only Digital tool.
 
+## Try it: the bundled five-transistor OTA
+
+The editor ships a Sky130 five-transistor OTA with its stimulus and a saved
+OP + AC setup. On the preview channel open
+`https://analog-canvas-preview.tokenzhang.com/editor?example=five-transistor-ota-sky130`,
+press **Simulation**, then **Run**. The operating point returns
+v(vout) ≈ 0.75898 V, v(ibias) ≈ 0.60440 V, v(xdut.tail) ≈ 0.28487 V and
+v(xdut.nleft) ≈ 0.75898 V, and the AC sweep plots 1 Hz–1 GHz. The preview
+deploy runs this same journey against the live simulator before it goes
+green, so those numbers are also its acceptance evidence. The Gallery panel
+lists published circuits, not bundled examples; the `?example=` link and
+**File → Open** on `apps/editor/src/examples/five-transistor-ota-sky130.icproj.json`
+are the two ways to reach it.
+
 ## DUT and testbench
 
 1. Define the DUT Cell's formal ports. In **Edit → Manage Cells → Review
