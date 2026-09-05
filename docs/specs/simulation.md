@@ -360,11 +360,11 @@ bare `write out.raw`, saving the whole plot rather than nothing.
 
 Vector names are produced here and never inferred from result text:
 
-| probe | vector |
-| --- | --- |
-| Net in the root | `v(mid)` |
-| Net under occurrence `X1`, `XI1` | `v(x1.xi1.mid)` |
-| voltage source in the root | `i(v1)` |
+| probe                            | vector            |
+| -------------------------------- | ----------------- |
+| Net in the root                  | `v(mid)`          |
+| Net under occurrence `X1`, `XI1` | `v(x1.xi1.mid)`   |
+| voltage source in the root       | `i(v1)`           |
 | voltage source under `X1`, `XI1` | `i(v.x1.xi1.vsi)` |
 
 They are lower case because ngspice folds case on the way into the rawfile: a
@@ -520,17 +520,17 @@ deadline.
 
 **Limits.**
 
-| Limit | Value | Enforced by |
-| --- | --- | --- |
-| Deck size | 2 MiB | rejected `413 deck-too-large` |
-| Request body | 4 MiB | connection closed, `413 request-too-large` |
-| Returned output | 1 MiB per run | truncation, reported |
-| Default deadline | 30 s | applied when the caller names none |
-| Maximum deadline | 120 s | a longer request is clamped to it |
-| Lifecycle grace | 10 s | hard lease watchdog after the run deadline |
-| Identity probe | 5 s | given up on, not waited for |
-| Processes | 128 (`RLIMIT_NPROC`) | image-set `ulimit` before `exec` |
-| Written file size | 256 MiB (`RLIMIT_FSIZE`) | image-set `ulimit` before `exec` |
+| Limit             | Value                    | Enforced by                                |
+| ----------------- | ------------------------ | ------------------------------------------ |
+| Deck size         | 2 MiB                    | rejected `413 deck-too-large`              |
+| Request body      | 4 MiB                    | connection closed, `413 request-too-large` |
+| Returned output   | 1 MiB per run            | truncation, reported                       |
+| Default deadline  | 30 s                     | applied when the caller names none         |
+| Maximum deadline  | 120 s                    | a longer request is clamped to it          |
+| Lifecycle grace   | 10 s                     | hard lease watchdog after the run deadline |
+| Identity probe    | 5 s                      | given up on, not waited for                |
+| Processes         | 128 (`RLIMIT_NPROC`)     | image-set `ulimit` before `exec`           |
+| Written file size | 256 MiB (`RLIMIT_FSIZE`) | image-set `ulimit` before `exec`           |
 
 The returned-output cap is divided between the simulator's two streams, so a
 flood of printed values on one cannot push the single line that explains the
@@ -654,19 +654,19 @@ rawfile line. Nothing is padded, interpolated, or carried forward from a
 neighbouring point, because a fabricated number is indistinguishable from a
 measured one once it reaches a chart. The refusals are:
 
-| code | what the file did |
-| --- | --- |
-| `empty-file` | no rawfile content at all |
-| `unsupported-format` | a binary rawfile, or not a rawfile |
-| `header-incomplete` | ends before a plot is fully described |
-| `header-invalid` | a header line is unreadable or missing |
+| code                    | what the file did                                     |
+| ----------------------- | ----------------------------------------------------- |
+| `empty-file`            | no rawfile content at all                             |
+| `unsupported-format`    | a binary rawfile, or not a rawfile                    |
+| `header-incomplete`     | ends before a plot is fully described                 |
+| `header-invalid`        | a header line is unreadable or missing                |
 | `variable-line-invalid` | a `Variables:` line declares no index, name, quantity |
-| `point-block-invalid` | a point has the wrong number of values, or no index |
-| `point-count-mismatch` | recovered points disagree with `No. Points` |
-| `value-malformed` | a value is not a number |
-| `value-not-finite` | a value is `nan`, `inf`, or an overflow |
+| `point-block-invalid`   | a point has the wrong number of values, or no index   |
+| `point-count-mismatch`  | recovered points disagree with `No. Points`           |
+| `value-malformed`       | a value is not a number                               |
+| `value-not-finite`      | a value is `nan`, `inf`, or an overflow               |
 
-Checking that a *requested* vector is present belongs to the caller, because
+Checking that a _requested_ vector is present belongs to the caller, because
 only the compiled setup knows what was asked for. This layer reports what the
 file holds.
 
@@ -768,6 +768,62 @@ Values are written as the shortest decimal that reads back as the same double,
 so a round trip through the CSV loses nothing the rawfile carried.
 
 ## Rollout
+
+### Agent resource implementation
+
+`packages/simulation-service` owns transport-neutral prepare/run lifecycle and
+the canonical operation/result codecs. Its `SimulationFiles` is exposed through
+the existing File Resource. Project setup and source parameters retain the
+existing Project edit authority. Browser and MCP adapters do not compile their
+own decks or own a second simulation model. The browser lazily creates a service
+for its live Project session; opening the editor does not start ngspice.
+
+`prepare` accepts saved/inline structured setup or an isolated raw workspace.
+It snapshots input and publishes immutable SHA-256-addressed artifact metadata;
+raw input retains its entry text and include files. `prepared.cir` is available
+before execution. Structured composition uses the executor's advertised library
+and the shared deck builder. The Worker rejects a prepared deck that no longer
+matches its composition instead of silently using changed deployment settings.
+
+`start` returns a short session-local run receipt. Reusing its request ID and
+payload returns the same run; a changed payload is rejected without invalidating
+the session. `read` returns running/cancelling/finished/cancelled/lost and any
+available evidence. A successful late completion is not relabeled cancelled.
+Input-change reporting never alters frozen inputs. `cancel` requests termination
+through the existing supervisor, whose process-tree cleanup still owns slot
+release. A private random run token authorizes cancellation; health responses
+and Agent artifacts do not expose that token. Cancel-before-admission is remembered
+for the maximum run window. Network uncertainty is never an automatic rerun.
+MCP transport failures return the effective request ID, including when the tool
+generated it, so an Agent can retry the identical start rather than duplicate it.
+File Resource `list` recovers session draft IDs after a lost create response;
+it returns revision/entry/expiry metadata, not file bodies.
+
+The browser owns receipts, not a persistent queue: tab loss/reload may lose run
+state, and normal executor deadlines still apply. Revoking the session cancels
+known active work and clears its drafts/evidence. One active run, eight raw
+workspaces (24 files / 1 MiB each), and 15-minute artifact/input retention bound
+local resources; expired input can be prepared again. Export returns File
+Resource references for prepared/executed deck, rawfile when produced, log,
+structured result, and CSV. Large read responses omit full arrays and bound the
+log/diagnostic preview, explicitly setting `resultPreview`. Full evidence remains
+in File Resource artifacts, read in bounded UTF-16 `offset`/`maxChars` slices
+with `nextOffset`. MCP local export assembles and verifies the complete file.
+Storage-capacity failures keep available evidence and return an explicit error;
+they are not permission failures or proof of simulation success.
+
+Recoverable problems use `{code,message,stage,recovery,diagnostics?}`. Ordinary
+compile errors, unavailable Profiles, simulator failures and busy responses do
+not end the Agent session. Only existing authorization/replacement/revocation
+rules invalidate the session. There is no forced helper-only syntax, extra
+approval per run, or new persistent Project schema in this increment.
+
+Deterministic acceptance is split by boundary: shared lifecycle tests, MCP ↔
+browser-host ↔ Worker tests using recorded numeric fixtures, browser WebSocket
+receipt/export tests, and Linux process cancellation tests. Recorded fixtures
+prove protocol/data handling, not a new electrical simulation or cloud deployment.
+Real Preview qualification must use the candidate commit and declared Profile;
+local tests must not be reported as that cloud acceptance.
 
 The hosted route ships on the preview channel first (ADR 0057), where the
 container is bound; production receives the binding with a promoted

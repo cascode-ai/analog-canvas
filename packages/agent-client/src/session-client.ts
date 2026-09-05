@@ -9,6 +9,8 @@ import {
   type AgentSnapshotRequest,
   type AgentFileResourceRequest,
   type AgentFileResourceResponse,
+  type AgentSimulationResourceRequest,
+  type AgentSimulationResourceResponse,
 } from "@icm/agent-adapter";
 import { z } from "zod";
 import {
@@ -279,6 +281,15 @@ export class AgentSessionClient {
   ): Promise<AgentFileResourceResponse> {
     return this.withAuthorization((session) =>
       this.http.files(session.sessionId, session.agentToken, request),
+    );
+  }
+
+  /** Invoke the canonical browser-hosted simulation-resource contract. */
+  async simulationResource(
+    request: AgentSimulationResourceRequest,
+  ): Promise<AgentSimulationResourceResponse> {
+    return this.withAuthorization((session) =>
+      this.http.simulation(session.sessionId, session.agentToken, request),
     );
   }
 

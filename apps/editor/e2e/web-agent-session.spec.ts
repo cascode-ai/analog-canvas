@@ -190,7 +190,7 @@ test("grants a browser Agent, edits through the live host, and shares undo", asy
       resources: {
         file: {
           path: "/api/agent/sessions/{sessionId}/files",
-          humanApprovalRequired: true,
+          humanApprovalOperations: ["request-approval"],
         },
       },
     },

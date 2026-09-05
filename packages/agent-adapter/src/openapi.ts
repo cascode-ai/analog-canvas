@@ -8,6 +8,10 @@ import {
   AgentFileResourceResponseJsonSchema,
 } from "./file-resource.js";
 import {
+  AgentSimulationResourceRequestJsonSchema,
+  AgentSimulationResourceResponseJsonSchema,
+} from "./simulation-resource.js";
+import {
   AgentClaimRequestJsonSchema,
   AgentConnectionCredentialResponseJsonSchema,
   AgentConnectorResumeRequestJsonSchema,
@@ -61,6 +65,14 @@ const agentFileResourceResponseSchema = componentSchema(
   AgentFileResourceResponseJsonSchema as Record<string, unknown>,
   "agentFileResourceResponse",
 );
+const agentSimulationResourceRequestSchema = componentSchema(
+  AgentSimulationResourceRequestJsonSchema as Record<string, unknown>,
+  "agentSimulationResourceRequest",
+);
+const agentSimulationResourceResponseSchema = componentSchema(
+  AgentSimulationResourceResponseJsonSchema as Record<string, unknown>,
+  "agentSimulationResourceResponse",
+);
 const agentClaimRequestSchema = componentSchema(
   AgentClaimRequestJsonSchema as Record<string, unknown>,
   "agentClaimRequest",
@@ -88,6 +100,12 @@ const agentFileResourceRequestRef = {
 } as const;
 const agentFileResourceResponseRef = {
   $ref: "#/components/schemas/agentFileResourceResponse",
+} as const;
+const agentSimulationResourceRequestRef = {
+  $ref: "#/components/schemas/agentSimulationResourceRequest",
+} as const;
+const agentSimulationResourceResponseRef = {
+  $ref: "#/components/schemas/agentSimulationResourceResponse",
 } as const;
 
 export const agentCircuitRequestExamples = {
@@ -277,6 +295,25 @@ const fileSessionResponses = {
   "504": transportErrorResponse(agentTransportErrorExamples["504"]),
 } as const;
 
+const simulationSessionResponses = {
+  "200": {
+    description:
+      "Scoped simulation-resource response. A run that reached the simulator returns its result -- including a failed or timed-out outcome, whose diagnostics are ngspice's own words. A run that never happened returns a typed refusal saying why.",
+    content: {
+      "application/json": { schema: agentSimulationResourceResponseRef },
+    },
+  },
+  "400": transportErrorResponse(agentTransportErrorExamples["413"]),
+  "401": transportErrorResponse(agentTransportErrorExamples["401"]),
+  "403": transportErrorResponse(agentTransportErrorExamples["403"]),
+  "404": transportErrorResponse(agentTransportErrorExamples["404"]),
+  "409": transportErrorResponse(agentTransportErrorExamples["409"]),
+  "413": transportErrorResponse(agentTransportErrorExamples["413"]),
+  "429": transportErrorResponse(agentTransportErrorExamples["429"]),
+  "503": transportErrorResponse(agentTransportErrorExamples["503"]),
+  "504": transportErrorResponse(agentTransportErrorExamples["504"]),
+} as const;
+
 const claimResponses = {
   "200": {
     description: "Claim redeemed",
@@ -383,6 +420,29 @@ export const agentCircuitOpenApi = {
         responses: fileSessionResponses,
       },
     },
+    "/api/agent/sessions/{sessionId}/simulation": {
+      post: {
+        operationId: "agentSessionSimulationResource",
+        description:
+          "Prepare immutable structured or raw input; start returns a short run receipt. Read/cancel by run ID, export artifact references through the File Resource. Exact start request-ID retries never execute twice. Ordinary input and execution failures leave the session usable. Prepared inputs and receipts are session-local, not a durable job queue.",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "sessionId",
+            in: "path",
+            required: true,
+            schema: { type: "string", minLength: 1 },
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": { schema: agentSimulationResourceRequestRef },
+          },
+        },
+        responses: simulationSessionResponses,
+      },
+    },
   },
   components: {
     securitySchemes: {
@@ -396,6 +456,8 @@ export const agentCircuitOpenApi = {
       agentCircuitResponse: agentCircuitResponseSchema,
       agentFileResourceRequest: agentFileResourceRequestSchema,
       agentFileResourceResponse: agentFileResourceResponseSchema,
+      agentSimulationResourceRequest: agentSimulationResourceRequestSchema,
+      agentSimulationResourceResponse: agentSimulationResourceResponseSchema,
       agentClaimResponse: agentConnectionCredentialResponseSchema,
     },
   },

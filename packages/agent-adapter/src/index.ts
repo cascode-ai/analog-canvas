@@ -13,4 +13,5 @@ export * from "./request-contract.js";
 export * from "./schema.js";
 export * from "./service.js";
 export * from "./session-state.js";
+export * from "./simulation-resource.js";
 export * from "./snapshot.js";

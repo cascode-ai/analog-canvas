@@ -10,6 +10,9 @@
       "default": "./dist/index.js"
     }
   },
+  "dependencies": {
+    "zod": "4.4.3"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json"
   }

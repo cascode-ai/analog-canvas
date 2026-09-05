@@ -149,6 +149,7 @@
     "agent": [
       "apps/editor/src/agent/**",
       "apps/editor/e2e/web-agent-session.spec.ts",
+      "apps/editor/e2e/agent-simulation.spec.ts",
       "apps/mcp-server/**",
       "packages/agent-adapter/**",
       "packages/agent-client/**",
@@ -284,9 +285,15 @@
       "command": [
         "pnpm",
         "test:e2e:local",
-        "apps/editor/e2e/web-agent-session.spec.ts"
+        "apps/editor/e2e/web-agent-session.spec.ts",
+        "apps/editor/e2e/agent-simulation.spec.ts"
       ],
-      "ci": { "e2eArgs": ["apps/editor/e2e/web-agent-session.spec.ts"] }
+      "ci": {
+        "e2eArgs": [
+          "apps/editor/e2e/web-agent-session.spec.ts",
+          "apps/editor/e2e/agent-simulation.spec.ts"
+        ]
+      }
     },
     {
       "id": "editor-browser",

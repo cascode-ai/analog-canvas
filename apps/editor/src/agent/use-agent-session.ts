@@ -5,9 +5,11 @@ import {
   AGENT_API_VERSION,
   AGENT_FILE_RESOURCE_MAX_BYTES,
   AGENT_SESSION_PROTOCOL_VERSION,
+  AGENT_SIMULATION_MAX_TIMEOUT_MS,
   AgentSessionEventSchema,
   AgentSessionMessageSchema,
   parseAgentFileResourceRequest,
+  parseAgentSimulationResourceRequest,
   createAgentCircuitService,
   parseAgentCircuitRequest,
   type AgentOperationHost,
@@ -15,6 +17,8 @@ import {
   type AgentFileResourceResponse,
   type AgentPermissions,
   type AgentSessionScope,
+  type AgentSimulationResourceRequest,
+  type AgentSimulationResourceResponse,
 } from "@icm/agent-adapter";
 import { sha256Hex } from "@icm/derived";
 import type { CircuitProject } from "@icm/model";
@@ -155,6 +159,13 @@ export interface UseAgentSessionOptions {
     ) => Promise<AgentFileResourceResponse>;
     clear?: () => void;
   };
+  /** Session-owned prepared inputs and run receipts; revoked with the session. */
+  simulationHost?: {
+    clear?: () => Promise<void>;
+    handle: (
+      request: AgentSimulationResourceRequest,
+    ) => Promise<AgentSimulationResourceResponse>;
+  };
 }
 
 export interface UseAgentSessionResult extends AgentSessionViewModel {
@@ -260,6 +271,7 @@ export function useAgentSession(
     stopReconnect(live);
     clearAgentSessionRecovery(window.localStorage);
     options.fileHost?.clear?.();
+    void options.simulationHost?.clear?.();
     try {
       await control("revoke");
     } catch {
@@ -353,10 +365,29 @@ export function useAgentSession(
                     "inspect",
                     "discard",
                     "request-approval",
+                    "simulation-input",
                   ] as const,
                   maxBytes: AGENT_FILE_RESOURCE_MAX_BYTES,
-                  humanApprovalRequired: true as const,
+                  humanApprovalOperations: ["request-approval"] as const,
                 },
+                ...(options.simulationHost
+                  ? {
+                      simulationResource: {
+                        path: "/api/agent/sessions/{sessionId}/simulation" as const,
+                        operations: [
+                          "capabilities",
+                          "prepare",
+                          "start",
+                          "read",
+                          "cancel",
+                          "export",
+                        ] as const,
+                        analyses: ["op", "ac"] as const,
+                        maxTimeoutMs: AGENT_SIMULATION_MAX_TIMEOUT_MS,
+                        synchronous: false as const,
+                      },
+                    }
+                  : {}),
               }
             : {}),
         });
@@ -458,6 +489,7 @@ export function useAgentSession(
                 stopReconnect(live);
                 clearAgentSessionRecovery(window.localStorage);
                 options.fileHost?.clear?.();
+                void options.simulationHost?.clear?.();
                 socket.close(1000, "session revoked");
                 if (liveRef.current === live) liveRef.current = null;
                 update({
@@ -519,6 +551,67 @@ export function useAgentSession(
               void options.fileHost
                 .handle(fileRequest.data)
                 .then(sendFileResponse)
+                .finally(() => update({ status: "connected" }));
+              return;
+            }
+            if (parsed.data.kind === "simulation-request") {
+              const simulationRequest = parseAgentSimulationResourceRequest(
+                parsed.data.payload,
+              );
+              if (!simulationRequest.success || !options.simulationHost) return;
+              const payloadHash = sha256Hex(
+                JSON.stringify(parsed.data.payload),
+              );
+              const knownHash = live.requestHashes.get(parsed.data.requestId);
+              const sendSimulationResponse = (payload: unknown) => {
+                if (socket.readyState !== WebSocket.OPEN) return;
+                socket.send(
+                  JSON.stringify({
+                    protocolVersion: AGENT_SESSION_PROTOCOL_VERSION,
+                    sessionId: live.sessionId,
+                    messageId: crypto.randomUUID(),
+                    requestId: parsed.data.requestId,
+                    sentAt: new Date().toISOString(),
+                    kind: "simulation-response",
+                    payload,
+                  }),
+                );
+              };
+              if (knownHash && knownHash !== payloadHash) {
+                sendSimulationResponse({
+                  apiVersion: AGENT_API_VERSION,
+                  requestId: parsed.data.requestId,
+                  operation: simulationRequest.data.operation,
+                  ok: false,
+                  error: {
+                    code: "REQUEST_ID_REUSED",
+                    message: "Use the same payload for a retry",
+                    stage: "input",
+                    recovery: "fix-input",
+                  },
+                });
+                return;
+              }
+              live.requestHashes.set(parsed.data.requestId, payloadHash);
+              update({ status: "working" });
+              void options.simulationHost
+                .handle(simulationRequest.data)
+                .then(sendSimulationResponse)
+                .catch(() =>
+                  sendSimulationResponse({
+                    apiVersion: AGENT_API_VERSION,
+                    requestId: parsed.data.requestId,
+                    operation: simulationRequest.data.operation,
+                    ok: false,
+                    error: {
+                      code: "SIMULATION_HOST_ERROR",
+                      message:
+                        "The operation failed without revoking the session",
+                      stage: "read",
+                      recovery: "retry-after",
+                    },
+                  }),
+                )
                 .finally(() => update({ status: "connected" }));
               return;
             }
@@ -696,6 +789,7 @@ export function useAgentSession(
     },
     [
       options.fileHost,
+      options.simulationHost,
       options.enabled,
       options.host,
       options.project,
@@ -872,6 +966,7 @@ export function useAgentSession(
     agentRevisionRef.current.clear();
     clearAgentSessionRecovery(window.localStorage);
     options.fileHost?.clear?.();
+    void options.simulationHost?.clear?.();
     const live = liveRef.current;
     if (!live) return;
     stopReconnect(live);
@@ -908,6 +1003,7 @@ export function useAgentSession(
         stopReconnect(live);
         clearAgentSessionRecovery(window.localStorage);
         options.fileHost?.clear?.();
+        void options.simulationHost?.clear?.();
         live.socket?.close(1000, "expired");
         liveRef.current = null;
         update({ status: "expired", claimCode: null, claimExpiresAt: null });
@@ -921,6 +1017,7 @@ export function useAgentSession(
       if (!options.enabled) return;
       const live = liveRef.current;
       options.fileHost?.clear?.();
+      void options.simulationHost?.clear?.();
       if (live) {
         stopReconnect(live);
         if (!live.claimed) {

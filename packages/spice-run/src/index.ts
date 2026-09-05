@@ -9,6 +9,7 @@
  */
 
 export * from "./rawfile.js";
+export * from "./result-schema.js";
 export * from "./result-data.js";
 export * from "./environment-profile.js";
 

@@ -74,6 +74,17 @@ const MAX_INPUT_BYTES = 2 * 1024 * 1024;
 const CLOUDFLARE_CONTAINER_INSTANCE_KEY = `profile:${hostedSky130Profile.id}`;
 
 interface SimulationRequestBody {
+  operation?: unknown;
+  mode?: unknown;
+  environment?: {
+    profileId?: unknown;
+    corner?: unknown;
+    temperatureC?: unknown;
+  };
+  files?: unknown;
+  entryPath?: unknown;
+  runToken?: unknown;
+  preparedDeck?: unknown;
   netlist?: unknown;
   testbench?: unknown;
   timeoutMs?: unknown;
@@ -238,6 +249,8 @@ export async function routeSimulationRequest(
   } catch {
     return Response.json({ error: "invalid-json" }, { status: 400 });
   }
+  if (!body || typeof body !== "object" || Array.isArray(body))
+    return Response.json({ error: "invalid-request" }, { status: 400 });
   if (
     body.executorTarget !== undefined &&
     !isExecutorTarget(body.executorTarget)
@@ -265,6 +278,27 @@ export async function routeSimulationRequest(
   }
   const target = body.executorTarget ?? configuredDefault;
   const selected = runnerFor(env, runnerKey, target);
+  if (body.operation === "capabilities") {
+    return Response.json({
+      configured: !!selected,
+      inputs: ["structured", "raw"],
+      analyses: ["op", "ac"],
+      parsedAnalyses: ["op", "ac", "tran"],
+      profiles: [
+        {
+          id: hostedSky130Profile.id,
+          corners: [env.SKY130_LIB_SECTION ?? SKY130_LIBRARY_SECTION],
+        },
+      ],
+      modelLibrary: {
+        path: env.SKY130_LIB_PATH ?? SKY130_LIBRARY_PATH,
+        section: env.SKY130_LIB_SECTION ?? SKY130_LIBRARY_SECTION,
+      },
+      maxTimeoutMs: 120000,
+      maxInputBytes: 1024 * 1024,
+      cancel: true,
+    });
+  }
   if (!selected) {
     const noExecutorConfigured =
       !env.NGSPICE && !env.SIMULATION_UPSTREAM_URL?.trim();
@@ -284,10 +318,70 @@ export async function routeSimulationRequest(
     );
   }
   const execution: HostedExecutionMetadata = { target: selected.target };
+  if (
+    body.runToken !== undefined &&
+    (typeof body.runToken !== "string" ||
+      !/^[0-9a-f-]{36}$/u.test(body.runToken))
+  )
+    return Response.json({ error: "invalid-run-token" }, { status: 400 });
+  if (body.operation === "cancel") {
+    if (!body.runToken)
+      return Response.json({ error: "invalid-run-token" }, { status: 400 });
+    try {
+      const response = await selected.runner.fetch("http://container/cancel", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ runToken: body.runToken }),
+      });
+      return Response.json(
+        response.ok
+          ? { accepted: true }
+          : { error: "cancel-refused", ...(await describeRefusal(response)) },
+        { status: response.ok ? 200 : 502 },
+      );
+    } catch {
+      return Response.json(
+        { error: "cancel-response-unknown" },
+        { status: 502 },
+      );
+    }
+  }
+  if (body.operation !== undefined)
+    return Response.json({ error: "invalid-operation" }, { status: 400 });
+  if (
+    body.environment &&
+    (body.environment.profileId !== hostedSky130Profile.id ||
+      (body.environment.corner !== undefined &&
+        body.environment.corner !==
+          (env.SKY130_LIB_SECTION ?? SKY130_LIBRARY_SECTION)))
+  )
+    return Response.json(
+      { error: "simulation-profile-unavailable" },
+      { status: 400 },
+    );
+  const files = body.files ?? [];
+  const safePath = (p: unknown): p is string =>
+    typeof p === "string" &&
+    p.length > 0 &&
+    p.length <= 240 &&
+    !p.startsWith("/") &&
+    !/[\\:\u0000-\u001f]/u.test(p) &&
+    p.split("/").every((v) => !!v && v !== "." && v !== "..") &&
+    p.toLowerCase() !== ".spiceinit";
+  if (
+    !Array.isArray(files) ||
+    files.length > 24 ||
+    files.some((f) => !f || !safePath(f.path) || typeof f.text !== "string") ||
+    files.reduce((n, f) => n + new TextEncoder().encode(f.text).length, 0) >
+      MAX_INPUT_BYTES ||
+    (body.entryPath !== undefined && !safePath(body.entryPath))
+  )
+    return Response.json({ error: "invalid-input-files" }, { status: 400 });
   const netlist = typeof body.netlist === "string" ? body.netlist : null;
   const testbench = typeof body.testbench === "string" ? body.testbench : null;
   if (
-    !netlist ||
+    (body.mode !== "raw" && !netlist) ||
+    netlist === null ||
     !testbench ||
     !isSimulationInputRevision(body.inputRevision)
   ) {
@@ -317,7 +411,12 @@ export async function routeSimulationRequest(
           section: env.SKY130_LIB_SECTION ?? SKY130_LIBRARY_SECTION,
         }
       : null;
-    deck = buildSimulationDeck({ netlist, testbench }, modelLibrary);
+    // Raw input is already an executable deck: preserve its title, control
+    // program and includes. Model directives in raw files remain author-owned.
+    if (body.mode === "raw") {
+      modelLibrary = null;
+      deck = testbench;
+    } else deck = buildSimulationDeck({ netlist, testbench }, modelLibrary);
   } catch (error) {
     return Response.json(
       {
@@ -332,11 +431,26 @@ export async function routeSimulationRequest(
   }
 
   let containerResponse: Response;
+  if (body.preparedDeck !== undefined && body.preparedDeck !== deck)
+    return Response.json(
+      {
+        error: "prepared-environment-changed",
+        message:
+          "The deployment no longer composes this exact prepared deck. Prepare again.",
+      },
+      { status: 409 },
+    );
   try {
     containerResponse = await selected.runner.fetch("http://container/run", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ deck, timeoutMs }),
+      body: JSON.stringify({
+        deck,
+        timeoutMs,
+        files,
+        ...(body.entryPath ? { entryPath: body.entryPath } : {}),
+        ...(body.runToken ? { runToken: body.runToken } : {}),
+      }),
     });
   } catch (error) {
     return Response.json(
@@ -380,6 +494,7 @@ export async function routeSimulationRequest(
     exitCode?: unknown;
     signal?: unknown;
     timedOut?: unknown;
+    cancelled?: unknown;
     durationMs?: unknown;
     environment?: unknown;
     // Present once the harness reads back the file a deck wrote. Optional
@@ -466,5 +581,17 @@ export async function routeSimulationRequest(
       environment,
     },
   };
-  return Response.json(result, { status: 200 });
+  return Response.json(
+    {
+      ...result,
+      ...(body.runToken
+        ? {
+            cancelled: raw.cancelled === true,
+            executedDeck: deck,
+            ...(rawfile !== null ? { rawfile } : {}),
+          }
+        : {}),
+    },
+    { status: 200 },
+  );
 }

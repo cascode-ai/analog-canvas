@@ -92,6 +92,9 @@ importers:
       "@icm/simulation":
         specifier: workspace:*
         version: link:../../packages/simulation
+      "@icm/simulation-service":
+        specifier: workspace:*
+        version: link:../../packages/simulation-service
       "@icm/spice":
         specifier: workspace:*
         version: link:../../packages/spice
@@ -138,6 +141,9 @@ importers:
       "@icm/model":
         specifier: workspace:*
         version: link:../../packages/model
+      "@icm/simulation-service":
+        specifier: workspace:*
+        version: link:../../packages/simulation-service
       zod:
         specifier: 4.4.3
         version: 4.4.3
@@ -159,6 +165,9 @@ importers:
       "@icm/render-svg":
         specifier: workspace:*
         version: link:../render-svg
+      "@icm/simulation-service":
+        specifier: workspace:*
+        version: link:../simulation-service
       "@icm/symbols":
         specifier: workspace:*
         version: link:../symbols
@@ -353,6 +362,21 @@ importers:
         specifier: workspace:*
         version: link:../model
 
+  packages/simulation-service:
+    dependencies:
+      "@icm/model":
+        specifier: workspace:*
+        version: link:../model
+      "@icm/netlist":
+        specifier: workspace:*
+        version: link:../netlist
+      "@icm/spice-run":
+        specifier: workspace:*
+        version: link:../spice-run
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
+
   packages/spice:
     dependencies:
       "@icm/devices":
@@ -368,7 +392,11 @@ importers:
         specifier: 4.4.3
         version: 4.4.3
 
-  packages/spice-run: {}
+  packages/spice-run:
+    dependencies:
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
 
   packages/symbols:
     dependencies:

@@ -30,6 +30,8 @@ export const AgentSessionMessageKindSchema = z.enum([
   "circuit-response",
   "file-request",
   "file-response",
+  "simulation-request",
+  "simulation-response",
   "event",
   "cancel",
 ]);
@@ -208,6 +210,8 @@ export const AgentTransportErrorCodeSchema = z.enum([
   "FILE_CANDIDATE_NOT_FOUND",
   "FILE_IMPORT_FAILED",
   "FILE_EXPORT_FAILED",
+  // Simulation Resource
+  "SIMULATION_REQUEST_INVALID",
 ]);
 
 /** Stable machine-readable failure envelope for every HTTP transport error. */
@@ -239,6 +243,13 @@ export const AgentSessionScopeSchema = z.enum([
   "project.download",
   "project.import",
   "visual.download",
+  /**
+   * Compile and execute one structured simulation. Granted through the same
+   * human claim flow as the file scopes and, like them, independent of every
+   * edit scope: authorizing an Agent to draw a circuit is not authorizing it
+   * to spend a deployment's simulator time.
+   */
+  "simulation.run",
 ]);
 
 /** Single runtime scope guard for browser recovery and relay consumers. */

@@ -24,6 +24,7 @@
     "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@icm/simulation-service": "workspace:*",
     "@icm/derived": "workspace:*",
     "@icm/edit-engine": "workspace:*",
     "@icm/model": "workspace:*",
