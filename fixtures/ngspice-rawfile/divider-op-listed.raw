@@ -1,0 +1,18 @@
+Title: * resistive divider, operating point, written with an explicit vector list:
+Date: Sat Sep  5 08:54:42  2026
+Command: ngspice-46, Build 
+Plotname: Operating Point
+Flags: real
+No. Variables: 4
+No. Points: 1
+Variables:
+	0	v(in)	voltage
+	1	v(in)	voltage
+	2	v(mid)	voltage
+	3	i(v1)	current
+Values:
+ 0	1.000000000000000e+00
+	1.000000000000000e+00
+	5.000000000000000e-01
+	-5.000000000000000e-04
+

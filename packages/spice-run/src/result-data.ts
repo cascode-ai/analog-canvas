@@ -229,6 +229,7 @@ function readOperatingPoint(plot: RawfilePlot): PlotReading {
     };
   }
   const probes: OperatingPointProbe[] = [];
+  const seen = new Map<string, number>();
   for (const vector of plot.vectors) {
     const value = vector.real[0];
     if (value === undefined) {
@@ -238,6 +239,22 @@ function readOperatingPoint(plot: RawfilePlot): PlotReading {
         ),
       };
     }
+    // ngspice's `write` with an explicit vector list emits the plot's scale
+    // before the listed vectors, and an operating-point plot's scale is its
+    // first vector, so the first requested probe arrives twice with one
+    // value. That echo is the format, not a second probe; two different
+    // values under one name would be a real contradiction and is refused.
+    const key = `${vector.variable.name}\u0000${vector.variable.quantity}`;
+    const earlier = seen.get(key);
+    if (earlier !== undefined) {
+      if (earlier === value) continue;
+      return {
+        diagnostic: error(
+          `The operating point holds two different values for "${vector.variable.name}": ${earlier} and ${value}.`,
+        ),
+      };
+    }
+    seen.set(key, value);
     probes.push({ ...probeOf(vector), value });
   }
   return { analysis: { analysis: "op", plotName: plot.plotName, probes } };

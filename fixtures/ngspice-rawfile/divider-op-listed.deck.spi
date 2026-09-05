@@ -1,0 +1,11 @@
+* Resistive divider, operating point, written with an explicit vector list:
+* the same 1 V across 1k + 1k, but `write` names v(in) v(mid) i(v1).
+V1 in 0 1
+R1 in mid 1k
+R2 mid 0 1k
+.control
+set filetype=ascii
+op
+write divider-op-listed.raw v(in) v(mid) i(v1)
+.endc
+.end
