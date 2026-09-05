@@ -39,6 +39,8 @@ export interface EditorAppChromeProps {
   fileCommands: ComponentProps<typeof FileCommandMenu>;
   searchOpen: boolean;
   onManageCells: () => void;
+  onNewTestbench: () => void;
+  placeProjectCell: CommandAction;
   onOpenSearch: () => void;
   undo: CommandAction;
   redo: CommandAction;
@@ -81,6 +83,8 @@ export function EditorAppChrome({
   fileCommands,
   searchOpen,
   onManageCells,
+  onNewTestbench,
+  placeProjectCell,
   onOpenSearch,
   undo,
   redo,
@@ -199,6 +203,16 @@ export function EditorAppChrome({
                   onClick={onManageCells}
                 >
                   Manage Cells…
+                </button>
+                <button type="button" onClick={onNewTestbench}>
+                  New Testbench Cell…
+                </button>
+                <button
+                  type="button"
+                  onClick={placeProjectCell.execute}
+                  disabled={!placeProjectCell.enabled}
+                >
+                  Place Cell from this Project…
                 </button>
                 <button
                   type="button"

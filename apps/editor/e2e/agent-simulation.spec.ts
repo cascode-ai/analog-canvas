@@ -349,9 +349,11 @@ test("Simulation creates an ordinary testbench and offers the current Cell at th
 }) => {
   await page.goto("/editor");
   await page.getByTestId("open-analog-simulation").click();
-  await page
-    .getByRole("button", { name: "New testbench from current Cell" })
-    .click();
+  await page.getByRole("button", { name: "New Testbench Cell…" }).click();
+  const dialog = page.getByRole("dialog", { name: "New Testbench Cell" });
+  await expect(dialog.getByLabel("DUT Cell")).toHaveValue("document-main");
+  await expect(dialog.getByText("Auto-derived")).toBeVisible();
+  await dialog.getByRole("button", { name: "Create Testbench" }).click();
   await page
     .getByTestId("schematic-canvas")
     .click({ position: { x: 320, y: 180 } });

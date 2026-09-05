@@ -24,11 +24,15 @@ export interface SpiceSimulationSurfaceProps {
   open: boolean;
   project: CircuitProject;
   activeDocumentId: string;
+  draftContext?: {
+    readonly dutDocumentId: string;
+    readonly rootDocumentId: string;
+  };
   session: BrowserSimulationSession;
   onClose(): void;
   onSaveSetup(setup: SimulationSetup | null): boolean;
   onOpenCell(documentId: string): void;
-  onCreateTestbench(): void;
+  onNewTestbench(): void;
 }
 
 /** A projection of the same prepare/start/read/cancel service used by MCP.
@@ -138,6 +142,18 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     if (result.status === "failed") setError(result.message);
   };
   const running = run && ["running", "cancelling"].includes(run.state);
+  const activeCell = project.documents.find(
+    (candidate) => candidate.id === props.activeDocumentId,
+  );
+  const draftDut = project.documents.find(
+    (candidate) => candidate.id === props.draftContext?.dutDocumentId,
+  );
+  const draftRoot = project.documents.find(
+    (candidate) => candidate.id === props.draftContext?.rootDocumentId,
+  );
+  const savedRoot = project.documents.find(
+    (candidate) => candidate.id === project.simulation?.input.rootDocumentId,
+  );
   const artifactGroups = [
     ...(prepared
       ? [
@@ -181,9 +197,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
           simulator.
         </p>
         <div className="spice-simulation-actions">
-          <button onClick={props.onCreateTestbench}>
-            New testbench from current Cell
-          </button>
+          <button onClick={props.onNewTestbench}>New Testbench Cell…</button>
           {project.simulation && (
             <button
               onClick={() => {
@@ -195,6 +209,31 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
             </button>
           )}
         </div>
+        <p data-testid="simulation-cell-flow">
+          {props.draftContext ? (
+            <>
+              DUT: <strong>{draftDut?.name ?? "Missing Cell"}</strong>
+              {" → "}Symbol View{" → "}Testbench:{" "}
+              <strong>{draftRoot?.name ?? "Missing Cell"}</strong>
+            </>
+          ) : project.simulation ? (
+            <>
+              Testbench: <strong>{savedRoot?.name ?? "Missing Cell"}</strong>
+              {activeCell && activeCell.id !== savedRoot?.id
+                ? ` · editing ${activeCell.name}`
+                : ""}
+            </>
+          ) : (
+            <>
+              DUT: <strong>{activeCell?.name ?? "Missing Cell"}</strong>
+              {" → "}Symbol View:{" "}
+              {activeCell?.presentation.cellSymbol
+                ? "reviewed"
+                : "auto-derived"}
+              {" → "}create a Testbench
+            </>
+          )}
+        </p>
         <SetupEditor
           key={
             JSON.stringify(project.simulation) ??
@@ -388,6 +427,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
 function SetupEditor({
   project,
   activeDocumentId,
+  draftContext,
   capabilities,
   onSaveSetup,
   onDirty,
@@ -399,7 +439,7 @@ function SetupEditor({
 }) {
   const saved = project.simulation?.input;
   const [rootId, setRootId] = useState(
-    saved?.rootDocumentId ?? activeDocumentId,
+    saved?.rootDocumentId ?? draftContext?.rootDocumentId ?? activeDocumentId,
   );
   const [probes, setProbes] = useState(saved?.probes ?? []);
   const root = project.documents.find((d) => d.id === rootId);
