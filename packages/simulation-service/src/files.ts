@@ -4,6 +4,7 @@ import {
   Id,
   problem,
   type ArtifactRef,
+  type Problem,
 } from "./contract.js";
 
 export const MAX_SIMULATION_INPUT_BYTES = 1024 * 1024;
@@ -74,6 +75,7 @@ export function safeInputPath(path: string): boolean {
 
 /** File Resource owns mutable drafts and immutable artifact bytes. No Project mutation. */
 export class SimulationFiles {
+  private epoch = 0;
   private workspaces = new Map<string, Workspace>();
   private artifacts = new Map<
     string,
@@ -81,6 +83,7 @@ export class SimulationFiles {
   >();
   constructor(private now: () => number = Date.now) {}
   clear() {
+    this.epoch++;
     this.workspaces.clear();
     this.artifacts.clear();
   }
@@ -91,7 +94,11 @@ export class SimulationFiles {
     for (const [id, a] of this.artifacts)
       if (a.expiresAt <= now) this.artifacts.delete(id);
   }
-  async handle(input: unknown) {
+  async handle(
+    input: unknown,
+  ): Promise<
+    z.infer<typeof SimulationFileResultSchema> | { ok: false; error: Problem }
+  > {
     this.prune();
     const parsed = SimulationFileOperationSchema.safeParse(input);
     if (!parsed.success)
@@ -230,6 +237,9 @@ export class SimulationFiles {
     mediaType: string,
     text: string,
   ): Promise<ArtifactRef> {
+    const epoch = this.epoch;
+    const digest = await sha256(text);
+    if (epoch !== this.epoch) throw new Error("SESSION_CHANGED");
     this.prune();
     const byteLength = new TextEncoder().encode(text).byteLength;
     if (
@@ -245,7 +255,7 @@ export class SimulationFiles {
       name,
       mediaType,
       byteLength,
-      sha256: await sha256(text),
+      sha256: digest,
     };
     this.artifacts.set(ref.id, { ref, text, expiresAt: this.now() + TTL });
     return ref;

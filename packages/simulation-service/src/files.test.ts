@@ -1,6 +1,16 @@
 import { describe, it, expect } from "vitest";
 import { SimulationFiles, sha256 } from "./files.js";
 describe("simulation File Resource evidence", () => {
+  it("cannot publish an in-flight artifact into a cleared session", async () => {
+    const files = new SimulationFiles();
+    const pending = files.put("old", "text/plain", "old content");
+    files.clear();
+    await expect(pending).rejects.toThrow("SESSION_CHANGED");
+    const fresh = await files.put("new", "text/plain", "new");
+    expect(
+      await files.handle({ action: "artifact", artifactId: fresh.id }),
+    ).toMatchObject({ ok: true, text: "new" });
+  });
   it("pages immutable evidence without changing its full-file digest", async () => {
     const files = new SimulationFiles();
     const text = "数值🚀".repeat(40000),

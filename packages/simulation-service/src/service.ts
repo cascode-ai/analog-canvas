@@ -103,7 +103,7 @@ export class SimulationService {
     this.prepared.clear();
     this.runs.clear();
     this.starts.clear();
-    this.files.clear();
+    // Draft/artifact teardown belongs to the File Resource owner.
     await Promise.allSettled(active.map((r) => this.executor.cancel(r.token)));
   }
   async handle(request: unknown, requestId: string): Promise<SimulationReply> {
@@ -324,25 +324,50 @@ export class SimulationService {
       );
     const artifacts: ArtifactRef[] = [];
     artifacts.push(
-      await this.files.put("prepared.cir", "text/plain", input.preparedDeck),
+      await this.publishArtifact(
+        epoch,
+        "prepared.cir",
+        "text/plain",
+        input.preparedDeck,
+      ),
     );
     if (input.mode === "structured") {
       artifacts.push(
-        await this.files.put("design.spi", "text/plain", input.netlist),
+        await this.publishArtifact(
+          epoch,
+          "design.spi",
+          "text/plain",
+          input.netlist,
+        ),
       );
       artifacts.push(
-        await this.files.put("testbench.cir", "text/plain", input.testbench),
+        await this.publishArtifact(
+          epoch,
+          "testbench.cir",
+          "text/plain",
+          input.testbench,
+        ),
       );
     } else
-      for (const f of input.files.filter((f) => f.path !== "@entry"))
-        artifacts.push(await this.files.put(f.path, "text/plain", f.text));
+      for (const f of input.files)
+        artifacts.push(
+          await this.publishArtifact(epoch, f.path, "text/plain", f.text),
+        );
     artifacts.push(
-      await this.files.put(
+      await this.publishArtifact(
+        epoch,
         "prepared.json",
         "application/json",
         JSON.stringify(input, null, 2),
       ),
     );
+    if (epoch !== this.epoch)
+      return problem(
+        "SESSION_CHANGED",
+        "Session ended during preparation",
+        "prepare",
+        "reauthorize",
+      );
     const view: Prepared = {
       id: crypto.randomUUID(),
       digest,
@@ -454,7 +479,9 @@ export class SimulationService {
       if (epoch !== this.epoch) return;
       run.view.result = output.result;
       const artifact = async (name: string, type: string, text: string) =>
-        run.view.artifacts.push(await this.files.put(name, type, text));
+        run.view.artifacts.push(
+          await this.publishArtifact(epoch, name, type, text),
+        );
       await artifact("log.txt", "text/plain", output.result.log);
       if (output.rawfile !== undefined)
         await artifact("out.raw", "text/plain", output.rawfile);
@@ -473,7 +500,8 @@ export class SimulationService {
           "text/csv",
           simulationAnalysisToCsv(analysis),
         );
-      run.view.state = output.cancelled ? "cancelled" : "finished";
+      if (epoch === this.epoch)
+        run.view.state = output.cancelled ? "cancelled" : "finished";
     } catch (error) {
       if (epoch !== this.epoch) return;
       if (error instanceof ExecutionFailure) {
@@ -500,5 +528,28 @@ export class SimulationService {
       }
     }
     run.expiresAt = this.now() + TTL;
+  }
+  private async publishArtifact(
+    epoch: number,
+    name: string,
+    mediaType: string,
+    text: string,
+  ) {
+    if (epoch !== this.epoch)
+      throw new ExecutionFailure({
+        code: "SESSION_CHANGED",
+        message: "The session ended before publication",
+        stage: "export",
+        recovery: "reauthorize",
+      });
+    const ref = await this.files.put(name, mediaType, text);
+    if (epoch !== this.epoch)
+      throw new ExecutionFailure({
+        code: "SESSION_CHANGED",
+        message: "The session ended before publication",
+        stage: "export",
+        recovery: "reauthorize",
+      });
+    return ref;
   }
 }
