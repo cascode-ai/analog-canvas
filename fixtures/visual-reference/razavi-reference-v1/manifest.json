@@ -467,7 +467,7 @@
         "figure": "2"
       },
       "extractPath": "tcoil-vector-source.json",
-      "extractSha256": "11561603af2d0460d307c303e1be59ce3bcf77b5ef9bc398895fa579051350df",
+      "extractSha256": "31fdf78732bebd61e893e275bc943ddecc17c5effb51bb57f2c5f62bd875fcd2",
       "rasterPath": "tcoil-reference.png",
       "rasterSha256": "5bf1ef2f5055e659365b2f447765d33a11aeaac8a96339157bef66a03fca146d",
       "scope": [

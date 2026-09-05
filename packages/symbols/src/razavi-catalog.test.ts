@@ -1122,7 +1122,7 @@ describe("Razavi symbol catalog", () => {
     expect(tcoil.pins).toMatchObject([
       { name: "1", at: { x: -100, y: 0 }, direction: "west" },
       { name: "2", at: { x: 100, y: 0 }, direction: "east" },
-      { name: "3", at: { x: 0, y: 30 }, direction: "south" },
+      { name: "3", at: { x: 0, y: 20 }, direction: "south" },
     ]);
     expect(
       tcoil.primitives.filter((primitive) => primitive.kind === "path"),

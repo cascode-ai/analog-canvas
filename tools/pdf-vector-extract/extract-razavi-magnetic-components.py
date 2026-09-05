@@ -315,17 +315,17 @@ def extract_tcoil(pdf_path: Path, output_dir: Path, pdftoppm: str) -> None:
             "productPinAnchorsLogical": [
                 {"name": "1", "x": -100, "y": 0},
                 {"name": "2", "x": 100, "y": 0},
-                {"name": "3", "x": 0, "y": 30},
+                {"name": "3", "x": 0, "y": 20},
             ],
-            "productBridgeBranchXsLogical": [-70.2169, 70.2169],
+            "productBridgeBranchXsLogical": [-80, 80],
             "productPolarityDotsLogical": [
                 {"x": -59.2164, "y": -6.0745, "radius": 3.77907},
                 {"x": 23.2204, "y": -6.0745, "radius": 3.77907},
             ],
             "productJunctionDotsLogical": [
-                {"x": -70.2169, "y": 0, "radius": 3.77907},
+                {"x": -80, "y": 0, "radius": 3.77907},
                 {"x": 0, "y": 0, "radius": 3.77907},
-                {"x": 70.2169, "y": 0, "radius": 3.77907},
+                {"x": 80, "y": 0, "radius": 3.77907},
             ],
             "canvasVisualContract": {
                 "routeStrokeRole": "normal",

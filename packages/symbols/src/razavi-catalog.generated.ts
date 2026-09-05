@@ -691,7 +691,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "A bridged T-coil is a composite L1/L2/K/CB network; structural export requires an explicit fixed-cell or subcircuit mapping.",
     assetPath: "tcoil.symbol.json",
     assetHash:
-      "a2f6d26b4a8fdc1fd0162c273f4aed9542717d561659d8f2b31951b5406e0dca",
+      "edb4cde9993cc82ecfc57f32ba53bf466cefa85dd574fc4a9666de7f2c30a9ee",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -4582,7 +4582,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         role: "passive",
         at: {
           x: 0,
-          y: 30,
+          y: 20,
         },
         direction: "south",
         presentation: {
@@ -4671,7 +4671,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         },
         to: {
           x: 0,
-          y: 30,
+          y: 20,
         },
         part: "terminal-3-lead",
         style: {
@@ -4684,11 +4684,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "polyline",
         points: [
           {
-            x: -70.2169,
+            x: -80,
             y: 0,
           },
           {
-            x: -70.2169,
+            x: -80,
             y: -43.335,
           },
           {
@@ -4779,11 +4779,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
             y: -43.335,
           },
           {
-            x: 70.2169,
+            x: 80,
             y: -43.335,
           },
           {
-            x: 70.2169,
+            x: 80,
             y: 0,
           },
         ],
@@ -4819,7 +4819,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "circle",
         center: {
-          x: -70.2169,
+          x: -80,
           y: 0,
         },
         radius: 3.77907,
@@ -4841,7 +4841,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "circle",
         center: {
-          x: 70.2169,
+          x: 80,
           y: 0,
         },
         radius: 3.77907,
