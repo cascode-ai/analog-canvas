@@ -1122,7 +1122,7 @@ describe("Razavi symbol catalog", () => {
     expect(tcoil.pins).toMatchObject([
       { name: "1", at: { x: -60, y: 0 }, direction: "west" },
       { name: "2", at: { x: 50, y: 0 }, direction: "east" },
-      { name: "3", at: { x: 0, y: 20 }, direction: "south" },
+      { name: "3", at: { x: 0, y: 10 }, direction: "south" },
     ]);
     expect(
       tcoil.primitives.filter((primitive) => primitive.kind === "path"),
@@ -1132,6 +1132,15 @@ describe("Razavi symbol catalog", () => {
         primitive.part?.startsWith("bridge-capacitor-"),
       ),
     ).toHaveLength(4);
+    expect(
+      tcoil.primitives.find(
+        (primitive) => primitive.part === "bridge-capacitor-1",
+      ),
+    ).toMatchObject({
+      kind: "line",
+      from: { x: -4.9085, y: -33.4069 },
+      to: { x: -4.9085, y: -17.3057 },
+    });
     expect(
       tcoil.primitives.filter((primitive) =>
         primitive.part?.startsWith("internal-junction-"),
@@ -1146,6 +1155,14 @@ describe("Razavi symbol catalog", () => {
       from: { x: -3.896, y: 0 },
       to: { x: 1.9476, y: 0 },
     });
+    const polarityDots = tcoil.primitives.filter(
+      (primitive) =>
+        primitive.kind === "circle" && primitive.part?.endsWith("-polarity"),
+    );
+    expect(polarityDots).toHaveLength(2);
+    expect(polarityDots.every((primitive) => primitive.radius === 3.77907)).toBe(
+      true,
+    );
     expect(
       tcoil.primitives.some(
         (primitive) =>

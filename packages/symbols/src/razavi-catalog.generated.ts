@@ -691,7 +691,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "A bridged T-coil is a composite L1/L2/K/CB network; structural export requires an explicit fixed-cell or subcircuit mapping.",
     assetPath: "tcoil.symbol.json",
     assetHash:
-      "3528901cff455153117d08d540d7561a371e7693d8df329415d180d8b188bf81",
+      "deaab4fc525fe2dded728f04c03fa707f1b6b0812ee2c03dd3512ac59d7bc29e",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -4582,7 +4582,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         role: "passive",
         at: {
           x: 0,
-          y: 20,
+          y: 10,
         },
         direction: "south",
         presentation: {
@@ -4671,7 +4671,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         },
         to: {
           x: 0,
-          y: 20,
+          y: 10,
         },
         part: "terminal-3-lead",
         style: {
@@ -4797,10 +4797,10 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "circle",
         center: {
-          x: -37.896,
+          x: -38.396,
           y: -4.6207,
         },
-        radius: 1.6016,
+        radius: 3.77907,
         fill: "foreground",
         stroke: "none",
         part: "winding-1-polarity",
@@ -4808,10 +4808,10 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "circle",
         center: {
-          x: 6.9476,
+          x: 6.4476,
           y: -4.6207,
         },
-        radius: 1.6016,
+        radius: 3.77907,
         fill: "foreground",
         stroke: "none",
         part: "winding-2-polarity",

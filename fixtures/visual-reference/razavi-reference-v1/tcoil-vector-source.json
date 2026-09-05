@@ -70,7 +70,7 @@
       {
         "name": "3",
         "x": 0,
-        "y": 20
+        "y": 10
       }
     ],
     "productBridgeBranchXsLogical": [
@@ -79,14 +79,14 @@
     ],
     "productPolarityDotsLogical": [
       {
-        "x": -37.896,
+        "x": -38.396,
         "y": -4.6207,
-        "radius": 1.6016
+        "radius": 3.77907
       },
       {
-        "x": 6.9476,
+        "x": 6.4476,
         "y": -4.6207,
-        "radius": 1.6016
+        "radius": 3.77907
       }
     ],
     "productJunctionDotsLogical": [

@@ -25,6 +25,15 @@ describe("component insertion catalog", () => {
       if (junction.kind !== "circle") continue;
       expect(junction.radius).toBe(razaviTextbookProfile.nodes.junctionRadius);
     }
+    const polarityDots = symbol.primitives.filter(
+      (primitive) =>
+        primitive.kind === "circle" && primitive.part?.endsWith("-polarity"),
+    );
+    expect(polarityDots).toHaveLength(2);
+    for (const dot of polarityDots) {
+      if (dot.kind !== "circle") continue;
+      expect(dot.radius).toBe(razaviTextbookProfile.nodes.junctionRadius);
+    }
     expect(razaviTextbookProfile.strokes.normal).toBe(
       razaviTextbookProfile.strokes.wire,
     );

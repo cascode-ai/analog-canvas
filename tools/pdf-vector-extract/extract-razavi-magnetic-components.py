@@ -301,15 +301,15 @@ def extract_tcoil(pdf_path: Path, output_dir: Path, pdftoppm: str) -> None:
             "productPinAnchorsLogical": [
                 {"name": "1", "x": -60, "y": 0},
                 {"name": "2", "x": 50, "y": 0},
-                {"name": "3", "x": 0, "y": 20},
+                {"name": "3", "x": 0, "y": 10},
             ],
             "productBridgeBranchXsLogical": [-44.7175, 38.5644],
             # The reviewed product inductor is taller than the paper's native
             # coil curve. Preserve the paper's dot-to-straight-lead relation
             # instead of allowing the dots to overlap the reused winding.
             "productPolarityDotsLogical": [
-                {"x": -37.896, "y": -4.6207, "radius": 1.6016},
-                {"x": 6.9476, "y": -4.6207, "radius": 1.6016},
+                {"x": -38.396, "y": -4.6207, "radius": 3.77907},
+                {"x": 6.4476, "y": -4.6207, "radius": 3.77907},
             ],
             "productJunctionDotsLogical": [
                 {"x": -44.7175, "y": 0, "radius": 3.77907},
