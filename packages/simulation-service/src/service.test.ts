@@ -22,6 +22,7 @@ const caps: Capabilities = {
   profiles: [{ id: "test", corners: ["tt"] }],
   maxTimeoutMs: 120000,
   maxInputBytes: 1048576,
+  maxOutputBytes: 1048576,
   cancel: true,
 };
 const deck =
@@ -318,6 +319,7 @@ describe("shared simulation lifecycle", () => {
     f.executor.capabilities = async () => ({
       ...caps,
       profiles: [{ id: profileId, corners: ["tt"] }],
+      maxOutputBytes: 100,
     });
     const service = new SimulationService(f.files, f.executor, () => project);
     const prepared = unwrap(
@@ -329,6 +331,24 @@ describe("shared simulation lifecycle", () => {
     );
     expect(prepared.vectors.length).toBeGreaterThan(0);
     expect(prepared.mode).toBe("structured");
+    expect(prepared.warnings).toEqual([
+      expect.stringContaining("run remains allowed"),
+    ]);
     expect(f.executor.execute).not.toHaveBeenCalled();
+
+    f.executor.capabilities = async () => ({
+      ...caps,
+      analyses: ["op"],
+      profiles: [{ id: profileId, corners: ["tt"] }],
+    });
+    expect(
+      await service.handle(
+        { operation: "prepare", source: { kind: "structured" } },
+        "ota-unqualified",
+      ),
+    ).toMatchObject({
+      ok: false,
+      error: { code: "SIMULATION_ANALYSIS_UNQUALIFIED" },
+    });
   });
 });

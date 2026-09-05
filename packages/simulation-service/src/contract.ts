@@ -113,6 +113,8 @@ export const CapabilitiesSchema = z.strictObject({
     .optional(),
   maxTimeoutMs: z.number(),
   maxInputBytes: z.number(),
+  /** Maximum raw simulator output returned by the selected execution harness. */
+  maxOutputBytes: z.number().int().positive().optional(),
   cancel: z.boolean(),
 });
 export type Capabilities = z.infer<typeof CapabilitiesSchema>;
