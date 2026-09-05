@@ -33,7 +33,7 @@ describe("shapes quick-place", () => {
       groups.map((group) => [group.category, group.symbols.length]),
     ).toEqual([
       ["Transistors", 4],
-      ["Passives", 6],
+      ["Passives", 4],
       ["Power and Ports", 5],
       ["Sources", 3],
       ["Switches", 5],
@@ -41,7 +41,7 @@ describe("shapes quick-place", () => {
       ["Logic Gates", 11],
       ["Signal Flow", 7],
       ["Annotations", 8],
-      ["Extended Devices", 7],
+      ["Extended Devices", 9],
     ]);
     const categoryTestIds = [
       "transistors",

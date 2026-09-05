@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { razaviTextbookProfile } from "@icm/derived";
 
 import {
   componentCatalog,
@@ -10,6 +11,30 @@ import {
 } from "./symbol-catalog";
 
 describe("component insertion catalog", () => {
+  it("uses the canvas wire and junction visual contract inside the T-coil", () => {
+    const symbol = findPaletteSymbol("razavi-textbook-v1", "tcoil");
+    expect(symbol).toBeDefined();
+    if (!symbol) return;
+    const junctions = symbol.primitives.filter(
+      (primitive) =>
+        primitive.kind === "circle" &&
+        primitive.part?.startsWith("internal-junction-"),
+    );
+    expect(junctions).toHaveLength(3);
+    for (const junction of junctions) {
+      if (junction.kind !== "circle") continue;
+      expect(junction.radius).toBe(razaviTextbookProfile.nodes.junctionRadius);
+    }
+    expect(razaviTextbookProfile.strokes.normal).toBe(
+      razaviTextbookProfile.strokes.wire,
+    );
+    expect(
+      symbol.primitives
+        .filter((primitive) => primitive.part?.includes("route"))
+        .every((primitive) => primitive.style?.strokeRole === "normal"),
+    ).toBe(true);
+  });
+
   it("orders categories by how often they are reached for", () => {
     const groups = componentCatalog("razavi-textbook-v1", "");
 
@@ -39,8 +64,8 @@ describe("component insertion catalog", () => {
       "resistor",
     ]);
     expect(symbolCategory("capacitor")).toBe("Passives");
-    expect(symbolCategory("tcoil")).toBe("Passives");
-    expect(symbolCategory("xfmr")).toBe("Passives");
+    expect(symbolCategory("tcoil")).toBe("Extended Devices");
+    expect(symbolCategory("xfmr")).toBe("Extended Devices");
     expect(symbolCategory("variable-resistor")).toBe("Extended Devices");
     expect(symbolCategory("variable-capacitor")).toBe("Extended Devices");
     expect(symbolCategory("variable-inductor")).toBe("Extended Devices");
@@ -182,6 +207,8 @@ describe("component insertion catalog", () => {
       "variable-inductor",
       "diode",
       "zener-diode",
+      "tcoil",
+      "xfmr",
       "ndmos",
       "pdmos",
     ]);
@@ -245,6 +272,8 @@ describe("reach order inside a category", () => {
       "variable-inductor",
       "diode",
       "zener-diode",
+      "tcoil",
+      "xfmr",
       "ndmos",
       "pdmos",
     ]);
@@ -264,8 +293,6 @@ describe("reach order inside a category", () => {
       "capacitor",
       "inductor-compact",
       "inductor",
-      "tcoil",
-      "xfmr",
     ]);
   });
 

@@ -691,7 +691,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "A bridged T-coil is a composite L1/L2/K/CB network; structural export requires an explicit fixed-cell or subcircuit mapping.",
     assetPath: "tcoil.symbol.json",
     assetHash:
-      "8b9e81e0c06c79e1f92ce06ff869bad1cd338becf86b223fa96294093d146fce",
+      "3528901cff455153117d08d540d7561a371e7693d8df329415d180d8b188bf81",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -4797,7 +4797,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "circle",
         center: {
-          x: -34.2864,
+          x: -37.896,
           y: -4.6207,
         },
         radius: 1.6016,
@@ -4808,7 +4808,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "circle",
         center: {
-          x: 10.5808,
+          x: 6.9476,
           y: -4.6207,
         },
         radius: 1.6016,
@@ -4819,10 +4819,10 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "circle",
         center: {
-          x: -44.8677,
+          x: -44.7175,
           y: 0,
         },
-        radius: 1.6016,
+        radius: 3.77907,
         fill: "foreground",
         stroke: "none",
         part: "internal-junction-1",
@@ -4833,7 +4833,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           x: 0,
           y: 0,
         },
-        radius: 1.6016,
+        radius: 3.77907,
         fill: "foreground",
         stroke: "none",
         part: "internal-junction-2",
@@ -4841,10 +4841,10 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "circle",
         center: {
-          x: 38.4386,
+          x: 38.5644,
           y: 0,
         },
-        radius: 1.6016,
+        radius: 3.77907,
         fill: "foreground",
         stroke: "none",
         part: "internal-junction-3",

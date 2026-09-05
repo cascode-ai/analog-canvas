@@ -254,4 +254,39 @@ describe("blocks that carry no designator", () => {
     );
     expect(annotations.length).toBeGreaterThan(0);
   });
+
+  it("labels each compound magnetic device with its allocated X reference", () => {
+    for (const [symbolId, reference] of [
+      ["tcoil", "X1"],
+      ["xfmr", "X2"],
+    ] as const) {
+      const document = createEmptyDocument("main", "Main");
+      const annotations = defaultInstanceDisplayAnnotations(
+        document,
+        {
+          id: `${symbolId}-1`,
+          symbolId,
+          reference,
+          placement: {
+            position: { x: 100, y: 100 },
+            rotation: 0 as const,
+            mirror: "none" as const,
+          },
+        },
+        resolver,
+        styleProfile(document),
+        {},
+      );
+
+      expect(annotations).toEqual([
+        expect.objectContaining({
+          kind: "instance-label",
+          binding: {
+            kind: "instance-reference",
+            instanceId: `${symbolId}-1`,
+          },
+        }),
+      ]);
+    }
+  });
 });

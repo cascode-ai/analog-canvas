@@ -53,6 +53,8 @@ export function symbolCategory(symbolId: string): string {
       "variable-inductor",
       "diode",
       "zener-diode",
+      "tcoil",
+      "xfmr",
     ].includes(symbolId)
   ) {
     return EXTENDED_DEVICE_CATEGORY;
@@ -63,14 +65,7 @@ export function symbolCategory(symbolId: string): string {
     return "Transistors";
   }
   if (
-    [
-      "resistor",
-      "capacitor",
-      "inductor-compact",
-      "inductor",
-      "tcoil",
-      "xfmr",
-    ].includes(symbolId)
+    ["resistor", "capacitor", "inductor-compact", "inductor"].includes(symbolId)
   ) {
     return "Passives";
   }
@@ -198,8 +193,6 @@ const SYMBOL_ORDER: readonly string[] = [
   "capacitor",
   "inductor-compact",
   "inductor",
-  "tcoil",
-  "xfmr",
   // Logic gates likewise: the two single-input gates, then the combinational
   // family, then the sequential blocks that are reached for least often.
   "inverter",
@@ -218,6 +211,8 @@ const SYMBOL_ORDER: readonly string[] = [
   "variable-inductor",
   "diode",
   "zener-diode",
+  "tcoil",
+  "xfmr",
   "ndmos",
   "pdmos",
   "vdd-port",

@@ -20,6 +20,8 @@ import {
   vddPortDevice,
   voltageControlledSwitchDevice,
   voltageSourceDevice,
+  tcoilDevice,
+  xfmrDevice,
   zenerDiodeDevice,
   idealSwitchDevice,
   closedSwitchDevice,
@@ -78,6 +80,8 @@ export const deviceRegistry = defineDeviceRegistry([
   spdtSwitchDevice,
   groundDevice,
   vddPortDevice,
+  tcoilDevice,
+  xfmrDevice,
 ]);
 
 export const builtInDeviceDescriptors: readonly DeviceDescriptor[] =

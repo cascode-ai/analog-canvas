@@ -571,7 +571,7 @@
       "automaticMappings": [],
       "manualOnlyReason": "A bridged T-coil is a composite L1/L2/K/CB network; structural export requires an explicit fixed-cell or subcircuit mapping.",
       "assetPath": "tcoil.symbol.json",
-      "assetHash": "8b9e81e0c06c79e1f92ce06ff869bad1cd338becf86b223fa96294093d146fce",
+      "assetHash": "3528901cff455153117d08d540d7561a371e7693d8df329415d180d8b188bf81",
       "visualAuthority": {
         "kind": "razavi-reference-v1",
         "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",

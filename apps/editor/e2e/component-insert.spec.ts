@@ -1503,7 +1503,7 @@ test("shows the complete foldable categorized Library, quick-places a device, an
     page
       .getByTestId("shapes-category-passives")
       .locator('[data-testid^="shapes-chip-"]'),
-  ).toHaveCount(6);
+  ).toHaveCount(4);
   await expect(
     page
       .getByTestId("shapes-category-logic-gates")
@@ -1517,7 +1517,7 @@ test("shows the complete foldable categorized Library, quick-places a device, an
   const extendedCategory = page.getByTestId("shapes-category-extended-devices");
   await expect(
     extendedCategory.locator('[data-testid^="shapes-chip-"]'),
-  ).toHaveCount(7);
+  ).toHaveCount(9);
   await expect(
     extendedCategory.getByTestId("shapes-chip-variable-resistor"),
   ).toBeVisible();

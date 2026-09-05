@@ -255,7 +255,7 @@
     {
       "kind": "circle",
       "center": {
-        "x": -34.2864,
+        "x": -37.896,
         "y": -4.6207
       },
       "radius": 1.6016,
@@ -266,7 +266,7 @@
     {
       "kind": "circle",
       "center": {
-        "x": 10.5808,
+        "x": 6.9476,
         "y": -4.6207
       },
       "radius": 1.6016,
@@ -277,10 +277,10 @@
     {
       "kind": "circle",
       "center": {
-        "x": -44.8677,
+        "x": -44.7175,
         "y": 0
       },
-      "radius": 1.6016,
+      "radius": 3.77907,
       "fill": "foreground",
       "stroke": "none",
       "part": "internal-junction-1"
@@ -291,7 +291,7 @@
         "x": 0,
         "y": 0
       },
-      "radius": 1.6016,
+      "radius": 3.77907,
       "fill": "foreground",
       "stroke": "none",
       "part": "internal-junction-2"
@@ -299,10 +299,10 @@
     {
       "kind": "circle",
       "center": {
-        "x": 38.4386,
+        "x": 38.5644,
         "y": 0
       },
-      "radius": 1.6016,
+      "radius": 3.77907,
       "fill": "foreground",
       "stroke": "none",
       "part": "internal-junction-3"

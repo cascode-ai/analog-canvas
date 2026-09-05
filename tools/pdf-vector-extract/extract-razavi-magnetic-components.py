@@ -304,15 +304,22 @@ def extract_tcoil(pdf_path: Path, output_dir: Path, pdftoppm: str) -> None:
                 {"name": "3", "x": 0, "y": 20},
             ],
             "productBridgeBranchXsLogical": [-44.7175, 38.5644],
+            # The reviewed product inductor is taller than the paper's native
+            # coil curve. Preserve the paper's dot-to-straight-lead relation
+            # instead of allowing the dots to overlap the reused winding.
             "productPolarityDotsLogical": [
-                {"x": -34.2864, "y": -4.6207, "radius": 1.6016},
-                {"x": 10.5808, "y": -4.6207, "radius": 1.6016},
+                {"x": -37.896, "y": -4.6207, "radius": 1.6016},
+                {"x": 6.9476, "y": -4.6207, "radius": 1.6016},
             ],
             "productJunctionDotsLogical": [
-                {"x": -44.8677, "y": 0, "radius": 1.6016},
-                {"x": 0, "y": 0, "radius": 1.6016},
-                {"x": 38.4386, "y": 0, "radius": 1.6016},
+                {"x": -44.7175, "y": 0, "radius": 3.77907},
+                {"x": 0, "y": 0, "radius": 3.77907},
+                {"x": 38.5644, "y": 0, "radius": 3.77907},
             ],
+            "canvasVisualContract": {
+                "routeStrokeRole": "normal",
+                "junctionRadiusLogical": 3.77907,
+            },
             "endpointMarkers": "none",
         },
         "rasterWitness": raster,
