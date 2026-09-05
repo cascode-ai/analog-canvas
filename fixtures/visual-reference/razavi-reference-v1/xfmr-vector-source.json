@@ -76,14 +76,14 @@
     ],
     "productPolarityDotsLogical": [
       {
-        "x": 19.15,
-        "y": -20.4,
-        "radius": 3.2
+        "x": 19.1423,
+        "y": -18.9541,
+        "radius": 2.2903
       },
       {
-        "x": 19.15,
-        "y": 20.4,
-        "radius": 3.2
+        "x": 19.1423,
+        "y": 19.3646,
+        "radius": 2.2903
       }
     ],
     "endpointMarkers": "none"

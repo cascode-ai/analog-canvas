@@ -4,9 +4,9 @@
   "name": "XFMR",
   "viewBox": {
     "x": -34,
-    "y": -25,
+    "y": -24,
     "width": 68,
-    "height": 50
+    "height": 48
   },
   "pins": [
     {
@@ -154,10 +154,10 @@
     {
       "kind": "circle",
       "center": {
-        "x": 19.15,
-        "y": -20.4
+        "x": 19.1423,
+        "y": -18.9541
       },
-      "radius": 3.2,
+      "radius": 2.2903,
       "fill": "foreground",
       "stroke": "none",
       "part": "primary-polarity"
@@ -165,10 +165,10 @@
     {
       "kind": "circle",
       "center": {
-        "x": 19.15,
-        "y": 20.4
+        "x": 19.1423,
+        "y": 19.3646
       },
-      "radius": 3.2,
+      "radius": 2.2903,
       "fill": "foreground",
       "stroke": "none",
       "part": "secondary-polarity"

@@ -691,7 +691,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "A bridged T-coil is a composite L1/L2/K/CB network; structural export requires an explicit fixed-cell or subcircuit mapping.",
     assetPath: "tcoil.symbol.json",
     assetHash:
-      "a7b3f59ba520508254a35be3632b9958e64c283756990ba617e6cc8c1ae44d68",
+      "8b9e81e0c06c79e1f92ce06ff869bad1cd338becf86b223fa96294093d146fce",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -723,7 +723,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "A transformer lowers to two inductors plus mutual coupling; structural export requires an explicit compound-device or subcircuit mapping.",
     assetPath: "xfmr.symbol.json",
     assetHash:
-      "effb7af2245042c8729c6d1da854c718c76e95d51f59b1f9cb554d475be8c0aa",
+      "95b6f2fb48fdee7051a5fc6171ee3ea2349b7755c49a00261fddebeb33370e71",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -4545,17 +4545,17 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
     id: "tcoil",
     name: "T-Coil",
     viewBox: {
-      x: -54,
-      y: -42,
-      width: 108,
-      height: 76,
+      x: -64,
+      y: -38,
+      width: 118,
+      height: 62,
     },
     pins: [
       {
         name: "1",
         role: "passive",
         at: {
-          x: -50,
+          x: -60,
           y: 0,
         },
         direction: "west",
@@ -4582,7 +4582,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         role: "passive",
         at: {
           x: 0,
-          y: 30,
+          y: 20,
         },
         direction: "south",
         presentation: {
@@ -4595,11 +4595,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -50,
+          x: -60,
           y: 0,
         },
         to: {
-          x: -39.5,
+          x: -42.896,
           y: 0,
         },
         part: "terminal-1-lead",
@@ -4611,7 +4611,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       },
       {
         kind: "path",
-        data: "M -40 0 L -39.4953 0 C -39.4953 0 -39.4953 0 -38.2174 0 C -36.9409 0 -34.3851 0 -33.1087 0 C -31.8308 0 -31.8308 0 -31.8308 0 C -31.8308 0 -31.8308 0 -31.5749 -1.2452 C -31.319 -2.4889 -30.8087 -4.9763 -29.7867 -6.1873 C -28.7647 -7.3983 -27.2323 -7.3313 -26.2088 -4.8439 C -25.1868 -2.355 -24.6765 2.5543 -25.4427 5.009 C -26.2088 7.4637 -28.2544 7.4637 -28.7201 4.9763 C -29.1872 2.4874 -28.0759 -2.4889 -26.3874 -5.0209 C -24.6988 -7.5545 -22.4331 -7.6422 -20.9439 -5.1548 C -19.4563 -2.6659 -18.7451 2.3996 -19.4116 4.9317 C -20.0781 7.4637 -22.1222 7.4637 -22.6325 4.9317 C -23.1442 2.3996 -22.1222 -2.6659 -20.456 -5.1325 C -18.7898 -7.5991 -16.4794 -7.4652 -14.9456 -4.9317 C -13.4133 -2.3996 -12.6575 2.532 -13.3017 4.9986 C -13.9459 7.4637 -15.99 7.4637 -16.6237 4.9986 C -17.256 2.532 -16.4794 -2.3996 -15.2015 -4.8885 C -13.9236 -7.3759 -12.1458 -7.4205 -11.0017 -6.1992 C -9.8577 -4.9763 -9.3475 -2.4889 -9.0916 -1.2452 C -8.8357 0 -8.8357 0 -8.8357 0 C -8.8357 0 -8.8357 0 -7.4477 0 C -6.0597 0 -3.2822 0 -1.8927 0 C -0.5047 0 -0.5047 0 -0.5047 0 L 0 0",
+        data: "M -43.396 0 L -42.8913 0 C -42.8913 0 -42.8913 0 -41.6134 0 C -40.3369 0 -37.7811 0 -36.5047 0 C -35.2268 0 -35.2268 0 -35.2268 0 C -35.2268 0 -35.2268 0 -34.9709 -1.2452 C -34.715 -2.4889 -34.2047 -4.9763 -33.1827 -6.1873 C -32.1607 -7.3983 -30.6283 -7.3313 -29.6048 -4.8439 C -28.5828 -2.355 -28.0725 2.5543 -28.8387 5.009 C -29.6048 7.4637 -31.6504 7.4637 -32.1161 4.9763 C -32.5832 2.4874 -31.4719 -2.4889 -29.7834 -5.0209 C -28.0948 -7.5545 -25.8291 -7.6422 -24.3399 -5.1548 C -22.8523 -2.6659 -22.1411 2.3996 -22.8076 4.9317 C -23.4741 7.4637 -25.5182 7.4637 -26.0285 4.9317 C -26.5402 2.3996 -25.5182 -2.6659 -23.852 -5.1325 C -22.1858 -7.5991 -19.8754 -7.4652 -18.3416 -4.9317 C -16.8093 -2.3996 -16.0535 2.532 -16.6977 4.9986 C -17.3419 7.4637 -19.386 7.4637 -20.0197 4.9986 C -20.652 2.532 -19.8754 -2.3996 -18.5975 -4.8885 C -17.3196 -7.3759 -15.5418 -7.4205 -14.3977 -6.1992 C -13.2537 -4.9763 -12.7435 -2.4889 -12.4876 -1.2452 C -12.2317 0 -12.2317 0 -12.2317 0 C -12.2317 0 -12.2317 0 -10.8437 0 C -9.4557 0 -6.6782 0 -5.2887 0 C -3.9007 0 -3.9007 0 -3.9007 0 L -3.396 0",
         style: {
           strokeRole: "normal",
           lineCap: "butt",
@@ -4620,8 +4620,25 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         part: "winding-1",
       },
       {
+        kind: "line",
+        from: {
+          x: -3.896,
+          y: 0,
+        },
+        to: {
+          x: 1.9476,
+          y: 0,
+        },
+        part: "winding-center-link",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
         kind: "path",
-        data: "M 0 0 L 0.5047 0 C 0.5047 0 0.5047 0 1.7826 0 C 3.0591 0 5.6149 0 6.8913 0 C 8.1692 0 8.1692 0 8.1692 0 C 8.1692 0 8.1692 0 8.4251 -1.2452 C 8.681 -2.4889 9.1913 -4.9763 10.2133 -6.1873 C 11.2353 -7.3983 12.7677 -7.3313 13.7912 -4.8439 C 14.8132 -2.355 15.3235 2.5543 14.5573 5.009 C 13.7912 7.4637 11.7456 7.4637 11.2799 4.9763 C 10.8128 2.4874 11.9241 -2.4889 13.6126 -5.0209 C 15.3012 -7.5545 17.5669 -7.6422 19.0561 -5.1548 C 20.5437 -2.6659 21.2549 2.3996 20.5884 4.9317 C 19.9219 7.4637 17.8778 7.4637 17.3675 4.9317 C 16.8558 2.3996 17.8778 -2.6659 19.544 -5.1325 C 21.2102 -7.5991 23.5206 -7.4652 25.0544 -4.9317 C 26.5867 -2.3996 27.3425 2.532 26.6983 4.9986 C 26.0541 7.4637 24.01 7.4637 23.3763 4.9986 C 22.744 2.532 23.5206 -2.3996 24.7985 -4.8885 C 26.0764 -7.3759 27.8542 -7.4205 28.9983 -6.1992 C 30.1423 -4.9763 30.6525 -2.4889 30.9084 -1.2452 C 31.1643 0 31.1643 0 31.1643 0 C 31.1643 0 31.1643 0 32.5523 0 C 33.9403 0 36.7178 0 38.1073 0 C 39.4953 0 39.4953 0 39.4953 0 L 40 0",
+        data: "M 1.4476 0 L 1.9523 0 C 1.9523 0 1.9523 0 3.2302 0 C 4.5067 0 7.0625 0 8.3389 0 C 9.6168 0 9.6168 0 9.6168 0 C 9.6168 0 9.6168 0 9.8727 -1.2452 C 10.1286 -2.4889 10.6389 -4.9763 11.6609 -6.1873 C 12.6829 -7.3983 14.2153 -7.3313 15.2388 -4.8439 C 16.2608 -2.355 16.7711 2.5543 16.0049 5.009 C 15.2388 7.4637 13.1932 7.4637 12.7275 4.9763 C 12.2604 2.4874 13.3717 -2.4889 15.0602 -5.0209 C 16.7488 -7.5545 19.0145 -7.6422 20.5037 -5.1548 C 21.9913 -2.6659 22.7025 2.3996 22.036 4.9317 C 21.3695 7.4637 19.3254 7.4637 18.8151 4.9317 C 18.3034 2.3996 19.3254 -2.6659 20.9916 -5.1325 C 22.6578 -7.5991 24.9682 -7.4652 26.502 -4.9317 C 28.0343 -2.3996 28.7901 2.532 28.1459 4.9986 C 27.5017 7.4637 25.4576 7.4637 24.8239 4.9986 C 24.1916 2.532 24.9682 -2.3996 26.2461 -4.8885 C 27.524 -7.3759 29.3018 -7.4205 30.4459 -6.1992 C 31.5899 -4.9763 32.1001 -2.4889 32.356 -1.2452 C 32.6119 0 32.6119 0 32.6119 0 C 32.6119 0 32.6119 0 33.9999 0 C 35.3879 0 38.1654 0 39.5549 0 C 40.9429 0 40.9429 0 40.9429 0 L 41.4476 0",
         style: {
           strokeRole: "normal",
           lineCap: "butt",
@@ -4632,7 +4649,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: 39.5,
+          x: 40.9476,
           y: 0,
         },
         to: {
@@ -4654,7 +4671,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         },
         to: {
           x: 0,
-          y: 30,
+          y: 20,
         },
         part: "terminal-3-lead",
         style: {
@@ -4667,16 +4684,16 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "polyline",
         points: [
           {
-            x: -40,
+            x: -44.7175,
             y: 0,
           },
           {
-            x: -40,
-            y: -30,
+            x: -44.7175,
+            y: -25.3563,
           },
           {
-            x: -19.5,
-            y: -30,
+            x: -21.1749,
+            y: -25.3563,
           },
         ],
         part: "bridge-left-route",
@@ -4689,12 +4706,12 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -3.2336,
-          y: -38.0506,
+          x: -4.9085,
+          y: -33.4069,
         },
         to: {
-          x: -3.2336,
-          y: -21.9494,
+          x: -4.9085,
+          y: -17.3057,
         },
         style: {
           strokeRole: "emphasis",
@@ -4706,12 +4723,12 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: 3.2336,
-          y: -38.0506,
+          x: 1.5587,
+          y: -33.4069,
         },
         to: {
-          x: 3.2336,
-          y: -21.9494,
+          x: 1.5587,
+          y: -17.3057,
         },
         style: {
           strokeRole: "emphasis",
@@ -4723,12 +4740,12 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -3.2336,
-          y: -30,
+          x: -4.9085,
+          y: -25.3563,
         },
         to: {
-          x: -20,
-          y: -30,
+          x: -21.6749,
+          y: -25.3563,
         },
         style: {
           strokeRole: "normal",
@@ -4740,12 +4757,12 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: 3.2336,
-          y: -30,
+          x: 1.5587,
+          y: -25.3563,
         },
         to: {
-          x: 20,
-          y: -30,
+          x: 18.3251,
+          y: -25.3563,
         },
         style: {
           strokeRole: "normal",
@@ -4758,15 +4775,15 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "polyline",
         points: [
           {
-            x: 19.5,
-            y: -30,
+            x: 17.8251,
+            y: -25.3563,
           },
           {
-            x: 40,
-            y: -30,
+            x: 38.5644,
+            y: -25.3563,
           },
           {
-            x: 40,
+            x: 38.5644,
             y: 0,
           },
         ],
@@ -4780,10 +4797,10 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "circle",
         center: {
-          x: -31,
-          y: -9,
+          x: -34.2864,
+          y: -4.6207,
         },
-        radius: 3.2,
+        radius: 1.6016,
         fill: "foreground",
         stroke: "none",
         part: "winding-1-polarity",
@@ -4791,10 +4808,10 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "circle",
         center: {
-          x: 9,
-          y: -9,
+          x: 10.5808,
+          y: -4.6207,
         },
-        radius: 3.2,
+        radius: 1.6016,
         fill: "foreground",
         stroke: "none",
         part: "winding-2-polarity",
@@ -4802,10 +4819,10 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "circle",
         center: {
-          x: -40,
+          x: -44.8677,
           y: 0,
         },
-        radius: 3.2,
+        radius: 1.6016,
         fill: "foreground",
         stroke: "none",
         part: "internal-junction-1",
@@ -4816,7 +4833,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           x: 0,
           y: 0,
         },
-        radius: 3.2,
+        radius: 1.6016,
         fill: "foreground",
         stroke: "none",
         part: "internal-junction-2",
@@ -4824,10 +4841,10 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "circle",
         center: {
-          x: 40,
+          x: 38.4386,
           y: 0,
         },
-        radius: 3.2,
+        radius: 1.6016,
         fill: "foreground",
         stroke: "none",
         part: "internal-junction-3",
@@ -4841,9 +4858,9 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
     name: "XFMR",
     viewBox: {
       x: -34,
-      y: -25,
+      y: -24,
       width: 68,
-      height: 50,
+      height: 48,
     },
     pins: [
       {
@@ -4991,10 +5008,10 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "circle",
         center: {
-          x: 19.15,
-          y: -20.4,
+          x: 19.1423,
+          y: -18.9541,
         },
-        radius: 3.2,
+        radius: 2.2903,
         fill: "foreground",
         stroke: "none",
         part: "primary-polarity",
@@ -5002,10 +5019,10 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "circle",
         center: {
-          x: 19.15,
-          y: 20.4,
+          x: 19.1423,
+          y: 19.3646,
         },
-        radius: 3.2,
+        radius: 2.2903,
         fill: "foreground",
         stroke: "none",
         part: "secondary-polarity",

@@ -1101,8 +1101,8 @@ describe("Razavi symbol catalog", () => {
           primitive.kind === "circle" && primitive.fill === "foreground",
       ),
     ).toMatchObject([
-      { center: { x: 19.15, y: -20.4 }, radius: 3.2 },
-      { center: { x: 19.15, y: 20.4 }, radius: 3.2 },
+      { center: { x: 19.1423, y: -18.9541 }, radius: 2.2903 },
+      { center: { x: 19.1423, y: 19.3646 }, radius: 2.2903 },
     ]);
     expect(
       xfmr.primitives.some(
@@ -1120,9 +1120,9 @@ describe("Razavi symbol catalog", () => {
   it("keeps the bridged T-coil atomic while reusing reviewed L and C artwork", () => {
     const tcoil = requireRazaviCatalogSymbol("tcoil");
     expect(tcoil.pins).toMatchObject([
-      { name: "1", at: { x: -50, y: 0 }, direction: "west" },
+      { name: "1", at: { x: -60, y: 0 }, direction: "west" },
       { name: "2", at: { x: 50, y: 0 }, direction: "east" },
-      { name: "3", at: { x: 0, y: 30 }, direction: "south" },
+      { name: "3", at: { x: 0, y: 20 }, direction: "south" },
     ]);
     expect(
       tcoil.primitives.filter((primitive) => primitive.kind === "path"),
@@ -1137,6 +1137,15 @@ describe("Razavi symbol catalog", () => {
         primitive.part?.startsWith("internal-junction-"),
       ),
     ).toHaveLength(3);
+    expect(
+      tcoil.primitives.find(
+        (primitive) => primitive.part === "winding-center-link",
+      ),
+    ).toMatchObject({
+      kind: "line",
+      from: { x: -3.896, y: 0 },
+      to: { x: 1.9476, y: 0 },
+    });
     expect(
       tcoil.primitives.some(
         (primitive) =>

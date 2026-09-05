@@ -27,6 +27,10 @@ function rounded(value) {
   return Object.is(result, -0) ? 0 : result;
 }
 
+function point(value) {
+  return { x: value.x, y: value.y };
+}
+
 function transformPoint(point, center, rotation) {
   if (rotation !== 90) fail(`unsupported rotation ${rotation}`);
   return {
@@ -66,8 +70,8 @@ function transformPrimitive(primitive, center, rotation = 90, part) {
 function line(from, to, part) {
   return {
     kind: "line",
-    from,
-    to,
+    from: { x: rounded(from.x), y: rounded(from.y) },
+    to: { x: rounded(to.x), y: rounded(to.y) },
     part,
     style: { strokeRole: "normal", lineCap: "butt", lineJoin: "miter" },
   };
@@ -144,7 +148,7 @@ const xfmr = {
   schemaVersion: 1,
   id: "xfmr",
   name: "XFMR",
-  viewBox: { x: -34, y: -25, width: 68, height: 50 },
+  viewBox: { x: -34, y: -24, width: 68, height: 48 },
   pins: [
     pin("P-", xfmrPins[0], "west"),
     pin("P+", xfmrPins[1], "east"),
@@ -152,12 +156,12 @@ const xfmr = {
     pin("S+", xfmrPins[3], "east"),
   ],
   primitives: [
-    line({ x: -30, y: -10 }, { x: -19.5, y: -10 }, "primary-left-lead"),
+    line(point(xfmrPins[0]), { x: -19.5, y: xfmrCenters[0].y }, "primary-left-lead"),
     transformPrimitive(inductorPath, xfmrCenters[0], 90, "primary-winding"),
-    line({ x: 19.5, y: -10 }, { x: 30, y: -10 }, "primary-right-lead"),
-    line({ x: -30, y: 10 }, { x: -19.5, y: 10 }, "secondary-left-lead"),
+    line({ x: 19.5, y: xfmrCenters[0].y }, point(xfmrPins[1]), "primary-right-lead"),
+    line(point(xfmrPins[2]), { x: -19.5, y: xfmrCenters[1].y }, "secondary-left-lead"),
     transformPrimitive(inductorPath, xfmrCenters[1], 90, "secondary-winding"),
-    line({ x: 19.5, y: 10 }, { x: 30, y: 10 }, "secondary-right-lead"),
+    line({ x: 19.5, y: xfmrCenters[1].y }, point(xfmrPins[3]), "secondary-right-lead"),
     ...xfmrLayout.productPolarityDotsLogical.map((value, index) =>
       dot(value, index === 0 ? "primary-polarity" : "secondary-polarity"),
     ),
@@ -168,6 +172,9 @@ const xfmr = {
 const tcoilLayout = tcoilEvidence.evidence.normalization;
 const tcoilCenters = tcoilLayout.productCoilCentersLogical;
 const tcoilPins = tcoilLayout.productPinAnchorsLogical;
+const [tcoilLeftBranchX, tcoilRightBranchX] =
+  tcoilLayout.productBridgeBranchXsLogical;
+const tcoilBridgeY = tcoilLayout.productCapacitorCenterLogical.y;
 const transformedCapacitor = capacitor.primitives.map((primitive, index) =>
   transformPrimitive(
     primitive,
@@ -180,32 +187,37 @@ const tcoil = {
   schemaVersion: 1,
   id: "tcoil",
   name: "T-Coil",
-  viewBox: { x: -54, y: -42, width: 108, height: 76 },
+  viewBox: { x: -64, y: -38, width: 118, height: 62 },
   pins: [
     pin("1", tcoilPins[0], "west"),
     pin("2", tcoilPins[1], "east"),
     pin("3", tcoilPins[2], "south"),
   ],
   primitives: [
-    line({ x: -50, y: 0 }, { x: -39.5, y: 0 }, "terminal-1-lead"),
+    line(point(tcoilPins[0]), { x: tcoilCenters[0].x - 19.5, y: 0 }, "terminal-1-lead"),
     transformPrimitive(inductorPath, tcoilCenters[0], 90, "winding-1"),
+    line(
+      { x: tcoilCenters[0].x + 19.5, y: 0 },
+      { x: tcoilCenters[1].x - 19.5, y: 0 },
+      "winding-center-link",
+    ),
     transformPrimitive(inductorPath, tcoilCenters[1], 90, "winding-2"),
-    line({ x: 39.5, y: 0 }, { x: 50, y: 0 }, "terminal-2-lead"),
-    line({ x: 0, y: -0.5 }, { x: 0, y: 30 }, "terminal-3-lead"),
+    line({ x: tcoilCenters[1].x + 19.5, y: 0 }, point(tcoilPins[1]), "terminal-2-lead"),
+    line({ x: 0, y: -0.5 }, point(tcoilPins[2]), "terminal-3-lead"),
     polyline(
       [
-        { x: -40, y: 0 },
-        { x: -40, y: -30 },
-        { x: -19.5, y: -30 },
+        { x: tcoilLeftBranchX, y: 0 },
+        { x: tcoilLeftBranchX, y: tcoilBridgeY },
+        { x: tcoilLayout.productCapacitorCenterLogical.x - 19.5, y: tcoilBridgeY },
       ],
       "bridge-left-route",
     ),
     ...transformedCapacitor,
     polyline(
       [
-        { x: 19.5, y: -30 },
-        { x: 40, y: -30 },
-        { x: 40, y: 0 },
+        { x: tcoilLayout.productCapacitorCenterLogical.x + 19.5, y: tcoilBridgeY },
+        { x: tcoilRightBranchX, y: tcoilBridgeY },
+        { x: tcoilRightBranchX, y: 0 },
       ],
       "bridge-right-route",
     ),
