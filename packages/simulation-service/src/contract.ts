@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { SimulationResultSchema } from "@icm/spice-run";
-import { ObjectLocatorSchema, SimulationSetupSchema } from "@icm/model";
+import { ObjectLocatorSchema } from "@icm/model";
 
 export const Id = z.string().min(1).max(256);
 export const Digest = z.string().regex(/^[a-f0-9]{64}$/u);
@@ -71,11 +71,11 @@ export const PreparedSchema = z.strictObject({
 export type Prepared = z.infer<typeof PreparedSchema>;
 export const InputSourceSchema = z.discriminatedUnion("kind", [
   z.strictObject({
-    kind: z.literal("structured"),
-    setup: SimulationSetupSchema.optional(),
+    kind: z.literal("project-setup"),
+    expectedStructureRevision: z.number().int().nonnegative(),
   }),
   z.strictObject({
-    kind: z.literal("raw"),
+    kind: z.literal("workspace"),
     workspaceId: Id,
     expectedRevision: z.number().int().nonnegative(),
     environment: EnvironmentSchema.pick({ profileId: true }),

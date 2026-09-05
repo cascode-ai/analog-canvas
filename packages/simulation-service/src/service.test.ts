@@ -108,7 +108,7 @@ async function prepareRaw(f: ReturnType<typeof fixture>) {
       {
         operation: "prepare",
         source: {
-          kind: "raw",
+          kind: "workspace",
           workspaceId: created.workspace.id,
           expectedRevision: 1,
           environment: { profileId: "test" },
@@ -121,7 +121,7 @@ async function prepareRaw(f: ReturnType<typeof fixture>) {
   return { prepared, workspaceId: created.workspace.id };
 }
 describe("shared simulation lifecycle", () => {
-  it("returns a recoverable mismatch when a raw Project setup is sent to structured prepare", async () => {
+  it("prepares and runs a persisted raw Project setup without mutating it", async () => {
     const f = fixture();
     f.project.simulation = {
       version: 1,
@@ -134,23 +134,112 @@ describe("shared simulation lifecycle", () => {
       },
     };
 
+    const before = structuredClone(f.project);
+    const prepared = unwrap(
+      await f.service.handle(
+        {
+          operation: "prepare",
+          source: {
+            kind: "project-setup",
+            expectedStructureRevision: f.project.structureRevision,
+          },
+        },
+        "project-raw",
+      ),
+      "prepared",
+    );
+    expect(prepared.mode).toBe("raw");
+    expect(prepared.artifacts.map((artifact) => artifact.name)).toEqual(
+      expect.arrayContaining(["prepared.cir", "tb.cir", "prepared.json"]),
+    );
+    expect(f.project).toEqual(before);
+    expect(f.executor.execute).not.toHaveBeenCalled();
+
+    const run = unwrap(
+      await f.service.handle(
+        {
+          operation: "start",
+          preparedId: prepared.id,
+          digest: prepared.digest,
+        },
+        "run-project-raw",
+      ),
+      "run",
+    );
+    f.release();
+    await vi.waitFor(async () =>
+      expect(
+        unwrap(
+          await f.service.handle(
+            { operation: "read", runId: run.id },
+            "read-project-raw",
+          ),
+          "run",
+        ),
+      ).toMatchObject({ state: "finished", inputStatus: "unchanged" }),
+    );
+  });
+
+  it("reports unresolved Project dependencies without reading host paths", async () => {
+    const f = fixture();
+    f.project.simulation = {
+      version: 1,
+      input: {
+        kind: "raw",
+        entry: "tb.cir",
+        files: [{ path: "tb.cir", text: '.include "models/device.lib"' }],
+        dependencies: [
+          {
+            id: "device-models",
+            mountPath: "models/device.lib",
+            sha256: "a".repeat(64),
+          },
+        ],
+        environment: { profileId: "test" },
+      },
+    };
     expect(
       await f.service.handle(
-        { operation: "prepare", source: { kind: "structured" } },
-        "raw-as-structured",
+        {
+          operation: "prepare",
+          source: {
+            kind: "project-setup",
+            expectedStructureRevision: f.project.structureRevision,
+          },
+        },
+        "project-dependency",
       ),
     ).toMatchObject({
       ok: false,
       error: {
-        code: "SIMULATION_INPUT_MODE_MISMATCH",
-        stage: "prepare",
+        code: "SIMULATION_DEPENDENCY_UNAVAILABLE",
         recovery: "fix-input",
+        diagnostics: [{ field: "input.dependencies[0]", severity: "error" }],
       },
     });
     expect(f.executor.execute).not.toHaveBeenCalled();
+  });
+
+  it("rejects stale Project setup preparation by structure revision", async () => {
+    const f = fixture();
     expect(
-      await f.service.handle({ operation: "capabilities" }, "after-mismatch"),
-    ).toMatchObject({ ok: true, capabilities: { configured: true } });
+      await f.service.handle(
+        {
+          operation: "prepare",
+          source: {
+            kind: "project-setup",
+            expectedStructureRevision: f.project.structureRevision + 1,
+          },
+        },
+        "stale-project",
+      ),
+    ).toMatchObject({
+      ok: false,
+      error: {
+        code: "PROJECT_STRUCTURE_REVISION_CONFLICT",
+        recovery: "reprepare",
+      },
+    });
   });
 
   it("raw preparation does not mutate Project or execute; snapshots files and exports before running", async () => {
@@ -225,7 +314,13 @@ describe("shared simulation lifecycle", () => {
     const f = fixture();
     expect(
       await f.service.handle(
-        { operation: "prepare", source: { kind: "structured" } },
+        {
+          operation: "prepare",
+          source: {
+            kind: "project-setup",
+            expectedStructureRevision: f.project.structureRevision,
+          },
+        },
         "bad",
       ),
     ).toMatchObject({
@@ -356,7 +451,13 @@ describe("shared simulation lifecycle", () => {
     const service = new SimulationService(f.files, f.executor, () => project);
     const prepared = unwrap(
       await service.handle(
-        { operation: "prepare", source: { kind: "structured" } },
+        {
+          operation: "prepare",
+          source: {
+            kind: "project-setup",
+            expectedStructureRevision: project.structureRevision,
+          },
+        },
         "ota",
       ),
       "prepared",
@@ -375,7 +476,13 @@ describe("shared simulation lifecycle", () => {
     });
     expect(
       await service.handle(
-        { operation: "prepare", source: { kind: "structured" } },
+        {
+          operation: "prepare",
+          source: {
+            kind: "project-setup",
+            expectedStructureRevision: project.structureRevision,
+          },
+        },
         "ota-unqualified",
       ),
     ).toMatchObject({
@@ -402,7 +509,13 @@ describe("shared simulation lifecycle", () => {
     const service = new SimulationService(f.files, f.executor, () => project);
     const prepared = unwrap(
       await service.handle(
-        { operation: "prepare", source: { kind: "structured" } },
+        {
+          operation: "prepare",
+          source: {
+            kind: "project-setup",
+            expectedStructureRevision: project.structureRevision,
+          },
+        },
         "tran",
       ),
       "prepared",

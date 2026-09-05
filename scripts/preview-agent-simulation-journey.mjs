@@ -194,12 +194,19 @@ try {
 
   const invalidSetup = structuredClone(project.simulation);
   invalidSetup.input.probes[0].netId = "missing-acceptance-net";
+  const invalidEdit = await tool("advanced_transact", {
+    structureEdits: [{ kind: "set_simulation_setup", setup: invalidSetup }],
+  });
+  assert.equal(invalidEdit.ok, true);
   const refused = await tool(
     "simulation",
     {
       request: {
         operation: "prepare",
-        source: { kind: "structured", setup: invalidSetup },
+        source: {
+          kind: "project-setup",
+          expectedStructureRevision: invalidEdit.projectStructure.toRevision,
+        },
       },
     },
     true,
@@ -207,8 +214,20 @@ try {
   assert.equal(refused.ok, false);
   assert.equal(refused.error.recovery, "fix-input");
 
+  const restored = await tool("advanced_transact", {
+    structureEdits: [
+      { kind: "set_simulation_setup", setup: project.simulation },
+    ],
+  });
+  assert.equal(restored.ok, true);
   const prepared = await tool("simulation", {
-    request: { operation: "prepare", source: { kind: "structured" } },
+    request: {
+      operation: "prepare",
+      source: {
+        kind: "project-setup",
+        expectedStructureRevision: restored.projectStructure.toRevision,
+      },
+    },
   });
   assert.equal(prepared.ok, true);
   assert.deepEqual(prepared.prepared.vectors, compiled.vectors);

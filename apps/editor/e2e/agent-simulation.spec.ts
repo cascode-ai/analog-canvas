@@ -545,7 +545,7 @@ test("Agent raw simulation recovers input errors, returns a run receipt and expo
   expect(
     await send("simulation", {
       operation: "prepare",
-      source: { kind: "structured" },
+      source: { kind: "project-setup", expectedStructureRevision: 0 },
     }),
   ).toMatchObject({ ok: false, error: { code: "SIMULATION_SETUP_MISSING" } });
   const workspace = (
@@ -573,7 +573,7 @@ test("Agent raw simulation recovers input errors, returns a run receipt and expo
     await send("simulation", {
       operation: "prepare",
       source: {
-        kind: "raw",
+        kind: "workspace",
         workspaceId: workspace.id,
         expectedRevision: 1,
         environment: { profileId: profile.id },

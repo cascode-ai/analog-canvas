@@ -144,7 +144,10 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     try {
       const reply = await session.handle({
         operation: "prepare",
-        source: { kind: "structured" },
+        source: {
+          kind: "project-setup",
+          expectedStructureRevision: project.structureRevision,
+        },
       });
       receive(reply);
       if (start && reply.ok && "prepared" in reply && alive.current)

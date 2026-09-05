@@ -72,6 +72,44 @@ type StoredPrepared = {
   source: PrepareSource;
 };
 const TTL = 15 * 60_000;
+type RawSimulationInput = Extract<
+  NonNullable<CircuitProject["simulation"]>["input"],
+  { kind: "raw" }
+>;
+
+async function rawInputRevision(input: RawSimulationInput) {
+  return sha256(
+    JSON.stringify({
+      kind: input.kind,
+      entry: input.entry,
+      files: input.files,
+      dependencies: input.dependencies,
+      environment: input.environment,
+    }),
+  );
+}
+
+function unresolvedDependencyProblem(
+  input: RawSimulationInput,
+): SimulationReply {
+  return {
+    ok: false,
+    error: {
+      code: "SIMULATION_DEPENDENCY_UNAVAILABLE",
+      message:
+        "One or more Project simulation dependencies are unavailable in this session",
+      stage: "prepare",
+      recovery: "fix-input",
+      diagnostics: input.dependencies.map((dependency, index) => ({
+        code: "SIMULATION_DEPENDENCY_UNAVAILABLE",
+        message: `Dependency ${dependency.id} (${dependency.mountPath}) is not resolved`,
+        severity: "error",
+        field: `input.dependencies[${index}]`,
+      })),
+    },
+  };
+}
+
 function receipt(view: Run): Run {
   const copy = structuredClone(view);
   if (copy.result && JSON.stringify(copy.result).length > 96000) {
@@ -143,7 +181,7 @@ export class SimulationService {
           // Executor acknowledgement means termination requested; only completion confirms cleanup.
         }
         if (op.operation === "read") {
-          if (run.source.kind === "raw") {
+          if (run.source.kind === "workspace") {
             const snapshot = this.files.snapshot(
               run.source.workspaceId,
               run.source.expectedRevision,
@@ -154,17 +192,27 @@ export class SimulationService {
                 ? "changed"
                 : "unavailable";
           } else {
-            const project = structuredClone(this.getProject()),
-              setup = run.source.setup ?? project.simulation;
-            const compiled =
-              setup?.input.kind === "structured"
-                ? await compileStructuredSimulation(project, setup)
-                : null;
-            run.view.inputStatus = !compiled?.ok
-              ? "unavailable"
-              : compiled.request.inputRevision === run.view.inputRevision
-                ? "unchanged"
-                : "changed";
+            const project = structuredClone(this.getProject());
+            const setup = project.simulation;
+            if (setup?.input.kind === "structured") {
+              const compiled = await compileStructuredSimulation(
+                project,
+                setup,
+              );
+              run.view.inputStatus = !compiled.ok
+                ? "unavailable"
+                : compiled.request.inputRevision === run.view.inputRevision
+                  ? "unchanged"
+                  : "changed";
+            } else if (
+              setup?.input.kind === "raw" &&
+              setup.input.dependencies.length === 0
+            ) {
+              run.view.inputStatus =
+                (await rawInputRevision(setup.input)) === run.view.inputRevision
+                  ? "unchanged"
+                  : "changed";
+            } else run.view.inputStatus = "unavailable";
           }
         }
         return { ok: true, run: receipt(run.view) };
@@ -230,67 +278,91 @@ export class SimulationService {
     let vectors: Prepared["vectors"] = [];
     let warnings: string[] = [];
     let structuredAnalyses: ResultVolumeAnalysis[] | null = null;
-    if (op.source.kind === "structured") {
+    if (op.source.kind === "project-setup") {
       const project = structuredClone(this.getProject());
-      const setup = op.source.setup ?? project.simulation;
+      if (project.structureRevision !== op.source.expectedStructureRevision)
+        return problem(
+          "PROJECT_STRUCTURE_REVISION_CONFLICT",
+          `Expected Project structure revision ${op.source.expectedStructureRevision}, received ${project.structureRevision}`,
+          "prepare",
+          "reprepare",
+        );
+      const setup = project.simulation;
       if (!setup)
         return problem(
           "SIMULATION_SETUP_MISSING",
-          "Configure the Project with set_simulation_setup or supply a setup",
+          "Configure the Project with set_simulation_setup before preparing it",
           "prepare",
         );
-      if (setup.input.kind !== "structured")
-        return problem(
-          "SIMULATION_INPUT_MODE_MISMATCH",
-          "This prepare source requires a structured SimulationSetup",
-          "prepare",
-          "fix-input",
-        );
-      const compiled = await compileStructuredSimulation(project, setup);
-      if (!compiled.ok)
-        return {
-          ok: false,
-          error: {
-            code: "SIMULATION_COMPILE_REFUSED",
-            message: "Correct the located input and prepare again",
-            stage: "prepare",
-            recovery: "fix-input",
-            diagnostics: compiled.diagnostics.map((d) => {
-              const { sourceRef: _source, ...primary } = d.primary;
-              return {
-                code: d.code,
-                message: d.message,
-                severity: d.severity,
-                primary: {
-                  ...primary,
-                  hierarchyPath: [...d.primary.hierarchyPath],
-                },
-              };
-            }),
-          },
+      if (setup.input.kind === "structured") {
+        const compiled = await compileStructuredSimulation(project, setup);
+        if (!compiled.ok)
+          return {
+            ok: false,
+            error: {
+              code: "SIMULATION_COMPILE_REFUSED",
+              message: "Correct the located input and prepare again",
+              stage: "prepare",
+              recovery: "fix-input",
+              diagnostics: compiled.diagnostics.map((d) => {
+                const { sourceRef: _source, ...primary } = d.primary;
+                return {
+                  code: d.code,
+                  message: d.message,
+                  severity: d.severity,
+                  primary: {
+                    ...primary,
+                    hierarchyPath: [...d.primary.hierarchyPath],
+                  },
+                };
+              }),
+            },
+          };
+        input = {
+          mode: "structured",
+          netlist: compiled.request.netlist,
+          testbench: compiled.request.testbench,
+          inputRevision: compiled.request.inputRevision!,
+          environment: setup.input.environment,
+          files: [],
         };
-      input = {
-        mode: "structured",
-        netlist: compiled.request.netlist,
-        testbench: compiled.request.testbench,
-        inputRevision: compiled.request.inputRevision!,
-        environment: setup.input.environment,
-        files: [],
-      };
-      vectors = [...compiled.vectors];
-      warnings = compiled.warnings.map((w) => w.message);
-      structuredAnalyses = setup.input.analyses.map((analysis) =>
-        analysis.kind === "tran"
-          ? {
-              kind: analysis.kind,
-              stepSeconds: analysis.stepSeconds,
-              stopSeconds: analysis.stopSeconds,
-              ...(analysis.startSeconds === undefined
-                ? {}
-                : { startSeconds: analysis.startSeconds }),
-            }
-          : { ...analysis },
-      );
+        vectors = [...compiled.vectors];
+        warnings = compiled.warnings.map((w) => w.message);
+        structuredAnalyses = setup.input.analyses.map((analysis) =>
+          analysis.kind === "tran"
+            ? {
+                kind: analysis.kind,
+                stepSeconds: analysis.stepSeconds,
+                stopSeconds: analysis.stopSeconds,
+                ...(analysis.startSeconds === undefined
+                  ? {}
+                  : { startSeconds: analysis.startSeconds }),
+              }
+            : { ...analysis },
+        );
+      } else {
+        const rawInput = setup.input;
+        if (rawInput.dependencies.length > 0)
+          return unresolvedDependencyProblem(rawInput);
+        const entry = rawInput.files.find(
+          (file) => file.path === rawInput.entry,
+        );
+        if (!entry)
+          return problem(
+            "SIMULATION_ENTRY_UNAVAILABLE",
+            "The Project simulation entry is not present in its authored files",
+            "prepare",
+          );
+        input = {
+          mode: "raw",
+          netlist: "",
+          testbench: entry.text,
+          inputRevision: await rawInputRevision(rawInput),
+          environment: rawInput.environment,
+          files: rawInput.files.map((file) => ({ ...file })),
+          entryPath: rawInput.entry,
+        };
+      }
     } else {
       const read = this.files.snapshot(
         op.source.workspaceId,
@@ -303,7 +375,13 @@ export class SimulationService {
         netlist: "",
         testbench: workspace.files.find((f) => f.path === workspace.entry)!
           .text,
-        inputRevision: "",
+        inputRevision: await sha256(
+          JSON.stringify({
+            entry: workspace.entry,
+            files: workspace.files,
+            environment: op.source.environment,
+          }),
+        ),
         environment: op.source.environment,
         files: workspace.files.map((f) => ({ ...f })),
       };
@@ -356,7 +434,6 @@ export class SimulationService {
               : null,
           );
     const digest = await sha256(JSON.stringify(input));
-    if (input.mode === "raw") input.inputRevision = digest;
     if (epoch !== this.epoch)
       return problem(
         "SESSION_CHANGED",

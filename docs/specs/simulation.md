@@ -275,9 +275,13 @@ Prepared decks and bundles are transient execution data. Environment-local
 model paths, run ids, receipts, logs, rawfiles, parsed results, simulator
 outputs, and caches are never persisted in the Project. A raw setup's authored
 source files are durable input; a prepared deck or copied execution workspace
-derived from them is not. The current execution resource prepares raw input
-from its bounded session workspace; checkout/prepare directly from the new
-Project-persisted raw branch remains a separate transport integration step.
+derived from them is not. The execution resource accepts exactly two ownership
+sources: `project-setup` snapshots the Project's saved structured or raw setup
+at an expected structure revision; `workspace` snapshots a bounded session raw
+workspace at its expected revision. These source kinds identify ownership, not
+electrical syntax. Project raw dependencies that no available environment
+owner can resolve produce located, recoverable preparation diagnostics; the
+service never falls back to arbitrary host paths.
 
 A structured setup stores only a stable environment Profile ID and the
 author's allowed selections such as corner and temperature. It never copies a
@@ -825,12 +829,14 @@ existing Project edit authority. Browser and MCP adapters do not compile their
 own decks or own a second simulation model. The browser lazily creates a service
 for its live Project session; opening the editor does not start ngspice.
 
-`prepare` accepts saved/inline structured setup or an isolated raw workspace.
-It snapshots input and publishes immutable SHA-256-addressed artifact metadata;
-raw input retains its entry text and include files. `prepared.cir` is available
-before execution. Structured composition uses the executor's advertised library
-and the shared deck builder. The Worker rejects a prepared deck that no longer
-matches its composition instead of silently using changed deployment settings.
+`prepare` accepts the Project's saved setup or an isolated raw workspace. The
+Project source requires `expectedStructureRevision`; there is no inline setup
+that bypasses Project edit ownership. It snapshots input and publishes immutable
+SHA-256-addressed artifact metadata; raw input retains its entry text and include
+files. `prepared.cir` is available before execution. Structured composition uses
+the executor's advertised library and the shared deck builder. The Worker rejects
+a prepared deck that no longer matches its composition instead of silently using
+changed deployment settings.
 
 `start` returns a short session-local run receipt. Reusing its request ID and
 payload returns the same run; a changed payload is rejected without invalidating
