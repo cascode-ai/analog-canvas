@@ -15,7 +15,7 @@ const profile = JSON.parse(
   ),
 ) as { id: string; simulator: { version: string } };
 import { openMenu, downloadBytes } from "./editor-fixtures.js";
-import { CircuitProjectSchema } from "@icm/model";
+import { parseProject } from "@icm/project-protocol";
 const ota = JSON.parse(
   readFileSync(
     new URL(
@@ -29,7 +29,7 @@ const ota = JSON.parse(
 test("the qualified OTA setup opens unchanged and preserves all root and hierarchical probes", async ({
   page,
 }) => {
-  const project = CircuitProjectSchema.parse(ota);
+  const project = parseProject(JSON.stringify(ota));
   expect(project.simulation!.input.probes).toHaveLength(4);
   expect(
     project.simulation!.input.probes.filter((p) => p.occurrence.length > 0),
@@ -146,7 +146,7 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
 test("human simulation uses saved setup, survives minimizing, recovers a bad input and exports results", async ({
   page,
 }) => {
-  const project = CircuitProjectSchema.parse(ota);
+  const project = parseProject(JSON.stringify(ota));
   project.simulation = {
     version: 1,
     input: {
