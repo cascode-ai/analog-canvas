@@ -23,10 +23,12 @@ same hierarchy, followed by the existing simulation configure operation.
 ## Setup, run and results
 
 Open **Setup**, choose the testbench Cell and advertised environment Profile,
-then set OP/AC, optional corner/temperature, and voltage probes. Existing
-hierarchical and source-current probes authored by the Agent are preserved
-and can be removed individually. Apply commits `set_simulation_setup` into
-the Project; saving/exporting and reopening the Project retains this setup.
+then set OP/AC, optional corner/temperature, and probes. Voltage probes may
+target a Net at the Testbench root or in a concrete DUT occurrence; current
+probes may target voltage sources. Each choice is written to the same
+occurrence-aware probe contract that Agent authoring uses. Apply commits
+`set_simulation_setup` into the Project; saving/exporting and reopening the
+Project retains this setup.
 
 **Prepare deck** compiles without running. **Run** prepares the current saved
 setup and starts that immutable input through the same service as MCP. It
@@ -50,8 +52,8 @@ are transient, not saved inside the Project.
 
 This is the B/C local-DUT and minimal human interface slice, not completion
 of all F1R/F5 requirements in the [v13 plan](../roadmap/simulation-vertical-integration-plan-v13.md).
-Cross-Project publication, a GUI hierarchy probe picker, structured TRAN and
-multi-run comparison remain outside this slice. Raw/Agent workflows retain
-their existing capabilities. Browser regressions use a controlled executor
+Cross-Project publication, structured TRAN and multi-run comparison remain
+outside this slice. Raw/Agent workflows retain their existing capabilities.
+Browser regressions use a controlled executor
 to verify interaction/protocol behavior; they do **not** certify OTA numbers,
 model qualification or the separate real Preview acceptance journey.
