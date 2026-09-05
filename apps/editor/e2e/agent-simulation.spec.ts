@@ -48,7 +48,7 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
       json: {
         configured: true,
         inputs: ["structured", "raw"],
-        analyses: ["op", "ac"],
+        analyses: ["op", "ac", "tran"],
         parsedAnalyses: ["op", "ac", "tran"],
         profiles: [{ id: profile.id, corners: ["tt"] }],
         maxTimeoutMs: 120000,
@@ -201,7 +201,7 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
         json: {
           configured: true,
           inputs: ["structured", "raw"],
-          analyses: ["op", "ac"],
+          analyses: ["op", "ac", "tran"],
           parsedAnalyses: ["op", "ac", "tran"],
           profiles: [{ id: profile.id, corners: ["tt"] }],
           maxTimeoutMs: 120000,
@@ -248,6 +248,19 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
                   unit: "V",
                   real: [10, 7, 1],
                   imag: [0, -3, -1],
+                },
+              ],
+            },
+            {
+              analysis: "tran",
+              plotName: "Transient response",
+              timeSeconds: [0, 1e-9, 10e-9],
+              probes: [
+                {
+                  name: "v(out)",
+                  quantity: "voltage",
+                  unit: "V",
+                  value: [0, 0.5, 1],
                 },
               ],
             },
@@ -302,6 +315,10 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   await panel
     .getByLabel("Add voltage probe")
     .selectOption({ label: "Testbench · vout" });
+  await panel.getByLabel("TRAN", { exact: true }).check();
+  await panel.getByLabel("TRAN step (s)").fill("1e-9");
+  await panel.getByLabel("TRAN stop (s)").fill("1e-6");
+  await panel.getByLabel("TRAN maximum step (s)").fill("5e-10");
   await panel.getByRole("button", { name: "Apply setup" }).click();
   await panel.getByRole("button", { name: "Run", exact: true }).click();
   await expect.poll(() => executions).toBe(1);
@@ -340,6 +357,9 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
     panel.locator(".simulation-output-browser > .selected"),
   ).toHaveCount(1);
   await expect(page.getByTestId("net-highlight-overlay")).toBeVisible();
+  await expect(
+    panel.locator('svg[aria-label="Transient voltage"]'),
+  ).toBeVisible();
   await panel.getByRole("tab", { name: "Files" }).click();
   const download = page.waitForEvent("download");
   await panel
@@ -378,6 +398,16 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   expect(
     JSON.parse(saved.toString()).simulation.input.environment.temperatureC,
   ).toBe(30);
+  expect(
+    JSON.parse(saved.toString()).simulation.input.analyses.find(
+      (analysis: { kind: string }) => analysis.kind === "tran",
+    ),
+  ).toEqual({
+    kind: "tran",
+    stepSeconds: 1e-9,
+    stopSeconds: 1e-6,
+    maxStepSeconds: 5e-10,
+  });
   await page.reload();
   // Explicit import is the persistence contract, not browser recovery heuristics.
   await page.getByTestId("project-file").setInputFiles({
@@ -388,6 +418,8 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   await page.getByTestId("open-analog-simulation").click();
   await panel.getByRole("button", { name: "Settings" }).click();
   await expect(panel.getByLabel("Temperature (°C)")).toHaveValue("30");
+  await expect(panel.getByLabel("TRAN", { exact: true })).toBeChecked();
+  await expect(panel.getByLabel("TRAN step (s)")).toHaveValue("1e-9");
   await expect(panel.getByRole("status")).toHaveText("No run yet");
 });
 

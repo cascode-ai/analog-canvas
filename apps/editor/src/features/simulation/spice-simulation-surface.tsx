@@ -15,6 +15,7 @@ import type {
 import { downloadTextArtifact } from "../../document/project-file-service";
 import type { BrowserSimulationSession } from "./browser-simulation-session";
 import { AcResultsExplorer } from "./ac-results-explorer";
+import { TransientResultsExplorer } from "./transient-results-explorer";
 import {
   deriveSimulationProbeOptions,
   simulationProbeTargetKey,
@@ -530,11 +531,30 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
                         : {})}
                     />
                   ))}
+                {run?.result?.data?.analyses
+                  .filter((analysis) => analysis.analysis === "tran")
+                  .map((analysis, index) => (
+                    <TransientResultsExplorer
+                      key={`tran-${index}`}
+                      analysis={analysis}
+                      vectors={prepared?.vectors ?? []}
+                      probes={
+                        project.simulation?.input.kind === "structured"
+                          ? project.simulation.input.probes
+                          : []
+                      }
+                      labels={outputLabels}
+                      {...(props.onFocusProbe
+                        ? { onFocusProbe: props.onFocusProbe }
+                        : {})}
+                    />
+                  ))}
                 {!run?.result?.data?.analyses.some(
-                  (analysis) => analysis.analysis === "ac",
+                  (analysis) =>
+                    analysis.analysis === "ac" || analysis.analysis === "tran",
                 ) ? (
                   <p className="simulation-empty-result">
-                    Run an AC analysis to see a plot.
+                    Run an AC or transient analysis to see a plot.
                   </p>
                 ) : null}
               </div>
@@ -762,6 +782,16 @@ function SetupEditor({
                         kind: "tran",
                         stepSeconds: Number(data.get("tranStepSeconds")),
                         stopSeconds: Number(data.get("tranStopSeconds")),
+                        ...optionalFormNumber(
+                          data,
+                          "tranStartSeconds",
+                          "startSeconds",
+                        ),
+                        ...optionalFormNumber(
+                          data,
+                          "tranMaxStepSeconds",
+                          "maxStepSeconds",
+                        ),
                       },
                     ]
                   : []),
@@ -938,6 +968,28 @@ function SetupEditor({
                 defaultValue={tran?.stopSeconds ?? 1e-6}
               />
             </label>
+            <label>
+              TRAN start saving (s)
+              <input
+                name="tranStartSeconds"
+                type="number"
+                step="any"
+                min="0"
+                defaultValue={tran?.startSeconds ?? ""}
+                placeholder="0"
+              />
+            </label>
+            <label>
+              TRAN maximum step (s)
+              <input
+                name="tranMaxStepSeconds"
+                type="number"
+                step="any"
+                min="0"
+                defaultValue={tran?.maxStepSeconds ?? ""}
+                placeholder="Simulator default"
+              />
+            </label>
           </div>
         ) : null}
         <ProbeSelect
@@ -1018,6 +1070,15 @@ function SetupEditor({
       </form>
     </aside>
   );
+}
+
+function optionalFormNumber(
+  data: FormData,
+  formName: "tranStartSeconds" | "tranMaxStepSeconds",
+  outputName: "startSeconds" | "maxStepSeconds",
+): Partial<Record<typeof outputName, number>> {
+  const value = String(data.get(formName) ?? "").trim();
+  return value ? { [outputName]: Number(value) } : {};
 }
 
 function probeFromOption(

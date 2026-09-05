@@ -474,6 +474,12 @@ descriptor's DC, AC, PULSE, and SIN fields directly. Switching the selected
 waveform hides but retains inactive fields; only the selected waveform is
 printed into the prepared deck.
 
+The human Setup workspace authors OP, AC, and TRAN through this same structured
+analysis contract. TRAN exposes `tstep`, `tstop`, and the optional `tstart` and
+`tmax` values in explicit seconds. Its Plot view consumes the structured
+transient result and the simulator-recorded time axis; it does not reconstruct
+time from a point index or a requested output interval.
+
 On the voltage-source and current-source descriptors the DC value is `dc` and
 the small-signal stimulus is the optional pair `acMagnitude` (volts or
 amperes) and `acPhase` (degrees). The SPICE printer emits
