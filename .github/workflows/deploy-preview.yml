@@ -43,6 +43,11 @@ jobs:
       - run: pnpm --filter @icm/editor... build
         env:
           VITE_ICM_TIMING_UI: disabled
+          # The preview is the channel that simulates (ADR 0057) and simulation
+          # is Agent-first (ADR 0055): an Agent must be able to pair with the
+          # preview editor, so its Connect Agent surface is enabled here.
+          # Production stays human-only (docs/agent/README.md).
+          VITE_ICM_AGENT_UI: enabled
       - name: Deploy to preview
         run: pnpm dlx wrangler@4.120.1 deploy --config wrangler.preview.jsonc
         env:
