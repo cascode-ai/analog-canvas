@@ -72,10 +72,10 @@ Profile.
 
 The first qualified scope is deliberately narrow and factual: the continuous
 `sky130_fd_pr__nfet_01v8` and `sky130_fd_pr__pfet_01v8` wrappers, `tt`, and an
-operating-point analysis. Adding AC, transient, another corner, or another
-device family extends this same Profile contract only after a model-backed
-fixture passes the hosted gate; a locally available PDK is not evidence by
-itself.
+operating-point analysis plus the OTA AC sweep covered by the hosted acceptance
+fixture. Adding transient, another corner, or another device family extends
+this same Profile contract only after a model-backed fixture passes the hosted
+gate; a locally available PDK is not evidence by itself.
 
 It must not include that top-level sectioned library with `.include`, because
 doing so expands multiple corner sections into the same deck and redefines
