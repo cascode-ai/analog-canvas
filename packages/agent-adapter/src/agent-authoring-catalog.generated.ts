@@ -534,6 +534,68 @@ export const agentRazaviAuthoringCatalog = {
       variants: [],
     },
     {
+      symbolId: "tcoil",
+      name: "T-Coil",
+      category: "passive",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      pins: [
+        {
+          name: "1",
+          role: "passive",
+          direction: "west",
+          visibility: "visible",
+        },
+        {
+          name: "2",
+          role: "passive",
+          direction: "east",
+          visibility: "visible",
+        },
+        {
+          name: "3",
+          role: "passive",
+          direction: "south",
+          visibility: "visible",
+        },
+      ],
+      variants: [],
+    },
+    {
+      symbolId: "xfmr",
+      name: "XFMR",
+      category: "passive",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      pins: [
+        {
+          name: "P-",
+          role: "passive",
+          direction: "west",
+          visibility: "visible",
+        },
+        {
+          name: "P+",
+          role: "passive",
+          direction: "east",
+          visibility: "visible",
+        },
+        {
+          name: "S-",
+          role: "passive",
+          direction: "west",
+          visibility: "visible",
+        },
+        {
+          name: "S+",
+          role: "passive",
+          direction: "east",
+          visibility: "visible",
+        },
+      ],
+      variants: [],
+    },
+    {
       symbolId: "inverter",
       name: "Inverter",
       category: "logic",

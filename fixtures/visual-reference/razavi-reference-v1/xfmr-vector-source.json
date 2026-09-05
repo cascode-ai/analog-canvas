@@ -1,0 +1,123 @@
+{
+  "schemaVersion": 1,
+  "id": "razavi-ojsscs-figure-19-xfmr",
+  "kind": "pdf-vector-extract",
+  "source": {
+    "title": "LO Generation Techniques for Millimeter-Wave Receivers",
+    "sha256": "489edabe3248a336806a249d099401c94aab0b26913a6dee16d754e9e36baf31",
+    "pdfPage": 8,
+    "printedPage": 8,
+    "figure": "19(a)"
+  },
+  "selection": {
+    "method": "native-vector object fingerprints",
+    "coilPaths": [
+      {
+        "left": 443.502,
+        "top": 87.061,
+        "right": 466.984,
+        "bottom": 94.125
+      },
+      {
+        "left": 443.502,
+        "top": 97.815,
+        "right": 466.984,
+        "bottom": 104.88
+      }
+    ],
+    "polarityDots": [
+      {
+        "x": 466.4805,
+        "y": 85.3365
+      },
+      {
+        "x": 466.4805,
+        "y": 106.845
+      }
+    ],
+    "sourceLineWidthPdfPt": 0.672147
+  },
+  "normalization": {
+    "reuseSymbolId": "inductor-compact",
+    "sourceCoilPinSpanPdfPt": 23.482,
+    "sourceCoilCenterSeparationPdfPt": 10.7545,
+    "productCoilPinSpanLogical": 40,
+    "productCoilCentersLogical": [
+      {
+        "x": 0,
+        "y": -10
+      },
+      {
+        "x": 0,
+        "y": 10
+      }
+    ],
+    "productPinAnchorsLogical": [
+      {
+        "name": "P-",
+        "x": -30,
+        "y": -10
+      },
+      {
+        "name": "P+",
+        "x": 30,
+        "y": -10
+      },
+      {
+        "name": "S-",
+        "x": -30,
+        "y": 10
+      },
+      {
+        "name": "S+",
+        "x": 30,
+        "y": 10
+      }
+    ],
+    "productPolarityDotsLogical": [
+      {
+        "x": 19.1423,
+        "y": -18.9541,
+        "radius": 2.2903
+      },
+      {
+        "x": 19.1423,
+        "y": 19.3646,
+        "radius": 2.2903
+      }
+    ],
+    "endpointMarkers": "none"
+  },
+  "rasterWitness": {
+    "kind": "source-pdf-crop",
+    "sourcePdfPage": 8,
+    "dpi": 300.0,
+    "pagePixels": {
+      "width": 2550,
+      "height": 3300
+    },
+    "cropBoxPx": {
+      "left": 1831,
+      "top": 335,
+      "right": 1963,
+      "bottom": 465
+    },
+    "pixels": {
+      "width": 132,
+      "height": 130
+    },
+    "originPx": {
+      "x": 65.845833,
+      "y": 64.876042
+    },
+    "pagePixelsPerPdfPoint": {
+      "x": 4.166666666666667,
+      "y": 4.166666666666667
+    },
+    "pdfplumberMediaBoxOffset": {
+      "x": 0.0,
+      "y": 0.0
+    },
+    "assetPath": "xfmr-reference.png"
+  }
+}

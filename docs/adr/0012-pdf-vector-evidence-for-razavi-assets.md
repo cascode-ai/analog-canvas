@@ -84,12 +84,32 @@ Two-terminal diode and three-terminal NPN/PNP map to SPICE `D` and three-node
 `Q`, respectively. SPICE `G` remains valid parser/compiler IR, but no reviewed
 controlled-source graphical symbol is exposed or automatically imported.
 
-The two-terminal ideal switch does not map to four-terminal SPICE `S`. No
-standalone Razavi transformer source has been approved, so no transformer is
-generated or exposed in the catalog. The single-ended voltage amplifier
+The two-terminal ideal switch does not map to four-terminal SPICE `S`. The
+single-ended voltage amplifier
 likewise remains manual because its reference
 nodes are implicit. BJT hybrid-pi models are composed from resistor,
 capacitor, and the reviewed VCCS rather than represented by a pseudo-device.
+
+## Magnetic compound mapping
+
+Figure 19(a) of _LO Generation Techniques for Millimeter-Wave Receivers_
+supplies native-vector topology, winding separation, and same-name polarity-dot
+placement for the four-terminal `xfmr`. Figure 2 of _The Bridged T-Coil_
+supplies the three-terminal L1/L2/CB topology and its relative placement. The
+approved Symbols do not copy either paper's coil or capacitor paths: both
+reuse `inductor-compact`, and `tcoil` also reuses `capacitor`. This prevents a
+second Razavi passive family from drifting into the catalog.
+
+Both devices are atomic on a parent Canvas. Their PDF terminal circles and
+number bubbles are evidence annotations, not product endpoints, so external
+pins remain unmarked and connect directly to ordinary Wires. Internal filled
+dots retain the topology, while polarity dots remain presentation primitives
+and never become electrical Junctions.
+
+Neither device claims a single SPICE primitive. `xfmr` requires two inductors
+plus mutual coupling, and `tcoil` requires L1/L2/K/CB. Until compound-device or
+fixed-cell lowering is explicitly defined, both are manual-only catalog
+Instances with stable four- and three-pin contracts respectively.
 
 ## Pulse Source and timing-waveform mapping
 

@@ -40,6 +40,8 @@ const SIDE_LABEL_SYMBOLS = new Set([
   "pulse-voltage-source",
 ]);
 
+const TOP_LABEL_SYMBOLS = new Set(["tcoil"]);
+
 export function isMosSymbol(resolved: ResolvedSymbol): boolean {
   const roles = new Set(resolved.definition.pins.map((pin) => pin.role));
   return roles.has("gate") && roles.has("drain") && roles.has("source");
@@ -388,6 +390,19 @@ export function defaultInstanceLabelPlacement(
       profile,
       localPosition,
       "right",
+      grid,
+      1,
+      rowOffset,
+    );
+  }
+
+  if (TOP_LABEL_SYMBOLS.has(instance.symbolId)) {
+    return placeUprightInstanceLabel(
+      instance,
+      resolved,
+      profile,
+      { x: middleX, y: localBounds.y - compactSideGap },
+      "top",
       grid,
       1,
       rowOffset,

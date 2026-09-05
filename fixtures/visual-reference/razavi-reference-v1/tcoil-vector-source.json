@@ -1,0 +1,155 @@
+{
+  "schemaVersion": 1,
+  "id": "razavi-bridged-tcoil-figure-2",
+  "kind": "pdf-vector-extract",
+  "source": {
+    "title": "The Bridged T-Coil",
+    "sha256": "30543c6d78f1ca1e3019746520319eeb39948899294bb8f4d792870b84b2b676",
+    "pdfPage": 1,
+    "printedPage": 9,
+    "figure": "2"
+  },
+  "selection": {
+    "method": "native-vector object fingerprints",
+    "coilPaths": [
+      {
+        "left": 250.6188,
+        "top": 666.8859,
+        "right": 283.2098,
+        "bottom": 673.7439
+      },
+      {
+        "left": 287.1568,
+        "top": 666.8859,
+        "right": 319.7468,
+        "bottom": 673.7439
+      }
+    ],
+    "polarityDots": [
+      {
+        "x": 258.0406,
+        "y": 666.6789
+      },
+      {
+        "x": 294.5978,
+        "y": 666.6789
+      }
+    ],
+    "sourceLineWidthPdfPt": 0.5,
+    "sourceWindingBodySpanPdfPt": 14.093
+  },
+  "normalization": {
+    "reuseSymbolIds": [
+      "inductor-compact",
+      "capacitor"
+    ],
+    "productWindingBodySpanLogical": 22.7392,
+    "productLayoutScaleLogicalPerPdfPt": 1.6135103,
+    "productInternalRouteExtension": 1.3,
+    "productCoilPortFractions": [
+      0.5937563,
+      0.4181242
+    ],
+    "productCoilCentersLogical": [
+      {
+        "x": -40.6244,
+        "y": 0
+      },
+      {
+        "x": 41.8124,
+        "y": 0
+      }
+    ],
+    "productCapacitorCenterLogical": {
+      "x": 0,
+      "y": -43.335
+    },
+    "productPinAnchorsLogical": [
+      {
+        "name": "1",
+        "x": -100,
+        "y": 0
+      },
+      {
+        "name": "2",
+        "x": 100,
+        "y": 0
+      },
+      {
+        "name": "3",
+        "x": 0,
+        "y": 20
+      }
+    ],
+    "productBridgeBranchXsLogical": [
+      -80,
+      80
+    ],
+    "productPolarityDotsLogical": [
+      {
+        "x": -59.2164,
+        "y": -6.0745,
+        "radius": 3.77907
+      },
+      {
+        "x": 23.2204,
+        "y": -6.0745,
+        "radius": 3.77907
+      }
+    ],
+    "productJunctionDotsLogical": [
+      {
+        "x": -80,
+        "y": 0,
+        "radius": 3.77907
+      },
+      {
+        "x": 0,
+        "y": 0,
+        "radius": 3.77907
+      },
+      {
+        "x": 80,
+        "y": 0,
+        "radius": 3.77907
+      }
+    ],
+    "canvasVisualContract": {
+      "routeStrokeRole": "normal",
+      "junctionRadiusLogical": 3.77907
+    },
+    "endpointMarkers": "none"
+  },
+  "rasterWitness": {
+    "kind": "source-pdf-crop",
+    "sourcePdfPage": 1,
+    "dpi": 300.0,
+    "pagePixels": {
+      "width": 2363,
+      "height": 3225
+    },
+    "cropBoxPx": {
+      "left": 979,
+      "top": 2685,
+      "right": 1384,
+      "bottom": 2855
+    },
+    "pixels": {
+      "width": 405,
+      "height": 170
+    },
+    "originPx": {
+      "x": 212.822184,
+      "y": 108.515417
+    },
+    "pagePixelsPerPdfPoint": {
+      "x": 4.167548500881834,
+      "y": 4.166666666666667
+    },
+    "pdfplumberMediaBoxOffset": {
+      "x": 0.0,
+      "y": 0.0
+    },
+    "assetPath": "tcoil-reference.png"
+  }
+}

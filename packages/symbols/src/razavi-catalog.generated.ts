@@ -680,6 +680,70 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     },
   },
   {
+    symbolId: "tcoil",
+    name: "T-Coil",
+    category: "passive",
+    reviewStatus: "reviewed",
+    pinOrder: ["1", "2", "3"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "A bridged T-coil is a composite L1/L2/K/CB network; structural export requires an explicit fixed-cell or subcircuit mapping.",
+    assetPath: "tcoil.symbol.json",
+    assetHash:
+      "edb4cde9993cc82ecfc57f32ba53bf466cefa85dd574fc4a9666de7f2c30a9ee",
+    visualAuthority: {
+      kind: "razavi-reference-v1",
+      referenceManifestPath:
+        "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      referencePaths: [
+        "fixtures/visual-reference/razavi-reference-v1/tcoil-vector-source.json",
+        "fixtures/visual-reference/razavi-reference-v1/tcoil-reference.png",
+      ],
+    },
+    generation: {
+      kind: "razavi-pdf-vector-reference",
+      referenceManifestPath:
+        "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      referencePath:
+        "fixtures/visual-reference/razavi-reference-v1/tcoil-vector-source.json",
+      converterPath: "scripts/generate-razavi-magnetic-components.mjs",
+      converterVersion: 1,
+    },
+  },
+  {
+    symbolId: "xfmr",
+    name: "XFMR",
+    category: "passive",
+    reviewStatus: "reviewed",
+    pinOrder: ["P-", "P+", "S-", "S+"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "A transformer lowers to two inductors plus mutual coupling; structural export requires an explicit compound-device or subcircuit mapping.",
+    assetPath: "xfmr.symbol.json",
+    assetHash:
+      "95b6f2fb48fdee7051a5fc6171ee3ea2349b7755c49a00261fddebeb33370e71",
+    visualAuthority: {
+      kind: "razavi-reference-v1",
+      referenceManifestPath:
+        "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      referencePaths: [
+        "fixtures/visual-reference/razavi-reference-v1/xfmr-vector-source.json",
+        "fixtures/visual-reference/razavi-reference-v1/xfmr-reference.png",
+      ],
+    },
+    generation: {
+      kind: "razavi-pdf-vector-reference",
+      referenceManifestPath:
+        "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      referencePath:
+        "fixtures/visual-reference/razavi-reference-v1/xfmr-vector-source.json",
+      converterPath: "scripts/generate-razavi-magnetic-components.mjs",
+      converterVersion: 1,
+    },
+  },
+  {
     symbolId: "inverter",
     name: "Inverter",
     category: "logic",
@@ -4472,6 +4536,496 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           lineCap: "butt",
           lineJoin: "round",
         },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "tcoil",
+    name: "T-Coil",
+    viewBox: {
+      x: -104,
+      y: -56,
+      width: 208,
+      height: 90,
+    },
+    pins: [
+      {
+        name: "1",
+        role: "passive",
+        at: {
+          x: -100,
+          y: 0,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "2",
+        role: "passive",
+        at: {
+          x: 100,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "3",
+        role: "passive",
+        at: {
+          x: 0,
+          y: 20,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -100,
+          y: 0,
+        },
+        to: {
+          x: -60.1244,
+          y: 0,
+        },
+        part: "terminal-1-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M -60.6244 0 L -60.1197 0 C -60.1197 0 -60.1197 0 -58.8418 0 C -57.5653 0 -55.0095 0 -53.7331 0 C -52.4552 0 -52.4552 0 -52.4552 0 C -52.4552 0 -52.4552 0 -52.1993 -1.2452 C -51.9434 -2.4889 -51.4331 -4.9763 -50.4111 -6.1873 C -49.3891 -7.3983 -47.8567 -7.3313 -46.8332 -4.8439 C -45.8112 -2.355 -45.3009 2.5543 -46.0671 5.009 C -46.8332 7.4637 -48.8788 7.4637 -49.3445 4.9763 C -49.8116 2.4874 -48.7003 -2.4889 -47.0118 -5.0209 C -45.3232 -7.5545 -43.0575 -7.6422 -41.5683 -5.1548 C -40.0807 -2.6659 -39.3695 2.3996 -40.036 4.9317 C -40.7025 7.4637 -42.7466 7.4637 -43.2569 4.9317 C -43.7686 2.3996 -42.7466 -2.6659 -41.0804 -5.1325 C -39.4142 -7.5991 -37.1038 -7.4652 -35.57 -4.9317 C -34.0377 -2.3996 -33.2819 2.532 -33.9261 4.9986 C -34.5703 7.4637 -36.6144 7.4637 -37.2481 4.9986 C -37.8804 2.532 -37.1038 -2.3996 -35.8259 -4.8885 C -34.548 -7.3759 -32.7702 -7.4205 -31.6261 -6.1992 C -30.4821 -4.9763 -29.9719 -2.4889 -29.716 -1.2452 C -29.4601 0 -29.4601 0 -29.4601 0 C -29.4601 0 -29.4601 0 -28.0721 0 C -26.6841 0 -23.9066 0 -22.5171 0 C -21.1291 0 -21.1291 0 -21.1291 0 L -20.6244 0",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "round",
+        },
+        part: "winding-1",
+      },
+      {
+        kind: "line",
+        from: {
+          x: -21.1244,
+          y: 0,
+        },
+        to: {
+          x: 22.3124,
+          y: 0,
+        },
+        part: "winding-center-link",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M 21.8124 0 L 22.3171 0 C 22.3171 0 22.3171 0 23.595 0 C 24.8715 0 27.4273 0 28.7037 0 C 29.9816 0 29.9816 0 29.9816 0 C 29.9816 0 29.9816 0 30.2375 -1.2452 C 30.4934 -2.4889 31.0037 -4.9763 32.0257 -6.1873 C 33.0477 -7.3983 34.5801 -7.3313 35.6036 -4.8439 C 36.6256 -2.355 37.1359 2.5543 36.3697 5.009 C 35.6036 7.4637 33.558 7.4637 33.0923 4.9763 C 32.6252 2.4874 33.7365 -2.4889 35.425 -5.0209 C 37.1136 -7.5545 39.3793 -7.6422 40.8685 -5.1548 C 42.3561 -2.6659 43.0673 2.3996 42.4008 4.9317 C 41.7343 7.4637 39.6902 7.4637 39.1799 4.9317 C 38.6682 2.3996 39.6902 -2.6659 41.3564 -5.1325 C 43.0226 -7.5991 45.333 -7.4652 46.8668 -4.9317 C 48.3991 -2.3996 49.1549 2.532 48.5107 4.9986 C 47.8665 7.4637 45.8224 7.4637 45.1887 4.9986 C 44.5564 2.532 45.333 -2.3996 46.6109 -4.8885 C 47.8888 -7.3759 49.6666 -7.4205 50.8107 -6.1992 C 51.9547 -4.9763 52.4649 -2.4889 52.7208 -1.2452 C 52.9767 0 52.9767 0 52.9767 0 C 52.9767 0 52.9767 0 54.3647 0 C 55.7527 0 58.5302 0 59.9197 0 C 61.3077 0 61.3077 0 61.3077 0 L 61.8124 0",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "round",
+        },
+        part: "winding-2",
+      },
+      {
+        kind: "line",
+        from: {
+          x: 61.3124,
+          y: 0,
+        },
+        to: {
+          x: 100,
+          y: 0,
+        },
+        part: "terminal-2-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: -0.5,
+        },
+        to: {
+          x: 0,
+          y: 20,
+        },
+        part: "terminal-3-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polyline",
+        points: [
+          {
+            x: -80,
+            y: 0,
+          },
+          {
+            x: -80,
+            y: -43.335,
+          },
+          {
+            x: -19.5,
+            y: -43.335,
+          },
+        ],
+        part: "bridge-left-route",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -3.2336,
+          y: -51.3856,
+        },
+        to: {
+          x: -3.2336,
+          y: -35.2844,
+        },
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "bridge-capacitor-1",
+      },
+      {
+        kind: "line",
+        from: {
+          x: 3.2336,
+          y: -51.3856,
+        },
+        to: {
+          x: 3.2336,
+          y: -35.2844,
+        },
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "bridge-capacitor-2",
+      },
+      {
+        kind: "line",
+        from: {
+          x: -3.2336,
+          y: -43.335,
+        },
+        to: {
+          x: -20,
+          y: -43.335,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "bridge-capacitor-3",
+      },
+      {
+        kind: "line",
+        from: {
+          x: 3.2336,
+          y: -43.335,
+        },
+        to: {
+          x: 20,
+          y: -43.335,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "bridge-capacitor-4",
+      },
+      {
+        kind: "polyline",
+        points: [
+          {
+            x: 19.5,
+            y: -43.335,
+          },
+          {
+            x: 80,
+            y: -43.335,
+          },
+          {
+            x: 80,
+            y: 0,
+          },
+        ],
+        part: "bridge-right-route",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "circle",
+        center: {
+          x: -59.2164,
+          y: -6.0745,
+        },
+        radius: 3.77907,
+        fill: "foreground",
+        stroke: "none",
+        part: "winding-1-polarity",
+      },
+      {
+        kind: "circle",
+        center: {
+          x: 23.2204,
+          y: -6.0745,
+        },
+        radius: 3.77907,
+        fill: "foreground",
+        stroke: "none",
+        part: "winding-2-polarity",
+      },
+      {
+        kind: "circle",
+        center: {
+          x: -80,
+          y: 0,
+        },
+        radius: 3.77907,
+        fill: "foreground",
+        stroke: "none",
+        part: "internal-junction-1",
+      },
+      {
+        kind: "circle",
+        center: {
+          x: 0,
+          y: 0,
+        },
+        radius: 3.77907,
+        fill: "foreground",
+        stroke: "none",
+        part: "internal-junction-2",
+      },
+      {
+        kind: "circle",
+        center: {
+          x: 80,
+          y: 0,
+        },
+        radius: 3.77907,
+        fill: "foreground",
+        stroke: "none",
+        part: "internal-junction-3",
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "xfmr",
+    name: "XFMR",
+    viewBox: {
+      x: -34,
+      y: -24,
+      width: 68,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "P-",
+        role: "passive",
+        at: {
+          x: -30,
+          y: -10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "P+",
+        role: "passive",
+        at: {
+          x: 30,
+          y: -10,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "S-",
+        role: "passive",
+        at: {
+          x: -30,
+          y: 10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "S+",
+        role: "passive",
+        at: {
+          x: 30,
+          y: 10,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: -10,
+        },
+        to: {
+          x: -19.5,
+          y: -10,
+        },
+        part: "primary-left-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M -20 -10 L -19.4953 -10 C -19.4953 -10 -19.4953 -10 -18.2174 -10 C -16.9409 -10 -14.3851 -10 -13.1087 -10 C -11.8308 -10 -11.8308 -10 -11.8308 -10 C -11.8308 -10 -11.8308 -10 -11.5749 -11.2452 C -11.319 -12.4889 -10.8087 -14.9763 -9.7867 -16.1873 C -8.7647 -17.3983 -7.2323 -17.3313 -6.2088 -14.8439 C -5.1868 -12.355 -4.6765 -7.4457 -5.4427 -4.991 C -6.2088 -2.5363 -8.2544 -2.5363 -8.7201 -5.0237 C -9.1872 -7.5126 -8.0759 -12.4889 -6.3874 -15.0209 C -4.6988 -17.5545 -2.4331 -17.6422 -0.9439 -15.1548 C 0.5437 -12.6659 1.2549 -7.6004 0.5884 -5.0683 C -0.0781 -2.5363 -2.1222 -2.5363 -2.6325 -5.0683 C -3.1442 -7.6004 -2.1222 -12.6659 -0.456 -15.1325 C 1.2102 -17.5991 3.5206 -17.4652 5.0544 -14.9317 C 6.5867 -12.3996 7.3425 -7.468 6.6983 -5.0014 C 6.0541 -2.5363 4.01 -2.5363 3.3763 -5.0014 C 2.744 -7.468 3.5206 -12.3996 4.7985 -14.8885 C 6.0764 -17.3759 7.8542 -17.4205 8.9983 -16.1992 C 10.1423 -14.9763 10.6525 -12.4889 10.9084 -11.2452 C 11.1643 -10 11.1643 -10 11.1643 -10 C 11.1643 -10 11.1643 -10 12.5523 -10 C 13.9403 -10 16.7178 -10 18.1073 -10 C 19.4953 -10 19.4953 -10 19.4953 -10 L 20 -10",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "round",
+        },
+        part: "primary-winding",
+      },
+      {
+        kind: "line",
+        from: {
+          x: 19.5,
+          y: -10,
+        },
+        to: {
+          x: 30,
+          y: -10,
+        },
+        part: "primary-right-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: 10,
+        },
+        to: {
+          x: -19.5,
+          y: 10,
+        },
+        part: "secondary-left-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M -20 10 L -19.4953 10 C -19.4953 10 -19.4953 10 -18.2174 10 C -16.9409 10 -14.3851 10 -13.1087 10 C -11.8308 10 -11.8308 10 -11.8308 10 C -11.8308 10 -11.8308 10 -11.5749 8.7548 C -11.319 7.5111 -10.8087 5.0237 -9.7867 3.8127 C -8.7647 2.6017 -7.2323 2.6687 -6.2088 5.1561 C -5.1868 7.645 -4.6765 12.5543 -5.4427 15.009 C -6.2088 17.4637 -8.2544 17.4637 -8.7201 14.9763 C -9.1872 12.4874 -8.0759 7.5111 -6.3874 4.9791 C -4.6988 2.4455 -2.4331 2.3578 -0.9439 4.8452 C 0.5437 7.3341 1.2549 12.3996 0.5884 14.9317 C -0.0781 17.4637 -2.1222 17.4637 -2.6325 14.9317 C -3.1442 12.3996 -2.1222 7.3341 -0.456 4.8675 C 1.2102 2.4009 3.5206 2.5348 5.0544 5.0683 C 6.5867 7.6004 7.3425 12.532 6.6983 14.9986 C 6.0541 17.4637 4.01 17.4637 3.3763 14.9986 C 2.744 12.532 3.5206 7.6004 4.7985 5.1115 C 6.0764 2.6241 7.8542 2.5795 8.9983 3.8008 C 10.1423 5.0237 10.6525 7.5111 10.9084 8.7548 C 11.1643 10 11.1643 10 11.1643 10 C 11.1643 10 11.1643 10 12.5523 10 C 13.9403 10 16.7178 10 18.1073 10 C 19.4953 10 19.4953 10 19.4953 10 L 20 10",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "round",
+        },
+        part: "secondary-winding",
+      },
+      {
+        kind: "line",
+        from: {
+          x: 19.5,
+          y: 10,
+        },
+        to: {
+          x: 30,
+          y: 10,
+        },
+        part: "secondary-right-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "circle",
+        center: {
+          x: 19.1423,
+          y: -18.9541,
+        },
+        radius: 2.2903,
+        fill: "foreground",
+        stroke: "none",
+        part: "primary-polarity",
+      },
+      {
+        kind: "circle",
+        center: {
+          x: 19.1423,
+          y: 19.3646,
+        },
+        radius: 2.2903,
+        fill: "foreground",
+        stroke: "none",
+        part: "secondary-polarity",
       },
     ],
     variants: [],
