@@ -1160,9 +1160,12 @@ describe("Razavi symbol catalog", () => {
         primitive.kind === "circle" && primitive.part?.endsWith("-polarity"),
     );
     expect(polarityDots).toHaveLength(2);
-    expect(
-      polarityDots.every((primitive) => primitive.radius === 3.77907),
-    ).toBe(true);
+    for (const polarityDot of polarityDots) {
+      if (polarityDot.kind !== "circle") {
+        throw new Error("T-coil polarity primitive must be a circle");
+      }
+      expect(polarityDot.radius).toBe(3.77907);
+    }
     expect(
       tcoil.primitives.some(
         (primitive) =>
