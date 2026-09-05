@@ -48,6 +48,8 @@ jobs:
           # preview editor, so its Connect Agent surface is enabled here.
           # Production stays human-only (docs/agent/README.md).
           VITE_ICM_AGENT_UI: enabled
+      - run: pnpm --filter @icm/mcp-server... build
+      - run: pnpm exec playwright install --with-deps chromium
       - name: Deploy to preview
         run: pnpm dlx wrangler@4.120.1 deploy --config wrangler.preview.jsonc
         env:
@@ -146,3 +148,13 @@ jobs:
       # simulator host; a green status without numbers is not acceptance.
       - name: Run the preview's numerical and vertical simulation acceptance
         run: node scripts/preview-simulation-smoke.mjs "$PREVIEW_URL"
+      - name: Run the public Agent/MCP simulation journey
+        run: node scripts/preview-agent-simulation-journey.mjs "$PREVIEW_URL"
+      - name: Preserve the Agent/MCP simulation receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: preview-agent-simulation-${{ github.sha }}
+          path: test-results/preview-agent-simulation/
+          if-no-files-found: error
+          retention-days: 14
