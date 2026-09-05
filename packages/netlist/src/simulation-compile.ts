@@ -151,6 +151,23 @@ function analysisCommand(analysis: SimulationAnalysisSpec): string {
         spiceNumber(analysis.startHz),
         spiceNumber(analysis.stopHz),
       ].join(" ");
+    case "tran": {
+      const values = [
+        "tran",
+        spiceNumber(analysis.stepSeconds),
+        spiceNumber(analysis.stopSeconds),
+      ];
+      if (
+        analysis.startSeconds !== undefined ||
+        analysis.maxStepSeconds !== undefined
+      ) {
+        values.push(spiceNumber(analysis.startSeconds ?? 0));
+      }
+      if (analysis.maxStepSeconds !== undefined) {
+        values.push(spiceNumber(analysis.maxStepSeconds));
+      }
+      return values.join(" ");
+    }
   }
 }
 
@@ -169,13 +186,21 @@ function canonicalSetup(setup: SimulationSetup): string {
     analyses: input.analyses.map((analysis) =>
       analysis.kind === "op"
         ? { kind: analysis.kind }
-        : {
-            kind: analysis.kind,
-            sweep: analysis.sweep,
-            points: analysis.points,
-            startHz: analysis.startHz,
-            stopHz: analysis.stopHz,
-          },
+        : analysis.kind === "ac"
+          ? {
+              kind: analysis.kind,
+              sweep: analysis.sweep,
+              points: analysis.points,
+              startHz: analysis.startHz,
+              stopHz: analysis.stopHz,
+            }
+          : {
+              kind: analysis.kind,
+              stepSeconds: analysis.stepSeconds,
+              stopSeconds: analysis.stopSeconds,
+              startSeconds: analysis.startSeconds ?? null,
+              maxStepSeconds: analysis.maxStepSeconds ?? null,
+            },
     ),
     probes: input.probes.map((probe) =>
       probe.kind === "net-voltage"
@@ -472,7 +497,7 @@ export async function compileStructuredSimulation(
 
   const analyses: SimulationAnalysis[] = [];
   for (const item of input.analyses) {
-    if (item.kind === "op" || item.kind === "ac") {
+    if (item.kind === "op" || item.kind === "ac" || item.kind === "tran") {
       analyses.push(item.kind);
       continue;
     }

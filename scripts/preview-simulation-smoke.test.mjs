@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   compileHostedSky130Project,
+  compileHostedSky130TransientProject,
   runHostedSky130Acceptance,
+  runHostedSky130TransientAcceptance,
   runPreviewSimulationSmoke,
+  validateHostedSky130TransientResult,
   validateExecutorParity,
   validateHostedSky130Result,
   validatePreviewSimulationResult,
@@ -273,7 +276,7 @@ describe("the hosted SKY130 qualification", () => {
       ),
     ).toMatchObject({
       target: "cloudflare-container",
-      fixtureId: "ota-5t-structured-op-ac-v1",
+      fixtureId: "ota-5t-structured-op-ac-tran-v1",
       environmentFingerprint: SHA,
       values: { "v(vout)": 0.7589797395133877 },
     });
@@ -335,7 +338,7 @@ describe("the hosted SKY130 qualification", () => {
     expect(submitted.testbench).toContain("set appendwrite");
     expect(submitted.testbench).toContain("write out.raw v(vout)");
     expect(submitted.testbench).toContain("ac dec 10 1 1000000000");
-    expect(accepted.fixtureId).toBe("ota-5t-structured-op-ac-v1");
+    expect(accepted.fixtureId).toBe("ota-5t-structured-op-ac-tran-v1");
   });
 
   it("compiles the persisted Project setup into the qualified request", async () => {
@@ -343,5 +346,85 @@ describe("the hosted SKY130 qualification", () => {
     expect(compiled.request.analyses).toEqual(["op", "ac"]);
     expect(compiled.vectors).toEqual(EXPECTED_VECTORS);
     expect(compiled.request.inputRevision).toMatch(/^[0-9a-f]{64}$/u);
+  });
+
+  it("compiles and validates the model-backed structured transient slice", async () => {
+    const compiled = await compileHostedSky130TransientProject();
+    expect(compiled.request.analyses).toEqual(["tran"]);
+    expect(compiled.request.testbench).toContain("tran 2e-8 0.000004");
+    expect(compiled.request.testbench).toContain(
+      "VINP vinp 0 PULSE(0.89 0.91 1u 1n 1n 1u 3u)",
+    );
+
+    const values = Array(232).fill(0.3342235191104477);
+    values[1] = 0.3342107447553537;
+    values[2] = 1.698172273444083;
+    values[231] = 0.3342235434776202;
+    const payload = modelResult(
+      "operator-host",
+      {
+        data: {
+          analyses: [
+            {
+              analysis: "tran",
+              timeSeconds: [...Array(231).fill(0), 4e-6],
+              probes: EXPECTED_VECTORS.map(({ vector }) => ({
+                name: vector,
+                value: vector === "v(vout)" ? values : Array(232).fill(0.5),
+              })),
+            },
+          ],
+        },
+      },
+      compiled.request.inputRevision,
+    );
+    expect(
+      validateHostedSky130TransientResult(
+        payload,
+        "operator-host",
+        compiled.request.inputRevision,
+        compiled.vectors,
+      ),
+    ).toEqual({ target: "operator-host", pointCount: 232 });
+  });
+
+  it("sends the structured transient slice through the selected executor", async () => {
+    let submitted;
+    const compiled = await compileHostedSky130TransientProject();
+    const values = Array(232).fill(0.3342235191104477);
+    values[1] = 0.3342107447553537;
+    values[2] = 1.698172273444083;
+    values[231] = 0.3342235434776202;
+    const accepted = await runHostedSky130TransientAcceptance({
+      baseUrl: "https://preview.example",
+      target: "operator-host",
+      fetchImpl: async (_url, init) => {
+        submitted = JSON.parse(init.body);
+        return Response.json(
+          modelResult(
+            "operator-host",
+            {
+              data: {
+                analyses: [
+                  {
+                    analysis: "tran",
+                    timeSeconds: [...Array(231).fill(0), 4e-6],
+                    probes: EXPECTED_VECTORS.map(({ vector }) => ({
+                      name: vector,
+                      value:
+                        vector === "v(vout)" ? values : Array(232).fill(0.5),
+                    })),
+                  },
+                ],
+              },
+            },
+            submitted.inputRevision,
+          ),
+        );
+      },
+    });
+    expect(submitted.inputRevision).toBe(compiled.request.inputRevision);
+    expect(submitted.executorTarget).toBe("operator-host");
+    expect(accepted.pointCount).toBe(232);
   });
 });

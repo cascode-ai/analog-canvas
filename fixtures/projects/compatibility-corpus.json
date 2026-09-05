@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "description": "Canonical schema-v37 Project corpus. Historical schema upgrades are covered by synthesized tests rather than retained duplicate assets.",
+  "description": "Canonical schema-v38 Project corpus. Historical schema upgrades are covered by synthesized tests rather than retained duplicate assets.",
   "current": [
     "fixtures/projects/minimal/project.icproj.json",
     "fixtures/projects/phase-1-manual/project.icproj.json",

@@ -31,6 +31,7 @@ import {
 import { upgradeSchema34To35 } from "./transforms/instance-reference.js";
 import { upgradeSchema35To36 } from "./transforms/instance-reference-annotation.js";
 import { upgradeSchema36To37 } from "./transforms/simulation-setup.js";
+import { upgradeSchema37To38 } from "./transforms/structured-tran.js";
 
 describe("schema migrations through hidden Net-name retirement", () => {
   it("keeps each retained historical transform independently usable", () => {
@@ -46,6 +47,7 @@ describe("schema migrations through hidden Net-name retirement", () => {
     const v35 = upgradeSchema34To35(v34);
     const v36 = upgradeSchema35To36(v35);
     const v37 = upgradeSchema36To37(v36);
+    const v38 = upgradeSchema37To38(v37);
 
     expect(v29.schemaVersion).toBe(29);
     expect(v30.schemaVersion).toBe(30);
@@ -55,7 +57,8 @@ describe("schema migrations through hidden Net-name retirement", () => {
     expect(v34.schemaVersion).toBe(34);
     expect(v35.schemaVersion).toBe(35);
     expect(v36.schemaVersion).toBe(36);
-    expect(v37.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
+    expect(v37.schemaVersion).toBe(37);
+    expect(v38.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
   });
 
   it("reports non-rewriting 28→29 through 32→33 upgrades as unchanged", () => {

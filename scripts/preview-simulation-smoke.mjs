@@ -80,6 +80,24 @@ export const DIVIDER_REQUEST = {
   timeoutMs: 110_000,
 };
 
+export const RC_TRAN_REQUEST = {
+  mode: "raw",
+  netlist: "",
+  testbench: [
+    "RC transient qualification",
+    "V1 in 0 PULSE(0 1 0 1n 1n 5u 10u)",
+    "R1 in out 1k",
+    "C1 out 0 1n",
+    ".control",
+    "set filetype=ascii",
+    "tran 10n 10u",
+    "write out.raw v(in) v(out)",
+    ".endc",
+    ".end",
+  ].join("\n"),
+  timeoutMs: 30_000,
+};
+
 export async function compileHostedSky130Project() {
   const [{ compileStructuredSimulation }, { parseProject }] = await Promise.all(
     [import("@icm/netlist"), import("@icm/project-protocol")],
@@ -112,6 +130,43 @@ export async function compileHostedSky130Project() {
   if (!compiled.ok) {
     throw new Error(
       `Qualification ${qualification.fixtureId} did not compile: ${compiled.diagnostics
+        .map((diagnostic) => `${diagnostic.code}: ${diagnostic.message}`)
+        .join(" | ")}`,
+    );
+  }
+  return compiled;
+}
+
+export async function compileHostedSky130TransientProject() {
+  const [{ compileStructuredSimulation }, { parseProject }] = await Promise.all(
+    [import("@icm/netlist"), import("@icm/project-protocol")],
+  );
+  const project = parseProject(
+    readFileSync(
+      new URL(`../${qualification.inputs.project}`, import.meta.url),
+      "utf8",
+    ),
+  );
+  const expected = qualification.expectedTran;
+  const source = project.documents
+    .flatMap((document) => document.instances)
+    .find((instance) => instance.id === expected.source.instanceId);
+  if (!source?.netlist || !project.simulation) {
+    throw new Error(
+      `Qualification ${qualification.fixtureId} has no transient source or setup.`,
+    );
+  }
+  source.symbolId = "pulse-voltage-source";
+  source.netlist.parameters = { ...expected.source.parameters };
+  project.simulation.input.analyses = [{ ...expected.analysis }];
+  const compiled = await compileStructuredSimulation(
+    project,
+    project.simulation,
+    { timeoutMs: 60_000 },
+  );
+  if (!compiled.ok) {
+    throw new Error(
+      `Qualification ${qualification.fixtureId} TRAN did not compile: ${compiled.diagnostics
         .map((diagnostic) => `${diagnostic.code}: ${diagnostic.message}`)
         .join(" | ")}`,
     );
@@ -233,6 +288,141 @@ export function validatePreviewSimulationResult(payload, expectedTarget) {
     environmentFingerprint: environment.fingerprint,
     simulatorVersion: simulator.version,
   };
+}
+
+function transientAnalysis(payload, expectedTarget) {
+  const result = object(payload, "simulation response");
+  const execution = object(result.execution, "execution metadata");
+  if (execution.target !== expectedTarget) {
+    throw new Error(
+      `[result:wrong-executor] requested ${expectedTarget}, but the Worker reported ${String(execution.target)}.`,
+    );
+  }
+  if (object(result.outcome, "simulation outcome").status !== "completed") {
+    throw new Error(
+      `[simulation:tran] ${expectedTarget} did not complete: ${diagnosticSummary(result)}`,
+    );
+  }
+  validatePinnedEnvironment(
+    object(object(result.metadata, "run metadata").environment, "environment"),
+    expectedTarget,
+  );
+  const data = object(result.data, "parsed result data");
+  const tran = Array.isArray(data.analyses)
+    ? data.analyses.find(
+        (analysis) =>
+          typeof analysis === "object" &&
+          analysis !== null &&
+          analysis.analysis === "tran",
+      )
+    : null;
+  if (
+    !tran ||
+    !Array.isArray(tran.timeSeconds) ||
+    !Array.isArray(tran.probes)
+  ) {
+    throw new Error(`${expectedTarget} returned no structured TRAN result.`);
+  }
+  return { result, tran };
+}
+
+export function validateRcTransientResult(payload, expectedTarget) {
+  const { tran } = transientAnalysis(payload, expectedTarget);
+  if (
+    tran.timeSeconds.length !== 1027 ||
+    Math.abs(tran.timeSeconds.at(-1) - 1e-5) > 1e-15
+  ) {
+    throw new Error(`${expectedTarget} returned an unexpected RC time axis.`);
+  }
+  const output = tran.probes.find((probe) => probe?.name === "v(out)");
+  if (!output || !Array.isArray(output.value)) {
+    throw new Error(`${expectedTarget} returned no RC v(out) series.`);
+  }
+  const maximum = Math.max(...output.value);
+  const last = output.value.at(-1);
+  if (
+    typeof last !== "number" ||
+    Math.abs(maximum - 0.9932657010978244) > 1e-10 ||
+    Math.abs(last - 0.006702329182061853) > 1e-10
+  ) {
+    throw new Error(
+      `${expectedTarget} returned unexpected RC step values (max=${maximum}, last=${String(last)}).`,
+    );
+  }
+  return { target: expectedTarget, pointCount: tran.timeSeconds.length };
+}
+
+export function validateHostedSky130TransientResult(
+  payload,
+  expectedTarget,
+  expectedInputRevision,
+  expectedVectors,
+) {
+  const { result, tran } = transientAnalysis(payload, expectedTarget);
+  const metadata = object(result.metadata, "run metadata");
+  const input = object(metadata.input, "input metadata");
+  if (input.inputRevision !== expectedInputRevision) {
+    throw new Error(`${expectedTarget} returned stale structured TRAN data.`);
+  }
+  const modelLibrary = object(
+    object(metadata.configuration, "configuration metadata").modelLibrary,
+    "model selection",
+  );
+  if (
+    modelLibrary.directive !== qualification.modelLibrary.directive ||
+    modelLibrary.section !== qualification.modelLibrary.section
+  ) {
+    throw new Error(
+      `${expectedTarget} did not run TRAN with the qualified model-library section.`,
+    );
+  }
+  const expected = qualification.expectedTran;
+  if (
+    tran.timeSeconds.length !== expected.pointCount ||
+    Math.abs(tran.timeSeconds.at(-1) - expected.stopSeconds) >
+      expected.timeAbsoluteTolerance
+  ) {
+    throw new Error(`${expectedTarget} returned an unexpected OTA time axis.`);
+  }
+  for (const binding of expectedVectors) {
+    const probe = tran.probes.find(
+      (candidate) => candidate?.name === binding.vector,
+    );
+    if (
+      !probe ||
+      !Array.isArray(probe.value) ||
+      probe.value.length !== expected.pointCount
+    ) {
+      throw new Error(
+        `${expectedTarget} returned no complete TRAN series for ${binding.vector}.`,
+      );
+    }
+  }
+  for (const [name, expectation] of Object.entries(expected.probes)) {
+    const probe = tran.probes.find((candidate) => candidate?.name === name);
+    if (!probe || !Array.isArray(probe.value)) {
+      throw new Error(
+        `${expectedTarget} returned no qualified TRAN series ${name}.`,
+      );
+    }
+    const actual = {
+      first: probe.value[0],
+      minimum: Math.min(...probe.value),
+      maximum: Math.max(...probe.value),
+      last: probe.value.at(-1),
+    };
+    for (const key of ["first", "minimum", "maximum", "last"]) {
+      if (
+        typeof actual[key] !== "number" ||
+        Math.abs(actual[key] - expectation[key]) > expectation.absoluteTolerance
+      ) {
+        throw new Error(
+          `${expectedTarget} solved TRAN ${name}.${key} as ${String(actual[key])}, expected ${expectation[key]}.`,
+        );
+      }
+    }
+  }
+  return { target: expectedTarget, pointCount: tran.timeSeconds.length };
 }
 
 function relativeError(actual, expected) {
@@ -437,6 +627,56 @@ export async function runHostedSky130Acceptance({
   );
 }
 
+export async function runHostedSky130TransientAcceptance({
+  baseUrl,
+  target,
+  fetchImpl = fetch,
+}) {
+  const compiled = await compileHostedSky130TransientProject();
+  const response = await fetchImpl(new URL("/api/simulate", baseUrl), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ ...compiled.request, executorTarget: target }),
+    signal: AbortSignal.timeout(120_000),
+  });
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(
+      `[infrastructure:http-${response.status}] ${target} TRAN qualification failed.`,
+    );
+  }
+  return validateHostedSky130TransientResult(
+    payload,
+    target,
+    compiled.request.inputRevision,
+    compiled.vectors,
+  );
+}
+
+export async function runPreviewTransientSmoke({
+  baseUrl,
+  target,
+  fetchImpl = fetch,
+}) {
+  const response = await fetchImpl(new URL("/api/simulate", baseUrl), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      ...RC_TRAN_REQUEST,
+      inputRevision: `preview-rc-tran-${target}`,
+      executorTarget: target,
+    }),
+    signal: AbortSignal.timeout(60_000),
+  });
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(
+      `[infrastructure:http-${response.status}] ${target} RC TRAN smoke failed.`,
+    );
+  }
+  return validateRcTransientResult(payload, target);
+}
+
 export async function runPreviewSimulationSmoke({
   baseUrl,
   target,
@@ -508,6 +748,11 @@ async function main() {
   validateExecutorParity(results);
   console.log("Preview executor parity: passed");
 
+  for (const target of EXECUTORS) {
+    const result = await runPreviewTransientSmoke({ baseUrl, target });
+    console.log(`${result.target}: RC TRAN ${result.pointCount} points passed`);
+  }
+
   const qualifications = [];
   for (const target of EXECUTORS) {
     const result = await runHostedSky130Acceptance({ baseUrl, target });
@@ -517,6 +762,15 @@ async function main() {
     );
   }
   validateExecutorParity(qualifications);
+  for (const target of EXECUTORS) {
+    const result = await runHostedSky130TransientAcceptance({
+      baseUrl,
+      target,
+    });
+    console.log(
+      `${result.target}: SKY130 OTA TRAN ${result.pointCount} points passed`,
+    );
+  }
   console.log(`Hosted SKY130 Profile ${profile.id}: qualified`);
 }
 

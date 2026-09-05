@@ -22,11 +22,6 @@ import {
 } from "./result-volume.js";
 import { SimulationFiles, sha256 } from "./files.js";
 
-type StructuredResultVolumeAnalysis = Extract<
-  ResultVolumeAnalysis,
-  { kind: "op" | "ac" }
->;
-
 export interface ExecutionInput {
   mode: "structured" | "raw";
   netlist: string;
@@ -233,7 +228,7 @@ export class SimulationService {
     let input: ExecutionInput;
     let vectors: Prepared["vectors"] = [];
     let warnings: string[] = [];
-    let structuredAnalyses: StructuredResultVolumeAnalysis[] | null = null;
+    let structuredAnalyses: ResultVolumeAnalysis[] | null = null;
     if (op.source.kind === "structured") {
       const project = structuredClone(this.getProject());
       const setup = op.source.setup ?? project.simulation;
@@ -276,9 +271,18 @@ export class SimulationService {
       };
       vectors = [...compiled.vectors];
       warnings = compiled.warnings.map((w) => w.message);
-      structuredAnalyses = setup.input.analyses.map((analysis) => ({
-        ...analysis,
-      }));
+      structuredAnalyses = setup.input.analyses.map((analysis) =>
+        analysis.kind === "tran"
+          ? {
+              kind: analysis.kind,
+              stepSeconds: analysis.stepSeconds,
+              stopSeconds: analysis.stopSeconds,
+              ...(analysis.startSeconds === undefined
+                ? {}
+                : { startSeconds: analysis.startSeconds }),
+            }
+          : { ...analysis },
+      );
     } else {
       const read = this.files.snapshot(
         op.source.workspaceId,

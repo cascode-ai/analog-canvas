@@ -107,3 +107,11 @@ export type {
   Schema36To37MigrationReport,
   Schema36To37MigrationResult,
 } from "./transforms/simulation-setup.js";
+export {
+  upgradeSchema37To38,
+  upgradeSchema37To38WithReport,
+} from "./transforms/structured-tran.js";
+export type {
+  Schema37To38MigrationReport,
+  Schema37To38MigrationResult,
+} from "./transforms/structured-tran.js";

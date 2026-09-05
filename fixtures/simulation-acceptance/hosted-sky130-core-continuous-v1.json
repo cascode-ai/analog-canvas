@@ -1,8 +1,8 @@
 {
-  "schemaVersion": 2,
-  "fixtureId": "ota-5t-structured-op-ac-v1",
+  "schemaVersion": 3,
+  "fixtureId": "ota-5t-structured-op-ac-tran-v1",
   "profileId": "sky130-core-continuous-ngspice46-v1",
-  "analyses": ["op", "ac"],
+  "analyses": ["op", "ac", "tran"],
   "inputs": {
     "project": "apps/editor/src/examples/five-transistor-ota-sky130.icproj.json",
     "netlist": "fixtures/simulation-acceptance/ota-5t.spi",
@@ -61,6 +61,37 @@
             "absoluteTolerance": 1e-8
           }
         ]
+      }
+    }
+  },
+  "expectedTran": {
+    "analysis": {
+      "kind": "tran",
+      "stepSeconds": 2e-8,
+      "stopSeconds": 0.000004
+    },
+    "source": {
+      "instanceId": "VINP",
+      "parameters": {
+        "low": "0.89",
+        "high": "0.91",
+        "delay": "1u",
+        "rise": "1n",
+        "fall": "1n",
+        "width": "1u",
+        "period": "3u"
+      }
+    },
+    "pointCount": 232,
+    "stopSeconds": 0.000004,
+    "timeAbsoluteTolerance": 1e-15,
+    "probes": {
+      "v(vout)": {
+        "first": 0.3342235191104477,
+        "minimum": 0.3342107447553537,
+        "maximum": 1.698172273444083,
+        "last": 0.3342235434776202,
+        "absoluteTolerance": 1e-8
       }
     }
   }

@@ -382,7 +382,7 @@ export function useAgentSession(
                           "cancel",
                           "export",
                         ] as const,
-                        analyses: ["op", "ac"] as const,
+                        analyses: ["op", "ac", "tran"] as const,
                         maxTimeoutMs: AGENT_SIMULATION_MAX_TIMEOUT_MS,
                         synchronous: false as const,
                       },

@@ -778,7 +778,7 @@
   "externalSubcircuitDefinitions": [],
   "id": "project-main",
   "name": "New Circuit",
-  "schemaVersion": 37,
+  "schemaVersion": 38,
   "source": {
     "dialect": "none",
     "entry": null,
