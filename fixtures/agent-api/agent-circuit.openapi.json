@@ -16303,8 +16303,82 @@
                   "documentId": {
                     "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema1"
                   },
-                  "netId": {
-                    "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema1"
+                  "anchor": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "terminal"
+                          },
+                          "instanceId": {
+                            "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema1"
+                          },
+                          "pinName": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "instanceId",
+                          "pinName"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "junction"
+                          },
+                          "junctionId": {
+                            "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema1"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "junctionId"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "route"
+                          },
+                          "routeId": {
+                            "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema1"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "routeId"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "base-net"
+                          },
+                          "netId": {
+                            "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema1"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "netId"
+                        ],
+                        "additionalProperties": false
+                      }
+                    ]
                   },
                   "occurrence": {
                     "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema387"
@@ -16314,7 +16388,7 @@
                   "id",
                   "kind",
                   "documentId",
-                  "netId",
+                  "anchor",
                   "occurrence"
                 ],
                 "additionalProperties": false
@@ -19737,8 +19811,82 @@
                   "documentId": {
                     "$ref": "#/components/schemas/agentCircuitResponse/$defs/__schema1"
                   },
-                  "netId": {
-                    "$ref": "#/components/schemas/agentCircuitResponse/$defs/__schema1"
+                  "anchor": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "terminal"
+                          },
+                          "instanceId": {
+                            "$ref": "#/components/schemas/agentCircuitResponse/$defs/__schema1"
+                          },
+                          "pinName": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "instanceId",
+                          "pinName"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "junction"
+                          },
+                          "junctionId": {
+                            "$ref": "#/components/schemas/agentCircuitResponse/$defs/__schema1"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "junctionId"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "route"
+                          },
+                          "routeId": {
+                            "$ref": "#/components/schemas/agentCircuitResponse/$defs/__schema1"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "routeId"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "base-net"
+                          },
+                          "netId": {
+                            "$ref": "#/components/schemas/agentCircuitResponse/$defs/__schema1"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "netId"
+                        ],
+                        "additionalProperties": false
+                      }
+                    ]
                   },
                   "occurrence": {
                     "$ref": "#/components/schemas/agentCircuitResponse/$defs/__schema22"
@@ -19748,7 +19896,7 @@
                   "id",
                   "kind",
                   "documentId",
-                  "netId",
+                  "anchor",
                   "occurrence"
                 ],
                 "additionalProperties": false
@@ -32114,85 +32262,17 @@
                     "properties": {
                       "kind": {
                         "type": "string",
-                        "const": "structured"
+                        "const": "project-setup"
                       },
-                      "setup": {
-                        "type": "object",
-                        "properties": {
-                          "version": {
-                            "type": "number",
-                            "const": 1
-                          },
-                          "input": {
-                            "oneOf": [
-                              {
-                                "type": "object",
-                                "properties": {
-                                  "kind": {
-                                    "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema2"
-                                  },
-                                  "rootDocumentId": {
-                                    "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema3"
-                                  },
-                                  "analyses": {
-                                    "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema4"
-                                  },
-                                  "probes": {
-                                    "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema16"
-                                  },
-                                  "environment": {
-                                    "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema19"
-                                  }
-                                },
-                                "required": [
-                                  "kind",
-                                  "rootDocumentId",
-                                  "analyses",
-                                  "probes",
-                                  "environment"
-                                ],
-                                "additionalProperties": false
-                              },
-                              {
-                                "type": "object",
-                                "properties": {
-                                  "kind": {
-                                    "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema20"
-                                  },
-                                  "entry": {
-                                    "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema21"
-                                  },
-                                  "files": {
-                                    "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema22"
-                                  },
-                                  "dependencies": {
-                                    "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema24"
-                                  },
-                                  "environment": {
-                                    "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema19"
-                                  }
-                                },
-                                "required": [
-                                  "kind",
-                                  "entry",
-                                  "files",
-                                  "dependencies",
-                                  "environment"
-                                ],
-                                "additionalProperties": false
-                              }
-                            ]
-                          }
-                        },
-                        "required": [
-                          "version",
-                          "input"
-                        ],
-                        "additionalProperties": false
+                      "expectedStructureRevision": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
                       }
                     },
                     "required": [
-                      "kind"
+                      "kind",
+                      "expectedStructureRevision"
                     ],
                     "additionalProperties": false
                   },
@@ -32201,10 +32281,10 @@
                     "properties": {
                       "kind": {
                         "type": "string",
-                        "const": "raw"
+                        "const": "workspace"
                       },
                       "workspaceId": {
-                        "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema26"
+                        "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema2"
                       },
                       "expectedRevision": {
                         "type": "integer",
@@ -32215,7 +32295,7 @@
                         "type": "object",
                         "properties": {
                           "profileId": {
-                            "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema26"
+                            "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema2"
                           }
                         },
                         "required": [
@@ -32257,7 +32337,7 @@
                 "const": "start"
               },
               "preparedId": {
-                "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema26"
+                "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema2"
               },
               "digest": {
                 "type": "string",
@@ -32292,7 +32372,7 @@
                 "const": "read"
               },
               "runId": {
-                "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema26"
+                "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema2"
               },
               "apiVersion": {
                 "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema0"
@@ -32317,7 +32397,7 @@
                 "const": "cancel"
               },
               "runId": {
-                "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema26"
+                "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema2"
               },
               "apiVersion": {
                 "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema0"
@@ -32342,10 +32422,10 @@
                 "const": "export"
               },
               "preparedId": {
-                "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema26"
+                "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema2"
               },
               "runId": {
-                "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema26"
+                "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema2"
               },
               "apiVersion": {
                 "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema0"
@@ -32373,297 +32453,6 @@
             "maxLength": 256
           },
           "__schema2": {
-            "type": "string",
-            "const": "structured"
-          },
-          "__schema3": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 256
-          },
-          "__schema4": {
-            "minItems": 1,
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema5"
-            }
-          },
-          "__schema5": {
-            "oneOf": [
-              {
-                "type": "object",
-                "properties": {
-                  "kind": {
-                    "type": "string",
-                    "const": "op"
-                  }
-                },
-                "required": [
-                  "kind"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "kind": {
-                    "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema6"
-                  },
-                  "sweep": {
-                    "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema7"
-                  },
-                  "points": {
-                    "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema8"
-                  },
-                  "startHz": {
-                    "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema9"
-                  },
-                  "stopHz": {
-                    "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema10"
-                  }
-                },
-                "required": [
-                  "kind",
-                  "sweep",
-                  "points",
-                  "startHz",
-                  "stopHz"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "kind": {
-                    "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema11"
-                  },
-                  "stepSeconds": {
-                    "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema12"
-                  },
-                  "stopSeconds": {
-                    "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema13"
-                  },
-                  "startSeconds": {
-                    "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema14"
-                  },
-                  "maxStepSeconds": {
-                    "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema15"
-                  }
-                },
-                "required": [
-                  "kind",
-                  "stepSeconds",
-                  "stopSeconds"
-                ],
-                "additionalProperties": false
-              }
-            ]
-          },
-          "__schema6": {
-            "type": "string",
-            "const": "ac"
-          },
-          "__schema7": {
-            "type": "string",
-            "enum": [
-              "dec",
-              "oct",
-              "lin"
-            ]
-          },
-          "__schema8": {
-            "type": "integer",
-            "exclusiveMinimum": 0,
-            "maximum": 9007199254740991
-          },
-          "__schema9": {
-            "type": "number",
-            "exclusiveMinimum": 0
-          },
-          "__schema10": {
-            "type": "number",
-            "exclusiveMinimum": 0
-          },
-          "__schema11": {
-            "type": "string",
-            "const": "tran"
-          },
-          "__schema12": {
-            "type": "number",
-            "exclusiveMinimum": 0
-          },
-          "__schema13": {
-            "type": "number",
-            "exclusiveMinimum": 0
-          },
-          "__schema14": {
-            "type": "number",
-            "minimum": 0
-          },
-          "__schema15": {
-            "type": "number",
-            "exclusiveMinimum": 0
-          },
-          "__schema16": {
-            "maxItems": 1024,
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema17"
-            }
-          },
-          "__schema17": {
-            "oneOf": [
-              {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema3"
-                  },
-                  "kind": {
-                    "type": "string",
-                    "const": "net-voltage"
-                  },
-                  "documentId": {
-                    "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema3"
-                  },
-                  "netId": {
-                    "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema3"
-                  },
-                  "occurrence": {
-                    "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema18"
-                  }
-                },
-                "required": [
-                  "id",
-                  "kind",
-                  "documentId",
-                  "netId",
-                  "occurrence"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema3"
-                  },
-                  "kind": {
-                    "type": "string",
-                    "const": "source-current"
-                  },
-                  "documentId": {
-                    "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema3"
-                  },
-                  "instanceId": {
-                    "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema3"
-                  },
-                  "occurrence": {
-                    "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema18"
-                  }
-                },
-                "required": [
-                  "id",
-                  "kind",
-                  "documentId",
-                  "instanceId",
-                  "occurrence"
-                ],
-                "additionalProperties": false
-              }
-            ]
-          },
-          "__schema18": {
-            "maxItems": 64,
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema3"
-            }
-          },
-          "__schema19": {
-            "type": "object",
-            "properties": {
-              "profileId": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 256
-              },
-              "corner": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 64
-              },
-              "temperatureC": {
-                "type": "number"
-              }
-            },
-            "required": [
-              "profileId"
-            ],
-            "additionalProperties": false
-          },
-          "__schema20": {
-            "type": "string",
-            "const": "raw"
-          },
-          "__schema21": {
-            "type": "string"
-          },
-          "__schema22": {
-            "minItems": 1,
-            "maxItems": 24,
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema23"
-            }
-          },
-          "__schema23": {
-            "type": "object",
-            "properties": {
-              "path": {
-                "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema21"
-              },
-              "text": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "path",
-              "text"
-            ],
-            "additionalProperties": false
-          },
-          "__schema24": {
-            "maxItems": 24,
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema25"
-            }
-          },
-          "__schema25": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 256
-              },
-              "mountPath": {
-                "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema21"
-              },
-              "sha256": {
-                "type": "string",
-                "pattern": "^[0-9a-f]{64}$"
-              }
-            },
-            "required": [
-              "id",
-              "mountPath",
-              "sha256"
-            ],
-            "additionalProperties": false
-          },
-          "__schema26": {
             "type": "string",
             "minLength": 1,
             "maxLength": 256

@@ -38,7 +38,7 @@ describe("AC Results Explorer", () => {
             id: "probe-out",
             kind: "net-voltage",
             documentId: "tb",
-            netId: "out",
+            anchor: { kind: "base-net", netId: "out" },
             occurrence: [],
           },
         ]}

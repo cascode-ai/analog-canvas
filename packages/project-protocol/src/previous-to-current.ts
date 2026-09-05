@@ -123,3 +123,11 @@ export type {
   Schema38To39MigrationReport,
   Schema38To39MigrationResult,
 } from "./transforms/raw-simulation-setup.js";
+export {
+  upgradeSchema39To40,
+  upgradeSchema39To40WithReport,
+} from "./transforms/simulation-probe-anchor.js";
+export type {
+  Schema39To40MigrationReport,
+  Schema39To40MigrationResult,
+} from "./transforms/simulation-probe-anchor.js";

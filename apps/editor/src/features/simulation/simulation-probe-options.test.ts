@@ -4,7 +4,9 @@ import { CircuitProjectSchema } from "@icm/model";
 import fiveTransistorOtaSky130 from "../../examples/five-transistor-ota-sky130.icproj.json";
 import {
   deriveSimulationProbeOptions,
+  resolveSimulationVoltageProbeNetId,
   simulationProbeTargetKey,
+  simulationVoltageProbeTargetsNet,
 } from "./simulation-probe-options";
 
 describe("simulation probe choices", () => {
@@ -16,13 +18,18 @@ describe("simulation probe choices", () => {
     );
 
     expect(
-      options.voltage.find((option) => option.target.netId === "net-dut-tail"),
+      options.voltage.find(
+        (option) =>
+          option.target.anchor.kind === "terminal" &&
+          option.target.anchor.instanceId === "M5" &&
+          option.target.anchor.pinName === "D",
+      ),
     ).toMatchObject({
       label: "XDUT · ota_5t · tail",
       target: {
         kind: "net-voltage",
         documentId: "document-ota-5t",
-        netId: "net-dut-tail",
+        anchor: { kind: "terminal", instanceId: "M5", pinName: "D" },
         occurrence: ["XDUT"],
       },
     });
@@ -50,7 +57,12 @@ describe("simulation probe choices", () => {
     const targets = deriveSimulationProbeOptions(
       project,
       testbench.id,
-    ).voltage.filter((option) => option.target.netId === "net-dut-tail");
+    ).voltage.filter(
+      (option) =>
+        option.target.anchor.kind === "terminal" &&
+        option.target.anchor.instanceId === "M5" &&
+        option.target.anchor.pinName === "D",
+    );
     expect(targets.map((option) => option.target.occurrence)).toEqual([
       ["XDUT"],
       ["XDUT2"],
@@ -59,5 +71,28 @@ describe("simulation probe choices", () => {
     expect(
       targets.map((option) => simulationProbeTargetKey(option.target)),
     ).toEqual(targets.map((option) => option.key));
+  });
+
+  it("resolves an object anchor for canvas focus and matches its whole Logical Net", () => {
+    const project = CircuitProjectSchema.parse(fiveTransistorOtaSky130);
+    const target = deriveSimulationProbeOptions(
+      project,
+      "document-ota-5t-testbench",
+    ).voltage.find(
+      (option) =>
+        option.target.anchor.kind === "terminal" &&
+        option.target.anchor.instanceId === "M5" &&
+        option.target.anchor.pinName === "D",
+    )!.target;
+
+    expect(resolveSimulationVoltageProbeNetId(project, target)).toBe(
+      "net-dut-tail",
+    );
+    expect(
+      simulationVoltageProbeTargetsNet(project, target, "net-dut-tail"),
+    ).toBe(true);
+    expect(
+      simulationVoltageProbeTargetsNet(project, target, "net-dut-vout"),
+    ).toBe(false);
   });
 });

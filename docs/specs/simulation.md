@@ -189,7 +189,11 @@ stored in a simulation-only sidecar or a second persistence service.
 Schema 37 landed the optional `CircuitProject.simulation`; schema 38 extends
 its structured analysis union with explicit-SI transient parameters. Schema
 39 adds the mutually exclusive raw input form without changing existing
-Projects.
+Projects. Schema 40 replaces derived voltage-probe Net representatives with
+concrete object anchors. It also permits an authored structured setup to remain
+saved after its Testbench Cell or a probe anchor is deleted; preparation reports
+that unresolved reference instead of blocking the ordinary edit or silently
+rebinding intent.
 
 ```ts
 interface SimulationSetup {
@@ -235,7 +239,11 @@ type SimulationProbeSpec =
       id: StableId;
       kind: "net-voltage";
       documentId: StableId;
-      netId: StableId;
+      anchor:
+        | { kind: "terminal"; instanceId: StableId; pinName: string }
+        | { kind: "junction"; junctionId: StableId }
+        | { kind: "route"; routeId: StableId }
+        | { kind: "base-net"; netId: StableId }; // schema-39 fallback
       occurrence: StableId[];
     }
   | {
@@ -250,15 +258,16 @@ type SimulationProbeSpec =
 `occurrence` lists the hierarchy Instance ids from the root down to the
 Document that owns the probed object; it is empty when that object is in the
 root itself. `profileId` is the hosted Profile ID (today
-`sky130-core-continuous-ngspice46-v1`). The structured schema refuses a
-`rootDocumentId` that names no Document of the Project, a repeated analysis
-kind, and duplicate probe ids. Whether a probe's Net or Instance still exists
-is a preparation-time diagnostic, not a schema rule: a Document edit that
-removes a probed Net must never make the Project unsaveable. Raw paths use one
+`sky130-core-continuous-ngspice46-v1`). A `set_simulation_setup` edit refuses a
+new `rootDocumentId` that names no Document of the Project. The persisted schema
+allows a previously valid root or probe anchor to become unresolved, while it
+still rejects repeated analysis kinds and duplicate probe ids. Whether the root
+or a probed object still exists is a preparation-time diagnostic, not a save
+rule: an ordinary circuit edit must never make the Project unsaveable. Raw paths use one
 virtual relative namespace: no absolute paths, parent traversal, Windows drive
 syntax, control characters, or `.spiceinit`. The entry must be one authored
 file; authored and dependency mount paths are unique. Raw authored text is
-limited to 24 files and 1 MiB in schema 39, matching the first-release session
+limited to 24 files and 1 MiB, matching the first-release session
 workspace. External dependency bytes are not copied into the Project; logical
 identity, expected digest, and required mount path make absence or substitution
 explicit at preparation time.
@@ -267,9 +276,10 @@ The setup is written through the Project structure edit
 `set_simulation_setup` (`{ setup: SimulationSetup | null }`), which replaces
 or clears it whole under the Project `structureRevision`; undo/redo, the
 Agent API's `structureEdits`, and Gallery convergence therefore treat it like
-any other structural change. Deleting the Cell a structured setup names as its
-root is refused until the setup is cleared or re-rooted. A raw setup has no
-Canvas root, so unrelated Cell deletion does not affect it.
+any other structural change. Deleting its Testbench Cell, Route, Junction, or
+terminal preserves the setup without guessing a replacement; preparation then
+returns a located diagnostic until the author repairs or clears the reference.
+A raw setup has no Canvas root, so unrelated Cell deletion does not affect it.
 
 Prepared decks and bundles are transient execution data. Environment-local
 model paths, run ids, receipts, logs, rawfiles, parsed results, simulator
@@ -414,8 +424,8 @@ An independent current source has no branch-current vector at all -- ngspice
 builds one for `V` sources and not for `I` sources, and `i(i1)` answers "not
 available" -- so a `source-current` probe on one is refused, with the advice
 to probe a series voltage source instead. The other refusals are a missing
-root, a root that instantiates nothing, a probe naming a Document, Net, or
-Instance that is not there, an occurrence that does not follow hierarchy
+root, a root that instantiates nothing, a probe naming a Document or concrete
+anchor that is not there, an occurrence that does not follow hierarchy
 Instances from the root or that reaches a different Document than the probe
 claims, an analysis kind this release does not compile, and a source-current
 probe on a device that is not a source. Each is a typed diagnostic carrying an

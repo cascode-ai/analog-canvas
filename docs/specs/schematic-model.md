@@ -5,7 +5,7 @@ Status: `accepted`
 Primary owner: `packages/model`
 
 The Project contains Documents; each Document owns revisioned electrical,
-geometric, and presentation facts. The current model is strict schema 39 and has
+geometric, and presentation facts. The current model is strict schema 40 and has
 no compatibility shape.
 
 ## Coordinate domains
@@ -193,8 +193,8 @@ ordinary Schematic edits inside one Project structural transaction. The
 Project's `structureRevision` protects this cross-Document boundary and the
 editor records it as one undoable structural commit.
 
-Persistence writes only schema 39. The reader carries every schema in its
-explicit 24→39 upgrade chain forward, then supplies the current model only; no
+Persistence writes only schema 40. The reader carries every schema in its
+explicit 24→40 upgrade chain forward, then supplies the current model only; no
 compatibility shape enters runtime electrical derivation. The 32→33 step
 rejects ownerless equivalence rather than guessing replacement connectivity.
 The 33→34 step converts hidden imported names into non-electrical hints or
@@ -212,3 +212,8 @@ The 37→38 step admits explicit-SI structured TRAN parameters and invents no
 transient intent for existing setups.
 The 38→39 step admits raw `SimulationSetup` author files and external
 dependency declarations and likewise invents no setup for existing Projects.
+The 39→40 step migrates saved voltage probes from derived Net representatives
+to concrete Terminal, Junction, or Route anchors. When no attached object is
+available it retains an unresolved Base-Net fallback rather than discarding the
+authored probe. A removed anchor or Testbench Cell is diagnosed during prepare;
+it does not invalidate the Project or block the ordinary deletion transaction.

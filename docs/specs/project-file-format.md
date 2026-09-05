@@ -2,14 +2,14 @@
 
 Status: `accepted`
 
-Current Project schema: `39`
+Current Project schema: `40`
 
 Primary owners: `packages/model` (current shape) and
 `packages/project-protocol` (file boundary)
 
 An `.icproj.json` file is canonical JSON for one complete `CircuitProject`.
 `@icm/project-protocol` exposes `parseProject`. The file boundary accepts every
-schema covered by its explicit 24→39 upgrade chain. Schema 32 added optional
+schema covered by its explicit 24→40 upgrade chain. Schema 32 added optional
 presentation-only `Annotation.textColor`; schema 33 removes ownerless
 `explicit-equivalence` connectivity. The 32→33 adapter advances the version
 stamp only when that retired record is absent. If one exists, it rejects at the
@@ -34,9 +34,15 @@ structured TRAN with explicit seconds-valued step, stop, optional start, and
 optional maximum-step fields. Existing setups remain valid, so the 37→38
 adapter also rewrites nothing. Schema 39 adds the raw `SimulationSetup` branch:
 a safe relative entry, small authored text files, external dependency identity,
-and environment selection. The 38→39 adapter invents no setup. The public file
-boundary supplies only schema 39 in memory and writes only schema 39; versions
-older than 24 or newer than 39 are rejected.
+and environment selection. The 38→39 adapter invents no setup. Schema 40
+replaces derived voltage-probe Net representatives with concrete Terminal,
+Junction, or Route anchors. The 39→40 adapter chooses an existing attached
+object deterministically and retains a Base-Net fallback only when no attached
+object exists, so migration never silently drops an authored probe. A deleted
+anchor or Testbench Cell may leave a saved setup unresolved; preparation owns
+the located, recoverable diagnostic. The public file boundary supplies only
+schema 40 in memory and writes only schema 40; versions older than 24 or newer
+than 40 are rejected.
 
 ## Current authorities
 
@@ -117,7 +123,7 @@ older than 24 or newer than 39 are rejected.
 
 ```text
 import text -> parse JSON -> require Project schema 24 through 39
--> converge to schema 39 -> strict schema-39 validation -> install unbound
+-> converge to schema 40 -> strict schema-40 validation -> install unbound
 export -> strict validation -> canonical key ordering -> Blob download
 ```
 
@@ -141,7 +147,7 @@ open, and recovery remain exact.
 Canonical serialization ends with one newline and is byte-stable across
 serialize/parse/serialize. The current corpus is listed in
 `fixtures/projects/compatibility-corpus.json`; its accepted entries must all be
-already canonical Project schema 39. The rejected corpus names expected
+already canonical Project schema 40. The rejected corpus names expected
 validation failures.
 
 Viewport, selection, undo history, canvas overlays, Agent credentials,

@@ -3014,7 +3014,7 @@
   ],
   "id": "project-five-transistor-ota-sky130",
   "name": "Five-Transistor OTA (Sky130)",
-  "schemaVersion": 39,
+  "schemaVersion": 40,
   "simulation": {
     "version": 1,
     "input": {
@@ -3037,28 +3037,44 @@
           "id": "probe-vout",
           "kind": "net-voltage",
           "documentId": "document-ota-5t-testbench",
-          "netId": "tb-vout-net",
+          "anchor": {
+            "kind": "terminal",
+            "instanceId": "XDUT",
+            "pinName": "vout"
+          },
           "occurrence": []
         },
         {
           "id": "probe-ibias",
           "kind": "net-voltage",
           "documentId": "document-ota-5t-testbench",
-          "netId": "tb-ibias-net",
+          "anchor": {
+            "kind": "terminal",
+            "instanceId": "IBIAS",
+            "pinName": "-"
+          },
           "occurrence": []
         },
         {
           "id": "probe-tail",
           "kind": "net-voltage",
           "documentId": "document-ota-5t",
-          "netId": "net-dut-tail",
+          "anchor": {
+            "kind": "terminal",
+            "instanceId": "M5",
+            "pinName": "D"
+          },
           "occurrence": ["XDUT"]
         },
         {
           "id": "probe-nleft",
           "kind": "net-voltage",
           "documentId": "document-ota-5t",
-          "netId": "net-dut-nleft",
+          "anchor": {
+            "kind": "terminal",
+            "instanceId": "M3",
+            "pinName": "D"
+          },
           "occurrence": ["XDUT"]
         }
       ],

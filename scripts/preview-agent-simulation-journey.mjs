@@ -193,7 +193,11 @@ try {
     .waitFor({ state: "visible", timeout: 30_000 });
 
   const invalidSetup = structuredClone(project.simulation);
-  invalidSetup.input.probes[0].netId = "missing-acceptance-net";
+  invalidSetup.input.probes[0].anchor = {
+    kind: "terminal",
+    instanceId: "missing-acceptance-instance",
+    pinName: "out",
+  };
   const invalidEdit = await tool("advanced_transact", {
     structureEdits: [{ kind: "set_simulation_setup", setup: invalidSetup }],
   });
