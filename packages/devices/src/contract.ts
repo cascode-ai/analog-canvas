@@ -16,7 +16,14 @@ export interface DeviceParameterDefinition {
   readonly name: string;
   readonly label: string;
   readonly required: boolean;
-  readonly editor: "text" | "decimal";
+  readonly editor: "text" | "decimal" | "select";
+  /** Enumerated values for a select editor; absent for free-form inputs. */
+  readonly options?: readonly {
+    readonly value: string;
+    readonly label: string;
+  }[];
+  /** Keep inactive source fields authored but out of the ordinary editor. */
+  readonly visibleForSourceWaveforms?: readonly ("pulse" | "sin")[];
   readonly unitHint?: string;
   readonly placeholder: string;
   readonly help: string;

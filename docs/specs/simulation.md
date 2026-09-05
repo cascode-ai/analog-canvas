@@ -469,7 +469,10 @@ simulator assignments.
 Those values are persisted only on the source Instance in the Testbench. A
 Setup or Simulation UI may address and edit that Instance through the ordinary
 typed Project edit path, but must not retain an override or a second copy of
-its source values.
+its source values. Ordinary voltage and current source Properties expose the
+descriptor's DC, AC, PULSE, and SIN fields directly. Switching the selected
+waveform hides but retains inactive fields; only the selected waveform is
+printed into the prepared deck.
 
 On the voltage-source and current-source descriptors the DC value is `dc` and
 the small-signal stimulus is the optional pair `acMagnitude` (volts or

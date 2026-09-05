@@ -133,6 +133,25 @@ export function validateDeviceDescriptors(
         });
       }
       if (
+        (parameter.editor === "select" && !parameter.options?.length) ||
+        (parameter.editor !== "select" && parameter.options !== undefined)
+      ) {
+        issues.push({
+          deviceId: descriptor.id,
+          message: `Parameter ${parameterName} select options must match its editor`,
+        });
+      }
+      if (
+        parameter.visibleForSourceWaveforms !== undefined &&
+        descriptor.deviceClass !== "voltage-source" &&
+        descriptor.deviceClass !== "current-source"
+      ) {
+        issues.push({
+          deviceId: descriptor.id,
+          message: `Only independent-source parameters may be waveform-specific: ${parameterName}`,
+        });
+      }
+      if (
         parameter.displayRole !== "none" &&
         displayRoles.has(parameter.displayRole)
       ) {

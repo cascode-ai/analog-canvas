@@ -162,37 +162,59 @@ describe("built-in device registry", () => {
     });
   });
 
-  it("gives independent sources formal AC controls and a DC waveform default", () => {
+  it("gives independent sources one DC, AC, PULSE, and SIN authoring contract", () => {
     for (const [id, unit] of [
       ["voltage-source", "V"],
       ["current-source", "A"],
     ] as const) {
-      expect(deviceDescriptor(id)).toMatchObject({
-        sourceWaveformDefault: "dc",
-        parameters: [
-          { name: "dc", required: true, unitHint: unit, displayRole: "value" },
-          {
-            name: "acMagnitude",
-            required: false,
-            unitHint: unit,
-            displayRole: "none",
-          },
-          {
-            name: "acPhase",
-            required: false,
-            unitHint: "deg",
-            displayRole: "none",
-          },
-        ],
+      const descriptor = deviceDescriptor(id)!;
+      expect(descriptor.sourceWaveformDefault).toBe("dc");
+      expect(descriptor.parameters.map((parameter) => parameter.name)).toEqual([
+        "dc",
+        "waveform",
+        "acMagnitude",
+        "acPhase",
+        "low",
+        "high",
+        "delay",
+        "rise",
+        "fall",
+        "width",
+        "period",
+        "offset",
+        "amplitude",
+        "frequency",
+        "damping",
+        "phase",
+      ]);
+      expect(
+        descriptor.parameters.find(({ name }) => name === "dc"),
+      ).toMatchObject({
+        required: true,
+        unitHint: unit,
+        displayRole: "value",
+      });
+      expect(
+        descriptor.parameters.find(({ name }) => name === "waveform"),
+      ).toMatchObject({
+        editor: "select",
+        defaultValue: "dc",
+        options: [{ value: "dc" }, { value: "pulse" }, { value: "sin" }],
       });
       // The AC fields are optional and default to nothing: a placed source is
       // DC-only until an author writes a magnitude, and the printed card never
       // carries a value the schematic does not.
       expect(
-        deviceDescriptor(id)!
-          .parameters.filter((parameter) => parameter.name.startsWith("ac"))
+        descriptor.parameters
+          .filter((parameter) => parameter.name.startsWith("ac"))
           .every((parameter) => parameter.defaultValue === undefined),
       ).toBe(true);
+      expect(
+        descriptor.parameters.find(({ name }) => name === "amplitude"),
+      ).toMatchObject({
+        unitHint: unit,
+        visibleForSourceWaveforms: ["sin"],
+      });
     }
   });
 

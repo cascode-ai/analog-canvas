@@ -12,6 +12,8 @@ export interface ComponentParameter {
   defaultValue?: string;
   help: string;
   inputMode?: "decimal" | "text";
+  options?: readonly { readonly value: string; readonly label: string }[];
+  visibleForSourceWaveforms?: readonly ("pulse" | "sin")[];
   compatibilityOnly?: boolean;
 }
 
@@ -83,7 +85,14 @@ export function componentParameters(
     placeholder: parameter.placeholder,
     ...(parameter.defaultValue ? { defaultValue: parameter.defaultValue } : {}),
     help: parameter.help,
-    inputMode: parameter.editor,
+    ...(parameter.editor === "select"
+      ? parameter.options
+        ? { options: parameter.options }
+        : {}
+      : { inputMode: parameter.editor }),
+    ...(parameter.visibleForSourceWaveforms
+      ? { visibleForSourceWaveforms: parameter.visibleForSourceWaveforms }
+      : {}),
     ...(parameter.authoringVisibility === "compatibility"
       ? { compatibilityOnly: true }
       : {}),
@@ -100,7 +109,11 @@ export function reviewedExternalComponentParameters(
     placeholder: parameter.placeholder,
     ...(parameter.defaultValue ? { defaultValue: parameter.defaultValue } : {}),
     help: parameter.help,
-    inputMode: parameter.editor,
+    ...(parameter.editor === "select" && parameter.options
+      ? { options: parameter.options }
+      : parameter.editor === "select"
+        ? {}
+        : { inputMode: parameter.editor }),
   }));
 }
 
@@ -138,6 +151,8 @@ export function effectiveComponentParameterValue(
 ): string {
   const netlist = instance.netlist?.parameters[parameter.key];
   if (netlist !== undefined) return netlist;
+  if (parameter.key === "waveform")
+    return deviceDescriptor(instance.symbolId)?.sourceWaveformDefault ?? "";
   if (instance.symbolId === "pulse-voltage-source") {
     const parameters = instance.netlist?.parameters ?? {};
     if (parameter.key === "dutyCycle") return legacyDutyCycle(parameters);

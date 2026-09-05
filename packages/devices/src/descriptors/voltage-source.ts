@@ -1,4 +1,5 @@
 import type { DeviceDescriptor } from "../contract.js";
+import { independentSourceParameters } from "./independent-source-parameters.js";
 
 export const voltageSourceDevice = {
   id: "voltage-source",
@@ -8,38 +9,7 @@ export const voltageSourceDevice = {
   pinOrder: ["+", "-"],
   targetPolicy: "builtin",
   sourceWaveformDefault: "dc",
-  parameters: [
-    {
-      name: "dc",
-      label: "Value",
-      required: true,
-      editor: "text",
-      unitHint: "V",
-      placeholder: "1.8",
-      help: "DC voltage",
-      displayRole: "value",
-    },
-    {
-      name: "acMagnitude",
-      label: "AC magnitude",
-      required: false,
-      editor: "text",
-      unitHint: "V",
-      placeholder: "1",
-      help: "Small-signal magnitude for AC analysis; leave empty for a DC-only source",
-      displayRole: "none",
-    },
-    {
-      name: "acPhase",
-      label: "AC phase",
-      required: false,
-      editor: "text",
-      unitHint: "deg",
-      placeholder: "0",
-      help: "Small-signal phase in degrees; printed only with an AC magnitude, 0 when empty",
-      displayRole: "none",
-    },
-  ],
+  parameters: independentSourceParameters("V", "1.8"),
   dialects: ["spice", "spectre"],
   capabilities: {
     supportsModel: false,
