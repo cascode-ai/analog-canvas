@@ -540,7 +540,11 @@ describeHarness("health", () => {
           version: "ngspice-46",
           binarySha256: "0".repeat(64),
         },
-        models: { id: "test-models", contentSha256: "1".repeat(64) },
+        models: {
+          id: "test-models",
+          contentSha256: "1".repeat(64),
+          library: { runtimePath: "/opt/models/test-models.spice" },
+        },
         startup: { contentSha256: "2".repeat(64) },
       }),
       "utf8",
