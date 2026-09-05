@@ -303,6 +303,113 @@ function routedFixture() {
 }
 
 describe("public Agent session routes", () => {
+  it("relays typed simulation failures without revoking a session and replays a receipt once", async () => {
+    const { env, objects, sockets } = routedFixture();
+    const post = (path: string, body: unknown, token?: string) =>
+      routeAgentSessionRequest(
+        new Request(`https://editor.example${path}`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            ...(token ? { authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify(body),
+        }),
+        env,
+      );
+    const created = (await (await post("/api/agent/sessions", {
+      projectSessionId: "p:sim",
+      projectId: "p",
+      documentIds: ["doc"],
+      scopes: ["simulation.run"],
+    }))!.json()) as { session: { sessionId: string; claimCode: string } };
+    const claim = (await (await post("/api/agent/claims", {
+      claimCode: created.session.claimCode,
+    }))!.json()) as { agentToken: string };
+    const id = created.session.sessionId,
+      object = objects.get(id)!;
+    let sent = 0;
+    const socket = {
+      readyState: WebSocket.OPEN,
+      send: (text: string) => {
+        const envelope = JSON.parse(text);
+        sent++;
+        const payload =
+          envelope.payload.operation === "prepare"
+            ? {
+                ok: false,
+                error: {
+                  code: "BAD_PROBE",
+                  message: "Fix this probe",
+                  stage: "prepare",
+                  recovery: "fix-input",
+                },
+              }
+            : {
+                ok: true,
+                run: {
+                  id: "run-one",
+                  preparedId: "prepared",
+                  inputRevision: "rev",
+                  state: "running",
+                  artifacts: [],
+                },
+              };
+        queueMicrotask(
+          () =>
+            void object.webSocketMessage(
+              socket,
+              JSON.stringify({
+                ...envelope,
+                kind: "simulation-response",
+                payload: {
+                  ...payload,
+                  apiVersion: "2.0",
+                  requestId: envelope.requestId,
+                  operation: envelope.payload.operation,
+                },
+              }),
+            ),
+        );
+      },
+    } as unknown as WebSocket;
+    sockets.set(id, [socket]);
+    const path = `/api/agent/sessions/${id}/simulation`,
+      base = { apiVersion: "2.0" };
+    const error = await post(
+      path,
+      {
+        ...base,
+        requestId: "bad",
+        operation: "prepare",
+        source: { kind: "structured" },
+      },
+      claim.agentToken,
+    );
+    expect(await error!.json()).toMatchObject({
+      ok: false,
+      error: { recovery: "fix-input" },
+    });
+    const start = {
+      ...base,
+      requestId: "once",
+      operation: "start",
+      preparedId: "prepared",
+      digest: "a".repeat(64),
+    };
+    expect(
+      await (await post(path, start, claim.agentToken))!.json(),
+    ).toMatchObject({ ok: true, run: { id: "run-one" } });
+    expect(
+      await (await post(path, start, claim.agentToken))!.json(),
+    ).toMatchObject({ ok: true, run: { id: "run-one" } });
+    expect(sent).toBe(2);
+    expect(
+      (await post(path, { ...start, requestId: "other" }, "wrong-token"))!
+        .status,
+    ).toBe(401);
+    expect(sent).toBe(2);
+  });
   it("publishes the exact Agent API contract", async () => {
     const { env } = routedFixture();
     const response = await routeAgentSessionRequest(
@@ -322,6 +429,7 @@ describe("public Agent session routes", () => {
       "/api/agent/connectors/resume",
       "/api/agent/sessions/{sessionId}/circuit",
       "/api/agent/sessions/{sessionId}/files",
+      "/api/agent/sessions/{sessionId}/simulation",
     ]);
   });
 
