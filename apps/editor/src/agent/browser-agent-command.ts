@@ -8,6 +8,8 @@ import {
   planInstanceUnplacement,
   planCellReset,
   planCreateCell,
+  createHierarchyInstance,
+  planPlaceCellInstance,
   planRenameCell,
   planDeleteCell,
   planEnsureNamedNet,
@@ -47,6 +49,33 @@ export function planBrowserAgentCommand(
   if (!document) throw new Error("Document not found");
   const sequence = document.revision + 1;
   switch (command.kind) {
+    case "place-cell": {
+      const child = project.documents.find(
+        (item) => item.id === command.childDocumentId,
+      );
+      if (!child?.netlist)
+        throw new Error("Cell needs a formal interface before placement");
+      const instance = createHierarchyInstance(
+        command.instanceId,
+        child,
+        command.placement,
+        command.reference,
+      );
+      const annotations = missingDefaultInstanceDisplayAnnotations(
+        document,
+        instance,
+        resolver,
+        resolveDocumentStyleProfile(document.presentation),
+      );
+      return {
+        structureEdits: planPlaceCellInstance(
+          project,
+          documentId,
+          instance,
+          annotations,
+        ),
+      };
+    }
     case "place-existing": {
       const instance = document.instances.find(
         (item) => item.id === command.instanceId,

@@ -42,22 +42,9 @@ export function createProjectHierarchicalSymbols(
     Partial<Pick<CircuitProject, "externalSubcircuitDefinitions">>,
   baseDefinitions: readonly SymbolDefinition[] = [],
 ): SymbolDefinition[] {
-  const referencedChildIds = new Set(
-    project.documents.flatMap((document) =>
-      document.instances.flatMap((instance) => {
-        const binding = instance.netlist?.binding;
-        return binding?.kind === "subcircuit" ? [binding.childDocumentId] : [];
-      }),
-    ),
-  );
   const internal = project.documents.flatMap((document) => {
-    if (
-      document.id === project.topDocumentId &&
-      !document.sourceBinding &&
-      !referencedChildIds.has(document.id)
-    ) {
-      return [];
-    }
+    // Top is an entry point, not a restriction on Cell reuse. First placement
+    // and definition preview must resolve before a caller exists.
     const definition = createHierarchicalBlockSymbol(document);
     return definition ? [definition] : [];
   });

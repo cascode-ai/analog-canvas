@@ -16,6 +16,13 @@ const SelectionSchema = z.strictObject({
 });
 export const AgentAuthoringCommandSchema = z.discriminatedUnion("kind", [
   z.strictObject({
+    kind: z.literal("place-cell"),
+    childDocumentId: StableIdSchema,
+    instanceId: StableIdSchema,
+    reference: z.string().min(1).max(128).optional(),
+    placement: PlacementSchema,
+  }),
+  z.strictObject({
     kind: z.literal("place-existing"),
     instanceId: StableIdSchema,
     placement: PlacementSchema,

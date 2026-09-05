@@ -416,6 +416,7 @@ export function compileActions(
     switch (action.kind) {
       case "set-model":
       case "place-existing":
+      case "place-cell":
       case "set-net-label":
       case "transform":
       case "copy":

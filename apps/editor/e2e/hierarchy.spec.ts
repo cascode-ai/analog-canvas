@@ -60,6 +60,52 @@ async function placeCellPin(
   if (!wasExpanded) await shelf.click();
 }
 
+test("reviews an unreferenced top Symbol and places that DUT in an ordinary new TB", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await runCellCommand(page, "Manage Cells…");
+  const manager = page.getByRole("dialog", { name: "Cell Manager" });
+  await manager.getByText("Review Symbol", { exact: true }).click();
+  await expect(manager).toContainText("valid zero-port interface");
+  await manager.getByLabel("Symbol width", { exact: true }).fill("160");
+  await manager
+    .getByRole("button", { name: "Apply Symbol", exact: true })
+    .click();
+  await manager.getByRole("button", { name: "Close Cell Manager" }).click();
+  await createCell(page, "Testbench");
+  await runCellCommand(page, "Place Cell");
+  await page
+    .getByRole("dialog", { name: "Place Hierarchical Cell" })
+    .getByRole("option", { name: /Main/u })
+    .click();
+  await page
+    .getByTestId("schematic-canvas")
+    .click({ position: { x: 320, y: 180 } });
+  await page.keyboard.press("Escape");
+  const project = JSON.parse(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  );
+  expect(project.topDocumentId).toBe("document-main");
+  expect(
+    project.documents.find((d: { id: string }) => d.id === "document-main")
+      .presentation.cellSymbol.minimumBodySize.width,
+  ).toBe(160);
+  const tb = project.documents.find(
+    (d: { name: string }) => d.name === "Testbench",
+  );
+  expect(tb.instances[0].netlist.binding).toEqual({
+    kind: "subcircuit",
+    childDocumentId: "document-main",
+  });
+  await page.keyboard.press("Control+z");
+  await expect(page.getByTestId("active-instance-count")).toHaveText("0");
+  await page.keyboard.press("Control+Shift+z");
+  await expect(page.getByTestId("active-instance-count")).toHaveText("1");
+});
+
 test("shows the hierarchy row only once there is a hierarchy", async ({
   page,
 }) => {

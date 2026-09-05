@@ -51,6 +51,73 @@ async function setup() {
 }
 
 describe("MCP → API → shared editor parity", () => {
+  it("places the original top in a new TB through public actions and retains normal history", async () => {
+    const { client, controller } = await setup();
+    expect(
+      (
+        await client.applyActions([
+          { kind: "create-cell", id: "tb", name: "Testbench" },
+        ])
+      ).ok,
+    ).toBe(true);
+    const placed = await client.applyActions(
+      [
+        {
+          kind: "place-cell",
+          childDocumentId: "main",
+          instanceId: "xdut",
+          reference: "XDUT",
+          placement: {
+            position: { x: 100, y: 100 },
+            rotation: 0,
+            mirror: "none",
+          },
+        },
+      ],
+      { documentId: "tb" },
+    );
+    expect(placed.ok, placed.message).toBe(true);
+    expect(controller.project.topDocumentId).toBe("main");
+    expect(controller.project.simulation).toBeUndefined();
+    const instance = controller.project.documents.find((d) => d.id === "tb")!
+      .instances[0]!;
+    expect(instance.netlist?.binding).toEqual({
+      kind: "subcircuit",
+      childDocumentId: "main",
+    });
+    expect(controller.resolver.resolve(instance.symbolId)).toBeTruthy();
+    expect(
+      (await client.applyActions([{ kind: "undo" }], { documentId: "tb" })).ok,
+    ).toBe(true);
+    expect(
+      controller.project.documents.find((d) => d.id === "tb")!.instances,
+    ).toHaveLength(0);
+    expect(
+      (await client.applyActions([{ kind: "redo" }], { documentId: "tb" })).ok,
+    ).toBe(true);
+    const bad = await client.applyActions(
+      [
+        {
+          kind: "place-cell",
+          childDocumentId: "tb",
+          instanceId: "loop",
+          placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+        },
+      ],
+      { documentId: "main" },
+    );
+    expect(bad.ok).toBe(false);
+    expect(
+      controller.project.documents.find((d) => d.id === "main")!.instances,
+    ).toHaveLength(0);
+    expect(
+      (
+        await client.applyActions([
+          { kind: "rename-cell", id: "tb", name: "TB recovered" },
+        ])
+      ).ok,
+    ).toBe(true);
+  });
   it("places a retained Instance with the GUI's missing default labels", async () => {
     const { client, controller, add } = await setup();
     const id = await add();
