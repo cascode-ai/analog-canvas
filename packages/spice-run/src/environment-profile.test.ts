@@ -31,7 +31,7 @@ describe("hosted simulation Profile", () => {
       runtimePath: "/opt/sky130/continuous/sky130.lib.spice",
       sections: ["tt"],
     });
-    expect(HOSTED_SKY130_PROFILE.qualifiedScope.analyses).toEqual(["op"]);
+    expect(HOSTED_SKY130_PROFILE.qualifiedScope.analyses).toEqual(["op", "ac"]);
   });
 
   it("accepts exact observed identity and names every drift", () => {

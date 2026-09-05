@@ -8,7 +8,11 @@ import {
 } from "@icm/derived";
 import { CURRENT_PROJECT_SCHEMA_VERSION } from "@icm/model";
 import type { CircuitProject } from "@icm/model";
-import { analyzeDesignNetlist, printSpiceNetlist } from "@icm/netlist";
+import {
+  analyzeDesignNetlist,
+  compileStructuredSimulation,
+  printSpiceNetlist,
+} from "@icm/netlist";
 import { serializeProject } from "@icm/project-protocol";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
@@ -268,6 +272,37 @@ describe("the bundled five-transistor Sky130 OTA", () => {
       testbench.instances.filter((instance) => instance.symbolId === "ground")
         .length,
     ).toBeGreaterThan(0);
+  });
+
+  it("persists and compiles its OP and AC acceptance setup", async () => {
+    expect(project.simulation).toBeDefined();
+    const compiled = await compileStructuredSimulation(
+      project,
+      project.simulation!,
+    );
+    expect(compiled.ok).toBe(true);
+    if (!compiled.ok) return;
+
+    expect(compiled.request.analyses).toEqual(["op", "ac"]);
+    expect(compiled.request.testbench).toContain("VINP");
+    expect(compiled.request.testbench).toContain("AC 1 0");
+    expect(compiled.request.testbench).toContain("op");
+    expect(compiled.request.testbench).toContain("ac dec 10 1 1000000000");
+    expect(compiled.request.testbench).toContain("set appendwrite");
+    expect(compiled.vectors).toEqual([
+      { probeId: "probe-vout", vector: "v(vout)", quantity: "voltage" },
+      { probeId: "probe-ibias", vector: "v(ibias)", quantity: "voltage" },
+      {
+        probeId: "probe-tail",
+        vector: "v(xdut.tail)",
+        quantity: "voltage",
+      },
+      {
+        probeId: "probe-nleft",
+        vector: "v(xdut.nleft)",
+        quantity: "voltage",
+      },
+    ]);
   });
 
   it("passes the Check-and-Save gates with no electrical rule issue", () => {

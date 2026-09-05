@@ -288,10 +288,12 @@ into the Project, undo history, Gallery, or recovery copy.
   deployment overrides, configuration-error classification, and the verified
   run metadata envelope.
 - `containers/ngspice/profile-contract.test.mjs` binds the Profile to the
-  digest-pinned image and exact startup bytes. The Preview gate then sends the
-  tracked five-transistor OTA through both hosted executors, requires the
-  Profile identity and `tt` model selection, reads structured OP data, and
-  compares four internal/output voltages against the recorded qualification
+  digest-pinned image and exact startup bytes. The Preview gate opens the
+  tracked five-transistor OTA Project, compiles its persisted structured setup,
+  and sends that exact prepared OP+AC request through the operator-host
+  executor. It requires the Profile identity and `tt` model selection, checks
+  all four compile-time probe bindings, compares four OP voltages, and compares
+  representative complex AC samples against the recorded qualification
   fixture. Missing local ngspice never skips this hosted gate.
 - The pinned local authority pack under ignored `.reference-src/` demonstrates
   that ngspice 47 completes a Sky130 NFET operating-point deck with
@@ -857,6 +859,13 @@ release. A deployment without the binding answers
   `analog-arena`, exported by this product and simulated against the
   reference netlist under one testbench, agreeing on node voltages, gain,
   and unity-gain bandwidth.
+- `scripts/preview-simulation-smoke.mjs`: the bundled five-transistor OTA
+  Project is the vertical acceptance asset. Its saved `SimulationSetup` is
+  parsed and compiled by the production Project/netlist packages before the
+  generated OP+AC request reaches Preview. The returned input revision,
+  environment Profile, model corner, frequency axis, probe series, OP values,
+  and selected AC complex samples must all agree with the tracked
+  qualification evidence; a handwritten deck cannot satisfy this path.
 - `containers/ngspice/entrypoint.test.mjs` starts the harness as a real
   process and asserts the execution boundary against stand-in simulators
   that misbehave deliberately: a private directory per run that is removed

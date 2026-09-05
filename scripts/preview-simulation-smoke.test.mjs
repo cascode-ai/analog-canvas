@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  compileHostedSky130Project,
   runHostedSky130Acceptance,
   runPreviewSimulationSmoke,
   validateExecutorParity,
@@ -16,6 +17,16 @@ const MODEL_SHA =
   "0bf299f0e3e1616478203d370107865635fd08935bb1a9cf9db18efd31703100";
 const STARTUP_SHA =
   "5ad94681e17bba379ac84d01fe7773458b34f9bbd77c127a3738f1af47ad5634";
+const EXPECTED_VECTORS = [
+  { probeId: "probe-vout", vector: "v(vout)", quantity: "voltage" },
+  { probeId: "probe-ibias", vector: "v(ibias)", quantity: "voltage" },
+  { probeId: "probe-tail", vector: "v(xdut.tail)", quantity: "voltage" },
+  {
+    probeId: "probe-nleft",
+    vector: "v(xdut.nleft)",
+    quantity: "voltage",
+  },
+];
 
 function result(target, overrides = {}) {
   return {
@@ -53,13 +64,40 @@ function result(target, overrides = {}) {
   };
 }
 
-function modelResult(target, overrides = {}) {
+function modelResult(
+  target,
+  overrides = {},
+  inputRevision = `preview-sky130-${target}`,
+) {
   const base = result(target);
+  const frequencyHz = Array.from(
+    { length: 91 },
+    (_, index) => 10 ** (index / 10),
+  );
+  const acProbes = EXPECTED_VECTORS.map(({ vector }) => ({
+    name: vector,
+    real: Array(91).fill(0),
+    imag: Array(91).fill(0),
+  }));
+  const vout = acProbes.find((probe) => probe.name === "v(vout)");
+  const tail = acProbes.find((probe) => probe.name === "v(xdut.tail)");
+  if (!vout || !tail) throw new Error("test AC probes are incomplete");
+  for (const [index, real, imag] of [
+    [0, 120.1227317562375, -0.0003511468844918635],
+    [30, 120.1217100790957, -0.3511439119206514],
+    [60, 12.1813224169096, -37.09123686627677],
+    [90, -0.04031087451053017, -0.006331573453656596],
+  ]) {
+    vout.real[index] = real;
+    vout.imag[index] = imag;
+  }
+  tail.real[60] = 0.4417357549275905;
+  tail.imag[60] = -0.1070857397604748;
   return {
     ...base,
     metadata: {
       ...base.metadata,
-      input: { inputRevision: `preview-sky130-${target}` },
+      input: { inputRevision },
       configuration: {
         modelLibrary: { directive: "lib", section: "tt" },
       },
@@ -74,6 +112,11 @@ function modelResult(target, overrides = {}) {
             { name: "v(xdut.tail)", value: 0.2848671983031419 },
             { name: "v(xdut.nleft)", value: 0.7589797395214736 },
           ],
+        },
+        {
+          analysis: "ac",
+          frequencyHz,
+          probes: acProbes,
         },
       ],
     },
@@ -225,10 +268,12 @@ describe("the hosted SKY130 qualification", () => {
       validateHostedSky130Result(
         modelResult("cloudflare-container"),
         "cloudflare-container",
+        "preview-sky130-cloudflare-container",
+        EXPECTED_VECTORS,
       ),
     ).toMatchObject({
       target: "cloudflare-container",
-      fixtureId: "ota-5t-balanced-op-v1",
+      fixtureId: "ota-5t-structured-op-ac-v1",
       environmentFingerprint: SHA,
       values: { "v(vout)": 0.7589797395133877 },
     });
@@ -238,15 +283,38 @@ describe("the hosted SKY130 qualification", () => {
     const candidate = modelResult("operator-host");
     candidate.data.analyses[0].probes[0].value = 0.8;
     expect(() =>
-      validateHostedSky130Result(candidate, "operator-host"),
+      validateHostedSky130Result(
+        candidate,
+        "operator-host",
+        "preview-sky130-operator-host",
+        EXPECTED_VECTORS,
+      ),
     ).toThrow(/solved v\(vout\) as 0\.8/u);
+  });
+
+  it("refuses AC drift outside the recorded tolerance", () => {
+    const candidate = modelResult("operator-host");
+    candidate.data.analyses[1].probes[0].real[60] = 13;
+    expect(() =>
+      validateHostedSky130Result(
+        candidate,
+        "operator-host",
+        "preview-sky130-operator-host",
+        EXPECTED_VECTORS,
+      ),
+    ).toThrow(/solved v\(vout\)\[60\] as 13/u);
   });
 
   it("refuses a run that did not load the qualified corner", () => {
     const candidate = modelResult("operator-host");
     candidate.metadata.configuration.modelLibrary.section = "ff";
     expect(() =>
-      validateHostedSky130Result(candidate, "operator-host"),
+      validateHostedSky130Result(
+        candidate,
+        "operator-host",
+        "preview-sky130-operator-host",
+        EXPECTED_VECTORS,
+      ),
     ).toThrow(/qualified model-library section/u);
   });
 
@@ -257,12 +325,23 @@ describe("the hosted SKY130 qualification", () => {
       target: "operator-host",
       fetchImpl: async (_url, init) => {
         submitted = JSON.parse(init.body);
-        return Response.json(modelResult("operator-host"));
+        return Response.json(
+          modelResult("operator-host", {}, submitted.inputRevision),
+        );
       },
     });
     expect(submitted.executorTarget).toBe("operator-host");
     expect(submitted.netlist).toContain(".subckt ota_5t");
+    expect(submitted.testbench).toContain("set appendwrite");
     expect(submitted.testbench).toContain("write out.raw v(vout)");
-    expect(accepted.fixtureId).toBe("ota-5t-balanced-op-v1");
+    expect(submitted.testbench).toContain("ac dec 10 1 1000000000");
+    expect(accepted.fixtureId).toBe("ota-5t-structured-op-ac-v1");
+  });
+
+  it("compiles the persisted Project setup into the qualified request", async () => {
+    const compiled = await compileHostedSky130Project();
+    expect(compiled.request.analyses).toEqual(["op", "ac"]);
+    expect(compiled.vectors).toEqual(EXPECTED_VECTORS);
+    expect(compiled.request.inputRevision).toMatch(/^[0-9a-f]{64}$/u);
   });
 });
