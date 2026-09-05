@@ -111,6 +111,38 @@ describe("an operating point", () => {
   });
 });
 
+describe("an operating point written with an explicit vector list", () => {
+  // `write file v(in) v(mid) i(v1)` is how a compiled setup asks for exactly
+  // its probes. ngspice 46 answers by writing the plot's scale first, and an
+  // operating point's scale is its first vector, so the file carries v(in)
+  // twice (see the fixture's Variables block). A table with the same probe
+  // on two rows is what a reader sees if it takes the file at its word.
+  it("reads each probe once and the same numbers as the unlisted write", () => {
+    const listed = only("divider-op-listed.raw", "op");
+    const whole = only("divider-op.raw", "op");
+    expect(listed.probes.map((probe) => probe.name)).toEqual([
+      "v(in)",
+      "v(mid)",
+      "i(v1)",
+    ]);
+    expect(listed.probes).toEqual(whole.probes);
+  });
+
+  it("still refuses a file that gives one probe two different values", () => {
+    const contradiction = fixture("divider-op-listed.raw").replace(
+      /(Values:\n 0\t)(\S+)/u,
+      (_, head: string, value: string) => `${head}${Number(value) + 1}`,
+    );
+    const reading = readSimulationData(contradiction);
+    expect(reading.status).toBe("unusable");
+    if (reading.status === "unusable") {
+      expect(reading.diagnostics.map((d) => d.text).join(" ")).toMatch(
+        /two different values for "v\(in\)"/u,
+      );
+    }
+  });
+});
+
 describe("an AC sweep", () => {
   const ac = (): AcResult => only("rc-ac.raw", "ac");
   const probe = (analysis: AcResult, name: string) =>
