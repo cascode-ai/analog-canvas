@@ -15,9 +15,9 @@
 }
 
 .app-workspace.simulation-mode {
-  grid-template-columns: minmax(320px, 34vw) minmax(0, 1fr) auto;
+  grid-template-columns: var(--icm-simulation-width) minmax(0, 1fr) auto;
   grid-template-areas: "simulation canvas props";
-  transition: grid-template-columns 160ms ease;
+  transition: none;
 }
 
 /* Sits on the Library's right edge, overlapping the canvas by a few pixels so
@@ -34,6 +34,28 @@
 
 .library-resize-handle:hover,
 .library-resize-handle:focus-visible {
+  background: linear-gradient(
+    to right,
+    transparent 3px,
+    var(--icm-accent) 3px,
+    var(--icm-accent) 5px,
+    transparent 5px
+  );
+  outline: none;
+}
+
+.simulation-resize-handle {
+  grid-area: canvas;
+  z-index: 3;
+  width: 9px;
+  margin-left: -5px;
+  cursor: col-resize;
+  touch-action: none;
+  background: transparent;
+}
+
+.simulation-resize-handle:hover,
+.simulation-resize-handle:focus-visible {
   background: linear-gradient(
     to right,
     transparent 3px,
@@ -600,7 +622,9 @@
   }
 
   .app-workspace.simulation-mode {
-    grid-template-columns: minmax(300px, 40vw) minmax(0, 1fr) auto;
+    grid-template-columns:
+      min(var(--icm-simulation-width), 52vw) minmax(0, 1fr)
+      auto;
     grid-template-areas: "simulation canvas props";
   }
 }
@@ -622,7 +646,7 @@
   }
 
   .app-workspace.simulation-mode {
-    grid-template-columns: minmax(290px, 44vw) minmax(0, 1fr);
+    grid-template-columns: min(var(--icm-simulation-width), 62vw) minmax(0, 1fr);
     grid-template-areas: "simulation canvas";
   }
 

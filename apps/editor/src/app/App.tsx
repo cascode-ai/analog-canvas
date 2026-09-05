@@ -296,6 +296,10 @@ const DEFAULT_VIEWBOX: GridRect = { x: 0, y: 0, width: 960, height: 640 };
 const RECENT_COMPONENTS_STORAGE_KEY = "icm.recent-components.v1";
 const LIBRARY_PANEL_STORAGE_KEY = "icm.library-panel-open.v1";
 const LIBRARY_WIDTH_STORAGE_KEY = "icm.library-panel-width.v1";
+const SIMULATION_WIDTH_STORAGE_KEY = "icm.simulation-panel-width.v1";
+const SIMULATION_WIDTH_MIN = 320;
+const SIMULATION_WIDTH_MAX = 760;
+const SIMULATION_WIDTH_DEFAULT = 440;
 const COMPACT_LAYOUT_MEDIA_QUERY = "(max-width: 860px)";
 const DRAG_START_DISTANCE_PX = 4;
 const SNAP_CAPTURE_RADIUS_PX = 4;
@@ -336,6 +340,34 @@ export function App({
     pointerX: number;
     width: number;
   } | null>(null);
+  const simulationResizeOriginRef = useRef<{
+    pointerX: number;
+    width: number;
+  } | null>(null);
+  const [simulationWidth, setSimulationWidthState] = useState(() => {
+    if (typeof window === "undefined") return SIMULATION_WIDTH_DEFAULT;
+    try {
+      const stored = Number(
+        window.localStorage.getItem(SIMULATION_WIDTH_STORAGE_KEY),
+      );
+      return Number.isFinite(stored) && stored > 0
+        ? Math.min(SIMULATION_WIDTH_MAX, Math.max(SIMULATION_WIDTH_MIN, stored))
+        : SIMULATION_WIDTH_DEFAULT;
+    } catch {
+      return SIMULATION_WIDTH_DEFAULT;
+    }
+  });
+  const setSimulationWidth = (width: number): void => {
+    const next = Math.round(
+      Math.min(SIMULATION_WIDTH_MAX, Math.max(SIMULATION_WIDTH_MIN, width)),
+    );
+    setSimulationWidthState(next);
+    try {
+      window.localStorage.setItem(SIMULATION_WIDTH_STORAGE_KEY, String(next));
+    } catch {
+      // Resizing remains available when browser storage is unavailable.
+    }
+  };
   const {
     libraryPanelOpen,
     libraryWidth,
@@ -701,10 +733,12 @@ export function App({
     setAnalogSimulationState("open");
   };
   const minimizeAnalogSimulation = (): void => {
+    setSimulationPickNetsActive(false);
     setAnalogSimulationState("minimized");
     setSelectionOpen(simulationPropertiesOpenBeforeRef.current);
   };
   const exitAnalogSimulation = (): void => {
+    setSimulationPickNetsActive(false);
     void humanSimulationSession.clear();
     setAnalogSimulationState("closed");
     setSimulationDraftContext(null);
@@ -987,6 +1021,11 @@ export function App({
   const [simulationSavedNetIds, setSimulationSavedNetIds] = useState<
     Set<string>
   >(() => new Set());
+  const [analogPickedNet, setAnalogPickedNet] = useState<{
+    sequence: number;
+    documentId: string;
+    netId: string;
+  } | null>(null);
   const [pendingWaveformPlacement, setPendingWaveformPlacement] =
     useState<PendingWaveformPlacement | null>(null);
   const [waveformPlacementPoint, setWaveformPlacementPoint] =
@@ -1485,6 +1524,15 @@ export function App({
       return;
     }
     const group = logicalNets.byBaseNetId.get(baseNetId);
+    if (analogSimulationOpen) {
+      setAnalogPickedNet((current) => ({
+        sequence: (current?.sequence ?? 0) + 1,
+        documentId: document.id,
+        netId: baseNetId,
+      }));
+      setStatus(`Added voltage Output ${group?.name ?? baseNetId}`);
+      return;
+    }
     setSimulationSavedNetIds((current) => {
       const next = new Set(current);
       if (next.has(baseNetId)) next.delete(baseNetId);
@@ -4548,7 +4596,12 @@ export function App({
               ? "app-workspace"
               : "app-workspace library-collapsed"
         }
-        style={{ "--icm-shapes-width": `${libraryWidth}px` } as CSSProperties}
+        style={
+          {
+            "--icm-shapes-width": `${libraryWidth}px`,
+            "--icm-simulation-width": `${simulationWidth}px`,
+          } as CSSProperties
+        }
       >
         {analogSimulationOpened ? (
           <Suspense fallback={null}>
@@ -4571,8 +4624,59 @@ export function App({
                 return committed;
               }}
               onOpenCell={(id) => switchDocument(id)}
+              pickNetsActive={simulationPickNetsActive}
+              pickedNet={analogPickedNet}
+              onPickNetsChange={setSimulationPickMode}
+              onFocusProbe={(probe) => {
+                if (probe.kind === "net-voltage") {
+                  switchDocument(probe.documentId);
+                  highlightNet(probe.netId, probe.documentId);
+                }
+              }}
             />
           </Suspense>
+        ) : null}
+        {analogSimulationOpen ? (
+          <div
+            className="simulation-resize-handle"
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize the Simulation panel"
+            aria-valuenow={simulationWidth}
+            aria-valuemin={SIMULATION_WIDTH_MIN}
+            aria-valuemax={SIMULATION_WIDTH_MAX}
+            tabIndex={0}
+            data-testid="simulation-resize-handle"
+            onPointerDown={(event) => {
+              event.preventDefault();
+              event.currentTarget.setPointerCapture(event.pointerId);
+              simulationResizeOriginRef.current = {
+                pointerX: event.clientX,
+                width: simulationWidth,
+              };
+            }}
+            onPointerMove={(event) => {
+              const origin = simulationResizeOriginRef.current;
+              if (!origin) return;
+              setSimulationWidth(
+                origin.width + (event.clientX - origin.pointerX),
+              );
+            }}
+            onPointerUp={(event) => {
+              simulationResizeOriginRef.current = null;
+              event.currentTarget.releasePointerCapture(event.pointerId);
+            }}
+            onKeyDown={(event) => {
+              const step = event.shiftKey ? 32 : 8;
+              if (event.key === "ArrowLeft") {
+                event.preventDefault();
+                setSimulationWidth(simulationWidth - step);
+              } else if (event.key === "ArrowRight") {
+                event.preventDefault();
+                setSimulationWidth(simulationWidth + step);
+              }
+            }}
+          />
         ) : null}
         {!analogSimulationOpen && leftPanelMode === "library" ? (
           <ShapesPanel

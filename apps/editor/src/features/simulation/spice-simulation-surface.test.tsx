@@ -28,6 +28,8 @@ describe("SpiceSimulationSurface workspace", () => {
     expect(markup).toContain('aria-label="Simulation setup"');
     expect(markup).toContain('aria-pressed="true">Setup');
     expect(markup).toContain('aria-pressed="false">Results');
+    expect(markup).toContain("Pick voltage on canvas");
+    expect(markup).toContain("Add current output");
     expect(markup).not.toContain('class="simulation-results-dock"');
   });
 });

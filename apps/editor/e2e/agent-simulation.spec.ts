@@ -79,11 +79,18 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
   await expect(
     panel.locator("li").filter({ hasText: "XDUT · ota_5t · tail" }),
   ).toBeVisible();
+  await panel.getByRole("button", { name: "Pick voltage on canvas" }).click();
+  await page.getByTestId("route-hit-tb-vinp-route").click({ force: true });
+  await expect(panel.getByRole("button", { name: "Remove probe" })).toHaveCount(
+    5,
+  );
+  await panel.getByRole("button", { name: "Remove probe" }).last().click();
+  await panel.getByRole("button", { name: "Picking voltage Nets…" }).click();
   await panel
     .getByLabel("Add voltage probe")
     .selectOption({ label: "XDUT · ota_5t · vinp" });
   await panel
-    .getByLabel("Add source-current probe")
+    .getByLabel("Add current output")
     .selectOption({ label: "Testbench · VINP current" });
   await expect(panel.getByRole("button", { name: "Remove probe" })).toHaveCount(
     6,
@@ -298,7 +305,9 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
     "0.500000",
   );
   await panel.getByRole("tab", { name: "Plot" }).click();
-  await expect(panel.locator(".spice-ac-plot svg")).toHaveCount(1);
+  await expect(panel.locator(".spice-ac-plot svg")).toHaveCount(2);
+  await expect(panel.locator('svg[aria-label="AC magnitude"]')).toBeVisible();
+  await expect(panel.locator('svg[aria-label="AC phase"]')).toBeVisible();
   await panel.getByRole("tab", { name: "Files" }).click();
   const download = page.waitForEvent("download");
   await panel
@@ -381,6 +390,15 @@ test("Simulation creates an ordinary testbench and offers the current Cell at th
   expect(saved.simulation).toBeUndefined();
   await page.getByTestId("open-analog-simulation").click();
   await expect(page.getByLabel("Testbench Cell")).toHaveValue(tb.id);
+  const simulationResize = page.getByTestId("simulation-resize-handle");
+  const initialWidth = Number(
+    await simulationResize.getAttribute("aria-valuenow"),
+  );
+  await simulationResize.press("ArrowRight");
+  await expect(simulationResize).toHaveAttribute(
+    "aria-valuenow",
+    String(initialWidth + 8),
+  );
   await expect(page.getByTestId("library-toggle")).toBeDisabled();
   await expect(page.getByTestId("examples-toggle")).toBeDisabled();
   await page.getByRole("button", { name: "Minimize simulation" }).click();
