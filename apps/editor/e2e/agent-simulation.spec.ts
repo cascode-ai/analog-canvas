@@ -16,7 +16,15 @@ const profile = JSON.parse(
 ) as { id: string };
 import { openMenu, downloadBytes } from "./editor-fixtures.js";
 import { CircuitProjectSchema } from "@icm/model";
-import ota from "../src/examples/five-transistor-ota-sky130.icproj.json";
+const ota = JSON.parse(
+  readFileSync(
+    new URL(
+      "../src/examples/five-transistor-ota-sky130.icproj.json",
+      import.meta.url,
+    ),
+    "utf8",
+  ),
+);
 
 test("human simulation uses saved setup, survives closing, recovers a bad input and exports results", async ({
   page,
@@ -223,6 +231,8 @@ test("Simulation creates an ordinary testbench and offers the current Cell at th
   });
   expect(saved.topDocumentId).toBe("document-main");
   expect(saved.simulation).toBeUndefined();
+  await page.getByTestId("open-analog-simulation").click();
+  await expect(page.getByLabel("Testbench Cell")).toHaveValue(tb.id);
 });
 
 test("Agent raw simulation recovers input errors, returns a run receipt and exports through Files", async ({

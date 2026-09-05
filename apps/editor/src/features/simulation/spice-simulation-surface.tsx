@@ -176,7 +176,10 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
           )}
         </div>
         <SetupEditor
-          key={JSON.stringify(project.simulation)}
+          key={
+            JSON.stringify(project.simulation) ??
+            `unsaved:${props.activeDocumentId}`
+          }
           {...props}
           capabilities={capabilities}
           onDirty={setDirty}
@@ -222,6 +225,33 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
                 : "No run yet"}
         </p>
         {error && <pre role="alert">{error}</pre>}
+        {error && run && (
+          <button
+            onClick={() =>
+              void session
+                .handle({ operation: "read", runId: run.id })
+                .then(receive)
+            }
+          >
+            Refresh run status
+          </button>
+        )}
+        {run?.state === "lost" && (
+          <p>
+            The executor response is unknown. This run was not automatically
+            resubmitted; inspect its evidence before choosing a new run.
+          </p>
+        )}
+        {(run || prepared) && (
+          <details>
+            <summary>Input identity</summary>
+            <pre>
+              {run
+                ? `Run ${run.id}\nInput ${run.inputRevision}`
+                : `Prepared ${prepared!.id}\nInput ${prepared!.inputRevision}`}
+            </pre>
+          </details>
+        )}
         {prepared?.warnings.map((warning, i) => (
           <p key={i}>{warning}</p>
         ))}
