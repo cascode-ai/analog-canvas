@@ -134,10 +134,26 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     if (result.status === "failed") setError(result.message);
   };
   const running = run && ["running", "cancelling"].includes(run.state);
-  const artifacts = [
-    ...(prepared?.artifacts ?? []),
-    ...(run?.artifacts ?? []),
-  ].filter((a, i, all) => all.findIndex((b) => b.id === a.id) === i);
+  const artifactGroups = [
+    ...(prepared
+      ? [
+          {
+            label: "Prepared input",
+            identity: prepared.id,
+            artifacts: prepared.artifacts,
+          },
+        ]
+      : []),
+    ...(run
+      ? [
+          {
+            label: "Run evidence",
+            identity: `${run.id} / prepared ${run.preparedId}`,
+            artifacts: run.artifacts,
+          },
+        ]
+      : []),
+  ];
   return (
     <section
       hidden={!open}
@@ -246,9 +262,10 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
           <details>
             <summary>Input identity</summary>
             <pre>
-              {run
-                ? `Run ${run.id}\nInput ${run.inputRevision}`
-                : `Prepared ${prepared!.id}\nInput ${prepared!.inputRevision}`}
+              {prepared &&
+                `Prepared ${prepared.id}\nInput ${prepared.inputRevision}\n`}
+              {run &&
+                `Run ${run.id}\nPrepared ${run.preparedId}\nInput ${run.inputRevision}`}
             </pre>
           </details>
         )}
@@ -348,16 +365,17 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
             </details>
           </>
         )}
-        {artifacts.length > 0 && (
-          <details open>
-            <summary>Export artifacts</summary>
-            {artifacts.map((a) => (
+        {artifactGroups.map((group) => (
+          <details open key={group.label} aria-label={group.label}>
+            <summary>{group.label}</summary>
+            <small>{group.identity}</small>
+            {group.artifacts.map((a) => (
               <button key={a.id} onClick={() => void download(a)}>
                 {a.name}
               </button>
             ))}
           </details>
-        )}
+        ))}
       </div>
     </section>
   );

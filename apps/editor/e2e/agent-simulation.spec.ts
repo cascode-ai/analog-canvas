@@ -177,6 +177,18 @@ test("human simulation uses saved setup, survives closing, recovers a bad input 
     .first()
     .click();
   expect((await download).suggestedFilename()).toMatch(/\.csv$/);
+  const oldRunIdentity = await panel
+    .getByLabel("Run evidence")
+    .locator("small")
+    .innerText();
+  await panel.getByRole("button", { name: "Prepare deck" }).click();
+  await expect(
+    panel.getByLabel("Prepared input").locator("small"),
+  ).not.toHaveText(oldRunIdentity.split(" / prepared ")[1]!);
+  await expect(panel.getByLabel("Run evidence").locator("small")).toHaveText(
+    oldRunIdentity,
+  );
+  expect(executions).toBe(1);
   await panel.getByText("Setup", { exact: true }).click();
   await panel.getByLabel("Temperature (°C)").fill("30");
   await panel.getByRole("button", { name: "Apply setup" }).click();
