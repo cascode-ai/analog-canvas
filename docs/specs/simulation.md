@@ -588,6 +588,15 @@ snapshot and never changes the run or its timers.
 
 ## Run lifecycle
 
+The capability response does not maintain a second analysis allow-list. Its
+structured `analyses` are read from the selected hosted Profile's qualified
+scope; `parsedAnalyses` is reported separately because the rawfile reader may
+understand results which structured preparation is not yet qualified to
+author. The response also advertises the execution harness' `maxOutputBytes`.
+Preparation estimates ASCII rawfile size from analysis points and compiled
+probe vectors. Exceeding that estimate adds a truncation warning but never
+blocks an Agent or human from starting the run.
+
 The service exposes `prepare`, `start`, `read`, `cancel`, and `export`.
 `start` executes exactly the prepared input whose digest it was given and
 returns a short receipt with a run id; `read` returns status or the final

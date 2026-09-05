@@ -16,7 +16,16 @@ import {
   type Problem,
   type SimulationOperation,
 } from "./contract.js";
+import {
+  outputVolumeWarning,
+  type ResultVolumeAnalysis,
+} from "./result-volume.js";
 import { SimulationFiles, sha256 } from "./files.js";
+
+type StructuredResultVolumeAnalysis = Extract<
+  ResultVolumeAnalysis,
+  { kind: "op" | "ac" }
+>;
 
 export interface ExecutionInput {
   mode: "structured" | "raw";
@@ -224,6 +233,7 @@ export class SimulationService {
     let input: ExecutionInput;
     let vectors: Prepared["vectors"] = [];
     let warnings: string[] = [];
+    let structuredAnalyses: StructuredResultVolumeAnalysis[] | null = null;
     if (op.source.kind === "structured") {
       const project = structuredClone(this.getProject());
       const setup = op.source.setup ?? project.simulation;
@@ -266,6 +276,9 @@ export class SimulationService {
       };
       vectors = [...compiled.vectors];
       warnings = compiled.warnings.map((w) => w.message);
+      structuredAnalyses = setup.input.analyses.map((analysis) => ({
+        ...analysis,
+      }));
     } else {
       const read = this.files.snapshot(
         op.source.workspaceId,
@@ -303,6 +316,23 @@ export class SimulationService {
         "The selected Profile does not support this corner",
         "prepare",
       );
+    if (structuredAnalyses) {
+      const unsupported = structuredAnalyses.find(
+        (analysis) => !caps.analyses.includes(analysis.kind),
+      );
+      if (unsupported)
+        return problem(
+          "SIMULATION_ANALYSIS_UNQUALIFIED",
+          `Analysis ${unsupported.kind} is not qualified by the selected Profile`,
+          "prepare",
+        );
+      const volumeWarning = outputVolumeWarning(
+        structuredAnalyses,
+        vectors.length,
+        caps.maxOutputBytes,
+      );
+      if (volumeWarning) warnings.push(volumeWarning);
+    }
     input.preparedDeck =
       input.mode === "raw"
         ? input.testbench

@@ -68,6 +68,10 @@ describe("simulation route", () => {
     expect(await response!.json()).toMatchObject({
       configured: false,
       inputs: ["structured", "raw"],
+      analyses: hostedSky130Profile.qualifiedScope.analyses,
+      parsedAnalyses: ["op", "ac", "tran"],
+      maxInputBytes: 2 * 1024 * 1024,
+      maxOutputBytes: 1024 * 1024,
       cancel: true,
     });
   });

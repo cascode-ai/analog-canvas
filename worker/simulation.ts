@@ -56,6 +56,8 @@ export interface SimulationEnv {
   SKY130_LIB_PATH?: string;
   /** Section in the sectioned Sky130 library; `tt` when omitted. */
   SKY130_LIB_SECTION?: string;
+  /** Must match the selected harness' SIMULATION_MAX_OUTPUT_BYTES. */
+  SIMULATION_MAX_OUTPUT_BYTES?: string;
 }
 
 // The continuous (unbinned) Sky130 library the benchmark image ships; the
@@ -63,6 +65,14 @@ export interface SimulationEnv {
 
 /** A deck this large is a mistake upstream, not a simulation worth waking for. */
 const MAX_INPUT_BYTES = 2 * 1024 * 1024;
+const DEFAULT_MAX_OUTPUT_BYTES = 1024 * 1024;
+
+function advertisedMaxOutputBytes(env: SimulationEnv): number {
+  const configured = Number(env.SIMULATION_MAX_OUTPUT_BYTES);
+  return Number.isInteger(configured) && configured > 0
+    ? configured
+    : DEFAULT_MAX_OUTPUT_BYTES;
+}
 
 /**
  * Cloudflare Containers are owned by a named Durable Object. An image deploy
@@ -282,7 +292,7 @@ export async function routeSimulationRequest(
     return Response.json({
       configured: !!selected,
       inputs: ["structured", "raw"],
-      analyses: ["op", "ac"],
+      analyses: hostedSky130Profile.qualifiedScope.analyses,
       parsedAnalyses: ["op", "ac", "tran"],
       profiles: [
         {
@@ -295,7 +305,8 @@ export async function routeSimulationRequest(
         section: env.SKY130_LIB_SECTION ?? SKY130_LIBRARY_SECTION,
       },
       maxTimeoutMs: 120000,
-      maxInputBytes: 1024 * 1024,
+      maxInputBytes: MAX_INPUT_BYTES,
+      maxOutputBytes: advertisedMaxOutputBytes(env),
       cancel: true,
     });
   }
