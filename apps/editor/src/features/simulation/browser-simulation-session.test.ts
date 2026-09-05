@@ -40,7 +40,10 @@ describe("browser simulation ownership", () => {
     expect(
       await human.handle({
         operation: "prepare",
-        source: { kind: "structured" },
+        source: {
+          kind: "project-setup",
+          expectedStructureRevision: project.structureRevision,
+        },
       }),
     ).toMatchObject({ ok: false, error: { code: "SIMULATION_SETUP_MISSING" } });
     expect(await human.handle({ operation: "capabilities" })).toMatchObject({

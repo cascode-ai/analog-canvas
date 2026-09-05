@@ -133,7 +133,13 @@ describe("MCP / browser Simulation Resource parity", () => {
     };
     try {
       const bad = await invoke("simulation", {
-        request: { operation: "prepare", source: { kind: "structured" } },
+        request: {
+          operation: "prepare",
+          source: {
+            kind: "project-setup",
+            expectedStructureRevision: project.structureRevision,
+          },
+        },
       });
       expect(bad).toMatchObject({
         ok: false,
@@ -167,7 +173,7 @@ describe("MCP / browser Simulation Resource parity", () => {
         request: {
           operation: "prepare",
           source: {
-            kind: "raw",
+            kind: "workspace",
             workspaceId,
             expectedRevision: 1,
             environment: { profileId: profile.id },

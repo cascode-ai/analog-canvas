@@ -382,7 +382,7 @@ describe("public Agent session routes", () => {
         ...base,
         requestId: "bad",
         operation: "prepare",
-        source: { kind: "structured" },
+        source: { kind: "project-setup", expectedStructureRevision: 0 },
       },
       claim.agentToken,
     );

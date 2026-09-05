@@ -125,10 +125,11 @@ same contract as `/api/agent/sessions/{sessionId}/simulation`:
    starting the simulator.
 2. Configure the Project through `advanced_transact` with the existing
    `set_simulation_setup` structure edit. Sources, DUT instances, formal ports,
-   and wiring remain ordinary Project edits. Alternatively provide an inline
-   setup to `prepare`; this does not replace the saved setup.
-3. `prepare` with `source:{kind:"structured"}` freezes the saved setup and
-   circuit. It returns `prepared.id`, `digest`, vectors, and export references.
+   and wiring remain ordinary Project edits.
+3. `prepare` with `source:{kind:"project-setup",expectedStructureRevision}`
+   freezes the saved structured or raw setup. It returns `prepared.id`,
+   `digest`, vectors, and export references. A stale Project revision is a
+   recoverable reprepare result; no inline setup bypasses Project ownership.
 4. `start` with `preparedId` and `digest` returns `run.id` immediately. Supply
    an explicit outer `requestId` and reuse it unchanged for a transport retry.
 5. `read` / `cancel` use `runId`. Each new poll uses a new request ID. A result
@@ -145,12 +146,18 @@ For **graphless/raw** authoring, call `simulation_files` to `create`, then
 use `list` if a lost response left the workspace ID unknown. Continue with
 `update` with `workspaceId`, `expectedRevision`, `entry`, and `writes` of
 `{path,text}`. Author a complete SPICE entry and relative include files; helpers
-are optional. Prepare with `source:{kind:"raw",workspaceId,expectedRevision,
+are optional. Prepare with `source:{kind:"workspace",workspaceId,expectedRevision,
 environment:{profileId}}`. Raw deck text owns analyses, temperature and model
 directives; the service does not append sources, analysis commands or `.end`.
 Capabilities identifies the installed model library for an explicit `.lib`.
 Paths are workspace-relative, without traversal or overriding `.spiceinit`.
 This does not replace the Project and needs no Project import approval.
+
+A persisted raw Project setup uses the same `project-setup` prepare source as
+a structured setup. Its authored files remain inside the Project. Declared
+external dependencies must be resolved by an available environment owner;
+the service never reads arbitrary host paths and reports unavailable
+dependencies as located, recoverable prepare diagnostics.
 
 An input error, missing model, busy executor, timeout or failed simulation
 does not revoke the session. Read `error.code`, `stage`, `recovery` and any
