@@ -132,7 +132,10 @@ export const CircuitProjectSchema = z
         path: ["topDocumentId"],
       });
     }
-    const simulationRootId = project.simulation?.input.rootDocumentId;
+    const simulationRootId =
+      project.simulation?.input.kind === "structured"
+        ? project.simulation.input.rootDocumentId
+        : undefined;
     if (
       simulationRootId !== undefined &&
       !project.documents.some((document) => document.id === simulationRootId)

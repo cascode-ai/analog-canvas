@@ -1023,6 +1023,68 @@ describe("Project structural transaction", () => {
     });
   });
 
+  it("replaces and clears a raw simulation setup without a Canvas root", () => {
+    const project = createEmptyProject("project", "Project");
+    const unrelated = createEmptyDocument("document-unrelated", "Unrelated");
+    project.documents.push(unrelated);
+    const actor = { kind: "agent" as const, id: "agent" };
+    const setup = {
+      version: 1 as const,
+      input: {
+        kind: "raw" as const,
+        entry: "tb.cir",
+        files: [{ path: "tb.cir", text: "V1 in 0 1\n.end\n" }],
+        dependencies: [],
+        environment: { profileId: "custom-ngspice46-v1" },
+      },
+    };
+
+    const configured = executeProjectTransaction(project, {
+      transactionId: "set-raw-setup",
+      projectId: project.id,
+      expectedStructureRevision: 0,
+      actor,
+      edits: [{ kind: "set_simulation_setup", setup }],
+    });
+    expect(configured).toMatchObject({
+      ok: true,
+      applied: true,
+      structureRevision: 1,
+      project: { simulation: setup },
+    });
+    if (!configured.ok) return;
+
+    const removed = executeProjectTransaction(configured.project, {
+      transactionId: "remove-unrelated-cell",
+      projectId: project.id,
+      expectedStructureRevision: 1,
+      actor,
+      edits: [{ kind: "remove_document", documentId: unrelated.id }],
+    });
+    expect(removed).toMatchObject({
+      ok: true,
+      applied: true,
+      structureRevision: 2,
+      project: { simulation: setup },
+    });
+    if (!removed.ok) return;
+
+    const cleared = executeProjectTransaction(removed.project, {
+      transactionId: "clear-raw-setup",
+      projectId: project.id,
+      expectedStructureRevision: 2,
+      actor,
+      edits: [{ kind: "set_simulation_setup", setup: null }],
+    });
+    expect(cleared).toMatchObject({
+      ok: true,
+      applied: true,
+      structureRevision: 3,
+    });
+    if (!cleared.ok) return;
+    expect(cleared.project).not.toHaveProperty("simulation");
+  });
+
   it("removes an Instance before deleting its now-unreferenced Cell", () => {
     const project = createEmptyProject("project", "Project");
     const child = createEmptyDocument("document-child", "Child");

@@ -57,9 +57,10 @@ export const ProjectStructureEditSchema = z.discriminatedUnion("kind", [
   }),
   /**
    * Replace or clear the Project's one persisted `SimulationSetup` (ADR 0055).
-   * A non-null setup replaces the current one whole and must name a Document
-   * of the Project as its root; `null` clears it. Source values stay on the
-   * source Instances and are edited through ordinary Document edits.
+   * A non-null setup replaces the current one whole; a structured setup must
+   * name a Document of the Project as its root, while a raw setup owns its
+   * authored files and has no Canvas root. `null` clears it. Source values stay
+   * on the source Instances and are edited through ordinary Document edits.
    */
   z.strictObject({
     kind: z.literal("set_simulation_setup"),
@@ -333,7 +334,10 @@ export function executeProjectTransaction(
           "The top Cell cannot be deleted",
         );
       }
-      if (edit.documentId === candidate.simulation?.input.rootDocumentId) {
+      if (
+        candidate.simulation?.input.kind === "structured" &&
+        edit.documentId === candidate.simulation.input.rootDocumentId
+      ) {
         // Deleting the Testbench would leave the setup pointing nowhere, and
         // dropping the setup silently would lose authored intent; the author
         // clears or re-roots it first, in the same transaction if they like.
@@ -509,15 +513,19 @@ export function executeProjectTransaction(
         structuralChange = true;
         continue;
       }
-      const rootDocumentId = edit.setup.input.rootDocumentId;
-      if (
-        !candidate.documents.some((document) => document.id === rootDocumentId)
-      ) {
-        return rejectProjectTransaction(
-          project,
-          "OBJECT_NOT_FOUND",
-          `Simulation root Document does not exist: ${rootDocumentId}`,
-        );
+      if (edit.setup.input.kind === "structured") {
+        const rootDocumentId = edit.setup.input.rootDocumentId;
+        if (
+          !candidate.documents.some(
+            (document) => document.id === rootDocumentId,
+          )
+        ) {
+          return rejectProjectTransaction(
+            project,
+            "OBJECT_NOT_FOUND",
+            `Simulation root Document does not exist: ${rootDocumentId}`,
+          );
+        }
       }
       // Both sides are schema outputs with the schema's key order, so equal
       // JSON is equal intent; an unchanged setup does not advance the

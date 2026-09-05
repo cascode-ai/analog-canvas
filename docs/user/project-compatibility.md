@@ -1,6 +1,6 @@
 # Project File Compatibility
 
-The released Project schema version is `38`. It retains schematic-only
+The released Project schema version is `39`. It retains schematic-only
 hierarchy integrity, a Project structural revision, stable formal Cell ports,
 and definition-level Cell symbol presentation. It also has one typed Instance
 netlist authority, formal Cell parameters, and Project-local external
@@ -33,7 +33,7 @@ text, a fraction, or a coefficient needs more room, and never clips or shrinks
 the formula to satisfy an undersized request. A canonical v34 file can be
 opened, saved, reopened, and saved again without byte drift.
 
-Schemas v24 through v38 are accepted through the explicit chained upgrades.
+Schemas v24 through v39 are accepted through the explicit chained upgrades.
 Schema v32 adds optional `Annotation.textColor`; schema v33 removes the
 ownerless `explicit-equivalence` record. A v32 file without that record changes
 only its version stamp. A file containing it is rejected at the exact evidence
@@ -49,8 +49,11 @@ retaining descriptive attached text. Schema v37 adds the optional Project
 and probes to run, and which simulator profile to use; simulation results are
 never saved, and a v36 file changes only its version stamp. Schema v38 adds
 structured TRAN parameters in seconds; a v37 file also changes only its stamp.
+Schema v39 adds the mutually exclusive raw simulation setup with bounded
+authored files and external dependency identity; a v38 file changes only its
+stamp.
 The original file is never overwritten silently. Schemas older than v24 and
-versions newer than v38 are rejected by the project-file boundary.
+versions newer than v39 are rejected by the project-file boundary.
 
 The canonical-current corpus at
 [`fixtures/projects/compatibility-corpus.json`](../../fixtures/projects/compatibility-corpus.json)

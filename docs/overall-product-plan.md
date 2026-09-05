@@ -68,7 +68,7 @@ revision, lock, or transaction invariants.
   ordered hierarchy interface rather than another Net-label mechanism.
 - Routes describe visible geometry; they may stretch locally during movement
   without changing logical connectivity.
-- A Project's canonical content is schema-38 JSON. Explicit Save updates one
+- A Project's canonical content is schema-39 JSON. Explicit Save updates one
   stable private Cloud Project; `.icproj.json` is portable interchange, and
   browser recovery is an origin-local, non-authoritative copy.
 - Visual variants may change presentation but never remove electrical terminal

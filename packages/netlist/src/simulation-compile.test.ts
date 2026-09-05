@@ -10,7 +10,8 @@ import {
   deriveStableId,
   type CircuitProject,
   type SchematicDocument,
-  type SimulationSetup,
+  type SimulationStructuredInput,
+  type SimulationStructuredSetup,
 } from "@icm/model";
 import {
   buildSimulationDeck,
@@ -141,7 +142,7 @@ function dividerProject(): CircuitProject {
   return project;
 }
 
-const DIVIDER_SETUP: SimulationSetup = {
+const DIVIDER_SETUP: SimulationStructuredSetup = {
   version: 1,
   input: {
     kind: "structured",
@@ -275,8 +276,8 @@ function hierarchicalProject(): CircuitProject {
 }
 
 function setupWith(
-  overrides: Partial<SimulationSetup["input"]>,
-): SimulationSetup {
+  overrides: Partial<SimulationStructuredInput>,
+): SimulationStructuredSetup {
   return {
     version: 1,
     input: { ...DIVIDER_SETUP.input, probes: [], ...overrides },
@@ -285,7 +286,7 @@ function setupWith(
 
 async function compile(
   project: CircuitProject,
-  setup: SimulationSetup,
+  setup: SimulationStructuredSetup,
   options?: { timeoutMs?: number },
 ) {
   return compileStructuredSimulation(project, setup, options);
@@ -793,7 +794,7 @@ describe("determinism", () => {
     const repeated = await compile(dividerProject(), DIVIDER_SETUP);
     const reopened = await compile(
       JSON.parse(JSON.stringify(dividerProject())) as CircuitProject,
-      JSON.parse(JSON.stringify(DIVIDER_SETUP)) as SimulationSetup,
+      JSON.parse(JSON.stringify(DIVIDER_SETUP)) as SimulationStructuredSetup,
     );
 
     expect(repeated).toEqual(first);

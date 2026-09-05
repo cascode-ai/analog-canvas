@@ -216,8 +216,9 @@ supersede the sentences of the original decision they contradict; the
 6. **Persistence.** A Project may carry one optional `SimulationSetup`
    holding either the structured input or the raw files. Results, run ids,
    receipts, simulator paths, and caches are never persisted, including a
-   "recent run" link. The schema version moves when the setup lands, not
-   before.
+   "recent run" link. Schema 37 introduced the structured setup, schema 38
+   added structured TRAN, and schema 39 adds raw authored files plus external
+   dependency identity. Existing Projects gain no invented setup at any step.
 7. **Environment.** The hosted simulator is a container image pinned by
    digest, and the model set is part of that pin. Direction chosen: the
    image is built on the benchmark toolchain image

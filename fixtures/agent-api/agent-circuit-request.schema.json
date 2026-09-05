@@ -14070,6 +14070,36 @@
           "properties": {
             "kind": {
               "type": "string",
+              "const": "place-cell"
+            },
+            "childDocumentId": {
+              "$ref": "#/$defs/__schema1"
+            },
+            "instanceId": {
+              "$ref": "#/$defs/__schema1"
+            },
+            "reference": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "placement": {
+              "$ref": "#/$defs/__schema23"
+            }
+          },
+          "required": [
+            "kind",
+            "childDocumentId",
+            "instanceId",
+            "placement"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
               "const": "place-existing"
             },
             "instanceId": {
@@ -14725,32 +14755,64 @@
                       "const": 1
                     },
                     "input": {
-                      "type": "object",
-                      "properties": {
-                        "kind": {
-                          "$ref": "#/$defs/__schema372"
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "$ref": "#/$defs/__schema372"
+                            },
+                            "rootDocumentId": {
+                              "$ref": "#/$defs/__schema1"
+                            },
+                            "analyses": {
+                              "$ref": "#/$defs/__schema373"
+                            },
+                            "probes": {
+                              "$ref": "#/$defs/__schema385"
+                            },
+                            "environment": {
+                              "$ref": "#/$defs/__schema388"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "rootDocumentId",
+                            "analyses",
+                            "probes",
+                            "environment"
+                          ],
+                          "additionalProperties": false
                         },
-                        "rootDocumentId": {
-                          "$ref": "#/$defs/__schema1"
-                        },
-                        "analyses": {
-                          "$ref": "#/$defs/__schema373"
-                        },
-                        "probes": {
-                          "$ref": "#/$defs/__schema380"
-                        },
-                        "environment": {
-                          "$ref": "#/$defs/__schema383"
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "$ref": "#/$defs/__schema389"
+                            },
+                            "entry": {
+                              "$ref": "#/$defs/__schema390"
+                            },
+                            "files": {
+                              "$ref": "#/$defs/__schema391"
+                            },
+                            "dependencies": {
+                              "$ref": "#/$defs/__schema393"
+                            },
+                            "environment": {
+                              "$ref": "#/$defs/__schema388"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "entry",
+                            "files",
+                            "dependencies",
+                            "environment"
+                          ],
+                          "additionalProperties": false
                         }
-                      },
-                      "required": [
-                        "kind",
-                        "rootDocumentId",
-                        "analyses",
-                        "probes",
-                        "environment"
-                      ],
-                      "additionalProperties": false
+                      ]
                     }
                   },
                   "required": [
@@ -15170,6 +15232,32 @@
             "stopHz"
           ],
           "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "$ref": "#/$defs/__schema380"
+            },
+            "stepSeconds": {
+              "$ref": "#/$defs/__schema381"
+            },
+            "stopSeconds": {
+              "$ref": "#/$defs/__schema382"
+            },
+            "startSeconds": {
+              "$ref": "#/$defs/__schema383"
+            },
+            "maxStepSeconds": {
+              "$ref": "#/$defs/__schema384"
+            }
+          },
+          "required": [
+            "kind",
+            "stepSeconds",
+            "stopSeconds"
+          ],
+          "additionalProperties": false
         }
       ]
     },
@@ -15199,13 +15287,33 @@
       "exclusiveMinimum": 0
     },
     "__schema380": {
+      "type": "string",
+      "const": "tran"
+    },
+    "__schema381": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "__schema382": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "__schema383": {
+      "type": "number",
+      "minimum": 0
+    },
+    "__schema384": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "__schema385": {
       "maxItems": 1024,
       "type": "array",
       "items": {
-        "$ref": "#/$defs/__schema381"
+        "$ref": "#/$defs/__schema386"
       }
     },
-    "__schema381": {
+    "__schema386": {
       "oneOf": [
         {
           "type": "object",
@@ -15224,7 +15332,7 @@
               "$ref": "#/$defs/__schema1"
             },
             "occurrence": {
-              "$ref": "#/$defs/__schema382"
+              "$ref": "#/$defs/__schema387"
             }
           },
           "required": [
@@ -15253,7 +15361,7 @@
               "$ref": "#/$defs/__schema1"
             },
             "occurrence": {
-              "$ref": "#/$defs/__schema382"
+              "$ref": "#/$defs/__schema387"
             }
           },
           "required": [
@@ -15267,14 +15375,14 @@
         }
       ]
     },
-    "__schema382": {
+    "__schema387": {
       "maxItems": 64,
       "type": "array",
       "items": {
         "$ref": "#/$defs/__schema1"
       }
     },
-    "__schema383": {
+    "__schema388": {
       "type": "object",
       "properties": {
         "profileId": {
@@ -15293,6 +15401,67 @@
       },
       "required": [
         "profileId"
+      ],
+      "additionalProperties": false
+    },
+    "__schema389": {
+      "type": "string",
+      "const": "raw"
+    },
+    "__schema390": {
+      "type": "string"
+    },
+    "__schema391": {
+      "minItems": 1,
+      "maxItems": 24,
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/__schema392"
+      }
+    },
+    "__schema392": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/__schema390"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "text"
+      ],
+      "additionalProperties": false
+    },
+    "__schema393": {
+      "maxItems": 24,
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/__schema394"
+      }
+    },
+    "__schema394": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "mountPath": {
+          "$ref": "#/$defs/__schema390"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "id",
+        "mountPath",
+        "sha256"
       ],
       "additionalProperties": false
     }

@@ -187,19 +187,32 @@ Project save, recovery, Gallery, revision, and undo/redo boundaries; it is not
 stored in a simulation-only sidecar or a second persistence service.
 
 Schema 37 landed the optional `CircuitProject.simulation`; schema 38 extends
-its structured analysis union with explicit-SI transient parameters. The raw
-form joins `input` as a second `kind` when it lands.
+its structured analysis union with explicit-SI transient parameters. Schema
+39 adds the mutually exclusive raw input form without changing existing
+Projects.
 
 ```ts
 interface SimulationSetup {
   version: 1;
-  input: {
-    kind: "structured";
-    rootDocumentId: StableId; // the Testbench Cell, a Document of the Project
-    analyses: SimulationAnalysisSpec[]; // non-empty; at most one entry per kind
-    probes: SimulationProbeSpec[]; // ids unique
-    environment: { profileId: string; corner?: string; temperatureC?: number };
-  };
+  input: SimulationStructuredInput | SimulationRawInput;
+}
+interface SimulationStructuredInput {
+  kind: "structured";
+  rootDocumentId: StableId; // the Testbench Cell, a Document of the Project
+  analyses: SimulationAnalysisSpec[]; // non-empty; at most one entry per kind
+  probes: SimulationProbeSpec[]; // ids unique
+  environment: { profileId: string; corner?: string; temperatureC?: number };
+}
+interface SimulationRawInput {
+  kind: "raw";
+  entry: string; // safe relative path naming one authored file
+  files: Array<{ path: string; text: string }>;
+  dependencies: Array<{
+    id: string; // logical resolver identity
+    mountPath: string; // relative path referenced by authored SPICE
+    sha256: string; // lowercase digest of the external bytes
+  }>;
+  environment: { profileId: string; corner?: string; temperatureC?: number };
 }
 type SimulationAnalysisSpec =
   | { kind: "op" }
@@ -237,24 +250,34 @@ type SimulationProbeSpec =
 `occurrence` lists the hierarchy Instance ids from the root down to the
 Document that owns the probed object; it is empty when that object is in the
 root itself. `profileId` is the hosted Profile ID (today
-`sky130-core-continuous-ngspice46-v1`). The schema refuses a
+`sky130-core-continuous-ngspice46-v1`). The structured schema refuses a
 `rootDocumentId` that names no Document of the Project, a repeated analysis
 kind, and duplicate probe ids. Whether a probe's Net or Instance still exists
 is a preparation-time diagnostic, not a schema rule: a Document edit that
-removes a probed Net must never make the Project unsaveable.
+removes a probed Net must never make the Project unsaveable. Raw paths use one
+virtual relative namespace: no absolute paths, parent traversal, Windows drive
+syntax, control characters, or `.spiceinit`. The entry must be one authored
+file; authored and dependency mount paths are unique. Raw authored text is
+limited to 24 files and 1 MiB in schema 39, matching the first-release session
+workspace. External dependency bytes are not copied into the Project; logical
+identity, expected digest, and required mount path make absence or substitution
+explicit at preparation time.
 
 The setup is written through the Project structure edit
 `set_simulation_setup` (`{ setup: SimulationSetup | null }`), which replaces
 or clears it whole under the Project `structureRevision`; undo/redo, the
 Agent API's `structureEdits`, and Gallery convergence therefore treat it like
-any other structural change. Deleting the Cell a setup names as its root is
-refused until the setup is cleared or re-rooted.
+any other structural change. Deleting the Cell a structured setup names as its
+root is refused until the setup is cleared or re-rooted. A raw setup has no
+Canvas root, so unrelated Cell deletion does not affect it.
 
 Prepared decks and bundles are transient execution data. Environment-local
 model paths, run ids, receipts, logs, rawfiles, parsed results, simulator
 outputs, and caches are never persisted in the Project. A raw setup's authored
 source files are durable input; a prepared deck or copied execution workspace
-derived from them is not.
+derived from them is not. The current execution resource prepares raw input
+from its bounded session workspace; checkout/prepare directly from the new
+Project-persisted raw branch remains a separate transport integration step.
 
 A structured setup stores only a stable environment Profile ID and the
 author's allowed selections such as corner and temperature. It never copies a

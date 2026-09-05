@@ -15,9 +15,7 @@ describe("schema 37 to 38 migration (structured TRAN)", () => {
       schemaVersion: 37,
     } as unknown as Record<string, unknown>;
 
-    expect(upgradeSchema37To38(previous)).toMatchObject({
-      schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
-    });
+    expect(upgradeSchema37To38(previous)).toMatchObject({ schemaVersion: 38 });
     expect(upgradeSchema37To38WithReport(previous).report).toEqual({
       changed: false,
     });

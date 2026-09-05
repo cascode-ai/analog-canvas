@@ -121,6 +121,38 @@ async function prepareRaw(f: ReturnType<typeof fixture>) {
   return { prepared, workspaceId: created.workspace.id };
 }
 describe("shared simulation lifecycle", () => {
+  it("returns a recoverable mismatch when a raw Project setup is sent to structured prepare", async () => {
+    const f = fixture();
+    f.project.simulation = {
+      version: 1,
+      input: {
+        kind: "raw",
+        entry: "tb.cir",
+        files: [{ path: "tb.cir", text: deck }],
+        dependencies: [],
+        environment: { profileId: "test" },
+      },
+    };
+
+    expect(
+      await f.service.handle(
+        { operation: "prepare", source: { kind: "structured" } },
+        "raw-as-structured",
+      ),
+    ).toMatchObject({
+      ok: false,
+      error: {
+        code: "SIMULATION_INPUT_MODE_MISMATCH",
+        stage: "prepare",
+        recovery: "fix-input",
+      },
+    });
+    expect(f.executor.execute).not.toHaveBeenCalled();
+    expect(
+      await f.service.handle({ operation: "capabilities" }, "after-mismatch"),
+    ).toMatchObject({ ok: true, capabilities: { configured: true } });
+  });
+
   it("raw preparation does not mutate Project or execute; snapshots files and exports before running", async () => {
     const f = fixture(),
       before = structuredClone(f.project);
@@ -355,6 +387,8 @@ describe("shared simulation lifecycle", () => {
   it("prepares qualified TRAN and keeps an oversized estimate advisory", async () => {
     const project = CircuitProjectSchema.parse(ota);
     if (!project.simulation) throw new Error("fixture has no setup");
+    if (project.simulation.input.kind !== "structured")
+      throw new Error("fixture setup is not structured");
     project.simulation.input.analyses = [
       { kind: "tran", stepSeconds: 1e-9, stopSeconds: 1e-3 },
     ];

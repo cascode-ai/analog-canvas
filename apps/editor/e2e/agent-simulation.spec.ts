@@ -30,9 +30,13 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
   page,
 }) => {
   const project = parseProject(JSON.stringify(ota));
-  expect(project.simulation!.input.probes).toHaveLength(4);
+  expect(project.simulation?.input.kind).toBe("structured");
+  if (project.simulation?.input.kind !== "structured")
+    throw new Error("qualified OTA fixture setup is not structured");
+  const originalSetupInput = project.simulation.input;
+  expect(originalSetupInput.probes).toHaveLength(4);
   expect(
-    project.simulation!.input.probes.filter((p) => p.occurrence.length > 0),
+    originalSetupInput.probes.filter((p) => p.occurrence.length > 0),
   ).toHaveLength(2);
   let executions = 0;
   await page.route("**/api/simulate", async (route) => {
@@ -65,7 +69,7 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
   const panel = page.getByRole("region", { name: "Analog simulation" });
   await panel.getByText("Setup", { exact: true }).click();
   await expect(panel.getByLabel("Testbench Cell")).toHaveValue(
-    project.simulation!.input.rootDocumentId,
+    originalSetupInput.rootDocumentId,
   );
   await expect(panel.getByLabel("Stop (Hz)")).toHaveValue("1000000000");
   await expect(panel.getByLabel("Environment profile")).toHaveValue(profile.id);
@@ -109,8 +113,7 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
     (await downloadBytes(page, "File", "Export Project File…")).toString(),
   );
   const { probes: savedProbes, ...savedInput } = saved.simulation.input;
-  const { probes: originalProbes, ...originalInput } =
-    project.simulation!.input;
+  const { probes: originalProbes, ...originalInput } = originalSetupInput;
   expect(savedInput).toEqual(originalInput);
   expect(savedProbes.slice(0, 4)).toEqual(originalProbes);
   expect(savedProbes.slice(4)).toMatchObject([

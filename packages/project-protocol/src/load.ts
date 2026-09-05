@@ -26,6 +26,7 @@ import {
   upgradeSchema35To36,
   upgradeSchema36To37,
   upgradeSchema37To38,
+  upgradeSchema38To39,
 } from "./previous-to-current.js";
 import { repairBoundFormatOverrides } from "./transforms/bound-format-override.js";
 import { repairLegacyReviewedExternalReferences } from "./transforms/reviewed-external-reference.js";
@@ -54,6 +55,7 @@ const UPGRADE_CHAIN: ReadonlyArray<
   upgradeSchema35To36,
   upgradeSchema36To37,
   upgradeSchema37To38,
+  upgradeSchema38To39,
 ];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
