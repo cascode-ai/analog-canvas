@@ -54,6 +54,7 @@ export interface EditorAppChromeProps {
   onOpenInstanceTable: () => void;
   onOpenNetlistPreflight: () => void;
   agentAction: { label: string; execute: () => void } | null;
+  simulationAction?: () => void;
   publishGalleryOpen: boolean;
   onPublishGallery: () => void;
   helpButtonRef: RefObject<HTMLButtonElement | null>;
@@ -95,6 +96,7 @@ export function EditorAppChrome({
   onOpenInstanceTable,
   onOpenNetlistPreflight,
   agentAction,
+  simulationAction,
   publishGalleryOpen,
   onPublishGallery,
   helpButtonRef,
@@ -300,6 +302,15 @@ export function EditorAppChrome({
                 </button>
               </div>
             </details>
+            {simulationAction ? (
+              <button
+                type="button"
+                data-testid="open-analog-simulation"
+                onClick={simulationAction}
+              >
+                Simulation
+              </button>
+            ) : null}
             {agentAction ? (
               <details className="command-menu" name="editor-command-menu">
                 <summary>Agent</summary>

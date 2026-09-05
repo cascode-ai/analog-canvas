@@ -1,5 +1,70 @@
 /* Local-development Digital Simulation tool window and waveform viewer. */
 
+/* Analog is a lazy, non-modal drawer; the original canvas remains editable. */
+.spice-simulation-surface {
+  position: fixed;
+  top: 90px;
+  right: 16px;
+  z-index: 29;
+  width: min(510px, calc(100vw - 32px));
+  max-height: calc(100dvh - 120px);
+  overflow: auto;
+  border: 1px solid var(--icm-border-strong);
+  border-radius: var(--icm-radius-md);
+  background: var(--icm-surface);
+  color: var(--icm-text);
+  box-shadow: var(--icm-shadow-md);
+}
+.spice-simulation-surface[hidden] {
+  display: none;
+}
+.spice-simulation-surface header,
+.spice-simulation-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.spice-simulation-surface header {
+  padding: 12px;
+  border-bottom: 1px solid var(--icm-border);
+}
+.spice-simulation-surface header button {
+  margin-left: auto;
+}
+.spice-simulation-body {
+  padding: 12px;
+}
+.spice-simulation-surface label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 8px 0;
+}
+.spice-simulation-surface input:not([type="checkbox"]),
+.spice-simulation-surface select {
+  min-width: 0;
+  max-width: 65%;
+}
+.spice-simulation-surface details {
+  margin: 12px 0;
+}
+.spice-simulation-surface pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 260px;
+  overflow: auto;
+}
+.spice-simulation-surface table {
+  width: 100%;
+  text-align: left;
+}
+.spice-ac-plot svg {
+  width: 100%;
+  height: auto;
+}
+
 .digital-simulation-window {
   position: fixed;
   top: 96px;

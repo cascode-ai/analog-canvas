@@ -14,7 +14,216 @@ const profile = JSON.parse(
     "utf8",
   ),
 ) as { id: string };
-import { openMenu } from "./editor-fixtures.js";
+import { openMenu, downloadBytes } from "./editor-fixtures.js";
+import { CircuitProjectSchema } from "@icm/model";
+import ota from "../src/examples/five-transistor-ota-sky130.icproj.json";
+
+test("human simulation uses saved setup, survives closing, recovers a bad input and exports results", async ({
+  page,
+}) => {
+  const project = CircuitProjectSchema.parse(ota);
+  project.simulation = {
+    version: 1,
+    input: {
+      kind: "structured",
+      rootDocumentId: project.topDocumentId,
+      analyses: [
+        { kind: "op" },
+        { kind: "ac", sweep: "dec", points: 10, startHz: 1, stopHz: 1e6 },
+      ],
+      probes: [
+        {
+          id: "out",
+          kind: "net-voltage",
+          documentId: project.topDocumentId,
+          netId: "missing-net",
+          occurrence: [],
+        },
+      ],
+      environment: { profileId: profile.id },
+    },
+  };
+  let calls = 0,
+    executions = 0,
+    cancellations = 0;
+  let release = () => {};
+  let pending = new Promise<void>((r) => {
+    release = r;
+  });
+  await page.route("**/api/simulate", async (route) => {
+    calls++;
+    const body = route.request().postDataJSON();
+    if (body.operation === "capabilities")
+      return route.fulfill({
+        json: {
+          configured: true,
+          inputs: ["structured", "raw"],
+          analyses: ["op", "ac"],
+          parsedAnalyses: ["op", "ac", "tran"],
+          profiles: [{ id: profile.id, corners: ["tt"] }],
+          maxTimeoutMs: 120000,
+          maxInputBytes: 1048576,
+          cancel: true,
+        },
+      });
+    if (body.operation === "cancel") {
+      cancellations++;
+      release();
+      return route.fulfill({ json: { ok: true } });
+    }
+    executions++;
+    await pending;
+    const rawfile = readFileSync(
+      new URL(
+        "../../../fixtures/ngspice-rawfile/divider-op.raw",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    const reading = readSimulationData(rawfile);
+    if (reading.status !== "read") throw Error("raw fixture");
+    await route.fulfill({
+      json: {
+        outcome: { status: "completed" },
+        diagnostics: [],
+        log: "ngspice OP",
+        durationMs: 1,
+        data: {
+          ...reading.data,
+          analyses: [
+            ...reading.data.analyses,
+            {
+              analysis: "ac",
+              plotName: "AC response",
+              frequencyHz: [1, 10, 100],
+              probes: [
+                {
+                  name: "v(out)",
+                  quantity: "voltage",
+                  unit: "V",
+                  real: [10, 7, 1],
+                  imag: [0, -3, -1],
+                },
+              ],
+            },
+          ],
+        },
+        rawfile,
+        executedDeck: body.preparedDeck,
+        cancelled: cancellations > 0,
+        metadata: {
+          schemaVersion: 1,
+          input: await createSimulationInputMetadata({
+            inputRevision: body.inputRevision,
+            netlist: body.netlist,
+            testbench: body.testbench,
+            deck: body.preparedDeck,
+          }),
+          configuration: { modelLibrary: null },
+          environment: await createSimulationEnvironmentMetadata({
+            executor: "local-host",
+            reproducibility: "observed",
+            profileId: profile.id,
+            platform: "linux/x64",
+            simulator: { name: "ngspice", version: "47", binarySha256: null },
+            models: null,
+            startupSha256: null,
+          }),
+        },
+      },
+    });
+  });
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "simulation.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await expect(page.getByTestId("schematic-canvas")).toBeVisible();
+  expect(calls).toBe(0);
+  await page.getByTestId("open-analog-simulation").click();
+  const panel = page.getByRole("region", { name: "Analog simulation" });
+  await panel.getByRole("button", { name: "Run", exact: true }).click();
+  await expect(panel.getByRole("alert")).toContainText(/PROBE|probe/);
+  expect(executions).toBe(0);
+  await panel.getByText("Setup", { exact: true }).click();
+  await panel.getByRole("button", { name: "Remove probe" }).click();
+  await panel.getByLabel("Add voltage probe").selectOption("tb-vout-net");
+  await panel.getByRole("button", { name: "Apply setup" }).click();
+  await panel.getByRole("button", { name: "Run", exact: true }).click();
+  await expect.poll(() => executions).toBe(1);
+  await panel.getByRole("button", { name: "Close simulation" }).click();
+  expect(cancellations).toBe(0);
+  release();
+  await page.getByTestId("open-analog-simulation").click();
+  await expect(panel.getByRole("status")).toHaveText("finished · completed");
+  await expect(panel.getByRole("region", { name: "OP results" })).toContainText(
+    "0.500000",
+  );
+  await expect(panel.locator(".spice-ac-plot svg")).toHaveCount(1);
+  const download = page.waitForEvent("download");
+  await panel
+    .getByRole("button", { name: /\.csv$/ })
+    .first()
+    .click();
+  expect((await download).suggestedFilename()).toMatch(/\.csv$/);
+  await panel.getByText("Setup", { exact: true }).click();
+  await panel.getByLabel("Temperature (°C)").fill("30");
+  await panel.getByRole("button", { name: "Apply setup" }).click();
+  await expect(panel.getByRole("alert")).toContainText(
+    "earlier Project revision",
+  );
+  pending = new Promise<void>((r) => {
+    release = r;
+  });
+  await panel.getByRole("button", { name: "Run", exact: true }).click();
+  await expect.poll(() => executions).toBe(2);
+  await panel.getByRole("button", { name: "Cancel run" }).click();
+  await expect(panel.getByRole("status")).toContainText("cancelled");
+  expect(cancellations).toBe(1);
+  await panel.getByRole("button", { name: "Close simulation" }).click();
+  const saved = await downloadBytes(page, "File", "Export Project File…");
+  expect(
+    JSON.parse(saved.toString()).simulation.input.environment.temperatureC,
+  ).toBe(30);
+  await page.reload();
+  // Explicit import is the persistence contract, not browser recovery heuristics.
+  await page.getByTestId("project-file").setInputFiles({
+    name: "saved.icproj.json",
+    mimeType: "application/json",
+    buffer: saved,
+  });
+  await page.getByTestId("open-analog-simulation").click();
+  await panel.getByText("Setup", { exact: true }).click();
+  await expect(panel.getByLabel("Temperature (°C)")).toHaveValue("30");
+  await expect(panel.getByRole("status")).toHaveText("No run yet");
+});
+
+test("Simulation creates an ordinary testbench and offers the current Cell at the cursor", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await page.getByTestId("open-analog-simulation").click();
+  await page
+    .getByRole("button", { name: "New testbench from current Cell" })
+    .click();
+  await page
+    .getByTestId("schematic-canvas")
+    .click({ position: { x: 320, y: 180 } });
+  await page.keyboard.press("Escape");
+  const saved = JSON.parse(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(),
+  );
+  const tb = saved.documents.find(
+    (d: { name: string }) => d.name === "Main_tb",
+  );
+  expect(tb.instances[0].netlist.binding).toEqual({
+    kind: "subcircuit",
+    childDocumentId: "document-main",
+  });
+  expect(saved.topDocumentId).toBe("document-main");
+  expect(saved.simulation).toBeUndefined();
+});
 
 test("Agent raw simulation recovers input errors, returns a run receipt and exports through Files", async ({
   page,

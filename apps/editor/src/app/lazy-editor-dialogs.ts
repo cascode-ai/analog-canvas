@@ -31,6 +31,12 @@ export const LazyCellManagerDialog = lazyChunk("dialog", () =>
   })),
 );
 
+export const LazySpiceSimulationSurface = lazyChunk("inline", () =>
+  import("../features/simulation/spice-simulation-surface").then((module) => ({
+    default: module.SpiceSimulationSurface,
+  })),
+);
+
 export const LazyNetlistPreflightDialog = lazyChunk("dialog", () =>
   import("../features/netlist-export/netlist-preflight-dialog").then(
     (module) => ({ default: module.NetlistPreflightDialog }),
