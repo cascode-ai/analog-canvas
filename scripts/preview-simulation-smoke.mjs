@@ -35,10 +35,12 @@ if (qualification.profileId !== profile.id) {
     `Qualification ${qualification.fixtureId} targets ${String(qualification.profileId)}, not Profile ${profile.id}.`,
   );
 }
-if (!profile.qualifiedScope.analyses.includes(qualification.analysis)) {
-  throw new Error(
-    `Qualification ${qualification.fixtureId} uses undeclared analysis ${String(qualification.analysis)}.`,
-  );
+for (const analysis of qualification.analyses) {
+  if (!profile.qualifiedScope.analyses.includes(analysis)) {
+    throw new Error(
+      `Qualification ${qualification.fixtureId} uses undeclared analysis ${String(analysis)}.`,
+    );
+  }
 }
 if (
   qualification.modelLibrary.directive !== profile.models.library.directive ||
@@ -78,18 +80,44 @@ export const DIVIDER_REQUEST = {
   timeoutMs: 110_000,
 };
 
-export const HOSTED_SKY130_REQUEST = {
-  netlist: readFileSync(
-    new URL(`../${qualification.inputs.netlist}`, import.meta.url),
-    "utf8",
-  ),
-  testbench: readFileSync(
-    new URL(`../${qualification.inputs.testbench}`, import.meta.url),
-    "utf8",
-  ),
-  analyses: ["op"],
-  timeoutMs: 110_000,
-};
+export async function compileHostedSky130Project() {
+  const [{ compileStructuredSimulation }, { parseProject }] = await Promise.all(
+    [import("@icm/netlist"), import("@icm/project-protocol")],
+  );
+  const project = parseProject(
+    readFileSync(
+      new URL(`../${qualification.inputs.project}`, import.meta.url),
+      "utf8",
+    ),
+  );
+  if (!project.simulation) {
+    throw new Error(
+      `Qualification ${qualification.fixtureId} Project has no persisted SimulationSetup.`,
+    );
+  }
+  const selection = project.simulation.input.environment;
+  if (
+    selection.profileId !== qualification.profileId ||
+    selection.corner !== qualification.modelLibrary.section
+  ) {
+    throw new Error(
+      `Qualification ${qualification.fixtureId} Project does not select its declared Profile and corner.`,
+    );
+  }
+  const compiled = await compileStructuredSimulation(
+    project,
+    project.simulation,
+    { timeoutMs: 110_000 },
+  );
+  if (!compiled.ok) {
+    throw new Error(
+      `Qualification ${qualification.fixtureId} did not compile: ${compiled.diagnostics
+        .map((diagnostic) => `${diagnostic.code}: ${diagnostic.message}`)
+        .join(" | ")}`,
+    );
+  }
+  return compiled;
+}
 
 function object(value, label) {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -207,7 +235,16 @@ export function validatePreviewSimulationResult(payload, expectedTarget) {
   };
 }
 
-export function validateHostedSky130Result(payload, expectedTarget) {
+function relativeError(actual, expected) {
+  return Math.abs(actual - expected) / Math.max(Math.abs(expected), 1);
+}
+
+export function validateHostedSky130Result(
+  payload,
+  expectedTarget,
+  expectedInputRevision,
+  expectedVectors,
+) {
   const result = object(payload, "simulation response");
   const execution = object(result.execution, "execution metadata");
   if (execution.target !== expectedTarget) {
@@ -222,10 +259,9 @@ export function validateHostedSky130Result(payload, expectedTarget) {
   }
   const metadata = object(result.metadata, "run metadata");
   const input = object(metadata.input, "input metadata");
-  const expectedRevision = `preview-sky130-${expectedTarget}`;
-  if (input.inputRevision !== expectedRevision) {
+  if (input.inputRevision !== expectedInputRevision) {
     throw new Error(
-      `[result:stale-input] requested ${expectedRevision}, but the Worker returned ${String(input.inputRevision)}.`,
+      `[result:stale-input] requested ${expectedInputRevision}, but the Worker returned ${String(input.inputRevision)}.`,
     );
   }
   const configuration = object(
@@ -250,7 +286,7 @@ export function validateHostedSky130Result(payload, expectedTarget) {
         (analysis) =>
           typeof analysis === "object" &&
           analysis !== null &&
-          analysis.analysis === qualification.analysis,
+          analysis.analysis === "op",
       )
     : null;
   if (!operatingPoint || !Array.isArray(operatingPoint.probes)) {
@@ -275,6 +311,86 @@ export function validateHostedSky130Result(payload, expectedTarget) {
     }
     values[name] = probe.value;
   }
+
+  const ac = Array.isArray(data.analyses)
+    ? data.analyses.find(
+        (analysis) =>
+          typeof analysis === "object" &&
+          analysis !== null &&
+          analysis.analysis === "ac",
+      )
+    : null;
+  if (!ac || !Array.isArray(ac.frequencyHz) || !Array.isArray(ac.probes)) {
+    throw new Error(`${expectedTarget} returned no qualified AC result.`);
+  }
+  const expectedAc = qualification.expectedAc;
+  if (ac.frequencyHz.length !== expectedAc.pointCount) {
+    throw new Error(
+      `${expectedTarget} returned ${ac.frequencyHz.length} AC points, expected ${expectedAc.pointCount}.`,
+    );
+  }
+  const firstFrequency = ac.frequencyHz[0];
+  const lastFrequency = ac.frequencyHz.at(-1);
+  if (
+    typeof firstFrequency !== "number" ||
+    relativeError(firstFrequency, expectedAc.startHz) >
+      expectedAc.frequencyRelativeTolerance ||
+    typeof lastFrequency !== "number" ||
+    relativeError(lastFrequency, expectedAc.stopHz) >
+      expectedAc.frequencyRelativeTolerance
+  ) {
+    throw new Error(
+      `${expectedTarget} returned an unexpected AC frequency axis (${String(firstFrequency)} .. ${String(lastFrequency)}).`,
+    );
+  }
+  for (const binding of expectedVectors) {
+    const probe = ac.probes.find(
+      (candidate) =>
+        typeof candidate === "object" &&
+        candidate !== null &&
+        candidate.name === binding.vector,
+    );
+    if (!probe || !Array.isArray(probe.real) || !Array.isArray(probe.imag)) {
+      throw new Error(
+        `${expectedTarget} returned no AC series for ${binding.probeId} (${binding.vector}).`,
+      );
+    }
+    if (
+      probe.real.length !== expectedAc.pointCount ||
+      probe.imag.length !== expectedAc.pointCount
+    ) {
+      throw new Error(
+        `${expectedTarget} returned an incomplete AC series for ${binding.vector}.`,
+      );
+    }
+  }
+  for (const [name, expected] of Object.entries(expectedAc.probes)) {
+    const probe = ac.probes.find(
+      (candidate) =>
+        typeof candidate === "object" &&
+        candidate !== null &&
+        candidate.name === name,
+    );
+    if (!probe || !Array.isArray(probe.real) || !Array.isArray(probe.imag)) {
+      throw new Error(
+        `${expectedTarget} returned no qualified AC series ${name}.`,
+      );
+    }
+    for (const sample of expected.samples) {
+      const real = probe.real[sample.index];
+      const imag = probe.imag[sample.index];
+      if (
+        typeof real !== "number" ||
+        typeof imag !== "number" ||
+        Math.abs(real - sample.real) > sample.absoluteTolerance ||
+        Math.abs(imag - sample.imag) > sample.absoluteTolerance
+      ) {
+        throw new Error(
+          `${expectedTarget} solved ${name}[${sample.index}] as ${String(real)} + j${String(imag)}, expected ${sample.real} + j${sample.imag} ± ${sample.absoluteTolerance}.`,
+        );
+      }
+    }
+  }
   return {
     target: expectedTarget,
     fixtureId: qualification.fixtureId,
@@ -288,12 +404,12 @@ export async function runHostedSky130Acceptance({
   target,
   fetchImpl = fetch,
 }) {
+  const compiled = await compileHostedSky130Project();
   const response = await fetchImpl(new URL("/api/simulate", baseUrl), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
-      ...HOSTED_SKY130_REQUEST,
-      inputRevision: `preview-sky130-${target}`,
+      ...compiled.request,
       executorTarget: target,
     }),
     signal: AbortSignal.timeout(120_000),
@@ -313,7 +429,12 @@ export async function runHostedSky130Acceptance({
       `[infrastructure:${String(refusal.error ?? `http-${response.status}`)}] ${target} model qualification answered HTTP ${response.status}`,
     );
   }
-  return validateHostedSky130Result(payload, target);
+  return validateHostedSky130Result(
+    payload,
+    target,
+    compiled.request.inputRevision,
+    compiled.vectors,
+  );
 }
 
 export async function runPreviewSimulationSmoke({

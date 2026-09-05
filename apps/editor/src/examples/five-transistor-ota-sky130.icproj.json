@@ -554,6 +554,7 @@
               "kind": "primitive"
             },
             "parameters": {
+              "acMagnitude": "1",
               "dc": "0.9"
             }
           },
@@ -3014,6 +3015,60 @@
   "id": "project-five-transistor-ota-sky130",
   "name": "Five-Transistor OTA (Sky130)",
   "schemaVersion": 37,
+  "simulation": {
+    "version": 1,
+    "input": {
+      "kind": "structured",
+      "rootDocumentId": "document-ota-5t-testbench",
+      "analyses": [
+        {
+          "kind": "op"
+        },
+        {
+          "kind": "ac",
+          "sweep": "dec",
+          "points": 10,
+          "startHz": 1,
+          "stopHz": 1000000000
+        }
+      ],
+      "probes": [
+        {
+          "id": "probe-vout",
+          "kind": "net-voltage",
+          "documentId": "document-ota-5t-testbench",
+          "netId": "tb-vout-net",
+          "occurrence": []
+        },
+        {
+          "id": "probe-ibias",
+          "kind": "net-voltage",
+          "documentId": "document-ota-5t-testbench",
+          "netId": "tb-ibias-net",
+          "occurrence": []
+        },
+        {
+          "id": "probe-tail",
+          "kind": "net-voltage",
+          "documentId": "document-ota-5t",
+          "netId": "net-dut-tail",
+          "occurrence": ["XDUT"]
+        },
+        {
+          "id": "probe-nleft",
+          "kind": "net-voltage",
+          "documentId": "document-ota-5t",
+          "netId": "net-dut-nleft",
+          "occurrence": ["XDUT"]
+        }
+      ],
+      "environment": {
+        "profileId": "sky130-core-continuous-ngspice46-v1",
+        "corner": "tt",
+        "temperatureC": 27
+      }
+    }
+  },
   "source": {
     "dialect": "none",
     "entry": null,

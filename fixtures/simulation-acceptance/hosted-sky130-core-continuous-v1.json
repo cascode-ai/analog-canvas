@@ -1,9 +1,10 @@
 {
-  "schemaVersion": 1,
-  "fixtureId": "ota-5t-balanced-op-v1",
+  "schemaVersion": 2,
+  "fixtureId": "ota-5t-structured-op-ac-v1",
   "profileId": "sky130-core-continuous-ngspice46-v1",
-  "analysis": "op",
+  "analyses": ["op", "ac"],
   "inputs": {
+    "project": "apps/editor/src/examples/five-transistor-ota-sky130.icproj.json",
     "netlist": "fixtures/simulation-acceptance/ota-5t.spi",
     "testbench": "fixtures/simulation-acceptance/ota-5t-hosted.testbench.spice"
   },
@@ -16,5 +17,51 @@
     "v(ibias)": { "value": 0.6044031364286973, "absoluteTolerance": 1e-8 },
     "v(xdut.tail)": { "value": 0.2848671983031419, "absoluteTolerance": 1e-8 },
     "v(xdut.nleft)": { "value": 0.7589797395214736, "absoluteTolerance": 1e-8 }
+  },
+  "expectedAc": {
+    "pointCount": 91,
+    "startHz": 1,
+    "stopHz": 1000000000,
+    "frequencyRelativeTolerance": 1e-12,
+    "probes": {
+      "v(vout)": {
+        "samples": [
+          {
+            "index": 0,
+            "real": 120.1227317562375,
+            "imag": -0.0003511468844918635,
+            "absoluteTolerance": 1e-8
+          },
+          {
+            "index": 30,
+            "real": 120.1217100790957,
+            "imag": -0.3511439119206514,
+            "absoluteTolerance": 1e-8
+          },
+          {
+            "index": 60,
+            "real": 12.1813224169096,
+            "imag": -37.09123686627677,
+            "absoluteTolerance": 1e-8
+          },
+          {
+            "index": 90,
+            "real": -0.04031087451053017,
+            "imag": -0.006331573453656596,
+            "absoluteTolerance": 1e-8
+          }
+        ]
+      },
+      "v(xdut.tail)": {
+        "samples": [
+          {
+            "index": 60,
+            "real": 0.4417357549275905,
+            "imag": -0.1070857397604748,
+            "absoluteTolerance": 1e-8
+          }
+        ]
+      }
+    }
   }
 }

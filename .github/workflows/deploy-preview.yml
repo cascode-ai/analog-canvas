@@ -136,8 +136,8 @@ jobs:
             echo "A gallery write on the preview must be refused, got: $write"
             exit 1
           fi
-      # The divider runs on the preview's simulator host, and the answer has
-      # to be a number with a measured environment identity behind it, not a
-      # green status.
-      - name: Simulate one circuit on the preview's simulator host
+      # A divider checks the transport and the persisted OTA Project checks the
+      # product compiler plus OP/AC model evidence. Both run on the preview's
+      # simulator host; a green status without numbers is not acceptance.
+      - name: Run the preview's numerical and vertical simulation acceptance
         run: node scripts/preview-simulation-smoke.mjs "$PREVIEW_URL"
