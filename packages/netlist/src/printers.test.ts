@@ -253,6 +253,35 @@ describe("design netlist printers", () => {
     expect(printSpiceNetlist(ir)).not.toContain("VDC vin 0 PULSE");
   });
 
+  it("prints only the selected waveform when inactive source fields remain stored", () => {
+    const ir = structuralIr();
+    ir.cells[1]!.instances.push(
+      device("vselected", "VSELECTED", "voltage-source", ["vin", "0"], null, [
+        ["dc", "0"],
+        ["waveform", "sin"],
+        ["low", "0"],
+        ["high", "1.8"],
+        ["rise", "1ps"],
+        ["fall", "1ps"],
+        ["width", "5ns"],
+        ["period", "10ns"],
+        ["offset", "0.9"],
+        ["amplitude", "10m"],
+        ["frequency", "1Meg"],
+      ]),
+    );
+
+    const spice = printSpiceNetlist(ir);
+    expect(spice).toContain("VSELECTED vin 0 DC 0 SIN(0.9 10m 1Meg 0 0 0)");
+    expect(spice).not.toContain("VSELECTED vin 0 PULSE");
+
+    const spectre = printSpectreNetlist(ir);
+    expect(spectre).toContain(
+      "VSELECTED (vin 0) vsource type=sine dc=0.9 ampl=10m freq=1Meg delay=0 damp=0 sinephase=0",
+    );
+    expect(spectre).not.toContain("VSELECTED (vin 0) vsource type=pulse");
+  });
+
   it("prints an independent source's AC magnitude and phase after its DC value", () => {
     const ir = structuralIr();
     // The extractor sorts parameters by name, so `acMagnitude` precedes `dc`

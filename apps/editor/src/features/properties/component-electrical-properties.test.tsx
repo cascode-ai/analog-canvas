@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import { ComponentElectricalProperties } from "./component-electrical-properties";
+import { componentParameters } from "../component-insert/component-parameters";
 
 describe("component electrical properties", () => {
   it("renders known, derived, display, and additional parameters together", () => {
@@ -177,6 +178,57 @@ describe("component electrical properties", () => {
     );
     expect(markup).toContain("Value");
     expect(markup).not.toContain(">Reference<");
+  });
+
+  it("shows only the active ordinary-source waveform fields", () => {
+    const document = createEmptyDocument("cell", "Cell");
+    const instance: (typeof document.instances)[number] = {
+      id: "V1",
+      symbolId: "voltage-source",
+      placement: null,
+      reference: "V1",
+      netlist: { parameters: {} },
+    };
+    const render = (waveform: "dc" | "pulse" | "sin") =>
+      renderToStaticMarkup(
+        <ComponentElectricalProperties
+          instance={instance}
+          parameters={componentParameters(instance.symbolId)}
+          parameterValues={{ waveform }}
+          firstInputRef={createRef<HTMLInputElement>()}
+          referenceVisible
+          valueVisible
+          valueAvailable
+          valueSupported
+          referenceAvailable
+          referenceLabelRenderable
+          additionalParameters={[]}
+          additionalParametersChanged={false}
+          onParameterChange={vi.fn()}
+          onReferenceVisibilityChange={vi.fn()}
+          onValueVisibilityChange={vi.fn()}
+          onAdditionalParameterChange={vi.fn()}
+          onAdditionalParameterRemove={vi.fn()}
+          onAdditionalParameterAdd={vi.fn()}
+          onAdditionalParametersApply={vi.fn()}
+          onAdditionalParametersCancel={vi.fn()}
+        />,
+      );
+
+    const dc = render("dc");
+    expect(dc).toContain('aria-label="Component waveform"');
+    expect(dc).not.toContain('aria-label="Component low"');
+    expect(dc).not.toContain('aria-label="Component amplitude"');
+
+    const pulse = render("pulse");
+    expect(pulse).toContain('aria-label="Component low"');
+    expect(pulse).toContain('aria-label="Component period"');
+    expect(pulse).not.toContain('aria-label="Component amplitude"');
+
+    const sin = render("sin");
+    expect(sin).toContain('aria-label="Component amplitude"');
+    expect(sin).toContain('aria-label="Component frequency"');
+    expect(sin).not.toContain('aria-label="Component low"');
   });
 });
 

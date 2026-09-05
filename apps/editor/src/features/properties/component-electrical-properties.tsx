@@ -76,8 +76,15 @@ export function ComponentElectricalProperties({
   onAdditionalParametersCancel: () => void;
 }) {
   const fingerWidth = derivedFingerWidth(parameterValues.w, parameterValues.nf);
+  const waveform =
+    parameterValues.waveform ||
+    deviceDescriptor(instance.symbolId)?.sourceWaveformDefault;
   const primaryParameters = parameters.filter(
-    (parameter) => !parameter.compatibilityOnly,
+    (parameter) =>
+      !parameter.compatibilityOnly &&
+      (!parameter.visibleForSourceWaveforms ||
+        ((waveform === "pulse" || waveform === "sin") &&
+          parameter.visibleForSourceWaveforms.includes(waveform))),
   );
   // A toggle that cannot change the drawing is not an option, it is a dead
   // control: schematic-only glyphs neither draw a reference nor carry a
@@ -107,16 +114,32 @@ export function ComponentElectricalProperties({
                 <em>({parameter.help})</em>
               )}
             </span>
-            <input
-              ref={index === 0 ? firstInputRef : undefined}
-              aria-label={`Component ${parameter.label.toLowerCase()}`}
-              inputMode={parameter.inputMode}
-              value={parameterValues[parameter.key] ?? ""}
-              placeholder={parameter.placeholder}
-              onChange={(event) =>
-                onParameterChange(parameter.key, event.currentTarget.value)
-              }
-            />
+            {parameter.options ? (
+              <select
+                aria-label={`Component ${parameter.label.toLowerCase()}`}
+                value={parameterValues[parameter.key] ?? ""}
+                onChange={(event) =>
+                  onParameterChange(parameter.key, event.currentTarget.value)
+                }
+              >
+                {parameter.options.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                ref={index === 0 ? firstInputRef : undefined}
+                aria-label={`Component ${parameter.label.toLowerCase()}`}
+                inputMode={parameter.inputMode}
+                value={parameterValues[parameter.key] ?? ""}
+                placeholder={parameter.placeholder}
+                onChange={(event) =>
+                  onParameterChange(parameter.key, event.currentTarget.value)
+                }
+              />
+            )}
           </label>
         ))}
       </div>

@@ -1159,6 +1159,40 @@ test("carries a manual Value through placement and Q property editing", async ({
   );
 });
 
+test("ordinary source Properties switch waveforms without erasing inactive values", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await chooseComponent(page, "voltage-source");
+
+  const canvas = page.getByTestId("schematic-canvas");
+  await canvas.click({ position: { x: 360, y: 230 } });
+  await page.keyboard.press("Escape");
+  await page.getByTestId("hit-V1").click();
+  await page.keyboard.press("q");
+
+  const waveform = page.getByLabel("Component waveform");
+  await expect(waveform).toHaveValue("dc");
+  await expect(page.getByLabel("Component low")).toHaveCount(0);
+  await expect(page.getByLabel("Component amplitude")).toHaveCount(0);
+
+  await waveform.selectOption("pulse");
+  const high = page.getByLabel("Component high");
+  await expect(high).toHaveValue("1");
+  await high.fill("2.5");
+
+  await waveform.selectOption("sin");
+  await expect(page.getByLabel("Component amplitude")).toHaveValue("1");
+  await expect(page.getByLabel("Component high")).toHaveCount(0);
+
+  await waveform.selectOption("pulse");
+  await expect(page.getByLabel("Component high")).toHaveValue("2.5");
+  await expect
+    .poll(() => recoveryProjectTexts(page))
+    .toContain('"waveform": "pulse"');
+});
+
 test("keeps differential amplifier swaps in a dedicated placement row", async ({
   page,
 }) => {

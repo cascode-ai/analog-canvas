@@ -73,36 +73,92 @@ describe("component parameter catalogue", () => {
         label: parameter.label,
         ...(parameter.unitHint ? { unit: parameter.unitHint } : {}),
         placeholder: parameter.placeholder,
+        ...(parameter.defaultValue
+          ? { defaultValue: parameter.defaultValue }
+          : {}),
         help: parameter.help,
-        inputMode: parameter.editor,
+        ...(parameter.editor === "select"
+          ? { options: parameter.options }
+          : { inputMode: parameter.editor }),
+        ...(parameter.visibleForSourceWaveforms
+          ? { visibleForSourceWaveforms: parameter.visibleForSourceWaveforms }
+          : {}),
       })),
     );
   });
 
-  it("offers a source's AC magnitude and phase through the ordinary parameter path", () => {
-    // No source-specific UI: the descriptor's formal AC parameters arrive as
-    // ordinary optional fields, blank on placement so a new source stays
-    // DC-only until an author types a magnitude.
+  it("offers all independent-source modes through the ordinary parameter path", () => {
     for (const [symbolId, unit] of [
       ["voltage-source", "V"],
       ["current-source", "A"],
     ] as const) {
-      expect(componentParameters(symbolId)).toMatchObject([
-        { key: "dc", unit },
-        { key: "acMagnitude", label: "AC magnitude", unit },
-        { key: "acPhase", label: "AC phase", unit: "deg" },
-      ]);
-      expect(
-        componentParameters(symbolId).some(
-          (parameter) => parameter.compatibilityOnly,
-        ),
-      ).toBe(false);
-      expect(initialComponentParameterValues(symbolId)).toEqual({
+      const parameters = componentParameters(symbolId);
+      expect(parameters.find(({ key }) => key === "dc")).toMatchObject({
+        unit,
+      });
+      expect(parameters.find(({ key }) => key === "waveform")).toMatchObject({
+        options: [{ value: "dc" }, { value: "pulse" }, { value: "sin" }],
+      });
+      expect(parameters.find(({ key }) => key === "acMagnitude")).toMatchObject(
+        {
+          label: "AC magnitude",
+          unit,
+        },
+      );
+      expect(parameters.find(({ key }) => key === "amplitude")).toMatchObject({
+        unit,
+        visibleForSourceWaveforms: ["sin"],
+      });
+      expect(parameters.some((parameter) => parameter.compatibilityOnly)).toBe(
+        false,
+      );
+      expect(initialComponentParameterValues(symbolId)).toMatchObject({
         dc: "",
+        waveform: "dc",
         acMagnitude: "",
         acPhase: "",
+        low: "0",
+        high: unit === "V" ? "1" : "1m",
+        period: "10ns",
+        offset: "0",
+        amplitude: unit === "V" ? "1" : "1m",
+        frequency: "1k",
       });
     }
+  });
+
+  it("preserves inactive source fields while switching waveform mode", () => {
+    let values = initialComponentParameterValues("voltage-source");
+    values = updateComponentParameterValues(
+      "voltage-source",
+      values,
+      "waveform",
+      "pulse",
+    );
+    values = updateComponentParameterValues(
+      "voltage-source",
+      values,
+      "high",
+      "1.8",
+    );
+    values = updateComponentParameterValues(
+      "voltage-source",
+      values,
+      "waveform",
+      "sin",
+    );
+    values = updateComponentParameterValues(
+      "voltage-source",
+      values,
+      "amplitude",
+      "20m",
+    );
+
+    expect(values).toMatchObject({
+      waveform: "sin",
+      high: "1.8",
+      amplitude: "20m",
+    });
   });
 
   it("uses typed netlist parameters as the single component-value authority", () => {
