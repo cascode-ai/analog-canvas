@@ -1152,8 +1152,8 @@ describe("Razavi symbol catalog", () => {
       ),
     ).toMatchObject({
       kind: "line",
-      from: { x: -12.9698, y: 0 },
-      to: { x: 12.9698, y: 0 },
+      from: { x: -21.1244, y: 0 },
+      to: { x: 22.3124, y: 0 },
     });
     const polarityDots = tcoil.primitives.filter(
       (primitive) =>

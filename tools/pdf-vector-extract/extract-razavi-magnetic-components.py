@@ -303,9 +303,13 @@ def extract_tcoil(pdf_path: Path, output_dir: Path, pdftoppm: str) -> None:
             # route segment by 30% so the composite retains the paper's open
             # spacing after adopting the larger canvas junction contract.
             "productInternalRouteExtension": 1.3,
+            # Place each winding at the same fractional distance between its
+            # outer terminal and the center junction as Figure 2. Polarity
+            # dots keep their local offset from their respective winding.
+            "productCoilPortFractions": [0.5937563, 0.4181242],
             "productCoilCentersLogical": [
-                {"x": -32.4698, "y": 0},
-                {"x": 32.4698, "y": 0},
+                {"x": -40.6244, "y": 0},
+                {"x": 41.8124, "y": 0},
             ],
             "productCapacitorCenterLogical": {"x": 0, "y": -43.335},
             "productPinAnchorsLogical": [
@@ -315,8 +319,8 @@ def extract_tcoil(pdf_path: Path, output_dir: Path, pdftoppm: str) -> None:
             ],
             "productBridgeBranchXsLogical": [-70.2169, 70.2169],
             "productPolarityDotsLogical": [
-                {"x": -51.0618, "y": -6.0745, "radius": 3.77907},
-                {"x": 13.8778, "y": -6.0745, "radius": 3.77907},
+                {"x": -59.2164, "y": -6.0745, "radius": 3.77907},
+                {"x": 23.2204, "y": -6.0745, "radius": 3.77907},
             ],
             "productJunctionDotsLogical": [
                 {"x": -70.2169, "y": 0, "radius": 3.77907},
