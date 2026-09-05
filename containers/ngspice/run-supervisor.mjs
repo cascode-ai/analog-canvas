@@ -119,7 +119,20 @@ export class SimulationRunSupervisor {
     };
   }
 
-  async tryExecute({ timeoutMs } = {}, operation) {
+  cancel(token) {
+    const active = this.#active;
+    if (!active || !token || active.token !== token) return false;
+    if (active.phase === "preparing" || active.phase === "running") {
+      active.terminationReason = "cancelled";
+      if (active.child) {
+        active.phase = "terminating";
+        this.#terminate(active.child, "SIGKILL");
+      }
+    }
+    return true;
+  }
+
+  async tryExecute({ timeoutMs, token } = {}, operation) {
     if (typeof operation !== "function") {
       throw new TypeError("A supervised run needs an operation.");
     }
@@ -137,6 +150,7 @@ export class SimulationRunSupervisor {
     const acquiredAt = this.#now();
     const active = {
       leaseId: ++this.#sequence,
+      token,
       phase: "preparing",
       acquiredAt,
       timeoutMs: effectiveTimeoutMs,
@@ -203,6 +217,11 @@ export class SimulationRunSupervisor {
         }
         active.child = child;
         active.phase = "running";
+        if (active.terminationReason === "cancelled") {
+          active.phase = "terminating";
+          this.#terminate(child, "SIGKILL");
+          return;
+        }
         active.processTimer = this.#setTimer(() => {
           if (this.#active !== active || active.phase === "fatal") return;
           active.phase = "terminating";
@@ -224,6 +243,9 @@ export class SimulationRunSupervisor {
       },
       get timedOut() {
         return active.terminationReason === "timeout";
+      },
+      get cancelled() {
+        return active.terminationReason === "cancelled";
       },
     });
   }

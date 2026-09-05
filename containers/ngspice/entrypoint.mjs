@@ -31,7 +31,7 @@ import {
 } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
-import { join, relative } from "node:path";
+import { join, relative, dirname } from "node:path";
 
 import { SimulationRunSupervisor } from "./run-supervisor.mjs";
 
@@ -296,15 +296,20 @@ async function observeEnvironment(ngspiceBin) {
     const mismatches = [
       ["platform", profile.platform, platform],
       ["simulator version", profile.simulator.version, version],
-      ["simulator binary SHA-256", profile.simulator.binarySha256, binarySha256],
+      [
+        "simulator binary SHA-256",
+        profile.simulator.binarySha256,
+        binarySha256,
+      ],
       ["model tree SHA-256", profile.models.contentSha256, modelTreeSha256],
       ["startup SHA-256", profile.startup.contentSha256, startupSha256],
     ].filter(([, expected, actual]) => expected !== actual);
     if (mismatches.length > 0) {
       throw new Error(
         `Simulation environment does not match Profile ${profile.id}: ${mismatches
-          .map(([label, expected, actual]) =>
-            `${label} expected ${expected}, observed ${actual}`,
+          .map(
+            ([label, expected, actual]) =>
+              `${label} expected ${expected}, observed ${actual}`,
           )
           .join("; ")}`,
       );
@@ -497,12 +502,13 @@ function simulatorCommand(binary) {
  * streams are captured because ngspice splits its diagnostics across them,
  * and the caller needs both to tell a dropped device from a clean run.
  */
-function runNgspice(binary, directory, run) {
+function runNgspice(binary, directory, run, entryPath = DECK_NAME) {
   return new Promise((resolve) => {
     const startedAt = Date.now();
     const stdout = createCappedSink(Math.ceil(MAX_OUTPUT_BYTES / 2));
     const stderr = createCappedSink(Math.floor(MAX_OUTPUT_BYTES / 2));
     const { command, args } = simulatorCommand(binary);
+    args[args.length - 1] = `./${entryPath}`;
     let settled = false;
     let exited = null;
     let spawnError = null;
@@ -642,9 +648,39 @@ async function readRawfile(directory) {
   }
 }
 
+const cancelledTokens = new Map();
 async function handleRun(body) {
   const deck = typeof body?.deck === "string" ? body.deck : null;
   if (!deck) return { status: 400, payload: { error: "missing-deck" } };
+  const token = typeof body?.runToken === "string" ? body.runToken : undefined;
+  if (
+    body.runToken !== undefined &&
+    (!token || !/^[0-9a-f-]{36}$/u.test(token))
+  )
+    return { status: 400, payload: { error: "invalid-run-token" } };
+  for (const [key, expires] of cancelledTokens)
+    if (expires < Date.now()) cancelledTokens.delete(key);
+  if (token && cancelledTokens.has(token))
+    return { status: 409, payload: { error: "run-cancelled" } };
+  const files = body.files ?? [];
+  const entryPath = body.entryPath ?? DECK_NAME;
+  const safePath = (p) =>
+    typeof p === "string" &&
+    p.length > 0 &&
+    p.length < 241 &&
+    !p.startsWith("/") &&
+    !/[\\:\u0000-\u001f]/u.test(p) &&
+    p.split("/").every((part) => part && part !== "." && part !== "..") &&
+    p.toLowerCase() !== ".spiceinit";
+  if (
+    !Array.isArray(files) ||
+    files.length > 24 ||
+    !safePath(entryPath) ||
+    files.some((f) => !f || !safePath(f.path) || typeof f.text !== "string") ||
+    files.reduce((n, f) => n + Buffer.byteLength(f.text, "utf8"), 0) >
+      MAX_DECK_BYTES
+  )
+    return { status: 400, payload: { error: "invalid-input-files" } };
   if (Buffer.byteLength(deck, "utf8") > MAX_DECK_BYTES) {
     return { status: 413, payload: { error: "deck-too-large" } };
   }
@@ -664,7 +700,7 @@ async function handleRun(body) {
 
   const [binary, observed, runRoot] = runtime;
   const admission = await runSupervisor.tryExecute(
-    { timeoutMs: body?.timeoutMs },
+    { timeoutMs: body?.timeoutMs, token },
     async (run) => {
       let directory = null;
       try {
@@ -681,14 +717,20 @@ async function handleRun(body) {
             },
           };
         }
-        await writeFile(join(directory, DECK_NAME), deck, "utf8");
+        for (const file of files) {
+          await mkdir(dirname(join(directory, file.path)), { recursive: true });
+          await writeFile(join(directory, file.path), file.text, "utf8");
+        }
+        await mkdir(dirname(join(directory, entryPath)), { recursive: true });
+        await writeFile(join(directory, entryPath), deck, "utf8");
         await writeFile(
           join(directory, SPICEINIT_NAME),
           observed.startupText,
           "utf8",
         );
 
-        const result = await runNgspice(binary, directory, run);
+        if (token && cancelledTokens.has(token)) runSupervisor.cancel(token);
+        const result = await runNgspice(binary, directory, run, entryPath);
         run.phase("collecting");
         const raw = deckRequestsRawfile(deck)
           ? await readRawfile(directory)
@@ -711,6 +753,7 @@ async function handleRun(body) {
             exitCode: result.exitCode,
             signal: result.signal,
             timedOut: result.timedOut,
+            cancelled: run.cancelled,
             durationMs: result.durationMs,
             truncated: truncatedOutputs.length > 0,
             truncatedOutputs,
@@ -784,7 +827,7 @@ const server = createServer((request, response) => {
     );
     return;
   }
-  if (request.method !== "POST" || request.url !== "/run") {
+  if (request.method !== "POST" || !["/run", "/cancel"].includes(request.url)) {
     send(404, { error: "not-found" });
     return;
   }
@@ -813,6 +856,25 @@ const server = createServer((request, response) => {
       body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
     } catch {
       send(400, { error: "invalid-json" });
+      return;
+    }
+    if (request.url === "/cancel") {
+      if (
+        typeof body.runToken !== "string" ||
+        !/^[0-9a-f-]{36}$/iu.test(body.runToken)
+      ) {
+        send(400, { error: "invalid-run-token" });
+        return;
+      }
+      for (const [key, expires] of cancelledTokens)
+        if (expires < Date.now()) cancelledTokens.delete(key);
+      if (!cancelledTokens.has(body.runToken) && cancelledTokens.size >= 256) {
+        send(503, { error: "cancel-capacity" });
+        return;
+      }
+      cancelledTokens.set(body.runToken, Date.now() + 180000);
+      runSupervisor.cancel(body.runToken);
+      send(200, { accepted: true });
       return;
     }
     handleRun(body).then(

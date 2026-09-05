@@ -16,6 +16,31 @@ function deferred() {
 }
 
 describe("SimulationRunSupervisor", () => {
+  it("only the owning token can cancel; cancellation during preparation kills on attach and releases normally", async () => {
+    const held = deferred(),
+      killed = vi.fn(),
+      supervisor = new SimulationRunSupervisor({ terminate: killed });
+    const child = { pid: 54 };
+    const execution = supervisor.tryExecute({ token: "mine" }, async (run) => {
+      await held.promise;
+      run.attachProcess(child);
+      expect(run.cancelled).toBe(true);
+      expect(run.timedOut).toBe(false);
+      run.detachProcess(child);
+      run.phase("collecting");
+      run.phase("cleaning");
+    });
+    expect(supervisor.cancel("other")).toBe(false);
+    expect(killed).not.toHaveBeenCalled();
+    expect(supervisor.cancel("mine")).toBe(true);
+    held.resolve();
+    await execution;
+    expect(killed).toHaveBeenCalledWith(child, "SIGKILL");
+    expect(supervisor.snapshot()).toEqual({ state: "idle" });
+    expect((await supervisor.tryExecute({}, async () => "next")).kind).toBe(
+      "completed",
+    );
+  });
   it("admits one lease, reports its phase, and refuses a second", async () => {
     const held = deferred();
     const supervisor = new SimulationRunSupervisor();

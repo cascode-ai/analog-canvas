@@ -60,6 +60,75 @@ const NETLIST = ".subckt amp in out\nM1 out in 0 0 nfet\n.ends\nXA in out amp";
 const TESTBENCH = "V1 in 0 DC 1\n.control\nop\nprint v(out)\n.endc";
 
 describe("simulation route", () => {
+  it("advertises without fetching the executor; absence is a capability, not a session error", async () => {
+    const response = await routeSimulationRequest(
+      post({ operation: "capabilities" }),
+      {},
+    );
+    expect(await response!.json()).toMatchObject({
+      configured: false,
+      inputs: ["structured", "raw"],
+      cancel: true,
+    });
+  });
+  it("raw mode preserves a complete deck and relative files; exact prepared input is checked", async () => {
+    const seen: { deck?: string; timeoutMs?: number } = {};
+    const deck = "raw title\n.include parts.inc\nV1 in 0 1\n.op\n.end";
+    const body = {
+      mode: "raw",
+      netlist: "",
+      testbench: deck,
+      preparedDeck: deck,
+      files: [{ path: "parts.inc", text: "R1 in 0 1k" }],
+      entryPath: "main.cir",
+      inputRevision: "revision-raw",
+    };
+    const response = await routeSimulationRequest(
+      post(body),
+      stubRunner({ log: "ngspice", exitCode: 0 }, seen),
+    );
+    expect(response!.status).toBe(200);
+    expect(seen.deck).toBe(deck);
+    expect(
+      (await routeSimulationRequest(
+        post({ ...body, preparedDeck: "other" }),
+        stubRunner({}),
+      ))!.status,
+    ).toBe(409);
+    expect(
+      (await routeSimulationRequest(
+        post({ ...body, files: [{ path: "../escape", text: "x" }] }),
+        stubRunner({}),
+      ))!.status,
+    ).toBe(400);
+  });
+  it("forwards cancellation only with the unguessable run token", async () => {
+    const calls: string[] = [];
+    const env: SimulationEnv = {
+      NGSPICE: {
+        getByName: () => ({
+          fetch: async (url) => {
+            calls.push(url);
+            return Response.json({ accepted: true });
+          },
+        }),
+      },
+    };
+    expect(
+      (await routeSimulationRequest(
+        post({ operation: "cancel", runToken: "bad" }),
+        env,
+      ))!.status,
+    ).toBe(400);
+    expect(calls).toHaveLength(0);
+    expect(
+      (await routeSimulationRequest(
+        post({ operation: "cancel", runToken: crypto.randomUUID() }),
+        env,
+      ))!.status,
+    ).toBe(200);
+    expect(calls).toEqual(["http://container/cancel"]);
+  });
   it("starts a new Cloudflare container generation when the Profile changes", async () => {
     let selectedKey: string | undefined;
     const environment: SimulationEnv = {

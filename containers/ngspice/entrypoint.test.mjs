@@ -136,6 +136,55 @@ const wait = (ms) =>
   });
 
 describeHarness("the run directory", () => {
+  it("materializes relative input files in the private cwd and rejects escape/startup overrides", async () => {
+    const { port } = await startHarness(
+      await simulator("files.sh", 'cat "$2"\ncat parts/r.inc\n'),
+    );
+    const request = {
+      deck: "* entry\n.end\n",
+      entryPath: "main.cir",
+      files: [{ path: "parts/r.inc", text: "R1 a 0 1k" }],
+    };
+    const reply = await json(await run(port, request));
+    expect(reply.status).toBe(200);
+    expect(reply.payload.log).toContain("R1 a 0 1k");
+    for (const path of ["../escape", "/tmp/escape", ".spiceinit"])
+      expect(
+        (await run(port, { ...request, files: [{ path, text: "x" }] })).status,
+      ).toBe(400);
+  });
+  it(
+    "cancels an owning run, releases its slot, and remembers a pre-admission cancellation",
+    async () => {
+      const { port } = await startHarness(
+        await simulator("cancel.sh", "sleep 10\n"),
+      );
+      const token = crypto.randomUUID();
+      const pending = run(port, {
+        deck: "* wait\n.end\n",
+        runToken: token,
+        timeoutMs: 20000,
+      });
+      const cancel = async (runToken) =>
+        fetch(`http://127.0.0.1:${port}/cancel`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ runToken }),
+        });
+      await wait(150);
+      expect((await cancel(token)).status).toBe(200);
+      const response = await json(await pending);
+      expect(
+        response.status === 409 || response.payload.cancelled === true,
+      ).toBe(true);
+      const next = crypto.randomUUID();
+      await cancel(next);
+      expect(
+        (await run(port, { deck: "* never\n.end", runToken: next })).status,
+      ).toBe(409);
+    },
+    SLOW_TEST_MS,
+  );
   it("gives every run its own, and takes it away again", async () => {
     // The simulator reports where it was started. Two runs must not answer
     // with the same place: a shared working directory is how one author's
