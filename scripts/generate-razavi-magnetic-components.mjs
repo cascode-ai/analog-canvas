@@ -156,12 +156,28 @@ const xfmr = {
     pin("S+", xfmrPins[3], "east"),
   ],
   primitives: [
-    line(point(xfmrPins[0]), { x: -19.5, y: xfmrCenters[0].y }, "primary-left-lead"),
+    line(
+      point(xfmrPins[0]),
+      { x: -19.5, y: xfmrCenters[0].y },
+      "primary-left-lead",
+    ),
     transformPrimitive(inductorPath, xfmrCenters[0], 90, "primary-winding"),
-    line({ x: 19.5, y: xfmrCenters[0].y }, point(xfmrPins[1]), "primary-right-lead"),
-    line(point(xfmrPins[2]), { x: -19.5, y: xfmrCenters[1].y }, "secondary-left-lead"),
+    line(
+      { x: 19.5, y: xfmrCenters[0].y },
+      point(xfmrPins[1]),
+      "primary-right-lead",
+    ),
+    line(
+      point(xfmrPins[2]),
+      { x: -19.5, y: xfmrCenters[1].y },
+      "secondary-left-lead",
+    ),
     transformPrimitive(inductorPath, xfmrCenters[1], 90, "secondary-winding"),
-    line({ x: 19.5, y: xfmrCenters[1].y }, point(xfmrPins[3]), "secondary-right-lead"),
+    line(
+      { x: 19.5, y: xfmrCenters[1].y },
+      point(xfmrPins[3]),
+      "secondary-right-lead",
+    ),
     ...xfmrLayout.productPolarityDotsLogical.map((value, index) =>
       dot(value, index === 0 ? "primary-polarity" : "secondary-polarity"),
     ),
@@ -194,7 +210,11 @@ const tcoil = {
     pin("3", tcoilPins[2], "south"),
   ],
   primitives: [
-    line(point(tcoilPins[0]), { x: tcoilCenters[0].x - 19.5, y: 0 }, "terminal-1-lead"),
+    line(
+      point(tcoilPins[0]),
+      { x: tcoilCenters[0].x - 19.5, y: 0 },
+      "terminal-1-lead",
+    ),
     transformPrimitive(inductorPath, tcoilCenters[0], 90, "winding-1"),
     line(
       { x: tcoilCenters[0].x + 19.5, y: 0 },
@@ -202,20 +222,30 @@ const tcoil = {
       "winding-center-link",
     ),
     transformPrimitive(inductorPath, tcoilCenters[1], 90, "winding-2"),
-    line({ x: tcoilCenters[1].x + 19.5, y: 0 }, point(tcoilPins[1]), "terminal-2-lead"),
+    line(
+      { x: tcoilCenters[1].x + 19.5, y: 0 },
+      point(tcoilPins[1]),
+      "terminal-2-lead",
+    ),
     line({ x: 0, y: -0.5 }, point(tcoilPins[2]), "terminal-3-lead"),
     polyline(
       [
         { x: tcoilLeftBranchX, y: 0 },
         { x: tcoilLeftBranchX, y: tcoilBridgeY },
-        { x: tcoilLayout.productCapacitorCenterLogical.x - 19.5, y: tcoilBridgeY },
+        {
+          x: tcoilLayout.productCapacitorCenterLogical.x - 19.5,
+          y: tcoilBridgeY,
+        },
       ],
       "bridge-left-route",
     ),
     ...transformedCapacitor,
     polyline(
       [
-        { x: tcoilLayout.productCapacitorCenterLogical.x + 19.5, y: tcoilBridgeY },
+        {
+          x: tcoilLayout.productCapacitorCenterLogical.x + 19.5,
+          y: tcoilBridgeY,
+        },
         { x: tcoilRightBranchX, y: tcoilBridgeY },
         { x: tcoilRightBranchX, y: 0 },
       ],
