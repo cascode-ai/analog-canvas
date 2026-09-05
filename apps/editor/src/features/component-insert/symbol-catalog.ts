@@ -53,6 +53,8 @@ export function symbolCategory(symbolId: string): string {
       "variable-inductor",
       "diode",
       "zener-diode",
+      "tcoil",
+      "xfmr",
     ].includes(symbolId)
   ) {
     return EXTENDED_DEVICE_CATEGORY;
@@ -209,6 +211,8 @@ const SYMBOL_ORDER: readonly string[] = [
   "variable-inductor",
   "diode",
   "zener-diode",
+  "tcoil",
+  "xfmr",
   "ndmos",
   "pdmos",
   "vdd-port",

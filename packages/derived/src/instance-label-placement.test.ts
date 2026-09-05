@@ -131,6 +131,19 @@ describe("instance label placement", () => {
     });
   });
 
+  it("places the T-coil reference above its routing corridor", () => {
+    const resolved = resolver.resolve("tcoil");
+    if (!resolved) throw new Error("missing tcoil");
+    const bounds = visibleSymbolInkBounds(resolved);
+    const label = placedDefaultLabel("tcoil");
+
+    expect(label).toMatchObject({
+      position: { x: 100 },
+      alignment: "middle",
+    });
+    expect(label.position.y).toBeLessThan(100 + bounds.y);
+  });
+
   it("uses visible MOS edges through variants, rotations, and mirrors", () => {
     expect(placedDefaultLabel("nmos")).toMatchObject({
       position: { x: 120, y: 110 },

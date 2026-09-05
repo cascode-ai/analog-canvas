@@ -23,4 +23,6 @@ export { spdtSwitchDevice } from "./spdt-switch.js";
 export { voltageControlledSwitchDevice } from "./voltage-controlled-switch.js";
 export { vddPortDevice } from "./vdd-port.js";
 export { voltageSourceDevice } from "./voltage-source.js";
+export { tcoilDevice } from "./tcoil.js";
+export { xfmrDevice } from "./xfmr.js";
 export { zenerDiodeDevice } from "./zener-diode.js";

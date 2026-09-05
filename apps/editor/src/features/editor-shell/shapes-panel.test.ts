@@ -20,7 +20,7 @@ describe("shapes quick-place", () => {
       }),
     );
 
-    expect(symbols).toHaveLength(63);
+    expect(symbols).toHaveLength(65);
     expect(markup).toContain("All devices");
     expect(markup.match(/data-testid="shapes-chip-/g)).toHaveLength(
       symbols.length,
@@ -41,7 +41,7 @@ describe("shapes quick-place", () => {
       ["Logic Gates", 11],
       ["Signal Flow", 7],
       ["Annotations", 8],
-      ["Extended Devices", 7],
+      ["Extended Devices", 9],
     ]);
     const categoryTestIds = [
       "transistors",
@@ -71,6 +71,8 @@ describe("shapes quick-place", () => {
     expect(markup).toContain('aria-label="Place Independent Voltage Source"');
     expect(markup).toContain('aria-label="Place Digital Clock"');
     expect(markup).toContain('title="Place Capacitor"');
+    expect(markup).toContain('aria-label="Place T-Coil"');
+    expect(markup).toContain('aria-label="Place XFMR"');
     expect(markup).toContain('aria-label="Place Zener"');
     expect(markup).toContain('aria-label="Place Variable Resistor"');
     expect(markup).toContain('aria-label="Place Inverter"');

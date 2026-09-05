@@ -26,6 +26,12 @@ The product set is exactly the reviewed, Reference-calibrated entries:
   target, while `inductor-compact` applies one uniform `pinSpanScale` (2/3)
   recorded in its catalog `generation` block so a schematic mixing R, C, and L
   reads at one scale. Imported SPICE `L` elements take `inductor-compact`;
+- `tcoil` and `xfmr`, atomic parent-canvas Symbols composed from that same
+  `inductor-compact` path. T-coil additionally reuses the reviewed Capacitor
+  plates and leads. PDF-native evidence governs winding placement, bridge
+  topology, and polarity-dot clearance; neither Symbol draws a circle at an
+  external pin. Both remain manual-only until compound L/K/C or subcircuit
+  lowering has an explicit contract;
 - `diode` and `zener-diode`. The Zener body is direct PDF-vector evidence from
   _Fundamentals of Microelectronics_, Figure 3.44(a). Both retain the SPICE D
   electrical contract, but Zener presentation is manual or PDK-mapped because

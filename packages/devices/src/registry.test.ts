@@ -5,6 +5,7 @@ import {
   deviceDescriptor,
   deviceDescriptorById,
   devicePinSemanticRole,
+  referencePolicyForSymbol,
   validateDeviceDescriptors,
 } from "./index.js";
 
@@ -86,6 +87,29 @@ describe("built-in device registry", () => {
       pinOrder: ["P1", "P2"],
       targetPolicy: "builtin",
       parameters: [{ name: "value", required: true, displayRole: "value" }],
+    });
+  });
+
+  it("assigns compound magnetic symbols an editable identity without inventing a primitive netlist", () => {
+    expect(deviceDescriptor("tcoil")).toMatchObject({
+      deviceClass: "inductor",
+      referencePrefix: "X",
+      pinOrder: ["1", "2", "3"],
+      targetPolicy: "none",
+    });
+    expect(deviceDescriptor("xfmr")).toMatchObject({
+      deviceClass: "inductor",
+      referencePrefix: "X",
+      pinOrder: ["P-", "P+", "S-", "S+"],
+      targetPolicy: "none",
+    });
+    expect(referencePolicyForSymbol("tcoil")).toEqual({
+      kind: "required",
+      prefix: "X",
+    });
+    expect(referencePolicyForSymbol("xfmr")).toEqual({
+      kind: "required",
+      prefix: "X",
     });
   });
 
