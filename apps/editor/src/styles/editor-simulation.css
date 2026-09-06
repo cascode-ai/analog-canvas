@@ -352,13 +352,7 @@
   align-items: center;
   min-width: 0;
 }
-.simulation-probe-picker {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
-}
-.simulation-probe-picker > input,
-.simulation-probe-picker > select {
+.simulation-probe-control > select {
   width: 100%;
   min-width: 0;
 }
@@ -484,25 +478,48 @@
 }
 .simulation-files-view {
   display: grid;
-  gap: 10px;
+  gap: 14px;
 }
 .simulation-files-view > section {
   display: grid;
-  grid-template-columns: minmax(160px, 1fr) minmax(220px, 2fr);
-  gap: 12px;
-  align-items: center;
-  padding: 10px;
-  border: 1px solid var(--icm-border);
-  border-radius: var(--icm-radius-sm);
+  gap: 6px;
 }
-.simulation-files-view > section > div:first-child {
-  display: grid;
-  gap: 3px;
+.simulation-files-view h3 {
+  margin: 0;
+  font-size: var(--icm-font-sm);
 }
 .simulation-artifact-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  list-style: none;
+}
+.simulation-artifact-list li {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  min-height: 38px;
+  padding: 5px 9px;
+  background: var(--icm-surface);
+}
+.simulation-artifact-list li + li {
+  border-top: 1px solid var(--icm-border);
+}
+.simulation-artifact-list li > span {
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+}
+.simulation-artifact-list button {
+  min-width: 0;
+  justify-self: start;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .spice-simulation-surface pre {
   white-space: pre-wrap;
@@ -864,14 +881,17 @@
       "actions actions";
   }
   .simulation-brand,
-  .simulation-task-actions > button:nth-child(3) {
+  .simulation-settings-button {
     display: none;
   }
   .simulation-result-summary {
     grid-template-columns: 1fr;
   }
-  .simulation-files-view > section {
-    grid-template-columns: 1fr;
+  .simulation-artifact-list li {
+    grid-template-columns: 62px minmax(0, 1fr);
+  }
+  .simulation-artifact-list small {
+    display: none;
   }
 }
 

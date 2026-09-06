@@ -326,8 +326,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     ...(prepared
       ? [
           {
-            label: "Prepared input",
-            identity: prepared.id,
+            label: "Prepared files",
             artifacts: prepared.artifacts,
           },
         ]
@@ -335,8 +334,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     ...(run
       ? [
           {
-            label: "Run evidence",
-            identity: `${run.id} / prepared ${run.preparedId}`,
+            label: "Last run",
             artifacts: run.artifacts,
           },
         ]
@@ -476,6 +474,17 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
           </button>
           <button
             type="button"
+            disabled={busy || !!running || !selectedSetup}
+            onClick={() => {
+              if (selectedSetup && props.onDeleteSetup(selectedSetup.id))
+                setDirty(false);
+            }}
+          >
+            Delete setup
+          </button>
+          <button
+            type="button"
+            className="simulation-settings-button"
             aria-pressed={setupOpen}
             onClick={() => {
               setResultsOpen(false);
@@ -846,33 +855,22 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
 
             {resultTab === "files" ? (
               <div className="simulation-files-view">
-                {(run || prepared) && (
-                  <details>
-                    <summary>Input identity</summary>
-                    <pre>
-                      {prepared &&
-                        `Prepared ${prepared.id}\nInput ${prepared.inputRevision}\n`}
-                      {run &&
-                        `Run ${run.id}\nPrepared ${run.preparedId}\nInput ${run.inputRevision}`}
-                    </pre>
-                  </details>
-                )}
                 {artifactGroups.map((group) => (
                   <section key={group.label} aria-label={group.label}>
-                    <div>
-                      <strong>{group.label}</strong>
-                      <small>{group.identity}</small>
-                    </div>
-                    <div className="simulation-artifact-list">
+                    <h3>{group.label}</h3>
+                    <ul className="simulation-artifact-list">
                       {group.artifacts.map((artifact) => (
-                        <button
-                          key={artifact.id}
-                          onClick={() => void download(artifact)}
-                        >
-                          {artifact.name}
-                        </button>
+                        <li key={artifact.id}>
+                          <span>{simulationArtifactCategory(artifact)}</span>
+                          <button onClick={() => void download(artifact)}>
+                            {artifact.name}
+                          </button>
+                          <small>
+                            {formatArtifactSize(artifact.byteLength)}
+                          </small>
+                        </li>
                       ))}
-                    </div>
+                    </ul>
                   </section>
                 ))}
                 {artifactGroups.length === 0 ? (
@@ -964,7 +962,6 @@ function SetupEditor({
   draftContext,
   capabilities,
   onSaveSetup,
-  onDeleteSetup,
   setup,
   onDirty,
   onProblem,
@@ -1113,12 +1110,6 @@ function SetupEditor({
           <p>Profile: {rawSaved.environment.profileId}</p>
           <button type="button" onClick={() => setSwitchFromRaw(true)}>
             Switch to structured setup…
-          </button>
-          <button
-            type="button"
-            onClick={() => setup && onDeleteSetup(setup.id)}
-          >
-            Delete setup
           </button>
         </div>
       </aside>
@@ -1689,11 +1680,6 @@ function SetupEditor({
           ))}
         </ul>
         <button type="submit">Apply setup</button>
-        {setup && (
-          <button type="button" onClick={() => onDeleteSetup(setup.id)}>
-            Delete setup
-          </button>
-        )}
       </form>
     </aside>
   );
@@ -1800,54 +1786,47 @@ function ProbeSelect({
   onAdd(option: SimulationProbeOption): void;
   trailingAction?: ReactNode;
 }) {
-  const [query, setQuery] = useState("");
   const selectId = useId();
-  const visibleOptions = options.filter((option) =>
-    option.label.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()),
-  );
   return (
     <div className="simulation-probe-select">
       <label htmlFor={selectId}>{label}</label>
       <span className="simulation-probe-control">
-        <span className="simulation-probe-picker">
-          <input
-            type="search"
-            value={query}
-            aria-label={
-              label === "Add voltage probe"
-                ? "Filter voltage targets"
-                : "Filter current targets"
-            }
-            placeholder="Filter by Cell, instance, pin, or Net"
-            onChange={(event) => setQuery(event.currentTarget.value)}
-          />
-          <select
-            id={selectId}
-            value=""
-            onChange={(event) => {
-              const option = options.find(
-                (candidate) => candidate.key === event.target.value,
-              );
-              if (option) {
-                onAdd(option);
-                setQuery("");
-              }
-            }}
-          >
-            <option value="">{placeholder}</option>
-            {visibleOptions.map((option) => (
-              <option
-                key={option.key}
-                value={option.key}
-                disabled={selectedKeys.has(option.key)}
-              >
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </span>
+        <select
+          id={selectId}
+          value=""
+          onChange={(event) => {
+            const option = options.find(
+              (candidate) => candidate.key === event.target.value,
+            );
+            if (option) onAdd(option);
+          }}
+        >
+          <option value="">{placeholder}</option>
+          {options.map((option) => (
+            <option
+              key={option.key}
+              value={option.key}
+              disabled={selectedKeys.has(option.key)}
+            >
+              {option.label}
+            </option>
+          ))}
+        </select>
         {trailingAction}
       </span>
     </div>
   );
+}
+
+function simulationArtifactCategory(artifact: ArtifactRef): string {
+  const name = artifact.name.toLocaleLowerCase();
+  if (name.endsWith(".cir") || name.endsWith(".spi")) return "Netlist";
+  if (name.endsWith(".raw") || name.endsWith(".csv")) return "Results";
+  if (name.endsWith(".log") || name.endsWith(".txt")) return "Log";
+  return "Other";
+}
+
+function formatArtifactSize(byteLength: number): string {
+  if (byteLength < 1024) return `${byteLength} B`;
+  return `${(byteLength / 1024).toFixed(byteLength < 10_240 ? 1 : 0)} KB`;
 }

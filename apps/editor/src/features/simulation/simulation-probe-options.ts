@@ -161,6 +161,39 @@ function voltageAnchor(
   return route ? { kind: "route", routeId: route.id } : undefined;
 }
 
+/**
+ * A lone formal Cell Pin is an interface declaration, not a solved circuit
+ * node. It cannot produce a useful ngspice vector until the Net also contains
+ * another electrical member. Keep this simulation-only eligibility rule out
+ * of the persisted Net and Cell contracts.
+ */
+function hasMeasurableVoltageMember(
+  document: SchematicDocument,
+  baseNetIds: readonly string[],
+): boolean {
+  const ids = new Set(baseNetIds);
+  const interfaceInstanceIds = new Set(
+    (document.netlist?.terminals ?? []).flatMap(
+      (terminal) => terminal.interfaceInstanceIds,
+    ),
+  );
+  const terminals = document.nets.flatMap((net) =>
+    ids.has(net.id) ? net.terminals : [],
+  );
+  const globalSupply = document.connectivityEvidence.some(
+    (evidence) =>
+      ids.has(evidence.netId) &&
+      evidence.kind === "name-claim" &&
+      evidence.scope === "global" &&
+      (evidence.powerDomain === "vdd" || evidence.powerDomain === "ground"),
+  );
+  return (
+    globalSupply ||
+    terminals.length > 1 ||
+    terminals.some((terminal) => !interfaceInstanceIds.has(terminal.instanceId))
+  );
+}
+
 function logicalNetDisplayLabel(
   document: SchematicDocument,
   choice: {
@@ -254,6 +287,7 @@ export function deriveSimulationProbeOptions(
     // joined by the same scoped label (notably repeated Ground markers); the
     // user should not have to choose among indistinguishable aliases.
     for (const net of logicalNetChoices(document)) {
+      if (!hasMeasurableVoltageMember(document, net.baseNetIds)) continue;
       const anchor = voltageAnchor(document, net.baseNetIds);
       if (!anchor) continue;
       const target: VoltageProbeTarget = {

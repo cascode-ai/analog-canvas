@@ -221,6 +221,17 @@ test("one Testbench persists several independently named setups", async ({
       ),
     ),
   ).toEqual(new Set(["document-ota-5t-testbench"]));
+
+  await panel.getByRole("button", { name: "Delete setup" }).click();
+  await expect(selector).toHaveValue("simulation-setup-ota-op-ac");
+  await expect(
+    selector.getByRole("option", { name: "Bias search" }),
+  ).toHaveCount(0);
+  const afterDelete = JSON.parse(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(),
+  );
+  expect(afterDelete.simulationSetups).toHaveLength(1);
+  expect(afterDelete.simulationSetups[0].name).toBe("OTA OP and AC");
 });
 
 test("human simulation uses saved setup, survives minimizing, recovers a bad input and exports results", async ({
@@ -524,7 +535,9 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   await page.mouse.move(
     transientBounds!.x + transientBounds!.width * 0.7,
     transientBounds!.y + transientBounds!.height * 0.7,
+    { steps: 5 },
   );
+  await expect(transientPlot.locator(".waveform-selection")).toBeVisible();
   await page.mouse.up();
   expect(toolbarBounds!.y + toolbarBounds!.height).toBeLessThanOrEqual(
     transientBounds!.y,
@@ -547,13 +560,15 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   const xDrag = (await transientPlot.boundingBox())!;
   await page.mouse.move(
     xDrag.x + xDrag.width * 0.3,
-    xDrag.y + xDrag.height * 0.5,
+    xDrag.y + xDrag.height * 0.3,
   );
   await page.mouse.down();
   await page.mouse.move(
     xDrag.x + xDrag.width * 0.7,
-    xDrag.y + xDrag.height * 0.5,
+    xDrag.y + xDrag.height * 0.7,
+    { steps: 5 },
   );
+  await expect(transientPlot.locator(".waveform-selection")).toBeVisible();
   await page.mouse.up();
   await expect(rightTimeLabel).not.toHaveText(fullTimeLabel ?? "");
   expect(
@@ -668,16 +683,12 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
     .first()
     .click();
   expect((await download).suggestedFilename()).toMatch(/\.csv$/);
-  const oldRunIdentity = await panel
-    .getByLabel("Run evidence")
-    .locator("small")
-    .innerText();
+  await expect(panel.getByLabel("Last run")).toBeVisible();
   await panel.getByRole("button", { name: "Prepare deck" }).click();
-  await expect(
-    panel.getByLabel("Prepared input").locator("small"),
-  ).not.toHaveText(oldRunIdentity.split(" / prepared ")[1]!);
-  await expect(panel.getByLabel("Run evidence").locator("small")).toHaveText(
-    oldRunIdentity,
+  await expect(panel.getByLabel("Prepared files")).toBeVisible();
+  await expect(panel.getByLabel("Last run")).toBeVisible();
+  await expect(panel.getByText("Input identity", { exact: true })).toHaveCount(
+    0,
   );
   expect(executions).toBe(1);
   await panel.getByRole("button", { name: "Settings" }).click();
