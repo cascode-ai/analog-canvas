@@ -31,6 +31,8 @@ export interface WaveformPoint {
   y: number;
 }
 
+type WaveformMarker = "A" | "B";
+
 /** Pointer gestures share the SVG's transform, including letterboxing. */
 export function WaveformInteraction({
   children,
@@ -38,6 +40,7 @@ export function WaveformInteraction({
   onZoom,
   onPick,
   onPan,
+  onMoveMarker,
   onOpen,
   axes = "xy",
 }: {
@@ -46,6 +49,7 @@ export function WaveformInteraction({
   onZoom(start: WaveformPoint, end: WaveformPoint): void;
   onPick(point: WaveformPoint, traceId?: string): void;
   onPan(delta: WaveformPoint): void;
+  onMoveMarker?(point: WaveformPoint, marker: WaveformMarker): void;
   onOpen(): void;
   axes?: "xy" | "x" | "y";
 }) {
@@ -55,6 +59,7 @@ export function WaveformInteraction({
         clientX: number;
         clientY: number;
         pan: boolean;
+        marker?: WaveformMarker;
         traceId?: string;
       }
     | undefined
@@ -88,6 +93,7 @@ export function WaveformInteraction({
       tabIndex={0}
       aria-label="Waveform: drag to zoom, click to measure, Shift-drag to pan"
       title="Drag to zoom · Click to measure · Shift-drag to pan · Double-click to expand"
+      onDoubleClick={onOpen}
       onBlur={() => {
         lastPick.current = undefined;
       }}
@@ -105,11 +111,15 @@ export function WaveformInteraction({
         const traceId = (event.target as Element)
           .closest("[data-trace-id]")
           ?.getAttribute("data-trace-id");
+        const marker = (event.target as Element)
+          .closest("[data-marker]")
+          ?.getAttribute("data-marker");
         drag.current = {
           start,
           clientX: event.clientX,
           clientY: event.clientY,
           pan: event.shiftKey,
+          ...(marker === "A" || marker === "B" ? { marker } : {}),
           ...(traceId ? { traceId } : {}),
         };
         event.currentTarget.focus();
@@ -118,6 +128,11 @@ export function WaveformInteraction({
       }}
       onPointerMove={(event) => {
         const start = drag.current;
+        if (start?.marker) {
+          const point = pointAt(event);
+          if (point) onMoveMarker?.(point, start.marker);
+          return;
+        }
         if (
           !start ||
           start.pan ||
@@ -167,6 +182,19 @@ export function WaveformInteraction({
         if (event.currentTarget.hasPointerCapture(event.pointerId))
           event.currentTarget.releasePointerCapture(event.pointerId);
         if (!start || !end) return;
+        if (start.marker) {
+          const previous = lastPick.current;
+          if (
+            previous &&
+            event.timeStamp - previous.time < 450 &&
+            Math.hypot(event.clientX - previous.x, event.clientY - previous.y) <
+              5
+          ) {
+            lastPick.current = undefined;
+            onOpen();
+          } else onMoveMarker?.(end, start.marker);
+          return;
+        }
         if (
           Math.hypot(
             event.clientX - start.clientX,

@@ -114,6 +114,26 @@ describe("AC response plot", () => {
     expect(svg).toContain("ac-trace-selected");
   });
 
+  it("renders each measurement marker as a draggable x/y crosshair", () => {
+    const trace = { ...singlePole(), id: "probe-output" };
+    const svg = acResponseSvg(
+      [trace],
+      { width: 600, height: 300 },
+      {
+        kind: "magnitude",
+        selectedTraceId: trace.id,
+        cursorFrequency: 1e3,
+        cursorFrequencyB: 1e4,
+        showLegend: false,
+      },
+    )!;
+
+    expect(svg.match(/class="ac-cursor"/gu)).toHaveLength(4);
+    expect(svg.match(/data-marker="A"/gu)).toHaveLength(2);
+    expect(svg.match(/data-marker="B"/gu)).toHaveLength(2);
+    expect(svg.match(/class="ac-cursor-handle"/gu)).toHaveLength(2);
+  });
+
   it("declines to invent a plot when there is nothing to draw", () => {
     // A DC-only result, or a failed run, must not produce an empty frame that
     // looks like a measurement.

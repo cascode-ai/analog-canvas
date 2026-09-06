@@ -229,6 +229,20 @@ function polyline(
     .join(" ");
 }
 
+function closestPoint(
+  points: readonly AcPoint[],
+  frequency: number,
+): AcPoint | undefined {
+  return points.reduce<AcPoint | undefined>((best, point) => {
+    if (point.frequency <= 0) return best;
+    if (!best) return point;
+    return Math.abs(Math.log(point.frequency / frequency)) <
+      Math.abs(Math.log(best.frequency / frequency))
+      ? point
+      : best;
+  }, undefined);
+}
+
 export function acResponseSvg(
   traces: readonly AcTrace[],
   size: AcPlotSize,
@@ -294,6 +308,10 @@ export function acResponseSvg(
           })
           .join("")
       : "";
+  const cursorTrace =
+    traces.find(
+      (trace) => (trace.id ?? trace.label) === options.selectedTraceId,
+    ) ?? traces[0];
   const cursor = ([options.cursorFrequency, options.cursorFrequencyB] as const)
     .map((frequency, index) => {
       if (
@@ -303,7 +321,20 @@ export function acResponseSvg(
       )
         return "";
       const x = project.x(frequency).toFixed(2);
-      return `<g pointer-events="none"><line class="ac-cursor" style="stroke:${index === 0 ? "#175cd3" : "#c4320a"}" x1="${x}" y1="${frame.y}" x2="${x}" y2="${frame.y + frame.height}"/><text x="${Number(x) + 3}" y="${frame.y + 12}">${index === 0 ? "A" : "B"}</text></g>`;
+      const marker = index === 0 ? "A" : "B";
+      const color = marker === "A" ? "#175cd3" : "#c4320a";
+      const point = cursorTrace
+        ? closestPoint(cursorTrace.points, frequency)
+        : undefined;
+      const value =
+        point &&
+        (options.kind === "magnitude" ? point.magnitudeDb : point.phaseDeg);
+      const y = value === undefined ? undefined : axisY(value).toFixed(2);
+      const horizontal =
+        y === undefined
+          ? ""
+          : `<line class="ac-cursor" style="stroke:${color}" x1="${frame.x}" y1="${y}" x2="${frame.x + frame.width}" y2="${y}"/><line class="ac-cursor-hit" data-marker="${marker}" x1="${frame.x}" y1="${y}" x2="${frame.x + frame.width}" y2="${y}"/><circle class="ac-cursor-handle" style="stroke:${color}" cx="${x}" cy="${y}" r="4"/>`;
+      return `<g><line class="ac-cursor" style="stroke:${color}" x1="${x}" y1="${frame.y}" x2="${x}" y2="${frame.y + frame.height}"/><line class="ac-cursor-hit" data-marker="${marker}" x1="${x}" y1="${frame.y}" x2="${x}" y2="${frame.y + frame.height}"/>${horizontal}<text pointer-events="none" x="${Number(x) + 5}" y="${frame.y + 13}">${marker}</text></g>`;
     })
     .join("");
 
