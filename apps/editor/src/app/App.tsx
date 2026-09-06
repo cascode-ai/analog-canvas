@@ -4765,8 +4765,12 @@ export function App({
                 const targetExists =
                   probe.kind === "voltage"
                     ? voltageNetId !== undefined
-                    : targetDocument?.instances.some(
-                        (instance) => instance.id === probe.instanceId,
+                    : targetDocument?.nets.some((net) =>
+                        net.terminals.some(
+                          (terminal) =>
+                            terminal.instanceId === probe.instanceId &&
+                            terminal.pinName === probe.pinName,
+                        ),
                       ) === true;
                 if (!targetExists) {
                   setStatus(
@@ -4802,10 +4806,15 @@ export function App({
                         hierarchyPath,
                         kind: "instance",
                         objectId: probe.instanceId,
+                        endpoint: {
+                          kind: "terminal",
+                          instanceId: probe.instanceId,
+                          pinName: probe.pinName,
+                        },
                       },
                   probe.kind === "voltage"
                     ? `Located simulation Net ${voltageNetId}`
-                    : `Located simulation source ${probe.instanceId}`,
+                    : `Located simulation terminal ${probe.instanceId}.${probe.pinName}`,
                 );
                 // Back-annotation should not unexpectedly open the ordinary
                 // Properties dock over the simulation workspace.

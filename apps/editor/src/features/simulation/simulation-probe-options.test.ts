@@ -12,7 +12,7 @@ import {
 } from "./simulation-probe-options";
 
 describe("simulation probe choices", () => {
-  it("keeps hierarchy occurrences and source currents addressable", () => {
+  it("keeps hierarchy occurrences and terminal currents addressable", () => {
     const project = CircuitProjectSchema.parse(fiveTransistorOtaSky130);
     const dut = project.documents.find(
       (document) => document.id === "document-ota-5t",
@@ -27,6 +27,8 @@ describe("simulation probe choices", () => {
         parameters: { dc: "10u" },
       },
     });
+    dut.nets[0]!.terminals.push({ instanceId: "IINTERNAL", pinName: "+" });
+    dut.nets[1]!.terminals.push({ instanceId: "IINTERNAL", pinName: "-" });
     const options = deriveSimulationProbeOptions(
       project,
       "document-ota-5t-testbench",
@@ -48,19 +50,34 @@ describe("simulation probe choices", () => {
         occurrence: ["XDUT"],
       },
     });
-    expect(options.sourceCurrent.map((option) => option.label)).toEqual([
-      "XDUT · ota_5t · I1 current",
-      "Testbench · VDD current",
-      "Testbench · VINP current",
-      "Testbench · VINN current",
-      "Testbench · IBIAS current",
-    ]);
-    expect(options.sourceCurrent[0]?.target).toEqual({
+    expect(
+      options.terminalCurrent
+        .filter((option) => option.target.instanceId === "IINTERNAL")
+        .map((option) => option.label),
+    ).toEqual(["XDUT · ota_5t · I1.+ current", "XDUT · ota_5t · I1.- current"]);
+    expect(
+      options.terminalCurrent.find(
+        (option) =>
+          option.target.instanceId === "IINTERNAL" &&
+          option.target.pinName === "+",
+      )?.target,
+    ).toEqual({
       kind: "current",
       documentId: "document-ota-5t",
       instanceId: "IINTERNAL",
+      pinName: "+",
       occurrence: ["XDUT"],
     });
+    expect(
+      options.terminalCurrent
+        .filter((option) => option.target.instanceId === "M5")
+        .map((option) => option.target.pinName),
+    ).toEqual(["D", "G", "S", "B"]);
+    expect(
+      options.terminalCurrent
+        .filter((option) => option.target.instanceId === "XDUT")
+        .map((option) => option.target.pinName),
+    ).toEqual(["vss", "ibias", "vdd", "vinn", "vinp", "vout"]);
   });
 
   it("names an unnamed hierarchical Net by its terminal aliases", () => {
@@ -184,12 +201,16 @@ describe("simulation probe choices", () => {
         parameters: { dc: "10u" },
       },
     });
+    dut.nets[0]!.terminals.push({ instanceId: "IINTERNAL", pinName: "+" });
+    dut.nets[1]!.terminals.push({ instanceId: "IINTERNAL", pinName: "-" });
 
     const targets = deriveSimulationProbeOptions(
       project,
       testbench.id,
-    ).sourceCurrent.filter(
-      (option) => option.target.instanceId === "IINTERNAL",
+    ).terminalCurrent.filter(
+      (option) =>
+        option.target.instanceId === "IINTERNAL" &&
+        option.target.pinName === "+",
     );
 
     expect(targets.map((option) => option.target.occurrence)).toEqual([

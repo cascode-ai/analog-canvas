@@ -179,6 +179,7 @@ const DIVIDER_SETUP: SimulationStructuredSetup = {
           kind: "current",
           documentId: "tb",
           instanceId: "inst-v1",
+          pinName: "+",
           occurrence: [],
         },
       },
@@ -359,14 +360,15 @@ describe("compiling a structured simulation setup", () => {
         "* Analog Canvas testbench for divider_tb",
         "R1 IN MID 1k",
         "R2 MID 0 1k",
-        "V1 IN 0 DC 1 AC 1 0",
+        "V1 ICMPRB005 0 DC 1 AC 1 0",
+        "VICMPRB005 IN ICMPRB005 DC 0",
         ".control",
         "set filetype=ascii",
         "set appendwrite",
         "op",
-        "write out.raw v(mid) v(in) i(v1)",
+        "write out.raw v(mid) v(in) i(vicmprb005)",
         "ac dec 2 1 100",
-        "write out.raw v(mid) v(in) i(v1)",
+        "write out.raw v(mid) v(in) i(vicmprb005)",
         ".endc",
         ".end",
         "",
@@ -378,7 +380,11 @@ describe("compiling a structured simulation setup", () => {
     expect(result.vectors).toEqual([
       { probeId: "probe-mid", vector: "v(mid)", quantity: "voltage" },
       { probeId: "probe-in", vector: "v(in)", quantity: "voltage" },
-      { probeId: "probe-v1", vector: "i(v1)", quantity: "current" },
+      {
+        probeId: "probe-v1",
+        vector: "i(vicmprb005)",
+        quantity: "current",
+      },
     ]);
     expect(result.diagnostics).toEqual([]);
   });
@@ -567,7 +573,7 @@ describe("compiling a structured simulation setup", () => {
     ]);
   });
 
-  it("names a source current inside an occurrence with its device type letter", async () => {
+  it("instruments a selected terminal inside an occurrence", async () => {
     const project = hierarchicalProject();
     const dut = project.documents.find((item) => item.id === "dut")!;
     dut.instances.push(voltageSource("dut-vs", "VSENSE", { dc: "0" }));
@@ -587,9 +593,10 @@ describe("compiling a structured simulation setup", () => {
         probes: [
           {
             id: "probe-sense",
-            kind: "source-current",
+            kind: "terminal-current",
             documentId: "dut",
             instanceId: "dut-vs",
+            pinName: "+",
             occurrence: ["inst-x1"],
           },
         ],
@@ -599,8 +606,15 @@ describe("compiling a structured simulation setup", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.vectors).toEqual([
-      { probeId: "probe-sense", vector: "i(v.x1.vsense)", quantity: "current" },
+      {
+        probeId: "probe-sense",
+        vector: "i(v.x1.vicmprb005)",
+        quantity: "current",
+      },
     ]);
+    expect(result.request.netlist).toContain(
+      "VSENSE ICMPRB005 SENSE DC 0\nVICMPRB005 SENSE ICMPRB005 DC 0",
+    );
   });
 
   it("declares a global Net with the definitions, ahead of the testbench", async () => {
@@ -901,9 +915,10 @@ describe("refusing a setup that cannot be simulated", () => {
         probes: [
           {
             id: "probe-lost",
-            kind: "source-current",
+            kind: "terminal-current",
             documentId: "tb",
             instanceId: "no-such-instance",
+            pinName: "+",
             occurrence: [],
           },
         ],
@@ -912,6 +927,40 @@ describe("refusing a setup that cannot be simulated", () => {
 
     expect(result.ok).toBe(false);
     expect(codes(result)).toEqual(["SIMULATION_PROBE_UNKNOWN_INSTANCE"]);
+  });
+
+  it("reports a current output naming a terminal the Instance does not hold", async () => {
+    const result = await compile(
+      dividerProject(),
+      setupWith({
+        probes: [
+          {
+            id: "probe-lost-terminal",
+            kind: "terminal-current",
+            documentId: "tb",
+            instanceId: "inst-r1",
+            pinName: "D",
+            occurrence: [],
+          },
+        ],
+      }),
+    );
+
+    expect(result.ok).toBe(false);
+    expect(codes(result)).toEqual(["SIMULATION_PROBE_UNKNOWN_TERMINAL"]);
+    expect(result.ok === false && result.diagnostics[0]!.primary).toMatchObject(
+      {
+        documentId: "tb",
+        hierarchyPath: [],
+        kind: "instance",
+        objectId: "inst-r1",
+        endpoint: {
+          kind: "terminal",
+          instanceId: "inst-r1",
+          pinName: "D",
+        },
+      },
+    );
   });
 
   it("reports an occurrence step that is not a hierarchy Instance", async () => {
@@ -1000,24 +1049,67 @@ describe("refusing a setup that cannot be simulated", () => {
     );
   });
 
-  it("reports a source-current probe on an Instance that is not a source", async () => {
+  it("instruments a passive-device terminal", async () => {
     const result = await compile(
       dividerProject(),
       setupWith({
         probes: [
           {
             id: "probe-r1",
-            kind: "source-current",
+            kind: "terminal-current",
             documentId: "tb",
             instanceId: "inst-r1",
+            pinName: "1",
             occurrence: [],
           },
         ],
       }),
     );
 
-    expect(result.ok).toBe(false);
-    expect(codes(result)).toEqual(["SIMULATION_PROBE_NOT_A_SOURCE"]);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.request.testbench).toContain(
+      "R1 ICMPRB001 MID 1k\nVICMPRB001 IN ICMPRB001 DC 0",
+    );
+    expect(result.vectors).toEqual([
+      {
+        probeId: "probe-r1",
+        vector: "i(vicmprb001)",
+        quantity: "current",
+      },
+    ]);
+  });
+
+  it("instruments a hierarchical Cell instance port", async () => {
+    const result = await compile(
+      hierarchicalProject(),
+      setupWith({
+        analyses: [{ kind: "op" }],
+        probes: [
+          {
+            id: "probe-x1-a",
+            kind: "terminal-current",
+            documentId: "tb",
+            instanceId: "inst-x1",
+            pinName: "A",
+            occurrence: [],
+          },
+        ],
+      }),
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.request.testbench).toContain(
+      "X1 ICMPRB003 0 dut\nVICMPRB003 IN ICMPRB003 DC 0",
+    );
+    expect(result.vectors).toEqual([
+      {
+        probeId: "probe-x1-a",
+        vector: "i(vicmprb003)",
+        quantity: "current",
+      },
+    ]);
   });
 
   it("instruments a top-level independent current source", async () => {
@@ -1042,9 +1134,10 @@ describe("refusing a setup that cannot be simulated", () => {
         probes: [
           {
             id: "probe-i1",
-            kind: "source-current",
+            kind: "terminal-current",
             documentId: "tb",
             instanceId: "inst-i1",
+            pinName: "+",
             occurrence: [],
           },
         ],
@@ -1053,11 +1146,13 @@ describe("refusing a setup that cannot be simulated", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.request.testbench).toContain("\n.probe I(I1)\n");
-    expect(result.request.testbench).toContain("write out.raw i1#branch\n");
+    expect(result.request.testbench).toContain(
+      "I1 ICMPRB001 0 DC 1m\nVICMPRB001 MID ICMPRB001 DC 0",
+    );
+    expect(result.request.testbench).toContain("write out.raw i(vicmprb001)\n");
     expect(result.vectors).toContainEqual({
       probeId: "probe-i1",
-      vector: "i(i1)",
+      vector: "i(vicmprb001)",
       quantity: "current",
     });
   });
@@ -1072,9 +1167,10 @@ describe("refusing a setup that cannot be simulated", () => {
         probes: [
           {
             id: "probe-i1",
-            kind: "source-current",
+            kind: "terminal-current",
             documentId: "dut",
             instanceId: "inst-i1",
+            pinName: "+",
             occurrence: ["inst-x1"],
           },
         ],
@@ -1084,7 +1180,7 @@ describe("refusing a setup that cannot be simulated", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.request.netlist).toContain(
-      "I1 A ICMPRB001 DC 1m\nVICMPRB001 ICMPRB001 OUT DC 0",
+      "I1 ICMPRB001 OUT DC 1m\nVICMPRB001 A ICMPRB001 DC 0",
     );
     expect(result.request.testbench).toContain(
       "write out.raw i(v.x1.vicmprb001)\n",
@@ -1118,16 +1214,18 @@ describe("refusing a setup that cannot be simulated", () => {
         probes: [
           {
             id: "probe-i1-x1",
-            kind: "source-current",
+            kind: "terminal-current",
             documentId: "dut",
             instanceId: "inst-i1",
+            pinName: "+",
             occurrence: ["inst-x1"],
           },
           {
             id: "probe-i1-x2",
-            kind: "source-current",
+            kind: "terminal-current",
             documentId: "dut",
             instanceId: "inst-i1",
+            pinName: "+",
             occurrence: ["inst-x2"],
           },
         ],
@@ -1137,7 +1235,7 @@ describe("refusing a setup that cannot be simulated", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(
-      result.request.netlist.match(/VICMPRB001 ICMPRB001 OUT DC 0/gu),
+      result.request.netlist.match(/VICMPRB001 A ICMPRB001 DC 0/gu),
     ).toHaveLength(1);
     expect(result.vectors).toEqual([
       {
@@ -1193,6 +1291,63 @@ function ngspiceOnPath(): boolean {
 
 /** Skips cleanly where ngspice is absent; the hosted gate never skips. */
 describe.skipIf(!ngspiceOnPath())("running a compiled deck", () => {
+  it("reports opposite entering currents at a two-terminal device", async () => {
+    const compiled = await compile(
+      dividerProject(),
+      setupWith({
+        analyses: [{ kind: "op" }],
+        probes: [
+          {
+            id: "probe-r1-1",
+            kind: "terminal-current",
+            documentId: "tb",
+            instanceId: "inst-r1",
+            pinName: "1",
+            occurrence: [],
+          },
+          {
+            id: "probe-r1-2",
+            kind: "terminal-current",
+            documentId: "tb",
+            instanceId: "inst-r1",
+            pinName: "2",
+            occurrence: [],
+          },
+        ],
+      }),
+    );
+    expect(compiled.ok).toBe(true);
+    if (!compiled.ok) return;
+
+    const directory = mkdtempSync(join(tmpdir(), "icm-terminal-current-"));
+    try {
+      writeFileSync(
+        join(directory, "deck.cir"),
+        buildSimulationDeck(compiled.request as SimulationRequest, null),
+        "utf8",
+      );
+      execFileSync("ngspice", ["-b", "deck.cir"], {
+        cwd: directory,
+        encoding: "utf8",
+      });
+      const reading = readSimulationData(
+        readFileSync(join(directory, "out.raw"), "utf8"),
+      );
+      expect(reading.status).toBe("read");
+      if (reading.status !== "read") return;
+      const operatingPoint = reading.data.analyses[0]!;
+      expect(operatingPoint.analysis).toBe("op");
+      if (operatingPoint.analysis !== "op") return;
+      const probes = operatingPoint.probes;
+      const value = (name: string) =>
+        probes.find((probe) => probe.name === name)!.value;
+      expect(value("i(vicmprb003)")).toBeCloseTo(0.0005, 12);
+      expect(value("i(vicmprb004)")).toBeCloseTo(-0.0005, 12);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
   it("returns the divider's operating point under every emitted vector", async () => {
     const compiled = await compile(dividerProject(), DIVIDER_SETUP);
     expect(compiled.ok).toBe(true);
@@ -1235,7 +1390,7 @@ describe.skipIf(!ngspiceOnPath())("running a compiled deck", () => {
       // 1 V across two equal resistors, and 1 V / 2 kOhm out of the source.
       expect(value("v(in)")).toBeCloseTo(1, 12);
       expect(value("v(mid)")).toBeCloseTo(0.5, 12);
-      expect(value("i(v1)")).toBeCloseTo(-0.0005, 12);
+      expect(value("i(vicmprb005)")).toBeCloseTo(-0.0005, 12);
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }
@@ -1251,9 +1406,10 @@ describe.skipIf(!ngspiceOnPath())("running a compiled deck", () => {
         probes: [
           {
             id: "probe-i1",
-            kind: "source-current",
+            kind: "terminal-current",
             documentId: "dut",
             instanceId: "inst-i1",
+            pinName: "+",
             occurrence: ["inst-x1"],
           },
         ],

@@ -1,10 +1,12 @@
 import type {
   CircuitProject,
+  Instance,
   SchematicDocument,
   SimulationExpression,
   SimulationVoltageProbeAnchor,
 } from "@icm/model";
 import { resolveDocumentLogicalNets, type HierarchyFrame } from "@icm/derived";
+import { deviceDescriptor } from "@icm/devices";
 
 import { logicalNetChoices } from "../logical-net-choices";
 
@@ -12,11 +14,11 @@ export type VoltageProbeTarget = Extract<
   SimulationExpression,
   { kind: "voltage" }
 >;
-export type SourceCurrentProbeTarget = Extract<
+export type TerminalCurrentProbeTarget = Extract<
   SimulationExpression,
   { kind: "current" }
 >;
-type ProbeTarget = VoltageProbeTarget | SourceCurrentProbeTarget;
+type ProbeTarget = VoltageProbeTarget | TerminalCurrentProbeTarget;
 
 export interface SimulationProbeOption<
   Target extends ProbeTarget = ProbeTarget,
@@ -28,7 +30,7 @@ export interface SimulationProbeOption<
 
 export interface SimulationProbeOptions {
   readonly voltage: readonly SimulationProbeOption<VoltageProbeTarget>[];
-  readonly sourceCurrent: readonly SimulationProbeOption<SourceCurrentProbeTarget>[];
+  readonly terminalCurrent: readonly SimulationProbeOption<TerminalCurrentProbeTarget>[];
 }
 
 export interface PickedSimulationNet {
@@ -40,7 +42,7 @@ export interface PickedSimulationNet {
 export function simulationProbeTargetKey(target: ProbeTarget): string {
   const occurrence = target.occurrence.join("/");
   if (target.kind === "current")
-    return `current:${occurrence}:${target.documentId}:${target.instanceId}`;
+    return `current:${occurrence}:${target.documentId}:${target.instanceId}:${target.pinName}`;
   const anchor = target.anchor;
   const anchorKey =
     anchor.kind === "terminal"
@@ -222,6 +224,45 @@ function logicalNetDisplayLabel(
   return aliases.length > 0 ? aliases.join(" / ") : choice.label;
 }
 
+function terminalCurrentPinNames(
+  project: CircuitProject,
+  document: SchematicDocument,
+  instance: Instance,
+): readonly string[] {
+  const connected = new Set(
+    document.nets.flatMap((net) =>
+      net.terminals.flatMap((terminal) =>
+        terminal.instanceId === instance.id ? [terminal.pinName] : [],
+      ),
+    ),
+  );
+  const binding = instance.netlist?.binding;
+  if (
+    !binding ||
+    binding.kind === "unresolved-subcircuit" ||
+    ((binding.kind === "primitive" || binding.kind === "model") &&
+      binding.deviceClass === "net-marker")
+  )
+    return [];
+  let ordered: readonly string[] = [];
+  if (binding?.kind === "primitive" || binding?.kind === "model")
+    ordered = deviceDescriptor(instance.symbolId)?.pinOrder ?? [];
+  else if (binding?.kind === "subcircuit")
+    ordered =
+      project.documents
+        .find((candidate) => candidate.id === binding.childDocumentId)
+        ?.netlist?.terminals.map((terminal) => terminal.name) ?? [];
+  else if (binding?.kind === "external-subcircuit")
+    ordered =
+      project.externalSubcircuitDefinitions
+        .find((definition) => definition.id === binding.definitionId)
+        ?.terminals.map((terminal) => terminal.name) ?? [];
+  return [...ordered, ...connected].filter(
+    (pinName, index, all) =>
+      connected.has(pinName) && all.indexOf(pinName) === index,
+  );
+}
+
 /**
  * Resolve the persisted occurrence ids into the same hierarchy frames used by
  * canvas navigation. This is presentation-only: probe identity remains the
@@ -271,8 +312,9 @@ export function deriveSimulationProbeOptions(
   );
   const root = documents.get(rootDocumentId);
   const voltage: SimulationProbeOption<VoltageProbeTarget>[] = [];
-  const sourceCurrent: SimulationProbeOption<SourceCurrentProbeTarget>[] = [];
-  if (!root) return { voltage, sourceCurrent };
+  const terminalCurrent: SimulationProbeOption<TerminalCurrentProbeTarget>[] =
+    [];
+  if (!root) return { voltage, terminalCurrent };
 
   const visit = (
     document: SchematicDocument,
@@ -304,20 +346,21 @@ export function deriveSimulationProbeOptions(
     }
     for (const instance of document.instances) {
       const binding = instance.netlist?.binding;
-      if (
-        (binding?.kind === "primitive" || binding?.kind === "model") &&
-        (binding.deviceClass === "voltage-source" ||
-          binding.deviceClass === "current-source")
-      ) {
-        const target: SourceCurrentProbeTarget = {
+      for (const pinName of terminalCurrentPinNames(
+        project,
+        document,
+        instance,
+      )) {
+        const target: TerminalCurrentProbeTarget = {
           kind: "current",
           documentId: document.id,
           instanceId: instance.id,
+          pinName,
           occurrence: [...occurrence],
         };
-        sourceCurrent.push({
+        terminalCurrent.push({
           key: simulationProbeTargetKey(target),
-          label: `${prefix} · ${instance.reference ?? instance.id} current`,
+          label: `${prefix} · ${instance.reference ?? instance.id}.${pinName} current`,
           target,
         });
       }
@@ -333,5 +376,5 @@ export function deriveSimulationProbeOptions(
     }
   };
   visit(root, [], [], new Set([root.id]));
-  return { voltage, sourceCurrent };
+  return { voltage, terminalCurrent };
 }

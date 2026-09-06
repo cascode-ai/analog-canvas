@@ -155,3 +155,11 @@ export type {
   Schema42To43MigrationReport,
   Schema42To43MigrationResult,
 } from "./transforms/simulation-outputs.js";
+export {
+  upgradeSchema43To44,
+  upgradeSchema43To44WithReport,
+} from "./transforms/terminal-current.js";
+export type {
+  Schema43To44MigrationReport,
+  Schema43To44MigrationResult,
+} from "./transforms/terminal-current.js";

@@ -119,9 +119,10 @@ function legacyProbe(output: SimulationOutputSpec): SimulationProbeSpec | null {
   if (expression.kind === "current")
     return {
       id: output.id,
-      kind: "source-current",
+      kind: "terminal-current",
       documentId: expression.documentId,
       instanceId: expression.instanceId,
+      pinName: expression.pinName,
       occurrence: [...expression.occurrence],
     };
   return null;
@@ -141,6 +142,7 @@ function expressionFromLegacyProbe(
         kind: "current",
         documentId: probe.documentId,
         instanceId: probe.instanceId,
+        pinName: probe.pinName,
         occurrence: [...probe.occurrence],
       };
 }
@@ -1044,7 +1046,7 @@ function SetupEditor({
   const probeLabels = new Map<string, string>();
   for (const option of [
     ...probeOptions.voltage,
-    ...probeOptions.sourceCurrent,
+    ...probeOptions.terminalCurrent,
   ]) {
     // The option key is Logical-Net scoped for selection deduplication, while
     // a persisted output keeps its durable object anchor. Both identities
@@ -1579,14 +1581,15 @@ function SetupEditor({
         ) : null}
         <ProbeSelect
           label="Add current output"
-          placeholder="Choose a source current"
-          options={probeOptions.sourceCurrent}
+          placeholder="Choose a terminal current"
+          options={probeOptions.terminalCurrent}
           selectedKeys={selectedProbeKeys}
           onAdd={(option) => {
             setOutputs([...outputs, outputFromOption(option, outputs)]);
             onDirty(true);
           }}
         />
+        <small>Positive current enters the selected terminal.</small>
         <fieldset className="simulation-setup-group simulation-expression-editor">
           <legend>Derived expression</legend>
           <div className="simulation-inline-fields columns-2">

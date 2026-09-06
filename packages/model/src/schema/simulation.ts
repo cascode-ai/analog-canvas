@@ -110,6 +110,8 @@ const SimulationCurrentExpressionSchema = z.strictObject({
   kind: z.literal("current"),
   documentId: StableIdSchema,
   instanceId: StableIdSchema,
+  /** Current entering this concrete Instance terminal. */
+  pinName: z.string().min(1).max(128),
   occurrence: SimulationProbeOccurrenceSchema,
 });
 
