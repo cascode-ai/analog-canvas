@@ -1,10 +1,5 @@
-import {
-  useEffect,
-  useMemo,
-  useState,
-  type MouseEvent as ReactMouseEvent,
-  type PointerEvent,
-} from "react";
+import { useEffect, useMemo, useState } from "react";
+import { WaveformInteraction, useWaveformWidth } from "./waveform-interaction";
 import type { SimulationProbeSpec } from "@icm/model";
 import type { AcResult } from "@icm/spice-run";
 import type { Prepared } from "@icm/simulation-service/contract";
@@ -14,7 +9,6 @@ import {
   formatFrequency,
   layoutAcPlot,
   type AcPlotKind,
-  type AcPlotSize,
   type AcPoint,
   type AcTrace,
 } from "./ac-response-plot";
@@ -184,6 +178,7 @@ export function AcResultsExplorer({
   labels = {},
   onFocusProbe,
 }: AcResultsExplorerProps) {
+  const measured = useWaveformWidth();
   const traces = useMemo(
     () => outputTraces(analysis, vectors, probes, labels),
     [analysis, labels, probes, vectors],
@@ -191,7 +186,9 @@ export function AcResultsExplorer({
   const [hidden, setHidden] = useState<ReadonlySet<string>>(() => new Set());
   const [solo, setSolo] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
-  const [hoverFrequency, setHoverFrequency] = useState<number>();
+  const [valueRanges, setValueRanges] = useState<
+    Record<string, readonly [number, number] | undefined>
+  >({});
   const [markerFrequency, setMarkerFrequency] = useState<number>();
   const [frequencyRange, setFrequencyRange] =
     useState<readonly [number, number]>();
@@ -205,7 +202,7 @@ export function AcResultsExplorer({
   const visible = traces.filter(
     (trace) => !hidden.has(trace.id) && (solo === null || solo === trace.id),
   );
-  const cursorFrequency = hoverFrequency ?? markerFrequency;
+  const cursorFrequency = markerFrequency;
   const cursorRows =
     cursorFrequency === undefined
       ? []
@@ -223,22 +220,6 @@ export function AcResultsExplorer({
     return () => window.removeEventListener("keydown", close);
   }, [expandedPlot]);
 
-  const frequencyAtPointer = (
-    event: PointerEvent<HTMLDivElement> | ReactMouseEvent<HTMLDivElement>,
-    size: AcPlotSize,
-    plotTraces: readonly OutputTrace[],
-  ): number | undefined => {
-    const bounds = event.currentTarget.getBoundingClientRect();
-    const layout = layoutAcPlot(plotTraces, size, frequencyRange);
-    if (!layout) return undefined;
-    const svgX = ((event.clientX - bounds.left) / bounds.width) * size.width;
-    const frequency = layout.frequencyAt(svgX);
-    return Math.min(
-      layout.frequency.max,
-      Math.max(layout.frequency.min, frequency),
-    );
-  };
-
   const focusTrace = (traceId: string): void => {
     const trace = traces.find((candidate) => candidate.id === traceId);
     if (!trace) return;
@@ -251,6 +232,7 @@ export function AcResultsExplorer({
   ): void => {
     if (action === "fit" || fullRange[0] === fullRange[1]) {
       setFrequencyRange(undefined);
+      setValueRanges({});
       return;
     }
     const current = frequencyRange ?? fullRange;
@@ -338,9 +320,23 @@ export function AcResultsExplorer({
     plotTraces: readonly OutputTrace[],
     expanded = false,
   ) => {
-    const size = expanded ? EXPANDED_PLOT_SIZE : PLOT_SIZE;
+    const size = expanded
+      ? EXPANDED_PLOT_SIZE
+      : { ...PLOT_SIZE, width: measured.width };
+    const valueRange = valueRanges[plot.quantity + plot.kind];
+    const layout = layoutAcPlot(
+      plotTraces,
+      size,
+      frequencyRange,
+      valueRange ? { kind: plot.kind, range: valueRange } : undefined,
+    );
+    if (!layout) return null;
+    const axis = layout[plot.kind];
+    const frequencyAt = (x: number) =>
+      layout.frequencyAt(layout.frame.x + x * layout.frame.width);
     const svg = acResponseSvg(plotTraces, size, {
       kind: plot.kind,
+      ...(valueRange ? { valueRange } : {}),
       showLegend: false,
       ...(frequencyRange === undefined ? {} : { frequencyRange }),
       ...(cursorFrequency === undefined ? {} : { cursorFrequency }),
@@ -351,34 +347,64 @@ export function AcResultsExplorer({
         className={`ac-plot-shell${expanded ? " expanded" : ""}`}
         title={expanded ? undefined : "Double-click to open this plot"}
       >
-        <div
-          className="spice-ac-plot interactive"
-          onPointerMove={(event) => {
-            const frequency = frequencyAtPointer(event, size, plotTraces);
-            if (frequency !== undefined) setHoverFrequency(frequency);
+        <WaveformInteraction
+          frame={layout.frame}
+          onZoom={(start, end) => {
+            setFrequencyRange([
+              frequencyAt(Math.min(start.x, end.x)),
+              frequencyAt(Math.max(start.x, end.x)),
+            ]);
+            setValueRanges((current) => ({
+              ...current,
+              [plot.quantity + plot.kind]: [
+                axis.max - Math.max(start.y, end.y) * (axis.max - axis.min),
+                axis.max - Math.min(start.y, end.y) * (axis.max - axis.min),
+              ],
+            }));
           }}
-          onPointerLeave={() => setHoverFrequency(undefined)}
-          onClick={(event) => {
-            const traceElement = (event.target as Element).closest(
-              "[data-trace-id]",
+          onPan={(delta) => {
+            const range = frequencyRange ?? [
+              layout.frequency.min,
+              layout.frequency.max,
+            ];
+            const shift = -delta.x * Math.log(range[1]! / range[0]!);
+            setFrequencyRange(
+              normalizedLogRange(
+                Math.log(range[0]!) + shift,
+                Math.log(range[1]!) + shift,
+                fullRange,
+              ),
             );
-            const traceId = traceElement?.getAttribute("data-trace-id");
-            if (traceId) focusTrace(traceId);
-            const frequency = frequencyAtPointer(event, size, plotTraces);
-            if (frequency !== undefined) setMarkerFrequency(frequency);
+            const dy = delta.y * (axis.max - axis.min);
+            setValueRanges((current) => ({
+              ...current,
+              [plot.quantity + plot.kind]: [axis.min + dy, axis.max + dy],
+            }));
           }}
-          onDoubleClick={() => {
-            if (!expanded) setExpandedPlot(plot);
+          onPick={(point, id) => {
+            if (id) focusTrace(id);
+            const frequency = frequencyAt(point.x);
+            const trace =
+              plotTraces.find((trace) => trace.id === id) ?? plotTraces[0];
+            if (trace?.points.length)
+              setMarkerFrequency(
+                closestPoint(trace.points, frequency).frequency,
+              );
           }}
-          dangerouslySetInnerHTML={{ __html: svg ?? "" }}
-        />
+          onOpen={() => !expanded && setExpandedPlot(plot)}
+        >
+          <div
+            className="waveform-svg"
+            dangerouslySetInnerHTML={{ __html: svg ?? "" }}
+          />
+        </WaveformInteraction>
         {plotToolbar(plot, expanded)}
       </div>
     );
   };
 
   return (
-    <div className="ac-results-explorer">
+    <div ref={measured.ref} className="ac-results-explorer">
       <header>
         <strong>{analysis.plotName}</strong>
       </header>
@@ -497,6 +523,17 @@ export function AcResultsExplorer({
               ),
               true,
             )}
+            {cursorFrequency !== undefined ? (
+              <div className="ac-cursor-readout" role="status">
+                <strong>{formatFrequency(cursorFrequency)}</strong>
+                {cursorRows.map(({ trace, point }) => (
+                  <span key={trace.id}>
+                    {trace.label}: {point.magnitudeDb.toFixed(3)} dB ·{" "}
+                    {point.phaseDeg.toFixed(2)}°
+                  </span>
+                ))}
+              </div>
+            ) : null}
           </section>
         </div>
       ) : null}

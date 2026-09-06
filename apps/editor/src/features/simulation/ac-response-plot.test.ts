@@ -30,15 +30,17 @@ describe("AC response plot", () => {
     const layout = layoutAcPlot([singlePole()], { width: 600, height: 300 });
     expect(layout).not.toBeNull();
     // A sweep from 1 Hz to 1 MHz reads as decades, not as raw sample points.
-    expect(layout!.frequency.ticks).toEqual([1, 10, 100, 1e3, 1e4, 1e5, 1e6]);
+    expect(layout!.frequency.ticks).toEqual([1, 100, 1e4, 1e6]);
   });
 
-  it("rounds the magnitude axis outward to readable steps", () => {
+  it("contains the data with readable adaptive grid steps", () => {
     const layout = layoutAcPlot([singlePole()], { width: 600, height: 300 })!;
     // The trace spans about -20 dB to 40 dB; the axis must contain it and
     // land on round gridlines rather than on the data's own extremes.
     expect(layout.magnitude.min).toBeLessThanOrEqual(-20);
-    expect(layout.magnitude.max).toBeGreaterThanOrEqual(40);
+    expect(layout.magnitude.max).toBeGreaterThanOrEqual(
+      singlePole().points[0]!.magnitudeDb,
+    );
     expect(layout.magnitude.ticks).toContain(0);
   });
 

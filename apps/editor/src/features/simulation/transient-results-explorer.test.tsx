@@ -4,7 +4,6 @@ import { describe, expect, it } from "vitest";
 import {
   changeTransientTimeRange,
   TransientResultsExplorer,
-  transientBoxZoomRanges,
   transientPolylinePoints,
   transientValueExtent,
 } from "./transient-results-explorer";
@@ -22,17 +21,12 @@ describe("Transient Results Explorer", () => {
     expect(extent[1]).toBeCloseTo(1.89, 10);
   });
 
-  it("maps a dragged plot rectangle onto ordered time and value ranges", () => {
-    const ranges = transientBoxZoomRanges(
-      { x: 572.5, y: 188.5 },
-      { x: 233.5, y: 73.5 },
-      [0, 10],
-      [0, 4],
-    );
-    expect(ranges.time[0]).toBeCloseTo(2.5);
-    expect(ranges.time[1]).toBeCloseTo(7.5);
-    expect(ranges.value[0]).toBeCloseTo(1);
-    expect(ranges.value[1]).toBeCloseTo(3);
+  it("retains the segment crossing a zoom window between solver samples", () => {
+    const points = transientPolylinePoints([0, 10], [0, 1], [0, 1], [4, 6]);
+    expect(points.split(" ")).toHaveLength(2);
+    const xs = points.split(" ").map((point) => Number(point.split(",")[0]));
+    expect(xs[0]).toBeLessThan(64);
+    expect(xs[1]).toBeGreaterThan(742);
   });
 
   it("presents linked voltage and current time-domain outputs", () => {
@@ -87,7 +81,8 @@ describe("Transient Results Explorer", () => {
     expect(markup).toContain('aria-label="Transient current"');
     expect(markup.match(/data-trace-index=/gu)).toHaveLength(2);
     expect(markup).toContain('aria-label="Plot tools"');
-    expect(markup.match(/aria-label="Box zoom"/gu)).toHaveLength(2);
+    expect(markup.match(/drag to zoom, click to measure/gu)).toHaveLength(2);
+    expect(markup).not.toContain('aria-label="Inspect plot"');
     expect(markup.match(/aria-label="Open plot"/gu)).toHaveLength(2);
     expect(markup).toContain(
       'class="ac-trace-hit" fill="none" stroke="transparent" stroke-width="12" pointer-events="stroke"',

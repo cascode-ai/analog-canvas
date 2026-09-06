@@ -345,6 +345,26 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   const plotBeforeWheel = await magnitudePlot.innerHTML();
   await magnitudePlot.dispatchEvent("wheel", { deltaY: -120 });
   await expect(magnitudePlot).toHaveJSProperty("innerHTML", plotBeforeWheel);
+  const acBounds = (await magnitudePlot.boundingBox())!;
+  await page.mouse.move(
+    acBounds.x + acBounds.width * 0.3,
+    acBounds.y + acBounds.height * 0.3,
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    acBounds.x + acBounds.width * 0.7,
+    acBounds.y + acBounds.height * 0.7,
+  );
+  await page.mouse.up();
+  await expect(magnitudePlot).not.toHaveJSProperty(
+    "innerHTML",
+    plotBeforeWheel,
+  );
+  await magnitudePlot
+    .locator("..")
+    .getByRole("button", { name: "Fit plot" })
+    .click();
+  await expect(magnitudePlot).toHaveJSProperty("innerHTML", plotBeforeWheel);
   await magnitudePlot.hover();
   await expect(
     panel.getByRole("button", { name: "Zoom in" }).first(),
@@ -354,7 +374,19 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
     page.getByRole("dialog", { name: "voltage magnitude plot" }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Close plot" }).click();
-  await magnitudePlot.locator("polyline[data-trace-id]").dispatchEvent("click");
+  const tracePoint = await magnitudePlot
+    .locator("polyline[data-trace-id]")
+    .evaluate((element) => {
+      const line = element as SVGPolylineElement;
+      const point = line.points.getItem(
+        Math.floor(line.points.numberOfItems / 2),
+      );
+      const screen = new DOMPoint(point.x, point.y).matrixTransform(
+        line.getScreenCTM()!,
+      );
+      return { x: screen.x, y: screen.y };
+    });
+  await page.mouse.click(tracePoint.x, tracePoint.y);
   await expect(
     panel.locator(".simulation-output-browser > .selected"),
   ).toHaveCount(1);
@@ -373,14 +405,13 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
     "none",
   );
   await transientPlot.hover();
-  const boxZoom = transientShell.getByRole("button", { name: "Box zoom" });
-  const inspectPlot = transientShell.getByRole("button", {
-    name: "Inspect plot",
-  });
-  const rightTimeLabel = transientPlot.locator('svg text[text-anchor="end"]');
+  const rightTimeLabel = transientPlot
+    .locator('svg text[text-anchor="middle"]')
+    .last();
   const fullTimeLabel = await rightTimeLabel.textContent();
-  await boxZoom.click();
-  await expect(boxZoom).toHaveAttribute("aria-pressed", "true");
+  const toolbarBounds = await transientShell
+    .getByLabel("Plot tools")
+    .boundingBox();
   const transientBounds = await transientPlot.boundingBox();
   expect(transientBounds).not.toBeNull();
   await page.mouse.move(
@@ -393,10 +424,39 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
     transientBounds!.y + transientBounds!.height * 0.7,
   );
   await page.mouse.up();
-  await expect(inspectPlot).toHaveAttribute("aria-pressed", "true");
+  expect(toolbarBounds!.y + toolbarBounds!.height).toBeLessThanOrEqual(
+    transientBounds!.y,
+  );
+  await expect(
+    panel.locator(".transient-results-explorer .ac-cursor-readout"),
+  ).toHaveCount(0);
   await expect(rightTimeLabel).not.toHaveText(fullTimeLabel ?? "");
   await transientShell.getByRole("button", { name: "Fit plot" }).click();
   await expect(rightTimeLabel).toHaveText(fullTimeLabel ?? "");
+  await transientPlot.click({
+    position: {
+      x: transientBounds!.width * 0.5,
+      y: transientBounds!.height * 0.5,
+    },
+  });
+  const fixedReadout = panel.locator(
+    ".transient-results-explorer .ac-cursor-readout",
+  );
+  await expect(fixedReadout).toBeVisible();
+  const measurement = await fixedReadout.textContent();
+  await transientPlot.hover({
+    position: {
+      x: transientBounds!.width * 0.8,
+      y: transientBounds!.height * 0.4,
+    },
+  });
+  await expect(fixedReadout).toHaveText(measurement ?? "");
+  await transientShell.getByRole("button", { name: "Open plot" }).click();
+  const waveformDialog = page.getByRole("dialog", {
+    name: "Transient voltage plot",
+  });
+  await expect(waveformDialog.locator(".ac-cursor-readout")).toBeVisible();
+  await waveformDialog.getByRole("button", { name: "Close plot" }).click();
   await panel.getByRole("tab", { name: "Files" }).click();
   await expect(
     panel.getByRole("button", { name: "evidence-manifest.json" }),

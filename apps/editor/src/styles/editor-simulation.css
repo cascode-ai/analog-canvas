@@ -708,12 +708,15 @@
 .ac-plot-shell {
   position: relative;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 .ac-plot-toolbar {
-  position: absolute;
-  z-index: 2;
-  top: 7px;
-  right: 7px;
+  position: relative;
+  order: -1;
+  align-self: flex-end;
+  flex-wrap: wrap;
   display: flex;
   gap: 2px;
   padding: 3px;
@@ -721,9 +724,8 @@
   border-radius: var(--icm-radius-sm);
   background: color-mix(in srgb, var(--icm-surface) 94%, transparent);
   box-shadow: var(--icm-shadow-sm);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 100ms ease;
+  opacity: 1;
+  pointer-events: auto;
 }
 .ac-plot-shell:hover .ac-plot-toolbar,
 .ac-plot-shell:focus-within .ac-plot-toolbar,
@@ -788,11 +790,13 @@
   font-size: 18px;
 }
 .ac-plot-shell.expanded {
-  display: grid;
+  display: flex;
   min-height: 0;
   padding: 12px;
 }
 .ac-plot-shell.expanded .spice-ac-plot {
+  flex: 1;
+  overflow: hidden;
   display: grid;
   min-height: 0;
   place-items: center;
@@ -1272,4 +1276,20 @@
   font-size: 10px;
   fill: var(--icm-text, #101828);
   font-family: var(--icm-mono, ui-monospace, monospace);
+}
+.waveform-selection {
+  position: absolute;
+  pointer-events: none;
+  border: 1px solid #175cd3;
+  background: rgb(23 92 211 / 12%);
+}
+.waveform-svg {
+  display: contents;
+}
+.spice-ac-plot.interactive {
+  overflow: hidden;
+  user-select: none;
+}
+.ac-plot-dialog {
+  grid-template-rows: auto minmax(0, 1fr) auto;
 }
