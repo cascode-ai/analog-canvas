@@ -7,11 +7,13 @@ canvas available; it is separate from the development-only Digital tool.
 ## Try it: the bundled five-transistor OTA
 
 The editor ships a Sky130 five-transistor OTA with its stimulus and a saved
-OP + AC setup. On the preview channel open
+OP + DC + AC + TRAN setup. On the preview channel open
 `https://analog-canvas-preview.tokenzhang.com/editor?example=five-transistor-ota-sky130`,
 press **Simulation**, then **Run**. The operating point returns
 v(vout) ≈ 0.75898 V, v(ibias) ≈ 0.60440 V, v(xdut.tail) ≈ 0.28487 V and
-v(xdut.nleft) ≈ 0.75898 V, and the AC sweep plots 1 Hz–1 GHz. The preview
+v(xdut.nleft) ≈ 0.75898 V. The DC sweep covers VINP from 0.88 V to 0.92 V,
+the AC sweep plots 1 Hz–1 GHz, and the transient source pulses VINP from
+0.90 V to 0.91 V. The preview
 deploy runs this same journey against the live simulator before it goes
 green, so those numbers are also its acceptance evidence. The Gallery panel
 lists published circuits, not bundled examples; the `?example=` link and
@@ -37,10 +39,10 @@ same hierarchy, followed by the existing simulation configure operation.
 ## Setup, run and results
 
 Open **Setup**, create or select a named setup, choose its testbench Cell and advertised environment Profile,
-then set OP/AC, optional corner/temperature, and probes. Voltage probes may
-target a Net at the Testbench root or in a concrete DUT occurrence; current
-probes may target voltage sources. Each choice is written to the same
-occurrence-aware probe contract that Agent authoring uses. Apply commits an
+then set OP/DC/AC/TRAN, optional corner/temperature, and outputs. Voltage
+outputs may target a Net at the Testbench root or in a concrete DUT occurrence;
+current outputs may target circuit terminals. Each choice is written to the
+same occurrence-aware output contract that Agent authoring uses. Apply commits an
 `upsert_simulation_setup` into the Project. One Testbench Cell may have several
 setups (for example bias search and AC response), while a different topology
 uses a different ordinary Testbench Cell. Saving/exporting and reopening the

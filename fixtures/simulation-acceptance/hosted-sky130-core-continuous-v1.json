@@ -1,8 +1,8 @@
 {
   "schemaVersion": 3,
-  "fixtureId": "ota-5t-structured-op-ac-tran-v1",
+  "fixtureId": "ota-5t-structured-op-dc-ac-tran-v2",
   "profileId": "sky130-core-continuous-ngspice46-v1",
-  "analyses": ["op", "ac", "tran"],
+  "analyses": ["op", "dc", "ac", "tran"],
   "inputs": {
     "project": "apps/editor/src/examples/five-transistor-ota-sky130.icproj.json",
     "netlist": "fixtures/simulation-acceptance/ota-5t.spi",
@@ -17,6 +17,31 @@
     "v(ibias)": { "value": 0.6044031364286973, "absoluteTolerance": 1e-8 },
     "v(xdut.tail)": { "value": 0.2848671983031419, "absoluteTolerance": 1e-8 },
     "v(xdut.nleft)": { "value": 0.7589797395214736, "absoluteTolerance": 1e-8 }
+  },
+  "expectedDc": {
+    "sourceInstanceId": "VINP",
+    "startValue": 0.88,
+    "stopValue": 0.92,
+    "stepValue": 0.005,
+    "pointCount": 9,
+    "sweepName": "v(v-sweep)",
+    "absoluteTolerance": 1e-8,
+    "probes": {
+      "v(vout)": {
+        "samples": [
+          { "index": 0, "value": 0.3052800375191325 },
+          { "index": 4, "value": 0.7589597733013465 },
+          { "index": 8, "value": 1.744078503303503 }
+        ]
+      },
+      "v(xdut.tail)": {
+        "samples": [
+          { "index": 0, "value": 0.2687226173951219 },
+          { "index": 4, "value": 0.2848672269272364 },
+          { "index": 8, "value": 0.2958758389498102 }
+        ]
+      }
+    }
   },
   "expectedAc": {
     "pointCount": 91,
@@ -73,7 +98,10 @@
     "source": {
       "instanceId": "VINP",
       "parameters": {
-        "low": "0.89",
+        "waveform": "pulse",
+        "dc": "0.9",
+        "acMagnitude": "1",
+        "low": "0.9",
         "high": "0.91",
         "delay": "1u",
         "rise": "1n",
@@ -87,10 +115,10 @@
     "timeAbsoluteTolerance": 1e-15,
     "probes": {
       "v(vout)": {
-        "first": 0.3342235191104477,
-        "minimum": 0.3342107447553537,
-        "maximum": 1.698172273444083,
-        "last": 0.3342235434776202,
+        "first": 0.7589797395133877,
+        "minimum": 0.75886248142361,
+        "maximum": 1.699250823009046,
+        "last": 0.7732444834989551,
         "absoluteTolerance": 1e-8
       }
     }
