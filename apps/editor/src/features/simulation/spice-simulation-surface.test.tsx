@@ -35,6 +35,8 @@ describe("SpiceSimulationSurface workspace", () => {
     expect(markup).not.toContain("<datalist");
     expect(markup).toContain("sky130-core-continuous-ngspice46-v1");
     expect(markup).toContain('class="simulation-probe-control"');
+    expect(markup).toContain('aria-label="Filter voltage targets"');
+    expect(markup).toContain("Filter by Cell, instance, pin, or Net");
     expect(markup).toContain("Choose a Net");
     expect(markup).toContain("Pick on canvas");
     expect(markup).not.toContain("Pick voltage on canvas");

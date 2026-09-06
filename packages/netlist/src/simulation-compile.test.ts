@@ -923,7 +923,7 @@ describe("refusing a setup that cannot be simulated", () => {
     expect(codes(result)).toEqual(["SIMULATION_PROBE_NOT_A_SOURCE"]);
   });
 
-  it("refuses a source-current probe on an independent current source", async () => {
+  it("instruments a top-level independent current source", async () => {
     const project = dividerProject();
     const tb = project.documents[0]!;
     tb.instances.push({
@@ -954,9 +954,51 @@ describe("refusing a setup that cannot be simulated", () => {
       }),
     );
 
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.request.testbench).toContain("\n.probe I(I1)\n");
+    expect(result.request.testbench).toContain("write out.raw i1#branch\n");
+    expect(result.vectors).toContainEqual({
+      probeId: "probe-i1",
+      vector: "i(i1)",
+      quantity: "current",
+    });
+  });
+
+  it("reports a current-source probe below the simulation root", async () => {
+    const project = hierarchicalProject();
+    const child = project.documents.find((document) => document.id === "dut")!;
+    child.instances.push({
+      id: "inst-i1",
+      symbolId: "current-source",
+      placement: null,
+      reference: "I1",
+      netlist: {
+        binding: { kind: "primitive", deviceClass: "current-source" },
+        parameters: { dc: "1m" },
+      },
+    });
+    child.nets[0]!.terminals.push({ instanceId: "inst-i1", pinName: "+" });
+    child.nets[1]!.terminals.push({ instanceId: "inst-i1", pinName: "-" });
+
+    const result = await compile(
+      project,
+      setupWith({
+        probes: [
+          {
+            id: "probe-i1",
+            kind: "source-current",
+            documentId: "dut",
+            instanceId: "inst-i1",
+            occurrence: ["inst-x1"],
+          },
+        ],
+      }),
+    );
+
     expect(result.ok).toBe(false);
     expect(codes(result)).toEqual([
-      "SIMULATION_PROBE_SOURCE_HAS_NO_BRANCH_CURRENT",
+      "SIMULATION_PROBE_CURRENT_SOURCE_HIERARCHY_UNSUPPORTED",
     ]);
   });
 });

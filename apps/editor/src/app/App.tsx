@@ -1049,7 +1049,10 @@ export function App({
   const [waveformPlacementPoint, setWaveformPlacementPoint] =
     useState<Point | null>(null);
   useEffect(() => {
-    setSimulationPickNetsActive(false);
+    // Net-pick is a hierarchy traversal mode: keep it armed while the author
+    // enters a DUT Cell, so an internal Net can be picked with its occurrence
+    // path intact. Closing/minimising Simulation still cancels it explicitly.
+    if (!analogSimulationOpen) setSimulationPickNetsActive(false);
     setSimulationHoverNetId(null);
     setSimulationSavedNetIds(new Set());
     setPendingWaveformPlacement(null);
