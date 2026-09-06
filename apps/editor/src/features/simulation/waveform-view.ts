@@ -14,7 +14,6 @@ export interface WaveformState {
   markers: Partial<Record<MarkerName, number>>;
   activeMarker: MarkerName;
   hidden: ReadonlySet<string>;
-  solo: string | null;
   selected: string | null;
 }
 export function initialWaveformState(): WaveformState {
@@ -25,7 +24,6 @@ export function initialWaveformState(): WaveformState {
     markers: {},
     activeMarker: "A",
     hidden: new Set(),
-    solo: null,
     selected: null,
   };
 }
@@ -98,10 +96,13 @@ export function useWaveformView(resultKey?: string) {
       update((current) => commitWaveformView(current, view)),
     travel: (delta: number) =>
       update((current) => travelWaveformView(current, delta)),
-    mark: (x: number) =>
+    mark: (x: number, marker?: MarkerName) =>
       update((current) => ({
         ...current,
-        markers: { ...current.markers, [current.activeMarker]: x },
+        markers: {
+          ...current.markers,
+          [marker ?? current.activeMarker]: x,
+        },
       })),
   };
 }

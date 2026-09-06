@@ -103,6 +103,7 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
   ).toHaveCount(6);
   await panel.getByRole("button", { name: "Apply setup" }).click();
   await panel.getByRole("button", { name: "Prepare deck" }).click();
+  await panel.getByLabel("Prepared files Netlist").locator("summary").click();
   const deckDownload = page.waitForEvent("download");
   await panel
     .getByRole("button", { name: "prepared.cir", exact: true })
@@ -205,6 +206,9 @@ test("one Testbench persists several independently named setups", async ({
   await expect(selector.locator("option")).toHaveCount(2);
   await panel.getByLabel("Setup name").fill("Bias search");
   await panel.getByRole("button", { name: "Apply setup" }).click();
+  await panel.getByLabel("Setup name").fill("Bias sweep");
+  await panel.getByLabel("Setup name").press("Tab");
+  await expect(panel.getByRole("status")).not.toHaveText("Setup changed");
 
   const saved = JSON.parse(
     (await downloadBytes(page, "File", "Export Project File…")).toString(),
@@ -212,7 +216,7 @@ test("one Testbench persists several independently named setups", async ({
   expect(saved.simulationSetups).toHaveLength(2);
   expect(
     saved.simulationSetups.map((setup: { name: string }) => setup.name),
-  ).toEqual(["OTA OP and AC", "Bias search"]);
+  ).toEqual(["OTA OP and AC", "Bias sweep"]);
   expect(
     new Set(
       saved.simulationSetups.map(
@@ -225,7 +229,7 @@ test("one Testbench persists several independently named setups", async ({
   await panel.getByRole("button", { name: "Delete setup" }).click();
   await expect(selector).toHaveValue("simulation-setup-ota-op-ac");
   await expect(
-    selector.getByRole("option", { name: "Bias search" }),
+    selector.getByRole("option", { name: "Bias sweep" }),
   ).toHaveCount(0);
   const afterDelete = JSON.parse(
     (await downloadBytes(page, "File", "Export Project File…")).toString(),
@@ -422,6 +426,12 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   release();
   await page.getByTestId("open-analog-simulation").click();
   await expect(panel.getByRole("status")).toHaveText("finished · completed");
+  await expect(panel.getByRole("tab", { name: "Summary" })).toHaveCount(0);
+  await panel.getByRole("tab", { name: "Console" }).click();
+  await expect(panel.locator(".simulation-console-summary")).toContainText(
+    "finished · completed",
+  );
+  await expect(panel.locator(".simulation-console-view > pre")).toBeVisible();
   await panel.getByRole("tab", { name: "Operating Point" }).click();
   await expect(panel.getByRole("region", { name: "OP results" })).toContainText(
     "0.500000",
@@ -491,18 +501,13 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
     .locator("polyline[data-trace-id]")
     .evaluate((element) => {
       const line = element as SVGPolylineElement;
-      const point = line.points.getItem(
-        Math.floor(line.points.numberOfItems / 2),
-      );
+      const point = line.points.getItem(line.points.numberOfItems - 1);
       const screen = new DOMPoint(point.x, point.y).matrixTransform(
         line.getScreenCTM()!,
       );
       return { x: screen.x, y: screen.y };
     });
   await page.mouse.click(tracePoint.x, tracePoint.y);
-  await expect(
-    panel.locator(".simulation-output-browser > .selected"),
-  ).toHaveCount(1);
   await expect(page.getByTestId("net-highlight-overlay")).toBeVisible();
   await expect(
     panel.locator('svg[aria-label="Transient voltage"]'),
@@ -609,6 +614,24 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   await expect(fixedReadout).toContainText("ΔX:");
   await expect(fixedReadout).toContainText("ΔY");
   await expect(fixedReadout).toContainText("1/|Δt|");
+  await expect(transientPlot.locator("line.ac-cursor")).toHaveCount(4);
+  const markerA = transientPlot.locator('[data-marker="A"]').first();
+  const markerBounds = await markerA.boundingBox();
+  const markerTextBeforeDrag = await fixedReadout.textContent();
+  await page.mouse.move(
+    markerBounds!.x + markerBounds!.width / 2,
+    markerBounds!.y + markerBounds!.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    markerBounds!.x + transientBounds!.width * 0.6,
+    markerBounds!.y + 4,
+    {
+      steps: 4,
+    },
+  );
+  await page.mouse.up();
+  await expect(fixedReadout).not.toHaveText(markerTextBeforeDrag ?? "");
   const markersBeforeRemount = await fixedReadout.textContent();
   await transientShell
     .getByRole("button", { name: "Ranges", exact: true })
@@ -674,6 +697,7 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   });
   await waveformDialog.getByRole("button", { name: "Close plot" }).click();
   await panel.getByRole("tab", { name: "Files" }).click();
+  await panel.getByLabel("Last run Evidence").locator("summary").click();
   await expect(
     panel.getByRole("button", { name: "evidence-manifest.json" }),
   ).toBeVisible();
@@ -683,10 +707,10 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
     .first()
     .click();
   expect((await download).suggestedFilename()).toMatch(/\.csv$/);
-  await expect(panel.getByLabel("Last run")).toBeVisible();
+  await expect(panel.getByLabel("Last run Results")).toBeVisible();
   await panel.getByRole("button", { name: "Prepare deck" }).click();
-  await expect(panel.getByLabel("Prepared files")).toBeVisible();
-  await expect(panel.getByLabel("Last run")).toBeVisible();
+  await expect(panel.getByLabel("Prepared files Netlist")).toBeVisible();
+  await expect(panel.getByLabel("Last run Results")).toBeVisible();
   await expect(panel.getByText("Input identity", { exact: true })).toHaveCount(
     0,
   );

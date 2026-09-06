@@ -14,6 +14,7 @@ import {
 } from "./waveform-interaction";
 import { useWaveformView } from "./waveform-view";
 import { WaveformTools, WaveformMeasurements } from "./waveform-tools";
+import { WaveformTraceList } from "./waveform-trace-list";
 import type { SimulationProbeSpec } from "@icm/model";
 import type { TransientResult } from "@icm/spice-run";
 import type { Prepared } from "@icm/simulation-service/contract";
@@ -219,18 +220,14 @@ export function TransientResultsExplorer({
     [analysis, groups, labels, probes, vectors],
   );
   const controller = useWaveformView(resultKey);
-  const { hidden, solo, selected, markers } = controller.state;
+  const { hidden, selected, markers } = controller.state;
   const setHidden = (value: SetStateAction<ReadonlySet<string>>) =>
     controller.set("hidden", value);
-  const setSolo = (value: React.SetStateAction<string | null>) =>
-    controller.set("solo", value);
   const setSelected = (value: string) => controller.set("selected", value);
   const timeRange = controller.view.x;
   const valueRanges = controller.view.y;
   const [expandedQuantity, setExpandedQuantity] = useState<string | null>(null);
-  const visible = traces.filter(
-    (trace) => !hidden.has(trace.id) && (solo === null || solo === trace.id),
-  );
+  const visible = traces.filter((trace) => !hidden.has(trace.id));
   const fullRange = finiteExtent(analysis.timeSeconds);
   const xFraction = (value: number, range: readonly [number, number]) =>
     logarithmicX
@@ -258,6 +255,17 @@ export function TransientResultsExplorer({
     if (trace.probe) onFocusProbe?.(trace.probe);
   };
 
+  const toggleTrace = (traceId: string): void => {
+    const showing = hidden.has(traceId);
+    setHidden((current) => {
+      const next = new Set(current);
+      if (showing) next.delete(traceId);
+      else next.add(traceId);
+      return next;
+    });
+    if (showing) focusTrace(traceId);
+  };
+
   const plot = (
     quantity: PlotQuantity,
     quantityTraces: readonly TransientTrace[],
@@ -267,8 +275,8 @@ export function TransientResultsExplorer({
       ? EXPANDED_PLOT
       : {
           ...PLOT,
-          width: measured.width,
-          height: responsiveWaveformHeight(measured.width),
+          width: Math.max(280, measured.width - 116),
+          height: responsiveWaveformHeight(Math.max(280, measured.width - 116)),
         };
     const range = timeRange ?? fullRange;
     const clipId = `${clipPrefix}-${quantity}-${expanded}`;
@@ -339,6 +347,15 @@ export function TransientResultsExplorer({
               analysis.timeSeconds[0] ?? time,
             );
             controller.mark(nearest);
+          }}
+          onMoveMarker={(point, marker) => {
+            const time = xAt(point.x, range);
+            const nearest = analysis.timeSeconds.reduce(
+              (best, value) =>
+                Math.abs(value - time) < Math.abs(best - time) ? value : best,
+              analysis.timeSeconds[0] ?? time,
+            );
+            controller.mark(nearest, marker);
           }}
           onOpen={() => !expanded && setExpandedQuantity(quantity)}
         >
@@ -491,11 +508,30 @@ export function TransientResultsExplorer({
                 geometry.left +
                 xFraction(time, range) *
                   (geometry.width - geometry.left - geometry.right);
+              const cursorTrace =
+                quantityTraces.find((trace) => trace.id === selected) ??
+                quantityTraces[0];
+              const sampleIndex = analysis.timeSeconds.reduce(
+                (best, value, index) =>
+                  Math.abs(value - time) <
+                  Math.abs((analysis.timeSeconds[best] ?? value) - time)
+                    ? index
+                    : best,
+                0,
+              );
+              const cursorValue = cursorTrace?.values[sampleIndex];
+              const y =
+                cursorValue === undefined
+                  ? undefined
+                  : geometry.top +
+                    ((extent[1] - cursorValue) / (extent[1] - extent[0])) *
+                      (geometry.height - geometry.top - geometry.bottom);
+              const color = name === "A" ? "#175cd3" : "#c4320a";
               return (
-                <g key={name} pointerEvents="none">
+                <g key={name}>
                   <line
                     className="ac-cursor"
-                    stroke={name === "A" ? "#175cd3" : "#c4320a"}
+                    stroke={color}
                     strokeWidth={1}
                     strokeDasharray="3 3"
                     x1={x}
@@ -503,7 +539,42 @@ export function TransientResultsExplorer({
                     y1={geometry.top}
                     y2={geometry.height - geometry.bottom}
                   />
-                  <text x={x + 3} y={geometry.top + 12}>
+                  <line
+                    className="ac-cursor-hit"
+                    data-marker={name}
+                    x1={x}
+                    x2={x}
+                    y1={geometry.top}
+                    y2={geometry.height - geometry.bottom}
+                  />
+                  {y === undefined ? null : (
+                    <>
+                      <line
+                        className="ac-cursor"
+                        stroke={color}
+                        x1={geometry.left}
+                        x2={geometry.width - geometry.right}
+                        y1={y}
+                        y2={y}
+                      />
+                      <line
+                        className="ac-cursor-hit"
+                        data-marker={name}
+                        x1={geometry.left}
+                        x2={geometry.width - geometry.right}
+                        y1={y}
+                        y2={y}
+                      />
+                      <circle
+                        className="ac-cursor-handle"
+                        stroke={color}
+                        cx={x}
+                        cy={y}
+                        r={4}
+                      />
+                    </>
+                  )}
+                  <text pointerEvents="none" x={x + 5} y={geometry.top + 13}>
                     {name}
                   </text>
                 </g>
@@ -576,59 +647,14 @@ export function TransientResultsExplorer({
           </small>
         </div>
       </header>
-      <div
-        className="simulation-output-browser"
-        aria-label={`${analysisLabel} outputs`}
-      >
-        {traces.map((trace) => {
-          const isVisible = !hidden.has(trace.id);
-          return (
-            <div
-              key={trace.id}
-              className={selected === trace.id ? "selected" : undefined}
-            >
-              <button
-                type="button"
-                className={`simulation-output-swatch ac-trace-${trace.colorIndex % 6}`}
-                aria-label={`${isVisible ? "Hide" : "Show"} ${trace.label}`}
-                aria-pressed={isVisible}
-                onClick={() =>
-                  setHidden((current) => {
-                    const next = new Set(current);
-                    if (next.has(trace.id)) next.delete(trace.id);
-                    else next.add(trace.id);
-                    return next;
-                  })
-                }
-              />
-              <button
-                type="button"
-                className="simulation-output-name"
-                onClick={() => focusTrace(trace.id)}
-              >
-                <strong>{trace.label}</strong>
-                <small>
-                  {trace.quantity} · {trace.probe ? "linked" : trace.id}
-                </small>
-              </button>
-              <button
-                type="button"
-                aria-pressed={solo === trace.id}
-                onClick={() =>
-                  setSolo((current) => (current === trace.id ? null : trace.id))
-                }
-              >
-                Solo
-              </button>
-            </div>
-          );
-        })}
-      </div>
       {[...new Set(traces.map((trace) => trace.quantity))].map((quantity) => {
-        const quantityTraces = visible.filter(
+        const quantityTraces = traces.filter(
           (trace) => trace.quantity === quantity,
         );
-        return quantityTraces.length ? (
+        const visibleQuantityTraces = quantityTraces.filter(
+          (trace) => !hidden.has(trace.id),
+        );
+        return (
           <section
             key={quantity}
             className="transient-quantity-group ac-quantity-group"
@@ -640,13 +666,28 @@ export function TransientResultsExplorer({
                   ? "Current"
                   : quantity}
             </h4>
-            {plot(quantity, quantityTraces)}
+            <div className="simulation-plot-layout">
+              <WaveformTraceList
+                label={`${analysisLabel} ${quantity} outputs`}
+                traces={quantityTraces.map((trace) => ({
+                  id: trace.id,
+                  label: trace.label,
+                  colorIndex: trace.colorIndex,
+                  visible: !hidden.has(trace.id),
+                }))}
+                onToggle={toggleTrace}
+              />
+              <div className="simulation-plot-stack">
+                {visibleQuantityTraces.length ? (
+                  plot(quantity, visibleQuantityTraces)
+                ) : (
+                  <p className="simulation-empty-plot">Outputs hidden</p>
+                )}
+              </div>
+            </div>
           </section>
-        ) : null;
+        );
       })}
-      {visible.length === 0 ? (
-        <p className="simulation-empty-result">All Outputs are hidden.</p>
-      ) : null}
       {expandedQuantity ? (
         <div
           className="ac-plot-dialog-backdrop"
@@ -675,11 +716,35 @@ export function TransientResultsExplorer({
                 ×
               </button>
             </header>
-            {plot(
-              expandedQuantity,
-              visible.filter((trace) => trace.quantity === expandedQuantity),
-              true,
-            )}
+            <div className="simulation-plot-layout expanded">
+              <WaveformTraceList
+                label={`${analysisLabel} ${expandedQuantity} outputs`}
+                traces={traces
+                  .filter((trace) => trace.quantity === expandedQuantity)
+                  .map((trace) => ({
+                    id: trace.id,
+                    label: trace.label,
+                    colorIndex: trace.colorIndex,
+                    visible: !hidden.has(trace.id),
+                  }))}
+                onToggle={toggleTrace}
+              />
+              <div className="simulation-plot-stack">
+                {visible.some(
+                  (trace) => trace.quantity === expandedQuantity,
+                ) ? (
+                  plot(
+                    expandedQuantity,
+                    visible.filter(
+                      (trace) => trace.quantity === expandedQuantity,
+                    ),
+                    true,
+                  )
+                ) : (
+                  <p className="simulation-empty-plot">Outputs hidden</p>
+                )}
+              </div>
+            </div>
             {measurement(expandedQuantity)}
           </section>
         </div>

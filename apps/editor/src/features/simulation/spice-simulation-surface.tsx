@@ -33,7 +33,6 @@ import {
 } from "./simulation-probe-options";
 
 const RESULT_TABS = [
-  ["summary", "Summary"],
   ["plot", "Plot"],
   ["operating-point", "Operating Point"],
   ["console", "Console"],
@@ -47,6 +46,22 @@ const DEVELOPMENT_PROFILE_ID = import.meta.env.DEV
   ? "sky130-core-continuous-ngspice46-v1"
   : "";
 type ResultTab = (typeof RESULT_TABS)[number][0];
+
+function preferredResultTab(run: Run): ResultTab {
+  const analyses = run.outputData?.analyses ?? run.result?.data?.analyses ?? [];
+  if (
+    analyses.some(
+      (analysis) =>
+        analysis.analysis === "dc" ||
+        analysis.analysis === "ac" ||
+        analysis.analysis === "tran",
+    )
+  )
+    return "plot";
+  if (analyses.some((analysis) => analysis.analysis === "op"))
+    return "operating-point";
+  return "console";
+}
 
 export interface SpiceSimulationSurfaceProps {
   open: boolean;
@@ -148,7 +163,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   const preparedPresentations = useRef(new Map<string, PreparedPresentation>());
   const [setupOpen, setSetupOpen] = useState(true);
   const [resultsOpen, setResultsOpen] = useState(false);
-  const [resultTab, setResultTab] = useState<ResultTab>("summary");
+  const [resultTab, setResultTab] = useState<ResultTab>("plot");
   const [exitConfirmationOpen, setExitConfirmationOpen] = useState(false);
   const previousSetupId = useRef<string | null>(props.selectedSetupId);
   useEffect(() => {
@@ -195,7 +210,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
       ) {
         setSetupOpen(false);
         setResultsOpen(true);
-        setResultTab("summary");
+        setResultTab(preferredResultTab(reply.run));
       }
     } else if ("prepared" in reply) {
       setPrepared(reply.prepared);
@@ -340,6 +355,15 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
         ]
       : []),
   ];
+  const artifactCategories = ["Netlist", "Results", "Evidence", "Log", "Other"];
+  const artifactSections = artifactGroups.flatMap((group) =>
+    artifactCategories.flatMap((category) => {
+      const artifacts = group.artifacts.filter(
+        (artifact) => simulationArtifactCategory(artifact) === category,
+      );
+      return artifacts.length ? [{ ...group, category, artifacts }] : [];
+    }),
+  );
   const statusLabel = busy
     ? "Preparing…"
     : run
@@ -610,9 +634,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
 
       {setupOpen ? (
         <SetupEditor
-          key={
-            JSON.stringify(selectedSetup) ?? `unsaved:${props.activeDocumentId}`
-          }
+          key={selectedSetup?.id ?? `unsaved:${props.activeDocumentId}`}
           {...props}
           setup={selectedSetup}
           capabilities={capabilities}
@@ -642,39 +664,6 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
             </div>
           </header>
           <div className="simulation-results-body">
-            {resultTab === "summary" ? (
-              <div className="simulation-result-summary">
-                <div>
-                  <small>Run state</small>
-                  <strong>{statusLabel}</strong>
-                </div>
-                <div>
-                  <small>Input</small>
-                  <strong>{run?.inputStatus ?? "current"}</strong>
-                </div>
-                <div>
-                  <small>Analyses</small>
-                  <strong>{analysisLabel || "Not configured"}</strong>
-                </div>
-                {run?.state === "lost" ? (
-                  <p>
-                    The executor response is unknown. This run was not
-                    automatically resubmitted; inspect its evidence before
-                    choosing a new run.
-                  </p>
-                ) : null}
-                {runPresentation?.prepared.warnings.map((warning, index) => (
-                  <p key={index}>{warning}</p>
-                ))}
-                {run?.resultPreview ? (
-                  <p>
-                    Result preview is bounded. Export artifacts for complete
-                    data.
-                  </p>
-                ) : null}
-              </div>
-            ) : null}
-
             {resultTab === "plot" ? (
               <div className="simulation-analysis-view">
                 {run?.outputData ? (
@@ -828,6 +817,35 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
 
             {resultTab === "console" ? (
               <div className="simulation-console-view">
+                <div className="simulation-console-summary">
+                  <span>
+                    <small>Run</small>
+                    <strong>{statusLabel}</strong>
+                  </span>
+                  <span>
+                    <small>Input</small>
+                    <strong>{run?.inputStatus ?? "current"}</strong>
+                  </span>
+                  <span>
+                    <small>Analyses</small>
+                    <strong>{analysisLabel || "Not configured"}</strong>
+                  </span>
+                </div>
+                {run?.state === "lost" ? (
+                  <p>
+                    The executor response is unknown. Inspect its evidence
+                    before starting another run.
+                  </p>
+                ) : null}
+                {runPresentation?.prepared.warnings.map((warning, index) => (
+                  <p key={index}>{warning}</p>
+                ))}
+                {run?.resultPreview ? (
+                  <p>
+                    The on-screen result is bounded; exported artifacts contain
+                    the complete data.
+                  </p>
+                ) : null}
                 {activeProblem ? (
                   <SimulationProblemView
                     problem={activeProblem}
@@ -855,13 +873,21 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
 
             {resultTab === "files" ? (
               <div className="simulation-files-view">
-                {artifactGroups.map((group) => (
-                  <section key={group.label} aria-label={group.label}>
-                    <h3>{group.label}</h3>
+                {artifactSections.map((section) => (
+                  <details
+                    key={`${section.label}:${section.category}`}
+                    className="simulation-artifact-group"
+                    aria-label={`${section.label} ${section.category}`}
+                    open={section.category === "Results"}
+                  >
+                    <summary>
+                      <strong>{section.category}</strong>
+                      <span>{section.label}</span>
+                      <small>{section.artifacts.length}</small>
+                    </summary>
                     <ul className="simulation-artifact-list">
-                      {group.artifacts.map((artifact) => (
+                      {section.artifacts.map((artifact) => (
                         <li key={artifact.id}>
-                          <span>{simulationArtifactCategory(artifact)}</span>
                           <button onClick={() => void download(artifact)}>
                             {artifact.name}
                           </button>
@@ -871,9 +897,9 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
                         </li>
                       ))}
                     </ul>
-                  </section>
+                  </details>
                 ))}
-                {artifactGroups.length === 0 ? (
+                {artifactSections.length === 0 ? (
                   <p className="simulation-empty-result">
                     Prepare a deck or run the simulation to create files.
                   </p>
@@ -979,6 +1005,9 @@ function SetupEditor({
     saved?.rootDocumentId ?? draftContext?.rootDocumentId ?? activeDocumentId,
   );
   const [outputs, setOutputs] = useState(saved?.outputs ?? []);
+  const [setupName, setSetupName] = useState(
+    setup?.name ?? draftContext?.setupName ?? "Setup 1",
+  );
   const [expressionText, setExpressionText] = useState("");
   const [expressionLabel, setExpressionLabel] = useState("");
   const [editingOutputId, setEditingOutputId] = useState<string>();
@@ -1124,7 +1153,12 @@ function SetupEditor({
         </div>
       </header>
       <form
-        onChange={() => onDirty(true)}
+        onChange={(event) => {
+          if (
+            (event.target as unknown as { name?: string }).name !== "setupName"
+          )
+            onDirty(true);
+        }}
         onSubmit={(event) => {
           event.preventDefault();
           const data = new FormData(event.currentTarget);
@@ -1224,7 +1258,32 @@ function SetupEditor({
           <input
             name="setupName"
             required
-            defaultValue={setup?.name ?? draftContext?.setupName ?? "Setup 1"}
+            value={setupName}
+            onChange={(event) => setSetupName(event.currentTarget.value)}
+            onBlur={() => {
+              const name = setupName.trim();
+              if (!setup || name === setup.name) return;
+              if (!name) {
+                setSetupName(setup.name);
+                onProblem(
+                  uiProblem(
+                    "SIMULATION_SETUP_INVALID",
+                    "Setup name is required.",
+                  ),
+                );
+                return;
+              }
+              if (onSaveSetup({ ...setup, name })) onProblem(undefined);
+              else {
+                setSetupName(setup.name);
+                onProblem(
+                  uiProblem(
+                    "SIMULATION_SETUP_RENAME_FAILED",
+                    "The setup name could not be saved.",
+                  ),
+                );
+              }
+            }}
           />
         </label>
         <label>
@@ -1822,6 +1881,7 @@ function simulationArtifactCategory(artifact: ArtifactRef): string {
   const name = artifact.name.toLocaleLowerCase();
   if (name.endsWith(".cir") || name.endsWith(".spi")) return "Netlist";
   if (name.endsWith(".raw") || name.endsWith(".csv")) return "Results";
+  if (name.endsWith(".json")) return "Evidence";
   if (name.endsWith(".log") || name.endsWith(".txt")) return "Log";
   return "Other";
 }
