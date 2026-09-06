@@ -5,7 +5,7 @@ Status: `accepted`
 Primary owner: `packages/model`
 
 The Project contains Documents; each Document owns revisioned electrical,
-geometric, and presentation facts. The current model is strict schema 42 and has
+geometric, and presentation facts. The current model is strict schema 43 and has
 no compatibility shape.
 
 ## Coordinate domains
@@ -193,8 +193,8 @@ ordinary Schematic edits inside one Project structural transaction. The
 Project's `structureRevision` protects this cross-Document boundary and the
 editor records it as one undoable structural commit.
 
-Persistence writes only schema 42. The reader carries every schema in its
-explicit 24→42 upgrade chain forward, then supplies the current model only; no
+Persistence writes only schema 43. The reader carries every schema in its
+explicit 24→43 upgrade chain forward, then supplies the current model only; no
 compatibility shape enters runtime electrical derivation. The 32→33 step
 rejects ownerless equivalence rather than guessing replacement connectivity.
 The 33→34 step converts hidden imported names into non-electrical hints or
@@ -217,3 +217,7 @@ to concrete Terminal, Junction, or Route anchors. When no attached object is
 available it retains an unresolved Base-Net fallback rather than discarding the
 authored probe. A removed anchor or Testbench Cell is diagnosed during prepare;
 it does not invalidate the Project or block the ordinary deletion transaction.
+The 41→42 step replaces the optional singleton setup with a named collection.
+The 42→43 step replaces primitive probes with named expression outputs while
+preserving every acquisition target. Output labels are presentation and result
+identity only; they never name or join circuit Nets.

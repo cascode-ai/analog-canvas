@@ -4748,11 +4748,11 @@ export function App({
                   (candidate) => candidate.id === probe.documentId,
                 );
                 const voltageNetId =
-                  probe.kind === "net-voltage"
+                  probe.kind === "voltage"
                     ? resolveSimulationVoltageProbeNetId(project, probe)
                     : undefined;
                 const targetExists =
-                  probe.kind === "net-voltage"
+                  probe.kind === "voltage"
                     ? voltageNetId !== undefined
                     : targetDocument?.instances.some(
                         (instance) => instance.id === probe.instanceId,
@@ -4779,7 +4779,7 @@ export function App({
                   return;
                 }
                 navigateToLocator(
-                  probe.kind === "net-voltage"
+                  probe.kind === "voltage"
                     ? {
                         documentId: probe.documentId,
                         hierarchyPath,
@@ -4792,7 +4792,7 @@ export function App({
                         kind: "instance",
                         objectId: probe.instanceId,
                       },
-                  probe.kind === "net-voltage"
+                  probe.kind === "voltage"
                     ? `Located simulation Net ${voltageNetId}`
                     : `Located simulation source ${probe.instanceId}`,
                 );

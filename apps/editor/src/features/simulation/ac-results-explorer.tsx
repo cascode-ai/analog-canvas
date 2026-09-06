@@ -20,7 +20,7 @@ import {
 
 interface OutputTrace extends AcTrace {
   id: string;
-  quantity: "voltage" | "current";
+  quantity: string;
   probe?: SimulationProbeSpec;
 }
 
@@ -35,6 +35,7 @@ export interface AcResultsExplorerProps {
   vectors: Prepared["vectors"];
   probes: readonly SimulationProbeSpec[];
   labels?: Readonly<Record<string, string>>;
+  groups?: Readonly<Record<string, string>>;
   onFocusProbe?(probe: SimulationProbeSpec): void;
 }
 
@@ -72,6 +73,7 @@ function outputTraces(
   vectors: Prepared["vectors"],
   probes: readonly SimulationProbeSpec[],
   labels: Readonly<Record<string, string>>,
+  groups: Readonly<Record<string, string>>,
 ): OutputTrace[] {
   const vectorsByName = new Map(
     vectors.map((vector) => [vector.vector.toLowerCase(), vector]),
@@ -91,6 +93,7 @@ function outputTraces(
       label: (binding && labels[binding.probeId]) || resultProbe.name,
       colorIndex: index,
       quantity:
+        (binding && groups[binding.probeId]) ??
         binding?.quantity ??
         (resultProbe.quantity === "current" ? "current" : "voltage"),
       ...(authored ? { probe: authored } : {}),
@@ -113,18 +116,26 @@ function outputTraces(
   });
 }
 
+function groupLabel(quantity: string): string {
+  if (quantity === "voltage") return "Voltage";
+  if (quantity === "current") return "Current";
+  if (quantity === "ratio") return "Ratio";
+  return quantity;
+}
+
 export function AcResultsExplorer({
   analysis,
   vectors,
   probes,
   labels = {},
+  groups = {},
   onFocusProbe,
   resultKey,
 }: AcResultsExplorerProps) {
   const measured = useWaveformWidth();
   const traces = useMemo(
-    () => outputTraces(analysis, vectors, probes, labels),
-    [analysis, labels, probes, vectors],
+    () => outputTraces(analysis, vectors, probes, labels, groups),
+    [analysis, groups, labels, probes, vectors],
   );
   const controller = useWaveformView(resultKey);
   const { hidden, solo, selected, markers } = controller.state;
@@ -355,14 +366,14 @@ export function AcResultsExplorer({
           );
         })}
       </div>
-      {(["voltage", "current"] as const).map((quantity) => {
+      {[...new Set(traces.map((trace) => trace.quantity))].map((quantity) => {
         const quantityTraces = visible.filter(
           (trace) => trace.quantity === quantity,
         );
         if (quantityTraces.length === 0) return null;
         return (
           <section key={quantity} className="ac-quantity-group">
-            <h4>{quantity === "voltage" ? "Voltage" : "Current"}</h4>
+            <h4>{groupLabel(quantity)}</h4>
             {(["magnitude", "phase"] as const).map((kind) => (
               <div key={kind} className="ac-plot-row">
                 <strong>{kind === "magnitude" ? "Magnitude" : "Phase"}</strong>
@@ -392,8 +403,8 @@ export function AcResultsExplorer({
               <div>
                 <strong>{analysis.plotName}</strong>
                 <span>
-                  {expandedPlot.quantity === "voltage" ? "Voltage" : "Current"}{" "}
-                  · {expandedPlot.kind === "magnitude" ? "Magnitude" : "Phase"}
+                  {groupLabel(expandedPlot.quantity)} ·{" "}
+                  {expandedPlot.kind === "magnitude" ? "Magnitude" : "Phase"}
                 </span>
               </div>
               <button

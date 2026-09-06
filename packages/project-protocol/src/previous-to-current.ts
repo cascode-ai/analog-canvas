@@ -147,3 +147,11 @@ export type {
   Schema41To42MigrationReport,
   Schema41To42MigrationResult,
 } from "./transforms/simulation-setup-collection.js";
+export {
+  upgradeSchema42To43,
+  upgradeSchema42To43WithReport,
+} from "./transforms/simulation-outputs.js";
+export type {
+  Schema42To43MigrationReport,
+  Schema42To43MigrationResult,
+} from "./transforms/simulation-outputs.js";

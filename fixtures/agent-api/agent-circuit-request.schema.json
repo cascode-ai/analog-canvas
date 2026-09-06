@@ -14750,7 +14750,7 @@
               "properties": {
                 "version": {
                   "type": "number",
-                  "const": 1
+                  "const": 2
                 },
                 "input": {
                   "oneOf": [
@@ -14766,18 +14766,18 @@
                         "analyses": {
                           "$ref": "#/$defs/__schema373"
                         },
-                        "probes": {
+                        "outputs": {
                           "$ref": "#/$defs/__schema389"
                         },
                         "environment": {
-                          "$ref": "#/$defs/__schema392"
+                          "$ref": "#/$defs/__schema393"
                         }
                       },
                       "required": [
                         "kind",
                         "rootDocumentId",
                         "analyses",
-                        "probes",
+                        "outputs",
                         "environment"
                       ],
                       "additionalProperties": false
@@ -14786,19 +14786,19 @@
                       "type": "object",
                       "properties": {
                         "kind": {
-                          "$ref": "#/$defs/__schema393"
-                        },
-                        "entry": {
                           "$ref": "#/$defs/__schema394"
                         },
-                        "files": {
+                        "entry": {
                           "$ref": "#/$defs/__schema395"
                         },
+                        "files": {
+                          "$ref": "#/$defs/__schema396"
+                        },
                         "dependencies": {
-                          "$ref": "#/$defs/__schema397"
+                          "$ref": "#/$defs/__schema398"
                         },
                         "environment": {
-                          "$ref": "#/$defs/__schema392"
+                          "$ref": "#/$defs/__schema393"
                         }
                       },
                       "required": [
@@ -15377,16 +15377,35 @@
       }
     },
     "__schema390": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "expression": {
+          "$ref": "#/$defs/__schema391"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "expression"
+      ],
+      "additionalProperties": false
+    },
+    "__schema391": {
       "oneOf": [
         {
           "type": "object",
           "properties": {
-            "id": {
-              "$ref": "#/$defs/__schema1"
-            },
             "kind": {
               "type": "string",
-              "const": "net-voltage"
+              "const": "voltage"
             },
             "documentId": {
               "$ref": "#/$defs/__schema1"
@@ -15469,11 +15488,10 @@
               ]
             },
             "occurrence": {
-              "$ref": "#/$defs/__schema391"
+              "$ref": "#/$defs/__schema392"
             }
           },
           "required": [
-            "id",
             "kind",
             "documentId",
             "anchor",
@@ -15484,12 +15502,9 @@
         {
           "type": "object",
           "properties": {
-            "id": {
-              "$ref": "#/$defs/__schema1"
-            },
             "kind": {
               "type": "string",
-              "const": "source-current"
+              "const": "current"
             },
             "documentId": {
               "$ref": "#/$defs/__schema1"
@@ -15498,28 +15513,247 @@
               "$ref": "#/$defs/__schema1"
             },
             "occurrence": {
-              "$ref": "#/$defs/__schema391"
+              "$ref": "#/$defs/__schema392"
             }
           },
           "required": [
-            "id",
             "kind",
             "documentId",
             "instanceId",
             "occurrence"
           ],
           "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "constant"
+            },
+            "value": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "negate"
+            },
+            "operand": {
+              "$ref": "#/$defs/__schema391"
+            }
+          },
+          "required": [
+            "kind",
+            "operand"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "magnitude"
+            },
+            "operand": {
+              "$ref": "#/$defs/__schema391"
+            }
+          },
+          "required": [
+            "kind",
+            "operand"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "db20"
+            },
+            "operand": {
+              "$ref": "#/$defs/__schema391"
+            }
+          },
+          "required": [
+            "kind",
+            "operand"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "phase"
+            },
+            "operand": {
+              "$ref": "#/$defs/__schema391"
+            }
+          },
+          "required": [
+            "kind",
+            "operand"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "real"
+            },
+            "operand": {
+              "$ref": "#/$defs/__schema391"
+            }
+          },
+          "required": [
+            "kind",
+            "operand"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "imaginary"
+            },
+            "operand": {
+              "$ref": "#/$defs/__schema391"
+            }
+          },
+          "required": [
+            "kind",
+            "operand"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "absolute"
+            },
+            "operand": {
+              "$ref": "#/$defs/__schema391"
+            }
+          },
+          "required": [
+            "kind",
+            "operand"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "add"
+            },
+            "left": {
+              "$ref": "#/$defs/__schema391"
+            },
+            "right": {
+              "$ref": "#/$defs/__schema391"
+            }
+          },
+          "required": [
+            "kind",
+            "left",
+            "right"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "subtract"
+            },
+            "left": {
+              "$ref": "#/$defs/__schema391"
+            },
+            "right": {
+              "$ref": "#/$defs/__schema391"
+            }
+          },
+          "required": [
+            "kind",
+            "left",
+            "right"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "multiply"
+            },
+            "left": {
+              "$ref": "#/$defs/__schema391"
+            },
+            "right": {
+              "$ref": "#/$defs/__schema391"
+            }
+          },
+          "required": [
+            "kind",
+            "left",
+            "right"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "divide"
+            },
+            "left": {
+              "$ref": "#/$defs/__schema391"
+            },
+            "right": {
+              "$ref": "#/$defs/__schema391"
+            }
+          },
+          "required": [
+            "kind",
+            "left",
+            "right"
+          ],
+          "additionalProperties": false
         }
       ]
     },
-    "__schema391": {
+    "__schema392": {
       "maxItems": 64,
       "type": "array",
       "items": {
         "$ref": "#/$defs/__schema1"
       }
     },
-    "__schema392": {
+    "__schema393": {
       "type": "object",
       "properties": {
         "profileId": {
@@ -15541,26 +15775,26 @@
       ],
       "additionalProperties": false
     },
-    "__schema393": {
+    "__schema394": {
       "type": "string",
       "const": "raw"
     },
-    "__schema394": {
+    "__schema395": {
       "type": "string"
     },
-    "__schema395": {
+    "__schema396": {
       "minItems": 1,
       "maxItems": 24,
       "type": "array",
       "items": {
-        "$ref": "#/$defs/__schema396"
+        "$ref": "#/$defs/__schema397"
       }
     },
-    "__schema396": {
+    "__schema397": {
       "type": "object",
       "properties": {
         "path": {
-          "$ref": "#/$defs/__schema394"
+          "$ref": "#/$defs/__schema395"
         },
         "text": {
           "type": "string"
@@ -15572,14 +15806,14 @@
       ],
       "additionalProperties": false
     },
-    "__schema397": {
+    "__schema398": {
       "maxItems": 24,
       "type": "array",
       "items": {
-        "$ref": "#/$defs/__schema398"
+        "$ref": "#/$defs/__schema399"
       }
     },
-    "__schema398": {
+    "__schema399": {
       "type": "object",
       "properties": {
         "id": {
@@ -15588,7 +15822,7 @@
           "maxLength": 256
         },
         "mountPath": {
-          "$ref": "#/$defs/__schema394"
+          "$ref": "#/$defs/__schema395"
         },
         "sha256": {
           "type": "string",

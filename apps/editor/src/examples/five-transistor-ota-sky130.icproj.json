@@ -3014,12 +3014,12 @@
   ],
   "id": "project-five-transistor-ota-sky130",
   "name": "Five-Transistor OTA (Sky130)",
-  "schemaVersion": 42,
+  "schemaVersion": 43,
   "simulationSetups": [
     {
       "id": "simulation-setup-ota-op-ac",
       "name": "OTA OP and AC",
-      "version": 1,
+      "version": 2,
       "input": {
         "kind": "structured",
         "rootDocumentId": "document-ota-5t-testbench",
@@ -3035,50 +3035,62 @@
             "stopHz": 1000000000
           }
         ],
-        "probes": [
+        "outputs": [
           {
             "id": "probe-vout",
-            "kind": "net-voltage",
-            "documentId": "document-ota-5t-testbench",
-            "anchor": {
-              "kind": "terminal",
-              "instanceId": "XDUT",
-              "pinName": "vout"
-            },
-            "occurrence": []
+            "label": "vout",
+            "expression": {
+              "kind": "voltage",
+              "documentId": "document-ota-5t-testbench",
+              "anchor": {
+                "kind": "terminal",
+                "instanceId": "XDUT",
+                "pinName": "vout"
+              },
+              "occurrence": []
+            }
           },
           {
             "id": "probe-ibias",
-            "kind": "net-voltage",
-            "documentId": "document-ota-5t-testbench",
-            "anchor": {
-              "kind": "terminal",
-              "instanceId": "IBIAS",
-              "pinName": "-"
-            },
-            "occurrence": []
+            "label": "ibias",
+            "expression": {
+              "kind": "voltage",
+              "documentId": "document-ota-5t-testbench",
+              "anchor": {
+                "kind": "terminal",
+                "instanceId": "IBIAS",
+                "pinName": "-"
+              },
+              "occurrence": []
+            }
           },
           {
             "id": "probe-tail",
-            "kind": "net-voltage",
-            "documentId": "document-ota-5t",
-            "anchor": {
-              "kind": "terminal",
-              "instanceId": "M5",
-              "pinName": "D"
-            },
-            "occurrence": ["XDUT"]
+            "label": "tail",
+            "expression": {
+              "kind": "voltage",
+              "documentId": "document-ota-5t",
+              "anchor": {
+                "kind": "terminal",
+                "instanceId": "M5",
+                "pinName": "D"
+              },
+              "occurrence": ["XDUT"]
+            }
           },
           {
             "id": "probe-nleft",
-            "kind": "net-voltage",
-            "documentId": "document-ota-5t",
-            "anchor": {
-              "kind": "terminal",
-              "instanceId": "M3",
-              "pinName": "D"
-            },
-            "occurrence": ["XDUT"]
+            "label": "nleft",
+            "expression": {
+              "kind": "voltage",
+              "documentId": "document-ota-5t",
+              "anchor": {
+                "kind": "terminal",
+                "instanceId": "M3",
+                "pinName": "D"
+              },
+              "occurrence": ["XDUT"]
+            }
           }
         ],
         "environment": {

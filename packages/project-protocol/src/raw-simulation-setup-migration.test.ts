@@ -62,7 +62,7 @@ describe("schema 38 to 39 migration (raw SimulationSetup)", () => {
     project.simulationSetups.push({
       id: "setup-raw",
       name: "Raw",
-      version: 1,
+      version: 2,
       input: {
         kind: "raw",
         entry: "tb.cir",

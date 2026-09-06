@@ -1,20 +1,20 @@
 import type {
   CircuitProject,
   SchematicDocument,
-  SimulationProbeSpec,
+  SimulationExpression,
   SimulationVoltageProbeAnchor,
 } from "@icm/model";
 import { resolveDocumentLogicalNets, type HierarchyFrame } from "@icm/derived";
 
 import { logicalNetChoices } from "../logical-net-choices";
 
-type VoltageProbeTarget = Omit<
-  Extract<SimulationProbeSpec, { kind: "net-voltage" }>,
-  "id"
+export type VoltageProbeTarget = Extract<
+  SimulationExpression,
+  { kind: "voltage" }
 >;
-type SourceCurrentProbeTarget = Omit<
-  Extract<SimulationProbeSpec, { kind: "source-current" }>,
-  "id"
+export type SourceCurrentProbeTarget = Extract<
+  SimulationExpression,
+  { kind: "current" }
 >;
 type ProbeTarget = VoltageProbeTarget | SourceCurrentProbeTarget;
 
@@ -39,7 +39,7 @@ export interface PickedSimulationNet {
 
 export function simulationProbeTargetKey(target: ProbeTarget): string {
   const occurrence = target.occurrence.join("/");
-  if (target.kind === "source-current")
+  if (target.kind === "current")
     return `current:${occurrence}:${target.documentId}:${target.instanceId}`;
   const anchor = target.anchor;
   const anchorKey =
@@ -62,7 +62,7 @@ export function simulationProbeSelectionKey(
   project: CircuitProject,
   target: ProbeTarget,
 ): string {
-  if (target.kind === "source-current") return simulationProbeTargetKey(target);
+  if (target.kind === "current") return simulationProbeTargetKey(target);
   const occurrence = target.occurrence.join("/");
   const document = project.documents.find(
     (candidate) => candidate.id === target.documentId,
@@ -171,6 +171,10 @@ function logicalNetDisplayLabel(
 ): string {
   if (choice.label !== choice.netId) return choice.label;
   const ids = new Set(choice.baseNetIds);
+  const formalTerminal = document.netlist?.terminals.find((terminal) =>
+    ids.has(terminal.netId),
+  );
+  if (formalTerminal) return formalTerminal.name;
   const instances = new Map(
     document.instances.map((instance) => [instance.id, instance]),
   );
@@ -253,7 +257,7 @@ export function deriveSimulationProbeOptions(
       const anchor = voltageAnchor(document, net.baseNetIds);
       if (!anchor) continue;
       const target: VoltageProbeTarget = {
-        kind: "net-voltage",
+        kind: "voltage",
         documentId: document.id,
         anchor,
         occurrence: [...occurrence],
@@ -272,7 +276,7 @@ export function deriveSimulationProbeOptions(
           (binding.deviceClass === "current-source" && occurrence.length === 0))
       ) {
         const target: SourceCurrentProbeTarget = {
-          kind: "source-current",
+          kind: "current",
           documentId: document.id,
           instanceId: instance.id,
           occurrence: [...occurrence],

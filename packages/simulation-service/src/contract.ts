@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { SimulationResultSchema } from "@icm/spice-run";
 import { ObjectLocatorSchema } from "@icm/model";
+import type {
+  CompiledSimulationExpression,
+  CompiledSimulationOutput,
+} from "@icm/netlist";
 
 export const Id = z.string().min(1).max(256);
 export const Digest = z.string().regex(/^[a-f0-9]{64}$/u);
@@ -57,6 +61,49 @@ export const VectorSchema = z.strictObject({
   vector: z.string(),
   quantity: z.enum(["voltage", "current"]),
 });
+export const CompiledOutputExpressionSchema: z.ZodType<CompiledSimulationExpression> =
+  z.lazy(() =>
+    z.discriminatedUnion("kind", [
+      z.strictObject({
+        kind: z.literal("acquisition"),
+        acquisitionId: Id,
+        quantity: z.enum(["voltage", "current"]),
+      }),
+      z.strictObject({
+        kind: z.literal("constant"),
+        value: z.number().finite(),
+      }),
+      ...(
+        [
+          "negate",
+          "magnitude",
+          "db20",
+          "phase",
+          "real",
+          "imaginary",
+          "absolute",
+        ] as const
+      ).map((kind) =>
+        z.strictObject({
+          kind: z.literal(kind),
+          operand: CompiledOutputExpressionSchema,
+        }),
+      ),
+      ...(["add", "subtract", "multiply", "divide"] as const).map((kind) =>
+        z.strictObject({
+          kind: z.literal(kind),
+          left: CompiledOutputExpressionSchema,
+          right: CompiledOutputExpressionSchema,
+        }),
+      ),
+    ]),
+  );
+export const CompiledOutputSchema: z.ZodType<CompiledSimulationOutput> =
+  z.strictObject({
+    id: Id,
+    label: z.string().min(1).max(128),
+    expression: CompiledOutputExpressionSchema,
+  });
 export const PreparedSchema = z.strictObject({
   id: Id,
   digest: Digest,
@@ -65,10 +112,39 @@ export const PreparedSchema = z.strictObject({
   mode: z.enum(["structured", "raw"]),
   environment: EnvironmentSchema,
   vectors: z.array(VectorSchema),
+  outputs: z.array(CompiledOutputSchema),
   artifacts: z.array(ArtifactRefSchema),
   warnings: z.array(z.string()),
 });
 export type Prepared = z.infer<typeof PreparedSchema>;
+export const OutputPointSchema = z.number().finite().nullable();
+export const EvaluatedOutputSchema = z.strictObject({
+  id: Id,
+  label: z.string(),
+  unit: z.string(),
+  values: z.array(OutputPointSchema),
+  imaginary: z.array(OutputPointSchema).optional(),
+});
+export const EvaluatedAnalysisSchema = z.strictObject({
+  analysis: z.enum(["op", "dc", "ac", "tran"]),
+  plotName: z.string(),
+  domain: z
+    .strictObject({
+      name: z.string(),
+      unit: z.string(),
+      values: z.array(z.number().finite()),
+    })
+    .optional(),
+  outputs: z.array(EvaluatedOutputSchema),
+});
+export const SimulationOutputDataSchema = z.strictObject({
+  schemaVersion: z.literal(1),
+  analyses: z.array(EvaluatedAnalysisSchema),
+  diagnostics: z.array(
+    z.strictObject({ outputId: Id, code: Id, message: z.string() }),
+  ),
+});
+export type SimulationOutputData = z.infer<typeof SimulationOutputDataSchema>;
 export const InputSourceSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("project-setup"),
@@ -136,6 +212,7 @@ export const RunSchema = z.strictObject({
   inputStatus: z.enum(["unchanged", "changed", "unavailable"]).optional(),
   resultPreview: z.boolean().optional(),
   result: SimulationResultSchema.optional(),
+  outputData: SimulationOutputDataSchema.optional(),
   error: ProblemSchema.optional(),
   artifacts: z.array(ArtifactRefSchema),
 });

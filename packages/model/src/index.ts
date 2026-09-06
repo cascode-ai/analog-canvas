@@ -9,5 +9,6 @@ export * from "./orientation-reflect.js";
 export * from "./route-path.js";
 export * from "./rich-text.js";
 export * from "./semantic-text.js";
+export * from "./simulation-expression.js";
 export * from "./schema/bound-annotation-text.js";
 export * from "./schema.js";

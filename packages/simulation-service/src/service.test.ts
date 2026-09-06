@@ -137,7 +137,7 @@ describe("shared simulation lifecycle", () => {
     f.project.simulationSetups = ["A", "B"].map((name) => ({
       id: `setup-${name.toLowerCase()}`,
       name,
-      version: 1,
+      version: 2,
       input: {
         kind: "raw",
         entry: "tb.cir",
@@ -182,7 +182,7 @@ describe("shared simulation lifecycle", () => {
   it("prepares and runs a persisted raw Project setup without mutating it", async () => {
     const f = fixture();
     saveSetup(f.project, {
-      version: 1,
+      version: 2,
       input: {
         kind: "raw",
         entry: "tb.cir",
@@ -242,7 +242,7 @@ describe("shared simulation lifecycle", () => {
   it("reports unresolved Project dependencies without reading host paths", async () => {
     const f = fixture();
     saveSetup(f.project, {
-      version: 1,
+      version: 2,
       input: {
         kind: "raw",
         entry: "tb.cir",
@@ -294,7 +294,7 @@ describe("shared simulation lifecycle", () => {
       ],
     });
     saveSetup(f.project, {
-      version: 1,
+      version: 2,
       input: {
         kind: "raw",
         entry: "tb.cir",
@@ -579,7 +579,7 @@ describe("shared simulation lifecycle", () => {
     const project = CircuitProjectSchema.parse(ota);
     const profileId = "test";
     saveSetup(project, {
-      version: 1,
+      version: 2,
       input: {
         kind: "structured",
         rootDocumentId: project.topDocumentId,
@@ -587,17 +587,20 @@ describe("shared simulation lifecycle", () => {
           { kind: "op" },
           { kind: "ac", sweep: "dec", points: 10, startHz: 1, stopHz: 1e6 },
         ],
-        probes: [
+        outputs: [
           {
             id: "out",
-            kind: "net-voltage",
-            documentId: project.topDocumentId,
-            anchor: {
-              kind: "terminal",
-              instanceId: "XDUT",
-              pinName: "vout",
+            label: "out",
+            expression: {
+              kind: "voltage",
+              documentId: project.topDocumentId,
+              anchor: {
+                kind: "terminal",
+                instanceId: "XDUT",
+                pinName: "vout",
+              },
+              occurrence: [],
             },
-            occurrence: [],
           },
         ],
         environment: { profileId },

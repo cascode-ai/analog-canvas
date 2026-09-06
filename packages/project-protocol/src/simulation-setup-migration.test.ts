@@ -37,7 +37,7 @@ describe("schema 36 to 37 migration (persisted SimulationSetup)", () => {
   };
 
   const setup = (): SimulationSetup => ({
-    version: 1,
+    version: 2,
     input: {
       kind: "structured",
       rootDocumentId: "testbench",
@@ -45,17 +45,20 @@ describe("schema 36 to 37 migration (persisted SimulationSetup)", () => {
         { kind: "op" },
         { kind: "ac", sweep: "dec", points: 10, startHz: 1, stopHz: 1e6 },
       ],
-      probes: [
+      outputs: [
         {
           id: "probe-out",
-          kind: "net-voltage",
-          documentId: "testbench",
-          anchor: {
-            kind: "terminal",
-            instanceId: "load",
-            pinName: "1",
+          label: "out",
+          expression: {
+            kind: "voltage",
+            documentId: "testbench",
+            anchor: {
+              kind: "terminal",
+              instanceId: "load",
+              pinName: "1",
+            },
+            occurrence: [],
           },
-          occurrence: [],
         },
       ],
       environment: { profileId: "sky130-core-continuous-ngspice46-v1" },

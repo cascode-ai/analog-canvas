@@ -782,7 +782,7 @@ describe("Project structural transaction", () => {
     const setup = {
       id: "setup-main",
       name: "Main setup",
-      version: 1 as const,
+      version: 2 as const,
       input: {
         kind: "structured" as const,
         rootDocumentId: testbench.id,
@@ -796,17 +796,20 @@ describe("Project structural transaction", () => {
             stopHz: 1e6,
           },
         ],
-        probes: [
+        outputs: [
           {
             id: "probe-out",
-            kind: "net-voltage" as const,
-            documentId: testbench.id,
-            anchor: {
-              kind: "terminal" as const,
-              instanceId: "load",
-              pinName: "1",
+            label: "out",
+            expression: {
+              kind: "voltage" as const,
+              documentId: testbench.id,
+              anchor: {
+                kind: "terminal" as const,
+                instanceId: "load",
+                pinName: "1",
+              },
+              occurrence: [],
             },
-            occurrence: [],
           },
         ],
         environment: { profileId: "sky130-core-continuous-ngspice46-v1" },
@@ -916,12 +919,12 @@ describe("Project structural transaction", () => {
     const setupFor = (rootDocumentId: string) => ({
       id: "setup-main",
       name: "Main setup",
-      version: 1 as const,
+      version: 2 as const,
       input: {
         kind: "structured" as const,
         rootDocumentId,
         analyses: [{ kind: "op" as const }],
-        probes: [],
+        outputs: [],
         environment: { profileId: "sky130-core-continuous-ngspice46-v1" },
       },
     });
@@ -1045,7 +1048,7 @@ describe("Project structural transaction", () => {
     const setupFor = (id: string, name: string, analysis: "op" | "ac") => ({
       id,
       name,
-      version: 1 as const,
+      version: 2 as const,
       input: {
         kind: "structured" as const,
         rootDocumentId: project.topDocumentId,
@@ -1061,7 +1064,7 @@ describe("Project structural transaction", () => {
                   stopHz: 1e6,
                 },
               ],
-        probes: [],
+        outputs: [],
         environment: { profileId: "test" },
       },
     });
@@ -1113,7 +1116,7 @@ describe("Project structural transaction", () => {
     const setup = {
       id: "setup-raw",
       name: "Raw setup",
-      version: 1 as const,
+      version: 2 as const,
       input: {
         kind: "raw" as const,
         entry: "tb.cir",

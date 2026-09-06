@@ -1,7 +1,7 @@
 /**
  * Compiling a structured `SimulationSetup` into one simulation request.
  *
- * A setup names a Testbench root, the analyses to run, and the probes to
+ * A setup names a Testbench root, the analyses to run, and the outputs to
  * record (`docs/specs/simulation.md`, "Inputs and root"). This turns that into
  * the two texts `/api/simulate` already consumes -- the design netlist of
  * everything the root reaches, and the root itself as a top-level deck -- plus
@@ -67,7 +67,7 @@ import type {
   CircuitProject,
   SchematicDocument,
   SimulationAnalysisSpec,
-  SimulationProbeSpec,
+  SimulationExpression,
   SimulationSetup,
   SimulationStructuredInput,
   StableId,
@@ -99,11 +99,42 @@ interface ResolvedSimulationProbe {
   readonly instrumentationCards: readonly string[];
 }
 
+export type CompiledSimulationExpression =
+  | {
+      readonly kind: "acquisition";
+      readonly acquisitionId: string;
+      readonly quantity: "voltage" | "current";
+    }
+  | { readonly kind: "constant"; readonly value: number }
+  | {
+      readonly kind:
+        | "negate"
+        | "magnitude"
+        | "db20"
+        | "phase"
+        | "real"
+        | "imaginary"
+        | "absolute";
+      readonly operand: CompiledSimulationExpression;
+    }
+  | {
+      readonly kind: "add" | "subtract" | "multiply" | "divide";
+      readonly left: CompiledSimulationExpression;
+      readonly right: CompiledSimulationExpression;
+    };
+
+export interface CompiledSimulationOutput {
+  readonly id: string;
+  readonly label: string;
+  readonly expression: CompiledSimulationExpression;
+}
+
 export type CompiledSimulation =
   | {
       readonly ok: true;
       readonly request: SimulationRequest;
       readonly vectors: ReadonlyArray<CompiledSimulationVector>;
+      readonly outputs: ReadonlyArray<CompiledSimulationOutput>;
       readonly diagnostics: readonly [];
       /**
        * Everything the extraction reported that did not stop the compile --
@@ -236,43 +267,7 @@ function canonicalSetup(input: SimulationStructuredInput): string {
                 maxStepSeconds: analysis.maxStepSeconds ?? null,
               },
     ),
-    probes: input.probes.map((probe) =>
-      probe.kind === "net-voltage"
-        ? {
-            id: probe.id,
-            kind: probe.kind,
-            documentId: probe.documentId,
-            anchor:
-              probe.anchor.kind === "terminal"
-                ? {
-                    kind: probe.anchor.kind,
-                    instanceId: probe.anchor.instanceId,
-                    pinName: probe.anchor.pinName,
-                  }
-                : probe.anchor.kind === "junction"
-                  ? {
-                      kind: probe.anchor.kind,
-                      junctionId: probe.anchor.junctionId,
-                    }
-                  : probe.anchor.kind === "route"
-                    ? {
-                        kind: probe.anchor.kind,
-                        routeId: probe.anchor.routeId,
-                      }
-                    : {
-                        kind: probe.anchor.kind,
-                        netId: probe.anchor.netId,
-                      },
-            occurrence: [...probe.occurrence],
-          }
-        : {
-            id: probe.id,
-            kind: probe.kind,
-            documentId: probe.documentId,
-            instanceId: probe.instanceId,
-            occurrence: [...probe.occurrence],
-          },
-    ),
+    outputs: input.outputs,
     environment: {
       profileId: input.environment.profileId,
       corner: input.environment.corner ?? null,
@@ -318,6 +313,11 @@ interface ResolvedOccurrence {
   readonly hierarchyPath: HierarchyFrame[];
 }
 
+type SimulationMeasurement = Extract<
+  SimulationExpression,
+  { kind: "voltage" | "current" }
+>;
+
 /**
  * Walk one probe's occurrence from the root, checking every step is a real
  * hierarchy Instance and that the walk lands on the Document the probe claims.
@@ -327,18 +327,19 @@ interface ResolvedOccurrence {
  * so a diagnostic points at the occurrence, not merely at a Document.
  */
 function resolveOccurrence(
-  probe: SimulationProbeSpec,
+  measurement: SimulationMeasurement,
+  outputId: string,
   rootDocumentId: StableId,
   documentsById: ReadonlyMap<string, SchematicDocument>,
   cellsById: ReadonlyMap<string, DesignNetlistCell>,
   diagnostics: NetlistDiagnostic[],
 ): ResolvedOccurrence | null {
-  if (!documentsById.has(probe.documentId)) {
+  if (!documentsById.has(measurement.documentId)) {
     diagnostics.push(
       diagnostic(
         "SIMULATION_PROBE_UNKNOWN_DOCUMENT",
         rootDocumentId,
-        `Probe ${probe.id} references unknown Document ${probe.documentId}`,
+        `Output ${outputId} references unknown Document ${measurement.documentId}`,
         locator(rootDocumentId, [], "document", rootDocumentId),
       ),
     );
@@ -347,7 +348,7 @@ function resolveOccurrence(
   let document = documentsById.get(rootDocumentId)!;
   const path: string[] = [];
   const hierarchyPath: HierarchyFrame[] = [];
-  for (const instanceId of probe.occurrence) {
+  for (const instanceId of measurement.occurrence) {
     const binding = document.instances.find(
       (candidate) => candidate.id === instanceId,
     )?.netlist?.binding;
@@ -366,7 +367,7 @@ function resolveOccurrence(
         diagnostic(
           "SIMULATION_PROBE_INVALID_OCCURRENCE",
           document.id,
-          `Probe ${probe.id} occurrence step ${instanceId} is not a hierarchy Instance of Document ${document.id}`,
+          `Output ${outputId} occurrence step ${instanceId} is not a hierarchy Instance of Document ${document.id}`,
           locator(document.id, [...hierarchyPath], "instance", instanceId),
           [instanceId],
         ),
@@ -382,12 +383,12 @@ function resolveOccurrence(
     document = child;
   }
   const cell = cellsById.get(document.id);
-  if (document.id !== probe.documentId || !cell) {
+  if (document.id !== measurement.documentId || !cell) {
     diagnostics.push(
       diagnostic(
         "SIMULATION_PROBE_OCCURRENCE_DOCUMENT_MISMATCH",
         document.id,
-        `Probe ${probe.id} names Document ${probe.documentId} but its occurrence reaches Document ${document.id}`,
+        `Output ${outputId} names Document ${measurement.documentId} but its occurrence reaches Document ${document.id}`,
         locator(document.id, [...hierarchyPath], "document", document.id),
       ),
     );
@@ -397,12 +398,14 @@ function resolveOccurrence(
 }
 
 function netVoltageVector(
-  probe: Extract<SimulationProbeSpec, { kind: "net-voltage" }>,
+  measurement: Extract<SimulationExpression, { kind: "voltage" }>,
+  acquisitionId: string,
+  outputId: string,
   occurrence: ResolvedOccurrence,
   diagnostics: NetlistDiagnostic[],
 ): CompiledSimulationVector | null {
   const { document, cell, path, hierarchyPath } = occurrence;
-  const anchor = probe.anchor;
+  const anchor = measurement.anchor;
   const netId =
     anchor.kind === "terminal"
       ? document.nets.find((net) =>
@@ -438,7 +441,7 @@ function netVoltageVector(
       diagnostic(
         "SIMULATION_PROBE_ANCHOR_UNAVAILABLE",
         document.id,
-        `Probe ${probe.id} ${anchor.kind} anchor no longer resolves in Document ${document.id}`,
+        `Output ${outputId} ${anchor.kind} anchor no longer resolves in Document ${document.id}`,
         primary,
         [primary.objectId],
       ),
@@ -458,7 +461,7 @@ function netVoltageVector(
       diagnostic(
         "SIMULATION_PROBE_NET_NOT_EXPORTED",
         document.id,
-        `Probe ${probe.id} anchor resolves to Net ${netId}, which the netlist does not export under a node name`,
+        `Output ${outputId} anchor resolves to Net ${netId}, which the netlist does not export under a node name`,
         locator(document.id, hierarchyPath, "net", netId),
         [netId],
       ),
@@ -466,27 +469,31 @@ function netVoltageVector(
     return null;
   }
   return {
-    probeId: probe.id,
+    probeId: acquisitionId,
     vector: `v(${[...path, netName].join(".").toLowerCase()})`,
     quantity: "voltage",
   };
 }
 
 function sourceCurrentVector(
-  probe: Extract<SimulationProbeSpec, { kind: "source-current" }>,
+  measurement: Extract<SimulationExpression, { kind: "current" }>,
+  acquisitionId: string,
+  outputId: string,
   occurrence: ResolvedOccurrence,
   diagnostics: NetlistDiagnostic[],
 ): ResolvedSimulationProbe | null {
   const { document, cell, path, hierarchyPath } = occurrence;
-  const instance = cell.instances.find((item) => item.id === probe.instanceId);
+  const instance = cell.instances.find(
+    (item) => item.id === measurement.instanceId,
+  );
   if (!instance) {
     diagnostics.push(
       diagnostic(
         "SIMULATION_PROBE_UNKNOWN_INSTANCE",
         document.id,
-        `Probe ${probe.id} references unknown Instance ${probe.instanceId} in Document ${document.id}`,
-        locator(document.id, hierarchyPath, "instance", probe.instanceId),
-        [probe.instanceId],
+        `Output ${outputId} references unknown Instance ${measurement.instanceId} in Document ${document.id}`,
+        locator(document.id, hierarchyPath, "instance", measurement.instanceId),
+        [measurement.instanceId],
       ),
     );
     return null;
@@ -497,9 +504,14 @@ function sourceCurrentVector(
         diagnostic(
           "SIMULATION_PROBE_CURRENT_SOURCE_HIERARCHY_UNSUPPORTED",
           document.id,
-          `Probe ${probe.id} measures current source ${instance.reference} inside a subcircuit; this ngspice instrumentation can address only a top-level source`,
-          locator(document.id, hierarchyPath, "instance", probe.instanceId),
-          [probe.instanceId],
+          `Output ${outputId} measures current source ${instance.reference} inside a subcircuit; this ngspice instrumentation can address only a top-level source`,
+          locator(
+            document.id,
+            hierarchyPath,
+            "instance",
+            measurement.instanceId,
+          ),
+          [measurement.instanceId],
         ),
       );
       return null;
@@ -507,7 +519,7 @@ function sourceCurrentVector(
     const reference = instance.reference.toLowerCase();
     return {
       binding: {
-        probeId: probe.id,
+        probeId: acquisitionId,
         vector: `i(${reference})`,
         quantity: "current",
       },
@@ -520,9 +532,9 @@ function sourceCurrentVector(
       diagnostic(
         "SIMULATION_PROBE_NOT_A_SOURCE",
         document.id,
-        `Probe ${probe.id} measures source current on Instance ${instance.reference}, which is a ${instance.deviceClass}`,
-        locator(document.id, hierarchyPath, "instance", probe.instanceId),
-        [probe.instanceId],
+        `Output ${outputId} measures source current on Instance ${instance.reference}, which is a ${instance.deviceClass}`,
+        locator(document.id, hierarchyPath, "instance", measurement.instanceId),
+        [measurement.instanceId],
       ),
     );
     return null;
@@ -535,7 +547,7 @@ function sourceCurrentVector(
     ? [reference.slice(0, 1), ...path, reference].join(".")
     : reference;
   const binding: CompiledSimulationVector = {
-    probeId: probe.id,
+    probeId: acquisitionId,
     vector: `i(${name})`,
     quantity: "current",
   };
@@ -672,30 +684,96 @@ export async function compileStructuredSimulation(
   );
   const cellsById = new Map(ir.cells.map((cell) => [cell.id, cell]));
   const vectors: CompiledSimulationVector[] = [];
+  const vectorByIdentity = new Map<
+    string,
+    { vector: CompiledSimulationVector; writeVector: string }
+  >();
+  const outputs: CompiledSimulationOutput[] = [];
   const writeVectors: string[] = [];
   const instrumentationCards: string[] = [];
-  for (const probe of input.probes) {
-    const occurrence = resolveOccurrence(
-      probe,
-      input.rootDocumentId,
-      documentsById,
-      cellsById,
-      diagnostics,
-    );
-    if (!occurrence) continue;
-    if (probe.kind === "net-voltage") {
-      const vector = netVoltageVector(probe, occurrence, diagnostics);
-      if (vector) {
-        vectors.push(vector);
-        writeVectors.push(vector.vector);
+  for (const output of input.outputs) {
+    let leafIndex = 0;
+    const compileExpression = (
+      expression: SimulationExpression,
+    ): CompiledSimulationExpression | null => {
+      if (expression.kind === "constant") return { ...expression };
+      if (expression.kind === "voltage" || expression.kind === "current") {
+        const occurrence = resolveOccurrence(
+          expression,
+          output.id,
+          input.rootDocumentId,
+          documentsById,
+          cellsById,
+          diagnostics,
+        );
+        if (!occurrence) return null;
+        const candidateId =
+          expression === output.expression
+            ? output.id
+            : `${output.id}:input:${leafIndex++}`;
+        const resolved =
+          expression.kind === "voltage"
+            ? (() => {
+                const vector = netVoltageVector(
+                  expression,
+                  candidateId,
+                  output.id,
+                  occurrence,
+                  diagnostics,
+                );
+                return vector
+                  ? {
+                      binding: vector,
+                      writeVector: vector.vector,
+                      instrumentationCards: [] as readonly string[],
+                    }
+                  : null;
+              })()
+            : sourceCurrentVector(
+                expression,
+                candidateId,
+                output.id,
+                occurrence,
+                diagnostics,
+              );
+        if (!resolved) return null;
+        const identity = `${resolved.binding.quantity}\u0000${resolved.binding.vector}`;
+        const existing = vectorByIdentity.get(identity);
+        const acquisition = existing?.vector ?? resolved.binding;
+        if (!existing) {
+          vectorByIdentity.set(identity, {
+            vector: acquisition,
+            writeVector: resolved.writeVector,
+          });
+          vectors.push(acquisition);
+          writeVectors.push(resolved.writeVector);
+          instrumentationCards.push(...resolved.instrumentationCards);
+        }
+        return {
+          kind: "acquisition",
+          acquisitionId: acquisition.probeId,
+          quantity: acquisition.quantity,
+        };
       }
-      continue;
-    }
-    const resolved = sourceCurrentVector(probe, occurrence, diagnostics);
-    if (!resolved) continue;
-    vectors.push(resolved.binding);
-    writeVectors.push(resolved.writeVector);
-    instrumentationCards.push(...resolved.instrumentationCards);
+      if (
+        expression.kind === "add" ||
+        expression.kind === "subtract" ||
+        expression.kind === "multiply" ||
+        expression.kind === "divide"
+      ) {
+        const left = compileExpression(expression.left);
+        const right = compileExpression(expression.right);
+        return left && right ? { kind: expression.kind, left, right } : null;
+      }
+      if ("operand" in expression) {
+        const operand = compileExpression(expression.operand);
+        return operand ? { kind: expression.kind, operand } : null;
+      }
+      return null;
+    };
+    const expression = compileExpression(output.expression);
+    if (expression)
+      outputs.push({ id: output.id, label: output.label, expression });
   }
 
   if (diagnostics.length) return { ok: false, diagnostics };
@@ -738,6 +816,7 @@ export async function compileStructuredSimulation(
         : { timeoutMs: options.timeoutMs }),
     },
     vectors,
+    outputs,
     diagnostics: [],
     warnings: analysis.diagnostics,
   };

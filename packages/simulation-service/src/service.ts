@@ -21,6 +21,10 @@ import {
   type ResultVolumeAnalysis,
 } from "./result-volume.js";
 import { SimulationFiles, sha256 } from "./files.js";
+import {
+  evaluateSimulationOutputs,
+  simulationOutputAnalysisToCsv,
+} from "./output-evaluation.js";
 
 export interface ExecutionInput {
   mode: "structured" | "raw";
@@ -281,6 +285,7 @@ export class SimulationService {
     const caps = await this.executor.capabilities();
     let input: ExecutionInput;
     let vectors: Prepared["vectors"] = [];
+    let outputs: Prepared["outputs"] = [];
     let warnings: string[] = [];
     let structuredAnalyses: ResultVolumeAnalysis[] | null = null;
     if (op.source.kind === "project-setup") {
@@ -336,6 +341,7 @@ export class SimulationService {
           dependencies: [],
         };
         vectors = [...compiled.vectors];
+        outputs = structuredClone([...compiled.outputs]);
         warnings = compiled.warnings.map((w) => w.message);
         structuredAnalyses = setup.input.analyses.map((analysis) =>
           analysis.kind === "tran"
@@ -526,6 +532,7 @@ export class SimulationService {
       mode: input.mode,
       environment: input.environment,
       vectors,
+      outputs,
       artifacts,
       warnings,
     };
@@ -629,6 +636,13 @@ export class SimulationService {
       const output = await this.executor.execute(input, run.token, timeoutMs);
       if (epoch !== this.epoch) return;
       run.view.result = output.result;
+      if (output.result.data && run.prepared.outputs.length > 0) {
+        run.view.outputData = evaluateSimulationOutputs(
+          output.result.data,
+          run.prepared.vectors,
+          run.prepared.outputs,
+        );
+      }
       const artifact = async (name: string, type: string, text: string) =>
         run.view.artifacts.push(
           await this.publishArtifact(epoch, name, type, text),
@@ -651,6 +665,14 @@ export class SimulationService {
           "text/csv",
           simulationAnalysisToCsv(analysis),
         );
+      for (const [i, analysis] of (
+        run.view.outputData?.analyses ?? []
+      ).entries())
+        await artifact(
+          `outputs-${analysis.analysis}-${i}.csv`,
+          "text/csv",
+          simulationOutputAnalysisToCsv(analysis),
+        );
       const evidenceArtifacts = run.view.artifacts.map((item) => ({ ...item }));
       await artifact(
         "evidence-manifest.json",
@@ -668,6 +690,7 @@ export class SimulationService {
               mode: run.prepared.mode,
               environment: run.prepared.environment,
               vectors: run.prepared.vectors,
+              outputs: run.prepared.outputs,
             },
             environment: output.result.metadata.environment,
             artifacts: evidenceArtifacts,
