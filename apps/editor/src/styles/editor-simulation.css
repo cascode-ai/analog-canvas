@@ -562,6 +562,29 @@
   stroke-linejoin: round;
   vector-effect: non-scaling-stroke;
 }
+.transient-trace.ac-trace-selected {
+  stroke-width: 3;
+}
+.transient-quantity-group .ac-trace-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 12;
+  pointer-events: stroke;
+  cursor: pointer;
+}
+.spice-ac-plot.box-zoom {
+  cursor: crosshair;
+  touch-action: none;
+  user-select: none;
+}
+.ac-zoom-box {
+  fill: color-mix(in srgb, var(--icm-accent, #175cd3) 12%, transparent);
+  stroke: var(--icm-accent, #175cd3);
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+  pointer-events: none;
+  vector-effect: non-scaling-stroke;
+}
 .transient-trace.ac-trace-0 {
   color: #175cd3;
 }
@@ -714,6 +737,11 @@
   padding: 2px 6px;
   background: var(--icm-surface);
   font-size: var(--icm-font-xs);
+}
+.ac-plot-toolbar button[aria-pressed="true"] {
+  border-color: var(--icm-accent, #175cd3);
+  background: color-mix(in srgb, var(--icm-accent, #175cd3) 12%, white);
+  color: var(--icm-accent, #175cd3);
 }
 .ac-plot-dialog-backdrop {
   position: fixed;

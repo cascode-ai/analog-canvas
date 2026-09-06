@@ -362,6 +362,41 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   await expect(
     panel.locator('svg[aria-label="Transient voltage"]'),
   ).toBeVisible();
+  const transientPlot = panel
+    .locator(".transient-quantity-group")
+    .filter({ hasText: "Voltage" })
+    .locator(".spice-ac-plot")
+    .first();
+  const transientShell = transientPlot.locator("..");
+  await expect(transientPlot.locator(".ac-trace-hit")).toHaveAttribute(
+    "fill",
+    "none",
+  );
+  await transientPlot.hover();
+  const boxZoom = transientShell.getByRole("button", { name: "Box zoom" });
+  const inspectPlot = transientShell.getByRole("button", {
+    name: "Inspect plot",
+  });
+  const rightTimeLabel = transientPlot.locator('svg text[text-anchor="end"]');
+  const fullTimeLabel = await rightTimeLabel.textContent();
+  await boxZoom.click();
+  await expect(boxZoom).toHaveAttribute("aria-pressed", "true");
+  const transientBounds = await transientPlot.boundingBox();
+  expect(transientBounds).not.toBeNull();
+  await page.mouse.move(
+    transientBounds!.x + transientBounds!.width * 0.3,
+    transientBounds!.y + transientBounds!.height * 0.3,
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    transientBounds!.x + transientBounds!.width * 0.7,
+    transientBounds!.y + transientBounds!.height * 0.7,
+  );
+  await page.mouse.up();
+  await expect(inspectPlot).toHaveAttribute("aria-pressed", "true");
+  await expect(rightTimeLabel).not.toHaveText(fullTimeLabel ?? "");
+  await transientShell.getByRole("button", { name: "Fit plot" }).click();
+  await expect(rightTimeLabel).toHaveText(fullTimeLabel ?? "");
   await panel.getByRole("tab", { name: "Files" }).click();
   await expect(
     panel.getByRole("button", { name: "evidence-manifest.json" }),
