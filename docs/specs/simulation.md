@@ -473,12 +473,14 @@ a bare `write out.raw`, saving the whole plot rather than nothing.
 
 Vector names are produced here and never inferred from result text:
 
-| primitive acquisition            | vector            |
-| -------------------------------- | ----------------- |
-| Net in the root                  | `v(mid)`          |
-| Net under occurrence `X1`, `XI1` | `v(x1.xi1.mid)`   |
-| voltage source in the root       | `i(v1)`           |
-| voltage source under `X1`, `XI1` | `i(v.x1.xi1.vsi)` |
+| primitive acquisition                         | vector                   |
+| --------------------------------------------- | ------------------------ |
+| Net in the root                               | `v(mid)`                 |
+| Net under occurrence `X1`, `XI1`              | `v(x1.xi1.mid)`          |
+| voltage source in the root                    | `i(v1)`                  |
+| voltage source under `X1`, `XI1`              | `i(v.x1.xi1.vsi)`        |
+| current source in the root                    | `i(i1)`                  |
+| instrumented current source under `X1`, `XI1` | `i(v.x1.xi1.vicmprb###)` |
 
 They are lower case because ngspice folds case on the way into the rawfile: a
 card may read `R1 IN MID 1k`, and `V(MidNode)` still comes back as
@@ -489,17 +491,24 @@ time.
 
 A top-level independent current source is measured by compiler-generated
 `.probe I(<ref>)` instrumentation. ngspice inserts a zero-volt sense source and
-publishes `<ref>#branch`; result parsing normalises that vector to `i(<ref>)`.
-This is supported for OP, AC, and TRAN. The directive addresses only top-level
-devices, so a current source below the simulation root is rejected with a
-located diagnostic until hierarchical instrumentation is implemented. See the
-ngspice manual, section 11.6.5.1, “.probe — Insert current probes”. The other refusals are a missing
-root, a root that instantiates nothing, a probe naming a Document or concrete
-anchor that is not there, an occurrence that does not follow hierarchy
-Instances from the root or that reaches a different Document than the probe
-claims, an analysis kind this release does not compile, and a source-current
-probe on a device that is not a source. Each is a typed diagnostic carrying an
-occurrence-aware `ObjectLocator`, never a thrown error.
+publishes `<ref>#branch`; the rawfile records that vector as `i(<ref>)`. The
+directive addresses only top-level devices. For a selected current source
+below the simulation root, the compiler instead inserts a deterministic 0 V
+sense source in series inside the extracted Cell definition and writes its
+occurrence-qualified branch current. This instrumentation exists only in the
+prepared simulation artifact: it does not mutate the Project or ordinary
+structural export. Its positive direction matches the authored independent
+current source's first-to-second-node direction, so no result-side sign repair
+is applied. One instrumented Cell definition remains independently addressable
+through every concrete occurrence. Both forms are supported for OP, DC, AC,
+and TRAN. See the ngspice manual, section 11.6.5.1, “.probe — Insert current
+probes”. The other refusals are a missing root, a root that instantiates
+nothing, a probe naming a Document or concrete anchor that is not there, an
+occurrence that does not follow hierarchy Instances from the root or that
+reaches a different Document than the probe claims, an analysis kind this
+release does not compile, and a source-current probe on a device that is not a
+source. Each is a typed diagnostic carrying an occurrence-aware
+`ObjectLocator`, never a thrown error.
 
 `inputRevision` is the SHA-256 of the two compiled texts and a canonical
 serialization of the setup, computed with Web Crypto so the function stays

@@ -284,6 +284,22 @@ function hierarchicalProject(): CircuitProject {
   return project;
 }
 
+function addHierarchicalCurrentSource(project: CircuitProject): void {
+  const child = project.documents.find((document) => document.id === "dut")!;
+  child.instances.push({
+    id: "inst-i1",
+    symbolId: "current-source",
+    placement: null,
+    reference: "I1",
+    netlist: {
+      binding: { kind: "primitive", deviceClass: "current-source" },
+      parameters: { dc: "1m" },
+    },
+  });
+  child.nets[0]!.terminals.push({ instanceId: "inst-i1", pinName: "+" });
+  child.nets[1]!.terminals.push({ instanceId: "inst-i1", pinName: "-" });
+}
+
 function setupWith(
   overrides: Partial<SimulationStructuredInput> & {
     probes?: Array<Record<string, unknown> & { id: string; kind: string }>;
@@ -1046,21 +1062,9 @@ describe("refusing a setup that cannot be simulated", () => {
     });
   });
 
-  it("reports a current-source probe below the simulation root", async () => {
+  it("instruments a current source below the simulation root", async () => {
     const project = hierarchicalProject();
-    const child = project.documents.find((document) => document.id === "dut")!;
-    child.instances.push({
-      id: "inst-i1",
-      symbolId: "current-source",
-      placement: null,
-      reference: "I1",
-      netlist: {
-        binding: { kind: "primitive", deviceClass: "current-source" },
-        parameters: { dc: "1m" },
-      },
-    });
-    child.nets[0]!.terminals.push({ instanceId: "inst-i1", pinName: "+" });
-    child.nets[1]!.terminals.push({ instanceId: "inst-i1", pinName: "-" });
+    addHierarchicalCurrentSource(project);
 
     const result = await compile(
       project,
@@ -1077,9 +1081,75 @@ describe("refusing a setup that cannot be simulated", () => {
       }),
     );
 
-    expect(result.ok).toBe(false);
-    expect(codes(result)).toEqual([
-      "SIMULATION_PROBE_CURRENT_SOURCE_HIERARCHY_UNSUPPORTED",
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.request.netlist).toContain(
+      "I1 A ICMPRB001 DC 1m\nVICMPRB001 ICMPRB001 OUT DC 0",
+    );
+    expect(result.request.testbench).toContain(
+      "write out.raw i(v.x1.vicmprb001)\n",
+    );
+    expect(result.request.testbench).not.toContain(".probe I(I1)");
+    expect(result.vectors).toEqual([
+      {
+        probeId: "probe-i1",
+        vector: "i(v.x1.vicmprb001)",
+        quantity: "current",
+      },
+    ]);
+  });
+
+  it("keeps repeated occurrences of one instrumented current source distinct", async () => {
+    const project = hierarchicalProject();
+    addHierarchicalCurrentSource(project);
+    const tb = project.documents.find((document) => document.id === "tb")!;
+    const x1 = tb.instances.find((instance) => instance.id === "inst-x1")!;
+    tb.instances.push({
+      ...structuredClone(x1),
+      id: "inst-x2",
+      reference: "X2",
+    });
+    tb.nets[0]!.terminals.push({ instanceId: "inst-x2", pinName: "A" });
+    tb.nets[1]!.terminals.push({ instanceId: "inst-x2", pinName: "B" });
+
+    const result = await compile(
+      project,
+      setupWith({
+        probes: [
+          {
+            id: "probe-i1-x1",
+            kind: "source-current",
+            documentId: "dut",
+            instanceId: "inst-i1",
+            occurrence: ["inst-x1"],
+          },
+          {
+            id: "probe-i1-x2",
+            kind: "source-current",
+            documentId: "dut",
+            instanceId: "inst-i1",
+            occurrence: ["inst-x2"],
+          },
+        ],
+      }),
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(
+      result.request.netlist.match(/VICMPRB001 ICMPRB001 OUT DC 0/gu),
+    ).toHaveLength(1);
+    expect(result.vectors).toEqual([
+      {
+        probeId: "probe-i1-x1",
+        vector: "i(v.x1.vicmprb001)",
+        quantity: "current",
+      },
+      {
+        probeId: "probe-i1-x2",
+        vector: "i(v.x2.vicmprb001)",
+        quantity: "current",
+      },
     ]);
   });
 });
@@ -1166,6 +1236,57 @@ describe.skipIf(!ngspiceOnPath())("running a compiled deck", () => {
       expect(value("v(in)")).toBeCloseTo(1, 12);
       expect(value("v(mid)")).toBeCloseTo(0.5, 12);
       expect(value("i(v1)")).toBeCloseTo(-0.0005, 12);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("reads a selected hierarchical current source through compiler instrumentation", async () => {
+    const project = hierarchicalProject();
+    addHierarchicalCurrentSource(project);
+    const compiled = await compile(
+      project,
+      setupWith({
+        analyses: [{ kind: "op" }],
+        probes: [
+          {
+            id: "probe-i1",
+            kind: "source-current",
+            documentId: "dut",
+            instanceId: "inst-i1",
+            occurrence: ["inst-x1"],
+          },
+        ],
+      }),
+    );
+    expect(compiled.ok).toBe(true);
+    if (!compiled.ok) return;
+
+    const deck = buildSimulationDeck(
+      compiled.request as SimulationRequest,
+      null,
+    );
+    const directory = mkdtempSync(join(tmpdir(), "icm-hierarchy-current-"));
+    try {
+      writeFileSync(join(directory, "deck.cir"), deck, "utf8");
+      execFileSync("ngspice", ["-b", "deck.cir"], {
+        cwd: directory,
+        encoding: "utf8",
+      });
+      const reading = readSimulationData(
+        readFileSync(join(directory, "out.raw"), "utf8"),
+      );
+
+      expect(reading.status).toBe("read");
+      if (reading.status !== "read") return;
+      const operatingPoint = reading.data.analyses[0]!;
+      expect(operatingPoint.analysis).toBe("op");
+      if (operatingPoint.analysis !== "op") return;
+      expect(
+        operatingPoint.probes.find(
+          (probe) => probe.name === "i(v.x1.vicmprb001)",
+        )?.value,
+      ).toBeCloseTo(0.001, 12);
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }
