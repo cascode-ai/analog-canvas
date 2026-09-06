@@ -135,7 +135,7 @@ describe("the Preview dual-executor smoke", () => {
         analyses: [
           {
             analysis: "dc",
-            sweep: { name: "v-sweep", values: [0, 0.5, 1, 1.5] },
+            sweep: { name: "v(v-sweep)", values: [0, 0.5, 1, 1.5] },
             probes: [{ name: "v(out)", value: [0, 0.25, 0.5, 0.75] }],
           },
         ],

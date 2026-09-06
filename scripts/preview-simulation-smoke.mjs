@@ -393,7 +393,7 @@ export function validateDcDividerResult(payload, expectedTarget) {
   if (!dc || !Array.isArray(dc.sweep?.values) || !Array.isArray(dc.probes)) {
     throw new Error(`${expectedTarget} returned no structured DC result.`);
   }
-  if (dc.sweep.name !== "v-sweep") {
+  if (dc.sweep.name !== "v(v-sweep)") {
     throw new Error(`${expectedTarget} returned an unexpected DC sweep axis.`);
   }
   const expectedAxis = [0, 0.5, 1, 1.5];

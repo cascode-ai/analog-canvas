@@ -241,16 +241,18 @@ function readDcSweep(plot: RawfilePlot): PlotReading {
       ),
     };
   }
-  // ngspice names the independent DC scale `v-sweep`, `i-sweep`,
-  // `res-sweep`, or `temp-sweep`. Use that declared identity instead of the
-  // first vector: explicit `write` lists may echo or reorder vectors.
+  // ASCII `write` wraps voltage/current scales, e.g. ngspice 46 emits
+  // `v(v-sweep)`. Recognize the scale identity without renaming the raw vector.
+  // Do not guess from position: explicit write lists may reorder vectors.
   const candidates = plot.vectors.filter((vector) =>
-    /-sweep$/iu.test(vector.variable.name),
+    /^(?:[vi]\((?:v|i|res|temp)-sweep\)|(?:v|i|res|temp)-sweep)$/iu.test(
+      vector.variable.name,
+    ),
   );
   if (candidates.length !== 1) {
     return {
       diagnostic: error(
-        `The "${plot.plotName}" plot declares ${candidates.length} DC sweep axes; exactly one named *-sweep is required for a one-dimensional DC result.`,
+        `The "${plot.plotName}" plot declares ${candidates.length} DC sweep axes; exactly one recognized sweep vector (bare or voltage/current-wrapped) is required for a one-dimensional DC result.`,
       ),
     };
   }

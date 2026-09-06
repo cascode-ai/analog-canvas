@@ -1,12 +1,12 @@
 Title: * resistive divider dc transfer curve
-Date: Reconstructed protocol fixture
-Command: reconstructed, not ngspice output
+Date: Sun Sep  6 04:47:17  2026
+Command: ngspice-46, Build Thu Jul 23 12:10:16 UTC 2026
 Plotname: DC transfer characteristic
 Flags: real
 No. Variables: 4
 No. Points: 4
 Variables:
-	0	v-sweep	voltage
+	0	v(v-sweep)	voltage
 	1	v(in)	voltage
 	2	v(mid)	voltage
 	3	i(v1)	current

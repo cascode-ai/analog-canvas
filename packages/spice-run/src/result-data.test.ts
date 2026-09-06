@@ -239,11 +239,45 @@ describe("an AC sweep", () => {
 describe("a DC sweep", () => {
   const dc = (): DcSweepResult => only("divider-dc.raw", "dc");
 
+  it.each(["v-sweep", "v(v-sweep)", "i(i-sweep)", "temp-sweep", "res-sweep"])(
+    "recognizes %s without rewriting its recorded name",
+    (name) => {
+      const [analysis] = expectAnalyses(
+        readSimulationData(
+          fixture("divider-dc.raw").replace("v(v-sweep)", name),
+        ),
+      );
+      expect(analysis?.analysis).toBe("dc");
+      if (analysis?.analysis !== "dc") throw new Error("Expected DC");
+      expect(analysis.sweep.name).toBe(name);
+      expect(analysis.sweep.values).toEqual([0, 0.5, 1, 1.5]);
+    },
+  );
+
+  it.each(["v(out)", "v(not-a-sweep)"])(
+    "does not guess a missing scale from the first vector %s",
+    (name) => {
+      const reading = readSimulationData(
+        fixture("divider-dc.raw").replace("v(v-sweep)", name),
+      );
+      expect(reading.status).toBe("unusable");
+      expect(reading.diagnostics[0]?.text).toContain("0 DC sweep axes");
+    },
+  );
+
+  it("rejects ambiguous scales instead of choosing one", () => {
+    const reading = readSimulationData(
+      fixture("divider-dc.raw").replace("v(in)", "i(i-sweep)"),
+    );
+    expect(reading.status).toBe("unusable");
+    expect(reading.diagnostics[0]?.text).toContain("2 DC sweep axes");
+  });
+
   it("keeps ngspice's recorded sweep axis and divider arithmetic", () => {
     const analysis = dc();
     expect(analysis.plotName).toBe("DC transfer characteristic");
     expect(analysis.sweep).toEqual({
-      name: "v-sweep",
+      name: "v(v-sweep)",
       quantity: "voltage",
       unit: "V",
       values: [0, 0.5, 1, 1.5],
@@ -260,7 +294,7 @@ describe("a DC sweep", () => {
   it("exports the simulator axis and every probe without rebuilding values", () => {
     const analysis = dc();
     const lines = simulationAnalysisToCsv(analysis).trimEnd().split("\n");
-    expect(lines[0]).toBe("v-sweep [V],v(in) [V],v(mid) [V],i(v1) [A]");
+    expect(lines[0]).toBe("v(v-sweep) [V],v(in) [V],v(mid) [V],i(v1) [A]");
     expect(lines.slice(1).map((line) => line.split(",").map(Number))).toEqual(
       analysis.sweep.values.map((sweep, point) => [
         sweep,

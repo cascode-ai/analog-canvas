@@ -35,9 +35,10 @@ the probe once; the fixture exists so that echo is tested against a file the
 simulator wrote.
 
 **`divider-dc`** — the same divider swept from 0 V to 1.5 V. Its values are
-closed-form protocol data (`v(mid) = v(in)/2`) and are deliberately identified
-as reconstructed rather than simulator-qualified. The Profile gate must
-regenerate it in the pinned image before DC promotion.
+recorded from the pinned Preview operator host (ngspice 46) on 2026-09-06,
+using the adjacent deck. They satisfy `v(mid) = v(in)/2`. The ASCII scale is
+`v(v-sweep)`, not the bare `v-sweep` formerly assumed by reconstructed data.
+Environment fingerprint: `33c245e5df6dc12077b6a2e4ebf308777b0e9014fe9bfdafc3285c614688561d`.
 
 **`rc-ac`** — R = 1 kΩ, C = 1 µF, so H(f) = 1/(1 + jf/f_c) with
 f_c = 1/(2π·RC) = 159.1549 Hz. Every one of the 17 points can be asserted
