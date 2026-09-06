@@ -35,8 +35,8 @@ describe("SpiceSimulationSurface workspace", () => {
     expect(markup).not.toContain("<datalist");
     expect(markup).toContain("sky130-core-continuous-ngspice46-v1");
     expect(markup).toContain('class="simulation-probe-control"');
-    expect(markup).toContain('aria-label="Filter voltage targets"');
-    expect(markup).toContain("Filter by Cell, instance, pin, or Net");
+    expect(markup).not.toContain('type="search"');
+    expect(markup).not.toContain("Filter by Cell, instance, pin, or Net");
     expect(markup).toContain("Choose a Net");
     expect(markup).toContain("Pick on canvas");
     expect(markup).not.toContain("Pick voltage on canvas");
@@ -127,6 +127,7 @@ describe("SpiceSimulationSurface workspace", () => {
     expect(markup).toContain('aria-label="Simulation setup"');
     expect(markup).toContain("DC Sweep");
     expect(markup).toContain("AC Response");
+    expect(markup.match(/Delete setup/g)).toHaveLength(1);
     expect(markup).toContain('name="setupName"');
     expect(markup).toContain("V1 · Voltage");
     expect(markup).toContain('name="dcStartValue"');
@@ -167,6 +168,7 @@ describe("SpiceSimulationSurface workspace", () => {
     expect(markup).toContain("Raw setup");
     expect(markup).toContain("tb.cir");
     expect(markup).toContain("Switch to structured setup");
+    expect(markup.match(/Delete setup/g)).toHaveLength(1);
     expect(markup).not.toContain("Add voltage probe");
   });
 });

@@ -230,4 +230,55 @@ describe("simulation probe choices", () => {
     expect(options[0]?.label).toBe("Main · 0");
     expect(options[0]?.key).toContain(":logical:net-ground-a");
   });
+
+  it("omits a lone Cell Pin while keeping an interface Net with a circuit member", () => {
+    const project = createEmptyProject("project", "Project", "main");
+    const document = project.documents[0]!;
+    document.instances.push(
+      { id: "PIN_GHOST", symbolId: "port", placement: null },
+      { id: "PIN_IN", symbolId: "port", placement: null },
+      { id: "R1", symbolId: "resistor", reference: "R1", placement: null },
+    );
+    document.netlist = {
+      name: "main",
+      formalParameters: [],
+      terminals: [
+        {
+          id: "terminal-ghost",
+          name: "ghost",
+          netId: "net-ghost",
+          direction: "input",
+          interfaceInstanceIds: ["PIN_GHOST"],
+        },
+        {
+          id: "terminal-in",
+          name: "in",
+          netId: "net-in",
+          direction: "input",
+          interfaceInstanceIds: ["PIN_IN"],
+        },
+      ],
+    };
+    document.nets.push(
+      {
+        id: "net-ghost",
+        terminals: [{ instanceId: "PIN_GHOST", pinName: "P" }],
+      },
+      {
+        id: "net-in",
+        terminals: [
+          { instanceId: "PIN_IN", pinName: "P" },
+          { instanceId: "R1", pinName: "A" },
+        ],
+      },
+    );
+
+    const labels = deriveSimulationProbeOptions(
+      project,
+      document.id,
+    ).voltage.map((option) => option.label);
+
+    expect(labels.some((label) => label.includes("ghost"))).toBe(false);
+    expect(labels).toContain("Main · in");
+  });
 });
