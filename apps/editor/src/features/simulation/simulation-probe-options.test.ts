@@ -39,7 +39,32 @@ describe("simulation probe choices", () => {
       "Testbench · VDD current",
       "Testbench · VINP current",
       "Testbench · VINN current",
+      "Testbench · IBIAS current",
     ]);
+  });
+
+  it("names an unnamed hierarchical Net by its terminal aliases", () => {
+    const project = CircuitProjectSchema.parse(fiveTransistorOtaSky130);
+    const dut = project.documents.find(
+      (document) => document.id === "document-ota-5t",
+    )!;
+    const tail = dut.nets.find((net) => net.id === "net-dut-tail")!;
+    dut.connectivityEvidence = dut.connectivityEvidence.filter(
+      (evidence) => evidence.netId !== tail.id,
+    );
+
+    const option = deriveSimulationProbeOptions(
+      project,
+      "document-ota-5t-testbench",
+    ).voltage.find(
+      (candidate) =>
+        candidate.target.documentId === dut.id &&
+        candidate.target.anchor.kind === "terminal" &&
+        candidate.target.anchor.instanceId === "M5" &&
+        candidate.target.anchor.pinName === "D",
+    );
+
+    expect(option?.label).toBe("XDUT · ota_5t · XM5.D / XM1.S / XM2.S");
   });
 
   it("gives repeated calls of the same Cell different target identities", () => {

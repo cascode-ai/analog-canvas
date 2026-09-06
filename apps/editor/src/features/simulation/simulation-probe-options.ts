@@ -161,6 +161,30 @@ function voltageAnchor(
   return route ? { kind: "route", routeId: route.id } : undefined;
 }
 
+function logicalNetDisplayLabel(
+  document: SchematicDocument,
+  choice: {
+    readonly label: string;
+    readonly netId: string;
+    readonly baseNetIds: readonly string[];
+  },
+): string {
+  if (choice.label !== choice.netId) return choice.label;
+  const ids = new Set(choice.baseNetIds);
+  const instances = new Map(
+    document.instances.map((instance) => [instance.id, instance]),
+  );
+  const aliases: string[] = [];
+  for (const net of document.nets) {
+    if (!ids.has(net.id)) continue;
+    for (const terminal of net.terminals) {
+      const alias = `${instances.get(terminal.instanceId)?.reference ?? terminal.instanceId}.${terminal.pinName}`;
+      if (!aliases.includes(alias)) aliases.push(alias);
+    }
+  }
+  return aliases.length > 0 ? aliases.join(" / ") : choice.label;
+}
+
 /**
  * Resolve the persisted occurrence ids into the same hierarchy frames used by
  * canvas navigation. This is presentation-only: probe identity remains the
@@ -236,7 +260,7 @@ export function deriveSimulationProbeOptions(
       };
       voltage.push({
         key: simulationProbeSelectionKey(project, target),
-        label: `${prefix} · ${net.label}`,
+        label: `${prefix} · ${logicalNetDisplayLabel(document, net)}`,
         target,
       });
     }
@@ -244,7 +268,8 @@ export function deriveSimulationProbeOptions(
       const binding = instance.netlist?.binding;
       if (
         (binding?.kind === "primitive" || binding?.kind === "model") &&
-        binding.deviceClass === "voltage-source"
+        (binding.deviceClass === "voltage-source" ||
+          (binding.deviceClass === "current-source" && occurrence.length === 0))
       ) {
         const target: SourceCurrentProbeTarget = {
           kind: "source-current",

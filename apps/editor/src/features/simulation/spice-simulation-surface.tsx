@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import {
   type ObjectLocator,
   type ProjectSimulationSetup,
@@ -1439,7 +1439,7 @@ function SetupEditor({
         ) : null}
         <ProbeSelect
           label="Add current output"
-          placeholder="Choose a voltage-source branch"
+          placeholder="Choose a source current"
           options={probeOptions.sourceCurrent}
           selectedKeys={selectedProbeKeys}
           onAdd={(option) => {
@@ -1545,32 +1545,54 @@ function ProbeSelect({
   onAdd(option: SimulationProbeOption): void;
   trailingAction?: ReactNode;
 }) {
+  const [query, setQuery] = useState("");
+  const selectId = useId();
+  const visibleOptions = options.filter((option) =>
+    option.label.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()),
+  );
   return (
-    <label className="simulation-probe-select">
-      <span>{label}</span>
+    <div className="simulation-probe-select">
+      <label htmlFor={selectId}>{label}</label>
       <span className="simulation-probe-control">
-        <select
-          value=""
-          onChange={(event) => {
-            const option = options.find(
-              (candidate) => candidate.key === event.target.value,
-            );
-            if (option) onAdd(option);
-          }}
-        >
-          <option value="">{placeholder}</option>
-          {options.map((option) => (
-            <option
-              key={option.key}
-              value={option.key}
-              disabled={selectedKeys.has(option.key)}
-            >
-              {option.label}
-            </option>
-          ))}
-        </select>
+        <span className="simulation-probe-picker">
+          <input
+            type="search"
+            value={query}
+            aria-label={
+              label === "Add voltage probe"
+                ? "Filter voltage targets"
+                : "Filter current targets"
+            }
+            placeholder="Filter by Cell, instance, pin, or Net"
+            onChange={(event) => setQuery(event.currentTarget.value)}
+          />
+          <select
+            id={selectId}
+            value=""
+            onChange={(event) => {
+              const option = options.find(
+                (candidate) => candidate.key === event.target.value,
+              );
+              if (option) {
+                onAdd(option);
+                setQuery("");
+              }
+            }}
+          >
+            <option value="">{placeholder}</option>
+            {visibleOptions.map((option) => (
+              <option
+                key={option.key}
+                value={option.key}
+                disabled={selectedKeys.has(option.key)}
+              >
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </span>
         {trailingAction}
       </span>
-    </label>
+    </div>
   );
 }

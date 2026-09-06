@@ -54,10 +54,13 @@
  *   expansion prefixes the device's own type letter before the path, so
  *   `Vsi` under `X1`/`XI1` is `i(v.x1.xi1.vsi)`.
  *
- * An independent current source has no branch-current vector at all -- ngspice
- * builds one for `V` sources and not for `I` sources, and `i(i1)` answers
- * "not available". A `source-current` probe on one is refused here rather than
- * compiled into a name that cannot come back.
+ * A top-level independent current source is instrumented with ngspice's
+ * `.probe I(<ref>)`. ngspice inserts a zero-volt sense source and writes its
+ * result as `<ref>#branch`; the rawfile reader normalises that spelling to the
+ * public `i(<ref>)` vector used by voltage-source currents. The directive only
+ * addresses top-level devices, so a current source inside a subcircuit remains
+ * an explicit compile-time diagnostic rather than a probe that silently
+ * returns no data.
  */
 
 import type {
@@ -86,6 +89,14 @@ export interface CompiledSimulationVector {
   /** ngspice's own spelling, e.g. `v(mid)`, `v(x1.out)`, `i(v1)`. */
   readonly vector: string;
   readonly quantity: "voltage" | "current";
+}
+
+interface ResolvedSimulationProbe {
+  readonly binding: CompiledSimulationVector;
+  /** Expression passed to ngspice's `write`; it may differ from raw output. */
+  readonly writeVector: string;
+  /** Deck cards required to make the vector exist. */
+  readonly instrumentationCards: readonly string[];
 }
 
 export type CompiledSimulation =
@@ -465,7 +476,7 @@ function sourceCurrentVector(
   probe: Extract<SimulationProbeSpec, { kind: "source-current" }>,
   occurrence: ResolvedOccurrence,
   diagnostics: NetlistDiagnostic[],
-): CompiledSimulationVector | null {
+): ResolvedSimulationProbe | null {
   const { document, cell, path, hierarchyPath } = occurrence;
   const instance = cell.instances.find((item) => item.id === probe.instanceId);
   if (!instance) {
@@ -481,16 +492,28 @@ function sourceCurrentVector(
     return null;
   }
   if (instance.deviceClass === "current-source") {
-    diagnostics.push(
-      diagnostic(
-        "SIMULATION_PROBE_SOURCE_HAS_NO_BRANCH_CURRENT",
-        document.id,
-        `Probe ${probe.id} measures Instance ${instance.reference}, an independent current source; ngspice solves no branch current for one, so probe a series voltage source instead`,
-        locator(document.id, hierarchyPath, "instance", probe.instanceId),
-        [probe.instanceId],
-      ),
-    );
-    return null;
+    if (path.length > 0) {
+      diagnostics.push(
+        diagnostic(
+          "SIMULATION_PROBE_CURRENT_SOURCE_HIERARCHY_UNSUPPORTED",
+          document.id,
+          `Probe ${probe.id} measures current source ${instance.reference} inside a subcircuit; this ngspice instrumentation can address only a top-level source`,
+          locator(document.id, hierarchyPath, "instance", probe.instanceId),
+          [probe.instanceId],
+        ),
+      );
+      return null;
+    }
+    const reference = instance.reference.toLowerCase();
+    return {
+      binding: {
+        probeId: probe.id,
+        vector: `i(${reference})`,
+        quantity: "current",
+      },
+      writeVector: `${reference}#branch`,
+      instrumentationCards: [`.probe I(${instance.reference})`],
+    };
   }
   if (instance.deviceClass !== "voltage-source") {
     diagnostics.push(
@@ -511,7 +534,12 @@ function sourceCurrentVector(
   const name = path.length
     ? [reference.slice(0, 1), ...path, reference].join(".")
     : reference;
-  return { probeId: probe.id, vector: `i(${name})`, quantity: "current" };
+  const binding: CompiledSimulationVector = {
+    probeId: probe.id,
+    vector: `i(${name})`,
+    quantity: "current",
+  };
+  return { binding, writeVector: binding.vector, instrumentationCards: [] };
 }
 
 /**
@@ -644,6 +672,8 @@ export async function compileStructuredSimulation(
   );
   const cellsById = new Map(ir.cells.map((cell) => [cell.id, cell]));
   const vectors: CompiledSimulationVector[] = [];
+  const writeVectors: string[] = [];
+  const instrumentationCards: string[] = [];
   for (const probe of input.probes) {
     const occurrence = resolveOccurrence(
       probe,
@@ -653,11 +683,19 @@ export async function compileStructuredSimulation(
       diagnostics,
     );
     if (!occurrence) continue;
-    const vector =
-      probe.kind === "net-voltage"
-        ? netVoltageVector(probe, occurrence, diagnostics)
-        : sourceCurrentVector(probe, occurrence, diagnostics);
-    if (vector) vectors.push(vector);
+    if (probe.kind === "net-voltage") {
+      const vector = netVoltageVector(probe, occurrence, diagnostics);
+      if (vector) {
+        vectors.push(vector);
+        writeVectors.push(vector.vector);
+      }
+      continue;
+    }
+    const resolved = sourceCurrentVector(probe, occurrence, diagnostics);
+    if (!resolved) continue;
+    vectors.push(resolved.binding);
+    writeVectors.push(resolved.writeVector);
+    instrumentationCards.push(...resolved.instrumentationCards);
   }
 
   if (diagnostics.length) return { ok: false, diagnostics };
@@ -671,11 +709,12 @@ export async function compileStructuredSimulation(
 
   // One `write` per analysis, so each plot reaches the rawfile; see the note
   // at the top of this file for why `run` and a single `write` do not.
-  const written = [...new Set(vectors.map((item) => item.vector))];
+  const written = [...new Set(writeVectors)];
   const writeCard = [`write ${SIMULATION_RAWFILE_NAME}`, ...written].join(" ");
   const testbench = [
     `* Analog Canvas testbench for ${rootCell.name}`,
     ...rootCards,
+    ...new Set(instrumentationCards),
     ...(input.environment.temperatureC === undefined
       ? []
       : [`.temp ${spiceNumber(input.environment.temperatureC)}`]),
