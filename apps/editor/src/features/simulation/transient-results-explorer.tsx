@@ -37,6 +37,20 @@ const PLOT = {
 } as const;
 const EXPANDED_PLOT = { ...PLOT, width: 1400, height: 700 } as const;
 
+type PlotGeometry = typeof PLOT | typeof EXPANDED_PLOT;
+type PlotQuantity = "voltage" | "current";
+
+interface PlotPoint {
+  readonly x: number;
+  readonly y: number;
+}
+
+interface ZoomBox {
+  readonly quantity: PlotQuantity;
+  readonly start: PlotPoint;
+  readonly current: PlotPoint;
+}
+
 function finiteExtent(values: readonly number[]): readonly [number, number] {
   let min = Number.POSITIVE_INFINITY;
   let max = Number.NEGATIVE_INFINITY;
@@ -49,6 +63,58 @@ function finiteExtent(values: readonly number[]): readonly [number, number] {
   if (min !== max) return [min, max];
   const margin = Math.max(Math.abs(min) * 0.05, 1e-12);
   return [min - margin, max + margin];
+}
+
+/**
+ * Treat simulator round-off around a constant signal as a constant. Without
+ * this tolerance, a few femtovolts of numerical noise consume the whole plot
+ * height even though both axis labels round to the same value.
+ */
+export function transientValueExtent(
+  values: readonly number[],
+): readonly [number, number] {
+  const extent = finiteExtent(values);
+  const center = (extent[0] + extent[1]) / 2;
+  const magnitude = Math.max(Math.abs(extent[0]), Math.abs(extent[1]));
+  const tolerance = Math.max(magnitude * 1e-9, 1e-12);
+  if (extent[1] - extent[0] > tolerance) return extent;
+  const margin = Math.max(Math.abs(center) * 0.05, 1e-12);
+  return [center - margin, center + margin];
+}
+
+function clampPlotPoint(point: PlotPoint, plot: PlotGeometry): PlotPoint {
+  return {
+    x: Math.min(plot.width - plot.right, Math.max(plot.left, point.x)),
+    y: Math.min(plot.height - plot.bottom, Math.max(plot.top, point.y)),
+  };
+}
+
+export function transientBoxZoomRanges(
+  start: PlotPoint,
+  end: PlotPoint,
+  timeRange: readonly [number, number],
+  valueRange: readonly [number, number],
+  plot: PlotGeometry = PLOT,
+): {
+  readonly time: readonly [number, number];
+  readonly value: readonly [number, number];
+} {
+  const first = clampPlotPoint(start, plot);
+  const last = clampPlotPoint(end, plot);
+  const plotWidth = plot.width - plot.left - plot.right;
+  const plotHeight = plot.height - plot.top - plot.bottom;
+  const timeAt = (x: number) =>
+    timeRange[0] +
+    ((x - plot.left) / plotWidth) * (timeRange[1] - timeRange[0]);
+  const valueAt = (y: number) =>
+    valueRange[1] -
+    ((y - plot.top) / plotHeight) * (valueRange[1] - valueRange[0]);
+  const times = [timeAt(first.x), timeAt(last.x)].sort((a, b) => a - b);
+  const values = [valueAt(first.y), valueAt(last.y)].sort((a, b) => a - b);
+  return {
+    time: [times[0]!, times[1]!],
+    value: [values[0]!, values[1]!],
+  };
 }
 
 function compact(value: number): string {
@@ -177,6 +243,13 @@ export function TransientResultsExplorer({
   const [hoverTime, setHoverTime] = useState<number>();
   const [markerTime, setMarkerTime] = useState<number>();
   const [timeRange, setTimeRange] = useState<readonly [number, number]>();
+  const [valueRanges, setValueRanges] = useState<
+    Partial<Record<PlotQuantity, readonly [number, number]>>
+  >({});
+  const [interactionMode, setInteractionMode] = useState<
+    "inspect" | "box-zoom"
+  >("inspect");
+  const [zoomBox, setZoomBox] = useState<ZoomBox>();
   const [expandedQuantity, setExpandedQuantity] = useState<
     "voltage" | "current" | null
   >(null);
@@ -187,13 +260,16 @@ export function TransientResultsExplorer({
   const cursorTime = hoverTime ?? markerTime;
 
   useEffect(() => {
-    if (!expandedQuantity) return;
-    const close = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setExpandedQuantity(null);
+    const cancelTransientPlotAction = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setExpandedQuantity(null);
+      setZoomBox(undefined);
+      setInteractionMode("inspect");
     };
-    window.addEventListener("keydown", close);
-    return () => window.removeEventListener("keydown", close);
-  }, [expandedQuantity]);
+    window.addEventListener("keydown", cancelTransientPlotAction);
+    return () =>
+      window.removeEventListener("keydown", cancelTransientPlotAction);
+  }, []);
 
   const focusTrace = (traceId: string) => {
     const trace = traces.find((candidate) => candidate.id === traceId);
@@ -204,8 +280,14 @@ export function TransientResultsExplorer({
 
   const updateRange = (
     action: "zoom-in" | "zoom-out" | "pan-left" | "pan-right" | "fit",
+    quantity: PlotQuantity,
   ) => {
-    if (action === "fit") return setTimeRange(undefined);
+    if (action === "fit") {
+      setTimeRange(undefined);
+      setValueRanges((current) => ({ ...current, [quantity]: undefined }));
+      setZoomBox(undefined);
+      return;
+    }
     const next = changeTransientTimeRange(
       timeRange ?? fullRange,
       fullRange,
@@ -219,59 +301,101 @@ export function TransientResultsExplorer({
 
   const timeAtPointer = (
     event: PointerEvent<HTMLDivElement> | ReactMouseEvent<HTMLDivElement>,
-    plot: typeof PLOT | typeof EXPANDED_PLOT,
+    plot: PlotGeometry,
   ) => {
+    const point = plotPointAtPointer(event, plot);
     const bounds = event.currentTarget.getBoundingClientRect();
     const range = timeRange ?? fullRange;
-    const svgX = ((event.clientX - bounds.left) / bounds.width) * plot.width;
+    if (bounds.width === 0) return range[0];
     return Math.min(
       range[1],
       Math.max(
         range[0],
         range[0] +
-          ((svgX - plot.left) / (plot.width - plot.left - plot.right)) *
+          ((point.x - plot.left) / (plot.width - plot.left - plot.right)) *
             (range[1] - range[0]),
       ),
     );
   };
 
-  const toolbar = (quantity: "voltage" | "current", expanded: boolean) => (
+  const plotPointAtPointer = (
+    event: PointerEvent<HTMLDivElement> | ReactMouseEvent<HTMLDivElement>,
+    plot: PlotGeometry,
+  ): PlotPoint => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    if (bounds.width === 0 || bounds.height === 0) {
+      return { x: plot.left, y: plot.top };
+    }
+    return clampPlotPoint(
+      {
+        x: ((event.clientX - bounds.left) / bounds.width) * plot.width,
+        y: ((event.clientY - bounds.top) / bounds.height) * plot.height,
+      },
+      plot,
+    );
+  };
+
+  const toolbar = (quantity: PlotQuantity, expanded: boolean) => (
     <div
       className={`ac-plot-toolbar${expanded ? " expanded" : ""}`}
       aria-label="Plot tools"
     >
       <button
         type="button"
+        aria-label="Inspect plot"
+        aria-pressed={interactionMode === "inspect"}
+        title="Inspect and place a marker"
+        onClick={() => {
+          setInteractionMode("inspect");
+          setZoomBox(undefined);
+        }}
+      >
+        ⌖
+      </button>
+      <button
+        type="button"
+        aria-label="Box zoom"
+        aria-pressed={interactionMode === "box-zoom"}
+        title="Drag a rectangle to zoom"
+        onClick={() => {
+          setInteractionMode("box-zoom");
+          setZoomBox(undefined);
+        }}
+      >
+        ▧
+      </button>
+      <button
+        type="button"
         aria-label="Zoom in"
-        onClick={() => updateRange("zoom-in")}
+        onClick={() => updateRange("zoom-in", quantity)}
       >
         +
       </button>
       <button
         type="button"
         aria-label="Zoom out"
-        onClick={() => updateRange("zoom-out")}
+        onClick={() => updateRange("zoom-out", quantity)}
       >
         −
       </button>
       <button
         type="button"
         aria-label="Pan left"
-        onClick={() => updateRange("pan-left")}
+        onClick={() => updateRange("pan-left", quantity)}
       >
         ←
       </button>
       <button
         type="button"
         aria-label="Pan right"
-        onClick={() => updateRange("pan-right")}
+        onClick={() => updateRange("pan-right", quantity)}
       >
         →
       </button>
       <button
         type="button"
         aria-label="Fit plot"
-        onClick={() => updateRange("fit")}
+        onClick={() => updateRange("fit", quantity)}
       >
         Fit
       </button>
@@ -297,7 +421,7 @@ export function TransientResultsExplorer({
   );
 
   const plot = (
-    quantity: "voltage" | "current",
+    quantity: PlotQuantity,
     quantityTraces: readonly TransientTrace[],
     expanded = false,
   ) => {
@@ -310,7 +434,8 @@ export function TransientResultsExplorer({
           analysis.timeSeconds[index]! <= range[1],
       ),
     );
-    const extent = finiteExtent(visibleValues);
+    const automaticExtent = transientValueExtent(visibleValues);
+    const extent = valueRanges[quantity] ?? automaticExtent;
     const unit = quantityTraces.find((trace) => trace.unit)?.unit ?? "";
     const cursorX =
       cursorTime === undefined
@@ -321,19 +446,76 @@ export function TransientResultsExplorer({
     return (
       <div className={`ac-plot-shell${expanded ? " expanded" : ""}`}>
         <div
-          className="spice-ac-plot interactive"
-          onPointerMove={(event) =>
-            setHoverTime(timeAtPointer(event, geometry))
-          }
+          className={`spice-ac-plot interactive ${interactionMode}`}
+          onPointerDown={(event) => {
+            if (interactionMode !== "box-zoom" || event.button !== 0) return;
+            const point = plotPointAtPointer(event, geometry);
+            event.currentTarget.setPointerCapture(event.pointerId);
+            setZoomBox({ quantity, start: point, current: point });
+            event.preventDefault();
+          }}
+          onPointerMove={(event) => {
+            if (
+              interactionMode === "box-zoom" &&
+              zoomBox?.quantity === quantity
+            ) {
+              const point = plotPointAtPointer(event, geometry);
+              setZoomBox((current) =>
+                current?.quantity === quantity
+                  ? { ...current, current: point }
+                  : current,
+              );
+              return;
+            }
+            if (interactionMode === "inspect") {
+              setHoverTime(timeAtPointer(event, geometry));
+            }
+          }}
+          onPointerUp={(event) => {
+            if (
+              interactionMode !== "box-zoom" ||
+              zoomBox?.quantity !== quantity
+            )
+              return;
+            const end = plotPointAtPointer(event, geometry);
+            const width = Math.abs(end.x - zoomBox.start.x);
+            const height = Math.abs(end.y - zoomBox.start.y);
+            if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+              event.currentTarget.releasePointerCapture(event.pointerId);
+            }
+            if (width >= 5 && height >= 5) {
+              const next = transientBoxZoomRanges(
+                zoomBox.start,
+                end,
+                range,
+                extent,
+                geometry,
+              );
+              setTimeRange(next.time);
+              setValueRanges((current) => ({
+                ...current,
+                [quantity]: next.value,
+              }));
+              setInteractionMode("inspect");
+            }
+            setZoomBox(undefined);
+            setHoverTime(undefined);
+          }}
+          onPointerCancel={() => setZoomBox(undefined)}
           onPointerLeave={() => setHoverTime(undefined)}
           onClick={(event) => {
+            if (interactionMode !== "inspect") return;
             const id = (event.target as Element)
               .closest("[data-trace-id]")
               ?.getAttribute("data-trace-id");
             if (id) focusTrace(id);
             setMarkerTime(timeAtPointer(event, geometry));
           }}
-          onDoubleClick={() => !expanded && setExpandedQuantity(quantity)}
+          onDoubleClick={() =>
+            interactionMode === "inspect" &&
+            !expanded &&
+            setExpandedQuantity(quantity)
+          }
         >
           <svg
             role="img"
@@ -386,7 +568,14 @@ export function TransientResultsExplorer({
                   data-trace-id={trace.id}
                   data-trace-index={trace.colorIndex}
                 >
-                  <polyline className="ac-trace-hit" points={points} />
+                  <polyline
+                    className="ac-trace-hit"
+                    fill="none"
+                    stroke="transparent"
+                    strokeWidth={12}
+                    pointerEvents="stroke"
+                    points={points}
+                  />
                   <polyline
                     className={`transient-trace ac-trace-${trace.colorIndex % 6}${selected === trace.id ? " ac-trace-selected" : ""}`}
                     points={points}
@@ -397,12 +586,25 @@ export function TransientResultsExplorer({
             {cursorX === undefined ? null : (
               <line
                 className="ac-cursor"
+                stroke="#101828"
+                strokeWidth={1}
+                strokeDasharray="2 2"
+                pointerEvents="none"
                 x1={cursorX}
                 y1={geometry.top}
                 x2={cursorX}
                 y2={geometry.height - geometry.bottom}
               />
             )}
+            {zoomBox?.quantity === quantity ? (
+              <rect
+                className="ac-zoom-box"
+                x={Math.min(zoomBox.start.x, zoomBox.current.x)}
+                y={Math.min(zoomBox.start.y, zoomBox.current.y)}
+                width={Math.abs(zoomBox.current.x - zoomBox.start.x)}
+                height={Math.abs(zoomBox.current.y - zoomBox.start.y)}
+              />
+            ) : null}
           </svg>
         </div>
         {toolbar(quantity, expanded)}
