@@ -708,12 +708,15 @@
 .ac-plot-shell {
   position: relative;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 .ac-plot-toolbar {
-  position: absolute;
-  z-index: 2;
-  top: 7px;
-  right: 7px;
+  position: relative;
+  order: -1;
+  align-self: flex-end;
+  flex-wrap: wrap;
   display: flex;
   gap: 2px;
   padding: 3px;
@@ -721,9 +724,8 @@
   border-radius: var(--icm-radius-sm);
   background: color-mix(in srgb, var(--icm-surface) 94%, transparent);
   box-shadow: var(--icm-shadow-sm);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 100ms ease;
+  opacity: 1;
+  pointer-events: auto;
 }
 .ac-plot-shell:hover .ac-plot-toolbar,
 .ac-plot-shell:focus-within .ac-plot-toolbar,
@@ -788,22 +790,26 @@
   font-size: 18px;
 }
 .ac-plot-shell.expanded {
-  display: grid;
+  display: flex;
   min-height: 0;
   padding: 12px;
 }
 .ac-plot-shell.expanded .spice-ac-plot {
+  flex: 1;
+  overflow: hidden;
   display: grid;
   min-height: 0;
   place-items: center;
 }
 .ac-plot-shell.expanded svg {
+  position: absolute;
+  inset: 0;
   width: 100%;
-  max-height: calc(92vh - 90px);
+  height: 100%;
+  max-height: none;
 }
 .ac-cursor-readout {
-  position: sticky;
-  bottom: 0;
+  position: relative;
   display: grid;
   gap: 2px;
   padding: 7px 9px;
@@ -1216,15 +1222,21 @@
   stroke-width: 1;
 }
 
-.ac-response .ac-grid {
+.ac-response .ac-grid,
+.transient-results-explorer .ac-grid {
   stroke: var(--icm-border-subtle, #eceff3);
   stroke-width: 1;
 }
 
-.ac-response .ac-axis-label {
-  font-size: 9px;
+.ac-response .ac-axis-label,
+.transient-results-explorer .ac-axis-label {
+  font-size: 12px;
   fill: var(--icm-text-muted, #667085);
   font-variant-numeric: tabular-nums;
+}
+
+.ac-plot-shell.expanded .ac-axis-label {
+  font-size: 16px;
 }
 
 /* Traces are distinguished by hue, and one plot may carry several. The
@@ -1272,4 +1284,58 @@
   font-size: 10px;
   fill: var(--icm-text, #101828);
   font-family: var(--icm-mono, ui-monospace, monospace);
+}
+.waveform-selection {
+  position: absolute;
+  pointer-events: none;
+  border: 1px solid #175cd3;
+  background: rgb(23 92 211 / 12%);
+}
+.waveform-svg {
+  display: contents;
+}
+.waveform-tools {
+  align-self: stretch;
+  justify-content: flex-end;
+}
+.waveform-tools > [role="group"] {
+  display: flex;
+  border-left: 1px solid var(--icm-border);
+  padding-left: 4px;
+}
+.waveform-range-editor {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px;
+}
+.waveform-range-editor fieldset {
+  display: flex;
+  flex: 1 1 220px;
+  min-width: 0;
+  gap: 6px;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+}
+.waveform-range-editor label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.waveform-range-editor input:not([type="checkbox"]) {
+  width: 100%;
+  min-width: 0;
+}
+.waveform-range-editor [role="alert"] {
+  flex-basis: 100%;
+  color: var(--icm-danger, #b42318);
+}
+.spice-ac-plot.interactive {
+  overflow: hidden;
+  user-select: none;
+}
+.ac-plot-dialog {
+  grid-template-rows: auto minmax(0, 1fr) auto;
 }

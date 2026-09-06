@@ -1,10 +1,18 @@
 import {
   useEffect,
+  useId,
   useMemo,
   useState,
-  type MouseEvent as ReactMouseEvent,
-  type PointerEvent,
+  type SetStateAction,
 } from "react";
+import {
+  WaveformInteraction,
+  waveformTicks,
+  waveformTickLabel,
+  useWaveformWidth,
+} from "./waveform-interaction";
+import { useWaveformView } from "./waveform-view";
+import { WaveformTools, WaveformMeasurements } from "./waveform-tools";
 import type { SimulationProbeSpec } from "@icm/model";
 import type { TransientResult } from "@icm/spice-run";
 import type { Prepared } from "@icm/simulation-service/contract";
@@ -20,6 +28,7 @@ interface TransientTrace {
 }
 
 export interface TransientResultsExplorerProps {
+  resultKey?: string;
   analysis: TransientResult;
   vectors: Prepared["vectors"];
   probes: readonly SimulationProbeSpec[];
@@ -37,19 +46,15 @@ const PLOT = {
 } as const;
 const EXPANDED_PLOT = { ...PLOT, width: 1400, height: 700 } as const;
 
-type PlotGeometry = typeof PLOT | typeof EXPANDED_PLOT;
+type PlotGeometry = {
+  width: number;
+  height: number;
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+};
 type PlotQuantity = "voltage" | "current";
-
-interface PlotPoint {
-  readonly x: number;
-  readonly y: number;
-}
-
-interface ZoomBox {
-  readonly quantity: PlotQuantity;
-  readonly start: PlotPoint;
-  readonly current: PlotPoint;
-}
 
 function finiteExtent(values: readonly number[]): readonly [number, number] {
   let min = Number.POSITIVE_INFINITY;
@@ -82,39 +87,27 @@ export function transientValueExtent(
   return [center - margin, center + margin];
 }
 
-function clampPlotPoint(point: PlotPoint, plot: PlotGeometry): PlotPoint {
-  return {
-    x: Math.min(plot.width - plot.right, Math.max(plot.left, point.x)),
-    y: Math.min(plot.height - plot.bottom, Math.max(plot.top, point.y)),
-  };
-}
-
-export function transientBoxZoomRanges(
-  start: PlotPoint,
-  end: PlotPoint,
-  timeRange: readonly [number, number],
-  valueRange: readonly [number, number],
-  plot: PlotGeometry = PLOT,
-): {
-  readonly time: readonly [number, number];
-  readonly value: readonly [number, number];
-} {
-  const first = clampPlotPoint(start, plot);
-  const last = clampPlotPoint(end, plot);
-  const plotWidth = plot.width - plot.left - plot.right;
-  const plotHeight = plot.height - plot.top - plot.bottom;
-  const timeAt = (x: number) =>
-    timeRange[0] +
-    ((x - plot.left) / plotWidth) * (timeRange[1] - timeRange[0]);
-  const valueAt = (y: number) =>
-    valueRange[1] -
-    ((y - plot.top) / plotHeight) * (valueRange[1] - valueRange[0]);
-  const times = [timeAt(first.x), timeAt(last.x)].sort((a, b) => a - b);
-  const values = [valueAt(first.y), valueAt(last.y)].sort((a, b) => a - b);
-  return {
-    time: [times[0]!, times[1]!],
-    value: [values[0]!, values[1]!],
-  };
+/** Include line intersections at the viewport boundaries when it contains no solver sample. */
+export function transientVisibleValues(
+  times: readonly number[],
+  values: readonly number[],
+  range: readonly [number, number],
+): number[] {
+  const result: number[] = [];
+  for (let i = 0; i < Math.min(times.length, values.length); i++) {
+    const x = times[i]!,
+      y = values[i]!;
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+    if (x >= range[0] && x <= range[1]) result.push(y);
+    if (i === 0) continue;
+    const prevX = times[i - 1]!,
+      prevY = values[i - 1]!;
+    if (!Number.isFinite(prevY) || x <= prevX) continue;
+    for (const edge of range)
+      if (prevX < edge && x > edge)
+        result.push(prevY + ((y - prevY) * (edge - prevX)) / (x - prevX));
+  }
+  return result;
 }
 
 function compact(value: number): string {
@@ -139,7 +132,7 @@ export function transientPolylinePoints(
   values: readonly number[],
   yExtent: readonly [number, number] = finiteExtent(values),
   timeExtent: readonly [number, number] = finiteExtent(timeSeconds),
-  plot: typeof PLOT | typeof EXPANDED_PLOT = PLOT,
+  plot: PlotGeometry = PLOT,
 ): string {
   const count = Math.min(timeSeconds.length, values.length);
   if (count === 0) return "";
@@ -154,8 +147,9 @@ export function transientPolylinePoints(
     if (
       !Number.isFinite(time) ||
       !Number.isFinite(value) ||
-      time < timeExtent[0] ||
-      time > timeExtent[1]
+      (time < timeExtent[0] &&
+        (timeSeconds[index + 1] ?? time) < timeExtent[0]) ||
+      (time > timeExtent[1] && (timeSeconds[index - 1] ?? time) > timeExtent[1])
     )
       continue;
     const x = plot.left + ((time - timeExtent[0]) / timeSpan) * plotWidth;
@@ -192,64 +186,29 @@ function outputTraces(
   });
 }
 
-function clampRange(
-  low: number,
-  high: number,
-  full: readonly [number, number],
-): readonly [number, number] {
-  const span = Math.min(high - low, full[1] - full[0]);
-  if (low < full[0]) return [full[0], full[0] + span];
-  if (high > full[1]) return [full[1] - span, full[1]];
-  return [low, high];
-}
-
-export function changeTransientTimeRange(
-  current: readonly [number, number],
-  full: readonly [number, number],
-  action: "zoom-in" | "zoom-out" | "pan-left" | "pan-right",
-  center = (current[0] + current[1]) / 2,
-): readonly [number, number] {
-  const span = current[1] - current[0];
-  if (action.startsWith("zoom")) {
-    const nextSpan = Math.min(
-      full[1] - full[0],
-      span * (action === "zoom-in" ? 0.6 : 1.7),
-    );
-    const fraction = span ? (center - current[0]) / span : 0.5;
-    return clampRange(
-      center - nextSpan * fraction,
-      center + nextSpan * (1 - fraction),
-      full,
-    );
-  }
-  const shift = span * 0.2 * (action === "pan-left" ? -1 : 1);
-  return clampRange(current[0] + shift, current[1] + shift, full);
-}
-
 export function TransientResultsExplorer({
   analysis,
   vectors,
   probes,
   labels = {},
   onFocusProbe,
+  resultKey,
 }: TransientResultsExplorerProps) {
+  const measured = useWaveformWidth();
+  const clipPrefix = useId();
   const traces = useMemo(
     () => outputTraces(analysis, vectors, probes, labels),
     [analysis, labels, probes, vectors],
   );
-  const [hidden, setHidden] = useState<ReadonlySet<string>>(() => new Set());
-  const [solo, setSolo] = useState<string | null>(null);
-  const [selected, setSelected] = useState<string | null>(null);
-  const [hoverTime, setHoverTime] = useState<number>();
-  const [markerTime, setMarkerTime] = useState<number>();
-  const [timeRange, setTimeRange] = useState<readonly [number, number]>();
-  const [valueRanges, setValueRanges] = useState<
-    Partial<Record<PlotQuantity, readonly [number, number]>>
-  >({});
-  const [interactionMode, setInteractionMode] = useState<
-    "inspect" | "box-zoom"
-  >("inspect");
-  const [zoomBox, setZoomBox] = useState<ZoomBox>();
+  const controller = useWaveformView(resultKey);
+  const { hidden, solo, selected, markers } = controller.state;
+  const setHidden = (value: SetStateAction<ReadonlySet<string>>) =>
+    controller.set("hidden", value);
+  const setSolo = (value: React.SetStateAction<string | null>) =>
+    controller.set("solo", value);
+  const setSelected = (value: string) => controller.set("selected", value);
+  const timeRange = controller.view.x;
+  const valueRanges = controller.view.y;
   const [expandedQuantity, setExpandedQuantity] = useState<
     "voltage" | "current" | null
   >(null);
@@ -257,14 +216,11 @@ export function TransientResultsExplorer({
     (trace) => !hidden.has(trace.id) && (solo === null || solo === trace.id),
   );
   const fullRange = finiteExtent(analysis.timeSeconds);
-  const cursorTime = hoverTime ?? markerTime;
 
   useEffect(() => {
     const cancelTransientPlotAction = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       setExpandedQuantity(null);
-      setZoomBox(undefined);
-      setInteractionMode("inspect");
     };
     window.addEventListener("keydown", cancelTransientPlotAction);
     return () =>
@@ -278,244 +234,83 @@ export function TransientResultsExplorer({
     if (trace.probe) onFocusProbe?.(trace.probe);
   };
 
-  const updateRange = (
-    action: "zoom-in" | "zoom-out" | "pan-left" | "pan-right" | "fit",
-    quantity: PlotQuantity,
-  ) => {
-    if (action === "fit") {
-      setTimeRange(undefined);
-      setValueRanges((current) => ({ ...current, [quantity]: undefined }));
-      setZoomBox(undefined);
-      return;
-    }
-    const next = changeTransientTimeRange(
-      timeRange ?? fullRange,
-      fullRange,
-      action,
-      cursorTime,
-    );
-    setTimeRange(
-      next[0] === fullRange[0] && next[1] === fullRange[1] ? undefined : next,
-    );
-  };
-
-  const timeAtPointer = (
-    event: PointerEvent<HTMLDivElement> | ReactMouseEvent<HTMLDivElement>,
-    plot: PlotGeometry,
-  ) => {
-    const point = plotPointAtPointer(event, plot);
-    const bounds = event.currentTarget.getBoundingClientRect();
-    const range = timeRange ?? fullRange;
-    if (bounds.width === 0) return range[0];
-    return Math.min(
-      range[1],
-      Math.max(
-        range[0],
-        range[0] +
-          ((point.x - plot.left) / (plot.width - plot.left - plot.right)) *
-            (range[1] - range[0]),
-      ),
-    );
-  };
-
-  const plotPointAtPointer = (
-    event: PointerEvent<HTMLDivElement> | ReactMouseEvent<HTMLDivElement>,
-    plot: PlotGeometry,
-  ): PlotPoint => {
-    const bounds = event.currentTarget.getBoundingClientRect();
-    if (bounds.width === 0 || bounds.height === 0) {
-      return { x: plot.left, y: plot.top };
-    }
-    return clampPlotPoint(
-      {
-        x: ((event.clientX - bounds.left) / bounds.width) * plot.width,
-        y: ((event.clientY - bounds.top) / bounds.height) * plot.height,
-      },
-      plot,
-    );
-  };
-
-  const toolbar = (quantity: PlotQuantity, expanded: boolean) => (
-    <div
-      className={`ac-plot-toolbar${expanded ? " expanded" : ""}`}
-      aria-label="Plot tools"
-    >
-      <button
-        type="button"
-        aria-label="Inspect plot"
-        aria-pressed={interactionMode === "inspect"}
-        title="Inspect and place a marker"
-        onClick={() => {
-          setInteractionMode("inspect");
-          setZoomBox(undefined);
-        }}
-      >
-        ⌖
-      </button>
-      <button
-        type="button"
-        aria-label="Box zoom"
-        aria-pressed={interactionMode === "box-zoom"}
-        title="Drag a rectangle to zoom"
-        onClick={() => {
-          setInteractionMode("box-zoom");
-          setZoomBox(undefined);
-        }}
-      >
-        ▧
-      </button>
-      <button
-        type="button"
-        aria-label="Zoom in"
-        onClick={() => updateRange("zoom-in", quantity)}
-      >
-        +
-      </button>
-      <button
-        type="button"
-        aria-label="Zoom out"
-        onClick={() => updateRange("zoom-out", quantity)}
-      >
-        −
-      </button>
-      <button
-        type="button"
-        aria-label="Pan left"
-        onClick={() => updateRange("pan-left", quantity)}
-      >
-        ←
-      </button>
-      <button
-        type="button"
-        aria-label="Pan right"
-        onClick={() => updateRange("pan-right", quantity)}
-      >
-        →
-      </button>
-      <button
-        type="button"
-        aria-label="Fit plot"
-        onClick={() => updateRange("fit", quantity)}
-      >
-        Fit
-      </button>
-      {markerTime !== undefined ? (
-        <button
-          type="button"
-          aria-label="Clear marker"
-          onClick={() => setMarkerTime(undefined)}
-        >
-          ×│
-        </button>
-      ) : null}
-      {!expanded ? (
-        <button
-          type="button"
-          aria-label="Open plot"
-          onClick={() => setExpandedQuantity(quantity)}
-        >
-          ⛶
-        </button>
-      ) : null}
-    </div>
-  );
-
   const plot = (
     quantity: PlotQuantity,
     quantityTraces: readonly TransientTrace[],
     expanded = false,
   ) => {
-    const geometry = expanded ? EXPANDED_PLOT : PLOT;
+    const geometry = expanded
+      ? EXPANDED_PLOT
+      : { ...PLOT, width: measured.width };
     const range = timeRange ?? fullRange;
+    const clipId = `${clipPrefix}-${quantity}-${expanded}`;
     const visibleValues = quantityTraces.flatMap((trace) =>
-      trace.values.filter(
-        (_value, index) =>
-          analysis.timeSeconds[index]! >= range[0] &&
-          analysis.timeSeconds[index]! <= range[1],
-      ),
+      transientVisibleValues(analysis.timeSeconds, trace.values, range),
     );
     const automaticExtent = transientValueExtent(visibleValues);
     const extent = valueRanges[quantity] ?? automaticExtent;
     const unit = quantityTraces.find((trace) => trace.unit)?.unit ?? "";
-    const cursorX =
-      cursorTime === undefined
-        ? undefined
-        : geometry.left +
-          ((cursorTime - range[0]) / (range[1] - range[0])) *
-            (geometry.width - geometry.left - geometry.right);
     return (
       <div className={`ac-plot-shell${expanded ? " expanded" : ""}`}>
-        <div
-          className={`spice-ac-plot interactive ${interactionMode}`}
-          onPointerDown={(event) => {
-            if (interactionMode !== "box-zoom" || event.button !== 0) return;
-            const point = plotPointAtPointer(event, geometry);
-            event.currentTarget.setPointerCapture(event.pointerId);
-            setZoomBox({ quantity, start: point, current: point });
-            event.preventDefault();
+        <WaveformInteraction
+          axes={controller.state.axes}
+          frame={{
+            x: geometry.left,
+            y: geometry.top,
+            width: geometry.width - geometry.left - geometry.right,
+            height: geometry.height - geometry.top - geometry.bottom,
           }}
-          onPointerMove={(event) => {
-            if (
-              interactionMode === "box-zoom" &&
-              zoomBox?.quantity === quantity
-            ) {
-              const point = plotPointAtPointer(event, geometry);
-              setZoomBox((current) =>
-                current?.quantity === quantity
-                  ? { ...current, current: point }
-                  : current,
-              );
-              return;
-            }
-            if (interactionMode === "inspect") {
-              setHoverTime(timeAtPointer(event, geometry));
-            }
+          onZoom={(start, end) => {
+            const x = [start.x, end.x].sort((a, b) => a - b);
+            const y = [start.y, end.y].sort((a, b) => a - b);
+            controller.commit({
+              x:
+                controller.state.axes === "y"
+                  ? range
+                  : [
+                      range[0] + x[0]! * (range[1] - range[0]),
+                      range[0] + x[1]! * (range[1] - range[0]),
+                    ],
+              y: {
+                ...valueRanges,
+                [quantity]:
+                  controller.state.axes === "x"
+                    ? extent
+                    : [
+                        extent[1] - y[1]! * (extent[1] - extent[0]),
+                        extent[1] - y[0]! * (extent[1] - extent[0]),
+                      ],
+              },
+            });
           }}
-          onPointerUp={(event) => {
-            if (
-              interactionMode !== "box-zoom" ||
-              zoomBox?.quantity !== quantity
-            )
-              return;
-            const end = plotPointAtPointer(event, geometry);
-            const width = Math.abs(end.x - zoomBox.start.x);
-            const height = Math.abs(end.y - zoomBox.start.y);
-            if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-              event.currentTarget.releasePointerCapture(event.pointerId);
-            }
-            if (width >= 5 && height >= 5) {
-              const next = transientBoxZoomRanges(
-                zoomBox.start,
-                end,
-                range,
-                extent,
-                geometry,
-              );
-              setTimeRange(next.time);
-              setValueRanges((current) => ({
-                ...current,
-                [quantity]: next.value,
-              }));
-              setInteractionMode("inspect");
-            }
-            setZoomBox(undefined);
-            setHoverTime(undefined);
+          onPan={(delta) => {
+            const shift = -delta.x * (range[1] - range[0]),
+              dy = delta.y * (extent[1] - extent[0]);
+            controller.commit({
+              x:
+                controller.state.axes === "y"
+                  ? range
+                  : [range[0] + shift, range[1] + shift],
+              y: {
+                ...valueRanges,
+                [quantity]:
+                  controller.state.axes === "x"
+                    ? extent
+                    : [extent[0] + dy, extent[1] + dy],
+              },
+            });
           }}
-          onPointerCancel={() => setZoomBox(undefined)}
-          onPointerLeave={() => setHoverTime(undefined)}
-          onClick={(event) => {
-            if (interactionMode !== "inspect") return;
-            const id = (event.target as Element)
-              .closest("[data-trace-id]")
-              ?.getAttribute("data-trace-id");
+          onPick={(point, id) => {
             if (id) focusTrace(id);
-            setMarkerTime(timeAtPointer(event, geometry));
+            const time = range[0] + point.x * (range[1] - range[0]);
+            const nearest = analysis.timeSeconds.reduce(
+              (best, value) =>
+                Math.abs(value - time) < Math.abs(best - time) ? value : best,
+              analysis.timeSeconds[0] ?? time,
+            );
+            controller.mark(nearest);
           }}
-          onDoubleClick={() =>
-            interactionMode === "inspect" &&
-            !expanded &&
-            setExpandedQuantity(quantity)
-          }
+          onOpen={() => !expanded && setExpandedQuantity(quantity)}
         >
           <svg
             role="img"
@@ -536,24 +331,85 @@ export function TransientResultsExplorer({
               x2={geometry.width - geometry.right}
               y2={geometry.height - geometry.bottom}
             />
-            <text x={geometry.left} y={geometry.height - 8}>
-              {compact(range[0])}s
-            </text>
-            <text
-              textAnchor="end"
-              x={geometry.width - geometry.right}
-              y={geometry.height - 8}
-            >
-              {compact(range[1])}s
-            </text>
-            <text x={4} y={geometry.top + 5}>
-              {compact(extent[1])}
-              {unit}
-            </text>
-            <text x={4} y={geometry.height - geometry.bottom}>
-              {compact(extent[0])}
-              {unit}
-            </text>
+            {waveformTicks(
+              range[0],
+              range[1],
+              Math.max(2, Math.floor(geometry.width / 110)),
+            ).map((value) => {
+              const x =
+                geometry.left +
+                ((value - range[0]) / (range[1] - range[0])) *
+                  (geometry.width - geometry.left - geometry.right);
+              return (
+                <g key={value}>
+                  <line
+                    className="ac-grid"
+                    x1={x}
+                    x2={x}
+                    y1={geometry.top}
+                    y2={geometry.height - geometry.bottom}
+                  />
+                  <text
+                    className="ac-axis-label"
+                    textAnchor="middle"
+                    x={x}
+                    y={geometry.height - 8}
+                  >
+                    {waveformTickLabel(
+                      value,
+                      (range[1] - range[0]) /
+                        Math.max(2, Math.floor(geometry.width / 110)),
+                      "s",
+                    )}
+                  </text>
+                </g>
+              );
+            })}
+            {waveformTicks(
+              extent[0],
+              extent[1],
+              Math.max(2, Math.floor(geometry.height / 55)),
+            ).map((value) => {
+              const y =
+                geometry.top +
+                ((extent[1] - value) / (extent[1] - extent[0])) *
+                  (geometry.height - geometry.top - geometry.bottom);
+              return (
+                <g key={value}>
+                  <line
+                    className="ac-grid"
+                    x1={geometry.left}
+                    x2={geometry.width - geometry.right}
+                    y1={y}
+                    y2={y}
+                  />
+                  <text
+                    className="ac-axis-label"
+                    textAnchor="end"
+                    x={geometry.left - 6}
+                    y={y}
+                    dominantBaseline="middle"
+                  >
+                    {waveformTickLabel(
+                      value,
+                      (extent[1] - extent[0]) /
+                        Math.max(2, Math.floor(geometry.height / 55)),
+                      unit,
+                    )}
+                  </text>
+                </g>
+              );
+            })}
+            <defs>
+              <clipPath id={clipId}>
+                <rect
+                  x={geometry.left}
+                  y={geometry.top}
+                  width={geometry.width - geometry.left - geometry.right}
+                  height={geometry.height - geometry.top - geometry.bottom}
+                />
+              </clipPath>
+            </defs>
             {quantityTraces.map((trace) => {
               const points = transientPolylinePoints(
                 analysis.timeSeconds,
@@ -565,6 +421,7 @@ export function TransientResultsExplorer({
               return (
                 <g
                   key={trace.id}
+                  clipPath={`url(#${clipId})`}
                   data-trace-id={trace.id}
                   data-trace-index={trace.colorIndex}
                 >
@@ -583,52 +440,87 @@ export function TransientResultsExplorer({
                 </g>
               );
             })}
-            {cursorX === undefined ? null : (
-              <line
-                className="ac-cursor"
-                stroke="#101828"
-                strokeWidth={1}
-                strokeDasharray="2 2"
-                pointerEvents="none"
-                x1={cursorX}
-                y1={geometry.top}
-                x2={cursorX}
-                y2={geometry.height - geometry.bottom}
-              />
-            )}
-            {zoomBox?.quantity === quantity ? (
-              <rect
-                className="ac-zoom-box"
-                x={Math.min(zoomBox.start.x, zoomBox.current.x)}
-                y={Math.min(zoomBox.start.y, zoomBox.current.y)}
-                width={Math.abs(zoomBox.current.x - zoomBox.start.x)}
-                height={Math.abs(zoomBox.current.y - zoomBox.start.y)}
-              />
-            ) : null}
+            {(["A", "B"] as const).map((name) => {
+              const time = markers[name];
+              if (time === undefined || time < range[0] || time > range[1])
+                return null;
+              const x =
+                geometry.left +
+                ((time - range[0]) / (range[1] - range[0])) *
+                  (geometry.width - geometry.left - geometry.right);
+              return (
+                <g key={name} pointerEvents="none">
+                  <line
+                    className="ac-cursor"
+                    stroke={name === "A" ? "#175cd3" : "#c4320a"}
+                    strokeWidth={1}
+                    strokeDasharray="3 3"
+                    x1={x}
+                    x2={x}
+                    y1={geometry.top}
+                    y2={geometry.height - geometry.bottom}
+                  />
+                  <text x={x + 3} y={geometry.top + 12}>
+                    {name}
+                  </text>
+                </g>
+              );
+            })}
           </svg>
-        </div>
-        {toolbar(quantity, expanded)}
+        </WaveformInteraction>
+        <WaveformTools
+          controller={controller}
+          plotKey={quantity}
+          x={range}
+          y={extent}
+          xUnit="s"
+          yUnit={unit}
+          {...(!expanded
+            ? { onOpen: () => setExpandedQuantity(quantity) }
+            : {})}
+        />
+        {!expanded && measurement(quantity)}
       </div>
     );
   };
 
-  const cursorRows =
-    cursorTime === undefined
-      ? []
-      : visible.map((trace) => {
-          const index = analysis.timeSeconds.reduce(
-            (best, time, candidate) =>
-              Math.abs(time - cursorTime) <
-              Math.abs(analysis.timeSeconds[best]! - cursorTime)
-                ? candidate
-                : best,
-            0,
-          );
-          return { trace, value: trace.values[index] ?? 0 };
-        });
+  const measurement = (quantity?: PlotQuantity) => (
+    <WaveformMeasurements
+      a={markers.A}
+      b={markers.B}
+      unit="s"
+      time
+      rows={visible
+        .filter((trace) => !quantity || trace.quantity === quantity)
+        .map((trace) => {
+          const valueAt = (x: number | undefined) => {
+            if (x === undefined) return undefined;
+            const index = analysis.timeSeconds.reduce(
+              (best, time, candidate) =>
+                Math.abs(time - x) < Math.abs(analysis.timeSeconds[best]! - x)
+                  ? candidate
+                  : best,
+              0,
+            );
+            return trace.values[index];
+          };
+          const a = valueAt(markers.A),
+            b = valueAt(markers.B);
+          return {
+            label: trace.label,
+            unit: trace.unit ?? "",
+            ...(a === undefined ? {} : { a }),
+            ...(b === undefined ? {} : { b }),
+          };
+        })}
+    />
+  );
 
   return (
-    <div className="transient-results-explorer ac-results-explorer">
+    <div
+      ref={measured.ref}
+      className="transient-results-explorer ac-results-explorer"
+    >
       <header>
         <div>
           <strong>{analysis.plotName}</strong>
@@ -700,16 +592,6 @@ export function TransientResultsExplorer({
       {visible.length === 0 ? (
         <p className="simulation-empty-result">All Outputs are hidden.</p>
       ) : null}
-      {cursorTime === undefined ? null : (
-        <div className="ac-cursor-readout" role="status">
-          <strong>{compact(cursorTime)}s</strong>
-          {cursorRows.map(({ trace, value }) => (
-            <span key={trace.id}>
-              {trace.label}: {Number(value.toPrecision(6))} {trace.unit ?? ""}
-            </span>
-          ))}
-        </div>
-      )}
       {expandedQuantity ? (
         <div
           className="ac-plot-dialog-backdrop"
@@ -741,6 +623,7 @@ export function TransientResultsExplorer({
               visible.filter((trace) => trace.quantity === expandedQuantity),
               true,
             )}
+            {measurement(expandedQuantity)}
           </section>
         </div>
       ) : null}

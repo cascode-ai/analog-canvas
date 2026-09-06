@@ -584,7 +584,8 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
                   .filter((analysis) => analysis.analysis === "ac")
                   .map((analysis, index) => (
                     <AcResultsExplorer
-                      key={index}
+                      key={`${run.id}:ac:${index}`}
+                      resultKey={`${run.id}:ac:${index}`}
                       analysis={analysis}
                       vectors={runPresentation?.prepared.vectors ?? []}
                       probes={runPresentation?.probes ?? []}
@@ -606,7 +607,8 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
                   .filter((analysis) => analysis.analysis === "tran")
                   .map((analysis, index) => (
                     <TransientResultsExplorer
-                      key={`tran-${index}`}
+                      key={`${run.id}:tran:${index}`}
+                      resultKey={`${run.id}:tran:${index}`}
                       analysis={analysis}
                       vectors={runPresentation?.prepared.vectors ?? []}
                       probes={runPresentation?.probes ?? []}

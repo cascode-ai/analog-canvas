@@ -1,3 +1,4 @@
+import { waveformTicks } from "./waveform-interaction";
 /**
  * A Bode plot for AC analysis results.
  *
@@ -68,12 +69,14 @@ export interface AcResponseSvgOptions {
   kind: AcPlotKind;
   /** Shared cursor frequency for paired magnitude/phase plots. */
   cursorFrequency?: number;
+  cursorFrequencyB?: number;
   /** The interactive Results Browser owns the legend when false. */
   showLegend?: boolean;
   /** Selected Results Browser trace, emphasized on the plot. */
   selectedTraceId?: string;
   /** Explicit axes-toolbar range; traces are clipped to this interval. */
   frequencyRange?: readonly [number, number];
+  valueRange?: readonly [number, number];
 }
 
 const MARGIN = { left: 56, right: 56, top: 16, bottom: 32 };
@@ -88,29 +91,36 @@ function niceDecades(min: number, max: number): number[] {
   return ticks;
 }
 
-/** Round a linear range outward to readable round numbers. */
-function niceLinear(min: number, max: number, step: number): AcPlotAxis {
-  const low = Math.floor(min / step) * step;
-  const high = Math.ceil(max / step) * step;
-  const ticks: number[] = [];
-  for (let value = low; value <= high + step / 2; value += step) {
-    ticks.push(Math.round(value * 1e6) / 1e6);
-  }
-  return { ticks, min: low, max: high === low ? low + step : high };
+function adaptiveAxis(
+  range: readonly [number, number],
+  height: number,
+): AcPlotAxis {
+  const margin = Math.max(Math.abs(range[0]) * 0.05, 1);
+  const min = range[0] === range[1] ? range[0] - margin : range[0];
+  const max = range[0] === range[1] ? range[1] + margin : range[1];
+  return { min, max, ticks: waveformTicks(min, max, height > 400 ? 10 : 5) };
 }
 
 export function layoutAcPlot(
   traces: readonly AcTrace[],
   size: AcPlotSize,
   frequencyRange?: readonly [number, number],
+  valueOverride?: { kind: AcPlotKind; range: readonly [number, number] },
 ): AcPlotLayout | null {
   const points = traces.flatMap((trace) => trace.points);
   const usable = points.filter((point) => point.frequency > 0);
   if (usable.length === 0) return null;
 
   const frequencies = usable.map((point) => point.frequency);
-  const magnitudes = usable.map((point) => point.magnitudeDb);
-  const phases = usable.map((point) => point.phaseDeg);
+  const inView = usable.filter(
+    (point) =>
+      !frequencyRange ||
+      (point.frequency >= frequencyRange[0] &&
+        point.frequency <= frequencyRange[1]),
+  );
+  const visible = inView.length ? inView : usable;
+  const magnitudes = visible.map((point) => point.magnitudeDb);
+  const phases = visible.map((point) => point.phaseDeg);
   const frame = {
     x: MARGIN.left,
     y: MARGIN.top,
@@ -125,7 +135,18 @@ export function layoutAcPlot(
     (frequency) => frequency >= fMin && frequency <= fMax,
   );
   const frequency: AcPlotAxis = {
-    ticks: decades,
+    ticks:
+      decades.length >= 2
+        ? decades.filter(
+            (_, i) =>
+              i %
+                Math.max(
+                  1,
+                  Math.ceil(decades.length / (size.width > 1000 ? 10 : 5)),
+                ) ===
+              0,
+          )
+        : waveformTicks(fMin, fMax, 5),
     min: frequencyRange ? fMin : niceDecades(dataMin, dataMax)[0]!,
     max: frequencyRange ? fMax : niceDecades(dataMin, dataMax).at(-1)!,
   };
@@ -136,8 +157,18 @@ export function layoutAcPlot(
     size,
     frame,
     frequency,
-    magnitude: niceLinear(Math.min(...magnitudes), Math.max(...magnitudes), 20),
-    phase: niceLinear(Math.min(...phases), Math.max(...phases), 45),
+    magnitude: adaptiveAxis(
+      valueOverride?.kind === "magnitude"
+        ? valueOverride.range
+        : [Math.min(...magnitudes), Math.max(...magnitudes)],
+      size.height,
+    ),
+    phase: adaptiveAxis(
+      valueOverride?.kind === "phase"
+        ? valueOverride.range
+        : [Math.min(...phases), Math.max(...phases)],
+      size.height,
+    ),
     frequencyAt: (x: number) =>
       10 ** (logMin + ((x - frame.x) / frame.width) * logSpan),
   };
@@ -203,7 +234,14 @@ export function acResponseSvg(
   size: AcPlotSize,
   options: AcResponseSvgOptions = { kind: "magnitude" },
 ): string | null {
-  const layout = layoutAcPlot(traces, size, options.frequencyRange);
+  const layout = layoutAcPlot(
+    traces,
+    size,
+    options.frequencyRange,
+    options.valueRange
+      ? { kind: options.kind, range: options.valueRange }
+      : undefined,
+  );
   if (!layout) return null;
   const project = projection(layout);
   const { frame } = layout;
@@ -219,7 +257,7 @@ export function acResponseSvg(
     }),
     ...axis.ticks.map((value) => {
       const y = axisY(value).toFixed(2);
-      return `<line class="ac-grid" x1="${frame.x}" y1="${y}" x2="${frame.x + frame.width}" y2="${y}"/><text class="ac-axis-label" x="${frame.x - 8}" y="${y}" text-anchor="end" dominant-baseline="middle">${value}${unit}</text>`;
+      return `<line class="ac-grid" x1="${frame.x}" y1="${y}" x2="${frame.x + frame.width}" y2="${y}"/><text class="ac-axis-label" x="${frame.x - 8}" y="${y}" text-anchor="end" dominant-baseline="middle">${Number(value.toPrecision(6))}${unit}</text>`;
     }),
   ].join("");
 
@@ -232,7 +270,7 @@ export function acResponseSvg(
         options.selectedTraceId === id ? " ac-trace-selected" : "";
       const identity = `data-trace-index="${index}" data-trace-id="${escapeXml(id)}"`;
       return (
-        `<polyline class="ac-trace-hit" ${identity} points="${points}"/>` +
+        `<polyline class="ac-trace-hit" fill="none" stroke="transparent" stroke-width="12" pointer-events="stroke" ${identity} points="${points}"/>` +
         `<polyline class="ac-trace ac-trace-${colorIndex % 6}${selected}" points="${points}"/>`
       );
     })
@@ -256,12 +294,18 @@ export function acResponseSvg(
           })
           .join("")
       : "";
-  const cursor =
-    options.cursorFrequency !== undefined &&
-    options.cursorFrequency >= layout.frequency.min &&
-    options.cursorFrequency <= layout.frequency.max
-      ? `<line class="ac-cursor" x1="${project.x(options.cursorFrequency).toFixed(2)}" y1="${frame.y}" x2="${project.x(options.cursorFrequency).toFixed(2)}" y2="${frame.y + frame.height}"/>`
-      : "";
+  const cursor = ([options.cursorFrequency, options.cursorFrequencyB] as const)
+    .map((frequency, index) => {
+      if (
+        frequency === undefined ||
+        frequency < layout.frequency.min ||
+        frequency > layout.frequency.max
+      )
+        return "";
+      const x = project.x(frequency).toFixed(2);
+      return `<g pointer-events="none"><line class="ac-cursor" style="stroke:${index === 0 ? "#175cd3" : "#c4320a"}" x1="${x}" y1="${frame.y}" x2="${x}" y2="${frame.y + frame.height}"/><text x="${Number(x) + 3}" y="${frame.y + 12}">${index === 0 ? "A" : "B"}</text></g>`;
+    })
+    .join("");
 
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" class="ac-response" viewBox="0 0 ${size.width} ${size.height}" width="${size.width}" height="${size.height}" role="img" aria-label="AC ${options.kind}">` +
