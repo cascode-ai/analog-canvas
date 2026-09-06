@@ -81,7 +81,7 @@ export interface SpiceSimulationSurfaceProps {
   onToggleMaximized(): void;
   onMinimize(): void;
   onExit(): void;
-  onSaveSetup(setup: ProjectSimulationSetup): boolean;
+  onSaveSetup(setup: ProjectSimulationSetup): SimulationSetupSaveResult;
   onDeleteSetup(setupId: string): boolean;
   pickNetsActive?: boolean;
   pickedNet?: {
@@ -108,6 +108,10 @@ export interface SpiceSimulationSurfaceProps {
   ): void;
   onFocusDiagnostic?(locator: ObjectLocator): void;
 }
+
+export type SimulationSetupSaveResult =
+  | { readonly status: "applied" | "unchanged" }
+  | { readonly status: "rejected"; readonly problem: Problem };
 
 interface PreparedPresentation {
   readonly prepared: Prepared;
@@ -407,7 +411,9 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
       ? "Simulation service is unavailable in this environment."
       : /probe/i.test(problemSearchText)
         ? "The probe selection needs attention. Open Console for details."
-        : "Simulation needs attention. Open Console for details."
+        : activeProblem.stage === "input"
+          ? `${activeProblem.code}: ${activeProblem.message}`
+          : "Simulation needs attention. Open Console for details."
     : staleMessage;
   const runPresentation = run
     ? preparedPresentations.current.get(run.preparedId)
@@ -447,10 +453,11 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
             },
           },
     };
-    if (props.onSaveSetup(created)) {
+    const result = props.onSaveSetup(created);
+    if (result.status !== "rejected") {
       props.onSelectSetupId(created.id);
       setupMenuRef.current?.removeAttribute("open");
-    }
+    } else setProblem(result.problem);
   };
   return (
     <section
@@ -1332,16 +1339,15 @@ function SetupEditor({
             setup?.id ??
             draftContext?.setupId ??
             `simulation-setup-${crypto.randomUUID()}`;
-          if (onSaveSetup({ id: setupId, name: setupName, ...parsed.data })) {
+          const result = onSaveSetup({
+            id: setupId,
+            name: setupName,
+            ...parsed.data,
+          });
+          if (result.status !== "rejected") {
             onDirty(false);
             onProblem(undefined);
-          } else
-            onProblem(
-              uiProblem(
-                "SIMULATION_SETUP_NOT_APPLIED",
-                "Setup was not applied. See the editor status; your draft is retained.",
-              ),
-            );
+          } else onProblem(result.problem);
         }}
       >
         <label>
@@ -1364,15 +1370,11 @@ function SetupEditor({
                 );
                 return;
               }
-              if (onSaveSetup({ ...setup, name })) onProblem(undefined);
+              const result = onSaveSetup({ ...setup, name });
+              if (result.status !== "rejected") onProblem(undefined);
               else {
                 setSetupName(setup.name);
-                onProblem(
-                  uiProblem(
-                    "SIMULATION_SETUP_RENAME_FAILED",
-                    "The setup name could not be saved.",
-                  ),
-                );
+                onProblem(result.problem);
               }
             }}
           />

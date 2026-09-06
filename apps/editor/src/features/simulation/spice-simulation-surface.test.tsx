@@ -20,7 +20,7 @@ describe("SpiceSimulationSurface workspace", () => {
         onToggleMaximized={() => undefined}
         onMinimize={() => undefined}
         onExit={() => undefined}
-        onSaveSetup={() => true}
+        onSaveSetup={() => ({ status: "applied" })}
         onDeleteSetup={() => true}
       />,
     );
@@ -132,7 +132,7 @@ describe("SpiceSimulationSurface workspace", () => {
         onToggleMaximized={() => undefined}
         onMinimize={() => undefined}
         onExit={() => undefined}
-        onSaveSetup={() => true}
+        onSaveSetup={() => ({ status: "applied" })}
         onDeleteSetup={() => true}
       />,
     );
@@ -174,7 +174,7 @@ describe("SpiceSimulationSurface workspace", () => {
         onToggleMaximized={() => undefined}
         onMinimize={() => undefined}
         onExit={() => undefined}
-        onSaveSetup={() => true}
+        onSaveSetup={() => ({ status: "applied" })}
         onDeleteSetup={() => true}
       />,
     );

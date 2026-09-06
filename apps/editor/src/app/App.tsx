@@ -610,7 +610,7 @@ export function App({
     setNewTestbenchDutId(null);
     setSimulationDraftContext(null);
     setActiveSimulationSetupId(null);
-  }, [project.id]);
+  }, [projectSessionId]);
   const [canvasContextMenu, setCanvasContextMenu] = useState<{
     x: number;
     y: number;
@@ -963,7 +963,7 @@ export function App({
     beginSelectionMove: beginSelectionMoveInteraction,
     cancelInteraction,
   } = useInteractionState<SchematicClipboard>();
-  const { commitStructure, transact, transactConnectivity } =
+  const { commitStructure, transactStructure, transact, transactConnectivity } =
     createEditorTransactionCommands({
       project,
       document,
@@ -1088,6 +1088,11 @@ export function App({
     setPendingWaveformPlacement(null);
     setWaveformPlacementPoint(null);
   }, [document.id]);
+  useEffect(() => {
+    setSimulationPickModeState(null);
+    setAnalogPickedNet(null);
+    setAnalogPickedTerminal(null);
+  }, [projectSessionId]);
   const routeCounter = useRef(0);
   const canvasDragSessionRef = useRef<CanvasDragSession | null>(null);
   /**
@@ -4763,14 +4768,46 @@ export function App({
               onMinimize={minimizeAnalogSimulation}
               onExit={exitAnalogSimulation}
               onSaveSetup={(setup) => {
-                const committed = commitStructure("upsert-simulation-setup", [
+                const result = transactStructure("upsert-simulation-setup", [
                   { kind: "upsert_simulation_setup", setup },
                 ]);
-                if (committed) {
+                if (result.ok) {
                   setSimulationDraftContext(null);
                   setActiveSimulationSetupId(setup.id);
+                  setStatus(
+                    result.applied
+                      ? `Updated simulation setup ${setup.name}`
+                      : `Simulation setup ${setup.name} is already up to date`,
+                  );
+                  return {
+                    status: result.applied ? "applied" : "unchanged",
+                  };
                 }
-                return committed;
+                const firstDiagnostic = result.diagnostics[0];
+                const message =
+                  firstDiagnostic?.message ?? result.error.message;
+                setStatus(`${result.error.code}: ${message}`);
+                return {
+                  status: "rejected",
+                  problem: {
+                    code: result.error.code,
+                    message,
+                    stage: "input",
+                    recovery: "fix-input",
+                    ...(result.diagnostics.length
+                      ? {
+                          diagnostics: result.diagnostics.map((diagnostic) => ({
+                            code: diagnostic.code,
+                            message: diagnostic.message,
+                            severity: diagnostic.severity,
+                            ...(diagnostic.path?.length
+                              ? { field: diagnostic.path.join(".") }
+                              : {}),
+                          })),
+                        }
+                      : {}),
+                  },
+                };
               }}
               onDeleteSetup={(setupId) => {
                 const committed = commitStructure("remove-simulation-setup", [

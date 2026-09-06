@@ -59,6 +59,44 @@ describe("editor transaction commands", () => {
     );
   });
 
+  it("preserves a legal structural no-op for callers that distinguish unchanged", () => {
+    const input = dependencies();
+    const unchanged = {
+      ok: true as const,
+      applied: false,
+      structureRevision: 0,
+      proposedStructureRevision: 0,
+      project: input.project,
+      proposedProject: input.project,
+      changedDocumentIds: [],
+      documentResults: [],
+      diagnostics: [],
+    };
+    input.dispatchProjectTransaction.mockReturnValue(unchanged);
+    const commands = createEditorTransactionCommands(input);
+
+    expect(
+      commands.transactStructure("upsert-simulation-setup", [
+        {
+          kind: "upsert_simulation_setup",
+          setup: {
+            id: "setup-1",
+            name: "OP",
+            version: 2,
+            input: {
+              kind: "structured",
+              rootDocumentId: input.document.id,
+              analyses: [{ kind: "op" }],
+              outputs: [],
+              environment: { profileId: "profile" },
+            },
+          },
+        },
+      ]),
+    ).toBe(unchanged);
+    expect(input.setStatus).not.toHaveBeenCalled();
+  });
+
   it("cancels an unrelated transient tool after a successful commit", () => {
     const input = dependencies();
     input.getCurrentInteractionKind.mockReturnValue("copy-placement");
