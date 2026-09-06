@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { parseSimulationExpression } from "@icm/model";
 import { SimulationOperationSchema } from "@icm/simulation-service/contract";
 import { SimulationFileOperationSchema } from "@icm/simulation-service/files";
 import { AGENT_API_VERSION } from "@icm/agent-adapter";
@@ -30,7 +31,7 @@ import {
 } from "./file-operations.js";
 
 /**
- * The default MCP tool surface (ADR 0020): 14 compact tools. The full
+ * The default MCP tool surface (ADR 0020): 15 compact tools. The full
  * typed edit union is deliberately NOT injected into tool descriptions; it is
  * available through `advanced_transact`; its full contract is an on-demand
  * resource, not a session permission gate.
@@ -57,6 +58,27 @@ const SimulationFilesArgs = z.strictObject({
   requestId: z.string().min(1).optional(),
   outputPath: z.string().min(1).optional(),
 });
+const SimulationOutputArgs = z.discriminatedUnion("action", [
+  z.strictObject({
+    action: z.literal("list"),
+    setupId: z.string().min(1),
+    documentId: z.string().min(1).optional(),
+  }),
+  z.strictObject({
+    action: z.literal("upsert"),
+    setupId: z.string().min(1),
+    documentId: z.string().min(1).optional(),
+    outputId: z.string().min(1).optional(),
+    label: z.string().trim().min(1).max(128),
+    expression: z.string().trim().min(1).max(4096),
+  }),
+  z.strictObject({
+    action: z.literal("remove"),
+    setupId: z.string().min(1),
+    documentId: z.string().min(1).optional(),
+    outputId: z.string().min(1),
+  }),
+]);
 
 const ExportFileArgs = z
   .strictObject({
@@ -317,6 +339,112 @@ const TOOLS: readonly ToolEntry[] = [
           },
         };
       }
+    },
+  },
+  {
+    definition: {
+      name: "simulation_output",
+      description:
+        "List, add, update, or remove outputs in one explicitly addressed named structured Simulation setup. Expressions reference existing output labels and support +, -, *, /, mag, db20, phase, real, imag, and abs. Typed expression ASTs remain available through advanced_transact upsert_simulation_setup. Validation failures are returned without ending the Agent session.",
+      inputSchema: { ...jsonSchemaOf(SimulationOutputArgs), type: "object" },
+    },
+    handle: async (args, session) => {
+      const parsed = SimulationOutputArgs.parse(args);
+      const snapshot = await session.client.snapshot(parsed.documentId, {
+        refresh: true,
+      });
+      const setup = snapshot.snapshot.project.simulationSetups.find(
+        (candidate) => candidate.id === parsed.setupId,
+      );
+      if (!setup)
+        return {
+          ok: false,
+          error: {
+            code: "SIMULATION_SETUP_NOT_FOUND",
+            message: `Setup ${parsed.setupId} does not exist; no Project state was changed.`,
+            recovery: "fix-input",
+          },
+        };
+      if (setup?.input.kind !== "structured")
+        return {
+          ok: false,
+          error: {
+            code: "SIMULATION_STRUCTURED_SETUP_REQUIRED",
+            message:
+              "Create a structured Simulation setup first; no Project state was changed.",
+            recovery: "fix-input",
+          },
+        };
+      if (parsed.action === "list")
+        return { ok: true, outputs: setup.input.outputs };
+      const next = structuredClone(setup);
+      if (next.input.kind !== "structured") throw new Error("unreachable");
+      if (parsed.action === "remove") {
+        const before = next.input.outputs.length;
+        next.input.outputs = next.input.outputs.filter(
+          (output) => output.id !== parsed.outputId,
+        );
+        if (next.input.outputs.length === before)
+          return {
+            ok: false,
+            error: {
+              code: "SIMULATION_OUTPUT_NOT_FOUND",
+              message: `Output ${parsed.outputId} does not exist; no Project state was changed.`,
+              recovery: "fix-input",
+            },
+          };
+      } else {
+        const outputId = parsed.outputId ?? crypto.randomUUID();
+        if (
+          next.input.outputs.some(
+            (output) =>
+              output.id !== outputId &&
+              output.label.toLowerCase() === parsed.label.toLowerCase(),
+          )
+        )
+          return {
+            ok: false,
+            error: {
+              code: "SIMULATION_OUTPUT_LABEL_DUPLICATE",
+              message: `An output named ${parsed.label} already exists; no Project state was changed.`,
+              recovery: "fix-input",
+            },
+          };
+        const symbols = new Map(
+          next.input.outputs
+            .filter((output) => output.id !== outputId)
+            .map((output) => [output.label, output.expression] as const),
+        );
+        const expression = parseSimulationExpression(
+          parsed.expression,
+          symbols,
+        );
+        if (!expression.ok)
+          return {
+            ok: false,
+            error: {
+              code: `SIMULATION_EXPRESSION_${expression.code}`,
+              message: `${expression.message} at character ${expression.offset + 1}; no Project state was changed.`,
+              recovery: "fix-input",
+            },
+          };
+        const output = {
+          id: outputId,
+          label: parsed.label,
+          expression: expression.expression,
+        };
+        const index = next.input.outputs.findIndex(
+          (candidate) => candidate.id === outputId,
+        );
+        if (index < 0) next.input.outputs.push(output);
+        else next.input.outputs[index] = output;
+      }
+      return session.client.advancedTransact(
+        {
+          structureEdits: [{ kind: "upsert_simulation_setup", setup: next }],
+        },
+        { ...(parsed.documentId ? { documentId: parsed.documentId } : {}) },
+      );
     },
   },
   {
