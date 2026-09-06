@@ -764,7 +764,7 @@ export function App({
     setAnalogSimulationState("open");
   };
   const minimizeAnalogSimulation = (): void => {
-    setSimulationPickNetsActive(false);
+    setSimulationPickModeState(null);
     setAnalogSimulationState("minimized");
     setSelectionOpen(simulationPropertiesOpenBeforeRef.current);
   };
@@ -774,7 +774,7 @@ export function App({
     );
   };
   const exitAnalogSimulation = (): void => {
-    setSimulationPickNetsActive(false);
+    setSimulationPickModeState(null);
     void humanSimulationSession.clear();
     setAnalogSimulationState("closed");
     setSimulationDraftContext(null);
@@ -1049,8 +1049,12 @@ export function App({
   const [highlightedNetOrigin, setHighlightedNetOrigin] =
     useState<HighlightedNetOrigin | null>(null);
   const [simulationWindowOpen, setSimulationWindowOpen] = useState(false);
-  const [simulationPickNetsActive, setSimulationPickNetsActive] =
-    useState(false);
+  const [simulationPickMode, setSimulationPickModeState] = useState<
+    "net" | "terminal" | null
+  >(null);
+  const simulationPickNetsActive = simulationPickMode === "net";
+  const simulationPickTerminalsActive = simulationPickMode === "terminal";
+  const simulationPickActive = simulationPickMode !== null;
   const [simulationHoverNetId, setSimulationHoverNetId] = useState<
     string | null
   >(null);
@@ -1063,6 +1067,13 @@ export function App({
     netId: string;
     occurrence?: readonly string[];
   } | null>(null);
+  const [analogPickedTerminal, setAnalogPickedTerminal] = useState<{
+    sequence: number;
+    documentId: string;
+    instanceId: string;
+    pinName: string;
+    occurrence?: readonly string[];
+  } | null>(null);
   const [pendingWaveformPlacement, setPendingWaveformPlacement] =
     useState<PendingWaveformPlacement | null>(null);
   const [waveformPlacementPoint, setWaveformPlacementPoint] =
@@ -1071,7 +1082,7 @@ export function App({
     // Net-pick is a hierarchy traversal mode: keep it armed while the author
     // enters a DUT Cell, so an internal Net can be picked with its occurrence
     // path intact. Closing/minimising Simulation still cancels it explicitly.
-    if (!analogSimulationOpen) setSimulationPickNetsActive(false);
+    if (!analogSimulationOpen) setSimulationPickModeState(null);
     setSimulationHoverNetId(null);
     setSimulationSavedNetIds(new Set());
     setPendingWaveformPlacement(null);
@@ -1565,7 +1576,7 @@ export function App({
       documentStack,
       projectConnectivityIndex,
       simulationHoverNetId,
-      simulationPickNetsActive,
+      simulationPickMode,
     ],
   );
   const canonicalSimulationNetId = (netId: string): string | null => {
@@ -1573,6 +1584,17 @@ export function App({
       logicalNets.byBaseNetId.get(netId) ??
       logicalNets.groups.find((candidate) => candidate.id === netId);
     return group?.baseNetIds[0] ?? null;
+  };
+  const activeSimulationPickOccurrence = (): readonly string[] | undefined => {
+    const setupRootId =
+      activeSimulationSetup?.input.kind === "structured"
+        ? activeSimulationSetup.input.rootDocumentId
+        : undefined;
+    return documentStack.length > 0
+      ? documentStack.map((frame) => frame.instanceId)
+      : setupRootId === document.id
+        ? []
+        : undefined;
   };
   const toggleSimulationSavedNet = (netId: string): void => {
     const baseNetId = canonicalSimulationNetId(netId);
@@ -1582,16 +1604,7 @@ export function App({
     }
     const group = logicalNets.byBaseNetId.get(baseNetId);
     if (analogSimulationOpen) {
-      const setupRootId =
-        activeSimulationSetup?.input.kind === "structured"
-          ? activeSimulationSetup.input.rootDocumentId
-          : undefined;
-      const occurrence =
-        documentStack.length > 0
-          ? documentStack.map((frame) => frame.instanceId)
-          : setupRootId === document.id
-            ? []
-            : undefined;
+      const occurrence = activeSimulationPickOccurrence();
       setAnalogPickedNet((current) => ({
         sequence: (current?.sequence ?? 0) + 1,
         documentId: document.id,
@@ -1609,16 +1622,38 @@ export function App({
     });
     setStatus(`Toggled saved Net ${group?.name ?? baseNetId}`);
   };
-  const setSimulationPickMode = (active: boolean): void => {
-    if (active) activateTool("pointer");
-    setSimulationPickNetsActive(active);
-    if (!active) setSimulationHoverNetId(null);
+  const pickSimulationTerminal = (endpoint: WireSource): void => {
+    if (endpoint.endpoint.kind !== "terminal" || !analogSimulationOpen) return;
+    const terminal = endpoint.endpoint;
+    const occurrence = activeSimulationPickOccurrence();
+    setAnalogPickedTerminal((current) => ({
+      sequence: (current?.sequence ?? 0) + 1,
+      documentId: document.id,
+      instanceId: terminal.instanceId,
+      pinName: terminal.pinName,
+      ...(occurrence === undefined ? {} : { occurrence }),
+    }));
+    const reference =
+      document.instances.find((instance) => instance.id === terminal.instanceId)
+        ?.reference ?? terminal.instanceId;
+    setStatus(`Added terminal-current Output ${reference}.${terminal.pinName}`);
+  };
+  const setSimulationPickMode = (mode: "net" | "terminal" | null): void => {
+    if (mode) activateTool("pointer");
+    setSimulationPickModeState(mode);
+    if (mode !== "net") setSimulationHoverNetId(null);
     setStatus(
-      active
+      mode === "net"
         ? "Pick Nets: click a wire, label, junction, or connected pin · Esc exits"
-        : "Finished picking simulation Nets",
+        : mode === "terminal"
+          ? "Pick terminal current: click a connected device terminal · Esc exits"
+          : "Finished picking simulation Outputs",
     );
   };
+  const setSimulationNetPickMode = (active: boolean): void =>
+    setSimulationPickMode(active ? "net" : null);
+  const setSimulationTerminalPickMode = (active: boolean): void =>
+    setSimulationPickMode(active ? "terminal" : null);
   const {
     enabled: cellSymbolLayoutEnabled,
     layout: selectedCellSymbolLayout,
@@ -2658,7 +2693,7 @@ export function App({
       ),
       tool,
       cellSymbolLayoutEnabled,
-      simulationPickNetsActive,
+      simulationPickMode,
     },
     actions: {
       beginInstanceMove: beginMoveFromSelection,
@@ -3670,9 +3705,9 @@ export function App({
         setSearchOpen(true);
         return;
       }
-      if (event.key === "Escape" && simulationPickNetsActive) {
+      if (event.key === "Escape" && simulationPickActive) {
         event.preventDefault();
-        setSimulationPickMode(false);
+        setSimulationPickMode(null);
         return;
       }
       if (event.key === "Escape" && pendingWaveformPlacement) {
@@ -3844,7 +3879,7 @@ export function App({
     );
     uniqueSuffixCounter.current += 1;
     const groupId = `waveform-group-${uniqueSuffixCounter.current}`;
-    setSimulationPickMode(false);
+    setSimulationPickMode(null);
     setPendingWaveformPlacement({
       groupId,
       objects,
@@ -4005,7 +4040,7 @@ export function App({
         if (
           canvasContextMenuSuppressed.current ||
           canvasDragSessionRef.current !== null ||
-          simulationPickNetsActive ||
+          simulationPickActive ||
           target.closest('[data-testid="canvas-text-editor"]')
         )
           return;
@@ -4321,7 +4356,7 @@ export function App({
                   open: simulationWindowOpen,
                   onToggle: () => {
                     setSimulationWindowOpen((open) => {
-                      if (open) setSimulationPickMode(false);
+                      if (open) setSimulationPickMode(null);
                       return !open;
                     });
                   },
@@ -4749,7 +4784,10 @@ export function App({
               }}
               pickNetsActive={simulationPickNetsActive}
               pickedNet={analogPickedNet}
-              onPickNetsChange={setSimulationPickMode}
+              onPickNetsChange={setSimulationNetPickMode}
+              pickTerminalsActive={simulationPickTerminalsActive}
+              pickedTerminal={analogPickedTerminal}
+              onPickTerminalsChange={setSimulationTerminalPickMode}
               onFocusDiagnostic={(locator) =>
                 navigateToLocator(locator, `Located ${locator.kind}`)
               }
@@ -5518,6 +5556,9 @@ export function App({
             projectedMovePreviewDocument ? "semantic-move-preview" : "",
             panPreview ? "pan-mode" : "",
             simulationPickNetsActive ? "simulation-net-pick-active" : "",
+            simulationPickTerminalsActive
+              ? "simulation-terminal-pick-active"
+              : "",
           ]
             .filter(Boolean)
             .join(" ")}
@@ -5647,7 +5688,7 @@ export function App({
                 : null,
               wouldMoveIds,
               onInstanceClick: (instance, additive) => {
-                if (simulationPickNetsActive) return;
+                if (simulationPickActive) return;
                 if (suppressInstanceClick.current) {
                   suppressInstanceClick.current = false;
                   return;
@@ -5680,13 +5721,15 @@ export function App({
               onRoutePointerDown: (event, routeId) => {
                 // Reached only while a drawing tool is up: the pointer tool's
                 // presses are claimed and stopped by the capture-phase router.
-                if (simulationPickNetsActive) {
+                if (simulationPickActive) {
                   event.stopPropagation();
                   event.preventDefault();
-                  const route = document.routes.find(
-                    (candidate) => candidate.id === routeId,
-                  );
-                  if (route) toggleSimulationSavedNet(route.netId);
+                  if (simulationPickNetsActive) {
+                    const route = document.routes.find(
+                      (candidate) => candidate.id === routeId,
+                    );
+                    if (route) toggleSimulationSavedNet(route.netId);
+                  }
                   return;
                 }
                 handleRoutePointerDown(event, routeId);
@@ -5722,9 +5765,7 @@ export function App({
               document,
               endpoints: wiringEndpoints,
               tool,
-              selectedRoute: simulationPickNetsActive
-                ? undefined
-                : selectedRoute,
+              selectedRoute: simulationPickActive ? undefined : selectedRoute,
               selectedRouteSegmentIndex,
               selectedEndpoint,
               supplementalJunctionIds: supplementalSelection.junctionIds,
@@ -5760,8 +5801,8 @@ export function App({
               ),
               onRouteStretch: beginRouteStretch,
               onJunctionSelect: (candidate) => {
-                if (simulationPickNetsActive) {
-                  if (candidate.netId)
+                if (simulationPickActive) {
+                  if (simulationPickNetsActive && candidate.netId)
                     toggleSimulationSavedNet(candidate.netId);
                   return;
                 }
@@ -5778,10 +5819,12 @@ export function App({
                 setStatus(`Selected ${endpointTestId(candidate.endpoint)}`);
               },
               onWireEndpoint: (event, candidate) => {
-                if (simulationPickNetsActive) {
+                if (simulationPickActive) {
                   event.stopPropagation();
                   event.preventDefault();
-                  if (candidate.netId)
+                  if (simulationPickTerminalsActive)
+                    pickSimulationTerminal(candidate);
+                  else if (candidate.netId)
                     toggleSimulationSavedNet(candidate.netId);
                   return;
                 }
@@ -6000,9 +6043,9 @@ export function App({
           pickNetsActive={simulationPickNetsActive}
           onOpenChange={(open) => {
             setSimulationWindowOpen(open);
-            if (!open) setSimulationPickMode(false);
+            if (!open) setSimulationPickMode(null);
           }}
-          onPickNetsChange={setSimulationPickMode}
+          onPickNetsChange={setSimulationNetPickMode}
           onToggleSavedNet={toggleSimulationSavedNet}
           onSetSavedNets={(netIds) => setSimulationSavedNetIds(new Set(netIds))}
           onStatus={setStatus}

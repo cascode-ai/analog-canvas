@@ -26,8 +26,8 @@ export interface CanvasHitControllerDependencies {
     placementOwnsCanvas: boolean;
     tool: EditorTool;
     cellSymbolLayoutEnabled: boolean;
-    /** The Simulation panel is picking Nets; a press names a Net, nothing more. */
-    simulationPickNetsActive: boolean;
+    /** Which Simulation probe domain currently owns canvas presses. */
+    simulationPickMode: "net" | "terminal" | null;
   };
   actions: {
     beginInstanceMove: (
@@ -90,7 +90,7 @@ export function createCanvasHitController({
     placementOwnsCanvas,
     tool,
     cellSymbolLayoutEnabled,
-    simulationPickNetsActive,
+    simulationPickMode,
   },
   actions: {
     beginInstanceMove,
@@ -177,12 +177,12 @@ export function createCanvasHitController({
           event.altKey ? 1 : 0,
         )
       : null;
-    // The offer runs the verb, so it is withheld while Nets are being picked:
-    // a pick names a Net and must not rotate, copy, or delete what it names.
+    // The offer runs the verb, so it is withheld while a simulation probe is
+    // being picked: a pick must not rotate, copy, or delete what it names.
     const armedVerbConsumesHit =
       hit !== null &&
       hit.kind !== "handle" &&
-      !simulationPickNetsActive &&
+      simulationPickMode === null &&
       Boolean(consumeArmedVerb?.(hit.kind, hit.id));
     const compositeOwnsHit = Boolean(
       hit &&
@@ -214,7 +214,7 @@ export function createCanvasHitController({
         planSelectionMove(document, selection).previewObjectIds.length > 0,
       primaryInstanceId,
       armedVerbConsumesHit,
-      simulationPickNetsActive,
+      simulationPickMode,
     });
 
     // Only an action this dispatcher owns claims the press; everything else

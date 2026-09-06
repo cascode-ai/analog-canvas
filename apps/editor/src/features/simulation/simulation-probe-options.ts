@@ -39,6 +39,13 @@ export interface PickedSimulationNet {
   readonly occurrence?: readonly string[];
 }
 
+export interface PickedSimulationTerminal {
+  readonly documentId: string;
+  readonly instanceId: string;
+  readonly pinName: string;
+  readonly occurrence?: readonly string[];
+}
+
 export function simulationProbeTargetKey(target: ProbeTarget): string {
   const occurrence = target.occurrence.join("/");
   if (target.kind === "current")
@@ -144,6 +151,28 @@ export function matchSimulationVoltageProbeOptions(
             (id, index) => id === picked.occurrence?.[index],
           ))) &&
       simulationVoltageProbeTargetsNet(project, candidate.target, picked.netId),
+  );
+}
+
+/**
+ * Match a visible terminal against the concrete current targets below the
+ * selected Testbench root. Definition-only picks deliberately retain every
+ * occurrence so the setup editor can ask which call the author meant.
+ */
+export function matchSimulationTerminalCurrentProbeOptions(
+  options: readonly SimulationProbeOption<TerminalCurrentProbeTarget>[],
+  picked: PickedSimulationTerminal,
+): readonly SimulationProbeOption<TerminalCurrentProbeTarget>[] {
+  return options.filter(
+    (candidate) =>
+      candidate.target.documentId === picked.documentId &&
+      candidate.target.instanceId === picked.instanceId &&
+      candidate.target.pinName === picked.pinName &&
+      (picked.occurrence === undefined ||
+        (candidate.target.occurrence.length === picked.occurrence.length &&
+          candidate.target.occurrence.every(
+            (id, index) => id === picked.occurrence?.[index],
+          ))),
   );
 }
 

@@ -30,7 +30,7 @@ const facts = (
   compositeMovePlanHasPreview: false,
   primaryInstanceId: null,
   armedVerbConsumesHit: false,
-  simulationPickNetsActive: false,
+  simulationPickMode: null,
   ...overrides,
 });
 
@@ -59,7 +59,7 @@ describe("who owns one press on the canvas", () => {
     // and nothing is selected, moved, or handed to an armed verb meanwhile.
     // The label case is the one that was lost when its element handler went.
     const picking = {
-      simulationPickNetsActive: true,
+      simulationPickMode: "net" as const,
       armedVerbConsumesHit: true,
     };
     expect(
@@ -85,6 +85,28 @@ describe("who owns one press on the canvas", () => {
     expect(
       resolvePointerDownAction(facts({ ...picking, hit: null })).kind,
     ).toBe("ignore");
+  });
+
+  it("leaves only terminal hit circles active while picking terminal current", () => {
+    for (const hit of [
+      hitOf("instance", "M1"),
+      hitOf("route", "route-1"),
+      hitOf("junction", "j1"),
+      hitOf("annotation", "label-1"),
+    ]) {
+      expect(
+        resolvePointerDownAction(
+          facts({
+            simulationPickMode: "terminal",
+            armedVerbConsumesHit: true,
+            hit,
+          }),
+        ),
+      ).toEqual({
+        kind: "ignore",
+        reason: "picking terminals for simulation",
+      });
+    }
   });
 
   it("gives an Instance label no press of its own", () => {
