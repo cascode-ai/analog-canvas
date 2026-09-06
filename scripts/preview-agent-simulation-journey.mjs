@@ -194,7 +194,18 @@ try {
     .waitFor({ state: "visible", timeout: 30_000 });
 
   const invalidSetup = structuredClone(setup);
-  invalidSetup.input.probes[0].anchor = {
+  assert.equal(
+    invalidSetup.input.kind,
+    "structured",
+    "The acceptance setup must use structured simulation input",
+  );
+  const firstOutput = invalidSetup.input.outputs[0];
+  assert(firstOutput, "The acceptance setup has no authored output");
+  assert(
+    ["voltage", "current"].includes(firstOutput.expression.kind),
+    "The first acceptance output cannot be anchored to a circuit terminal",
+  );
+  firstOutput.expression.anchor = {
     kind: "terminal",
     instanceId: "missing-acceptance-instance",
     pinName: "out",
