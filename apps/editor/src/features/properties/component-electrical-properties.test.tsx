@@ -62,7 +62,7 @@ describe("component electrical properties", () => {
     expect(markup).not.toContain("Component compatibility field");
   });
 
-  it("keeps W, L, and NF labels compact while retaining their tooltips", () => {
+  it("keeps W, L, and NF labels compact while retaining other device guidance", () => {
     const document = createEmptyDocument("cell", "Cell");
     const instance: (typeof document.instances)[number] = {
       id: "M1",
@@ -216,18 +216,31 @@ describe("component electrical properties", () => {
       );
 
     const dc = render("dc");
-    expect(dc).toContain('aria-label="Component waveform"');
+    expect(dc).toContain('aria-label="Component transient"');
+    expect(dc).toContain('<option value="dc" selected="">None</option>');
+    expect(dc).toContain('data-parameter-row="dc-waveform"');
+    expect(dc).toContain('data-parameter-row="acMagnitude-acPhase"');
     expect(dc).not.toContain('aria-label="Component low"');
     expect(dc).not.toContain('aria-label="Component amplitude"');
 
     const pulse = render("pulse");
+    expect(pulse).not.toContain("Small-signal");
+    expect(pulse).not.toContain("PULSE value");
+    expect(pulse).toContain('aria-label="Component ac magnitude"');
+    expect(pulse).toContain('aria-label="Component ac phase"');
     expect(pulse).toContain('aria-label="Component low"');
     expect(pulse).toContain('aria-label="Component period"');
+    expect(pulse).toContain('data-parameter-row="low-high"');
+    expect(pulse).toContain('data-parameter-row="rise-fall"');
+    expect(pulse).toContain('data-parameter-row="width-period"');
     expect(pulse).not.toContain('aria-label="Component amplitude"');
 
     const sin = render("sin");
     expect(sin).toContain('aria-label="Component amplitude"');
     expect(sin).toContain('aria-label="Component frequency"');
+    expect(sin).toContain('data-parameter-row="offset-amplitude"');
+    expect(sin).toContain('data-parameter-row="frequency-phase"');
+    expect(sin).toContain('data-parameter-row="delay-damping"');
     expect(sin).not.toContain('aria-label="Component low"');
   });
 });

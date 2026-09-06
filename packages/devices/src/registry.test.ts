@@ -197,9 +197,14 @@ describe("built-in device registry", () => {
       expect(
         descriptor.parameters.find(({ name }) => name === "waveform"),
       ).toMatchObject({
+        label: "Transient",
         editor: "select",
         defaultValue: "dc",
-        options: [{ value: "dc" }, { value: "pulse" }, { value: "sin" }],
+        options: [
+          { value: "dc", label: "None" },
+          { value: "pulse", label: "PULSE" },
+          { value: "sin", label: "SIN" },
+        ],
       });
       // The AC fields are optional and default to nothing: a placed source is
       // DC-only until an author writes a magnitude, and the printed card never

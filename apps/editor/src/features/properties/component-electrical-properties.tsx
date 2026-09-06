@@ -11,6 +11,50 @@ import { derivedFingerWidth } from "./finger-width";
 type Instance = SchematicDocument["instances"][number];
 const COMPACT_PARAMETER_LABELS = new Set(["W", "L", "NF"]);
 
+const SOURCE_BASE_PARAMETER_ROWS = [
+  ["dc", "waveform"],
+  ["acMagnitude", "acPhase"],
+] as const;
+
+const SOURCE_TRANSIENT_PARAMETER_ROWS = {
+  dc: [],
+  pulse: [["low", "high"], ["delay"], ["rise", "fall"], ["width", "period"]],
+  sin: [
+    ["offset", "amplitude"],
+    ["frequency", "phase"],
+    ["delay", "damping"],
+  ],
+} as const;
+
+function parameterRows(
+  parameters: readonly ComponentParameter[],
+  waveform: string | undefined,
+): readonly (readonly ComponentParameter[])[] {
+  if (!parameters.some(({ key }) => key === "waveform")) {
+    return parameters.map((parameter) => [parameter]);
+  }
+
+  const byKey = new Map(
+    parameters.map((parameter) => [parameter.key, parameter]),
+  );
+  const transientRows =
+    waveform === "pulse" || waveform === "sin"
+      ? SOURCE_TRANSIENT_PARAMETER_ROWS[waveform]
+      : SOURCE_TRANSIENT_PARAMETER_ROWS.dc;
+  const orderedKeys = [...SOURCE_BASE_PARAMETER_ROWS, ...transientRows];
+  const used = new Set<string>(orderedKeys.flat());
+  return [
+    ...orderedKeys
+      .map((keys) =>
+        keys.flatMap((key) => (byKey.has(key) ? [byKey.get(key)!] : [])),
+      )
+      .filter((row) => row.length > 0),
+    ...parameters
+      .filter(({ key }) => !used.has(key))
+      .map((parameter) => [parameter]),
+  ];
+}
+
 export function ComponentElectricalProperties({
   instance,
   parameters,
@@ -76,15 +120,19 @@ export function ComponentElectricalProperties({
   onAdditionalParametersCancel: () => void;
 }) {
   const fingerWidth = derivedFingerWidth(parameterValues.w, parameterValues.nf);
+  const descriptor = deviceDescriptor(instance.symbolId);
   const waveform =
-    parameterValues.waveform ||
-    deviceDescriptor(instance.symbolId)?.sourceWaveformDefault;
+    parameterValues.waveform || descriptor?.sourceWaveformDefault;
   const primaryParameters = parameters.filter(
     (parameter) =>
       !parameter.compatibilityOnly &&
       (!parameter.visibleForSourceWaveforms ||
         ((waveform === "pulse" || waveform === "sin") &&
           parameter.visibleForSourceWaveforms.includes(waveform))),
+  );
+  const primaryParameterRows = parameterRows(primaryParameters, waveform);
+  const isIndependentSource = primaryParameters.some(
+    ({ key }) => key === "waveform",
   );
   // A toggle that cannot change the drawing is not an option, it is a dead
   // control: schematic-only glyphs neither draw a reference nor carry a
@@ -94,7 +142,7 @@ export function ComponentElectricalProperties({
   // instance has and this Symbol draws, and a value this device supports.
   const referenceToggleable = referenceLabelRenderable && referenceAvailable;
   const displayable = referenceToggleable || valueSupported;
-  const isMos = deviceDescriptor(instance.symbolId)?.deviceClass === "mos";
+  const isMos = descriptor?.deviceClass === "mos";
   if (primaryParameters.length === 0 && !displayable && !instance.netlist) {
     return null;
   }
@@ -105,42 +153,65 @@ export function ComponentElectricalProperties({
     >
       <div className="property-section-heading">Parameters</div>
       <div className="component-parameter-grid">
-        {primaryParameters.map((parameter, index) => (
-          <label key={parameter.key} title={parameter.help}>
-            <span className="property-parameter-name">
-              {parameter.label}
-              {parameter.unit ? ` / ${parameter.unit}` : ""}
-              {isMos && COMPACT_PARAMETER_LABELS.has(parameter.label) ? null : (
-                <em>({parameter.help})</em>
-              )}
-            </span>
-            {parameter.options ? (
-              <select
-                aria-label={`Component ${parameter.label.toLowerCase()}`}
-                value={parameterValues[parameter.key] ?? ""}
-                onChange={(event) =>
-                  onParameterChange(parameter.key, event.currentTarget.value)
-                }
+        {primaryParameterRows.map((row) => (
+          <div
+            className="component-parameter-row"
+            data-parameter-row={row.map(({ key }) => key).join("-")}
+            key={row.map(({ key }) => key).join("-")}
+          >
+            {row.map((parameter) => (
+              <label
+                key={parameter.key}
+                title={isIndependentSource ? undefined : parameter.help}
               >
-                {parameter.options.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <input
-                ref={index === 0 ? firstInputRef : undefined}
-                aria-label={`Component ${parameter.label.toLowerCase()}`}
-                inputMode={parameter.inputMode}
-                value={parameterValues[parameter.key] ?? ""}
-                placeholder={parameter.placeholder}
-                onChange={(event) =>
-                  onParameterChange(parameter.key, event.currentTarget.value)
-                }
-              />
-            )}
-          </label>
+                <span className="property-parameter-name">
+                  {parameter.label}
+                  {parameter.unit ? ` / ${parameter.unit}` : ""}
+                  {isIndependentSource ||
+                  (isMos &&
+                    COMPACT_PARAMETER_LABELS.has(parameter.label)) ? null : (
+                    <em>({parameter.help})</em>
+                  )}
+                </span>
+                {parameter.options ? (
+                  <select
+                    aria-label={`Component ${parameter.label.toLowerCase()}`}
+                    value={parameterValues[parameter.key] ?? ""}
+                    onChange={(event) =>
+                      onParameterChange(
+                        parameter.key,
+                        event.currentTarget.value,
+                      )
+                    }
+                  >
+                    {parameter.options.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    ref={
+                      parameter.key === primaryParameters[0]?.key
+                        ? firstInputRef
+                        : undefined
+                    }
+                    aria-label={`Component ${parameter.label.toLowerCase()}`}
+                    inputMode={parameter.inputMode}
+                    value={parameterValues[parameter.key] ?? ""}
+                    placeholder={parameter.placeholder}
+                    onChange={(event) =>
+                      onParameterChange(
+                        parameter.key,
+                        event.currentTarget.value,
+                      )
+                    }
+                  />
+                )}
+              </label>
+            ))}
+          </div>
         ))}
       </div>
       {fingerWidth ? (

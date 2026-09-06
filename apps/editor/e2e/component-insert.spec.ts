@@ -1172,13 +1172,30 @@ test("ordinary source Properties switch waveforms without erasing inactive value
   await page.getByTestId("hit-V1").click();
   await page.keyboard.press("q");
 
-  const waveform = page.getByLabel("Component waveform");
+  const waveform = page.getByLabel("Component transient");
   await expect(waveform).toHaveValue("dc");
+  await expect(waveform.locator('option[value="dc"]')).toHaveText("None");
+  const parameters = page.getByLabel("Component parameters and display");
+  await expect(parameters).toContainText("AC phase / deg");
+  await expect(parameters).not.toContainText("Small-signal phase");
   await expect(page.getByLabel("Component low")).toHaveCount(0);
   await expect(page.getByLabel("Component amplitude")).toHaveCount(0);
 
   await waveform.selectOption("pulse");
+  const low = page.getByLabel("Component low");
   const high = page.getByLabel("Component high");
+  const rise = page.getByLabel("Component rise time");
+  const fall = page.getByLabel("Component fall time");
+  const [lowBox, highBox, riseBox, fallBox] = await Promise.all([
+    low.boundingBox(),
+    high.boundingBox(),
+    rise.boundingBox(),
+    fall.boundingBox(),
+  ]);
+  expect(lowBox?.y).toBe(highBox?.y);
+  expect(riseBox?.y).toBe(fallBox?.y);
+  expect(lowBox!.x).toBeLessThan(highBox!.x);
+  expect(riseBox!.x).toBeLessThan(fallBox!.x);
   await expect(high).toHaveValue("1");
   await high.fill("2.5");
 
