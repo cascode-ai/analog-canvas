@@ -2,10 +2,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import {
-  changeTransientTimeRange,
   TransientResultsExplorer,
   transientPolylinePoints,
   transientValueExtent,
+  transientVisibleValues,
 } from "./transient-results-explorer";
 
 describe("Transient Results Explorer", () => {
@@ -22,6 +22,7 @@ describe("Transient Results Explorer", () => {
   });
 
   it("retains the segment crossing a zoom window between solver samples", () => {
+    expect(transientVisibleValues([0, 10], [0, 1], [4, 6])).toEqual([0.4, 0.6]);
     const points = transientPolylinePoints([0, 10], [0, 1], [0, 1], [4, 6]);
     expect(points.split(" ")).toHaveLength(2);
     const xs = points.split(" ").map((point) => Number(point.split(",")[0]));
@@ -87,17 +88,5 @@ describe("Transient Results Explorer", () => {
     expect(markup).toContain(
       'class="ac-trace-hit" fill="none" stroke="transparent" stroke-width="12" pointer-events="stroke"',
     );
-  });
-
-  it("keeps explicit linear zoom and pan inside the transient interval", () => {
-    expect(changeTransientTimeRange([0, 10], [0, 10], "zoom-in")).toEqual([
-      2, 8,
-    ]);
-    expect(changeTransientTimeRange([2, 8], [0, 10], "pan-right")).toEqual([
-      3.2, 9.2,
-    ]);
-    expect(changeTransientTimeRange([0, 10], [0, 10], "pan-left")).toEqual([
-      0, 10,
-    ]);
   });
 });

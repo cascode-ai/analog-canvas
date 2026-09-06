@@ -69,6 +69,7 @@ export interface AcResponseSvgOptions {
   kind: AcPlotKind;
   /** Shared cursor frequency for paired magnitude/phase plots. */
   cursorFrequency?: number;
+  cursorFrequencyB?: number;
   /** The interactive Results Browser owns the legend when false. */
   showLegend?: boolean;
   /** Selected Results Browser trace, emphasized on the plot. */
@@ -293,12 +294,18 @@ export function acResponseSvg(
           })
           .join("")
       : "";
-  const cursor =
-    options.cursorFrequency !== undefined &&
-    options.cursorFrequency >= layout.frequency.min &&
-    options.cursorFrequency <= layout.frequency.max
-      ? `<line class="ac-cursor" x1="${project.x(options.cursorFrequency).toFixed(2)}" y1="${frame.y}" x2="${project.x(options.cursorFrequency).toFixed(2)}" y2="${frame.y + frame.height}"/>`
-      : "";
+  const cursor = ([options.cursorFrequency, options.cursorFrequencyB] as const)
+    .map((frequency, index) => {
+      if (
+        frequency === undefined ||
+        frequency < layout.frequency.min ||
+        frequency > layout.frequency.max
+      )
+        return "";
+      const x = project.x(frequency).toFixed(2);
+      return `<g pointer-events="none"><line class="ac-cursor" style="stroke:${index === 0 ? "#175cd3" : "#c4320a"}" x1="${x}" y1="${frame.y}" x2="${x}" y2="${frame.y + frame.height}"/><text x="${Number(x) + 3}" y="${frame.y + 12}">${index === 0 ? "A" : "B"}</text></g>`;
+    })
+    .join("");
 
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" class="ac-response" viewBox="0 0 ${size.width} ${size.height}" width="${size.width}" height="${size.height}" role="img" aria-label="AC ${options.kind}">` +

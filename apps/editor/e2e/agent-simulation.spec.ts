@@ -431,8 +431,39 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
     panel.locator(".transient-results-explorer .ac-cursor-readout"),
   ).toHaveCount(0);
   await expect(rightTimeLabel).not.toHaveText(fullTimeLabel ?? "");
+  const zoomTimeLabel = await rightTimeLabel.textContent();
+  await transientShell.getByRole("button", { name: "Previous view" }).click();
+  await expect(rightTimeLabel).toHaveText(fullTimeLabel ?? "");
+  await transientShell.getByRole("button", { name: "Next view" }).click();
+  await expect(rightTimeLabel).toHaveText(zoomTimeLabel ?? "");
   await transientShell.getByRole("button", { name: "Fit plot" }).click();
   await expect(rightTimeLabel).toHaveText(fullTimeLabel ?? "");
+  const yLabels = await transientPlot
+    .locator('svg text[text-anchor="end"]')
+    .allTextContents();
+  await transientShell.getByRole("button", { name: "Control X axes" }).click();
+  const xDrag = (await transientPlot.boundingBox())!;
+  await page.mouse.move(
+    xDrag.x + xDrag.width * 0.3,
+    xDrag.y + xDrag.height * 0.5,
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    xDrag.x + xDrag.width * 0.7,
+    xDrag.y + xDrag.height * 0.5,
+  );
+  await page.mouse.up();
+  await expect(rightTimeLabel).not.toHaveText(fullTimeLabel ?? "");
+  expect(
+    await transientPlot
+      .locator('svg text[text-anchor="end"]')
+      .allTextContents(),
+  ).toEqual(yLabels);
+  await transientShell
+    .getByRole("button", { name: "Fit X", exact: true })
+    .click();
+  await expect(rightTimeLabel).toHaveText(fullTimeLabel ?? "");
+  await transientShell.getByRole("button", { name: "Control XY axes" }).click();
   await transientPlot.click({
     position: {
       x: transientBounds!.width * 0.5,
@@ -451,11 +482,79 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
     },
   });
   await expect(fixedReadout).toHaveText(measurement ?? "");
+  await transientShell.getByRole("button", { name: "Place marker B" }).click();
+  await transientPlot.click({
+    position: {
+      x: transientBounds!.width * 0.9,
+      y: transientBounds!.height * 0.4,
+    },
+  });
+  await expect(fixedReadout).toContainText("ΔX:");
+  await expect(fixedReadout).toContainText("ΔY");
+  await expect(fixedReadout).toContainText("1/|Δt|");
+  const markersBeforeRemount = await fixedReadout.textContent();
+  await transientShell
+    .getByRole("button", { name: "Ranges", exact: true })
+    .click();
+  const ranges = transientShell.getByRole("form", { name: "Axis ranges" });
+  await ranges.getByLabel("Auto X", { exact: true }).uncheck();
+  await ranges.getByLabel("X minimum").fill("8e-9");
+  await ranges.getByLabel("X maximum").fill("2e-9");
+  await ranges.getByRole("button", { name: "Apply ranges" }).click();
+  await expect(ranges.getByRole("alert")).toContainText("Minimum must be less");
+  await ranges.getByLabel("X minimum").fill("2e-9");
+  await ranges.getByLabel("X maximum").fill("8e-9");
+  await ranges.getByLabel("Auto Y", { exact: true }).uncheck();
+  await ranges.getByLabel("Y minimum").fill("-1");
+  await ranges.getByLabel("Y maximum").fill("2");
+  await ranges.getByRole("button", { name: "Apply ranges" }).click();
+  await expect(ranges).toHaveCount(0);
+  const savedTicks = await rightTimeLabel.textContent();
+  await panel.getByRole("tab", { name: "Files" }).click();
+  await panel.getByRole("tab", { name: "Plot" }).click();
+  await expect(rightTimeLabel).toHaveText(savedTicks ?? "");
+  await expect(fixedReadout).toHaveText(markersBeforeRemount ?? "");
+  const transientOutputs = panel.locator(".transient-results-explorer");
+  await transientOutputs
+    .getByRole("button", { name: "Hide first-output" })
+    .click();
+  await panel.getByRole("tab", { name: "Files" }).click();
+  await panel.getByRole("tab", { name: "Plot" }).click();
+  await expect(
+    transientOutputs.getByRole("button", { name: "Show first-output" }),
+  ).toBeVisible();
+  await expect(transientPlot).toHaveCount(0);
+  await transientOutputs
+    .getByRole("button", { name: "Show first-output" })
+    .click();
+  await expect(rightTimeLabel).toHaveText(savedTicks ?? "");
+  await expect(fixedReadout).toHaveText(markersBeforeRemount ?? "");
+  await transientShell.getByRole("button", { name: "Previous view" }).click();
+  await expect(rightTimeLabel).toHaveText(fullTimeLabel ?? "");
+  await transientShell.getByRole("button", { name: "Next view" }).click();
+  await expect(rightTimeLabel).toHaveText(savedTicks ?? "");
   await transientShell.getByRole("button", { name: "Open plot" }).click();
   const waveformDialog = page.getByRole("dialog", {
     name: "Transient voltage plot",
   });
   await expect(waveformDialog.locator(".ac-cursor-readout")).toBeVisible();
+  const expandedViewport = await waveformDialog
+    .locator(".spice-ac-plot")
+    .boundingBox();
+  const expandedTick = await waveformDialog
+    .locator('svg text[text-anchor="middle"]')
+    .last()
+    .boundingBox();
+  expect(expandedTick!.y + expandedTick!.height).toBeLessThanOrEqual(
+    expandedViewport!.y + expandedViewport!.height,
+  );
+  await expect(waveformDialog.locator("line.ac-grid").first()).not.toHaveCSS(
+    "stroke",
+    "none",
+  );
+  await waveformDialog.screenshot({
+    path: test.info().outputPath("waveform-tools.png"),
+  });
   await waveformDialog.getByRole("button", { name: "Close plot" }).click();
   await panel.getByRole("tab", { name: "Files" }).click();
   await expect(
@@ -490,11 +589,20 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   await panel.getByRole("tab", { name: "Plot" }).click();
   await expect(panel.getByText("first-output", { exact: true })).toHaveCount(2);
   await expect(panel.getByText("new-output", { exact: true })).toHaveCount(0);
+  await panel.getByRole("button", { name: "Run", exact: true }).click();
+  await expect.poll(() => executions).toBe(2);
+  await expect(panel.getByRole("status")).toHaveText("finished · completed");
+  await panel.getByRole("tab", { name: "Plot" }).click();
+  await expect(panel.locator(".ac-cursor-readout")).toHaveCount(0);
+  await expect(
+    transientShell.getByRole("button", { name: "Previous view" }),
+  ).toBeDisabled();
+  await expect(panel.getByText("new-output", { exact: true })).toHaveCount(2);
   pending = new Promise<void>((r) => {
     release = r;
   });
   await panel.getByRole("button", { name: "Run", exact: true }).click();
-  await expect.poll(() => executions).toBe(2);
+  await expect.poll(() => executions).toBe(3);
   await panel.getByRole("button", { name: "Cancel run" }).click();
   await expect(panel.getByRole("status")).toContainText("cancelled");
   expect(cancellations).toBe(1);

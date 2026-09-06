@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type SetStateAction } from "react";
 import { WaveformInteraction, useWaveformWidth } from "./waveform-interaction";
+import { useWaveformView } from "./waveform-view";
+import { WaveformTools, WaveformMeasurements } from "./waveform-tools";
 import type { SimulationProbeSpec } from "@icm/model";
 import type { AcResult } from "@icm/spice-run";
 import type { Prepared } from "@icm/simulation-service/contract";
 
 import {
   acResponseSvg,
-  formatFrequency,
   layoutAcPlot,
   type AcPlotKind,
   type AcPoint,
@@ -25,6 +26,7 @@ interface ExpandedPlot {
 }
 
 export interface AcResultsExplorerProps {
+  resultKey?: string;
   analysis: AcResult;
   vectors: Prepared["vectors"];
   probes: readonly SimulationProbeSpec[];
@@ -107,110 +109,32 @@ function outputTraces(
   });
 }
 
-function normalizedLogRange(
-  low: number,
-  high: number,
-  fullRange: readonly [number, number],
-): readonly [number, number] {
-  const fullLow = Math.log(fullRange[0]);
-  const fullHigh = Math.log(fullRange[1]);
-  if (high - low >= fullHigh - fullLow - 1e-12) return fullRange;
-  const requestedSpan = Math.min(high - low, fullHigh - fullLow);
-  let nextLow = low;
-  let nextHigh = high;
-  if (nextLow < fullLow) {
-    nextLow = fullLow;
-    nextHigh = fullLow + requestedSpan;
-  }
-  if (nextHigh > fullHigh) {
-    nextHigh = fullHigh;
-    nextLow = fullHigh - requestedSpan;
-  }
-  return [Math.exp(nextLow), Math.exp(nextHigh)];
-}
-
-/** Explicit axes-toolbar zoom; the document or panel wheel is never captured. */
-export function zoomFrequencyRange(
-  currentRange: readonly [number, number],
-  fullRange: readonly [number, number],
-  direction: "in" | "out",
-  centerFrequency = Math.sqrt(currentRange[0] * currentRange[1]),
-): readonly [number, number] {
-  const low = Math.log(currentRange[0]);
-  const high = Math.log(currentRange[1]);
-  const center = Math.log(
-    Math.min(currentRange[1], Math.max(currentRange[0], centerFrequency)),
-  );
-  const scale = direction === "in" ? 0.6 : 1.7;
-  return normalizedLogRange(
-    center - (center - low) * scale,
-    center + (high - center) * scale,
-    fullRange,
-  );
-}
-
-/** Pan one fifth of the visible logarithmic span without leaving the sweep. */
-export function panFrequencyRange(
-  currentRange: readonly [number, number],
-  fullRange: readonly [number, number],
-  direction: "left" | "right",
-): readonly [number, number] {
-  const low = Math.log(currentRange[0]);
-  const high = Math.log(currentRange[1]);
-  const shift = (high - low) * 0.2 * (direction === "left" ? -1 : 1);
-  return normalizedLogRange(low + shift, high + shift, fullRange);
-}
-
-function rangesEqual(
-  left: readonly [number, number],
-  right: readonly [number, number],
-): boolean {
-  return (
-    Math.abs(Math.log(left[0] / right[0])) < 1e-9 &&
-    Math.abs(Math.log(left[1] / right[1])) < 1e-9
-  );
-}
-
 export function AcResultsExplorer({
   analysis,
   vectors,
   probes,
   labels = {},
   onFocusProbe,
+  resultKey,
 }: AcResultsExplorerProps) {
   const measured = useWaveformWidth();
   const traces = useMemo(
     () => outputTraces(analysis, vectors, probes, labels),
     [analysis, labels, probes, vectors],
   );
-  const [hidden, setHidden] = useState<ReadonlySet<string>>(() => new Set());
-  const [solo, setSolo] = useState<string | null>(null);
-  const [selected, setSelected] = useState<string | null>(null);
-  const [valueRanges, setValueRanges] = useState<
-    Record<string, readonly [number, number] | undefined>
-  >({});
-  const [markerFrequency, setMarkerFrequency] = useState<number>();
-  const [frequencyRange, setFrequencyRange] =
-    useState<readonly [number, number]>();
+  const controller = useWaveformView(resultKey);
+  const { hidden, solo, selected, markers } = controller.state;
+  const setHidden = (value: SetStateAction<ReadonlySet<string>>) =>
+    controller.set("hidden", value);
+  const setSolo = (value: SetStateAction<string | null>) =>
+    controller.set("solo", value);
+  const setSelected = (value: string) => controller.set("selected", value);
+  const frequencyRange = controller.view.x;
+  const valueRanges = controller.view.y;
   const [expandedPlot, setExpandedPlot] = useState<ExpandedPlot | null>(null);
-  const fullRange = useMemo<readonly [number, number]>(() => {
-    const frequencies = analysis.frequencyHz.filter(
-      (frequency) => frequency > 0,
-    );
-    return [Math.min(...frequencies), Math.max(...frequencies)];
-  }, [analysis.frequencyHz]);
   const visible = traces.filter(
     (trace) => !hidden.has(trace.id) && (solo === null || solo === trace.id),
   );
-  const cursorFrequency = markerFrequency;
-  const cursorRows =
-    cursorFrequency === undefined
-      ? []
-      : visible.map((trace) => ({
-          trace,
-          point: closestPoint(trace.points, cursorFrequency),
-        }));
-
   useEffect(() => {
     if (!expandedPlot) return;
     const close = (event: KeyboardEvent) => {
@@ -226,94 +150,6 @@ export function AcResultsExplorer({
     setSelected(trace.id);
     if (trace.probe) onFocusProbe?.(trace.probe);
   };
-
-  const updateRange = (
-    action: "zoom-in" | "zoom-out" | "pan-left" | "pan-right" | "fit",
-  ): void => {
-    if (action === "fit" || fullRange[0] === fullRange[1]) {
-      setFrequencyRange(undefined);
-      setValueRanges({});
-      return;
-    }
-    const current = frequencyRange ?? fullRange;
-    const next = action.startsWith("zoom")
-      ? zoomFrequencyRange(
-          current,
-          fullRange,
-          action === "zoom-in" ? "in" : "out",
-          cursorFrequency,
-        )
-      : panFrequencyRange(
-          current,
-          fullRange,
-          action === "pan-left" ? "left" : "right",
-        );
-    setFrequencyRange(rangesEqual(next, fullRange) ? undefined : next);
-  };
-
-  const plotToolbar = (plot: ExpandedPlot, expanded: boolean) => (
-    <div
-      className={`ac-plot-toolbar${expanded ? " expanded" : ""}`}
-      aria-label="Plot tools"
-      onClick={(event) => event.stopPropagation()}
-      onDoubleClick={(event) => event.stopPropagation()}
-      onPointerMove={(event) => event.stopPropagation()}
-    >
-      <button
-        type="button"
-        aria-label="Zoom in"
-        onClick={() => updateRange("zoom-in")}
-      >
-        +
-      </button>
-      <button
-        type="button"
-        aria-label="Zoom out"
-        onClick={() => updateRange("zoom-out")}
-      >
-        −
-      </button>
-      <button
-        type="button"
-        aria-label="Pan left"
-        onClick={() => updateRange("pan-left")}
-      >
-        ←
-      </button>
-      <button
-        type="button"
-        aria-label="Pan right"
-        onClick={() => updateRange("pan-right")}
-      >
-        →
-      </button>
-      <button
-        type="button"
-        aria-label="Fit plot"
-        onClick={() => updateRange("fit")}
-      >
-        Fit
-      </button>
-      {markerFrequency !== undefined ? (
-        <button
-          type="button"
-          aria-label="Clear marker"
-          onClick={() => setMarkerFrequency(undefined)}
-        >
-          ×│
-        </button>
-      ) : null}
-      {!expanded ? (
-        <button
-          type="button"
-          aria-label="Open plot"
-          onClick={() => setExpandedPlot(plot)}
-        >
-          ⛶
-        </button>
-      ) : null}
-    </div>
-  );
 
   const renderPlot = (
     plot: ExpandedPlot,
@@ -339,7 +175,8 @@ export function AcResultsExplorer({
       ...(valueRange ? { valueRange } : {}),
       showLegend: false,
       ...(frequencyRange === undefined ? {} : { frequencyRange }),
-      ...(cursorFrequency === undefined ? {} : { cursorFrequency }),
+      ...(markers.A === undefined ? {} : { cursorFrequency: markers.A }),
+      ...(markers.B === undefined ? {} : { cursorFrequencyB: markers.B }),
       ...(selected === null ? {} : { selectedTraceId: selected }),
     });
     return (
@@ -348,38 +185,52 @@ export function AcResultsExplorer({
         title={expanded ? undefined : "Double-click to open this plot"}
       >
         <WaveformInteraction
+          axes={controller.state.axes}
           frame={layout.frame}
-          onZoom={(start, end) => {
-            setFrequencyRange([
-              frequencyAt(Math.min(start.x, end.x)),
-              frequencyAt(Math.max(start.x, end.x)),
-            ]);
-            setValueRanges((current) => ({
-              ...current,
-              [plot.quantity + plot.kind]: [
-                axis.max - Math.max(start.y, end.y) * (axis.max - axis.min),
-                axis.max - Math.min(start.y, end.y) * (axis.max - axis.min),
-              ],
-            }));
-          }}
+          onZoom={(start, end) =>
+            controller.commit({
+              x:
+                controller.state.axes === "y"
+                  ? [layout.frequency.min, layout.frequency.max]
+                  : [
+                      frequencyAt(Math.min(start.x, end.x)),
+                      frequencyAt(Math.max(start.x, end.x)),
+                    ],
+              y: {
+                ...valueRanges,
+                [plot.quantity + plot.kind]:
+                  controller.state.axes === "x"
+                    ? [axis.min, axis.max]
+                    : [
+                        axis.max -
+                          Math.max(start.y, end.y) * (axis.max - axis.min),
+                        axis.max -
+                          Math.min(start.y, end.y) * (axis.max - axis.min),
+                      ],
+              },
+            })
+          }
           onPan={(delta) => {
-            const range = frequencyRange ?? [
-              layout.frequency.min,
-              layout.frequency.max,
-            ];
-            const shift = -delta.x * Math.log(range[1]! / range[0]!);
-            setFrequencyRange(
-              normalizedLogRange(
-                Math.log(range[0]!) + shift,
-                Math.log(range[1]!) + shift,
-                fullRange,
-              ),
-            );
-            const dy = delta.y * (axis.max - axis.min);
-            setValueRanges((current) => ({
-              ...current,
-              [plot.quantity + plot.kind]: [axis.min + dy, axis.max + dy],
-            }));
+            const shift =
+                -delta.x *
+                Math.log(layout.frequency.max / layout.frequency.min),
+              dy = delta.y * (axis.max - axis.min);
+            controller.commit({
+              x:
+                controller.state.axes === "y"
+                  ? [layout.frequency.min, layout.frequency.max]
+                  : [
+                      layout.frequency.min * Math.exp(shift),
+                      layout.frequency.max * Math.exp(shift),
+                    ],
+              y: {
+                ...valueRanges,
+                [plot.quantity + plot.kind]:
+                  controller.state.axes === "x"
+                    ? [axis.min, axis.max]
+                    : [axis.min + dy, axis.max + dy],
+              },
+            });
           }}
           onPick={(point, id) => {
             if (id) focusTrace(id);
@@ -387,9 +238,7 @@ export function AcResultsExplorer({
             const trace =
               plotTraces.find((trace) => trace.id === id) ?? plotTraces[0];
             if (trace?.points.length)
-              setMarkerFrequency(
-                closestPoint(trace.points, frequency).frequency,
-              );
+              controller.mark(closestPoint(trace.points, frequency).frequency);
           }}
           onOpen={() => !expanded && setExpandedPlot(plot)}
         >
@@ -398,10 +247,52 @@ export function AcResultsExplorer({
             dangerouslySetInnerHTML={{ __html: svg ?? "" }}
           />
         </WaveformInteraction>
-        {plotToolbar(plot, expanded)}
+        <WaveformTools
+          controller={controller}
+          plotKey={plot.quantity + plot.kind}
+          x={[layout.frequency.min, layout.frequency.max]}
+          y={[axis.min, axis.max]}
+          xUnit="Hz"
+          yUnit={plot.kind === "phase" ? "°" : "dB"}
+          logarithmicX
+          {...(!expanded ? { onOpen: () => setExpandedPlot(plot) } : {})}
+        />
+        {!expanded && measurement(plot)}
       </div>
     );
   };
+
+  const measurement = (plot?: ExpandedPlot) => (
+    <WaveformMeasurements
+      a={markers.A}
+      b={markers.B}
+      unit="Hz"
+      rows={visible
+        .filter((trace) => !plot || trace.quantity === plot.quantity)
+        .flatMap((trace) => {
+          const a =
+            markers.A === undefined || !trace.points.length
+              ? undefined
+              : closestPoint(trace.points, markers.A);
+          const b =
+            markers.B === undefined || !trace.points.length
+              ? undefined
+              : closestPoint(trace.points, markers.B);
+          return (plot ? [plot.kind] : (["magnitude", "phase"] as const)).map(
+            (kind) => {
+              const property =
+                kind === "magnitude" ? "magnitudeDb" : "phaseDeg";
+              return {
+                label: trace.label + " " + kind,
+                unit: kind === "magnitude" ? "dB" : "°",
+                ...(a ? { a: a[property] } : {}),
+                ...(b ? { b: b[property] } : {}),
+              };
+            },
+          );
+        })}
+    />
+  );
 
   return (
     <div ref={measured.ref} className="ac-results-explorer">
@@ -476,17 +367,6 @@ export function AcResultsExplorer({
       {visible.length === 0 ? (
         <p className="simulation-empty-result">All Outputs are hidden.</p>
       ) : null}
-      {cursorFrequency !== undefined ? (
-        <div className="ac-cursor-readout" role="status">
-          <strong>{formatFrequency(cursorFrequency)}</strong>
-          {cursorRows.map(({ trace, point }) => (
-            <span key={trace.id}>
-              {trace.label}: {point.magnitudeDb.toFixed(3)} dB ·{" "}
-              {point.phaseDeg.toFixed(2)}°
-            </span>
-          ))}
-        </div>
-      ) : null}
       {expandedPlot ? (
         <div
           className="ac-plot-dialog-backdrop"
@@ -523,17 +403,7 @@ export function AcResultsExplorer({
               ),
               true,
             )}
-            {cursorFrequency !== undefined ? (
-              <div className="ac-cursor-readout" role="status">
-                <strong>{formatFrequency(cursorFrequency)}</strong>
-                {cursorRows.map(({ trace, point }) => (
-                  <span key={trace.id}>
-                    {trace.label}: {point.magnitudeDb.toFixed(3)} dB ·{" "}
-                    {point.phaseDeg.toFixed(2)}°
-                  </span>
-                ))}
-              </div>
-            ) : null}
+            {measurement(expandedPlot)}
           </section>
         </div>
       ) : null}

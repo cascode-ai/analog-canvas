@@ -802,12 +802,14 @@
   place-items: center;
 }
 .ac-plot-shell.expanded svg {
+  position: absolute;
+  inset: 0;
   width: 100%;
-  max-height: calc(92vh - 90px);
+  height: 100%;
+  max-height: none;
 }
 .ac-cursor-readout {
-  position: sticky;
-  bottom: 0;
+  position: relative;
   display: grid;
   gap: 2px;
   padding: 7px 9px;
@@ -1220,15 +1222,21 @@
   stroke-width: 1;
 }
 
-.ac-response .ac-grid {
+.ac-response .ac-grid,
+.transient-results-explorer .ac-grid {
   stroke: var(--icm-border-subtle, #eceff3);
   stroke-width: 1;
 }
 
-.ac-response .ac-axis-label {
-  font-size: 9px;
+.ac-response .ac-axis-label,
+.transient-results-explorer .ac-axis-label {
+  font-size: 12px;
   fill: var(--icm-text-muted, #667085);
   font-variant-numeric: tabular-nums;
+}
+
+.ac-plot-shell.expanded .ac-axis-label {
+  font-size: 16px;
 }
 
 /* Traces are distinguished by hue, and one plot may carry several. The
@@ -1285,6 +1293,44 @@
 }
 .waveform-svg {
   display: contents;
+}
+.waveform-tools {
+  align-self: stretch;
+  justify-content: flex-end;
+}
+.waveform-tools > [role="group"] {
+  display: flex;
+  border-left: 1px solid var(--icm-border);
+  padding-left: 4px;
+}
+.waveform-range-editor {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px;
+}
+.waveform-range-editor fieldset {
+  display: flex;
+  flex: 1 1 220px;
+  min-width: 0;
+  gap: 6px;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+}
+.waveform-range-editor label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.waveform-range-editor input:not([type="checkbox"]) {
+  width: 100%;
+  min-width: 0;
+}
+.waveform-range-editor [role="alert"] {
+  flex-basis: 100%;
+  color: var(--icm-danger, #b42318);
 }
 .spice-ac-plot.interactive {
   overflow: hidden;

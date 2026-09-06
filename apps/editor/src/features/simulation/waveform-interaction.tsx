@@ -34,6 +34,7 @@ export function WaveformInteraction({
   onPick,
   onPan,
   onOpen,
+  axes = "xy",
 }: {
   children: ReactNode;
   frame: { x: number; y: number; width: number; height: number };
@@ -41,6 +42,7 @@ export function WaveformInteraction({
   onPick(point: WaveformPoint, traceId?: string): void;
   onPan(delta: WaveformPoint): void;
   onOpen(): void;
+  axes?: "xy" | "x" | "y";
 }) {
   const drag = useRef<
     | {
@@ -58,6 +60,9 @@ export function WaveformInteraction({
     width: number;
     height: number;
   }>();
+  const lastPick = useRef<{ time: number; x: number; y: number } | undefined>(
+    undefined,
+  );
   const pointAt = (
     event: PointerEvent<HTMLDivElement>,
   ): WaveformPoint | undefined => {
@@ -78,6 +83,9 @@ export function WaveformInteraction({
       tabIndex={0}
       aria-label="Waveform: drag to zoom, click to measure, Shift-drag to pan"
       title="Drag to zoom · Click to measure · Shift-drag to pan · Double-click to expand"
+      onBlur={() => {
+        lastPick.current = undefined;
+      }}
       onKeyDown={(event) => {
         if (event.key === "Escape" && drag.current) {
           drag.current = undefined;
@@ -115,11 +123,35 @@ export function WaveformInteraction({
         )
           return;
         const bounds = event.currentTarget.getBoundingClientRect();
+        const transform = event.currentTarget
+          .querySelector("svg")
+          ?.getScreenCTM();
+        const topLeft = transform
+          ? new DOMPoint(frame.x, frame.y).matrixTransform(transform)
+          : undefined;
+        const bottomRight = transform
+          ? new DOMPoint(
+              frame.x + frame.width,
+              frame.y + frame.height,
+            ).matrixTransform(transform)
+          : undefined;
         setBox({
-          left: Math.min(start.clientX, event.clientX) - bounds.left,
-          top: Math.min(start.clientY, event.clientY) - bounds.top,
-          width: Math.abs(event.clientX - start.clientX),
-          height: Math.abs(event.clientY - start.clientY),
+          left:
+            (axes === "y" && topLeft
+              ? topLeft.x
+              : Math.min(start.clientX, event.clientX)) - bounds.left,
+          top:
+            (axes === "x" && topLeft
+              ? topLeft.y
+              : Math.min(start.clientY, event.clientY)) - bounds.top,
+          width:
+            axes === "y" && topLeft && bottomRight
+              ? bottomRight.x - topLeft.x
+              : Math.abs(event.clientX - start.clientX),
+          height:
+            axes === "x" && topLeft && bottomRight
+              ? bottomRight.y - topLeft.y
+              : Math.abs(event.clientY - start.clientY),
         });
       }}
       onPointerUp={(event) => {
@@ -135,13 +167,31 @@ export function WaveformInteraction({
             event.clientX - start.clientX,
             event.clientY - start.clientY,
           ) < 5
-        )
-          onPick(end, start.traceId);
-        else if (start.pan)
+        ) {
+          const previous = lastPick.current;
+          // AC SVG nodes are regenerated when a marker is placed. Recognize
+          // the second click on the stable viewport, not a replaced SVG node.
+          if (
+            previous &&
+            event.timeStamp - previous.time < 450 &&
+            Math.hypot(event.clientX - previous.x, event.clientY - previous.y) <
+              5
+          ) {
+            lastPick.current = undefined;
+            onOpen();
+          } else {
+            lastPick.current = {
+              time: event.timeStamp,
+              x: event.clientX,
+              y: event.clientY,
+            };
+            onPick(end, start.traceId);
+          }
+        } else if (start.pan)
           onPan({ x: end.x - start.start.x, y: end.y - start.start.y });
         else if (
-          Math.abs(end.x - start.start.x) > 0.005 &&
-          Math.abs(end.y - start.start.y) > 0.005
+          (axes === "y" || Math.abs(end.x - start.start.x) > 0.005) &&
+          (axes === "x" || Math.abs(end.y - start.start.y) > 0.005)
         )
           onZoom(start.start, end);
       }}
@@ -149,7 +199,6 @@ export function WaveformInteraction({
         drag.current = undefined;
         setBox(undefined);
       }}
-      onDoubleClick={onOpen}
     >
       {children}
       {box && <div className="waveform-selection" style={box} />}

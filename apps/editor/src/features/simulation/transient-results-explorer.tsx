@@ -1,10 +1,18 @@
-import { useEffect, useId, useMemo, useState } from "react";
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useState,
+  type SetStateAction,
+} from "react";
 import {
   WaveformInteraction,
   waveformTicks,
   waveformTickLabel,
   useWaveformWidth,
 } from "./waveform-interaction";
+import { useWaveformView } from "./waveform-view";
+import { WaveformTools, WaveformMeasurements } from "./waveform-tools";
 import type { SimulationProbeSpec } from "@icm/model";
 import type { TransientResult } from "@icm/spice-run";
 import type { Prepared } from "@icm/simulation-service/contract";
@@ -20,6 +28,7 @@ interface TransientTrace {
 }
 
 export interface TransientResultsExplorerProps {
+  resultKey?: string;
   analysis: TransientResult;
   vectors: Prepared["vectors"];
   probes: readonly SimulationProbeSpec[];
@@ -76,6 +85,29 @@ export function transientValueExtent(
   if (extent[1] - extent[0] > tolerance) return extent;
   const margin = Math.max(Math.abs(center) * 0.05, 1e-12);
   return [center - margin, center + margin];
+}
+
+/** Include line intersections at the viewport boundaries when it contains no solver sample. */
+export function transientVisibleValues(
+  times: readonly number[],
+  values: readonly number[],
+  range: readonly [number, number],
+): number[] {
+  const result: number[] = [];
+  for (let i = 0; i < Math.min(times.length, values.length); i++) {
+    const x = times[i]!,
+      y = values[i]!;
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+    if (x >= range[0] && x <= range[1]) result.push(y);
+    if (i === 0) continue;
+    const prevX = times[i - 1]!,
+      prevY = values[i - 1]!;
+    if (!Number.isFinite(prevY) || x <= prevX) continue;
+    for (const edge of range)
+      if (prevX < edge && x > edge)
+        result.push(prevY + ((y - prevY) * (edge - prevX)) / (x - prevX));
+  }
+  return result;
 }
 
 function compact(value: number): string {
@@ -154,46 +186,13 @@ function outputTraces(
   });
 }
 
-function clampRange(
-  low: number,
-  high: number,
-  full: readonly [number, number],
-): readonly [number, number] {
-  const span = Math.min(high - low, full[1] - full[0]);
-  if (low < full[0]) return [full[0], full[0] + span];
-  if (high > full[1]) return [full[1] - span, full[1]];
-  return [low, high];
-}
-
-export function changeTransientTimeRange(
-  current: readonly [number, number],
-  full: readonly [number, number],
-  action: "zoom-in" | "zoom-out" | "pan-left" | "pan-right",
-  center = (current[0] + current[1]) / 2,
-): readonly [number, number] {
-  const span = current[1] - current[0];
-  if (action.startsWith("zoom")) {
-    const nextSpan = Math.min(
-      full[1] - full[0],
-      span * (action === "zoom-in" ? 0.6 : 1.7),
-    );
-    const fraction = span ? (center - current[0]) / span : 0.5;
-    return clampRange(
-      center - nextSpan * fraction,
-      center + nextSpan * (1 - fraction),
-      full,
-    );
-  }
-  const shift = span * 0.2 * (action === "pan-left" ? -1 : 1);
-  return clampRange(current[0] + shift, current[1] + shift, full);
-}
-
 export function TransientResultsExplorer({
   analysis,
   vectors,
   probes,
   labels = {},
   onFocusProbe,
+  resultKey,
 }: TransientResultsExplorerProps) {
   const measured = useWaveformWidth();
   const clipPrefix = useId();
@@ -201,14 +200,15 @@ export function TransientResultsExplorer({
     () => outputTraces(analysis, vectors, probes, labels),
     [analysis, labels, probes, vectors],
   );
-  const [hidden, setHidden] = useState<ReadonlySet<string>>(() => new Set());
-  const [solo, setSolo] = useState<string | null>(null);
-  const [selected, setSelected] = useState<string | null>(null);
-  const [markerTime, setMarkerTime] = useState<number>();
-  const [timeRange, setTimeRange] = useState<readonly [number, number]>();
-  const [valueRanges, setValueRanges] = useState<
-    Partial<Record<PlotQuantity, readonly [number, number]>>
-  >({});
+  const controller = useWaveformView(resultKey);
+  const { hidden, solo, selected, markers } = controller.state;
+  const setHidden = (value: SetStateAction<ReadonlySet<string>>) =>
+    controller.set("hidden", value);
+  const setSolo = (value: React.SetStateAction<string | null>) =>
+    controller.set("solo", value);
+  const setSelected = (value: string) => controller.set("selected", value);
+  const timeRange = controller.view.x;
+  const valueRanges = controller.view.y;
   const [expandedQuantity, setExpandedQuantity] = useState<
     "voltage" | "current" | null
   >(null);
@@ -216,7 +216,6 @@ export function TransientResultsExplorer({
     (trace) => !hidden.has(trace.id) && (solo === null || solo === trace.id),
   );
   const fullRange = finiteExtent(analysis.timeSeconds);
-  const cursorTime = markerTime;
 
   useEffect(() => {
     const cancelTransientPlotAction = (event: KeyboardEvent) => {
@@ -235,87 +234,6 @@ export function TransientResultsExplorer({
     if (trace.probe) onFocusProbe?.(trace.probe);
   };
 
-  const updateRange = (
-    action: "zoom-in" | "zoom-out" | "pan-left" | "pan-right" | "fit",
-    quantity: PlotQuantity,
-  ) => {
-    if (action === "fit") {
-      setTimeRange(undefined);
-      setValueRanges((current) => ({ ...current, [quantity]: undefined }));
-      return;
-    }
-    const next = changeTransientTimeRange(
-      timeRange ?? fullRange,
-      fullRange,
-      action,
-      cursorTime,
-    );
-    setTimeRange(
-      next[0] === fullRange[0] && next[1] === fullRange[1] ? undefined : next,
-    );
-  };
-
-  const toolbar = (quantity: PlotQuantity, expanded: boolean) => (
-    <div
-      className={`ac-plot-toolbar${expanded ? " expanded" : ""}`}
-      aria-label="Plot tools"
-    >
-      <button
-        type="button"
-        aria-label="Zoom in"
-        onClick={() => updateRange("zoom-in", quantity)}
-      >
-        +
-      </button>
-      <button
-        type="button"
-        aria-label="Zoom out"
-        onClick={() => updateRange("zoom-out", quantity)}
-      >
-        −
-      </button>
-      <button
-        type="button"
-        aria-label="Pan left"
-        onClick={() => updateRange("pan-left", quantity)}
-      >
-        ←
-      </button>
-      <button
-        type="button"
-        aria-label="Pan right"
-        onClick={() => updateRange("pan-right", quantity)}
-      >
-        →
-      </button>
-      <button
-        type="button"
-        aria-label="Fit plot"
-        onClick={() => updateRange("fit", quantity)}
-      >
-        Fit
-      </button>
-      {markerTime !== undefined ? (
-        <button
-          type="button"
-          aria-label="Clear marker"
-          onClick={() => setMarkerTime(undefined)}
-        >
-          ×│
-        </button>
-      ) : null}
-      {!expanded ? (
-        <button
-          type="button"
-          aria-label="Open plot"
-          onClick={() => setExpandedQuantity(quantity)}
-        >
-          ⛶
-        </button>
-      ) : null}
-    </div>
-  );
-
   const plot = (
     quantity: PlotQuantity,
     quantityTraces: readonly TransientTrace[],
@@ -327,24 +245,15 @@ export function TransientResultsExplorer({
     const range = timeRange ?? fullRange;
     const clipId = `${clipPrefix}-${quantity}-${expanded}`;
     const visibleValues = quantityTraces.flatMap((trace) =>
-      trace.values.filter(
-        (_value, index) =>
-          analysis.timeSeconds[index]! >= range[0] &&
-          analysis.timeSeconds[index]! <= range[1],
-      ),
+      transientVisibleValues(analysis.timeSeconds, trace.values, range),
     );
     const automaticExtent = transientValueExtent(visibleValues);
     const extent = valueRanges[quantity] ?? automaticExtent;
     const unit = quantityTraces.find((trace) => trace.unit)?.unit ?? "";
-    const cursorX =
-      cursorTime === undefined
-        ? undefined
-        : geometry.left +
-          ((cursorTime - range[0]) / (range[1] - range[0])) *
-            (geometry.width - geometry.left - geometry.right);
     return (
       <div className={`ac-plot-shell${expanded ? " expanded" : ""}`}>
         <WaveformInteraction
+          axes={controller.state.axes}
           frame={{
             x: geometry.left,
             y: geometry.top,
@@ -354,28 +263,42 @@ export function TransientResultsExplorer({
           onZoom={(start, end) => {
             const x = [start.x, end.x].sort((a, b) => a - b);
             const y = [start.y, end.y].sort((a, b) => a - b);
-            setTimeRange([
-              range[0] + x[0]! * (range[1] - range[0]),
-              range[0] + x[1]! * (range[1] - range[0]),
-            ]);
-            setValueRanges((current) => ({
-              ...current,
-              [quantity]: [
-                extent[1] - y[1]! * (extent[1] - extent[0]),
-                extent[1] - y[0]! * (extent[1] - extent[0]),
-              ],
-            }));
+            controller.commit({
+              x:
+                controller.state.axes === "y"
+                  ? range
+                  : [
+                      range[0] + x[0]! * (range[1] - range[0]),
+                      range[0] + x[1]! * (range[1] - range[0]),
+                    ],
+              y: {
+                ...valueRanges,
+                [quantity]:
+                  controller.state.axes === "x"
+                    ? extent
+                    : [
+                        extent[1] - y[1]! * (extent[1] - extent[0]),
+                        extent[1] - y[0]! * (extent[1] - extent[0]),
+                      ],
+              },
+            });
           }}
           onPan={(delta) => {
-            const shift = -delta.x * (range[1] - range[0]);
-            setTimeRange(
-              clampRange(range[0] + shift, range[1] + shift, fullRange),
-            );
-            const dy = delta.y * (extent[1] - extent[0]);
-            setValueRanges((current) => ({
-              ...current,
-              [quantity]: [extent[0] + dy, extent[1] + dy],
-            }));
+            const shift = -delta.x * (range[1] - range[0]),
+              dy = delta.y * (extent[1] - extent[0]);
+            controller.commit({
+              x:
+                controller.state.axes === "y"
+                  ? range
+                  : [range[0] + shift, range[1] + shift],
+              y: {
+                ...valueRanges,
+                [quantity]:
+                  controller.state.axes === "x"
+                    ? extent
+                    : [extent[0] + dy, extent[1] + dy],
+              },
+            });
           }}
           onPick={(point, id) => {
             if (id) focusTrace(id);
@@ -385,7 +308,7 @@ export function TransientResultsExplorer({
                 Math.abs(value - time) < Math.abs(best - time) ? value : best,
               analysis.timeSeconds[0] ?? time,
             );
-            setMarkerTime(nearest);
+            controller.mark(nearest);
           }}
           onOpen={() => !expanded && setExpandedQuantity(quantity)}
         >
@@ -517,40 +440,81 @@ export function TransientResultsExplorer({
                 </g>
               );
             })}
-            {cursorX === undefined ? null : (
-              <line
-                className="ac-cursor"
-                stroke="#101828"
-                strokeWidth={1}
-                strokeDasharray="2 2"
-                pointerEvents="none"
-                x1={cursorX}
-                y1={geometry.top}
-                x2={cursorX}
-                y2={geometry.height - geometry.bottom}
-              />
-            )}
+            {(["A", "B"] as const).map((name) => {
+              const time = markers[name];
+              if (time === undefined || time < range[0] || time > range[1])
+                return null;
+              const x =
+                geometry.left +
+                ((time - range[0]) / (range[1] - range[0])) *
+                  (geometry.width - geometry.left - geometry.right);
+              return (
+                <g key={name} pointerEvents="none">
+                  <line
+                    className="ac-cursor"
+                    stroke={name === "A" ? "#175cd3" : "#c4320a"}
+                    strokeWidth={1}
+                    strokeDasharray="3 3"
+                    x1={x}
+                    x2={x}
+                    y1={geometry.top}
+                    y2={geometry.height - geometry.bottom}
+                  />
+                  <text x={x + 3} y={geometry.top + 12}>
+                    {name}
+                  </text>
+                </g>
+              );
+            })}
           </svg>
         </WaveformInteraction>
-        {toolbar(quantity, expanded)}
+        <WaveformTools
+          controller={controller}
+          plotKey={quantity}
+          x={range}
+          y={extent}
+          xUnit="s"
+          yUnit={unit}
+          {...(!expanded
+            ? { onOpen: () => setExpandedQuantity(quantity) }
+            : {})}
+        />
+        {!expanded && measurement(quantity)}
       </div>
     );
   };
 
-  const cursorRows =
-    cursorTime === undefined
-      ? []
-      : visible.map((trace) => {
-          const index = analysis.timeSeconds.reduce(
-            (best, time, candidate) =>
-              Math.abs(time - cursorTime) <
-              Math.abs(analysis.timeSeconds[best]! - cursorTime)
-                ? candidate
-                : best,
-            0,
-          );
-          return { trace, value: trace.values[index] ?? 0 };
-        });
+  const measurement = (quantity?: PlotQuantity) => (
+    <WaveformMeasurements
+      a={markers.A}
+      b={markers.B}
+      unit="s"
+      time
+      rows={visible
+        .filter((trace) => !quantity || trace.quantity === quantity)
+        .map((trace) => {
+          const valueAt = (x: number | undefined) => {
+            if (x === undefined) return undefined;
+            const index = analysis.timeSeconds.reduce(
+              (best, time, candidate) =>
+                Math.abs(time - x) < Math.abs(analysis.timeSeconds[best]! - x)
+                  ? candidate
+                  : best,
+              0,
+            );
+            return trace.values[index];
+          };
+          const a = valueAt(markers.A),
+            b = valueAt(markers.B);
+          return {
+            label: trace.label,
+            unit: trace.unit ?? "",
+            ...(a === undefined ? {} : { a }),
+            ...(b === undefined ? {} : { b }),
+          };
+        })}
+    />
+  );
 
   return (
     <div
@@ -628,16 +592,6 @@ export function TransientResultsExplorer({
       {visible.length === 0 ? (
         <p className="simulation-empty-result">All Outputs are hidden.</p>
       ) : null}
-      {cursorTime === undefined ? null : (
-        <div className="ac-cursor-readout" role="status">
-          <strong>{compact(cursorTime)}s</strong>
-          {cursorRows.map(({ trace, value }) => (
-            <span key={trace.id}>
-              {trace.label}: {Number(value.toPrecision(6))} {trace.unit ?? ""}
-            </span>
-          ))}
-        </div>
-      )}
       {expandedQuantity ? (
         <div
           className="ac-plot-dialog-backdrop"
@@ -669,17 +623,7 @@ export function TransientResultsExplorer({
               visible.filter((trace) => trace.quantity === expandedQuantity),
               true,
             )}
-            {cursorTime === undefined ? null : (
-              <div className="ac-cursor-readout" role="status">
-                <strong>{compact(cursorTime)}s</strong>
-                {cursorRows.map(({ trace, value }) => (
-                  <span key={trace.id}>
-                    {trace.label}: {Number(value.toPrecision(6))}{" "}
-                    {trace.unit ?? ""}
-                  </span>
-                ))}
-              </div>
-            )}
+            {measurement(expandedQuantity)}
           </section>
         </div>
       ) : null}
