@@ -30,6 +30,25 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
   page,
 }) => {
   const project = parseProject(JSON.stringify(ota));
+  const dut = project.documents.find(
+    (document) => document.id === "document-ota-5t",
+  )!;
+  dut.instances.push({
+    id: "I_INTERNAL_PROBE",
+    symbolId: "current-source",
+    placement: null,
+    reference: "I1",
+    netlist: {
+      binding: { kind: "primitive", deviceClass: "current-source" },
+      parameters: { dc: "1u" },
+    },
+  });
+  dut.nets
+    .find((net) => net.id === "net-cell-pin-pvdd")!
+    .terminals.push({ instanceId: "I_INTERNAL_PROBE", pinName: "+" });
+  dut.nets
+    .find((net) => net.id === "net-dut-tail")!
+    .terminals.push({ instanceId: "I_INTERNAL_PROBE", pinName: "-" });
   const savedSetup = project.simulationSetups[0];
   expect(savedSetup?.input.kind).toBe("structured");
   if (savedSetup?.input.kind !== "structured")
@@ -98,9 +117,12 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
   await panel
     .getByLabel("Add current output")
     .selectOption({ label: "Testbench · VINP current" });
+  await panel
+    .getByLabel("Add current output")
+    .selectOption({ label: "XDUT · ota_5t · I1 current" });
   await expect(
     panel.getByRole("button", { name: "Remove output" }),
-  ).toHaveCount(6);
+  ).toHaveCount(7);
   await panel.getByRole("button", { name: "Apply setup" }).click();
   await panel.getByRole("button", { name: "Prepare deck" }).click();
   const deckDownload = page.waitForEvent("download");
@@ -119,6 +141,7 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
     "i(vinp)",
   ])
     expect(deck).toContain(vector);
+  expect(deck).toMatch(/i\(v\.xdut\.vicmprb\d+\)/u);
   expect(deck).toMatch(/ac dec 10 1 (?:1000000000|1e\+?9)/i);
   expect(executions).toBe(0);
   await panel.getByRole("button", { name: "Minimize simulation" }).click();
@@ -151,6 +174,14 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
         occurrence: [],
       },
     },
+    {
+      expression: {
+        kind: "current",
+        documentId: "document-ota-5t",
+        instanceId: "I_INTERNAL_PROBE",
+        occurrence: ["XDUT"],
+      },
+    },
   ]);
   await page.reload();
   await page.getByTestId("project-file").setInputFiles({
@@ -164,7 +195,7 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
   await panel.getByRole("button", { name: "Settings" }).click();
   await expect(
     panel.getByRole("button", { name: "Remove output" }),
-  ).toHaveCount(6);
+  ).toHaveCount(7);
   await expect(panel.getByLabel("Stop (Hz)")).toHaveValue("1000000000");
 });
 

@@ -307,7 +307,7 @@ export function deriveSimulationProbeOptions(
       if (
         (binding?.kind === "primitive" || binding?.kind === "model") &&
         (binding.deviceClass === "voltage-source" ||
-          (binding.deviceClass === "current-source" && occurrence.length === 0))
+          binding.deviceClass === "current-source")
       ) {
         const target: SourceCurrentProbeTarget = {
           kind: "current",

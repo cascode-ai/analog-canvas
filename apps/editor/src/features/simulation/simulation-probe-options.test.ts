@@ -12,8 +12,21 @@ import {
 } from "./simulation-probe-options";
 
 describe("simulation probe choices", () => {
-  it("keeps hierarchy occurrences and voltage-source currents addressable", () => {
+  it("keeps hierarchy occurrences and source currents addressable", () => {
     const project = CircuitProjectSchema.parse(fiveTransistorOtaSky130);
+    const dut = project.documents.find(
+      (document) => document.id === "document-ota-5t",
+    )!;
+    dut.instances.push({
+      id: "IINTERNAL",
+      symbolId: "current-source",
+      placement: null,
+      reference: "I1",
+      netlist: {
+        binding: { kind: "primitive", deviceClass: "current-source" },
+        parameters: { dc: "10u" },
+      },
+    });
     const options = deriveSimulationProbeOptions(
       project,
       "document-ota-5t-testbench",
@@ -36,11 +49,18 @@ describe("simulation probe choices", () => {
       },
     });
     expect(options.sourceCurrent.map((option) => option.label)).toEqual([
+      "XDUT · ota_5t · I1 current",
       "Testbench · VDD current",
       "Testbench · VINP current",
       "Testbench · VINN current",
       "Testbench · IBIAS current",
     ]);
+    expect(options.sourceCurrent[0]?.target).toEqual({
+      kind: "current",
+      documentId: "document-ota-5t",
+      instanceId: "IINTERNAL",
+      occurrence: ["XDUT"],
+    });
   });
 
   it("names an unnamed hierarchical Net by its terminal aliases", () => {
@@ -136,6 +156,47 @@ describe("simulation probe choices", () => {
         occurrence: ["XDUT2"],
       }).map((option) => option.target.occurrence),
     ).toEqual([["XDUT2"]]);
+  });
+
+  it("gives a hierarchical current source one choice per occurrence", () => {
+    const project = CircuitProjectSchema.parse(fiveTransistorOtaSky130);
+    const testbench = project.documents.find(
+      (document) => document.id === "document-ota-5t-testbench",
+    )!;
+    const dut = project.documents.find(
+      (document) => document.id === "document-ota-5t",
+    )!;
+    const first = testbench.instances.find(
+      (instance) => instance.id === "XDUT",
+    )!;
+    testbench.instances.push({
+      ...structuredClone(first),
+      id: "XDUT2",
+      reference: "XDUT2",
+    });
+    dut.instances.push({
+      id: "IINTERNAL",
+      symbolId: "current-source",
+      placement: null,
+      reference: "I1",
+      netlist: {
+        binding: { kind: "primitive", deviceClass: "current-source" },
+        parameters: { dc: "10u" },
+      },
+    });
+
+    const targets = deriveSimulationProbeOptions(
+      project,
+      testbench.id,
+    ).sourceCurrent.filter(
+      (option) => option.target.instanceId === "IINTERNAL",
+    );
+
+    expect(targets.map((option) => option.target.occurrence)).toEqual([
+      ["XDUT"],
+      ["XDUT2"],
+    ]);
+    expect(new Set(targets.map((option) => option.key)).size).toBe(2);
   });
 
   it("resolves an object anchor for canvas focus and matches its whole Logical Net", () => {

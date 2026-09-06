@@ -56,11 +56,13 @@
  *
  * A top-level independent current source is instrumented with ngspice's
  * `.probe I(<ref>)`. ngspice inserts a zero-volt sense source and writes its
- * result as `<ref>#branch`; the rawfile reader normalises that spelling to the
- * public `i(<ref>)` vector used by voltage-source currents. The directive only
- * addresses top-level devices, so a current source inside a subcircuit remains
- * an explicit compile-time diagnostic rather than a probe that silently
- * returns no data.
+ * result as `<ref>#branch`; the rawfile records that as `i(<ref>)`.
+ *
+ * `.probe` only scans top-level devices. For a selected current source inside
+ * a subcircuit, this compiler therefore inserts its own zero-volt sense source
+ * into the extracted (ephemeral) Cell definition and reads that voltage
+ * source's occurrence-qualified branch current. The authored Project and the
+ * ordinary structural export are never changed.
  */
 
 import type {
@@ -77,7 +79,12 @@ import { resolveDocumentLogicalNets } from "@icm/derived";
 import type { SimulationAnalysis, SimulationRequest } from "@icm/spice-run";
 
 import { analyzeDesignNetlist } from "./extract.js";
-import type { DesignNetlistCell, NetlistDiagnostic } from "./ir.js";
+import type {
+  DesignNetlistCell,
+  DesignNetlistInstance,
+  DesignNetlistIR,
+  NetlistDiagnostic,
+} from "./ir.js";
 import { printSpiceCellInstances, printSpiceNetlist } from "./printers.js";
 
 /** The rawfile every compiled deck writes; the harness returns the one `.raw`. */
@@ -97,6 +104,15 @@ interface ResolvedSimulationProbe {
   readonly writeVector: string;
   /** Deck cards required to make the vector exist. */
   readonly instrumentationCards: readonly string[];
+  /** Ephemeral Cell instrumentation required before printing the netlist. */
+  readonly netlistInstrumentation?: HierarchicalCurrentInstrumentation;
+}
+
+interface HierarchicalCurrentInstrumentation {
+  readonly cellId: StableId;
+  readonly sourceInstanceId: StableId;
+  readonly senseReference: string;
+  readonly senseNode: string;
 }
 
 export type CompiledSimulationExpression =
@@ -397,6 +413,122 @@ function resolveOccurrence(
   return { document, cell, path, hierarchyPath };
 }
 
+function instrumentationKey(
+  instrumentation: Pick<
+    HierarchicalCurrentInstrumentation,
+    "cellId" | "sourceInstanceId"
+  >,
+): string {
+  return `${instrumentation.cellId}\u0000${instrumentation.sourceInstanceId}`;
+}
+
+/**
+ * Allocate names from the extracted Cell, not from output order. This makes
+ * the generated deck deterministic when an author reorders outputs and keeps
+ * compiler-owned names away from authored References and node names.
+ */
+function ensureHierarchicalCurrentInstrumentation(
+  cell: DesignNetlistCell,
+  source: DesignNetlistInstance,
+  instrumentations: Map<string, HierarchicalCurrentInstrumentation>,
+): HierarchicalCurrentInstrumentation {
+  const key = instrumentationKey({
+    cellId: cell.id,
+    sourceInstanceId: source.id,
+  });
+  const existing = instrumentations.get(key);
+  if (existing) return existing;
+
+  const references = new Set(
+    cell.instances.map((instance) => instance.reference.toLowerCase()),
+  );
+  const nodes = new Set([
+    ...cell.ports.map((port) => port.name.toLowerCase()),
+    ...cell.nets.map((net) => net.name.toLowerCase()),
+    ...cell.instances.flatMap((instance) =>
+      instance.nodes.map((node) => node.netName.toLowerCase()),
+    ),
+  ]);
+  for (const item of instrumentations.values()) {
+    if (item.cellId !== cell.id) continue;
+    references.add(item.senseReference.toLowerCase());
+    nodes.add(item.senseNode.toLowerCase());
+  }
+
+  let serial =
+    cell.instances.findIndex((instance) => instance.id === source.id) + 1;
+  while (true) {
+    const suffix = String(serial).padStart(3, "0");
+    const senseReference = `VICMPRB${suffix}`;
+    const senseNode = `ICMPRB${suffix}`;
+    if (
+      !references.has(senseReference.toLowerCase()) &&
+      !nodes.has(senseNode.toLowerCase())
+    ) {
+      const instrumentation = {
+        cellId: cell.id,
+        sourceInstanceId: source.id,
+        senseReference,
+        senseNode,
+      } satisfies HierarchicalCurrentInstrumentation;
+      instrumentations.set(key, instrumentation);
+      return instrumentation;
+    }
+    serial += 1;
+  }
+}
+
+/**
+ * Put a zero-volt source in series with each selected hierarchical current
+ * source. Its positive branch direction matches SPICE's current-source
+ * direction (first node to second node), so no result-side sign correction is
+ * needed.
+ */
+function instrumentHierarchicalCurrentSources(
+  ir: DesignNetlistIR,
+  instrumentations: ReadonlyMap<string, HierarchicalCurrentInstrumentation>,
+): DesignNetlistIR {
+  if (instrumentations.size === 0) return ir;
+  return {
+    ...ir,
+    cells: ir.cells.map((cell) => ({
+      ...cell,
+      instances: cell.instances.flatMap((instance) => {
+        const instrumentation = instrumentations.get(
+          instrumentationKey({
+            cellId: cell.id,
+            sourceInstanceId: instance.id,
+          }),
+        );
+        if (!instrumentation) return [instance];
+        const positive = instance.nodes[0]!;
+        const negative = instance.nodes[1]!;
+        return [
+          {
+            ...instance,
+            nodes: [
+              positive,
+              { ...negative, netName: instrumentation.senseNode },
+            ],
+          },
+          {
+            id: `${instance.id}:simulation-current-sense`,
+            reference: instrumentation.senseReference,
+            invocationKind: "primitive",
+            deviceClass: "voltage-source",
+            target: null,
+            nodes: [
+              { pinName: "+", netName: instrumentation.senseNode },
+              { pinName: "-", netName: negative.netName },
+            ],
+            parameters: [{ name: "dc", rawValue: "0" }],
+          },
+        ];
+      }),
+    })),
+  };
+}
+
 function netVoltageVector(
   measurement: Extract<SimulationExpression, { kind: "voltage" }>,
   acquisitionId: string,
@@ -481,6 +613,10 @@ function sourceCurrentVector(
   outputId: string,
   occurrence: ResolvedOccurrence,
   diagnostics: NetlistDiagnostic[],
+  hierarchicalCurrentInstrumentations: Map<
+    string,
+    HierarchicalCurrentInstrumentation
+  >,
 ): ResolvedSimulationProbe | null {
   const { document, cell, path, hierarchyPath } = occurrence;
   const instance = cell.instances.find(
@@ -500,21 +636,44 @@ function sourceCurrentVector(
   }
   if (instance.deviceClass === "current-source") {
     if (path.length > 0) {
-      diagnostics.push(
-        diagnostic(
-          "SIMULATION_PROBE_CURRENT_SOURCE_HIERARCHY_UNSUPPORTED",
-          document.id,
-          `Output ${outputId} measures current source ${instance.reference} inside a subcircuit; this ngspice instrumentation can address only a top-level source`,
-          locator(
+      if (instance.nodes.length !== 2) {
+        diagnostics.push(
+          diagnostic(
+            "SIMULATION_PROBE_CURRENT_SOURCE_TERMINALS_UNAVAILABLE",
             document.id,
-            hierarchyPath,
-            "instance",
-            measurement.instanceId,
+            `Output ${outputId} cannot instrument current source ${instance.reference}; its extracted card does not have two terminals`,
+            locator(
+              document.id,
+              hierarchyPath,
+              "instance",
+              measurement.instanceId,
+            ),
+            [measurement.instanceId],
           ),
-          [measurement.instanceId],
-        ),
+        );
+        return null;
+      }
+      const instrumentation = ensureHierarchicalCurrentInstrumentation(
+        cell,
+        instance,
+        hierarchicalCurrentInstrumentations,
       );
-      return null;
+      const senseName = [
+        "v",
+        ...path,
+        instrumentation.senseReference.toLowerCase(),
+      ].join(".");
+      const binding: CompiledSimulationVector = {
+        probeId: acquisitionId,
+        vector: `i(${senseName})`,
+        quantity: "current",
+      };
+      return {
+        binding,
+        writeVector: binding.vector,
+        instrumentationCards: [],
+        netlistInstrumentation: instrumentation,
+      };
     }
     const reference = instance.reference.toLowerCase();
     return {
@@ -691,6 +850,10 @@ export async function compileStructuredSimulation(
   const outputs: CompiledSimulationOutput[] = [];
   const writeVectors: string[] = [];
   const instrumentationCards: string[] = [];
+  const hierarchicalCurrentInstrumentations = new Map<
+    string,
+    HierarchicalCurrentInstrumentation
+  >();
   for (const output of input.outputs) {
     let leafIndex = 0;
     const compileExpression = (
@@ -711,7 +874,7 @@ export async function compileStructuredSimulation(
           expression === output.expression
             ? output.id
             : `${output.id}:input:${leafIndex++}`;
-        const resolved =
+        const resolved: ResolvedSimulationProbe | null =
           expression.kind === "voltage"
             ? (() => {
                 const vector = netVoltageVector(
@@ -735,6 +898,7 @@ export async function compileStructuredSimulation(
                 output.id,
                 occurrence,
                 diagnostics,
+                hierarchicalCurrentInstrumentations,
               );
         if (!resolved) return null;
         const identity = `${resolved.binding.quantity}\u0000${resolved.binding.vector}`;
@@ -748,6 +912,13 @@ export async function compileStructuredSimulation(
           vectors.push(acquisition);
           writeVectors.push(resolved.writeVector);
           instrumentationCards.push(...resolved.instrumentationCards);
+          if (resolved.netlistInstrumentation) {
+            const instrumentation = resolved.netlistInstrumentation;
+            hierarchicalCurrentInstrumentations.set(
+              instrumentationKey(instrumentation),
+              instrumentation,
+            );
+          }
         }
         return {
           kind: "acquisition",
@@ -780,9 +951,15 @@ export async function compileStructuredSimulation(
 
   // Every reached Cell but the root: the root is instantiated below, not
   // defined. `.global` declarations stay with the definitions.
+  const instrumentedIr = instrumentHierarchicalCurrentSources(
+    ir,
+    hierarchicalCurrentInstrumentations,
+  );
   const netlist = printSpiceNetlist({
-    ...ir,
-    cells: ir.cells.filter((cell) => cell.id !== ir.topCellId),
+    ...instrumentedIr,
+    cells: instrumentedIr.cells.filter(
+      (cell) => cell.id !== instrumentedIr.topCellId,
+    ),
   });
 
   // One `write` per analysis, so each plot reaches the rawfile; see the note
