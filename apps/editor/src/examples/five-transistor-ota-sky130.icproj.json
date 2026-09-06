@@ -555,7 +555,15 @@
             },
             "parameters": {
               "acMagnitude": "1",
-              "dc": "0.9"
+              "dc": "0.9",
+              "delay": "1u",
+              "fall": "1n",
+              "high": "0.91",
+              "low": "0.9",
+              "period": "3u",
+              "rise": "1n",
+              "waveform": "pulse",
+              "width": "1u"
             }
           },
           "placement": {
@@ -856,7 +864,7 @@
         "grid": 10,
         "styleProfileId": "razavi-textbook-v1"
       },
-      "revision": 31,
+      "revision": 32,
       "routes": [
         {
           "id": "tb-gnd-vdd-route",
@@ -3018,7 +3026,7 @@
   "simulationSetups": [
     {
       "id": "simulation-setup-ota-op-ac",
-      "name": "OTA OP and AC",
+      "name": "OTA OP, DC, AC, and TRAN",
       "version": 2,
       "input": {
         "kind": "structured",
@@ -3028,11 +3036,23 @@
             "kind": "op"
           },
           {
+            "kind": "dc",
+            "sourceInstanceId": "VINP",
+            "startValue": 0.88,
+            "stopValue": 0.92,
+            "stepValue": 0.005
+          },
+          {
             "kind": "ac",
             "sweep": "dec",
             "points": 10,
             "startHz": 1,
             "stopHz": 1000000000
+          },
+          {
+            "kind": "tran",
+            "stepSeconds": 2e-8,
+            "stopSeconds": 0.000004
           }
         ],
         "outputs": [
@@ -3107,7 +3127,7 @@
     "files": [],
     "sourcePolicy": "copy"
   },
-  "structureRevision": 75,
+  "structureRevision": 76,
   "symbolLibrary": {
     "hash": "razavi-reference-v1",
     "id": "razavi-symbols",

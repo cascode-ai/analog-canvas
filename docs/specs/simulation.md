@@ -72,9 +72,9 @@ Profile.
 
 The first qualified scope is deliberately narrow and factual: the continuous
 `sky130_fd_pr__nfet_01v8` and `sky130_fd_pr__pfet_01v8` wrappers, `tt`, and
-OP/AC/TRAN covered by the hosted model acceptance fixture. A separate
-independent-source divider smoke qualifies DC parsing and numerical sweep
-behavior on the same pinned runtime. TRAN qualification includes an ideal RC
+OP/DC/AC/TRAN covered by the hosted model acceptance fixture. A separate
+independent-source divider smoke gives DC parsing and numerical sweep behavior
+an exact closed-form check on the same pinned runtime. TRAN qualification includes an ideal RC
 step and a structured SKY130 OTA pulse response on the pinned ngspice 46
 environment. Adding another corner or device family extends this same Profile
 contract only after a model-backed fixture passes the hosted
@@ -404,11 +404,12 @@ into the Project, undo history, Gallery, or recovery copy.
 - `containers/ngspice/profile-contract.test.mjs` binds the Profile to the
   digest-pinned image and exact startup bytes. The Preview gate opens the
   tracked five-transistor OTA Project, compiles its persisted structured setup,
-  and sends that exact prepared OP+AC request through the operator-host
+  and sends that exact prepared OP/DC/AC/TRAN request through the operator-host
   executor. It requires the Profile identity and `tt` model selection, checks
-  all four compile-time probe bindings, compares four OP voltages, and compares
-  representative complex AC samples against the recorded qualification
-  fixture. Missing local ngspice never skips this hosted gate.
+  all four compile-time output bindings, compares four OP voltages, selected DC
+  transfer points, representative complex AC samples, and transient extrema
+  against the recorded qualification fixture. Missing local ngspice never
+  skips this hosted gate.
 - The pinned local authority pack under ignored `.reference-src/` demonstrates
   that ngspice 47 completes a Sky130 NFET operating-point deck with
   `.lib ... tt`, while top-level `.include` produces repeated subcircuit
@@ -477,12 +478,12 @@ a bare `write out.raw`, saving the whole plot rather than nothing.
 
 Vector names are produced here and never inferred from result text:
 
-| primitive acquisition                    | vector                   |
-| ---------------------------------------- | ------------------------ |
-| Net in the root                          | `v(mid)`                 |
-| Net under occurrence `X1`, `XI1`         | `v(x1.xi1.mid)`          |
-| terminal current in the root             | `i(vicmprb###)`          |
-| terminal current under `X1`, `XI1`       | `i(v.x1.xi1.vicmprb###)` |
+| primitive acquisition              | vector                   |
+| ---------------------------------- | ------------------------ |
+| Net in the root                    | `v(mid)`                 |
+| Net under occurrence `X1`, `XI1`   | `v(x1.xi1.mid)`          |
+| terminal current in the root       | `i(vicmprb###)`          |
+| terminal current under `X1`, `XI1` | `i(v.x1.xi1.vicmprb###)` |
 
 They are lower case because ngspice folds case on the way into the rawfile: a
 card may read `R1 IN MID 1k`, and `V(MidNode)` still comes back as
@@ -1036,7 +1037,7 @@ release. A deployment without the binding answers
 - `scripts/preview-simulation-smoke.mjs`: the bundled five-transistor OTA
   Project is the vertical acceptance asset. Its saved `SimulationSetup` is
   parsed and compiled by the production Project/netlist packages before the
-  generated OP+AC and structured TRAN requests reach Preview. The same gate
+  generated OP/DC/AC/TRAN request reaches Preview. The same gate
   also runs an ideal RC pulse deck. Returned input revisions, environment
   Profile, model corner, frequency/time axes, probe series, OP values,
   selected AC complex samples, and OTA transient extrema must agree with the

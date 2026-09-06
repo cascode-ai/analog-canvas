@@ -73,8 +73,8 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
       json: {
         configured: true,
         inputs: ["structured", "raw"],
-        analyses: ["op", "ac", "tran"],
-        parsedAnalyses: ["op", "ac", "tran"],
+        analyses: ["op", "dc", "ac", "tran"],
+        parsedAnalyses: ["op", "dc", "ac", "tran"],
         profiles: [{ id: profile.id, corners: ["tt"] }],
         maxTimeoutMs: 120000,
         maxInputBytes: 1048576,
@@ -95,6 +95,8 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
   await panel.getByRole("button", { name: "Settings" }).click();
   await expect(panel.getByLabel("Testbench Cell")).toHaveCount(0);
   await expect(panel.getByLabel("Stop (Hz)")).toHaveValue("1000000000");
+  await expect(panel.getByLabel("DC sweep source")).toHaveValue("VINP");
+  await expect(panel.getByLabel("TRAN stop (s)")).toHaveValue("0.000004");
   await expect(panel.getByLabel("Environment profile")).toHaveValue(profile.id);
   await expect(
     panel.getByRole("button", { name: "Remove output" }),
@@ -145,6 +147,8 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
   expect(deck).toMatch(/i\(vicmprb\d+\)/u);
   expect(deck).toMatch(/i\(v\.xdut\.vicmprb\d+\)/u);
   expect(deck).toMatch(/ac dec 10 1 (?:1000000000|1e\+?9)/i);
+  expect(deck).toContain("dc VINP 0.88 0.92 0.005");
+  expect(deck).toContain("tran 2e-8 0.000004");
   expect(executions).toBe(0);
   await panel.getByRole("button", { name: "Minimize simulation" }).click();
   const saved = JSON.parse(
@@ -235,14 +239,14 @@ test("one Testbench persists several independently named setups", async ({
     .click();
   const panel = page.getByRole("region", { name: "Analog simulation" });
   const selector = panel.getByTitle("Simulation setup", { exact: true });
-  await expect(selector).toContainText("OTA OP and AC");
+  await expect(selector).toContainText("OTA OP, DC, AC, and TRAN");
   await selector.click();
   await panel.getByRole("button", { name: "New setup", exact: true }).click();
   await expect(selector).toContainText("Setup 2");
-  await panel.getByLabel("Setup name").fill("OTA OP and AC");
+  await panel.getByLabel("Setup name").fill("OTA OP, DC, AC, and TRAN");
   await panel.getByLabel("Setup name").press("Tab");
   await expect(panel.getByRole("alert")).toContainText(
-    "EDIT_PRECONDITION: Simulation setup name already exists: OTA OP and AC",
+    "EDIT_PRECONDITION: Simulation setup name already exists: OTA OP, DC, AC, and TRAN",
   );
   await panel.getByLabel("Setup name").fill("Bias search");
   await panel.getByRole("button", { name: "Apply setup" }).click();
@@ -256,7 +260,7 @@ test("one Testbench persists several independently named setups", async ({
   expect(saved.simulationSetups).toHaveLength(2);
   expect(
     saved.simulationSetups.map((setup: { name: string }) => setup.name),
-  ).toEqual(["OTA OP and AC", "Bias sweep"]);
+  ).toEqual(["OTA OP, DC, AC, and TRAN", "Bias sweep"]);
   expect(
     new Set(
       saved.simulationSetups.map(
@@ -274,7 +278,7 @@ test("one Testbench persists several independently named setups", async ({
   ).toBeVisible();
   await panel.getByRole("button", { name: "Delete Bias sweep" }).click();
   await panel.getByRole("button", { name: "Confirm", exact: true }).click();
-  await expect(selector).toContainText("OTA OP and AC");
+  await expect(selector).toContainText("OTA OP, DC, AC, and TRAN");
   await selector.click();
   await expect(
     panel.getByRole("button", { name: "Bias sweep", exact: true }),
@@ -283,7 +287,7 @@ test("one Testbench persists several independently named setups", async ({
     (await downloadBytes(page, "File", "Export Project File…")).toString(),
   );
   expect(afterDelete.simulationSetups).toHaveLength(1);
-  expect(afterDelete.simulationSetups[0].name).toBe("OTA OP and AC");
+  expect(afterDelete.simulationSetups[0].name).toBe("OTA OP, DC, AC, and TRAN");
 });
 
 test("human simulation uses saved setup, survives minimizing, recovers a bad input and exports results", async ({

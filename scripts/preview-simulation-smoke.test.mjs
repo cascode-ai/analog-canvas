@@ -97,6 +97,15 @@ function modelResult(
   }
   tail.real[60] = 0.4417357549275905;
   tail.imag[60] = -0.1070857397604748;
+  const dcValues = [
+    0.3052800375191325, 0.3169616386791885, 0.334216771353992,
+    0.3797013459856312, 0.7589597733013465, 1.388551981037926,
+    1.699385597389425, 1.730270358029663, 1.744078503303503,
+  ];
+  const tranValues = Array(232).fill(0.7589797395133877);
+  tranValues[1] = 0.75886248142361;
+  tranValues[2] = 1.699250823009046;
+  tranValues[231] = 0.7732444834989551;
   return {
     ...base,
     metadata: {
@@ -118,9 +127,36 @@ function modelResult(
           ],
         },
         {
+          analysis: "dc",
+          sweep: {
+            name: "v(v-sweep)",
+            values: [0.88, 0.885, 0.89, 0.895, 0.9, 0.905, 0.91, 0.915, 0.92],
+          },
+          probes: EXPECTED_VECTORS.map(({ vector }) => ({
+            name: vector,
+            value:
+              vector === "v(vout)"
+                ? dcValues
+                : vector === "v(xdut.tail)"
+                  ? [
+                      0.2687226173951219, 0.27, 0.275, 0.28, 0.2848672269272364,
+                      0.288, 0.291, 0.293, 0.2958758389498102,
+                    ]
+                  : Array(9).fill(0.5),
+          })),
+        },
+        {
           analysis: "ac",
           frequencyHz,
           probes: acProbes,
+        },
+        {
+          analysis: "tran",
+          timeSeconds: [...Array(231).fill(0), 4e-6],
+          probes: EXPECTED_VECTORS.map(({ vector }) => ({
+            name: vector,
+            value: vector === "v(vout)" ? tranValues : Array(232).fill(0.5),
+          })),
         },
       ],
     },
@@ -295,7 +331,7 @@ describe("the hosted SKY130 qualification", () => {
       ),
     ).toMatchObject({
       target: "cloudflare-container",
-      fixtureId: "ota-5t-structured-op-ac-tran-v1",
+      fixtureId: "ota-5t-structured-op-dc-ac-tran-v2",
       environmentFingerprint: SHA,
       values: { "v(vout)": 0.7589797395133877 },
     });
@@ -316,7 +352,7 @@ describe("the hosted SKY130 qualification", () => {
 
   it("refuses AC drift outside the recorded tolerance", () => {
     const candidate = modelResult("operator-host");
-    candidate.data.analyses[1].probes[0].real[60] = 13;
+    candidate.data.analyses[2].probes[0].real[60] = 13;
     expect(() =>
       validateHostedSky130Result(
         candidate,
@@ -325,6 +361,19 @@ describe("the hosted SKY130 qualification", () => {
         EXPECTED_VECTORS,
       ),
     ).toThrow(/solved v\(vout\)\[60\] as 13/u);
+  });
+
+  it("refuses DC drift outside the recorded tolerance", () => {
+    const candidate = modelResult("operator-host");
+    candidate.data.analyses[1].probes[0].value[4] = 0.9;
+    expect(() =>
+      validateHostedSky130Result(
+        candidate,
+        "operator-host",
+        "preview-sky130-operator-host",
+        EXPECTED_VECTORS,
+      ),
+    ).toThrow(/solved v\(vout\)\[4\] as 0\.9/u);
   });
 
   it("refuses a run that did not load the qualified corner", () => {
@@ -357,12 +406,12 @@ describe("the hosted SKY130 qualification", () => {
     expect(submitted.testbench).toContain("set appendwrite");
     expect(submitted.testbench).toContain("write out.raw v(vout)");
     expect(submitted.testbench).toContain("ac dec 10 1 1000000000");
-    expect(accepted.fixtureId).toBe("ota-5t-structured-op-ac-tran-v1");
-  });
+    expect(accepted.fixtureId).toBe("ota-5t-structured-op-dc-ac-tran-v2");
+  }, 15_000);
 
   it("compiles the persisted Project setup into the qualified request", async () => {
     const compiled = await compileHostedSky130Project();
-    expect(compiled.request.analyses).toEqual(["op", "ac"]);
+    expect(compiled.request.analyses).toEqual(["op", "dc", "ac", "tran"]);
     expect(compiled.vectors).toEqual(EXPECTED_VECTORS);
     expect(compiled.request.inputRevision).toMatch(/^[0-9a-f]{64}$/u);
   });
@@ -372,13 +421,13 @@ describe("the hosted SKY130 qualification", () => {
     expect(compiled.request.analyses).toEqual(["tran"]);
     expect(compiled.request.testbench).toContain("tran 2e-8 0.000004");
     expect(compiled.request.testbench).toContain(
-      "VINP vinp 0 PULSE(0.89 0.91 1u 1n 1n 1u 3u)",
+      "VINP vinp 0 DC 0.9 AC 1 0 PULSE(0.9 0.91 1u 1n 1n 1u 3u)",
     );
 
-    const values = Array(232).fill(0.3342235191104477);
-    values[1] = 0.3342107447553537;
-    values[2] = 1.698172273444083;
-    values[231] = 0.3342235434776202;
+    const values = Array(232).fill(0.7589797395133877);
+    values[1] = 0.75886248142361;
+    values[2] = 1.699250823009046;
+    values[231] = 0.7732444834989551;
     const payload = modelResult(
       "operator-host",
       {
@@ -410,10 +459,10 @@ describe("the hosted SKY130 qualification", () => {
   it("sends the structured transient slice through the selected executor", async () => {
     let submitted;
     const compiled = await compileHostedSky130TransientProject();
-    const values = Array(232).fill(0.3342235191104477);
-    values[1] = 0.3342107447553537;
-    values[2] = 1.698172273444083;
-    values[231] = 0.3342235434776202;
+    const values = Array(232).fill(0.7589797395133877);
+    values[1] = 0.75886248142361;
+    values[2] = 1.699250823009046;
+    values[231] = 0.7732444834989551;
     const accepted = await runHostedSky130TransientAcceptance({
       baseUrl: "https://preview.example",
       target: "operator-host",

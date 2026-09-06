@@ -193,7 +193,36 @@ try {
     .filter({ hasText: "Connected" })
     .waitFor({ state: "visible", timeout: 30_000 });
 
-  const invalidSetup = structuredClone(setup);
+  const [contextReport, inspected, capabilityReply] = await Promise.all([
+    tool("get_context"),
+    tool("inspect", { target: { kind: "document" }, detail: "full" }),
+    tool("simulation", { request: { operation: "capabilities" } }),
+  ]);
+  const discoveredSetup = inspected.project?.simulationSetups?.find(
+    (candidate) => candidate.id === setup.id,
+  );
+  assert.deepEqual(
+    discoveredSetup,
+    setup,
+    "Agent inspection did not expose the complete authored Simulation setup",
+  );
+  const sourceReport = await tool("inspect", {
+    documentId: discoveredSetup.input.rootDocumentId,
+    target: { kind: "object", id: "VINP" },
+  });
+  assert.equal(
+    sourceReport.parameters?.waveform,
+    "pulse",
+    "Agent inspection did not expose the transient source intent",
+  );
+  assert.equal(capabilityReply.ok, true);
+  assert.deepEqual(
+    capabilityReply.capabilities.analyses,
+    ["op", "dc", "ac", "tran"],
+    "The deployed Profile does not advertise all four qualified analyses",
+  );
+
+  const invalidSetup = structuredClone(discoveredSetup);
   assert.equal(
     invalidSetup.input.kind,
     "structured",
@@ -232,7 +261,9 @@ try {
   assert.equal(refused.error.recovery, "fix-input");
 
   const restored = await tool("advanced_transact", {
-    structureEdits: [{ kind: "upsert_simulation_setup", setup }],
+    structureEdits: [
+      { kind: "upsert_simulation_setup", setup: discoveredSetup },
+    ],
   });
   assert.equal(restored.ok, true);
   const prepared = await tool("simulation", {
@@ -276,13 +307,16 @@ try {
   );
 
   const exports = [];
-  for (const name of ["out.raw", "result.json", "ac-1.csv"]) {
-    exports.push(
-      await exportArtifact(
-        finished.run.artifacts.find((artifact) => artifact.name === name),
-        name,
-      ),
-    );
+  const resultArtifacts = finished.run.artifacts
+    .filter(
+      (artifact) =>
+        artifact.name === "out.raw" ||
+        artifact.name === "result.json" ||
+        artifact.name.endsWith(".csv"),
+    )
+    .sort((left, right) => left.name.localeCompare(right.name));
+  for (const artifact of resultArtifacts) {
+    exports.push(await exportArtifact(artifact, artifact.name));
   }
   exports.push(
     await exportArtifact(
@@ -296,13 +330,74 @@ try {
   report.status = "passed";
   report.completedAt = new Date().toISOString();
   report.connection = { mode: connection.mode };
-  report.recoverableError = refused.error.code;
+  report.discovery = {
+    projectId: contextReport.projectId,
+    documentId: contextReport.documentId,
+    structureRevision: inspected.project?.structureRevision,
+    setup: {
+      id: discoveredSetup.id,
+      name: discoveredSetup.name,
+      rootDocumentId: discoveredSetup.input.rootDocumentId,
+      analyses: discoveredSetup.input.analyses,
+      outputs: discoveredSetup.input.outputs.map((output) => ({
+        id: output.id,
+        label: output.label,
+        expressionKind: output.expression.kind,
+      })),
+    },
+    source: {
+      id: sourceReport.id,
+      reference: sourceReport.reference,
+      parameters: sourceReport.parameters,
+    },
+    capabilities: {
+      inputs: capabilityReply.capabilities.inputs,
+      analyses: capabilityReply.capabilities.analyses,
+      parsedAnalyses: capabilityReply.capabilities.parsedAnalyses,
+      profiles: capabilityReply.capabilities.profiles,
+      maxTimeoutMs: capabilityReply.capabilities.maxTimeoutMs,
+      maxInputBytes: capabilityReply.capabilities.maxInputBytes,
+      maxOutputBytes: capabilityReply.capabilities.maxOutputBytes,
+      cancel: capabilityReply.capabilities.cancel,
+    },
+  };
+  report.recoverableError = {
+    code: refused.error.code,
+    stage: refused.error.stage,
+    recovery: refused.error.recovery,
+    diagnostics: refused.error.diagnostics,
+  };
+  report.prepared = {
+    id: prepared.prepared.id,
+    digest: prepared.prepared.digest,
+    inputRevision: prepared.prepared.inputRevision,
+    mode: prepared.prepared.mode,
+    environment: prepared.prepared.environment,
+    vectors: prepared.prepared.vectors,
+    warnings: prepared.prepared.warnings,
+    artifacts: prepared.prepared.artifacts,
+  };
   report.run = {
     state: finished.run.state,
     outcome: finished.run.result.outcome.status,
     profileId: finished.run.result.metadata.environment.profileId,
     environmentFingerprint: accepted.environmentFingerprint,
     inputRevision: prepared.prepared.inputRevision,
+    preparedId: prepared.prepared.id,
+    runId: finished.run.id,
+    analyses: finished.run.result.data?.analyses.map((analysis) => ({
+      kind: analysis.analysis,
+      plotName: analysis.plotName,
+      points:
+        analysis.analysis === "op"
+          ? 1
+          : analysis.analysis === "dc"
+            ? analysis.sweep.values.length
+            : analysis.analysis === "ac"
+              ? analysis.frequencyHz.length
+              : analysis.timeSeconds.length,
+      outputs: analysis.probes.map((probe) => probe.name),
+    })),
   };
   report.exports = exports;
   await tool("disconnect");

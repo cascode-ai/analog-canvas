@@ -1,5 +1,5 @@
 VDD vdd 0 DC 1.8
-VINP vinp 0 DC 0.9
+VINP vinp 0 DC 0.9 AC 1 0 PULSE(0.9 0.91 1u 1n 1n 1u 3u)
 VINN vinn 0 DC 0.9
 IBIAS vdd ibias DC 15u
 XDUT 0 ibias vdd vinn vinp vout ota_5t
@@ -7,6 +7,12 @@ CL vout 0 1p
 .control
 set filetype=ascii
 op
+write out.raw v(vout) v(ibias) v(xdut.tail) v(xdut.nleft)
+dc VINP 0.88 0.92 0.005
+write out.raw v(vout) v(ibias) v(xdut.tail) v(xdut.nleft)
+ac dec 10 1 1000000000
+write out.raw v(vout) v(ibias) v(xdut.tail) v(xdut.nleft)
+tran 2e-8 0.000004
 write out.raw v(vout) v(ibias) v(xdut.tail) v(xdut.nleft)
 .endc
 .end

@@ -144,7 +144,7 @@ jobs:
             exit 1
           fi
       # A divider checks the transport and the persisted OTA Project checks the
-      # product compiler plus OP/AC model evidence. Both run on the preview's
+      # product compiler plus OP/DC/AC/TRAN model evidence. Both run on the preview's
       # simulator host; a green status without numbers is not acceptance.
       - name: Run the preview's numerical and vertical simulation acceptance
         run: node scripts/preview-simulation-smoke.mjs "$PREVIEW_URL"

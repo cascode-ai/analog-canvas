@@ -566,6 +566,63 @@ export function validateHostedSky130Result(
     values[name] = probe.value;
   }
 
+  const dc = Array.isArray(data.analyses)
+    ? data.analyses.find(
+        (analysis) =>
+          typeof analysis === "object" &&
+          analysis !== null &&
+          analysis.analysis === "dc",
+      )
+    : null;
+  const expectedDc = qualification.expectedDc;
+  if (!dc || !Array.isArray(dc.sweep?.values) || !Array.isArray(dc.probes)) {
+    throw new Error(`${expectedTarget} returned no qualified DC result.`);
+  }
+  if (
+    dc.sweep.name !== expectedDc.sweepName ||
+    dc.sweep.values.length !== expectedDc.pointCount ||
+    Math.abs(dc.sweep.values[0] - expectedDc.startValue) >
+      expectedDc.absoluteTolerance ||
+    Math.abs(dc.sweep.values.at(-1) - expectedDc.stopValue) >
+      expectedDc.absoluteTolerance
+  ) {
+    throw new Error(`${expectedTarget} returned an unexpected OTA DC axis.`);
+  }
+  for (const binding of expectedVectors) {
+    const probe = dc.probes.find(
+      (candidate) => candidate?.name === binding.vector,
+    );
+    if (!probe || !Array.isArray(probe.value)) {
+      throw new Error(
+        `${expectedTarget} returned no DC series for ${binding.probeId} (${binding.vector}).`,
+      );
+    }
+    if (probe.value.length !== expectedDc.pointCount) {
+      throw new Error(
+        `${expectedTarget} returned an incomplete DC series for ${binding.vector}.`,
+      );
+    }
+  }
+  for (const [name, expected] of Object.entries(expectedDc.probes)) {
+    const probe = dc.probes.find((candidate) => candidate?.name === name);
+    if (!probe || !Array.isArray(probe.value)) {
+      throw new Error(
+        `${expectedTarget} returned no qualified DC series ${name}.`,
+      );
+    }
+    for (const sample of expected.samples) {
+      const actual = probe.value[sample.index];
+      if (
+        typeof actual !== "number" ||
+        Math.abs(actual - sample.value) > expectedDc.absoluteTolerance
+      ) {
+        throw new Error(
+          `${expectedTarget} solved ${name}[${sample.index}] as ${String(actual)}, expected ${sample.value} ± ${expectedDc.absoluteTolerance}.`,
+        );
+      }
+    }
+  }
+
   const ac = Array.isArray(data.analyses)
     ? data.analyses.find(
         (analysis) =>
@@ -645,6 +702,12 @@ export function validateHostedSky130Result(
       }
     }
   }
+  validateHostedSky130TransientResult(
+    payload,
+    expectedTarget,
+    expectedInputRevision,
+    expectedVectors,
+  );
   return {
     target: expectedTarget,
     fixtureId: qualification.fixtureId,

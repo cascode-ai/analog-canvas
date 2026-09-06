@@ -274,7 +274,7 @@ describe("the bundled five-transistor Sky130 OTA", () => {
     ).toBeGreaterThan(0);
   });
 
-  it("persists and compiles its OP and AC acceptance setup", async () => {
+  it("persists and compiles its four-analysis acceptance setup", async () => {
     const setup = project.simulationSetups[0];
     expect(setup).toBeDefined();
     expect(setup?.input.kind).toBe("structured");
@@ -283,11 +283,13 @@ describe("the bundled five-transistor Sky130 OTA", () => {
     expect(compiled.ok).toBe(true);
     if (!compiled.ok) return;
 
-    expect(compiled.request.analyses).toEqual(["op", "ac"]);
+    expect(compiled.request.analyses).toEqual(["op", "dc", "ac", "tran"]);
     expect(compiled.request.testbench).toContain("VINP");
     expect(compiled.request.testbench).toContain("AC 1 0");
     expect(compiled.request.testbench).toContain("op");
     expect(compiled.request.testbench).toContain("ac dec 10 1 1000000000");
+    expect(compiled.request.testbench).toContain("dc VINP 0.88 0.92 0.005");
+    expect(compiled.request.testbench).toContain("tran 2e-8 0.000004");
     expect(compiled.request.testbench).toContain("set appendwrite");
     expect(compiled.vectors).toEqual([
       { probeId: "probe-vout", vector: "v(vout)", quantity: "voltage" },
