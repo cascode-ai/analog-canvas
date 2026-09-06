@@ -7,6 +7,7 @@ import {
 } from "react";
 import {
   WaveformInteraction,
+  responsiveWaveformHeight,
   waveformTicks,
   waveformTickLabel,
   useWaveformWidth,
@@ -38,7 +39,7 @@ export interface TransientResultsExplorerProps {
 
 const PLOT = {
   width: 760,
-  height: 280,
+  height: 395,
   left: 64,
   right: 18,
   top: 16,
@@ -241,7 +242,11 @@ export function TransientResultsExplorer({
   ) => {
     const geometry = expanded
       ? EXPANDED_PLOT
-      : { ...PLOT, width: measured.width };
+      : {
+          ...PLOT,
+          width: measured.width,
+          height: responsiveWaveformHeight(measured.width),
+        };
     const range = timeRange ?? fullRange;
     const clipId = `${clipPrefix}-${quantity}-${expanded}`;
     const visibleValues = quantityTraces.flatMap((trace) =>

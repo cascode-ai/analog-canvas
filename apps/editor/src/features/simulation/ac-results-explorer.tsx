@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useState, type SetStateAction } from "react";
-import { WaveformInteraction, useWaveformWidth } from "./waveform-interaction";
+import {
+  WaveformInteraction,
+  responsiveWaveformHeight,
+  useWaveformWidth,
+} from "./waveform-interaction";
 import { useWaveformView } from "./waveform-view";
 import { WaveformTools, WaveformMeasurements } from "./waveform-tools";
 import type { SimulationProbeSpec } from "@icm/model";
@@ -34,7 +38,7 @@ export interface AcResultsExplorerProps {
   onFocusProbe?(probe: SimulationProbeSpec): void;
 }
 
-const PLOT_SIZE = { width: 760, height: 280 } as const;
+const PLOT_SIZE = { width: 760, height: 395 } as const;
 const EXPANDED_PLOT_SIZE = { width: 1400, height: 700 } as const;
 
 /** Keep phase continuous instead of drawing artificial 360-degree jumps. */
@@ -158,7 +162,11 @@ export function AcResultsExplorer({
   ) => {
     const size = expanded
       ? EXPANDED_PLOT_SIZE
-      : { ...PLOT_SIZE, width: measured.width };
+      : {
+          ...PLOT_SIZE,
+          width: measured.width,
+          height: responsiveWaveformHeight(measured.width),
+        };
     const valueRange = valueRanges[plot.quantity + plot.kind];
     const layout = layoutAcPlot(
       plotTraces,

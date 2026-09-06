@@ -169,6 +169,10 @@ describe("AC response plot", () => {
       "utf8",
     );
     expect(css).toMatch(/\.ac-response \.ac-trace \{[^}]*fill:\s*none/u);
+    expect(css).toMatch(
+      /\.ac-response \.ac-trace \{[^}]*stroke-width:\s*2\.4/u,
+    );
+    expect(css).toMatch(/\.ac-response \.ac-axis-label,[^}]*fill:\s*#344054/u);
     for (let index = 0; index < 6; index += 1) {
       expect(css).toContain(`.ac-trace-${index}`);
     }
