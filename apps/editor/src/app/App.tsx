@@ -303,10 +303,19 @@ const DEFAULT_VIEWBOX: GridRect = { x: 0, y: 0, width: 960, height: 640 };
 const RECENT_COMPONENTS_STORAGE_KEY = "icm.recent-components.v1";
 const LIBRARY_PANEL_STORAGE_KEY = "icm.library-panel-open.v1";
 const LIBRARY_WIDTH_STORAGE_KEY = "icm.library-panel-width.v1";
-const SIMULATION_WIDTH_STORAGE_KEY = "icm.simulation-panel-width.v1";
+const SIMULATION_WIDTH_STORAGE_KEY = "icm.simulation-panel-width.v2";
 const SIMULATION_WIDTH_MIN = 320;
-const SIMULATION_WIDTH_MAX = 760;
-const SIMULATION_WIDTH_DEFAULT = 440;
+const SIMULATION_WIDTH_MAX = 1200;
+const SIMULATION_WIDTH_RATIO = 0.4;
+
+function defaultSimulationWidth(viewportWidth: number): number {
+  return Math.round(
+    Math.min(
+      SIMULATION_WIDTH_MAX,
+      Math.max(SIMULATION_WIDTH_MIN, viewportWidth * SIMULATION_WIDTH_RATIO),
+    ),
+  );
+}
 const COMPACT_LAYOUT_MEDIA_QUERY = "(max-width: 860px)";
 const DRAG_START_DISTANCE_PX = 4;
 const SNAP_CAPTURE_RADIUS_PX = 4;
@@ -352,16 +361,16 @@ export function App({
     width: number;
   } | null>(null);
   const [simulationWidth, setSimulationWidthState] = useState(() => {
-    if (typeof window === "undefined") return SIMULATION_WIDTH_DEFAULT;
+    if (typeof window === "undefined") return defaultSimulationWidth(1100);
     try {
       const stored = Number(
         window.localStorage.getItem(SIMULATION_WIDTH_STORAGE_KEY),
       );
       return Number.isFinite(stored) && stored > 0
         ? Math.min(SIMULATION_WIDTH_MAX, Math.max(SIMULATION_WIDTH_MIN, stored))
-        : SIMULATION_WIDTH_DEFAULT;
+        : defaultSimulationWidth(window.innerWidth);
     } catch {
-      return SIMULATION_WIDTH_DEFAULT;
+      return defaultSimulationWidth(window.innerWidth);
     }
   });
   const setSimulationWidth = (width: number): void => {
@@ -4739,11 +4748,11 @@ export function App({
                   (candidate) => candidate.id === probe.documentId,
                 );
                 const voltageNetId =
-                  probe.kind === "net-voltage"
+                  probe.kind === "voltage"
                     ? resolveSimulationVoltageProbeNetId(project, probe)
                     : undefined;
                 const targetExists =
-                  probe.kind === "net-voltage"
+                  probe.kind === "voltage"
                     ? voltageNetId !== undefined
                     : targetDocument?.instances.some(
                         (instance) => instance.id === probe.instanceId,
@@ -4770,7 +4779,7 @@ export function App({
                   return;
                 }
                 navigateToLocator(
-                  probe.kind === "net-voltage"
+                  probe.kind === "voltage"
                     ? {
                         documentId: probe.documentId,
                         hierarchyPath,
@@ -4783,7 +4792,7 @@ export function App({
                         kind: "instance",
                         objectId: probe.instanceId,
                       },
-                  probe.kind === "net-voltage"
+                  probe.kind === "voltage"
                     ? `Located simulation Net ${voltageNetId}`
                     : `Located simulation source ${probe.instanceId}`,
                 );

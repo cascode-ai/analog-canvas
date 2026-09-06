@@ -29,7 +29,7 @@ describe("simulation probe choices", () => {
     ).toMatchObject({
       label: "XDUT · ota_5t · tail",
       target: {
-        kind: "net-voltage",
+        kind: "voltage",
         documentId: "document-ota-5t",
         anchor: { kind: "terminal", instanceId: "M5", pinName: "D" },
         occurrence: ["XDUT"],
@@ -65,6 +65,28 @@ describe("simulation probe choices", () => {
     );
 
     expect(option?.label).toBe("XDUT · ota_5t · XM5.D / XM1.S / XM2.S");
+  });
+
+  it("prefers a formal Cell port name over internal endpoint aliases", () => {
+    const project = CircuitProjectSchema.parse(fiveTransistorOtaSky130);
+    const dut = project.documents.find(
+      (document) => document.id === "document-ota-5t",
+    )!;
+    dut.connectivityEvidence = dut.connectivityEvidence.filter(
+      (evidence) => evidence.netId !== "net-cell-pin-pvinp",
+    );
+
+    const option = deriveSimulationProbeOptions(
+      project,
+      "document-ota-5t-testbench",
+    ).voltage.find(
+      (candidate) =>
+        candidate.target.documentId === dut.id &&
+        candidate.target.anchor.kind === "terminal" &&
+        candidate.target.anchor.instanceId === "PVINP",
+    );
+
+    expect(option?.label).toBe("XDUT · ota_5t · vinp");
   });
 
   it("gives repeated calls of the same Cell different target identities", () => {

@@ -806,7 +806,7 @@ describe("presentation style overrides", () => {
 describe("SimulationSetup schema", () => {
   function setup(): SimulationStructuredSetup {
     return {
-      version: 1,
+      version: 2,
       input: {
         kind: "structured",
         rootDocumentId: "testbench",
@@ -814,24 +814,30 @@ describe("SimulationSetup schema", () => {
           { kind: "op" },
           { kind: "ac", sweep: "dec", points: 20, startHz: 1, stopHz: 1e9 },
         ],
-        probes: [
+        outputs: [
           {
             id: "probe-out",
-            kind: "net-voltage",
-            documentId: "testbench",
-            anchor: {
-              kind: "terminal",
-              instanceId: "load",
-              pinName: "1",
+            label: "Vout",
+            expression: {
+              kind: "voltage",
+              documentId: "testbench",
+              anchor: {
+                kind: "terminal",
+                instanceId: "load",
+                pinName: "1",
+              },
+              occurrence: [],
             },
-            occurrence: [],
           },
           {
             id: "probe-tail",
-            kind: "source-current",
-            documentId: "ota",
-            instanceId: "I1",
-            occurrence: ["X1"],
+            label: "Itail",
+            expression: {
+              kind: "current",
+              documentId: "ota",
+              instanceId: "I1",
+              occurrence: ["X1"],
+            },
           },
         ],
         environment: {
@@ -881,7 +887,7 @@ describe("SimulationSetup schema", () => {
     });
   });
 
-  it("holds one analysis per kind and unique probe ids", () => {
+  it("holds one analysis per kind and unique output ids", () => {
     const repeatedAnalysis = setup();
     repeatedAnalysis.input.analyses.push({ kind: "op" });
     expect(
@@ -893,13 +899,29 @@ describe("SimulationSetup schema", () => {
       }),
     ]);
     const repeatedProbe = setup();
-    repeatedProbe.input.probes.push({ ...repeatedProbe.input.probes[0]! });
+    repeatedProbe.input.outputs.push({
+      ...repeatedProbe.input.outputs[0]!,
+      label: "other-output",
+    });
     expect(
       SimulationSetupSchema.safeParse(repeatedProbe).error?.issues,
     ).toEqual([
       expect.objectContaining({
         message: "Duplicate ID: probe-out",
-        path: ["input", "probes", 2, "id"],
+        path: ["input", "outputs", 2, "id"],
+      }),
+    ]);
+    const repeatedLabel = setup();
+    repeatedLabel.input.outputs[1] = {
+      ...repeatedLabel.input.outputs[1]!,
+      label: repeatedLabel.input.outputs[0]!.label.toUpperCase(),
+    };
+    expect(
+      SimulationSetupSchema.safeParse(repeatedLabel).error?.issues,
+    ).toEqual([
+      expect.objectContaining({
+        message: `Duplicate simulation output label: ${repeatedLabel.input.outputs[1]!.label}`,
+        path: ["input", "outputs", 1, "label"],
       }),
     ]);
     const noAnalysis = setup();
@@ -1000,7 +1022,7 @@ describe("SimulationSetup schema", () => {
 
   it("persists a bounded raw authoring bundle without host paths", () => {
     const raw: SimulationRawSetup = {
-      version: 1,
+      version: 2,
       input: {
         kind: "raw",
         entry: "tb.cir",
@@ -1026,7 +1048,7 @@ describe("SimulationSetup schema", () => {
 
   it("rejects ambiguous, unsafe, and oversized raw bundles", () => {
     const rawInput = (overrides: Record<string, unknown> = {}) => ({
-      version: 1,
+      version: 2,
       input: {
         kind: "raw",
         entry: "tb.cir",
@@ -1086,7 +1108,7 @@ describe("SimulationSetup schema", () => {
         .success,
     ).toBe(false);
     expect(
-      SimulationSetupSchema.safeParse({ ...setup(), version: 2 }).success,
+      SimulationSetupSchema.safeParse({ ...setup(), version: 1 }).success,
     ).toBe(false);
     expect(
       SimulationSetupSchema.safeParse({

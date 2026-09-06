@@ -71,7 +71,7 @@ describe("SpiceSimulationSurface workspace", () => {
     project.simulationSetups.push({
       id: "setup-dc",
       name: "DC Sweep",
-      version: 1,
+      version: 2,
       input: {
         kind: "structured",
         rootDocumentId: root.id,
@@ -84,14 +84,14 @@ describe("SpiceSimulationSurface workspace", () => {
             stepValue: 0.1,
           },
         ],
-        probes: [],
+        outputs: [],
         environment: { profileId: "sky130-core-continuous-ngspice46-v1" },
       },
     });
     project.simulationSetups.push({
       id: "setup-ac",
       name: "AC Response",
-      version: 1,
+      version: 2,
       input: {
         kind: "structured",
         rootDocumentId: root.id,
@@ -104,7 +104,7 @@ describe("SpiceSimulationSurface workspace", () => {
             stopHz: 1e6,
           },
         ],
-        probes: [],
+        outputs: [],
         environment: { profileId: "sky130-core-continuous-ngspice46-v1" },
       },
     });
@@ -139,7 +139,7 @@ describe("SpiceSimulationSurface workspace", () => {
     project.simulationSetups.push({
       id: "setup-raw",
       name: "Raw",
-      version: 1,
+      version: 2,
       input: {
         kind: "raw",
         entry: "tb.cir",

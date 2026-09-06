@@ -7,6 +7,7 @@ import {
 } from "react";
 import {
   WaveformInteraction,
+  responsiveWaveformHeight,
   waveformTicks,
   waveformTickLabel,
   useWaveformWidth,
@@ -21,7 +22,7 @@ interface TransientTrace {
   readonly id: string;
   readonly label: string;
   readonly colorIndex: number;
-  readonly quantity: "voltage" | "current";
+  readonly quantity: string;
   readonly unit: string | null;
   readonly values: readonly number[];
   readonly probe?: SimulationProbeSpec;
@@ -34,11 +35,17 @@ export interface TransientResultsExplorerProps {
   probes: readonly SimulationProbeSpec[];
   labels?: Readonly<Record<string, string>>;
   onFocusProbe?(probe: SimulationProbeSpec): void;
+  /** Optional authored grouping for derived results, keyed by result id. */
+  groups?: Readonly<Record<string, string>>;
+  domainLabel?: string;
+  domainUnit?: string;
+  logarithmicX?: boolean;
+  analysisLabel?: string;
 }
 
 const PLOT = {
   width: 760,
-  height: 280,
+  height: 395,
   left: 64,
   right: 18,
   top: 16,
@@ -54,7 +61,7 @@ type PlotGeometry = {
   top: number;
   bottom: number;
 };
-type PlotQuantity = "voltage" | "current";
+type PlotQuantity = string;
 
 function finiteExtent(values: readonly number[]): readonly [number, number] {
   let min = Number.POSITIVE_INFINITY;
@@ -133,6 +140,7 @@ export function transientPolylinePoints(
   yExtent: readonly [number, number] = finiteExtent(values),
   timeExtent: readonly [number, number] = finiteExtent(timeSeconds),
   plot: PlotGeometry = PLOT,
+  logarithmicX = false,
 ): string {
   const count = Math.min(timeSeconds.length, values.length);
   if (count === 0) return "";
@@ -152,7 +160,10 @@ export function transientPolylinePoints(
       (time > timeExtent[1] && (timeSeconds[index - 1] ?? time) > timeExtent[1])
     )
       continue;
-    const x = plot.left + ((time - timeExtent[0]) / timeSpan) * plotWidth;
+    const xFraction = logarithmicX
+      ? Math.log(time / timeExtent[0]) / Math.log(timeExtent[1] / timeExtent[0])
+      : (time - timeExtent[0]) / timeSpan;
+    const x = plot.left + xFraction * plotWidth;
     const y = plot.top + ((yExtent[1] - value) / valueSpan) * plotHeight;
     points.push(`${x.toFixed(2)},${y.toFixed(2)}`);
   }
@@ -164,6 +175,7 @@ function outputTraces(
   vectors: Prepared["vectors"],
   probes: readonly SimulationProbeSpec[],
   labels: Readonly<Record<string, string>>,
+  groups: Readonly<Record<string, string>>,
 ): TransientTrace[] {
   const vectorsByName = new Map(
     vectors.map((vector) => [vector.vector.toLowerCase(), vector]),
@@ -177,6 +189,7 @@ function outputTraces(
       label: (binding && labels[binding.probeId]) || resultProbe.name,
       colorIndex: index,
       quantity:
+        (binding && groups[binding.probeId]) ??
         binding?.quantity ??
         (resultProbe.quantity === "current" ? "current" : "voltage"),
       unit: resultProbe.unit,
@@ -193,12 +206,17 @@ export function TransientResultsExplorer({
   labels = {},
   onFocusProbe,
   resultKey,
+  domainLabel = "Time",
+  domainUnit = "s",
+  logarithmicX = false,
+  analysisLabel = "Transient",
+  groups = {},
 }: TransientResultsExplorerProps) {
   const measured = useWaveformWidth();
   const clipPrefix = useId();
   const traces = useMemo(
-    () => outputTraces(analysis, vectors, probes, labels),
-    [analysis, labels, probes, vectors],
+    () => outputTraces(analysis, vectors, probes, labels, groups),
+    [analysis, groups, labels, probes, vectors],
   );
   const controller = useWaveformView(resultKey);
   const { hidden, solo, selected, markers } = controller.state;
@@ -209,13 +227,19 @@ export function TransientResultsExplorer({
   const setSelected = (value: string) => controller.set("selected", value);
   const timeRange = controller.view.x;
   const valueRanges = controller.view.y;
-  const [expandedQuantity, setExpandedQuantity] = useState<
-    "voltage" | "current" | null
-  >(null);
+  const [expandedQuantity, setExpandedQuantity] = useState<string | null>(null);
   const visible = traces.filter(
     (trace) => !hidden.has(trace.id) && (solo === null || solo === trace.id),
   );
   const fullRange = finiteExtent(analysis.timeSeconds);
+  const xFraction = (value: number, range: readonly [number, number]) =>
+    logarithmicX
+      ? Math.log(value / range[0]) / Math.log(range[1] / range[0])
+      : (value - range[0]) / (range[1] - range[0]);
+  const xAt = (fraction: number, range: readonly [number, number]) =>
+    logarithmicX
+      ? range[0] * (range[1] / range[0]) ** fraction
+      : range[0] + fraction * (range[1] - range[0]);
 
   useEffect(() => {
     const cancelTransientPlotAction = (event: KeyboardEvent) => {
@@ -241,7 +265,11 @@ export function TransientResultsExplorer({
   ) => {
     const geometry = expanded
       ? EXPANDED_PLOT
-      : { ...PLOT, width: measured.width };
+      : {
+          ...PLOT,
+          width: measured.width,
+          height: responsiveWaveformHeight(measured.width),
+        };
     const range = timeRange ?? fullRange;
     const clipId = `${clipPrefix}-${quantity}-${expanded}`;
     const visibleValues = quantityTraces.flatMap((trace) =>
@@ -267,10 +295,7 @@ export function TransientResultsExplorer({
               x:
                 controller.state.axes === "y"
                   ? range
-                  : [
-                      range[0] + x[0]! * (range[1] - range[0]),
-                      range[0] + x[1]! * (range[1] - range[0]),
-                    ],
+                  : [xAt(x[0]!, range), xAt(x[1]!, range)],
               y: {
                 ...valueRanges,
                 [quantity]:
@@ -290,7 +315,12 @@ export function TransientResultsExplorer({
               x:
                 controller.state.axes === "y"
                   ? range
-                  : [range[0] + shift, range[1] + shift],
+                  : logarithmicX
+                    ? [
+                        range[0] * (range[1] / range[0]) ** -delta.x,
+                        range[1] * (range[1] / range[0]) ** -delta.x,
+                      ]
+                    : [range[0] + shift, range[1] + shift],
               y: {
                 ...valueRanges,
                 [quantity]:
@@ -302,7 +332,7 @@ export function TransientResultsExplorer({
           }}
           onPick={(point, id) => {
             if (id) focusTrace(id);
-            const time = range[0] + point.x * (range[1] - range[0]);
+            const time = xAt(point.x, range);
             const nearest = analysis.timeSeconds.reduce(
               (best, value) =>
                 Math.abs(value - time) < Math.abs(best - time) ? value : best,
@@ -314,7 +344,7 @@ export function TransientResultsExplorer({
         >
           <svg
             role="img"
-            aria-label={`Transient ${quantity}`}
+            aria-label={`${analysisLabel} ${quantity}`}
             viewBox={`0 0 ${geometry.width} ${geometry.height}`}
           >
             <line
@@ -331,14 +361,26 @@ export function TransientResultsExplorer({
               x2={geometry.width - geometry.right}
               y2={geometry.height - geometry.bottom}
             />
-            {waveformTicks(
-              range[0],
-              range[1],
-              Math.max(2, Math.floor(geometry.width / 110)),
+            {(logarithmicX
+              ? Array.from(
+                  {
+                    length:
+                      Math.ceil(Math.log10(range[1])) -
+                      Math.floor(Math.log10(range[0])) +
+                      1,
+                  },
+                  (_, index) =>
+                    10 ** (Math.floor(Math.log10(range[0])) + index),
+                ).filter((value) => value >= range[0] && value <= range[1])
+              : waveformTicks(
+                  range[0],
+                  range[1],
+                  Math.max(2, Math.floor(geometry.width / 110)),
+                )
             ).map((value) => {
               const x =
                 geometry.left +
-                ((value - range[0]) / (range[1] - range[0])) *
+                xFraction(value, range) *
                   (geometry.width - geometry.left - geometry.right);
               return (
                 <g key={value}>
@@ -359,7 +401,7 @@ export function TransientResultsExplorer({
                       value,
                       (range[1] - range[0]) /
                         Math.max(2, Math.floor(geometry.width / 110)),
-                      "s",
+                      domainUnit,
                     )}
                   </text>
                 </g>
@@ -417,6 +459,7 @@ export function TransientResultsExplorer({
                 extent,
                 range,
                 geometry,
+                logarithmicX,
               );
               return (
                 <g
@@ -446,7 +489,7 @@ export function TransientResultsExplorer({
                 return null;
               const x =
                 geometry.left +
-                ((time - range[0]) / (range[1] - range[0])) *
+                xFraction(time, range) *
                   (geometry.width - geometry.left - geometry.right);
               return (
                 <g key={name} pointerEvents="none">
@@ -473,8 +516,9 @@ export function TransientResultsExplorer({
           plotKey={quantity}
           x={range}
           y={extent}
-          xUnit="s"
+          xUnit={domainUnit}
           yUnit={unit}
+          logarithmicX={logarithmicX}
           {...(!expanded
             ? { onOpen: () => setExpandedQuantity(quantity) }
             : {})}
@@ -488,8 +532,8 @@ export function TransientResultsExplorer({
     <WaveformMeasurements
       a={markers.A}
       b={markers.B}
-      unit="s"
-      time
+      unit={domainUnit}
+      time={domainLabel === "Time"}
       rows={visible
         .filter((trace) => !quantity || trace.quantity === quantity)
         .map((trace) => {
@@ -526,11 +570,16 @@ export function TransientResultsExplorer({
           <strong>{analysis.plotName}</strong>
           <small>
             {analysis.timeSeconds.length} solver points ·{" "}
-            {compact(fullRange[0])}s to {compact(fullRange[1])}s
+            {compact(fullRange[0])}
+            {domainUnit} to {compact(fullRange[1])}
+            {domainUnit}
           </small>
         </div>
       </header>
-      <div className="simulation-output-browser" aria-label="Transient outputs">
+      <div
+        className="simulation-output-browser"
+        aria-label={`${analysisLabel} outputs`}
+      >
         {traces.map((trace) => {
           const isVisible = !hidden.has(trace.id);
           return (
@@ -575,7 +624,7 @@ export function TransientResultsExplorer({
           );
         })}
       </div>
-      {(["voltage", "current"] as const).map((quantity) => {
+      {[...new Set(traces.map((trace) => trace.quantity))].map((quantity) => {
         const quantityTraces = visible.filter(
           (trace) => trace.quantity === quantity,
         );
@@ -584,7 +633,13 @@ export function TransientResultsExplorer({
             key={quantity}
             className="transient-quantity-group ac-quantity-group"
           >
-            <h4>{quantity === "voltage" ? "Voltage" : "Current"}</h4>
+            <h4>
+              {quantity === "voltage"
+                ? "Voltage"
+                : quantity === "current"
+                  ? "Current"
+                  : quantity}
+            </h4>
             {plot(quantity, quantityTraces)}
           </section>
         ) : null;
@@ -603,12 +658,14 @@ export function TransientResultsExplorer({
             className="ac-plot-dialog"
             role="dialog"
             aria-modal="true"
-            aria-label={`Transient ${expandedQuantity} plot`}
+            aria-label={`${analysisLabel} ${expandedQuantity} plot`}
           >
             <header>
               <div>
                 <strong>{analysis.plotName}</strong>
-                <span>{expandedQuantity} · transient waveform</span>
+                <span>
+                  {expandedQuantity} · {analysisLabel.toLowerCase()} waveform
+                </span>
               </div>
               <button
                 type="button"

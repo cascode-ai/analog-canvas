@@ -1,8 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { waveformTicks, waveformTickLabel } from "./waveform-interaction";
+import {
+  responsiveWaveformHeight,
+  waveformTicks,
+  waveformTickLabel,
+} from "./waveform-interaction";
 import { layoutAcPlot } from "./ac-response-plot";
 
 describe("waveform axes", () => {
+  it("grows docked plots with their panel without becoming unbounded", () => {
+    expect(responsiveWaveformHeight(400)).toBe(320);
+    expect(responsiveWaveformHeight(760)).toBe(395);
+    expect(responsiveWaveformHeight(1200)).toBe(440);
+  });
+
   it("adapts tick spacing to nanoseconds and a zoomed small signal", () => {
     expect(waveformTickLabel(1.8000005, 5e-7, "V")).not.toBe(
       waveformTickLabel(1.800001, 5e-7, "V"),

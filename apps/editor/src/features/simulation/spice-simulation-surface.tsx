@@ -3,7 +3,11 @@ import {
   type ObjectLocator,
   type ProjectSimulationSetup,
   SimulationSetupSchema,
+  parseSimulationExpression,
   type CircuitProject,
+  type SimulationExpression,
+  type SimulationOutputSpec,
+  type SimulationProbeSpec,
   type SimulationStructuredInput,
 } from "@icm/model";
 import type {
@@ -19,6 +23,7 @@ import type { BrowserSimulationSession } from "./browser-simulation-session";
 import { AcResultsExplorer } from "./ac-results-explorer";
 import { DcResultsExplorer } from "./dc-results-explorer";
 import { TransientResultsExplorer } from "./transient-results-explorer";
+import { SimulationOutputResults } from "./simulation-output-results";
 import {
   deriveSimulationProbeOptions,
   matchSimulationVoltageProbeOptions,
@@ -71,7 +76,7 @@ export interface SpiceSimulationSurfaceProps {
   } | null;
   onPickNetsChange?(active: boolean): void;
   onFocusProbe?(
-    probe: SimulationStructuredInput["probes"][number],
+    probe: Extract<SimulationExpression, { kind: "voltage" | "current" }>,
     rootDocumentId?: string,
   ): void;
   onFocusDiagnostic?(locator: ObjectLocator): void;
@@ -79,10 +84,48 @@ export interface SpiceSimulationSurfaceProps {
 
 interface PreparedPresentation {
   readonly prepared: Prepared;
-  readonly probes: SimulationStructuredInput["probes"];
-  readonly labels: Readonly<Record<string, string>>;
+  readonly outputs: SimulationStructuredInput["outputs"];
   readonly analysisLabel: string;
   readonly rootDocumentId?: string;
+}
+
+function legacyProbe(output: SimulationOutputSpec): SimulationProbeSpec | null {
+  const expression = output.expression;
+  if (expression.kind === "voltage")
+    return {
+      id: output.id,
+      kind: "net-voltage",
+      documentId: expression.documentId,
+      anchor: structuredClone(expression.anchor),
+      occurrence: [...expression.occurrence],
+    };
+  if (expression.kind === "current")
+    return {
+      id: output.id,
+      kind: "source-current",
+      documentId: expression.documentId,
+      instanceId: expression.instanceId,
+      occurrence: [...expression.occurrence],
+    };
+  return null;
+}
+
+function expressionFromLegacyProbe(
+  probe: SimulationProbeSpec,
+): Extract<SimulationExpression, { kind: "voltage" | "current" }> {
+  return probe.kind === "net-voltage"
+    ? {
+        kind: "voltage",
+        documentId: probe.documentId,
+        anchor: structuredClone(probe.anchor),
+        occurrence: [...probe.occurrence],
+      }
+    : {
+        kind: "current",
+        documentId: probe.documentId,
+        instanceId: probe.instanceId,
+        occurrence: [...probe.occurrence],
+      };
 }
 
 function uiProblem(code: string, message: string): Problem {
@@ -102,7 +145,6 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   const [problem, setProblem] = useState<Problem>();
   const [busy, setBusy] = useState(false);
   const [dirty, setDirty] = useState(false);
-  const [outputLabels, setOutputLabels] = useState<Record<string, string>>({});
   const preparedPresentations = useRef(new Map<string, PreparedPresentation>());
   const [setupOpen, setSetupOpen] = useState(true);
   const [resultsOpen, setResultsOpen] = useState(false);
@@ -115,7 +157,6 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     setPrepared(undefined);
     setRun(undefined);
     setProblem(undefined);
-    setOutputLabels({});
     setResultsOpen(false);
     setSetupOpen(true);
   }, [props.selectedSetupId]);
@@ -212,9 +253,8 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
         const input = selectedSetup?.input;
         preparedPresentations.current.set(reply.prepared.id, {
           prepared: structuredClone(reply.prepared),
-          probes:
-            input?.kind === "structured" ? structuredClone(input.probes) : [],
-          labels: { ...outputLabels },
+          outputs:
+            input?.kind === "structured" ? structuredClone(input.outputs) : [],
           analysisLabel:
             input?.kind === "structured"
               ? input.analyses
@@ -336,6 +376,14 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     ? preparedPresentations.current.get(run.preparedId)
     : undefined;
   const analysisLabel = runPresentation?.analysisLabel;
+  const presentationProbes =
+    runPresentation?.outputs.flatMap((output) => {
+      const probe = legacyProbe(output);
+      return probe ? [probe] : [];
+    }) ?? [];
+  const presentationLabels = Object.fromEntries(
+    (runPresentation?.outputs ?? []).map((output) => [output.id, output.label]),
+  );
   return (
     <section
       hidden={!open}
@@ -406,14 +454,14 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
               const created: ProjectSimulationSetup = {
                 id: `simulation-setup-${crypto.randomUUID()}`,
                 name: `${baseName} ${suffix}`,
-                version: 1,
+                version: 2,
                 input: selectedSetup
                   ? structuredClone(selectedSetup.input)
                   : {
                       kind: "structured",
                       rootDocumentId: props.activeDocumentId,
                       analyses: [{ kind: "op" }],
-                      probes: [],
+                      outputs: [],
                       environment: {
                         profileId:
                           capabilities?.profiles[0]?.id ??
@@ -561,15 +609,6 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
           capabilities={capabilities}
           onDirty={setDirty}
           onProblem={setProblem}
-          outputLabels={outputLabels}
-          onOutputLabelChange={(probeId, label) =>
-            setOutputLabels((current) => {
-              if (label.trim()) return { ...current, [probeId]: label };
-              const next = { ...current };
-              delete next[probeId];
-              return next;
-            })
-          }
         />
       ) : null}
 
@@ -629,74 +668,92 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
 
             {resultTab === "plot" ? (
               <div className="simulation-analysis-view">
-                {run?.result?.data?.analyses
-                  .filter((analysis) => analysis.analysis === "dc")
-                  .map((analysis, index) => (
-                    <DcResultsExplorer
-                      key={`dc-${index}`}
-                      analysis={analysis}
-                      vectors={runPresentation?.prepared.vectors ?? []}
-                      probes={runPresentation?.probes ?? []}
-                      labels={runPresentation?.labels ?? {}}
-                      {...(props.onFocusProbe
-                        ? {
-                            onFocusProbe: (
-                              probe: SimulationStructuredInput["probes"][number],
-                            ) =>
-                              props.onFocusProbe?.(
-                                probe,
-                                runPresentation?.rootDocumentId,
-                              ),
-                          }
-                        : {})}
-                    />
-                  ))}
-                {run?.result?.data?.analyses
-                  .filter((analysis) => analysis.analysis === "ac")
-                  .map((analysis, index) => (
-                    <AcResultsExplorer
-                      key={`${run.id}:ac:${index}`}
-                      resultKey={`${run.id}:ac:${index}`}
-                      analysis={analysis}
-                      vectors={runPresentation?.prepared.vectors ?? []}
-                      probes={runPresentation?.probes ?? []}
-                      labels={runPresentation?.labels ?? {}}
-                      {...(props.onFocusProbe
-                        ? {
-                            onFocusProbe: (
-                              probe: SimulationStructuredInput["probes"][number],
-                            ) =>
-                              props.onFocusProbe?.(
-                                probe,
-                                runPresentation?.rootDocumentId,
-                              ),
-                          }
-                        : {})}
-                    />
-                  ))}
-                {run?.result?.data?.analyses
-                  .filter((analysis) => analysis.analysis === "tran")
-                  .map((analysis, index) => (
-                    <TransientResultsExplorer
-                      key={`${run.id}:tran:${index}`}
-                      resultKey={`${run.id}:tran:${index}`}
-                      analysis={analysis}
-                      vectors={runPresentation?.prepared.vectors ?? []}
-                      probes={runPresentation?.probes ?? []}
-                      labels={runPresentation?.labels ?? {}}
-                      {...(props.onFocusProbe
-                        ? {
-                            onFocusProbe: (
-                              probe: SimulationStructuredInput["probes"][number],
-                            ) =>
-                              props.onFocusProbe?.(
-                                probe,
-                                runPresentation?.rootDocumentId,
-                              ),
-                          }
-                        : {})}
-                    />
-                  ))}
+                {run?.outputData ? (
+                  <SimulationOutputResults
+                    resultKey={run.id}
+                    data={{
+                      ...run.outputData,
+                      analyses: run.outputData.analyses.filter(
+                        (analysis) => analysis.analysis !== "op",
+                      ),
+                    }}
+                    outputs={runPresentation?.outputs ?? []}
+                    {...(props.onFocusProbe
+                      ? {
+                          onFocusProbe: (probe: SimulationProbeSpec) =>
+                            props.onFocusProbe?.(
+                              expressionFromLegacyProbe(probe),
+                              runPresentation?.rootDocumentId,
+                            ),
+                        }
+                      : {})}
+                  />
+                ) : null}
+                {!run?.outputData &&
+                  run?.result?.data?.analyses
+                    .filter((analysis) => analysis.analysis === "dc")
+                    .map((analysis, index) => (
+                      <DcResultsExplorer
+                        key={`dc-${index}`}
+                        analysis={analysis}
+                        vectors={runPresentation?.prepared.vectors ?? []}
+                        probes={presentationProbes}
+                        labels={presentationLabels}
+                        {...(props.onFocusProbe
+                          ? {
+                              onFocusProbe: (probe: SimulationProbeSpec) =>
+                                props.onFocusProbe?.(
+                                  expressionFromLegacyProbe(probe),
+                                  runPresentation?.rootDocumentId,
+                                ),
+                            }
+                          : {})}
+                      />
+                    ))}
+                {!run?.outputData &&
+                  run?.result?.data?.analyses
+                    .filter((analysis) => analysis.analysis === "ac")
+                    .map((analysis, index) => (
+                      <AcResultsExplorer
+                        key={`${run.id}:ac:${index}`}
+                        resultKey={`${run.id}:ac:${index}`}
+                        analysis={analysis}
+                        vectors={runPresentation?.prepared.vectors ?? []}
+                        probes={presentationProbes}
+                        labels={presentationLabels}
+                        {...(props.onFocusProbe
+                          ? {
+                              onFocusProbe: (probe: SimulationProbeSpec) =>
+                                props.onFocusProbe?.(
+                                  expressionFromLegacyProbe(probe),
+                                  runPresentation?.rootDocumentId,
+                                ),
+                            }
+                          : {})}
+                      />
+                    ))}
+                {!run?.outputData &&
+                  run?.result?.data?.analyses
+                    .filter((analysis) => analysis.analysis === "tran")
+                    .map((analysis, index) => (
+                      <TransientResultsExplorer
+                        key={`${run.id}:tran:${index}`}
+                        resultKey={`${run.id}:tran:${index}`}
+                        analysis={analysis}
+                        vectors={runPresentation?.prepared.vectors ?? []}
+                        probes={presentationProbes}
+                        labels={presentationLabels}
+                        {...(props.onFocusProbe
+                          ? {
+                              onFocusProbe: (probe: SimulationProbeSpec) =>
+                                props.onFocusProbe?.(
+                                  expressionFromLegacyProbe(probe),
+                                  runPresentation?.rootDocumentId,
+                                ),
+                            }
+                          : {})}
+                      />
+                    ))}
                 {!run?.result?.data?.analyses.some(
                   (analysis) =>
                     analysis.analysis === "dc" ||
@@ -712,31 +769,44 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
 
             {resultTab === "operating-point" ? (
               <div className="simulation-analysis-view">
-                {run?.result?.data?.analyses
-                  .filter((analysis) => analysis.analysis === "op")
-                  .map((analysis, index) => (
-                    <section key={index} aria-label="OP results">
-                      <h3>{analysis.plotName}</h3>
-                      <table>
-                        <thead>
-                          <tr>
-                            <th>Vector</th>
-                            <th>Value</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {analysis.probes.map((probe) => (
-                            <tr key={probe.name}>
-                              <td>{probe.name}</td>
-                              <td>
-                                {probe.value.toPrecision(6)} {probe.unit}
-                              </td>
+                {run?.outputData ? (
+                  <SimulationOutputResults
+                    resultKey={`${run.id}:op`}
+                    data={{
+                      ...run.outputData,
+                      analyses: run.outputData.analyses.filter(
+                        (analysis) => analysis.analysis === "op",
+                      ),
+                    }}
+                    outputs={runPresentation?.outputs ?? []}
+                  />
+                ) : null}
+                {!run?.outputData &&
+                  run?.result?.data?.analyses
+                    .filter((analysis) => analysis.analysis === "op")
+                    .map((analysis, index) => (
+                      <section key={index} aria-label="OP results">
+                        <h3>{analysis.plotName}</h3>
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>Vector</th>
+                              <th>Value</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </section>
-                  ))}
+                          </thead>
+                          <tbody>
+                            {analysis.probes.map((probe) => (
+                              <tr key={probe.name}>
+                                <td>{probe.name}</td>
+                                <td>
+                                  {probe.value.toPrecision(6)} {probe.unit}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </section>
+                    ))}
                 {!run?.result?.data?.analyses.some(
                   (analysis) => analysis.analysis === "op",
                 ) ? (
@@ -901,21 +971,20 @@ function SetupEditor({
   pickNetsActive,
   pickedNet,
   onPickNetsChange,
-  outputLabels,
-  onOutputLabelChange,
 }: SpiceSimulationSurfaceProps & {
   setup: ProjectSimulationSetup | undefined;
   capabilities: Capabilities | undefined;
   onDirty(value: boolean): void;
   onProblem(value: Problem | undefined): void;
-  outputLabels: Readonly<Record<string, string>>;
-  onOutputLabelChange(probeId: string, label: string): void;
 }) {
   const saved = setup?.input.kind === "structured" ? setup.input : undefined;
   const [rootId, setRootId] = useState(
     saved?.rootDocumentId ?? draftContext?.rootDocumentId ?? activeDocumentId,
   );
-  const [probes, setProbes] = useState(saved?.probes ?? []);
+  const [outputs, setOutputs] = useState(saved?.outputs ?? []);
+  const [expressionText, setExpressionText] = useState("");
+  const [expressionLabel, setExpressionLabel] = useState("");
+  const [editingOutputId, setEditingOutputId] = useState<string>();
   const root = project.documents.find((d) => d.id === rootId);
   const probeOptions = deriveSimulationProbeOptions(project, rootId);
   const dcSources = (root?.instances ?? []).flatMap((instance) => {
@@ -934,14 +1003,24 @@ function SetupEditor({
       },
     ];
   });
-  const probeLabels = new Map(
-    [...probeOptions.voltage, ...probeOptions.sourceCurrent].map((option) => [
-      option.key,
-      option.label,
-    ]),
-  );
+  const probeLabels = new Map<string, string>();
+  for (const option of [
+    ...probeOptions.voltage,
+    ...probeOptions.sourceCurrent,
+  ]) {
+    // The option key is Logical-Net scoped for selection deduplication, while
+    // a persisted output keeps its durable object anchor. Both identities
+    // describe the same visible target and therefore share one display label.
+    probeLabels.set(option.key, option.label);
+    probeLabels.set(simulationProbeTargetKey(option.target), option.label);
+  }
   const selectedProbeKeys = new Set(
-    probes.map((probe) => simulationProbeSelectionKey(project, probe)),
+    outputs.flatMap((output) =>
+      output.expression.kind === "voltage" ||
+      output.expression.kind === "current"
+        ? [simulationProbeSelectionKey(project, output.expression)]
+        : [],
+    ),
   );
   const dc = saved?.analyses.find((a) => a.kind === "dc");
   const ac = saved?.analyses.find((a) => a.kind === "ac");
@@ -998,12 +1077,15 @@ function SetupEditor({
     }
     const key = simulationProbeSelectionKey(project, option.target);
     if (
-      probes.some(
-        (probe) => simulationProbeSelectionKey(project, probe) === key,
+      outputs.some(
+        (output) =>
+          (output.expression.kind === "voltage" ||
+            output.expression.kind === "current") &&
+          simulationProbeSelectionKey(project, output.expression) === key,
       )
     )
       return;
-    setProbes((current) => [...current, probeFromOption(option)]);
+    setOutputs((current) => [...current, outputFromOption(option, current)]);
     onDirty(true);
     setPickCandidates([]);
     onProblem(undefined);
@@ -1056,7 +1138,7 @@ function SetupEditor({
           event.preventDefault();
           const data = new FormData(event.currentTarget);
           const parsed = SimulationSetupSchema.safeParse({
-            version: 1,
+            version: 2,
             input: {
               kind: "structured",
               rootDocumentId: rootId,
@@ -1104,7 +1186,7 @@ function SetupEditor({
                     ]
                   : []),
               ],
-              probes,
+              outputs,
               environment: {
                 profileId: data.get("profileId"),
                 ...(data.get("corner") ? { corner: data.get("corner") } : {}),
@@ -1402,7 +1484,7 @@ function SetupEditor({
           options={probeOptions.voltage}
           selectedKeys={selectedProbeKeys}
           onAdd={(option) => {
-            setProbes([...probes, probeFromOption(option)]);
+            setOutputs([...outputs, outputFromOption(option, outputs)]);
             onDirty(true);
           }}
           trailingAction={
@@ -1427,7 +1509,10 @@ function SetupEditor({
                 type="button"
                 key={option.key}
                 onClick={() => {
-                  setProbes((current) => [...current, probeFromOption(option)]);
+                  setOutputs((current) => [
+                    ...current,
+                    outputFromOption(option, current),
+                  ]);
                   setPickCandidates([]);
                   onDirty(true);
                 }}
@@ -1443,50 +1528,165 @@ function SetupEditor({
           options={probeOptions.sourceCurrent}
           selectedKeys={selectedProbeKeys}
           onAdd={(option) => {
-            setProbes([...probes, probeFromOption(option)]);
+            setOutputs([...outputs, outputFromOption(option, outputs)]);
             onDirty(true);
           }}
         />
+        <fieldset className="simulation-setup-group simulation-expression-editor">
+          <legend>Derived expression</legend>
+          <div className="simulation-inline-fields columns-2">
+            <label>
+              Name
+              <input
+                value={expressionLabel}
+                placeholder="Gain"
+                onChange={(event) =>
+                  setExpressionLabel(event.currentTarget.value)
+                }
+              />
+            </label>
+            <label>
+              Expression
+              <input
+                value={expressionText}
+                placeholder="db20(Vout / Vin)"
+                onChange={(event) =>
+                  setExpressionText(event.currentTarget.value)
+                }
+              />
+            </label>
+          </div>
+          <small>
+            Use output names with +, −, ×, ÷, mag, db20, phase, real, imag, or
+            abs.
+          </small>
+          <button
+            type="button"
+            onClick={() => {
+              const label = expressionLabel.trim();
+              if (!/^[A-Za-z_][A-Za-z0-9_]*$/u.test(label)) {
+                onProblem(
+                  uiProblem(
+                    "SIMULATION_OUTPUT_NAME_INVALID",
+                    "Expression names use letters, numbers, and underscores, beginning with a letter or underscore.",
+                  ),
+                );
+                return;
+              }
+              if (
+                outputs.some(
+                  (output) =>
+                    output.id !== editingOutputId &&
+                    output.label.toLowerCase() === label.toLowerCase(),
+                )
+              ) {
+                onProblem(
+                  uiProblem(
+                    "SIMULATION_OUTPUT_NAME_DUPLICATE",
+                    `An output named ${label} already exists.`,
+                  ),
+                );
+                return;
+              }
+              const symbols = new Map(
+                outputs
+                  .filter(
+                    (output) =>
+                      output.id !== editingOutputId &&
+                      /^[A-Za-z_][A-Za-z0-9_]*$/u.test(output.label),
+                  )
+                  .map((output) => [output.label, output.expression] as const),
+              );
+              const parsed = parseSimulationExpression(expressionText, symbols);
+              if (!parsed.ok) {
+                onProblem(
+                  uiProblem(
+                    `SIMULATION_EXPRESSION_${parsed.code}`,
+                    `${parsed.message} at character ${parsed.offset + 1}.`,
+                  ),
+                );
+                return;
+              }
+              setOutputs((current) => {
+                const next = {
+                  id: editingOutputId ?? crypto.randomUUID(),
+                  label,
+                  expression: parsed.expression,
+                };
+                return editingOutputId
+                  ? current.map((output) =>
+                      output.id === editingOutputId ? next : output,
+                    )
+                  : [...current, next];
+              });
+              setExpressionLabel("");
+              setExpressionText("");
+              setEditingOutputId(undefined);
+              onDirty(true);
+              onProblem(undefined);
+            }}
+          >
+            {editingOutputId ? "Save expression" : "Add expression"}
+          </button>
+        </fieldset>
         <ul className="simulation-probe-list" aria-label="Configured Outputs">
-          {probes.map((p) => {
-            const selectionKey = simulationProbeSelectionKey(project, p);
-            return (
-              <li key={p.id}>
-                <span>
-                  <input
-                    aria-label={`Output name for ${probeLabels.get(selectionKey) ?? p.id}`}
-                    value={outputLabels[p.id] ?? ""}
-                    placeholder={
-                      probeLabels.get(selectionKey) ??
-                      (p.kind === "net-voltage"
-                        ? simulationProbeTargetKey(p)
-                        : p.instanceId)
-                    }
-                    onChange={(event) => {
-                      event.stopPropagation();
-                      const label = event.currentTarget.value;
-                      onOutputLabelChange(p.id, label);
-                    }}
-                  />
-                  <small>
-                    {p.kind === "net-voltage" ? "Voltage" : "Current"} ·{" "}
-                    {probeLabels.get(selectionKey) ?? "Target unavailable"}
-                  </small>
-                </span>
-                <button
-                  type="button"
-                  aria-label="Remove probe"
-                  onClick={() => {
-                    setProbes(probes.filter((v) => v.id !== p.id));
-                    onOutputLabelChange(p.id, "");
+          {outputs.map((output) => (
+            <li key={output.id}>
+              <span>
+                <input
+                  aria-label={`Output name for ${output.label}`}
+                  value={output.label}
+                  onChange={(event) => {
+                    event.stopPropagation();
+                    const label = event.currentTarget.value;
+                    setOutputs((current) =>
+                      current.map((candidate) =>
+                        candidate.id === output.id
+                          ? { ...candidate, label }
+                          : candidate,
+                      ),
+                    );
                     onDirty(true);
                   }}
+                />
+                <small>
+                  {describeOutputExpression(output, probeLabels, outputs)}
+                </small>
+              </span>
+              {output.expression.kind !== "voltage" &&
+              output.expression.kind !== "current" &&
+              formatOutputExpression(output.expression, outputs) ? (
+                <button
+                  type="button"
+                  aria-label={`Edit expression ${output.label}`}
+                  onClick={() => {
+                    setEditingOutputId(output.id);
+                    setExpressionLabel(output.label);
+                    setExpressionText(
+                      formatOutputExpression(output.expression, outputs)!,
+                    );
+                  }}
                 >
-                  Remove probe
+                  Edit
                 </button>
-              </li>
-            );
-          })}
+              ) : null}
+              <button
+                type="button"
+                aria-label="Remove output"
+                onClick={() => {
+                  setOutputs(outputs.filter((value) => value.id !== output.id));
+                  if (editingOutputId === output.id) {
+                    setEditingOutputId(undefined);
+                    setExpressionLabel("");
+                    setExpressionText("");
+                  }
+                  onDirty(true);
+                }}
+              >
+                Remove output
+              </button>
+            </li>
+          ))}
         </ul>
         <button type="submit">Apply setup</button>
         {setup && (
@@ -1508,26 +1708,81 @@ function optionalFormNumber(
   return value ? { [outputName]: Number(value) } : {};
 }
 
-function probeFromOption(
+function outputFromOption(
   option: SimulationProbeOption,
-): SimulationStructuredInput["probes"][number] {
-  const target = option.target;
-  if (target.kind === "net-voltage") {
-    return {
-      id: crypto.randomUUID(),
-      kind: target.kind,
-      documentId: target.documentId,
-      anchor: structuredClone(target.anchor),
-      occurrence: [...target.occurrence],
-    };
-  }
+  existing: readonly SimulationOutputSpec[],
+): SimulationStructuredInput["outputs"][number] {
+  const source = option.label.split(" · ").at(-1) ?? "Output";
+  const stem = source.replace(/[^A-Za-z0-9_]/gu, "_");
+  const base = /^[A-Za-z_]/u.test(stem) ? stem : `Output_${stem}`;
+  const used = new Set(existing.map((output) => output.label.toLowerCase()));
+  let label = base;
+  for (let suffix = 2; used.has(label.toLowerCase()); suffix++)
+    label = `${base}_${suffix}`;
   return {
     id: crypto.randomUUID(),
-    kind: target.kind,
-    documentId: target.documentId,
-    instanceId: target.instanceId,
-    occurrence: [...target.occurrence],
+    label,
+    expression: structuredClone(option.target),
   };
+}
+
+function describeOutputExpression(
+  output: SimulationOutputSpec,
+  labels: ReadonlyMap<string, string>,
+  outputs: readonly SimulationOutputSpec[],
+): string {
+  const expression = output.expression;
+  if (expression.kind === "voltage" || expression.kind === "current")
+    return (
+      labels.get(simulationProbeTargetKey(expression)) ??
+      (expression.kind === "voltage"
+        ? "Voltage target unavailable"
+        : "Current target unavailable")
+    );
+  return formatOutputExpression(expression, outputs) ?? "Derived expression";
+}
+
+function formatOutputExpression(
+  expression: SimulationExpression,
+  outputs: readonly SimulationOutputSpec[],
+): string | null {
+  if (expression.kind === "voltage" || expression.kind === "current") {
+    const key = simulationProbeTargetKey(expression);
+    return (
+      outputs.find(
+        (output) =>
+          (output.expression.kind === "voltage" ||
+            output.expression.kind === "current") &&
+          simulationProbeTargetKey(output.expression) === key &&
+          /^[A-Za-z_][A-Za-z0-9_]*$/u.test(output.label),
+      )?.label ?? null
+    );
+  }
+  if (expression.kind === "constant") return String(expression.value);
+  if ("operand" in expression) {
+    const operand = formatOutputExpression(expression.operand, outputs);
+    if (!operand) return null;
+    if (expression.kind === "negate") return `-(${operand})`;
+    const functions = {
+      magnitude: "mag",
+      db20: "db20",
+      phase: "phase",
+      real: "real",
+      imaginary: "imag",
+      absolute: "abs",
+    } as const;
+    return `${functions[expression.kind]}(${operand})`;
+  }
+  const left = formatOutputExpression(expression.left, outputs);
+  const right = formatOutputExpression(expression.right, outputs);
+  if (!left || !right) return null;
+  const operators = {
+    add: "+",
+    subtract: "-",
+    multiply: "*",
+    divide: "/",
+  } as const;
+  return `(${left} ${operators[expression.kind]} ${right})`;
 }
 
 function ProbeSelect({

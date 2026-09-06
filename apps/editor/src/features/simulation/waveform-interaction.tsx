@@ -21,6 +21,11 @@ export function useWaveformWidth() {
   return { ref, width };
 }
 
+/** Keep docked plots readable as the resizable Simulation workspace grows. */
+export function responsiveWaveformHeight(width: number): number {
+  return Math.round(Math.min(440, Math.max(320, width * 0.52)));
+}
+
 export interface WaveformPoint {
   x: number;
   y: number;

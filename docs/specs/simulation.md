@@ -168,8 +168,8 @@ are produced at compile time and are not part of reading a rawfile.
   environment, because the author cannot know container-local paths.
 - Stimulus sources and loads are ordinary Instances in the author's Testbench
   Cell. Their connectivity and source parameters remain authoritative on those
-  Instances. Analyses, sweeps, probes, and the environment selection belong to
-  the structured `SimulationSetup`.
+  Instances. Analyses, sweeps, named outputs, and the environment selection
+  belong to the structured `SimulationSetup`.
 - The deck builder appends `.end` only when the author's testbench did not
   already close the deck.
 
@@ -179,7 +179,7 @@ A Project owns a bounded collection of named `SimulationSetup` records. Each
 record is independently addressable by stable `id`, has an editable `name`,
 and contains exactly one input form:
 
-- a structured setup with its Testbench root, analyses, probes, and environment
+- a structured setup with its Testbench root, analyses, named outputs, and environment
   selection; or
 - a raw setup with its entry path, authored files, and declared dependencies.
 
@@ -199,20 +199,23 @@ that unresolved reference instead of blocking the ordinary edit or silently
 rebinding intent. Schema 42 migrates that singleton to the required
 `CircuitProject.simulationSetups` collection. It preserves an authored legacy
 setup as `simulation-setup-1` / `Setup 1`, and migrates absence to an empty
-collection.
+collection. Schema 43 replaces primitive probes with named outputs and a
+bounded expression AST. The 42→43 adapter wraps every old probe as an
+equivalent voltage/current leaf expression and derives its initial authored
+label from the Logical Net, formal Cell port, or endpoint/Instance identity.
 
 ```ts
 interface ProjectSimulationSetup {
   id: StableId;
   name: string;
-  version: 1;
+  version: 2;
   input: SimulationStructuredInput | SimulationRawInput;
 }
 interface SimulationStructuredInput {
   kind: "structured";
   rootDocumentId: StableId; // the Testbench Cell, a Document of the Project
   analyses: SimulationAnalysisSpec[]; // non-empty; at most one entry per kind
-  probes: SimulationProbeSpec[]; // ids unique
+  outputs: SimulationOutputSpec[]; // ids and case-folded labels unique
   environment: { profileId: string; corner?: string; temperatureC?: number };
 }
 interface SimulationRawInput {
@@ -249,10 +252,14 @@ type SimulationAnalysisSpec =
       startSeconds?: number; // >= 0 and < stopSeconds
       maxStepSeconds?: number; // > 0, optional solver ceiling
     };
-type SimulationProbeSpec =
+interface SimulationOutputSpec {
+  id: StableId; // durable result/export binding
+  label: string; // sole authored display name; never electrical identity
+  expression: SimulationExpression;
+}
+type SimulationExpression =
   | {
-      id: StableId;
-      kind: "net-voltage";
+      kind: "voltage";
       documentId: StableId;
       anchor:
         | { kind: "terminal"; instanceId: StableId; pinName: string }
@@ -262,11 +269,27 @@ type SimulationProbeSpec =
       occurrence: StableId[];
     }
   | {
-      id: StableId;
-      kind: "source-current";
+      kind: "current";
       documentId: StableId;
       instanceId: StableId;
       occurrence: StableId[];
+    }
+  | { kind: "constant"; value: number }
+  | {
+      kind:
+        | "negate"
+        | "magnitude"
+        | "db20"
+        | "phase"
+        | "real"
+        | "imaginary"
+        | "absolute";
+      operand: SimulationExpression;
+    }
+  | {
+      kind: "add" | "subtract" | "multiply" | "divide";
+      left: SimulationExpression;
+      right: SimulationExpression;
     };
 ```
 
@@ -275,9 +298,10 @@ Document that owns the probed object; it is empty when that object is in the
 root itself. `profileId` is the hosted Profile ID (today
 `sky130-core-continuous-ngspice46-v1`). An `upsert_simulation_setup` edit refuses a
 new `rootDocumentId` that names no Document of the Project. The persisted schema
-allows a previously valid root or probe anchor to become unresolved, while it
-still rejects repeated analysis kinds and duplicate probe ids. Whether the root
-or a probed object still exists is a preparation-time diagnostic, not a save
+allows a previously valid root or acquired object to become unresolved, while
+it still rejects repeated analysis kinds, duplicate output ids/labels, and
+expression trees deeper than 32 nodes. Whether the root or an acquired object
+still exists is a preparation-time diagnostic, not a save
 rule: an ordinary circuit edit must never make the Project unsaveable. Raw paths use one
 virtual relative namespace: no absolute paths, parent traversal, Windows drive
 syntax, control characters, or `.spiceinit`. The entry must be one authored
@@ -322,6 +346,24 @@ author's allowed selections such as corner and temperature. It never copies a
 Profile manifest, model path, simulator digest, or measured environment
 fingerprint. Preparation resolves the named Profile; execution reports the
 environment that actually ran.
+
+Preparation compiles each output expression into an immutable plan and
+deduplicates its primitive voltage/current acquisitions before ngspice runs.
+Arithmetic is evaluated after rawfile parsing with complex AC values preserved;
+`phase` returns degrees and `db20` accepts a unitless ratio. A missing vector,
+unit mismatch, or divide-by-zero invalidates only that output and returns a
+structured diagnostic; other outputs and analyses remain available. OP, DC,
+AC, TRAN, plots, CSV, and MCP all expose the same persisted `output.label`.
+Raw simulator vector names remain technical evidence and may be shown only as
+secondary detail.
+
+The Agent helper `simulation_output` lists, upserts, and removes structured
+outputs. Its bounded text grammar supports output references, constants,
+`+`, `-`, `*`, `/`, `mag`, `db20`, `phase`, `real`, `imag`, and `abs`; it
+parses into the same persisted AST and never executes JavaScript or forwards
+arbitrary expressions to ngspice. Typed Project structure edits remain the
+full-fidelity authority, so GUI and Agent operations converge on one setup
+contract.
 
 `ModelLibrarySelection` replaces the unpublished raw
 `modelLibraryPath: string | null` package API. There is no file-format or
@@ -373,7 +415,7 @@ into the Project, undo history, Gallery, or recovery copy.
 A run has exactly one input form:
 
 - **Structured**: a `SimulationSetup` naming a `rootDocumentId` in the
-  Project, the analyses to run with their parameters, the probes to record,
+  Project, the analyses to run with their parameters, the outputs to evaluate,
   and an environment selection. The product compiles it: the design netlist
   of everything the root reaches, one instantiation of the root, the
   environment's model library, the analyses, the saves, and `.end`.
@@ -400,8 +442,9 @@ defines `.subckt`s and instantiates nothing is not a run.
 ### Compiling a structured setup
 
 `compileStructuredSimulation` in `@icm/netlist` turns a setup and its Project
-into the netlist and testbench halves of one request, plus the probe-to-vector
-bindings. The netlist half is every reached Cell **except** the root, printed
+into the netlist and testbench halves of one request, plus an output plan and
+deduplicated acquisition-to-vector bindings. The netlist half is every reached
+Cell **except** the root, printed
 by the same `printSpiceNetlist` the structural export uses, carrying the
 `.global` declarations. The testbench half is the root's own Instances as
 top-level cards, the authored `.temp` when the setup names one, and then a
@@ -425,12 +468,12 @@ a stale file at all; a multi-analysis deck relies on the fresh per-run
 directory the harness makes. The alternative -- naming the plot in the
 expression, `op1.mid` -- also keeps both plots in one `write`, but ngspice
 then records the variable as `v(op1.mid)`, putting a plot ordinal that depends
-on how many analyses ran into every probe name. A setup with no probes emits a
-bare `write out.raw`, saving the whole plot rather than nothing.
+on how many analyses ran into every vector name. A setup with no outputs emits
+a bare `write out.raw`, saving the whole plot rather than nothing.
 
 Vector names are produced here and never inferred from result text:
 
-| probe                            | vector            |
+| primitive acquisition            | vector            |
 | -------------------------------- | ----------------- |
 | Net in the root                  | `v(mid)`          |
 | Net under occurrence `X1`, `XI1` | `v(x1.xi1.mid)`   |

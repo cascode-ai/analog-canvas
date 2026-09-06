@@ -26,7 +26,7 @@ const ota = JSON.parse(
   ),
 );
 
-test("the qualified OTA setup opens unchanged and preserves all root and hierarchical probes", async ({
+test("the qualified OTA setup opens unchanged and preserves all root and hierarchical outputs", async ({
   page,
 }) => {
   const project = parseProject(JSON.stringify(ota));
@@ -35,9 +35,14 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
   if (savedSetup?.input.kind !== "structured")
     throw new Error("qualified OTA fixture setup is not structured");
   const originalSetupInput = savedSetup.input;
-  expect(originalSetupInput.probes).toHaveLength(4);
+  expect(originalSetupInput.outputs).toHaveLength(4);
   expect(
-    originalSetupInput.probes.filter((p) => p.occurrence.length > 0),
+    originalSetupInput.outputs.filter(
+      (output) =>
+        (output.expression.kind === "voltage" ||
+          output.expression.kind === "current") &&
+        output.expression.occurrence.length > 0,
+    ),
   ).toHaveLength(2);
   let executions = 0;
   await page.route("**/api/simulate", async (route) => {
@@ -74,18 +79,18 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
   );
   await expect(panel.getByLabel("Stop (Hz)")).toHaveValue("1000000000");
   await expect(panel.getByLabel("Environment profile")).toHaveValue(profile.id);
-  await expect(panel.getByRole("button", { name: "Remove probe" })).toHaveCount(
-    4,
-  );
+  await expect(
+    panel.getByRole("button", { name: "Remove output" }),
+  ).toHaveCount(4);
   await expect(
     panel.locator("li").filter({ hasText: "XDUT · ota_5t · tail" }),
   ).toBeVisible();
   await panel.getByRole("button", { name: "Pick on canvas" }).click();
   await page.getByTestId("route-hit-tb-vinp-route").click({ force: true });
-  await expect(panel.getByRole("button", { name: "Remove probe" })).toHaveCount(
-    5,
-  );
-  await panel.getByRole("button", { name: "Remove probe" }).last().click();
+  await expect(
+    panel.getByRole("button", { name: "Remove output" }),
+  ).toHaveCount(5);
+  await panel.getByRole("button", { name: "Remove output" }).last().click();
   await panel.getByRole("button", { name: "Picking Nets…" }).click();
   await panel
     .getByLabel("Add voltage probe")
@@ -93,9 +98,9 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
   await panel
     .getByLabel("Add current output")
     .selectOption({ label: "Testbench · VINP current" });
-  await expect(panel.getByRole("button", { name: "Remove probe" })).toHaveCount(
-    6,
-  );
+  await expect(
+    panel.getByRole("button", { name: "Remove output" }),
+  ).toHaveCount(6);
   await panel.getByRole("button", { name: "Apply setup" }).click();
   await panel.getByRole("button", { name: "Prepare deck" }).click();
   const deckDownload = page.waitForEvent("download");
@@ -120,27 +125,31 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
   const saved = JSON.parse(
     (await downloadBytes(page, "File", "Export Project File…")).toString(),
   );
-  const { probes: savedProbes, ...savedInput } =
+  const { outputs: savedOutputs, ...savedInput } =
     saved.simulationSetups[0].input;
-  const { probes: originalProbes, ...originalInput } = originalSetupInput;
+  const { outputs: originalOutputs, ...originalInput } = originalSetupInput;
   expect(savedInput).toEqual(originalInput);
-  expect(savedProbes.slice(0, 4)).toEqual(originalProbes);
-  expect(savedProbes.slice(4)).toMatchObject([
+  expect(savedOutputs.slice(0, 4)).toEqual(originalOutputs);
+  expect(savedOutputs.slice(4)).toMatchObject([
     {
-      kind: "net-voltage",
-      documentId: "document-ota-5t",
-      anchor: {
-        kind: "terminal",
-        instanceId: "PVINP",
-        pinName: "P",
+      expression: {
+        kind: "voltage",
+        documentId: "document-ota-5t",
+        anchor: {
+          kind: "terminal",
+          instanceId: "PVINP",
+          pinName: "P",
+        },
+        occurrence: ["XDUT"],
       },
-      occurrence: ["XDUT"],
     },
     {
-      kind: "source-current",
-      documentId: "document-ota-5t-testbench",
-      instanceId: "VINP",
-      occurrence: [],
+      expression: {
+        kind: "current",
+        documentId: "document-ota-5t-testbench",
+        instanceId: "VINP",
+        occurrence: [],
+      },
     },
   ]);
   await page.reload();
@@ -153,9 +162,9 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
     .getByRole("button", { name: "Analog simulation", exact: true })
     .click();
   await panel.getByRole("button", { name: "Settings" }).click();
-  await expect(panel.getByRole("button", { name: "Remove probe" })).toHaveCount(
-    6,
-  );
+  await expect(
+    panel.getByRole("button", { name: "Remove output" }),
+  ).toHaveCount(6);
   await expect(panel.getByLabel("Stop (Hz)")).toHaveValue("1000000000");
 });
 
@@ -222,7 +231,7 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
     {
       id: "setup-e2e",
       name: "E2E setup",
-      version: 1,
+      version: 2,
       input: {
         kind: "structured",
         rootDocumentId: project.topDocumentId,
@@ -230,17 +239,20 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
           { kind: "op" },
           { kind: "ac", sweep: "dec", points: 10, startHz: 1, stopHz: 1e6 },
         ],
-        probes: [
+        outputs: [
           {
             id: "out",
-            kind: "net-voltage",
-            documentId: project.topDocumentId,
-            anchor: {
-              kind: "terminal",
-              instanceId: "missing-instance",
-              pinName: "out",
+            label: "out",
+            expression: {
+              kind: "voltage",
+              documentId: project.topDocumentId,
+              anchor: {
+                kind: "terminal",
+                instanceId: "missing-instance",
+                pinName: "out",
+              },
+              occurrence: [],
             },
-            occurrence: [],
           },
         ],
         environment: { profileId: profile.id },
@@ -297,7 +309,17 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
         data: {
           ...reading.data,
           analyses: [
-            ...reading.data.analyses,
+            {
+              ...reading.data.analyses[0],
+              probes: [
+                {
+                  name: requestedVector,
+                  quantity: "voltage",
+                  unit: "V",
+                  value: 0.5,
+                },
+              ],
+            },
             {
               analysis: "ac",
               plotName: "AC response",
@@ -372,7 +394,7 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   await expect(panel.getByRole("alert")).toContainText(/PROBE|probe/);
   expect(executions).toBe(0);
   await panel.getByRole("button", { name: "Settings" }).click();
-  await panel.getByRole("button", { name: "Remove probe" }).click();
+  await panel.getByRole("button", { name: "Remove output" }).click();
   await panel
     .getByLabel("Add voltage probe")
     .selectOption({ label: "Testbench · vout" });
@@ -397,6 +419,25 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   await expect(panel.locator(".spice-ac-plot svg")).toHaveCount(3);
   await expect(panel.locator('svg[aria-label="AC magnitude"]')).toBeVisible();
   await expect(panel.locator('svg[aria-label="AC phase"]')).toBeVisible();
+  await expect
+    .poll(
+      async () =>
+        (await panel.locator('svg[aria-label="AC magnitude"]').boundingBox())
+          ?.height ?? 0,
+    )
+    .toBeGreaterThan(300);
+  expect(
+    await panel
+      .locator(".ac-response .ac-trace")
+      .first()
+      .evaluate((trace) => getComputedStyle(trace).strokeWidth),
+  ).toBe("2.4px");
+  expect(
+    await panel
+      .locator(".ac-response .ac-axis-label")
+      .first()
+      .evaluate((label) => getComputedStyle(label).fill),
+  ).toBe("rgb(52, 64, 84)");
   await expect(panel.getByText("first-output", { exact: true })).toHaveCount(2);
   const magnitudePlot = panel
     .locator(".ac-plot-row")
@@ -733,6 +774,7 @@ test("Simulation creates an ordinary testbench and offers the current Cell at th
   const initialWidth = Number(
     await simulationResize.getAttribute("aria-valuenow"),
   );
+  expect(initialWidth).toBe(Math.round(page.viewportSize()!.width * 0.4));
   await simulationResize.press("ArrowRight");
   await expect(simulationResize).toHaveAttribute(
     "aria-valuenow",

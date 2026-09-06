@@ -124,10 +124,16 @@ same contract as `/api/agent/sessions/{sessionId}/simulation`:
 1. `capabilities`: discover the selected deployment Profile and limits without
    starting the simulator.
 2. Configure the Project through `advanced_transact` with
-   `upsert_simulation_setup`; remove one by `remove_simulation_setup`. Sources, DUT instances, formal ports,
-   and wiring remain ordinary Project edits. Structured analyses support OP,
-   one-source linear DC sweep, AC, and TRAN; discover the deployment Profile
-   before selecting an analysis.
+   `upsert_simulation_setup`; remove one by `remove_simulation_setup`. Sources,
+   DUT instances, formal ports, and wiring remain ordinary Project edits.
+   Structured analyses support OP, one-source linear DC sweep, AC, and TRAN;
+   discover the deployment Profile before selecting an analysis. A structured
+   setup stores named `outputs`, not a second Net namespace. Use
+   `simulation_output` with an explicit `setupId` to list, upsert, or remove
+   output expressions with recoverable validation; use the typed structure
+   edit when constructing the full AST directly. Expressions support
+   arithmetic and `mag`, `db20`, `phase`, `real`, `imag`, and `abs` over
+   existing output labels.
 3. `prepare` with `source:{kind:"project-setup",setupId,expectedStructureRevision}`
    freezes the saved structured or raw setup. It returns `prepared.id`,
    `digest`, vectors, and export references. A stale Project revision is a
@@ -139,8 +145,10 @@ same contract as `/api/agent/sessions/{sessionId}/simulation`:
    since preparation. Editing the circuit does not rewrite an active run.
 6. `export` lists artifact references. `simulation_files` with
    `request:{action:"artifact",artifactId}` retrieves bytes; `outputPath` saves
-   them locally after verifying length and SHA-256. Deck, rawfile, JSON, log
-   and per-analysis CSV use the same File Resource, not a second filesystem.
+   them locally after verifying length and SHA-256. Deck, rawfile, JSON, log,
+   primitive-vector CSV, and named-output CSV use the same File Resource, not a
+   second filesystem. `run.outputData` is the plot-ready named-output result;
+   the simulator's primitive `run.result.data` remains raw execution evidence.
    Large run reads set `resultPreview`; use artifact `offset`/`nextOffset` to
    page through full evidence. Local `outputPath` exports assemble all slices.
 

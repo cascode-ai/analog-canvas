@@ -2,14 +2,14 @@
 
 Status: `accepted`
 
-Current Project schema: `42`
+Current Project schema: `43`
 
 Primary owners: `packages/model` (current shape) and
 `packages/project-protocol` (file boundary)
 
 An `.icproj.json` file is canonical JSON for one complete `CircuitProject`.
 `@icm/project-protocol` exposes `parseProject`. The file boundary accepts every
-schema covered by its explicit 24→42 upgrade chain. Schema 32 added optional
+schema covered by its explicit 24→43 upgrade chain. Schema 32 added optional
 presentation-only `Annotation.textColor`; schema 33 removes ownerless
 `explicit-equivalence` connectivity. The 32→33 adapter advances the version
 stamp only when that retired record is absent. If one exists, it rejects at the
@@ -45,8 +45,10 @@ linear DC sweep analysis; existing setups remain valid, so the 40→41 adapter
 rewrites no authored content. Schema 42 replaces the optional singleton with a
 named `simulationSetups` collection; the 41→42 adapter preserves one authored
 setup with a deterministic ID/name and maps absence to an empty collection.
-The public file boundary supplies only schema 42
-in memory and writes only schema 42; versions older than 24 or newer than 42
+Schema 43 replaces primitive probes with named outputs and bounded expression
+trees; the 42→43 adapter preserves each target as a leaf output and derives an
+initial human-readable label. The public file boundary supplies only schema 43
+in memory and writes only schema 43; versions older than 24 or newer than 43
 are rejected.
 
 ## Current authorities
@@ -113,11 +115,14 @@ are rejected.
 - MOS assets are canonical `nmos`/`pmos`; visual variant selection does not
   change persisted terminal connectivity.
 - `Project.simulationSetups` is the named setup collection defined in the
-  [simulation spec](simulation.md#persistence-and-compatibility): a
-  Each record has stable `id`, editable unique `name`, and a `version: 1`
-  envelope around exactly one structured or raw input. A
+  [simulation spec](simulation.md#persistence-and-compatibility). Each record
+  has stable `id`, editable unique `name`, and a `version: 2` envelope around
+  exactly one structured or raw input. A
   structured root must name a Document of the Project, analyses hold at most
-  one entry per kind, and probe ids are unique. A raw input owns bounded author
+  one entry per kind, and output ids and labels are unique. Each output owns
+  one bounded expression over voltage/current acquisitions and constants;
+  `output.label` is the sole authored name used by OP/DC/AC/TRAN results,
+  plots, CSV, and MCP. A raw input owns bounded author
   files in the shared virtual relative namespace and declares external bytes
   by logical identity, mount path, and digest; it never stores a host path. Both
   forms store only a Profile ID plus the author's corner and temperature
@@ -128,8 +133,8 @@ are rejected.
 ## Read and write
 
 ```text
-import text -> parse JSON -> require Project schema 24 through 42
--> converge to schema 42 -> strict schema-42 validation -> install unbound
+import text -> parse JSON -> require Project schema 24 through 43
+-> converge to schema 43 -> strict schema-43 validation -> install unbound
 export -> strict validation -> canonical key ordering -> Blob download
 ```
 
@@ -153,7 +158,7 @@ open, and recovery remain exact.
 Canonical serialization ends with one newline and is byte-stable across
 serialize/parse/serialize. The current corpus is listed in
 `fixtures/projects/compatibility-corpus.json`; its accepted entries must all be
-already canonical Project schema 42. The rejected corpus names expected
+already canonical Project schema 43. The rejected corpus names expected
 validation failures.
 
 Viewport, selection, undo history, canvas overlays, Agent credentials,

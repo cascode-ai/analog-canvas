@@ -99,22 +99,110 @@ export const SimulationVoltageProbeAnchorSchema = z.discriminatedUnion("kind", [
   }),
 ]);
 
-export const SimulationProbeSpecSchema = z.discriminatedUnion("kind", [
-  z.strictObject({
-    id: StableIdSchema,
-    kind: z.literal("net-voltage"),
-    documentId: StableIdSchema,
-    anchor: SimulationVoltageProbeAnchorSchema,
-    occurrence: SimulationProbeOccurrenceSchema,
-  }),
-  z.strictObject({
-    id: StableIdSchema,
-    kind: z.literal("source-current"),
-    documentId: StableIdSchema,
-    instanceId: StableIdSchema,
-    occurrence: SimulationProbeOccurrenceSchema,
-  }),
-]);
+const SimulationVoltageExpressionSchema = z.strictObject({
+  kind: z.literal("voltage"),
+  documentId: StableIdSchema,
+  anchor: SimulationVoltageProbeAnchorSchema,
+  occurrence: SimulationProbeOccurrenceSchema,
+});
+
+const SimulationCurrentExpressionSchema = z.strictObject({
+  kind: z.literal("current"),
+  documentId: StableIdSchema,
+  instanceId: StableIdSchema,
+  occurrence: SimulationProbeOccurrenceSchema,
+});
+
+export type SimulationExpression =
+  | z.infer<typeof SimulationVoltageExpressionSchema>
+  | z.infer<typeof SimulationCurrentExpressionSchema>
+  | { readonly kind: "constant"; readonly value: number }
+  | {
+      readonly kind:
+        | "negate"
+        | "magnitude"
+        | "db20"
+        | "phase"
+        | "real"
+        | "imaginary"
+        | "absolute";
+      readonly operand: SimulationExpression;
+    }
+  | {
+      readonly kind: "add" | "subtract" | "multiply" | "divide";
+      readonly left: SimulationExpression;
+      readonly right: SimulationExpression;
+    };
+
+/**
+ * A deliberately small, data-only expression language. It is evaluated by
+ * Analog Canvas after ngspice returns primitive vectors; no authored text is
+ * executed by JavaScript or passed through as an ngspice expression.
+ */
+export const SimulationExpressionSchema: z.ZodType<SimulationExpression> =
+  z.lazy(() =>
+    z.discriminatedUnion("kind", [
+      SimulationVoltageExpressionSchema,
+      SimulationCurrentExpressionSchema,
+      z.strictObject({
+        kind: z.literal("constant"),
+        value: z.number().finite(),
+      }),
+      ...(
+        [
+          "negate",
+          "magnitude",
+          "db20",
+          "phase",
+          "real",
+          "imaginary",
+          "absolute",
+        ] as const
+      ).map((kind) =>
+        z.strictObject({
+          kind: z.literal(kind),
+          operand: SimulationExpressionSchema,
+        }),
+      ),
+      ...(["add", "subtract", "multiply", "divide"] as const).map((kind) =>
+        z.strictObject({
+          kind: z.literal(kind),
+          left: SimulationExpressionSchema,
+          right: SimulationExpressionSchema,
+        }),
+      ),
+    ]),
+  );
+
+export const SimulationOutputSpecSchema = z.strictObject({
+  id: StableIdSchema,
+  /** Authored display name used by plots and exports, never for binding. */
+  label: z.string().trim().min(1).max(128),
+  expression: SimulationExpressionSchema,
+});
+
+function expressionDepth(expression: SimulationExpression): number {
+  if (
+    expression.kind === "voltage" ||
+    expression.kind === "current" ||
+    expression.kind === "constant"
+  )
+    return 1;
+  if (
+    expression.kind === "add" ||
+    expression.kind === "subtract" ||
+    expression.kind === "multiply" ||
+    expression.kind === "divide"
+  )
+    return (
+      1 +
+      Math.max(
+        expressionDepth(expression.left),
+        expressionDepth(expression.right),
+      )
+    );
+  return "operand" in expression ? 1 + expressionDepth(expression.operand) : 1;
+}
 
 /**
  * Only the stable Profile ID plus the author's allowed selections. A Profile
@@ -240,7 +328,7 @@ export const SimulationStructuredInputSchema = z
     /** The Testbench Cell; it is neither the DUT nor necessarily the Project top. */
     rootDocumentId: StableIdSchema,
     analyses: z.array(SimulationAnalysisSpecSchema).min(1),
-    probes: z.array(SimulationProbeSpecSchema).max(1024),
+    outputs: z.array(SimulationOutputSpecSchema).max(1024),
     environment: SimulationEnvironmentSelectionSchema,
   })
   .superRefine((input, context) => {
@@ -255,11 +343,30 @@ export const SimulationStructuredInputSchema = z
       }
       kinds.add(analysis.kind);
     }
-    reportDuplicateIds(input.probes, "probes", context);
+    reportDuplicateIds(input.outputs, "outputs", context);
+    const labels = new Set<string>();
+    for (const [index, output] of input.outputs.entries()) {
+      const label = output.label.toLowerCase();
+      if (labels.has(label)) {
+        context.addIssue({
+          code: "custom",
+          message: `Duplicate simulation output label: ${output.label}`,
+          path: ["outputs", index, "label"],
+        });
+      }
+      labels.add(label);
+      if (expressionDepth(output.expression) > 32) {
+        context.addIssue({
+          code: "custom",
+          message: "Simulation expression exceeds maximum depth 32",
+          path: ["outputs", index, "expression"],
+        });
+      }
+    }
   });
 
 export const SimulationSetupSchema = z.strictObject({
-  version: z.literal(1),
+  version: z.literal(2),
   input: z.discriminatedUnion("kind", [
     SimulationStructuredInputSchema,
     SimulationRawInputSchema,

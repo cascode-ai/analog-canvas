@@ -36,6 +36,7 @@ describe("mcp tool surface", () => {
       "disconnect",
       "connection_status",
       "simulation",
+      "simulation_output",
       "simulation_files",
       "export_file",
       "import_file",
@@ -95,6 +96,91 @@ describe("mcp tool surface", () => {
       errors: 0,
       warnings: 1,
       connection: "online",
+    });
+  });
+
+  it("authors a derived simulation output through the shared setup transaction", async () => {
+    const http = new FakeAgentHttp();
+    const { session } = await toolSession(http);
+    await callTool("connect", { claimCode: "session-1.code" }, session);
+    const snapshot = testSnapshot();
+    snapshot.project.simulationSetups = [
+      {
+        id: "setup-op",
+        name: "Operating point",
+        version: 2,
+        input: {
+          kind: "structured",
+          rootDocumentId: "main",
+          analyses: [{ kind: "op" }],
+          outputs: [
+            {
+              id: "vin",
+              label: "Vin",
+              expression: {
+                kind: "voltage",
+                documentId: "main",
+                anchor: {
+                  kind: "terminal",
+                  instanceId: "instance-1",
+                  pinName: "G",
+                },
+                occurrence: [],
+              },
+            },
+          ],
+          environment: { profileId: "test" },
+        },
+      },
+    ];
+    const transacts: Extract<
+      (typeof http.circuitCalls)[number]["request"],
+      { operation: "transact" }
+    >[] = [];
+    http.circuitHandler = async ({ request }) => {
+      if (request.operation === "snapshot")
+        return snapshotResponse(request.requestId, snapshot);
+      if (request.operation === "transact") {
+        transacts.push(request);
+        return transactSuccessResponse(
+          request.requestId,
+          request.expectedRevision,
+        );
+      }
+      return capabilitiesResponse(request.requestId);
+    };
+
+    const result = parseText(
+      await callTool(
+        "simulation_output",
+        {
+          action: "upsert",
+          setupId: "setup-op",
+          label: "Gain",
+          expression: "db20(Vin / Vin)",
+        },
+        session,
+      ),
+    ) as { ok: boolean };
+
+    expect(result.ok).toBe(true);
+    expect(transacts).toHaveLength(1);
+    expect(transacts[0]?.structureEdits?.[0]).toMatchObject({
+      kind: "upsert_simulation_setup",
+      setup: {
+        id: "setup-op",
+        name: "Operating point",
+        version: 2,
+        input: {
+          outputs: [
+            { id: "vin", label: "Vin" },
+            {
+              label: "Gain",
+              expression: { kind: "db20" },
+            },
+          ],
+        },
+      },
     });
   });
 

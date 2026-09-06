@@ -143,7 +143,7 @@ function dividerProject(): CircuitProject {
 }
 
 const DIVIDER_SETUP: SimulationStructuredSetup = {
-  version: 1,
+  version: 2,
   input: {
     kind: "structured",
     rootDocumentId: "tb",
@@ -151,27 +151,36 @@ const DIVIDER_SETUP: SimulationStructuredSetup = {
       { kind: "op" },
       { kind: "ac", sweep: "dec", points: 2, startHz: 1, stopHz: 100 },
     ],
-    probes: [
+    outputs: [
       {
         id: "probe-mid",
-        kind: "net-voltage",
-        documentId: "tb",
-        anchor: { kind: "terminal", instanceId: "inst-r1", pinName: "2" },
-        occurrence: [],
+        label: "MID",
+        expression: {
+          kind: "voltage",
+          documentId: "tb",
+          anchor: { kind: "terminal", instanceId: "inst-r1", pinName: "2" },
+          occurrence: [],
+        },
       },
       {
         id: "probe-in",
-        kind: "net-voltage",
-        documentId: "tb",
-        anchor: { kind: "terminal", instanceId: "inst-v1", pinName: "+" },
-        occurrence: [],
+        label: "IN",
+        expression: {
+          kind: "voltage",
+          documentId: "tb",
+          anchor: { kind: "terminal", instanceId: "inst-v1", pinName: "+" },
+          occurrence: [],
+        },
       },
       {
         id: "probe-v1",
-        kind: "source-current",
-        documentId: "tb",
-        instanceId: "inst-v1",
-        occurrence: [],
+        label: "IV1",
+        expression: {
+          kind: "current",
+          documentId: "tb",
+          instanceId: "inst-v1",
+          occurrence: [],
+        },
       },
     ],
     environment: { profileId: "hosted-sky130-v1" },
@@ -276,11 +285,32 @@ function hierarchicalProject(): CircuitProject {
 }
 
 function setupWith(
-  overrides: Partial<SimulationStructuredInput>,
+  overrides: Partial<SimulationStructuredInput> & {
+    probes?: Array<Record<string, unknown> & { id: string; kind: string }>;
+  },
 ): SimulationStructuredSetup {
+  const { probes, ...current } = overrides;
+  const outputs = probes
+    ? probes.map((probe) => {
+        const { id, ...legacyExpression } = probe;
+        return {
+          id,
+          label: id,
+          expression: {
+            ...legacyExpression,
+            kind:
+              legacyExpression.kind === "net-voltage" ? "voltage" : "current",
+          },
+        };
+      })
+    : current.outputs;
   return {
-    version: 1,
-    input: { ...DIVIDER_SETUP.input, probes: [], ...overrides },
+    version: 2,
+    input: {
+      ...DIVIDER_SETUP.input,
+      outputs: outputs ?? [],
+      ...current,
+    } as SimulationStructuredInput,
   };
 }
 
@@ -350,7 +380,7 @@ describe("compiling a structured simulation setup", () => {
       dividerProject(),
       setupWith({
         analyses: [{ kind: "op" }],
-        probes: [DIVIDER_SETUP.input.probes[0]!],
+        outputs: [DIVIDER_SETUP.input.outputs[0]!],
       }),
     );
 
@@ -599,7 +629,7 @@ describe("compiling a structured simulation setup", () => {
       project,
       setupWith({
         analyses: [{ kind: "op" }],
-        probes: [DIVIDER_SETUP.input.probes[0]!],
+        outputs: [DIVIDER_SETUP.input.outputs[0]!],
       }),
     );
 
@@ -648,10 +678,61 @@ describe("compiling a structured simulation setup", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.request.testbench).toContain("write out.raw v(mid)\n");
-    expect(result.vectors.map((item) => item.probeId)).toEqual([
-      "probe-a",
-      "probe-b",
+    expect(result.vectors.map((item) => item.probeId)).toEqual(["probe-a"]);
+    expect(result.outputs).toHaveLength(2);
+  });
+
+  it("compiles a derived expression while acquiring only its physical leaves", async () => {
+    const result = await compile(
+      dividerProject(),
+      setupWith({
+        analyses: [
+          { kind: "ac", sweep: "dec", points: 2, startHz: 1, stopHz: 100 },
+        ],
+        outputs: [
+          {
+            id: "gain-db",
+            label: "Gain_dB",
+            expression: {
+              kind: "db20",
+              operand: {
+                kind: "divide",
+                left: structuredClone(
+                  DIVIDER_SETUP.input.outputs[0]!.expression,
+                ),
+                right: structuredClone(
+                  DIVIDER_SETUP.input.outputs[1]!.expression,
+                ),
+              },
+            },
+          },
+        ],
+      }),
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.request.testbench).toContain("write out.raw v(mid) v(in)\n");
+    expect(result.vectors).toEqual([
+      {
+        probeId: "gain-db:input:0",
+        vector: "v(mid)",
+        quantity: "voltage",
+      },
+      {
+        probeId: "gain-db:input:1",
+        vector: "v(in)",
+        quantity: "voltage",
+      },
     ]);
+    expect(result.outputs[0]).toMatchObject({
+      id: "gain-db",
+      label: "Gain_dB",
+      expression: {
+        kind: "db20",
+        operand: { kind: "divide" },
+      },
+    });
   });
 
   it("resolves Junction and Route voltage anchors through their current Base Net", async () => {
@@ -708,8 +789,8 @@ describe("compiling a structured simulation setup", () => {
     if (!result.ok) return;
     expect(result.vectors).toEqual([
       { probeId: "probe-junction", vector: "v(mid)", quantity: "voltage" },
-      { probeId: "probe-route", vector: "v(mid)", quantity: "voltage" },
     ]);
+    expect(result.outputs).toHaveLength(2);
   });
 });
 
@@ -1021,7 +1102,7 @@ describe("determinism", () => {
     const relabelled = await compile(
       dividerProject(),
       setupWith({
-        probes: DIVIDER_SETUP.input.probes,
+        outputs: DIVIDER_SETUP.input.outputs,
         environment: { profileId: "some-other-profile" },
       }),
     );

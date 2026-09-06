@@ -50,7 +50,14 @@ describe("schema 38 to 39 migration (raw SimulationSetup)", () => {
           {
             id: "simulation-setup-1",
             name: "Setup 1",
-            ...previous.simulation,
+            version: 2,
+            input: {
+              kind: "structured",
+              rootDocumentId: "tb",
+              analyses: [{ kind: "op" }],
+              outputs: [],
+              environment: { profileId: "profile" },
+            },
           },
         ],
       },
@@ -62,7 +69,7 @@ describe("schema 38 to 39 migration (raw SimulationSetup)", () => {
     project.simulationSetups.push({
       id: "setup-raw",
       name: "Raw",
-      version: 1,
+      version: 2,
       input: {
         kind: "raw",
         entry: "tb.cir",
