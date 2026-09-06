@@ -503,7 +503,10 @@ instrumented Cell definition remains independently addressable through every
 concrete occurrence. Terminal currents are supported for OP, DC, AC, and
 TRAN. The editor offers connected, emitted terminals; stale authored outputs
 remain saved and preparation returns an occurrence-aware typed diagnostic
-rather than silently rebinding them. Other refusals include a missing root, a
+rather than silently rebinding them. The setup editor exposes the same target
+set through its list and through a canvas terminal picker; a canvas pick names
+the actual endpoint and preserves the Testbench occurrence instead of inferring
+current from the surrounding Net. Other refusals include a missing root, a
 root that instantiates nothing, an absent Instance or terminal, an invalid
 occurrence, and an unsupported analysis kind.
 

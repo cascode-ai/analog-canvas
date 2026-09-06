@@ -1310,7 +1310,8 @@
 
 .schematic-canvas.simulation-net-pick-active .route-hit,
 .schematic-canvas.simulation-net-pick-active .endpoint-hit,
-.schematic-canvas.simulation-net-pick-active .annotation-text-hit {
+.schematic-canvas.simulation-net-pick-active .annotation-text-hit,
+.schematic-canvas.simulation-terminal-pick-active .endpoint-hit {
   cursor: crosshair;
 }
 
@@ -1318,7 +1319,8 @@
   stroke-width: 26;
 }
 
-.schematic-canvas.simulation-net-pick-active .endpoint-hit {
+.schematic-canvas.simulation-net-pick-active .endpoint-hit,
+.schematic-canvas.simulation-terminal-pick-active .endpoint-hit {
   r: 9px;
   fill: rgb(0 0 0 / 0.1%);
   pointer-events: all;

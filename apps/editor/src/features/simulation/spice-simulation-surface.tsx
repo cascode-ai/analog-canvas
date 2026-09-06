@@ -26,6 +26,7 @@ import { TransientResultsExplorer } from "./transient-results-explorer";
 import { SimulationOutputResults } from "./simulation-output-results";
 import {
   deriveSimulationProbeOptions,
+  matchSimulationTerminalCurrentProbeOptions,
   matchSimulationVoltageProbeOptions,
   simulationProbeSelectionKey,
   simulationProbeTargetKey,
@@ -92,6 +93,16 @@ export interface SpiceSimulationSurfaceProps {
     readonly occurrence?: readonly string[];
   } | null;
   onPickNetsChange?(active: boolean): void;
+  pickTerminalsActive?: boolean;
+  pickedTerminal?: {
+    readonly sequence: number;
+    readonly documentId: string;
+    readonly instanceId: string;
+    readonly pinName: string;
+    /** Instance ids from the selected Testbench root to this Cell. */
+    readonly occurrence?: readonly string[];
+  } | null;
+  onPickTerminalsChange?(active: boolean): void;
   onFocusProbe?(
     probe: Extract<SimulationExpression, { kind: "voltage" | "current" }>,
     rootDocumentId?: string,
@@ -1008,6 +1019,9 @@ function SetupEditor({
   pickNetsActive,
   pickedNet,
   onPickNetsChange,
+  pickTerminalsActive,
+  pickedTerminal,
+  onPickTerminalsChange,
 }: SpiceSimulationSurfaceProps & {
   setup: ProjectSimulationSetup | undefined;
   capabilities: Capabilities | undefined;
@@ -1130,6 +1144,42 @@ function SetupEditor({
     setPickCandidates([]);
     onProblem(undefined);
   }, [pickedNet?.sequence]);
+  useEffect(() => {
+    if (!pickedTerminal) return;
+    const candidates = matchSimulationTerminalCurrentProbeOptions(
+      probeOptions.terminalCurrent,
+      pickedTerminal,
+    );
+    if (candidates.length > 1) {
+      setPickCandidates(candidates);
+      onProblem(undefined);
+      return;
+    }
+    const option = candidates[0];
+    if (!option) {
+      onProblem(
+        uiProblem(
+          "PROBE_TARGET_UNAVAILABLE",
+          "That terminal is not a connected current target in the selected Testbench occurrence.",
+        ),
+      );
+      return;
+    }
+    const key = simulationProbeSelectionKey(project, option.target);
+    if (
+      outputs.some(
+        (output) =>
+          (output.expression.kind === "voltage" ||
+            output.expression.kind === "current") &&
+          simulationProbeSelectionKey(project, output.expression) === key,
+      )
+    )
+      return;
+    setOutputs((current) => [...current, outputFromOption(option, current)]);
+    onDirty(true);
+    setPickCandidates([]);
+    onProblem(undefined);
+  }, [pickedTerminal?.sequence]);
   useEffect(() => {
     onDirty(false);
   }, []);
@@ -1558,7 +1608,7 @@ function SetupEditor({
         {pickCandidates.length > 1 ? (
           <fieldset
             className="simulation-setup-group"
-            aria-label="Choose Net occurrence"
+            aria-label="Choose probe occurrence"
           >
             <legend>Choose occurrence</legend>
             {pickCandidates.map((option) => (
@@ -1588,6 +1638,18 @@ function SetupEditor({
             setOutputs([...outputs, outputFromOption(option, outputs)]);
             onDirty(true);
           }}
+          trailingAction={
+            <button
+              type="button"
+              className={
+                pickTerminalsActive ? "simulation-pick-active" : undefined
+              }
+              aria-pressed={pickTerminalsActive}
+              onClick={() => onPickTerminalsChange?.(!pickTerminalsActive)}
+            >
+              {pickTerminalsActive ? "Picking Terminals…" : "Pick terminal"}
+            </button>
+          }
         />
         <small>Positive current enters the selected terminal.</small>
         <fieldset className="simulation-setup-group simulation-expression-editor">

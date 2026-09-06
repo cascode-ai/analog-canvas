@@ -42,7 +42,7 @@ describe("SpiceSimulationSurface workspace", () => {
     expect(markup).not.toContain("Filter by Cell, instance, pin, or Net");
     expect(markup).toContain("Choose a Net");
     expect(markup).toContain("Pick on canvas");
-    expect(markup).not.toContain("Pick voltage on canvas");
+    expect(markup).toContain("Pick terminal");
     expect(markup).toContain("Add current output");
     expect(markup).toContain(
       'class="simulation-setup-group simulation-analysis-row"',
