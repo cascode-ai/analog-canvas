@@ -9,6 +9,10 @@ import { describe, expect, it } from "vitest";
  */
 const preview = readFileSync(".github/workflows/deploy-preview.yml", "utf8");
 const production = readFileSync(".github/workflows/cloudflare.yml", "utf8");
+const agentJourney = readFileSync(
+  "scripts/preview-agent-simulation-journey.mjs",
+  "utf8",
+);
 
 describe("the preview deploy", () => {
   it("deploys the preview configuration file and nothing else", () => {
@@ -62,5 +66,11 @@ describe("the preview deploy", () => {
     expect(production).not.toContain("wrangler.preview.jsonc");
     expect(production).not.toContain("VITE_ICM_AGENT_UI: enabled");
     expect(production).not.toContain("preview-agent-simulation-journey.mjs");
+  });
+
+  it("injects its recoverable failure through the current authored-output contract", () => {
+    expect(agentJourney).toContain("invalidSetup.input.outputs[0]");
+    expect(agentJourney).toContain("firstOutput.expression.anchor");
+    expect(agentJourney).not.toContain("invalidSetup.input.probes");
   });
 });
