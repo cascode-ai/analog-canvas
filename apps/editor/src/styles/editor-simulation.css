@@ -563,22 +563,22 @@
 .transient-quantity-group svg {
   width: 100%;
   height: auto;
-  color: var(--icm-text-muted);
-  font-size: 12px;
+  color: var(--icm-text);
+  font-size: 13px;
 }
 .transient-axis {
-  stroke: var(--icm-border-strong);
-  stroke-width: 1;
+  stroke: #667085;
+  stroke-width: 1.4;
 }
 .transient-trace {
   fill: none;
   stroke: currentColor;
-  stroke-width: 1.7;
+  stroke-width: 2.4;
   stroke-linejoin: round;
   vector-effect: non-scaling-stroke;
 }
 .transient-trace.ac-trace-selected {
-  stroke-width: 3;
+  stroke-width: 4;
 }
 .transient-quantity-group .ac-trace-hit {
   fill: none;
@@ -1202,13 +1202,13 @@
    solid blob instead of a curve. */
 .ac-response .ac-trace {
   fill: none;
-  stroke-width: 1.5;
+  stroke-width: 2.4;
   stroke-linejoin: round;
   pointer-events: none;
 }
 
 .ac-response .ac-trace.ac-trace-selected {
-  stroke-width: 3;
+  stroke-width: 4;
 }
 
 .ac-response .ac-trace-hit {
@@ -1221,7 +1221,7 @@
 
 .ac-response .ac-trace.ac-phase {
   stroke-dasharray: 3 2;
-  stroke-width: 1.2;
+  stroke-width: 2.1;
 }
 
 .ac-response .ac-cursor {
@@ -1233,20 +1233,21 @@
 
 .ac-response .ac-frame {
   fill: none;
-  stroke: var(--icm-border, #d5d9e0);
-  stroke-width: 1;
+  stroke: #667085;
+  stroke-width: 1.4;
 }
 
 .ac-response .ac-grid,
 .transient-results-explorer .ac-grid {
-  stroke: var(--icm-border-subtle, #eceff3);
-  stroke-width: 1;
+  stroke: #d0d5dd;
+  stroke-width: 1.1;
 }
 
 .ac-response .ac-axis-label,
 .transient-results-explorer .ac-axis-label {
-  font-size: 12px;
-  fill: var(--icm-text-muted, #667085);
+  font-size: 13px;
+  font-weight: 520;
+  fill: #344054;
   font-variant-numeric: tabular-nums;
 }
 

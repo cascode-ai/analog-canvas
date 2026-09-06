@@ -397,6 +397,25 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   await expect(panel.locator(".spice-ac-plot svg")).toHaveCount(3);
   await expect(panel.locator('svg[aria-label="AC magnitude"]')).toBeVisible();
   await expect(panel.locator('svg[aria-label="AC phase"]')).toBeVisible();
+  await expect
+    .poll(
+      async () =>
+        (await panel.locator('svg[aria-label="AC magnitude"]').boundingBox())
+          ?.height ?? 0,
+    )
+    .toBeGreaterThan(300);
+  expect(
+    await panel
+      .locator(".ac-response .ac-trace")
+      .first()
+      .evaluate((trace) => getComputedStyle(trace).strokeWidth),
+  ).toBe("2.4px");
+  expect(
+    await panel
+      .locator(".ac-response .ac-axis-label")
+      .first()
+      .evaluate((label) => getComputedStyle(label).fill),
+  ).toBe("rgb(52, 64, 84)");
   await expect(panel.getByText("first-output", { exact: true })).toHaveCount(2);
   const magnitudePlot = panel
     .locator(".ac-plot-row")
@@ -733,6 +752,7 @@ test("Simulation creates an ordinary testbench and offers the current Cell at th
   const initialWidth = Number(
     await simulationResize.getAttribute("aria-valuenow"),
   );
+  expect(initialWidth).toBe(Math.round(page.viewportSize()!.width * 0.4));
   await simulationResize.press("ArrowRight");
   await expect(simulationResize).toHaveAttribute(
     "aria-valuenow",
