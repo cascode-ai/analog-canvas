@@ -309,7 +309,17 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
         data: {
           ...reading.data,
           analyses: [
-            ...reading.data.analyses,
+            {
+              ...reading.data.analyses[0],
+              probes: [
+                {
+                  name: requestedVector,
+                  quantity: "voltage",
+                  unit: "V",
+                  value: 0.5,
+                },
+              ],
+            },
             {
               analysis: "ac",
               plotName: "AC response",

@@ -134,6 +134,14 @@ describe("schema 42 to 43 simulation outputs", () => {
     const document = (project.documents as Array<Record<string, unknown>>)[0]!;
     document.instances = [
       {
+        id: "supply",
+        reference: "V3",
+        netlist: {
+          binding: { kind: "primitive", deviceClass: "voltage-source" },
+          parameters: {},
+        },
+      },
+      {
         id: "dut",
         reference: "X1",
         netlist: {
@@ -145,7 +153,10 @@ describe("schema 42 to 43 simulation outputs", () => {
     document.nets = [
       {
         id: "net-out",
-        terminals: [{ instanceId: "dut", pinName: "Vout" }],
+        terminals: [
+          { instanceId: "supply", pinName: "+" },
+          { instanceId: "dut", pinName: "VDD" },
+        ],
       },
     ];
     const setup = (
@@ -170,7 +181,7 @@ describe("schema 42 to 43 simulation outputs", () => {
           input: { outputs: Array<Record<string, unknown>> };
         }>
       )[0]!.input.outputs,
-    ).toMatchObject([{ id: "probe-out", label: "Vout" }]);
+    ).toMatchObject([{ id: "probe-out", label: "VDD" }]);
   });
 
   it("loads a schema-42 Project through the public compatibility chain", () => {

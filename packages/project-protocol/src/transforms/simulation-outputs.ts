@@ -135,7 +135,15 @@ function migratedProbeLabel(
   const endpoint = array(document.nets)
     .map(record)
     .find((net) => net?.id === netId);
-  const terminal = record(array(endpoint?.terminals)[0]);
+  const terminals = array(endpoint?.terminals).map(record);
+  const terminal =
+    terminals.find((candidate) => {
+      if (typeof candidate?.instanceId !== "string") return false;
+      const instance = array(document.instances)
+        .map(record)
+        .find((value) => value?.id === candidate.instanceId);
+      return record(record(instance?.netlist)?.binding)?.kind === "subcircuit";
+    }) ?? terminals[0];
   if (
     typeof terminal?.instanceId === "string" &&
     typeof terminal.pinName === "string"

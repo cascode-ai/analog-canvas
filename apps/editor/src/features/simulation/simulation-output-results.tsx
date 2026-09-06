@@ -164,7 +164,13 @@ export function SimulationOutputResults({
                   groups={Object.fromEntries(
                     unitOutputs.map((output) => [
                       output.id,
-                      unit === "1" ? "Value" : unit,
+                      unit === "V"
+                        ? "voltage"
+                        : unit === "A"
+                          ? "current"
+                          : unit === "1"
+                            ? "Value"
+                            : unit,
                     ]),
                   )}
                   probes={probes.filter((probe) =>
