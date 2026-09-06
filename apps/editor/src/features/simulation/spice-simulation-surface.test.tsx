@@ -11,11 +11,13 @@ describe("SpiceSimulationSurface workspace", () => {
     const markup = renderToStaticMarkup(
       <SpiceSimulationSurface
         open
+        maximized={false}
         project={project}
         activeDocumentId={project.topDocumentId}
         selectedSetupId={null}
         onSelectSetupId={() => undefined}
         session={{} as BrowserSimulationSession}
+        onToggleMaximized={() => undefined}
         onMinimize={() => undefined}
         onExit={() => undefined}
         onSaveSetup={() => true}
@@ -26,11 +28,12 @@ describe("SpiceSimulationSurface workspace", () => {
 
     expect(markup).toContain('class="simulation-taskbar"');
     expect(markup).not.toContain('data-testid="simulation-cell-flow"');
-    expect(markup).toContain("This Cell has no DUT instance");
+    expect(markup).toContain("No DUT instance in this Cell");
     expect(markup).toContain("Edit → New Testbench Cell");
     expect(markup).toContain('aria-label="Simulation setup"');
     expect(markup).toContain('aria-pressed="true">Settings');
     expect(markup).toContain('aria-pressed="false">Results');
+    expect(markup).toContain('aria-label="Maximize simulation"');
     expect(markup).toContain('<select name="profileId"');
     expect(markup).not.toContain("<datalist");
     expect(markup).toContain("sky130-core-continuous-ngspice46-v1");
@@ -111,11 +114,13 @@ describe("SpiceSimulationSurface workspace", () => {
     const markup = renderToStaticMarkup(
       <SpiceSimulationSurface
         open
+        maximized={false}
         project={project}
         activeDocumentId={root.id}
         selectedSetupId="setup-dc"
         onSelectSetupId={() => undefined}
         session={{} as BrowserSimulationSession}
+        onToggleMaximized={() => undefined}
         onMinimize={() => undefined}
         onExit={() => undefined}
         onSaveSetup={() => true}
@@ -152,11 +157,13 @@ describe("SpiceSimulationSurface workspace", () => {
     const markup = renderToStaticMarkup(
       <SpiceSimulationSurface
         open
+        maximized
         project={project}
         activeDocumentId={project.topDocumentId}
         selectedSetupId="setup-raw"
         onSelectSetupId={() => undefined}
         session={{} as BrowserSimulationSession}
+        onToggleMaximized={() => undefined}
         onMinimize={() => undefined}
         onExit={() => undefined}
         onSaveSetup={() => true}
@@ -166,9 +173,13 @@ describe("SpiceSimulationSurface workspace", () => {
     );
 
     expect(markup).toContain("Raw setup");
+    expect(markup).toContain('class="spice-simulation-surface maximized"');
+    expect(markup).toContain('aria-label="Restore simulation panel"');
     expect(markup).toContain("tb.cir");
     expect(markup).toContain("Switch to structured setup");
     expect(markup.match(/Delete setup/g)).toHaveLength(1);
     expect(markup).not.toContain("Add voltage probe");
+    expect(markup).not.toContain("authored file(s)");
+    expect(markup).not.toContain("Profile: raw-profile");
   });
 });

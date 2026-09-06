@@ -139,11 +139,46 @@
 .simulation-minimize-button {
   margin-left: auto;
 }
+.simulation-maximize-button,
 .simulation-minimize-button,
 .simulation-close-button {
   width: 30px;
   padding: 0 !important;
   font-size: 18px !important;
+}
+
+.spice-simulation-surface.maximized {
+  border-right: 0;
+}
+
+.spice-simulation-surface.maximized .simulation-setup-panel form {
+  box-sizing: border-box;
+  width: min(100%, 960px);
+  margin-inline: auto;
+}
+
+.spice-simulation-surface.maximized .simulation-results-body > * {
+  box-sizing: border-box;
+  width: min(100%, 1440px);
+  margin-inline: auto;
+}
+
+@media (min-width: 1101px) {
+  .spice-simulation-surface.maximized .simulation-taskbar {
+    grid-template-columns: auto auto minmax(0, 1fr);
+    grid-template-areas: "brand status actions";
+  }
+
+  .spice-simulation-surface.maximized
+    .simulation-taskbar:has(.simulation-cell-context) {
+    grid-template-areas:
+      "brand status actions"
+      "context context context";
+  }
+
+  .spice-simulation-surface.maximized .simulation-task-actions {
+    justify-content: flex-end;
+  }
 }
 
 .simulation-workspace-notice {

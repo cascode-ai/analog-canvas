@@ -846,6 +846,22 @@ test("Simulation creates an ordinary testbench and offers the current Cell at th
     "aria-valuenow",
     String(initialWidth + 8),
   );
+  await page.getByRole("button", { name: "Maximize simulation" }).click();
+  await expect(page.locator(".app-workspace")).toHaveClass(
+    /simulation-maximized/,
+  );
+  await expect(page.getByTestId("schematic-canvas")).toBeHidden();
+  await expect(page.getByTestId("simulation-resize-handle")).toHaveCount(0);
+  const maximizedSetup = await page
+    .locator(".simulation-setup-panel form")
+    .boundingBox();
+  expect(maximizedSetup!.width).toBeLessThanOrEqual(960);
+  await page.getByRole("button", { name: "Restore simulation panel" }).click();
+  await expect(page.locator(".app-workspace")).not.toHaveClass(
+    /simulation-maximized/,
+  );
+  await expect(page.getByTestId("schematic-canvas")).toBeVisible();
+  await expect(page.getByTestId("simulation-resize-handle")).toBeVisible();
   await expect(page.getByTestId("library-toggle")).toBeDisabled();
   await expect(page.getByTestId("examples-toggle")).toBeDisabled();
   await page.getByRole("button", { name: "Minimize simulation" }).click();
