@@ -444,10 +444,13 @@ occurrence path. Net names come from the Logical-Net resolver the printer
 already used, read back off the extracted Cell rather than derived a second
 time.
 
-An independent current source has no branch-current vector at all -- ngspice
-builds one for `V` sources and not for `I` sources, and `i(i1)` answers "not
-available" -- so a `source-current` probe on one is refused, with the advice
-to probe a series voltage source instead. The other refusals are a missing
+A top-level independent current source is measured by compiler-generated
+`.probe I(<ref>)` instrumentation. ngspice inserts a zero-volt sense source and
+publishes `<ref>#branch`; result parsing normalises that vector to `i(<ref>)`.
+This is supported for OP, AC, and TRAN. The directive addresses only top-level
+devices, so a current source below the simulation root is rejected with a
+located diagnostic until hierarchical instrumentation is implemented. See the
+ngspice manual, section 11.6.5.1, “.probe — Insert current probes”. The other refusals are a missing
 root, a root that instantiates nothing, a probe naming a Document or concrete
 anchor that is not there, an occurrence that does not follow hierarchy
 Instances from the root or that reaches a different Document than the probe
