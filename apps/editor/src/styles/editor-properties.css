@@ -61,6 +61,16 @@
   gap: 0.45rem;
 }
 
+.component-parameter-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+
+.component-parameter-row > label:only-child {
+  grid-column: 1 / -1;
+}
+
 .component-readonly-fields .property-identity-target {
   grid-column: 1 / -1;
 }

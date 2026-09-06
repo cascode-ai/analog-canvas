@@ -97,7 +97,12 @@ describe("component parameter catalogue", () => {
         unit,
       });
       expect(parameters.find(({ key }) => key === "waveform")).toMatchObject({
-        options: [{ value: "dc" }, { value: "pulse" }, { value: "sin" }],
+        label: "Transient",
+        options: [
+          { value: "dc", label: "None" },
+          { value: "pulse", label: "PULSE" },
+          { value: "sin", label: "SIN" },
+        ],
       });
       expect(parameters.find(({ key }) => key === "acMagnitude")).toMatchObject(
         {

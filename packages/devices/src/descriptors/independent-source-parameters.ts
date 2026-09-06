@@ -19,11 +19,11 @@ export function independentSourceParameters(
     },
     {
       name: "waveform",
-      label: "Waveform",
+      label: "Transient",
       required: false,
       editor: "select",
       options: [
-        { value: "dc", label: "DC" },
+        { value: "dc", label: "None" },
         { value: "pulse", label: "PULSE" },
         { value: "sin", label: "SIN" },
       ],
