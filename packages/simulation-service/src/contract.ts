@@ -72,6 +72,7 @@ export type Prepared = z.infer<typeof PreparedSchema>;
 export const InputSourceSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("project-setup"),
+    setupId: Id,
     expectedStructureRevision: z.number().int().nonnegative(),
   }),
   z.strictObject({

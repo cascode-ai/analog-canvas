@@ -270,3 +270,17 @@ RC low-pass, an RC step) whose rawfiles are asserted against arithmetic;
 the five-transistor OTA acceptance comparison against ngspice on the
 reference netlist; and the preview deploy simulating one circuit through
 the real container on every merge.
+
+## Amendment — 2026-09-06: named setup collection
+
+The single optional setup was sufficient for the first vertical slice but is
+not a workable authored model: one Testbench topology commonly needs several
+analysis intents, and one DUT commonly needs several Testbench topologies.
+Schema 42 therefore replaces `Project.simulation` with the bounded
+`Project.simulationSetups` collection. Every record has a stable ID, an
+editable unique name, and one structured or raw setup payload. A structured
+record references exactly one ordinary Testbench Cell by `rootDocumentId`;
+several records may reference the same Cell. Selecting a setup is session UI
+state, not another persisted authority. Prepare must address one saved setup by
+ID. Testbench source/load values remain on Instances, while results, receipts,
+artifacts, and run history remain transient.

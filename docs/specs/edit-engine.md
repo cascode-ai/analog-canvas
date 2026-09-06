@@ -95,10 +95,10 @@ The Agent Document transaction schema is derived from this union, applies its
 scope restrictions, and excludes unsupported history kinds. Formal-interface
 edits are submitted inside `structureEdits`, which composes the same union with
 add/remove Document operations under one Project `structureRevision`. The
-Project-level `set_simulation_setup` edit is a structure edit too: it replaces
-or clears the one persisted `SimulationSetup` whole (`setup: SimulationSetup |
-null`), refuses a structured root that is not a Document of the Project, treats
-an identical setup as no change, and preserves authored intent when a later
+Project-level `upsert_simulation_setup` and `remove_simulation_setup` edits are
+structure edits too. They address one named setup by stable ID, refuse a new
+structured root that is not a Document of the Project, treat an identical
+upsert or absent removal as no change, and preserve authored intent when a later
 ordinary edit removes its root Cell or probe anchor. Such references become
 prepare-time diagnostics instead of blocking deletion or making the Project
 unsaveable. A raw setup owns files instead of a Canvas root and therefore does

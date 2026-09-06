@@ -4,7 +4,7 @@ import { CURRENT_PROJECT_SCHEMA_VERSION, StableIdSchema } from "./common.js";
 import { SourceManifestSchema, SymbolLibraryLockSchema } from "./source.js";
 import { SchematicDocumentSchema } from "./document.js";
 import { CellSymbolPresentationSchema } from "./presentation.js";
-import { SimulationSetupSchema } from "./simulation.js";
+import { ProjectSimulationSetupSchema } from "./simulation.js";
 import { reportDuplicateIds } from "./validation.js";
 import { projectCellInterface } from "../cell-interface-projection.js";
 
@@ -42,12 +42,9 @@ export const CircuitProjectSchema = z
       .array(ExternalSubcircuitDefinitionSchema)
       .max(256)
       .default([]),
-    /**
-     * The Project's only persisted simulation authority (ADR 0055). Absent
-     * for every Project that has not authored a setup; a run's results never
-     * land here.
-     */
-    simulation: SimulationSetupSchema.optional(),
+    /** Named authored intents. Testbench topology remains an ordinary Cell;
+     * results and run receipts remain session resources. */
+    simulationSetups: z.array(ProjectSimulationSetupSchema).max(64),
   })
   .superRefine((project, context) => {
     const cellNames = new Set<string>();
@@ -64,6 +61,19 @@ export const CircuitProjectSchema = z
       cellNames.add(name);
     }
     reportDuplicateIds(project.documents, "documents", context);
+    reportDuplicateIds(project.simulationSetups, "simulationSetups", context);
+    const simulationSetupNames = new Set<string>();
+    for (const [setupIndex, setup] of project.simulationSetups.entries()) {
+      const normalized = setup.name.toLocaleLowerCase("en-US");
+      if (simulationSetupNames.has(normalized)) {
+        context.addIssue({
+          code: "custom",
+          message: `Duplicate simulation setup name: ${setup.name}`,
+          path: ["simulationSetups", setupIndex, "name"],
+        });
+      }
+      simulationSetupNames.add(normalized);
+    }
     const externalSubcircuitDefinitions = project.externalSubcircuitDefinitions;
     reportDuplicateIds(
       externalSubcircuitDefinitions,

@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   type ObjectLocator,
+  type ProjectSimulationSetup,
   SimulationSetupSchema,
   type CircuitProject,
-  type SimulationSetup,
   type SimulationStructuredInput,
 } from "@icm/model";
 import type {
@@ -48,13 +48,18 @@ export interface SpiceSimulationSurfaceProps {
   project: CircuitProject;
   activeDocumentId: string;
   draftContext?: {
+    readonly setupId: string;
+    readonly setupName: string;
     readonly dutDocumentId: string;
     readonly rootDocumentId: string;
   };
+  selectedSetupId: string | null;
+  onSelectSetupId(setupId: string): void;
   session: BrowserSimulationSession;
   onMinimize(): void;
   onExit(): void;
-  onSaveSetup(setup: SimulationSetup | null): boolean;
+  onSaveSetup(setup: ProjectSimulationSetup): boolean;
+  onDeleteSetup(setupId: string): boolean;
   onOpenCell(documentId: string): void;
   pickNetsActive?: boolean;
   pickedNet?: {
@@ -88,6 +93,9 @@ function uiProblem(code: string, message: string): Problem {
  * The canvas remains the editor for sources, connections and DUT instances. */
 export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   const { session, project, open } = props;
+  const selectedSetup = project.simulationSetups.find(
+    (setup) => setup.id === props.selectedSetupId,
+  );
   const [capabilities, setCapabilities] = useState<Capabilities>();
   const [prepared, setPrepared] = useState<Prepared>();
   const [run, setRun] = useState<Run>();
@@ -100,11 +108,22 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   const [resultsOpen, setResultsOpen] = useState(false);
   const [resultTab, setResultTab] = useState<ResultTab>("summary");
   const [exitConfirmationOpen, setExitConfirmationOpen] = useState(false);
+  const previousSetupId = useRef<string | null>(props.selectedSetupId);
   useEffect(() => {
-    if (!open || project.simulation) return;
+    if (previousSetupId.current === props.selectedSetupId) return;
+    previousSetupId.current = props.selectedSetupId;
+    setPrepared(undefined);
+    setRun(undefined);
+    setProblem(undefined);
+    setOutputLabels({});
     setResultsOpen(false);
     setSetupOpen(true);
-  }, [open, project.simulation, props.activeDocumentId]);
+  }, [props.selectedSetupId]);
+  useEffect(() => {
+    if (!open || selectedSetup) return;
+    setResultsOpen(false);
+    setSetupOpen(true);
+  }, [open, selectedSetup, props.activeDocumentId]);
   const lock = useRef(false);
   const alive = useRef(true);
   useEffect(() => {
@@ -117,7 +136,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     if (!alive.current) return;
     if (!reply.ok) {
       setProblem(reply.error);
-      if (project.simulation) {
+      if (selectedSetup) {
         setSetupOpen(false);
         setResultsOpen(true);
         setResultTab("console");
@@ -185,11 +204,12 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
         operation: "prepare",
         source: {
           kind: "project-setup",
+          setupId: selectedSetup!.id,
           expectedStructureRevision: project.structureRevision,
         },
       });
       if (reply.ok && "prepared" in reply) {
-        const input = project.simulation?.input;
+        const input = selectedSetup?.input;
         preparedPresentations.current.set(reply.prepared.id, {
           prepared: structuredClone(reply.prepared),
           probes:
@@ -253,8 +273,8 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   const savedRoot = project.documents.find(
     (candidate) =>
       candidate.id ===
-      (project.simulation?.input.kind === "structured"
-        ? project.simulation.input.rootDocumentId
+      (selectedSetup?.input.kind === "structured"
+        ? selectedSetup.input.rootDocumentId
         : undefined),
   );
   const hasDutInstance = Boolean(
@@ -356,6 +376,56 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
           {dirty ? "Setup changed" : statusLabel}
         </span>
         <div className="simulation-task-actions">
+          <select
+            aria-label="Simulation setup"
+            value={selectedSetup?.id ?? ""}
+            disabled={dirty || busy || !!running}
+            onChange={(event) =>
+              props.onSelectSetupId(event.currentTarget.value)
+            }
+          >
+            {!selectedSetup ? <option value="">New setup</option> : null}
+            {project.simulationSetups.map((setup) => (
+              <option key={setup.id} value={setup.id}>
+                {setup.name}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            disabled={dirty || busy || !!running}
+            onClick={() => {
+              const baseName = "Setup";
+              let suffix = project.simulationSetups.length + 1;
+              while (
+                project.simulationSetups.some(
+                  (setup) => setup.name === `${baseName} ${suffix}`,
+                )
+              )
+                suffix++;
+              const created: ProjectSimulationSetup = {
+                id: `simulation-setup-${crypto.randomUUID()}`,
+                name: `${baseName} ${suffix}`,
+                version: 1,
+                input: selectedSetup
+                  ? structuredClone(selectedSetup.input)
+                  : {
+                      kind: "structured",
+                      rootDocumentId: props.activeDocumentId,
+                      analyses: [{ kind: "op" }],
+                      probes: [],
+                      environment: {
+                        profileId:
+                          capabilities?.profiles[0]?.id ??
+                          DEVELOPMENT_PROFILE_ID,
+                      },
+                    },
+              };
+              if (props.onSaveSetup(created)) props.onSelectSetupId(created.id);
+            }}
+          >
+            New setup
+          </button>
           <button
             type="button"
             aria-pressed={setupOpen}
@@ -377,7 +447,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
             Results
           </button>
           <button
-            disabled={busy || !!running || dirty || !project.simulation}
+            disabled={busy || !!running || dirty || !selectedSetup}
             onClick={() => void execute(false)}
           >
             Prepare deck
@@ -394,7 +464,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
             >
               Cancel run
             </button>
-          ) : project.simulation ? (
+          ) : selectedSetup ? (
             <button
               className="simulation-primary-button"
               disabled={busy || dirty}
@@ -430,7 +500,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
         </div>
       </header>
 
-      {!project.simulation && !hasDutInstance ? (
+      {!selectedSetup && !hasDutInstance ? (
         <p className="simulation-context-hint">
           This Cell has no DUT instance. You can continue here, or use Edit →
           New Testbench Cell before simulation.
@@ -484,10 +554,10 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
       {setupOpen ? (
         <SetupEditor
           key={
-            JSON.stringify(project.simulation) ??
-            `unsaved:${props.activeDocumentId}`
+            JSON.stringify(selectedSetup) ?? `unsaved:${props.activeDocumentId}`
           }
           {...props}
+          setup={selectedSetup}
           capabilities={capabilities}
           onDirty={setDirty}
           onProblem={setProblem}
@@ -824,6 +894,8 @@ function SetupEditor({
   draftContext,
   capabilities,
   onSaveSetup,
+  onDeleteSetup,
+  setup,
   onDirty,
   onProblem,
   pickNetsActive,
@@ -832,16 +904,14 @@ function SetupEditor({
   outputLabels,
   onOutputLabelChange,
 }: SpiceSimulationSurfaceProps & {
+  setup: ProjectSimulationSetup | undefined;
   capabilities: Capabilities | undefined;
   onDirty(value: boolean): void;
   onProblem(value: Problem | undefined): void;
   outputLabels: Readonly<Record<string, string>>;
   onOutputLabelChange(probeId: string, label: string): void;
 }) {
-  const saved =
-    project.simulation?.input.kind === "structured"
-      ? project.simulation.input
-      : undefined;
+  const saved = setup?.input.kind === "structured" ? setup.input : undefined;
   const [rootId, setRootId] = useState(
     saved?.rootDocumentId ?? draftContext?.rootDocumentId ?? activeDocumentId,
   );
@@ -885,10 +955,7 @@ function SetupEditor({
   const [profileId, setProfileId] = useState(
     saved?.environment.profileId ?? DEVELOPMENT_PROFILE_ID,
   );
-  const rawSaved =
-    project.simulation?.input.kind === "raw"
-      ? project.simulation.input
-      : undefined;
+  const rawSaved = setup?.input.kind === "raw" ? setup.input : undefined;
   const [switchFromRaw, setSwitchFromRaw] = useState(false);
   const [pickCandidates, setPickCandidates] = useState<
     readonly SimulationProbeOption[]
@@ -965,7 +1032,10 @@ function SetupEditor({
           <button type="button" onClick={() => setSwitchFromRaw(true)}>
             Switch to structured setup…
           </button>
-          <button type="button" onClick={() => onSaveSetup(null)}>
+          <button
+            type="button"
+            onClick={() => setup && onDeleteSetup(setup.id)}
+          >
             Delete setup
           </button>
         </div>
@@ -1053,7 +1123,18 @@ function SetupEditor({
             );
             return;
           }
-          if (onSaveSetup(parsed.data)) {
+          const setupName = String(data.get("setupName") ?? "").trim();
+          if (!setupName) {
+            onProblem(
+              uiProblem("SIMULATION_SETUP_INVALID", "Setup name is required"),
+            );
+            return;
+          }
+          const setupId =
+            setup?.id ??
+            draftContext?.setupId ??
+            `simulation-setup-${crypto.randomUUID()}`;
+          if (onSaveSetup({ id: setupId, name: setupName, ...parsed.data })) {
             onDirty(false);
             onProblem(undefined);
           } else
@@ -1065,6 +1146,14 @@ function SetupEditor({
             );
         }}
       >
+        <label>
+          Setup name
+          <input
+            name="setupName"
+            required
+            defaultValue={setup?.name ?? draftContext?.setupName ?? "Setup 1"}
+          />
+        </label>
         <label>
           Testbench Cell
           <select value={rootId} onChange={(e) => setRootId(e.target.value)}>
@@ -1400,8 +1489,8 @@ function SetupEditor({
           })}
         </ul>
         <button type="submit">Apply setup</button>
-        {saved && (
-          <button type="button" onClick={() => onSaveSetup(null)}>
+        {setup && (
+          <button type="button" onClick={() => onDeleteSetup(setup.id)}>
             Delete setup
           </button>
         )}

@@ -13,10 +13,13 @@ describe("SpiceSimulationSurface workspace", () => {
         open
         project={project}
         activeDocumentId={project.topDocumentId}
+        selectedSetupId={null}
+        onSelectSetupId={() => undefined}
         session={{} as BrowserSimulationSession}
         onMinimize={() => undefined}
         onExit={() => undefined}
         onSaveSetup={() => true}
+        onDeleteSetup={() => true}
         onOpenCell={() => undefined}
       />,
     );
@@ -63,7 +66,9 @@ describe("SpiceSimulationSurface workspace", () => {
         parameters: { dc: "0" },
       },
     });
-    project.simulation = {
+    project.simulationSetups.push({
+      id: "setup-dc",
+      name: "DC Sweep",
       version: 1,
       input: {
         kind: "structured",
@@ -80,20 +85,47 @@ describe("SpiceSimulationSurface workspace", () => {
         probes: [],
         environment: { profileId: "sky130-core-continuous-ngspice46-v1" },
       },
-    };
+    });
+    project.simulationSetups.push({
+      id: "setup-ac",
+      name: "AC Response",
+      version: 1,
+      input: {
+        kind: "structured",
+        rootDocumentId: root.id,
+        analyses: [
+          {
+            kind: "ac",
+            sweep: "dec",
+            points: 10,
+            startHz: 1,
+            stopHz: 1e6,
+          },
+        ],
+        probes: [],
+        environment: { profileId: "sky130-core-continuous-ngspice46-v1" },
+      },
+    });
     const markup = renderToStaticMarkup(
       <SpiceSimulationSurface
         open
         project={project}
         activeDocumentId={root.id}
+        selectedSetupId="setup-dc"
+        onSelectSetupId={() => undefined}
         session={{} as BrowserSimulationSession}
         onMinimize={() => undefined}
         onExit={() => undefined}
         onSaveSetup={() => true}
+        onDeleteSetup={() => true}
         onOpenCell={() => undefined}
       />,
     );
     expect(markup).toContain("DC sweep source");
+    expect(markup).toContain('aria-label="Simulation setup"');
+    expect(markup).toContain("DC Sweep");
+    expect(markup).toContain("AC Response");
+    expect(markup).toContain('name="setupName"');
     expect(markup).toContain("V1 · Voltage");
     expect(markup).toContain('name="dcStartValue"');
     expect(markup).toContain('name="dcStopValue"');
@@ -102,7 +134,9 @@ describe("SpiceSimulationSurface workspace", () => {
 
   it("keeps a saved raw setup distinct from the structured editor", () => {
     const project = createEmptyProject("raw-simulation", "Raw");
-    project.simulation = {
+    project.simulationSetups.push({
+      id: "setup-raw",
+      name: "Raw",
       version: 1,
       input: {
         kind: "raw",
@@ -111,16 +145,19 @@ describe("SpiceSimulationSurface workspace", () => {
         dependencies: [],
         environment: { profileId: "raw-profile" },
       },
-    };
+    });
     const markup = renderToStaticMarkup(
       <SpiceSimulationSurface
         open
         project={project}
         activeDocumentId={project.topDocumentId}
+        selectedSetupId="setup-raw"
+        onSelectSetupId={() => undefined}
         session={{} as BrowserSimulationSession}
         onMinimize={() => undefined}
         onExit={() => undefined}
         onSaveSetup={() => true}
+        onDeleteSetup={() => true}
         onOpenCell={() => undefined}
       />,
     );

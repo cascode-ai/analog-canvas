@@ -97,7 +97,8 @@ inference algorithm.
   the same ID is rejected.
 - A Snapshot or whole Project is never accepted as a mutation payload;
   structural transactions contain only typed add/remove/transact operations
-  and the Project-level `set_simulation_setup` edit.
+  and the Project-level `upsert_simulation_setup` / `remove_simulation_setup`
+  edits.
 - GUI and Agent writes cross the same Edit Engine and permission checks.
 
 After commit, render and then request a fresh Snapshot for final verification.

@@ -175,8 +175,9 @@ are produced at compile time and are not part of reading a rawfile.
 
 ## Persistence and compatibility
 
-One optional `SimulationSetup` is the Project's only persisted simulation
-authority. It contains exactly one input form:
+A Project owns a bounded collection of named `SimulationSetup` records. Each
+record is independently addressable by stable `id`, has an editable `name`,
+and contains exactly one input form:
 
 - a structured setup with its Testbench root, analyses, probes, and environment
   selection; or
@@ -188,17 +189,22 @@ hierarchy, and structural-export behavior. The setup follows the ordinary
 Project save, recovery, Gallery, revision, and undo/redo boundaries; it is not
 stored in a simulation-only sidecar or a second persistence service.
 
-Schema 37 landed the optional `CircuitProject.simulation`; schema 38 extends
+Schema 37 landed the optional singleton `CircuitProject.simulation`; schema 38 extends
 its structured analysis union with explicit-SI transient parameters. Schema
 39 adds the mutually exclusive raw input form without changing existing
 Projects. Schema 40 replaces derived voltage-probe Net representatives with
 concrete object anchors. It also permits an authored structured setup to remain
 saved after its Testbench Cell or a probe anchor is deleted; preparation reports
 that unresolved reference instead of blocking the ordinary edit or silently
-rebinding intent.
+rebinding intent. Schema 42 migrates that singleton to the required
+`CircuitProject.simulationSetups` collection. It preserves an authored legacy
+setup as `simulation-setup-1` / `Setup 1`, and migrates absence to an empty
+collection.
 
 ```ts
-interface SimulationSetup {
+interface ProjectSimulationSetup {
+  id: StableId;
+  name: string;
   version: 1;
   input: SimulationStructuredInput | SimulationRawInput;
 }
@@ -267,7 +273,7 @@ type SimulationProbeSpec =
 `occurrence` lists the hierarchy Instance ids from the root down to the
 Document that owns the probed object; it is empty when that object is in the
 root itself. `profileId` is the hosted Profile ID (today
-`sky130-core-continuous-ngspice46-v1`). A `set_simulation_setup` edit refuses a
+`sky130-core-continuous-ngspice46-v1`). An `upsert_simulation_setup` edit refuses a
 new `rootDocumentId` that names no Document of the Project. The persisted schema
 allows a previously valid root or probe anchor to become unresolved, while it
 still rejects repeated analysis kinds and duplicate probe ids. Whether the root
@@ -281,11 +287,13 @@ workspace. External dependency bytes are not copied into the Project; logical
 identity, expected digest, and required mount path make absence or substitution
 explicit at preparation time.
 
-The setup is written through the Project structure edit
-`set_simulation_setup` (`{ setup: SimulationSetup | null }`), which replaces
-or clears it whole under the Project `structureRevision`; undo/redo, the
-Agent API's `structureEdits`, and Gallery convergence therefore treat it like
-any other structural change. Deleting its Testbench Cell, Route, Junction, or
+Setups are written through Project structure edits
+`upsert_simulation_setup` (`{ setup: ProjectSimulationSetup }`) and
+`remove_simulation_setup` (`{ setupId }`). Upsert replaces only the matching
+stable ID or appends a new record; names are unique case-insensitively. Both
+operate under the Project `structureRevision`, so undo/redo, Agent
+`structureEdits`, and Gallery convergence treat them like any other structural
+change. Deleting a referenced Testbench Cell, Route, Junction, or
 terminal preserves the setup without guessing a replacement; preparation then
 returns a located diagnostic until the author repairs or clears the reference.
 A raw setup has no Canvas root, so unrelated Cell deletion does not affect it.
@@ -295,8 +303,8 @@ model paths, run ids, receipts, logs, rawfiles, parsed results, simulator
 outputs, and caches are never persisted in the Project. A raw setup's authored
 source files are durable input; a prepared deck or copied execution workspace
 derived from them is not. The execution resource accepts exactly two ownership
-sources: `project-setup` snapshots the Project's saved structured or raw setup
-at an expected structure revision; `workspace` snapshots a bounded session raw
+sources: `project-setup` snapshots the explicitly named `setupId` at an
+expected Project structure revision; `workspace` snapshots a bounded session raw
 workspace at its expected revision. These source kinds identify ownership, not
 electrical syntax. Project raw dependencies that no available environment
 owner can resolve produce located, recoverable preparation diagnostics; the
