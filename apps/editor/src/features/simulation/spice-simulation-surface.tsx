@@ -1003,12 +1003,17 @@ function SetupEditor({
       },
     ];
   });
-  const probeLabels = new Map(
-    [...probeOptions.voltage, ...probeOptions.sourceCurrent].map((option) => [
-      option.key,
-      option.label,
-    ]),
-  );
+  const probeLabels = new Map<string, string>();
+  for (const option of [
+    ...probeOptions.voltage,
+    ...probeOptions.sourceCurrent,
+  ]) {
+    // The option key is Logical-Net scoped for selection deduplication, while
+    // a persisted output keeps its durable object anchor. Both identities
+    // describe the same visible target and therefore share one display label.
+    probeLabels.set(option.key, option.label);
+    probeLabels.set(simulationProbeTargetKey(option.target), option.label);
+  }
   const selectedProbeKeys = new Set(
     outputs.flatMap((output) =>
       output.expression.kind === "voltage" ||
