@@ -24,7 +24,10 @@ function extent(values: readonly number[]): readonly [number, number] {
   if (!finite.length) return [-1, 1];
   const low = Math.min(...finite);
   const high = Math.max(...finite);
-  if (low !== high) return [low, high];
+  if (low !== high) {
+    const margin = (high - low) * 0.05;
+    return [low - margin, high + margin];
+  }
   const margin = Math.max(Math.abs(low) * 0.05, 1e-12);
   return [low - margin, high + margin];
 }
@@ -107,74 +110,79 @@ export function DcResultsExplorer({
         const yExtent = extent(group.flatMap((trace) => [...trace.values]));
         const unit = group.find((trace) => trace.unit)?.unit ?? "";
         return (
-          <div className="ac-plot-shell" key={quantity}>
-            <div className="spice-ac-plot">
-              <svg
-                role="img"
-                aria-label={`DC ${quantity}`}
-                viewBox={`0 0 ${PLOT.width} ${PLOT.height}`}
-              >
-                <line
-                  className="transient-axis"
-                  x1={PLOT.left}
-                  y1={PLOT.top}
-                  x2={PLOT.left}
-                  y2={PLOT.height - PLOT.bottom}
-                />
-                <line
-                  className="transient-axis"
-                  x1={PLOT.left}
-                  y1={PLOT.height - PLOT.bottom}
-                  x2={PLOT.width - PLOT.right}
-                  y2={PLOT.height - PLOT.bottom}
-                />
-                <text x={PLOT.left} y={PLOT.height - 8}>
-                  {compact(xExtent[0])}
-                  {analysis.sweep.unit ?? ""}
-                </text>
-                <text
-                  textAnchor="end"
-                  x={PLOT.width - PLOT.right}
-                  y={PLOT.height - 8}
+          <div className="ac-plot-row" key={quantity}>
+            <strong>
+              {quantity === "voltage" ? "Voltage" : "Current"} DC sweep
+            </strong>
+            <div className="ac-plot-shell">
+              <div className="spice-ac-plot">
+                <svg
+                  role="img"
+                  aria-label={`DC ${quantity}`}
+                  viewBox={`0 0 ${PLOT.width} ${PLOT.height}`}
                 >
-                  {compact(xExtent[1])}
-                  {analysis.sweep.unit ?? ""}
-                </text>
-                <text x={4} y={PLOT.top + 5}>
-                  {compact(yExtent[1])}
-                  {unit}
-                </text>
-                <text x={4} y={PLOT.height - PLOT.bottom}>
-                  {compact(yExtent[0])}
-                  {unit}
-                </text>
-                {group.map((trace) => (
-                  <polyline
-                    key={trace.id}
-                    className={`transient-trace ac-trace-${trace.index % 6}`}
-                    points={points(
-                      analysis.sweep.values,
-                      trace.values,
-                      xExtent,
-                      yExtent,
-                    )}
+                  <line
+                    className="transient-axis"
+                    x1={PLOT.left}
+                    y1={PLOT.top}
+                    x2={PLOT.left}
+                    y2={PLOT.height - PLOT.bottom}
                   />
+                  <line
+                    className="transient-axis"
+                    x1={PLOT.left}
+                    y1={PLOT.height - PLOT.bottom}
+                    x2={PLOT.width - PLOT.right}
+                    y2={PLOT.height - PLOT.bottom}
+                  />
+                  <text x={PLOT.left} y={PLOT.height - 8}>
+                    {compact(xExtent[0])}
+                    {analysis.sweep.unit ?? ""}
+                  </text>
+                  <text
+                    textAnchor="end"
+                    x={PLOT.width - PLOT.right}
+                    y={PLOT.height - 8}
+                  >
+                    {compact(xExtent[1])}
+                    {analysis.sweep.unit ?? ""}
+                  </text>
+                  <text x={4} y={PLOT.top + 5}>
+                    {compact(yExtent[1])}
+                    {unit}
+                  </text>
+                  <text x={4} y={PLOT.height - PLOT.bottom}>
+                    {compact(yExtent[0])}
+                    {unit}
+                  </text>
+                  {group.map((trace) => (
+                    <polyline
+                      key={trace.id}
+                      className={`transient-trace ac-trace-${trace.index % 6}`}
+                      points={points(
+                        analysis.sweep.values,
+                        trace.values,
+                        xExtent,
+                        yExtent,
+                      )}
+                    />
+                  ))}
+                </svg>
+              </div>
+              <div className="ac-trace-list">
+                {group.map((trace) => (
+                  <button
+                    key={trace.id}
+                    type="button"
+                    data-trace-index={trace.index}
+                    onClick={() =>
+                      trace.authored && onFocusProbe?.(trace.authored)
+                    }
+                  >
+                    {trace.label}
+                  </button>
                 ))}
-              </svg>
-            </div>
-            <div className="ac-trace-list">
-              {group.map((trace) => (
-                <button
-                  key={trace.id}
-                  type="button"
-                  data-trace-index={trace.index}
-                  onClick={() =>
-                    trace.authored && onFocusProbe?.(trace.authored)
-                  }
-                >
-                  {trace.label}
-                </button>
-              ))}
+              </div>
             </div>
           </div>
         );

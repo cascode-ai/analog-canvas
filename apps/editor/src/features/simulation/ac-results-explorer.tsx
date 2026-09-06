@@ -346,7 +346,6 @@ export function AcResultsExplorer({
         );
         return (
           <section key={quantity} className="ac-quantity-group">
-            <h4>{groupLabel(quantity)}</h4>
             <div className="simulation-plot-layout">
               <WaveformTraceList
                 label={`${groupLabel(quantity)} outputs`}
@@ -363,7 +362,7 @@ export function AcResultsExplorer({
                   (["magnitude", "phase"] as const).map((kind) => (
                     <div key={kind} className="ac-plot-row">
                       <strong>
-                        {kind === "magnitude" ? "Magnitude" : "Phase"}
+                        {groupLabel(quantity)} {kind}
                       </strong>
                       {renderPlot({ quantity, kind }, visibleQuantityTraces)}
                     </div>

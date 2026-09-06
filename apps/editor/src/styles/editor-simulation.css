@@ -40,81 +40,161 @@
 }
 
 .simulation-taskbar {
+  position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-areas:
-    "brand status"
-    "actions actions";
-  align-items: center;
-  gap: 8px var(--icm-space-2);
-  padding: 12px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 6px;
+  min-height: 44px;
+  padding: 6px 7px;
   border-bottom: 1px solid var(--icm-border);
   background: var(--icm-surface);
 }
-.simulation-taskbar:has(.simulation-cell-context) {
-  grid-template-areas:
-    "brand status"
-    "context context"
-    "actions actions";
-}
 .simulation-brand {
-  grid-area: brand;
   display: grid;
+  align-content: start;
+  gap: 2px;
+  min-width: 68px;
   line-height: 1.05;
 }
 .simulation-brand strong {
-  font-size: var(--icm-font-lg);
+  font-size: var(--icm-font-md);
 }
-.simulation-brand span,
-.simulation-taskbar small {
-  color: var(--icm-text-muted);
-  font-size: var(--icm-font-xs);
-}
-.simulation-cell-context,
 .simulation-task-actions {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
-.simulation-cell-context {
-  grid-area: context;
-  flex-wrap: wrap;
+.simulation-task-actions::-webkit-scrollbar {
+  display: none;
 }
-.simulation-task-actions {
-  grid-area: actions;
-  flex-wrap: wrap;
-  justify-self: stretch;
-}
-.simulation-cell-context button {
-  display: grid;
-  flex: 0 1 auto;
+.simulation-task-actions > button {
+  flex: 0 0 auto;
   min-width: 0;
-  padding: 3px 8px;
+  min-height: 28px;
+  padding: 3px 5px;
   border-color: var(--icm-border);
-  line-height: 1.05;
-  text-align: left;
+  font-size: var(--icm-font-xs);
 }
-.simulation-cell-context button:not(:last-child) {
-  max-width: 150px;
+.simulation-status-chip {
+  justify-self: start;
+  max-width: 84px;
+  overflow: hidden;
+  padding: 2px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--icm-border);
+  color: var(--icm-text-muted);
+  background: var(--icm-surface-muted);
+  font-size: 9px;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.simulation-cell-context button {
+.simulation-setup-menu {
+  position: relative;
+  flex: 0 0 110px;
+  min-width: 0;
+}
+.simulation-setup-menu > summary {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 28px;
+  padding: 3px 7px;
+  overflow: hidden;
+  border: 1px solid var(--icm-border-strong);
+  border-radius: var(--icm-radius-sm);
+  background: var(--icm-surface);
+  cursor: pointer;
+  font-size: var(--icm-font-xs);
+  list-style: none;
+}
+.simulation-setup-menu > summary::-webkit-details-marker {
+  display: none;
+}
+.simulation-setup-menu > summary::after {
+  content: "";
+  flex: 0 0 auto;
+  width: 0;
+  height: 0;
+  margin-left: auto;
+  border-top: 4px solid currentColor;
+  border-right: 3px solid transparent;
+  border-left: 3px solid transparent;
+  opacity: 0.55;
+}
+.simulation-setup-menu > summary > span {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.simulation-status-chip {
-  padding: 4px 8px;
-  border-radius: 999px;
+.simulation-setup-menu[open] > summary {
+  border-color: var(--icm-accent);
+}
+.simulation-setup-menu-popover {
+  position: absolute;
+  z-index: 12;
+  top: calc(100% + 4px);
+  left: 0;
+  display: grid;
+  width: 250px;
+  max-height: min(360px, 60vh);
+  padding: 4px;
+  overflow-y: auto;
+  border: 1px solid var(--icm-border-strong);
+  border-radius: var(--icm-radius-sm);
+  background: var(--icm-surface);
+  box-shadow: var(--icm-shadow-md);
+}
+.simulation-setup-menu-popover > button,
+.simulation-setup-menu-row {
+  min-height: 30px;
+}
+.simulation-setup-menu-new {
+  justify-self: stretch;
+  border-color: transparent !important;
+  text-align: left;
+}
+.simulation-setup-menu-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 3px;
+  align-items: center;
+  border-top: 1px solid var(--icm-border);
+}
+.simulation-setup-menu-row[data-selected="true"] {
   background: var(--icm-surface-muted);
-  font-size: var(--icm-font-xs);
+}
+.simulation-setup-menu-row button {
+  min-height: 28px;
+  border-color: transparent;
+}
+.simulation-setup-menu-select {
+  min-width: 0;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
-.simulation-status-chip {
-  grid-area: status;
-  justify-self: start;
-  color: var(--icm-text-muted);
-  border: 1px solid var(--icm-border);
+.simulation-setup-delete {
+  width: 28px;
+  padding: 0 !important;
+  color: var(--icm-text-muted) !important;
+}
+.simulation-setup-delete-confirmation {
+  display: flex;
+  gap: 2px;
+}
+.simulation-setup-delete-confirmation button {
+  padding: 2px 5px;
+  font-size: var(--icm-font-xs);
+}
+.simulation-setup-delete-confirm {
+  color: #b42318 !important;
 }
 .simulation-status-running,
 .simulation-status-cancelling {
@@ -132,19 +212,33 @@
   background: var(--icm-accent) !important;
   font-weight: 650;
 }
+.simulation-run-button {
+  width: 30px;
+  padding: 0 !important;
+}
 .simulation-stop-button {
   color: #b42318 !important;
   border-color: #fda29b !important;
 }
-.simulation-minimize-button {
-  margin-left: auto;
+.simulation-window-actions {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
 }
 .simulation-maximize-button,
 .simulation-minimize-button,
 .simulation-close-button {
-  width: 30px;
+  width: 23px;
+  min-height: 23px !important;
   padding: 0 !important;
-  font-size: 18px !important;
+  border-color: transparent !important;
+  border-radius: 3px !important;
+  font-size: 15px !important;
+  line-height: 1;
+}
+.simulation-close-button:hover {
+  color: #fff !important;
+  background: #d92d20 !important;
 }
 
 .spice-simulation-surface.maximized {
@@ -163,22 +257,10 @@
   margin-inline: auto;
 }
 
-@media (min-width: 1101px) {
-  .spice-simulation-surface.maximized .simulation-taskbar {
-    grid-template-columns: auto auto minmax(0, 1fr);
-    grid-template-areas: "brand status actions";
-  }
-
-  .spice-simulation-surface.maximized
-    .simulation-taskbar:has(.simulation-cell-context) {
-    grid-template-areas:
-      "brand status actions"
-      "context context context";
-  }
-
-  .spice-simulation-surface.maximized .simulation-task-actions {
-    justify-content: flex-end;
-  }
+.spice-simulation-surface.maximized .simulation-results-header {
+  box-sizing: border-box;
+  width: min(100%, 960px);
+  margin-inline: auto;
 }
 
 .simulation-workspace-notice {
@@ -462,6 +544,8 @@
   overflow-x: auto;
 }
 .simulation-results-header [role="tab"] {
+  min-height: 26px;
+  padding: 3px 7px;
   border-color: transparent;
   background: transparent;
   white-space: nowrap;
@@ -717,7 +801,7 @@
 .ac-results-explorer {
   position: relative;
   display: grid;
-  gap: 10px;
+  gap: 6px;
   min-width: 0;
 }
 .ac-results-explorer > header {
@@ -739,13 +823,13 @@
 .simulation-plot-layout {
   display: grid;
   grid-template-columns: minmax(74px, 108px) minmax(0, 1fr);
-  gap: 8px;
+  gap: 6px;
   align-items: start;
   min-width: 0;
 }
 .simulation-plot-stack {
   display: grid;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
 }
 .waveform-trace-list {
@@ -754,7 +838,7 @@
   display: grid;
   gap: 4px;
   min-width: 0;
-  padding-top: 21px;
+  padding-top: 20px;
 }
 .waveform-trace-toggle {
   width: 100%;
@@ -803,15 +887,8 @@
 }
 .ac-quantity-group {
   display: grid;
-  gap: 8px;
+  gap: 4px;
   min-width: 0;
-}
-.ac-quantity-group > h4 {
-  margin: 4px 0 0;
-  color: var(--icm-text-muted);
-  font-size: var(--icm-font-xs);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 .ac-plot-row {
   display: grid;
@@ -819,13 +896,14 @@
   min-width: 0;
 }
 .ac-plot-row > strong {
+  padding-left: 2px;
   font-size: var(--icm-font-xs);
 }
 .spice-ac-plot.interactive {
   position: relative;
   min-width: 0;
-  border: 1px solid var(--icm-border);
-  border-radius: var(--icm-radius-sm);
+  border: 0;
+  border-radius: 0;
   background: #fff;
   cursor: crosshair;
   touch-action: none;
@@ -835,22 +913,35 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  background: #fff;
 }
 .ac-plot-toolbar {
   position: relative;
   order: -1;
-  align-self: flex-end;
+  align-self: stretch;
+  justify-content: flex-end;
   flex-wrap: wrap;
   display: flex;
   gap: 2px;
-  padding: 3px;
-  border: 1px solid var(--icm-border);
-  border-radius: var(--icm-radius-sm);
-  background: color-mix(in srgb, var(--icm-surface) 94%, transparent);
-  box-shadow: var(--icm-shadow-sm);
+  padding: 3px 4px;
+  border: 0;
+  border-bottom: 1px solid var(--icm-border);
+  border-radius: 0;
+  background: var(--icm-surface-muted);
+  box-shadow: none;
   opacity: 1;
   pointer-events: auto;
+}
+.ac-plot-shell > .ac-cursor-readout {
+  margin: 0;
+  border: 0;
+  border-top: 1px solid var(--icm-border);
+  border-radius: 0;
+  box-shadow: none;
 }
 .ac-plot-shell:hover .ac-plot-toolbar,
 .ac-plot-shell:focus-within .ac-plot-toolbar,
@@ -964,20 +1055,13 @@
 
 @media (max-width: 700px) {
   .simulation-taskbar {
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas:
-      "status status"
-      "actions actions";
+    grid-template-columns: auto minmax(0, 1fr) auto;
   }
-  .simulation-taskbar:has(.simulation-cell-context) {
-    grid-template-areas:
-      "context context"
-      "status status"
-      "actions actions";
+  .simulation-brand {
+    min-width: 68px;
   }
-  .simulation-brand,
-  .simulation-settings-button {
-    display: none;
+  .simulation-brand strong {
+    font-size: var(--icm-font-sm);
   }
   .simulation-plot-layout {
     grid-template-columns: 1fr;

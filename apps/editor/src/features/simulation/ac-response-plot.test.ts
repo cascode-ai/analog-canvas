@@ -37,10 +37,12 @@ describe("AC response plot", () => {
     const layout = layoutAcPlot([singlePole()], { width: 600, height: 300 })!;
     // The trace spans about -20 dB to 40 dB; the axis must contain it and
     // land on round gridlines rather than on the data's own extremes.
-    expect(layout.magnitude.min).toBeLessThanOrEqual(-20);
-    expect(layout.magnitude.max).toBeGreaterThanOrEqual(
+    expect(layout.magnitude.min).toBeLessThan(-20);
+    expect(layout.magnitude.max).toBeGreaterThan(
       singlePole().points[0]!.magnitudeDb,
     );
+    expect(layout.frequency.min).toBeLessThan(1);
+    expect(layout.frequency.max).toBeGreaterThan(1e6);
     expect(layout.magnitude.ticks).toContain(0);
   });
 
@@ -49,8 +51,8 @@ describe("AC response plot", () => {
     const left = layout.frequencyAt(layout.frame.x);
     const right = layout.frequencyAt(layout.frame.x + layout.frame.width);
 
-    expect(left).toBeCloseTo(1, 6);
-    expect(right).toBeCloseTo(1e6, 0);
+    expect(left).toBeLessThan(1);
+    expect(right).toBeGreaterThan(1e6);
     // Logarithmic, so the midpoint is the geometric mean, not the average.
     expect(
       layout.frequencyAt(layout.frame.x + layout.frame.width / 2),

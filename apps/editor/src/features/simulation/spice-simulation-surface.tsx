@@ -82,7 +82,6 @@ export interface SpiceSimulationSurfaceProps {
   onExit(): void;
   onSaveSetup(setup: ProjectSimulationSetup): boolean;
   onDeleteSetup(setupId: string): boolean;
-  onOpenCell(documentId: string): void;
   pickNetsActive?: boolean;
   pickedNet?: {
     readonly sequence: number;
@@ -169,6 +168,17 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   const [resultsOpen, setResultsOpen] = useState(false);
   const [resultTab, setResultTab] = useState<ResultTab>("plot");
   const [exitConfirmationOpen, setExitConfirmationOpen] = useState(false);
+  const [deleteSetupId, setDeleteSetupId] = useState<string>();
+  const setupMenuRef = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    const closeSetupMenu = (event: PointerEvent): void => {
+      if (setupMenuRef.current?.contains(event.target as Node)) return;
+      setupMenuRef.current?.removeAttribute("open");
+      setDeleteSetupId(undefined);
+    };
+    document.addEventListener("pointerdown", closeSetupMenu);
+    return () => document.removeEventListener("pointerdown", closeSetupMenu);
+  }, []);
   const previousSetupId = useRef<string | null>(props.selectedSetupId);
   useEffect(() => {
     if (previousSetupId.current === props.selectedSetupId) return;
@@ -326,16 +336,6 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   const activeCell = project.documents.find(
     (candidate) => candidate.id === props.activeDocumentId,
   );
-  const draftDut = project.documents.find(
-    (candidate) => candidate.id === props.draftContext?.dutDocumentId,
-  );
-  const savedRoot = project.documents.find(
-    (candidate) =>
-      candidate.id ===
-      (selectedSetup?.input.kind === "structured"
-        ? selectedSetup.input.rootDocumentId
-        : undefined),
-  );
   const hasDutInstance = Boolean(
     activeCell?.instances.some(
       (instance) => instance.netlist?.binding?.kind === "subcircuit",
@@ -410,6 +410,37 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   const presentationLabels = Object.fromEntries(
     (runPresentation?.outputs ?? []).map((output) => [output.id, output.label]),
   );
+  const createSetup = (): void => {
+    const baseName = "Setup";
+    let suffix = project.simulationSetups.length + 1;
+    while (
+      project.simulationSetups.some(
+        (setup) => setup.name === `${baseName} ${suffix}`,
+      )
+    )
+      suffix++;
+    const created: ProjectSimulationSetup = {
+      id: `simulation-setup-${crypto.randomUUID()}`,
+      name: `${baseName} ${suffix}`,
+      version: 2,
+      input: selectedSetup
+        ? structuredClone(selectedSetup.input)
+        : {
+            kind: "structured",
+            rootDocumentId: props.activeDocumentId,
+            analyses: [{ kind: "op" }],
+            outputs: [],
+            environment: {
+              profileId:
+                capabilities?.profiles[0]?.id ?? DEVELOPMENT_PROFILE_ID,
+            },
+          },
+    };
+    if (props.onSaveSetup(created)) {
+      props.onSelectSetupId(created.id);
+      setupMenuRef.current?.removeAttribute("open");
+    }
+  };
   return (
     <section
       hidden={!open}
@@ -417,99 +448,98 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
       aria-label="Analog simulation"
       onKeyDown={(e) => {
         e.stopPropagation();
-        if (e.key === "Escape") props.onMinimize();
+        if (e.key !== "Escape") return;
+        if (setupMenuRef.current?.open) {
+          setupMenuRef.current.removeAttribute("open");
+          setDeleteSetupId(undefined);
+        } else props.onMinimize();
       }}
     >
       <header className="simulation-taskbar">
         <div className="simulation-brand">
           <strong>Simulation</strong>
+          <span
+            className={`simulation-status-chip simulation-status-${run?.state ?? (prepared ? "prepared" : "idle")}`}
+            role="status"
+          >
+            {dirty ? "Setup changed" : statusLabel}
+          </span>
         </div>
-        {draftDut || (savedRoot && savedRoot.id !== activeCell?.id) ? (
-          <div
-            className="simulation-cell-context"
-            data-testid="simulation-cell-flow"
-          >
-            {draftDut ? (
-              <button onClick={() => props.onOpenCell(draftDut.id)}>
-                <small>DUT</small>
-                {draftDut.name}
-              </button>
-            ) : null}
-            {savedRoot && savedRoot.id !== activeCell?.id ? (
-              <button onClick={() => props.onOpenCell(savedRoot.id)}>
-                <small>Setup root</small>
-                {savedRoot.name}
-              </button>
-            ) : null}
-          </div>
-        ) : null}
-        <span
-          className={`simulation-status-chip simulation-status-${run?.state ?? (prepared ? "prepared" : "idle")}`}
-          role="status"
-        >
-          {dirty ? "Setup changed" : statusLabel}
-        </span>
         <div className="simulation-task-actions">
-          <select
-            aria-label="Simulation setup"
-            value={selectedSetup?.id ?? ""}
-            disabled={dirty || busy || !!running}
-            onChange={(event) =>
-              props.onSelectSetupId(event.currentTarget.value)
-            }
-          >
-            {!selectedSetup ? <option value="">New setup</option> : null}
-            {project.simulationSetups.map((setup) => (
-              <option key={setup.id} value={setup.id}>
-                {setup.name}
-              </option>
-            ))}
-          </select>
-          <button
-            type="button"
-            disabled={dirty || busy || !!running}
-            onClick={() => {
-              const baseName = "Setup";
-              let suffix = project.simulationSetups.length + 1;
-              while (
-                project.simulationSetups.some(
-                  (setup) => setup.name === `${baseName} ${suffix}`,
-                )
-              )
-                suffix++;
-              const created: ProjectSimulationSetup = {
-                id: `simulation-setup-${crypto.randomUUID()}`,
-                name: `${baseName} ${suffix}`,
-                version: 2,
-                input: selectedSetup
-                  ? structuredClone(selectedSetup.input)
-                  : {
-                      kind: "structured",
-                      rootDocumentId: props.activeDocumentId,
-                      analyses: [{ kind: "op" }],
-                      outputs: [],
-                      environment: {
-                        profileId:
-                          capabilities?.profiles[0]?.id ??
-                          DEVELOPMENT_PROFILE_ID,
-                      },
-                    },
-              };
-              if (props.onSaveSetup(created)) props.onSelectSetupId(created.id);
+          <details
+            ref={setupMenuRef}
+            className="simulation-setup-menu"
+            onToggle={(event) => {
+              if (!event.currentTarget.open) setDeleteSetupId(undefined);
             }}
           >
-            New setup
-          </button>
-          <button
-            type="button"
-            disabled={busy || !!running || !selectedSetup}
-            onClick={() => {
-              if (selectedSetup && props.onDeleteSetup(selectedSetup.id))
-                setDirty(false);
-            }}
-          >
-            Delete setup
-          </button>
+            <summary aria-label="Simulation setup" title="Simulation setup">
+              <span>{selectedSetup?.name ?? "Setup"}</span>
+            </summary>
+            <div className="simulation-setup-menu-popover">
+              <button
+                type="button"
+                className="simulation-setup-menu-new"
+                disabled={dirty || busy || !!running}
+                onClick={createSetup}
+              >
+                New setup
+              </button>
+              {project.simulationSetups.map((setup) => (
+                <div
+                  key={setup.id}
+                  className="simulation-setup-menu-row"
+                  data-selected={setup.id === selectedSetup?.id}
+                >
+                  <button
+                    type="button"
+                    className="simulation-setup-menu-select"
+                    disabled={dirty || busy || !!running}
+                    onClick={() => {
+                      props.onSelectSetupId(setup.id);
+                      setupMenuRef.current?.removeAttribute("open");
+                    }}
+                  >
+                    {setup.name}
+                  </button>
+                  {deleteSetupId === setup.id ? (
+                    <span className="simulation-setup-delete-confirmation">
+                      <button
+                        type="button"
+                        className="simulation-setup-delete-confirm"
+                        disabled={busy || !!running}
+                        onClick={() => {
+                          if (props.onDeleteSetup(setup.id)) {
+                            if (setup.id === selectedSetup?.id) setDirty(false);
+                            setDeleteSetupId(undefined);
+                          }
+                        }}
+                      >
+                        Confirm
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDeleteSetupId(undefined)}
+                      >
+                        Cancel
+                      </button>
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      className="simulation-setup-delete"
+                      aria-label={`Delete ${setup.name}`}
+                      title={`Delete ${setup.name}`}
+                      disabled={busy || !!running}
+                      onClick={() => setDeleteSetupId(setup.id)}
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </details>
           <button
             type="button"
             className="simulation-settings-button"
@@ -551,11 +581,13 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
             </button>
           ) : selectedSetup ? (
             <button
-              className="simulation-primary-button"
+              className="simulation-primary-button simulation-run-button"
               disabled={busy || dirty}
               onClick={() => void execute(true)}
+              aria-label="Run"
+              title="Run"
             >
-              Run
+              ▶
             </button>
           ) : (
             <button
@@ -568,6 +600,8 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
               Set up
             </button>
           )}
+        </div>
+        <div className="simulation-window-actions">
           <button
             className="simulation-maximize-button"
             onClick={props.onToggleMaximized}
@@ -1015,9 +1049,8 @@ function SetupEditor({
   onProblem(value: Problem | undefined): void;
 }) {
   const saved = setup?.input.kind === "structured" ? setup.input : undefined;
-  const [rootId, setRootId] = useState(
-    saved?.rootDocumentId ?? draftContext?.rootDocumentId ?? activeDocumentId,
-  );
+  const rootId =
+    saved?.rootDocumentId ?? draftContext?.rootDocumentId ?? activeDocumentId;
   const [outputs, setOutputs] = useState(saved?.outputs ?? []);
   const [setupName, setSetupName] = useState(
     setup?.name ?? draftContext?.setupName ?? "Setup 1",
@@ -1110,7 +1143,7 @@ function SetupEditor({
       onProblem(
         uiProblem(
           "PROBE_TARGET_UNAVAILABLE",
-          "That Net is outside the selected Testbench occurrence. Choose it from the Output list or change the Testbench Cell.",
+          "That Net is outside this Setup's Testbench. Choose it from the Output list or create a Setup for the intended Testbench.",
         ),
       );
       return;
@@ -1292,17 +1325,6 @@ function SetupEditor({
               }
             }}
           />
-        </label>
-        <label>
-          Testbench Cell
-          <select value={rootId} onChange={(e) => setRootId(e.target.value)}>
-            {!root && <option value={rootId}>Missing: {rootId}</option>}
-            {project.documents.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.name}
-              </option>
-            ))}
-          </select>
         </label>
         <label>
           Environment profile

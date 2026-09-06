@@ -47,6 +47,9 @@ describe("AC Results Explorer", () => {
     );
 
     expect(markup).toContain("VOUT");
+    expect(markup).toContain("Voltage magnitude");
+    expect(markup).toContain("Voltage phase");
+    expect(markup).not.toContain("<h4>Voltage</h4>");
     expect(markup).toContain('aria-label="AC magnitude"');
     expect(markup).toContain('aria-label="AC phase"');
     expect(markup.match(/data-trace-index="0"/gu)).toHaveLength(2);

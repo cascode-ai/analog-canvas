@@ -93,9 +93,7 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
     .click();
   const panel = page.getByRole("region", { name: "Analog simulation" });
   await panel.getByRole("button", { name: "Settings" }).click();
-  await expect(panel.getByLabel("Testbench Cell")).toHaveValue(
-    originalSetupInput.rootDocumentId,
-  );
+  await expect(panel.getByLabel("Testbench Cell")).toHaveCount(0);
   await expect(panel.getByLabel("Stop (Hz)")).toHaveValue("1000000000");
   await expect(panel.getByLabel("Environment profile")).toHaveValue(profile.id);
   await expect(
@@ -230,13 +228,11 @@ test("one Testbench persists several independently named setups", async ({
     .getByRole("button", { name: "Analog simulation", exact: true })
     .click();
   const panel = page.getByRole("region", { name: "Analog simulation" });
-  const selector = panel.getByRole("combobox", {
-    name: "Simulation setup",
-    exact: true,
-  });
-  await expect(selector).toHaveValue("simulation-setup-ota-op-ac");
+  const selector = panel.getByTitle("Simulation setup", { exact: true });
+  await expect(selector).toContainText("OTA OP and AC");
+  await selector.click();
   await panel.getByRole("button", { name: "New setup", exact: true }).click();
-  await expect(selector.locator("option")).toHaveCount(2);
+  await expect(selector).toContainText("Setup 2");
   await panel.getByLabel("Setup name").fill("Bias search");
   await panel.getByRole("button", { name: "Apply setup" }).click();
   await panel.getByLabel("Setup name").fill("Bias sweep");
@@ -259,10 +255,18 @@ test("one Testbench persists several independently named setups", async ({
     ),
   ).toEqual(new Set(["document-ota-5t-testbench"]));
 
-  await panel.getByRole("button", { name: "Delete setup" }).click();
-  await expect(selector).toHaveValue("simulation-setup-ota-op-ac");
+  await selector.click();
+  await panel.getByRole("button", { name: "Delete Bias sweep" }).click();
+  await panel.getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(
-    selector.getByRole("option", { name: "Bias sweep" }),
+    panel.getByRole("button", { name: "Bias sweep", exact: true }),
+  ).toBeVisible();
+  await panel.getByRole("button", { name: "Delete Bias sweep" }).click();
+  await panel.getByRole("button", { name: "Confirm", exact: true }).click();
+  await expect(selector).toContainText("OTA OP and AC");
+  await selector.click();
+  await expect(
+    panel.getByRole("button", { name: "Bias sweep", exact: true }),
   ).toHaveCount(0);
   const afterDelete = JSON.parse(
     (await downloadBytes(page, "File", "Export Project File…")).toString(),
@@ -837,7 +841,12 @@ test("Simulation creates an ordinary testbench and offers the current Cell at th
   expect(saved.topDocumentId).toBe("document-main");
   expect(saved.simulationSetups).toEqual([]);
   await page.getByTestId("open-analog-simulation").click();
-  await expect(page.getByLabel("Testbench Cell")).toHaveValue(tb.id);
+  await expect(page.getByLabel("Testbench Cell")).toHaveCount(0);
+  await page.getByRole("button", { name: "Apply setup" }).click();
+  const configured = JSON.parse(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(),
+  );
+  expect(configured.simulationSetups[0].input.rootDocumentId).toBe(tb.id);
   const simulationResize = page.getByTestId("simulation-resize-handle");
   const initialWidth = Number(
     await simulationResize.getAttribute("aria-valuenow"),

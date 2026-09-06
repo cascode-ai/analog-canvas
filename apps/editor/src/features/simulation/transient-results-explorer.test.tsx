@@ -21,6 +21,12 @@ describe("Transient Results Explorer", () => {
     expect(extent[1]).toBeCloseTo(1.89, 10);
   });
 
+  it("keeps changing waveforms away from the plot boundary", () => {
+    const extent = transientValueExtent([0, 1]);
+    expect(extent[0]).toBeCloseTo(-0.05);
+    expect(extent[1]).toBeCloseTo(1.05);
+  });
+
   it("retains the segment crossing a zoom window between solver samples", () => {
     expect(transientVisibleValues([0, 10], [0, 1], [4, 6])).toEqual([0.4, 0.6]);
     const points = transientPolylinePoints([0, 10], [0, 1], [0, 1], [4, 6]);
@@ -79,6 +85,8 @@ describe("Transient Results Explorer", () => {
 
     expect(markup).toContain("VOUT");
     expect(markup).toContain("IIN");
+    expect(markup).toContain("Voltage transient");
+    expect(markup).toContain("Current transient");
     expect(markup).toContain('aria-label="Hide VOUT"');
     expect(markup).toContain('aria-label="Hide IIN"');
     expect(markup).toContain('aria-pressed="true"');

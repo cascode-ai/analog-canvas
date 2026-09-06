@@ -22,7 +22,6 @@ describe("SpiceSimulationSurface workspace", () => {
         onExit={() => undefined}
         onSaveSetup={() => true}
         onDeleteSetup={() => true}
-        onOpenCell={() => undefined}
       />,
     );
 
@@ -30,7 +29,10 @@ describe("SpiceSimulationSurface workspace", () => {
     expect(markup).not.toContain('data-testid="simulation-cell-flow"');
     expect(markup).toContain("No DUT instance in this Cell");
     expect(markup).toContain("Edit → New Testbench Cell");
+    expect(markup).toContain('class="simulation-setup-menu"');
     expect(markup).toContain('aria-label="Simulation setup"');
+    expect(markup).toContain("New setup");
+    expect(markup).not.toContain("<label>Testbench Cell");
     expect(markup).toContain('aria-pressed="true">Settings');
     expect(markup).toContain('aria-pressed="false">Results');
     expect(markup).toContain('aria-label="Maximize simulation"');
@@ -125,14 +127,13 @@ describe("SpiceSimulationSurface workspace", () => {
         onExit={() => undefined}
         onSaveSetup={() => true}
         onDeleteSetup={() => true}
-        onOpenCell={() => undefined}
       />,
     );
     expect(markup).toContain("DC sweep source");
     expect(markup).toContain('aria-label="Simulation setup"');
     expect(markup).toContain("DC Sweep");
     expect(markup).toContain("AC Response");
-    expect(markup.match(/Delete setup/g)).toHaveLength(1);
+    expect(markup.match(/aria-label="Delete /g)).toHaveLength(2);
     expect(markup).toContain('name="setupName"');
     expect(markup).toContain("V1 · Voltage");
     expect(markup).toContain('name="dcStartValue"');
@@ -168,7 +169,6 @@ describe("SpiceSimulationSurface workspace", () => {
         onExit={() => undefined}
         onSaveSetup={() => true}
         onDeleteSetup={() => true}
-        onOpenCell={() => undefined}
       />,
     );
 
@@ -177,7 +177,7 @@ describe("SpiceSimulationSurface workspace", () => {
     expect(markup).toContain('aria-label="Restore simulation panel"');
     expect(markup).toContain("tb.cir");
     expect(markup).toContain("Switch to structured setup");
-    expect(markup.match(/Delete setup/g)).toHaveLength(1);
+    expect(markup.match(/aria-label="Delete /g)).toHaveLength(1);
     expect(markup).not.toContain("Add voltage probe");
     expect(markup).not.toContain("authored file(s)");
     expect(markup).not.toContain("Profile: raw-profile");

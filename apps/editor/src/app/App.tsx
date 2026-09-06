@@ -4741,13 +4741,12 @@ export function App({
                 const committed = commitStructure("remove-simulation-setup", [
                   { kind: "remove_simulation_setup", setupId },
                 ]);
-                if (committed) {
+                if (committed && activeSimulationSetupId === setupId) {
                   setActiveSimulationSetupId(null);
                   setSimulationDraftContext(null);
                 }
                 return committed;
               }}
-              onOpenCell={(id) => switchDocument(id)}
               pickNetsActive={simulationPickNetsActive}
               pickedNet={analogPickedNet}
               onPickNetsChange={setSimulationPickMode}

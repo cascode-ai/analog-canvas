@@ -94,10 +94,17 @@ function niceDecades(min: number, max: number): number[] {
 function adaptiveAxis(
   range: readonly [number, number],
   height: number,
+  pad = true,
 ): AcPlotAxis {
-  const margin = Math.max(Math.abs(range[0]) * 0.05, 1);
-  const min = range[0] === range[1] ? range[0] - margin : range[0];
-  const max = range[0] === range[1] ? range[1] + margin : range[1];
+  const span = range[1] - range[0];
+  const margin =
+    range[0] === range[1]
+      ? Math.max(Math.abs(range[0]) * 0.05, 1)
+      : pad
+        ? span * 0.05
+        : 0;
+  const min = range[0] - margin;
+  const max = range[1] + margin;
   return { min, max, ticks: waveformTicks(min, max, height > 400 ? 10 : 5) };
 }
 
@@ -129,8 +136,12 @@ export function layoutAcPlot(
   };
   const dataMin = Math.min(...frequencies);
   const dataMax = Math.max(...frequencies);
-  const fMin = frequencyRange?.[0] ?? dataMin;
-  const fMax = frequencyRange?.[1] ?? dataMax;
+  const logPadding =
+    frequencyRange || dataMin === dataMax
+      ? 0
+      : (Math.log10(dataMax) - Math.log10(dataMin)) * 0.025;
+  const fMin = frequencyRange?.[0] ?? dataMin / 10 ** logPadding;
+  const fMax = frequencyRange?.[1] ?? dataMax * 10 ** logPadding;
   const decades = niceDecades(fMin, fMax).filter(
     (frequency) => frequency >= fMin && frequency <= fMax,
   );
@@ -147,8 +158,8 @@ export function layoutAcPlot(
               0,
           )
         : waveformTicks(fMin, fMax, 5),
-    min: frequencyRange ? fMin : niceDecades(dataMin, dataMax)[0]!,
-    max: frequencyRange ? fMax : niceDecades(dataMin, dataMax).at(-1)!,
+    min: fMin,
+    max: fMax,
   };
   const logMin = Math.log10(frequency.min);
   const logSpan = Math.log10(frequency.max) - logMin || 1;
@@ -162,12 +173,14 @@ export function layoutAcPlot(
         ? valueOverride.range
         : [Math.min(...magnitudes), Math.max(...magnitudes)],
       size.height,
+      valueOverride?.kind !== "magnitude",
     ),
     phase: adaptiveAxis(
       valueOverride?.kind === "phase"
         ? valueOverride.range
         : [Math.min(...phases), Math.max(...phases)],
       size.height,
+      valueOverride?.kind !== "phase",
     ),
     frequencyAt: (x: number) =>
       10 ** (logMin + ((x - frame.x) / frame.width) * logSpan),
