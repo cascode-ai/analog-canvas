@@ -48,6 +48,17 @@ const SimulationAnalysisResultSchema = z.discriminatedUnion("analysis", [
     ),
   }),
   z.strictObject({
+    analysis: z.literal("dc"),
+    plotName: z.string(),
+    sweep: z.strictObject({
+      ...SimulationProbeShape,
+      values: z.array(z.number()),
+    }),
+    probes: z.array(
+      z.strictObject({ ...SimulationProbeShape, value: z.array(z.number()) }),
+    ),
+  }),
+  z.strictObject({
     analysis: z.literal("tran"),
     plotName: z.string(),
     timeSeconds: z.array(z.number()),

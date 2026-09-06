@@ -140,10 +140,25 @@ function spiceNumber(value: number): string {
   return String(value);
 }
 
-function analysisCommand(analysis: SimulationAnalysisSpec): string {
+function analysisCommand(
+  analysis: SimulationAnalysisSpec,
+  dcSourceReference?: string,
+): string {
   switch (analysis.kind) {
     case "op":
       return "op";
+    case "dc": {
+      if (!dcSourceReference)
+        throw new Error("DC source must be resolved before writing the deck");
+      const direction = analysis.stopValue > analysis.startValue ? 1 : -1;
+      return [
+        "dc",
+        dcSourceReference,
+        spiceNumber(analysis.startValue),
+        spiceNumber(analysis.stopValue),
+        spiceNumber(analysis.stepValue * direction),
+      ].join(" ");
+    }
     case "ac":
       return [
         "ac",
@@ -186,21 +201,29 @@ function canonicalSetup(input: SimulationStructuredInput): string {
     analyses: input.analyses.map((analysis) =>
       analysis.kind === "op"
         ? { kind: analysis.kind }
-        : analysis.kind === "ac"
+        : analysis.kind === "dc"
           ? {
               kind: analysis.kind,
-              sweep: analysis.sweep,
-              points: analysis.points,
-              startHz: analysis.startHz,
-              stopHz: analysis.stopHz,
+              sourceInstanceId: analysis.sourceInstanceId,
+              startValue: analysis.startValue,
+              stopValue: analysis.stopValue,
+              stepValue: analysis.stepValue,
             }
-          : {
-              kind: analysis.kind,
-              stepSeconds: analysis.stepSeconds,
-              stopSeconds: analysis.stopSeconds,
-              startSeconds: analysis.startSeconds ?? null,
-              maxStepSeconds: analysis.maxStepSeconds ?? null,
-            },
+          : analysis.kind === "ac"
+            ? {
+                kind: analysis.kind,
+                sweep: analysis.sweep,
+                points: analysis.points,
+                startHz: analysis.startHz,
+                stopHz: analysis.stopHz,
+              }
+            : {
+                kind: analysis.kind,
+                stepSeconds: analysis.stepSeconds,
+                stopSeconds: analysis.stopSeconds,
+                startSeconds: analysis.startSeconds ?? null,
+                maxStepSeconds: analysis.maxStepSeconds ?? null,
+              },
     ),
     probes: input.probes.map((probe) =>
       probe.kind === "net-voltage"
@@ -559,9 +582,51 @@ export async function compileStructuredSimulation(
   }
 
   const analyses: SimulationAnalysis[] = [];
+  const analysisCommands: string[] = [];
   for (const item of input.analyses) {
+    if (item.kind === "dc") {
+      const source = rootCell.instances.find(
+        (instance) => instance.id === item.sourceInstanceId,
+      );
+      if (!source) {
+        diagnostics.push(
+          diagnostic(
+            "SIMULATION_DC_SOURCE_UNAVAILABLE",
+            input.rootDocumentId,
+            `DC sweep source ${item.sourceInstanceId} is not an Instance in the Testbench root`,
+            locator(
+              input.rootDocumentId,
+              [],
+              "instance",
+              item.sourceInstanceId,
+            ),
+            [item.sourceInstanceId],
+          ),
+        );
+        continue;
+      }
+      if (
+        source.deviceClass !== "voltage-source" &&
+        source.deviceClass !== "current-source"
+      ) {
+        diagnostics.push(
+          diagnostic(
+            "SIMULATION_DC_SOURCE_UNSUPPORTED",
+            input.rootDocumentId,
+            `DC sweep source ${source.reference} is a ${source.deviceClass}; select an independent voltage or current source`,
+            locator(input.rootDocumentId, [], "instance", source.id),
+            [source.id],
+          ),
+        );
+        continue;
+      }
+      analyses.push(item.kind);
+      analysisCommands.push(analysisCommand(item, source.reference));
+      continue;
+    }
     if (item.kind === "op" || item.kind === "ac" || item.kind === "tran") {
       analyses.push(item.kind);
+      analysisCommands.push(analysisCommand(item));
       continue;
     }
     diagnostics.push(
@@ -617,7 +682,7 @@ export async function compileStructuredSimulation(
     ".control",
     "set filetype=ascii",
     ...(analyses.length > 1 ? ["set appendwrite"] : []),
-    ...input.analyses.flatMap((item) => [analysisCommand(item), writeCard]),
+    ...analysisCommands.flatMap((command) => [command, writeCard]),
     ".endc",
     ".end",
   ].join("\n");

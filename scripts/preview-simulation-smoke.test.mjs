@@ -7,6 +7,7 @@ import {
   runHostedSky130TransientAcceptance,
   runPreviewSimulationSmoke,
   validateHostedSky130TransientResult,
+  validateDcDividerResult,
   validateExecutorParity,
   validateHostedSky130Result,
   validatePreviewSimulationResult,
@@ -128,6 +129,24 @@ function modelResult(
 }
 
 describe("the Preview dual-executor smoke", () => {
+  it("accepts a one-source DC divider curve", () => {
+    const candidate = result("operator-host", {
+      data: {
+        analyses: [
+          {
+            analysis: "dc",
+            sweep: { name: "v-sweep", values: [0, 0.5, 1, 1.5] },
+            probes: [{ name: "v(out)", value: [0, 0.25, 0.5, 0.75] }],
+          },
+        ],
+      },
+    });
+    expect(validateDcDividerResult(candidate, "operator-host")).toEqual({
+      target: "operator-host",
+      pointCount: 4,
+    });
+  });
+
   it("accepts a numerical operating point with measured environment identity", () => {
     expect(
       validatePreviewSimulationResult(

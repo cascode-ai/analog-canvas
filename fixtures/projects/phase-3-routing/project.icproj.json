@@ -80,45 +80,35 @@
           {
             "direction": "passive",
             "id": "cell-terminal-a",
-            "interfaceInstanceIds": [
-              "A"
-            ],
+            "interfaceInstanceIds": ["A"],
             "name": "HORIZONTAL",
             "netId": "net-h"
           },
           {
             "direction": "passive",
             "id": "cell-terminal-b",
-            "interfaceInstanceIds": [
-              "B"
-            ],
+            "interfaceInstanceIds": ["B"],
             "name": "HORIZONTAL",
             "netId": "net-h"
           },
           {
             "direction": "passive",
             "id": "cell-terminal-c",
-            "interfaceInstanceIds": [
-              "C"
-            ],
+            "interfaceInstanceIds": ["C"],
             "name": "VERTICAL",
             "netId": "net-v"
           },
           {
             "direction": "passive",
             "id": "cell-terminal-d",
-            "interfaceInstanceIds": [
-              "D"
-            ],
+            "interfaceInstanceIds": ["D"],
             "name": "VERTICAL",
             "netId": "net-v"
           },
           {
             "direction": "passive",
             "id": "cell-terminal-e",
-            "interfaceInstanceIds": [
-              "E"
-            ],
+            "interfaceInstanceIds": ["E"],
             "name": "HORIZONTAL",
             "netId": "net-h"
           }
@@ -170,7 +160,7 @@
   "externalSubcircuitDefinitions": [],
   "id": "project-routing",
   "name": "Phase 3 Routing Demo",
-  "schemaVersion": 40,
+  "schemaVersion": 41,
   "source": {
     "dialect": "none",
     "entry": null,

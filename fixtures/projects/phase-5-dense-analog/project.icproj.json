@@ -168,10 +168,7 @@
           "id": "group-input-pair",
           "kind": "differential-pair",
           "locked": false,
-          "objectIds": [
-            "M1",
-            "M2"
-          ]
+          "objectIds": ["M1", "M2"]
         }
       ],
       "name": "Differential Stage",
@@ -182,18 +179,14 @@
           {
             "direction": "passive",
             "id": "cell-terminal-vinp",
-            "interfaceInstanceIds": [
-              "VINP"
-            ],
+            "interfaceInstanceIds": ["VINP"],
             "name": "VINP",
             "netId": "net-vinp"
           },
           {
             "direction": "passive",
             "id": "cell-terminal-vout",
-            "interfaceInstanceIds": [
-              "VOUT"
-            ],
+            "interfaceInstanceIds": ["VOUT"],
             "name": "VOUT",
             "netId": "net-vout"
           }
@@ -421,7 +414,7 @@
   "externalSubcircuitDefinitions": [],
   "id": "project-phase-5-dense-analog",
   "name": "Current Differential Stage",
-  "schemaVersion": 40,
+  "schemaVersion": 41,
   "source": {
     "dialect": "none",
     "entry": null,

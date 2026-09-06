@@ -8,6 +8,12 @@
 export type ResultVolumeAnalysis =
   | { readonly kind: "op" }
   | {
+      readonly kind: "dc";
+      readonly startValue: number;
+      readonly stopValue: number;
+      readonly stepValue: number;
+    }
+  | {
       readonly kind: "ac";
       readonly sweep: "dec" | "oct" | "lin";
       readonly points: number;
@@ -46,6 +52,15 @@ function tranPointCount(
   );
 }
 
+function dcPointCount(analysis: Extract<ResultVolumeAnalysis, { kind: "dc" }>) {
+  return Math.max(
+    1,
+    Math.floor(
+      Math.abs(analysis.stopValue - analysis.startValue) / analysis.stepValue,
+    ) + 1,
+  );
+}
+
 export function estimateSimulationOutputBytes(
   analyses: readonly ResultVolumeAnalysis[],
   probeCount: number,
@@ -59,7 +74,9 @@ export function estimateSimulationOutputBytes(
     const points =
       analysis.kind === "ac"
         ? acPointCount(analysis)
-        : tranPointCount(analysis);
+        : analysis.kind === "dc"
+          ? dcPointCount(analysis)
+          : tranPointCount(analysis);
     const bytesPerValue =
       analysis.kind === "ac"
         ? ASCII_COMPLEX_VALUE_BYTES

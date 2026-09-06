@@ -125,7 +125,9 @@ same contract as `/api/agent/sessions/{sessionId}/simulation`:
    starting the simulator.
 2. Configure the Project through `advanced_transact` with the existing
    `set_simulation_setup` structure edit. Sources, DUT instances, formal ports,
-   and wiring remain ordinary Project edits.
+   and wiring remain ordinary Project edits. Structured analyses support OP,
+   one-source linear DC sweep, AC, and TRAN; discover the deployment Profile
+   before selecting an analysis.
 3. `prepare` with `source:{kind:"project-setup",expectedStructureRevision}`
    freezes the saved structured or raw setup. It returns `prepared.id`,
    `digest`, vectors, and export references. A stale Project revision is a

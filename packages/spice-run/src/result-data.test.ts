@@ -7,6 +7,7 @@ import {
   readSimulationData,
   simulationAnalysisToCsv,
   type AcResult,
+  type DcSweepResult,
   type OperatingPointResult,
   type SimulationAnalysisResult,
   type SimulationDataReading,
@@ -235,6 +236,40 @@ describe("an AC sweep", () => {
   });
 });
 
+describe("a DC sweep", () => {
+  const dc = (): DcSweepResult => only("divider-dc.raw", "dc");
+
+  it("keeps ngspice's recorded sweep axis and divider arithmetic", () => {
+    const analysis = dc();
+    expect(analysis.plotName).toBe("DC transfer characteristic");
+    expect(analysis.sweep).toEqual({
+      name: "v-sweep",
+      quantity: "voltage",
+      unit: "V",
+      values: [0, 0.5, 1, 1.5],
+    });
+    const input = analysis.probes.find((probe) => probe.name === "v(in)")!;
+    const middle = analysis.probes.find((probe) => probe.name === "v(mid)")!;
+    const current = analysis.probes.find((probe) => probe.name === "i(v1)")!;
+    expect(middle.value).toEqual(input.value.map((value) => value / 2));
+    expect(current.value).toEqual(
+      input.value.map((value) => (value === 0 ? 0 : -value / (2 * R1))),
+    );
+  });
+
+  it("exports the simulator axis and every probe without rebuilding values", () => {
+    const analysis = dc();
+    const lines = simulationAnalysisToCsv(analysis).trimEnd().split("\n");
+    expect(lines[0]).toBe("v-sweep [V],v(in) [V],v(mid) [V],i(v1) [A]");
+    expect(lines.slice(1).map((line) => line.split(",").map(Number))).toEqual(
+      analysis.sweep.values.map((sweep, point) => [
+        sweep,
+        ...analysis.probes.map((probe) => probe.value[point]),
+      ]),
+    );
+  });
+});
+
 describe("a transient run", () => {
   const tran = (): TransientResult => only("rc-tran.raw", "tran");
   const probe = (analysis: TransientResult, name: string) =>
@@ -428,7 +463,7 @@ describe("a run that produced no numbers", () => {
     expect(analyses.map((analysis) => analysis.analysis)).toEqual(["tran"]);
     if (reading.status !== "read") throw new Error("unreachable");
     expect(reading.diagnostics).toHaveLength(1);
-    expect(reading.diagnostics[0]!.severity).toBe("warning");
+    expect(reading.diagnostics[0]!.severity).toBe("error");
     expect(reading.diagnostics[0]!.text).toContain(
       "DC transfer characteristic",
     );

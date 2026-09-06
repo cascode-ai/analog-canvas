@@ -35,6 +35,7 @@ import {
   upgradeSchema37To38WithReport,
   upgradeSchema38To39WithReport,
   upgradeSchema39To40WithReport,
+  upgradeSchema40To41,
 } from "@icm/project-protocol";
 import {
   CURRENT_PROJECT_SCHEMA_VERSION,
@@ -1686,6 +1687,9 @@ export class GalleryDO {
               id: row.id,
               report: migration.report,
             });
+          }
+          if (lifted.schemaVersion === 40) {
+            lifted = upgradeSchema40To41(lifted);
           }
           const project = parseProject(JSON.stringify(lifted));
           updates.push({

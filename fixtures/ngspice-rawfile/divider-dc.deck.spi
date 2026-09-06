@@ -1,0 +1,10 @@
+* Resistive divider DC transfer curve
+V1 in 0 dc 0
+R1 in mid 1k
+R2 mid 0 1k
+.control
+set filetype=ascii
+dc V1 0 1.5 0.5
+write divider-dc.raw v(in) v(mid) i(v1)
+.endc
+.end

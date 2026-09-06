@@ -32,11 +32,11 @@ describe("the hosted SKY130 Profile", () => {
     });
   });
 
-  it("qualifies only the scope backed by the tracked hosted fixture", () => {
+  it("qualifies only the scope backed by tracked hosted acceptance", () => {
     expect(profile.qualifiedScope).toEqual({
       devices: ["sky130_fd_pr__nfet_01v8", "sky130_fd_pr__pfet_01v8"],
       sections: ["tt"],
-      analyses: ["op", "ac", "tran"],
+      analyses: ["op", "dc", "ac", "tran"],
     });
   });
 });

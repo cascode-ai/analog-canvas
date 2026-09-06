@@ -1,6 +1,8 @@
 # ngspice ASCII rawfile fixtures
 
-Four rawfiles written by ngspice 46, each beside the deck that produced it.
+Four rawfiles written by ngspice 46, each beside the deck that produced it,
+plus one deterministic DC protocol fixture pending regeneration in the pinned
+Linux image.
 They exist so a parser is tested against output a simulator actually wrote,
 not against output someone believed it writes.
 
@@ -10,6 +12,7 @@ Regenerate any of them with `ngspice -b <name>.deck.spi` from this directory.
 | ----------------------- | ------------------ | ----------- | -------------- | ------ |
 | `divider-op.raw`        | Operating Point    | real        | 3              | 1      |
 | `divider-op-listed.raw` | Operating Point    | real        | 4 (one echoed) | 1      |
+| `divider-dc.raw`        | DC transfer        | real        | 4              | 4      |
 | `rc-ac.raw`             | AC Analysis        | **complex** | 4              | 17     |
 | `rc-tran.raw`           | Transient Analysis | real        | 4              | 79     |
 
@@ -30,6 +33,11 @@ listed vectors, and an operating-point plot's scale is its first vector, so
 `v(in)` appears twice in `Variables:` with one value. The reader must report
 the probe once; the fixture exists so that echo is tested against a file the
 simulator wrote.
+
+**`divider-dc`** — the same divider swept from 0 V to 1.5 V. Its values are
+closed-form protocol data (`v(mid) = v(in)/2`) and are deliberately identified
+as reconstructed rather than simulator-qualified. The Profile gate must
+regenerate it in the pinned image before DC promotion.
 
 **`rc-ac`** — R = 1 kΩ, C = 1 µF, so H(f) = 1/(1 + jf/f_c) with
 f_c = 1/(2π·RC) = 159.1549 Hz. Every one of the 17 points can be asserted

@@ -962,6 +962,31 @@ describe("SimulationSetup schema", () => {
     expect(environment({ modelLibraryPath: "/opt/sky130" })).toBe(false);
   });
 
+  it("accepts one finite, non-zero-range DC source sweep", () => {
+    const dc = (overrides: Record<string, unknown>) => {
+      const candidate = setup();
+      candidate.input.analyses = [
+        {
+          kind: "dc",
+          sourceInstanceId: "V1",
+          startValue: 0,
+          stopValue: 1.8,
+          stepValue: 0.01,
+          ...overrides,
+        } as SimulationStructuredInput["analyses"][number],
+      ];
+      return SimulationSetupSchema.safeParse(candidate).success;
+    };
+    expect(dc({})).toBe(true);
+    expect(dc({ startValue: 1.8, stopValue: 0 })).toBe(true);
+    expect(dc({ sourceInstanceId: "" })).toBe(false);
+    expect(dc({ startValue: 1, stopValue: 1 })).toBe(false);
+    expect(dc({ stepValue: 0 })).toBe(false);
+    expect(dc({ stepValue: -0.1 })).toBe(false);
+    expect(dc({ stopValue: Number.POSITIVE_INFINITY })).toBe(false);
+    expect(dc({ secondSource: "V2" })).toBe(false);
+  });
+
   it("persists a bounded raw authoring bundle without host paths", () => {
     const raw: SimulationRawSetup = {
       version: 1,

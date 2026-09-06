@@ -365,6 +365,84 @@ describe("compiling a structured simulation setup", () => {
     expect(result.request.analyses).toEqual(["op"]);
   });
 
+  it("compiles a one-source linear DC sweep without changing source bias", async () => {
+    const project = dividerProject();
+    const result = await compile(
+      project,
+      setupWith({
+        analyses: [
+          {
+            kind: "dc",
+            sourceInstanceId: "inst-v1",
+            startValue: 0,
+            stopValue: 1.8,
+            stepValue: 0.1,
+          },
+        ],
+      }),
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.request.analyses).toEqual(["dc"]);
+    expect(result.request.testbench).toContain("\nV1 IN 0 DC 1 AC 1 0\n");
+    expect(result.request.testbench).toContain("\ndc V1 0 1.8 0.1\n");
+  });
+
+  it("derives a negative ngspice increment for a descending DC sweep", async () => {
+    const result = await compile(
+      dividerProject(),
+      setupWith({
+        analyses: [
+          {
+            kind: "dc",
+            sourceInstanceId: "inst-v1",
+            startValue: 1.8,
+            stopValue: 0,
+            stepValue: 0.1,
+          },
+        ],
+      }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.request.testbench).toContain("\ndc V1 1.8 0 -0.1\n");
+  });
+
+  it("locates a missing or unsupported DC sweep source", async () => {
+    const missing = await compile(
+      dividerProject(),
+      setupWith({
+        analyses: [
+          {
+            kind: "dc",
+            sourceInstanceId: "missing",
+            startValue: 0,
+            stopValue: 1,
+            stepValue: 0.1,
+          },
+        ],
+      }),
+    );
+    expect(codes(missing)).toEqual(["SIMULATION_DC_SOURCE_UNAVAILABLE"]);
+
+    const unsupported = await compile(
+      dividerProject(),
+      setupWith({
+        analyses: [
+          {
+            kind: "dc",
+            sourceInstanceId: "inst-r1",
+            startValue: 0,
+            stopValue: 1,
+            stepValue: 0.1,
+          },
+        ],
+      }),
+    );
+    expect(codes(unsupported)).toEqual(["SIMULATION_DC_SOURCE_UNSUPPORTED"]);
+  });
+
   it("emits the authored temperature as a deck card", async () => {
     const result = await compile(
       dividerProject(),

@@ -131,3 +131,4 @@ export type {
   Schema39To40MigrationReport,
   Schema39To40MigrationResult,
 } from "./transforms/simulation-probe-anchor.js";
+export { upgradeSchema40To41 } from "./transforms/dc-sweep.js";

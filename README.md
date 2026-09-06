@@ -23,7 +23,7 @@ edit model.
   canonical `.icproj.json`, import structural `.cir`, `.sp`, and `.spi` files, and export
   deterministic structural SPICE or Spectre. The Preview editor also provides
   a saved Testbench setup and a fixed ngspice/SKY130 environment for qualified
-  OP, AC, and TRAN runs; Production availability remains release-controlled.
+  OP, DC, AC, and TRAN runs; Production availability remains release-controlled.
 - **Publication-ready output:** the web editor's SVG and PDF exports remain
   vector graphics; PNG is rendered at 3× raster scale.
 - **Community publishing:** signed-in users can publish selected circuits with

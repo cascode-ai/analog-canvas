@@ -98,6 +98,24 @@ export const RC_TRAN_REQUEST = {
   timeoutMs: 30_000,
 };
 
+export const DIVIDER_DC_REQUEST = {
+  mode: "raw",
+  netlist: "",
+  testbench: [
+    "DC divider qualification",
+    "V1 in 0 DC 0",
+    "R1 in out 1k",
+    "R2 out 0 1k",
+    ".control",
+    "set filetype=ascii",
+    "dc V1 0 1.5 0.5",
+    "write out.raw v(in) v(out) i(v1)",
+    ".endc",
+    ".end",
+  ].join("\n"),
+  timeoutMs: 30_000,
+};
+
 export async function compileHostedSky130Project() {
   const [{ compileStructuredSimulation }, { parseProject }] = await Promise.all(
     [import("@icm/netlist"), import("@icm/project-protocol")],
@@ -350,6 +368,54 @@ export function validateRcTransientResult(payload, expectedTarget) {
     );
   }
   return { target: expectedTarget, pointCount: tran.timeSeconds.length };
+}
+
+export function validateDcDividerResult(payload, expectedTarget) {
+  const result = object(payload, "simulation response");
+  if (object(result.outcome, "simulation outcome").status !== "completed") {
+    throw new Error(
+      `[simulation:dc] ${expectedTarget} did not complete: ${diagnosticSummary(result)}`,
+    );
+  }
+  validatePinnedEnvironment(
+    object(object(result.metadata, "run metadata").environment, "environment"),
+    expectedTarget,
+  );
+  const data = object(result.data, "parsed result data");
+  const dc = Array.isArray(data.analyses)
+    ? data.analyses.find(
+        (analysis) =>
+          typeof analysis === "object" &&
+          analysis !== null &&
+          analysis.analysis === "dc",
+      )
+    : null;
+  if (!dc || !Array.isArray(dc.sweep?.values) || !Array.isArray(dc.probes)) {
+    throw new Error(`${expectedTarget} returned no structured DC result.`);
+  }
+  if (dc.sweep.name !== "v-sweep") {
+    throw new Error(`${expectedTarget} returned an unexpected DC sweep axis.`);
+  }
+  const expectedAxis = [0, 0.5, 1, 1.5];
+  if (
+    dc.sweep.values.length !== expectedAxis.length ||
+    dc.sweep.values.some((value, index) => value !== expectedAxis[index])
+  ) {
+    throw new Error(`${expectedTarget} returned unexpected DC sweep values.`);
+  }
+  const output = dc.probes.find((probe) => probe?.name === "v(out)");
+  if (
+    !output ||
+    !Array.isArray(output.value) ||
+    output.value.some(
+      (value, index) => Math.abs(value - expectedAxis[index] / 2) > 1e-12,
+    )
+  ) {
+    throw new Error(
+      `${expectedTarget} returned an incorrect DC divider curve.`,
+    );
+  }
+  return { target: expectedTarget, pointCount: expectedAxis.length };
 }
 
 export function validateHostedSky130TransientResult(
@@ -677,6 +743,30 @@ export async function runPreviewTransientSmoke({
   return validateRcTransientResult(payload, target);
 }
 
+export async function runPreviewDcSmoke({
+  baseUrl,
+  target,
+  fetchImpl = fetch,
+}) {
+  const response = await fetchImpl(new URL("/api/simulate", baseUrl), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      ...DIVIDER_DC_REQUEST,
+      inputRevision: `preview-divider-dc-${target}`,
+      executorTarget: target,
+    }),
+    signal: AbortSignal.timeout(60_000),
+  });
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(
+      `[infrastructure:http-${response.status}] ${target} DC smoke failed.`,
+    );
+  }
+  return validateDcDividerResult(payload, target);
+}
+
 export async function runPreviewSimulationSmoke({
   baseUrl,
   target,
@@ -751,6 +841,13 @@ async function main() {
   for (const target of EXECUTORS) {
     const result = await runPreviewTransientSmoke({ baseUrl, target });
     console.log(`${result.target}: RC TRAN ${result.pointCount} points passed`);
+  }
+
+  for (const target of EXECUTORS) {
+    const result = await runPreviewDcSmoke({ baseUrl, target });
+    console.log(
+      `${result.target}: divider DC ${result.pointCount} points passed`,
+    );
   }
 
   const qualifications = [];
