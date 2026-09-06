@@ -90,7 +90,10 @@ export function transientValueExtent(
   const center = (extent[0] + extent[1]) / 2;
   const magnitude = Math.max(Math.abs(extent[0]), Math.abs(extent[1]));
   const tolerance = Math.max(magnitude * 1e-9, 1e-12);
-  if (extent[1] - extent[0] > tolerance) return extent;
+  if (extent[1] - extent[0] > tolerance) {
+    const margin = (extent[1] - extent[0]) * 0.05;
+    return [extent[0] - margin, extent[1] + margin];
+  }
   const margin = Math.max(Math.abs(center) * 0.05, 1e-12);
   return [center - margin, center + margin];
 }
@@ -659,13 +662,6 @@ export function TransientResultsExplorer({
             key={quantity}
             className="transient-quantity-group ac-quantity-group"
           >
-            <h4>
-              {quantity === "voltage"
-                ? "Voltage"
-                : quantity === "current"
-                  ? "Current"
-                  : quantity}
-            </h4>
             <div className="simulation-plot-layout">
               <WaveformTraceList
                 label={`${analysisLabel} ${quantity} outputs`}
@@ -679,7 +675,17 @@ export function TransientResultsExplorer({
               />
               <div className="simulation-plot-stack">
                 {visibleQuantityTraces.length ? (
-                  plot(quantity, visibleQuantityTraces)
+                  <div className="ac-plot-row">
+                    <strong>
+                      {quantity === "voltage"
+                        ? "Voltage"
+                        : quantity === "current"
+                          ? "Current"
+                          : quantity}{" "}
+                      {analysisLabel.toLowerCase()}
+                    </strong>
+                    {plot(quantity, visibleQuantityTraces)}
+                  </div>
                 ) : (
                   <p className="simulation-empty-plot">Outputs hidden</p>
                 )}

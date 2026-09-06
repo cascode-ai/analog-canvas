@@ -45,6 +45,7 @@ describe("DcResultsExplorer", () => {
     expect(markup).toContain("3 points");
     expect(markup).toContain("Output");
     expect(markup).toContain("<polyline");
-    expect(markup).toContain("1V");
+    expect(markup).toContain("-50mV");
+    expect(markup).toContain("1.050V");
   });
 });
