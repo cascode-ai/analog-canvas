@@ -142,4 +142,7 @@ export type SimulationRawSetup = {
   input: SimulationRawInput;
 };
 export type SimulationSetup = z.infer<typeof Schema.SimulationSetupSchema>;
+export type ProjectSimulationSetup = z.infer<
+  typeof Schema.ProjectSimulationSetupSchema
+>;
 export type CircuitProject = z.infer<typeof Schema.CircuitProjectSchema>;

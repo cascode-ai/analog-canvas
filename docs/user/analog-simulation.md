@@ -36,13 +36,15 @@ same hierarchy, followed by the existing simulation configure operation.
 
 ## Setup, run and results
 
-Open **Setup**, choose the testbench Cell and advertised environment Profile,
+Open **Setup**, create or select a named setup, choose its testbench Cell and advertised environment Profile,
 then set OP/AC, optional corner/temperature, and probes. Voltage probes may
 target a Net at the Testbench root or in a concrete DUT occurrence; current
 probes may target voltage sources. Each choice is written to the same
-occurrence-aware probe contract that Agent authoring uses. Apply commits
-`set_simulation_setup` into the Project; saving/exporting and reopening the
-Project retains this setup.
+occurrence-aware probe contract that Agent authoring uses. Apply commits an
+`upsert_simulation_setup` into the Project. One Testbench Cell may have several
+setups (for example bias search and AC response), while a different topology
+uses a different ordinary Testbench Cell. Saving/exporting and reopening the
+Project retains the whole named setup collection.
 
 **Prepare deck** compiles without running. **Run** prepares the current saved
 setup and starts that immutable input through the same service as MCP. It

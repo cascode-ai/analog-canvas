@@ -137,6 +137,7 @@ describe("MCP / browser Simulation Resource parity", () => {
           operation: "prepare",
           source: {
             kind: "project-setup",
+            setupId: "setup-1",
             expectedStructureRevision: project.structureRevision,
           },
         },

@@ -126,12 +126,13 @@ export async function compileHostedSky130Project() {
       "utf8",
     ),
   );
-  if (!project.simulation) {
+  const setup = project.simulationSetups[0];
+  if (!setup) {
     throw new Error(
       `Qualification ${qualification.fixtureId} Project has no persisted SimulationSetup.`,
     );
   }
-  const selection = project.simulation.input.environment;
+  const selection = setup.input.environment;
   if (
     selection.profileId !== qualification.profileId ||
     selection.corner !== qualification.modelLibrary.section
@@ -140,11 +141,9 @@ export async function compileHostedSky130Project() {
       `Qualification ${qualification.fixtureId} Project does not select its declared Profile and corner.`,
     );
   }
-  const compiled = await compileStructuredSimulation(
-    project,
-    project.simulation,
-    { timeoutMs: 110_000 },
-  );
+  const compiled = await compileStructuredSimulation(project, setup, {
+    timeoutMs: 110_000,
+  });
   if (!compiled.ok) {
     throw new Error(
       `Qualification ${qualification.fixtureId} did not compile: ${compiled.diagnostics
@@ -169,19 +168,18 @@ export async function compileHostedSky130TransientProject() {
   const source = project.documents
     .flatMap((document) => document.instances)
     .find((instance) => instance.id === expected.source.instanceId);
-  if (!source?.netlist || !project.simulation) {
+  const setup = project.simulationSetups[0];
+  if (!source?.netlist || !setup) {
     throw new Error(
       `Qualification ${qualification.fixtureId} has no transient source or setup.`,
     );
   }
   source.symbolId = "pulse-voltage-source";
   source.netlist.parameters = { ...expected.source.parameters };
-  project.simulation.input.analyses = [{ ...expected.analysis }];
-  const compiled = await compileStructuredSimulation(
-    project,
-    project.simulation,
-    { timeoutMs: 60_000 },
-  );
+  setup.input.analyses = [{ ...expected.analysis }];
+  const compiled = await compileStructuredSimulation(project, setup, {
+    timeoutMs: 60_000,
+  });
   if (!compiled.ok) {
     throw new Error(
       `Qualification ${qualification.fixtureId} TRAN did not compile: ${compiled.diagnostics

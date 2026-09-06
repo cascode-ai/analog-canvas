@@ -1,5 +1,10 @@
 import { describe, it, expect, vi } from "vitest";
-import { createEmptyProject, CircuitProjectSchema } from "@icm/model";
+import {
+  createEmptyProject,
+  CircuitProjectSchema,
+  type CircuitProject,
+  type SimulationSetup,
+} from "@icm/model";
 import ota from "../../../apps/editor/src/examples/five-transistor-ota-sky130.icproj.json";
 import {
   createSimulationEnvironmentMetadata,
@@ -27,6 +32,12 @@ const caps: Capabilities = {
 };
 const deck =
   "divider\nV1 in 0 1\nR1 in out 1k\nR2 out 0 1k\n.control\nset filetype=ascii\nop\nwrite out.raw all\n.endc\n.end\n";
+const SETUP_ID = "setup-1";
+function saveSetup(project: CircuitProject, setup: SimulationSetup): void {
+  project.simulationSetups = [
+    { id: SETUP_ID, name: "Setup 1", ...structuredClone(setup) },
+  ];
+}
 async function result(input: ExecutionInput) {
   return {
     outcome: { status: "completed" as const },
@@ -121,9 +132,56 @@ async function prepareRaw(f: ReturnType<typeof fixture>) {
   return { prepared, workspaceId: created.workspace.id };
 }
 describe("shared simulation lifecycle", () => {
+  it("prepares the explicitly addressed setup when a Project has several", async () => {
+    const f = fixture();
+    f.project.simulationSetups = ["A", "B"].map((name) => ({
+      id: `setup-${name.toLowerCase()}`,
+      name,
+      version: 1,
+      input: {
+        kind: "raw",
+        entry: "tb.cir",
+        files: [{ path: "tb.cir", text: `${name} deck\n.end\n` }],
+        dependencies: [],
+        environment: { profileId: "test" },
+      },
+    }));
+    const prepared = unwrap(
+      await f.service.handle(
+        {
+          operation: "prepare",
+          source: {
+            kind: "project-setup",
+            setupId: "setup-b",
+            expectedStructureRevision: f.project.structureRevision,
+          },
+        },
+        "prepare-b",
+      ),
+      "prepared",
+    );
+    unwrap(
+      await f.service.handle(
+        {
+          operation: "start",
+          preparedId: prepared.id,
+          digest: prepared.digest,
+        },
+        "start-b",
+      ),
+      "run",
+    );
+    expect(f.executor.execute).toHaveBeenCalledWith(
+      expect.objectContaining({ testbench: "B deck\n.end\n" }),
+      expect.any(String),
+      undefined,
+    );
+    f.release();
+  });
+
   it("prepares and runs a persisted raw Project setup without mutating it", async () => {
     const f = fixture();
-    f.project.simulation = {
+    saveSetup(f.project, {
       version: 1,
       input: {
         kind: "raw",
@@ -132,7 +190,7 @@ describe("shared simulation lifecycle", () => {
         dependencies: [],
         environment: { profileId: "test" },
       },
-    };
+    });
 
     const before = structuredClone(f.project);
     const prepared = unwrap(
@@ -141,6 +199,7 @@ describe("shared simulation lifecycle", () => {
           operation: "prepare",
           source: {
             kind: "project-setup",
+            setupId: SETUP_ID,
             expectedStructureRevision: f.project.structureRevision,
           },
         },
@@ -182,7 +241,7 @@ describe("shared simulation lifecycle", () => {
 
   it("reports unresolved Project dependencies without reading host paths", async () => {
     const f = fixture();
-    f.project.simulation = {
+    saveSetup(f.project, {
       version: 1,
       input: {
         kind: "raw",
@@ -197,13 +256,14 @@ describe("shared simulation lifecycle", () => {
         ],
         environment: { profileId: "test" },
       },
-    };
+    });
     expect(
       await f.service.handle(
         {
           operation: "prepare",
           source: {
             kind: "project-setup",
+            setupId: SETUP_ID,
             expectedStructureRevision: f.project.structureRevision,
           },
         },
@@ -233,7 +293,7 @@ describe("shared simulation lifecycle", () => {
         },
       ],
     });
-    f.project.simulation = {
+    saveSetup(f.project, {
       version: 1,
       input: {
         kind: "raw",
@@ -253,7 +313,7 @@ describe("shared simulation lifecycle", () => {
         ],
         environment: { profileId: "test" },
       },
-    };
+    });
 
     const prepared = unwrap(
       await f.service.handle(
@@ -261,6 +321,7 @@ describe("shared simulation lifecycle", () => {
           operation: "prepare",
           source: {
             kind: "project-setup",
+            setupId: SETUP_ID,
             expectedStructureRevision: f.project.structureRevision,
           },
         },
@@ -303,6 +364,7 @@ describe("shared simulation lifecycle", () => {
           operation: "prepare",
           source: {
             kind: "project-setup",
+            setupId: SETUP_ID,
             expectedStructureRevision: f.project.structureRevision + 1,
           },
         },
@@ -412,6 +474,7 @@ describe("shared simulation lifecycle", () => {
           operation: "prepare",
           source: {
             kind: "project-setup",
+            setupId: SETUP_ID,
             expectedStructureRevision: f.project.structureRevision,
           },
         },
@@ -515,7 +578,7 @@ describe("shared simulation lifecycle", () => {
   it("compiles the shipped hierarchical OTA through the public structured prepare path", async () => {
     const project = CircuitProjectSchema.parse(ota);
     const profileId = "test";
-    project.simulation = {
+    saveSetup(project, {
       version: 1,
       input: {
         kind: "structured",
@@ -539,7 +602,7 @@ describe("shared simulation lifecycle", () => {
         ],
         environment: { profileId },
       },
-    };
+    });
     const f = fixture();
     f.executor.capabilities = async () => ({
       ...caps,
@@ -553,6 +616,7 @@ describe("shared simulation lifecycle", () => {
           operation: "prepare",
           source: {
             kind: "project-setup",
+            setupId: SETUP_ID,
             expectedStructureRevision: project.structureRevision,
           },
         },
@@ -578,6 +642,7 @@ describe("shared simulation lifecycle", () => {
           operation: "prepare",
           source: {
             kind: "project-setup",
+            setupId: SETUP_ID,
             expectedStructureRevision: project.structureRevision,
           },
         },
@@ -591,13 +656,14 @@ describe("shared simulation lifecycle", () => {
 
   it("prepares qualified TRAN and keeps an oversized estimate advisory", async () => {
     const project = CircuitProjectSchema.parse(ota);
-    if (!project.simulation) throw new Error("fixture has no setup");
-    if (project.simulation.input.kind !== "structured")
+    const setup = project.simulationSetups[0];
+    if (!setup) throw new Error("fixture has no setup");
+    if (setup.input.kind !== "structured")
       throw new Error("fixture setup is not structured");
-    project.simulation.input.analyses = [
+    setup.input.analyses = [
       { kind: "tran", stepSeconds: 1e-9, stopSeconds: 1e-3 },
     ];
-    project.simulation.input.environment.profileId = "test";
+    setup.input.environment.profileId = "test";
     const f = fixture();
     f.executor.capabilities = async () => ({
       ...caps,
@@ -611,6 +677,7 @@ describe("shared simulation lifecycle", () => {
           operation: "prepare",
           source: {
             kind: "project-setup",
+            setupId: setup.id,
             expectedStructureRevision: project.structureRevision,
           },
         },

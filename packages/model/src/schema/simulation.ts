@@ -265,3 +265,10 @@ export const SimulationSetupSchema = z.strictObject({
     SimulationRawInputSchema,
   ]),
 });
+
+/** A named Project-owned setup. The id is the durable run/selection address;
+ * the name is presentation and may change independently. */
+export const ProjectSimulationSetupSchema = SimulationSetupSchema.extend({
+  id: StableIdSchema,
+  name: z.string().trim().min(1).max(128),
+});

@@ -42,6 +42,7 @@ describe("browser simulation ownership", () => {
         operation: "prepare",
         source: {
           kind: "project-setup",
+          setupId: "missing-setup",
           expectedStructureRevision: project.structureRevision,
         },
       }),

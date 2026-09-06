@@ -3014,77 +3014,81 @@
   ],
   "id": "project-five-transistor-ota-sky130",
   "name": "Five-Transistor OTA (Sky130)",
-  "schemaVersion": 41,
-  "simulation": {
-    "version": 1,
-    "input": {
-      "kind": "structured",
-      "rootDocumentId": "document-ota-5t-testbench",
-      "analyses": [
-        {
-          "kind": "op"
-        },
-        {
-          "kind": "ac",
-          "sweep": "dec",
-          "points": 10,
-          "startHz": 1,
-          "stopHz": 1000000000
+  "schemaVersion": 42,
+  "simulationSetups": [
+    {
+      "id": "simulation-setup-ota-op-ac",
+      "name": "OTA OP and AC",
+      "version": 1,
+      "input": {
+        "kind": "structured",
+        "rootDocumentId": "document-ota-5t-testbench",
+        "analyses": [
+          {
+            "kind": "op"
+          },
+          {
+            "kind": "ac",
+            "sweep": "dec",
+            "points": 10,
+            "startHz": 1,
+            "stopHz": 1000000000
+          }
+        ],
+        "probes": [
+          {
+            "id": "probe-vout",
+            "kind": "net-voltage",
+            "documentId": "document-ota-5t-testbench",
+            "anchor": {
+              "kind": "terminal",
+              "instanceId": "XDUT",
+              "pinName": "vout"
+            },
+            "occurrence": []
+          },
+          {
+            "id": "probe-ibias",
+            "kind": "net-voltage",
+            "documentId": "document-ota-5t-testbench",
+            "anchor": {
+              "kind": "terminal",
+              "instanceId": "IBIAS",
+              "pinName": "-"
+            },
+            "occurrence": []
+          },
+          {
+            "id": "probe-tail",
+            "kind": "net-voltage",
+            "documentId": "document-ota-5t",
+            "anchor": {
+              "kind": "terminal",
+              "instanceId": "M5",
+              "pinName": "D"
+            },
+            "occurrence": ["XDUT"]
+          },
+          {
+            "id": "probe-nleft",
+            "kind": "net-voltage",
+            "documentId": "document-ota-5t",
+            "anchor": {
+              "kind": "terminal",
+              "instanceId": "M3",
+              "pinName": "D"
+            },
+            "occurrence": ["XDUT"]
+          }
+        ],
+        "environment": {
+          "profileId": "sky130-core-continuous-ngspice46-v1",
+          "corner": "tt",
+          "temperatureC": 27
         }
-      ],
-      "probes": [
-        {
-          "id": "probe-vout",
-          "kind": "net-voltage",
-          "documentId": "document-ota-5t-testbench",
-          "anchor": {
-            "kind": "terminal",
-            "instanceId": "XDUT",
-            "pinName": "vout"
-          },
-          "occurrence": []
-        },
-        {
-          "id": "probe-ibias",
-          "kind": "net-voltage",
-          "documentId": "document-ota-5t-testbench",
-          "anchor": {
-            "kind": "terminal",
-            "instanceId": "IBIAS",
-            "pinName": "-"
-          },
-          "occurrence": []
-        },
-        {
-          "id": "probe-tail",
-          "kind": "net-voltage",
-          "documentId": "document-ota-5t",
-          "anchor": {
-            "kind": "terminal",
-            "instanceId": "M5",
-            "pinName": "D"
-          },
-          "occurrence": ["XDUT"]
-        },
-        {
-          "id": "probe-nleft",
-          "kind": "net-voltage",
-          "documentId": "document-ota-5t",
-          "anchor": {
-            "kind": "terminal",
-            "instanceId": "M3",
-            "pinName": "D"
-          },
-          "occurrence": ["XDUT"]
-        }
-      ],
-      "environment": {
-        "profileId": "sky130-core-continuous-ngspice46-v1",
-        "corner": "tt",
-        "temperatureC": 27
       }
     }
-  },
+  ],
   "source": {
     "dialect": "none",
     "entry": null,
