@@ -65,11 +65,7 @@
   align-items: center;
   gap: 4px;
   min-width: 0;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-.simulation-task-actions::-webkit-scrollbar {
-  display: none;
+  overflow: visible;
 }
 .simulation-task-actions > button {
   flex: 0 0 auto;
@@ -236,6 +232,13 @@
   font-size: 15px !important;
   line-height: 1;
 }
+.simulation-minimize-glyph {
+  display: block;
+  width: 8px;
+  height: 1px;
+  margin: 0 auto;
+  background: currentColor;
+}
 .simulation-close-button:hover {
   color: #fff !important;
   background: #d92d20 !important;
@@ -384,23 +387,23 @@
   );
 }
 .simulation-analysis-row {
-  display: grid;
-  grid-template-columns: auto repeat(3, minmax(54px, 1fr));
-  gap: 6px;
-  align-items: center;
   min-width: 0;
   margin: 8px 0;
   padding: 7px 8px;
 }
 .simulation-analysis-row legend {
-  float: left;
-  margin-right: 4px;
+  padding: 0 3px;
   color: var(--icm-text-muted);
   font-size: var(--icm-font-xs);
 }
-.simulation-analysis-row > label {
+.simulation-analysis-options {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  min-width: 0;
+}
+.simulation-analysis-options > label {
   display: flex;
-  grid-template-columns: none;
   gap: 5px;
   justify-content: center;
   min-width: 0;
