@@ -201,6 +201,9 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
     panel.getByRole("button", { name: "Remove output" }),
   ).toHaveCount(7);
   await expect(panel.getByLabel("Stop (Hz)")).toHaveValue("1000000000");
+  await panel.getByRole("button", { name: "Apply setup" }).click();
+  await expect(panel.getByRole("alert")).toHaveCount(0);
+  await expect(panel.getByRole("status")).not.toHaveText("Setup changed");
 });
 
 test("one Testbench persists several independently named setups", async ({
@@ -236,6 +239,11 @@ test("one Testbench persists several independently named setups", async ({
   await selector.click();
   await panel.getByRole("button", { name: "New setup", exact: true }).click();
   await expect(selector).toContainText("Setup 2");
+  await panel.getByLabel("Setup name").fill("OTA OP and AC");
+  await panel.getByLabel("Setup name").press("Tab");
+  await expect(panel.getByRole("alert")).toContainText(
+    "EDIT_PRECONDITION: Simulation setup name already exists: OTA OP and AC",
+  );
   await panel.getByLabel("Setup name").fill("Bias search");
   await panel.getByRole("button", { name: "Apply setup" }).click();
   await panel.getByLabel("Setup name").fill("Bias sweep");

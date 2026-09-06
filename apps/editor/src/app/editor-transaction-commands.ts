@@ -79,12 +79,12 @@ export function createEditorTransactionCommands({
   cancelAllTransientInteraction,
   setStatus,
 }: EditorTransactionCommandDependencies) {
-  const commitStructure = (
+  const transactStructure = (
     transactionId: string,
     edits: ProjectStructureEdit[],
     activeDocumentId = document.id,
-  ): boolean => {
-    const result = dispatchProjectTransaction(
+  ): ProjectTransactionResult =>
+    dispatchProjectTransaction(
       {
         transactionId,
         projectId: project.id,
@@ -94,6 +94,13 @@ export function createEditorTransactionCommands({
       },
       activeDocumentId,
     );
+
+  const commitStructure = (
+    transactionId: string,
+    edits: ProjectStructureEdit[],
+    activeDocumentId = document.id,
+  ): boolean => {
+    const result = transactStructure(transactionId, edits, activeDocumentId);
     if (result.ok && result.applied) return true;
     const message = result.ok
       ? "The structural transaction made no change"
@@ -199,5 +206,10 @@ export function createEditorTransactionCommands({
     return transact([...gate.edits], options);
   };
 
-  return { commitStructure, transact, transactConnectivity };
+  return {
+    commitStructure,
+    transactStructure,
+    transact,
+    transactConnectivity,
+  };
 }
