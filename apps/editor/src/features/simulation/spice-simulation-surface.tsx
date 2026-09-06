@@ -22,6 +22,7 @@ import { TransientResultsExplorer } from "./transient-results-explorer";
 import {
   deriveSimulationProbeOptions,
   matchSimulationVoltageProbeOptions,
+  simulationProbeSelectionKey,
   simulationProbeTargetKey,
   type SimulationProbeOption,
 } from "./simulation-probe-options";
@@ -939,6 +940,9 @@ function SetupEditor({
       option.label,
     ]),
   );
+  const selectedProbeKeys = new Set(
+    probes.map((probe) => simulationProbeSelectionKey(project, probe)),
+  );
   const dc = saved?.analyses.find((a) => a.kind === "dc");
   const ac = saved?.analyses.find((a) => a.kind === "ac");
   const tran = saved?.analyses.find((a) => a.kind === "tran");
@@ -992,8 +996,13 @@ function SetupEditor({
       );
       return;
     }
-    const key = simulationProbeTargetKey(option.target);
-    if (probes.some((probe) => simulationProbeTargetKey(probe) === key)) return;
+    const key = simulationProbeSelectionKey(project, option.target);
+    if (
+      probes.some(
+        (probe) => simulationProbeSelectionKey(project, probe) === key,
+      )
+    )
+      return;
     setProbes((current) => [...current, probeFromOption(option)]);
     onDirty(true);
     setPickCandidates([]);
@@ -1391,7 +1400,7 @@ function SetupEditor({
           label="Add voltage probe"
           placeholder="Choose a Net"
           options={probeOptions.voltage}
-          probes={probes}
+          selectedKeys={selectedProbeKeys}
           onAdd={(option) => {
             setProbes([...probes, probeFromOption(option)]);
             onDirty(true);
@@ -1432,50 +1441,52 @@ function SetupEditor({
           label="Add current output"
           placeholder="Choose a source current"
           options={probeOptions.sourceCurrent}
-          probes={probes}
+          selectedKeys={selectedProbeKeys}
           onAdd={(option) => {
             setProbes([...probes, probeFromOption(option)]);
             onDirty(true);
           }}
         />
         <ul className="simulation-probe-list" aria-label="Configured Outputs">
-          {probes.map((p) => (
-            <li key={p.id}>
-              <span>
-                <input
-                  aria-label={`Output name for ${probeLabels.get(simulationProbeTargetKey(p)) ?? p.id}`}
-                  value={outputLabels[p.id] ?? ""}
-                  placeholder={
-                    probeLabels.get(simulationProbeTargetKey(p)) ??
-                    (p.kind === "net-voltage"
-                      ? simulationProbeTargetKey(p)
-                      : p.instanceId)
-                  }
-                  onChange={(event) => {
-                    event.stopPropagation();
-                    const label = event.currentTarget.value;
-                    onOutputLabelChange(p.id, label);
+          {probes.map((p) => {
+            const selectionKey = simulationProbeSelectionKey(project, p);
+            return (
+              <li key={p.id}>
+                <span>
+                  <input
+                    aria-label={`Output name for ${probeLabels.get(selectionKey) ?? p.id}`}
+                    value={outputLabels[p.id] ?? ""}
+                    placeholder={
+                      probeLabels.get(selectionKey) ??
+                      (p.kind === "net-voltage"
+                        ? simulationProbeTargetKey(p)
+                        : p.instanceId)
+                    }
+                    onChange={(event) => {
+                      event.stopPropagation();
+                      const label = event.currentTarget.value;
+                      onOutputLabelChange(p.id, label);
+                    }}
+                  />
+                  <small>
+                    {p.kind === "net-voltage" ? "Voltage" : "Current"} ·{" "}
+                    {probeLabels.get(selectionKey) ?? "Target unavailable"}
+                  </small>
+                </span>
+                <button
+                  type="button"
+                  aria-label="Remove probe"
+                  onClick={() => {
+                    setProbes(probes.filter((v) => v.id !== p.id));
+                    onOutputLabelChange(p.id, "");
+                    onDirty(true);
                   }}
-                />
-                <small>
-                  {p.kind === "net-voltage" ? "Voltage" : "Current"} ·{" "}
-                  {probeLabels.get(simulationProbeTargetKey(p)) ??
-                    "Target unavailable"}
-                </small>
-              </span>
-              <button
-                type="button"
-                aria-label="Remove probe"
-                onClick={() => {
-                  setProbes(probes.filter((v) => v.id !== p.id));
-                  onOutputLabelChange(p.id, "");
-                  onDirty(true);
-                }}
-              >
-                Remove probe
-              </button>
-            </li>
-          ))}
+                >
+                  Remove probe
+                </button>
+              </li>
+            );
+          })}
         </ul>
         <button type="submit">Apply setup</button>
         {setup && (
@@ -1523,18 +1534,17 @@ function ProbeSelect({
   label,
   placeholder,
   options,
-  probes,
+  selectedKeys,
   onAdd,
   trailingAction,
 }: {
   label: string;
   placeholder: string;
   options: readonly SimulationProbeOption[];
-  probes: SimulationStructuredInput["probes"];
+  selectedKeys: ReadonlySet<string>;
   onAdd(option: SimulationProbeOption): void;
   trailingAction?: ReactNode;
 }) {
-  const selected = new Set(probes.map(simulationProbeTargetKey));
   const [query, setQuery] = useState("");
   const selectId = useId();
   const visibleOptions = options.filter((option) =>
@@ -1574,7 +1584,7 @@ function ProbeSelect({
               <option
                 key={option.key}
                 value={option.key}
-                disabled={selected.has(option.key)}
+                disabled={selectedKeys.has(option.key)}
               >
                 {option.label}
               </option>

@@ -87,7 +87,8 @@ function standalonePowerNetId(
   return `${preferred}-${suffix}`;
 }
 
-function newInstanceEndpoints(
+/** Visible electrical anchors for an Instance that is about to be placed. */
+export function placementWireSources(
   document: SchematicDocument,
   resolver: SymbolResolver,
   instance: Instance,
@@ -173,7 +174,7 @@ export function proposePlacementContact(
   }> = [];
   let ambiguous = false;
   const routingGeometry = resolveDocumentRoutingGeometry(document, resolver);
-  const sources = newInstanceEndpoints(document, resolver, instance);
+  const sources = placementWireSources(document, resolver, instance);
   for (const source of sources) {
     const candidates: ElectricalContactCandidate[] = targets
       .filter((target) =>

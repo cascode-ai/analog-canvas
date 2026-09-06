@@ -128,6 +128,7 @@ import {
   fullInsertLaunch,
 } from "../features/component-insert/insert-launch";
 import { useComponentPlacement } from "../features/component-insert/use-component-placement";
+import { snapPendingComponentPlacement } from "../features/component-insert/placement-snap";
 import {
   componentCatalog,
   findPaletteSymbol,
@@ -242,12 +243,14 @@ import { useInteractionState } from "../interaction/interaction-state";
 import type { EditorTool } from "../interaction/interaction-state";
 import { resolveTextEditingTarget } from "../features/text-editing/text-editing";
 import { planMosBulkDefaultUpdate } from "../features/component-insert/mos-bulk-defaults";
+import { logicalNetChoices } from "../features/logical-net-choices";
 import {
   deleteCloudProject,
   listCloudProjects,
   type CloudProjectSummary,
 } from "../features/editor-shell/cloud-projects";
 import {
+  defaultRazaviSymbolVariantId,
   materializeRazaviProjectBulkConnections,
   razaviHiddenBulkRisk,
 } from "../presentation/razavi-presentation";
@@ -1352,6 +1355,23 @@ export function App({
     wireSource,
     bulkDrawInstanceId,
   });
+  const netChoices = useMemo(() => logicalNetChoices(document), [document]);
+  useEffect(() => {
+    setSimulationSavedNetIds((current) => {
+      const canonical = new Set<string>();
+      for (const netId of current) {
+        const group = logicalNets.byBaseNetId.get(netId);
+        if (group) canonical.add(group.baseNetIds[0]!);
+      }
+      if (
+        canonical.size === current.size &&
+        [...canonical].every((netId) => current.has(netId))
+      ) {
+        return current;
+      }
+      return canonical;
+    });
+  }, [logicalNets]);
   const selectedNetNameAnnotation =
     selectedAnnotation?.binding?.kind === "net-name" &&
     (selectedAnnotation.kind === "net-label" ||
@@ -2736,10 +2756,7 @@ export function App({
         pendingSymbolId && pendingComponentPlacement,
       ),
       componentSymbolPending: pendingSymbolId !== null,
-      placementGrid: () =>
-        pendingComponentPlacement?.kind === "drafting-text"
-          ? annotationGrid
-          : document.presentation.grid,
+      snapComponentPlacementPoint: resolvePendingPlacementPoint,
       setComponentPreviewPoint,
       vddRailMode,
       vddRailStart,
@@ -3334,6 +3351,46 @@ export function App({
 
   function logicalRadiusForPixels(svg: SVGSVGElement, pixels: number): number {
     return logicalRadiusForCanvasPixels(svg, pixels);
+  }
+
+  function resolvePendingPlacementPoint(
+    point: Point,
+    svg: SVGSVGElement,
+  ): { point: Point; guides: readonly SnapGuideLine[] } {
+    const pitch =
+      pendingComponentPlacement?.kind === "drafting-text"
+        ? annotationGrid
+        : document.presentation.grid;
+    if (
+      !pendingSymbolId ||
+      (pendingComponentPlacement?.kind !== "symbol" &&
+        pendingComponentPlacement?.kind !== "cell-pin")
+    ) {
+      return {
+        point: {
+          x: snapCoordinate(point.x, pitch),
+          y: snapCoordinate(point.y, pitch),
+        },
+        guides: [],
+      };
+    }
+    const symbolVariantId =
+      pendingComponentPlacement.kind === "symbol"
+        ? defaultRazaviSymbolVariantId(pendingSymbolId)
+        : undefined;
+    const snapped = snapPendingComponentPlacement({
+      document,
+      resolver,
+      routeGeometryRecords,
+      sceneSnapTargetIndex,
+      symbolId: pendingSymbolId,
+      ...(symbolVariantId ? { symbolVariantId } : {}),
+      position: point,
+      rotation: componentPlacementRotation,
+      mirror: componentPlacementMirror,
+      tolerance: logicalRadiusForPixels(svg, SNAP_CAPTURE_RADIUS_PX),
+    });
+    return { point: snapped.position, guides: snapped.snap.guides };
   }
 
   function paintSnapGuides(guides: readonly SnapGuideLine[]): void {
@@ -3958,16 +4015,8 @@ export function App({
       pendingComponentPlacement: Boolean(pendingComponentPlacement),
       vddRailMode,
       waveformPlacementActive: pendingWaveformPlacement !== null,
-      snapPlacementPoint: (point) => {
-        const pitch =
-          pendingComponentPlacement?.kind === "drafting-text"
-            ? annotationGrid
-            : document.presentation.grid;
-        return {
-          x: snapCoordinate(point.x, pitch),
-          y: snapCoordinate(point.y, pitch),
-        };
-      },
+      snapPlacementPoint: (point, svg) =>
+        resolvePendingPlacementPoint(point, svg).point,
       commitCopyPlacement: commitCopyPlacementFromSelection,
       commitPendingPlacement: commitPendingPlacementAtFromHook,
       commitWaveformPlacement,
@@ -4987,10 +5036,9 @@ export function App({
                                 : `${selectedPropertyOnlyTerminal.targetName} Net`,
                             pinName: selectedPropertyOnlyTerminal.pinName,
                             netId: selectedPropertyOnlyTerminalNet?.id ?? null,
-                            options: logicalNets.groups.map((logicalNet) => ({
-                              netId: logicalNet.baseNetIds[0]!,
-                              label:
-                                logicalNet.name ?? logicalNet.baseNetIds[0]!,
+                            options: netChoices.map((logicalNet) => ({
+                              netId: logicalNet.netId,
+                              label: logicalNet.label,
                             })),
                             onChange: (netId) => {
                               const result = transact([

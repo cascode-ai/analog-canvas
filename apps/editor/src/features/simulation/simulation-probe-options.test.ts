@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CircuitProjectSchema } from "@icm/model";
+import { CircuitProjectSchema, createEmptyProject } from "@icm/model";
 
 import fiveTransistorOtaSky130 from "../../examples/five-transistor-ota-sky130.icproj.json";
 import {
@@ -7,7 +7,7 @@ import {
   matchSimulationVoltageProbeOptions,
   resolveSimulationVoltageProbeNetId,
   simulationProbeHierarchyPath,
-  simulationProbeTargetKey,
+  simulationProbeSelectionKey,
   simulationVoltageProbeTargetsNet,
 } from "./simulation-probe-options";
 
@@ -96,7 +96,9 @@ describe("simulation probe choices", () => {
     ]);
     expect(new Set(targets.map((option) => option.key)).size).toBe(2);
     expect(
-      targets.map((option) => simulationProbeTargetKey(option.target)),
+      targets.map((option) =>
+        simulationProbeSelectionKey(project, option.target),
+      ),
     ).toEqual(targets.map((option) => option.key));
 
     expect(
@@ -156,5 +158,54 @@ describe("simulation probe choices", () => {
         "missing-instance",
       ]),
     ).toBeNull();
+  });
+
+  it("offers repeated Ground markers as one voltage probe", () => {
+    const project = createEmptyProject("project", "Project", "main");
+    const document = project.documents[0]!;
+    document.nets.push(
+      { id: "net-ground-a", terminals: [] },
+      { id: "net-ground-b", terminals: [] },
+    );
+    document.junctions.push(
+      {
+        id: "ground-a-junction",
+        netId: "net-ground-a",
+        position: { x: 0, y: 0 },
+        role: "route-anchor",
+      },
+      {
+        id: "ground-b-junction",
+        netId: "net-ground-b",
+        position: { x: 20, y: 0 },
+        role: "route-anchor",
+      },
+    );
+    document.connectivityEvidence.push(
+      {
+        id: "ground-a",
+        kind: "name-claim",
+        netId: "net-ground-a",
+        owner: { kind: "power-marker", objectId: "GND1" },
+        name: "0",
+        scope: "global",
+        powerDomain: "ground",
+      },
+      {
+        id: "ground-b",
+        kind: "name-claim",
+        netId: "net-ground-b",
+        owner: { kind: "power-marker", objectId: "GND2" },
+        name: "0",
+        scope: "global",
+        powerDomain: "ground",
+      },
+    );
+
+    const options = deriveSimulationProbeOptions(project, document.id).voltage;
+
+    expect(options).toHaveLength(1);
+    expect(options[0]?.label).toBe("Main · 0");
+    expect(options[0]?.key).toContain(":logical:net-ground-a");
   });
 });

@@ -1,6 +1,9 @@
 import type { SchematicDocument, StyleOverrides } from "@icm/model";
-import { resolveDocumentLogicalNets } from "@icm/derived";
 
+import {
+  logicalNetChoiceForNet,
+  logicalNetChoices,
+} from "../logical-net-choices";
 import {
   STYLE_KNOBS,
   STYLE_SCALE_OPTIONS,
@@ -29,7 +32,15 @@ export function DocumentSettingsSection({
 }: DocumentSettingsSectionProps) {
   const draft = styleOverrideDraft(document.presentation.styleOverrides);
   const untouched = normalizedStyleOverrides(draft) === null;
-  const logicalNets = resolveDocumentLogicalNets(document);
+  const netChoices = logicalNetChoices(document);
+  const nmosBulkChoice = logicalNetChoiceForNet(
+    netChoices,
+    document.mosBulkDefaults?.nmosNetId,
+  );
+  const pmosBulkChoice = logicalNetChoiceForNet(
+    netChoices,
+    document.mosBulkDefaults?.pmosNetId,
+  );
 
   return (
     <section className="context-actions" aria-label="Document settings">
@@ -71,15 +82,15 @@ export function DocumentSettingsSection({
         Default NMOS bulk Net
         <select
           aria-label="Default NMOS bulk Net"
-          value={document.mosBulkDefaults?.nmosNetId ?? ""}
+          value={nmosBulkChoice?.netId ?? ""}
           onChange={(event) =>
             onChangeBulkDefault("nmos", event.currentTarget.value || null)
           }
         >
           <option value="">None</option>
-          {document.nets.map((net) => (
-            <option key={net.id} value={net.id}>
-              {logicalNets.byBaseNetId.get(net.id)?.name ?? net.id}
+          {netChoices.map((net) => (
+            <option key={net.netId} value={net.netId}>
+              {net.label}
             </option>
           ))}
         </select>
@@ -88,15 +99,15 @@ export function DocumentSettingsSection({
         Default PMOS bulk Net
         <select
           aria-label="Default PMOS bulk Net"
-          value={document.mosBulkDefaults?.pmosNetId ?? ""}
+          value={pmosBulkChoice?.netId ?? ""}
           onChange={(event) =>
             onChangeBulkDefault("pmos", event.currentTarget.value || null)
           }
         >
           <option value="">None</option>
-          {document.nets.map((net) => (
-            <option key={net.id} value={net.id}>
-              {logicalNets.byBaseNetId.get(net.id)?.name ?? net.id}
+          {netChoices.map((net) => (
+            <option key={net.netId} value={net.netId}>
+              {net.label}
             </option>
           ))}
         </select>
