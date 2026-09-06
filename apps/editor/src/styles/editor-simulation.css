@@ -338,13 +338,28 @@
   justify-self: start;
 }
 .simulation-probe-select {
+  display: grid;
   grid-template-columns: minmax(110px, 0.8fr) minmax(130px, 1.2fr);
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+  font-size: var(--icm-font-sm);
 }
 .simulation-probe-control {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 6px;
   align-items: center;
+  min-width: 0;
+}
+.simulation-probe-picker {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.simulation-probe-picker > input,
+.simulation-probe-picker > select {
+  width: 100%;
   min-width: 0;
 }
 .simulation-probe-control > button {
