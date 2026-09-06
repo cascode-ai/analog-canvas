@@ -1,0 +1,32 @@
+Title: * resistive divider dc transfer curve
+Date: Reconstructed protocol fixture
+Command: reconstructed, not ngspice output
+Plotname: DC transfer characteristic
+Flags: real
+No. Variables: 4
+No. Points: 4
+Variables:
+	0	v-sweep	voltage
+	1	v(in)	voltage
+	2	v(mid)	voltage
+	3	i(v1)	current
+Values:
+ 0	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+	0.000000000000000e+00
+
+ 1	5.000000000000000e-01
+	5.000000000000000e-01
+	2.500000000000000e-01
+	-2.500000000000000e-04
+
+ 2	1.000000000000000e+00
+	1.000000000000000e+00
+	5.000000000000000e-01
+	-5.000000000000000e-04
+
+ 3	1.500000000000000e+00
+	1.500000000000000e+00
+	7.500000000000000e-01
+	-7.500000000000000e-04

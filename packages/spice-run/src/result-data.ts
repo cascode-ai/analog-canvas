@@ -55,6 +55,18 @@ export interface OperatingPointResult {
   readonly probes: readonly OperatingPointProbe[];
 }
 
+/** A one-dimensional DC transfer curve, with the simulator's own sweep axis. */
+export interface DcSweepProbe extends SimulationProbe {
+  readonly value: readonly number[];
+}
+
+export interface DcSweepResult {
+  readonly analysis: "dc";
+  readonly plotName: string;
+  readonly sweep: SimulationProbe & { readonly values: readonly number[] };
+  readonly probes: readonly DcSweepProbe[];
+}
+
 /** An AC point, kept as it was solved: a complex number per frequency. */
 export interface AcProbe extends SimulationProbe {
   readonly real: readonly number[];
@@ -92,7 +104,7 @@ export interface TransientResult {
 }
 
 export type SimulationAnalysisResult =
-  OperatingPointResult | AcResult | TransientResult;
+  OperatingPointResult | DcSweepResult | AcResult | TransientResult;
 
 export interface SimulationResultData {
   readonly schemaVersion: 1;
@@ -211,12 +223,50 @@ function readPlot(plot: RawfilePlot): PlotReading {
     };
   }
   if (name === "operating point") return readOperatingPoint(plot);
+  if (name === "dc transfer characteristic") return readDcSweep(plot);
   if (name === "ac analysis") return readAc(plot);
   if (name === "transient analysis") return readTransient(plot);
   return {
     diagnostic: warning(
-      `The rawfile holds a "${plot.plotName}" plot, which this release does not read. Operating point, AC, and transient analyses are read.`,
+      `The rawfile holds a "${plot.plotName}" plot, which this release does not read. Operating point, DC, AC, and transient analyses are read.`,
     ),
+  };
+}
+
+function readDcSweep(plot: RawfilePlot): PlotReading {
+  if (plot.complex) {
+    return {
+      diagnostic: error(
+        `The "${plot.plotName}" plot is complex. A DC sweep must contain real-valued solutions.`,
+      ),
+    };
+  }
+  // ngspice names the independent DC scale `v-sweep`, `i-sweep`,
+  // `res-sweep`, or `temp-sweep`. Use that declared identity instead of the
+  // first vector: explicit `write` lists may echo or reorder vectors.
+  const candidates = plot.vectors.filter((vector) =>
+    /-sweep$/iu.test(vector.variable.name),
+  );
+  if (candidates.length !== 1) {
+    return {
+      diagnostic: error(
+        `The "${plot.plotName}" plot declares ${candidates.length} DC sweep axes; exactly one named *-sweep is required for a one-dimensional DC result.`,
+      ),
+    };
+  }
+  const axis = candidates[0]!;
+  const probes: DcSweepProbe[] = [];
+  for (const vector of plot.vectors) {
+    if (vector === axis) continue;
+    probes.push({ ...probeOf(vector), value: vector.real });
+  }
+  return {
+    analysis: {
+      analysis: "dc",
+      plotName: plot.plotName,
+      sweep: { ...probeOf(axis), values: axis.real },
+      probes,
+    },
   };
 }
 
@@ -369,10 +419,25 @@ export function simulationAnalysisToCsv(
   const rows =
     analysis.analysis === "op"
       ? operatingPointRows(analysis)
-      : analysis.analysis === "ac"
-        ? acRows(analysis)
-        : transientRows(analysis);
+      : analysis.analysis === "dc"
+        ? dcSweepRows(analysis)
+        : analysis.analysis === "ac"
+          ? acRows(analysis)
+          : transientRows(analysis);
   return rows.map((row) => row.map(csvField).join(",")).join("\n") + "\n";
+}
+
+function dcSweepRows(analysis: DcSweepResult): string[][] {
+  const header = [labelled(analysis.sweep.name, analysis.sweep.unit)];
+  for (const probe of analysis.probes)
+    header.push(labelled(probe.name, probe.unit));
+  return [
+    header,
+    ...analysis.sweep.values.map((value, point) => [
+      csvNumber(value),
+      ...analysis.probes.map((probe) => cell(probe.value, point)),
+    ]),
+  ];
 }
 
 function operatingPointRows(analysis: OperatingPointResult): string[][] {

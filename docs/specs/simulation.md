@@ -72,10 +72,12 @@ Profile.
 
 The first qualified scope is deliberately narrow and factual: the continuous
 `sky130_fd_pr__nfet_01v8` and `sky130_fd_pr__pfet_01v8` wrappers, `tt`, and
-OP/AC/TRAN covered by the hosted acceptance fixture. TRAN qualification
-includes an ideal RC step and a structured SKY130 OTA pulse response on the
-pinned ngspice 46 environment. Adding another corner or device family extends
-this same Profile contract only after a model-backed fixture passes the hosted
+OP/AC/TRAN covered by the hosted model acceptance fixture. A separate
+independent-source divider smoke qualifies DC parsing and numerical sweep
+behavior on the same pinned runtime. TRAN qualification includes an ideal RC
+step and a structured SKY130 OTA pulse response on the pinned ngspice 46
+environment. Adding another corner or device family extends this same Profile
+contract only after a model-backed fixture passes the hosted
 gate; a locally available PDK is not evidence by itself.
 
 It must not include that top-level sectioned library with `.include`, because
@@ -220,6 +222,13 @@ interface SimulationRawInput {
 }
 type SimulationAnalysisSpec =
   | { kind: "op" }
+  | {
+      kind: "dc";
+      sourceInstanceId: StableId; // root Testbench independent V/I source
+      startValue: number;
+      stopValue: number; // must differ from startValue
+      stepValue: number; // positive magnitude; direction follows start/stop
+    }
   | {
       kind: "ac";
       sweep: "dec" | "oct" | "lin";
@@ -447,9 +456,13 @@ reads both plots back.
 
 ## Sources and analyses
 
-`SimulationAnalysis` is `"op" | "ac" | "tran"`.
+`SimulationAnalysis` is `"op" | "dc" | "ac" | "tran"`.
 
 - `.op` has no parameters.
+- `.dc` sweeps exactly one independent voltage or current source in the
+  Testbench root. Start and stop are finite and distinct; step is a positive
+  magnitude, and compilation gives ngspice the sign required by the requested
+  direction. It does not rewrite the source Instance's authored DC bias.
 - `.ac` takes the sweep kind (`dec`, `oct`, or `lin`), the points per
   interval or in total, and the start and stop frequencies in hertz.
 - `.tran` takes `tstep` and `tstop`, optionally `tstart` and `tmax`, all in
@@ -481,11 +494,12 @@ descriptor's DC, AC, PULSE, and SIN fields directly. Switching the selected
 waveform hides but retains inactive fields; only the selected waveform is
 printed into the prepared deck.
 
-The human Setup workspace authors OP, AC, and TRAN through this same structured
-analysis contract. TRAN exposes `tstep`, `tstop`, and the optional `tstart` and
-`tmax` values in explicit seconds. Its Plot view consumes the structured
-transient result and the simulator-recorded time axis; it does not reconstruct
-time from a point index or a requested output interval.
+The human Setup workspace authors OP, one-source linear DC, AC, and TRAN through
+this same structured analysis contract. DC selects a root independent source
+and shows start, stop, step, and source-derived units. TRAN exposes `tstep`,
+`tstop`, and the optional `tstart` and `tmax` values in explicit seconds. Plot
+views consume simulator-recorded sweep axes; they do not reconstruct an axis
+from a point index or requested interval.
 
 On the voltage-source and current-source descriptors the DC value is `dc` and
 the small-signal stimulus is the optional pair `acMagnitude` (volts or
@@ -712,15 +726,16 @@ format:
 - **A complex plot writes every value as `real,imaginary`.** `Flags: complex`
   is what says so. A real plot reports no imaginary part rather than a column
   of zeros, so an absent one cannot be mistaken for a measured one.
-- **The sweep column is declared, not positional.** The frequency or time axis
-  is taken by the quantity ngspice declared for it. A plot that declares none
-  is refused rather than having an axis guessed for it.
+- **The sweep column is declared, not positional.** Frequency and time axes use
+  the quantity ngspice declared. A one-dimensional DC plot uses its single
+  ngspice `*-sweep` vector (`v-sweep` or `i-sweep`). A plot that declares no
+  axis, or several DC axes, is refused rather than guessed.
 
 A rawfile may hold several plots back to back, and each is read on its own
 terms. A binary rawfile is refused by name: a testbench that wants numbers
 sets `filetype=ascii` before it writes.
 
-A plot this release does not read -- a DC sweep, a noise analysis -- is
+A plot this release does not read -- for example a noise analysis -- is
 reported by name as a `warning` beside the analyses that were read, and as an
 `error` when it was the only plot in the file. It is never dropped in silence.
 
@@ -766,6 +781,12 @@ type SimulationAnalysisResult =
       analysis: "op";
       plotName: string;
       probes: (SimulationProbe & { value: number })[];
+    }
+  | {
+      analysis: "dc";
+      plotName: string;
+      sweep: SimulationProbe & { values: readonly number[] };
+      probes: (SimulationProbe & { value: readonly number[] })[];
     }
   | {
       analysis: "ac";

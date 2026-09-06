@@ -65,4 +65,78 @@ describe("Simulation sibling contract", () => {
       }),
     ).toMatchObject({ error: { recovery: "fix-input" } });
   });
+  it("accepts DC sweep capability and result data through the shared resource", () => {
+    const response = AgentSimulationResourceResponseSchema.parse({
+      apiVersion: "2.0",
+      requestId: "dc-result",
+      operation: "read",
+      ok: true,
+      run: {
+        id: "run-dc",
+        preparedId: "prepared-dc",
+        inputRevision: "41",
+        state: "finished",
+        artifacts: [],
+        result: {
+          outcome: { status: "completed" },
+          diagnostics: [],
+          log: "ngspice completed",
+          durationMs: 1,
+          metadata: {
+            schemaVersion: 1,
+            input: {
+              inputRevision: "41",
+              netlistSha256: "b".repeat(64),
+              testbenchSha256: "c".repeat(64),
+              deckSha256: "d".repeat(64),
+            },
+            configuration: { modelLibrary: null },
+            environment: {
+              executor: "hosted-container",
+              reproducibility: "pinned",
+              profileId: "sky130-core-continuous-ngspice46-v1",
+              platform: "linux/amd64",
+              simulator: {
+                name: "ngspice",
+                version: "46",
+                binarySha256: "e".repeat(64),
+              },
+              models: null,
+              startupSha256: null,
+              fingerprint: "profile-dc",
+            },
+          },
+          data: {
+            schemaVersion: 1,
+            analyses: [
+              {
+                analysis: "dc",
+                plotName: "DC transfer characteristic",
+                sweep: {
+                  name: "v-sweep",
+                  quantity: "voltage",
+                  unit: "V",
+                  values: [0, 0.5, 1],
+                },
+                probes: [
+                  {
+                    name: "v(out)",
+                    quantity: "voltage",
+                    unit: "V",
+                    value: [0, 0.25, 0.5],
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      },
+    });
+
+    expect(
+      "run" in response ? response.run.result?.data?.analyses : [],
+    ).toEqual(
+      expect.arrayContaining([expect.objectContaining({ analysis: "dc" })]),
+    );
+  });
 });

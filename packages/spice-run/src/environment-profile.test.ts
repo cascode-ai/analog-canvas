@@ -33,6 +33,7 @@ describe("hosted simulation Profile", () => {
     });
     expect(HOSTED_SKY130_PROFILE.qualifiedScope.analyses).toEqual([
       "op",
+      "dc",
       "ac",
       "tran",
     ]);

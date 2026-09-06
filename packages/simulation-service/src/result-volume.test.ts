@@ -49,4 +49,19 @@ describe("simulation result volume estimate", () => {
     expect(warning).toContain("run remains allowed");
     expect(warning).toContain("may be truncated");
   });
+
+  it("counts the exact authored points of a forward or reverse DC sweep", () => {
+    const forward = estimateSimulationOutputBytes(
+      [{ kind: "dc", startValue: 0, stopValue: 1, stepValue: 0.25 }],
+      2,
+    );
+    const reverse = estimateSimulationOutputBytes(
+      [{ kind: "dc", startValue: 1, stopValue: 0, stepValue: 0.25 }],
+      2,
+    );
+    expect(forward).toBe(reverse);
+    expect(forward).toBeGreaterThan(
+      estimateSimulationOutputBytes([{ kind: "op" }], 2),
+    );
+  });
 });

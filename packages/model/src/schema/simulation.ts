@@ -48,8 +48,23 @@ export const SimulationTransientAnalysisSchema = z
       path: ["stopSeconds"],
     },
   );
+export const SimulationDcAnalysisSchema = z
+  .strictObject({
+    kind: z.literal("dc"),
+    /** Independent voltage/current source in the Testbench root Cell. */
+    sourceInstanceId: StableIdSchema,
+    startValue: z.number().finite(),
+    stopValue: z.number().finite(),
+    /** Positive magnitude; the compiler derives direction from start/stop. */
+    stepValue: z.number().finite().positive(),
+  })
+  .refine((analysis) => analysis.stopValue !== analysis.startValue, {
+    message: "DC stop value must differ from the start value",
+    path: ["stopValue"],
+  });
 export const SimulationAnalysisSpecSchema = z.discriminatedUnion("kind", [
   SimulationOperatingPointAnalysisSchema,
+  SimulationDcAnalysisSchema,
   SimulationAcAnalysisSchema,
   SimulationTransientAnalysisSchema,
 ]);

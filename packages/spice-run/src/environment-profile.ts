@@ -24,7 +24,7 @@ export interface HostedSimulationProfile {
   readonly qualifiedScope: {
     readonly devices: readonly string[];
     readonly sections: readonly string[];
-    readonly analyses: readonly ("op" | "ac" | "tran")[];
+    readonly analyses: readonly ("op" | "dc" | "ac" | "tran")[];
   };
 }
 

@@ -294,7 +294,7 @@ export async function routeSimulationRequest(
       configured: !!selected,
       inputs: ["structured", "raw"],
       analyses: hostedSky130Profile.qualifiedScope.analyses,
-      parsedAnalyses: ["op", "ac", "tran"],
+      parsedAnalyses: ["op", "dc", "ac", "tran"],
       profiles: [
         {
           id: hostedSky130Profile.id,

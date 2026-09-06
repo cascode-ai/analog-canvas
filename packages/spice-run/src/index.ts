@@ -18,7 +18,7 @@ import {
   type SimulationResultData,
 } from "./result-data.js";
 
-export type SimulationAnalysis = "op" | "ac" | "tran";
+export type SimulationAnalysis = "op" | "dc" | "ac" | "tran";
 
 export interface SimulationRequest {
   /** Circuit netlist from @icm/netlist. Subcircuits and device cards only. */

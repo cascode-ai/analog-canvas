@@ -89,7 +89,7 @@ describe("schema 39 to 40 simulation probe anchors", () => {
       sourceSchemaVersion: 39,
       migrated: true,
       project: {
-        schemaVersion: 40,
+        schemaVersion: 41,
         simulation: {
           input: {
             probes: [

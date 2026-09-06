@@ -43,10 +43,61 @@ describe("SpiceSimulationSurface workspace", () => {
       'class="simulation-setup-group simulation-inline-fields columns-2"',
     );
     expect(markup).toContain("TRAN");
+    expect(markup).toContain("DC");
     expect(markup).not.toContain("Voltage Outputs target Nets");
     expect(markup).not.toContain("Current Outputs target a measurable");
     expect(markup).not.toContain("<span>Preview</span>");
     expect(markup).not.toContain('class="simulation-results-dock"');
+  });
+
+  it("edits a saved DC sweep with a root independent source", () => {
+    const project = createEmptyProject("dc-simulation", "DC Sweep");
+    const root = project.documents[0]!;
+    root.instances.push({
+      id: "source-v1",
+      symbolId: "voltage-source",
+      reference: "V1",
+      placement: null,
+      netlist: {
+        binding: { kind: "primitive", deviceClass: "voltage-source" },
+        parameters: { dc: "0" },
+      },
+    });
+    project.simulation = {
+      version: 1,
+      input: {
+        kind: "structured",
+        rootDocumentId: root.id,
+        analyses: [
+          {
+            kind: "dc",
+            sourceInstanceId: "source-v1",
+            startValue: 0,
+            stopValue: 1.8,
+            stepValue: 0.1,
+          },
+        ],
+        probes: [],
+        environment: { profileId: "sky130-core-continuous-ngspice46-v1" },
+      },
+    };
+    const markup = renderToStaticMarkup(
+      <SpiceSimulationSurface
+        open
+        project={project}
+        activeDocumentId={root.id}
+        session={{} as BrowserSimulationSession}
+        onMinimize={() => undefined}
+        onExit={() => undefined}
+        onSaveSetup={() => true}
+        onOpenCell={() => undefined}
+      />,
+    );
+    expect(markup).toContain("DC sweep source");
+    expect(markup).toContain("V1 · Voltage");
+    expect(markup).toContain('name="dcStartValue"');
+    expect(markup).toContain('name="dcStopValue"');
+    expect(markup).toContain('name="dcStepValue"');
   });
 
   it("keeps a saved raw setup distinct from the structured editor", () => {

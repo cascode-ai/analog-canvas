@@ -105,8 +105,8 @@ export type SimulationOperation = z.infer<typeof SimulationOperationSchema>;
 export const CapabilitiesSchema = z.strictObject({
   configured: z.boolean(),
   inputs: z.array(z.enum(["structured", "raw"])),
-  analyses: z.array(z.enum(["op", "ac", "tran"])),
-  parsedAnalyses: z.array(z.enum(["op", "ac", "tran"])),
+  analyses: z.array(z.enum(["op", "dc", "ac", "tran"])),
+  parsedAnalyses: z.array(z.enum(["op", "dc", "ac", "tran"])),
   profiles: z.array(
     z.strictObject({
       id: Id,
