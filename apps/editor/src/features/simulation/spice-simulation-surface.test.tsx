@@ -35,7 +35,13 @@ describe("SpiceSimulationSurface workspace", () => {
     expect(markup).not.toContain("<label>Testbench Cell");
     expect(markup).toContain('aria-pressed="true">Settings');
     expect(markup).toContain('aria-pressed="false">Results');
-    expect(markup).toContain('aria-label="Maximize simulation"');
+    expect(markup.indexOf('aria-label="Minimize simulation"')).toBeLessThan(
+      markup.indexOf('aria-label="Maximize simulation"'),
+    );
+    expect(markup.indexOf('aria-label="Maximize simulation"')).toBeLessThan(
+      markup.indexOf('aria-label="Exit simulation"'),
+    );
+    expect(markup).toContain('class="simulation-minimize-glyph"');
     expect(markup).toContain('<select name="profileId"');
     expect(markup).not.toContain("<datalist");
     expect(markup).toContain("sky130-core-continuous-ngspice46-v1");
@@ -49,6 +55,7 @@ describe("SpiceSimulationSurface workspace", () => {
     expect(markup).toContain(
       'class="simulation-setup-group simulation-analysis-row"',
     );
+    expect(markup).toContain('class="simulation-analysis-options"');
     expect(markup).toContain(
       'class="simulation-setup-group simulation-inline-fields columns-2"',
     );

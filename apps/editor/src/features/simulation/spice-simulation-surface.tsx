@@ -614,6 +614,14 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
         </div>
         <div className="simulation-window-actions">
           <button
+            className="simulation-minimize-button"
+            onClick={props.onMinimize}
+            aria-label="Minimize simulation"
+            title="Minimize simulation"
+          >
+            <span className="simulation-minimize-glyph" aria-hidden="true" />
+          </button>
+          <button
             className="simulation-maximize-button"
             onClick={props.onToggleMaximized}
             aria-label={
@@ -628,13 +636,6 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
             }
           >
             {props.maximized ? "↙" : "□"}
-          </button>
-          <button
-            className="simulation-minimize-button"
-            onClick={props.onMinimize}
-            aria-label="Minimize simulation"
-          >
-            —
           </button>
           <button
             className="simulation-close-button"
@@ -1424,43 +1425,47 @@ function SetupEditor({
         </div>
         <fieldset className="simulation-setup-group simulation-analysis-row">
           <legend>Analyses</legend>
-          <label>
-            <input
-              name="dc"
-              type="checkbox"
-              checked={dcEnabled}
-              onChange={(event) => setDcEnabled(event.currentTarget.checked)}
-            />
-            DC
-          </label>
-          <label>
-            <input
-              name="op"
-              type="checkbox"
-              defaultChecked={
-                !saved || saved.analyses.some((a) => a.kind === "op")
-              }
-            />
-            OP
-          </label>
-          <label>
-            <input
-              name="ac"
-              type="checkbox"
-              checked={acEnabled}
-              onChange={(event) => setAcEnabled(event.currentTarget.checked)}
-            />
-            AC
-          </label>
-          <label>
-            <input
-              name="tran"
-              type="checkbox"
-              checked={tranEnabled}
-              onChange={(event) => setTranEnabled(event.currentTarget.checked)}
-            />
-            TRAN
-          </label>
+          <div className="simulation-analysis-options">
+            <label>
+              <input
+                name="dc"
+                type="checkbox"
+                checked={dcEnabled}
+                onChange={(event) => setDcEnabled(event.currentTarget.checked)}
+              />
+              DC
+            </label>
+            <label>
+              <input
+                name="op"
+                type="checkbox"
+                defaultChecked={
+                  !saved || saved.analyses.some((a) => a.kind === "op")
+                }
+              />
+              OP
+            </label>
+            <label>
+              <input
+                name="ac"
+                type="checkbox"
+                checked={acEnabled}
+                onChange={(event) => setAcEnabled(event.currentTarget.checked)}
+              />
+              AC
+            </label>
+            <label>
+              <input
+                name="tran"
+                type="checkbox"
+                checked={tranEnabled}
+                onChange={(event) =>
+                  setTranEnabled(event.currentTarget.checked)
+                }
+              />
+              TRAN
+            </label>
+          </div>
         </fieldset>
         {dcEnabled ? (
           <div className="simulation-setup-group simulation-analysis-settings">
