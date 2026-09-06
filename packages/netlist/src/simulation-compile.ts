@@ -49,20 +49,13 @@
  *   the way into the rawfile, so `V(MidNode)` comes back as `v(midnode)`;
  * - a Net inside a hierarchy occurrence prints `v(<x1>.<x2>.<net>)`, one
  *   lowercased Instance reference per occurrence step;
- * - a voltage source in the root prints `i(<ref>)`, e.g. `i(v1)`;
- * - a voltage source inside an occurrence prints `i(v.<x1>.<x2>.<ref>)`: the
- *   expansion prefixes the device's own type letter before the path, so
- *   `Vsi` under `X1`/`XI1` is `i(v.x1.xi1.vsi)`.
+ * - current entering any selected Instance terminal is measured through a
+ *   compiler-owned zero-volt source inserted in series with that terminal;
+ * - a root sense source prints `i(vicmprb###)`, while one inside an occurrence
+ *   prints `i(v.<x1>.<x2>.vicmprb###)`.
  *
- * A top-level independent current source is instrumented with ngspice's
- * `.probe I(<ref>)`. ngspice inserts a zero-volt sense source and writes its
- * result as `<ref>#branch`; the rawfile records that as `i(<ref>)`.
- *
- * `.probe` only scans top-level devices. For a selected current source inside
- * a subcircuit, this compiler therefore inserts its own zero-volt sense source
- * into the extracted (ephemeral) Cell definition and reads that voltage
- * source's occurrence-qualified branch current. The authored Project and the
- * ordinary structural export are never changed.
+ * Instrumentation is applied only to the extracted, ephemeral simulation IR.
+ * The authored Project and ordinary structural export are never changed.
  */
 
 import type {
@@ -102,15 +95,14 @@ interface ResolvedSimulationProbe {
   readonly binding: CompiledSimulationVector;
   /** Expression passed to ngspice's `write`; it may differ from raw output. */
   readonly writeVector: string;
-  /** Deck cards required to make the vector exist. */
-  readonly instrumentationCards: readonly string[];
   /** Ephemeral Cell instrumentation required before printing the netlist. */
-  readonly netlistInstrumentation?: HierarchicalCurrentInstrumentation;
+  readonly netlistInstrumentation?: TerminalCurrentInstrumentation;
 }
 
-interface HierarchicalCurrentInstrumentation {
+interface TerminalCurrentInstrumentation {
   readonly cellId: StableId;
-  readonly sourceInstanceId: StableId;
+  readonly instanceId: StableId;
+  readonly pinName: string;
   readonly senseReference: string;
   readonly senseNode: string;
 }
@@ -415,11 +407,11 @@ function resolveOccurrence(
 
 function instrumentationKey(
   instrumentation: Pick<
-    HierarchicalCurrentInstrumentation,
-    "cellId" | "sourceInstanceId"
+    TerminalCurrentInstrumentation,
+    "cellId" | "instanceId" | "pinName"
   >,
 ): string {
-  return `${instrumentation.cellId}\u0000${instrumentation.sourceInstanceId}`;
+  return `${instrumentation.cellId}\u0000${instrumentation.instanceId}\u0000${instrumentation.pinName}`;
 }
 
 /**
@@ -427,14 +419,16 @@ function instrumentationKey(
  * the generated deck deterministic when an author reorders outputs and keeps
  * compiler-owned names away from authored References and node names.
  */
-function ensureHierarchicalCurrentInstrumentation(
+function ensureTerminalCurrentInstrumentation(
   cell: DesignNetlistCell,
-  source: DesignNetlistInstance,
-  instrumentations: Map<string, HierarchicalCurrentInstrumentation>,
-): HierarchicalCurrentInstrumentation {
+  instance: DesignNetlistInstance,
+  pinName: string,
+  instrumentations: Map<string, TerminalCurrentInstrumentation>,
+): TerminalCurrentInstrumentation {
   const key = instrumentationKey({
     cellId: cell.id,
-    sourceInstanceId: source.id,
+    instanceId: instance.id,
+    pinName,
   });
   const existing = instrumentations.get(key);
   if (existing) return existing;
@@ -455,8 +449,16 @@ function ensureHierarchicalCurrentInstrumentation(
     nodes.add(item.senseNode.toLowerCase());
   }
 
+  const instanceIndex = cell.instances.findIndex(
+    (candidate) => candidate.id === instance.id,
+  );
+  const pinIndex = instance.nodes.findIndex((node) => node.pinName === pinName);
   let serial =
-    cell.instances.findIndex((instance) => instance.id === source.id) + 1;
+    cell.instances
+      .slice(0, Math.max(0, instanceIndex))
+      .reduce((total, candidate) => total + candidate.nodes.length, 0) +
+    Math.max(0, pinIndex) +
+    1;
   while (true) {
     const suffix = String(serial).padStart(3, "0");
     const senseReference = `VICMPRB${suffix}`;
@@ -467,10 +469,11 @@ function ensureHierarchicalCurrentInstrumentation(
     ) {
       const instrumentation = {
         cellId: cell.id,
-        sourceInstanceId: source.id,
+        instanceId: instance.id,
+        pinName,
         senseReference,
         senseNode,
-      } satisfies HierarchicalCurrentInstrumentation;
+      } satisfies TerminalCurrentInstrumentation;
       instrumentations.set(key, instrumentation);
       return instrumentation;
     }
@@ -479,14 +482,13 @@ function ensureHierarchicalCurrentInstrumentation(
 }
 
 /**
- * Put a zero-volt source in series with each selected hierarchical current
- * source. Its positive branch direction matches SPICE's current-source
- * direction (first node to second node), so no result-side sign correction is
- * needed.
+ * Put a zero-volt source in series with each selected terminal. The source's
+ * positive node is the external Net and its negative node is the private sense
+ * node, so ngspice's positive branch current is current entering the terminal.
  */
-function instrumentHierarchicalCurrentSources(
+function instrumentTerminalCurrents(
   ir: DesignNetlistIR,
-  instrumentations: ReadonlyMap<string, HierarchicalCurrentInstrumentation>,
+  instrumentations: ReadonlyMap<string, TerminalCurrentInstrumentation>,
 ): DesignNetlistIR {
   if (instrumentations.size === 0) return ir;
   return {
@@ -494,35 +496,41 @@ function instrumentHierarchicalCurrentSources(
     cells: ir.cells.map((cell) => ({
       ...cell,
       instances: cell.instances.flatMap((instance) => {
-        const instrumentation = instrumentations.get(
-          instrumentationKey({
-            cellId: cell.id,
-            sourceInstanceId: instance.id,
-          }),
-        );
-        if (!instrumentation) return [instance];
-        const positive = instance.nodes[0]!;
-        const negative = instance.nodes[1]!;
+        const selected = instance.nodes.flatMap((node) => {
+          const instrumentation = instrumentations.get(
+            instrumentationKey({
+              cellId: cell.id,
+              instanceId: instance.id,
+              pinName: node.pinName,
+            }),
+          );
+          return instrumentation ? [{ node, instrumentation }] : [];
+        });
+        if (selected.length === 0) return [instance];
         return [
           {
             ...instance,
-            nodes: [
-              positive,
-              { ...negative, netName: instrumentation.senseNode },
-            ],
+            nodes: instance.nodes.map((node) => {
+              const selectedNode = selected.find(
+                (item) => item.node.pinName === node.pinName,
+              );
+              return selectedNode
+                ? { ...node, netName: selectedNode.instrumentation.senseNode }
+                : node;
+            }),
           },
-          {
-            id: `${instance.id}:simulation-current-sense`,
+          ...selected.map(({ node, instrumentation }) => ({
+            id: `${instance.id}:simulation-current-sense:${instrumentation.senseReference}`,
             reference: instrumentation.senseReference,
-            invocationKind: "primitive",
-            deviceClass: "voltage-source",
+            invocationKind: "primitive" as const,
+            deviceClass: "voltage-source" as const,
             target: null,
             nodes: [
-              { pinName: "+", netName: instrumentation.senseNode },
-              { pinName: "-", netName: negative.netName },
+              { pinName: "+", netName: node.netName },
+              { pinName: "-", netName: instrumentation.senseNode },
             ],
             parameters: [{ name: "dc", rawValue: "0" }],
-          },
+          })),
         ];
       }),
     })),
@@ -607,16 +615,13 @@ function netVoltageVector(
   };
 }
 
-function sourceCurrentVector(
+function terminalCurrentVector(
   measurement: Extract<SimulationExpression, { kind: "current" }>,
   acquisitionId: string,
   outputId: string,
   occurrence: ResolvedOccurrence,
   diagnostics: NetlistDiagnostic[],
-  hierarchicalCurrentInstrumentations: Map<
-    string,
-    HierarchicalCurrentInstrumentation
-  >,
+  terminalCurrentInstrumentations: Map<string, TerminalCurrentInstrumentation>,
 ): ResolvedSimulationProbe | null {
   const { document, cell, path, hierarchyPath } = occurrence;
   const instance = cell.instances.find(
@@ -634,83 +639,52 @@ function sourceCurrentVector(
     );
     return null;
   }
-  if (instance.deviceClass === "current-source") {
-    if (path.length > 0) {
-      if (instance.nodes.length !== 2) {
-        diagnostics.push(
-          diagnostic(
-            "SIMULATION_PROBE_CURRENT_SOURCE_TERMINALS_UNAVAILABLE",
-            document.id,
-            `Output ${outputId} cannot instrument current source ${instance.reference}; its extracted card does not have two terminals`,
-            locator(
-              document.id,
-              hierarchyPath,
-              "instance",
-              measurement.instanceId,
-            ),
-            [measurement.instanceId],
-          ),
-        );
-        return null;
-      }
-      const instrumentation = ensureHierarchicalCurrentInstrumentation(
-        cell,
-        instance,
-        hierarchicalCurrentInstrumentations,
-      );
-      const senseName = [
-        "v",
-        ...path,
-        instrumentation.senseReference.toLowerCase(),
-      ].join(".");
-      const binding: CompiledSimulationVector = {
-        probeId: acquisitionId,
-        vector: `i(${senseName})`,
-        quantity: "current",
-      };
-      return {
-        binding,
-        writeVector: binding.vector,
-        instrumentationCards: [],
-        netlistInstrumentation: instrumentation,
-      };
-    }
-    const reference = instance.reference.toLowerCase();
-    return {
-      binding: {
-        probeId: acquisitionId,
-        vector: `i(${reference})`,
-        quantity: "current",
-      },
-      writeVector: `${reference}#branch`,
-      instrumentationCards: [`.probe I(${instance.reference})`],
-    };
-  }
-  if (instance.deviceClass !== "voltage-source") {
+  const terminal = instance.nodes.find(
+    (node) => node.pinName === measurement.pinName,
+  );
+  if (!terminal) {
     diagnostics.push(
       diagnostic(
-        "SIMULATION_PROBE_NOT_A_SOURCE",
+        "SIMULATION_PROBE_UNKNOWN_TERMINAL",
         document.id,
-        `Output ${outputId} measures source current on Instance ${instance.reference}, which is a ${instance.deviceClass}`,
-        locator(document.id, hierarchyPath, "instance", measurement.instanceId),
+        `Output ${outputId} references unknown terminal ${instance.reference}.${measurement.pinName}`,
+        {
+          ...locator(
+            document.id,
+            hierarchyPath,
+            "instance",
+            measurement.instanceId,
+          ),
+          endpoint: {
+            kind: "terminal",
+            instanceId: measurement.instanceId,
+            pinName: measurement.pinName,
+          },
+        },
         [measurement.instanceId],
       ),
     );
     return null;
   }
-  const reference = instance.reference.toLowerCase();
-  // Inside a subcircuit the expanded device carries its own type letter before
-  // the occurrence path: `Vsi` under `X1`/`XI1` is `v.x1.xi1.vsi`. At the top
-  // level the reference stands alone.
+  const instrumentation = ensureTerminalCurrentInstrumentation(
+    cell,
+    instance,
+    terminal.pinName,
+    terminalCurrentInstrumentations,
+  );
   const name = path.length
-    ? [reference.slice(0, 1), ...path, reference].join(".")
-    : reference;
+    ? ["v", ...path, instrumentation.senseReference.toLowerCase()].join(".")
+    : instrumentation.senseReference.toLowerCase();
   const binding: CompiledSimulationVector = {
     probeId: acquisitionId,
     vector: `i(${name})`,
     quantity: "current",
   };
-  return { binding, writeVector: binding.vector, instrumentationCards: [] };
+  return {
+    binding,
+    writeVector: binding.vector,
+    netlistInstrumentation: instrumentation,
+  };
 }
 
 /**
@@ -849,10 +823,9 @@ export async function compileStructuredSimulation(
   >();
   const outputs: CompiledSimulationOutput[] = [];
   const writeVectors: string[] = [];
-  const instrumentationCards: string[] = [];
-  const hierarchicalCurrentInstrumentations = new Map<
+  const terminalCurrentInstrumentations = new Map<
     string,
-    HierarchicalCurrentInstrumentation
+    TerminalCurrentInstrumentation
   >();
   for (const output of input.outputs) {
     let leafIndex = 0;
@@ -888,17 +861,16 @@ export async function compileStructuredSimulation(
                   ? {
                       binding: vector,
                       writeVector: vector.vector,
-                      instrumentationCards: [] as readonly string[],
                     }
                   : null;
               })()
-            : sourceCurrentVector(
+            : terminalCurrentVector(
                 expression,
                 candidateId,
                 output.id,
                 occurrence,
                 diagnostics,
-                hierarchicalCurrentInstrumentations,
+                terminalCurrentInstrumentations,
               );
         if (!resolved) return null;
         const identity = `${resolved.binding.quantity}\u0000${resolved.binding.vector}`;
@@ -911,10 +883,9 @@ export async function compileStructuredSimulation(
           });
           vectors.push(acquisition);
           writeVectors.push(resolved.writeVector);
-          instrumentationCards.push(...resolved.instrumentationCards);
           if (resolved.netlistInstrumentation) {
             const instrumentation = resolved.netlistInstrumentation;
-            hierarchicalCurrentInstrumentations.set(
+            terminalCurrentInstrumentations.set(
               instrumentationKey(instrumentation),
               instrumentation,
             );
@@ -951,10 +922,13 @@ export async function compileStructuredSimulation(
 
   // Every reached Cell but the root: the root is instantiated below, not
   // defined. `.global` declarations stay with the definitions.
-  const instrumentedIr = instrumentHierarchicalCurrentSources(
+  const instrumentedIr = instrumentTerminalCurrents(
     ir,
-    hierarchicalCurrentInstrumentations,
+    terminalCurrentInstrumentations,
   );
+  const instrumentedRoot = instrumentedIr.cells.find(
+    (cell) => cell.id === instrumentedIr.topCellId,
+  )!;
   const netlist = printSpiceNetlist({
     ...instrumentedIr,
     cells: instrumentedIr.cells.filter(
@@ -968,8 +942,7 @@ export async function compileStructuredSimulation(
   const writeCard = [`write ${SIMULATION_RAWFILE_NAME}`, ...written].join(" ");
   const testbench = [
     `* Analog Canvas testbench for ${rootCell.name}`,
-    ...rootCards,
-    ...new Set(instrumentationCards),
+    ...printSpiceCellInstances(instrumentedRoot),
     ...(input.environment.temperatureC === undefined
       ? []
       : [`.temp ${spiceNumber(input.environment.temperatureC)}`]),

@@ -123,7 +123,7 @@ export type SimulationProbeSpec =
       Extract<Schema.SimulationExpression, { kind: "voltage" }>,
       "kind"
     >)
-  | ({ id: StableId; kind: "source-current" } & Omit<
+  | ({ id: StableId; kind: "terminal-current" } & Omit<
       Extract<Schema.SimulationExpression, { kind: "current" }>,
       "kind"
     >);

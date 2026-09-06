@@ -22,7 +22,7 @@ describe("schema 40 to 41", () => {
     const result = parseProjectWithMetadata(
       JSON.stringify({ ...current, schemaVersion: 40 }),
     );
-    expect(result.project.schemaVersion).toBe(43);
+    expect(result.project.schemaVersion).toBe(44);
     expect(result.sourceSchemaVersion).toBe(40);
     expect(result.migrated).toBe(true);
   });

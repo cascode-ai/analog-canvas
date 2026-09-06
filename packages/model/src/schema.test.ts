@@ -836,6 +836,7 @@ describe("SimulationSetup schema", () => {
               kind: "current",
               documentId: "ota",
               instanceId: "I1",
+              pinName: "+",
               occurrence: ["X1"],
             },
           },

@@ -2,14 +2,14 @@
 
 Status: `accepted`
 
-Current Project schema: `43`
+Current Project schema: `44`
 
 Primary owners: `packages/model` (current shape) and
 `packages/project-protocol` (file boundary)
 
 An `.icproj.json` file is canonical JSON for one complete `CircuitProject`.
 `@icm/project-protocol` exposes `parseProject`. The file boundary accepts every
-schema covered by its explicit 24→43 upgrade chain. Schema 32 added optional
+schema covered by its explicit 24→44 upgrade chain. Schema 32 added optional
 presentation-only `Annotation.textColor`; schema 33 removes ownerless
 `explicit-equivalence` connectivity. The 32→33 adapter advances the version
 stamp only when that retired record is absent. If one exists, it rejects at the
@@ -47,8 +47,11 @@ named `simulationSetups` collection; the 41→42 adapter preserves one authored
 setup with a deterministic ID/name and maps absence to an empty collection.
 Schema 43 replaces primitive probes with named outputs and bounded expression
 trees; the 42→43 adapter preserves each target as a leaf output and derives an
-initial human-readable label. The public file boundary supplies only schema 43
-in memory and writes only schema 43; versions older than 24 or newer than 43
+initial human-readable label. Schema 44 makes terminal identity explicit for
+current expressions; the 43→44 adapter preserves the previously supported
+independent-source sign by selecting its `+` terminal. The public file boundary
+supplies only schema 44 in
+memory and writes only schema 44; versions older than 24 or newer than 44
 are rejected.
 
 ## Current authorities
@@ -134,7 +137,7 @@ are rejected.
 
 ```text
 import text -> parse JSON -> require Project schema 24 through 43
--> converge to schema 43 -> strict schema-43 validation -> install unbound
+-> converge to schema 44 -> strict schema-44 validation -> install unbound
 export -> strict validation -> canonical key ordering -> Blob download
 ```
 
@@ -158,7 +161,7 @@ open, and recovery remain exact.
 Canonical serialization ends with one newline and is byte-stable across
 serialize/parse/serialize. The current corpus is listed in
 `fixtures/projects/compatibility-corpus.json`; its accepted entries must all be
-already canonical Project schema 43. The rejected corpus names expected
+already canonical Project schema 44. The rejected corpus names expected
 validation failures.
 
 Viewport, selection, undo history, canvas overlays, Agent credentials,

@@ -66,9 +66,10 @@ describe("Transient Results Explorer", () => {
           },
           {
             id: "probe-v1",
-            kind: "source-current",
+            kind: "terminal-current",
             documentId: "tb",
             instanceId: "V1",
+            pinName: "+",
             occurrence: [],
           },
         ]}

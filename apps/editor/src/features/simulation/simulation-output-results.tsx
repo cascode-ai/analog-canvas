@@ -25,9 +25,10 @@ function focusProbe(output: SimulationOutputSpec): SimulationProbeSpec | null {
       }
     : {
         id: output.id,
-        kind: "source-current",
+        kind: "terminal-current",
         documentId: dependency.documentId,
         instanceId: dependency.instanceId,
+        pinName: dependency.pinName,
         occurrence: [...dependency.occurrence],
       };
 }
