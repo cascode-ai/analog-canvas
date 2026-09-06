@@ -737,11 +737,13 @@ export function App({
     [editorDocumentController, projectSessionId],
   );
   const [analogSimulationState, setAnalogSimulationState] = useState<
-    "closed" | "open" | "minimized"
+    "closed" | "open" | "maximized" | "minimized"
   >("closed");
   const simulationPropertiesOpenBeforeRef = useRef(false);
   const analogSimulationOpened = analogSimulationState !== "closed";
-  const analogSimulationOpen = analogSimulationState === "open";
+  const analogSimulationOpen =
+    analogSimulationState === "open" || analogSimulationState === "maximized";
+  const analogSimulationMaximized = analogSimulationState === "maximized";
   const humanSimulationSession = useMemo(
     () =>
       new BrowserSimulationSession({
@@ -765,6 +767,11 @@ export function App({
     setSimulationPickNetsActive(false);
     setAnalogSimulationState("minimized");
     setSelectionOpen(simulationPropertiesOpenBeforeRef.current);
+  };
+  const toggleAnalogSimulationMaximized = (): void => {
+    setAnalogSimulationState((current) =>
+      current === "maximized" ? "open" : "maximized",
+    );
   };
   const exitAnalogSimulation = (): void => {
     setSimulationPickNetsActive(false);
@@ -4685,7 +4692,9 @@ export function App({
       <div
         className={
           analogSimulationOpen
-            ? "app-workspace simulation-mode"
+            ? `app-workspace simulation-mode${
+                analogSimulationMaximized ? " simulation-maximized" : ""
+              }`
             : visibleLibraryPanelOpen
               ? "app-workspace"
               : "app-workspace library-collapsed"
@@ -4714,6 +4723,8 @@ export function App({
                 ? { draftContext: simulationDraftContext }
                 : {})}
               open={analogSimulationOpen}
+              maximized={analogSimulationMaximized}
+              onToggleMaximized={toggleAnalogSimulationMaximized}
               onMinimize={minimizeAnalogSimulation}
               onExit={exitAnalogSimulation}
               onSaveSetup={(setup) => {
@@ -4803,7 +4814,7 @@ export function App({
             />
           </Suspense>
         ) : null}
-        {analogSimulationOpen ? (
+        {analogSimulationOpen && !analogSimulationMaximized ? (
           <div
             className="simulation-resize-handle"
             role="separator"

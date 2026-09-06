@@ -65,6 +65,7 @@ function preferredResultTab(run: Run): ResultTab {
 
 export interface SpiceSimulationSurfaceProps {
   open: boolean;
+  maximized: boolean;
   project: CircuitProject;
   activeDocumentId: string;
   draftContext?: {
@@ -76,6 +77,7 @@ export interface SpiceSimulationSurfaceProps {
   selectedSetupId: string | null;
   onSelectSetupId(setupId: string): void;
   session: BrowserSimulationSession;
+  onToggleMaximized(): void;
   onMinimize(): void;
   onExit(): void;
   onSaveSetup(setup: ProjectSimulationSetup): boolean;
@@ -409,7 +411,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   return (
     <section
       hidden={!open}
-      className="spice-simulation-surface"
+      className={`spice-simulation-surface${props.maximized ? " maximized" : ""}`}
       aria-label="Analog simulation"
       onKeyDown={(e) => {
         e.stopPropagation();
@@ -565,6 +567,22 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
             </button>
           )}
           <button
+            className="simulation-maximize-button"
+            onClick={props.onToggleMaximized}
+            aria-label={
+              props.maximized
+                ? "Restore simulation panel"
+                : "Maximize simulation"
+            }
+            title={
+              props.maximized
+                ? "Restore simulation panel"
+                : "Maximize simulation"
+            }
+          >
+            {props.maximized ? "↙" : "□"}
+          </button>
+          <button
             className="simulation-minimize-button"
             onClick={props.onMinimize}
             aria-label="Minimize simulation"
@@ -583,8 +601,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
 
       {!selectedSetup && !hasDutInstance ? (
         <p className="simulation-context-hint">
-          This Cell has no DUT instance. You can continue here, or use Edit →
-          New Testbench Cell before simulation.
+          No DUT instance in this Cell · Edit → New Testbench Cell if needed.
         </p>
       ) : null}
 
@@ -608,7 +625,6 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
 
       {attention ? (
         <div className="simulation-workspace-notice" role="alert">
-          <strong>Needs attention</strong>
           <span>{attentionSummary}</span>
           {activeProblem?.recovery === "retry-same-request" && run ? (
             <button
@@ -625,10 +641,6 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
       ) : capabilities?.configured === false ? (
         <div className="simulation-workspace-notice">
           Simulator not configured. You can still edit the Project and setup.
-        </div>
-      ) : dirty ? (
-        <div className="simulation-workspace-notice">
-          Apply setup changes before running.
         </div>
       ) : null}
 
@@ -1124,7 +1136,6 @@ function SetupEditor({
       <aside className="simulation-setup-panel" aria-label="Simulation setup">
         <header>
           <div>
-            <small>Simulation</small>
             <strong>Raw setup</strong>
           </div>
         </header>
@@ -1132,11 +1143,6 @@ function SetupEditor({
           <p>
             <strong>{rawSaved.entry}</strong>
           </p>
-          <p>
-            {rawSaved.files.length} authored file(s) ·{" "}
-            {rawSaved.dependencies.length} dependency declaration(s)
-          </p>
-          <p>Profile: {rawSaved.environment.profileId}</p>
           <button type="button" onClick={() => setSwitchFromRaw(true)}>
             Switch to structured setup…
           </button>
@@ -1148,8 +1154,7 @@ function SetupEditor({
     <aside className="simulation-setup-panel" aria-label="Simulation setup">
       <header>
         <div>
-          <small>Simulation</small>
-          <strong>Setup</strong>
+          <strong>Settings</strong>
         </div>
       </header>
       <form
