@@ -89,19 +89,21 @@ describe("schema 39 to 40 simulation probe anchors", () => {
       sourceSchemaVersion: 39,
       migrated: true,
       project: {
-        schemaVersion: 41,
-        simulation: {
-          input: {
-            probes: [
-              {
-                anchor: { kind: "junction", junctionId: "probe-junction" },
-              },
-              {
-                anchor: { kind: "base-net", netId: "already-lost" },
-              },
-            ],
+        schemaVersion: 42,
+        simulationSetups: [
+          {
+            input: {
+              probes: [
+                {
+                  anchor: { kind: "junction", junctionId: "probe-junction" },
+                },
+                {
+                  anchor: { kind: "base-net", netId: "already-lost" },
+                },
+              ],
+            },
           },
-        },
+        ],
       },
     });
   });

@@ -579,12 +579,25 @@ export function App({
     null,
   );
   const [simulationDraftContext, setSimulationDraftContext] = useState<{
+    setupId: string;
+    setupName: string;
     dutDocumentId: string;
     rootDocumentId: string;
   } | null>(null);
+  const [activeSimulationSetupId, setActiveSimulationSetupId] = useState<
+    string | null
+  >(null);
+  const activeSimulationSetup =
+    project.simulationSetups.find(
+      (setup) => setup.id === activeSimulationSetupId,
+    ) ??
+    (simulationDraftContext?.setupId === activeSimulationSetupId
+      ? undefined
+      : project.simulationSetups[0]);
   useEffect(() => {
     setNewTestbenchDutId(null);
     setSimulationDraftContext(null);
+    setActiveSimulationSetupId(null);
   }, [project.id]);
   const [canvasContextMenu, setCanvasContextMenu] = useState<{
     x: number;
@@ -1531,8 +1544,8 @@ export function App({
     const group = logicalNets.byBaseNetId.get(baseNetId);
     if (analogSimulationOpen) {
       const setupRootId =
-        project.simulation?.input.kind === "structured"
-          ? project.simulation.input.rootDocumentId
+        activeSimulationSetup?.input.kind === "structured"
+          ? activeSimulationSetup.input.rootDocumentId
           : undefined;
       const occurrence =
         documentStack.length > 0
@@ -3084,10 +3097,14 @@ export function App({
     }
     setDocumentStack([]);
     setNewTestbenchDutId(null);
+    const setupId = createId("simulation-setup");
     setSimulationDraftContext({
+      setupId,
+      setupName: `${testbench.name} setup`,
       dutDocumentId: dut.id,
       rootDocumentId: testbench.id,
     });
+    setActiveSimulationSetupId(setupId);
     if (analogSimulationOpen) minimizeAnalogSimulation();
     if (request.placeDut) {
       beginProjectCellPlacement(dut.id);
@@ -4626,6 +4643,12 @@ export function App({
               session={humanSimulationSession}
               project={project}
               activeDocumentId={document.id}
+              selectedSetupId={
+                simulationDraftContext?.setupId === activeSimulationSetupId
+                  ? simulationDraftContext.setupId
+                  : (activeSimulationSetup?.id ?? null)
+              }
+              onSelectSetupId={setActiveSimulationSetupId}
               {...(simulationDraftContext
                 ? { draftContext: simulationDraftContext }
                 : {})}
@@ -4633,10 +4656,23 @@ export function App({
               onMinimize={minimizeAnalogSimulation}
               onExit={exitAnalogSimulation}
               onSaveSetup={(setup) => {
-                const committed = commitStructure("set-simulation-setup", [
-                  { kind: "set_simulation_setup", setup },
+                const committed = commitStructure("upsert-simulation-setup", [
+                  { kind: "upsert_simulation_setup", setup },
                 ]);
-                if (committed) setSimulationDraftContext(null);
+                if (committed) {
+                  setSimulationDraftContext(null);
+                  setActiveSimulationSetupId(setup.id);
+                }
+                return committed;
+              }}
+              onDeleteSetup={(setupId) => {
+                const committed = commitStructure("remove-simulation-setup", [
+                  { kind: "remove_simulation_setup", setupId },
+                ]);
+                if (committed) {
+                  setActiveSimulationSetupId(null);
+                  setSimulationDraftContext(null);
+                }
                 return committed;
               }}
               onOpenCell={(id) => switchDocument(id)}
@@ -4666,7 +4702,7 @@ export function App({
                   );
                   return;
                 }
-                const input = project.simulation?.input;
+                const input = activeSimulationSetup?.input;
                 const rootDocumentId =
                   preparedRootDocumentId ??
                   (input?.kind === "structured"

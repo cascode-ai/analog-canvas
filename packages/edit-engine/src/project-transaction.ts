@@ -2,7 +2,7 @@ import {
   CircuitProjectSchema,
   ExternalSubcircuitDefinitionSchema,
   SchematicDocumentSchema,
-  SimulationSetupSchema,
+  ProjectSimulationSetupSchema,
   type CircuitProject,
   type SchematicDocument,
 } from "@icm/model";
@@ -55,16 +55,13 @@ export const ProjectStructureEditSchema = z.discriminatedUnion("kind", [
     kind: z.literal("remove_external_subcircuit_definition"),
     definitionId: z.string().min(1),
   }),
-  /**
-   * Replace or clear the Project's one persisted `SimulationSetup` (ADR 0055).
-   * A non-null setup replaces the current one whole; a structured setup must
-   * name a Document of the Project as its root, while a raw setup owns its
-   * authored files and has no Canvas root. `null` clears it. Source values stay
-   * on the source Instances and are edited through ordinary Document edits.
-   */
   z.strictObject({
-    kind: z.literal("set_simulation_setup"),
-    setup: SimulationSetupSchema.nullable(),
+    kind: z.literal("upsert_simulation_setup"),
+    setup: ProjectSimulationSetupSchema,
+  }),
+  z.strictObject({
+    kind: z.literal("remove_simulation_setup"),
+    setupId: z.string().min(1),
   }),
   z.strictObject({
     kind: z.literal("transact_document"),
@@ -493,13 +490,7 @@ export function executeProjectTransaction(
       continue;
     }
 
-    if (edit.kind === "set_simulation_setup") {
-      if (edit.setup === null) {
-        if (candidate.simulation === undefined) continue;
-        delete candidate.simulation;
-        structuralChange = true;
-        continue;
-      }
+    if (edit.kind === "upsert_simulation_setup") {
       if (edit.setup.input.kind === "structured") {
         const rootDocumentId = edit.setup.input.rootDocumentId;
         if (
@@ -514,16 +505,41 @@ export function executeProjectTransaction(
           );
         }
       }
-      // Both sides are schema outputs with the schema's key order, so equal
-      // JSON is equal intent; an unchanged setup does not advance the
-      // structure revision, matching `rename_project`.
-      if (
-        candidate.simulation !== undefined &&
-        JSON.stringify(candidate.simulation) === JSON.stringify(edit.setup)
-      ) {
-        continue;
+      const duplicateName = candidate.simulationSetups.find(
+        (setup) =>
+          setup.id !== edit.setup.id &&
+          setup.name.toLocaleLowerCase("en-US") ===
+            edit.setup.name.toLocaleLowerCase("en-US"),
+      );
+      if (duplicateName) {
+        return rejectProjectTransaction(
+          project,
+          "EDIT_PRECONDITION",
+          `Simulation setup name already exists: ${edit.setup.name}`,
+        );
       }
-      candidate.simulation = structuredClone(edit.setup);
+      const index = candidate.simulationSetups.findIndex(
+        (setup) => setup.id === edit.setup.id,
+      );
+      if (
+        index >= 0 &&
+        JSON.stringify(candidate.simulationSetups[index]) ===
+          JSON.stringify(edit.setup)
+      )
+        continue;
+      if (index >= 0)
+        candidate.simulationSetups[index] = structuredClone(edit.setup);
+      else candidate.simulationSetups.push(structuredClone(edit.setup));
+      structuralChange = true;
+      continue;
+    }
+
+    if (edit.kind === "remove_simulation_setup") {
+      const index = candidate.simulationSetups.findIndex(
+        (setup) => setup.id === edit.setupId,
+      );
+      if (index < 0) continue;
+      candidate.simulationSetups.splice(index, 1);
       structuralChange = true;
       continue;
     }

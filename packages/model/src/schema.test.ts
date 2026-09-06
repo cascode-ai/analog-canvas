@@ -846,19 +846,26 @@ describe("SimulationSetup schema", () => {
   function projectWithSetup(simulation: unknown) {
     const project = createEmptyProject("simulated", "Simulated", "testbench");
     project.documents.push(createEmptyDocument("ota", "OTA"));
-    return { ...project, simulation };
+    return {
+      ...project,
+      simulationSetups: [
+        { id: "setup-1", name: "Setup 1", ...(simulation as object) },
+      ],
+    };
   }
 
-  it("is optional on a Project and round-trips the frozen structured shape", () => {
+  it("round-trips a named collection while preserving the reusable setup shape", () => {
     const project = createEmptyProject("plain", "Plain");
-    expect(CircuitProjectSchema.parse(project)).not.toHaveProperty(
-      "simulation",
-    );
+    expect(CircuitProjectSchema.parse(project).simulationSetups).toEqual([]);
     expect(SimulationSetupSchema.parse(setup())).toEqual(setup());
     const parsed = CircuitProjectSchema.parse(projectWithSetup(setup()));
-    expect(parsed.simulation).toEqual(setup());
+    expect(parsed.simulationSetups[0]).toEqual({
+      id: "setup-1",
+      name: "Setup 1",
+      ...setup(),
+    });
     expect(CircuitProjectJsonSchema).toMatchObject({
-      properties: { simulation: expect.anything() },
+      properties: { simulationSetups: expect.anything() },
     });
   });
 
@@ -867,7 +874,11 @@ describe("SimulationSetup schema", () => {
     orphaned.input.rootDocumentId = "missing-testbench";
     const result = CircuitProjectSchema.safeParse(projectWithSetup(orphaned));
     expect(result.success).toBe(true);
-    expect(result.data?.simulation).toEqual(orphaned);
+    expect(result.data?.simulationSetups[0]).toEqual({
+      id: "setup-1",
+      name: "Setup 1",
+      ...orphaned,
+    });
   });
 
   it("holds one analysis per kind and unique probe ids", () => {
@@ -1009,8 +1020,8 @@ describe("SimulationSetup schema", () => {
     };
     expect(SimulationSetupSchema.parse(raw)).toEqual(raw);
     expect(
-      CircuitProjectSchema.parse(projectWithSetup(raw)).simulation,
-    ).toEqual(raw);
+      CircuitProjectSchema.parse(projectWithSetup(raw)).simulationSetups[0],
+    ).toEqual({ id: "setup-1", name: "Setup 1", ...raw });
   });
 
   it("rejects ambiguous, unsafe, and oversized raw bundles", () => {

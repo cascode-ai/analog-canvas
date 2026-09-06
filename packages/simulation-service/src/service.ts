@@ -75,7 +75,7 @@ type StoredPrepared = {
 };
 const TTL = 15 * 60_000;
 type RawSimulationInput = Extract<
-  NonNullable<CircuitProject["simulation"]>["input"],
+  CircuitProject["simulationSetups"][number]["input"],
   { kind: "raw" }
 >;
 
@@ -194,8 +194,11 @@ export class SimulationService {
                 ? "changed"
                 : "unavailable";
           } else {
+            const setupId = run.source.setupId;
             const project = structuredClone(this.getProject());
-            const setup = project.simulation;
+            const setup = project.simulationSetups.find(
+              (candidate) => candidate.id === setupId,
+            );
             if (setup?.input.kind === "structured") {
               const compiled = await compileStructuredSimulation(
                 project,
@@ -281,6 +284,7 @@ export class SimulationService {
     let warnings: string[] = [];
     let structuredAnalyses: ResultVolumeAnalysis[] | null = null;
     if (op.source.kind === "project-setup") {
+      const setupId = op.source.setupId;
       const project = structuredClone(this.getProject());
       if (project.structureRevision !== op.source.expectedStructureRevision)
         return problem(
@@ -289,11 +293,13 @@ export class SimulationService {
           "prepare",
           "reprepare",
         );
-      const setup = project.simulation;
+      const setup = project.simulationSetups.find(
+        (candidate) => candidate.id === setupId,
+      );
       if (!setup)
         return problem(
           "SIMULATION_SETUP_MISSING",
-          "Configure the Project with set_simulation_setup before preparing it",
+          `Simulation setup does not exist: ${setupId}`,
           "prepare",
         );
       if (setup.input.kind === "structured") {

@@ -139,3 +139,11 @@ export type {
   Schema40To41MigrationReport,
   Schema40To41MigrationResult,
 } from "./transforms/dc-sweep.js";
+export {
+  upgradeSchema41To42,
+  upgradeSchema41To42WithReport,
+} from "./transforms/simulation-setup-collection.js";
+export type {
+  Schema41To42MigrationReport,
+  Schema41To42MigrationResult,
+} from "./transforms/simulation-setup-collection.js";

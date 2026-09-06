@@ -25,7 +25,7 @@ import {
   ExternalSubcircuitDefinitionSchema,
   CellNetlistInterfaceSchema,
   MosBulkDefaultsSchema,
-  SimulationSetupSchema,
+  ProjectSimulationSetupSchema,
 } from "@icm/model";
 import { ObjectLocatorSchema, HierarchyFrameSchema } from "@icm/derived";
 import {
@@ -547,15 +547,8 @@ export const AgentSessionSnapshotSchema = z.strictObject({
     structureRevision: z.number().int().nonnegative(),
     topDocumentId: StableIdSchema,
     documents: z.array(AgentProjectIndexDocumentSchema).min(1),
-    /**
-     * The Project's saved simulation intent, exactly as persisted, or null
-     * when none is configured. An Agent reads what a human set up here rather
-     * than guessing a Testbench root, and the Simulation Resource runs this
-     * same setup when a `run` carries no inline one. It is the setup, never a
-     * result: results, run ids, and prepared decks are transient by contract
-     * (`docs/specs/simulation.md`, "Persistence and compatibility").
-     */
-    simulation: SimulationSetupSchema.nullable(),
+    /** Named saved intents. Prepare addresses one explicitly by stable id. */
+    simulationSetups: z.array(ProjectSimulationSetupSchema),
   }),
   document: AgentSnapshotDocumentSchema,
 });

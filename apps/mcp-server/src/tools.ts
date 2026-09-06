@@ -286,7 +286,7 @@ const TOOLS: readonly ToolEntry[] = [
     definition: {
       name: "simulation",
       description:
-        "Prepare a persisted Project setup or session File Resource workspace, start once, poll/read, cancel, and list export artifacts. Supply the SAME requestId for a start retry. Ordinary failures are recoverable result objects, not session failures. Configure persisted settings through advanced_transact set_simulation_setup; use ordinary Cell/source edits for DUT/testbench.",
+        "Prepare one explicitly selected persisted Project setup or a session File Resource workspace, start once, poll/read, cancel, and list export artifacts. Supply the SAME requestId for a start retry. Ordinary failures are recoverable result objects, not session failures. Configure named settings through advanced_transact upsert_simulation_setup/remove_simulation_setup; use ordinary Cell/source edits for DUT/testbench.",
       inputSchema: jsonSchemaOf(SimulationArgs),
     },
     handle: async (args, session) => {

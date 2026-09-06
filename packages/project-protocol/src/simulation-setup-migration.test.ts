@@ -80,23 +80,31 @@ describe("schema 36 to 37 migration (persisted SimulationSetup)", () => {
     expect(result.sourceSchemaVersion).toBe(36);
     expect(result.migrated).toBe(true);
     expect(result.project.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
-    expect(result.project).not.toHaveProperty("simulation");
+    expect(result.project.simulationSetups).toEqual([]);
     expect(result.project.documents[0]!.instances[0]!.netlist).toEqual({
       parameters: { dc: "1" },
     });
-    expect(serializeProject(result.project)).not.toContain('"simulation"');
+    expect(serializeProject(result.project)).toContain('"simulationSetups"');
   });
 
   it("round-trips an authored setup byte-stably beside the circuit", () => {
     const project = createEmptyProject("ota-bench", "OTA bench", "testbench");
     project.documents.push(createEmptyDocument("ota", "OTA"));
-    project.simulation = setup();
+    project.simulationSetups.push({
+      id: "setup-1",
+      name: "Setup 1",
+      ...setup(),
+    });
 
     const serialized = serializeProject(project);
     const reloaded = parseProjectWithMetadata(serialized);
 
     expect(reloaded.migrated).toBe(false);
-    expect(reloaded.project.simulation).toEqual(setup());
+    expect(reloaded.project.simulationSetups[0]).toEqual({
+      id: "setup-1",
+      name: "Setup 1",
+      ...setup(),
+    });
     expect(serializeProject(reloaded.project)).toBe(serialized);
   });
 
@@ -104,13 +112,17 @@ describe("schema 36 to 37 migration (persisted SimulationSetup)", () => {
     const project = createEmptyProject("orphan", "Orphan");
     const candidate = {
       ...JSON.parse(serializeProject(project)),
-      simulation: setup(),
+      simulationSetups: [{ id: "setup-1", name: "Setup 1", ...setup() }],
     };
 
     const result = tryParseProjectWithMetadata(JSON.stringify(candidate));
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.project.simulation).toEqual(setup());
+    expect(result.project.simulationSetups[0]).toEqual({
+      id: "setup-1",
+      name: "Setup 1",
+      ...setup(),
+    });
   });
 });

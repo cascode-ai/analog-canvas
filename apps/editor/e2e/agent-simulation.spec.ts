@@ -30,10 +30,11 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
   page,
 }) => {
   const project = parseProject(JSON.stringify(ota));
-  expect(project.simulation?.input.kind).toBe("structured");
-  if (project.simulation?.input.kind !== "structured")
+  const savedSetup = project.simulationSetups[0];
+  expect(savedSetup?.input.kind).toBe("structured");
+  if (savedSetup?.input.kind !== "structured")
     throw new Error("qualified OTA fixture setup is not structured");
-  const originalSetupInput = project.simulation.input;
+  const originalSetupInput = savedSetup.input;
   expect(originalSetupInput.probes).toHaveLength(4);
   expect(
     originalSetupInput.probes.filter((p) => p.occurrence.length > 0),
@@ -119,7 +120,8 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
   const saved = JSON.parse(
     (await downloadBytes(page, "File", "Export Project File…")).toString(),
   );
-  const { probes: savedProbes, ...savedInput } = saved.simulation.input;
+  const { probes: savedProbes, ...savedInput } =
+    saved.simulationSetups[0].input;
   const { probes: originalProbes, ...originalInput } = originalSetupInput;
   expect(savedInput).toEqual(originalInput);
   expect(savedProbes.slice(0, 4)).toEqual(originalProbes);
@@ -157,35 +159,94 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
   await expect(panel.getByLabel("Stop (Hz)")).toHaveValue("1000000000");
 });
 
+test("one Testbench persists several independently named setups", async ({
+  page,
+}) => {
+  const project = parseProject(JSON.stringify(ota));
+  await page.route("**/api/simulate", async (route) =>
+    route.fulfill({
+      json: {
+        configured: true,
+        inputs: ["structured", "raw"],
+        analyses: ["op", "dc", "ac", "tran"],
+        parsedAnalyses: ["op", "dc", "ac", "tran"],
+        profiles: [{ id: profile.id, corners: ["tt"] }],
+        maxTimeoutMs: 120000,
+        maxInputBytes: 1048576,
+        cancel: true,
+      },
+    }),
+  );
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "multiple-setups.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await page
+    .getByRole("button", { name: "Analog simulation", exact: true })
+    .click();
+  const panel = page.getByRole("region", { name: "Analog simulation" });
+  const selector = panel.getByRole("combobox", {
+    name: "Simulation setup",
+    exact: true,
+  });
+  await expect(selector).toHaveValue("simulation-setup-ota-op-ac");
+  await panel.getByRole("button", { name: "New setup", exact: true }).click();
+  await expect(selector.locator("option")).toHaveCount(2);
+  await panel.getByLabel("Setup name").fill("Bias search");
+  await panel.getByRole("button", { name: "Apply setup" }).click();
+
+  const saved = JSON.parse(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(),
+  );
+  expect(saved.simulationSetups).toHaveLength(2);
+  expect(
+    saved.simulationSetups.map((setup: { name: string }) => setup.name),
+  ).toEqual(["OTA OP and AC", "Bias search"]);
+  expect(
+    new Set(
+      saved.simulationSetups.map(
+        (setup: { input: { rootDocumentId: string } }) =>
+          setup.input.rootDocumentId,
+      ),
+    ),
+  ).toEqual(new Set(["document-ota-5t-testbench"]));
+});
+
 test("human simulation uses saved setup, survives minimizing, recovers a bad input and exports results", async ({
   page,
 }) => {
   const project = parseProject(JSON.stringify(ota));
-  project.simulation = {
-    version: 1,
-    input: {
-      kind: "structured",
-      rootDocumentId: project.topDocumentId,
-      analyses: [
-        { kind: "op" },
-        { kind: "ac", sweep: "dec", points: 10, startHz: 1, stopHz: 1e6 },
-      ],
-      probes: [
-        {
-          id: "out",
-          kind: "net-voltage",
-          documentId: project.topDocumentId,
-          anchor: {
-            kind: "terminal",
-            instanceId: "missing-instance",
-            pinName: "out",
+  project.simulationSetups = [
+    {
+      id: "setup-e2e",
+      name: "E2E setup",
+      version: 1,
+      input: {
+        kind: "structured",
+        rootDocumentId: project.topDocumentId,
+        analyses: [
+          { kind: "op" },
+          { kind: "ac", sweep: "dec", points: 10, startHz: 1, stopHz: 1e6 },
+        ],
+        probes: [
+          {
+            id: "out",
+            kind: "net-voltage",
+            documentId: project.topDocumentId,
+            anchor: {
+              kind: "terminal",
+              instanceId: "missing-instance",
+              pinName: "out",
+            },
+            occurrence: [],
           },
-          occurrence: [],
-        },
-      ],
-      environment: { profileId: profile.id },
+        ],
+        environment: { profileId: profile.id },
+      },
     },
-  };
+  ];
   let calls = 0,
     executions = 0,
     cancellations = 0;
@@ -609,10 +670,11 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   await panel.getByRole("button", { name: "Minimize simulation" }).click();
   const saved = await downloadBytes(page, "File", "Export Project File…");
   expect(
-    JSON.parse(saved.toString()).simulation.input.environment.temperatureC,
+    JSON.parse(saved.toString()).simulationSetups[0].input.environment
+      .temperatureC,
   ).toBe(30);
   expect(
-    JSON.parse(saved.toString()).simulation.input.analyses.find(
+    JSON.parse(saved.toString()).simulationSetups[0].input.analyses.find(
       (analysis: { kind: string }) => analysis.kind === "tran",
     ),
   ).toEqual({
@@ -664,7 +726,7 @@ test("Simulation creates an ordinary testbench and offers the current Cell at th
     childDocumentId: "document-main",
   });
   expect(saved.topDocumentId).toBe("document-main");
-  expect(saved.simulation).toBeUndefined();
+  expect(saved.simulationSetups).toEqual([]);
   await page.getByTestId("open-analog-simulation").click();
   await expect(page.getByLabel("Testbench Cell")).toHaveValue(tb.id);
   const simulationResize = page.getByTestId("simulation-resize-handle");
@@ -840,7 +902,11 @@ test("Agent raw simulation recovers input errors, returns a run receipt and expo
   expect(
     await send("simulation", {
       operation: "prepare",
-      source: { kind: "project-setup", expectedStructureRevision: 0 },
+      source: {
+        kind: "project-setup",
+        setupId: "missing-setup",
+        expectedStructureRevision: 0,
+      },
     }),
   ).toMatchObject({ ok: false, error: { code: "SIMULATION_SETUP_MISSING" } });
   const workspace = (

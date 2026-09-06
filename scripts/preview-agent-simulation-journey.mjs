@@ -25,8 +25,9 @@ const projectText = await readFile(
   "utf8",
 );
 const project = parseProject(projectText);
-assert(project.simulation, "The acceptance Project has no saved setup");
-const compiled = await compileStructuredSimulation(project, project.simulation);
+const setup = project.simulationSetups[0];
+assert(setup, "The acceptance Project has no saved setup");
+const compiled = await compileStructuredSimulation(project, setup);
 assert(compiled.ok, "The acceptance Project no longer compiles");
 
 await mkdir(outputDirectory, { recursive: true });
@@ -192,14 +193,14 @@ try {
     .filter({ hasText: "Connected" })
     .waitFor({ state: "visible", timeout: 30_000 });
 
-  const invalidSetup = structuredClone(project.simulation);
+  const invalidSetup = structuredClone(setup);
   invalidSetup.input.probes[0].anchor = {
     kind: "terminal",
     instanceId: "missing-acceptance-instance",
     pinName: "out",
   };
   const invalidEdit = await tool("advanced_transact", {
-    structureEdits: [{ kind: "set_simulation_setup", setup: invalidSetup }],
+    structureEdits: [{ kind: "upsert_simulation_setup", setup: invalidSetup }],
   });
   assert.equal(invalidEdit.ok, true);
   const refused = await tool(
@@ -209,6 +210,7 @@ try {
         operation: "prepare",
         source: {
           kind: "project-setup",
+          setupId: setup.id,
           expectedStructureRevision: invalidEdit.projectStructure.toRevision,
         },
       },
@@ -219,9 +221,7 @@ try {
   assert.equal(refused.error.recovery, "fix-input");
 
   const restored = await tool("advanced_transact", {
-    structureEdits: [
-      { kind: "set_simulation_setup", setup: project.simulation },
-    ],
+    structureEdits: [{ kind: "upsert_simulation_setup", setup }],
   });
   assert.equal(restored.ok, true);
   const prepared = await tool("simulation", {
@@ -229,6 +229,7 @@ try {
       operation: "prepare",
       source: {
         kind: "project-setup",
+        setupId: setup.id,
         expectedStructureRevision: restored.projectStructure.toRevision,
       },
     },

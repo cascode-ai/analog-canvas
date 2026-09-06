@@ -780,6 +780,8 @@ describe("Project structural transaction", () => {
     const testbench = createEmptyDocument("document-testbench", "Testbench");
     project.documents.push(testbench);
     const setup = {
+      id: "setup-main",
+      name: "Main setup",
       version: 1 as const,
       input: {
         kind: "structured" as const,
@@ -817,15 +819,15 @@ describe("Project structural transaction", () => {
       projectId: project.id,
       expectedStructureRevision: 0,
       actor,
-      edits: [{ kind: "set_simulation_setup", setup }],
+      edits: [{ kind: "upsert_simulation_setup", setup }],
     });
     expect(set).toMatchObject({
       ok: true,
       applied: true,
       structureRevision: 1,
-      project: { simulation: setup },
+      project: { simulationSetups: [setup] },
     });
-    expect(project).not.toHaveProperty("simulation");
+    expect(project.simulationSetups).toEqual([]);
     if (!set.ok) return;
 
     // The same setup again is not a change and does not spend a revision.
@@ -834,7 +836,9 @@ describe("Project structural transaction", () => {
       projectId: project.id,
       expectedStructureRevision: 1,
       actor,
-      edits: [{ kind: "set_simulation_setup", setup: structuredClone(setup) }],
+      edits: [
+        { kind: "upsert_simulation_setup", setup: structuredClone(setup) },
+      ],
     });
     expect(unchanged).toMatchObject({
       ok: true,
@@ -849,7 +853,7 @@ describe("Project structural transaction", () => {
       actor,
       edits: [
         {
-          kind: "set_simulation_setup",
+          kind: "upsert_simulation_setup",
           setup: {
             ...setup,
             input: {
@@ -866,12 +870,14 @@ describe("Project structural transaction", () => {
       applied: true,
       structureRevision: 2,
       project: {
-        simulation: {
-          input: {
-            rootDocumentId: project.topDocumentId,
-            analyses: [{ kind: "op" }],
+        simulationSetups: [
+          {
+            input: {
+              rootDocumentId: project.topDocumentId,
+              analyses: [{ kind: "op" }],
+            },
           },
-        },
+        ],
       },
     });
     if (!rerooted.ok) return;
@@ -881,7 +887,7 @@ describe("Project structural transaction", () => {
       projectId: project.id,
       expectedStructureRevision: 2,
       actor,
-      edits: [{ kind: "set_simulation_setup", setup: null }],
+      edits: [{ kind: "remove_simulation_setup", setupId: setup.id }],
     });
     expect(cleared).toMatchObject({
       ok: true,
@@ -889,7 +895,7 @@ describe("Project structural transaction", () => {
       structureRevision: 3,
     });
     if (!cleared.ok) return;
-    expect(cleared.project).not.toHaveProperty("simulation");
+    expect(cleared.project.simulationSetups).toEqual([]);
 
     expect(
       executeProjectTransaction(cleared.project, {
@@ -897,7 +903,7 @@ describe("Project structural transaction", () => {
         projectId: project.id,
         expectedStructureRevision: 3,
         actor,
-        edits: [{ kind: "set_simulation_setup", setup: null }],
+        edits: [{ kind: "remove_simulation_setup", setupId: setup.id }],
       }),
     ).toMatchObject({ ok: true, applied: false, structureRevision: 3 });
   });
@@ -908,6 +914,8 @@ describe("Project structural transaction", () => {
     project.documents.push(testbench);
     const actor = { kind: "agent" as const, id: "agent" };
     const setupFor = (rootDocumentId: string) => ({
+      id: "setup-main",
+      name: "Main setup",
       version: 1 as const,
       input: {
         kind: "structured" as const,
@@ -925,7 +933,10 @@ describe("Project structural transaction", () => {
         expectedStructureRevision: 0,
         actor,
         edits: [
-          { kind: "set_simulation_setup", setup: setupFor("document-missing") },
+          {
+            kind: "upsert_simulation_setup",
+            setup: setupFor("document-missing"),
+          },
         ],
       }),
     ).toMatchObject({
@@ -943,7 +954,7 @@ describe("Project structural transaction", () => {
         expectedStructureRevision: 4,
         actor,
         edits: [
-          { kind: "set_simulation_setup", setup: setupFor(testbench.id) },
+          { kind: "upsert_simulation_setup", setup: setupFor(testbench.id) },
         ],
       }),
     ).toMatchObject({ ok: false, error: { code: "STALE_STRUCTURE_REVISION" } });
@@ -956,7 +967,7 @@ describe("Project structural transaction", () => {
         actor,
         edits: [
           {
-            kind: "set_simulation_setup",
+            kind: "upsert_simulation_setup",
             setup: {
               ...setupFor(testbench.id),
               input: { ...setupFor(testbench.id).input, lastRunId: "run-1" },
@@ -977,13 +988,13 @@ describe("Project structural transaction", () => {
         actor,
         edits: [
           { kind: "add_document", document: bench2 },
-          { kind: "set_simulation_setup", setup: setupFor(bench2.id) },
+          { kind: "upsert_simulation_setup", setup: setupFor(bench2.id) },
         ],
       }),
     ).toMatchObject({
       ok: true,
       applied: true,
-      project: { simulation: { input: { rootDocumentId: bench2.id } } },
+      project: { simulationSetups: [{ input: { rootDocumentId: bench2.id } }] },
     });
 
     const configured = executeProjectTransaction(project, {
@@ -991,7 +1002,9 @@ describe("Project structural transaction", () => {
       projectId: project.id,
       expectedStructureRevision: 0,
       actor,
-      edits: [{ kind: "set_simulation_setup", setup: setupFor(testbench.id) }],
+      edits: [
+        { kind: "upsert_simulation_setup", setup: setupFor(testbench.id) },
+      ],
     });
     if (!configured.ok) throw new Error("setup was not applied");
     const deleted = executeProjectTransaction(configured.project, {
@@ -1005,7 +1018,7 @@ describe("Project structural transaction", () => {
       ok: true,
       applied: true,
       project: {
-        simulation: { input: { rootDocumentId: testbench.id } },
+        simulationSetups: [{ input: { rootDocumentId: testbench.id } }],
         documents: [{ id: project.topDocumentId }],
       },
     });
@@ -1016,7 +1029,7 @@ describe("Project structural transaction", () => {
         expectedStructureRevision: 1,
         actor,
         edits: [
-          { kind: "set_simulation_setup", setup: null },
+          { kind: "remove_simulation_setup", setupId: "setup-main" },
           { kind: "remove_document", documentId: testbench.id },
         ],
       }),
@@ -1027,12 +1040,79 @@ describe("Project structural transaction", () => {
     });
   });
 
+  it("keeps independent named setups on one Testbench and removes only the addressed setup", () => {
+    const project = createEmptyProject("project", "Project");
+    const setupFor = (id: string, name: string, analysis: "op" | "ac") => ({
+      id,
+      name,
+      version: 1 as const,
+      input: {
+        kind: "structured" as const,
+        rootDocumentId: project.topDocumentId,
+        analyses:
+          analysis === "op"
+            ? [{ kind: "op" as const }]
+            : [
+                {
+                  kind: "ac" as const,
+                  sweep: "dec" as const,
+                  points: 10,
+                  startHz: 1,
+                  stopHz: 1e6,
+                },
+              ],
+        probes: [],
+        environment: { profileId: "test" },
+      },
+    });
+    const added = executeProjectTransaction(project, {
+      transactionId: "add-two-setups",
+      projectId: project.id,
+      expectedStructureRevision: 0,
+      actor: { kind: "human", id: "human" },
+      edits: [
+        {
+          kind: "upsert_simulation_setup",
+          setup: setupFor("setup-op", "Bias", "op"),
+        },
+        {
+          kind: "upsert_simulation_setup",
+          setup: setupFor("setup-ac", "Response", "ac"),
+        },
+      ],
+    });
+    expect(added).toMatchObject({
+      ok: true,
+      applied: true,
+      project: {
+        simulationSetups: [
+          { id: "setup-op", name: "Bias" },
+          { id: "setup-ac", name: "Response" },
+        ],
+      },
+    });
+    if (!added.ok) return;
+    const removed = executeProjectTransaction(added.project, {
+      transactionId: "remove-one-setup",
+      projectId: project.id,
+      expectedStructureRevision: 1,
+      actor: { kind: "human", id: "human" },
+      edits: [{ kind: "remove_simulation_setup", setupId: "setup-op" }],
+    });
+    expect(removed).toMatchObject({
+      ok: true,
+      project: { simulationSetups: [{ id: "setup-ac" }] },
+    });
+  });
+
   it("replaces and clears a raw simulation setup without a Canvas root", () => {
     const project = createEmptyProject("project", "Project");
     const unrelated = createEmptyDocument("document-unrelated", "Unrelated");
     project.documents.push(unrelated);
     const actor = { kind: "agent" as const, id: "agent" };
     const setup = {
+      id: "setup-raw",
+      name: "Raw setup",
       version: 1 as const,
       input: {
         kind: "raw" as const,
@@ -1048,13 +1128,13 @@ describe("Project structural transaction", () => {
       projectId: project.id,
       expectedStructureRevision: 0,
       actor,
-      edits: [{ kind: "set_simulation_setup", setup }],
+      edits: [{ kind: "upsert_simulation_setup", setup }],
     });
     expect(configured).toMatchObject({
       ok: true,
       applied: true,
       structureRevision: 1,
-      project: { simulation: setup },
+      project: { simulationSetups: [setup] },
     });
     if (!configured.ok) return;
 
@@ -1069,7 +1149,7 @@ describe("Project structural transaction", () => {
       ok: true,
       applied: true,
       structureRevision: 2,
-      project: { simulation: setup },
+      project: { simulationSetups: [setup] },
     });
     if (!removed.ok) return;
 
@@ -1078,7 +1158,7 @@ describe("Project structural transaction", () => {
       projectId: project.id,
       expectedStructureRevision: 2,
       actor,
-      edits: [{ kind: "set_simulation_setup", setup: null }],
+      edits: [{ kind: "remove_simulation_setup", setupId: setup.id }],
     });
     expect(cleared).toMatchObject({
       ok: true,
@@ -1086,7 +1166,7 @@ describe("Project structural transaction", () => {
       structureRevision: 3,
     });
     if (!cleared.ok) return;
-    expect(cleared.project).not.toHaveProperty("simulation");
+    expect(cleared.project.simulationSetups).toEqual([]);
   });
 
   it("removes an Instance before deleting its now-unreferenced Cell", () => {

@@ -78,7 +78,7 @@ describe("MCP → API → shared editor parity", () => {
     );
     expect(placed.ok, placed.message).toBe(true);
     expect(controller.project.topDocumentId).toBe("main");
-    expect(controller.project.simulation).toBeUndefined();
+    expect(controller.project.simulationSetups).toEqual([]);
     const instance = controller.project.documents.find((d) => d.id === "tb")!
       .instances[0]!;
     expect(instance.netlist?.binding).toEqual({

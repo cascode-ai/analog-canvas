@@ -123,12 +123,12 @@ same contract as `/api/agent/sessions/{sessionId}/simulation`:
 
 1. `capabilities`: discover the selected deployment Profile and limits without
    starting the simulator.
-2. Configure the Project through `advanced_transact` with the existing
-   `set_simulation_setup` structure edit. Sources, DUT instances, formal ports,
+2. Configure the Project through `advanced_transact` with
+   `upsert_simulation_setup`; remove one by `remove_simulation_setup`. Sources, DUT instances, formal ports,
    and wiring remain ordinary Project edits. Structured analyses support OP,
    one-source linear DC sweep, AC, and TRAN; discover the deployment Profile
    before selecting an analysis.
-3. `prepare` with `source:{kind:"project-setup",expectedStructureRevision}`
+3. `prepare` with `source:{kind:"project-setup",setupId,expectedStructureRevision}`
    freezes the saved structured or raw setup. It returns `prepared.id`,
    `digest`, vectors, and export references. A stale Project revision is a
    recoverable reprepare result; no inline setup bypasses Project ownership.
