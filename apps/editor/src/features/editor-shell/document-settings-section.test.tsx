@@ -57,4 +57,47 @@ describe("DocumentSettingsSection", () => {
     expect(markup).toContain('aria-label="Default NMOS bulk Net"');
     expect(markup).toContain('aria-label="Default PMOS bulk Net"');
   });
+
+  it("shows repeated Ground markers as one Logical Net choice", () => {
+    const document = createEmptyDocument("document-main", "Main");
+    document.nets.push(
+      { id: "net-ground-a", terminals: [] },
+      { id: "net-ground-b", terminals: [] },
+    );
+    document.connectivityEvidence.push(
+      {
+        id: "ground-a",
+        kind: "name-claim",
+        netId: "net-ground-a",
+        owner: { kind: "power-marker", objectId: "GND1" },
+        name: "0",
+        scope: "global",
+        powerDomain: "ground",
+      },
+      {
+        id: "ground-b",
+        kind: "name-claim",
+        netId: "net-ground-b",
+        owner: { kind: "power-marker", objectId: "GND2" },
+        name: "0",
+        scope: "global",
+        powerDomain: "ground",
+      },
+    );
+    document.mosBulkDefaults = { nmosNetId: "net-ground-b" };
+
+    const markup = renderToStaticMarkup(
+      <DocumentSettingsSection
+        document={document}
+        onApplyStyle={vi.fn()}
+        onChangeBulkDefault={vi.fn()}
+      />,
+    );
+
+    expect(markup.match(/value="net-ground-a"/g)).toHaveLength(2);
+    expect(markup).not.toContain('value="net-ground-b"');
+    expect(markup).toContain(
+      'aria-label="Default NMOS bulk Net"><option value="">None</option><option value="net-ground-a" selected="">0</option>',
+    );
+  });
 });

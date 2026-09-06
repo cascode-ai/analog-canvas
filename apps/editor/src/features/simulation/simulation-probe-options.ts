@@ -6,6 +6,8 @@ import type {
 } from "@icm/model";
 import { resolveDocumentLogicalNets, type HierarchyFrame } from "@icm/derived";
 
+import { logicalNetChoices } from "../logical-net-choices";
+
 type VoltageProbeTarget = Omit<
   Extract<SimulationProbeSpec, { kind: "net-voltage" }>,
   "id"
@@ -49,6 +51,30 @@ export function simulationProbeTargetKey(target: ProbeTarget): string {
           ? `route:${anchor.routeId}`
           : `base-net:${anchor.netId}`;
   return `voltage:${occurrence}:${target.documentId}:${anchorKey}`;
+}
+
+/**
+ * UI identity for a probe target. A voltage probe is a measurement of one
+ * Logical Net, not of whichever terminal/route happened to supply its durable
+ * anchor, so repeated Ground markers and alternate anchors share one choice.
+ */
+export function simulationProbeSelectionKey(
+  project: CircuitProject,
+  target: ProbeTarget,
+): string {
+  if (target.kind === "source-current") return simulationProbeTargetKey(target);
+  const occurrence = target.occurrence.join("/");
+  const document = project.documents.find(
+    (candidate) => candidate.id === target.documentId,
+  );
+  const baseNetId = resolveSimulationVoltageProbeNetId(project, target);
+  const logicalNetId =
+    document && baseNetId
+      ? resolveDocumentLogicalNets(document).byBaseNetId.get(baseNetId)?.id
+      : undefined;
+  return logicalNetId
+    ? `voltage:${occurrence}:${target.documentId}:logical:${logicalNetId}`
+    : simulationProbeTargetKey(target);
 }
 
 /** Resolve a saved voltage anchor to the Base Net it currently belongs to. */
@@ -193,14 +219,13 @@ export function deriveSimulationProbeOptions(
     displayPath: readonly string[],
     ancestry: ReadonlySet<string>,
   ) => {
-    const logicalNets = resolveDocumentLogicalNets(document);
     const prefix = displayPath.length
       ? `${displayPath.join("/")} · ${document.name}`
       : document.name;
     // One visible choice per electrical Logical Net. Several Base Nets may be
     // joined by the same scoped label (notably repeated Ground markers); the
     // user should not have to choose among indistinguishable aliases.
-    for (const net of logicalNets.groups) {
+    for (const net of logicalNetChoices(document)) {
       const anchor = voltageAnchor(document, net.baseNetIds);
       if (!anchor) continue;
       const target: VoltageProbeTarget = {
@@ -210,8 +235,8 @@ export function deriveSimulationProbeOptions(
         occurrence: [...occurrence],
       };
       voltage.push({
-        key: simulationProbeTargetKey(target),
-        label: `${prefix} · ${net.name ?? net.id}`,
+        key: simulationProbeSelectionKey(project, target),
+        label: `${prefix} · ${net.label}`,
         target,
       });
     }

@@ -58,4 +58,46 @@ describe("TimingSimulationPanel", () => {
     expect(markup).toContain("Temporary results");
     expect(markup).not.toContain("<details");
   });
+
+  it("offers repeated Ground Base Nets once and resolves an old member selection", () => {
+    const document = createEmptyDocument("main", "Ground choices");
+    document.nets.push(
+      { id: "net-ground-a", terminals: [] },
+      { id: "net-ground-b", terminals: [] },
+    );
+    document.connectivityEvidence.push(
+      {
+        id: "ground-a",
+        kind: "name-claim",
+        netId: "net-ground-a",
+        owner: { kind: "power-marker", objectId: "GND1" },
+        name: "0",
+        scope: "global",
+        powerDomain: "ground",
+      },
+      {
+        id: "ground-b",
+        kind: "name-claim",
+        netId: "net-ground-b",
+        owner: { kind: "power-marker", objectId: "GND2" },
+        name: "0",
+        scope: "global",
+        powerDomain: "ground",
+      },
+    );
+
+    const markup = renderToStaticMarkup(
+      <TimingSimulationPanel
+        document={document}
+        open
+        savedNetIds={new Set(["net-ground-b"])}
+        pickNetsActive={false}
+        {...callbacks}
+      />,
+    );
+
+    expect(markup).not.toContain('<option value="net-ground-b"');
+    expect(markup.match(/<strong>0<\/strong>/g)).toHaveLength(1);
+    expect(markup).toContain('aria-label="Remove saved Net 0"');
+  });
 });

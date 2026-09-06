@@ -70,7 +70,7 @@ interface CanvasEventHandlerDependencies {
     pendingComponentPlacement: boolean;
     vddRailMode: boolean;
     waveformPlacementActive: boolean;
-    snapPlacementPoint: (point: Point) => Point;
+    snapPlacementPoint: (point: Point, svg: SVGSVGElement) => Point;
     commitCopyPlacement: (point: Point) => void;
     commitPendingPlacement: (point: Point) => void;
     commitWaveformPlacement: (point: Point) => void;
@@ -226,6 +226,7 @@ export function createEditorCanvasEventHandlers({
               event.currentTarget,
               false,
             ),
+            event.currentTarget,
           ),
         );
         return;
@@ -242,6 +243,7 @@ export function createEditorCanvasEventHandlers({
               event.currentTarget,
               false,
             ),
+            event.currentTarget,
           ),
         );
         return;
@@ -258,6 +260,7 @@ export function createEditorCanvasEventHandlers({
             event.currentTarget,
             false,
           ),
+          event.currentTarget,
         ),
       );
     },

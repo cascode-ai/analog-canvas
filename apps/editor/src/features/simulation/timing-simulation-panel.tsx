@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 
-import { resolveDocumentLogicalNets } from "@icm/derived";
 import { flattenRichText } from "@icm/model";
 import type { RichTextDocument, SchematicDocument } from "@icm/model";
 import {
@@ -11,6 +10,7 @@ import {
 } from "@icm/simulation";
 
 import { RichTextEditor } from "../text-editing/rich-text-editor";
+import { logicalNetChoices } from "../logical-net-choices";
 import {
   createTimingWaveformDiagram,
   defaultWaveformLabelDocument,
@@ -101,27 +101,35 @@ export function TimingSimulationPanel({
     offsetX: number;
     offsetY: number;
   } | null>(null);
-  const logicalNets = useMemo(
-    () => resolveDocumentLogicalNets(document).groups,
-    [document],
+  const netChoices = useMemo(() => logicalNetChoices(document), [document]);
+  const selectedNetChoices = useMemo(
+    () =>
+      netChoices.filter((choice) =>
+        choice.baseNetIds.some((netId) => savedNetIds.has(netId)),
+      ),
+    [netChoices, savedNetIds],
+  );
+  const selectedNetIds = useMemo(
+    () => new Set(selectedNetChoices.map((choice) => choice.netId)),
+    [selectedNetChoices],
   );
   useEffect(() => {
     setNetAliases((current) => {
       const retained = Object.fromEntries(
         Object.entries(current).filter(([baseNetId]) =>
-          savedNetIds.has(baseNetId),
+          selectedNetIds.has(baseNetId),
         ),
       );
       return Object.keys(retained).length === Object.keys(current).length
         ? current
         : retained;
     });
-  }, [savedNetIds]);
+  }, [selectedNetIds]);
   useEffect(() => {
-    if (labelEditor && !savedNetIds.has(labelEditor.baseNetId)) {
+    if (labelEditor && !selectedNetIds.has(labelEditor.baseNetId)) {
       setLabelEditor(null);
     }
-  }, [labelEditor, savedNetIds]);
+  }, [labelEditor, selectedNetIds]);
   const waveformDiagram = useMemo(
     () => (result ? createTimingWaveformDiagram(result, netAliases) : null),
     [netAliases, result],
@@ -148,13 +156,13 @@ export function TimingSimulationPanel({
       );
       return;
     }
-    if (savedNetIds.size === 0) {
+    if (selectedNetIds.size === 0) {
       onStatus("Save at least one Net before running Digital Simulation");
       return;
     }
     const next = simulateDigitalDocument({
       document,
-      profile: { stopTimePs, savedNetIds: [...savedNetIds] },
+      profile: { stopTimePs, savedNetIds: [...selectedNetIds] },
     });
     setResult(next);
     onStatus(
@@ -269,11 +277,11 @@ export function TimingSimulationPanel({
           }}
         >
           <option value="">Add Net…</option>
-          {logicalNets
-            .filter((net) => !savedNetIds.has(net.baseNetIds[0]!))
+          {netChoices
+            .filter((net) => !selectedNetIds.has(net.netId))
             .map((net) => (
-              <option key={net.id} value={net.baseNetIds[0]!}>
-                {net.name ?? net.id}
+              <option key={net.netId} value={net.netId}>
+                {net.label}
               </option>
             ))}
         </select>
@@ -287,9 +295,7 @@ export function TimingSimulationPanel({
         </button>
         <button
           type="button"
-          onClick={() =>
-            onSetSavedNets(logicalNets.map((net) => net.baseNetIds[0]!))
-          }
+          onClick={() => onSetSavedNets(netChoices.map((net) => net.netId))}
         >
           All
         </button>
@@ -364,14 +370,12 @@ export function TimingSimulationPanel({
             <small>Names below only affect waveform labels.</small>
           </div>
           <div className="simulation-saved-net-list" role="list">
-            {savedNetIds.size === 0 ? (
+            {selectedNetChoices.length === 0 ? (
               <small className="simulation-saved-nets-empty">None</small>
             ) : null}
-            {[...savedNetIds].map((baseNetId) => {
-              const net = logicalNets.find((candidate) =>
-                candidate.baseNetIds.includes(baseNetId),
-              );
-              const netName = net?.name ?? baseNetId;
+            {selectedNetChoices.map((net) => {
+              const baseNetId = net.netId;
+              const netName = net.label;
               const waveformName =
                 netAliases[baseNetId] ?? defaultWaveformLabelDocument(netName);
               return (

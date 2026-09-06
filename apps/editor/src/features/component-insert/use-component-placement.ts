@@ -201,10 +201,15 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
       instance,
       options.visibleEndpoints,
     );
-    const standalonePower: PlacementContactProposal =
-      contact.matched || contact.ambiguous
-        ? { edits: [], matched: false, ambiguous: false }
-        : proposedStandalonePowerConnection(options.document, instance);
+    if (contact.ambiguous) {
+      options.setStatus(
+        `Cannot place ${id}: the contacted point contains multiple conductors; choose one explicit connection`,
+      );
+      return;
+    }
+    const standalonePower: PlacementContactProposal = contact.matched
+      ? { edits: [], matched: false, ambiguous: false }
+      : proposedStandalonePowerConnection(options.document, instance);
     const powerRejection = contact.rejected ?? standalonePower.rejected;
     if (powerRejection) {
       options.setStatus(`Cannot place ${id}: ${powerRejection}`);
