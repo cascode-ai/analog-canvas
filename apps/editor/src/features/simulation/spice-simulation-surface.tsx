@@ -17,6 +17,7 @@ import type {
 import { downloadTextArtifact } from "../../document/project-file-service";
 import type { BrowserSimulationSession } from "./browser-simulation-session";
 import { AcResultsExplorer } from "./ac-results-explorer";
+import { DcResultsExplorer } from "./dc-results-explorer";
 import { TransientResultsExplorer } from "./transient-results-explorer";
 import {
   deriveSimulationProbeOptions,
@@ -558,6 +559,28 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
             {resultTab === "plot" ? (
               <div className="simulation-analysis-view">
                 {run?.result?.data?.analyses
+                  .filter((analysis) => analysis.analysis === "dc")
+                  .map((analysis, index) => (
+                    <DcResultsExplorer
+                      key={`dc-${index}`}
+                      analysis={analysis}
+                      vectors={runPresentation?.prepared.vectors ?? []}
+                      probes={runPresentation?.probes ?? []}
+                      labels={runPresentation?.labels ?? {}}
+                      {...(props.onFocusProbe
+                        ? {
+                            onFocusProbe: (
+                              probe: SimulationStructuredInput["probes"][number],
+                            ) =>
+                              props.onFocusProbe?.(
+                                probe,
+                                runPresentation?.rootDocumentId,
+                              ),
+                          }
+                        : {})}
+                    />
+                  ))}
+                {run?.result?.data?.analyses
                   .filter((analysis) => analysis.analysis === "ac")
                   .map((analysis, index) => (
                     <AcResultsExplorer
@@ -603,10 +626,12 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
                   ))}
                 {!run?.result?.data?.analyses.some(
                   (analysis) =>
-                    analysis.analysis === "ac" || analysis.analysis === "tran",
+                    analysis.analysis === "dc" ||
+                    analysis.analysis === "ac" ||
+                    analysis.analysis === "tran",
                 ) ? (
                   <p className="simulation-empty-result">
-                    Run an AC or transient analysis to see a plot.
+                    Run a DC, AC, or transient analysis to see a plot.
                   </p>
                 ) : null}
               </div>
@@ -820,14 +845,35 @@ function SetupEditor({
   const [probes, setProbes] = useState(saved?.probes ?? []);
   const root = project.documents.find((d) => d.id === rootId);
   const probeOptions = deriveSimulationProbeOptions(project, rootId);
+  const dcSources = (root?.instances ?? []).flatMap((instance) => {
+    const binding = instance.netlist?.binding;
+    if (
+      binding?.kind !== "primitive" ||
+      (binding.deviceClass !== "voltage-source" &&
+        binding.deviceClass !== "current-source")
+    )
+      return [];
+    return [
+      {
+        id: instance.id,
+        label: `${instance.reference} · ${binding.deviceClass === "voltage-source" ? "Voltage" : "Current"}`,
+        unit: binding.deviceClass === "voltage-source" ? "V" : "A",
+      },
+    ];
+  });
   const probeLabels = new Map(
     [...probeOptions.voltage, ...probeOptions.sourceCurrent].map((option) => [
       option.key,
       option.label,
     ]),
   );
+  const dc = saved?.analyses.find((a) => a.kind === "dc");
   const ac = saved?.analyses.find((a) => a.kind === "ac");
   const tran = saved?.analyses.find((a) => a.kind === "tran");
+  const [dcEnabled, setDcEnabled] = useState(!!dc);
+  const [dcSourceId, setDcSourceId] = useState(
+    dc?.sourceInstanceId ?? dcSources[0]?.id ?? "",
+  );
   const [acEnabled, setAcEnabled] = useState(!!ac);
   const [tranEnabled, setTranEnabled] = useState(!!tran);
   const [profileId, setProfileId] = useState(
@@ -850,6 +896,11 @@ function SetupEditor({
     )
       setProfileId(defaultProfileId);
   }, [capabilities?.profiles[0]?.id, profileId, saved?.environment.profileId]);
+  const selectedDcSourceId = dcSources.some(
+    (source) => source.id === dcSourceId,
+  )
+    ? dcSourceId
+    : (dcSources[0]?.id ?? "");
   useEffect(() => {
     if (!pickedNet) return;
     const candidates = matchSimulationVoltageProbeOptions(
@@ -930,6 +981,17 @@ function SetupEditor({
               rootDocumentId: rootId,
               analyses: [
                 ...(data.has("op") ? [{ kind: "op" }] : []),
+                ...(data.has("dc")
+                  ? [
+                      {
+                        kind: "dc",
+                        sourceInstanceId: data.get("dcSourceInstanceId"),
+                        startValue: Number(data.get("dcStartValue")),
+                        stopValue: Number(data.get("dcStopValue")),
+                        stepValue: Number(data.get("dcStepValue")),
+                      },
+                    ]
+                  : []),
                 ...(data.has("ac")
                   ? [
                       {
@@ -1053,6 +1115,15 @@ function SetupEditor({
           <legend>Analyses</legend>
           <label>
             <input
+              name="dc"
+              type="checkbox"
+              checked={dcEnabled}
+              onChange={(event) => setDcEnabled(event.currentTarget.checked)}
+            />
+            DC
+          </label>
+          <label>
+            <input
               name="op"
               type="checkbox"
               defaultChecked={
@@ -1080,6 +1151,66 @@ function SetupEditor({
             TRAN
           </label>
         </fieldset>
+        {dcEnabled ? (
+          <div className="simulation-setup-group simulation-analysis-settings">
+            <label>
+              DC sweep source
+              <select
+                name="dcSourceInstanceId"
+                required
+                value={selectedDcSourceId}
+                onChange={(event) => setDcSourceId(event.currentTarget.value)}
+              >
+                {dcSources.length === 0 ? (
+                  <option value="">No independent sources in Testbench</option>
+                ) : null}
+                {dcSources.map((source) => (
+                  <option key={source.id} value={source.id}>
+                    {source.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="simulation-inline-fields columns-3">
+              <label>
+                Start
+                <input
+                  name="dcStartValue"
+                  type="number"
+                  step="any"
+                  required
+                  defaultValue={dc?.startValue ?? 0}
+                />
+              </label>
+              <label>
+                Stop
+                <input
+                  name="dcStopValue"
+                  type="number"
+                  step="any"
+                  required
+                  defaultValue={dc?.stopValue ?? 1.8}
+                />
+              </label>
+              <label>
+                Step
+                <input
+                  name="dcStepValue"
+                  type="number"
+                  step="any"
+                  required
+                  defaultValue={dc?.stepValue ?? 0.01}
+                />
+              </label>
+            </div>
+            <small>
+              Values use{" "}
+              {dcSources.find((source) => source.id === selectedDcSourceId)
+                ?.unit ?? "the source unit"}
+              ; step is a positive magnitude.
+            </small>
+          </div>
+        ) : null}
         {acEnabled ? (
           <div className="simulation-setup-group simulation-analysis-settings">
             <label>
