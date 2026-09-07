@@ -1,5 +1,6 @@
 import type { ComponentProps, RefObject } from "react";
 
+import { AccountMenu } from "../components/account";
 import { BugReportLink } from "../components/bug-report-link";
 import { DrawingToolbar } from "../features/editor-shell/drawing-toolbar";
 import { EditorTestTelemetry } from "../features/editor-shell/editor-test-telemetry";
@@ -68,8 +69,20 @@ export interface EditorAppChromeProps {
   drawingToolbar: ComponentProps<typeof DrawingToolbar>;
   hierarchyToolbar: ComponentProps<typeof HierarchyToolbar>;
   telemetry: ComponentProps<typeof EditorTestTelemetry>;
-  /** Which channel serves this build; the preview wears a banner. */
+  /** Which channel serves this build; Preview is identified without a warning. */
   releaseChannel: ReleaseChannel;
+}
+
+export function ReleaseChannelBadge({
+  releaseChannel,
+}: {
+  releaseChannel: ReleaseChannel;
+}) {
+  return releaseChannel === "preview" ? (
+    <span className="app-channel-badge" data-testid="release-channel-badge">
+      Preview
+    </span>
+  ) : null;
 }
 
 /** Persistent command chrome above the document workspace. */
@@ -120,16 +133,6 @@ export function EditorAppChrome({
   const displayedProjectName = projectNameDraft ?? projectName;
   return (
     <header className="app-chrome">
-      {releaseChannel === "preview" ? (
-        <p
-          className="app-channel-banner"
-          role="status"
-          data-testid="release-channel-banner"
-        >
-          Preview build: unreleased features, simulation included. The gallery
-          is read-only here; publish on the production site.
-        </p>
-      ) : null}
       <div className="app-chrome-main">
         <div className="app-brand">
           <a
@@ -361,7 +364,7 @@ export function EditorAppChrome({
               data-testid="check-and-save"
               disabled={!checkAndSave.enabled}
               onClick={checkAndSave.execute}
-              title="Check ERC and visual issues, and save this Cloud Project"
+              title={`Check ERC and visual issues, and save this ${fileCommands.projectStoreItemLabel}`}
             >
               <span className="toolbar-check-glyph" aria-hidden="true" />
               Check and Save
@@ -379,6 +382,10 @@ export function EditorAppChrome({
           </div>
         </nav>
         <div className="app-chrome-actions">
+          <ReleaseChannelBadge releaseChannel={releaseChannel} />
+          {releaseChannel === "preview" ? (
+            <AccountMenu showGalleryLinks={false} />
+          ) : null}
           <BugReportLink
             testId="editor-report-bug"
             surface="Editor"

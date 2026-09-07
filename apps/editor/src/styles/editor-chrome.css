@@ -968,14 +968,133 @@
   }
 }
 
-/* The preview channel's banner (ADR 0057): always visible, never dismissable,
-   so a screenshot or a shared tab cannot be mistaken for the public site. */
-.app-channel-banner {
-  margin: 0;
-  padding: 2px var(--icm-space-3);
-  background: #8a4b00;
-  color: #fff;
-  font-size: 0.8rem;
-  line-height: 1.4;
+/* Preview is an environment identity, not a warning repeated above every
+   editing action. Keep it visible but subordinate to the Project name. */
+.app-channel-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.5rem;
+  padding: 0 0.45rem;
+  border: 1px solid #c47a1b;
+  border-radius: 999px;
+  color: #8a4b00;
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+/* The editor reuses the account contract from Gallery without importing the
+   Gallery page stylesheet. Only its compact header treatment lives here. */
+.app-chrome-actions .account-menu {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--icm-space-1);
+}
+
+.app-chrome-actions .account-name,
+.app-chrome-actions .account-signout,
+.app-chrome-actions .account-signin > summary,
+.app-chrome-actions .account-link {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--icm-control-h);
+  padding: 0 var(--icm-space-2);
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  color: var(--icm-text);
+  background: var(--icm-surface);
+  font: inherit;
+  font-size: var(--icm-font-sm);
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.app-chrome-actions .account-name:hover,
+.app-chrome-actions .account-signout:hover,
+.app-chrome-actions .account-signin > summary:hover,
+.app-chrome-actions .account-link:hover {
+  background: var(--icm-surface-hover);
+}
+
+.app-chrome-actions .account-name {
+  max-width: 10rem;
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+}
+
+.app-chrome-actions .account-signin,
+.app-chrome-actions .account-more {
+  position: relative;
+}
+
+.app-chrome-actions .account-signin > summary,
+.app-chrome-actions .account-more > summary {
+  list-style: none;
+}
+
+.app-chrome-actions .account-signin > summary::-webkit-details-marker,
+.app-chrome-actions .account-more > summary::-webkit-details-marker {
+  display: none;
+}
+
+.app-chrome-actions .account-more > summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--icm-control-h);
+  padding: 0 var(--icm-space-2);
+  border-radius: var(--icm-radius-sm);
+  cursor: pointer;
+}
+
+.app-chrome-actions .account-signin-panel,
+.app-chrome-actions .account-popover {
+  position: absolute;
+  z-index: 60;
+  top: calc(100% + 6px);
+  right: 0;
+  display: grid;
+  min-width: 11rem;
+  gap: var(--icm-space-1);
+  padding: var(--icm-space-2);
+  border: 1px solid var(--icm-border);
+  border-radius: 10px;
+  background: var(--icm-surface);
+  box-shadow: 0 12px 32px rgb(15 15 15 / 12%);
+}
+
+.app-chrome-actions .account-signin-panel {
+  width: 17rem;
+}
+
+.app-chrome-actions .account-signin-panel a {
+  display: block;
+  padding: var(--icm-space-2);
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  color: var(--icm-text);
+  font-weight: 600;
   text-align: center;
+  text-decoration: none;
+}
+
+.app-chrome-actions .account-signin-panel a:hover {
+  background: var(--icm-surface-hover);
+}
+
+.app-chrome-actions .account-owner-badge {
+  color: var(--icm-accent);
+  font-size: var(--icm-font-xs);
+  font-weight: 700;
+}
+
+.app-chrome-actions .account-rename-input {
+  width: 10rem;
+  min-height: var(--icm-control-h);
+  border: 1px solid var(--icm-accent);
+  border-radius: var(--icm-radius-sm);
+  font: inherit;
 }

@@ -20,8 +20,10 @@ Wrangler environments and not a claim of one promoted binary artifact.
 - **Preview:** `wrangler.preview.jsonc`, its own hostname and namespaces.
   Every merge to main deploys and verifies this channel. The public shell is
   unindexed and visibly labelled. Public Gallery reads go through Production's
-  anonymous HTTP API; Gallery and Cloud Project writes are refused. Preview has
-  no binding to Production's Durable Objects.
+  anonymous HTTP API and Gallery writes are refused. When a Preview-only Google
+  OAuth client is configured, human testers sign in and save private Projects
+  in Preview's own namespace; CI uses a separate acceptance identity against
+  that same Project API. Preview has no binding to Production's Durable Objects.
 - **Production:** `wrangler.jsonc`. A release tag or explicit commit dispatch
   selects the candidate. The workflow checks for a successful Preview deployment
   of that exact commit before deploying, verifying, and recovering on failure.
@@ -32,8 +34,10 @@ Wrangler environments and not a claim of one promoted binary artifact.
   the configured gateway/Tunnel. It is not a Worker-native process or a spare
   Cloudflare Container. An unavailable named executor does not silently fall back.
 - **Data and identity:** cookies and credentials remain host/session scoped.
-  Preview's production-Gallery view cannot validate private Production storage
-  migrations; those require their own tests and release care.
+  Preview accounts, sessions, and Projects are independent from Production and
+  its test data is not promoted or synchronized. Preview's production-Gallery
+  view cannot validate private Production storage migrations; those require
+  their own tests and release care.
 
 The exact deployment commands, evidence predicate, capabilities, and recovery
 limitations are owned by [deployment](../deployment.md). This ADR does not add a

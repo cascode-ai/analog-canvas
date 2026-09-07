@@ -6,6 +6,8 @@ import {
 } from "./cloud-projects";
 
 export interface FileCommandMenuProps {
+  projectStoreLabel: "Cloud Projects" | "Preview Projects";
+  projectStoreItemLabel: "Cloud Project" | "Preview Project";
   cloudProjects: readonly CloudProjectSummary[];
   activeCloudProjectId: string | null;
   canRevert: boolean;
@@ -104,6 +106,8 @@ function ExportSubmenu({
 }
 
 export function FileCommandMenu({
+  projectStoreLabel,
+  projectStoreItemLabel,
   cloudProjects,
   activeCloudProjectId,
   onOpenCloudProject,
@@ -145,7 +149,7 @@ export function FileCommandMenu({
           Save
         </button>
         <span className="command-group-label">
-          Cloud Projects ({cloudProjects.length}/{CLOUD_PROJECT_LIMIT})
+          {projectStoreLabel} ({cloudProjects.length}/{CLOUD_PROJECT_LIMIT})
         </span>
         {cloudProjects.map((project) => (
           <div className="cloud-project-command" key={project.id}>
@@ -167,8 +171,8 @@ export function FileCommandMenu({
             </button>
             <button
               type="button"
-              aria-label={`Delete Cloud Project ${project.name}`}
-              title="Delete this Cloud Project"
+              aria-label={`Delete ${projectStoreItemLabel} ${project.name}`}
+              title={`Delete this ${projectStoreItemLabel}`}
               disabled={project.id === activeCloudProjectId}
               onClick={() => onDeleteCloudProject(project)}
             >

@@ -9,6 +9,27 @@
  */
 export type ReleaseChannel = "production" | "preview";
 
+export interface ProjectStoreCopy {
+  singular: "Cloud Project" | "Preview Project";
+  plural: "Cloud Projects" | "Preview Projects";
+  destination: "Cloud" | "Preview Projects";
+}
+
+/** Human-facing storage identity; the underlying Project API is shared. */
+export function projectStoreCopy(channel: ReleaseChannel): ProjectStoreCopy {
+  return channel === "preview"
+    ? {
+        singular: "Preview Project",
+        plural: "Preview Projects",
+        destination: "Preview Projects",
+      }
+    : {
+        singular: "Cloud Project",
+        plural: "Cloud Projects",
+        destination: "Cloud",
+      };
+}
+
 export async function loadReleaseChannel(
   fetchLike: typeof fetch | null = typeof fetch === "function" ? fetch : null,
 ): Promise<ReleaseChannel> {

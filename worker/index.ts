@@ -25,8 +25,8 @@ import {
   channelResponse,
   markPreviewResponse,
   previewGalleryReadThrough,
+  previewGalleryWriteRefusal,
   previewRobotsResponse,
-  previewWriteRefusal,
   releaseChannel,
   type ChannelEnv,
 } from "./channel";
@@ -136,7 +136,7 @@ async function route(request: Request, env: Env): Promise<Response> {
   if (url.pathname === "/robots.txt" && releaseChannel(env) === "preview") {
     return previewRobotsResponse();
   }
-  const readOnlyRefusal = previewWriteRefusal(request, env);
+  const readOnlyRefusal = previewGalleryWriteRefusal(request, env);
   if (readOnlyRefusal) return readOnlyRefusal;
   const galleryReadThrough = await previewGalleryReadThrough(request, env);
   if (galleryReadThrough) return galleryReadThrough;

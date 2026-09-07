@@ -83,6 +83,30 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      # Preview accounts and Projects are isolated Durable Object namespaces.
+      # A dedicated OAuth client activates human login when both credentials
+      # are configured; the private CI acceptance identity remains independent.
+      - name: Sync preview authentication secrets
+        run: |
+          set -euo pipefail
+          if [ -z "$PREVIEW_GOOGLE_CLIENT_ID" ] && [ -z "$PREVIEW_GOOGLE_CLIENT_SECRET" ]; then
+            echo "Preview Google OAuth is not configured; keeping human login dark"
+            exit 0
+          fi
+          if [ -z "$PREVIEW_GOOGLE_CLIENT_ID" ] || [ -z "$PREVIEW_GOOGLE_CLIENT_SECRET" ]; then
+            echo "Preview Google OAuth credentials must be configured together"
+            exit 1
+          fi
+          jq -n \
+            --arg clientId "$PREVIEW_GOOGLE_CLIENT_ID" \
+            --arg clientSecret "$PREVIEW_GOOGLE_CLIENT_SECRET" \
+            '{GOOGLE_CLIENT_ID:$clientId, GOOGLE_CLIENT_SECRET:$clientSecret}' \
+            | pnpm dlx wrangler@4.120.1 secret bulk --config wrangler.preview.jsonc
+        env:
+          PREVIEW_GOOGLE_CLIENT_ID: ${{ secrets.PREVIEW_GOOGLE_CLIENT_ID }}
+          PREVIEW_GOOGLE_CLIENT_SECRET: ${{ secrets.PREVIEW_GOOGLE_CLIENT_SECRET }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       # The token the operator-run simulator host requires (worker/simulation.ts,
       # SIMULATION_UPSTREAM_TOKEN). A Worker secret outlives deploys, so setting
       # it every time is idempotent; with no repository secret the step is
@@ -106,7 +130,8 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       # What a preview is for: the page renders, the gallery reads and never
-      # writes, nothing is indexed, and the simulator answers.
+      # writes, isolated accounts/Projects are available, nothing is indexed,
+      # and the simulator answers.
       - name: Verify preview
         run: |
           set -euo pipefail
@@ -178,6 +203,18 @@ jobs:
             --write-out '%{http_code}' "${PREVIEW_URL}/api/gallery/preview-smoke/like")"
           if [ "$write" != "403" ]; then
             echo "A gallery write on the preview must be refused, got: $write"
+            exit 1
+          fi
+          providers="$(curl --fail --silent --show-error --max-time 20 \
+            "${PREVIEW_URL}/api/auth/providers")"
+          case "$providers" in
+            *'"google":true'*|*'"google":false'*) ;;
+            *) echo "Preview auth providers returned an invalid contract: $providers"; exit 1 ;;
+          esac
+          projects="$(curl --silent --output /dev/null --max-time 20 \
+            --write-out '%{http_code}' "${PREVIEW_URL}/api/projects")"
+          if [ "$projects" != "401" ]; then
+            echo "Anonymous Preview Projects must require sign-in, got: $projects"
             exit 1
           fi
       # A divider checks the transport and the persisted OTA Project checks the

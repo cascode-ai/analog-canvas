@@ -2,16 +2,17 @@
 
 ## Channels and data isolation
 
-| Channel    | Trigger and configuration                                                         | Data boundary                                                                                                                                  |
-| ---------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| Preview    | main push; `.github/workflows/deploy-preview.yml`; `wrangler.preview.jsonc`       | Own namespaces; anonymous HTTP read-through to public Gallery; public writes refused; private CI acceptance may use the isolated Project shelf |
-| Production | `v*` tag or commit dispatch; `.github/workflows/cloudflare.yml`; `wrangler.jsonc` | Public product and its private storage                                                                                                         |
+| Channel    | Trigger and configuration                                                         | Data boundary                                                                                                                                              |
+| ---------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Preview    | main push; `.github/workflows/deploy-preview.yml`; `wrangler.preview.jsonc`       | Own accounts and Projects; anonymous HTTP read-through to public Gallery; Gallery writes refused; private CI acceptance uses the same isolated Project API |
+| Production | `v*` tag or commit dispatch; `.github/workflows/cloudflare.yml`; `wrangler.jsonc` | Public product and its private storage                                                                                                                     |
 
 Preview is served at `analog-canvas-preview.tokenzhang.com`, labelled and
 unindexed. Production is `analog-canvas.tokenzhang.com`. The separate
 configuration files do not inherit routes or bindings. Preview has no
-Production Durable Object binding, no Production cookies, and no configured
-OAuth provider. Its simulation capability can be issued without OAuth; public
+Production Durable Object binding or Production cookies. Human testers use a
+Preview-only Google OAuth client; its consent-screen test-user roster controls
+who can sign in. Its simulation capability can be issued without OAuth; public
 site access is not unrestricted compute authority.
 
 The channels share source and contracts, not a guarantee of a single promoted
@@ -27,6 +28,21 @@ GalleryDO, imports it through the public `project_cells` resource, runs the
 resulting Testbench, preserves its receipt, and removes the seed. Missing or
 incorrect credentials fail closed as the same 401/403 seen by an ordinary
 visitor.
+
+Human Preview login uses this callback:
+
+```text
+https://analog-canvas-preview.tokenzhang.com/api/auth/google/callback
+```
+
+The `cloudflare-preview` GitHub environment supplies
+`PREVIEW_GOOGLE_CLIENT_ID` and `PREVIEW_GOOGLE_CLIENT_SECRET`. Deployment maps
+them to the Preview Worker's standard OAuth secret names when both are present.
+Human login remains dark when neither is configured; a partial pair fails the
+deployment. Preview's `AUTH` and `GALLERY` bindings are independent namespaces;
+the same Google account may therefore use Preview and Production without
+sharing sessions, internal user IDs, limits, or Projects. Preview Projects are
+disposable test data and never synchronize or promote to Production.
 
 ## Releasing to Production
 
