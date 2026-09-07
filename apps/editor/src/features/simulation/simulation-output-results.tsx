@@ -1,4 +1,5 @@
 import type { SimulationFocusTarget } from "./simulation-focus-target";
+import type { ReactNode } from "react";
 import {
   simulationExpressionDependencies,
   type SimulationOutputSpec,
@@ -12,6 +13,45 @@ import {
 } from "./ac-results-explorer";
 import { ScalarResultsExplorer } from "./transient-results-explorer";
 import { SimulationMeasurementResults } from "./simulation-measurement-results";
+
+export type SimulationAnalysisKind = "op" | "dc" | "ac" | "tran";
+
+function simulationAnalysisTitle(kind: SimulationAnalysisKind): string {
+  switch (kind) {
+    case "op":
+      return "Operating Point Analysis";
+    case "dc":
+      return "DC Analysis";
+    case "ac":
+      return "AC Analysis";
+    case "tran":
+      return "Transient Analysis";
+  }
+}
+
+export function SimulationAnalysisCard({
+  kind,
+  plotName,
+  children,
+}: {
+  kind: SimulationAnalysisKind;
+  plotName?: string;
+  children: ReactNode;
+}) {
+  const title = simulationAnalysisTitle(kind);
+  return (
+    <section
+      className="simulation-analysis-card"
+      aria-label={kind === "op" ? "OP results" : `${title} results`}
+    >
+      <header className="simulation-analysis-card-header">
+        <h3>{title}</h3>
+        {plotName && plotName !== title ? <small>{plotName}</small> : null}
+      </header>
+      <div className="simulation-analysis-card-body">{children}</div>
+    </section>
+  );
+}
 
 function focusProbe(
   output: SimulationOutputSpec,
@@ -37,20 +77,16 @@ export function SimulationOutputResults({
     const probe = focusProbe(output);
     return probe ? [probe] : [];
   });
-  const visibleAnalyses = new Set(
-    data.analyses.map((analysis) => analysis.analysis),
-  );
-
   return (
-    <>
+    <div className="simulation-output-results">
       {data.analyses.map((analysis, analysisIndex) => {
         if (analysis.analysis === "op")
           return (
-            <section
+            <SimulationAnalysisCard
               key={`op-${analysisIndex}`}
-              aria-label="Derived OP results"
+              kind="op"
+              plotName={analysis.plotName}
             >
-              <h3>{analysis.plotName}</h3>
               <table>
                 <thead>
                   <tr>
@@ -70,7 +106,14 @@ export function SimulationOutputResults({
                   ))}
                 </tbody>
               </table>
-            </section>
+              <SimulationMeasurementResults
+                measurements={(data.measurements ?? []).filter(
+                  (measurement) =>
+                    measurement.analysis === analysis.analysis &&
+                    measurement.plotName === analysis.plotName,
+                )}
+              />
+            </SimulationAnalysisCard>
           );
         if (!analysis.domain) return null;
         const complex = analysis.outputs.filter((output) => output.imaginary);
@@ -82,7 +125,11 @@ export function SimulationOutputResults({
             output,
           ]);
         return (
-          <section key={`${analysis.analysis}-${analysisIndex}`}>
+          <SimulationAnalysisCard
+            key={`${analysis.analysis}-${analysisIndex}`}
+            kind={analysis.analysis}
+            plotName={analysis.plotName}
+          >
             {analysis.analysis === "ac" && complex.length > 0 ? (
               <ComplexResultsExplorer
                 resultKey={`${resultKey}:complex:${analysisIndex}`}
@@ -168,7 +215,14 @@ export function SimulationOutputResults({
                 />
               );
             })}
-          </section>
+            <SimulationMeasurementResults
+              measurements={(data.measurements ?? []).filter(
+                (measurement) =>
+                  measurement.analysis === analysis.analysis &&
+                  measurement.plotName === analysis.plotName,
+              )}
+            />
+          </SimulationAnalysisCard>
         );
       })}
       {data.diagnostics.length > 0 ? (
@@ -184,11 +238,6 @@ export function SimulationOutputResults({
           ))}
         </div>
       ) : null}
-      <SimulationMeasurementResults
-        measurements={(data.measurements ?? []).filter((measurement) =>
-          visibleAnalyses.has(measurement.analysis),
-        )}
-      />
-    </>
+    </div>
   );
 }

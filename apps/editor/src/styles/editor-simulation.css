@@ -721,7 +721,7 @@
 }
 .simulation-results-body {
   min-height: 0;
-  padding: 12px;
+  padding: 16px;
   overflow: auto;
 }
 .simulation-files-view small {
@@ -734,6 +734,54 @@
 .simulation-analysis-view h3 {
   margin: 0 0 8px;
   font-size: var(--icm-font-sm);
+}
+.simulation-analysis-view,
+.simulation-output-results {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  min-width: 0;
+}
+.simulation-analysis-card {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--icm-border-strong);
+  border-radius: var(--icm-radius-md);
+  background: var(--icm-surface);
+  box-shadow: var(--icm-shadow-sm);
+}
+.simulation-analysis-card-header {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--icm-border);
+  background: var(--icm-surface-muted);
+  text-align: center;
+}
+.simulation-analysis-view .simulation-analysis-card-header h3 {
+  margin: 0;
+  color: var(--icm-text);
+  font-size: var(--icm-font-md);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+.simulation-analysis-card-header small {
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+}
+.simulation-analysis-card-body {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  padding: 14px;
+}
+.simulation-analysis-card-body > .ac-results-explorer > header,
+.simulation-analysis-card-body > .transient-results-explorer > header {
+  display: none;
+}
+.simulation-analysis-card-body > .simulation-measurement-results {
+  margin-top: 0;
 }
 
 .simulation-op-canvas-controls {
@@ -1244,7 +1292,7 @@
 .ac-results-explorer {
   position: relative;
   display: grid;
-  gap: 6px;
+  gap: 12px;
   min-width: 0;
 }
 .ac-results-explorer > header {
@@ -1265,18 +1313,24 @@
 }
 .ac-view-toolbar {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   min-width: 0;
-  margin-bottom: 5px;
+  min-height: 40px;
+  padding: 5px 7px;
+  overflow-x: auto;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  background: var(--icm-surface-muted);
 }
 .ac-view-toolbar > strong {
-  min-width: 72px;
+  min-width: 88px;
+  padding-left: 3px;
 }
 .ac-view-toolbar > [role="group"] {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 2px;
   padding: 2px;
   border: 1px solid var(--icm-border);
@@ -1301,6 +1355,7 @@
   margin-left: auto;
   color: var(--icm-text-muted);
   font-size: var(--icm-font-xs);
+  white-space: nowrap;
 }
 .ac-view-toolbar select {
   min-height: 28px;
@@ -1312,14 +1367,14 @@
 }
 .simulation-plot-layout {
   display: grid;
-  grid-template-columns: minmax(74px, 108px) minmax(0, 1fr);
-  gap: 6px;
+  grid-template-columns: minmax(88px, 108px) minmax(0, 1fr);
+  gap: 12px;
   align-items: start;
   min-width: 0;
 }
 .simulation-plot-stack {
   display: grid;
-  gap: 8px;
+  gap: 12px;
   min-width: 0;
 }
 .waveform-trace-list {
@@ -1328,7 +1383,7 @@
   display: grid;
   gap: 4px;
   min-width: 0;
-  padding-top: 20px;
+  padding-top: 23px;
 }
 .waveform-trace-toggle {
   width: 100%;
@@ -1377,12 +1432,12 @@
 }
 .ac-quantity-group {
   display: grid;
-  gap: 4px;
+  gap: 10px;
   min-width: 0;
 }
 .ac-plot-row {
   display: grid;
-  gap: 3px;
+  gap: 6px;
   min-width: 0;
 }
 .ac-plot-row > strong {
@@ -1413,18 +1468,16 @@
   position: relative;
   order: -1;
   align-self: stretch;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  display: flex;
-  gap: 2px;
-  padding: 3px 4px;
+  display: block;
+  height: 34px;
+  min-height: 34px;
+  padding: 0;
   border: 0;
   border-bottom: 1px solid var(--icm-border);
   border-radius: 0;
   background: var(--icm-surface-muted);
   box-shadow: none;
-  opacity: 1;
-  pointer-events: auto;
+  outline-offset: -2px;
 }
 .ac-plot-shell > .ac-cursor-readout {
   margin: 0;
@@ -1433,11 +1486,44 @@
   border-radius: 0;
   box-shadow: none;
 }
-.ac-plot-shell:hover .ac-plot-toolbar,
-.ac-plot-shell:focus-within .ac-plot-toolbar,
-.ac-plot-toolbar.expanded {
+.waveform-tools-hint {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+.waveform-tool-actions {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 2px;
+  padding: 3px 4px;
+  overflow-x: auto;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 120ms ease,
+    visibility 0s linear 120ms;
+}
+.ac-plot-shell:hover .waveform-tool-actions,
+.ac-plot-toolbar:focus-within .waveform-tool-actions,
+.ac-plot-toolbar.expanded .waveform-tool-actions {
   opacity: 1;
+  visibility: visible;
   pointer-events: auto;
+  transition-delay: 0s;
+}
+.ac-plot-shell:hover .waveform-tools-hint,
+.ac-plot-toolbar:focus-within .waveform-tools-hint,
+.ac-plot-toolbar.expanded .waveform-tools-hint {
+  opacity: 0;
 }
 .ac-plot-toolbar button {
   min-width: 27px;
@@ -1571,6 +1657,17 @@
   }
   .simulation-artifact-list small {
     display: none;
+  }
+}
+
+@media (hover: none) {
+  .waveform-tools-hint {
+    display: none;
+  }
+  .waveform-tool-actions {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
   }
 }
 
@@ -2088,19 +2185,29 @@
 }
 .waveform-tools {
   align-self: stretch;
-  justify-content: flex-end;
 }
-.waveform-tools > [role="group"] {
+.waveform-tool-actions > [role="group"] {
   display: flex;
   border-left: 1px solid var(--icm-border);
   padding-left: 4px;
 }
 .waveform-range-editor {
-  flex-basis: 100%;
+  position: absolute;
+  z-index: 5;
+  top: 100%;
+  right: 0;
   display: flex;
   flex-wrap: wrap;
+  width: min(100%, 520px);
   gap: 6px;
   padding: 6px;
+  border: 1px solid var(--icm-border-strong);
+  border-radius: 0 0 var(--icm-radius-sm) var(--icm-radius-sm);
+  background: var(--icm-surface);
+  box-shadow: var(--icm-shadow-sm);
+}
+.ac-plot-shell:has(.waveform-range-editor) {
+  overflow: visible;
 }
 .waveform-range-editor fieldset {
   display: flex;

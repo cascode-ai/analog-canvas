@@ -40,72 +40,79 @@ export function WaveformTools({
           : { ...c.view.y, [plotKey]: zoomWaveformRange(y, factor) },
     });
   return (
-    <div className="ac-plot-toolbar waveform-tools" aria-label="Plot tools">
-      <button
-        type="button"
-        aria-label="Previous view"
-        disabled={c.state.index === 0}
-        onClick={() => c.travel(-1)}
-      >
-        ↶
-      </button>
-      <button
-        type="button"
-        aria-label="Next view"
-        disabled={c.state.index === c.state.history.length - 1}
-        onClick={() => c.travel(1)}
-      >
-        ↷
-      </button>
-      <div role="group" aria-label="Controlled axes">
-        {(["xy", "x", "y"] as const).map((axis) => (
-          <button
-            type="button"
-            key={axis}
-            aria-label={`Control ${axis.toUpperCase()} axes`}
-            aria-pressed={c.state.axes === axis}
-            onClick={() => c.set("axes", axis)}
-          >
-            {axis.toUpperCase()}
-          </button>
-        ))}
-      </div>
-      <button type="button" aria-label="Zoom in" onClick={() => zoom(0.6)}>
-        +
-      </button>
-      <button type="button" aria-label="Zoom out" onClick={() => zoom(1.7)}>
-        −
-      </button>
-      <button type="button" aria-label="Fit plot" onClick={() => fit("xy")}>
-        Fit
-      </button>
-      <button type="button" aria-label="Fit X" onClick={() => fit("x")}>
-        Fit X
-      </button>
-      <button type="button" aria-label="Fit Y" onClick={() => fit("y")}>
-        Fit Y
-      </button>
-      <button
-        type="button"
-        aria-expanded={editing}
-        onClick={() => setEditing(!editing)}
-      >
-        Ranges
-      </button>
-      <div role="group" aria-label="Active marker">
-        {(["A", "B"] as const).map((marker) => (
-          <button
-            key={marker}
-            type="button"
-            aria-label={`Place marker ${marker}`}
-            aria-pressed={c.state.activeMarker === marker}
-            onClick={() => c.set("activeMarker", marker)}
-          >
-            {marker}
-          </button>
-        ))}
-      </div>
-      {
+    <div
+      className={`ac-plot-toolbar waveform-tools${editing ? " expanded" : ""}`}
+      aria-label="Plot tools"
+      tabIndex={0}
+    >
+      <span className="waveform-tools-hint" aria-hidden="true">
+        Plot tools
+      </span>
+      <div className="waveform-tool-actions">
+        <button
+          type="button"
+          aria-label="Previous view"
+          disabled={c.state.index === 0}
+          onClick={() => c.travel(-1)}
+        >
+          ↶
+        </button>
+        <button
+          type="button"
+          aria-label="Next view"
+          disabled={c.state.index === c.state.history.length - 1}
+          onClick={() => c.travel(1)}
+        >
+          ↷
+        </button>
+        <div role="group" aria-label="Controlled axes">
+          {(["xy", "x", "y"] as const).map((axis) => (
+            <button
+              type="button"
+              key={axis}
+              aria-label={`Control ${axis.toUpperCase()} axes`}
+              aria-pressed={c.state.axes === axis}
+              onClick={() => c.set("axes", axis)}
+            >
+              {axis.toUpperCase()}
+            </button>
+          ))}
+        </div>
+        <button type="button" aria-label="Zoom in" onClick={() => zoom(0.6)}>
+          +
+        </button>
+        <button type="button" aria-label="Zoom out" onClick={() => zoom(1.7)}>
+          −
+        </button>
+        <button type="button" aria-label="Fit plot" onClick={() => fit("xy")}>
+          Fit
+        </button>
+        <button type="button" aria-label="Fit X" onClick={() => fit("x")}>
+          Fit X
+        </button>
+        <button type="button" aria-label="Fit Y" onClick={() => fit("y")}>
+          Fit Y
+        </button>
+        <button
+          type="button"
+          aria-expanded={editing}
+          onClick={() => setEditing(!editing)}
+        >
+          Ranges
+        </button>
+        <div role="group" aria-label="Active marker">
+          {(["A", "B"] as const).map((marker) => (
+            <button
+              key={marker}
+              type="button"
+              aria-label={`Place marker ${marker}`}
+              aria-pressed={c.state.activeMarker === marker}
+              onClick={() => c.set("activeMarker", marker)}
+            >
+              {marker}
+            </button>
+          ))}
+        </div>
         <button
           type="button"
           aria-label="Clear markers"
@@ -116,12 +123,12 @@ export function WaveformTools({
         >
           ×│
         </button>
-      }
-      {onOpen && (
-        <button type="button" aria-label="Open plot" onClick={onOpen}>
-          ⛶
-        </button>
-      )}
+        {onOpen && (
+          <button type="button" aria-label="Open plot" onClick={onOpen}>
+            ⛶
+          </button>
+        )}
+      </div>
       {editing && (
         <WaveformRangeEditor
           x={x}
