@@ -162,9 +162,11 @@ import type { WireUnderSymbolWarning } from "./wire-under-symbol";
  */
 export function WireUnderSymbolOverlay({
   warnings,
+  canSelectRoute,
   onSelectRoute,
 }: {
   warnings: readonly WireUnderSymbolWarning[];
+  canSelectRoute: (routeId: string) => boolean;
   onSelectRoute: (routeId: string) => void;
 }) {
   if (warnings.length === 0) return null;
@@ -190,12 +192,16 @@ export function WireUnderSymbolOverlay({
             y1={warning.from.y}
             x2={warning.to.x}
             y2={warning.to.y}
+            pointerEvents={canSelectRoute(warning.routeId) ? undefined : "none"}
             onPointerDown={(event) => {
+              if (!canSelectRoute(warning.routeId)) return;
               event.stopPropagation();
               event.preventDefault();
               onSelectRoute(warning.routeId);
             }}
-            onClick={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              if (canSelectRoute(warning.routeId)) event.stopPropagation();
+            }}
           />
         </g>
       ))}

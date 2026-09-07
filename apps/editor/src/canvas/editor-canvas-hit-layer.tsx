@@ -22,10 +22,7 @@ import {
   instanceHitBox,
 } from "../features/wiring/route-interaction-geometry";
 import type { EditorTool } from "../interaction/interaction-state";
-import {
-  DEFAULT_SELECTION_FILTER,
-  type SelectionFilter,
-} from "../features/selection/selection-filter";
+import type { SelectionPolicy } from "../features/selection/selection-filter";
 import { serializePolylinePoints } from "./canvas-geometry";
 
 type Instance = SchematicDocument["instances"][number];
@@ -60,6 +57,7 @@ interface SelectionHitTargetProps {
    * Members get the `would-move` tint so the moving body reads as one.
    */
   wouldMoveIds: ReadonlySet<string>;
+  selectionPolicy: SelectionPolicy;
   onInstanceClick: (instance: Instance, additive: boolean) => void;
   onInstanceOpen: (instance: Instance) => void;
   onInstanceContextMenu: (
@@ -94,7 +92,7 @@ interface EndpointHitTargetProps {
   selectedRouteSegmentIndex: number | null;
   selectedEndpoint: WireSource | null;
   supplementalJunctionIds: readonly string[];
-  selectionFilter?: SelectionFilter;
+  selectionPolicy: SelectionPolicy;
   endpointLabel: (endpoint: WireSource["endpoint"]) => string;
   onEndpointActions: (
     endpoint: WireSource,
@@ -152,6 +150,7 @@ function SelectionHitTargets({
   supplementalAnnotationIds,
   cellSymbolLayoutInstanceId,
   wouldMoveIds,
+  selectionPolicy,
   onInstanceClick,
   onInstanceOpen,
   onInstanceContextMenu,
@@ -186,14 +185,35 @@ function SelectionHitTargets({
                     : "hit-target"
               }
               onClick={(event) => {
+                if (
+                  !selectionPolicy.allowsCanvasHit(
+                    { kind: "instance", id: instance.id },
+                    "select",
+                  )
+                )
+                  return;
                 event.stopPropagation();
                 onInstanceClick(instance, event.shiftKey || event.ctrlKey);
               }}
               onDoubleClick={(event) => {
+                if (
+                  !selectionPolicy.allowsCanvasHit(
+                    { kind: "instance", id: instance.id },
+                    "edit",
+                  )
+                )
+                  return;
                 event.stopPropagation();
                 onInstanceOpen(instance);
               }}
               onContextMenu={(event) => {
+                if (
+                  !selectionPolicy.allowsCanvasHit(
+                    { kind: "instance", id: instance.id },
+                    "context-menu",
+                  )
+                )
+                  return;
                 event.preventDefault();
                 event.stopPropagation();
                 onInstanceContextMenu(instance, event.clientX, event.clientY);
@@ -222,10 +242,30 @@ function SelectionHitTargets({
           // Drawing tools only: under the pointer tool the capture-phase
           // router has already claimed this press and stopped it, so this
           // handler runs for the wire gesture and for nothing else.
-          onPointerDown={(event) => onRoutePointerDown(event, route.id)}
+          onPointerDown={(event) => {
+            if (
+              tool === "pointer" &&
+              !selectionPolicy.allowsCanvasHit(
+                { kind: "route", id: route.id },
+                "drag",
+              )
+            )
+              return;
+            onRoutePointerDown(event, route.id);
+          }}
           onPointerEnter={() => onNetPointerEnter?.(route.netId)}
           onPointerLeave={() => onNetPointerLeave?.()}
-          onClick={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            if (
+              tool !== "pointer" ||
+              selectionPolicy.allowsCanvasHit(
+                { kind: "route", id: route.id },
+                "select",
+              )
+            ) {
+              event.stopPropagation();
+            }
+          }}
         />
       ))}
       {children}
@@ -277,12 +317,28 @@ function SelectionHitTargets({
                     : "hit-target annotation-text-hit"
               }
               {...hitBox}
-              onClick={(event) => event.stopPropagation()}
+              onClick={(event) => {
+                if (
+                  selectionPolicy.allowsCanvasHit(
+                    { kind: "annotation", id: annotation.id },
+                    "select",
+                  )
+                ) {
+                  event.stopPropagation();
+                }
+              }}
               onPointerEnter={() =>
                 annotation.netId && onNetPointerEnter?.(annotation.netId)
               }
               onPointerLeave={() => onNetPointerLeave?.()}
               onContextMenu={(event) => {
+                if (
+                  !selectionPolicy.allowsCanvasHit(
+                    { kind: "annotation", id: annotation.id },
+                    "context-menu",
+                  )
+                )
+                  return;
                 event.preventDefault();
                 event.stopPropagation();
                 onAnnotationContextMenu(
@@ -293,6 +349,13 @@ function SelectionHitTargets({
               }}
               pointerEvents={tool === "wire" ? "none" : undefined}
               onDoubleClick={(event) => {
+                if (
+                  !selectionPolicy.allowsCanvasHit(
+                    { kind: "annotation", id: annotation.id },
+                    "edit",
+                  )
+                )
+                  return;
                 event.stopPropagation();
                 onAnnotationEdit(annotation);
               }}
@@ -311,7 +374,7 @@ function EndpointHitTargets({
   selectedRouteSegmentIndex,
   selectedEndpoint,
   supplementalJunctionIds,
-  selectionFilter = DEFAULT_SELECTION_FILTER,
+  selectionPolicy,
   endpointLabel,
   endpointHitRadius,
   onEndpointActions,
@@ -397,13 +460,36 @@ function EndpointHitTargets({
         cx={candidate.connection.contactPoint.x}
         cy={candidate.connection.contactPoint.y}
         r={endpointHitRadius}
-        onClick={(event) => event.stopPropagation()}
+        onClick={(event) => {
+          if (
+            tool !== "pointer" ||
+            selectionPolicy.allowsEndpoint(candidate.endpoint.kind, "select")
+          ) {
+            event.stopPropagation();
+          }
+        }}
         onContextMenu={(event) => {
+          if (
+            tool === "pointer" &&
+            !selectionPolicy.allowsEndpoint(
+              candidate.endpoint.kind,
+              "context-menu",
+            )
+          )
+            return;
           event.preventDefault();
           event.stopPropagation();
           onEndpointActions(candidate, event.clientX, event.clientY);
         }}
         onPointerDown={(event) => {
+          if (
+            tool === "pointer" &&
+            selectedRoute &&
+            (powerRailEndIndex >= 0 || selectedRouteEndSide !== null) &&
+            !selectionPolicy.allowsClass("route", "handle")
+          ) {
+            return;
+          }
           if (tool === "pointer" && selectedRoute && powerRailEndIndex >= 0) {
             onRouteStretch(
               event,
@@ -434,9 +520,7 @@ function EndpointHitTargets({
           }
           if (
             tool === "pointer" &&
-            !selectionFilter[
-              candidate.endpoint.kind === "junction" ? "junction" : "terminal"
-            ]
+            !selectionPolicy.allowsEndpoint(candidate.endpoint.kind, "select")
           ) {
             return;
           }

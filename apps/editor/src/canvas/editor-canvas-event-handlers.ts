@@ -14,6 +14,7 @@ import type { WireSource } from "@icm/edit-engine";
 import type { SymbolResolver } from "@icm/symbols";
 
 import type { EditorTool } from "../interaction/interaction-state";
+import type { SelectionPolicy } from "../features/selection/selection-filter";
 import { rankCanvasHits } from "./canvas-hit-resolver";
 import {
   proposeRectangleLabel,
@@ -34,6 +35,7 @@ interface CanvasEventHandlerDependencies {
     tool: EditorTool;
     document: SchematicDocument;
     resolver: SymbolResolver;
+    selectionPolicy: SelectionPolicy;
   };
   session: {
     interactionKind: () => string;
@@ -130,7 +132,7 @@ interface CanvasEventHandlerDependencies {
 
 /** DOM event boundary for the editor canvas; domain mutations stay injected. */
 export function createEditorCanvasEventHandlers({
-  model: { tool, document, resolver },
+  model: { tool, document, resolver, selectionPolicy },
   session: { interactionKind, cellSymbolLayoutEnabled, exitCellSymbolLayout },
   coordinates: {
     pointFromClient,
@@ -369,6 +371,7 @@ export function createEditorCanvasEventHandlers({
             event.clientX,
             event.clientY,
           ),
+          (hit) => selectionPolicy.allowsCanvasHit(hit, "edit"),
         );
         const annotationHit = pointHits.find(
           (hit) => hit.kind === "annotation",
@@ -399,7 +402,7 @@ export function createEditorCanvasEventHandlers({
         const rectangle = electricalHit
           ? null
           : rectangleInteriorAt(document, resolver, interiorPoint);
-        if (rectangle) {
+        if (rectangle && selectionPolicy.allowsDrafting(rectangle, "edit")) {
           event.preventDefault();
           event.stopPropagation();
           cancelCanvasDrag();
@@ -487,7 +490,19 @@ export function createEditorCanvasEventHandlers({
       }
       if (tool === "wire") cancelWire();
       if (tool === "pointer" && interactionKind() === "idle") {
-        openContextMenu(event.target as Element, event.clientX, event.clientY);
+        const hit = rankCanvasHits(
+          event.currentTarget.ownerDocument.elementsFromPoint(
+            event.clientX,
+            event.clientY,
+          ),
+          (candidate) =>
+            selectionPolicy.allowsCanvasHit(candidate, "context-menu"),
+        )[0];
+        openContextMenu(
+          hit?.element ?? event.currentTarget,
+          event.clientX,
+          event.clientY,
+        );
       }
     },
     onDragOver(event: ReactDragEvent<SVGSVGElement>) {

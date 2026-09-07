@@ -2,7 +2,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { Diagnostic } from "@icm/derived";
 
-import { DiagnosticMarkersOverlay } from "./editor-canvas-overlays";
+import {
+  DiagnosticMarkersOverlay,
+  WireUnderSymbolOverlay,
+} from "./editor-canvas-overlays";
 
 const finding: Diagnostic = {
   id: "visual:doc:VISUAL_AMBIGUOUS_JUNCTION:J1",
@@ -76,5 +79,27 @@ describe("DiagnosticMarkersOverlay", () => {
         <DiagnosticMarkersOverlay markers={[]} onSelectMarker={vi.fn()} />,
       ),
     ).toBe("");
+  });
+});
+
+describe("WireUnderSymbolOverlay", () => {
+  it("makes its special hit span transparent when Wires are filtered", () => {
+    const markup = renderToStaticMarkup(
+      <WireUnderSymbolOverlay
+        warnings={[
+          {
+            routeId: "route-1",
+            instanceId: "M1",
+            from: { x: 0, y: 10 },
+            to: { x: 20, y: 10 },
+          },
+        ]}
+        canSelectRoute={() => false}
+        onSelectRoute={vi.fn()}
+      />,
+    );
+    expect(markup).toMatch(
+      /class="wire-under-symbol-hit"[^>]*pointer-events="none"/u,
+    );
   });
 });

@@ -126,8 +126,8 @@ export function SelectionFilterPopover({
         </fieldset>
       ))}
       <small>
-        Affects new selections only. Drawing, simulation, visibility, and
-        connectivity stay unchanged.
+        Controls direct selection and editing. Drawing, simulation, visibility,
+        connectivity, and wire follow during device moves stay unchanged.
       </small>
     </aside>
   );
