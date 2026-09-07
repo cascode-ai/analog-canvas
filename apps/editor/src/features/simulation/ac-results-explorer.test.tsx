@@ -68,6 +68,8 @@ describe("AC Results Explorer", () => {
     expect(markup).not.toContain('aria-label="More plot tools"');
     expect(markup).not.toContain("<strong>Voltage</strong>");
     expect(markup).toContain('aria-label="Open plot"');
+    expect(markup).toContain('class="ac-axis-title"');
+    expect(markup).toContain(">Frequency</text>");
     expect(markup).not.toContain("Wheel to zoom");
   });
 

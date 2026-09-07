@@ -699,6 +699,12 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   await expect(
     panel.getByRole("button", { name: "Hide first-output" }),
   ).toHaveCount(2);
+  expect(
+    await panel
+      .locator(".waveform-trace-list")
+      .first()
+      .evaluate((list) => getComputedStyle(list).position),
+  ).toBe("static");
   const magnitudePlot = panel
     .locator(".ac-plot-row")
     .filter({ hasText: "Magnitude" })
@@ -798,9 +804,7 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
     "none",
   );
   await transientPlot.hover();
-  const rightTimeLabel = transientPlot
-    .locator('svg text[text-anchor="middle"]')
-    .last();
+  const rightTimeLabel = transientPlot.locator("svg .ac-x-axis-label").last();
   const fullTimeLabel = await rightTimeLabel.textContent();
   const toolbarBounds = await transientToolbar.boundingBox();
   const transientBounds = await transientPlot.boundingBox();
@@ -833,7 +837,7 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   await transientShell.getByRole("button", { name: "Fit plot" }).click();
   await expect(rightTimeLabel).toHaveText(fullTimeLabel ?? "");
   const yLabels = await transientPlot
-    .locator('svg text[text-anchor="end"]')
+    .locator('svg .ac-axis-label:not(.ac-x-axis-label)[text-anchor="end"]')
     .allTextContents();
   await transientToolbar.hover();
   await transientShell.getByRole("button", { name: "Control X axes" }).click();
@@ -853,7 +857,7 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   await expect(rightTimeLabel).not.toHaveText(fullTimeLabel ?? "");
   expect(
     await transientPlot
-      .locator('svg text[text-anchor="end"]')
+      .locator('svg .ac-axis-label:not(.ac-x-axis-label)[text-anchor="end"]')
       .allTextContents(),
   ).toEqual(yLabels);
   await transientToolbar.hover();
@@ -916,6 +920,16 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
     .getByRole("button", { name: "Ranges", exact: true })
     .click();
   const ranges = transientShell.getByRole("form", { name: "Axis ranges" });
+  const rangeBounds = await ranges.boundingBox();
+  const shellBounds = await transientShell.boundingBox();
+  const plotBoundsWithRanges = await transientPlot.boundingBox();
+  expect(rangeBounds!.x).toBeGreaterThanOrEqual(shellBounds!.x);
+  expect(rangeBounds!.x + rangeBounds!.width).toBeLessThanOrEqual(
+    shellBounds!.x + shellBounds!.width,
+  );
+  expect(rangeBounds!.y + rangeBounds!.height).toBeLessThanOrEqual(
+    plotBoundsWithRanges!.y,
+  );
   await ranges.getByLabel("Auto X", { exact: true }).uncheck();
   await ranges.getByLabel("X minimum").fill("8e-9");
   await ranges.getByLabel("X maximum").fill("2e-9");

@@ -42,9 +42,9 @@ const PLOT = {
   width: 760,
   height: 395,
   left: 64,
-  right: 18,
+  right: 48,
   top: 16,
-  bottom: 34,
+  bottom: 48,
 } as const;
 const EXPANDED_PLOT = { ...PLOT, width: 1400, height: 700 } as const;
 
@@ -420,6 +420,12 @@ export function ScalarResultsExplorer({
                 geometry.left +
                 xFraction(value, range) *
                   (geometry.width - geometry.left - geometry.right);
+              const textAnchor =
+                x - geometry.left < 36
+                  ? "start"
+                  : geometry.width - geometry.right - x < 36
+                    ? "end"
+                    : "middle";
               return (
                 <g key={value}>
                   <line
@@ -430,10 +436,10 @@ export function ScalarResultsExplorer({
                     y2={geometry.height - geometry.bottom}
                   />
                   <text
-                    className="ac-axis-label"
-                    textAnchor="middle"
+                    className="ac-axis-label ac-x-axis-label"
+                    textAnchor={textAnchor}
                     x={x}
-                    y={geometry.height - 8}
+                    y={geometry.height - geometry.bottom + 18}
                   >
                     {waveformTickLabel(
                       value,
@@ -445,6 +451,14 @@ export function ScalarResultsExplorer({
                 </g>
               );
             })}
+            <text
+              className="ac-axis-title"
+              textAnchor="end"
+              x={geometry.width - geometry.right}
+              y={geometry.height - 7}
+            >
+              {domainLabel}
+            </text>
             {waveformTicks(
               extent[0],
               extent[1],
