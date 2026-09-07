@@ -200,45 +200,49 @@ function WaveformRangeEditor({
         onApply(nextX, nextY);
       }}
     >
-      {(["x", "y"] as const).map((axis) => (
-        <fieldset key={axis}>
-          <legend>
-            {axis.toUpperCase()} ({axis === "x" ? xUnit : yUnit})
-          </legend>
-          <label>
-            <input
-              type="checkbox"
-              aria-label={`Auto ${axis.toUpperCase()}`}
-              checked={axis === "x" ? autoX : autoY}
-              onChange={(event) =>
-                (axis === "x" ? setAutoX : setAutoY)(event.target.checked)
-              }
-            />
-            Auto
-          </label>
-          {([0, 1] as const).map((index) => (
-            <label key={index}>
-              {index === 0 ? "Min" : "Max"}
+      <div className="waveform-range-grid">
+        {(["x", "y"] as const).map((axis) => (
+          <fieldset key={axis}>
+            <legend>
+              {axis.toUpperCase()} ({axis === "x" ? xUnit : yUnit})
+            </legend>
+            <label className="waveform-range-auto">
               <input
-                aria-label={`${axis.toUpperCase()} ${index === 0 ? "minimum" : "maximum"}`}
-                value={bounds[`${axis}${index}`]}
-                disabled={axis === "x" ? autoX : autoY}
+                type="checkbox"
+                aria-label={`Auto ${axis.toUpperCase()}`}
+                checked={axis === "x" ? autoX : autoY}
                 onChange={(event) =>
-                  setBounds({
-                    ...bounds,
-                    [`${axis}${index}`]: event.target.value,
-                  })
+                  (axis === "x" ? setAutoX : setAutoY)(event.target.checked)
                 }
               />
+              Auto
             </label>
-          ))}
-        </fieldset>
-      ))}
+            {([0, 1] as const).map((index) => (
+              <label key={index}>
+                <span>{index === 0 ? "Min" : "Max"}</span>
+                <input
+                  aria-label={`${axis.toUpperCase()} ${index === 0 ? "minimum" : "maximum"}`}
+                  value={bounds[`${axis}${index}`]}
+                  disabled={axis === "x" ? autoX : autoY}
+                  onChange={(event) =>
+                    setBounds({
+                      ...bounds,
+                      [`${axis}${index}`]: event.target.value,
+                    })
+                  }
+                />
+              </label>
+            ))}
+          </fieldset>
+        ))}
+      </div>
       {error && <p role="alert">{error}</p>}
-      <button type="submit">Apply ranges</button>
-      <button type="button" onClick={onCancel}>
-        Cancel
-      </button>
+      <div className="waveform-range-actions">
+        <button type="button" onClick={onCancel}>
+          Cancel
+        </button>
+        <button type="submit">Apply ranges</button>
+      </div>
     </form>
   );
 }

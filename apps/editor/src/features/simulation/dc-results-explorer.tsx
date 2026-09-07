@@ -14,9 +14,9 @@ const PLOT = {
   width: 760,
   height: 280,
   left: 64,
-  right: 18,
+  right: 48,
   top: 16,
-  bottom: 34,
+  bottom: 48,
 };
 
 function extent(values: readonly number[]): readonly [number, number] {
@@ -135,17 +135,30 @@ export function DcResultsExplorer({
                     x2={PLOT.width - PLOT.right}
                     y2={PLOT.height - PLOT.bottom}
                   />
-                  <text x={PLOT.left} y={PLOT.height - 8}>
+                  <text
+                    className="ac-axis-label ac-x-axis-label"
+                    x={PLOT.left}
+                    y={PLOT.height - PLOT.bottom + 18}
+                  >
                     {compact(xExtent[0])}
                     {analysis.sweep.unit ?? ""}
                   </text>
                   <text
+                    className="ac-axis-label ac-x-axis-label"
                     textAnchor="end"
                     x={PLOT.width - PLOT.right}
-                    y={PLOT.height - 8}
+                    y={PLOT.height - PLOT.bottom + 18}
                   >
                     {compact(xExtent[1])}
                     {analysis.sweep.unit ?? ""}
+                  </text>
+                  <text
+                    className="ac-axis-title"
+                    textAnchor="end"
+                    x={PLOT.width - PLOT.right}
+                    y={PLOT.height - 7}
+                  >
+                    {analysis.sweep.name}
                   </text>
                   <text x={4} y={PLOT.top + 5}>
                     {compact(yExtent[1])}

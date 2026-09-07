@@ -44,6 +44,8 @@ describe("DcResultsExplorer", () => {
     expect(markup).toContain('aria-label="DC voltage"');
     expect(markup).toContain("3 points");
     expect(markup).toContain("Output");
+    expect(markup).toContain('class="ac-axis-title"');
+    expect(markup).toContain(">v-sweep</text>");
     expect(markup).toContain("<polyline");
     expect(markup).toContain("-50mV");
     expect(markup).toContain("1.050V");

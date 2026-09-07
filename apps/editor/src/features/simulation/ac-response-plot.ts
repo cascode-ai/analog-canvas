@@ -87,7 +87,7 @@ export interface AcResponseSvgOptions {
   valueUnit?: string;
 }
 
-const MARGIN = { left: 56, right: 56, top: 16, bottom: 32 };
+const MARGIN = { left: 56, right: 56, top: 16, bottom: 48 };
 
 function niceDecades(min: number, max: number): number[] {
   const low = Math.floor(Math.log10(min));
@@ -205,6 +205,15 @@ export function formatFrequency(hertz: number): string {
   return `${hertz * 1e3} mHz`;
 }
 
+function horizontalTickAnchor(
+  x: number,
+  frame: AcPlotLayout["frame"],
+): "start" | "middle" | "end" {
+  if (x - frame.x < 36) return "start";
+  if (frame.x + frame.width - x < 36) return "end";
+  return "middle";
+}
+
 interface Projection {
   x: (frequency: number) => number;
   valueY: (value: number) => number;
@@ -284,8 +293,9 @@ export function acResponseSvg(
 
   const gridLines = [
     ...layout.frequency.ticks.map((hz) => {
-      const x = project.x(hz).toFixed(2);
-      return `<line class="ac-grid" x1="${x}" y1="${frame.y}" x2="${x}" y2="${frame.y + frame.height}"/><text class="ac-axis-label" x="${x}" y="${frame.y + frame.height + 18}" text-anchor="middle">${escapeXml(formatFrequency(hz))}</text>`;
+      const projectedX = project.x(hz);
+      const x = projectedX.toFixed(2);
+      return `<line class="ac-grid" x1="${x}" y1="${frame.y}" x2="${x}" y2="${frame.y + frame.height}"/><text class="ac-axis-label ac-x-axis-label" x="${x}" y="${frame.y + frame.height + 18}" text-anchor="${horizontalTickAnchor(projectedX, frame)}">${escapeXml(formatFrequency(hz))}</text>`;
     }),
     ...axis.ticks.map((value) => {
       const y = axisY(value).toFixed(2);
@@ -359,6 +369,7 @@ export function acResponseSvg(
     `<defs><clipPath id="${clipId}"><rect x="${frame.x}" y="${frame.y}" width="${frame.width}" height="${frame.height}"/></clipPath></defs>` +
     `<rect class="ac-frame" x="${frame.x}" y="${frame.y}" width="${frame.width}" height="${frame.height}"/>` +
     gridLines +
+    `<text class="ac-axis-title" x="${frame.x + frame.width}" y="${size.height - 7}" text-anchor="end">Frequency</text>` +
     `<g clip-path="url(#${clipId})">${curves}</g>` +
     cursor +
     legend +
