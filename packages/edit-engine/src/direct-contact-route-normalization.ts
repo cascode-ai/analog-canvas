@@ -10,7 +10,7 @@ export interface DirectContactRouteNormalizationResult {
   protectedRouteIds: ReadonlySet<string>;
 }
 
-function routeHasExternalOwner(
+export function routeHasExternalOwner(
   document: SchematicDocument,
   routeId: string,
 ): boolean {

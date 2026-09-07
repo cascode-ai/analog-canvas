@@ -1,8 +1,8 @@
 /**
  * Wire-transform audit, batch 2: leg-mode semantics in the stretch family.
  * Protected second legs survive byte-for-byte, fold-back residue cancels,
- * escape leads re-derive under rigid transforms, and degenerate collapse
- * fails with the contract's own message.
+ * escape leads re-derive under rigid transforms, and a full collapse restores
+ * direct contact without persisting degenerate Route geometry.
  */
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -198,7 +198,7 @@ describe("fold-back residue (finding #9)", () => {
 });
 
 describe("degenerate collapse (finding #15)", () => {
-  it("a fully collapsed stretch fails with the contract message, not factory internals", () => {
+  it("a fully collapsed stretch explicitly restores direct contact", () => {
     const document = baseDocument();
     document.instances = [];
     document.nets = [{ id: "net-1", terminals: [] }];
@@ -214,11 +214,17 @@ describe("degenerate collapse (finding #15)", () => {
       end: { kind: "junction", junctionId: "J2" },
     });
     // Collapse the whole route onto one point: both junctions to (40,0).
-    expect(() =>
-      proposeJunctionGroupTranslation(document, resolver, [
-        { junctionId: "J1", position: { x: 40, y: 0 } },
-      ]),
-    ).toThrow(/degenerate/u);
+    const plan = proposeJunctionGroupTranslation(document, resolver, [
+      { junctionId: "J1", position: { x: 40, y: 0 } },
+    ]);
+    expect(plan.routes).toEqual([
+      {
+        routeId: "route-x",
+        waypoints: [],
+        segmentModes: [],
+        collapsedToContact: true,
+      },
+    ]);
   });
 });
 

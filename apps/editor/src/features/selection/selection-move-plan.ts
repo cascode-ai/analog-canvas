@@ -1,5 +1,5 @@
 import { deriveRoutingAffectedClosure } from "@icm/derived";
-import { routeEnd, type Annotation, type SchematicDocument } from "@icm/model";
+import type { Annotation, SchematicDocument } from "@icm/model";
 
 import {
   effectiveRouteAttachment,
@@ -86,23 +86,9 @@ export function planSelectionMove(
     annotationIds: selection.annotationIds,
   });
   const translatedRouteIds = new Set(closure.internalRoutes);
-  // Direct Junction drag remains its own established gesture. A marquee/group
-  // move carries a Junction only when every incident Route is already inside
-  // the moving conductor closure; otherwise it is a boundary anchor.
-  const translatedJunctionIds = new Set(
-    closure.internalJunctions.filter((junctionId) => {
-      const incident = document.routes.filter((route) =>
-        [route.start, routeEnd(route)].some(
-          (endpoint) =>
-            endpoint.kind === "junction" && endpoint.junctionId === junctionId,
-        ),
-      );
-      return (
-        incident.length > 0 &&
-        incident.every((route) => translatedRouteIds.has(route.id))
-      );
-    }),
-  );
+  // The engine closure decides which anchors travel and which arms stretch.
+  // A second GUI filter would disagree with both preview and commit.
+  const translatedJunctionIds = new Set(closure.internalJunctions);
   const looseRouteIds = new Set<string>();
   const fixedObjectIds = new Set<string>();
 

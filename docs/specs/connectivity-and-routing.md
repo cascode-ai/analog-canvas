@@ -94,6 +94,9 @@ Route transaction.
   reached their final positions. Jointly transformed endpoints remain a
   route-free direct contact, and an existing alternate physical path prevents
   duplicate Route creation.
+- Returning separated endpoints to their original direct contact removes the
+  redundant ordinary Route geometry without removing Net membership. Route-owned
+  labels, constraints and other presentation remain protected from collapse.
 - A Route-segment tap splits geometry at an explicit Junction. A newly
   authored Junction that lands on another ordinary Route joins and splits
   that conductor as well; an existing Junction carried across a conductor by
@@ -120,6 +123,11 @@ Route transaction.
   still use ordinary attachment semantics; visual overlap alone does nothing.
 - Moving a connected Instance stretches the attached Route while preserving
   endpoint identity.
+- Placement and an explicitly snapped instance move use the same engine contact
+  planner. Every moved visible pin is checked against the final transformed
+  geometry; multiple Net joins are folded before Route splits are compiled.
+  A passive geometric move does not acquire new contacts. Already wired devices
+  attach rather than silently performing a fresh series cut.
 - `remove_route_geometry` removes presentation geometry only. The ordinary
   Wire Delete command uses `cut_connection`: it always recomputes physical
   Base-Net components and never lets imported, global, or name Evidence hide a
@@ -133,8 +141,15 @@ Route transaction.
   the same edits commit. It is not Project data or an Agent protocol.
 - Transform classifies selected conductors once: internal Routes move rigidly,
   boundary Routes stretch only at the inside endpoint, and external Routes do
-  not move. Unsafe protected geometry rejects atomically; no transform invokes
-  rerouting.
+  not move. Boundary stretching and transaction endpoint-follow share one local
+  stretch kernel. Local bends may adapt, but unrelated conductors are not rerouted.
+  Unsafe protected geometry rejects atomically. Same-Net ordinary overlaps are
+  normalized rather than rejected merely to preserve an old Junction dot.
+- Instance drag preview carries one operation plan; ordinary geometry uses its
+  lightweight projection while contact changes use the full transaction preview.
+  Release strictly validates and commits that same plan against its source
+  revision. Rejection or cancellation restores the original preview. A successful
+  move and its contacts form one undo operation.
 - `C` clones the selected internal electrical subgraph. Ordinary boundary
   Routes and terminal membership are not copied, so copied boundary pins are
   open. A selected Cell Pin, supply marker, or Net-label owner retains its own
@@ -267,6 +282,10 @@ count by distinct visible direction, so collinear incidents paint as one
 conductor and do not justify a dot. Three distinct visible directions require a
 dot; three or more coincident terminals also require one even when some stems
 overlap.
+This rule applies equally to hollow/filled Ports and every other terminal kind;
+a persistent Junction object is not a prerequisite for a pin-on-Route dot.
+The conductor normalizer also unions self-overlap within a single Route, not
+only overlap between separately authored Routes.
 
 ## Transaction invariants
 

@@ -1,21 +1,18 @@
 import {
-  isEligibleSeriesInsertionPinPair,
-  planDirectEndpointConnection,
-  planSeriesInstanceSplice,
-  proposeEndpointsRouteAttachment,
+  planInstanceContactTransform,
+  projectRoutingTransformGeometry,
+  gateRoutingOperationPlan,
   planRoutingTransform,
-  type EndpointRouteAttachmentRequest,
+  type RoutingOperationPlan,
   type ExpectedElectricalEffect,
   type RoutingOperationIntent,
   type SchematicEdit,
-  type SeriesSplicePlan,
   type WireSource,
 } from "@icm/edit-engine";
-import { deviceDescriptor } from "@icm/devices";
 import {
   deriveNetConnectivity,
+  deriveDocumentContactEvidence,
   endpointKey,
-  findRouteSegmentsAtPoint,
   isMosBulkTerminal,
   isVisibleEndpoint,
   resolveDocumentRoutingGeometry,
@@ -63,93 +60,12 @@ import type { SelectionMovePlan } from "./selection-move-plan";
 
 type TransactionResult = { ok: boolean };
 
-/**
- * The pins the snapped move actually lands on the matched conductor.
- *
- * The snap match names one moving pin, but the drop-a-device-into-a-wire
- * gesture lands every series pin of the device on the same Route; the
- * explicit snap intent covers the whole device, so every visible pin of the
- * matched instance whose contact lies on that Route attaches. Other selected
- * instances and other conductors are untouched — a plain transform still
- * never bonds. Falls back to the single matched endpoint when nothing beyond
- * it qualifies, so degenerate matches keep their previous behavior.
- */
-function routeAttachRequestsForMovedPins(
-  projected: SchematicDocument,
-  resolver: SymbolResolver,
-  moving: { endpoint: RouteEndpoint; netId: string | null },
-  target: { routeId: string; segmentIndex: number },
-): EndpointRouteAttachmentRequest[] {
-  const fallback = (): EndpointRouteAttachmentRequest[] => {
-    const connection = resolveEndpointConnection(
-      projected,
-      resolver,
-      moving.endpoint,
-    );
-    return connection
-      ? [
-          {
-            endpoint: moving.endpoint,
-            endpointNetId: moving.netId,
-            point: connection.contactPoint,
-            segmentIndex: target.segmentIndex,
-          },
-        ]
-      : [];
-  };
-  if (moving.endpoint.kind !== "terminal") return fallback();
-  const movingInstanceId = moving.endpoint.instanceId;
-  const instance = projected.instances.find(
-    (candidate) => candidate.id === movingInstanceId,
-  );
-  const resolved = instance
-    ? resolver.resolve(instance.symbolId, instance.symbolVariantId)
-    : null;
-  if (!instance || !resolved) return fallback();
-  const geometry = resolveDocumentRoutingGeometry(projected, resolver);
-  const requests: EndpointRouteAttachmentRequest[] = [];
-  for (const pin of resolved.definition.pins) {
-    if (resolved.variant?.hiddenPinNames.includes(pin.name)) continue;
-    if (pin.presentation.visibility === "implicit") continue;
-    const endpoint: RouteEndpoint = {
-      kind: "terminal",
-      instanceId: instance.id,
-      pinName: pin.name,
-    };
-    // A pin that already terminates a Route is attached; splitting at a
-    // Route end would only create degenerate geometry.
-    const alreadyAttached = projected.routes.some((route) =>
-      routeEndpoints(route).some(
-        (candidate) =>
-          candidate.kind === "terminal" &&
-          candidate.instanceId === instance.id &&
-          candidate.pinName === pin.name,
-      ),
-    );
-    if (alreadyAttached) continue;
-    const connection = resolveEndpointConnection(projected, resolver, endpoint);
-    if (!connection) continue;
-    const address = findRouteSegmentsAtPoint(
-      geometry,
-      connection.contactPoint,
-    ).find((candidate) => candidate.routeId === target.routeId);
-    if (!address) continue;
-    const netId =
-      projected.nets.find((net) =>
-        net.terminals.some(
-          (terminal) =>
-            terminal.instanceId === instance.id &&
-            terminal.pinName === pin.name,
-        ),
-      )?.id ?? null;
-    requests.push({
-      endpoint,
-      endpointNetId: netId,
-      point: connection.contactPoint,
-      segmentIndex: address.segmentIndex,
-    });
-  }
-  return requests.length > 0 ? requests : fallback();
+export interface PreparedInstanceMove {
+  plan: RoutingOperationPlan;
+  /** Transient geometry, never a replacement for the committed Document. */
+  previewDocument: SchematicDocument;
+  /** Reuse existing SVG nodes while topology is unchanged. */
+  visualRoutePoints?: ReadonlyMap<string, readonly Point[]>;
 }
 
 export function createSelectionMoveController({
@@ -161,7 +77,6 @@ export function createSelectionMoveController({
   sceneSnapTargetIndex,
   transactConnectivity,
   setStatus,
-  nextRoutingSuffix,
 }: {
   document: SchematicDocument;
   resolver: SymbolResolver;
@@ -536,7 +451,169 @@ export function createSelectionMoveController({
         ),
       };
     });
-    return { snap, moves };
+    try {
+      return {
+        snap,
+        moves,
+        prepared: prepareResolvedMove(preview, { snap, moves }, sourceDocument),
+      };
+    } catch (error) {
+      return {
+        snap,
+        moves,
+        preparationError:
+          error instanceof Error ? error.message : "Move failed",
+      };
+    }
+  };
+
+  let preparedCache:
+    | { source: SchematicDocument; key: string; value: PreparedInstanceMove }
+    | undefined;
+  let contactBoundaryCache:
+    { source: SchematicDocument; key: string; separates: boolean } | undefined;
+  const prepareResolvedMove = (
+    preview: InstanceMovePreview,
+    resolved: {
+      snap: SnapResult;
+      moves: { instanceId: string; position: Point }[];
+    },
+    sourceDocument: SchematicDocument,
+  ): PreparedInstanceMove => {
+    const first = resolved.moves[0]!;
+    const original = preview.originalPositions[first.instanceId]!;
+    const delta = {
+      x: first.position.x - original.x,
+      y: first.position.y - original.y,
+    };
+    const key = JSON.stringify([
+      preview.movePlan,
+      delta,
+      Boolean(resolved.snap.electricalMatch),
+    ]);
+    if (preparedCache?.source === sourceDocument && preparedCache.key === key)
+      return preparedCache.value;
+    const routingPlan = planInstanceContactTransform(
+      sourceDocument,
+      resolver,
+      {
+        instanceIds: preview.movePlan.instanceIds,
+        routeIds: preview.movePlan.translatedRouteIds,
+        junctionIds: preview.movePlan.translatedJunctionIds,
+      },
+      delta,
+      Boolean(resolved.snap.electricalMatch),
+    );
+    const plan = {
+      ...routingPlan,
+      edits: [
+        ...routingPlan.edits,
+        ...visualMoveEdits(preview.movePlan, delta, sourceDocument),
+      ],
+    };
+    // Passing back over the drag origin is a valid no-op preview. There is
+    // nothing to transact, so do not send it to the nonempty-operation gate.
+    if (
+      (plan.edits.length === 0 || (delta.x === 0 && delta.y === 0)) &&
+      !plan.diagnostics.some((d) => d.severity === "error")
+    ) {
+      const geometry = resolveDocumentRoutingGeometry(sourceDocument, resolver);
+      const value: PreparedInstanceMove = {
+        plan,
+        previewDocument: sourceDocument,
+        visualRoutePoints: new Map(
+          [
+            ...plan.affected.internalRoutes,
+            ...plan.affected.boundaryRoutes,
+          ].flatMap((id) => {
+            const route = geometry.routes.get(id);
+            return route ? [[id, route.centerline] as const] : [];
+          }),
+        ),
+      };
+      preparedCache = { source: sourceDocument, key, value };
+      return value;
+    }
+    const blocking = plan.diagnostics.find((d) => d.severity === "error");
+    if (blocking) throw new Error(blocking.message);
+    const boundaryKey = JSON.stringify([
+      plan.affected.instances,
+      plan.affected.internalJunctions,
+    ]);
+    if (
+      contactBoundaryCache?.source !== sourceDocument ||
+      contactBoundaryCache.key !== boundaryKey
+    ) {
+      const movingInstances = new Set(plan.affected.instances);
+      const movingJunctions = new Set(plan.affected.internalJunctions);
+      const inside = (endpoint: RouteEndpoint) =>
+        endpoint.kind === "terminal"
+          ? movingInstances.has(endpoint.instanceId)
+          : movingJunctions.has(endpoint.junctionId);
+      contactBoundaryCache = {
+        source: sourceDocument,
+        key: boundaryKey,
+        separates: deriveDocumentContactEvidence(
+          sourceDocument,
+          resolver,
+        ).contacts.some(
+          (contact) =>
+            contact.endpoints.some(inside) &&
+            contact.endpoints.some((endpoint) => !inside(endpoint)),
+        ),
+      };
+    }
+    // Most pointer frames only deform existing conductors. Apply the same
+    // geometry edits without full-Document validation on every frame. Real
+    // contact changes (including a direct bond separating) use the complete
+    // transaction preview; every release still uses the strict commit gate.
+    const geometryOnly =
+      plan.intent === "transform" &&
+      !contactBoundaryCache.separates &&
+      plan.edits.every(
+        (edit) =>
+          edit.kind === "move_instance" ||
+          edit.kind === "move_junction" ||
+          edit.kind === "set_route_path",
+      );
+    let finalDocument: SchematicDocument;
+    if (geometryOnly)
+      finalDocument = projectRoutingTransformGeometry(sourceDocument, plan);
+    else {
+      const gate = gateRoutingOperationPlan(sourceDocument, plan, {
+        symbolResolver: resolver,
+      });
+      if (!gate.ok) throw new Error(gate.message);
+      finalDocument = gate.evaluated.finalDocument;
+    }
+    const sameIds = (
+      before: readonly { id: string }[],
+      after: readonly { id: string }[],
+    ) =>
+      before.length === after.length &&
+      after.every((item) => before.some((old) => old.id === item.id));
+    const value: PreparedInstanceMove = {
+      plan,
+      previewDocument: finalDocument,
+    };
+    if (
+      plan.intent === "transform" &&
+      sameIds(sourceDocument.routes, finalDocument.routes) &&
+      sameIds(sourceDocument.junctions, finalDocument.junctions)
+    ) {
+      const geometry = resolveDocumentRoutingGeometry(finalDocument, resolver);
+      value.visualRoutePoints = new Map(
+        [
+          ...plan.affected.internalRoutes,
+          ...plan.affected.boundaryRoutes,
+        ].flatMap((id) => {
+          const route = geometry.routes.get(id);
+          return route ? [[id, route.centerline] as const] : [];
+        }),
+      );
+    }
+    preparedCache = { source: sourceDocument, key, value };
+    return value;
   };
 
   const completeInstanceMove = (
@@ -549,215 +626,64 @@ export function createSelectionMoveController({
   ): void => {
     const sourceDocument = projection?.document ?? document;
     const prefixEdits = [...(projection?.prefixEdits ?? [])];
-    const disconnectedEndpointKeys = prefixEdits.flatMap((edit) =>
-      edit.kind === "disconnect_endpoint" ? [endpointKey(edit.endpoint)] : [],
-    );
-    const { snap: resolvedSnap, moves } =
-      projection?.resolvedMove ??
-      resolveInstanceMove(
-        preview,
-        position,
-        tolerance,
-        suppressSnap,
-        previous,
-        projection?.document,
-      );
-    const electricalMatch = resolvedSnap.electricalMatch;
-    const delta = {
-      x:
-        moves[0]!.position.x -
-        preview.originalPositions[moves[0]!.instanceId]!.x,
-      y:
-        moves[0]!.position.y -
-        preview.originalPositions[moves[0]!.instanceId]!.y,
-    };
-    if (delta.x === 0 && delta.y === 0 && prefixEdits.length === 0) return;
     try {
-      const groupMove = planRoutingTransform(
-        sourceDocument,
-        resolver,
-        {
-          instanceIds: preview.movePlan.instanceIds,
-          routeIds: preview.movePlan.translatedRouteIds,
-          junctionIds: preview.movePlan.translatedJunctionIds,
-        },
-        { kind: "translate", delta },
-      );
-      const blocking = groupMove.diagnostics.find(
-        (item) => item.severity === "error",
-      );
-      if (blocking) throw new Error(blocking.message);
-      const movingElectrical = electricalMatch?.moving.electrical;
-      const targetElectrical = electricalMatch?.target.electrical;
-      const projected = structuredClone(sourceDocument);
-      for (const move of moves) {
-        const instance = projected.instances.find(
-          (candidate) => candidate.id === move.instanceId,
+      const resolved =
+        projection?.resolvedMove ??
+        resolveInstanceMove(
+          preview,
+          position,
+          tolerance,
+          suppressSnap,
+          previous,
+          projection?.document,
         );
-        if (instance?.placement) instance.placement.position = move.position;
-      }
-      // The snap target point is a float projection and can carry dust
-      // (29.999999999999996) that the integer Point schema rejects, killing
-      // the whole move at release. Each endpoint's own resolved contact point
-      // in the projected document is grid-exact by construction — attach
-      // there, exactly like placement does.
-      const attachRequests: readonly EndpointRouteAttachmentRequest[] =
-        movingElectrical?.kind === "endpoint" &&
-        targetElectrical?.kind === "route"
-          ? routeAttachRequestsForMovedPins(
-              projected,
-              resolver,
-              movingElectrical,
-              targetElectrical,
-            )
-          : [];
-      // A two-pin drop onto one wire is the series-insertion gesture, exactly
-      // as it is when placing (#432): the wire is cut between the pins
-      // instead of left shorting the device. Eligibility is the placement
-      // rule verbatim — a whole-device two-pin interface, or the device
-      // descriptor's declared pair (#435) — and anything else, including a
-      // pair the splice preconditions refuse, keeps the plain attachment.
-      const seriesSplice: Extract<SeriesSplicePlan, { ok: true }> | null =
-        (() => {
-          if (targetElectrical?.kind !== "route") return null;
-          if (attachRequests.length !== 2) return null;
-          const [first, second] = attachRequests as [
-            EndpointRouteAttachmentRequest,
-            EndpointRouteAttachmentRequest,
-          ];
-          if (
-            first.endpoint.kind !== "terminal" ||
-            second.endpoint.kind !== "terminal" ||
-            first.endpoint.instanceId !== second.endpoint.instanceId ||
-            (first.point.x === second.point.x &&
-              first.point.y === second.point.y)
-          ) {
-            return null;
-          }
-          const instance = projected.instances.find(
-            (candidate) =>
-              candidate.id ===
-              (first.endpoint as { instanceId: string }).instanceId,
+      if (resolved.preparationError) throw new Error(resolved.preparationError);
+      if (
+        resolved.moves.every((move) => {
+          const original = preview.originalPositions[move.instanceId]!;
+          return (
+            original.x === move.position.x && original.y === move.position.y
           );
-          const resolvedSymbol = instance
-            ? resolver.resolve(instance.symbolId, instance.symbolVariantId)
-            : null;
-          if (!instance || !resolvedSymbol) return null;
-          const visiblePinCount = resolvedSymbol.definition.pins.filter(
-            (pin) =>
-              !resolvedSymbol.variant?.hiddenPinNames.includes(pin.name) &&
-              pin.presentation.visibility !== "implicit",
-          ).length;
-          if (
-            !isEligibleSeriesInsertionPinPair(
-              [first.endpoint.pinName, second.endpoint.pinName],
-              visiblePinCount,
-              deviceDescriptor(instance.symbolId)?.seriesInsertionPinPair,
-            )
-          ) {
-            return null;
-          }
-          const plan = planSeriesInstanceSplice(
-            projected,
-            resolver,
-            targetElectrical.routeId,
-            [
-              {
-                endpoint: first.endpoint,
-                point: first.point,
-                segmentIndex: first.segmentIndex,
-              },
-              {
-                endpoint: second.endpoint,
-                point: second.point,
-                segmentIndex: second.segmentIndex,
-              },
-            ],
-            `move-splice-${nextRoutingSuffix()}`,
-          );
-          return plan.ok ? plan : null;
-        })();
-      const contactEdits: readonly SchematicEdit[] = seriesSplice
-        ? seriesSplice.edits
-        : targetElectrical?.kind === "route" && attachRequests.length > 0
-          ? proposeEndpointsRouteAttachment(
-              projected,
-              resolver,
-              targetElectrical.routeId,
-              attachRequests,
-              `move-${nextRoutingSuffix()}`,
-            ).edits
-          : [];
-      // A pin dropped exactly on a foreign pin (or junction) is the same
-      // explicit gesture as placing a component against one: bond the two
-      // endpoints through the direct-contact planner. Incompatible nets
-      // (conflicting names or power domains) fall back to a plain move.
-      let directContactRejection: string | null = null;
-      const directEdits: readonly SchematicEdit[] = (() => {
-        if (
-          movingElectrical?.kind !== "endpoint" ||
-          targetElectrical?.kind !== "endpoint"
-        ) {
-          return [];
-        }
-        const plan = planDirectEndpointConnection(projected, {
-          from: movingElectrical.endpoint,
-          to: targetElectrical.endpoint,
-          newNetId: `net-move-${nextRoutingSuffix()}`,
-        });
-        if (!plan.ok) {
-          directContactRejection = plan.message;
-          return [];
-        }
-        return plan.edits;
-      })();
-      const hasRouteContact = contactEdits.length > 0;
-      const hasDirectContact = directEdits.length > 0;
-      const operationIntent: RoutingOperationIntent = hasRouteContact
-        ? "attach-to-route"
-        : hasDirectContact
-          ? "connect"
-          : "transform";
-      const expectedElectricalEffect: ExpectedElectricalEffect | undefined =
-        seriesSplice
-          ? seriesSplice.expectedElectricalEffect
-          : disconnectedEndpointKeys.length > 0 &&
-              !hasRouteContact &&
-              !hasDirectContact
-            ? {
-                kind: "remove",
-                removedEndpointKeys: disconnectedEndpointKeys,
-              }
-            : undefined;
-      const result = transactConnectivity(
-        operationIntent,
-        [
-          ...prefixEdits,
-          ...groupMove.edits,
-          ...visualMoveEdits(preview.movePlan, delta, sourceDocument),
-          ...contactEdits,
-          ...directEdits,
-        ],
-        expectedElectricalEffect ? { expectedElectricalEffect } : undefined,
-      );
-      if (result?.ok && seriesSplice) {
-        setStatus("Inserted the moved component in series into the wire");
-      } else if (
-        result?.ok &&
-        (contactEdits.length > 0 || directEdits.length > 0)
+        }) &&
+        prefixEdits.length === 0
+      )
+        return;
+      const prepared =
+        resolved.prepared ??
+        prepareResolvedMove(preview, resolved, sourceDocument);
+      if (
+        prepared.plan.source.revision !== sourceDocument.revision ||
+        prepared.plan.source.documentId !== sourceDocument.id
       ) {
-        setStatus("Snapped pin endpoints and connected them without a wire");
-      } else if (result?.ok && directContactRejection) {
-        setStatus(`Moved without connecting: ${directContactRejection}`);
-      } else if (result?.ok && disconnectedEndpointKeys.length > 0) {
-        setStatus("Moved selection without wires; original endpoints are open");
-      } else if (result?.ok && prefixEdits.length > 0) {
-        setStatus("Moved and transformed selection");
+        throw new Error("Move cancelled because the document changed");
       }
-    } catch (error) {
-      setStatus(
-        error instanceof Error ? error.message : "Local stretch failed",
+      const disconnectedEndpointKeys = prefixEdits.flatMap((edit) =>
+        edit.kind === "disconnect_endpoint" ? [endpointKey(edit.endpoint)] : [],
       );
+      const expectedElectricalEffect: ExpectedElectricalEffect =
+        disconnectedEndpointKeys.length > 0 &&
+        prepared.plan.intent === "transform"
+          ? { kind: "remove", removedEndpointKeys: disconnectedEndpointKeys }
+          : prepared.plan.expectedElectricalEffect;
+      const result = transactConnectivity(
+        prepared.plan.intent,
+        [...prefixEdits, ...prepared.plan.edits],
+        { expectedElectricalEffect },
+      );
+      if (!result?.ok) return;
+      const warning = prepared.plan.diagnostics.find(
+        (d) => d.severity === "warning",
+      );
+      if (warning) setStatus(`Moved without connecting: ${warning.message}`);
+      else if (prepared.plan.expectedElectricalEffect.kind === "partition")
+        setStatus("Inserted the moved component in series into the wire");
+      else if (prepared.plan.intent !== "transform")
+        setStatus("Snapped pin endpoints and connected them without a wire");
+      else if (disconnectedEndpointKeys.length)
+        setStatus("Moved selection without wires; original endpoints are open");
+      else if (prefixEdits.length) setStatus("Moved and transformed selection");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Move failed");
     }
   };
 

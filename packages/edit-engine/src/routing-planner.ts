@@ -47,6 +47,7 @@ import type { SymbolResolver } from "@icm/symbols";
 import type { SchematicEdit } from "./transaction.js";
 import { endpointOwnerNetId } from "./transaction-routing.js";
 import { planDirectEndpointConnection } from "./direct-contact-planner.js";
+import { routeHasExternalOwner } from "./direct-contact-route-normalization.js";
 import { rebuildRoutePath } from "./route-leg-mutation.js";
 
 export interface WireEndpointGeometry {
@@ -484,6 +485,7 @@ function routeEdits(
     routeId: string;
     waypoints: Point[];
     segmentModes: SegmentMode[];
+    collapsedToContact?: true;
   }[],
 ): SchematicEdit[] {
   return routes.map((proposal) => {
@@ -491,6 +493,17 @@ function routeEdits(
       (candidate) => candidate.id === proposal.routeId,
     );
     if (!route) throw new Error(`Route not found: ${proposal.routeId}`);
+    if (proposal.collapsedToContact) {
+      if (
+        route.presentation === "power-rail" ||
+        routeHasExternalOwner(document, route.id)
+      ) {
+        throw new Error(
+          `Route ${route.id} cannot collapse while external presentation owns its geometry`,
+        );
+      }
+      return { kind: "remove_route_geometry" as const, routeId: route.id };
+    }
     return {
       kind: "set_route_path" as const,
       route: rebuildRoutePath(

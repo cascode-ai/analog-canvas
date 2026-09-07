@@ -24,6 +24,7 @@ import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
 import { executeTransaction } from "./transaction.js";
+import { normalizeSameNetConductorTopology } from "./conductor-topology.js";
 import { isOrthogonal } from "./route-geometry-edit.js";
 import { proposeWireSegmentDrag } from "./route-operations.js";
 import {
@@ -1006,7 +1007,7 @@ describe("routing Edit Engine", () => {
     expect(moved.ok).toBe(true);
   });
 
-  it("never drags a Junction so far that a branch hides inside a wire", () => {
+  it("normalizes overlapping ordinary branches after a Junction drag", () => {
     // A T: two arms on y=300 meeting a tap that rises to y=200.
     const document = createEmptyDocument("tap", "Tap");
     document.nets.push({ id: "n1", terminals: [] });
@@ -1069,34 +1070,29 @@ describe("routing Edit Engine", () => {
       shortened.junctions.find((move) => move.junctionId === "J")?.position,
     ).toEqual({ x: 300, y: 250 });
 
-    // Downwards the tap cannot follow at all — carrying J to y=400 would leave
-    // "right" rising back out of it along the tap's own line. J holds instead
-    // and "left" doglegs down to reach it.
-    const doglegged = proposeWireSegmentDrag(
-      built.document,
-      resolver,
-      "left",
-      0,
-      { x: 250, y: 400 },
-    );
-    expect(doglegged.junctions).toEqual([]);
-    expect(
-      doglegged.routes.find((route) => route.routeId === "left")?.waypoints,
-    ).toEqual([
-      { x: 200, y: 400 },
-      { x: 300, y: 400 },
-    ]);
-
-    // Past the tap's far end neither plan keeps every branch visible: carrying
-    // J turns the tap around, and the dogleg comes down the tap's line. The
-    // drag has nowhere left to go, so it stops rather than drawing the
-    // ambiguity.
-    expect(() =>
-      proposeWireSegmentDrag(built.document, resolver, "left", 0, {
+    // Same-Net overlap is canonicalized rather than pinning a former branch.
+    for (const y of [400, 150]) {
+      const plan = proposeWireSegmentMove(built.document, resolver, "left", 0, {
         x: 250,
-        y: 150,
-      }),
-    ).toThrow(/overlap/u);
+        y,
+      });
+      const moved = executeTransaction(
+        built.document,
+        transaction(document.id, 1, plan.edits),
+        context,
+      );
+      if (!moved.ok) throw new Error(moved.error.message);
+      expect(
+        moved.document.junctions.find((j) => j.id === "L")!.position.y,
+      ).toBe(y);
+      expect(moved.document.nets).toHaveLength(1);
+      expect(
+        normalizeSameNetConductorTopology(
+          structuredClone(moved.document),
+          resolver,
+        ).changed,
+      ).toBe(false);
+    }
   });
 
   it("turns a multi-part selection as one body about a shared pivot", () => {

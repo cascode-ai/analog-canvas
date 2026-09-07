@@ -886,36 +886,7 @@ export function buildSvgScene(
       ) {
         return false;
       }
-      // A Port marks its own node, so a pin that merely terminates a wire
-      // (or stacks on another pin) stays dotless. But a Port parked on an
-      // explicit Junction is riding a real branch: its ring reads as one of
-      // the arms, so with two or more route arms the branch keeps its dot
-      // (the recorded stem direction of a Port dedupes into the through
-      // wire, which is why the three-direction rule alone misses this).
-      const portInvolved = contact.endpoints.some(
-        (endpoint) =>
-          endpoint.kind === "terminal" &&
-          ["port", "port-filled"].includes(
-            document.instances.find(
-              (instance) => instance.id === endpoint.instanceId,
-            )?.symbolId ?? "",
-          ),
-      );
-      if (portInvolved) {
-        // Two opposite arms are a straight through-wire: the Port ring rides
-        // a plain conductor and a dot there reads as an orphan. Any bend or
-        // third arm keeps the branch dot.
-        const arms = contact.branchDirections;
-        const straightThrough =
-          arms.length === 2 &&
-          arms[0]!.x * arms[1]!.y - arms[0]!.y * arms[1]!.x === 0 &&
-          arms[0]!.x * arms[1]!.x + arms[0]!.y * arms[1]!.y < 0;
-        return (
-          contact.endpoints.some((endpoint) => endpoint.kind === "junction") &&
-          arms.length >= 2 &&
-          !straightThrough
-        );
-      }
+      // All terminal kinds consume the shared visible-branch decision.
       return contactRequiresJunctionDot(contact);
     })
     .sort((left, right) => left.id.localeCompare(right.id, "en"))
