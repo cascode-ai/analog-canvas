@@ -32,6 +32,14 @@ import {
   simulationProbeTargetKey,
   type SimulationProbeOption,
 } from "./simulation-probe-options";
+import {
+  buildSimulationArtifactArchive,
+  formatSimulationArtifactPreview,
+  readSimulationArtifact,
+  readSimulationArtifactPreview,
+  simulationArtifactCategory,
+  type SimulationArtifactContent,
+} from "./simulation-artifact-files";
 
 const RESULT_TABS = [
   ["plot", "Plot"],
@@ -186,6 +194,9 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   const [resultTab, setResultTab] = useState<ResultTab>("plot");
   const [exitConfirmationOpen, setExitConfirmationOpen] = useState(false);
   const [deleteSetupId, setDeleteSetupId] = useState<string>();
+  const [artifactPreview, setArtifactPreview] =
+    useState<SimulationArtifactContent>();
+  const [artifactBusy, setArtifactBusy] = useState<string>();
   const setupMenuRef = useRef<HTMLDetailsElement>(null);
   useEffect(() => {
     const closeSetupMenu = (event: PointerEvent): void => {
@@ -203,6 +214,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     setPrepared(undefined);
     setRun(undefined);
     setProblem(undefined);
+    setArtifactPreview(undefined);
     setResultsOpen(false);
     setSetupOpen(true);
   }, [props.selectedSetupId]);
@@ -246,6 +258,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     } else if ("prepared" in reply) {
       setPrepared(reply.prepared);
       setProblem(undefined);
+      setArtifactPreview(undefined);
       setSetupOpen(false);
       setResultsOpen(true);
       setResultTab("files");
@@ -329,25 +342,55 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     }
   };
   const download = async (artifact: ArtifactRef) => {
-    let offset: number | null = 0;
-    let text = "";
-    while (offset !== null) {
-      const chunk = await session.files.handle({
-        action: "artifact",
-        artifactId: artifact.id,
-        offset,
-      });
-      if (!chunk.ok) {
-        setProblem(chunk.error);
-        return;
-      }
-      if (!("text" in chunk)) return;
-      text += chunk.text;
-      offset = chunk.nextOffset;
+    setArtifactBusy(`download:${artifact.id}`);
+    const artifactResult = await readSimulationArtifact(
+      session.files,
+      artifact,
+    );
+    setArtifactBusy(undefined);
+    if (!artifactResult.ok) {
+      setProblem(artifactResult.error);
+      return;
     }
-    const result = downloadTextArtifact(text, artifact.name);
+    const result = downloadTextArtifact(
+      artifactResult.content.text,
+      artifact.name,
+    );
     if (result.status === "failed")
       setProblem(uiProblem("ARTIFACT_DOWNLOAD_FAILED", result.message));
+  };
+  const preview = async (artifact: ArtifactRef) => {
+    setArtifactBusy(`preview:${artifact.id}`);
+    const result = await readSimulationArtifactPreview(session.files, artifact);
+    setArtifactBusy(undefined);
+    if (!result.ok) {
+      setProblem(result.error);
+      return;
+    }
+    setArtifactPreview(result.content);
+  };
+  const downloadBundle = async (
+    key: "prepare" | "run",
+    artifacts: readonly ArtifactRef[],
+  ) => {
+    setArtifactBusy(`bundle:${key}`);
+    const result = await buildSimulationArtifactArchive(
+      session.files,
+      artifacts,
+    );
+    setArtifactBusy(undefined);
+    if (!result.ok) {
+      setProblem(result.error);
+      return;
+    }
+    const url = URL.createObjectURL(
+      new Blob([result.bytes as BlobPart], { type: "application/zip" }),
+    );
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `simulation-${key}.zip`;
+    anchor.click();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
   };
   const running = run && ["running", "cancelling"].includes(run.state);
   const activeCell = project.documents.find(
@@ -357,33 +400,6 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     activeCell?.instances.some(
       (instance) => instance.netlist?.binding?.kind === "subcircuit",
     ),
-  );
-  const artifactGroups = [
-    ...(prepared
-      ? [
-          {
-            label: "Prepared files",
-            artifacts: prepared.artifacts,
-          },
-        ]
-      : []),
-    ...(run
-      ? [
-          {
-            label: "Last run",
-            artifacts: run.artifacts,
-          },
-        ]
-      : []),
-  ];
-  const artifactCategories = ["Netlist", "Results", "Evidence", "Log", "Other"];
-  const artifactSections = artifactGroups.flatMap((group) =>
-    artifactCategories.flatMap((category) => {
-      const artifacts = group.artifacts.filter(
-        (artifact) => simulationArtifactCategory(artifact) === category,
-      );
-      return artifacts.length ? [{ ...group, category, artifacts }] : [];
-    }),
   );
   const statusLabel = busy
     ? "Preparing…"
@@ -420,6 +436,34 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   const runPresentation = run
     ? preparedPresentations.current.get(run.preparedId)
     : undefined;
+  const artifactCategories = ["Netlist", "Results", "Evidence", "Log", "Other"];
+  const runPreparedArtifactIds = new Set(
+    runPresentation?.prepared.artifacts.map((artifact) => artifact.id) ?? [],
+  );
+  const artifactGroups = [
+    ...(prepared
+      ? [
+          {
+            key: "prepare" as const,
+            label: "Prepare",
+            description: "Compiled input",
+            artifacts: prepared.artifacts,
+          },
+        ]
+      : []),
+    ...(run
+      ? [
+          {
+            key: "run" as const,
+            label: "Run",
+            description: "Execution output",
+            artifacts: run.artifacts.filter(
+              (artifact) => !runPreparedArtifactIds.has(artifact.id),
+            ),
+          },
+        ]
+      : []),
+  ].filter((group) => group.artifacts.length > 0);
   const analysisLabel = runPresentation?.analysisLabel;
   const presentationProbes =
     runPresentation?.outputs.flatMap((output) => {
@@ -941,34 +985,138 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
             ) : null}
 
             {resultTab === "files" ? (
-              <div className="simulation-files-view">
-                {artifactSections.map((section) => (
-                  <details
-                    key={`${section.label}:${section.category}`}
-                    className="simulation-artifact-group"
-                    aria-label={`${section.label} ${section.category}`}
-                    open={section.category === "Results"}
+              <div
+                className={`simulation-files-view${artifactPreview ? " preview-open" : ""}`}
+              >
+                <div className="simulation-file-browser">
+                  {artifactGroups.map((group) => (
+                    <section
+                      key={group.key}
+                      className="simulation-artifact-group"
+                      aria-label={`${group.label} files`}
+                    >
+                      <header>
+                        <span>
+                          <strong>{group.label}</strong>
+                          <small>{group.description}</small>
+                        </span>
+                        <button
+                          type="button"
+                          disabled={artifactBusy !== undefined}
+                          onClick={() =>
+                            void downloadBundle(group.key, group.artifacts)
+                          }
+                        >
+                          {artifactBusy === `bundle:${group.key}`
+                            ? "Packing…"
+                            : "Download ZIP"}
+                        </button>
+                      </header>
+                      {artifactCategories.map((category) => {
+                        const artifacts = group.artifacts.filter(
+                          (artifact) =>
+                            simulationArtifactCategory(artifact) === category,
+                        );
+                        return artifacts.length ? (
+                          <details
+                            key={category}
+                            className="simulation-artifact-category"
+                            aria-label={`${group.label} ${category}`}
+                            open={
+                              category === "Results" || category === "Netlist"
+                            }
+                          >
+                            <summary>
+                              <strong>{category}</strong>
+                              <small>{artifacts.length}</small>
+                            </summary>
+                            <ul className="simulation-artifact-list">
+                              {artifacts.map((artifact) => (
+                                <li
+                                  key={artifact.id}
+                                  className={
+                                    artifactPreview?.artifact.id === artifact.id
+                                      ? "selected"
+                                      : undefined
+                                  }
+                                >
+                                  <button
+                                    type="button"
+                                    title={`Preview ${artifact.name}`}
+                                    disabled={artifactBusy !== undefined}
+                                    onClick={() => void preview(artifact)}
+                                  >
+                                    {artifactBusy === `preview:${artifact.id}`
+                                      ? "Opening…"
+                                      : artifact.name}
+                                  </button>
+                                  <small>
+                                    {formatArtifactSize(artifact.byteLength)}
+                                  </small>
+                                  <button
+                                    type="button"
+                                    className="simulation-artifact-download"
+                                    aria-label={`Download ${artifact.name}`}
+                                    title={`Download ${artifact.name}`}
+                                    disabled={artifactBusy !== undefined}
+                                    onClick={() => void download(artifact)}
+                                  >
+                                    ↓
+                                  </button>
+                                </li>
+                              ))}
+                            </ul>
+                          </details>
+                        ) : null;
+                      })}
+                    </section>
+                  ))}
+                </div>
+                {artifactPreview ? (
+                  <section
+                    className="simulation-artifact-preview"
+                    aria-label="File preview"
                   >
-                    <summary>
-                      <strong>{section.category}</strong>
-                      <span>{section.label}</span>
-                      <small>{section.artifacts.length}</small>
-                    </summary>
-                    <ul className="simulation-artifact-list">
-                      {section.artifacts.map((artifact) => (
-                        <li key={artifact.id}>
-                          <button onClick={() => void download(artifact)}>
-                            {artifact.name}
-                          </button>
-                          <small>
-                            {formatArtifactSize(artifact.byteLength)}
-                          </small>
-                        </li>
-                      ))}
-                    </ul>
-                  </details>
-                ))}
-                {artifactSections.length === 0 ? (
+                    <header>
+                      <span>
+                        <strong>{artifactPreview.artifact.name}</strong>
+                        <small>
+                          {formatArtifactSize(
+                            artifactPreview.artifact.byteLength,
+                          )}
+                        </small>
+                      </span>
+                      <span>
+                        <button
+                          type="button"
+                          disabled={artifactBusy !== undefined}
+                          onClick={() =>
+                            void download(artifactPreview.artifact)
+                          }
+                        >
+                          Download
+                        </button>
+                        <button
+                          type="button"
+                          aria-label="Close file preview"
+                          onClick={() => setArtifactPreview(undefined)}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    </header>
+                    <pre>
+                      {formatSimulationArtifactPreview(artifactPreview)}
+                    </pre>
+                    {artifactPreview.truncated ? (
+                      <footer>
+                        Preview limited to the first 64 KB. Download for the
+                        complete file.
+                      </footer>
+                    ) : null}
+                  </section>
+                ) : null}
+                {artifactGroups.length === 0 ? (
                   <p className="simulation-empty-result">
                     Prepare a deck or run the simulation to create files.
                   </p>
@@ -2031,15 +2179,6 @@ function ProbeSelect({
       </span>
     </div>
   );
-}
-
-function simulationArtifactCategory(artifact: ArtifactRef): string {
-  const name = artifact.name.toLocaleLowerCase();
-  if (name.endsWith(".cir") || name.endsWith(".spi")) return "Netlist";
-  if (name.endsWith(".raw") || name.endsWith(".csv")) return "Results";
-  if (name.endsWith(".json")) return "Evidence";
-  if (name.endsWith(".log") || name.endsWith(".txt")) return "Log";
-  return "Other";
 }
 
 function formatArtifactSize(byteLength: number): string {

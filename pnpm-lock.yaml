@@ -101,6 +101,9 @@ importers:
       "@icm/symbols":
         specifier: workspace:*
         version: link:../../packages/symbols
+      fflate:
+        specifier: 0.8.3
+        version: 0.8.3
       mathlive:
         specifier: 0.110.0
         version: 0.110.0
