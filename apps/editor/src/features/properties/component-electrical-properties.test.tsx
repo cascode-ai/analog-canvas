@@ -56,6 +56,9 @@ describe("component electrical properties", () => {
       />,
     );
     expect(markup).toContain("Finger width 1u");
+    expect(markup).toMatch(
+      /<details[^>]*aria-label="Component parameters and display"[^>]*open=""/u,
+    );
     expect(markup).toContain('aria-label="Additional parameter name 1"');
     expect(markup).toContain("Apply parameters");
     expect(markup).not.toContain("Component compatibility field");

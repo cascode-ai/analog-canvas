@@ -5,6 +5,7 @@ import type { SchematicDocument } from "@icm/model";
 import { deviceDescriptor } from "@icm/devices";
 
 import type { CapacitorPlatePropertyRow } from "./capacitor-plate-properties";
+import { PropertyDisclosure } from "./property-disclosure";
 
 type Instance = SchematicDocument["instances"][number];
 
@@ -207,11 +208,12 @@ export function ComponentIdentityProperties({
   const reference = instance.reference ?? "";
   return (
     <>
-      <div
-        className="property-card property-identity-card"
-        aria-label="Component identity"
+      <PropertyDisclosure
+        title="Identity"
+        className="property-identity-card"
+        ariaLabel="Component identity"
+        defaultOpen
       >
-        <div className="property-section-heading">Identity</div>
         <dl className="component-readonly-fields">
           {portNet && !formalTerminalSelected ? (
             <div>
@@ -265,7 +267,7 @@ export function ComponentIdentityProperties({
             </div>
           ) : null}
         </dl>
-      </div>
+      </PropertyDisclosure>
       {capacitorPlateRows ? (
         <div
           className="property-card property-terminal-card"

@@ -54,6 +54,9 @@ describe("component identity properties", () => {
       />,
     );
     expect(markup).toContain('aria-label="Supply name"');
+    expect(markup).toMatch(
+      /<details[^>]*aria-label="Component identity"[^>]*open=""/u,
+    );
     expect(markup).toContain('<option value="">None</option>');
     expect(markup).toContain("sky130_fd_pr__nfet_01v8");
     expect(markup).toContain("Custom…");

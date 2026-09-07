@@ -1,5 +1,7 @@
 import type { SchematicDocument } from "@icm/model";
 
+import { PropertyDisclosure } from "../properties/property-disclosure";
+
 type Instance = SchematicDocument["instances"][number];
 
 export function placementTrayIdentity(
@@ -31,12 +33,9 @@ export function PlacementTrayPanel({
   onPlace: (instanceId: string) => void;
 }) {
   return (
-    <section
-      className="context-actions placement-tray"
-      aria-label="Placement Tray"
-    >
-      <div className="placement-tray-heading">
-        <h2>Placement Tray</h2>
+    <PropertyDisclosure
+      title="Placement Tray"
+      summary={
         <span
           className="placement-tray-count"
           aria-label={`${unplaced.length} retained ${
@@ -45,7 +44,11 @@ export function PlacementTrayPanel({
         >
           {unplaced.length}
         </span>
-      </div>
+      }
+      className="context-actions placement-tray"
+      ariaLabel="Placement Tray"
+      role="region"
+    >
       <div className="component-mirror-row">
         <button
           type="button"
@@ -97,6 +100,6 @@ export function PlacementTrayPanel({
           })}
         </div>
       ) : null}
-    </section>
+    </PropertyDisclosure>
   );
 }

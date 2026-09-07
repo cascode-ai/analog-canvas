@@ -1,6 +1,7 @@
 import type { SchematicDocument } from "@icm/model";
 
 import { ColorOverrideControl } from "./color-override-control";
+import { PropertyDisclosure } from "./property-disclosure";
 
 type Instance = SchematicDocument["instances"][number];
 type InstanceStyleOverride = NonNullable<Instance["styleOverride"]>;
@@ -26,8 +27,11 @@ export function ComponentStyleProperties({
   };
 
   return (
-    <div className="property-card component-appearance-card">
-      <div className="property-section-heading">Appearance</div>
+    <PropertyDisclosure
+      title="Appearance"
+      ariaLabel="Component appearance"
+      className="component-appearance-card"
+    >
       <small>Colors apply to this component only.</small>
       <ColorOverrideControl
         label="Line"
@@ -42,6 +46,6 @@ export function ComponentStyleProperties({
         transparentDefault
         onChange={(value) => update("background", value)}
       />
-    </div>
+    </PropertyDisclosure>
   );
 }

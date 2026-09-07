@@ -194,6 +194,10 @@ test("returns a component to the Placement Tray and places the retained Instance
   ).toHaveCount(0);
 
   await page
+    .getByRole("region", { name: "Placement Tray" })
+    .locator(":scope > summary")
+    .click();
+  await page
     .getByRole("button", { name: "Place R1 · resistor from tray" })
     .click();
   await canvas.hover({ position: { x: 480, y: 260 } });

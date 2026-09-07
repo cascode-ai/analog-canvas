@@ -33,6 +33,11 @@ describe("component style properties", () => {
     );
 
     expect(markup).toContain("Appearance");
+    const appearance = markup.match(
+      /<details[^>]*aria-label="Component appearance"[^>]*>/u,
+    )?.[0];
+    expect(appearance).toBeDefined();
+    expect(appearance).not.toContain('open=""');
     expect(markup).toContain("<legend>Line</legend>");
     expect(markup).toContain("<legend>Background</legend>");
     expect(markup).not.toContain("Line / foreground");

@@ -1,6 +1,7 @@
 import type { SchematicDocument } from "@icm/model";
 
 import { ToolIcon } from "../editor-shell/tool-icon";
+import { PropertyDisclosure } from "./property-disclosure";
 
 type Instance = SchematicDocument["instances"][number];
 
@@ -49,8 +50,12 @@ export function ComponentPlacementProperties({
         </div>
       ) : null}
       {instance.placement ? (
-        <div className="property-card property-placement-card">
-          <div className="property-section-heading">Placement</div>
+        <PropertyDisclosure
+          title="Placement"
+          className="property-placement-card"
+          ariaLabel="Component placement"
+          defaultOpen
+        >
           <div
             className="component-geometry-row property-placement-controls"
             aria-label="Component geometry"
@@ -151,7 +156,7 @@ export function ComponentPlacementProperties({
               ) : null}
             </div>
           ) : null}
-        </div>
+        </PropertyDisclosure>
       ) : null}
       {draftChanged ? (
         <button type="button" className="property-discard" onClick={onDiscard}>

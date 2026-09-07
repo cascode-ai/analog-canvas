@@ -1,6 +1,7 @@
 import type { Annotation } from "@icm/model";
 
 import { ColorOverrideControl } from "./color-override-control";
+import { PropertyDisclosure } from "./property-disclosure";
 
 export function AnnotationColorProperties({
   annotation,
@@ -16,8 +17,7 @@ export function AnnotationColorProperties({
       className="property-section annotation-text-properties"
       aria-label="Text properties"
     >
-      <div className="property-card">
-        <div className="property-section-heading">Text</div>
+      <PropertyDisclosure title="Text appearance" ariaLabel="Text appearance">
         <ColorOverrideControl
           label="Text color"
           value={annotation.textColor}
@@ -27,7 +27,7 @@ export function AnnotationColorProperties({
           onChange={onChange}
         />
         <small>Auto uses the inherited text color.</small>
-      </div>
+      </PropertyDisclosure>
     </section>
   );
 }
