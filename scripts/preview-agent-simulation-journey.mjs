@@ -525,9 +525,13 @@ try {
   assert(mosValue("M1", "id") > 0, "NMOS drain-entering ID is incorrect");
   assert(mosValue("M3", "vgs") < 0, "PMOS VGS polarity is incorrect");
   assert(mosValue("M3", "id") < 0, "PMOS drain-entering ID is incorrect");
+  const tailVoltage = fullRun.outputData.analyses
+    .find((analysis) => analysis.analysis === "op")
+    ?.outputs.find((output) => output.id === "probe-tail")?.values[0];
+  assert(Number.isFinite(tailVoltage), "OTA tail OP voltage is unavailable");
   assert(
-    Math.abs(mosValue("M1", "vbs")) < 1e-9,
-    "NMOS cell-default Bulk did not resolve to its source supply",
+    Math.abs(mosValue("M1", "vbs") + tailVoltage) < 1e-9,
+    "NMOS Bulk is grounded: VBS must equal minus the tail voltage",
   );
   assert(
     Math.abs(mosValue("M3", "vbs")) < 1e-9,

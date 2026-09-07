@@ -124,7 +124,12 @@ export type CompiledSimulationExpression =
       readonly acquisitionId: string;
       readonly quantity: "voltage" | "current";
     }
-  | { readonly kind: "constant"; readonly value: number }
+  | {
+      readonly kind: "constant";
+      readonly value: number;
+      /** Physical unit assigned by compilation; authored constants default to 1. */
+      readonly unit?: string | undefined;
+    }
   | {
       readonly kind:
         | "negate"
@@ -1020,7 +1025,7 @@ export async function compileStructuredSimulation(
           // Ground is a SPICE constant, not a writable rawfile vector.
           // Folding it here also keeps every derived expression independent of
           // simulator-specific attempts to expose `v(0)`.
-          if (node === "0") return { kind: "constant", value: 0 };
+          if (node === "0") return { kind: "constant", value: 0, unit: "V" };
           const binding: CompiledSimulationVector = {
             probeId: candidateId,
             vector: `v(${node})`,

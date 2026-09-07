@@ -73,6 +73,7 @@ export const CompiledOutputExpressionSchema: z.ZodType<CompiledSimulationExpress
       z.strictObject({
         kind: z.literal("constant"),
         value: z.number().finite(),
+        unit: z.string().min(1).optional(),
       }),
       ...(
         [

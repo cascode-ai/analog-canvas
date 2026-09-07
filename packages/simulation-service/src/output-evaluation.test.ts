@@ -95,6 +95,59 @@ describe("simulation output evaluation", () => {
     );
   });
 
+  it("evaluates a dimensioned ground constant in terminal-derived voltage", () => {
+    const result = evaluateSimulationOutputs(
+      {
+        schemaVersion: 1,
+        analyses: [
+          {
+            analysis: "op",
+            plotName: "Operating Point",
+            probes: [
+              { name: "v(s)", quantity: "voltage", value: 0.2, unit: "V" },
+            ],
+          },
+        ],
+      },
+      [{ probeId: "vs", vector: "v(s)", quantity: "voltage" }],
+      [],
+      [],
+      [
+        {
+          id: "op-m1",
+          documentId: "dut",
+          instanceId: "M1",
+          occurrence: ["XDUT"],
+          reference: "XM1",
+          polarity: "nmos",
+          values: [
+            {
+              parameter: "vbs",
+              label: "VBS",
+              unit: "V",
+              expression: {
+                kind: "subtract",
+                left: { kind: "constant", value: 0, unit: "V" },
+                right: {
+                  kind: "acquisition",
+                  acquisitionId: "vs",
+                  quantity: "voltage",
+                },
+              },
+            },
+          ],
+        },
+      ],
+    );
+
+    expect(result.deviceOperatingPoints?.[0]?.values[0]).toMatchObject({
+      parameter: "vbs",
+      status: "available",
+      value: -0.2,
+      unit: "V",
+    });
+  });
+
   it("publishes Noise density and integrated values without ngspice vector names", () => {
     const result = evaluateSimulationOutputs(
       {
