@@ -493,52 +493,58 @@ export function ComplexResultsExplorer({
         const referenceId = references[quantity] ?? "";
         return (
           <section key={quantity} className="ac-quantity-group">
-            <div className="ac-view-toolbar">
-              <strong>{groupLabel(quantity)}</strong>
-              <div role="group" aria-label={`${groupLabel(quantity)} display`}>
-                {VIEW_MODES.map(({ mode: candidate, label }) => (
-                  <button
-                    key={candidate}
-                    type="button"
-                    aria-pressed={mode === candidate}
-                    onClick={() =>
-                      setViewModes((current) => ({
-                        ...current,
-                        [quantity]: candidate,
-                      }))
-                    }
-                  >
-                    {label}
-                  </button>
-                ))}
+            <div className="ac-view-alignment">
+              <div className="ac-view-toolbar">
+                <div
+                  role="group"
+                  aria-label={`${groupLabel(quantity)} display`}
+                >
+                  {VIEW_MODES.map(({ mode: candidate, label }) => (
+                    <button
+                      key={candidate}
+                      type="button"
+                      aria-pressed={mode === candidate}
+                      onClick={() =>
+                        setViewModes((current) => ({
+                          ...current,
+                          [quantity]: candidate,
+                        }))
+                      }
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {(mode === "db20" || mode === "bode") && (
+                  <label>
+                    Reference
+                    <select
+                      aria-label={`${groupLabel(quantity)} reference`}
+                      value={referenceId}
+                      onChange={(event) =>
+                        setReferences((current) => {
+                          const next = { ...current };
+                          if (event.target.value)
+                            next[quantity] = event.target.value;
+                          else delete next[quantity];
+                          return next;
+                        })
+                      }
+                    >
+                      <option value="">
+                        {unityReferenceLabel(sourceUnit)}
+                      </option>
+                      {quantityTraces
+                        .filter((trace) => trace.unit === sourceUnit)
+                        .map((trace) => (
+                          <option key={trace.id} value={trace.id}>
+                            {trace.label}
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+                )}
               </div>
-              {(mode === "db20" || mode === "bode") && (
-                <label>
-                  Reference
-                  <select
-                    aria-label={`${groupLabel(quantity)} reference`}
-                    value={referenceId}
-                    onChange={(event) =>
-                      setReferences((current) => {
-                        const next = { ...current };
-                        if (event.target.value)
-                          next[quantity] = event.target.value;
-                        else delete next[quantity];
-                        return next;
-                      })
-                    }
-                  >
-                    <option value="">{unityReferenceLabel(sourceUnit)}</option>
-                    {quantityTraces
-                      .filter((trace) => trace.unit === sourceUnit)
-                      .map((trace) => (
-                        <option key={trace.id} value={trace.id}>
-                          {trace.label}
-                        </option>
-                      ))}
-                  </select>
-                </label>
-              )}
             </div>
             <div className="simulation-plot-layout">
               <WaveformTraceList

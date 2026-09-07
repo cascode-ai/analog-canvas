@@ -773,8 +773,9 @@
 .simulation-analysis-view .simulation-analysis-card-header h3 {
   margin: 0;
   color: var(--icm-text);
-  font-size: var(--icm-font-lg);
+  font-size: 28px;
   font-weight: 700;
+  line-height: 1.1;
   letter-spacing: 0.01em;
 }
 .simulation-analysis-card-body {
@@ -967,6 +968,15 @@
 }
 .simulation-run-comparison-table thead th:not(:first-child) {
   padding-right: 30px;
+}
+.simulation-run-comparison-table .simulation-comparison-analysis-row th {
+  display: table-cell;
+  padding: 7px 9px;
+  border-right: 0;
+  color: var(--icm-text);
+  background: color-mix(in srgb, var(--icm-surface-muted) 58%, white);
+  font-size: var(--icm-font-sm);
+  font-weight: 700;
 }
 .simulation-run-comparison-table thead th > span,
 .simulation-run-comparison-table tbody th {
@@ -1317,16 +1327,20 @@
 .ac-results-explorer > header button {
   margin-left: auto;
 }
+.ac-view-alignment {
+  display: grid;
+  grid-template-columns: minmax(88px, 108px) minmax(0, 1fr);
+  gap: 8px;
+  min-width: 0;
+}
 .ac-view-toolbar {
+  grid-column: 2;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   min-width: 0;
   min-height: 32px;
-}
-.ac-view-toolbar > strong {
-  min-width: 72px;
 }
 .ac-view-toolbar > [role="group"] {
   display: flex;
@@ -1488,8 +1502,8 @@
   position: absolute;
   inset: 0;
   display: grid;
-  place-items: center end;
-  padding-right: 8px;
+  place-items: center start;
+  padding-left: 8px;
   color: var(--icm-text-muted);
   font-size: var(--icm-font-xs);
   pointer-events: none;
@@ -1500,8 +1514,8 @@
   inset: 0;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 4px;
+  justify-content: flex-start;
+  gap: 1px;
   padding: 3px 4px;
   opacity: 0;
   visibility: hidden;
@@ -1510,25 +1524,23 @@
     opacity 120ms ease,
     visibility 0s linear 120ms;
 }
-.ac-plot-shell:hover .waveform-tool-actions,
+.ac-plot-toolbar:hover .waveform-tool-actions,
 .ac-plot-toolbar:focus-within .waveform-tool-actions,
-.ac-plot-toolbar.expanded .waveform-tool-actions,
-.ac-plot-toolbar.more-open .waveform-tool-actions {
+.ac-plot-toolbar.expanded .waveform-tool-actions {
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
   transition-delay: 0s;
 }
-.ac-plot-shell:hover .waveform-tools-hint,
+.ac-plot-toolbar:hover .waveform-tools-hint,
 .ac-plot-toolbar:focus-within .waveform-tools-hint,
-.ac-plot-toolbar.expanded .waveform-tools-hint,
-.ac-plot-toolbar.more-open .waveform-tools-hint {
+.ac-plot-toolbar.expanded .waveform-tools-hint {
   opacity: 0;
 }
 .ac-plot-toolbar button {
-  min-width: 27px;
+  min-width: 20px;
   min-height: 24px;
-  padding: 2px 6px;
+  padding: 2px 4px;
   border-color: transparent;
   background: transparent;
   font-size: var(--icm-font-xs);
@@ -1642,6 +1654,12 @@
   }
   .simulation-plot-layout {
     grid-template-columns: 1fr;
+  }
+  .ac-view-alignment {
+    grid-template-columns: 1fr;
+  }
+  .ac-view-toolbar {
+    grid-column: 1;
   }
   .waveform-trace-list {
     position: static;
@@ -2187,55 +2205,26 @@
 .waveform-tools {
   align-self: stretch;
 }
-.waveform-primary-actions,
-.waveform-secondary-actions,
-.waveform-primary-actions > [role="group"],
-.waveform-secondary-actions > [role="group"] {
+.waveform-tool-actions > [role="group"] {
   display: flex;
   align-items: center;
-  gap: 2px;
-}
-.waveform-primary-actions > [role="group"],
-.waveform-secondary-actions > [role="group"] {
+  gap: 1px;
   border-left: 1px solid var(--icm-border);
-  padding-left: 4px;
+  padding-left: 3px;
 }
-.waveform-more-toggle {
-  font-weight: 700;
-  letter-spacing: 0.08em;
-}
-.waveform-secondary-actions {
-  position: absolute;
-  z-index: 6;
-  top: calc(100% + 4px);
-  right: 4px;
-  display: none;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  width: min(310px, calc(100% - 8px));
-  padding: 6px;
-  border: 1px solid var(--icm-border-strong);
-  border-radius: var(--icm-radius-sm);
-  background: #fff;
-  box-shadow: var(--icm-shadow-sm);
-}
-.waveform-tools.more-open .waveform-secondary-actions {
-  display: flex;
-}
-@container (min-width: 560px) {
-  .waveform-more-toggle {
-    display: none;
+@container (max-width: 460px) {
+  .waveform-tool-actions {
+    gap: 0;
+    padding-inline: 2px;
   }
-  .waveform-secondary-actions {
-    position: static;
-    display: flex;
-    flex-wrap: nowrap;
-    width: auto;
-    padding: 0;
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-    box-shadow: none;
+  .ac-plot-toolbar button {
+    min-width: 18px;
+    padding-inline: 2px;
+    font-size: 10px;
+  }
+  .waveform-tool-actions > [role="group"] {
+    gap: 0;
+    padding-left: 2px;
   }
 }
 .waveform-range-editor {

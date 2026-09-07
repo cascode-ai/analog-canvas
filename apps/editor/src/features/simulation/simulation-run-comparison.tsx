@@ -35,6 +35,12 @@ function measurementKey(measurement: Measurement): string {
     : `automatic\u0000${measurement.analysis}\u0000${measurement.outputId}\u0000${measurement.metric}\u0000${measurement.unit}`;
 }
 
+function analysisTitle(analysis: Measurement["analysis"]): string {
+  if (analysis === "op") return "Operating Point";
+  if (analysis === "tran") return "Transient";
+  return analysis.toUpperCase();
+}
+
 export function SimulationRunComparison({
   runs,
   onRemove,
@@ -48,10 +54,16 @@ export function SimulationRunComparison({
         Complete a structured run to compare its measurements.
       </p>
     );
-  const rows = new Map<string, Measurement>();
+  const rowGroups = new Map<
+    Measurement["analysis"],
+    Map<string, Measurement>
+  >();
   for (const run of runs)
-    for (const measurement of run.measurements)
+    for (const measurement of run.measurements) {
+      const rows = rowGroups.get(measurement.analysis) ?? new Map();
       rows.set(measurementKey(measurement), measurement);
+      rowGroups.set(measurement.analysis, rows);
+    }
   return (
     <div className="simulation-run-comparison-table-wrap">
       <table className="simulation-run-comparison-table">
@@ -80,39 +92,47 @@ export function SimulationRunComparison({
             ))}
           </tr>
         </thead>
-        <tbody>
-          {[...rows.entries()].map(([key, row]) => (
-            <tr key={key}>
-              <th>
-                <strong>{row.outputLabel}</strong>
-                <small>
-                  {row.analysis.toUpperCase()} · {row.label}
-                </small>
+        {[...rowGroups.entries()].map(([analysis, rows]) => (
+          <tbody
+            key={analysis}
+            aria-label={`${analysisTitle(analysis)} analysis`}
+          >
+            <tr className="simulation-comparison-analysis-row">
+              <th colSpan={runs.length + 1}>
+                {analysisTitle(analysis)} Analysis
               </th>
-              {runs.map((run) => {
-                const item = run.measurements.find(
-                  (candidate) => measurementKey(candidate) === key,
-                );
-                return (
-                  <td key={run.id}>
-                    {!item ? (
-                      <span className="simulation-comparison-missing">—</span>
-                    ) : item.status === "available" ? (
-                      format(item.value, item.unit)
-                    ) : (
-                      <span
-                        className="simulation-comparison-unavailable"
-                        title={item.reason}
-                      >
-                        Unavailable
-                      </span>
-                    )}
-                  </td>
-                );
-              })}
             </tr>
-          ))}
-        </tbody>
+            {[...rows.entries()].map(([key, row]) => (
+              <tr key={key}>
+                <th>
+                  <strong>{row.outputLabel}</strong>
+                  <small>{row.label}</small>
+                </th>
+                {runs.map((run) => {
+                  const item = run.measurements.find(
+                    (candidate) => measurementKey(candidate) === key,
+                  );
+                  return (
+                    <td key={run.id}>
+                      {!item ? (
+                        <span className="simulation-comparison-missing">—</span>
+                      ) : item.status === "available" ? (
+                        format(item.value, item.unit)
+                      ) : (
+                        <span
+                          className="simulation-comparison-unavailable"
+                          title={item.reason}
+                        >
+                          Unavailable
+                        </span>
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        ))}
       </table>
     </div>
   );
