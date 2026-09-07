@@ -397,7 +397,10 @@ describe("shared simulation lifecycle", () => {
     await vi.waitFor(async () =>
       expect(
         unwrap(
-          await f.service.handle({ operation: "read", runId: started.id }),
+          await f.service.handle(
+            { operation: "read", runId: started.id },
+            "dependency-read",
+          ),
           "run",
         ),
       ).toMatchObject({ state: "finished", inputStatus: "unchanged" }),
@@ -408,7 +411,10 @@ describe("shared simulation lifecycle", () => {
     f.project.structureRevision++;
     expect(
       unwrap(
-        await f.service.handle({ operation: "read", runId: started.id }),
+        await f.service.handle(
+          { operation: "read", runId: started.id },
+          "dependency-changed-read",
+        ),
         "run",
       ),
     ).toMatchObject({ inputStatus: "changed" });
