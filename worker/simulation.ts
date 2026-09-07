@@ -289,6 +289,15 @@ export async function routeSimulationRequest(
   }
   const target = body.executorTarget ?? configuredDefault;
   const selected = runnerFor(env, runnerKey, target);
+  const defaultCorner = env.SKY130_LIB_SECTION ?? SKY130_LIBRARY_SECTION;
+  if (!hostedSky130Profile.qualifiedScope.sections.includes(defaultCorner))
+    return Response.json(
+      {
+        error: "simulation-executor-configuration-invalid",
+        message: `SKY130_LIB_SECTION does not name a qualified corner: ${defaultCorner}`,
+      },
+      { status: 503 },
+    );
   if (body.operation === "capabilities") {
     return Response.json({
       configured: !!selected,
@@ -298,7 +307,8 @@ export async function routeSimulationRequest(
       profiles: [
         {
           id: hostedSky130Profile.id,
-          corners: [env.SKY130_LIB_SECTION ?? SKY130_LIBRARY_SECTION],
+          label: hostedSky130Profile.displayName ?? hostedSky130Profile.id,
+          corners: hostedSky130Profile.qualifiedScope.sections,
           dependencies: [
             {
               id: hostedSky130Profile.models.id,
@@ -309,7 +319,7 @@ export async function routeSimulationRequest(
       ],
       modelLibrary: {
         path: env.SKY130_LIB_PATH ?? SKY130_LIBRARY_PATH,
-        section: env.SKY130_LIB_SECTION ?? SKY130_LIBRARY_SECTION,
+        section: defaultCorner,
       },
       maxTimeoutMs: 120000,
       maxInputBytes: MAX_INPUT_BYTES,
@@ -370,8 +380,10 @@ export async function routeSimulationRequest(
     body.environment &&
     (body.environment.profileId !== hostedSky130Profile.id ||
       (body.environment.corner !== undefined &&
-        body.environment.corner !==
-          (env.SKY130_LIB_SECTION ?? SKY130_LIBRARY_SECTION)))
+        (typeof body.environment.corner !== "string" ||
+          !hostedSky130Profile.qualifiedScope.sections.includes(
+            body.environment.corner,
+          ))))
   )
     return Response.json(
       { error: "simulation-profile-unavailable" },
@@ -447,7 +459,8 @@ export async function routeSimulationRequest(
       ? {
           directive: "lib",
           path: env.SKY130_LIB_PATH ?? SKY130_LIBRARY_PATH,
-          section: env.SKY130_LIB_SECTION ?? SKY130_LIBRARY_SECTION,
+          section:
+            (body.environment?.corner as string | undefined) ?? defaultCorner,
         }
       : null;
     // Raw input is already an executable deck: preserve its title, control

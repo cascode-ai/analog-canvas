@@ -79,6 +79,8 @@ describe("simulation route", () => {
       profiles: [
         {
           id: hostedSky130Profile.id,
+          label: hostedSky130Profile.displayName,
+          corners: hostedSky130Profile.qualifiedScope.sections,
           dependencies: [
             {
               id: hostedSky130Profile.models.id,
@@ -364,6 +366,46 @@ describe("simulation route", () => {
     expect(seen.deck).toContain('.lib "/models/sky130.lib.spice" ff');
   });
 
+  it("uses a qualified corner selected by the setup", async () => {
+    const seen: { deck?: string } = {};
+    const response = await routeSimulationRequest(
+      post({
+        netlist: NETLIST,
+        testbench: TESTBENCH,
+        environment: {
+          profileId: hostedSky130Profile.id,
+          corner: "sf",
+        },
+      }),
+      stubRunner(
+        { log: "", exitCode: 0, timedOut: false, durationMs: 5 },
+        seen,
+      ),
+    );
+    expect(response?.status).toBe(200);
+    expect(seen.deck).toContain(
+      '.lib "/opt/sky130/continuous/sky130.lib.spice" sf',
+    );
+  });
+
+  it("rejects a corner outside the qualified Profile", async () => {
+    const response = await routeSimulationRequest(
+      post({
+        netlist: NETLIST,
+        testbench: TESTBENCH,
+        environment: {
+          profileId: hostedSky130Profile.id,
+          corner: "mc",
+        },
+      }),
+      stubRunner({}),
+    );
+    expect(response?.status).toBe(400);
+    expect(await response!.json()).toMatchObject({
+      error: "simulation-profile-unavailable",
+    });
+  });
+
   it("returns input, configuration and environment identity with a result", async () => {
     const response = await routeSimulationRequest(
       post({
@@ -407,16 +449,16 @@ describe("simulation route", () => {
     });
   });
 
-  it("reports an invalid deployed section as environment configuration", async () => {
+  it("reports an unqualified deployed default corner as environment configuration", async () => {
     const env = stubRunner({});
-    env.SKY130_LIB_SECTION = "tt\n.end";
+    env.SKY130_LIB_SECTION = "mc";
     const response = await routeSimulationRequest(
       post({ netlist: NETLIST, testbench: TESTBENCH }),
       env,
     );
     expect(response?.status).toBe(503);
     expect((await response!.json()) as unknown).toMatchObject({
-      error: "simulation-environment-invalid",
+      error: "simulation-executor-configuration-invalid",
     });
   });
 

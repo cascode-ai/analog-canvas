@@ -38,8 +38,14 @@ same hierarchy, followed by the existing simulation configure operation.
 
 ## Setup, run and results
 
-Open **Setup**, create or select a named setup, choose its testbench Cell and advertised environment Profile,
-then set OP/DC/AC/TRAN, optional corner/temperature, and outputs. Voltage
+Open **Setup**, create or select a named setup, then set OP/DC/AC/TRAN,
+process corner, optional temperature, and outputs. The current SKY130
+environment offers TT, FF, SS, FS, and SF. New setups use TT. The runtime
+Profile is selected automatically and shown by a friendly environment name;
+its stable ID remains saved in the Project and visible to Agent/API clients for
+reproducibility. A Profile picker appears only when several compatible
+environments are advertised or a saved environment is no longer available.
+Voltage
 outputs may target a Net at the Testbench root or in a concrete DUT occurrence;
 current outputs may target circuit terminals. Each choice is written to the
 same occurrence-aware output contract that Agent authoring uses. Apply commits an

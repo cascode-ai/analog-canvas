@@ -50,6 +50,20 @@ if (
     `Qualification ${qualification.fixtureId} uses a model selection outside Profile ${profile.id}.`,
   );
 }
+const qualificationCorners = Object.keys(qualification.expectedCorners ?? {});
+if (
+  qualificationCorners.length === 0 ||
+  qualificationCorners.some(
+    (corner) => !profile.qualifiedScope.sections.includes(corner),
+  ) ||
+  profile.qualifiedScope.sections.some(
+    (corner) => !qualificationCorners.includes(corner),
+  )
+) {
+  throw new Error(
+    `Qualification ${qualification.fixtureId} does not cover every declared Profile corner.`,
+  );
+}
 
 const EXECUTORS = ["operator-host"];
 const SHA256 = /^[0-9a-f]{64}$/u;
@@ -115,6 +129,34 @@ export const DIVIDER_DC_REQUEST = {
   ].join("\n"),
   timeoutMs: 30_000,
 };
+
+export function hostedSky130CornerRequest(corner) {
+  return {
+    netlist: [
+      ".subckt corner_pair gn dn gp sp dp",
+      "XMN dn gn 0 0 sky130_fd_pr__nfet_01v8 L=0.5 W=10",
+      "XMP dp gp sp sp sky130_fd_pr__pfet_01v8 L=0.5 W=10",
+      ".ends corner_pair",
+    ].join("\n"),
+    testbench: [
+      "VGN gn 0 0.9",
+      "VDN dn 0 1.8",
+      "VGP gp 0 0.9",
+      "VSP sp 0 1.8",
+      "VDP dp 0 0",
+      "XDUT gn dn gp sp dp corner_pair",
+      ".control",
+      "set filetype=ascii",
+      "op",
+      "write out.raw i(vdn) i(vsp)",
+      ".endc",
+      ".end",
+    ].join("\n"),
+    timeoutMs: 110_000,
+    inputRevision: `preview-sky130-corner-${corner}`,
+    environment: { profileId: profile.id, corner },
+  };
+}
 
 export async function compileHostedSky130Project() {
   const [{ compileStructuredSimulation }, { parseProject }] = await Promise.all(
@@ -754,6 +796,92 @@ export async function runHostedSky130Acceptance({
   );
 }
 
+export function validateHostedSky130CornerResult(
+  payload,
+  expectedTarget,
+  corner,
+) {
+  const expected = qualification.expectedCorners?.[corner];
+  if (!expected)
+    throw new Error(`No qualification evidence exists for ${corner}.`);
+  const result = object(payload, "simulation response");
+  if (object(result.execution, "execution metadata").target !== expectedTarget)
+    throw new Error(`${expectedTarget} did not execute corner ${corner}.`);
+  if (object(result.outcome, "simulation outcome").status !== "completed")
+    throw new Error(`${expectedTarget} did not complete corner ${corner}.`);
+  const metadata = object(result.metadata, "run metadata");
+  const configuration = object(
+    metadata.configuration,
+    "configuration metadata",
+  );
+  const modelLibrary = object(configuration.modelLibrary, "model selection");
+  if (
+    modelLibrary.directive !== profile.models.library.directive ||
+    modelLibrary.section !== corner
+  )
+    throw new Error(
+      `${expectedTarget} loaded ${String(modelLibrary.section)}, expected corner ${corner}.`,
+    );
+  const environment = object(metadata.environment, "environment metadata");
+  validatePinnedEnvironment(environment, expectedTarget);
+  if (
+    environment.fingerprint !==
+    qualification.cornerEvidence.environmentFingerprint
+  )
+    throw new Error(
+      `${expectedTarget} corner evidence came from a different environment.`,
+    );
+  const data = object(result.data, "parsed result data");
+  const operatingPoint = Array.isArray(data.analyses)
+    ? data.analyses.find((analysis) => analysis?.analysis === "op")
+    : null;
+  if (!operatingPoint || !Array.isArray(operatingPoint.probes))
+    throw new Error(`${expectedTarget} returned no OP result for ${corner}.`);
+  const readCurrent = (name) => {
+    const probe = operatingPoint.probes.find(
+      (candidate) => candidate?.name === name,
+    );
+    if (typeof probe?.value !== "number")
+      throw new Error(`${expectedTarget} returned no ${name} for ${corner}.`);
+    return probe.value;
+  };
+  const nfetCurrentA = readCurrent("i(vdn)");
+  const pfetSourceCurrentA = readCurrent("i(vsp)");
+  const tolerance = qualification.cornerEvidence.absoluteTolerance;
+  if (
+    Math.abs(nfetCurrentA - expected.nfetCurrentA) > tolerance ||
+    Math.abs(pfetSourceCurrentA - expected.pfetSourceCurrentA) > tolerance
+  )
+    throw new Error(
+      `${expectedTarget} returned unexpected ${corner} currents ` +
+        `(NFET=${nfetCurrentA}, PFET=${pfetSourceCurrentA}).`,
+    );
+  return { corner, nfetCurrentA, pfetSourceCurrentA };
+}
+
+export async function runHostedSky130CornerAcceptance({
+  baseUrl,
+  target,
+  corner,
+  fetchImpl = fetch,
+}) {
+  const response = await fetchImpl(new URL("/api/simulate", baseUrl), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      ...hostedSky130CornerRequest(corner),
+      executorTarget: target,
+    }),
+    signal: AbortSignal.timeout(120_000),
+  });
+  const payload = await response.json();
+  if (!response.ok)
+    throw new Error(
+      `[infrastructure:http-${response.status}] ${target} ${corner} corner qualification failed.`,
+    );
+  return validateHostedSky130CornerResult(payload, target, corner);
+}
+
 export async function runHostedSky130TransientAcceptance({
   baseUrl,
   target,
@@ -928,6 +1056,19 @@ async function main() {
     console.log(
       `${result.target}: SKY130 OTA TRAN ${result.pointCount} points passed`,
     );
+  }
+  for (const target of EXECUTORS) {
+    for (const corner of profile.qualifiedScope.sections) {
+      const result = await runHostedSky130CornerAcceptance({
+        baseUrl,
+        target,
+        corner,
+      });
+      console.log(
+        `${target}: SKY130 ${result.corner.toUpperCase()} corner passed ` +
+          `(NFET=${result.nfetCurrentA}, PFET=${result.pfetSourceCurrentA})`,
+      );
+    }
   }
   console.log(`Hosted SKY130 Profile ${profile.id}: qualified`);
 }

@@ -12,6 +12,34 @@
     "directive": "lib",
     "section": "tt"
   },
+  "expectedCorners": {
+    "tt": {
+      "nfetCurrentA": -0.0002221772535699329,
+      "pfetSourceCurrentA": -7.065189762608948e-7
+    },
+    "ff": {
+      "nfetCurrentA": -0.0002526337154561964,
+      "pfetSourceCurrentA": -9.451994627332483e-7
+    },
+    "ss": {
+      "nfetCurrentA": -0.0001941105699482248,
+      "pfetSourceCurrentA": -5.279296240168208e-7
+    },
+    "fs": {
+      "nfetCurrentA": -0.000180956613662353,
+      "pfetSourceCurrentA": -0.000001648894668221379
+    },
+    "sf": {
+      "nfetCurrentA": -0.0002669450058923606,
+      "pfetSourceCurrentA": -2.990772873870395e-7
+    }
+  },
+  "cornerEvidence": {
+    "observedAt": "2026-09-07",
+    "executor": "operator-host",
+    "environmentFingerprint": "33c245e5df6dc12077b6a2e4ebf308777b0e9014fe9bfdafc3285c614688561d",
+    "absoluteTolerance": 1e-10
+  },
   "expectedProbes": {
     "v(vout)": { "value": 0.7589797395133877, "absoluteTolerance": 1e-8 },
     "v(ibias)": { "value": 0.6044031364286973, "absoluteTolerance": 1e-8 },

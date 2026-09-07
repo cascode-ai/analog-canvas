@@ -29,7 +29,7 @@ describe("hosted simulation Profile", () => {
     expect(HOSTED_SKY130_PROFILE.models.library).toMatchObject({
       directive: "lib",
       runtimePath: "/opt/sky130/continuous/sky130.lib.spice",
-      sections: ["tt"],
+      sections: ["tt", "ff", "ss", "fs", "sf"],
     });
     expect(HOSTED_SKY130_PROFILE.qualifiedScope.analyses).toEqual([
       "op",
