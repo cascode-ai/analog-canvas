@@ -188,7 +188,10 @@ function evaluate(
 }
 
 function sourceSeries(
-  analysis: SimulationResultData["analyses"][number],
+  analysis: Exclude<
+    SimulationResultData["analyses"][number],
+    { analysis: "noise" }
+  >,
   vectors: readonly CompiledSimulationVector[],
 ): Map<string, ComplexSeries> {
   const byName = new Map(
@@ -228,8 +231,12 @@ export function evaluateSimulationOutputs(
   measurementSpecs: readonly SimulationMeasurementSpec[] = [],
 ): SimulationOutputData {
   const diagnostics: SimulationOutputData["diagnostics"] = [];
-  const analyses: SimulationOutputData["analyses"] = data.analyses.map(
-    (analysis) => {
+  const analyses: SimulationOutputData["analyses"] = data.analyses
+    .filter(
+      (analysis): analysis is Exclude<typeof analysis, { analysis: "noise" }> =>
+        analysis.analysis !== "noise",
+    )
+    .map((analysis) => {
       const acquisitions = sourceSeries(analysis, vectors);
       const pointCount =
         analysis.analysis === "op"
@@ -283,8 +290,7 @@ export function evaluateSimulationOutputs(
         ...(domain ? { domain } : {}),
         outputs: evaluated,
       };
-    },
-  );
+    });
   return {
     schemaVersion: 1,
     diagnostics,

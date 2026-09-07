@@ -8,6 +8,7 @@ import {
   simulationAnalysisToCsv,
   type AcResult,
   type DcSweepResult,
+  type NoiseResult,
   type OperatingPointResult,
   type SimulationAnalysisResult,
   type SimulationDataReading,
@@ -420,6 +421,86 @@ describe("a transient run", () => {
     expect(
       relative(vout.value[last]!, ideal(analysis.timeSeconds[last]!)),
     ).toBeLessThan(1e-4);
+  });
+});
+
+describe("a noise analysis written by ngspice 46", () => {
+  const BOLTZMANN = 1.380649e-23;
+  const TEMPERATURE_K = 273.15 + 27;
+  const OUTPUT_RESISTANCE = R1 / 2;
+
+  it("assembles the spectral and integrated plots without exposing plot ordinals", () => {
+    const noise = only(
+      "resistor-noise-ngspice46.raw",
+      "noise",
+    ) satisfies NoiseResult;
+    expect(noise.plotName).toBe("Noise Analysis");
+    expect(noise.frequencyHz).toEqual([
+      10, 21.54434690031884, 46.41588833612779, 100, 215.4434690031884,
+      464.158883361278, 1000,
+    ]);
+    expect(noise.units).toEqual({
+      outputDensity: "V/sqrt(Hz)",
+      inputDensity: "V/sqrt(Hz)",
+      integratedOutput: "V",
+      integratedInput: "V",
+    });
+
+    const expectedOutputDensity = Math.sqrt(
+      4 * BOLTZMANN * TEMPERATURE_K * OUTPUT_RESISTANCE,
+    );
+    for (const density of noise.outputNoiseDensity)
+      expect(relative(density, expectedOutputDensity)).toBeLessThan(2e-5);
+    for (const density of noise.inputNoiseDensity)
+      expect(relative(density, expectedOutputDensity * 2)).toBeLessThan(2e-5);
+
+    const bandwidthHz = 1000 - 10;
+    expect(
+      relative(
+        noise.integratedOutputNoise,
+        expectedOutputDensity * Math.sqrt(bandwidthHz),
+      ),
+    ).toBeLessThan(2e-5);
+    expect(
+      relative(
+        noise.integratedInputNoise,
+        expectedOutputDensity * 2 * Math.sqrt(bandwidthHz),
+      ),
+    ).toBeLessThan(2e-5);
+  });
+
+  it("keeps current-referred input noise in current units", () => {
+    const noise = only("resistor-current-noise-ngspice46.raw", "noise");
+    expect(noise.units).toEqual({
+      outputDensity: "V/sqrt(Hz)",
+      inputDensity: "A/sqrt(Hz)",
+      integratedOutput: "V",
+      integratedInput: "A",
+    });
+    expect(noise.outputNoiseDensity[0]).toBe(4.071371529487329e-9);
+    expect(noise.inputNoiseDensity[0]).toBe(4.07137152948733e-12);
+  });
+
+  it("refuses one half of ngspice's two-plot result", () => {
+    const full = fixture("resistor-noise-ngspice46.raw");
+    const integrated = full.indexOf("Title: * ngspice noise rawfile probe", 1);
+    const reading = readSimulationData(full.slice(0, integrated));
+    expect(reading.status).toBe("unusable");
+    expect(reading.diagnostics[0]?.text).toContain(
+      "one spectral-density plot and one integrated-noise plot",
+    );
+  });
+
+  it("exports density rows and integrated scalars from the same parse", () => {
+    const noise = only("resistor-noise-ngspice46.raw", "noise");
+    const lines = simulationAnalysisToCsv(noise).trimEnd().split("\n");
+    expect(lines[0]).toBe(
+      "frequency [Hz],output noise density [V/sqrt(Hz)],input noise density [V/sqrt(Hz)]",
+    );
+    expect(lines[8]).toBe("");
+    expect(lines[9]).toBe("integrated quantity,value,unit");
+    expect(lines[10]).toBe("output noise,9.058229813216489e-8,V");
+    expect(lines[11]).toBe("input-referred noise,1.811645962643298e-7,V");
   });
 });
 
