@@ -25,7 +25,10 @@ import { SimulationRunDetails } from "./simulation-run-details";
 import { AcResultsExplorer } from "./ac-results-explorer";
 import { DcResultsExplorer } from "./dc-results-explorer";
 import { TransientResultsExplorer } from "./transient-results-explorer";
-import { SimulationOutputResults } from "./simulation-output-results";
+import {
+  SimulationAnalysisCard,
+  SimulationOutputResults,
+} from "./simulation-output-results";
 import { deriveOperatingPointCanvasProjection } from "./operating-point-projection";
 import type { OperatingPointDisplay } from "./operating-point-labels";
 
@@ -944,66 +947,81 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
                   run?.result?.data?.analyses
                     .filter((analysis) => analysis.analysis === "dc")
                     .map((analysis, index) => (
-                      <DcResultsExplorer
+                      <SimulationAnalysisCard
                         key={`dc-${index}`}
-                        analysis={analysis}
-                        vectors={runPresentation?.prepared.vectors ?? []}
-                        probes={presentationProbes}
-                        labels={presentationLabels}
-                        {...(props.onFocusProbe
-                          ? {
-                              onFocusProbe: (probe: SimulationFocusTarget) =>
-                                props.onFocusProbe?.(
-                                  probe,
-                                  runPresentation?.rootDocumentId,
-                                ),
-                            }
-                          : {})}
-                      />
+                        kind="dc"
+                        plotName={analysis.plotName}
+                      >
+                        <DcResultsExplorer
+                          analysis={analysis}
+                          vectors={runPresentation?.prepared.vectors ?? []}
+                          probes={presentationProbes}
+                          labels={presentationLabels}
+                          {...(props.onFocusProbe
+                            ? {
+                                onFocusProbe: (probe: SimulationFocusTarget) =>
+                                  props.onFocusProbe?.(
+                                    probe,
+                                    runPresentation?.rootDocumentId,
+                                  ),
+                              }
+                            : {})}
+                        />
+                      </SimulationAnalysisCard>
                     ))}
                 {!run?.outputData &&
                   run?.result?.data?.analyses
                     .filter((analysis) => analysis.analysis === "ac")
                     .map((analysis, index) => (
-                      <AcResultsExplorer
+                      <SimulationAnalysisCard
                         key={`${run.id}:ac:${index}`}
-                        resultKey={`${run.id}:ac:${index}`}
-                        analysis={analysis}
-                        vectors={runPresentation?.prepared.vectors ?? []}
-                        probes={presentationProbes}
-                        labels={presentationLabels}
-                        {...(props.onFocusProbe
-                          ? {
-                              onFocusProbe: (probe: SimulationFocusTarget) =>
-                                props.onFocusProbe?.(
-                                  probe,
-                                  runPresentation?.rootDocumentId,
-                                ),
-                            }
-                          : {})}
-                      />
+                        kind="ac"
+                        plotName={analysis.plotName}
+                      >
+                        <AcResultsExplorer
+                          resultKey={`${run.id}:ac:${index}`}
+                          analysis={analysis}
+                          vectors={runPresentation?.prepared.vectors ?? []}
+                          probes={presentationProbes}
+                          labels={presentationLabels}
+                          {...(props.onFocusProbe
+                            ? {
+                                onFocusProbe: (probe: SimulationFocusTarget) =>
+                                  props.onFocusProbe?.(
+                                    probe,
+                                    runPresentation?.rootDocumentId,
+                                  ),
+                              }
+                            : {})}
+                        />
+                      </SimulationAnalysisCard>
                     ))}
                 {!run?.outputData &&
                   run?.result?.data?.analyses
                     .filter((analysis) => analysis.analysis === "tran")
                     .map((analysis, index) => (
-                      <TransientResultsExplorer
+                      <SimulationAnalysisCard
                         key={`${run.id}:tran:${index}`}
-                        resultKey={`${run.id}:tran:${index}`}
-                        analysis={analysis}
-                        vectors={runPresentation?.prepared.vectors ?? []}
-                        probes={presentationProbes}
-                        labels={presentationLabels}
-                        {...(props.onFocusProbe
-                          ? {
-                              onFocusProbe: (probe: SimulationFocusTarget) =>
-                                props.onFocusProbe?.(
-                                  probe,
-                                  runPresentation?.rootDocumentId,
-                                ),
-                            }
-                          : {})}
-                      />
+                        kind="tran"
+                        plotName={analysis.plotName}
+                      >
+                        <TransientResultsExplorer
+                          resultKey={`${run.id}:tran:${index}`}
+                          analysis={analysis}
+                          vectors={runPresentation?.prepared.vectors ?? []}
+                          probes={presentationProbes}
+                          labels={presentationLabels}
+                          {...(props.onFocusProbe
+                            ? {
+                                onFocusProbe: (probe: SimulationFocusTarget) =>
+                                  props.onFocusProbe?.(
+                                    probe,
+                                    runPresentation?.rootDocumentId,
+                                  ),
+                              }
+                            : {})}
+                        />
+                      </SimulationAnalysisCard>
                     ))}
                 {!run?.result?.data?.analyses.some(
                   (analysis) =>
@@ -1082,8 +1100,11 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
                   run?.result?.data?.analyses
                     .filter((analysis) => analysis.analysis === "op")
                     .map((analysis, index) => (
-                      <section key={index} aria-label="OP results">
-                        <h3>{analysis.plotName}</h3>
+                      <SimulationAnalysisCard
+                        key={index}
+                        kind="op"
+                        plotName={analysis.plotName}
+                      >
                         <table>
                           <thead>
                             <tr>
@@ -1102,7 +1123,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
                             ))}
                           </tbody>
                         </table>
-                      </section>
+                      </SimulationAnalysisCard>
                     ))}
                 {!run?.result?.data?.analyses.some(
                   (analysis) => analysis.analysis === "op",

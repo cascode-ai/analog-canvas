@@ -592,11 +592,23 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   await panel.getByRole("button", { name: "Hide canvas values" }).click();
   await expect(page.getByTestId("operating-point-badges")).toHaveCount(0);
   await panel.getByRole("tab", { name: "Plot" }).click();
+  await expect(
+    panel.getByRole("heading", { name: "AC Analysis" }),
+  ).toBeVisible();
+  await expect(
+    panel.getByRole("heading", { name: "Transient Analysis" }),
+  ).toBeVisible();
   const plotMeasurements = panel.locator(
     "details.simulation-measurement-results",
   );
-  await expect(plotMeasurements.locator(":scope > summary")).toContainText(
-    "8 values",
+  await expect(plotMeasurements).toHaveCount(2);
+  expect(
+    await plotMeasurements.locator(":scope > summary").allTextContents(),
+  ).toEqual(
+    expect.arrayContaining([
+      expect.stringContaining("3 values"),
+      expect.stringContaining("5 values"),
+    ]),
   );
   await expect(panel.locator(".spice-ac-plot svg")).toHaveCount(2);
   await expect(panel.locator('svg[aria-label="AC magnitude"]')).toBeVisible();
@@ -697,6 +709,30 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
     .filter({ hasText: "Magnitude" })
     .locator(".spice-ac-plot")
     .first();
+  const magnitudeToolbar = magnitudePlot.locator("..").getByLabel("Plot tools");
+  await page.mouse.move(1, 1);
+  await expect(
+    magnitudeToolbar.getByRole("button", { name: "Zoom in" }),
+  ).toBeHidden();
+  const plotLayoutBeforeToolbar = await magnitudePlot.evaluate((element) => {
+    const plot = element.getBoundingClientRect();
+    const toolbar = element
+      .parentElement!.querySelector('[aria-label="Plot tools"]')!
+      .getBoundingClientRect();
+    return { height: plot.height, toolbarGap: plot.top - toolbar.bottom };
+  });
+  await magnitudePlot.hover();
+  await expect(
+    magnitudeToolbar.getByRole("button", { name: "Zoom in" }),
+  ).toBeVisible();
+  const plotLayoutAfterToolbar = await magnitudePlot.evaluate((element) => {
+    const plot = element.getBoundingClientRect();
+    const toolbar = element
+      .parentElement!.querySelector('[aria-label="Plot tools"]')!
+      .getBoundingClientRect();
+    return { height: plot.height, toolbarGap: plot.top - toolbar.bottom };
+  });
+  expect(plotLayoutAfterToolbar).toEqual(plotLayoutBeforeToolbar);
   const plotBeforeWheel = await magnitudePlot.innerHTML();
   await magnitudePlot.dispatchEvent("wheel", { deltaY: -120 });
   await expect(magnitudePlot).toHaveJSProperty("innerHTML", plotBeforeWheel);
@@ -901,6 +937,7 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
     .click();
   await expect(rightTimeLabel).toHaveText(savedTicks ?? "");
   await expect(fixedReadout).toHaveText(markersBeforeRemount ?? "");
+  await transientPlot.hover();
   await transientShell.getByRole("button", { name: "Previous view" }).click();
   await expect(rightTimeLabel).toHaveText(fullTimeLabel ?? "");
   await transientShell.getByRole("button", { name: "Next view" }).click();
@@ -979,6 +1016,7 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   await expect(panel.getByRole("status")).toHaveText("finished · completed");
   await panel.getByRole("tab", { name: "Plot" }).click();
   await expect(panel.locator(".ac-cursor-readout")).toHaveCount(0);
+  await transientPlot.hover();
   await expect(
     transientShell.getByRole("button", { name: "Previous view" }),
   ).toBeDisabled();
