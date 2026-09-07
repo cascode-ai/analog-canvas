@@ -30,4 +30,5 @@ done
 
 printf 'simulator host health failed after %s attempts\n' "$attempts" >&2
 docker logs --tail 100 "$container" >&2 || true
+docker logs --tail 100 "${SIMULATION_EXECUTOR_CONTAINER_NAME:-analog-canvas-ngspice-executor}" >&2 || true
 exit 1

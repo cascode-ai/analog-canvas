@@ -70,8 +70,9 @@ replace_legacy_container() {
   fi
 }
 
-compose build --pull simulator
+compose build --pull executor
 replace_legacy_container analog-canvas-ngspice
+replace_legacy_container analog-canvas-ngspice-executor
 if [ "$tunnel_enabled" = true ]; then
   replace_legacy_container analog-canvas-tunnel
   compose up -d --remove-orphans
