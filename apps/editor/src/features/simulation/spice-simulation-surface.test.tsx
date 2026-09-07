@@ -65,6 +65,7 @@ describe("SpiceSimulationSurface workspace", () => {
     expect(markup).not.toContain("Current Outputs target a measurable");
     expect(markup).not.toContain("<span>Preview</span>");
     expect(markup).not.toContain('class="simulation-results-dock"');
+    expect(markup).not.toContain('aria-label="File preview"');
   });
 
   it("edits a saved DC sweep with a root independent source", () => {

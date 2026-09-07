@@ -23,6 +23,7 @@
     "@icm/simulation": "workspace:*",
     "@icm/spice": "workspace:*",
     "@icm/symbols": "workspace:*",
+    "fflate": "0.8.3",
     "mathlive": "0.110.0",
     "react": "19.2.8",
     "react-dom": "19.2.8"

@@ -128,11 +128,14 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
   ).toHaveCount(7);
   await panel.getByRole("button", { name: "Apply setup" }).click();
   await panel.getByRole("button", { name: "Prepare deck" }).click();
-  await panel.getByLabel("Prepared files Netlist").locator("summary").click();
-  const deckDownload = page.waitForEvent("download");
+  await expect(panel.getByLabel("Prepare files")).toBeVisible();
   await panel
     .getByRole("button", { name: "prepared.cir", exact: true })
     .click();
+  const filePreview = panel.getByRole("region", { name: "File preview" });
+  await expect(filePreview).toContainText("prepared.cir");
+  const deckDownload = page.waitForEvent("download");
+  await filePreview.getByRole("button", { name: "Download" }).click();
   const stream = await (await deckDownload).createReadStream();
   let deck = "";
   for await (const chunk of stream!) deck += chunk.toString();
@@ -749,20 +752,29 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   });
   await waveformDialog.getByRole("button", { name: "Close plot" }).click();
   await panel.getByRole("tab", { name: "Files" }).click();
-  await panel.getByLabel("Last run Evidence").locator("summary").click();
+  await panel.getByLabel("Run Evidence").locator("summary").click();
   await expect(
-    panel.getByRole("button", { name: "evidence-manifest.json" }),
+    panel.getByRole("button", {
+      name: "evidence-manifest.json",
+      exact: true,
+    }),
   ).toBeVisible();
   const download = page.waitForEvent("download");
   await panel
-    .getByRole("button", { name: /\.csv$/ })
+    .getByRole("button", { name: /Download .*\.csv$/ })
     .first()
     .click();
   expect((await download).suggestedFilename()).toMatch(/\.csv$/);
-  await expect(panel.getByLabel("Last run Results")).toBeVisible();
+  await expect(panel.getByLabel("Run Results")).toBeVisible();
+  const bundleDownload = page.waitForEvent("download");
+  await panel
+    .getByLabel("Run files")
+    .getByRole("button", { name: "Download ZIP" })
+    .click();
+  expect((await bundleDownload).suggestedFilename()).toBe("simulation-run.zip");
   await panel.getByRole("button", { name: "Prepare deck" }).click();
-  await expect(panel.getByLabel("Prepared files Netlist")).toBeVisible();
-  await expect(panel.getByLabel("Last run Results")).toBeVisible();
+  await expect(panel.getByLabel("Prepare Netlist")).toBeVisible();
+  await expect(panel.getByLabel("Run Results")).toBeVisible();
   await expect(panel.getByText("Input identity", { exact: true })).toHaveCount(
     0,
   );
