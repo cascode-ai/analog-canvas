@@ -1,5 +1,5 @@
 import type { SimulationResultData } from "./result-data.js";
-export type SimulationAnalysis = "op" | "dc" | "ac" | "tran";
+export type SimulationAnalysis = "op" | "dc" | "ac" | "tran" | "noise";
 
 export interface SimulationRequest {
   /** Circuit netlist from @icm/netlist. Subcircuits and device cards only. */

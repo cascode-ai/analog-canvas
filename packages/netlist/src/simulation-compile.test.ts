@@ -1424,6 +1424,8 @@ describe.skipIf(!ngspiceOnPath())("running a compiled deck", () => {
         "ac",
       ]);
       for (const analysis of reading.data.analyses) {
+        if (!("probes" in analysis))
+          throw new Error(`Unexpected ${analysis.analysis} result`);
         const names = new Set(analysis.probes.map((probe) => probe.name));
         for (const vector of compiled.vectors) {
           expect(names).toContain(vector.vector);

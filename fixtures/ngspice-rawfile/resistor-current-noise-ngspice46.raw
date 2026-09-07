@@ -1,0 +1,54 @@
+Title: * ngspice current-referred noise rawfile probe
+Date: Mon Sep  7 20:28:40  2026
+Command: ngspice-46, Build Mar 29 2026   15:02:07
+Plotname: Noise Spectral Density Curves
+Flags: real
+No. Variables: 3
+No. Points: 7
+Variables:
+	0	frequency	frequency grid=3
+	1	inoise_spectrum	current-density
+	2	onoise_spectrum	voltage-density
+Values:
+ 0	1.000000000000000e+01
+	4.071371529487330e-12
+	4.071371529487329e-09
+
+ 1	2.154434690031884e+01
+	4.071371529487330e-12
+	4.071371529487329e-09
+
+ 2	4.641588833612779e+01
+	4.071371529487330e-12
+	4.071371529487329e-09
+
+ 3	1.000000000000000e+02
+	4.071371529487330e-12
+	4.071371529487329e-09
+
+ 4	2.154434690031884e+02
+	4.071371529487330e-12
+	4.071371529487329e-09
+
+ 5	4.641588833612780e+02
+	4.071371529487330e-12
+	4.071371529487329e-09
+
+ 6	1.000000000000000e+03
+	4.071371529487330e-12
+	4.071371529487329e-09
+
+Title: * ngspice current-referred noise rawfile probe
+Date: Mon Sep  7 20:28:40  2026
+Command: ngspice-46, Build Mar 29 2026   15:02:07
+Plotname: Integrated Noise
+Flags: real
+No. Variables: 2
+No. Points: 1
+Variables:
+	0	v(onoise_total)	voltage
+	1	i(inoise_total)	current
+Values:
+ 0	1.281027145294307e-07
+	1.281027145294306e-10
+

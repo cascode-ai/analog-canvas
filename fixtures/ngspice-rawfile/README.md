@@ -1,8 +1,6 @@
 # ngspice ASCII rawfile fixtures
 
-Four rawfiles written by ngspice 46, each beside the deck that produced it,
-plus one deterministic DC protocol fixture pending regeneration in the pinned
-Linux image.
+Six rawfiles written by ngspice 46, each beside the deck that produced it.
 They exist so a parser is tested against output a simulator actually wrote,
 not against output someone believed it writes.
 
@@ -15,6 +13,8 @@ Regenerate any of them with `ngspice -b <name>.deck.spi` from this directory.
 | `divider-dc.raw`        | DC transfer        | real        | 4              | 4      |
 | `rc-ac.raw`             | AC Analysis        | **complex** | 4              | 17     |
 | `rc-tran.raw`           | Transient Analysis | real        | 4              | 79     |
+| `resistor-noise-ngspice46.raw` | Noise spectrum + integrated | real | 3 + 2 | 7 + 1 |
+| `resistor-current-noise-ngspice46.raw` | Noise spectrum + integrated | real | 3 + 2 | 7 + 1 |
 
 ## What each one is for
 
@@ -59,6 +59,19 @@ and the integrator has the least to work with; 1e-3 is a tolerance that holds
 with margin. The timesteps are chosen by ngspice and range from 1e-11 to
 8e-05 — a factor of eight million — so a parser that assumes a uniform grid
 will read this file and be wrong about when everything happened.
+
+**`resistor-noise-ngspice46`** — two 1 kΩ resistors leave 500 Ω of
+small-signal resistance at the output. At 27 °C its thermal-noise density is
+`sqrt(4 k T R)`, and the 0.5 V/V signal gain makes input-referred voltage noise
+twice the output density. Integrating the constant density from 10 Hz to
+1 kHz multiplies it by `sqrt(990 Hz)`.
+
+**`resistor-current-noise-ngspice46`** — the same passive network driven by
+an independent current source. It proves ngspice declares input-referred
+density as `current-density` and the integrated input total as current, while
+the output remains voltage-referred. Both noise fixtures were generated with
+the official ngspice 46 Windows console build. The command and two-plot write
+sequence follow the official manual: https://ngspice.sourceforge.io/docs/ngspice-46-manual.pdf
 
 ## One thing the format does that the header does not announce
 

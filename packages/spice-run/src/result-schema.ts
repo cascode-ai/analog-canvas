@@ -66,6 +66,21 @@ const SimulationAnalysisResultSchema = z.discriminatedUnion("analysis", [
       z.strictObject({ ...SimulationProbeShape, value: z.array(z.number()) }),
     ),
   }),
+  z.strictObject({
+    analysis: z.literal("noise"),
+    plotName: z.literal("Noise Analysis"),
+    frequencyHz: z.array(z.number()),
+    outputNoiseDensity: z.array(z.number()),
+    inputNoiseDensity: z.array(z.number()),
+    integratedOutputNoise: z.number(),
+    integratedInputNoise: z.number(),
+    units: z.strictObject({
+      outputDensity: z.literal("V/sqrt(Hz)"),
+      inputDensity: z.enum(["V/sqrt(Hz)", "A/sqrt(Hz)"]),
+      integratedOutput: z.literal("V"),
+      integratedInput: z.enum(["V", "A"]),
+    }),
+  }),
 ]);
 
 const SimulationResultDataSchema = z.strictObject({

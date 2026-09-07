@@ -103,8 +103,34 @@ export interface TransientResult {
   readonly probes: readonly TransientProbe[];
 }
 
+/**
+ * A small-signal noise result, assembled from the two plots one ngspice
+ * `noise` command produces. Density values are amplitudes per square-root
+ * hertz, not squared power densities; the input-referred unit follows the
+ * selected independent source (voltage or current).
+ */
+export interface NoiseResult {
+  readonly analysis: "noise";
+  readonly plotName: "Noise Analysis";
+  readonly frequencyHz: readonly number[];
+  readonly outputNoiseDensity: readonly number[];
+  readonly inputNoiseDensity: readonly number[];
+  readonly integratedOutputNoise: number;
+  readonly integratedInputNoise: number;
+  readonly units: {
+    readonly outputDensity: "V/sqrt(Hz)";
+    readonly inputDensity: "V/sqrt(Hz)" | "A/sqrt(Hz)";
+    readonly integratedOutput: "V";
+    readonly integratedInput: "V" | "A";
+  };
+}
+
 export type SimulationAnalysisResult =
-  OperatingPointResult | DcSweepResult | AcResult | TransientResult;
+  | OperatingPointResult
+  | DcSweepResult
+  | AcResult
+  | TransientResult
+  | NoiseResult;
 
 export interface SimulationResultData {
   readonly schemaVersion: 1;
@@ -186,7 +212,33 @@ export function readSimulationData(rawfile: string): SimulationDataReading {
 
   const analyses: SimulationAnalysisResult[] = [];
   const diagnostics: SimulationDiagnostic[] = [];
+  const noiseSpectra = parse.plots.filter(
+    (plot) =>
+      plot.plotName.trim().toLowerCase() === "noise spectral density curves",
+  );
+  const integratedNoise = parse.plots.filter(
+    (plot) => plot.plotName.trim().toLowerCase() === "integrated noise",
+  );
+  if (noiseSpectra.length > 0 || integratedNoise.length > 0) {
+    if (noiseSpectra.length !== 1 || integratedNoise.length !== 1) {
+      diagnostics.push(
+        error(
+          `A noise result requires one spectral-density plot and one integrated-noise plot; this rawfile holds ${noiseSpectra.length} and ${integratedNoise.length}.`,
+        ),
+      );
+    } else {
+      const reading = readNoise(noiseSpectra[0]!, integratedNoise[0]!);
+      if ("analysis" in reading) analyses.push(reading.analysis);
+      else diagnostics.push(reading.diagnostic);
+    }
+  }
   for (const plot of parse.plots) {
+    const plotName = plot.plotName.trim().toLowerCase();
+    if (
+      plotName === "noise spectral density curves" ||
+      plotName === "integrated noise"
+    )
+      continue;
     const reading = readPlot(plot);
     if ("analysis" in reading) analyses.push(reading.analysis);
     else diagnostics.push(reading.diagnostic);
@@ -228,8 +280,140 @@ function readPlot(plot: RawfilePlot): PlotReading {
   if (name === "transient analysis") return readTransient(plot);
   return {
     diagnostic: warning(
-      `The rawfile holds a "${plot.plotName}" plot, which this release does not read. Operating point, DC, AC, and transient analyses are read.`,
+      `The rawfile holds a "${plot.plotName}" plot, which this release does not read. Operating point, DC, AC, transient, and noise analyses are read.`,
     ),
+  };
+}
+
+function requiredNoiseVector(
+  plot: RawfilePlot,
+  name: string,
+  quantity: string,
+): RawfileVector | SimulationDiagnostic {
+  const candidates = plot.vectors.filter(
+    (vector) => vector.variable.name.toLowerCase() === name,
+  );
+  if (candidates.length !== 1) {
+    return error(
+      `The "${plot.plotName}" plot contains ${candidates.length} ${name} vectors; exactly one is required.`,
+    );
+  }
+  const vector = candidates[0]!;
+  if (vector.variable.quantity.toLowerCase() !== quantity) {
+    return error(
+      `The "${plot.plotName}" plot declares ${name} as ${vector.variable.quantity}, not ${quantity}.`,
+    );
+  }
+  return vector;
+}
+
+function scalarNoiseValue(
+  vector: RawfileVector,
+  plotName: string,
+): number | SimulationDiagnostic {
+  if (vector.real.length !== 1 || vector.real[0] === undefined) {
+    return error(
+      `The "${plotName}" plot must contain one value for ${vector.variable.name}; it contains ${vector.real.length}.`,
+    );
+  }
+  return vector.real[0];
+}
+
+function readNoise(
+  spectrum: RawfilePlot,
+  integrated: RawfilePlot,
+): PlotReading {
+  if (spectrum.complex || integrated.complex) {
+    return {
+      diagnostic: error(
+        "Noise spectral-density and integrated-noise plots must be real-valued.",
+      ),
+    };
+  }
+  const frequency = sweepColumn(spectrum, "frequency");
+  if (!("variable" in frequency)) return { diagnostic: frequency };
+  const outputDensity = requiredNoiseVector(
+    spectrum,
+    "onoise_spectrum",
+    "voltage-density",
+  );
+  if (!("variable" in outputDensity)) return { diagnostic: outputDensity };
+  const inputDensityCandidates = spectrum.vectors.filter(
+    (vector) => vector.variable.name.toLowerCase() === "inoise_spectrum",
+  );
+  if (inputDensityCandidates.length !== 1) {
+    return {
+      diagnostic: error(
+        `The "${spectrum.plotName}" plot contains ${inputDensityCandidates.length} inoise_spectrum vectors; exactly one is required.`,
+      ),
+    };
+  }
+  const inputDensity = inputDensityCandidates[0]!;
+  const inputDensityQuantity = inputDensity.variable.quantity.toLowerCase();
+  if (
+    inputDensityQuantity !== "voltage-density" &&
+    inputDensityQuantity !== "current-density"
+  ) {
+    return {
+      diagnostic: error(
+        `The "${spectrum.plotName}" plot declares inoise_spectrum as ${inputDensity.variable.quantity}, not voltage-density or current-density.`,
+      ),
+    };
+  }
+
+  const integratedOutput = requiredNoiseVector(
+    integrated,
+    "v(onoise_total)",
+    "voltage",
+  );
+  if (!("variable" in integratedOutput))
+    return { diagnostic: integratedOutput };
+  const inputTotalName =
+    inputDensityQuantity === "voltage-density"
+      ? "v(inoise_total)"
+      : "i(inoise_total)";
+  const inputTotalQuantity =
+    inputDensityQuantity === "voltage-density" ? "voltage" : "current";
+  const integratedInput = requiredNoiseVector(
+    integrated,
+    inputTotalName,
+    inputTotalQuantity,
+  );
+  if (!("variable" in integratedInput)) return { diagnostic: integratedInput };
+  const outputTotal = scalarNoiseValue(integratedOutput, integrated.plotName);
+  if (typeof outputTotal !== "number") return { diagnostic: outputTotal };
+  const inputTotal = scalarNoiseValue(integratedInput, integrated.plotName);
+  if (typeof inputTotal !== "number") return { diagnostic: inputTotal };
+  if (
+    outputDensity.real.length !== frequency.real.length ||
+    inputDensity.real.length !== frequency.real.length
+  ) {
+    return {
+      diagnostic: error(
+        "Noise density vectors do not have the same point count as the frequency axis.",
+      ),
+    };
+  }
+
+  return {
+    analysis: {
+      analysis: "noise",
+      plotName: "Noise Analysis",
+      frequencyHz: frequency.real,
+      outputNoiseDensity: outputDensity.real,
+      inputNoiseDensity: inputDensity.real,
+      integratedOutputNoise: outputTotal,
+      integratedInputNoise: inputTotal,
+      units: {
+        outputDensity: "V/sqrt(Hz)",
+        inputDensity:
+          inputDensityQuantity === "voltage-density"
+            ? "V/sqrt(Hz)"
+            : "A/sqrt(Hz)",
+        integratedOutput: "V",
+        integratedInput: inputDensityQuantity === "voltage-density" ? "V" : "A",
+      },
+    },
   };
 }
 
@@ -425,8 +609,37 @@ export function simulationAnalysisToCsv(
         ? dcSweepRows(analysis)
         : analysis.analysis === "ac"
           ? acRows(analysis)
-          : transientRows(analysis);
+          : analysis.analysis === "tran"
+            ? transientRows(analysis)
+            : noiseRows(analysis);
   return rows.map((row) => row.map(csvField).join(",")).join("\n") + "\n";
+}
+
+function noiseRows(analysis: NoiseResult): string[][] {
+  return [
+    [
+      "frequency [Hz]",
+      `output noise density [${analysis.units.outputDensity}]`,
+      `input noise density [${analysis.units.inputDensity}]`,
+    ],
+    ...analysis.frequencyHz.map((frequency, point) => [
+      csvNumber(frequency),
+      cell(analysis.outputNoiseDensity, point),
+      cell(analysis.inputNoiseDensity, point),
+    ]),
+    [],
+    ["integrated quantity", "value", "unit"],
+    [
+      "output noise",
+      csvNumber(analysis.integratedOutputNoise),
+      analysis.units.integratedOutput,
+    ],
+    [
+      "input-referred noise",
+      csvNumber(analysis.integratedInputNoise),
+      analysis.units.integratedInput,
+    ],
+  ];
 }
 
 function dcSweepRows(analysis: DcSweepResult): string[][] {

@@ -1,0 +1,10 @@
+* ngspice current-referred noise rawfile probe
+I1 0 in DC 0 AC 1
+R1 in out 1k
+R2 out 0 1k
+.control
+set filetype=ascii
+noise v(out) I1 dec 3 10 1k
+write resistor-current-noise-ngspice46.raw noise1.all noise2.all
+.endc
+.end

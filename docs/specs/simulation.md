@@ -804,6 +804,9 @@ result extends `SimulationResult` with:
 - `tran`: `timeSeconds` as computed by the solver and, per probe, a `value`
   array of the same length; different plots keep their own axes and are not
   resampled to share a table.
+- `noise`: the frequency axis, output and input-referred amplitude spectral
+  densities, and the two integrated totals. The input-referred unit follows
+  the selected independent voltage or current source.
 
 Array lengths, analysis and probe identities, non-finite values, an empty or
 truncated rawfile, and a requested vector that is missing are all checked; an
@@ -842,9 +845,14 @@ A rawfile may hold several plots back to back, and each is read on its own
 terms. A binary rawfile is refused by name: a testbench that wants numbers
 sets `filetype=ascii` before it writes.
 
-A plot this release does not read -- for example a noise analysis -- is
-reported by name as a `warning` beside the analyses that were read, and as an
-`error` when it was the only plot in the file. It is never dropped in silence.
+The two plots written by one ngspice 46 `noise` command are one result:
+`Noise Spectral Density Curves` carries `frequency`, `onoise_spectrum`, and
+`inoise_spectrum`; `Integrated Noise` carries the input- and output-referred
+totals. Exactly one of each is required. Density quantities are amplitudes per
+square-root hertz, not squared densities. Any other plot this release does not
+read is reported by name as a `warning` beside the analyses that were read,
+and as an `error` when it was the only plot in the file. It is never dropped
+in silence.
 
 ### No number is invented
 
@@ -909,6 +917,21 @@ type SimulationAnalysisResult =
       plotName: string;
       timeSeconds: readonly number[];
       probes: (SimulationProbe & { value: readonly number[] })[];
+    }
+  | {
+      analysis: "noise";
+      plotName: "Noise Analysis";
+      frequencyHz: readonly number[];
+      outputNoiseDensity: readonly number[];
+      inputNoiseDensity: readonly number[];
+      integratedOutputNoise: number;
+      integratedInputNoise: number;
+      units: {
+        outputDensity: "V/sqrt(Hz)";
+        inputDensity: "V/sqrt(Hz)" | "A/sqrt(Hz)";
+        integratedOutput: "V";
+        integratedInput: "V" | "A";
+      };
     };
 ```
 
@@ -1077,7 +1100,8 @@ release. A deployment without the binding answers
 ## Deterministic validation (first release)
 
 - Closed-form fixtures under `fixtures/ngspice-rawfile/`: a resistor divider
-  operating point, an RC low-pass AC sweep, and an RC step transient, each
+  operating point, an RC low-pass AC sweep, an RC step transient, and
+  ngspice 46 voltage- and current-referred resistor noise results, each
   with the deck that produced it. The parser is asserted against the
   arithmetic, not against itself: AC to a relative tolerance of `1e-12`,
   transient to `1e-3`, on a time axis whose step spans six orders of
