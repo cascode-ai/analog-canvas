@@ -60,17 +60,20 @@ jobs:
           ensure_queue() {
             name="$1"
             retention="$2"
-            if ! $wrangler queues info "$name" >/dev/null 2>&1; then
-              $wrangler queues create "$name" --message-retention-period-secs "$retention"
-            else
-              $wrangler queues update "$name" --message-retention-period-secs "$retention"
-            fi
+            # Update is the steady-state operation. If the Queue is absent,
+            # create it; if another deploy created it between those calls,
+            # the final update proves that the requested resource now exists.
+            $wrangler queues update "$name" --message-retention-period-secs "$retention" && return
+            $wrangler queues create "$name" --message-retention-period-secs "$retention" && return
+            $wrangler queues update "$name" --message-retention-period-secs "$retention"
           }
           ensure_queue analog-canvas-simulation-preview 900
           ensure_queue analog-canvas-simulation-preview-dlq 604800
           bucket=analog-canvas-simulation-artifacts-preview
           if ! $wrangler r2 bucket info "$bucket" >/dev/null 2>&1; then
-            $wrangler r2 bucket create "$bucket"
+            # A concurrent reconcile can win after the info request. In that
+            # case a second info request is the successful idempotent result.
+            $wrangler r2 bucket create "$bucket" || $wrangler r2 bucket info "$bucket" >/dev/null
           fi
           if ! $wrangler r2 bucket lifecycle list "$bucket" | grep -Fq simulation-artifact-retention; then
             $wrangler r2 bucket lifecycle add "$bucket" simulation-artifact-retention --expire-days 1 --force

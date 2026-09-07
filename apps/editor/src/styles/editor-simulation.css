@@ -248,6 +248,19 @@
   border-right: 0;
 }
 
+.spice-simulation-surface.maximized .simulation-taskbar {
+  grid-template-columns: minmax(140px, 1fr) auto minmax(140px, 1fr);
+  align-items: center;
+}
+
+.spice-simulation-surface.maximized .simulation-task-actions {
+  justify-self: center;
+}
+
+.spice-simulation-surface.maximized .simulation-window-actions {
+  justify-self: end;
+}
+
 .spice-simulation-surface.maximized .simulation-setup-panel form {
   box-sizing: border-box;
   width: min(100%, 960px);
@@ -262,7 +275,7 @@
 
 .spice-simulation-surface.maximized .simulation-results-header {
   box-sizing: border-box;
-  width: min(100%, 960px);
+  width: min(calc(100% - 32px), 1440px);
   margin-inline: auto;
 }
 
@@ -958,15 +971,12 @@
 .simulation-measurement-results tr[data-status="unavailable"] td:last-child {
   color: var(--icm-danger);
 }
-.simulation-comparison-view > header {
+.simulation-comparison-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 6px;
   margin-bottom: 10px;
-}
-.simulation-comparison-view > header > span {
-  display: grid;
-  margin-right: auto;
 }
 .simulation-comparison-view small,
 .simulation-comparison-hint {
@@ -976,54 +986,77 @@
 .simulation-comparison-hint {
   margin: 0 0 10px;
 }
-.simulation-run-comparison-table-wrap {
-  overflow: auto;
+.simulation-comparison-runs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 520px), 1fr));
+  gap: 12px;
+  align-items: start;
+}
+.simulation-comparison-run {
+  min-width: 0;
+  overflow: hidden;
   border: 1px solid var(--icm-border);
   border-radius: var(--icm-radius-sm);
+  background: var(--icm-surface);
+}
+.simulation-comparison-run > header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 6px 9px;
+  border-bottom: 1px solid var(--icm-border);
+  background: var(--icm-surface-muted);
+}
+.simulation-comparison-run > header > span {
+  display: grid;
+  min-width: 0;
+  line-height: 1.2;
+}
+.simulation-comparison-run > header button {
+  width: 26px;
+  min-height: 26px;
+  margin-left: auto;
+  padding: 0;
+}
+.simulation-comparison-analysis + .simulation-comparison-analysis {
+  border-top: 1px solid var(--icm-border);
+}
+.simulation-comparison-analysis > h3 {
+  margin: 0;
+  padding: 7px 9px 4px;
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+  font-weight: 650;
+}
+.simulation-run-comparison-table-wrap {
+  overflow: auto;
 }
 .simulation-run-comparison-table {
   width: 100%;
-  min-width: 520px;
+  min-width: 440px;
   border-collapse: collapse;
   font-size: var(--icm-font-xs);
 }
 .simulation-run-comparison-table th,
 .simulation-run-comparison-table td {
-  min-width: 130px;
-  padding: 7px 9px;
+  min-width: 105px;
+  padding: 6px 9px;
   border-right: 1px solid var(--icm-border);
   border-bottom: 1px solid var(--icm-border);
-  text-align: left;
-  vertical-align: top;
+  text-align: right;
+  vertical-align: middle;
 }
 .simulation-run-comparison-table thead th {
   position: sticky;
   top: 0;
   background: var(--icm-surface-muted);
+  color: var(--icm-text-muted);
+  font-weight: 600;
 }
-.simulation-run-comparison-table thead th:not(:first-child) {
-  padding-right: 30px;
-}
-.simulation-run-comparison-table .simulation-comparison-analysis-row th {
-  display: table-cell;
-  padding: 7px 9px;
-  border-right: 0;
-  color: var(--icm-text);
-  background: color-mix(in srgb, var(--icm-surface-muted) 58%, white);
-  font-size: var(--icm-font-sm);
-  font-weight: 700;
-}
-.simulation-run-comparison-table thead th > span,
-.simulation-run-comparison-table tbody th {
-  display: grid;
-}
-.simulation-run-comparison-table thead button {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  min-width: 24px;
-  min-height: 24px;
-  padding: 0;
+.simulation-run-comparison-table th:first-child {
+  min-width: 120px;
+  text-align: left;
 }
 .simulation-run-comparison-table td:last-child,
 .simulation-run-comparison-table th:last-child {

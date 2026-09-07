@@ -1127,13 +1127,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
 
             {resultTab === "compare" ? (
               <div className="simulation-comparison-view">
-                <header>
-                  <span>
-                    <strong>Run comparison</strong>
-                    <small>
-                      Session only · matches stable output and measurement IDs
-                    </small>
-                  </span>
+                <div className="simulation-comparison-actions">
                   <button
                     type="button"
                     disabled={
@@ -1159,7 +1153,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
                       Clear kept
                     </button>
                   ) : null}
-                </header>
+                </div>
                 {comparisonRuns.length < 2 && currentComparisonRun ? (
                   <p className="simulation-comparison-hint">
                     Keep this result, change the circuit or conditions, then run
