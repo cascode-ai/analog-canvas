@@ -401,10 +401,14 @@ describe("compiling a structured simulation setup", () => {
     ).toBe(true);
     const vectors = result.vectors.map((vector) => vector.vector);
     expect(vectors).toEqual(
-      expect.arrayContaining(["v(vinp)", "v(vdd)", "v(0)", "v(xdut.tail)"]),
+      expect.arrayContaining(["v(vinp)", "v(vdd)", "v(xdut.tail)"]),
     );
+    expect(vectors).not.toContain("v(0)");
     expect(vectors).not.toContain("v(xdut.vinp)");
     expect(vectors).not.toContain("v(xdut.vdd)");
+    expect(JSON.stringify(result.deviceOperatingPoints)).toContain(
+      '"kind":"constant","value":0',
+    );
     expect(result.request.netlist).toContain("VICMPRB");
   });
 
