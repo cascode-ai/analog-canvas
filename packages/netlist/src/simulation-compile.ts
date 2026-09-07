@@ -697,30 +697,6 @@ function netVoltageNode(
   return resolvedName.toLowerCase();
 }
 
-function netVoltageVector(
-  measurement: Extract<SimulationExpression, { kind: "voltage" }>,
-  acquisitionId: string,
-  outputId: string,
-  occurrence: ResolvedOccurrence,
-  cellsById: ReadonlyMap<string, DesignNetlistCell>,
-  diagnostics: NetlistDiagnostic[],
-): CompiledSimulationVector | null {
-  const node = netVoltageNode(
-    measurement,
-    outputId,
-    occurrence,
-    cellsById,
-    diagnostics,
-  );
-  return node
-    ? {
-        probeId: acquisitionId,
-        vector: `v(${node})`,
-        quantity: "voltage",
-      }
-    : null;
-}
-
 function terminalCurrentVector(
   measurement: Extract<SimulationExpression, { kind: "current" }>,
   acquisitionId: string,
@@ -1031,32 +1007,36 @@ export async function compileStructuredSimulation(
           expression === topExpression
             ? ownerId
             : `${ownerId}:input:${leafIndex++}`;
-        const resolved: ResolvedSimulationProbe | null =
-          expression.kind === "voltage"
-            ? (() => {
-                const vector = netVoltageVector(
-                  expression,
-                  candidateId,
-                  ownerId,
-                  occurrence,
-                  cellsById,
-                  diagnostics,
-                );
-                return vector
-                  ? {
-                      binding: vector,
-                      writeVector: vector.vector,
-                    }
-                  : null;
-              })()
-            : terminalCurrentVector(
-                expression,
-                candidateId,
-                ownerId,
-                occurrence,
-                diagnostics,
-                terminalCurrentInstrumentations,
-              );
+        let resolved: ResolvedSimulationProbe | null;
+        if (expression.kind === "voltage") {
+          const node = netVoltageNode(
+            expression,
+            ownerId,
+            occurrence,
+            cellsById,
+            diagnostics,
+          );
+          if (!node) return null;
+          // Ground is a SPICE constant, not a writable rawfile vector.
+          // Folding it here also keeps every derived expression independent of
+          // simulator-specific attempts to expose `v(0)`.
+          if (node === "0") return { kind: "constant", value: 0 };
+          const binding: CompiledSimulationVector = {
+            probeId: candidateId,
+            vector: `v(${node})`,
+            quantity: "voltage",
+          };
+          resolved = { binding, writeVector: binding.vector };
+        } else {
+          resolved = terminalCurrentVector(
+            expression,
+            candidateId,
+            ownerId,
+            occurrence,
+            diagnostics,
+            terminalCurrentInstrumentations,
+          );
+        }
         if (!resolved) return null;
         const identity = `${resolved.binding.quantity}\u0000${resolved.binding.vector}`;
         const existing = vectorByIdentity.get(identity);
