@@ -275,7 +275,9 @@ describe("the bundled five-transistor Sky130 OTA", () => {
   });
 
   it("persists and compiles its four-analysis acceptance setup", async () => {
-    const setup = project.simulationSetups[0];
+    const setup = project.simulationSetups.find(
+      (candidate) => candidate.id === "simulation-setup-ota-op-ac",
+    );
     expect(setup).toBeDefined();
     expect(setup?.input.kind).toBe("structured");
     if (setup?.input.kind !== "structured") return;
@@ -305,6 +307,36 @@ describe("the bundled five-transistor Sky130 OTA", () => {
         quantity: "voltage",
       },
     ]);
+  });
+
+  it("ships independently runnable bias, transfer, corner, and transient setups", async () => {
+    const expected = [
+      ["simulation-setup-ota-op-ac", "op,dc,ac,tran", "tt"],
+      ["simulation-setup-ota-bias-tt", "op", "tt"],
+      ["simulation-setup-ota-dc-transfer-tt", "dc", "tt"],
+      ["simulation-setup-ota-ac-tt", "ac", "tt"],
+      ["simulation-setup-ota-ac-ff", "ac", "ff"],
+      ["simulation-setup-ota-ac-ss", "ac", "ss"],
+      ["simulation-setup-ota-tran-tt", "tran", "tt"],
+    ] as const;
+
+    expect(
+      project.simulationSetups.map((setup) => [
+        setup.id,
+        setup.input.kind === "structured"
+          ? setup.input.analyses.map((analysis) => analysis.kind).join(",")
+          : setup.input.kind,
+        setup.input.environment.corner,
+      ]),
+    ).toEqual(expected);
+
+    for (const setup of project.simulationSetups) {
+      expect(setup.input.kind, setup.name).toBe("structured");
+      if (setup.input.kind !== "structured") continue;
+      expect(setup.input.rootDocumentId, setup.name).toBe(testbench.id);
+      const compiled = await compileStructuredSimulation(project, setup);
+      expect(compiled.ok, setup.name).toBe(true);
+    }
   });
 
   it("passes the Check-and-Save gates with no electrical rule issue", () => {

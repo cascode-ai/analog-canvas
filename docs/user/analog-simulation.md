@@ -6,10 +6,15 @@ canvas available; it is separate from the development-only Digital tool.
 
 ## Try it: the bundled five-transistor OTA
 
-The editor ships a Sky130 five-transistor OTA with its stimulus and a saved
-OP + DC + AC + TRAN setup. On the preview channel open
+The editor ships a Sky130 five-transistor OTA core, its diode-connected bias
+replica, and a complete ordinary Testbench Cell. Its saved setup collection
+contains the qualified combined OP + DC + AC + TRAN run, a focused bias-point
+run with supply current, a denser DC transfer sweep, matching TT/FF/SS AC
+setups for comparison, and a two-cycle transient step run. On the preview
+channel open
 `https://analog-canvas-preview.tokenzhang.com/editor?example=five-transistor-ota-sky130`,
-press **Simulation**, then **Run**. The operating point returns
+press **Simulation**, then **Run** to execute the default qualified setup. The
+operating point returns
 v(vout) ≈ 0.75898 V, v(ibias) ≈ 0.60440 V, v(xdut.tail) ≈ 0.28487 V and
 v(xdut.nleft) ≈ 0.75898 V. The DC sweep covers VINP from 0.88 V to 0.92 V,
 the AC sweep plots 1 Hz–1 GHz, and the transient source pulses VINP from
