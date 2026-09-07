@@ -1,6 +1,6 @@
 # Project File Compatibility
 
-The released Project schema version is `45`. It retains schematic-only
+The released Project schema version is `46`. It retains schematic-only
 hierarchy integrity, a Project structural revision, stable formal Cell ports,
 and definition-level Cell symbol presentation. It also has one typed Instance
 netlist authority, formal Cell parameters, and Project-local external
@@ -30,10 +30,10 @@ An Instance may also carry optional schematic-only `signalFlowParameters`
 netlist/SPICE parameters. Width and height are optional 10-unit-grid minimums:
 the shared Transfer Function renderer expands beyond them when 12-unit formula
 text, a fraction, or a coefficient needs more room, and never clips or shrinks
-the formula to satisfy an undersized request. A canonical v43 file can be
+the formula to satisfy an undersized request. A canonical v46 file can be
 opened, saved, reopened, and saved again without byte drift.
 
-Schemas v24 through v43 are accepted through the explicit chained upgrades.
+Schemas v24 through v46 are accepted through the explicit chained upgrades.
 Schema v32 adds optional `Annotation.textColor`; schema v33 removes the
 ownerless `explicit-equivalence` record. A v32 file without that record changes
 only its version stamp. A file containing it is rejected at the exact evidence
@@ -55,8 +55,11 @@ stamp. Schema v40 gives voltage probes concrete object anchors, schema v41 adds
 structured DC sweep, and schema v42 replaces the optional singleton setup with
 a named setup collection. Schema v43 replaces primitive probes with named,
 bounded output expressions while preserving every previous measurement target.
+Schema v44 makes terminal-current targets explicit, schema v45 adds saved
+scalar measurement rules, and schema v46 adds structured Noise analysis intent.
+These additions do not invent intent while upgrading an older Project.
 The original file is never overwritten silently. Schemas older than v24 and
-versions newer than v43 are rejected by the project-file boundary.
+versions newer than v46 are rejected by the project-file boundary.
 
 The canonical-current corpus at
 [`fixtures/projects/compatibility-corpus.json`](../../fixtures/projects/compatibility-corpus.json)
@@ -68,7 +71,7 @@ Retired fields such as first-class
 
 An incompatible Project is rejected before it can replace the current browser
 Project. Conversion, when needed, is an explicit external operation that must
-produce and validate a complete v43 candidate before a human chooses to load it.
+produce and validate a complete v46 candidate before a human chooses to load it.
 
 Equal visible Label, Port, power-marker, and explicit global-declaration names
 resolve to one Logical Net without erasing their separate Base Net identities.

@@ -2487,7 +2487,7 @@
   "externalSubcircuitDefinitions": [],
   "id": "project-main",
   "name": "New Circuit",
-  "schemaVersion": 45,
+  "schemaVersion": 46,
   "simulationSetups": [],
   "source": {
     "dialect": "none",

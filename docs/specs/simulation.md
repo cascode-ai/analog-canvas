@@ -238,6 +238,8 @@ terminal, preserving ngspice's positive source-current convention.
 Schema 45 adds optional authored scalar measurement rules to structured
 setups. The 44→45 adapter does not invent rules; existing Projects continue
 to receive only automatic summaries until an author adds a measurement.
+Schema 46 adds a structured Noise request. The 45→46 adapter likewise
+advances only the version: it never invents an analysis, source, or probe.
 
 ```ts
 interface ProjectSimulationSetup {
@@ -287,7 +289,28 @@ type SimulationAnalysisSpec =
       stopSeconds: number; // > 0
       startSeconds?: number; // >= 0 and < stopSeconds
       maxStepSeconds?: number; // > 0, optional solver ceiling
+    }
+  | {
+      kind: "noise";
+      output: {
+        positive: SimulationVoltageProbe;
+        negative?: SimulationVoltageProbe;
+      };
+      inputSourceInstanceId: StableId; // root Testbench independent V/I source
+      sweep: "dec" | "oct" | "lin";
+      points: number; // positive integer
+      startHz: number; // > 0
+      stopHz: number; // > startHz
     };
+interface SimulationVoltageProbe {
+  documentId: StableId;
+  anchor:
+    | { kind: "terminal"; instanceId: StableId; pinName: string }
+    | { kind: "junction"; junctionId: StableId }
+    | { kind: "route"; routeId: StableId }
+    | { kind: "base-net"; netId: StableId };
+  occurrence: StableId[];
+}
 interface SimulationOutputSpec {
   id: StableId; // durable result/export binding
   label: string; // sole authored display name; never electrical identity
@@ -347,6 +370,16 @@ limited to 24 files and 1 MiB, matching the first-release session
 workspace. External dependency bytes are not copied into the Project; logical
 identity, expected digest, and required mount path make absence or substitution
 explicit at preparation time.
+
+Structured Noise uses those same hierarchy-aware voltage anchors; it does not
+create a second probe or Net namespace. Preparation resolves the positive and
+optional negative output nodes from the extracted design and accepts only an
+independent voltage or current source owned by the Testbench root as the input
+reference. One ngspice `noise` command creates `noise1` and `noise2`; the
+compiler writes both plots into the canonical rawfile. Service results expose
+stable `noise-output-density` and `noise-input-density` Output ids plus
+integrated input/output scalars. The ngspice plot ordinals and private vector
+names are execution details, not GUI or Agent protocol.
 
 Setups are written through Project structure edits
 `upsert_simulation_setup` (`{ setup: ProjectSimulationSetup }`) and

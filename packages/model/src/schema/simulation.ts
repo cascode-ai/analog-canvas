@@ -3,6 +3,10 @@ import { z } from "zod";
 import { StableIdSchema } from "./common.js";
 import { reportDuplicateIds } from "./validation.js";
 
+/** Stable Noise result ids shared by Setup measurements, service, and clients. */
+export const SIMULATION_NOISE_OUTPUT_DENSITY_ID = "noise-output-density";
+export const SIMULATION_NOISE_INPUT_DENSITY_ID = "noise-input-density";
+
 /**
  * Authored simulation intent persisted with the Project (ADR 0055, amended
  * 2026-09-04; `docs/specs/simulation.md`, "Persistence and compatibility").
@@ -62,18 +66,12 @@ export const SimulationDcAnalysisSchema = z
     message: "DC stop value must differ from the start value",
     path: ["stopValue"],
   });
-export const SimulationAnalysisSpecSchema = z.discriminatedUnion("kind", [
-  SimulationOperatingPointAnalysisSchema,
-  SimulationDcAnalysisSchema,
-  SimulationAcAnalysisSchema,
-  SimulationTransientAnalysisSchema,
-]);
 
 /**
  * Hierarchy Instance ids from the simulation root down to the Document that
  * owns the probed object; empty when that object is in the root itself.
  */
-const SimulationProbeOccurrenceSchema = z.array(StableIdSchema).max(64);
+export const SimulationProbeOccurrenceSchema = z.array(StableIdSchema).max(64);
 
 /**
  * A concrete object that locates a voltage measurement on its current Base
@@ -99,12 +97,44 @@ export const SimulationVoltageProbeAnchorSchema = z.discriminatedUnion("kind", [
   }),
 ]);
 
-const SimulationVoltageExpressionSchema = z.strictObject({
-  kind: z.literal("voltage"),
+/** One hierarchy-aware voltage location, shared by Outputs and Noise. */
+export const SimulationVoltageProbeSchema = z.strictObject({
   documentId: StableIdSchema,
   anchor: SimulationVoltageProbeAnchorSchema,
   occurrence: SimulationProbeOccurrenceSchema,
 });
+
+const SimulationVoltageExpressionSchema = SimulationVoltageProbeSchema.extend({
+  kind: z.literal("voltage"),
+});
+
+export const SimulationNoiseAnalysisSchema = z
+  .strictObject({
+    kind: z.literal("noise"),
+    output: z.strictObject({
+      positive: SimulationVoltageProbeSchema,
+      negative: SimulationVoltageProbeSchema.optional(),
+    }),
+    /** Independent voltage/current source in the Testbench root Cell. */
+    inputSourceInstanceId: StableIdSchema,
+    /** `dec` and `oct` count points per interval; `lin` counts them in total. */
+    sweep: z.enum(["dec", "oct", "lin"]),
+    points: z.number().int().positive(),
+    startHz: z.number().finite().positive(),
+    stopHz: z.number().finite().positive(),
+  })
+  .refine((analysis) => analysis.stopHz > analysis.startHz, {
+    message: "Noise stop frequency must be greater than the start frequency",
+    path: ["stopHz"],
+  });
+
+export const SimulationAnalysisSpecSchema = z.discriminatedUnion("kind", [
+  SimulationOperatingPointAnalysisSchema,
+  SimulationDcAnalysisSchema,
+  SimulationAcAnalysisSchema,
+  SimulationTransientAnalysisSchema,
+  SimulationNoiseAnalysisSchema,
+]);
 
 const SimulationCurrentExpressionSchema = z.strictObject({
   kind: z.literal("current"),
@@ -220,7 +250,7 @@ export const SimulationMeasurementMethodSchema = z.discriminatedUnion("kind", [
 export const SimulationMeasurementSpecSchema = z.strictObject({
   id: StableIdSchema,
   label: z.string().trim().min(1).max(128),
-  analysis: z.enum(["op", "dc", "ac", "tran"]),
+  analysis: z.enum(["op", "dc", "ac", "tran", "noise"]),
   outputId: StableIdSchema,
   method: SimulationMeasurementMethodSchema,
 });

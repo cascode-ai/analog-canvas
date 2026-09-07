@@ -3,6 +3,74 @@ import { describe, expect, it } from "vitest";
 import { evaluateSimulationOutputs } from "./output-evaluation.js";
 
 describe("simulation output evaluation", () => {
+  it("publishes Noise density and integrated values without ngspice vector names", () => {
+    const result = evaluateSimulationOutputs(
+      {
+        schemaVersion: 1,
+        analyses: [
+          {
+            analysis: "noise",
+            plotName: "Noise Analysis",
+            frequencyHz: [1, 10, 100],
+            outputNoiseDensity: [2e-9, 3e-9, 4e-9],
+            inputNoiseDensity: [4e-9, 6e-9, 8e-9],
+            integratedOutputNoise: 9e-8,
+            integratedInputNoise: 1.8e-7,
+            units: {
+              outputDensity: "V/sqrt(Hz)",
+              inputDensity: "V/sqrt(Hz)",
+              integratedOutput: "V",
+              integratedInput: "V",
+            },
+          },
+        ],
+      },
+      [],
+      [],
+      [
+        {
+          id: "noise-10hz",
+          label: "Output noise at 10 Hz",
+          analysis: "noise",
+          outputId: "noise-output-density",
+          method: { kind: "sample-at", coordinate: 10 },
+        },
+      ],
+    );
+
+    expect(result.analyses[0]).toMatchObject({
+      analysis: "noise",
+      domain: { name: "Frequency", unit: "Hz", values: [1, 10, 100] },
+      outputs: [
+        {
+          id: "noise-output-density",
+          unit: "V/sqrt(Hz)",
+          values: [2e-9, 3e-9, 4e-9],
+        },
+        {
+          id: "noise-input-density",
+          unit: "V/sqrt(Hz)",
+          values: [4e-9, 6e-9, 8e-9],
+        },
+      ],
+      integrated: [
+        { id: "noise-integrated-output", value: 9e-8, unit: "V" },
+        { id: "noise-integrated-input", value: 1.8e-7, unit: "V" },
+      ],
+    });
+    expect(result.measurements).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          origin: "authored",
+          measurementId: "noise-10hz",
+          status: "available",
+          value: 3e-9,
+        }),
+      ]),
+    );
+    expect(JSON.stringify(result)).not.toContain("onoise_spectrum");
+  });
+
   it("broadcasts a constant-only output across the analysis domain", () => {
     const result = evaluateSimulationOutputs(
       {

@@ -344,6 +344,100 @@ function codes(result: Awaited<ReturnType<typeof compile>>): string[] {
 }
 
 describe("compiling a structured simulation setup", () => {
+  it("compiles Noise against a root independent source and writes both plots", async () => {
+    const compiled = await compile(
+      dividerProject(),
+      setupWith({
+        analyses: [
+          {
+            kind: "noise",
+            output: {
+              positive: {
+                documentId: "tb",
+                anchor: {
+                  kind: "terminal",
+                  instanceId: "inst-r1",
+                  pinName: "2",
+                },
+                occurrence: [],
+              },
+              negative: {
+                documentId: "tb",
+                anchor: { kind: "base-net", netId: "net-gnd" },
+                occurrence: [],
+              },
+            },
+            inputSourceInstanceId: "inst-v1",
+            sweep: "dec",
+            points: 20,
+            startHz: 1,
+            stopHz: 1e6,
+          },
+        ],
+        outputs: [],
+        measurements: [
+          {
+            id: "noise-at-1k",
+            label: "Output noise at 1 kHz",
+            analysis: "noise",
+            outputId: "noise-output-density",
+            method: { kind: "sample-at", coordinate: 1_000 },
+          },
+        ],
+      }),
+    );
+
+    expect(compiled.ok).toBe(true);
+    if (!compiled.ok) return;
+    expect(compiled.request.analyses).toEqual(["noise"]);
+    expect(compiled.request.testbench).toContain(
+      "noise v(mid,0) V1 dec 20 1 1000000\n",
+    );
+    expect(compiled.request.testbench).toContain(
+      "write out.raw noise1.all noise2.all\n",
+    );
+    expect(compiled.request.testbench).not.toContain("appendwrite");
+    expect(compiled.measurements).toEqual([
+      expect.objectContaining({ id: "noise-at-1k" }),
+    ]);
+  });
+
+  it("refuses an unavailable or non-source Noise input without throwing", async () => {
+    const noise = {
+      kind: "noise" as const,
+      output: {
+        positive: {
+          documentId: "tb",
+          anchor: {
+            kind: "terminal" as const,
+            instanceId: "inst-r1",
+            pinName: "2",
+          },
+          occurrence: [],
+        },
+      },
+      inputSourceInstanceId: "missing",
+      sweep: "dec" as const,
+      points: 10,
+      startHz: 1,
+      stopHz: 1e3,
+    };
+    const missing = await compile(
+      dividerProject(),
+      setupWith({ analyses: [noise], outputs: [] }),
+    );
+    expect(codes(missing)).toContain("SIMULATION_NOISE_SOURCE_UNAVAILABLE");
+
+    const unsupported = await compile(
+      dividerProject(),
+      setupWith({
+        analyses: [{ ...noise, inputSourceInstanceId: "inst-r1" }],
+        outputs: [],
+      }),
+    );
+    expect(codes(unsupported)).toContain("SIMULATION_NOISE_SOURCE_UNSUPPORTED");
+  });
+
   it("carries valid saved measurements and locates broken references", async () => {
     const valid = await compile(
       dividerProject(),
@@ -1338,6 +1432,66 @@ function ngspiceOnPath(): boolean {
 
 /** Skips cleanly where ngspice is absent; the hosted gate never skips. */
 describe.skipIf(!ngspiceOnPath())("running a compiled deck", () => {
+  it("runs the compiled Noise command and reads its paired plots", async () => {
+    const compiled = await compile(
+      dividerProject(),
+      setupWith({
+        analyses: [
+          {
+            kind: "noise",
+            output: {
+              positive: {
+                documentId: "tb",
+                anchor: {
+                  kind: "terminal",
+                  instanceId: "inst-r1",
+                  pinName: "2",
+                },
+                occurrence: [],
+              },
+            },
+            inputSourceInstanceId: "inst-v1",
+            sweep: "dec",
+            points: 5,
+            startHz: 1,
+            stopHz: 1e3,
+          },
+        ],
+        outputs: [],
+      }),
+    );
+    expect(compiled.ok).toBe(true);
+    if (!compiled.ok) return;
+
+    const directory = mkdtempSync(join(tmpdir(), "icm-noise-compile-"));
+    try {
+      writeFileSync(
+        join(directory, "deck.cir"),
+        buildSimulationDeck(compiled.request as SimulationRequest, null),
+        "utf8",
+      );
+      execFileSync("ngspice", ["-b", "deck.cir"], {
+        cwd: directory,
+        encoding: "utf8",
+      });
+      const reading = readSimulationData(
+        readFileSync(join(directory, "out.raw"), "utf8"),
+      );
+      expect(reading.status).toBe("read");
+      if (reading.status !== "read") return;
+      const noise = reading.data.analyses[0];
+      expect(noise?.analysis).toBe("noise");
+      if (noise?.analysis !== "noise") return;
+      expect(noise.frequencyHz.length).toBeGreaterThan(10);
+      expect(noise.outputNoiseDensity.every(Number.isFinite)).toBe(true);
+      expect(noise.inputNoiseDensity.every(Number.isFinite)).toBe(true);
+      expect(noise.integratedOutputNoise).toBeGreaterThan(0);
+      expect(noise.integratedInputNoise).toBeGreaterThan(0);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
   it("reports opposite entering currents at a two-terminal device", async () => {
     const compiled = await compile(
       dividerProject(),
@@ -1388,8 +1542,8 @@ describe.skipIf(!ngspiceOnPath())("running a compiled deck", () => {
       const probes = operatingPoint.probes;
       const value = (name: string) =>
         probes.find((probe) => probe.name === name)!.value;
-      expect(value("i(vicmprb003)")).toBeCloseTo(0.0005, 12);
-      expect(value("i(vicmprb004)")).toBeCloseTo(-0.0005, 12);
+      expect(value(compiled.vectors[0]!.vector)).toBeCloseTo(0.0005, 12);
+      expect(value(compiled.vectors[1]!.vector)).toBeCloseTo(-0.0005, 12);
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }

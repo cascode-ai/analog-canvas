@@ -3,6 +3,10 @@ import type {
   CompiledSimulationOutput,
   CompiledSimulationVector,
 } from "@icm/netlist";
+import {
+  SIMULATION_NOISE_INPUT_DENSITY_ID,
+  SIMULATION_NOISE_OUTPUT_DENSITY_ID,
+} from "@icm/model";
 import type { SimulationResultData } from "@icm/spice-run";
 import type { SimulationMeasurementSpec } from "@icm/model";
 
@@ -231,12 +235,47 @@ export function evaluateSimulationOutputs(
   measurementSpecs: readonly SimulationMeasurementSpec[] = [],
 ): SimulationOutputData {
   const diagnostics: SimulationOutputData["diagnostics"] = [];
-  const analyses: SimulationOutputData["analyses"] = data.analyses
-    .filter(
-      (analysis): analysis is Exclude<typeof analysis, { analysis: "noise" }> =>
-        analysis.analysis !== "noise",
-    )
-    .map((analysis) => {
+  const analyses: SimulationOutputData["analyses"] = data.analyses.map(
+    (analysis) => {
+      if (analysis.analysis === "noise") {
+        return {
+          analysis: "noise" as const,
+          plotName: analysis.plotName,
+          domain: {
+            name: "Frequency",
+            unit: "Hz",
+            values: [...analysis.frequencyHz],
+          },
+          outputs: [
+            {
+              id: SIMULATION_NOISE_OUTPUT_DENSITY_ID,
+              label: "Output noise density",
+              unit: analysis.units.outputDensity,
+              values: [...analysis.outputNoiseDensity],
+            },
+            {
+              id: SIMULATION_NOISE_INPUT_DENSITY_ID,
+              label: "Input-referred noise density",
+              unit: analysis.units.inputDensity,
+              values: [...analysis.inputNoiseDensity],
+            },
+          ],
+          integrated: [
+            {
+              id: "noise-integrated-output",
+              label: "Integrated output noise",
+              unit: analysis.units.integratedOutput,
+              value: analysis.integratedOutputNoise,
+            },
+            {
+              id: "noise-integrated-input",
+              label: "Integrated input-referred noise",
+              unit: analysis.units.integratedInput,
+              value: analysis.integratedInputNoise,
+            },
+          ],
+        };
+      }
       const acquisitions = sourceSeries(analysis, vectors);
       const pointCount =
         analysis.analysis === "op"
@@ -290,7 +329,8 @@ export function evaluateSimulationOutputs(
         ...(domain ? { domain } : {}),
         outputs: evaluated,
       };
-    });
+    },
+  );
   return {
     schemaVersion: 1,
     diagnostics,
@@ -330,7 +370,18 @@ export function simulationOutputAnalysisToCsv(
         : [output.values[index] ?? null],
     ),
   ]);
+  const series =
+    [headers, ...rows].map((row) => row.map(quote).join(",")).join("\n") + "\n";
+  if (!analysis.integrated?.length) return series;
   return (
-    [headers, ...rows].map((row) => row.map(quote).join(",")).join("\n") + "\n"
+    series +
+    "\n" +
+    [
+      ["Integrated result", "Value", "Unit"],
+      ...analysis.integrated.map((item) => [item.label, item.value, item.unit]),
+    ]
+      .map((row) => row.map(quote).join(","))
+      .join("\n") +
+    "\n"
   );
 }
