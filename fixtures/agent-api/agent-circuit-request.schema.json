@@ -14769,11 +14769,14 @@
                         "outputs": {
                           "$ref": "#/$defs/__schema398"
                         },
-                        "measurements": {
+                        "deviceOperatingPoints": {
                           "$ref": "#/$defs/__schema401"
                         },
+                        "measurements": {
+                          "$ref": "#/$defs/__schema403"
+                        },
                         "environment": {
-                          "$ref": "#/$defs/__schema406"
+                          "$ref": "#/$defs/__schema408"
                         }
                       },
                       "required": [
@@ -14789,19 +14792,19 @@
                       "type": "object",
                       "properties": {
                         "kind": {
-                          "$ref": "#/$defs/__schema407"
-                        },
-                        "entry": {
-                          "$ref": "#/$defs/__schema408"
-                        },
-                        "files": {
                           "$ref": "#/$defs/__schema409"
                         },
-                        "dependencies": {
+                        "entry": {
+                          "$ref": "#/$defs/__schema410"
+                        },
+                        "files": {
                           "$ref": "#/$defs/__schema411"
                         },
+                        "dependencies": {
+                          "$ref": "#/$defs/__schema413"
+                        },
                         "environment": {
-                          "$ref": "#/$defs/__schema406"
+                          "$ref": "#/$defs/__schema408"
                         }
                       },
                       "required": [
@@ -15874,6 +15877,37 @@
         "id": {
           "$ref": "#/$defs/__schema1"
         },
+        "documentId": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "instanceId": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "occurrence": {
+          "$ref": "#/$defs/__schema393"
+        }
+      },
+      "required": [
+        "id",
+        "documentId",
+        "instanceId",
+        "occurrence"
+      ],
+      "additionalProperties": false
+    },
+    "__schema403": {
+      "maxItems": 256,
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/__schema404"
+      }
+    },
+    "__schema404": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/__schema1"
+        },
         "label": {
           "type": "string",
           "minLength": 1,
@@ -15932,7 +15966,7 @@
                   "const": "minimum"
                 },
                 "window": {
-                  "$ref": "#/$defs/__schema403"
+                  "$ref": "#/$defs/__schema405"
                 }
               },
               "required": [
@@ -15948,7 +15982,7 @@
                   "const": "maximum"
                 },
                 "window": {
-                  "$ref": "#/$defs/__schema403"
+                  "$ref": "#/$defs/__schema405"
                 }
               },
               "required": [
@@ -15964,7 +15998,7 @@
                   "const": "peak-to-peak"
                 },
                 "window": {
-                  "$ref": "#/$defs/__schema403"
+                  "$ref": "#/$defs/__schema405"
                 }
               },
               "required": [
@@ -15980,7 +16014,7 @@
                   "const": "mean"
                 },
                 "window": {
-                  "$ref": "#/$defs/__schema403"
+                  "$ref": "#/$defs/__schema405"
                 }
               },
               "required": [
@@ -15997,7 +16031,7 @@
                   "const": "rms"
                 },
                 "window": {
-                  "$ref": "#/$defs/__schema403"
+                  "$ref": "#/$defs/__schema405"
                 }
               },
               "required": [
@@ -16018,14 +16052,14 @@
       ],
       "additionalProperties": false
     },
-    "__schema403": {
+    "__schema405": {
       "type": "object",
       "properties": {
         "start": {
-          "$ref": "#/$defs/__schema404"
+          "$ref": "#/$defs/__schema406"
         },
         "stop": {
-          "$ref": "#/$defs/__schema405"
+          "$ref": "#/$defs/__schema407"
         }
       },
       "required": [
@@ -16034,13 +16068,13 @@
       ],
       "additionalProperties": false
     },
-    "__schema404": {
-      "type": "number"
-    },
-    "__schema405": {
-      "type": "number"
-    },
     "__schema406": {
+      "type": "number"
+    },
+    "__schema407": {
+      "type": "number"
+    },
+    "__schema408": {
       "type": "object",
       "properties": {
         "profileId": {
@@ -16062,26 +16096,26 @@
       ],
       "additionalProperties": false
     },
-    "__schema407": {
+    "__schema409": {
       "type": "string",
       "const": "raw"
     },
-    "__schema408": {
+    "__schema410": {
       "type": "string"
     },
-    "__schema409": {
+    "__schema411": {
       "minItems": 1,
       "maxItems": 24,
       "type": "array",
       "items": {
-        "$ref": "#/$defs/__schema410"
+        "$ref": "#/$defs/__schema412"
       }
     },
-    "__schema410": {
+    "__schema412": {
       "type": "object",
       "properties": {
         "path": {
-          "$ref": "#/$defs/__schema408"
+          "$ref": "#/$defs/__schema410"
         },
         "text": {
           "type": "string"
@@ -16093,14 +16127,14 @@
       ],
       "additionalProperties": false
     },
-    "__schema411": {
+    "__schema413": {
       "maxItems": 24,
       "type": "array",
       "items": {
-        "$ref": "#/$defs/__schema412"
+        "$ref": "#/$defs/__schema414"
       }
     },
-    "__schema412": {
+    "__schema414": {
       "type": "object",
       "properties": {
         "id": {
@@ -16109,7 +16143,7 @@
           "maxLength": 256
         },
         "mountPath": {
-          "$ref": "#/$defs/__schema408"
+          "$ref": "#/$defs/__schema410"
         },
         "sha256": {
           "type": "string",

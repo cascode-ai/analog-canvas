@@ -11,6 +11,7 @@ import {
 import { SimulationFiles } from "./files.js";
 import {
   evaluateSimulationOutputs,
+  simulationDeviceOperatingPointsToCsv,
   simulationOutputAnalysisToCsv,
 } from "./output-evaluation.js";
 import { automaticMeasurementsToCsv } from "./automatic-measurements.js";
@@ -195,8 +196,15 @@ export class SimulationService {
       this.files,
     );
     if (!preparation.ok) return preparation;
-    const { input, vectors, outputs, measurements, warnings, digest } =
-      preparation;
+    const {
+      input,
+      vectors,
+      outputs,
+      deviceOperatingPoints,
+      measurements,
+      warnings,
+      digest,
+    } = preparation;
     if (epoch !== this.epoch)
       return problem(
         "SESSION_CHANGED",
@@ -259,6 +267,7 @@ export class SimulationService {
       environment: input.environment,
       vectors,
       outputs,
+      deviceOperatingPoints,
       measurements,
       artifacts,
       warnings,
@@ -369,6 +378,7 @@ export class SimulationService {
       if (
         output.result.data &&
         (run.prepared.outputs.length > 0 ||
+          run.prepared.deviceOperatingPoints.length > 0 ||
           output.result.data.analyses.some(
             (analysis) => analysis.analysis === "noise",
           ))
@@ -378,6 +388,7 @@ export class SimulationService {
           run.prepared.vectors,
           run.prepared.outputs,
           run.prepared.measurements ?? [],
+          run.prepared.deviceOperatingPoints,
         );
       }
       const artifact = async (name: string, type: string, text: string) =>
@@ -422,6 +433,14 @@ export class SimulationService {
           "text/csv",
           automaticMeasurementsToCsv(run.view.outputData.measurements),
         );
+      if (run.view.outputData?.deviceOperatingPoints?.length)
+        await artifact(
+          "device-operating-points.csv",
+          "text/csv",
+          simulationDeviceOperatingPointsToCsv(
+            run.view.outputData.deviceOperatingPoints,
+          ),
+        );
       const evidenceArtifacts = run.view.artifacts.map((item) => ({ ...item }));
       await artifact(
         "evidence-manifest.json",
@@ -440,6 +459,7 @@ export class SimulationService {
               environment: run.prepared.environment,
               vectors: run.prepared.vectors,
               outputs: run.prepared.outputs,
+              deviceOperatingPoints: run.prepared.deviceOperatingPoints,
               measurements: run.prepared.measurements ?? [],
             },
             environment: output.result.metadata.environment,

@@ -5,6 +5,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 import {
+  CircuitProjectSchema,
   createEmptyDocument,
   createEmptyProject,
   deriveStableId,
@@ -13,6 +14,7 @@ import {
   type SimulationStructuredInput,
   type SimulationStructuredSetup,
 } from "@icm/model";
+import fiveTransistorOtaSky130 from "../../../apps/editor/src/examples/five-transistor-ota-sky130.icproj.json";
 import {
   buildSimulationDeck,
   readSimulationData,
@@ -344,6 +346,100 @@ function codes(result: Awaited<ReturnType<typeof compile>>): string[] {
 }
 
 describe("compiling a structured simulation setup", () => {
+  it("derives hierarchy-aware NMOS and PMOS terminal operating points", async () => {
+    const project = CircuitProjectSchema.parse(fiveTransistorOtaSky130);
+    const result = await compile(
+      project,
+      setupWith({
+        rootDocumentId: "document-ota-5t-testbench",
+        analyses: [{ kind: "op" }],
+        outputs: [],
+        deviceOperatingPoints: [
+          {
+            id: "op-m1",
+            documentId: "document-ota-5t",
+            instanceId: "M1",
+            occurrence: ["XDUT"],
+          },
+          {
+            id: "op-m3",
+            documentId: "document-ota-5t",
+            instanceId: "M3",
+            occurrence: ["XDUT"],
+          },
+        ],
+      }),
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.deviceOperatingPoints).toEqual([
+      expect.objectContaining({
+        id: "op-m1",
+        reference: "XM1",
+        polarity: "nmos",
+        occurrence: ["XDUT"],
+        values: expect.arrayContaining([
+          expect.objectContaining({ parameter: "vgs", unit: "V" }),
+          expect.objectContaining({ parameter: "vds", unit: "V" }),
+          expect.objectContaining({ parameter: "vbs", unit: "V" }),
+          expect.objectContaining({ parameter: "id", unit: "A" }),
+        ]),
+      }),
+      expect.objectContaining({
+        id: "op-m3",
+        reference: "XM3",
+        polarity: "pmos",
+        occurrence: ["XDUT"],
+      }),
+    ]);
+    expect(result.vectors.some((vector) => vector.quantity === "current")).toBe(
+      true,
+    );
+    expect(
+      result.vectors.some((vector) => vector.vector.includes("xdut")),
+    ).toBe(true);
+    expect(result.request.netlist).toContain("VICMPRB");
+  });
+
+  it("refuses a selected MOS with unavailable Bulk instead of guessing", async () => {
+    const project = CircuitProjectSchema.parse(fiveTransistorOtaSky130);
+    const dut = project.documents.find(
+      (document) => document.id === "document-ota-5t",
+    )!;
+    dut.mosBulkDefaults = undefined;
+    dut.nets = dut.nets.map((net) => ({
+      ...net,
+      terminals: net.terminals.filter(
+        (terminal) => terminal.instanceId !== "M1" || terminal.pinName !== "B",
+      ),
+    }));
+    const m1 = dut.instances.find((instance) => instance.id === "M1")!;
+    m1.mosBulkBinding = undefined;
+
+    const result = await compile(
+      project,
+      setupWith({
+        rootDocumentId: "document-ota-5t-testbench",
+        analyses: [{ kind: "op" }],
+        outputs: [],
+        deviceOperatingPoints: [
+          {
+            id: "op-m1",
+            documentId: "document-ota-5t",
+            instanceId: "M1",
+            occurrence: ["XDUT"],
+          },
+        ],
+      }),
+    );
+
+    expect(result.ok).toBe(false);
+    // Structural extraction owns the stronger invariant: a model/subcircuit
+    // MOS may not reach simulation with its B terminal missing at all.
+    expect(codes(result)).toContain("MISSING_PIN_NET");
+  });
+
   it("compiles Noise against a root independent source and writes both plots", async () => {
     const compiled = await compile(
       dividerProject(),

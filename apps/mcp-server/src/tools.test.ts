@@ -38,6 +38,7 @@ describe("mcp tool surface", () => {
       "simulation",
       "simulation_output",
       "simulation_measurement",
+      "simulation_device_operating_point",
       "simulation_files",
       "export_file",
       "import_file",
@@ -305,6 +306,74 @@ describe("mcp tool surface", () => {
               analysis: "op",
               outputId: "vout",
               method: { kind: "value" },
+            },
+          ],
+        },
+      },
+    });
+  });
+
+  it("authors a hierarchy-aware MOS operating-point selection", async () => {
+    const http = new FakeAgentHttp();
+    const { session } = await toolSession(http);
+    await callTool("connect", { claimCode: "session-1.code" }, session);
+    const snapshot = testSnapshot();
+    snapshot.project.simulationSetups = [
+      {
+        id: "setup-op",
+        name: "Operating point",
+        version: 2,
+        input: {
+          kind: "structured",
+          rootDocumentId: "main",
+          analyses: [{ kind: "op" }],
+          outputs: [],
+          environment: { profileId: "test" },
+        },
+      },
+    ];
+    const transacts: Extract<
+      (typeof http.circuitCalls)[number]["request"],
+      { operation: "transact" }
+    >[] = [];
+    http.circuitHandler = async ({ request }) => {
+      if (request.operation === "snapshot")
+        return snapshotResponse(request.requestId, snapshot);
+      if (request.operation === "transact") {
+        transacts.push(request);
+        return transactSuccessResponse(
+          request.requestId,
+          request.expectedRevision,
+        );
+      }
+      return capabilitiesResponse(request.requestId);
+    };
+
+    const value = parseText(
+      await callTool(
+        "simulation_device_operating_point",
+        {
+          action: "upsert",
+          setupId: "setup-op",
+          targetDocumentId: "main",
+          instanceId: "instance-1",
+          occurrence: [],
+        },
+        session,
+      ),
+    ) as { ok: boolean };
+
+    expect(value.ok).toBe(true);
+    expect(transacts).toHaveLength(1);
+    expect(transacts[0]?.structureEdits?.[0]).toMatchObject({
+      kind: "upsert_simulation_setup",
+      setup: {
+        input: {
+          deviceOperatingPoints: [
+            {
+              documentId: "main",
+              instanceId: "instance-1",
+              occurrence: [],
             },
           ],
         },

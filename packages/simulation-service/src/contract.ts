@@ -6,6 +6,7 @@ import {
   SimulationMeasurementSpecSchema,
 } from "@icm/model";
 import type {
+  CompiledSimulationDeviceOperatingPoint,
   CompiledSimulationExpression,
   CompiledSimulationOutput,
 } from "@icm/netlist";
@@ -104,6 +105,23 @@ export const CompiledOutputSchema: z.ZodType<CompiledSimulationOutput> =
     label: z.string().min(1).max(128),
     expression: CompiledOutputExpressionSchema,
   });
+export const CompiledDeviceOperatingPointSchema: z.ZodType<CompiledSimulationDeviceOperatingPoint> =
+  z.strictObject({
+    id: Id,
+    documentId: Id,
+    instanceId: Id,
+    occurrence: z.array(Id),
+    reference: z.string().min(1),
+    polarity: z.enum(["nmos", "pmos"]),
+    values: z.array(
+      z.strictObject({
+        parameter: z.enum(["vgs", "vds", "vbs", "id"]),
+        label: z.enum(["VGS", "VDS", "VBS", "ID"]),
+        unit: z.enum(["V", "A"]),
+        expression: CompiledOutputExpressionSchema,
+      }),
+    ),
+  });
 export const PreparedSchema = z.strictObject({
   id: Id,
   digest: Digest,
@@ -113,6 +131,7 @@ export const PreparedSchema = z.strictObject({
   environment: EnvironmentSchema,
   vectors: z.array(VectorSchema),
   outputs: z.array(CompiledOutputSchema),
+  deviceOperatingPoints: z.array(CompiledDeviceOperatingPointSchema),
   measurements: z.array(SimulationMeasurementSpecSchema).optional(),
   artifacts: z.array(ArtifactRefSchema),
   warnings: z.array(z.string()),
@@ -218,6 +237,36 @@ export const SimulationOutputDataSchema = z.strictObject({
   schemaVersion: z.literal(1),
   analyses: z.array(EvaluatedAnalysisSchema),
   measurements: z.array(AutomaticMeasurementSchema).optional(),
+  deviceOperatingPoints: z
+    .array(
+      z.strictObject({
+        id: Id,
+        documentId: Id,
+        instanceId: Id,
+        occurrence: z.array(Id),
+        reference: z.string(),
+        polarity: z.enum(["nmos", "pmos"]),
+        values: z.array(
+          z.discriminatedUnion("status", [
+            z.strictObject({
+              parameter: Id,
+              label: z.string(),
+              unit: z.string(),
+              status: z.literal("available"),
+              value: z.number().finite(),
+            }),
+            z.strictObject({
+              parameter: Id,
+              label: z.string(),
+              unit: z.string(),
+              status: z.literal("unavailable"),
+              reason: z.string(),
+            }),
+          ]),
+        ),
+      }),
+    )
+    .optional(),
   diagnostics: z.array(
     z.strictObject({ outputId: Id, code: Id, message: z.string() }),
   ),

@@ -46,6 +46,7 @@ describe("SpiceSimulationSurface workspace", () => {
     expect(markup).not.toContain('aria-label="Environment settings"');
     expect(markup).toContain('aria-label="Analyses settings"');
     expect(markup).toContain('aria-label="Output probes settings"');
+    expect(markup).toContain('aria-label="Device operating point settings"');
     expect(markup).toContain('aria-label="Output signals settings"');
     expect(markup).toContain('aria-label="Measurements settings"');
     expect(markup).not.toContain('aria-label="Analyses settings" open=""');
@@ -69,6 +70,7 @@ describe("SpiceSimulationSurface workspace", () => {
     expect(markup).toContain("Pick on canvas");
     expect(markup).toContain("Pick current");
     expect(markup).toContain("Add current output");
+    expect(markup).toContain("Add operating-point details");
     expect(markup).toContain('class="simulation-analysis-row"');
     expect(markup).toContain('class="simulation-analysis-options"');
     expect(markup).toContain("TRAN");

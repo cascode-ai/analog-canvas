@@ -62,6 +62,7 @@ import type {
   CircuitProject,
   SchematicDocument,
   SimulationAnalysisSpec,
+  SimulationDeviceOperatingPointSpec,
   SimulationExpression,
   SimulationMeasurementSpec,
   SimulationSetup,
@@ -74,7 +75,11 @@ import {
   SIMULATION_NOISE_OUTPUT_DENSITY_ID,
 } from "@icm/model";
 import type { HierarchyFrame, ObjectLocator } from "@icm/derived";
-import { resolveDocumentLogicalNets } from "@icm/derived";
+import {
+  mosBulkKind,
+  resolveDocumentLogicalNets,
+  resolveMosBulkConnection,
+} from "@icm/derived";
 import type { SimulationAnalysis, SimulationRequest } from "@icm/spice-run";
 
 import { analyzeDesignNetlist } from "./extract.js";
@@ -143,12 +148,34 @@ export interface CompiledSimulationOutput {
   readonly expression: CompiledSimulationExpression;
 }
 
+export type SimulationDeviceOperatingPointParameter =
+  "vgs" | "vds" | "vbs" | "id";
+
+export interface CompiledSimulationDeviceOperatingPointValue {
+  readonly parameter: SimulationDeviceOperatingPointParameter;
+  readonly label: "VGS" | "VDS" | "VBS" | "ID";
+  readonly unit: "V" | "A";
+  readonly expression: CompiledSimulationExpression;
+}
+
+/** Compile-time mapping for one authored MOS occurrence, never Project data. */
+export interface CompiledSimulationDeviceOperatingPoint {
+  readonly id: string;
+  readonly documentId: StableId;
+  readonly instanceId: StableId;
+  readonly occurrence: readonly StableId[];
+  readonly reference: string;
+  readonly polarity: "nmos" | "pmos";
+  readonly values: readonly CompiledSimulationDeviceOperatingPointValue[];
+}
+
 export type CompiledSimulation =
   | {
       readonly ok: true;
       readonly request: SimulationRequest;
       readonly vectors: ReadonlyArray<CompiledSimulationVector>;
       readonly outputs: ReadonlyArray<CompiledSimulationOutput>;
+      readonly deviceOperatingPoints: ReadonlyArray<CompiledSimulationDeviceOperatingPoint>;
       readonly measurements: ReadonlyArray<SimulationMeasurementSpec>;
       readonly diagnostics: readonly [];
       /**
@@ -295,6 +322,7 @@ function canonicalSetup(input: SimulationStructuredInput): string {
                 },
     ),
     outputs: input.outputs,
+    deviceOperatingPoints: input.deviceOperatingPoints ?? [],
     environment: {
       profileId: input.environment.profileId,
       corner: input.environment.corner ?? null,
@@ -340,10 +368,10 @@ interface ResolvedOccurrence {
   readonly hierarchyPath: HierarchyFrame[];
 }
 
-type SimulationMeasurement = Extract<
-  SimulationExpression,
-  { kind: "voltage" | "current" }
->;
+type SimulationOccurrenceTarget = {
+  readonly documentId: StableId;
+  readonly occurrence: readonly StableId[];
+};
 
 /**
  * Walk one probe's occurrence from the root, checking every step is a real
@@ -354,7 +382,7 @@ type SimulationMeasurement = Extract<
  * so a diagnostic points at the occurrence, not merely at a Document.
  */
 function resolveOccurrence(
-  measurement: SimulationMeasurement,
+  measurement: SimulationOccurrenceTarget,
   outputId: string,
   rootDocumentId: StableId,
   documentsById: ReadonlyMap<string, SchematicDocument>,
@@ -927,21 +955,25 @@ export async function compileStructuredSimulation(
     { vector: CompiledSimulationVector; writeVector: string }
   >();
   const outputs: CompiledSimulationOutput[] = [];
+  const deviceOperatingPoints: CompiledSimulationDeviceOperatingPoint[] = [];
   const writeVectors: string[] = [];
   const terminalCurrentInstrumentations = new Map<
     string,
     TerminalCurrentInstrumentation
   >();
-  for (const output of input.outputs) {
+  const compileExpression = (
+    ownerId: string,
+    topExpression: SimulationExpression,
+  ): CompiledSimulationExpression | null => {
     let leafIndex = 0;
-    const compileExpression = (
+    const visit = (
       expression: SimulationExpression,
     ): CompiledSimulationExpression | null => {
       if (expression.kind === "constant") return { ...expression };
       if (expression.kind === "voltage" || expression.kind === "current") {
         const occurrence = resolveOccurrence(
           expression,
-          output.id,
+          ownerId,
           input.rootDocumentId,
           documentsById,
           cellsById,
@@ -949,16 +981,16 @@ export async function compileStructuredSimulation(
         );
         if (!occurrence) return null;
         const candidateId =
-          expression === output.expression
-            ? output.id
-            : `${output.id}:input:${leafIndex++}`;
+          expression === topExpression
+            ? ownerId
+            : `${ownerId}:input:${leafIndex++}`;
         const resolved: ResolvedSimulationProbe | null =
           expression.kind === "voltage"
             ? (() => {
                 const vector = netVoltageVector(
                   expression,
                   candidateId,
-                  output.id,
+                  ownerId,
                   occurrence,
                   diagnostics,
                 );
@@ -972,7 +1004,7 @@ export async function compileStructuredSimulation(
             : terminalCurrentVector(
                 expression,
                 candidateId,
-                output.id,
+                ownerId,
                 occurrence,
                 diagnostics,
                 terminalCurrentInstrumentations,
@@ -1008,19 +1040,166 @@ export async function compileStructuredSimulation(
         expression.kind === "multiply" ||
         expression.kind === "divide"
       ) {
-        const left = compileExpression(expression.left);
-        const right = compileExpression(expression.right);
+        const left = visit(expression.left);
+        const right = visit(expression.right);
         return left && right ? { kind: expression.kind, left, right } : null;
       }
       if ("operand" in expression) {
-        const operand = compileExpression(expression.operand);
+        const operand = visit(expression.operand);
         return operand ? { kind: expression.kind, operand } : null;
       }
       return null;
     };
-    const expression = compileExpression(output.expression);
+    return visit(topExpression);
+  };
+
+  for (const output of input.outputs) {
+    const expression = compileExpression(output.id, output.expression);
     if (expression)
       outputs.push({ id: output.id, label: output.label, expression });
+  }
+
+  const voltageAt = (
+    request: SimulationDeviceOperatingPointSpec,
+    pinName: "D" | "G" | "S",
+  ): SimulationExpression => ({
+    kind: "voltage",
+    documentId: request.documentId,
+    anchor: {
+      kind: "terminal",
+      instanceId: request.instanceId,
+      pinName,
+    },
+    occurrence: [...request.occurrence],
+  });
+  const voltageOnNet = (
+    request: SimulationDeviceOperatingPointSpec,
+    netId: StableId,
+  ): SimulationExpression => ({
+    kind: "voltage",
+    documentId: request.documentId,
+    anchor: { kind: "base-net", netId },
+    occurrence: [...request.occurrence],
+  });
+  const difference = (
+    left: SimulationExpression,
+    right: SimulationExpression,
+  ): SimulationExpression => ({ kind: "subtract", left, right });
+
+  for (const request of input.deviceOperatingPoints ?? []) {
+    const occurrence = resolveOccurrence(
+      request,
+      request.id,
+      input.rootDocumentId,
+      documentsById,
+      cellsById,
+      diagnostics,
+    );
+    if (!occurrence) continue;
+    const authoredInstance = occurrence.document.instances.find(
+      (instance) => instance.id === request.instanceId,
+    );
+    const extractedInstance = occurrence.cell.instances.find(
+      (instance) => instance.id === request.instanceId,
+    );
+    const polarity = authoredInstance
+      ? mosBulkKind(authoredInstance)
+      : undefined;
+    if (!authoredInstance || !extractedInstance || !polarity) {
+      diagnostics.push(
+        diagnostic(
+          "SIMULATION_DEVICE_OPERATING_POINT_NOT_MOS",
+          request.documentId,
+          `Device operating-point target ${request.instanceId} is not a MOS Instance in Document ${request.documentId}`,
+          locator(
+            request.documentId,
+            occurrence.hierarchyPath,
+            "instance",
+            request.instanceId,
+          ),
+          [request.instanceId],
+        ),
+      );
+      continue;
+    }
+    const bulk = resolveMosBulkConnection(
+      occurrence.document,
+      authoredInstance,
+    );
+    if (!bulk?.net) {
+      diagnostics.push(
+        diagnostic(
+          "SIMULATION_DEVICE_OPERATING_POINT_BULK_UNAVAILABLE",
+          request.documentId,
+          `Bulk for ${extractedInstance.reference} is not connected; VBS cannot be derived`,
+          {
+            ...locator(
+              request.documentId,
+              occurrence.hierarchyPath,
+              "instance",
+              request.instanceId,
+            ),
+            endpoint: {
+              kind: "terminal",
+              instanceId: request.instanceId,
+              pinName: "B",
+            },
+          },
+          [request.instanceId],
+        ),
+      );
+      continue;
+    }
+    const source = voltageAt(request, "S");
+    const authoredValues = [
+      {
+        parameter: "vgs" as const,
+        label: "VGS" as const,
+        unit: "V" as const,
+        expression: difference(voltageAt(request, "G"), source),
+      },
+      {
+        parameter: "vds" as const,
+        label: "VDS" as const,
+        unit: "V" as const,
+        expression: difference(voltageAt(request, "D"), source),
+      },
+      {
+        parameter: "vbs" as const,
+        label: "VBS" as const,
+        unit: "V" as const,
+        expression: difference(voltageOnNet(request, bulk.net.id), source),
+      },
+      {
+        parameter: "id" as const,
+        label: "ID" as const,
+        unit: "A" as const,
+        expression: {
+          kind: "current" as const,
+          documentId: request.documentId,
+          instanceId: request.instanceId,
+          pinName: "D",
+          occurrence: [...request.occurrence],
+        },
+      },
+    ];
+    const values = authoredValues.flatMap((value) => {
+      const expression = compileExpression(
+        `${request.id}:${value.parameter}`,
+        value.expression,
+      );
+      return expression ? [{ ...value, expression }] : [];
+    });
+    if (values.length === authoredValues.length)
+      deviceOperatingPoints.push({
+        id: request.id,
+        documentId: request.documentId,
+        instanceId: request.instanceId,
+        occurrence: [...request.occurrence],
+        reference: extractedInstance.reference,
+        polarity,
+        values,
+      });
   }
 
   const enabledAnalyses = new Set(input.analyses.map((item) => item.kind));
@@ -1107,6 +1286,7 @@ export async function compileStructuredSimulation(
     },
     vectors,
     outputs,
+    deviceOperatingPoints,
     measurements: structuredClone(input.measurements ?? []),
     diagnostics: [],
     warnings: analysis.diagnostics,

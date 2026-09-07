@@ -79,6 +79,30 @@ describe("simulation probe choices", () => {
         .filter((option) => option.target.instanceId === "XDUT")
         .map((option) => option.target.pinName),
     ).toEqual(["vss", "ibias", "vdd", "vinn", "vinp", "vout"]);
+    expect(
+      options.deviceOperatingPoint
+        .filter((option) => option.target.documentId === "document-ota-5t")
+        .map((option) => [option.label, option.target]),
+    ).toEqual(
+      expect.arrayContaining([
+        [
+          "XDUT · ota_5t · XM1",
+          {
+            documentId: "document-ota-5t",
+            instanceId: "M1",
+            occurrence: ["XDUT"],
+          },
+        ],
+        [
+          "XDUT · ota_5t · XM3",
+          {
+            documentId: "document-ota-5t",
+            instanceId: "M3",
+            occurrence: ["XDUT"],
+          },
+        ],
+      ]),
+    );
   });
 
   it("names an unnamed hierarchical Net by its terminal aliases", () => {

@@ -861,6 +861,51 @@
   color: var(--icm-text-muted);
   font-size: var(--icm-font-xs);
 }
+.simulation-device-operating-points {
+  margin-bottom: 12px;
+  overflow: hidden;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  background: var(--icm-surface);
+}
+.simulation-device-operating-points > header {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--icm-border);
+  background: var(--icm-surface-muted);
+}
+.simulation-device-operating-points h3 {
+  margin: 0;
+  font-size: var(--icm-font-sm);
+}
+.simulation-device-operating-points > div {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  padding: 10px;
+}
+.simulation-device-operating-points > div > section {
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+}
+.simulation-device-operating-points section > header {
+  display: flex;
+  justify-content: space-between;
+  padding: 7px 9px;
+  border-bottom: 1px solid var(--icm-border);
+}
+.simulation-device-operating-points table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.simulation-device-operating-points th,
+.simulation-device-operating-points td {
+  padding: 6px 9px;
+  text-align: left;
+}
+.simulation-device-operating-points td {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
 .simulation-measurement-results {
   margin-top: 14px;
   overflow: hidden;

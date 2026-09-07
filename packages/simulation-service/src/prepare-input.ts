@@ -53,6 +53,7 @@ export async function prepareExecutionInput(
       input: ExecutionInput & { preparedDeck: string };
       vectors: Prepared["vectors"];
       outputs: Prepared["outputs"];
+      deviceOperatingPoints: Prepared["deviceOperatingPoints"];
       measurements: NonNullable<Prepared["measurements"]>;
       warnings: string[];
       digest: string;
@@ -62,6 +63,7 @@ export async function prepareExecutionInput(
   let input: ExecutionInput;
   let vectors: Prepared["vectors"] = [];
   let outputs: Prepared["outputs"] = [];
+  let deviceOperatingPoints: Prepared["deviceOperatingPoints"] = [];
   let measurements: NonNullable<Prepared["measurements"]> = [];
   let warnings: string[] = [];
   let structuredAnalyses: ResultVolumeAnalysis[] | null = null;
@@ -119,6 +121,9 @@ export async function prepareExecutionInput(
       };
       vectors = [...compiled.vectors];
       outputs = structuredClone([...compiled.outputs]);
+      deviceOperatingPoints = structuredClone([
+        ...compiled.deviceOperatingPoints,
+      ]);
       measurements = structuredClone([...compiled.measurements]);
       warnings = compiled.warnings.map((w) => w.message);
       structuredAnalyses = setup.input.analyses.map((analysis) =>
@@ -256,6 +261,7 @@ export async function prepareExecutionInput(
     input: { ...input, preparedDeck: input.preparedDeck },
     vectors,
     outputs,
+    deviceOperatingPoints,
     measurements,
     warnings,
     digest,

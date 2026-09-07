@@ -3,9 +3,14 @@ import type {
   Instance,
   SchematicDocument,
   SimulationExpression,
+  SimulationDeviceOperatingPointSpec,
   SimulationVoltageProbeAnchor,
 } from "@icm/model";
-import { resolveDocumentLogicalNets, type HierarchyFrame } from "@icm/derived";
+import {
+  mosBulkKind,
+  resolveDocumentLogicalNets,
+  type HierarchyFrame,
+} from "@icm/derived";
 import { deviceDescriptor } from "@icm/devices";
 
 import { logicalNetChoices } from "../logical-net-choices";
@@ -31,6 +36,19 @@ export interface SimulationProbeOption<
 export interface SimulationProbeOptions {
   readonly voltage: readonly SimulationProbeOption<VoltageProbeTarget>[];
   readonly terminalCurrent: readonly SimulationProbeOption<TerminalCurrentProbeTarget>[];
+  readonly deviceOperatingPoint: readonly SimulationDeviceOperatingPointOption[];
+}
+
+export interface SimulationDeviceOperatingPointOption {
+  readonly key: string;
+  readonly label: string;
+  readonly target: Omit<SimulationDeviceOperatingPointSpec, "id">;
+}
+
+export function simulationDeviceOperatingPointTargetKey(
+  target: Omit<SimulationDeviceOperatingPointSpec, "id">,
+): string {
+  return `${target.occurrence.join("/")}:${target.documentId}:${target.instanceId}`;
 }
 
 export interface PickedSimulationNet {
@@ -343,7 +361,8 @@ export function deriveSimulationProbeOptions(
   const voltage: SimulationProbeOption<VoltageProbeTarget>[] = [];
   const terminalCurrent: SimulationProbeOption<TerminalCurrentProbeTarget>[] =
     [];
-  if (!root) return { voltage, terminalCurrent };
+  const deviceOperatingPoint: SimulationDeviceOperatingPointOption[] = [];
+  if (!root) return { voltage, terminalCurrent, deviceOperatingPoint };
 
   const visit = (
     document: SchematicDocument,
@@ -375,6 +394,18 @@ export function deriveSimulationProbeOptions(
     }
     for (const instance of document.instances) {
       const binding = instance.netlist?.binding;
+      if (mosBulkKind(instance)) {
+        const target = {
+          documentId: document.id,
+          instanceId: instance.id,
+          occurrence: [...occurrence],
+        };
+        deviceOperatingPoint.push({
+          key: simulationDeviceOperatingPointTargetKey(target),
+          label: `${prefix} · ${instance.reference ?? instance.id}`,
+          target,
+        });
+      }
       for (const pinName of terminalCurrentPinNames(
         project,
         document,
@@ -405,5 +436,5 @@ export function deriveSimulationProbeOptions(
     }
   };
   visit(root, [], [], new Set([root.id]));
-  return { voltage, terminalCurrent };
+  return { voltage, terminalCurrent, deviceOperatingPoint };
 }

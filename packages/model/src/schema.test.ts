@@ -966,6 +966,33 @@ describe("SimulationSetup schema", () => {
     );
   });
 
+  it("persists selected hierarchy-aware MOS operating-point details", () => {
+    const selected = setup();
+    selected.input.deviceOperatingPoints = [
+      {
+        id: "op-m1",
+        documentId: "ota",
+        instanceId: "M1",
+        occurrence: ["X1"],
+      },
+    ];
+    expect(SimulationSetupSchema.parse(selected)).toEqual(selected);
+
+    const withoutOp = structuredClone(selected);
+    withoutOp.input.analyses = withoutOp.input.analyses.filter(
+      (analysis) => analysis.kind !== "op",
+    );
+    expect(
+      SimulationSetupSchema.safeParse(withoutOp).error?.issues,
+    ).toContainEqual(
+      expect.objectContaining({
+        message:
+          "Device operating-point details require an operating-point analysis",
+        path: ["input", "deviceOperatingPoints"],
+      }),
+    );
+  });
+
   it("persists a hierarchy-aware differential Noise request", () => {
     const noisy = setup();
     noisy.input.analyses = [

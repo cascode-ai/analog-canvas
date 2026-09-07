@@ -179,3 +179,11 @@ export type {
   Schema45To46MigrationReport,
   Schema45To46MigrationResult,
 } from "./transforms/simulation-noise.js";
+export {
+  upgradeSchema46To47,
+  upgradeSchema46To47WithReport,
+} from "./transforms/simulation-device-operating-points.js";
+export type {
+  Schema46To47MigrationReport,
+  Schema46To47MigrationResult,
+} from "./transforms/simulation-device-operating-points.js";

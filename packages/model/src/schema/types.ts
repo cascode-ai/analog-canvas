@@ -120,6 +120,9 @@ export type SimulationAnalysisSpec = z.infer<
 export type SimulationOutputSpec = z.infer<
   typeof Schema.SimulationOutputSpecSchema
 >;
+export type SimulationDeviceOperatingPointSpec = z.infer<
+  typeof Schema.SimulationDeviceOperatingPointSpecSchema
+>;
 export type SimulationMeasurementWindow = z.infer<
   typeof Schema.SimulationMeasurementWindowSchema
 >;

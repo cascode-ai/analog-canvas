@@ -312,11 +312,12 @@ try {
   await first.request("initialize", { protocolVersion: "2025-03-26" });
   const listed = await first.request("tools/list");
   if (
-    listed.tools.length !== 16 ||
+    listed.tools.length !== 17 ||
     ![
       "simulation",
       "simulation_output",
       "simulation_measurement",
+      "simulation_device_operating_point",
       "simulation_files",
     ].every((name) => listed.tools.some((tool) => tool.name === name))
   )

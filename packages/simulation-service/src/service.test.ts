@@ -669,6 +669,14 @@ describe("shared simulation lifecycle", () => {
             },
           },
         ],
+        deviceOperatingPoints: [
+          {
+            id: "op-m1",
+            documentId: "document-ota-5t",
+            instanceId: "M1",
+            occurrence: ["XDUT"],
+          },
+        ],
         environment: { profileId },
       },
     });
@@ -694,6 +702,13 @@ describe("shared simulation lifecycle", () => {
       "prepared",
     );
     expect(prepared.vectors.length).toBeGreaterThan(0);
+    expect(prepared.deviceOperatingPoints).toEqual([
+      expect.objectContaining({
+        id: "op-m1",
+        reference: "XM1",
+        polarity: "nmos",
+      }),
+    ]);
     expect(prepared.mode).toBe("structured");
     expect(prepared.warnings).toEqual([
       expect.stringContaining("run remains allowed"),
