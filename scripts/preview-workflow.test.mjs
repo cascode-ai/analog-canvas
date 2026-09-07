@@ -40,6 +40,12 @@ describe("the preview deploy", () => {
     expect(deploy).toBeGreaterThan(resources);
     expect(preview).toContain("analog-canvas-simulation-preview-dlq");
     expect(preview).toContain("--message-retention-period-secs");
+    expect(preview).toMatch(
+      /queues update[\s\S]+queues create[\s\S]+queues update/u,
+    );
+    expect(preview).toContain(
+      'r2 bucket create "$bucket" || $wrangler r2 bucket info',
+    );
     expect(preview).toContain("simulation-artifact-retention");
     expect(preview).toContain("--expire-days 1");
   });
