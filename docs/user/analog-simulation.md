@@ -60,11 +60,35 @@ does not run unapplied form edits. Input diagnostics leave the Project and
 session intact: correct the input and run again. Run failures keep available
 evidence and never automatically resubmit work.
 
-OP values and AC plots consume the shared structured result. Console,
-diagnostics, input identity and downloadable deck/raw/CSV artifacts are
-available alongside the result. Bounded result previews are labelled; export
-the complete artifacts when needed. Editing the Project marks older results
-as belonging to an earlier revision.
+OP values and AC plots consume the shared structured result. For direct Net
+voltage outputs, **Operating Point → Show on canvas** paints the value on the
+exact authored Net and hierarchy occurrence; choose named/focused Nets or all
+collected Nets. Derived expressions and raw node-name text are never guessed
+back onto canvas objects. Editing the Project pauses these labels until a new
+matching run completes. Console, diagnostics, input identity and downloadable
+deck/raw/CSV artifacts are available alongside the result. The compact
+**Export** menu in Results downloads the visible Plot as standalone SVG or
+2× PNG (multiple visible charts are bundled), the complete authored-output
+CSV files, or the complete run ZIP. Image export follows the current viewport,
+trace visibility and markers; CSV remains the full numerical artifact.
+Bounded result previews are labelled; export the complete artifacts when
+needed.
+
+Each structured run also derives conservative automatic summaries from the
+complete evaluated outputs: OP value; DC/AC/TRAN minimum, maximum and span;
+and time-weighted TRAN mean/RMS. **Measurements** stays as one compact folded
+summary during normal review. If any metric lacks enough finite samples it
+opens automatically and shows the reason; that local metric remains
+unavailable without turning a successful simulator Run into a failure. The
+same typed rows are returned to Agent clients and exported as
+`measurements.csv`.
+
+**Compare** can keep up to five completed structured results in the current
+Simulation session and align their measurements by stable output identity,
+analysis, metric and unit. Keep a result, edit the circuit or conditions, run
+again, and inspect the current and retained columns. These comparison copies
+are intentionally transient: they are not hidden inside the Project or Cloud
+Project record, and closing the Project session clears them.
 
 Closing the drawer keeps a run alive. **Cancel run** asks the execution
 service to cancel; it is not simulated by hiding a spinner. Replacing the
@@ -76,8 +100,9 @@ are transient, not saved inside the Project.
 
 This is the B/C local-DUT and minimal human interface slice, not completion
 of all F1R/F5 requirements in the [v13 plan](../roadmap/simulation-vertical-integration-plan-v13.md).
-Cross-Project publication, structured TRAN and multi-run comparison remain
-outside this slice. Raw/Agent workflows retain their existing capabilities.
+Cross-Project publication, persistent result archives, and overlaid multi-run
+waveforms remain outside this slice. Raw/Agent workflows retain their existing
+capabilities.
 Browser regressions use a controlled executor
 to verify interaction/protocol behavior; they do **not** certify OTA numbers,
 model qualification or the separate real Preview acceptance journey.

@@ -137,9 +137,52 @@ export const EvaluatedAnalysisSchema = z.strictObject({
     .optional(),
   outputs: z.array(EvaluatedOutputSchema),
 });
+export const AutomaticMeasurementSchema = z.discriminatedUnion("status", [
+  z.strictObject({
+    id: Id,
+    analysisIndex: z.number().int().nonnegative(),
+    analysis: z.enum(["op", "dc", "ac", "tran"]),
+    plotName: z.string(),
+    outputId: Id,
+    outputLabel: z.string(),
+    metric: z.enum([
+      "operating-point",
+      "minimum",
+      "maximum",
+      "peak-to-peak",
+      "time-mean",
+      "time-rms",
+    ]),
+    label: z.string(),
+    unit: z.string(),
+    status: z.literal("available"),
+    value: z.number().finite(),
+  }),
+  z.strictObject({
+    id: Id,
+    analysisIndex: z.number().int().nonnegative(),
+    analysis: z.enum(["op", "dc", "ac", "tran"]),
+    plotName: z.string(),
+    outputId: Id,
+    outputLabel: z.string(),
+    metric: z.enum([
+      "operating-point",
+      "minimum",
+      "maximum",
+      "peak-to-peak",
+      "time-mean",
+      "time-rms",
+    ]),
+    label: z.string(),
+    unit: z.string(),
+    status: z.literal("unavailable"),
+    reason: z.string(),
+  }),
+]);
 export const SimulationOutputDataSchema = z.strictObject({
   schemaVersion: z.literal(1),
   analyses: z.array(EvaluatedAnalysisSchema),
+  measurements: z.array(AutomaticMeasurementSchema).optional(),
   diagnostics: z.array(
     z.strictObject({ outputId: Id, code: Id, message: z.string() }),
   ),

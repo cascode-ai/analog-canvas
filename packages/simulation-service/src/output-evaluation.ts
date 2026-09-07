@@ -6,6 +6,7 @@ import type {
 import type { SimulationResultData } from "@icm/spice-run";
 
 import type { SimulationOutputData } from "./contract.js";
+import { deriveAutomaticMeasurements } from "./automatic-measurements.js";
 
 interface ComplexSeries {
   readonly real: readonly (number | null)[];
@@ -224,10 +225,8 @@ export function evaluateSimulationOutputs(
   outputs: readonly CompiledSimulationOutput[],
 ): SimulationOutputData {
   const diagnostics: SimulationOutputData["diagnostics"] = [];
-  return {
-    schemaVersion: 1,
-    diagnostics,
-    analyses: data.analyses.map((analysis) => {
+  const analyses: SimulationOutputData["analyses"] = data.analyses.map(
+    (analysis) => {
       const acquisitions = sourceSeries(analysis, vectors);
       const pointCount =
         analysis.analysis === "op"
@@ -261,7 +260,11 @@ export function evaluateSimulationOutputs(
       });
       const domain =
         analysis.analysis === "ac"
-          ? { name: "Frequency", unit: "Hz", values: [...analysis.frequencyHz] }
+          ? {
+              name: "Frequency",
+              unit: "Hz",
+              values: [...analysis.frequencyHz],
+            }
           : analysis.analysis === "tran"
             ? { name: "Time", unit: "s", values: [...analysis.timeSeconds] }
             : analysis.analysis === "dc"
@@ -277,7 +280,13 @@ export function evaluateSimulationOutputs(
         ...(domain ? { domain } : {}),
         outputs: evaluated,
       };
-    }),
+    },
+  );
+  return {
+    schemaVersion: 1,
+    diagnostics,
+    analyses,
+    measurements: deriveAutomaticMeasurements(analyses),
   };
 }
 

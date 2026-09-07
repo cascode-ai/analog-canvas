@@ -107,10 +107,8 @@ import {
   type SpiceImportReport,
 } from "../features/editor-shell/editor-file-commands";
 import { EditorStatusbar } from "../features/editor-shell/editor-statusbar";
-import {
-  operatingPointLabels,
-  type OperatingPointDisplay,
-} from "../features/simulation/operating-point-labels";
+import { operatingPointLabels } from "../features/simulation/operating-point-labels";
+import type { OperatingPointCanvasProjection } from "../features/simulation/operating-point-projection";
 import {
   deriveSimulationProbeOptions,
   resolveSimulationVoltageProbeNetId,
@@ -1463,24 +1461,25 @@ export function App({
   );
   const [issuesFocusToken, setIssuesFocusToken] = useState(0);
   const [issuesSectionOpen, setIssuesSectionOpen] = useState(false);
-  /**
-   * The last DC operating point, kept in view state only. A simulation result
-   * is never persisted into the Project (ADR 0055), so it lives here and dies
-   * with the session rather than entering the document or the undo history.
-   *
-   * The setters have no caller yet by design, not by omission: the producer is
-   * the SPICE panel's run result, and the run route is still being built. This
-   * is the seam it attaches to — `_setOperatingPointVoltages(result.operating
-   * Point)` on success and `new Map()` on a new run. Do not delete it as dead
-   * code; deleting it would silently remove the canvas half of the feature.
-   * The leading underscore is what keeps `noUnusedLocals` from reading a
-   * reserved seam as dead code; drop it when the run route lands a caller.
-   */
-  const [operatingPointVoltages, _setOperatingPointVoltages] = useState<
-    ReadonlyMap<string, number>
-  >(() => new Map());
-  const [operatingPointDisplay, _setOperatingPointDisplay] =
-    useState<OperatingPointDisplay>("named");
+  /** Run results stay in session view state and never enter Project history. */
+  const [operatingPointProjection, setOperatingPointProjection] =
+    useState<OperatingPointCanvasProjection | null>(null);
+  const currentOccurrence = documentStack.map((frame) => frame.instanceId);
+  const operatingPointVoltages = useMemo(() => {
+    const values = new Map<string, number>();
+    for (const value of operatingPointProjection?.values ?? []) {
+      if (
+        value.documentId !== document.id ||
+        value.occurrence.length !== currentOccurrence.length ||
+        !value.occurrence.every(
+          (instanceId, index) => instanceId === currentOccurrence[index],
+        )
+      )
+        continue;
+      values.set(value.netId, value.volts);
+    }
+    return values;
+  }, [currentOccurrence, document.id, operatingPointProjection]);
   const operatingPointBadges = useMemo(
     () =>
       operatingPointVoltages.size === 0
@@ -1489,7 +1488,7 @@ export function App({
             document,
             resolver,
             voltages: operatingPointVoltages,
-            display: operatingPointDisplay,
+            display: operatingPointProjection?.display ?? "named",
             // "Pointed at" is whichever net the selected wire carries; the
             // highlight already tracks hover for the net-highlight overlay.
             selectedNetIds: selectedRouteId
@@ -1503,7 +1502,7 @@ export function App({
       document,
       resolver,
       operatingPointVoltages,
-      operatingPointDisplay,
+      operatingPointProjection?.display,
       selectedRouteId,
       highlightedNetId,
     ],
@@ -4959,6 +4958,7 @@ export function App({
               onFocusDiagnostic={(locator) =>
                 navigateToLocator(locator, `Located ${locator.kind}`)
               }
+              onOperatingPointProjection={setOperatingPointProjection}
               onFocusProbe={(probe, preparedRootDocumentId) => {
                 const targetDocument = project.documents.find(
                   (candidate) => candidate.id === probe.documentId,

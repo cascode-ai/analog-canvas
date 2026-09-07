@@ -25,6 +25,11 @@ import { DcResultsExplorer } from "./dc-results-explorer";
 import { TransientResultsExplorer } from "./transient-results-explorer";
 import { SimulationOutputResults } from "./simulation-output-results";
 import {
+  deriveOperatingPointCanvasProjection,
+  type OperatingPointCanvasProjection,
+} from "./operating-point-projection";
+import type { OperatingPointDisplay } from "./operating-point-labels";
+import {
   deriveSimulationProbeOptions,
   matchSimulationTerminalCurrentProbeOptions,
   matchSimulationVoltageProbeOptions,
@@ -40,10 +45,20 @@ import {
   simulationArtifactCategory,
   type SimulationArtifactContent,
 } from "./simulation-artifact-files";
+import {
+  buildVisibleSimulationPlotDownload,
+  downloadSimulationPlot,
+  type SimulationPlotExportFormat,
+} from "./simulation-plot-export";
+import {
+  SimulationRunComparison,
+  type SimulationComparisonRun,
+} from "./simulation-run-comparison";
 
 const RESULT_TABS = [
   ["plot", "Plot"],
   ["operating-point", "Operating Point"],
+  ["compare", "Compare"],
   ["console", "Console"],
   ["files", "Files"],
 ] as const;
@@ -57,6 +72,7 @@ const DEVELOPMENT_PROFILE_ID = import.meta.env.DEV
 const DEVELOPMENT_PROFILE_LABEL = "SKY130 1.8 V · ngspice 46";
 const DEVELOPMENT_CORNERS = ["tt", "ff", "ss", "fs", "sf"] as const;
 const DEFAULT_SIMULATION_TEMPERATURE_C = 27;
+const MAX_COMPARISON_RUNS = 5;
 type ResultTab = (typeof RESULT_TABS)[number][0];
 
 function preferredResultTab(run: Run): ResultTab {
@@ -120,6 +136,10 @@ export interface SpiceSimulationSurfaceProps {
     rootDocumentId?: string,
   ): void;
   onFocusDiagnostic?(locator: ObjectLocator): void;
+  /** Session-only OP values ready for exact object-addressed canvas display. */
+  onOperatingPointProjection?(
+    projection: OperatingPointCanvasProjection | null,
+  ): void;
 }
 
 export type SimulationSetupSaveResult =
@@ -131,6 +151,7 @@ interface PreparedPresentation {
   readonly outputs: SimulationStructuredInput["outputs"];
   readonly analysisLabel: string;
   readonly rootDocumentId?: string;
+  readonly setupName: string;
 }
 
 function legacyProbe(output: SimulationOutputSpec): SimulationProbeSpec | null {
@@ -200,6 +221,13 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   const [artifactPreview, setArtifactPreview] =
     useState<SimulationArtifactContent>();
   const [artifactBusy, setArtifactBusy] = useState<string>();
+  const [canvasOpEnabled, setCanvasOpEnabled] = useState(false);
+  const [canvasOpDisplay, setCanvasOpDisplay] =
+    useState<OperatingPointDisplay>("named");
+  const resultsBodyRef = useRef<HTMLDivElement>(null);
+  const [retainedComparisonRuns, setRetainedComparisonRuns] = useState<
+    readonly SimulationComparisonRun[]
+  >([]);
   const setupMenuRef = useRef<HTMLDetailsElement>(null);
   useEffect(() => {
     const closeSetupMenu = (event: PointerEvent): void => {
@@ -210,6 +238,9 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     document.addEventListener("pointerdown", closeSetupMenu);
     return () => document.removeEventListener("pointerdown", closeSetupMenu);
   }, []);
+  const operatingPointProjectionRef = useRef(props.onOperatingPointProjection);
+  operatingPointProjectionRef.current = props.onOperatingPointProjection;
+  useEffect(() => () => operatingPointProjectionRef.current?.(null), []);
   const previousSetupId = useRef<string | null>(props.selectedSetupId);
   useEffect(() => {
     if (previousSetupId.current === props.selectedSetupId) return;
@@ -218,6 +249,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     setRun(undefined);
     setProblem(undefined);
     setArtifactPreview(undefined);
+    props.onOperatingPointProjection?.(null);
     setResultsOpen(false);
     setSetupOpen(true);
   }, [props.selectedSetupId]);
@@ -249,6 +281,26 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     } else if ("run" in reply) {
       setRun(reply.run);
       setProblem(undefined);
+      const presentation = preparedPresentations.current.get(
+        reply.run.preparedId,
+      );
+      if (
+        canvasOpEnabled &&
+        reply.run.state === "finished" &&
+        reply.run.inputStatus !== "changed" &&
+        presentation?.rootDocumentId
+      ) {
+        props.onOperatingPointProjection?.(
+          deriveOperatingPointCanvasProjection(
+            project,
+            presentation.rootDocumentId,
+            reply.run.inputRevision,
+            reply.run.outputData,
+            presentation.outputs,
+            canvasOpDisplay,
+          ),
+        );
+      } else props.onOperatingPointProjection?.(null);
       if (
         reply.run.result ||
         reply.run.error ||
@@ -302,6 +354,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     lock.current = true;
     setBusy(true);
     setProblem(undefined);
+    props.onOperatingPointProjection?.(null);
     try {
       const reply = await session.handle({
         operation: "prepare",
@@ -325,6 +378,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
               : input?.kind === "raw"
                 ? "RAW"
                 : "",
+          setupName: selectedSetup?.name ?? "Simulation",
           ...(input?.kind === "structured"
             ? { rootDocumentId: input.rootDocumentId }
             : {}),
@@ -395,6 +449,37 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     anchor.click();
     setTimeout(() => URL.revokeObjectURL(url), 0);
   };
+  const exportVisiblePlots = async (format: SimulationPlotExportFormat) => {
+    if (!resultsBodyRef.current) return;
+    setArtifactBusy(`plots:${format}`);
+    try {
+      const result = await buildVisibleSimulationPlotDownload(
+        resultsBodyRef.current,
+        format,
+      );
+      if (!result) {
+        setProblem(
+          uiProblem(
+            "PLOT_EXPORT_UNAVAILABLE",
+            "Open Plot with at least one visible chart before exporting an image",
+          ),
+        );
+        return;
+      }
+      downloadSimulationPlot(result);
+    } catch (error) {
+      setProblem(
+        uiProblem(
+          "PLOT_EXPORT_FAILED",
+          error instanceof Error
+            ? error.message
+            : "The visible plot could not be exported",
+        ),
+      );
+    } finally {
+      setArtifactBusy(undefined);
+    }
+  };
   const running = run && ["running", "cancelling"].includes(run.state);
   const activeCell = project.documents.find(
     (candidate) => candidate.id === props.activeDocumentId,
@@ -439,6 +524,47 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   const runPresentation = run
     ? preparedPresentations.current.get(run.preparedId)
     : undefined;
+  const canvasOpProjection =
+    run && runPresentation?.rootDocumentId
+      ? deriveOperatingPointCanvasProjection(
+          project,
+          runPresentation.rootDocumentId,
+          run.inputRevision,
+          run.outputData,
+          runPresentation.outputs,
+          canvasOpDisplay,
+        )
+      : undefined;
+  const currentComparisonRun: SimulationComparisonRun | undefined =
+    run?.outputData?.measurements?.length && runPresentation
+      ? {
+          id: run.id,
+          label: runPresentation.setupName,
+          inputRevision: run.inputRevision,
+          environment: runPresentation.prepared.environment,
+          measurements: run.outputData.measurements,
+          current: true,
+        }
+      : undefined;
+  const comparisonRuns = [
+    ...retainedComparisonRuns.filter(
+      (candidate) => candidate.id !== currentComparisonRun?.id,
+    ),
+    ...(currentComparisonRun ? [currentComparisonRun] : []),
+  ];
+  const retainCurrentComparison = (): void => {
+    if (!currentComparisonRun) return;
+    setRetainedComparisonRuns((current) => {
+      if (current.some((candidate) => candidate.id === currentComparisonRun.id))
+        return current;
+      // Reserve one column for the next/current run.
+      if (current.length >= MAX_COMPARISON_RUNS - 1) return current;
+      return [
+        ...current,
+        structuredClone({ ...currentComparisonRun, current: false }),
+      ];
+    });
+  };
   const artifactCategories = ["Netlist", "Results", "Evidence", "Log", "Other"];
   const runPreparedArtifactIds = new Set(
     runPresentation?.prepared.artifacts.map((artifact) => artifact.id) ?? [],
@@ -467,6 +593,19 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
         ]
       : []),
   ].filter((group) => group.artifacts.length > 0);
+  const resultCsvArtifacts = run
+    ? (() => {
+        const csv = run.artifacts.filter((artifact) =>
+          artifact.name.toLowerCase().endsWith(".csv"),
+        );
+        const evaluated = csv.filter(
+          (artifact) =>
+            artifact.name.startsWith("outputs-") ||
+            artifact.name === "measurements.csv",
+        );
+        return evaluated.length ? evaluated : csv;
+      })()
+    : [];
   const analysisLabel = runPresentation?.analysisLabel;
   const presentationProbes =
     runPresentation?.outputs.flatMap((output) => {
@@ -778,8 +917,61 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
                 </button>
               ))}
             </div>
+            {run ? (
+              <details className="simulation-result-export">
+                <summary>Export</summary>
+                <div>
+                  {resultTab === "plot" ? (
+                    <>
+                      <button
+                        type="button"
+                        disabled={artifactBusy !== undefined}
+                        onClick={() => void exportVisiblePlots("svg")}
+                      >
+                        {artifactBusy === "plots:svg"
+                          ? "Preparing SVG…"
+                          : "Visible plots · SVG"}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={artifactBusy !== undefined}
+                        onClick={() => void exportVisiblePlots("png")}
+                      >
+                        {artifactBusy === "plots:png"
+                          ? "Preparing PNG…"
+                          : "Visible plots · PNG"}
+                      </button>
+                    </>
+                  ) : null}
+                  {resultCsvArtifacts.length ? (
+                    <section>
+                      <small>Complete result data</small>
+                      {resultCsvArtifacts.map((artifact) => (
+                        <button
+                          key={artifact.id}
+                          type="button"
+                          disabled={artifactBusy !== undefined}
+                          onClick={() => void download(artifact)}
+                        >
+                          {artifact.name}
+                        </button>
+                      ))}
+                    </section>
+                  ) : null}
+                  <button
+                    type="button"
+                    disabled={
+                      artifactBusy !== undefined || run.artifacts.length === 0
+                    }
+                    onClick={() => void downloadBundle("run", run.artifacts)}
+                  >
+                    Complete run · ZIP
+                  </button>
+                </div>
+              </details>
+            ) : null}
           </header>
-          <div className="simulation-results-body">
+          <div ref={resultsBodyRef} className="simulation-results-body">
             {resultTab === "plot" ? (
               <div className="simulation-analysis-view">
                 {run?.outputData ? (
@@ -883,6 +1075,52 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
 
             {resultTab === "operating-point" ? (
               <div className="simulation-analysis-view">
+                <div className="simulation-op-canvas-controls">
+                  <button
+                    type="button"
+                    aria-pressed={canvasOpEnabled}
+                    disabled={
+                      !canvasOpProjection?.values.length ||
+                      run?.inputStatus === "changed"
+                    }
+                    onClick={() => {
+                      const enabled = !canvasOpEnabled;
+                      setCanvasOpEnabled(enabled);
+                      props.onOperatingPointProjection?.(
+                        enabled && canvasOpProjection
+                          ? canvasOpProjection
+                          : null,
+                      );
+                    }}
+                  >
+                    {canvasOpEnabled ? "Hide canvas values" : "Show on canvas"}
+                  </button>
+                  <label>
+                    Canvas labels
+                    <select
+                      value={canvasOpDisplay}
+                      disabled={!canvasOpEnabled}
+                      onChange={(event) => {
+                        const display = event.currentTarget
+                          .value as OperatingPointDisplay;
+                        setCanvasOpDisplay(display);
+                        if (canvasOpEnabled && canvasOpProjection)
+                          props.onOperatingPointProjection?.({
+                            ...canvasOpProjection,
+                            display,
+                          });
+                      }}
+                    >
+                      <option value="named">Named and focused</option>
+                      <option value="all">All collected</option>
+                    </select>
+                  </label>
+                  <span>
+                    {run?.inputStatus === "changed"
+                      ? "Paused: the circuit changed"
+                      : `${canvasOpProjection?.values.length ?? 0} direct Net voltage${canvasOpProjection?.values.length === 1 ? "" : "s"}`}
+                  </span>
+                </div>
                 {run?.outputData ? (
                   <SimulationOutputResults
                     resultKey={`${run.id}:op`}
@@ -928,6 +1166,58 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
                     Run an operating-point analysis to see values.
                   </p>
                 ) : null}
+              </div>
+            ) : null}
+
+            {resultTab === "compare" ? (
+              <div className="simulation-comparison-view">
+                <header>
+                  <span>
+                    <strong>Run comparison</strong>
+                    <small>
+                      Session only · matches stable output and measurement IDs
+                    </small>
+                  </span>
+                  <button
+                    type="button"
+                    disabled={
+                      !currentComparisonRun ||
+                      retainedComparisonRuns.some(
+                        (candidate) => candidate.id === currentComparisonRun.id,
+                      ) ||
+                      retainedComparisonRuns.length >= MAX_COMPARISON_RUNS - 1
+                    }
+                    onClick={retainCurrentComparison}
+                  >
+                    {retainedComparisonRuns.some(
+                      (candidate) => candidate.id === currentComparisonRun?.id,
+                    )
+                      ? "Current kept"
+                      : "Keep current"}
+                  </button>
+                  {retainedComparisonRuns.length ? (
+                    <button
+                      type="button"
+                      onClick={() => setRetainedComparisonRuns([])}
+                    >
+                      Clear kept
+                    </button>
+                  ) : null}
+                </header>
+                {comparisonRuns.length < 2 && currentComparisonRun ? (
+                  <p className="simulation-comparison-hint">
+                    Keep this result, change the circuit or conditions, then run
+                    again to compare.
+                  </p>
+                ) : null}
+                <SimulationRunComparison
+                  runs={comparisonRuns}
+                  onRemove={(runId) =>
+                    setRetainedComparisonRuns((current) =>
+                      current.filter((candidate) => candidate.id !== runId),
+                    )
+                  }
+                />
               </div>
             ) : null}
 

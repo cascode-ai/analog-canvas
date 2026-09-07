@@ -11,6 +11,7 @@ import type {
 
 import { AcResultsExplorer } from "./ac-results-explorer";
 import { TransientResultsExplorer } from "./transient-results-explorer";
+import { SimulationMeasurementResults } from "./simulation-measurement-results";
 
 function focusProbe(output: SimulationOutputSpec): SimulationProbeSpec | null {
   const dependency = simulationExpressionDependencies(output.expression)[0];
@@ -54,6 +55,9 @@ export function SimulationOutputResults({
   );
   const vectors = (ids: readonly string[]): Prepared["vectors"] =>
     ids.map((id) => ({ probeId: id, vector: id, quantity: "voltage" }));
+  const visibleAnalyses = new Set(
+    data.analyses.map((analysis) => analysis.analysis),
+  );
 
   return (
     <>
@@ -198,6 +202,11 @@ export function SimulationOutputResults({
           ))}
         </div>
       ) : null}
+      <SimulationMeasurementResults
+        measurements={(data.measurements ?? []).filter((measurement) =>
+          visibleAnalyses.has(measurement.analysis),
+        )}
+      />
     </>
   );
 }

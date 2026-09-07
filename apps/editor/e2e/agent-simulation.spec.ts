@@ -1,5 +1,6 @@
 import { test, expect, type WebSocketRoute } from "@playwright/test";
 import { readFileSync } from "node:fs";
+import { strFromU8, unzipSync } from "fflate";
 import {
   createSimulationEnvironmentMetadata,
   createSimulationInputMetadata,
@@ -340,6 +341,7 @@ test("one Testbench persists several independently named setups", async ({
 test("human simulation uses saved setup, survives minimizing, recovers a bad input and exports results", async ({
   page,
 }) => {
+  test.setTimeout(90_000);
   const project = parseProject(JSON.stringify(ota));
   project.simulationSetups = [
     {
@@ -544,7 +546,23 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   await expect(panel.getByRole("region", { name: "OP results" })).toContainText(
     "0.500000",
   );
+  await expect(panel.getByText("1 direct Net voltage")).toBeVisible();
+  const opMeasurements = panel.locator(
+    "details.simulation-measurement-results",
+  );
+  await expect(opMeasurements.locator("summary")).toContainText("1 value");
+  await expect(opMeasurements).not.toHaveAttribute("open", "");
+  await panel.getByRole("button", { name: "Show on canvas" }).click();
+  await expect(page.getByTestId("operating-point-badges")).toContainText(
+    "500 mV",
+  );
+  await panel.getByRole("button", { name: "Hide canvas values" }).click();
+  await expect(page.getByTestId("operating-point-badges")).toHaveCount(0);
   await panel.getByRole("tab", { name: "Plot" }).click();
+  const plotMeasurements = panel.locator(
+    "details.simulation-measurement-results",
+  );
+  await expect(plotMeasurements.locator("summary")).toContainText("8 values");
   await expect(panel.locator(".spice-ac-plot svg")).toHaveCount(3);
   await expect(panel.locator('svg[aria-label="AC magnitude"]')).toBeVisible();
   await expect(panel.locator('svg[aria-label="AC phase"]')).toBeVisible();
@@ -555,6 +573,51 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
           ?.height ?? 0,
     )
     .toBeGreaterThan(300);
+  const resultExport = panel.locator("details.simulation-result-export");
+  await resultExport.locator("summary").click();
+  const svgBundlePromise = page.waitForEvent("download");
+  await resultExport
+    .getByRole("button", { name: "Visible plots · SVG" })
+    .click();
+  const svgBundle = await svgBundlePromise;
+  expect(svgBundle.suggestedFilename()).toBe("simulation-plots-svg.zip");
+  const svgEntries = unzipSync(readFileSync((await svgBundle.path())!));
+  expect(Object.keys(svgEntries)).toHaveLength(3);
+  const exportedSvg = strFromU8(Object.values(svgEntries)[0]!);
+  expect(exportedSvg).toContain('<?xml version="1.0"');
+  expect(exportedSvg).toContain('fill="white"');
+  expect(exportedSvg).not.toContain("ac-trace-hit");
+  const pngBundlePromise = page.waitForEvent("download");
+  await resultExport
+    .getByRole("button", { name: "Visible plots · PNG" })
+    .click();
+  const pngBundle = await pngBundlePromise;
+  expect(pngBundle.suggestedFilename()).toBe("simulation-plots-png.zip");
+  const pngEntries = unzipSync(readFileSync((await pngBundle.path())!));
+  expect(Object.keys(pngEntries)).toHaveLength(3);
+  expect([...Object.values(pngEntries)[0]!.slice(0, 8)]).toEqual([
+    137, 80, 78, 71, 13, 10, 26, 10,
+  ]);
+  const csvDownloadPromise = page.waitForEvent("download");
+  await resultExport.getByRole("button", { name: "outputs-op-0.csv" }).click();
+  expect((await csvDownloadPromise).suggestedFilename()).toBe(
+    "outputs-op-0.csv",
+  );
+  const measurementDownloadPromise = page.waitForEvent("download");
+  await resultExport.getByRole("button", { name: "measurements.csv" }).click();
+  const measurementDownload = await measurementDownloadPromise;
+  expect(measurementDownload.suggestedFilename()).toBe("measurements.csv");
+  expect(readFileSync((await measurementDownload.path())!, "utf8")).toContain(
+    '"TRAN","Transient response","first-output","Time-weighted RMS"',
+  );
+  resultExport.evaluate((element) => element.removeAttribute("open"));
+  await panel.getByRole("tab", { name: "Compare" }).click();
+  await expect(panel.getByText("Session only", { exact: false })).toBeVisible();
+  await panel.getByRole("button", { name: "Keep current" }).click();
+  await expect(
+    panel.getByRole("button", { name: "Current kept" }),
+  ).toBeDisabled();
+  await panel.getByRole("tab", { name: "Plot" }).click();
   expect(
     await panel
       .locator(".ac-response .ac-trace")
@@ -567,7 +630,9 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
       .first()
       .evaluate((label) => getComputedStyle(label).fill),
   ).toBe("rgb(52, 64, 84)");
-  await expect(panel.getByText("first-output", { exact: true })).toHaveCount(2);
+  await expect(
+    panel.getByRole("button", { name: "Hide first-output" }),
+  ).toHaveCount(2);
   const magnitudePlot = panel
     .locator(".ac-plot-row")
     .filter({ hasText: "Magnitude" })
@@ -844,8 +909,12 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   );
   await panel.getByRole("button", { name: "Results" }).click();
   await panel.getByRole("tab", { name: "Plot" }).click();
-  await expect(panel.getByText("first-output", { exact: true })).toHaveCount(2);
-  await expect(panel.getByText("new-output", { exact: true })).toHaveCount(0);
+  await expect(
+    panel.getByRole("button", { name: "Hide first-output" }),
+  ).toHaveCount(2);
+  await expect(
+    panel.getByRole("button", { name: "Hide new-output" }),
+  ).toHaveCount(0);
   await panel.getByRole("button", { name: "Run", exact: true }).click();
   await expect.poll(() => executions).toBe(2);
   await expect(panel.getByRole("status")).toHaveText("finished · completed");
@@ -854,7 +923,19 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   await expect(
     transientShell.getByRole("button", { name: "Previous view" }),
   ).toBeDisabled();
-  await expect(panel.getByText("new-output", { exact: true })).toHaveCount(2);
+  await expect(
+    panel.getByRole("button", { name: "Hide new-output" }),
+  ).toHaveCount(2);
+  await panel.getByRole("tab", { name: "Compare" }).click();
+  const comparisonTable = panel.locator(".simulation-run-comparison-table");
+  await expect(comparisonTable.locator("thead th")).toHaveCount(3);
+  await expect(comparisonTable).toContainText("Current");
+  await expect(comparisonTable).toContainText("TRAN · Time-weighted RMS");
+  await expect(
+    comparisonTable.getByRole("button", {
+      name: "Remove E2E setup from comparison",
+    }),
+  ).toBeVisible();
   pending = new Promise<void>((r) => {
     release = r;
   });
