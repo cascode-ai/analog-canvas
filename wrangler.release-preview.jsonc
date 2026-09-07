@@ -1,0 +1,38 @@
+{
+  "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
+  // An isolated, reusable proving ground for a production release candidate.
+  // It has no production route, no production Durable Object binding, and no
+  // simulation executor. The normal preview remains owned by main.
+  "name": "interactive-circuit-maker-release-preview",
+  "main": "./worker/index.ts",
+  "compatibility_date": "2026-08-11",
+  "workers_dev": true,
+  "preview_urls": false,
+  "vars": {
+    "ICM_CHANNEL": "preview",
+    "ICM_GALLERY_UPSTREAM": "https://analog-canvas.tokenzhang.com",
+  },
+  "assets": {
+    "binding": "ASSETS",
+    "directory": "./apps/editor/dist",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": true,
+  },
+  "durable_objects": {
+    "bindings": [
+      { "name": "ANALYTICS", "class_name": "AnalyticsDO" },
+      { "name": "AGENT_SESSION", "class_name": "AgentSessionDO" },
+      { "name": "GALLERY", "class_name": "GalleryDO" },
+      { "name": "AUTH", "class_name": "AuthDO" },
+    ],
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["AnalyticsDO"] },
+    { "tag": "v2", "new_sqlite_classes": ["AgentSessionDO"] },
+    { "tag": "v3", "new_sqlite_classes": ["GalleryDO"] },
+    { "tag": "v4", "new_sqlite_classes": ["AuthDO"] },
+  ],
+  "observability": {
+    "enabled": true,
+  },
+}

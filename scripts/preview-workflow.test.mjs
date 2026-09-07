@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
  */
 const preview = readFileSync(".github/workflows/deploy-preview.yml", "utf8");
 const production = readFileSync(".github/workflows/cloudflare.yml", "utf8");
+const releasePreview = readFileSync("wrangler.release-preview.jsonc", "utf8");
 
 describe("the preview deploy", () => {
   it("deploys the preview configuration file and nothing else", () => {
@@ -49,5 +50,21 @@ describe("the preview deploy", () => {
 
   it("does not leak into the production workflow", () => {
     expect(production).not.toContain("wrangler.preview.jsonc");
+    expect(production).not.toContain("wrangler.release-preview.jsonc");
+  });
+
+  it("proves a backported release without touching the main preview", () => {
+    expect(preview).toContain("release_candidate:");
+    expect(preview).toContain("wrangler.release-preview.jsonc");
+    expect(preview).toContain("interactive-circuit-maker-release-preview");
+    expect(preview).toContain("simulation-not-configured");
+    expect(releasePreview).toContain(
+      '"name": "interactive-circuit-maker-release-preview"',
+    );
+    expect(releasePreview).toContain('"workers_dev": true');
+    expect(releasePreview).toContain('"preview_urls": false');
+    expect(releasePreview).not.toContain('"routes"');
+    expect(releasePreview).not.toContain("NGSPICE");
+    expect(releasePreview).not.toContain("SIMULATION_");
   });
 });

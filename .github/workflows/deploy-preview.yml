@@ -11,12 +11,18 @@ on:
       - "**/*.md"
       - "docs/**"
   workflow_dispatch:
+    inputs:
+      release_candidate:
+        description: "Deploy this ref to the isolated non-simulation release preview"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
 
 concurrency:
-  group: cloudflare-preview
+  group: ${{ inputs.release_candidate && 'cloudflare-release-preview' || 'cloudflare-preview' }}
   cancel-in-progress: false
 
 env:
@@ -31,6 +37,7 @@ env:
 jobs:
   preview:
     name: Deploy preview
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.release_candidate != true }}
     runs-on: ubuntu-latest
     environment:
       name: cloudflare-preview
@@ -162,5 +169,119 @@ jobs:
           # timed out at 60 s and would have passed a status-only check.
           if ! grep -q '"status":"completed"' /tmp/preview-simulation.json; then
             echo "The simulation did not complete; see the outcome above."
+            exit 1
+          fi
+
+  release_candidate_preview:
+    name: Deploy release candidate preview
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.release_candidate == true }}
+    runs-on: ubuntu-latest
+    environment:
+      name: cloudflare-preview
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.16.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @icm/spice-run build
+      - run: pnpm --filter @icm/editor... build
+        env:
+          VITE_ICM_TIMING_UI: disabled
+      - name: Deploy the isolated release candidate
+        id: deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          pnpm dlx wrangler@4.120.1 deploy --config wrangler.release-preview.jsonc
+          subdomain="$(curl --fail --silent --show-error \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/subdomain" \
+            | node -e '
+                let body = "";
+                process.stdin.setEncoding("utf8");
+                process.stdin.on("data", (chunk) => (body += chunk));
+                process.stdin.on("end", () => {
+                  const value = JSON.parse(body).result?.subdomain;
+                  if (!value) process.exit(1);
+                  process.stdout.write(value);
+                });
+              ' )"
+          preview_url="https://interactive-circuit-maker-release-preview.${subdomain}.workers.dev"
+          echo "preview_url=${preview_url}" >> "$GITHUB_OUTPUT"
+          echo "Release candidate preview: ${preview_url}"
+      - name: Verify the non-simulation release candidate
+        env:
+          PREVIEW_URL: ${{ steps.deploy.outputs.preview_url }}
+        run: |
+          set -euo pipefail
+          for _ in $(seq 1 60); do
+            if curl --silent --output /dev/null --max-time 10 "${PREVIEW_URL}/api/channel"; then
+              break
+            fi
+            sleep 5
+          done
+          channel="$(curl --fail --silent --show-error --max-time 20 \
+            --retry 5 --retry-delay 2 --retry-all-errors \
+            "${PREVIEW_URL}/api/channel")"
+          case "$channel" in
+            *'"preview"'*) ;;
+            *) echo "The release candidate does not identify as preview: $channel"; exit 1 ;;
+          esac
+          shell="$(curl --fail --silent --show-error --max-time 20 "${PREVIEW_URL}/editor")"
+          entry="$(printf '%s' "$shell" | grep -o '/assets/[A-Za-z0-9._-]*\.js' | head -n 1)"
+          if [ -z "$entry" ]; then
+            echo "The editor shell references no script; it cannot boot."
+            exit 1
+          fi
+          entry_result="$(curl --silent --output /dev/null --max-time 20 \
+            --write-out '%{http_code} %{content_type}' "${PREVIEW_URL}${entry}")"
+          case "$entry_result" in
+            200*javascript*) ;;
+            *) echo "The editor's entry script answered: $entry_result"; exit 1 ;;
+          esac
+          stale="$(curl --silent --output /dev/null --max-time 20 \
+            --write-out '%{http_code}' "${PREVIEW_URL}/assets/App-release-smoke-missing.js")"
+          if [ "$stale" != "404" ]; then
+            echo "A missing hashed asset must answer 404, got: $stale"
+            exit 1
+          fi
+          robots="$(curl --fail --silent --show-error --max-time 20 "${PREVIEW_URL}/robots.txt")"
+          case "$robots" in
+            *"Disallow: /"*) ;;
+            *) echo "The release preview must refuse robots, got: $robots"; exit 1 ;;
+          esac
+          noindex="$(curl --silent --head --max-time 20 "${PREVIEW_URL}/editor" \
+            | tr -d '\r' | grep -i '^x-robots-tag:' || true)"
+          case "$noindex" in
+            *noindex*) ;;
+            *) echo "Release preview responses must carry noindex, got: ${noindex:-nothing}"; exit 1 ;;
+          esac
+          gallery="$(curl --silent --output /dev/null --max-time 20 \
+            --write-out '%{http_code}' "${PREVIEW_URL}/api/gallery")"
+          if [ "$gallery" != "200" ]; then
+            echo "The release preview must read the production gallery, got: $gallery"
+            exit 1
+          fi
+          write="$(curl --silent --output /dev/null --max-time 20 -X POST \
+            --write-out '%{http_code}' "${PREVIEW_URL}/api/gallery/release-smoke/like")"
+          if [ "$write" != "403" ]; then
+            echo "A gallery write on the release preview must be refused, got: $write"
+            exit 1
+          fi
+          simulation="$(curl --silent --output /tmp/release-preview-simulation.json \
+            --max-time 20 --write-out '%{http_code}' -X POST \
+            -H 'content-type: application/json' --data '{}' \
+            "${PREVIEW_URL}/api/simulate")"
+          if [ "$simulation" != "503" ] || \
+            ! grep -q 'simulation-not-configured' /tmp/release-preview-simulation.json; then
+            echo "The release candidate unexpectedly exposes simulation."
+            cat /tmp/release-preview-simulation.json
             exit 1
           fi
