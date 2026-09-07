@@ -58,6 +58,11 @@ describe("the preview deploy", () => {
     expect(preview).toContain("wrangler.release-preview.jsonc");
     expect(preview).toContain("interactive-circuit-maker-release-preview");
     expect(preview).toContain("simulation-not-configured");
+    expect(preview).toContain("/tmp/release-preview-deploy.log");
+    expect(preview).toMatch(
+      /grep -o[\s\S]+interactive-circuit-maker-release-preview[\s\S]+workers\\\.dev/u,
+    );
+    expect(preview).not.toContain("/workers/subdomain");
     expect(releasePreview).toContain(
       '"name": "interactive-circuit-maker-release-preview"',
     );

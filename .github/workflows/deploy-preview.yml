@@ -199,21 +199,15 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -euo pipefail
-          pnpm dlx wrangler@4.120.1 deploy --config wrangler.release-preview.jsonc
-          subdomain="$(curl --fail --silent --show-error \
-            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
-            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/subdomain" \
-            | node -e '
-                let body = "";
-                process.stdin.setEncoding("utf8");
-                process.stdin.on("data", (chunk) => (body += chunk));
-                process.stdin.on("end", () => {
-                  const value = JSON.parse(body).result?.subdomain;
-                  if (!value) process.exit(1);
-                  process.stdout.write(value);
-                });
-              ' )"
-          preview_url="https://interactive-circuit-maker-release-preview.${subdomain}.workers.dev"
+          pnpm dlx wrangler@4.120.1 deploy --config wrangler.release-preview.jsonc \
+            | tee /tmp/release-preview-deploy.log
+          preview_url="$(grep -o \
+            'https://interactive-circuit-maker-release-preview\.[A-Za-z0-9.-]*\.workers\.dev' \
+            /tmp/release-preview-deploy.log | tail -n 1)"
+          if [ -z "$preview_url" ]; then
+            echo "Wrangler reported no release-preview workers.dev URL."
+            exit 1
+          fi
           echo "preview_url=${preview_url}" >> "$GITHUB_OUTPUT"
           echo "Release candidate preview: ${preview_url}"
       - name: Verify the non-simulation release candidate
