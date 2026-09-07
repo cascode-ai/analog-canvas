@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type SetStateAction } from "react";
+import { useEffect, useState, type SetStateAction } from "react";
 import {
   WaveformInteraction,
   responsiveWaveformHeight,
@@ -7,7 +7,7 @@ import {
 import { useWaveformView } from "./waveform-view";
 import { WaveformTools, WaveformMeasurements } from "./waveform-tools";
 import { WaveformTraceList } from "./waveform-trace-list";
-import type { SimulationProbeSpec } from "@icm/model";
+import type { SimulationFocusTarget } from "./simulation-focus-target";
 import type { AcResult } from "@icm/spice-run";
 import type { Prepared } from "@icm/simulation-service/contract";
 
@@ -19,10 +19,10 @@ import {
   type AcTrace,
 } from "./ac-response-plot";
 
-interface OutputTrace extends AcTrace {
+export interface OutputTrace extends AcTrace {
   id: string;
   quantity: string;
-  probe?: SimulationProbeSpec;
+  probe?: SimulationFocusTarget;
 }
 
 interface ExpandedPlot {
@@ -34,10 +34,10 @@ export interface AcResultsExplorerProps {
   resultKey?: string;
   analysis: AcResult;
   vectors: Prepared["vectors"];
-  probes: readonly SimulationProbeSpec[];
+  probes: readonly SimulationFocusTarget[];
   labels?: Readonly<Record<string, string>>;
   groups?: Readonly<Record<string, string>>;
-  onFocusProbe?(probe: SimulationProbeSpec): void;
+  onFocusProbe?(probe: SimulationFocusTarget): void;
 }
 
 const PLOT_SIZE = { width: 760, height: 395 } as const;
@@ -72,7 +72,7 @@ function closestPoint(points: readonly AcPoint[], frequency: number): AcPoint {
 function outputTraces(
   analysis: AcResult,
   vectors: Prepared["vectors"],
-  probes: readonly SimulationProbeSpec[],
+  probes: readonly SimulationFocusTarget[],
   labels: Readonly<Record<string, string>>,
   groups: Readonly<Record<string, string>>,
 ): OutputTrace[] {
@@ -130,14 +130,29 @@ export function AcResultsExplorer({
   probes,
   labels = {},
   groups = {},
+  ...display
+}: AcResultsExplorerProps) {
+  return (
+    <ComplexResultsExplorer
+      {...display}
+      plotName={analysis.plotName}
+      traces={outputTraces(analysis, vectors, probes, labels, groups)}
+    />
+  );
+}
+
+export function ComplexResultsExplorer({
+  plotName,
+  traces,
   onFocusProbe,
   resultKey,
-}: AcResultsExplorerProps) {
+}: {
+  plotName: string;
+  traces: readonly OutputTrace[];
+  resultKey?: string;
+  onFocusProbe?(probe: SimulationFocusTarget): void;
+}) {
   const measured = useWaveformWidth();
-  const traces = useMemo(
-    () => outputTraces(analysis, vectors, probes, labels, groups),
-    [analysis, groups, labels, probes, vectors],
-  );
   const controller = useWaveformView(resultKey);
   const { hidden, selected, markers } = controller.state;
   const setHidden = (value: SetStateAction<ReadonlySet<string>>) =>
@@ -335,7 +350,7 @@ export function AcResultsExplorer({
   return (
     <div ref={measured.ref} className="ac-results-explorer">
       <header>
-        <strong>{analysis.plotName}</strong>
+        <strong>{plotName}</strong>
       </header>
       {[...new Set(traces.map((trace) => trace.quantity))].map((quantity) => {
         const quantityTraces = traces.filter(
@@ -390,7 +405,7 @@ export function AcResultsExplorer({
           >
             <header>
               <div>
-                <strong>{analysis.plotName}</strong>
+                <strong>{plotName}</strong>
                 <span>
                   {groupLabel(expandedPlot.quantity)} ·{" "}
                   {expandedPlot.kind === "magnitude" ? "Magnitude" : "Phase"}

@@ -117,16 +117,6 @@ export type SimulationAnalysisSpec = z.infer<
 export type SimulationOutputSpec = z.infer<
   typeof Schema.SimulationOutputSpecSchema
 >;
-/** @deprecated UI transition type; persisted setups use SimulationOutputSpec. */
-export type SimulationProbeSpec =
-  | ({ id: StableId; kind: "net-voltage" } & Omit<
-      Extract<Schema.SimulationExpression, { kind: "voltage" }>,
-      "kind"
-    >)
-  | ({ id: StableId; kind: "terminal-current" } & Omit<
-      Extract<Schema.SimulationExpression, { kind: "current" }>,
-      "kind"
-    >);
 export type SimulationVoltageProbeAnchor = z.infer<
   typeof Schema.SimulationVoltageProbeAnchorSchema
 >;

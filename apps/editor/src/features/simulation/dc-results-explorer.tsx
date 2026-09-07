@@ -1,13 +1,13 @@
-import type { SimulationProbeSpec } from "@icm/model";
+import type { SimulationFocusTarget } from "./simulation-focus-target";
 import type { DcSweepResult } from "@icm/spice-run";
 import type { Prepared } from "@icm/simulation-service/contract";
 
 export interface DcResultsExplorerProps {
   analysis: DcSweepResult;
   vectors: Prepared["vectors"];
-  probes: readonly SimulationProbeSpec[];
+  probes: readonly SimulationFocusTarget[];
   labels?: Readonly<Record<string, string>>;
-  onFocusProbe?(probe: SimulationProbeSpec): void;
+  onFocusProbe?(probe: SimulationFocusTarget): void;
 }
 
 const PLOT = {

@@ -50,16 +50,21 @@ export class BrowserSimulationSession {
         },
       };
     try {
-      this.service ??= import("@icm/simulation-service").then(
-        ({ SimulationService, createHostedExecutor }) =>
-          new SimulationService(
-            this.files,
-            createHostedExecutor(
-              this.options.fetch ?? ((...args) => globalThis.fetch(...args)),
+      this.service ??= import("@icm/simulation-service")
+        .then(
+          ({ SimulationService, createHostedExecutor }) =>
+            new SimulationService(
+              this.files,
+              createHostedExecutor(
+                this.options.fetch ?? ((...args) => globalThis.fetch(...args)),
+              ),
+              this.options.getProject,
             ),
-            this.options.getProject,
-          ),
-      );
+        )
+        .catch((error: unknown) => {
+          this.service = undefined;
+          throw error;
+        });
       const service = await this.service;
       if (
         generation !== this.generation ||
@@ -76,7 +81,6 @@ export class BrowserSimulationSession {
         };
       return await service.handle(operation, requestId);
     } catch {
-      this.service = undefined;
       return {
         ok: false,
         error: {

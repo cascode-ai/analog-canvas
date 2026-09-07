@@ -1,10 +1,4 @@
-import {
-  useEffect,
-  useId,
-  useMemo,
-  useState,
-  type SetStateAction,
-} from "react";
+import { useEffect, useId, useState, type SetStateAction } from "react";
 import {
   WaveformInteraction,
   responsiveWaveformHeight,
@@ -15,27 +9,27 @@ import {
 import { useWaveformView } from "./waveform-view";
 import { WaveformTools, WaveformMeasurements } from "./waveform-tools";
 import { WaveformTraceList } from "./waveform-trace-list";
-import type { SimulationProbeSpec } from "@icm/model";
+import type { SimulationFocusTarget } from "./simulation-focus-target";
 import type { TransientResult } from "@icm/spice-run";
 import type { Prepared } from "@icm/simulation-service/contract";
 
-interface TransientTrace {
+export interface ScalarTrace {
   readonly id: string;
   readonly label: string;
   readonly colorIndex: number;
   readonly quantity: string;
   readonly unit: string | null;
   readonly values: readonly number[];
-  readonly probe?: SimulationProbeSpec;
+  readonly probe?: SimulationFocusTarget;
 }
 
 export interface TransientResultsExplorerProps {
   resultKey?: string;
   analysis: TransientResult;
   vectors: Prepared["vectors"];
-  probes: readonly SimulationProbeSpec[];
+  probes: readonly SimulationFocusTarget[];
   labels?: Readonly<Record<string, string>>;
-  onFocusProbe?(probe: SimulationProbeSpec): void;
+  onFocusProbe?(probe: SimulationFocusTarget): void;
   /** Optional authored grouping for derived results, keyed by result id. */
   groups?: Readonly<Record<string, string>>;
   domainLabel?: string;
@@ -177,10 +171,10 @@ export function transientPolylinePoints(
 function outputTraces(
   analysis: TransientResult,
   vectors: Prepared["vectors"],
-  probes: readonly SimulationProbeSpec[],
+  probes: readonly SimulationFocusTarget[],
   labels: Readonly<Record<string, string>>,
   groups: Readonly<Record<string, string>>,
-): TransientTrace[] {
+): ScalarTrace[] {
   const vectorsByName = new Map(
     vectors.map((vector) => [vector.vector.toLowerCase(), vector]),
   );
@@ -203,25 +197,49 @@ function outputTraces(
   });
 }
 
+export interface ScalarResultsExplorerProps {
+  resultKey?: string;
+  plotName: string;
+  domain: readonly number[];
+  traces: readonly ScalarTrace[];
+  onFocusProbe?(probe: SimulationFocusTarget): void;
+  domainLabel?: string;
+  domainUnit?: string;
+  logarithmicX?: boolean;
+  analysisLabel?: string;
+}
+
 export function TransientResultsExplorer({
   analysis,
   vectors,
   probes,
   labels = {},
+  groups = {},
+  ...display
+}: TransientResultsExplorerProps) {
+  return (
+    <ScalarResultsExplorer
+      {...display}
+      plotName={analysis.plotName}
+      domain={analysis.timeSeconds}
+      traces={outputTraces(analysis, vectors, probes, labels, groups)}
+    />
+  );
+}
+
+export function ScalarResultsExplorer({
+  plotName,
+  domain,
+  traces,
   onFocusProbe,
   resultKey,
   domainLabel = "Time",
   domainUnit = "s",
   logarithmicX = false,
   analysisLabel = "Transient",
-  groups = {},
-}: TransientResultsExplorerProps) {
+}: ScalarResultsExplorerProps) {
   const measured = useWaveformWidth();
   const clipPrefix = useId();
-  const traces = useMemo(
-    () => outputTraces(analysis, vectors, probes, labels, groups),
-    [analysis, groups, labels, probes, vectors],
-  );
   const controller = useWaveformView(resultKey);
   const { hidden, selected, markers } = controller.state;
   const setHidden = (value: SetStateAction<ReadonlySet<string>>) =>
@@ -231,7 +249,7 @@ export function TransientResultsExplorer({
   const valueRanges = controller.view.y;
   const [expandedQuantity, setExpandedQuantity] = useState<string | null>(null);
   const visible = traces.filter((trace) => !hidden.has(trace.id));
-  const fullRange = finiteExtent(analysis.timeSeconds);
+  const fullRange = finiteExtent(domain);
   const xFraction = (value: number, range: readonly [number, number]) =>
     logarithmicX
       ? Math.log(value / range[0]) / Math.log(range[1] / range[0])
@@ -271,7 +289,7 @@ export function TransientResultsExplorer({
 
   const plot = (
     quantity: PlotQuantity,
-    quantityTraces: readonly TransientTrace[],
+    quantityTraces: readonly ScalarTrace[],
     expanded = false,
   ) => {
     const geometry = expanded
@@ -284,7 +302,7 @@ export function TransientResultsExplorer({
     const range = timeRange ?? fullRange;
     const clipId = `${clipPrefix}-${quantity}-${expanded}`;
     const visibleValues = quantityTraces.flatMap((trace) =>
-      transientVisibleValues(analysis.timeSeconds, trace.values, range),
+      transientVisibleValues(domain, trace.values, range),
     );
     const automaticExtent = transientValueExtent(visibleValues);
     const extent = valueRanges[quantity] ?? automaticExtent;
@@ -344,19 +362,19 @@ export function TransientResultsExplorer({
           onPick={(point, id) => {
             if (id) focusTrace(id);
             const time = xAt(point.x, range);
-            const nearest = analysis.timeSeconds.reduce(
+            const nearest = domain.reduce(
               (best, value) =>
                 Math.abs(value - time) < Math.abs(best - time) ? value : best,
-              analysis.timeSeconds[0] ?? time,
+              domain[0] ?? time,
             );
             controller.mark(nearest);
           }}
           onMoveMarker={(point, marker) => {
             const time = xAt(point.x, range);
-            const nearest = analysis.timeSeconds.reduce(
+            const nearest = domain.reduce(
               (best, value) =>
                 Math.abs(value - time) < Math.abs(best - time) ? value : best,
-              analysis.timeSeconds[0] ?? time,
+              domain[0] ?? time,
             );
             controller.mark(nearest, marker);
           }}
@@ -474,7 +492,7 @@ export function TransientResultsExplorer({
             </defs>
             {quantityTraces.map((trace) => {
               const points = transientPolylinePoints(
-                analysis.timeSeconds,
+                domain,
                 trace.values,
                 extent,
                 range,
@@ -514,10 +532,10 @@ export function TransientResultsExplorer({
               const cursorTrace =
                 quantityTraces.find((trace) => trace.id === selected) ??
                 quantityTraces[0];
-              const sampleIndex = analysis.timeSeconds.reduce(
+              const sampleIndex = domain.reduce(
                 (best, value, index) =>
                   Math.abs(value - time) <
-                  Math.abs((analysis.timeSeconds[best] ?? value) - time)
+                  Math.abs((domain[best] ?? value) - time)
                     ? index
                     : best,
                 0,
@@ -613,9 +631,9 @@ export function TransientResultsExplorer({
         .map((trace) => {
           const valueAt = (x: number | undefined) => {
             if (x === undefined) return undefined;
-            const index = analysis.timeSeconds.reduce(
+            const index = domain.reduce(
               (best, time, candidate) =>
-                Math.abs(time - x) < Math.abs(analysis.timeSeconds[best]! - x)
+                Math.abs(time - x) < Math.abs(domain[best]! - x)
                   ? candidate
                   : best,
               0,
@@ -641,10 +659,9 @@ export function TransientResultsExplorer({
     >
       <header>
         <div>
-          <strong>{analysis.plotName}</strong>
+          <strong>{plotName}</strong>
           <small>
-            {analysis.timeSeconds.length} solver points ·{" "}
-            {compact(fullRange[0])}
+            {domain.length} solver points · {compact(fullRange[0])}
             {domainUnit} to {compact(fullRange[1])}
             {domainUnit}
           </small>
@@ -709,7 +726,7 @@ export function TransientResultsExplorer({
           >
             <header>
               <div>
-                <strong>{analysis.plotName}</strong>
+                <strong>{plotName}</strong>
                 <span>
                   {expandedQuantity} · {analysisLabel.toLowerCase()} waveform
                 </span>
