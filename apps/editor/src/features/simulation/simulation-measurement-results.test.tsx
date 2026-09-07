@@ -65,4 +65,34 @@ describe("SimulationMeasurementResults", () => {
     expect(markup).toContain("1 unavailable");
     expect(markup).toContain("At least two samples are required");
   });
+
+  it("labels saved rules separately from automatic summaries", () => {
+    const markup = renderToStaticMarkup(
+      <SimulationMeasurementResults
+        measurements={[
+          {
+            ...base,
+            id: "authored:peak",
+            origin: "authored",
+            measurementId: "peak",
+            metric: "maximum",
+            label: "Peak output",
+            status: "available",
+            value: 1.25,
+          },
+          {
+            ...base,
+            id: "0:out:maximum",
+            origin: "automatic",
+            metric: "maximum",
+            label: "Maximum",
+            status: "available",
+            value: 1.25,
+          },
+        ]}
+      />,
+    );
+    expect(markup).toContain("Saved measurements");
+    expect(markup).toContain("Automatic summaries");
+  });
 });

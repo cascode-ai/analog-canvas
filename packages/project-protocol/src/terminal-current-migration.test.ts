@@ -83,6 +83,6 @@ describe("schema 43 to 44 terminal-current migration", () => {
 
     expect(result.sourceSchemaVersion).toBe(43);
     expect(result.migrated).toBe(true);
-    expect(result.project.schemaVersion).toBe(44);
+    expect(result.project.schemaVersion).toBe(45);
   });
 });

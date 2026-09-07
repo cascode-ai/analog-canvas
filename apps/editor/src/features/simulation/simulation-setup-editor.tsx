@@ -4,6 +4,7 @@ import {
   SimulationSetupSchema,
   parseSimulationExpression,
   type ProjectSimulationSetup,
+  type SimulationMeasurementSpec,
   type SimulationExpression,
   type SimulationOutputSpec,
   type SimulationStructuredInput,
@@ -18,6 +19,7 @@ import {
   simulationProbeTargetKey,
   type SimulationProbeOption,
 } from "./simulation-probe-options";
+import { SimulationMeasurementEditor } from "./simulation-measurement-editor";
 const uiProblem = (code: string, message: string): Problem => ({
   code,
   message,
@@ -87,6 +89,9 @@ export function SetupEditor({
   const rootId =
     saved?.rootDocumentId ?? draftContext?.rootDocumentId ?? activeDocumentId;
   const [outputs, setOutputs] = useState(saved?.outputs ?? []);
+  const [measurements, setMeasurements] = useState<SimulationMeasurementSpec[]>(
+    [...(saved?.measurements ?? [])],
+  );
   const [setupName, setSetupName] = useState(
     setup?.name ?? draftContext?.setupName ?? "Setup 1",
   );
@@ -386,6 +391,7 @@ export function SetupEditor({
                   : []),
               ],
               outputs,
+              ...(measurements.length ? { measurements } : {}),
               environment: {
                 profileId: data.get("profileId"),
                 ...(data.get("corner") ? { corner: data.get("corner") } : {}),
@@ -965,6 +971,11 @@ export function SetupEditor({
                     setOutputs(
                       outputs.filter((value) => value.id !== output.id),
                     );
+                    setMeasurements((current) =>
+                      current.filter(
+                        (measurement) => measurement.outputId !== output.id,
+                      ),
+                    );
                     if (editingOutputId === output.id) {
                       setEditingOutputId(undefined);
                       setExpressionLabel("");
@@ -978,6 +989,25 @@ export function SetupEditor({
               </li>
             ))}
           </ul>
+        </SimulationSettingsSection>
+        <SimulationSettingsSection
+          title="Measurements"
+          summary={`${measurements.length} saved`}
+        >
+          <SimulationMeasurementEditor
+            analyses={[
+              ...(opEnabled ? (["op"] as const) : []),
+              ...(dcEnabled ? (["dc"] as const) : []),
+              ...(acEnabled ? (["ac"] as const) : []),
+              ...(tranEnabled ? (["tran"] as const) : []),
+            ]}
+            outputs={outputs}
+            measurements={measurements}
+            onChange={(next) => {
+              setMeasurements(next);
+              onDirty(true);
+            }}
+          />
         </SimulationSettingsSection>
         <div className="simulation-settings-actions">
           <button type="submit">Apply setup</button>

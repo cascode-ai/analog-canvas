@@ -930,6 +930,42 @@ describe("SimulationSetup schema", () => {
     expect(SimulationSetupSchema.safeParse(noAnalysis).success).toBe(false);
   });
 
+  it("persists bounded measurement rules with analysis-appropriate methods", () => {
+    const measured = setup();
+    measured.input.measurements = [
+      {
+        id: "measurement-op",
+        label: "Output bias",
+        analysis: "op",
+        outputId: "probe-out",
+        method: { kind: "value" },
+      },
+      {
+        id: "measurement-gain",
+        label: "Gain at 10 kHz",
+        analysis: "ac",
+        outputId: "probe-out",
+        method: { kind: "sample-at", coordinate: 10_000 },
+      },
+    ];
+    expect(SimulationSetupSchema.parse(measured)).toEqual(measured);
+
+    const invalid = structuredClone(measured);
+    invalid.input.measurements![1]!.method = {
+      kind: "rms",
+      window: { start: 1, stop: 10 },
+    };
+    expect(
+      SimulationSetupSchema.safeParse(invalid).error?.issues,
+    ).toContainEqual(
+      expect.objectContaining({
+        message:
+          "Mean and RMS measurements are currently supported only for transient analysis",
+        path: ["input", "measurements", 1, "method"],
+      }),
+    );
+  });
+
   it("bounds the AC sweep and the environment selection", () => {
     const ac = (overrides: Record<string, unknown>) => {
       const candidate = setup();

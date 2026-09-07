@@ -344,6 +344,53 @@ function codes(result: Awaited<ReturnType<typeof compile>>): string[] {
 }
 
 describe("compiling a structured simulation setup", () => {
+  it("carries valid saved measurements and locates broken references", async () => {
+    const valid = await compile(
+      dividerProject(),
+      setupWith({
+        outputs: DIVIDER_SETUP.input.outputs,
+        measurements: [
+          {
+            id: "mid-op",
+            label: "MID bias",
+            analysis: "op",
+            outputId: "probe-mid",
+            method: { kind: "value" },
+          },
+        ],
+      }),
+    );
+    expect(valid.ok).toBe(true);
+    if (!valid.ok) return;
+    expect(valid.measurements).toEqual([
+      expect.objectContaining({ id: "mid-op", outputId: "probe-mid" }),
+    ]);
+
+    const invalid = await compile(
+      dividerProject(),
+      setupWith({
+        outputs: DIVIDER_SETUP.input.outputs,
+        measurements: [
+          {
+            id: "missing",
+            label: "Missing output",
+            analysis: "tran",
+            outputId: "does-not-exist",
+            method: {
+              kind: "rms",
+              window: { start: 0, stop: 1 },
+            },
+          },
+        ],
+      }),
+    );
+    expect(invalid.ok).toBe(false);
+    expect(codes(invalid)).toEqual([
+      "SIMULATION_MEASUREMENT_ANALYSIS_UNAVAILABLE",
+      "SIMULATION_MEASUREMENT_OUTPUT_UNAVAILABLE",
+    ]);
+  });
+
   it("writes the divider Testbench as top-level cards with both analyses", async () => {
     const result = await compile(dividerProject(), DIVIDER_SETUP, {
       timeoutMs: 30_000,

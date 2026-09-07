@@ -235,6 +235,9 @@ label from the Logical Net, formal Cell port, or endpoint/Instance identity.
 Schema 44 makes a current expression terminal-specific. The 43→44 adapter
 maps every previously supported independent-source current to its `+`
 terminal, preserving ngspice's positive source-current convention.
+Schema 45 adds optional authored scalar measurement rules to structured
+setups. The 44→45 adapter does not invent rules; existing Projects continue
+to receive only automatic summaries until an author adds a measurement.
 
 ```ts
 interface ProjectSimulationSetup {
@@ -248,6 +251,7 @@ interface SimulationStructuredInput {
   rootDocumentId: StableId; // the Testbench Cell, a Document of the Project
   analyses: SimulationAnalysisSpec[]; // non-empty; at most one entry per kind
   outputs: SimulationOutputSpec[]; // ids and case-folded labels unique
+  measurements?: SimulationMeasurementSpec[]; // saved scalar reductions
   environment: { profileId: string; corner?: string; temperatureC?: number };
 }
 interface SimulationRawInput {
@@ -736,6 +740,16 @@ interface ContainerRunResponse {
   limits: Record<string, number | null>;
 }
 ```
+
+An authored measurement references one enabled analysis and one named Output.
+It stores a stable ID, display label, and one scalar reduction: OP `value`,
+`sample-at`, `minimum`, `maximum`, `peak-to-peak`, or time-weighted TRAN
+`mean`/`rms`. Minimum, maximum, and peak-to-peak may use the complete analysis
+or an explicit SI-domain window; mean and RMS require a time window. The rule,
+not its observed number, is Project state. A Run evaluates rules after Output
+expressions and returns authored rows beside separately identified automatic
+summaries. A rule that is outside returned data or cannot reduce a complex
+Output is locally `unavailable`; it does not fail an otherwise successful Run.
 
 A truncated result says so rather than arriving quietly shortened, because a
 shortened log read as a whole one is a wrong answer about a circuit. The

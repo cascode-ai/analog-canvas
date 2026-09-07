@@ -32,7 +32,7 @@
   "externalSubcircuitDefinitions": [],
   "id": "project-minimal",
   "name": "Minimal Project",
-  "schemaVersion": 44,
+  "schemaVersion": 45,
   "simulationSetups": [],
   "source": {
     "dialect": "none",

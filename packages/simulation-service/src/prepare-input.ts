@@ -53,6 +53,7 @@ export async function prepareExecutionInput(
       input: ExecutionInput & { preparedDeck: string };
       vectors: Prepared["vectors"];
       outputs: Prepared["outputs"];
+      measurements: NonNullable<Prepared["measurements"]>;
       warnings: string[];
       digest: string;
     }
@@ -61,6 +62,7 @@ export async function prepareExecutionInput(
   let input: ExecutionInput;
   let vectors: Prepared["vectors"] = [];
   let outputs: Prepared["outputs"] = [];
+  let measurements: NonNullable<Prepared["measurements"]> = [];
   let warnings: string[] = [];
   let structuredAnalyses: ResultVolumeAnalysis[] | null = null;
   if (op.source.kind === "project-setup") {
@@ -117,6 +119,7 @@ export async function prepareExecutionInput(
       };
       vectors = [...compiled.vectors];
       outputs = structuredClone([...compiled.outputs]);
+      measurements = structuredClone([...compiled.measurements]);
       warnings = compiled.warnings.map((w) => w.message);
       structuredAnalyses = setup.input.analyses.map((analysis) =>
         analysis.kind === "tran"
@@ -253,6 +256,7 @@ export async function prepareExecutionInput(
     input: { ...input, preparedDeck: input.preparedDeck },
     vectors,
     outputs,
+    measurements,
     warnings,
     digest,
   };

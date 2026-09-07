@@ -35,7 +35,7 @@ export function SimulationMeasurementResults({
   const availableCount = measurements.length - unavailable.length;
   const groups = new Map<string, Measurement[]>();
   for (const measurement of measurements) {
-    const key = `${measurement.analysisIndex}:${measurement.plotName}`;
+    const key = `${measurement.origin ?? "automatic"}:${measurement.analysisIndex}:${measurement.plotName}`;
     groups.set(key, [...(groups.get(key) ?? []), measurement]);
   }
   return (
@@ -46,7 +46,7 @@ export function SimulationMeasurementResults({
       <summary>
         <span>
           <strong>Measurements</strong>
-          <small>Automatic summaries from complete result data</small>
+          <small>Saved rules and automatic summaries</small>
         </span>
         <span data-status={unavailable.length ? "attention" : "ready"}>
           {availableCount} {availableCount === 1 ? "value" : "values"}
@@ -64,7 +64,12 @@ export function SimulationMeasurementResults({
           return (
             <section key={key}>
               <header>
-                <strong>{group[0]!.analysis.toUpperCase()}</strong>
+                <strong>
+                  {(group[0]!.origin ?? "automatic") === "authored"
+                    ? "Saved measurements"
+                    : "Automatic summaries"}
+                </strong>
+                <span>{group[0]!.analysis.toUpperCase()}</span>
                 <span>{group[0]!.plotName}</span>
               </header>
               <div className="simulation-measurement-output-groups">

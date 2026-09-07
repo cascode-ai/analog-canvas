@@ -59,6 +59,13 @@ setups (for example bias search and AC response), while a different topology
 uses a different ordinary Testbench Cell. Saving/exporting and reopening the
 Project retains the whole named setup collection.
 
+The optional **Measurements** section saves named scalar questions about those
+outputs. Choose an enabled analysis, an Output, and Value, Value at, Minimum,
+Maximum, Peak to peak, Mean, or RMS. A Value-at coordinate and every window use
+the analysis's SI domain (sweep units, hertz, or seconds). Mean and RMS are
+available for TRAN and require a time window. **Apply setup** saves these rules
+with the Setup; it never freezes the number from the last run.
+
 **Prepare deck** compiles without running. **Run** prepares the current saved
 setup and starts that immutable input through the same service as MCP. It
 does not run unapplied form edits. Input diagnostics leave the Project and
@@ -79,18 +86,21 @@ trace visibility and markers; CSV remains the full numerical artifact.
 Bounded result previews are labelled; export the complete artifacts when
 needed.
 
-Each structured run also derives conservative automatic summaries from the
-complete evaluated outputs: OP value; DC/AC/TRAN minimum, maximum and span;
-and time-weighted TRAN mean/RMS. **Measurements** stays as one compact folded
-summary during normal review. If any metric lacks enough finite samples it
-opens automatically and shows the reason; that local metric remains
+Each structured run evaluates saved measurements and also derives conservative
+automatic summaries from the complete evaluated outputs: OP value;
+DC/AC/TRAN minimum, maximum and span; and time-weighted TRAN mean/RMS.
+**Measurements** labels the two groups separately and stays as one compact
+folded summary during normal review. If any metric lacks enough finite samples
+it opens automatically and shows the reason; that local metric remains
 unavailable without turning a successful simulator Run into a failure. The
 same typed rows are returned to Agent clients and exported as
-`measurements.csv`.
+`measurements.csv`. Agents use `simulation_measurement` to list/upsert/remove
+the same rules, or replace the complete typed Setup through
+`advanced_transact`.
 
 **Compare** can keep up to five completed structured results in the current
-Simulation session and align their measurements by stable output identity,
-analysis, metric and unit. Keep a result, edit the circuit or conditions, run
+Simulation session and align saved rules by measurement ID and automatic
+summaries by output identity, analysis, metric and unit. Keep a result, edit the circuit or conditions, run
 again, and inspect the current and retained columns. These comparison copies
 are intentionally transient: they are not hidden inside the Project or Cloud
 Project record, and closing the Project session clears them.

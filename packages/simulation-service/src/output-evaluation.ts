@@ -4,9 +4,11 @@ import type {
   CompiledSimulationVector,
 } from "@icm/netlist";
 import type { SimulationResultData } from "@icm/spice-run";
+import type { SimulationMeasurementSpec } from "@icm/model";
 
 import type { SimulationOutputData } from "./contract.js";
 import { deriveAutomaticMeasurements } from "./automatic-measurements.js";
+import { deriveAuthoredMeasurements } from "./authored-measurements.js";
 
 interface ComplexSeries {
   readonly real: readonly (number | null)[];
@@ -223,6 +225,7 @@ export function evaluateSimulationOutputs(
   data: SimulationResultData,
   vectors: readonly CompiledSimulationVector[],
   outputs: readonly CompiledSimulationOutput[],
+  measurementSpecs: readonly SimulationMeasurementSpec[] = [],
 ): SimulationOutputData {
   const diagnostics: SimulationOutputData["diagnostics"] = [];
   const analyses: SimulationOutputData["analyses"] = data.analyses.map(
@@ -286,7 +289,10 @@ export function evaluateSimulationOutputs(
     schemaVersion: 1,
     diagnostics,
     analyses,
-    measurements: deriveAutomaticMeasurements(analyses),
+    measurements: [
+      ...deriveAutomaticMeasurements(analyses),
+      ...deriveAuthoredMeasurements(analyses, measurementSpecs),
+    ],
   };
 }
 

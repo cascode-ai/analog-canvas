@@ -348,6 +348,21 @@
   gap: 8px;
   padding: 10px 12px 12px;
 }
+.simulation-measurement-editor {
+  display: grid;
+  gap: 8px;
+}
+.simulation-measurement-rule {
+  margin: 0;
+  padding: 8px;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+}
+.simulation-measurement-rule > legend {
+  padding: 0 4px;
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+}
 .simulation-setup-panel label {
   display: grid;
   grid-template-columns: minmax(110px, 0.8fr) minmax(130px, 1.2fr);

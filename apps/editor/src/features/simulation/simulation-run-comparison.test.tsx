@@ -55,4 +55,32 @@ describe("SimulationRunComparison", () => {
     expect(markup).toContain("Remove Before from comparison");
     expect(markup).not.toContain("Remove After from comparison");
   });
+
+  it("keeps distinct saved rules even when they use the same output and metric", () => {
+    const base = run("current", "Current", 1.2, true);
+    const current: SimulationComparisonRun = {
+      ...base,
+      measurements: [
+        {
+          ...base.measurements[0]!,
+          id: "authored:early",
+          origin: "authored",
+          measurementId: "early",
+          label: "Early peak",
+        },
+        {
+          ...base.measurements[0]!,
+          id: "authored:late",
+          origin: "authored",
+          measurementId: "late",
+          label: "Late peak",
+        },
+      ],
+    };
+    const markup = renderToStaticMarkup(
+      <SimulationRunComparison runs={[current]} />,
+    );
+    expect(markup).toContain("Early peak");
+    expect(markup).toContain("Late peak");
+  });
 });

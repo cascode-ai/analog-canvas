@@ -133,7 +133,11 @@ same contract as `/api/agent/sessions/{sessionId}/simulation`:
    output expressions with recoverable validation; use the typed structure
    edit when constructing the full AST directly. Expressions support
    arithmetic and `mag`, `db20`, `phase`, `real`, `imag`, and `abs` over
-   existing output labels.
+   existing output labels. Use `simulation_measurement` to list, upsert, or
+   remove saved scalar rules over those Outputs. It supports OP value,
+   sample-at, minimum, maximum, peak-to-peak, and time-windowed TRAN mean/RMS;
+   invalid rules return recoverable input errors rather than ending the MCP
+   session.
 3. `prepare` with `source:{kind:"project-setup",setupId,expectedStructureRevision}`
    freezes the saved structured or raw setup. It returns `prepared.id`,
    `digest`, vectors, and export references. A stale Project revision is a
