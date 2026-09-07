@@ -91,14 +91,21 @@ function rpc(method, params) {
 }
 
 async function tool(name, args = {}, allowProblem = false) {
-  const reply = await rpc("tools/call", { name, arguments: args });
-  const text = reply.content?.find((item) => item.type === "text")?.text;
-  assert.equal(typeof text, "string", `${name} returned no text result`);
-  const value = JSON.parse(text);
-  if (reply.isError && !allowProblem) {
-    throw new Error(`${name} failed: ${text}`);
+  for (let attempt = 0; ; attempt++) {
+    const reply = await rpc("tools/call", { name, arguments: args });
+    const text = reply.content?.find((item) => item.type === "text")?.text;
+    assert.equal(typeof text, "string", `${name} returned no text result`);
+    const value = JSON.parse(text);
+    if (reply.isError && value.error?.code === "RATE_LIMITED" && attempt < 12) {
+      const retryAfterMs = Math.max(value.error.retryAfterMs ?? 5_000, 1_000);
+      await new Promise((resolveWait) => setTimeout(resolveWait, retryAfterMs));
+      continue;
+    }
+    if (reply.isError && !allowProblem) {
+      throw new Error(`${name} failed: ${text}`);
+    }
+    return value;
   }
-  return value;
 }
 
 async function startMcp() {
@@ -192,7 +199,7 @@ async function startAndRead(prepared) {
     assert.equal(reading.ok, true);
     if (!["running", "cancelling"].includes(reading.run.state))
       return reading.run;
-    await new Promise((resolveWait) => setTimeout(resolveWait, 500));
+    await new Promise((resolveWait) => setTimeout(resolveWait, 1_500));
   }
   throw new Error(`Run ${started.run.id} did not reach a terminal state.`);
 }
