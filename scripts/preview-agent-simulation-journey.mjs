@@ -375,7 +375,11 @@ try {
   assert.equal(fixedPrepared.ok, true);
   const fixedRun = await startAndRead(fixedPrepared.prepared);
   assert.equal(fixedRun.state, "finished");
-  assert.equal(fixedRun.result?.outcome.status, "completed");
+  assert.equal(
+    fixedRun.result?.outcome.status,
+    "completed",
+    `Recovered raw run failed: ${JSON.stringify(fixedRun.result?.outcome)}`,
+  );
 
   const invalidSetup = structuredClone(qualifiedSetup);
   assert.equal(
@@ -472,7 +476,11 @@ try {
         : SimulationOutputDataSchema.parse(value);
     },
   );
-  assert.equal(fullRun.result?.outcome.status, "completed");
+  assert.equal(
+    fullRun.result?.outcome.status,
+    "completed",
+    `Qualified OTA run failed: ${JSON.stringify(fullRun.result)}`,
+  );
   const accepted = validateHostedSky130Result(
     fullRun.result,
     "operator-host",

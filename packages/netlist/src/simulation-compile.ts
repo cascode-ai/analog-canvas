@@ -588,6 +588,7 @@ function netVoltageNode(
   measurement: SimulationVoltageProbe,
   outputId: string,
   occurrence: ResolvedOccurrence,
+  cellsById: ReadonlyMap<string, DesignNetlistCell>,
   diagnostics: NetlistDiagnostic[],
 ): string | null {
   const { document, cell, path, hierarchyPath } = occurrence;
@@ -654,7 +655,46 @@ function netVoltageNode(
     );
     return null;
   }
-  return [...path, netName].join(".").toLowerCase();
+  let resolvedName = netName;
+  let depth = hierarchyPath.length;
+  let resolvedCell = cell;
+  while (depth > 0) {
+    const boundaryPort = resolvedCell.ports.find(
+      (port) => port.netName.toLowerCase() === resolvedName.toLowerCase(),
+    );
+    if (!boundaryPort)
+      return [...path.slice(0, depth), resolvedName].join(".").toLowerCase();
+
+    const frame = hierarchyPath[depth - 1]!;
+    const parentCell = cellsById.get(frame.parentDocumentId);
+    const caller = parentCell?.instances.find(
+      (instance) => instance.id === frame.instanceId,
+    );
+    const callerNode = caller?.nodes.find(
+      (node) => node.pinName.toLowerCase() === boundaryPort.name.toLowerCase(),
+    )?.netName;
+    if (!parentCell || !callerNode) {
+      diagnostics.push(
+        diagnostic(
+          "SIMULATION_PROBE_HIERARCHY_BOUNDARY_UNAVAILABLE",
+          occurrence.document.id,
+          `Output ${outputId} cannot map formal terminal ${boundaryPort.name} through hierarchy Instance ${frame.instanceId}`,
+          locator(
+            frame.parentDocumentId,
+            hierarchyPath.slice(0, depth - 1),
+            "instance",
+            frame.instanceId,
+          ),
+          [frame.instanceId],
+        ),
+      );
+      return null;
+    }
+    resolvedName = callerNode;
+    resolvedCell = parentCell;
+    depth -= 1;
+  }
+  return resolvedName.toLowerCase();
 }
 
 function netVoltageVector(
@@ -662,9 +702,16 @@ function netVoltageVector(
   acquisitionId: string,
   outputId: string,
   occurrence: ResolvedOccurrence,
+  cellsById: ReadonlyMap<string, DesignNetlistCell>,
   diagnostics: NetlistDiagnostic[],
 ): CompiledSimulationVector | null {
-  const node = netVoltageNode(measurement, outputId, occurrence, diagnostics);
+  const node = netVoltageNode(
+    measurement,
+    outputId,
+    occurrence,
+    cellsById,
+    diagnostics,
+  );
   return node
     ? {
         probeId: acquisitionId,
@@ -927,7 +974,7 @@ export async function compileStructuredSimulation(
         diagnostics,
       );
       return occurrence
-        ? netVoltageNode(measurement, label, occurrence, diagnostics)
+        ? netVoltageNode(measurement, label, occurrence, cellsById, diagnostics)
         : null;
     };
     const positive = resolveNoiseNode(item.output.positive, "positive");
@@ -992,6 +1039,7 @@ export async function compileStructuredSimulation(
                   candidateId,
                   ownerId,
                   occurrence,
+                  cellsById,
                   diagnostics,
                 );
                 return vector
