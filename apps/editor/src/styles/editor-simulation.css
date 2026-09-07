@@ -344,7 +344,9 @@
   font-size: 18px;
 }
 .simulation-setup-panel form {
-  padding: 8px 10px 12px;
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px 12px;
 }
 .simulation-setup-panel label {
   display: grid;
@@ -354,24 +356,98 @@
   margin: 6px 0;
   font-size: var(--icm-font-sm);
 }
-.simulation-environment-summary {
-  display: grid;
-  grid-template-columns: minmax(110px, 0.8fr) minmax(130px, 1.2fr) auto;
-  align-items: baseline;
+.simulation-settings-section {
+  overflow: hidden;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  background: var(--icm-surface);
+}
+.simulation-settings-section > summary {
+  display: flex;
+  align-items: center;
   gap: 8px;
-  margin: 6px 0;
+  min-height: 36px;
+  padding: 6px 9px;
+  cursor: pointer;
+  list-style: none;
+  background: var(--icm-surface-muted);
+  user-select: none;
+}
+.simulation-settings-section > summary::-webkit-details-marker {
+  display: none;
+}
+.simulation-settings-section > summary::before {
+  width: 0;
+  height: 0;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 6px solid var(--icm-text-muted);
+  content: "";
+  transition: transform 120ms ease;
+}
+.simulation-settings-section[open] > summary::before {
+  transform: rotate(90deg);
+}
+.simulation-settings-section > summary > strong {
   font-size: var(--icm-font-sm);
 }
-.simulation-environment-summary > strong {
+.simulation-settings-section > summary > span {
   min-width: 0;
+  margin-left: auto;
   overflow: hidden;
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.simulation-environment-summary > small {
+.simulation-settings-section[open] > summary {
+  border-bottom: 1px solid var(--icm-border);
+}
+.simulation-settings-section-body {
+  padding: 8px 9px 9px;
+}
+.simulation-environment-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
+}
+.simulation-environment-profile {
+  grid-column: 1 / -1;
+}
+.simulation-environment-grid > label {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: 4px;
+  min-width: 0;
+  margin: 0;
   color: var(--icm-text-muted);
   font-size: var(--icm-font-xs);
+}
+.simulation-environment-value {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  min-height: 32px;
+  padding: 5px 8px;
+  overflow: hidden;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  color: var(--icm-text);
+  background: var(--icm-surface-muted);
+  text-overflow: ellipsis;
   white-space: nowrap;
+}
+.simulation-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }
 .simulation-inline-fields {
   display: grid;
@@ -407,8 +483,9 @@
 }
 .simulation-analysis-row {
   min-width: 0;
-  margin: 8px 0;
-  padding: 7px 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 .simulation-analysis-row legend {
   padding: 0 3px;
@@ -460,8 +537,16 @@
   background-repeat: no-repeat;
   background-size: 5px 5px;
 }
-.simulation-setup-panel form > button {
-  margin: 8px 8px 0 0;
+.simulation-settings-actions {
+  position: sticky;
+  bottom: -12px;
+  z-index: 1;
+  display: flex;
+  justify-content: flex-end;
+  margin: 0 -12px -12px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--icm-border);
+  background: color-mix(in srgb, var(--icm-surface) 96%, transparent);
 }
 .simulation-raw-summary {
   display: grid;
@@ -507,6 +592,9 @@
 .simulation-expression-editor {
   display: grid;
   gap: 7px;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 .simulation-expression-editor legend {
   color: var(--icm-text-muted);

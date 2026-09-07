@@ -56,6 +56,7 @@ const DEVELOPMENT_PROFILE_ID = import.meta.env.DEV
   : "";
 const DEVELOPMENT_PROFILE_LABEL = "SKY130 1.8 V · ngspice 46";
 const DEVELOPMENT_CORNERS = ["tt", "ff", "ss", "fs", "sf"] as const;
+const DEFAULT_SIMULATION_TEMPERATURE_C = 27;
 type ResultTab = (typeof RESULT_TABS)[number][0];
 
 function preferredResultTab(run: Run): ResultTab {
@@ -1199,6 +1200,34 @@ function SimulationProblemView({
   );
 }
 
+function SimulationSettingsSection({
+  title,
+  summary,
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  summary?: string;
+  defaultOpen?: boolean;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <details
+      className="simulation-settings-section"
+      aria-label={`${title} settings`}
+      open={open}
+      onToggle={(event) => setOpen(event.currentTarget.open)}
+    >
+      <summary>
+        <strong>{title}</strong>
+        {summary ? <span>{summary}</span> : null}
+      </summary>
+      <div className="simulation-settings-section-body">{children}</div>
+    </details>
+  );
+}
+
 function SetupEditor({
   project,
   activeDocumentId,
@@ -1276,11 +1305,17 @@ function SetupEditor({
   );
   const [acEnabled, setAcEnabled] = useState(!!ac);
   const [tranEnabled, setTranEnabled] = useState(!!tran);
+  const [opEnabled, setOpEnabled] = useState(
+    !saved || saved.analyses.some((analysis) => analysis.kind === "op"),
+  );
   const [profileId, setProfileId] = useState(
     saved?.environment.profileId ?? DEVELOPMENT_PROFILE_ID,
   );
   const [corner, setCorner] = useState(
     saved?.environment.corner ?? (DEVELOPMENT_PROFILE_ID ? "tt" : ""),
+  );
+  const [temperatureC, setTemperatureC] = useState(
+    String(saved?.environment.temperatureC ?? DEFAULT_SIMULATION_TEMPERATURE_C),
   );
   const rawSaved = setup?.input.kind === "raw" ? setup.input : undefined;
   const [switchFromRaw, setSwitchFromRaw] = useState(false);
@@ -1322,6 +1357,16 @@ function SetupEditor({
     (profileUnavailable
       ? `${profileId} (unavailable)`
       : "Loading environment…");
+  const environmentTemperature =
+    temperatureC.trim() || String(DEFAULT_SIMULATION_TEMPERATURE_C);
+  const analysisSummary = [
+    dcEnabled ? "DC" : undefined,
+    opEnabled ? "OP" : undefined,
+    acEnabled ? "AC" : undefined,
+    tranEnabled ? "TRAN" : undefined,
+  ]
+    .filter(Boolean)
+    .join(" + ");
   const selectedDcSourceId = dcSources.some(
     (source) => source.id === dcSourceId,
   )
@@ -1529,520 +1574,562 @@ function SetupEditor({
           } else onProblem(result.problem);
         }}
       >
-        <label>
-          Setup name
-          <input
-            name="setupName"
-            required
-            value={setupName}
-            onChange={(event) => setSetupName(event.currentTarget.value)}
-            onBlur={() => {
-              const name = setupName.trim();
-              if (!setup || name === setup.name) return;
-              if (!name) {
-                setSetupName(setup.name);
-                onProblem(
-                  uiProblem(
-                    "SIMULATION_SETUP_INVALID",
-                    "Setup name is required.",
-                  ),
-                );
-                return;
-              }
-              const result = onSaveSetup({ ...setup, name });
-              if (result.status !== "rejected") onProblem(undefined);
-              else {
-                setSetupName(setup.name);
-                onProblem(result.problem);
-              }
-            }}
-          />
-        </label>
-        {showProfilePicker ? (
+        <SimulationSettingsSection
+          title="Setup"
+          summary={`${corner ? corner.toUpperCase() : "—"} · ${environmentTemperature} °C`}
+          defaultOpen
+        >
           <label>
-            Environment
-            <select
-              name="profileId"
-              required
-              value={profileId}
-              onChange={(event) => {
-                const nextId = event.currentTarget.value;
-                const nextProfile = advertisedProfiles.find(
-                  (profile) => profile.id === nextId,
-                );
-                setProfileId(nextId);
-                if (!nextProfile?.corners.includes(corner))
-                  setCorner(nextProfile?.corners[0] ?? "");
-              }}
-            >
-              {profileUnavailable ? (
-                <option value={profileId}>{profileId} (unavailable)</option>
-              ) : null}
-              {advertisedProfiles.map((profile) => (
-                <option key={profile.id} value={profile.id}>
-                  {profile.label ?? profile.id}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : (
-          <div className="simulation-environment-summary">
-            <span>Environment</span>
-            <strong>{environmentLabel}</strong>
-            <small>Managed automatically</small>
-            <input name="profileId" type="hidden" value={profileId} />
-          </div>
-        )}
-        <div className="simulation-setup-group simulation-inline-fields columns-2">
-          <label>
-            Process corner
-            <select
-              name="corner"
-              value={corner}
-              onChange={(event) => setCorner(event.currentTarget.value)}
-              disabled={!selectedProfile}
-            >
-              {!corner ? (
-                <option value="">
-                  {selectedProfile ? "Profile default" : "Unavailable"}
-                </option>
-              ) : null}
-              {corner && !selectedProfile?.corners.includes(corner) ? (
-                <option value={corner}>
-                  {corner.toUpperCase()} (unavailable)
-                </option>
-              ) : null}
-              {selectedProfile?.corners.map((candidate) => (
-                <option key={candidate} value={candidate}>
-                  {candidate.toUpperCase()}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Temperature (°C)
+            Name
             <input
-              name="temperatureC"
-              type="number"
-              step="any"
-              defaultValue={saved?.environment.temperatureC ?? ""}
-              placeholder="Profile default"
+              aria-label="Setup name"
+              name="setupName"
+              required
+              value={setupName}
+              onChange={(event) => setSetupName(event.currentTarget.value)}
+              onBlur={() => {
+                const name = setupName.trim();
+                if (!setup || name === setup.name) return;
+                if (!name) {
+                  setSetupName(setup.name);
+                  onProblem(
+                    uiProblem(
+                      "SIMULATION_SETUP_INVALID",
+                      "Setup name is required.",
+                    ),
+                  );
+                  return;
+                }
+                const result = onSaveSetup({ ...setup, name });
+                if (result.status !== "rejected") onProblem(undefined);
+                else {
+                  setSetupName(setup.name);
+                  onProblem(result.problem);
+                }
+              }}
             />
           </label>
-        </div>
-        <fieldset className="simulation-setup-group simulation-analysis-row">
-          <legend>Analyses</legend>
-          <div className="simulation-analysis-options">
+          <div className="simulation-environment-grid">
+            {showProfilePicker ? (
+              <label className="simulation-environment-profile">
+                Profile
+                <select
+                  name="profileId"
+                  required
+                  value={profileId}
+                  onChange={(event) => {
+                    const nextId = event.currentTarget.value;
+                    const nextProfile = advertisedProfiles.find(
+                      (profile) => profile.id === nextId,
+                    );
+                    setProfileId(nextId);
+                    if (!nextProfile?.corners.includes(corner))
+                      setCorner(nextProfile?.corners[0] ?? "");
+                  }}
+                >
+                  {profileUnavailable ? (
+                    <option value={profileId}>{profileId} (unavailable)</option>
+                  ) : null}
+                  {advertisedProfiles.map((profile) => (
+                    <option key={profile.id} value={profile.id}>
+                      {profile.label ?? profile.id}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <label className="simulation-environment-profile">
+                Profile
+                <span className="simulation-environment-value">
+                  {environmentLabel}
+                </span>
+                <input name="profileId" type="hidden" value={profileId} />
+              </label>
+            )}
             <label>
-              <input
-                name="dc"
-                type="checkbox"
-                checked={dcEnabled}
-                onChange={(event) => setDcEnabled(event.currentTarget.checked)}
-              />
-              DC
-            </label>
-            <label>
-              <input
-                name="op"
-                type="checkbox"
-                defaultChecked={
-                  !saved || saved.analyses.some((a) => a.kind === "op")
-                }
-              />
-              OP
-            </label>
-            <label>
-              <input
-                name="ac"
-                type="checkbox"
-                checked={acEnabled}
-                onChange={(event) => setAcEnabled(event.currentTarget.checked)}
-              />
-              AC
-            </label>
-            <label>
-              <input
-                name="tran"
-                type="checkbox"
-                checked={tranEnabled}
-                onChange={(event) =>
-                  setTranEnabled(event.currentTarget.checked)
-                }
-              />
-              TRAN
-            </label>
-          </div>
-        </fieldset>
-        {dcEnabled ? (
-          <div className="simulation-setup-group simulation-analysis-settings">
-            <label>
-              DC sweep source
+              Corner
               <select
-                name="dcSourceInstanceId"
-                required
-                value={selectedDcSourceId}
-                onChange={(event) => setDcSourceId(event.currentTarget.value)}
+                aria-label="Process corner"
+                name="corner"
+                value={corner}
+                onChange={(event) => setCorner(event.currentTarget.value)}
+                disabled={!selectedProfile}
               >
-                {dcSources.length === 0 ? (
-                  <option value="">No independent sources in Testbench</option>
+                {!corner ? (
+                  <option value="">
+                    {selectedProfile ? "Profile default" : "Unavailable"}
+                  </option>
                 ) : null}
-                {dcSources.map((source) => (
-                  <option key={source.id} value={source.id}>
-                    {source.label}
+                {corner && !selectedProfile?.corners.includes(corner) ? (
+                  <option value={corner}>
+                    {corner.toUpperCase()} (unavailable)
+                  </option>
+                ) : null}
+                {selectedProfile?.corners.map((candidate) => (
+                  <option key={candidate} value={candidate}>
+                    {candidate.toUpperCase()}
                   </option>
                 ))}
               </select>
             </label>
-            <div className="simulation-inline-fields columns-3">
+            <label>
+              Temperature (°C)
+              <input
+                name="temperatureC"
+                type="number"
+                step="any"
+                value={temperatureC}
+                onChange={(event) => setTemperatureC(event.currentTarget.value)}
+              />
+            </label>
+          </div>
+        </SimulationSettingsSection>
+        <SimulationSettingsSection
+          title="Analyses"
+          summary={analysisSummary || "None"}
+        >
+          <fieldset className="simulation-analysis-row">
+            <legend className="simulation-visually-hidden">Analyses</legend>
+            <div className="simulation-analysis-options">
               <label>
-                Start
                 <input
-                  name="dcStartValue"
+                  name="dc"
+                  type="checkbox"
+                  checked={dcEnabled}
+                  onChange={(event) =>
+                    setDcEnabled(event.currentTarget.checked)
+                  }
+                />
+                DC
+              </label>
+              <label>
+                <input
+                  name="op"
+                  type="checkbox"
+                  checked={opEnabled}
+                  onChange={(event) =>
+                    setOpEnabled(event.currentTarget.checked)
+                  }
+                />
+                OP
+              </label>
+              <label>
+                <input
+                  name="ac"
+                  type="checkbox"
+                  checked={acEnabled}
+                  onChange={(event) =>
+                    setAcEnabled(event.currentTarget.checked)
+                  }
+                />
+                AC
+              </label>
+              <label>
+                <input
+                  name="tran"
+                  type="checkbox"
+                  checked={tranEnabled}
+                  onChange={(event) =>
+                    setTranEnabled(event.currentTarget.checked)
+                  }
+                />
+                TRAN
+              </label>
+            </div>
+          </fieldset>
+          {dcEnabled ? (
+            <div className="simulation-setup-group simulation-analysis-settings">
+              <label>
+                DC sweep source
+                <select
+                  name="dcSourceInstanceId"
+                  required
+                  value={selectedDcSourceId}
+                  onChange={(event) => setDcSourceId(event.currentTarget.value)}
+                >
+                  {dcSources.length === 0 ? (
+                    <option value="">
+                      No independent sources in Testbench
+                    </option>
+                  ) : null}
+                  {dcSources.map((source) => (
+                    <option key={source.id} value={source.id}>
+                      {source.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="simulation-inline-fields columns-3">
+                <label>
+                  Start
+                  <input
+                    name="dcStartValue"
+                    type="number"
+                    step="any"
+                    required
+                    defaultValue={dc?.startValue ?? 0}
+                  />
+                </label>
+                <label>
+                  Stop
+                  <input
+                    name="dcStopValue"
+                    type="number"
+                    step="any"
+                    required
+                    defaultValue={dc?.stopValue ?? 1.8}
+                  />
+                </label>
+                <label>
+                  Step
+                  <input
+                    name="dcStepValue"
+                    type="number"
+                    step="any"
+                    required
+                    defaultValue={dc?.stepValue ?? 0.01}
+                  />
+                </label>
+              </div>
+              <small>
+                Values use{" "}
+                {dcSources.find((source) => source.id === selectedDcSourceId)
+                  ?.unit ?? "the source unit"}
+                ; step is a positive magnitude.
+              </small>
+            </div>
+          ) : null}
+          {acEnabled ? (
+            <div className="simulation-setup-group simulation-analysis-settings">
+              <label>
+                AC sweep
+                <select name="sweep" defaultValue={ac?.sweep ?? "dec"}>
+                  <option value="dec">Decade</option>
+                  <option value="oct">Octave</option>
+                  <option value="lin">Linear</option>
+                </select>
+              </label>
+              <div className="simulation-inline-fields columns-3">
+                <label>
+                  Points
+                  <input
+                    name="points"
+                    type="number"
+                    min="1"
+                    defaultValue={ac?.points ?? 20}
+                  />
+                </label>
+                <label>
+                  Start (Hz)
+                  <input
+                    name="startHz"
+                    type="number"
+                    step="any"
+                    defaultValue={ac?.startHz ?? 1}
+                  />
+                </label>
+                <label>
+                  Stop (Hz)
+                  <input
+                    name="stopHz"
+                    type="number"
+                    step="any"
+                    defaultValue={ac?.stopHz ?? 1e6}
+                  />
+                </label>
+              </div>
+            </div>
+          ) : null}
+          {tranEnabled ? (
+            <div className="simulation-setup-group simulation-inline-fields columns-2">
+              <label>
+                TRAN step (s)
+                <input
+                  name="tranStepSeconds"
                   type="number"
                   step="any"
-                  required
-                  defaultValue={dc?.startValue ?? 0}
+                  defaultValue={tran?.stepSeconds ?? 1e-9}
                 />
               </label>
               <label>
-                Stop
+                TRAN stop (s)
                 <input
-                  name="dcStopValue"
+                  name="tranStopSeconds"
                   type="number"
                   step="any"
-                  required
-                  defaultValue={dc?.stopValue ?? 1.8}
+                  defaultValue={tran?.stopSeconds ?? 1e-6}
                 />
               </label>
               <label>
-                Step
+                TRAN start saving (s)
                 <input
-                  name="dcStepValue"
+                  name="tranStartSeconds"
                   type="number"
                   step="any"
-                  required
-                  defaultValue={dc?.stepValue ?? 0.01}
+                  min="0"
+                  defaultValue={tran?.startSeconds ?? ""}
+                  placeholder="0"
+                />
+              </label>
+              <label>
+                TRAN maximum step (s)
+                <input
+                  name="tranMaxStepSeconds"
+                  type="number"
+                  step="any"
+                  min="0"
+                  defaultValue={tran?.maxStepSeconds ?? ""}
+                  placeholder="Simulator default"
+                />
+              </label>
+            </div>
+          ) : null}
+        </SimulationSettingsSection>
+        <SimulationSettingsSection
+          title="Output probes"
+          summary={`${outputs.filter((output) => output.expression.kind === "voltage" || output.expression.kind === "current").length} selected`}
+        >
+          <ProbeSelect
+            label="Add voltage probe"
+            placeholder="Choose a Net"
+            options={probeOptions.voltage}
+            selectedKeys={selectedProbeKeys}
+            onAdd={(option) => {
+              setOutputs([...outputs, outputFromOption(option, outputs)]);
+              onDirty(true);
+            }}
+            trailingAction={
+              <button
+                type="button"
+                className={
+                  pickNetsActive ? "simulation-pick-active" : undefined
+                }
+                aria-pressed={pickNetsActive}
+                onClick={() => onPickNetsChange?.(!pickNetsActive)}
+              >
+                {pickNetsActive ? "Picking Nets…" : "Pick on canvas"}
+              </button>
+            }
+          />
+          {pickCandidates.length > 1 ? (
+            <fieldset
+              className="simulation-setup-group"
+              aria-label="Choose probe occurrence"
+            >
+              <legend>Choose occurrence</legend>
+              {pickCandidates.map((option) => (
+                <button
+                  type="button"
+                  key={option.key}
+                  onClick={() => {
+                    setOutputs((current) => [
+                      ...current,
+                      outputFromOption(option, current),
+                    ]);
+                    setPickCandidates([]);
+                    onDirty(true);
+                  }}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </fieldset>
+          ) : null}
+          <ProbeSelect
+            label="Add current output"
+            placeholder="Choose a terminal current"
+            options={probeOptions.terminalCurrent}
+            selectedKeys={selectedProbeKeys}
+            onAdd={(option) => {
+              setOutputs([...outputs, outputFromOption(option, outputs)]);
+              onDirty(true);
+            }}
+            trailingAction={
+              <button
+                type="button"
+                className={
+                  pickTerminalsActive ? "simulation-pick-active" : undefined
+                }
+                aria-pressed={pickTerminalsActive}
+                onClick={() => onPickTerminalsChange?.(!pickTerminalsActive)}
+              >
+                {pickTerminalsActive ? "Picking Terminals…" : "Pick terminal"}
+              </button>
+            }
+          />
+          <small>Positive current enters the selected terminal.</small>
+        </SimulationSettingsSection>
+        <SimulationSettingsSection
+          title="Output signals"
+          summary={`${outputs.length} configured`}
+        >
+          <fieldset className="simulation-expression-editor">
+            <legend>Derived expression</legend>
+            <div className="simulation-inline-fields columns-2">
+              <label>
+                Name
+                <input
+                  value={expressionLabel}
+                  placeholder="Gain"
+                  onChange={(event) =>
+                    setExpressionLabel(event.currentTarget.value)
+                  }
+                />
+              </label>
+              <label>
+                Expression
+                <input
+                  value={expressionText}
+                  placeholder="db20(Vout / Vin)"
+                  onChange={(event) =>
+                    setExpressionText(event.currentTarget.value)
+                  }
                 />
               </label>
             </div>
             <small>
-              Values use{" "}
-              {dcSources.find((source) => source.id === selectedDcSourceId)
-                ?.unit ?? "the source unit"}
-              ; step is a positive magnitude.
+              Use output names with +, −, ×, ÷, mag, db20, phase, real, imag, or
+              abs.
             </small>
-          </div>
-        ) : null}
-        {acEnabled ? (
-          <div className="simulation-setup-group simulation-analysis-settings">
-            <label>
-              AC sweep
-              <select name="sweep" defaultValue={ac?.sweep ?? "dec"}>
-                <option value="dec">Decade</option>
-                <option value="oct">Octave</option>
-                <option value="lin">Linear</option>
-              </select>
-            </label>
-            <div className="simulation-inline-fields columns-3">
-              <label>
-                Points
-                <input
-                  name="points"
-                  type="number"
-                  min="1"
-                  defaultValue={ac?.points ?? 20}
-                />
-              </label>
-              <label>
-                Start (Hz)
-                <input
-                  name="startHz"
-                  type="number"
-                  step="any"
-                  defaultValue={ac?.startHz ?? 1}
-                />
-              </label>
-              <label>
-                Stop (Hz)
-                <input
-                  name="stopHz"
-                  type="number"
-                  step="any"
-                  defaultValue={ac?.stopHz ?? 1e6}
-                />
-              </label>
-            </div>
-          </div>
-        ) : null}
-        {tranEnabled ? (
-          <div className="simulation-setup-group simulation-inline-fields columns-2">
-            <label>
-              TRAN step (s)
-              <input
-                name="tranStepSeconds"
-                type="number"
-                step="any"
-                defaultValue={tran?.stepSeconds ?? 1e-9}
-              />
-            </label>
-            <label>
-              TRAN stop (s)
-              <input
-                name="tranStopSeconds"
-                type="number"
-                step="any"
-                defaultValue={tran?.stopSeconds ?? 1e-6}
-              />
-            </label>
-            <label>
-              TRAN start saving (s)
-              <input
-                name="tranStartSeconds"
-                type="number"
-                step="any"
-                min="0"
-                defaultValue={tran?.startSeconds ?? ""}
-                placeholder="0"
-              />
-            </label>
-            <label>
-              TRAN maximum step (s)
-              <input
-                name="tranMaxStepSeconds"
-                type="number"
-                step="any"
-                min="0"
-                defaultValue={tran?.maxStepSeconds ?? ""}
-                placeholder="Simulator default"
-              />
-            </label>
-          </div>
-        ) : null}
-        <ProbeSelect
-          label="Add voltage probe"
-          placeholder="Choose a Net"
-          options={probeOptions.voltage}
-          selectedKeys={selectedProbeKeys}
-          onAdd={(option) => {
-            setOutputs([...outputs, outputFromOption(option, outputs)]);
-            onDirty(true);
-          }}
-          trailingAction={
             <button
               type="button"
-              className={pickNetsActive ? "simulation-pick-active" : undefined}
-              aria-pressed={pickNetsActive}
-              onClick={() => onPickNetsChange?.(!pickNetsActive)}
-            >
-              {pickNetsActive ? "Picking Nets…" : "Pick on canvas"}
-            </button>
-          }
-        />
-        {pickCandidates.length > 1 ? (
-          <fieldset
-            className="simulation-setup-group"
-            aria-label="Choose probe occurrence"
-          >
-            <legend>Choose occurrence</legend>
-            {pickCandidates.map((option) => (
-              <button
-                type="button"
-                key={option.key}
-                onClick={() => {
-                  setOutputs((current) => [
-                    ...current,
-                    outputFromOption(option, current),
-                  ]);
-                  setPickCandidates([]);
-                  onDirty(true);
-                }}
-              >
-                {option.label}
-              </button>
-            ))}
-          </fieldset>
-        ) : null}
-        <ProbeSelect
-          label="Add current output"
-          placeholder="Choose a terminal current"
-          options={probeOptions.terminalCurrent}
-          selectedKeys={selectedProbeKeys}
-          onAdd={(option) => {
-            setOutputs([...outputs, outputFromOption(option, outputs)]);
-            onDirty(true);
-          }}
-          trailingAction={
-            <button
-              type="button"
-              className={
-                pickTerminalsActive ? "simulation-pick-active" : undefined
-              }
-              aria-pressed={pickTerminalsActive}
-              onClick={() => onPickTerminalsChange?.(!pickTerminalsActive)}
-            >
-              {pickTerminalsActive ? "Picking Terminals…" : "Pick terminal"}
-            </button>
-          }
-        />
-        <small>Positive current enters the selected terminal.</small>
-        <fieldset className="simulation-setup-group simulation-expression-editor">
-          <legend>Derived expression</legend>
-          <div className="simulation-inline-fields columns-2">
-            <label>
-              Name
-              <input
-                value={expressionLabel}
-                placeholder="Gain"
-                onChange={(event) =>
-                  setExpressionLabel(event.currentTarget.value)
+              onClick={() => {
+                const label = expressionLabel.trim();
+                if (!/^[A-Za-z_][A-Za-z0-9_]*$/u.test(label)) {
+                  onProblem(
+                    uiProblem(
+                      "SIMULATION_OUTPUT_NAME_INVALID",
+                      "Expression names use letters, numbers, and underscores, beginning with a letter or underscore.",
+                    ),
+                  );
+                  return;
                 }
-              />
-            </label>
-            <label>
-              Expression
-              <input
-                value={expressionText}
-                placeholder="db20(Vout / Vin)"
-                onChange={(event) =>
-                  setExpressionText(event.currentTarget.value)
-                }
-              />
-            </label>
-          </div>
-          <small>
-            Use output names with +, −, ×, ÷, mag, db20, phase, real, imag, or
-            abs.
-          </small>
-          <button
-            type="button"
-            onClick={() => {
-              const label = expressionLabel.trim();
-              if (!/^[A-Za-z_][A-Za-z0-9_]*$/u.test(label)) {
-                onProblem(
-                  uiProblem(
-                    "SIMULATION_OUTPUT_NAME_INVALID",
-                    "Expression names use letters, numbers, and underscores, beginning with a letter or underscore.",
-                  ),
-                );
-                return;
-              }
-              if (
-                outputs.some(
-                  (output) =>
-                    output.id !== editingOutputId &&
-                    output.label.toLowerCase() === label.toLowerCase(),
-                )
-              ) {
-                onProblem(
-                  uiProblem(
-                    "SIMULATION_OUTPUT_NAME_DUPLICATE",
-                    `An output named ${label} already exists.`,
-                  ),
-                );
-                return;
-              }
-              const symbols = new Map(
-                outputs
-                  .filter(
+                if (
+                  outputs.some(
                     (output) =>
                       output.id !== editingOutputId &&
-                      /^[A-Za-z_][A-Za-z0-9_]*$/u.test(output.label),
+                      output.label.toLowerCase() === label.toLowerCase(),
                   )
-                  .map((output) => [output.label, output.expression] as const),
-              );
-              const parsed = parseSimulationExpression(expressionText, symbols);
-              if (!parsed.ok) {
-                onProblem(
-                  uiProblem(
-                    `SIMULATION_EXPRESSION_${parsed.code}`,
-                    `${parsed.message} at character ${parsed.offset + 1}.`,
-                  ),
-                );
-                return;
-              }
-              setOutputs((current) => {
-                const next = {
-                  id: editingOutputId ?? crypto.randomUUID(),
-                  label,
-                  expression: parsed.expression,
-                };
-                return editingOutputId
-                  ? current.map((output) =>
-                      output.id === editingOutputId ? next : output,
+                ) {
+                  onProblem(
+                    uiProblem(
+                      "SIMULATION_OUTPUT_NAME_DUPLICATE",
+                      `An output named ${label} already exists.`,
+                    ),
+                  );
+                  return;
+                }
+                const symbols = new Map(
+                  outputs
+                    .filter(
+                      (output) =>
+                        output.id !== editingOutputId &&
+                        /^[A-Za-z_][A-Za-z0-9_]*$/u.test(output.label),
                     )
-                  : [...current, next];
-              });
-              setExpressionLabel("");
-              setExpressionText("");
-              setEditingOutputId(undefined);
-              onDirty(true);
-              onProblem(undefined);
-            }}
-          >
-            {editingOutputId ? "Save expression" : "Add expression"}
-          </button>
-        </fieldset>
-        <ul className="simulation-probe-list" aria-label="Configured Outputs">
-          {outputs.map((output) => (
-            <li key={output.id}>
-              <span>
-                <input
-                  aria-label={`Output name for ${output.label}`}
-                  value={output.label}
-                  onChange={(event) => {
-                    event.stopPropagation();
-                    const label = event.currentTarget.value;
-                    setOutputs((current) =>
-                      current.map((candidate) =>
-                        candidate.id === output.id
-                          ? { ...candidate, label }
-                          : candidate,
-                      ),
-                    );
-                    onDirty(true);
-                  }}
-                />
-                <small>
-                  {describeOutputExpression(output, probeLabels, outputs)}
-                </small>
-              </span>
-              {output.expression.kind !== "voltage" &&
-              output.expression.kind !== "current" &&
-              formatOutputExpression(output.expression, outputs) ? (
+                    .map(
+                      (output) => [output.label, output.expression] as const,
+                    ),
+                );
+                const parsed = parseSimulationExpression(
+                  expressionText,
+                  symbols,
+                );
+                if (!parsed.ok) {
+                  onProblem(
+                    uiProblem(
+                      `SIMULATION_EXPRESSION_${parsed.code}`,
+                      `${parsed.message} at character ${parsed.offset + 1}.`,
+                    ),
+                  );
+                  return;
+                }
+                setOutputs((current) => {
+                  const next = {
+                    id: editingOutputId ?? crypto.randomUUID(),
+                    label,
+                    expression: parsed.expression,
+                  };
+                  return editingOutputId
+                    ? current.map((output) =>
+                        output.id === editingOutputId ? next : output,
+                      )
+                    : [...current, next];
+                });
+                setExpressionLabel("");
+                setExpressionText("");
+                setEditingOutputId(undefined);
+                onDirty(true);
+                onProblem(undefined);
+              }}
+            >
+              {editingOutputId ? "Save expression" : "Add expression"}
+            </button>
+          </fieldset>
+          <ul className="simulation-probe-list" aria-label="Configured Outputs">
+            {outputs.map((output) => (
+              <li key={output.id}>
+                <span>
+                  <input
+                    aria-label={`Output name for ${output.label}`}
+                    value={output.label}
+                    onChange={(event) => {
+                      event.stopPropagation();
+                      const label = event.currentTarget.value;
+                      setOutputs((current) =>
+                        current.map((candidate) =>
+                          candidate.id === output.id
+                            ? { ...candidate, label }
+                            : candidate,
+                        ),
+                      );
+                      onDirty(true);
+                    }}
+                  />
+                  <small>
+                    {describeOutputExpression(output, probeLabels, outputs)}
+                  </small>
+                </span>
+                {output.expression.kind !== "voltage" &&
+                output.expression.kind !== "current" &&
+                formatOutputExpression(output.expression, outputs) ? (
+                  <button
+                    type="button"
+                    aria-label={`Edit expression ${output.label}`}
+                    onClick={() => {
+                      setEditingOutputId(output.id);
+                      setExpressionLabel(output.label);
+                      setExpressionText(
+                        formatOutputExpression(output.expression, outputs)!,
+                      );
+                    }}
+                  >
+                    Edit
+                  </button>
+                ) : null}
                 <button
                   type="button"
-                  aria-label={`Edit expression ${output.label}`}
+                  aria-label="Remove output"
                   onClick={() => {
-                    setEditingOutputId(output.id);
-                    setExpressionLabel(output.label);
-                    setExpressionText(
-                      formatOutputExpression(output.expression, outputs)!,
+                    setOutputs(
+                      outputs.filter((value) => value.id !== output.id),
                     );
+                    if (editingOutputId === output.id) {
+                      setEditingOutputId(undefined);
+                      setExpressionLabel("");
+                      setExpressionText("");
+                    }
+                    onDirty(true);
                   }}
                 >
-                  Edit
+                  Remove output
                 </button>
-              ) : null}
-              <button
-                type="button"
-                aria-label="Remove output"
-                onClick={() => {
-                  setOutputs(outputs.filter((value) => value.id !== output.id));
-                  if (editingOutputId === output.id) {
-                    setEditingOutputId(undefined);
-                    setExpressionLabel("");
-                    setExpressionText("");
-                  }
-                  onDirty(true);
-                }}
-              >
-                Remove output
-              </button>
-            </li>
-          ))}
-        </ul>
-        <button type="submit">Apply setup</button>
+              </li>
+            ))}
+          </ul>
+        </SimulationSettingsSection>
+        <div className="simulation-settings-actions">
+          <button type="submit">Apply setup</button>
+        </div>
       </form>
     </aside>
   );
