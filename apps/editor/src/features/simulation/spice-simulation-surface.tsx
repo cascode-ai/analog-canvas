@@ -947,11 +947,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
                   run?.result?.data?.analyses
                     .filter((analysis) => analysis.analysis === "dc")
                     .map((analysis, index) => (
-                      <SimulationAnalysisCard
-                        key={`dc-${index}`}
-                        kind="dc"
-                        plotName={analysis.plotName}
-                      >
+                      <SimulationAnalysisCard key={`dc-${index}`} kind="dc">
                         <DcResultsExplorer
                           analysis={analysis}
                           vectors={runPresentation?.prepared.vectors ?? []}
@@ -976,7 +972,6 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
                       <SimulationAnalysisCard
                         key={`${run.id}:ac:${index}`}
                         kind="ac"
-                        plotName={analysis.plotName}
                       >
                         <AcResultsExplorer
                           resultKey={`${run.id}:ac:${index}`}
@@ -1003,7 +998,6 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
                       <SimulationAnalysisCard
                         key={`${run.id}:tran:${index}`}
                         kind="tran"
-                        plotName={analysis.plotName}
                       >
                         <TransientResultsExplorer
                           resultKey={`${run.id}:tran:${index}`}
@@ -1100,11 +1094,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
                   run?.result?.data?.analyses
                     .filter((analysis) => analysis.analysis === "op")
                     .map((analysis, index) => (
-                      <SimulationAnalysisCard
-                        key={index}
-                        kind="op"
-                        plotName={analysis.plotName}
-                      >
+                      <SimulationAnalysisCard key={index} kind="op">
                         <table>
                           <thead>
                             <tr>

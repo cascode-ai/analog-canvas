@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { SimulationOutputResults } from "./simulation-output-results";
 
 describe("Simulation Output Results", () => {
-  it("groups an analysis and its measurements in one named result card", () => {
+  it("uses a compact analysis heading and one trailing measurement summary", () => {
     const markup = renderToStaticMarkup(
       <SimulationOutputResults
         resultKey="run-1"
@@ -48,9 +48,9 @@ describe("Simulation Output Results", () => {
     expect(markup).toContain('class="simulation-output-results"');
     expect(markup).toContain('class="simulation-analysis-card"');
     expect(markup).toContain("Operating Point Analysis");
-    expect(markup).toContain("Bias point");
+    expect(markup).not.toContain("<small>Bias point</small>");
     expect(markup).toContain("Measurements");
-    expect(markup.indexOf("Measurements")).toBeLessThan(
+    expect(markup.indexOf("Measurements")).toBeGreaterThan(
       markup.indexOf("</section>"),
     );
   });

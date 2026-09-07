@@ -98,6 +98,7 @@ describe("Transient Results Explorer", () => {
     expect(markup).toContain('aria-label="Plot tools"');
     expect(markup.match(/class="waveform-tools-hint"/gu)).toHaveLength(2);
     expect(markup.match(/class="waveform-tool-actions"/gu)).toHaveLength(2);
+    expect(markup.match(/aria-label="More plot tools"/gu)).toHaveLength(2);
     expect(markup.match(/drag to zoom, click to measure/gu)).toHaveLength(2);
     expect(markup).not.toContain('aria-label="Inspect plot"');
     expect(markup.match(/aria-label="Open plot"/gu)).toHaveLength(2);

@@ -31,11 +31,9 @@ function simulationAnalysisTitle(kind: SimulationAnalysisKind): string {
 
 export function SimulationAnalysisCard({
   kind,
-  plotName,
   children,
 }: {
   kind: SimulationAnalysisKind;
-  plotName?: string;
   children: ReactNode;
 }) {
   const title = simulationAnalysisTitle(kind);
@@ -46,7 +44,6 @@ export function SimulationAnalysisCard({
     >
       <header className="simulation-analysis-card-header">
         <h3>{title}</h3>
-        {plotName && plotName !== title ? <small>{plotName}</small> : null}
       </header>
       <div className="simulation-analysis-card-body">{children}</div>
     </section>
@@ -77,16 +74,15 @@ export function SimulationOutputResults({
     const probe = focusProbe(output);
     return probe ? [probe] : [];
   });
+  const visibleAnalyses = new Set(
+    data.analyses.map((analysis) => analysis.analysis),
+  );
   return (
     <div className="simulation-output-results">
       {data.analyses.map((analysis, analysisIndex) => {
         if (analysis.analysis === "op")
           return (
-            <SimulationAnalysisCard
-              key={`op-${analysisIndex}`}
-              kind="op"
-              plotName={analysis.plotName}
-            >
+            <SimulationAnalysisCard key={`op-${analysisIndex}`} kind="op">
               <table>
                 <thead>
                   <tr>
@@ -106,13 +102,6 @@ export function SimulationOutputResults({
                   ))}
                 </tbody>
               </table>
-              <SimulationMeasurementResults
-                measurements={(data.measurements ?? []).filter(
-                  (measurement) =>
-                    measurement.analysis === analysis.analysis &&
-                    measurement.plotName === analysis.plotName,
-                )}
-              />
             </SimulationAnalysisCard>
           );
         if (!analysis.domain) return null;
@@ -128,7 +117,6 @@ export function SimulationOutputResults({
           <SimulationAnalysisCard
             key={`${analysis.analysis}-${analysisIndex}`}
             kind={analysis.analysis}
-            plotName={analysis.plotName}
           >
             {analysis.analysis === "ac" && complex.length > 0 ? (
               <ComplexResultsExplorer
@@ -215,13 +203,6 @@ export function SimulationOutputResults({
                 />
               );
             })}
-            <SimulationMeasurementResults
-              measurements={(data.measurements ?? []).filter(
-                (measurement) =>
-                  measurement.analysis === analysis.analysis &&
-                  measurement.plotName === analysis.plotName,
-              )}
-            />
           </SimulationAnalysisCard>
         );
       })}
@@ -238,6 +219,11 @@ export function SimulationOutputResults({
           ))}
         </div>
       ) : null}
+      <SimulationMeasurementResults
+        measurements={(data.measurements ?? []).filter((measurement) =>
+          visibleAnalyses.has(measurement.analysis),
+        )}
+      />
     </div>
   );
 }
