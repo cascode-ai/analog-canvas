@@ -248,7 +248,12 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     const poll = async () => {
       let detailsProblem: Problem | undefined;
       let reply = await session.handle({ operation: "read", runId: run.id });
-      if (reply.ok && "run" in reply && reply.run.resultPreview) {
+      if (
+        reply.ok &&
+        "run" in reply &&
+        reply.run.resultPreview &&
+        ["finished", "cancelled", "lost"].includes(reply.run.state)
+      ) {
         const details = await runDetails.current.read(session.files, reply.run);
         if (details.ok) reply = details;
         else detailsProblem = details.error;

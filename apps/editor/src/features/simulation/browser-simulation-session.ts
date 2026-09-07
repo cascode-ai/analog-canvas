@@ -62,7 +62,7 @@ export class BrowserSimulationSession {
             ),
         )
         .catch((error: unknown) => {
-          this.service = undefined;
+          if (generation === this.generation) this.service = undefined;
           throw error;
         });
       const service = await this.service;
