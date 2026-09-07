@@ -171,3 +171,11 @@ export type {
   Schema44To45MigrationReport,
   Schema44To45MigrationResult,
 } from "./transforms/simulation-measurements.js";
+export {
+  upgradeSchema45To46,
+  upgradeSchema45To46WithReport,
+} from "./transforms/simulation-noise.js";
+export type {
+  Schema45To46MigrationReport,
+  Schema45To46MigrationResult,
+} from "./transforms/simulation-noise.js";

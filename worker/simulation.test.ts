@@ -75,7 +75,7 @@ describe("simulation route", () => {
       configured: false,
       inputs: ["structured", "raw"],
       analyses: hostedSky130Profile.qualifiedScope.analyses,
-      parsedAnalyses: ["op", "dc", "ac", "tran"],
+      parsedAnalyses: ["op", "dc", "ac", "tran", "noise"],
       profiles: [
         {
           id: hostedSky130Profile.id,

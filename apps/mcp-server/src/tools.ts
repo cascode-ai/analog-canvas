@@ -1,6 +1,8 @@
 import { z } from "zod";
 import {
   parseSimulationExpression,
+  SIMULATION_NOISE_INPUT_DENSITY_ID,
+  SIMULATION_NOISE_OUTPUT_DENSITY_ID,
   SimulationMeasurementMethodSchema,
 } from "@icm/model";
 import { SimulationOperationSchema } from "@icm/simulation-service/contract";
@@ -95,7 +97,7 @@ const SimulationMeasurementArgs = z.discriminatedUnion("action", [
     documentId: z.string().min(1).optional(),
     measurementId: z.string().min(1).optional(),
     label: z.string().trim().min(1).max(128),
-    analysis: z.enum(["op", "dc", "ac", "tran"]),
+    analysis: z.enum(["op", "dc", "ac", "tran", "noise"]),
     outputId: z.string().min(1),
     method: SimulationMeasurementMethodSchema,
   }),
@@ -549,7 +551,14 @@ const TOOLS: readonly ToolEntry[] = [
               recovery: "fix-input",
             },
           };
-        if (!next.input.outputs.some((output) => output.id === parsed.outputId))
+        const reservedNoiseOutput =
+          parsed.analysis === "noise" &&
+          (parsed.outputId === SIMULATION_NOISE_OUTPUT_DENSITY_ID ||
+            parsed.outputId === SIMULATION_NOISE_INPUT_DENSITY_ID);
+        if (
+          !reservedNoiseOutput &&
+          !next.input.outputs.some((output) => output.id === parsed.outputId)
+        )
           return {
             ok: false,
             error: {

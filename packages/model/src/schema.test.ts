@@ -966,6 +966,42 @@ describe("SimulationSetup schema", () => {
     );
   });
 
+  it("persists a hierarchy-aware differential Noise request", () => {
+    const noisy = setup();
+    noisy.input.analyses = [
+      {
+        kind: "noise",
+        output: {
+          positive: {
+            documentId: "testbench",
+            anchor: {
+              kind: "terminal",
+              instanceId: "load",
+              pinName: "1",
+            },
+            occurrence: [],
+          },
+          negative: {
+            documentId: "testbench",
+            anchor: { kind: "base-net", netId: "ground" },
+            occurrence: [],
+          },
+        },
+        inputSourceInstanceId: "vin",
+        sweep: "dec",
+        points: 20,
+        startHz: 1,
+        stopHz: 1e9,
+      },
+    ];
+    expect(SimulationSetupSchema.parse(noisy)).toEqual(noisy);
+
+    const invalid = structuredClone(noisy);
+    const analysis = invalid.input.analyses[0];
+    if (analysis?.kind === "noise") analysis.stopHz = analysis.startHz;
+    expect(SimulationSetupSchema.safeParse(invalid).success).toBe(false);
+  });
+
   it("bounds the AC sweep and the environment selection", () => {
     const ac = (overrides: Record<string, unknown>) => {
       const candidate = setup();

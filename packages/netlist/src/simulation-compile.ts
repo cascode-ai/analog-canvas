@@ -66,7 +66,12 @@ import type {
   SimulationMeasurementSpec,
   SimulationSetup,
   SimulationStructuredInput,
+  SimulationVoltageProbe,
   StableId,
+} from "@icm/model";
+import {
+  SIMULATION_NOISE_INPUT_DENSITY_ID,
+  SIMULATION_NOISE_OUTPUT_DENSITY_ID,
 } from "@icm/model";
 import type { HierarchyFrame, ObjectLocator } from "@icm/derived";
 import { resolveDocumentLogicalNets } from "@icm/derived";
@@ -236,6 +241,8 @@ function analysisCommand(
       }
       return values.join(" ");
     }
+    case "noise":
+      throw new Error("Noise output and input source must be resolved first");
   }
 }
 
@@ -269,13 +276,23 @@ function canonicalSetup(input: SimulationStructuredInput): string {
                 startHz: analysis.startHz,
                 stopHz: analysis.stopHz,
               }
-            : {
-                kind: analysis.kind,
-                stepSeconds: analysis.stepSeconds,
-                stopSeconds: analysis.stopSeconds,
-                startSeconds: analysis.startSeconds ?? null,
-                maxStepSeconds: analysis.maxStepSeconds ?? null,
-              },
+            : analysis.kind === "tran"
+              ? {
+                  kind: analysis.kind,
+                  stepSeconds: analysis.stepSeconds,
+                  stopSeconds: analysis.stopSeconds,
+                  startSeconds: analysis.startSeconds ?? null,
+                  maxStepSeconds: analysis.maxStepSeconds ?? null,
+                }
+              : {
+                  kind: analysis.kind,
+                  output: analysis.output,
+                  inputSourceInstanceId: analysis.inputSourceInstanceId,
+                  sweep: analysis.sweep,
+                  points: analysis.points,
+                  startHz: analysis.startHz,
+                  stopHz: analysis.stopHz,
+                },
     ),
     outputs: input.outputs,
     environment: {
@@ -539,13 +556,12 @@ function instrumentTerminalCurrents(
   };
 }
 
-function netVoltageVector(
-  measurement: Extract<SimulationExpression, { kind: "voltage" }>,
-  acquisitionId: string,
+function netVoltageNode(
+  measurement: SimulationVoltageProbe,
   outputId: string,
   occurrence: ResolvedOccurrence,
   diagnostics: NetlistDiagnostic[],
-): CompiledSimulationVector | null {
+): string | null {
   const { document, cell, path, hierarchyPath } = occurrence;
   const anchor = measurement.anchor;
   const netId =
@@ -610,11 +626,24 @@ function netVoltageVector(
     );
     return null;
   }
-  return {
-    probeId: acquisitionId,
-    vector: `v(${[...path, netName].join(".").toLowerCase()})`,
-    quantity: "voltage",
-  };
+  return [...path, netName].join(".").toLowerCase();
+}
+
+function netVoltageVector(
+  measurement: Extract<SimulationExpression, { kind: "voltage" }>,
+  acquisitionId: string,
+  outputId: string,
+  occurrence: ResolvedOccurrence,
+  diagnostics: NetlistDiagnostic[],
+): CompiledSimulationVector | null {
+  const node = netVoltageNode(measurement, outputId, occurrence, diagnostics);
+  return node
+    ? {
+        probeId: acquisitionId,
+        vector: `v(${node})`,
+        quantity: "voltage",
+      }
+    : null;
 }
 
 function terminalCurrentVector(
@@ -756,8 +785,15 @@ export async function compileStructuredSimulation(
     );
   }
 
+  const documentsById = new Map(
+    project.documents.map((document) => [document.id, document]),
+  );
+  const cellsById = new Map(ir.cells.map((cell) => [cell.id, cell]));
   const analyses: SimulationAnalysis[] = [];
-  const analysisCommands: string[] = [];
+  const analysisCommands: Array<{
+    readonly kind: SimulationAnalysis;
+    readonly command: string;
+  }> = [];
   for (const item of input.analyses) {
     if (item.kind === "dc") {
       const source = rootCell.instances.find(
@@ -796,28 +832,95 @@ export async function compileStructuredSimulation(
         continue;
       }
       analyses.push(item.kind);
-      analysisCommands.push(analysisCommand(item, source.reference));
+      analysisCommands.push({
+        kind: item.kind,
+        command: analysisCommand(item, source.reference),
+      });
       continue;
     }
     if (item.kind === "op" || item.kind === "ac" || item.kind === "tran") {
       analyses.push(item.kind);
-      analysisCommands.push(analysisCommand(item));
+      analysisCommands.push({
+        kind: item.kind,
+        command: analysisCommand(item),
+      });
       continue;
     }
-    diagnostics.push(
-      diagnostic(
-        "SIMULATION_UNSUPPORTED_ANALYSIS",
-        input.rootDocumentId,
-        `Analysis ${(item as { kind: string }).kind} is not one this release compiles`,
-        locator(input.rootDocumentId, [], "document", input.rootDocumentId),
-      ),
+    const source = rootCell.instances.find(
+      (instance) => instance.id === item.inputSourceInstanceId,
     );
+    if (!source) {
+      diagnostics.push(
+        diagnostic(
+          "SIMULATION_NOISE_SOURCE_UNAVAILABLE",
+          input.rootDocumentId,
+          `Noise input source ${item.inputSourceInstanceId} is not an Instance in the Testbench root`,
+          locator(
+            input.rootDocumentId,
+            [],
+            "instance",
+            item.inputSourceInstanceId,
+          ),
+          [item.inputSourceInstanceId],
+        ),
+      );
+      continue;
+    }
+    if (
+      source.deviceClass !== "voltage-source" &&
+      source.deviceClass !== "current-source"
+    ) {
+      diagnostics.push(
+        diagnostic(
+          "SIMULATION_NOISE_SOURCE_UNSUPPORTED",
+          input.rootDocumentId,
+          `Noise input source ${source.reference} is a ${source.deviceClass}; select an independent voltage or current source`,
+          locator(input.rootDocumentId, [], "instance", source.id),
+          [source.id],
+        ),
+      );
+      continue;
+    }
+    const resolveNoiseNode = (
+      probe: SimulationVoltageProbe,
+      side: "positive" | "negative",
+    ): string | null => {
+      const measurement: Extract<SimulationExpression, { kind: "voltage" }> = {
+        kind: "voltage",
+        ...probe,
+      };
+      const label = `Noise output ${side}`;
+      const occurrence = resolveOccurrence(
+        measurement,
+        label,
+        input.rootDocumentId,
+        documentsById,
+        cellsById,
+        diagnostics,
+      );
+      return occurrence
+        ? netVoltageNode(measurement, label, occurrence, diagnostics)
+        : null;
+    };
+    const positive = resolveNoiseNode(item.output.positive, "positive");
+    const negative = item.output.negative
+      ? resolveNoiseNode(item.output.negative, "negative")
+      : null;
+    if (!positive || (item.output.negative && !negative)) continue;
+    analyses.push(item.kind);
+    analysisCommands.push({
+      kind: item.kind,
+      command: [
+        "noise",
+        negative ? `v(${positive},${negative})` : `v(${positive})`,
+        source.reference,
+        item.sweep,
+        String(item.points),
+        spiceNumber(item.startHz),
+        spiceNumber(item.stopHz),
+      ].join(" "),
+    });
   }
-
-  const documentsById = new Map(
-    project.documents.map((document) => [document.id, document]),
-  );
-  const cellsById = new Map(ir.cells.map((cell) => [cell.id, cell]));
   const vectors: CompiledSimulationVector[] = [];
   const vectorByIdentity = new Map<
     string,
@@ -922,6 +1025,10 @@ export async function compileStructuredSimulation(
 
   const enabledAnalyses = new Set(input.analyses.map((item) => item.kind));
   const outputIds = new Set(input.outputs.map((output) => output.id));
+  if (enabledAnalyses.has("noise")) {
+    outputIds.add(SIMULATION_NOISE_OUTPUT_DENSITY_ID);
+    outputIds.add(SIMULATION_NOISE_INPUT_DENSITY_ID);
+  }
   for (const measurement of input.measurements ?? []) {
     if (!enabledAnalyses.has(measurement.analysis))
       diagnostics.push(
@@ -962,8 +1069,10 @@ export async function compileStructuredSimulation(
     ),
   });
 
-  // One `write` per analysis, so each plot reaches the rawfile; see the note
-  // at the top of this file for why `run` and a single `write` do not.
+  // One write step per analysis. Noise is the exception: one command creates
+  // `noise1` (density) and `noise2` (integrated), so both plots are named in
+  // the same write. The per-plot-type ordinals are stable because the Setup
+  // schema admits at most one Noise analysis.
   const written = [...new Set(writeVectors)];
   const writeCard = [`write ${SIMULATION_RAWFILE_NAME}`, ...written].join(" ");
   const testbench = [
@@ -975,7 +1084,12 @@ export async function compileStructuredSimulation(
     ".control",
     "set filetype=ascii",
     ...(analyses.length > 1 ? ["set appendwrite"] : []),
-    ...analysisCommands.flatMap((command) => [command, writeCard]),
+    ...analysisCommands.flatMap(({ kind, command }) => [
+      command,
+      kind === "noise"
+        ? `write ${SIMULATION_RAWFILE_NAME} noise1.all noise2.all`
+        : writeCard,
+    ]),
     ".endc",
     ".end",
   ].join("\n");

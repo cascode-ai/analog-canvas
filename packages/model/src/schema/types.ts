@@ -111,6 +111,9 @@ export type SchematicDocument = z.infer<typeof Schema.SchematicDocumentSchema>;
 export type SimulationAcAnalysis = z.infer<
   typeof Schema.SimulationAcAnalysisSchema
 >;
+export type SimulationNoiseAnalysis = z.infer<
+  typeof Schema.SimulationNoiseAnalysisSchema
+>;
 export type SimulationAnalysisSpec = z.infer<
   typeof Schema.SimulationAnalysisSpecSchema
 >;
@@ -128,6 +131,9 @@ export type SimulationMeasurementSpec = z.infer<
 >;
 export type SimulationVoltageProbeAnchor = z.infer<
   typeof Schema.SimulationVoltageProbeAnchorSchema
+>;
+export type SimulationVoltageProbe = z.infer<
+  typeof Schema.SimulationVoltageProbeSchema
 >;
 export type SimulationEnvironmentSelection = z.infer<
   typeof Schema.SimulationEnvironmentSelectionSchema

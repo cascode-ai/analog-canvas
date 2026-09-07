@@ -40,6 +40,7 @@ import {
   upgradeSchema42To43WithReport,
   upgradeSchema43To44WithReport,
   upgradeSchema44To45WithReport,
+  upgradeSchema45To46WithReport,
 } from "@icm/project-protocol";
 import {
   CURRENT_PROJECT_SCHEMA_VERSION,
@@ -1563,7 +1564,8 @@ export class GalleryDO {
         | ReturnType<typeof upgradeSchema41To42WithReport>["report"]
         | ReturnType<typeof upgradeSchema42To43WithReport>["report"]
         | ReturnType<typeof upgradeSchema43To44WithReport>["report"]
-        | ReturnType<typeof upgradeSchema44To45WithReport>["report"];
+        | ReturnType<typeof upgradeSchema44To45WithReport>["report"]
+        | ReturnType<typeof upgradeSchema45To46WithReport>["report"];
     }> = [];
     for (const source of sources) {
       const versions: Record<string, number> = {};
@@ -1735,6 +1737,15 @@ export class GalleryDO {
           }
           if (lifted.schemaVersion === 44) {
             const migration = upgradeSchema44To45WithReport(lifted);
+            lifted = migration.project;
+            migrationReports.push({
+              table: source.table,
+              id: row.id,
+              report: migration.report,
+            });
+          }
+          if (lifted.schemaVersion === 45) {
+            const migration = upgradeSchema45To46WithReport(lifted);
             lifted = migration.project;
             migrationReports.push({
               table: source.table,

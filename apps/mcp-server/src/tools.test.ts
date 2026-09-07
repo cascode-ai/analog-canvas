@@ -113,7 +113,24 @@ describe("mcp tool surface", () => {
         input: {
           kind: "structured",
           rootDocumentId: "main",
-          analyses: [{ kind: "op" }],
+          analyses: [
+            { kind: "op" },
+            {
+              kind: "noise",
+              output: {
+                positive: {
+                  documentId: "main",
+                  anchor: { kind: "base-net", netId: "net-vout" },
+                  occurrence: [],
+                },
+              },
+              inputSourceInstanceId: "source-1",
+              sweep: "dec",
+              points: 10,
+              startHz: 1,
+              stopHz: 1e6,
+            },
+          ],
           outputs: [
             {
               id: "vin",
@@ -178,6 +195,35 @@ describe("mcp tool surface", () => {
             {
               label: "Gain",
               expression: { kind: "db20" },
+            },
+          ],
+        },
+      },
+    });
+
+    const noise = parseText(
+      await callTool(
+        "simulation_measurement",
+        {
+          action: "upsert",
+          setupId: "setup-op",
+          label: "Output noise at 1 kHz",
+          analysis: "noise",
+          outputId: "noise-output-density",
+          method: { kind: "sample-at", coordinate: 1_000 },
+        },
+        session,
+      ),
+    ) as { ok: boolean };
+    expect(noise.ok).toBe(true);
+    expect(transacts[1]?.structureEdits?.[0]).toMatchObject({
+      setup: {
+        input: {
+          measurements: [
+            {
+              analysis: "noise",
+              outputId: "noise-output-density",
+              method: { kind: "sample-at", coordinate: 1_000 },
             },
           ],
         },

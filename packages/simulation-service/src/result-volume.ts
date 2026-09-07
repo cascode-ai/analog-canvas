@@ -25,13 +25,22 @@ export type ResultVolumeAnalysis =
       readonly stepSeconds: number;
       readonly stopSeconds: number;
       readonly startSeconds?: number;
+    }
+  | {
+      readonly kind: "noise";
+      readonly sweep: "dec" | "oct" | "lin";
+      readonly points: number;
+      readonly startHz: number;
+      readonly stopHz: number;
     };
 
 const RAWFILE_HEADER_BYTES = 4096;
 const ASCII_REAL_VALUE_BYTES = 24;
 const ASCII_COMPLEX_VALUE_BYTES = 48;
 
-function acPointCount(analysis: Extract<ResultVolumeAnalysis, { kind: "ac" }>) {
+function frequencyPointCount(
+  analysis: Extract<ResultVolumeAnalysis, { kind: "ac" | "noise" }>,
+) {
   if (analysis.sweep === "lin") return Math.max(1, analysis.points);
   const intervals =
     analysis.sweep === "dec"
@@ -72,11 +81,20 @@ export function estimateSimulationOutputBytes(
       continue;
     }
     const points =
-      analysis.kind === "ac"
-        ? acPointCount(analysis)
+      analysis.kind === "ac" || analysis.kind === "noise"
+        ? frequencyPointCount(analysis)
         : analysis.kind === "dc"
           ? dcPointCount(analysis)
           : tranPointCount(analysis);
+    if (analysis.kind === "noise") {
+      // Spectral frequency + input/output density, then two integrated scalars.
+      bytes +=
+        RAWFILE_HEADER_BYTES +
+        points * 3 * ASCII_REAL_VALUE_BYTES +
+        RAWFILE_HEADER_BYTES +
+        2 * ASCII_REAL_VALUE_BYTES;
+      continue;
+    }
     const bytesPerValue =
       analysis.kind === "ac"
         ? ASCII_COMPLEX_VALUE_BYTES

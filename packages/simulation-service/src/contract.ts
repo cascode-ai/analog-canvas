@@ -126,8 +126,14 @@ export const EvaluatedOutputSchema = z.strictObject({
   values: z.array(OutputPointSchema),
   imaginary: z.array(OutputPointSchema).optional(),
 });
+export const EvaluatedScalarSchema = z.strictObject({
+  id: Id,
+  label: z.string(),
+  unit: z.string(),
+  value: z.number().finite(),
+});
 export const EvaluatedAnalysisSchema = z.strictObject({
-  analysis: z.enum(["op", "dc", "ac", "tran"]),
+  analysis: z.enum(["op", "dc", "ac", "tran", "noise"]),
   plotName: z.string(),
   domain: z
     .strictObject({
@@ -137,12 +143,14 @@ export const EvaluatedAnalysisSchema = z.strictObject({
     })
     .optional(),
   outputs: z.array(EvaluatedOutputSchema),
+  /** Analysis-owned scalar results, such as integrated input/output noise. */
+  integrated: z.array(EvaluatedScalarSchema).optional(),
 });
 export const AutomaticMeasurementSchema = z.discriminatedUnion("status", [
   z.strictObject({
     id: Id,
     analysisIndex: z.number().int().nonnegative(),
-    analysis: z.enum(["op", "dc", "ac", "tran"]),
+    analysis: z.enum(["op", "dc", "ac", "tran", "noise"]),
     plotName: z.string(),
     outputId: Id,
     outputLabel: z.string(),
@@ -175,7 +183,7 @@ export const AutomaticMeasurementSchema = z.discriminatedUnion("status", [
   z.strictObject({
     id: Id,
     analysisIndex: z.number().int().nonnegative(),
-    analysis: z.enum(["op", "dc", "ac", "tran"]),
+    analysis: z.enum(["op", "dc", "ac", "tran", "noise"]),
     plotName: z.string(),
     outputId: Id,
     outputLabel: z.string(),
@@ -252,8 +260,8 @@ export type SimulationOperation = z.infer<typeof SimulationOperationSchema>;
 export const CapabilitiesSchema = z.strictObject({
   configured: z.boolean(),
   inputs: z.array(z.enum(["structured", "raw"])),
-  analyses: z.array(z.enum(["op", "dc", "ac", "tran"])),
-  parsedAnalyses: z.array(z.enum(["op", "dc", "ac", "tran"])),
+  analyses: z.array(z.enum(["op", "dc", "ac", "tran", "noise"])),
+  parsedAnalyses: z.array(z.enum(["op", "dc", "ac", "tran", "noise"])),
   profiles: z.array(
     z.strictObject({
       id: Id,

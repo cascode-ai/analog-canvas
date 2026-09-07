@@ -39,6 +39,7 @@ import { upgradeSchema41To42 } from "./transforms/simulation-setup-collection.js
 import { upgradeSchema42To43 } from "./transforms/simulation-outputs.js";
 import { upgradeSchema43To44 } from "./transforms/terminal-current.js";
 import { upgradeSchema44To45 } from "./transforms/simulation-measurements.js";
+import { upgradeSchema45To46 } from "./transforms/simulation-noise.js";
 
 describe("schema migrations through hidden Net-name retirement", () => {
   it("keeps each retained historical transform independently usable", () => {
@@ -62,6 +63,7 @@ describe("schema migrations through hidden Net-name retirement", () => {
     const v43 = upgradeSchema42To43(v42);
     const v44 = upgradeSchema43To44(v43);
     const v45 = upgradeSchema44To45(v44);
+    const v46 = upgradeSchema45To46(v45);
 
     expect(v29.schemaVersion).toBe(29);
     expect(v30.schemaVersion).toBe(30);
@@ -79,7 +81,8 @@ describe("schema migrations through hidden Net-name retirement", () => {
     expect(v42.schemaVersion).toBe(42);
     expect(v43.schemaVersion).toBe(43);
     expect(v44.schemaVersion).toBe(44);
-    expect(v45.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
+    expect(v45.schemaVersion).toBe(45);
+    expect(v46.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
   });
 
   it("reports non-rewriting 28→29 through 32→33 upgrades as unchanged", () => {

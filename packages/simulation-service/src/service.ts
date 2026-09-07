@@ -366,7 +366,13 @@ export class SimulationService {
       });
       if (epoch !== this.epoch) return;
       run.view.result = output.result;
-      if (output.result.data && run.prepared.outputs.length > 0) {
+      if (
+        output.result.data &&
+        (run.prepared.outputs.length > 0 ||
+          output.result.data.analyses.some(
+            (analysis) => analysis.analysis === "noise",
+          ))
+      ) {
         run.view.outputData = evaluateSimulationOutputs(
           output.result.data,
           run.prepared.vectors,

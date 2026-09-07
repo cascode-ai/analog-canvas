@@ -51,7 +51,7 @@ describe("schema 41 to 42 named simulation setup migration", () => {
       ok: true,
       sourceSchemaVersion: 41,
       migrated: true,
-      project: { schemaVersion: 45, simulationSetups: [] },
+      project: { schemaVersion: 46, simulationSetups: [] },
     });
   });
 });

@@ -126,8 +126,11 @@ same contract as `/api/agent/sessions/{sessionId}/simulation`:
 2. Configure the Project through `advanced_transact` with
    `upsert_simulation_setup`; remove one by `remove_simulation_setup`. Sources,
    DUT instances, formal ports, and wiring remain ordinary Project edits.
-   Structured analyses support OP, one-source linear DC sweep, AC, and TRAN;
-   discover the deployment Profile before selecting an analysis. A structured
+   The structured contract supports OP, one-source linear DC sweep, AC, TRAN,
+   and Noise; discover the deployment Profile before selecting an analysis,
+   because parser support may precede hosted qualification. Noise selects a
+   hierarchy-aware differential voltage output and a Testbench-root independent
+   input source. A structured
    setup stores named `outputs`, not a second Net namespace. Use
    `simulation_output` with an explicit `setupId` to list, upsert, or remove
    output expressions with recoverable validation; use the typed structure
@@ -136,6 +139,9 @@ same contract as `/api/agent/sessions/{sessionId}/simulation`:
    existing output labels. Use `simulation_measurement` to list, upsert, or
    remove saved scalar rules over those Outputs. It supports OP value,
    sample-at, minimum, maximum, peak-to-peak, and time-windowed TRAN mean/RMS;
+   Noise density uses the stable output ids `noise-output-density` and
+   `noise-input-density`, while integrated totals are returned as analysis
+   scalars;
    invalid rules return recoverable input errors rather than ending the MCP
    session.
 3. `prepare` with `source:{kind:"project-setup",setupId,expectedStructureRevision}`

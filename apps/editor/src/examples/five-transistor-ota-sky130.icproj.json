@@ -3022,7 +3022,7 @@
   ],
   "id": "project-five-transistor-ota-sky130",
   "name": "Five-Transistor OTA (Sky130)",
-  "schemaVersion": 45,
+  "schemaVersion": 46,
   "simulationSetups": [
     {
       "id": "simulation-setup-ota-op-ac",

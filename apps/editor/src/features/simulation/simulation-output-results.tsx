@@ -14,7 +14,7 @@ import {
 import { ScalarResultsExplorer } from "./transient-results-explorer";
 import { SimulationMeasurementResults } from "./simulation-measurement-results";
 
-export type SimulationAnalysisKind = "op" | "dc" | "ac" | "tran";
+export type SimulationAnalysisKind = "op" | "dc" | "ac" | "tran" | "noise";
 
 function simulationAnalysisTitle(kind: SimulationAnalysisKind): string {
   switch (kind) {
@@ -26,6 +26,8 @@ function simulationAnalysisTitle(kind: SimulationAnalysisKind): string {
       return "AC Analysis";
     case "tran":
       return "Transient Analysis";
+    case "noise":
+      return "Noise Analysis";
   }
 }
 
@@ -176,7 +178,9 @@ export function SimulationOutputResults({
                   }
                   domainLabel={analysis.domain!.name}
                   domainUnit={analysis.domain!.unit}
-                  logarithmicX={analysis.analysis === "ac"}
+                  logarithmicX={
+                    analysis.analysis === "ac" || analysis.analysis === "noise"
+                  }
                   traces={unitOutputs.map((output, colorIndex) => ({
                     id: output.id,
                     label: output.label,
