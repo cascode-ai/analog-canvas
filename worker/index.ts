@@ -29,6 +29,7 @@ export { AnalyticsDO } from "./analytics";
 export { AgentSessionDO } from "./agent-session";
 export { GalleryDO } from "./gallery";
 export { AuthDO } from "./auth";
+export { SimulationControlDO } from "./simulation-control-do";
 
 type Env = SimulationEnv &
   ChannelEnv & {
