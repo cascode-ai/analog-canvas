@@ -1,6 +1,8 @@
 import { useEffect, useId, useState, type ReactNode } from "react";
 import authoringProfile from "../../../../../containers/ngspice/hosted-sky130-profile.json";
 import {
+  SIMULATION_NOISE_INPUT_DENSITY_ID,
+  SIMULATION_NOISE_OUTPUT_DENSITY_ID,
   SimulationSetupSchema,
   parseSimulationExpression,
   type ProjectSimulationSetup,
@@ -8,6 +10,7 @@ import {
   type SimulationExpression,
   type SimulationOutputSpec,
   type SimulationStructuredInput,
+  type SimulationVoltageProbe,
 } from "@icm/model";
 import type { Capabilities, Problem } from "@icm/simulation-service/contract";
 import type { SpiceSimulationSurfaceProps } from "./simulation-surface-types";
@@ -138,12 +141,23 @@ export function SetupEditor({
   const dc = saved?.analyses.find((a) => a.kind === "dc");
   const ac = saved?.analyses.find((a) => a.kind === "ac");
   const tran = saved?.analyses.find((a) => a.kind === "tran");
+  const noise = saved?.analyses.find((a) => a.kind === "noise");
   const [dcEnabled, setDcEnabled] = useState(!!dc);
   const [dcSourceId, setDcSourceId] = useState(
     dc?.sourceInstanceId ?? dcSources[0]?.id ?? "",
   );
   const [acEnabled, setAcEnabled] = useState(!!ac);
   const [tranEnabled, setTranEnabled] = useState(!!tran);
+  const [noiseEnabled, setNoiseEnabled] = useState(!!noise);
+  const [noiseInputSourceId, setNoiseInputSourceId] = useState(
+    noise?.inputSourceInstanceId ?? dcSources[0]?.id ?? "",
+  );
+  const [noisePositive, setNoisePositive] = useState<
+    SimulationVoltageProbe | undefined
+  >(noise?.output.positive);
+  const [noiseNegative, setNoiseNegative] = useState<
+    SimulationVoltageProbe | undefined
+  >(noise?.output.negative);
   const [opEnabled, setOpEnabled] = useState(
     !saved || saved.analyses.some((analysis) => analysis.kind === "op"),
   );
@@ -203,6 +217,7 @@ export function SetupEditor({
     opEnabled ? "OP" : undefined,
     acEnabled ? "AC" : undefined,
     tranEnabled ? "TRAN" : undefined,
+    noiseEnabled ? "Noise" : undefined,
   ]
     .filter(Boolean)
     .join(" + ");
@@ -211,6 +226,17 @@ export function SetupEditor({
   )
     ? dcSourceId
     : (dcSources[0]?.id ?? "");
+  const selectedNoiseSourceId = dcSources.some(
+    (source) => source.id === noiseInputSourceId,
+  )
+    ? noiseInputSourceId
+    : (dcSources[0]?.id ?? "");
+  const noisePositiveKey = noisePositive
+    ? simulationProbeTargetKey({ kind: "voltage", ...noisePositive })
+    : "";
+  const noiseNegativeKey = noiseNegative
+    ? simulationProbeTargetKey({ kind: "voltage", ...noiseNegative })
+    : "";
   useEffect(() => {
     if (!pickedNet) return;
     const candidates = matchSimulationVoltageProbeOptions(
@@ -341,6 +367,15 @@ export function SetupEditor({
         onSubmit={(event) => {
           event.preventDefault();
           const data = new FormData(event.currentTarget);
+          if (data.has("noise") && !noisePositive) {
+            onProblem(
+              uiProblem(
+                "SIMULATION_NOISE_OUTPUT_REQUIRED",
+                "Choose a positive Noise output Net.",
+              ),
+            );
+            return;
+          }
           const parsed = SimulationSetupSchema.safeParse({
             version: 2,
             input: {
@@ -386,6 +421,24 @@ export function SetupEditor({
                           "tranMaxStepSeconds",
                           "maxStepSeconds",
                         ),
+                      },
+                    ]
+                  : []),
+                ...(data.has("noise") && noisePositive
+                  ? [
+                      {
+                        kind: "noise",
+                        output: {
+                          positive: noisePositive,
+                          ...(noiseNegative ? { negative: noiseNegative } : {}),
+                        },
+                        inputSourceInstanceId: data.get(
+                          "noiseInputSourceInstanceId",
+                        ),
+                        sweep: data.get("noiseSweep"),
+                        points: Number(data.get("noisePoints")),
+                        startHz: Number(data.get("noiseStartHz")),
+                        stopHz: Number(data.get("noiseStopHz")),
                       },
                     ]
                   : []),
@@ -593,6 +646,22 @@ export function SetupEditor({
                 />
                 TRAN
               </label>
+              <label>
+                <input
+                  name="noise"
+                  type="checkbox"
+                  checked={noiseEnabled}
+                  onChange={(event) => {
+                    const enabled = event.currentTarget.checked;
+                    setNoiseEnabled(enabled);
+                    if (enabled && !noisePositive) {
+                      const first = probeOptions.voltage[0];
+                      if (first) setNoisePositive(voltageProbe(first));
+                    }
+                  }}
+                />
+                Noise
+              </label>
             </div>
           </fieldset>
           {dcEnabled ? (
@@ -740,6 +809,130 @@ export function SetupEditor({
                   placeholder="Simulator default"
                 />
               </label>
+            </div>
+          ) : null}
+          {noiseEnabled ? (
+            <div className="simulation-setup-group simulation-analysis-settings">
+              <div className="simulation-inline-fields columns-2">
+                <label>
+                  Output +
+                  <select
+                    aria-label="Noise output positive"
+                    value={noisePositiveKey}
+                    required
+                    onChange={(event) => {
+                      const option = probeOptions.voltage.find(
+                        (candidate) =>
+                          simulationProbeTargetKey(candidate.target) ===
+                          event.currentTarget.value,
+                      );
+                      setNoisePositive(
+                        option ? voltageProbe(option) : undefined,
+                      );
+                    }}
+                  >
+                    <option value="">Choose a Net</option>
+                    {probeOptions.voltage.map((option) => (
+                      <option
+                        key={option.key}
+                        value={simulationProbeTargetKey(option.target)}
+                      >
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Output −
+                  <select
+                    aria-label="Noise output negative"
+                    value={noiseNegativeKey}
+                    onChange={(event) => {
+                      const option = probeOptions.voltage.find(
+                        (candidate) =>
+                          simulationProbeTargetKey(candidate.target) ===
+                          event.currentTarget.value,
+                      );
+                      setNoiseNegative(
+                        option ? voltageProbe(option) : undefined,
+                      );
+                    }}
+                  >
+                    <option value="">Ground</option>
+                    {probeOptions.voltage.map((option) => (
+                      <option
+                        key={option.key}
+                        value={simulationProbeTargetKey(option.target)}
+                        disabled={
+                          simulationProbeTargetKey(option.target) ===
+                          noisePositiveKey
+                        }
+                      >
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <label>
+                Input source
+                <select
+                  name="noiseInputSourceInstanceId"
+                  required
+                  value={selectedNoiseSourceId}
+                  onChange={(event) =>
+                    setNoiseInputSourceId(event.currentTarget.value)
+                  }
+                >
+                  {dcSources.length === 0 ? (
+                    <option value="">
+                      No independent sources in Testbench
+                    </option>
+                  ) : null}
+                  {dcSources.map((source) => (
+                    <option key={source.id} value={source.id}>
+                      {source.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Noise sweep
+                <select name="noiseSweep" defaultValue={noise?.sweep ?? "dec"}>
+                  <option value="dec">Decade</option>
+                  <option value="oct">Octave</option>
+                  <option value="lin">Linear</option>
+                </select>
+              </label>
+              <div className="simulation-inline-fields columns-3">
+                <label>
+                  Points
+                  <input
+                    name="noisePoints"
+                    type="number"
+                    min="1"
+                    defaultValue={noise?.points ?? 20}
+                  />
+                </label>
+                <label>
+                  Start (Hz)
+                  <input
+                    name="noiseStartHz"
+                    type="number"
+                    step="any"
+                    defaultValue={noise?.startHz ?? 1}
+                  />
+                </label>
+                <label>
+                  Stop (Hz)
+                  <input
+                    name="noiseStopHz"
+                    type="number"
+                    step="any"
+                    defaultValue={noise?.stopHz ?? 1e6}
+                  />
+                </label>
+              </div>
             </div>
           ) : null}
         </SimulationSettingsSection>
@@ -1000,8 +1193,23 @@ export function SetupEditor({
               ...(dcEnabled ? (["dc"] as const) : []),
               ...(acEnabled ? (["ac"] as const) : []),
               ...(tranEnabled ? (["tran"] as const) : []),
+              ...(noiseEnabled ? (["noise"] as const) : []),
             ]}
-            outputs={outputs}
+            outputs={[
+              ...outputs,
+              ...(noiseEnabled
+                ? [
+                    {
+                      id: SIMULATION_NOISE_OUTPUT_DENSITY_ID,
+                      label: "Output noise density",
+                    },
+                    {
+                      id: SIMULATION_NOISE_INPUT_DENSITY_ID,
+                      label: "Input-referred noise density",
+                    },
+                  ]
+                : []),
+            ]}
             measurements={measurements}
             onChange={(next) => {
               setMeasurements(next);
@@ -1015,6 +1223,15 @@ export function SetupEditor({
       </form>
     </aside>
   );
+}
+
+function voltageProbe(
+  option: SimulationProbeOption<
+    Extract<SimulationExpression, { kind: "voltage" }>
+  >,
+): SimulationVoltageProbe {
+  const { kind: _kind, ...probe } = option.target;
+  return structuredClone(probe);
 }
 
 function optionalFormNumber(

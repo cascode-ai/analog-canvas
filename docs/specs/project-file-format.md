@@ -131,6 +131,9 @@ are rejected.
   `output.label` is the sole authored name used by OP/DC/AC/TRAN results,
   plots, CSV, and MCP. Optional measurement rules reference one enabled
   analysis and one Output and persist a scalar reduction, never a Run result.
+  Noise owns a differential voltage target and root independent input source;
+  its two density curves use stable protocol output ids instead of duplicating
+  ordinary Output expressions.
   A raw input owns bounded author
   files in the shared virtual relative namespace and declares external bytes
   by logical identity, mount path, and digest; it never stores a host path. Both
