@@ -1146,7 +1146,7 @@ test("carries a manual Value through placement and Q property editing", async ({
   await expect(instanceReference).toHaveValue("R7");
   await page
     .locator("summary")
-    .filter({ hasText: "Advanced parameters" })
+    .filter({ hasText: "Netlist overrides" })
     .click();
   await page.getByRole("button", { name: "Add parameter" }).click();
   await page.getByLabel("Additional parameter name 1").fill("tc");
