@@ -11,12 +11,12 @@ import {
   createSimulationInputMetadata,
 } from "@icm/spice-run";
 import { SimulationFiles, sha256 } from "./files.js";
+import { SimulationService } from "./service.js";
 import {
-  SimulationService,
   ExecutionFailure,
   type Executor,
   type ExecutionInput,
-} from "./service.js";
+} from "./executor.js";
 import type { Capabilities, SimulationReply } from "./contract.js";
 
 const caps: Capabilities = {
@@ -369,7 +369,7 @@ describe("shared simulation lifecycle", () => {
       ),
       "prepared",
     );
-    unwrap(
+    const started = unwrap(
       await f.service.handle(
         {
           operation: "start",
@@ -394,6 +394,30 @@ describe("shared simulation lifecycle", () => {
       undefined,
     );
     f.release();
+    await vi.waitFor(async () =>
+      expect(
+        unwrap(
+          await f.service.handle(
+            { operation: "read", runId: started.id },
+            "dependency-read",
+          ),
+          "run",
+        ),
+      ).toMatchObject({ state: "finished", inputStatus: "unchanged" }),
+    );
+    const saved = f.project.simulationSetups[0]!;
+    if (saved.input.kind !== "raw") throw new Error("raw fixture");
+    saved.input.dependencies[0]!.sha256 = "b".repeat(64);
+    f.project.structureRevision++;
+    expect(
+      unwrap(
+        await f.service.handle(
+          { operation: "read", runId: started.id },
+          "dependency-changed-read",
+        ),
+        "run",
+      ),
+    ).toMatchObject({ inputStatus: "changed" });
   });
 
   it("rejects stale Project setup preparation by structure revision", async () => {

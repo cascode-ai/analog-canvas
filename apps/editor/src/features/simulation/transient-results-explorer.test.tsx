@@ -65,14 +65,14 @@ describe("Transient Results Explorer", () => {
         probes={[
           {
             id: "probe-out",
-            kind: "net-voltage",
+            kind: "voltage",
             documentId: "tb",
             anchor: { kind: "base-net", netId: "out" },
             occurrence: [],
           },
           {
             id: "probe-v1",
-            kind: "terminal-current",
+            kind: "current",
             documentId: "tb",
             instanceId: "V1",
             pinName: "+",

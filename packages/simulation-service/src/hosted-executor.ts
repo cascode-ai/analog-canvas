@@ -4,7 +4,7 @@ import {
   ExecutionFailure,
   type Executor,
   type ExecutionInput,
-} from "./service.js";
+} from "./executor.js";
 
 export function createHostedExecutor(
   fetchImpl: typeof fetch = fetch,
@@ -50,7 +50,9 @@ export function createHostedExecutor(
           recovery:
             code === "simulator-busy"
               ? "retry-after"
-              : code === "simulator-unreachable"
+              : ["simulator-unreachable", "cancel-response-unknown"].includes(
+                    code,
+                  )
                 ? "retry-same-request"
                 : [
                       "simulation-not-configured",
@@ -65,7 +67,13 @@ export function createHostedExecutor(
                       ].includes(code)
                     ? "reprepare"
                     : "fix-input",
-          ...(code === "simulator-busy" ? { retryAfterMs: 2000 } : {}),
+          ...(code === "simulator-busy"
+            ? {
+                retryAfterMs: retryAfterMilliseconds(
+                  response.headers.get("retry-after"),
+                ),
+              }
+            : {}),
         },
         code === "simulator-unreachable",
       );
@@ -145,4 +153,12 @@ export function createHostedExecutor(
       await post({ operation: "cancel", runToken }, "cancel");
     },
   };
+}
+
+function retryAfterMilliseconds(value: string | null): number {
+  if (value === null) return 2000;
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1000;
+  const at = Date.parse(value);
+  return Number.isFinite(at) ? Math.max(0, at - Date.now()) : 2000;
 }

@@ -1,13 +1,8 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import type { SimulationFocusTarget } from "./simulation-focus-target";
+import { useEffect, useRef, useState } from "react";
 import {
-  type ObjectLocator,
   type ProjectSimulationSetup,
-  SimulationSetupSchema,
-  parseSimulationExpression,
-  type CircuitProject,
-  type SimulationExpression,
   type SimulationOutputSpec,
-  type SimulationProbeSpec,
   type SimulationStructuredInput,
 } from "@icm/model";
 import type {
@@ -19,24 +14,21 @@ import type {
   SimulationReply,
 } from "@icm/simulation-service/contract";
 import { downloadTextArtifact } from "../../document/project-file-service";
-import type { BrowserSimulationSession } from "./browser-simulation-session";
+import type { SpiceSimulationSurfaceProps } from "./simulation-surface-types";
+export type {
+  SpiceSimulationSurfaceProps,
+  SimulationSetupSaveResult,
+} from "./simulation-surface-types";
+import { SetupEditor, DEVELOPMENT_PROFILE_ID } from "./simulation-setup-editor";
+import { SimulationProblemView } from "./simulation-problem-view";
+import { SimulationRunDetails } from "./simulation-run-details";
 import { AcResultsExplorer } from "./ac-results-explorer";
 import { DcResultsExplorer } from "./dc-results-explorer";
 import { TransientResultsExplorer } from "./transient-results-explorer";
 import { SimulationOutputResults } from "./simulation-output-results";
-import {
-  deriveOperatingPointCanvasProjection,
-  type OperatingPointCanvasProjection,
-} from "./operating-point-projection";
+import { deriveOperatingPointCanvasProjection } from "./operating-point-projection";
 import type { OperatingPointDisplay } from "./operating-point-labels";
-import {
-  deriveSimulationProbeOptions,
-  matchSimulationTerminalCurrentProbeOptions,
-  matchSimulationVoltageProbeOptions,
-  simulationProbeSelectionKey,
-  simulationProbeTargetKey,
-  type SimulationProbeOption,
-} from "./simulation-probe-options";
+
 import {
   buildSimulationArtifactArchive,
   formatSimulationArtifactPreview,
@@ -63,15 +55,6 @@ const RESULT_TABS = [
   ["files", "Files"],
 ] as const;
 
-// Vite's UI-only development server has no execution capabilities endpoint.
-// Keep its single Preview profile visible for setup authoring; a deployed
-// executor's advertised profiles remain authoritative whenever available.
-const DEVELOPMENT_PROFILE_ID = import.meta.env.DEV
-  ? "sky130-core-continuous-ngspice46-v1"
-  : "";
-const DEVELOPMENT_PROFILE_LABEL = "SKY130 1.8 V · ngspice 46";
-const DEVELOPMENT_CORNERS = ["tt", "ff", "ss", "fs", "sf"] as const;
-const DEFAULT_SIMULATION_TEMPERATURE_C = 27;
 const MAX_COMPARISON_RUNS = 5;
 type ResultTab = (typeof RESULT_TABS)[number][0];
 
@@ -91,62 +74,8 @@ function preferredResultTab(run: Run): ResultTab {
   return "console";
 }
 
-export interface SpiceSimulationSurfaceProps {
-  open: boolean;
-  maximized: boolean;
-  project: CircuitProject;
-  activeDocumentId: string;
-  draftContext?: {
-    readonly setupId: string;
-    readonly setupName: string;
-    readonly dutDocumentId: string;
-    readonly rootDocumentId: string;
-  };
-  selectedSetupId: string | null;
-  onSelectSetupId(setupId: string): void;
-  session: BrowserSimulationSession;
-  onToggleMaximized(): void;
-  onMinimize(): void;
-  onExit(): void;
-  onSaveSetup(setup: ProjectSimulationSetup): SimulationSetupSaveResult;
-  onDeleteSetup(setupId: string): boolean;
-  pickNetsActive?: boolean;
-  pickedNet?: {
-    readonly sequence: number;
-    readonly documentId: string;
-    readonly netId: string;
-    /** Instance ids from the selected Testbench root to this Cell. */
-    readonly occurrence?: readonly string[];
-  } | null;
-  onPickNetsChange?(active: boolean): void;
-  pickTerminalsActive?: boolean;
-  pickedTerminal?: {
-    readonly sequence: number;
-    readonly documentId: string;
-    readonly instanceId: string;
-    readonly pinName: string;
-    /** Optional second click used only to present the authored direction. */
-    readonly directionPinName?: string;
-    /** Instance ids from the selected Testbench root to this Cell. */
-    readonly occurrence?: readonly string[];
-  } | null;
-  onPickTerminalsChange?(active: boolean): void;
-  onFocusProbe?(
-    probe: Extract<SimulationExpression, { kind: "voltage" | "current" }>,
-    rootDocumentId?: string,
-  ): void;
-  onFocusDiagnostic?(locator: ObjectLocator): void;
-  /** Session-only OP values ready for exact object-addressed canvas display. */
-  onOperatingPointProjection?(
-    projection: OperatingPointCanvasProjection | null,
-  ): void;
-}
-
-export type SimulationSetupSaveResult =
-  | { readonly status: "applied" | "unchanged" }
-  | { readonly status: "rejected"; readonly problem: Problem };
-
 interface PreparedPresentation {
+  readonly setupId: string;
   readonly prepared: Prepared;
   readonly outputs: SimulationStructuredInput["outputs"];
   readonly analysisLabel: string;
@@ -154,45 +83,13 @@ interface PreparedPresentation {
   readonly setupName: string;
 }
 
-function legacyProbe(output: SimulationOutputSpec): SimulationProbeSpec | null {
+function focusTarget(
+  output: SimulationOutputSpec,
+): SimulationFocusTarget | null {
   const expression = output.expression;
-  if (expression.kind === "voltage")
-    return {
-      id: output.id,
-      kind: "net-voltage",
-      documentId: expression.documentId,
-      anchor: structuredClone(expression.anchor),
-      occurrence: [...expression.occurrence],
-    };
-  if (expression.kind === "current")
-    return {
-      id: output.id,
-      kind: "terminal-current",
-      documentId: expression.documentId,
-      instanceId: expression.instanceId,
-      pinName: expression.pinName,
-      occurrence: [...expression.occurrence],
-    };
-  return null;
-}
-
-function expressionFromLegacyProbe(
-  probe: SimulationProbeSpec,
-): Extract<SimulationExpression, { kind: "voltage" | "current" }> {
-  return probe.kind === "net-voltage"
-    ? {
-        kind: "voltage",
-        documentId: probe.documentId,
-        anchor: structuredClone(probe.anchor),
-        occurrence: [...probe.occurrence],
-      }
-    : {
-        kind: "current",
-        documentId: probe.documentId,
-        instanceId: probe.instanceId,
-        pinName: probe.pinName,
-        occurrence: [...probe.occurrence],
-      };
+  return expression.kind === "voltage" || expression.kind === "current"
+    ? { ...expression, id: output.id }
+    : null;
 }
 
 function uiProblem(code: string, message: string): Problem {
@@ -206,13 +103,19 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   const selectedSetup = project.simulationSetups.find(
     (setup) => setup.id === props.selectedSetupId,
   );
+  const activeSetupId = useRef(props.selectedSetupId);
+  activeSetupId.current = props.selectedSetupId;
   const [capabilities, setCapabilities] = useState<Capabilities>();
   const [prepared, setPrepared] = useState<Prepared>();
   const [run, setRun] = useState<Run>();
+  const runDetails = useRef(new SimulationRunDetails());
   const [problem, setProblem] = useState<Problem>();
   const [busy, setBusy] = useState(false);
   const [dirty, setDirty] = useState(false);
   const preparedPresentations = useRef(new Map<string, PreparedPresentation>());
+  const setupResults = useRef(
+    new Map<string, { prepared?: Prepared; run?: Run }>(),
+  );
   const [setupOpen, setSetupOpen] = useState(true);
   const [resultsOpen, setResultsOpen] = useState(false);
   const [resultTab, setResultTab] = useState<ResultTab>("plot");
@@ -245,13 +148,16 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   useEffect(() => {
     if (previousSetupId.current === props.selectedSetupId) return;
     previousSetupId.current = props.selectedSetupId;
-    setPrepared(undefined);
-    setRun(undefined);
+    const previous = props.selectedSetupId
+      ? setupResults.current.get(props.selectedSetupId)
+      : undefined;
+    setPrepared(previous?.prepared);
+    setRun(previous?.run);
     setProblem(undefined);
     setArtifactPreview(undefined);
     props.onOperatingPointProjection?.(null);
-    setResultsOpen(false);
-    setSetupOpen(true);
+    setResultsOpen(!!previous?.run || !!previous?.prepared);
+    setSetupOpen(!previous?.run && !previous?.prepared);
   }, [props.selectedSetupId]);
   useEffect(() => {
     if (!open || selectedSetup) return;
@@ -268,6 +174,13 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   }, []);
   const receive = (reply: SimulationReply) => {
     if (!alive.current) return;
+    if ((selectedSetup?.id ?? null) !== activeSetupId.current) return;
+    if (reply.ok && "run" in reply) {
+      const owner = preparedPresentations.current.get(
+        reply.run.preparedId,
+      )?.setupId;
+      if (owner !== activeSetupId.current) return;
+    }
     if (!reply.ok) {
       setProblem(reply.error);
       if (selectedSetup) {
@@ -279,6 +192,11 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
         setResultsOpen(false);
       }
     } else if ("run" in reply) {
+      if (selectedSetup)
+        setupResults.current.set(selectedSetup.id, {
+          ...setupResults.current.get(selectedSetup.id),
+          run: reply.run,
+        });
       setRun(reply.run);
       setProblem(undefined);
       const presentation = preparedPresentations.current.get(
@@ -311,6 +229,11 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
         setResultTab(preferredResultTab(reply.run));
       }
     } else if ("prepared" in reply) {
+      if (selectedSetup)
+        setupResults.current.set(selectedSetup.id, {
+          ...setupResults.current.get(selectedSetup.id),
+          prepared: reply.prepared,
+        });
       setPrepared(reply.prepared);
       setProblem(undefined);
       setArtifactPreview(undefined);
@@ -333,9 +256,21 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     let stopped = false;
     let timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
-      const reply = await session.handle({ operation: "read", runId: run.id });
+      let detailsProblem: Problem | undefined;
+      let reply = await session.handle({ operation: "read", runId: run.id });
+      if (
+        reply.ok &&
+        "run" in reply &&
+        reply.run.resultPreview &&
+        ["finished", "cancelled", "lost"].includes(reply.run.state)
+      ) {
+        const details = await runDetails.current.read(session.files, reply.run);
+        if (details.ok) reply = details;
+        else detailsProblem = details.error;
+      }
       if (stopped) return;
       receive(reply);
+      if (detailsProblem) setProblem(detailsProblem);
       if (
         reply.ok &&
         "run" in reply &&
@@ -367,6 +302,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
       if (reply.ok && "prepared" in reply) {
         const input = selectedSetup?.input;
         preparedPresentations.current.set(reply.prepared.id, {
+          setupId: selectedSetup!.id,
           prepared: structuredClone(reply.prepared),
           outputs:
             input?.kind === "structured" ? structuredClone(input.outputs) : [],
@@ -609,7 +545,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   const analysisLabel = runPresentation?.analysisLabel;
   const presentationProbes =
     runPresentation?.outputs.flatMap((output) => {
-      const probe = legacyProbe(output);
+      const probe = focusTarget(output);
       return probe ? [probe] : [];
     }) ?? [];
   const presentationLabels = Object.fromEntries(
@@ -869,6 +805,15 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
       {attention ? (
         <div className="simulation-workspace-notice" role="alert">
           <span>{attentionSummary}</span>
+          {activeProblem?.recovery === "retry-after" && !run ? (
+            <button
+              onClick={() =>
+                void session.handle({ operation: "capabilities" }).then(receive)
+              }
+            >
+              Retry connection
+            </button>
+          ) : null}
           {activeProblem?.recovery === "retry-same-request" && run ? (
             <button
               onClick={() =>
@@ -986,9 +931,9 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
                     outputs={runPresentation?.outputs ?? []}
                     {...(props.onFocusProbe
                       ? {
-                          onFocusProbe: (probe: SimulationProbeSpec) =>
+                          onFocusProbe: (probe: SimulationFocusTarget) =>
                             props.onFocusProbe?.(
-                              expressionFromLegacyProbe(probe),
+                              probe,
                               runPresentation?.rootDocumentId,
                             ),
                         }
@@ -1007,9 +952,9 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
                         labels={presentationLabels}
                         {...(props.onFocusProbe
                           ? {
-                              onFocusProbe: (probe: SimulationProbeSpec) =>
+                              onFocusProbe: (probe: SimulationFocusTarget) =>
                                 props.onFocusProbe?.(
-                                  expressionFromLegacyProbe(probe),
+                                  probe,
                                   runPresentation?.rootDocumentId,
                                 ),
                             }
@@ -1029,9 +974,9 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
                         labels={presentationLabels}
                         {...(props.onFocusProbe
                           ? {
-                              onFocusProbe: (probe: SimulationProbeSpec) =>
+                              onFocusProbe: (probe: SimulationFocusTarget) =>
                                 props.onFocusProbe?.(
-                                  expressionFromLegacyProbe(probe),
+                                  probe,
                                   runPresentation?.rootDocumentId,
                                 ),
                             }
@@ -1051,9 +996,9 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
                         labels={presentationLabels}
                         {...(props.onFocusProbe
                           ? {
-                              onFocusProbe: (probe: SimulationProbeSpec) =>
+                              onFocusProbe: (probe: SimulationFocusTarget) =>
                                 props.onFocusProbe?.(
-                                  expressionFromLegacyProbe(probe),
+                                  probe,
                                   runPresentation?.rootDocumentId,
                                 ),
                             }
@@ -1420,1161 +1365,6 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
         </section>
       ) : null}
     </section>
-  );
-}
-
-const RECOVERY_LABELS: Record<Problem["recovery"], string> = {
-  "fix-input": "Review the highlighted input and apply the correction.",
-  reprepare: "The input changed. Prepare it again before running.",
-  "retry-same-request":
-    "The response is uncertain. Refresh this run; do not start a duplicate.",
-  "retry-after":
-    "Keep the current work and try again after the service recovers.",
-  reauthorize:
-    "Reconnect the simulation session, then continue with the same Project.",
-  "not-retryable":
-    "This run will not be retried automatically. Preserve its files before starting another.",
-};
-
-function SimulationProblemView({
-  problem,
-  onFocus,
-}: {
-  problem: Problem;
-  onFocus?: (locator: ObjectLocator) => void;
-}) {
-  const locator = (
-    value: NonNullable<NonNullable<Problem["diagnostics"]>[number]["primary"]>,
-  ): ObjectLocator => ({
-    documentId: value.documentId,
-    hierarchyPath: value.hierarchyPath.map((frame) => ({ ...frame })),
-    kind: value.kind,
-    objectId: value.objectId,
-    ...(value.endpoint === undefined ? {} : { endpoint: value.endpoint }),
-    ...(value.sourceRef === undefined ? {} : { sourceRef: value.sourceRef }),
-  });
-  return (
-    <section className="simulation-problem" aria-label="Simulation problem">
-      <header>
-        <strong>{problem.code}</strong>
-        <small>
-          {problem.stage} · {problem.recovery}
-        </small>
-      </header>
-      <p>{problem.message}</p>
-      <p>{RECOVERY_LABELS[problem.recovery]}</p>
-      {problem.retryAfterMs !== undefined ? (
-        <small>
-          Try again after {Math.ceil(problem.retryAfterMs / 1000)} s.
-        </small>
-      ) : null}
-      {problem.diagnostics?.length ? (
-        <ul>
-          {problem.diagnostics.map((diagnostic, index) => (
-            <li key={`${diagnostic.code}:${index}`}>
-              <span>
-                <strong>{diagnostic.code}</strong> {diagnostic.message}
-                {diagnostic.field ? <small>{diagnostic.field}</small> : null}
-              </span>
-              {diagnostic.primary && onFocus ? (
-                <button
-                  type="button"
-                  onClick={() => onFocus(locator(diagnostic.primary!))}
-                >
-                  Show
-                </button>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-      ) : null}
-    </section>
-  );
-}
-
-function SimulationSettingsSection({
-  title,
-  summary,
-  defaultOpen = false,
-  children,
-}: {
-  title: string;
-  summary?: string;
-  defaultOpen?: boolean;
-  children: ReactNode;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <details
-      className="simulation-settings-section"
-      aria-label={`${title} settings`}
-      open={open}
-      onToggle={(event) => setOpen(event.currentTarget.open)}
-    >
-      <summary>
-        <strong>{title}</strong>
-        {summary ? <span>{summary}</span> : null}
-      </summary>
-      <div className="simulation-settings-section-body">{children}</div>
-    </details>
-  );
-}
-
-function SetupEditor({
-  project,
-  activeDocumentId,
-  draftContext,
-  capabilities,
-  onSaveSetup,
-  setup,
-  onDirty,
-  onProblem,
-  pickNetsActive,
-  pickedNet,
-  onPickNetsChange,
-  pickTerminalsActive,
-  pickedTerminal,
-  onPickTerminalsChange,
-}: SpiceSimulationSurfaceProps & {
-  setup: ProjectSimulationSetup | undefined;
-  capabilities: Capabilities | undefined;
-  onDirty(value: boolean): void;
-  onProblem(value: Problem | undefined): void;
-}) {
-  const saved = setup?.input.kind === "structured" ? setup.input : undefined;
-  const rootId =
-    saved?.rootDocumentId ?? draftContext?.rootDocumentId ?? activeDocumentId;
-  const [outputs, setOutputs] = useState(saved?.outputs ?? []);
-  const [setupName, setSetupName] = useState(
-    setup?.name ?? draftContext?.setupName ?? "Setup 1",
-  );
-  const [expressionText, setExpressionText] = useState("");
-  const [expressionLabel, setExpressionLabel] = useState("");
-  const [editingOutputId, setEditingOutputId] = useState<string>();
-  const root = project.documents.find((d) => d.id === rootId);
-  const probeOptions = deriveSimulationProbeOptions(project, rootId);
-  const dcSources = (root?.instances ?? []).flatMap((instance) => {
-    const binding = instance.netlist?.binding;
-    if (
-      binding?.kind !== "primitive" ||
-      (binding.deviceClass !== "voltage-source" &&
-        binding.deviceClass !== "current-source")
-    )
-      return [];
-    return [
-      {
-        id: instance.id,
-        label: `${instance.reference} · ${binding.deviceClass === "voltage-source" ? "Voltage" : "Current"}`,
-        unit: binding.deviceClass === "voltage-source" ? "V" : "A",
-      },
-    ];
-  });
-  const probeLabels = new Map<string, string>();
-  for (const option of [
-    ...probeOptions.voltage,
-    ...probeOptions.terminalCurrent,
-  ]) {
-    // The option key is Logical-Net scoped for selection deduplication, while
-    // a persisted output keeps its durable object anchor. Both identities
-    // describe the same visible target and therefore share one display label.
-    probeLabels.set(option.key, option.label);
-    probeLabels.set(simulationProbeTargetKey(option.target), option.label);
-  }
-  const selectedProbeKeys = new Set(
-    outputs.flatMap((output) =>
-      output.expression.kind === "voltage" ||
-      output.expression.kind === "current"
-        ? [simulationProbeSelectionKey(project, output.expression)]
-        : [],
-    ),
-  );
-  const dc = saved?.analyses.find((a) => a.kind === "dc");
-  const ac = saved?.analyses.find((a) => a.kind === "ac");
-  const tran = saved?.analyses.find((a) => a.kind === "tran");
-  const [dcEnabled, setDcEnabled] = useState(!!dc);
-  const [dcSourceId, setDcSourceId] = useState(
-    dc?.sourceInstanceId ?? dcSources[0]?.id ?? "",
-  );
-  const [acEnabled, setAcEnabled] = useState(!!ac);
-  const [tranEnabled, setTranEnabled] = useState(!!tran);
-  const [opEnabled, setOpEnabled] = useState(
-    !saved || saved.analyses.some((analysis) => analysis.kind === "op"),
-  );
-  const [profileId, setProfileId] = useState(
-    saved?.environment.profileId ?? DEVELOPMENT_PROFILE_ID,
-  );
-  const [corner, setCorner] = useState(
-    saved?.environment.corner ?? (DEVELOPMENT_PROFILE_ID ? "tt" : ""),
-  );
-  const [temperatureC, setTemperatureC] = useState(
-    String(saved?.environment.temperatureC ?? DEFAULT_SIMULATION_TEMPERATURE_C),
-  );
-  const rawSaved = setup?.input.kind === "raw" ? setup.input : undefined;
-  const [switchFromRaw, setSwitchFromRaw] = useState(false);
-  const [pickCandidates, setPickCandidates] = useState<
-    readonly SimulationProbeOption[]
-  >([]);
-  useEffect(() => {
-    const defaultProfileId = capabilities?.profiles[0]?.id;
-    if (
-      !saved?.environment.profileId &&
-      defaultProfileId &&
-      (!profileId || profileId === DEVELOPMENT_PROFILE_ID)
-    )
-      setProfileId(defaultProfileId);
-  }, [capabilities?.profiles[0]?.id, profileId, saved?.environment.profileId]);
-  const advertisedProfiles =
-    capabilities?.profiles ??
-    (DEVELOPMENT_PROFILE_ID
-      ? [
-          {
-            id: DEVELOPMENT_PROFILE_ID,
-            label: DEVELOPMENT_PROFILE_LABEL,
-            corners: [...DEVELOPMENT_CORNERS],
-          },
-        ]
-      : []);
-  const selectedProfile = advertisedProfiles.find(
-    (profile) => profile.id === profileId,
-  );
-  const defaultCorner = selectedProfile?.corners[0] ?? "";
-  useEffect(() => {
-    if (!corner && !saved?.environment.corner && defaultCorner)
-      setCorner(defaultCorner);
-  }, [corner, defaultCorner, saved?.environment.corner]);
-  const profileUnavailable = !!profileId && !!capabilities && !selectedProfile;
-  const showProfilePicker = advertisedProfiles.length > 1 || profileUnavailable;
-  const environmentLabel =
-    selectedProfile?.label ??
-    (profileUnavailable
-      ? `${profileId} (unavailable)`
-      : "Loading environment…");
-  const environmentTemperature =
-    temperatureC.trim() || String(DEFAULT_SIMULATION_TEMPERATURE_C);
-  const analysisSummary = [
-    dcEnabled ? "DC" : undefined,
-    opEnabled ? "OP" : undefined,
-    acEnabled ? "AC" : undefined,
-    tranEnabled ? "TRAN" : undefined,
-  ]
-    .filter(Boolean)
-    .join(" + ");
-  const selectedDcSourceId = dcSources.some(
-    (source) => source.id === dcSourceId,
-  )
-    ? dcSourceId
-    : (dcSources[0]?.id ?? "");
-  useEffect(() => {
-    if (!pickedNet) return;
-    const candidates = matchSimulationVoltageProbeOptions(
-      project,
-      probeOptions.voltage,
-      pickedNet,
-    );
-    if (candidates.length > 1) {
-      setPickCandidates(candidates);
-      onProblem(undefined);
-      return;
-    }
-    const option = candidates[0];
-    if (!option) {
-      onProblem(
-        uiProblem(
-          "PROBE_TARGET_UNAVAILABLE",
-          "That Net is outside this Setup's Testbench. Choose it from the Output list or create a Setup for the intended Testbench.",
-        ),
-      );
-      return;
-    }
-    const key = simulationProbeSelectionKey(project, option.target);
-    if (
-      outputs.some(
-        (output) =>
-          (output.expression.kind === "voltage" ||
-            output.expression.kind === "current") &&
-          simulationProbeSelectionKey(project, output.expression) === key,
-      )
-    )
-      return;
-    setOutputs((current) => [...current, outputFromOption(option, current)]);
-    onDirty(true);
-    setPickCandidates([]);
-    onProblem(undefined);
-  }, [pickedNet?.sequence]);
-  useEffect(() => {
-    if (!pickedTerminal) return;
-    const candidates = matchSimulationTerminalCurrentProbeOptions(
-      probeOptions.terminalCurrent,
-      pickedTerminal,
-    );
-    const presentedCandidates = candidates.map((candidate) =>
-      pickedTerminal.directionPinName
-        ? {
-            ...candidate,
-            label: candidate.label.replace(
-              `${pickedTerminal.pinName} current`,
-              `${pickedTerminal.pinName}→${pickedTerminal.directionPinName} current`,
-            ),
-          }
-        : candidate,
-    );
-    if (presentedCandidates.length > 1) {
-      setPickCandidates(presentedCandidates);
-      onProblem(undefined);
-      return;
-    }
-    const option = presentedCandidates[0];
-    if (!option) {
-      onProblem(
-        uiProblem(
-          "PROBE_TARGET_UNAVAILABLE",
-          "That terminal is not a connected current target in the selected Testbench occurrence.",
-        ),
-      );
-      return;
-    }
-    const key = simulationProbeSelectionKey(project, option.target);
-    if (
-      outputs.some(
-        (output) =>
-          (output.expression.kind === "voltage" ||
-            output.expression.kind === "current") &&
-          simulationProbeSelectionKey(project, output.expression) === key,
-      )
-    ) {
-      onProblem(
-        uiProblem(
-          "PROBE_TARGET_ALREADY_SELECTED",
-          "That terminal current is already present in this Setup.",
-        ),
-      );
-      return;
-    }
-    setOutputs((current) => [...current, outputFromOption(option, current)]);
-    onDirty(true);
-    setPickCandidates([]);
-    onProblem(undefined);
-  }, [pickedTerminal?.sequence]);
-  useEffect(() => {
-    onDirty(false);
-  }, []);
-  if (rawSaved && !switchFromRaw) {
-    return (
-      <aside className="simulation-setup-panel" aria-label="Simulation setup">
-        <header>
-          <div>
-            <strong>Raw setup</strong>
-          </div>
-        </header>
-        <div className="simulation-raw-summary">
-          <p>
-            <strong>{rawSaved.entry}</strong>
-          </p>
-          <button type="button" onClick={() => setSwitchFromRaw(true)}>
-            Switch to structured setup…
-          </button>
-        </div>
-      </aside>
-    );
-  }
-  return (
-    <aside className="simulation-setup-panel" aria-label="Simulation setup">
-      <header>
-        <div>
-          <strong>Settings</strong>
-        </div>
-      </header>
-      <form
-        onChange={(event) => {
-          if (
-            (event.target as unknown as { name?: string }).name !== "setupName"
-          )
-            onDirty(true);
-        }}
-        onSubmit={(event) => {
-          event.preventDefault();
-          const data = new FormData(event.currentTarget);
-          const parsed = SimulationSetupSchema.safeParse({
-            version: 2,
-            input: {
-              kind: "structured",
-              rootDocumentId: rootId,
-              analyses: [
-                ...(data.has("op") ? [{ kind: "op" }] : []),
-                ...(data.has("dc")
-                  ? [
-                      {
-                        kind: "dc",
-                        sourceInstanceId: data.get("dcSourceInstanceId"),
-                        startValue: Number(data.get("dcStartValue")),
-                        stopValue: Number(data.get("dcStopValue")),
-                        stepValue: Number(data.get("dcStepValue")),
-                      },
-                    ]
-                  : []),
-                ...(data.has("ac")
-                  ? [
-                      {
-                        kind: "ac",
-                        sweep: data.get("sweep"),
-                        points: Number(data.get("points")),
-                        startHz: Number(data.get("startHz")),
-                        stopHz: Number(data.get("stopHz")),
-                      },
-                    ]
-                  : []),
-                ...(data.has("tran")
-                  ? [
-                      {
-                        kind: "tran",
-                        stepSeconds: Number(data.get("tranStepSeconds")),
-                        stopSeconds: Number(data.get("tranStopSeconds")),
-                        ...optionalFormNumber(
-                          data,
-                          "tranStartSeconds",
-                          "startSeconds",
-                        ),
-                        ...optionalFormNumber(
-                          data,
-                          "tranMaxStepSeconds",
-                          "maxStepSeconds",
-                        ),
-                      },
-                    ]
-                  : []),
-              ],
-              outputs,
-              environment: {
-                profileId: data.get("profileId"),
-                ...(data.get("corner") ? { corner: data.get("corner") } : {}),
-                ...(data.get("temperatureC")
-                  ? { temperatureC: Number(data.get("temperatureC")) }
-                  : {}),
-              },
-            },
-          });
-          if (!parsed.success) {
-            onProblem(
-              uiProblem(
-                "SIMULATION_SETUP_INVALID",
-                parsed.error.issues.map((i) => i.message).join("\n"),
-              ),
-            );
-            return;
-          }
-          const setupName = String(data.get("setupName") ?? "").trim();
-          if (!setupName) {
-            onProblem(
-              uiProblem("SIMULATION_SETUP_INVALID", "Setup name is required"),
-            );
-            return;
-          }
-          const setupId =
-            setup?.id ??
-            draftContext?.setupId ??
-            `simulation-setup-${crypto.randomUUID()}`;
-          const result = onSaveSetup({
-            id: setupId,
-            name: setupName,
-            ...parsed.data,
-          });
-          if (result.status !== "rejected") {
-            onDirty(false);
-            onProblem(undefined);
-          } else onProblem(result.problem);
-        }}
-      >
-        <SimulationSettingsSection
-          title="Setup"
-          summary={`${corner ? corner.toUpperCase() : "—"} · ${environmentTemperature} °C`}
-          defaultOpen
-        >
-          <label>
-            Name
-            <input
-              aria-label="Setup name"
-              name="setupName"
-              required
-              value={setupName}
-              onChange={(event) => setSetupName(event.currentTarget.value)}
-              onBlur={() => {
-                const name = setupName.trim();
-                if (!setup || name === setup.name) return;
-                if (!name) {
-                  setSetupName(setup.name);
-                  onProblem(
-                    uiProblem(
-                      "SIMULATION_SETUP_INVALID",
-                      "Setup name is required.",
-                    ),
-                  );
-                  return;
-                }
-                const result = onSaveSetup({ ...setup, name });
-                if (result.status !== "rejected") onProblem(undefined);
-                else {
-                  setSetupName(setup.name);
-                  onProblem(result.problem);
-                }
-              }}
-            />
-          </label>
-          <div className="simulation-environment-grid">
-            {showProfilePicker ? (
-              <label className="simulation-environment-profile">
-                Profile
-                <select
-                  name="profileId"
-                  required
-                  value={profileId}
-                  onChange={(event) => {
-                    const nextId = event.currentTarget.value;
-                    const nextProfile = advertisedProfiles.find(
-                      (profile) => profile.id === nextId,
-                    );
-                    setProfileId(nextId);
-                    if (!nextProfile?.corners.includes(corner))
-                      setCorner(nextProfile?.corners[0] ?? "");
-                  }}
-                >
-                  {profileUnavailable ? (
-                    <option value={profileId}>{profileId} (unavailable)</option>
-                  ) : null}
-                  {advertisedProfiles.map((profile) => (
-                    <option key={profile.id} value={profile.id}>
-                      {profile.label ?? profile.id}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ) : (
-              <label className="simulation-environment-profile">
-                Profile
-                <span className="simulation-environment-value">
-                  {environmentLabel}
-                </span>
-                <input name="profileId" type="hidden" value={profileId} />
-              </label>
-            )}
-            <label>
-              Corner
-              <select
-                aria-label="Process corner"
-                name="corner"
-                value={corner}
-                onChange={(event) => setCorner(event.currentTarget.value)}
-                disabled={!selectedProfile}
-              >
-                {!corner ? (
-                  <option value="">
-                    {selectedProfile ? "Profile default" : "Unavailable"}
-                  </option>
-                ) : null}
-                {corner && !selectedProfile?.corners.includes(corner) ? (
-                  <option value={corner}>
-                    {corner.toUpperCase()} (unavailable)
-                  </option>
-                ) : null}
-                {selectedProfile?.corners.map((candidate) => (
-                  <option key={candidate} value={candidate}>
-                    {candidate.toUpperCase()}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Temperature (°C)
-              <input
-                name="temperatureC"
-                type="number"
-                step="any"
-                value={temperatureC}
-                onChange={(event) => setTemperatureC(event.currentTarget.value)}
-              />
-            </label>
-          </div>
-        </SimulationSettingsSection>
-        <SimulationSettingsSection
-          title="Analyses"
-          summary={analysisSummary || "None"}
-        >
-          <fieldset className="simulation-analysis-row">
-            <legend className="simulation-visually-hidden">Analyses</legend>
-            <div className="simulation-analysis-options">
-              <label>
-                <input
-                  name="dc"
-                  type="checkbox"
-                  checked={dcEnabled}
-                  onChange={(event) =>
-                    setDcEnabled(event.currentTarget.checked)
-                  }
-                />
-                DC
-              </label>
-              <label>
-                <input
-                  name="op"
-                  type="checkbox"
-                  checked={opEnabled}
-                  onChange={(event) =>
-                    setOpEnabled(event.currentTarget.checked)
-                  }
-                />
-                OP
-              </label>
-              <label>
-                <input
-                  name="ac"
-                  type="checkbox"
-                  checked={acEnabled}
-                  onChange={(event) =>
-                    setAcEnabled(event.currentTarget.checked)
-                  }
-                />
-                AC
-              </label>
-              <label>
-                <input
-                  name="tran"
-                  type="checkbox"
-                  checked={tranEnabled}
-                  onChange={(event) =>
-                    setTranEnabled(event.currentTarget.checked)
-                  }
-                />
-                TRAN
-              </label>
-            </div>
-          </fieldset>
-          {dcEnabled ? (
-            <div className="simulation-setup-group simulation-analysis-settings">
-              <label>
-                DC sweep source
-                <select
-                  name="dcSourceInstanceId"
-                  required
-                  value={selectedDcSourceId}
-                  onChange={(event) => setDcSourceId(event.currentTarget.value)}
-                >
-                  {dcSources.length === 0 ? (
-                    <option value="">
-                      No independent sources in Testbench
-                    </option>
-                  ) : null}
-                  {dcSources.map((source) => (
-                    <option key={source.id} value={source.id}>
-                      {source.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <div className="simulation-inline-fields columns-3">
-                <label>
-                  Start
-                  <input
-                    name="dcStartValue"
-                    type="number"
-                    step="any"
-                    required
-                    defaultValue={dc?.startValue ?? 0}
-                  />
-                </label>
-                <label>
-                  Stop
-                  <input
-                    name="dcStopValue"
-                    type="number"
-                    step="any"
-                    required
-                    defaultValue={dc?.stopValue ?? 1.8}
-                  />
-                </label>
-                <label>
-                  Step
-                  <input
-                    name="dcStepValue"
-                    type="number"
-                    step="any"
-                    required
-                    defaultValue={dc?.stepValue ?? 0.01}
-                  />
-                </label>
-              </div>
-              <small>
-                Values use{" "}
-                {dcSources.find((source) => source.id === selectedDcSourceId)
-                  ?.unit ?? "the source unit"}
-                ; step is a positive magnitude.
-              </small>
-            </div>
-          ) : null}
-          {acEnabled ? (
-            <div className="simulation-setup-group simulation-analysis-settings">
-              <label>
-                AC sweep
-                <select name="sweep" defaultValue={ac?.sweep ?? "dec"}>
-                  <option value="dec">Decade</option>
-                  <option value="oct">Octave</option>
-                  <option value="lin">Linear</option>
-                </select>
-              </label>
-              <div className="simulation-inline-fields columns-3">
-                <label>
-                  Points
-                  <input
-                    name="points"
-                    type="number"
-                    min="1"
-                    defaultValue={ac?.points ?? 20}
-                  />
-                </label>
-                <label>
-                  Start (Hz)
-                  <input
-                    name="startHz"
-                    type="number"
-                    step="any"
-                    defaultValue={ac?.startHz ?? 1}
-                  />
-                </label>
-                <label>
-                  Stop (Hz)
-                  <input
-                    name="stopHz"
-                    type="number"
-                    step="any"
-                    defaultValue={ac?.stopHz ?? 1e6}
-                  />
-                </label>
-              </div>
-            </div>
-          ) : null}
-          {tranEnabled ? (
-            <div className="simulation-setup-group simulation-inline-fields columns-2">
-              <label>
-                TRAN step (s)
-                <input
-                  name="tranStepSeconds"
-                  type="number"
-                  step="any"
-                  defaultValue={tran?.stepSeconds ?? 1e-9}
-                />
-              </label>
-              <label>
-                TRAN stop (s)
-                <input
-                  name="tranStopSeconds"
-                  type="number"
-                  step="any"
-                  defaultValue={tran?.stopSeconds ?? 1e-6}
-                />
-              </label>
-              <label>
-                TRAN start saving (s)
-                <input
-                  name="tranStartSeconds"
-                  type="number"
-                  step="any"
-                  min="0"
-                  defaultValue={tran?.startSeconds ?? ""}
-                  placeholder="0"
-                />
-              </label>
-              <label>
-                TRAN maximum step (s)
-                <input
-                  name="tranMaxStepSeconds"
-                  type="number"
-                  step="any"
-                  min="0"
-                  defaultValue={tran?.maxStepSeconds ?? ""}
-                  placeholder="Simulator default"
-                />
-              </label>
-            </div>
-          ) : null}
-        </SimulationSettingsSection>
-        <SimulationSettingsSection
-          title="Output probes"
-          summary={`${outputs.filter((output) => output.expression.kind === "voltage" || output.expression.kind === "current").length} selected`}
-        >
-          <ProbeSelect
-            label="Add voltage probe"
-            placeholder="Choose a Net"
-            options={probeOptions.voltage}
-            selectedKeys={selectedProbeKeys}
-            onAdd={(option) => {
-              setOutputs([...outputs, outputFromOption(option, outputs)]);
-              onDirty(true);
-            }}
-            trailingAction={
-              <button
-                type="button"
-                className={
-                  pickNetsActive ? "simulation-pick-active" : undefined
-                }
-                aria-pressed={pickNetsActive}
-                onClick={() => onPickNetsChange?.(!pickNetsActive)}
-              >
-                {pickNetsActive ? "Picking Nets…" : "Pick on canvas"}
-              </button>
-            }
-          />
-          {pickCandidates.length > 1 ? (
-            <fieldset
-              className="simulation-setup-group"
-              aria-label="Choose probe occurrence"
-            >
-              <legend>Choose occurrence</legend>
-              {pickCandidates.map((option) => (
-                <button
-                  type="button"
-                  key={option.key}
-                  onClick={() => {
-                    setOutputs((current) => [
-                      ...current,
-                      outputFromOption(option, current),
-                    ]);
-                    setPickCandidates([]);
-                    onDirty(true);
-                  }}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </fieldset>
-          ) : null}
-          <ProbeSelect
-            label="Add current output"
-            placeholder="Choose a terminal current"
-            options={probeOptions.terminalCurrent}
-            selectedKeys={selectedProbeKeys}
-            onAdd={(option) => {
-              setOutputs([...outputs, outputFromOption(option, outputs)]);
-              onDirty(true);
-            }}
-            trailingAction={
-              <button
-                type="button"
-                className={
-                  pickTerminalsActive ? "simulation-pick-active" : undefined
-                }
-                aria-pressed={pickTerminalsActive}
-                onClick={() => onPickTerminalsChange?.(!pickTerminalsActive)}
-              >
-                {pickTerminalsActive ? "Picking current…" : "Pick current"}
-              </button>
-            }
-          />
-          <small>First terminal sets the positive current direction.</small>
-        </SimulationSettingsSection>
-        <SimulationSettingsSection
-          title="Output signals"
-          summary={`${outputs.length} configured`}
-        >
-          <fieldset className="simulation-expression-editor">
-            <legend>Derived expression</legend>
-            <div className="simulation-inline-fields columns-2">
-              <label>
-                Name
-                <input
-                  value={expressionLabel}
-                  placeholder="Gain"
-                  onChange={(event) =>
-                    setExpressionLabel(event.currentTarget.value)
-                  }
-                />
-              </label>
-              <label>
-                Expression
-                <input
-                  value={expressionText}
-                  placeholder="db20(Vout / Vin)"
-                  onChange={(event) =>
-                    setExpressionText(event.currentTarget.value)
-                  }
-                />
-              </label>
-            </div>
-            <small>
-              Use output names with +, −, ×, ÷, mag, db20, phase, real, imag, or
-              abs.
-            </small>
-            <button
-              type="button"
-              onClick={() => {
-                const label = expressionLabel.trim();
-                if (!/^[A-Za-z_][A-Za-z0-9_]*$/u.test(label)) {
-                  onProblem(
-                    uiProblem(
-                      "SIMULATION_OUTPUT_NAME_INVALID",
-                      "Expression names use letters, numbers, and underscores, beginning with a letter or underscore.",
-                    ),
-                  );
-                  return;
-                }
-                if (
-                  outputs.some(
-                    (output) =>
-                      output.id !== editingOutputId &&
-                      output.label.toLowerCase() === label.toLowerCase(),
-                  )
-                ) {
-                  onProblem(
-                    uiProblem(
-                      "SIMULATION_OUTPUT_NAME_DUPLICATE",
-                      `An output named ${label} already exists.`,
-                    ),
-                  );
-                  return;
-                }
-                const symbols = new Map(
-                  outputs
-                    .filter(
-                      (output) =>
-                        output.id !== editingOutputId &&
-                        /^[A-Za-z_][A-Za-z0-9_]*$/u.test(output.label),
-                    )
-                    .map(
-                      (output) => [output.label, output.expression] as const,
-                    ),
-                );
-                const parsed = parseSimulationExpression(
-                  expressionText,
-                  symbols,
-                );
-                if (!parsed.ok) {
-                  onProblem(
-                    uiProblem(
-                      `SIMULATION_EXPRESSION_${parsed.code}`,
-                      `${parsed.message} at character ${parsed.offset + 1}.`,
-                    ),
-                  );
-                  return;
-                }
-                setOutputs((current) => {
-                  const next = {
-                    id: editingOutputId ?? crypto.randomUUID(),
-                    label,
-                    expression: parsed.expression,
-                  };
-                  return editingOutputId
-                    ? current.map((output) =>
-                        output.id === editingOutputId ? next : output,
-                      )
-                    : [...current, next];
-                });
-                setExpressionLabel("");
-                setExpressionText("");
-                setEditingOutputId(undefined);
-                onDirty(true);
-                onProblem(undefined);
-              }}
-            >
-              {editingOutputId ? "Save expression" : "Add expression"}
-            </button>
-          </fieldset>
-          <ul className="simulation-probe-list" aria-label="Configured Outputs">
-            {outputs.map((output) => (
-              <li key={output.id}>
-                <span>
-                  <input
-                    aria-label={`Output name for ${output.label}`}
-                    value={output.label}
-                    onChange={(event) => {
-                      event.stopPropagation();
-                      const label = event.currentTarget.value;
-                      setOutputs((current) =>
-                        current.map((candidate) =>
-                          candidate.id === output.id
-                            ? { ...candidate, label }
-                            : candidate,
-                        ),
-                      );
-                      onDirty(true);
-                    }}
-                  />
-                  <small>
-                    {describeOutputExpression(output, probeLabels, outputs)}
-                  </small>
-                </span>
-                {output.expression.kind !== "voltage" &&
-                output.expression.kind !== "current" &&
-                formatOutputExpression(output.expression, outputs) ? (
-                  <button
-                    type="button"
-                    aria-label={`Edit expression ${output.label}`}
-                    onClick={() => {
-                      setEditingOutputId(output.id);
-                      setExpressionLabel(output.label);
-                      setExpressionText(
-                        formatOutputExpression(output.expression, outputs)!,
-                      );
-                    }}
-                  >
-                    Edit
-                  </button>
-                ) : null}
-                <button
-                  type="button"
-                  aria-label="Remove output"
-                  onClick={() => {
-                    setOutputs(
-                      outputs.filter((value) => value.id !== output.id),
-                    );
-                    if (editingOutputId === output.id) {
-                      setEditingOutputId(undefined);
-                      setExpressionLabel("");
-                      setExpressionText("");
-                    }
-                    onDirty(true);
-                  }}
-                >
-                  Remove output
-                </button>
-              </li>
-            ))}
-          </ul>
-        </SimulationSettingsSection>
-        <div className="simulation-settings-actions">
-          <button type="submit">Apply setup</button>
-        </div>
-      </form>
-    </aside>
-  );
-}
-
-function optionalFormNumber(
-  data: FormData,
-  formName: "tranStartSeconds" | "tranMaxStepSeconds",
-  outputName: "startSeconds" | "maxStepSeconds",
-): Partial<Record<typeof outputName, number>> {
-  const value = String(data.get(formName) ?? "").trim();
-  return value ? { [outputName]: Number(value) } : {};
-}
-
-function outputFromOption(
-  option: SimulationProbeOption,
-  existing: readonly SimulationOutputSpec[],
-): SimulationStructuredInput["outputs"][number] {
-  const source = option.label.split(" · ").at(-1) ?? "Output";
-  const stem = source.replace(/[^A-Za-z0-9_]/gu, "_");
-  const base = /^[A-Za-z_]/u.test(stem) ? stem : `Output_${stem}`;
-  const used = new Set(existing.map((output) => output.label.toLowerCase()));
-  let label = base;
-  for (let suffix = 2; used.has(label.toLowerCase()); suffix++)
-    label = `${base}_${suffix}`;
-  return {
-    id: crypto.randomUUID(),
-    label,
-    expression: structuredClone(option.target),
-  };
-}
-
-function describeOutputExpression(
-  output: SimulationOutputSpec,
-  labels: ReadonlyMap<string, string>,
-  outputs: readonly SimulationOutputSpec[],
-): string {
-  const expression = output.expression;
-  if (expression.kind === "voltage" || expression.kind === "current")
-    return (
-      labels.get(simulationProbeTargetKey(expression)) ??
-      (expression.kind === "voltage"
-        ? "Voltage target unavailable"
-        : "Current target unavailable")
-    );
-  return formatOutputExpression(expression, outputs) ?? "Derived expression";
-}
-
-function formatOutputExpression(
-  expression: SimulationExpression,
-  outputs: readonly SimulationOutputSpec[],
-): string | null {
-  if (expression.kind === "voltage" || expression.kind === "current") {
-    const key = simulationProbeTargetKey(expression);
-    return (
-      outputs.find(
-        (output) =>
-          (output.expression.kind === "voltage" ||
-            output.expression.kind === "current") &&
-          simulationProbeTargetKey(output.expression) === key &&
-          /^[A-Za-z_][A-Za-z0-9_]*$/u.test(output.label),
-      )?.label ?? null
-    );
-  }
-  if (expression.kind === "constant") return String(expression.value);
-  if ("operand" in expression) {
-    const operand = formatOutputExpression(expression.operand, outputs);
-    if (!operand) return null;
-    if (expression.kind === "negate") return `-(${operand})`;
-    const functions = {
-      magnitude: "mag",
-      db20: "db20",
-      phase: "phase",
-      real: "real",
-      imaginary: "imag",
-      absolute: "abs",
-    } as const;
-    return `${functions[expression.kind]}(${operand})`;
-  }
-  const left = formatOutputExpression(expression.left, outputs);
-  const right = formatOutputExpression(expression.right, outputs);
-  if (!left || !right) return null;
-  const operators = {
-    add: "+",
-    subtract: "-",
-    multiply: "*",
-    divide: "/",
-  } as const;
-  return `(${left} ${operators[expression.kind]} ${right})`;
-}
-
-function ProbeSelect({
-  label,
-  placeholder,
-  options,
-  selectedKeys,
-  onAdd,
-  trailingAction,
-}: {
-  label: string;
-  placeholder: string;
-  options: readonly SimulationProbeOption[];
-  selectedKeys: ReadonlySet<string>;
-  onAdd(option: SimulationProbeOption): void;
-  trailingAction?: ReactNode;
-}) {
-  const selectId = useId();
-  return (
-    <div className="simulation-probe-select">
-      <label htmlFor={selectId}>{label}</label>
-      <span className="simulation-probe-control">
-        <select
-          id={selectId}
-          value=""
-          onChange={(event) => {
-            const option = options.find(
-              (candidate) => candidate.key === event.target.value,
-            );
-            if (option) onAdd(option);
-          }}
-        >
-          <option value="">{placeholder}</option>
-          {options.map((option) => (
-            <option
-              key={option.key}
-              value={option.key}
-              disabled={selectedKeys.has(option.key)}
-            >
-              {option.label}
-            </option>
-          ))}
-        </select>
-        {trailingAction}
-      </span>
-    </div>
   );
 }
 

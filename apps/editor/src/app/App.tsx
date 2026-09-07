@@ -1624,11 +1624,11 @@ export function App({
     simulationPickOccurrence;
   const simulationCurrentProbeOptions = useMemo(
     () =>
-      simulationPickRootDocumentId
+      simulationPickTerminalsActive && simulationPickRootDocumentId
         ? deriveSimulationProbeOptions(project, simulationPickRootDocumentId)
             .terminalCurrent
         : [],
-    [project, simulationPickRootDocumentId],
+    [project, simulationPickRootDocumentId, simulationPickTerminalsActive],
   );
   const simulationCurrentTargetsInView = useMemo(
     () =>

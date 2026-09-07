@@ -1,4 +1,4 @@
-import { strToU8, zipSync } from "fflate";
+import { strToU8, zip } from "fflate";
 import type { ArtifactRef, Problem } from "@icm/simulation-service/contract";
 import type { SimulationFiles } from "@icm/simulation-service/files";
 
@@ -92,10 +92,16 @@ export async function buildSimulationArtifactArchive(
     }
     return {
       ok: true,
-      bytes: zipSync(entries, {
-        level: 6,
-        mtime: new Date("1980-01-01T00:00:00.000Z"),
-      }),
+      bytes: await new Promise<Uint8Array>((resolve, reject) =>
+        zip(
+          entries,
+          {
+            level: 6,
+            mtime: new Date("1980-01-01T00:00:00.000Z"),
+          },
+          (error, bytes) => (error ? reject(error) : resolve(bytes)),
+        ),
+      ),
     };
   } catch {
     return {
