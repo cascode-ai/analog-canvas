@@ -744,43 +744,34 @@
 }
 .simulation-analysis-card {
   min-width: 0;
-  overflow: hidden;
-  border: 1px solid var(--icm-border-strong);
-  border-radius: var(--icm-radius-md);
-  background: var(--icm-surface);
-  box-shadow: var(--icm-shadow-sm);
+}
+.simulation-analysis-card + .simulation-analysis-card {
+  padding-top: 16px;
+  border-top: 1px solid var(--icm-border);
 }
 .simulation-analysis-card-header {
   display: grid;
   justify-items: center;
-  gap: 2px;
-  padding: 11px 16px;
-  border-bottom: 1px solid var(--icm-border);
-  background: var(--icm-surface-muted);
+  padding: 0 0 6px;
   text-align: center;
 }
 .simulation-analysis-view .simulation-analysis-card-header h3 {
   margin: 0;
   color: var(--icm-text);
-  font-size: var(--icm-font-md);
+  font-size: var(--icm-font-lg);
   font-weight: 700;
   letter-spacing: 0.01em;
 }
-.simulation-analysis-card-header small {
-  color: var(--icm-text-muted);
-  font-size: var(--icm-font-xs);
-}
 .simulation-analysis-card-body {
   display: grid;
-  gap: 14px;
+  gap: 10px;
   min-width: 0;
-  padding: 14px;
 }
 .simulation-analysis-card-body > .ac-results-explorer > header,
 .simulation-analysis-card-body > .transient-results-explorer > header {
   display: none;
 }
-.simulation-analysis-card-body > .simulation-measurement-results {
+.simulation-output-results > .simulation-measurement-results {
   margin-top: 0;
 }
 
@@ -1220,7 +1211,7 @@
 
 .transient-results-explorer {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 .transient-results-explorer > header > div {
   display: grid;
@@ -1292,7 +1283,7 @@
 .ac-results-explorer {
   position: relative;
   display: grid;
-  gap: 12px;
+  gap: 8px;
   min-width: 0;
 }
 .ac-results-explorer > header {
@@ -1313,29 +1304,19 @@
 }
 .ac-view-toolbar {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   min-width: 0;
-  min-height: 40px;
-  padding: 5px 7px;
-  overflow-x: auto;
-  border: 1px solid var(--icm-border);
-  border-radius: var(--icm-radius-sm);
-  background: var(--icm-surface-muted);
+  min-height: 32px;
 }
 .ac-view-toolbar > strong {
-  min-width: 88px;
-  padding-left: 3px;
+  min-width: 72px;
 }
 .ac-view-toolbar > [role="group"] {
   display: flex;
   flex-wrap: nowrap;
   gap: 2px;
-  padding: 2px;
-  border: 1px solid var(--icm-border);
-  border-radius: 7px;
-  background: var(--icm-surface-muted);
 }
 .ac-view-toolbar button {
   min-height: 26px;
@@ -1344,9 +1325,9 @@
   background: transparent;
 }
 .ac-view-toolbar button[aria-pressed="true"] {
-  background: var(--icm-surface);
+  background: color-mix(in srgb, var(--icm-accent) 8%, transparent);
   color: var(--icm-accent);
-  box-shadow: 0 1px 2px rgb(16 24 40 / 12%);
+  box-shadow: inset 0 -2px 0 var(--icm-accent);
 }
 .ac-view-toolbar > label {
   display: inline-flex;
@@ -1368,13 +1349,13 @@
 .simulation-plot-layout {
   display: grid;
   grid-template-columns: minmax(88px, 108px) minmax(0, 1fr);
-  gap: 12px;
+  gap: 8px;
   align-items: start;
   min-width: 0;
 }
 .simulation-plot-stack {
   display: grid;
-  gap: 12px;
+  gap: 8px;
   min-width: 0;
 }
 .waveform-trace-list {
@@ -1432,7 +1413,7 @@
 }
 .ac-quantity-group {
   display: grid;
-  gap: 10px;
+  gap: 6px;
   min-width: 0;
 }
 .ac-plot-row {
@@ -1463,19 +1444,21 @@
   border: 1px solid var(--icm-border);
   border-radius: var(--icm-radius-sm);
   background: #fff;
+  container-type: inline-size;
 }
 .ac-plot-toolbar {
   position: relative;
+  z-index: 2;
   order: -1;
   align-self: stretch;
   display: block;
-  height: 34px;
-  min-height: 34px;
+  height: 30px;
+  min-height: 30px;
   padding: 0;
   border: 0;
-  border-bottom: 1px solid var(--icm-border);
+  border-bottom: 1px solid color-mix(in srgb, var(--icm-border) 60%, white);
   border-radius: 0;
-  background: var(--icm-surface-muted);
+  background: #fff;
   box-shadow: none;
   outline-offset: -2px;
 }
@@ -1490,7 +1473,8 @@
   position: absolute;
   inset: 0;
   display: grid;
-  place-items: center;
+  place-items: center end;
+  padding-right: 8px;
   color: var(--icm-text-muted);
   font-size: var(--icm-font-xs);
   pointer-events: none;
@@ -1501,10 +1485,9 @@
   inset: 0;
   display: flex;
   align-items: center;
-  justify-content: flex-start;
-  gap: 2px;
+  justify-content: flex-end;
+  gap: 4px;
   padding: 3px 4px;
-  overflow-x: auto;
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
@@ -1514,7 +1497,8 @@
 }
 .ac-plot-shell:hover .waveform-tool-actions,
 .ac-plot-toolbar:focus-within .waveform-tool-actions,
-.ac-plot-toolbar.expanded .waveform-tool-actions {
+.ac-plot-toolbar.expanded .waveform-tool-actions,
+.ac-plot-toolbar.more-open .waveform-tool-actions {
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
@@ -1522,14 +1506,16 @@
 }
 .ac-plot-shell:hover .waveform-tools-hint,
 .ac-plot-toolbar:focus-within .waveform-tools-hint,
-.ac-plot-toolbar.expanded .waveform-tools-hint {
+.ac-plot-toolbar.expanded .waveform-tools-hint,
+.ac-plot-toolbar.more-open .waveform-tools-hint {
   opacity: 0;
 }
 .ac-plot-toolbar button {
   min-width: 27px;
-  min-height: 25px;
+  min-height: 24px;
   padding: 2px 6px;
-  background: var(--icm-surface);
+  border-color: transparent;
+  background: transparent;
   font-size: var(--icm-font-xs);
 }
 .ac-plot-toolbar button[aria-pressed="true"] {
@@ -2186,10 +2172,56 @@
 .waveform-tools {
   align-self: stretch;
 }
-.waveform-tool-actions > [role="group"] {
+.waveform-primary-actions,
+.waveform-secondary-actions,
+.waveform-primary-actions > [role="group"],
+.waveform-secondary-actions > [role="group"] {
   display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.waveform-primary-actions > [role="group"],
+.waveform-secondary-actions > [role="group"] {
   border-left: 1px solid var(--icm-border);
   padding-left: 4px;
+}
+.waveform-more-toggle {
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+.waveform-secondary-actions {
+  position: absolute;
+  z-index: 6;
+  top: calc(100% + 4px);
+  right: 4px;
+  display: none;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  width: min(310px, calc(100% - 8px));
+  padding: 6px;
+  border: 1px solid var(--icm-border-strong);
+  border-radius: var(--icm-radius-sm);
+  background: #fff;
+  box-shadow: var(--icm-shadow-sm);
+}
+.waveform-tools.more-open .waveform-secondary-actions {
+  display: flex;
+}
+@container (min-width: 560px) {
+  .waveform-more-toggle {
+    display: none;
+  }
+  .waveform-secondary-actions {
+    position: static;
+    display: flex;
+    flex-wrap: nowrap;
+    width: auto;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
 }
 .waveform-range-editor {
   position: absolute;
