@@ -61,6 +61,36 @@
       // The preview's own accounts: nobody signs in here, and no login
       // provider is configured, so this namespace stays empty by design.
       { "name": "AUTH", "class_name": "AuthDO" },
+      // Server-side authority for queued runs. Large immutable bytes live in
+      // R2; this object stores only lifecycle, ownership and artifact refs.
+      { "name": "SIMULATION_CONTROL", "class_name": "SimulationControlDO" },
+    ],
+  },
+  "r2_buckets": [
+    {
+      "binding": "SIMULATION_ARTIFACTS",
+      "bucket_name": "analog-canvas-simulation-artifacts-preview",
+    },
+  ],
+  "queues": {
+    "producers": [
+      {
+        "binding": "SIMULATION_JOBS",
+        "queue": "analog-canvas-simulation-preview",
+      },
+    ],
+    "consumers": [
+      {
+        "queue": "analog-canvas-simulation-preview",
+        "max_batch_size": 1,
+        "max_batch_timeout": 1,
+        // The Frankfurt harness currently owns one ngspice slot. Consumer
+        // concurrency must never promise more capacity than the executor.
+        "max_concurrency": 1,
+        "max_retries": 3,
+        "retry_delay": 2,
+        "dead_letter_queue": "analog-canvas-simulation-preview-dlq",
+      },
     ],
   },
   "migrations": [
@@ -72,6 +102,7 @@
     // The simulator moved to the operator host; the container class, its
     // namespace, and its billed instance go with this migration.
     { "tag": "v6", "deleted_classes": ["NgspiceContainer"] },
+    { "tag": "v7", "new_sqlite_classes": ["SimulationControlDO"] },
   ],
   "observability": {
     "enabled": true,

@@ -102,6 +102,23 @@ export class InMemoryManagedRunRegistry {
     const now = this.now();
     for (const [runId, run] of this.runs) {
       if (
+        run.state === "queued" &&
+        run.queuedAt + this.policy.maxQueueWaitMs <= now
+      ) {
+        const expired = transitionManagedRun(run, {
+          kind: "queue-expired",
+          at: now,
+          error: {
+            code: "QUEUE_WAIT_EXPIRED",
+            message: "The run exceeded the queue wait limit.",
+            stage: "start",
+            recovery: "retry-after",
+          },
+        });
+        if (expired.ok) this.runs.set(runId, expired.run);
+        continue;
+      }
+      if (
         isManagedRunTerminal(run.state) &&
         run.state !== "expired" &&
         run.finishedAt !== undefined &&

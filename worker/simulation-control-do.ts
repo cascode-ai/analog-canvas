@@ -46,12 +46,14 @@ export class SimulationControlDO {
   constructor(
     private readonly state: DurableObjectStateLike,
     private readonly policy: ManagedRunPolicy = DEFAULT_MANAGED_RUN_POLICY,
+    private readonly now: () => number = Date.now,
   ) {
     this.sql = state.storage.sql;
     this.initializeSchema();
   }
 
   async fetch(request: Request): Promise<Response> {
+    this.pruneExpired(this.now());
     const url = new URL(request.url);
     if (request.method === "POST" && url.pathname === "/accept")
       return this.accept(request);
@@ -138,7 +140,7 @@ export class SimulationControlDO {
       if (activeOwner >= this.policy.maxActivePerOwner)
         return { error: "OWNER_ACTIVE_LIMIT", retryAfterMs: 2_000 } as const;
 
-      const run = createManagedRun(crypto.randomUUID(), admission, Date.now());
+      const run = createManagedRun(crypto.randomUUID(), admission, this.now());
       this.writeRecord(run);
       this.sql.exec(
         `INSERT INTO simulation_start_requests
@@ -223,6 +225,51 @@ export class SimulationControlDO {
       run.finishedAt ?? null,
       JSON.stringify(run),
     );
+  }
+
+  private pruneExpired(now: number): void {
+    const queued = this.sql
+      .exec<RunRow>(
+        `SELECT record_json FROM simulation_runs
+         WHERE state = 'queued' AND updated_at <= ?`,
+        now - this.policy.maxQueueWaitMs,
+      )
+      .toArray();
+    for (const row of queued) {
+      const parsed = ManagedRunRecordSchema.safeParse(
+        JSON.parse(row.record_json),
+      );
+      if (!parsed.success) continue;
+      const transition = transitionManagedRun(parsed.data, {
+        kind: "queue-expired",
+        at: now,
+        error: {
+          code: "QUEUE_WAIT_EXPIRED",
+          message: "The run exceeded the queue wait limit.",
+          stage: "start",
+          recovery: "retry-after",
+        },
+      });
+      if (transition.ok) this.writeRecord(transition.run);
+    }
+    const retained = this.sql
+      .exec<RunRow>(
+        `SELECT record_json FROM simulation_runs
+         WHERE finished_at IS NOT NULL AND finished_at <= ? AND state != 'expired'`,
+        now - this.policy.retentionMs,
+      )
+      .toArray();
+    for (const row of retained) {
+      const parsed = ManagedRunRecordSchema.safeParse(
+        JSON.parse(row.record_json),
+      );
+      if (!parsed.success || !managedRunNeedsRetention(parsed.data)) continue;
+      const transition = transitionManagedRun(parsed.data, {
+        kind: "expired",
+        at: now,
+      });
+      if (transition.ok) this.writeRecord(transition.run);
+    }
   }
 }
 

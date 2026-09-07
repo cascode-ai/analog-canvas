@@ -168,4 +168,32 @@ describe("managed simulation run lifecycle", () => {
       retryAfterMs: 2_000,
     });
   });
+
+  it("expires an abandoned queue entry without retaining input artifacts", () => {
+    let now = 100;
+    const registry = new InMemoryManagedRunRegistry(
+      DEFAULT_MANAGED_RUN_POLICY,
+      () => now,
+      () => "run-a",
+    );
+    const accepted = registry.accept({
+      ...admission(),
+      artifacts: [
+        {
+          id: "input-a",
+          name: "managed-input.json",
+          mediaType: "application/json",
+          byteLength: 2,
+          sha256: digest("d"),
+        },
+      ],
+    });
+    if (!accepted.ok) throw new Error("run was not accepted");
+    now += DEFAULT_MANAGED_RUN_POLICY.maxQueueWaitMs;
+    expect(registry.read(accepted.run.id)).toMatchObject({
+      state: "expired",
+      artifacts: [],
+      error: { code: "QUEUE_WAIT_EXPIRED" },
+    });
+  });
 });

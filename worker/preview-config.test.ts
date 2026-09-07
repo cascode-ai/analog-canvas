@@ -14,6 +14,17 @@ function readConfig(file: string): {
   durable_objects?: {
     bindings: { name: string; class_name: string; script_name?: string }[];
   };
+  r2_buckets?: { binding: string; bucket_name: string }[];
+  queues?: {
+    producers: { binding: string; queue: string }[];
+    consumers: {
+      queue: string;
+      max_batch_size?: number;
+      max_concurrency?: number;
+      max_retries?: number;
+      dead_letter_queue?: string;
+    }[];
+  };
   migrations: {
     tag: string;
     new_sqlite_classes?: string[];
@@ -107,6 +118,39 @@ describe("the preview channel configuration (ADR 0057)", () => {
     expect(
       production.durable_objects?.bindings.some((b) => b.name === "NGSPICE"),
     ).toBe(false);
+  });
+
+  it("bounds managed runs to the operator host's single execution slot", () => {
+    expect(preview.r2_buckets).toEqual([
+      {
+        binding: "SIMULATION_ARTIFACTS",
+        bucket_name: "analog-canvas-simulation-artifacts-preview",
+      },
+    ]);
+    expect(preview.queues?.producers).toEqual([
+      {
+        binding: "SIMULATION_JOBS",
+        queue: "analog-canvas-simulation-preview",
+      },
+    ]);
+    expect(preview.queues?.consumers).toEqual([
+      expect.objectContaining({
+        queue: "analog-canvas-simulation-preview",
+        max_batch_size: 1,
+        max_concurrency: 1,
+        max_retries: 3,
+        dead_letter_queue: "analog-canvas-simulation-preview-dlq",
+      }),
+    ]);
+    expect(
+      preview.durable_objects?.bindings.some(
+        (binding) =>
+          binding.name === "SIMULATION_CONTROL" &&
+          binding.class_name === "SimulationControlDO",
+      ),
+    ).toBe(true);
+    expect(production.r2_buckets).toBeUndefined();
+    expect(production.queues).toBeUndefined();
   });
 
   it("writes the Dockerfile for a repository-root build context", () => {

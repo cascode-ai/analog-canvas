@@ -74,6 +74,7 @@ export const ManagedRunPolicySchema = z.strictObject({
   maxQueuedPerOwner: z.number().int().positive(),
   maxActivePerOwner: z.number().int().positive(),
   leaseMs: z.number().int().positive(),
+  maxQueueWaitMs: z.number().int().positive(),
   retentionMs: z.number().int().positive(),
 });
 export type ManagedRunPolicy = z.infer<typeof ManagedRunPolicySchema>;
@@ -83,6 +84,7 @@ export const DEFAULT_MANAGED_RUN_POLICY: ManagedRunPolicy = {
   maxQueuedPerOwner: 1,
   maxActivePerOwner: 1,
   leaseMs: 150_000,
+  maxQueueWaitMs: 5 * 60_000,
   retentionMs: 24 * 60 * 60_000,
 };
 
@@ -110,9 +112,15 @@ export const ManagedRunEventSchema = z.discriminatedUnion("kind", [
       kind: z.literal(kind),
       at: eventAt,
       error: ProblemSchema,
+      artifacts: z.array(ArtifactRefSchema).optional(),
     }),
   ),
   z.strictObject({ kind: z.literal("expired"), at: eventAt }),
+  z.strictObject({
+    kind: z.literal("queue-expired"),
+    at: eventAt,
+    error: ProblemSchema,
+  }),
 ]);
 export type ManagedRunEvent = z.infer<typeof ManagedRunEventSchema>;
 
@@ -200,7 +208,7 @@ export function transitionManagedRun(
         return update({ updatedAt: source.updatedAt });
       return invalid();
     case "completed":
-      if (source.state !== "running") return invalid();
+      if (!active) return invalid();
       return update({
         state: "succeeded",
         updatedAt: event.at,
@@ -225,6 +233,7 @@ export function transitionManagedRun(
         finishedAt: event.at,
         lease: undefined,
         error: event.error,
+        ...(event.artifacts ? { artifacts: [...event.artifacts] } : {}),
       });
     case "failed":
       if (!active) return invalid();
@@ -234,6 +243,7 @@ export function transitionManagedRun(
         finishedAt: event.at,
         lease: undefined,
         error: event.error,
+        ...(event.artifacts ? { artifacts: [...event.artifacts] } : {}),
       });
     case "infrastructure-failed":
     case "lease-expired":
@@ -260,5 +270,14 @@ export function transitionManagedRun(
     case "expired":
       if (!isManagedRunTerminal(source.state)) return invalid();
       return update({ state: "expired", updatedAt: event.at, artifacts: [] });
+    case "queue-expired":
+      if (source.state !== "queued") return invalid();
+      return update({
+        state: "expired",
+        updatedAt: event.at,
+        finishedAt: event.at,
+        error: event.error,
+        artifacts: [],
+      });
   }
 }

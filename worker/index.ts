@@ -15,6 +15,13 @@ import {
 import { routeGalleryRequest, type GalleryNamespaceLike } from "./gallery";
 import { routeSimulationRequest, type SimulationEnv } from "./simulation";
 import {
+  consumeSimulationJobs,
+  routeManagedSimulationRequest,
+  type SimulationJobMessage,
+  type SimulationOperationsEnv,
+  type SimulationQueueBatch,
+} from "./simulation-operations";
+import {
   channelResponse,
   markPreviewResponse,
   previewGalleryReadThrough,
@@ -32,6 +39,7 @@ export { AuthDO } from "./auth";
 export { SimulationControlDO } from "./simulation-control-do";
 
 type Env = SimulationEnv &
+  SimulationOperationsEnv &
   ChannelEnv & {
     ANALYTICS: DurableObjectNamespaceLike;
     ASSETS: { fetch(request: Request): Promise<Response> };
@@ -108,6 +116,12 @@ export default {
     // Every preview response is stamped noindex on the way out (ADR 0057).
     return markPreviewResponse(await route(request, env), env);
   },
+  async queue(
+    batch: SimulationQueueBatch<SimulationJobMessage>,
+    env: Env,
+  ): Promise<void> {
+    await consumeSimulationJobs(batch, env);
+  },
 };
 
 async function route(request: Request, env: Env): Promise<Response> {
@@ -135,6 +149,12 @@ async function route(request: Request, env: Env): Promise<Response> {
 
   const galleryResponse = await routeGalleryRequest(request, env);
   if (galleryResponse) return galleryResponse;
+
+  const managedSimulationResponse = await routeManagedSimulationRequest(
+    request,
+    env,
+  );
+  if (managedSimulationResponse) return managedSimulationResponse;
 
   const simulationResponse = await routeSimulationRequest(request, env);
   if (simulationResponse) return simulationResponse;
