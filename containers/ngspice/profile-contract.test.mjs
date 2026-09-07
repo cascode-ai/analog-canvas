@@ -37,7 +37,7 @@ describe("the hosted SKY130 Profile", () => {
     expect(profile.qualifiedScope).toEqual({
       devices: ["sky130_fd_pr__nfet_01v8", "sky130_fd_pr__pfet_01v8"],
       sections: ["tt", "ff", "ss", "fs", "sf"],
-      analyses: ["op", "dc", "ac", "tran"],
+      analyses: ["op", "dc", "ac", "tran", "noise"],
     });
   });
 });

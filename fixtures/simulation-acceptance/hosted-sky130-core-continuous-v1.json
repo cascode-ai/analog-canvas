@@ -1,8 +1,8 @@
 {
-  "schemaVersion": 3,
-  "fixtureId": "ota-5t-structured-op-dc-ac-tran-v2",
+  "schemaVersion": 4,
+  "fixtureId": "ota-5t-structured-op-dc-ac-tran-noise-v3",
   "profileId": "sky130-core-continuous-ngspice46-v1",
-  "analyses": ["op", "dc", "ac", "tran"],
+  "analyses": ["op", "dc", "ac", "tran", "noise"],
   "inputs": {
     "project": "apps/editor/src/examples/five-transistor-ota-sky130.icproj.json",
     "netlist": "fixtures/simulation-acceptance/ota-5t.spi",
@@ -149,6 +149,60 @@
         "last": 0.7732444834989551,
         "absoluteTolerance": 1e-8
       }
+    }
+  },
+  "expectedNoise": {
+    "analysis": {
+      "kind": "noise",
+      "outputProbeId": "probe-vout",
+      "inputSourceInstanceId": "VINP",
+      "sweep": "dec",
+      "points": 20,
+      "startHz": 1,
+      "stopHz": 1000000000
+    },
+    "pointCount": 181,
+    "frequencyRelativeTolerance": 1e-12,
+    "valueRelativeTolerance": 1e-8,
+    "valueAbsoluteTolerance": 1e-15,
+    "samples": [
+      {
+        "index": 0,
+        "frequencyHz": 1,
+        "outputNoiseDensity": 0.0003527268281019868,
+        "inputNoiseDensity": 0.000002936387001390052
+      },
+      {
+        "index": 80,
+        "frequencyHz": 9999.999999999938,
+        "outputNoiseDensity": 0.000006728436964105413,
+        "inputNoiseDensity": 5.603672350495118e-8
+      },
+      {
+        "index": 120,
+        "frequencyHz": 999999.9999999905,
+        "outputNoiseDensity": 6.807410088432378e-7,
+        "inputNoiseDensity": 1.743688273418767e-8
+      },
+      {
+        "index": 180,
+        "frequencyHz": 999999999.9999859,
+        "outputNoiseDensity": 6.221508309545533e-10,
+        "inputNoiseDensity": 1.524689249398183e-8
+      }
+    ],
+    "integratedOutputNoise": 0.002464690192665594,
+    "integratedInputNoise": 0.0007312163500832933,
+    "units": {
+      "outputDensity": "V/sqrt(Hz)",
+      "inputDensity": "V/sqrt(Hz)",
+      "integratedOutput": "V",
+      "integratedInput": "V"
+    },
+    "evidence": {
+      "observedAt": "2026-09-07",
+      "executor": "operator-host",
+      "environmentFingerprint": "33c245e5df6dc12077b6a2e4ebf308777b0e9014fe9bfdafc3285c614688561d"
     }
   }
 }

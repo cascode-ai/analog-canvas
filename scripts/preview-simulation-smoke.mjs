@@ -130,6 +130,24 @@ export const DIVIDER_DC_REQUEST = {
   timeoutMs: 30_000,
 };
 
+export const RESISTOR_NOISE_REQUEST = {
+  mode: "raw",
+  netlist: "",
+  testbench: [
+    "Resistor thermal-noise qualification",
+    "V1 in 0 DC 0 AC 1",
+    "R1 in out 1k",
+    "R2 out 0 1k",
+    ".control",
+    "set filetype=ascii",
+    "noise v(out) V1 dec 3 10 1k",
+    "write out.raw noise1.all noise2.all",
+    ".endc",
+    ".end",
+  ].join("\n"),
+  timeoutMs: 30_000,
+};
+
 export function hostedSky130CornerRequest(corner) {
   return {
     netlist: [
@@ -225,6 +243,60 @@ export async function compileHostedSky130TransientProject() {
   if (!compiled.ok) {
     throw new Error(
       `Qualification ${qualification.fixtureId} TRAN did not compile: ${compiled.diagnostics
+        .map((diagnostic) => `${diagnostic.code}: ${diagnostic.message}`)
+        .join(" | ")}`,
+    );
+  }
+  return compiled;
+}
+
+export async function compileHostedSky130NoiseProject() {
+  const [{ compileStructuredSimulation }, { parseProject }] = await Promise.all(
+    [import("@icm/netlist"), import("@icm/project-protocol")],
+  );
+  const project = parseProject(
+    readFileSync(
+      new URL(`../${qualification.inputs.project}`, import.meta.url),
+      "utf8",
+    ),
+  );
+  const expected = qualification.expectedNoise;
+  const setup = project.simulationSetups[0];
+  const output =
+    setup?.input.kind === "structured"
+      ? setup.input.outputs.find(
+          (candidate) => candidate.id === expected.analysis.outputProbeId,
+        )
+      : undefined;
+  if (
+    !setup ||
+    setup.input.kind !== "structured" ||
+    !output ||
+    output.expression.kind !== "voltage"
+  ) {
+    throw new Error(
+      `Qualification ${qualification.fixtureId} has no Noise output probe.`,
+    );
+  }
+  const { kind: _kind, ...positive } = output.expression;
+  setup.input.analyses = [
+    {
+      kind: "noise",
+      output: { positive },
+      inputSourceInstanceId: expected.analysis.inputSourceInstanceId,
+      sweep: expected.analysis.sweep,
+      points: expected.analysis.points,
+      startHz: expected.analysis.startHz,
+      stopHz: expected.analysis.stopHz,
+    },
+  ];
+  setup.input.outputs = [];
+  const compiled = await compileStructuredSimulation(project, setup, {
+    timeoutMs: 110_000,
+  });
+  if (!compiled.ok) {
+    throw new Error(
+      `Qualification ${qualification.fixtureId} Noise did not compile: ${compiled.diagnostics
         .map((diagnostic) => `${diagnostic.code}: ${diagnostic.message}`)
         .join(" | ")}`,
     );
@@ -533,6 +605,171 @@ export function validateHostedSky130TransientResult(
 
 function relativeError(actual, expected) {
   return Math.abs(actual - expected) / Math.max(Math.abs(expected), 1);
+}
+
+function relativeValueError(actual, expected, absoluteTolerance = 0) {
+  return (
+    Math.abs(actual - expected) /
+    Math.max(Math.abs(expected), absoluteTolerance || Number.MIN_VALUE)
+  );
+}
+
+function parsedNoiseAnalysis(payload, expectedTarget) {
+  const result = object(payload, "simulation response");
+  if (object(result.execution, "execution metadata").target !== expectedTarget)
+    throw new Error(`${expectedTarget} did not execute the Noise analysis.`);
+  if (object(result.outcome, "simulation outcome").status !== "completed")
+    throw new Error(
+      `[simulation:noise] ${expectedTarget} did not complete: ${diagnosticSummary(result)}`,
+    );
+  const environment = object(
+    object(result.metadata, "run metadata").environment,
+    "environment",
+  );
+  validatePinnedEnvironment(environment, expectedTarget);
+  const data = object(result.data, "parsed result data");
+  const noise = Array.isArray(data.analyses)
+    ? data.analyses.find((analysis) => analysis?.analysis === "noise")
+    : null;
+  if (
+    !noise ||
+    !Array.isArray(noise.frequencyHz) ||
+    !Array.isArray(noise.outputNoiseDensity) ||
+    !Array.isArray(noise.inputNoiseDensity)
+  )
+    throw new Error(`${expectedTarget} returned no structured Noise result.`);
+  return { result, environment, noise };
+}
+
+export function validateResistorNoiseResult(payload, expectedTarget) {
+  const { noise } = parsedNoiseAnalysis(payload, expectedTarget);
+  if (noise.frequencyHz.length !== 7)
+    throw new Error(`${expectedTarget} returned an unexpected Noise axis.`);
+  const kelvin = 273.15 + 27;
+  const boltzmann = 1.380649e-23;
+  const expectedOutputDensity = Math.sqrt(4 * boltzmann * kelvin * 500);
+  const firstOutput = noise.outputNoiseDensity[0];
+  const firstInput = noise.inputNoiseDensity[0];
+  if (
+    typeof firstOutput !== "number" ||
+    relativeValueError(firstOutput, expectedOutputDensity) > 2e-4 ||
+    typeof firstInput !== "number" ||
+    relativeValueError(firstInput, expectedOutputDensity * 2) > 2e-4
+  )
+    throw new Error(
+      `${expectedTarget} returned resistor Noise inconsistent with 4kTR.`,
+    );
+  const expectedIntegrated = expectedOutputDensity * Math.sqrt(990);
+  if (
+    typeof noise.integratedOutputNoise !== "number" ||
+    relativeValueError(noise.integratedOutputNoise, expectedIntegrated) >
+      2e-4 ||
+    typeof noise.integratedInputNoise !== "number" ||
+    relativeValueError(noise.integratedInputNoise, expectedIntegrated * 2) >
+      2e-4
+  )
+    throw new Error(`${expectedTarget} returned incorrect integrated Noise.`);
+  return {
+    target: expectedTarget,
+    pointCount: noise.frequencyHz.length,
+    outputDensity: firstOutput,
+  };
+}
+
+export function validateHostedSky130NoiseResult(
+  payload,
+  expectedTarget,
+  expectedInputRevision,
+) {
+  const { result, environment, noise } = parsedNoiseAnalysis(
+    payload,
+    expectedTarget,
+  );
+  const metadata = object(result.metadata, "run metadata");
+  if (
+    object(metadata.input, "input metadata").inputRevision !==
+    expectedInputRevision
+  )
+    throw new Error(`${expectedTarget} returned stale structured Noise data.`);
+  const modelLibrary = object(
+    object(metadata.configuration, "configuration metadata").modelLibrary,
+    "model selection",
+  );
+  if (
+    modelLibrary.directive !== qualification.modelLibrary.directive ||
+    modelLibrary.section !== qualification.modelLibrary.section
+  )
+    throw new Error(
+      `${expectedTarget} did not run Noise with the qualified model-library section.`,
+    );
+  const expected = qualification.expectedNoise;
+  if (environment.fingerprint !== expected.evidence.environmentFingerprint)
+    throw new Error(
+      `${expectedTarget} Noise evidence came from a different environment.`,
+    );
+  if (
+    noise.frequencyHz.length !== expected.pointCount ||
+    noise.outputNoiseDensity.length !== expected.pointCount ||
+    noise.inputNoiseDensity.length !== expected.pointCount
+  )
+    throw new Error(
+      `${expectedTarget} returned an incomplete OTA Noise result.`,
+    );
+  for (const sample of expected.samples) {
+    const frequency = noise.frequencyHz[sample.index];
+    const output = noise.outputNoiseDensity[sample.index];
+    const input = noise.inputNoiseDensity[sample.index];
+    if (
+      typeof frequency !== "number" ||
+      relativeValueError(frequency, sample.frequencyHz) >
+        expected.frequencyRelativeTolerance ||
+      typeof output !== "number" ||
+      (Math.abs(output - sample.outputNoiseDensity) >
+        expected.valueAbsoluteTolerance &&
+        relativeValueError(
+          output,
+          sample.outputNoiseDensity,
+          expected.valueAbsoluteTolerance,
+        ) > expected.valueRelativeTolerance) ||
+      typeof input !== "number" ||
+      (Math.abs(input - sample.inputNoiseDensity) >
+        expected.valueAbsoluteTolerance &&
+        relativeValueError(
+          input,
+          sample.inputNoiseDensity,
+          expected.valueAbsoluteTolerance,
+        ) > expected.valueRelativeTolerance)
+    )
+      throw new Error(
+        `${expectedTarget} returned unexpected OTA Noise at index ${sample.index}.`,
+      );
+  }
+  for (const [key, expectedValue] of [
+    ["integratedOutputNoise", expected.integratedOutputNoise],
+    ["integratedInputNoise", expected.integratedInputNoise],
+  ]) {
+    const actual = noise[key];
+    if (
+      typeof actual !== "number" ||
+      relativeValueError(
+        actual,
+        expectedValue,
+        expected.valueAbsoluteTolerance,
+      ) > expected.valueRelativeTolerance
+    )
+      throw new Error(
+        `${expectedTarget} returned unexpected OTA ${key}: ${String(actual)}.`,
+      );
+  }
+  if (JSON.stringify(noise.units) !== JSON.stringify(expected.units))
+    throw new Error(`${expectedTarget} returned unexpected Noise units.`);
+  return {
+    target: expectedTarget,
+    pointCount: noise.frequencyHz.length,
+    integratedOutputNoise: noise.integratedOutputNoise,
+    integratedInputNoise: noise.integratedInputNoise,
+    environmentFingerprint: environment.fingerprint,
+  };
 }
 
 export function validateHostedSky130Result(
@@ -908,6 +1145,53 @@ export async function runHostedSky130TransientAcceptance({
   );
 }
 
+export async function runHostedSky130NoiseAcceptance({
+  baseUrl,
+  target,
+  fetchImpl = fetch,
+}) {
+  const compiled = await compileHostedSky130NoiseProject();
+  const response = await fetchImpl(new URL("/api/simulate", baseUrl), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ ...compiled.request, executorTarget: target }),
+    signal: AbortSignal.timeout(120_000),
+  });
+  const payload = await response.json();
+  if (!response.ok)
+    throw new Error(
+      `[infrastructure:http-${response.status}] ${target} Noise qualification failed.`,
+    );
+  return validateHostedSky130NoiseResult(
+    payload,
+    target,
+    compiled.request.inputRevision,
+  );
+}
+
+export async function runPreviewResistorNoiseSmoke({
+  baseUrl,
+  target,
+  fetchImpl = fetch,
+}) {
+  const response = await fetchImpl(new URL("/api/simulate", baseUrl), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      ...RESISTOR_NOISE_REQUEST,
+      inputRevision: `preview-resistor-noise-${target}`,
+      executorTarget: target,
+    }),
+    signal: AbortSignal.timeout(60_000),
+  });
+  const payload = await response.json();
+  if (!response.ok)
+    throw new Error(
+      `[infrastructure:http-${response.status}] ${target} resistor Noise smoke failed.`,
+    );
+  return validateResistorNoiseResult(payload, target);
+}
+
 export async function runPreviewTransientSmoke({
   baseUrl,
   target,
@@ -1039,6 +1323,13 @@ async function main() {
     );
   }
 
+  for (const target of EXECUTORS) {
+    const result = await runPreviewResistorNoiseSmoke({ baseUrl, target });
+    console.log(
+      `${result.target}: resistor Noise ${result.pointCount} points passed`,
+    );
+  }
+
   const qualifications = [];
   for (const target of EXECUTORS) {
     const result = await runHostedSky130Acceptance({ baseUrl, target });
@@ -1055,6 +1346,13 @@ async function main() {
     });
     console.log(
       `${result.target}: SKY130 OTA TRAN ${result.pointCount} points passed`,
+    );
+  }
+  for (const target of EXECUTORS) {
+    const result = await runHostedSky130NoiseAcceptance({ baseUrl, target });
+    console.log(
+      `${result.target}: SKY130 OTA Noise ${result.pointCount} points passed ` +
+        `(onoise=${result.integratedOutputNoise}, inoise=${result.integratedInputNoise})`,
     );
   }
   for (const target of EXECUTORS) {

@@ -11,7 +11,10 @@ import { parseProject } from "../packages/project-protocol/dist/index.js";
 import { SimulationOutputDataSchema } from "../packages/simulation-service/dist/contract.js";
 import { SimulationResultSchema } from "../packages/spice-run/dist/index.js";
 import { materializeSimulationRunEvidence } from "./lib/simulation-run-evidence.mjs";
-import { validateHostedSky130Result } from "./preview-simulation-smoke.mjs";
+import {
+  validateHostedSky130NoiseResult,
+  validateHostedSky130Result,
+} from "./preview-simulation-smoke.mjs";
 
 const baseUrl = new URL(
   process.argv[2] ?? "https://analog-canvas-preview.tokenzhang.com",
@@ -30,7 +33,23 @@ const projectText = await readFile(
 const project = parseProject(projectText);
 const setup = project.simulationSetups[0];
 assert(setup, "The acceptance Project has no saved setup");
-const compiled = await compileStructuredSimulation(project, setup);
+assert.equal(setup.input.kind, "structured");
+const qualifiedSetup = structuredClone(setup);
+const noiseOutput = qualifiedSetup.input.outputs.find(
+  (output) => output.id === "probe-vout",
+);
+assert.equal(noiseOutput?.expression.kind, "voltage");
+const { kind: _noiseExpressionKind, ...noisePositive } = noiseOutput.expression;
+qualifiedSetup.input.analyses.push({
+  kind: "noise",
+  output: { positive: noisePositive },
+  inputSourceInstanceId: "VINP",
+  sweep: "dec",
+  points: 20,
+  startHz: 1,
+  stopHz: 1e9,
+});
+const compiled = await compileStructuredSimulation(project, qualifiedSetup);
 assert(compiled.ok, "The acceptance Project no longer compiles");
 
 await mkdir(outputDirectory, { recursive: true });
@@ -157,6 +176,27 @@ async function exportArtifact(artifact, name) {
   };
 }
 
+async function startAndRead(prepared) {
+  const started = await tool("simulation", {
+    request: {
+      operation: "start",
+      preparedId: prepared.id,
+      digest: prepared.digest,
+    },
+  });
+  assert.equal(started.ok, true);
+  for (let attempt = 0; attempt < 180; attempt++) {
+    const reading = await tool("simulation", {
+      request: { operation: "read", runId: started.run.id },
+    });
+    assert.equal(reading.ok, true);
+    if (!["running", "cancelling"].includes(reading.run.state))
+      return reading.run;
+    await new Promise((resolveWait) => setTimeout(resolveWait, 500));
+  }
+  throw new Error(`Run ${started.run.id} did not reach a terminal state.`);
+}
+
 try {
   browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
@@ -221,11 +261,102 @@ try {
   assert.equal(capabilityReply.ok, true);
   assert.deepEqual(
     capabilityReply.capabilities.analyses,
-    ["op", "dc", "ac", "tran"],
-    "The deployed Profile does not advertise all four qualified analyses",
+    ["op", "dc", "ac", "tran", "noise"],
+    "The deployed Profile does not advertise all five qualified analyses",
   );
 
-  const invalidSetup = structuredClone(discoveredSetup);
+  // A bad model is a recoverable run result, not an MCP-session failure. Fix
+  // the same graphless workspace and prove a second run can complete before
+  // the full Project-owned structured journey continues.
+  const rawWorkspace = await tool("simulation_files", {
+    request: { action: "create" },
+  });
+  assert.equal(rawWorkspace.ok, true);
+  const workspaceId = rawWorkspace.workspace.id;
+  const badRaw = await tool("simulation_files", {
+    request: {
+      action: "update",
+      workspaceId,
+      expectedRevision: 0,
+      entry: "main.cir",
+      writes: [
+        {
+          path: "main.cir",
+          text: [
+            "Missing model recovery acceptance",
+            "V1 out 0 DC 1",
+            "D1 out 0 acceptance_model_missing",
+            ".control",
+            "set filetype=ascii",
+            "op",
+            "write out.raw v(out)",
+            ".endc",
+            ".end",
+          ].join("\n"),
+        },
+      ],
+    },
+  });
+  assert.equal(badRaw.ok, true);
+  const badPrepared = await tool("simulation", {
+    request: {
+      operation: "prepare",
+      source: {
+        kind: "workspace",
+        workspaceId,
+        expectedRevision: badRaw.workspace.revision,
+        environment: { profileId: capabilityReply.capabilities.profiles[0].id },
+      },
+    },
+  });
+  assert.equal(badPrepared.ok, true);
+  const badRun = await startAndRead(badPrepared.prepared);
+  assert.equal(badRun.state, "finished");
+  assert.equal(badRun.result?.outcome.status, "failed");
+
+  const fixedRaw = await tool("simulation_files", {
+    request: {
+      action: "update",
+      workspaceId,
+      expectedRevision: badRaw.workspace.revision,
+      entry: "main.cir",
+      writes: [
+        {
+          path: "main.cir",
+          text: [
+            "Recovered divider",
+            "V1 in 0 DC 1",
+            "R1 in out 1k",
+            "R2 out 0 1k",
+            ".control",
+            "set filetype=ascii",
+            "op",
+            "write out.raw v(out)",
+            ".endc",
+            ".end",
+          ].join("\n"),
+        },
+      ],
+    },
+  });
+  assert.equal(fixedRaw.ok, true);
+  const fixedPrepared = await tool("simulation", {
+    request: {
+      operation: "prepare",
+      source: {
+        kind: "workspace",
+        workspaceId,
+        expectedRevision: fixedRaw.workspace.revision,
+        environment: { profileId: capabilityReply.capabilities.profiles[0].id },
+      },
+    },
+  });
+  assert.equal(fixedPrepared.ok, true);
+  const fixedRun = await startAndRead(fixedPrepared.prepared);
+  assert.equal(fixedRun.state, "finished");
+  assert.equal(fixedRun.result?.outcome.status, "completed");
+
+  const invalidSetup = structuredClone(qualifiedSetup);
   assert.equal(
     invalidSetup.input.kind,
     "structured",
@@ -265,7 +396,7 @@ try {
 
   const restored = await tool("advanced_transact", {
     structureEdits: [
-      { kind: "upsert_simulation_setup", setup: discoveredSetup },
+      { kind: "upsert_simulation_setup", setup: qualifiedSetup },
     ],
   });
   assert.equal(restored.ok, true);
@@ -281,30 +412,12 @@ try {
   });
   assert.equal(prepared.ok, true);
   assert.deepEqual(prepared.prepared.vectors, compiled.vectors);
-  const started = await tool("simulation", {
-    request: {
-      operation: "start",
-      preparedId: prepared.prepared.id,
-      digest: prepared.prepared.digest,
-    },
-  });
-  assert.equal(started.ok, true);
-
-  let finished;
-  for (let attempt = 0; attempt < 180; attempt++) {
-    finished = await tool("simulation", {
-      request: { operation: "read", runId: started.run.id },
-    });
-    assert.equal(finished.ok, true);
-    if (!["running", "cancelling"].includes(finished.run.state)) break;
-    await new Promise((resolveWait) => setTimeout(resolveWait, 500));
-  }
-  assert(finished, "The run returned no final state");
-  assert.equal(finished.run.state, "finished");
+  const finished = await startAndRead(prepared.prepared);
+  assert.equal(finished.state, "finished");
   const exports = [];
   const exportedArtifactNames = new Set();
   const fullRun = await materializeSimulationRunEvidence(
-    finished.run,
+    finished,
     async (artifact) => {
       exports.push(await exportArtifact(artifact, artifact.name));
       exportedArtifactNames.add(artifact.name);
@@ -323,6 +436,11 @@ try {
     prepared.prepared.inputRevision,
     prepared.prepared.vectors,
   );
+  const acceptedNoise = validateHostedSky130NoiseResult(
+    fullRun.result,
+    "operator-host",
+    prepared.prepared.inputRevision,
+  );
   assert(
     fullRun.outputData?.analyses.length,
     "The completed OTA run returned no evaluated named outputs",
@@ -332,7 +450,7 @@ try {
     "The completed OTA run returned no automatic measurements",
   );
 
-  const resultArtifacts = finished.run.artifacts
+  const resultArtifacts = finished.artifacts
     .filter(
       (artifact) =>
         artifact.name === "out.raw" ||
@@ -364,8 +482,8 @@ try {
       id: discoveredSetup.id,
       name: discoveredSetup.name,
       rootDocumentId: discoveredSetup.input.rootDocumentId,
-      analyses: discoveredSetup.input.analyses,
-      outputs: discoveredSetup.input.outputs.map((output) => ({
+      analyses: qualifiedSetup.input.analyses,
+      outputs: qualifiedSetup.input.outputs.map((output) => ({
         id: output.id,
         label: output.label,
         expressionKind: output.expression.kind,
@@ -393,6 +511,11 @@ try {
     recovery: refused.error.recovery,
     diagnostics: refused.error.diagnostics,
   };
+  report.modelRecovery = {
+    failedOutcome: badRun.result?.outcome.status,
+    correctedOutcome: fixedRun.result?.outcome.status,
+    workspaceId,
+  };
   report.prepared = {
     id: prepared.prepared.id,
     digest: prepared.prepared.digest,
@@ -410,7 +533,7 @@ try {
     environmentFingerprint: accepted.environmentFingerprint,
     inputRevision: prepared.prepared.inputRevision,
     preparedId: prepared.prepared.id,
-    runId: finished.run.id,
+    runId: finished.id,
     analyses: fullRun.result.data?.analyses.map((analysis) => ({
       kind: analysis.analysis,
       plotName: analysis.plotName,
@@ -421,14 +544,23 @@ try {
             ? analysis.sweep.values.length
             : analysis.analysis === "ac"
               ? analysis.frequencyHz.length
-              : analysis.timeSeconds.length,
-      outputs: analysis.probes.map((probe) => probe.name),
+              : analysis.analysis === "noise"
+                ? analysis.frequencyHz.length
+                : analysis.timeSeconds.length,
+      outputs:
+        analysis.analysis === "noise"
+          ? ["noise-output-density", "noise-input-density"]
+          : analysis.probes.map((probe) => probe.name),
     })),
     namedOutputs: fullRun.outputData.analyses.map((analysis) => ({
       kind: analysis.analysis,
       outputs: analysis.outputs.map((output) => output.label),
     })),
     measurementCount: fullRun.outputData.measurements?.length ?? 0,
+    integratedNoise: {
+      output: acceptedNoise.integratedOutputNoise,
+      input: acceptedNoise.integratedInputNoise,
+    },
   };
   report.exports = exports;
   await tool("disconnect");

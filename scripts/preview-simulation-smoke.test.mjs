@@ -2,13 +2,17 @@ import { describe, expect, it } from "vitest";
 
 import {
   compileHostedSky130Project,
+  compileHostedSky130NoiseProject,
   compileHostedSky130TransientProject,
   hostedSky130CornerRequest,
   runHostedSky130Acceptance,
   runHostedSky130CornerAcceptance,
+  runHostedSky130NoiseAcceptance,
   runHostedSky130TransientAcceptance,
   runPreviewSimulationSmoke,
   validateHostedSky130TransientResult,
+  validateHostedSky130NoiseResult,
+  validateResistorNoiseResult,
   validateDcDividerResult,
   validateExecutorParity,
   validateHostedSky130Result,
@@ -192,6 +196,80 @@ function cornerResult(target, corner = "ff") {
             { name: "i(vdn)", value: -0.0002526337154561964 },
             { name: "i(vsp)", value: -9.451994627332483e-7 },
           ],
+        },
+      ],
+    },
+  };
+}
+
+function noiseResult(target, inputRevision = `preview-sky130-noise-${target}`) {
+  const base = modelResult(target, {}, inputRevision);
+  const frequencyHz = Array.from(
+    { length: 181 },
+    (_, index) => 10 ** (index / 20),
+  );
+  const outputNoiseDensity = Array(181).fill(1e-9);
+  const inputNoiseDensity = Array(181).fill(1e-9);
+  for (const [index, frequency, output, input] of [
+    [0, 1, 0.0003527268281019868, 0.000002936387001390052],
+    [80, 9999.999999999938, 0.000006728436964105413, 5.603672350495118e-8],
+    [120, 999999.9999999905, 6.807410088432378e-7, 1.743688273418767e-8],
+    [180, 999999999.9999859, 6.221508309545533e-10, 1.524689249398183e-8],
+  ]) {
+    frequencyHz[index] = frequency;
+    outputNoiseDensity[index] = output;
+    inputNoiseDensity[index] = input;
+  }
+  return {
+    ...base,
+    metadata: {
+      ...base.metadata,
+      environment: {
+        ...base.metadata.environment,
+        fingerprint: CORNER_ENVIRONMENT_SHA,
+      },
+    },
+    data: {
+      analyses: [
+        {
+          analysis: "noise",
+          frequencyHz,
+          outputNoiseDensity,
+          inputNoiseDensity,
+          integratedOutputNoise: 0.002464690192665594,
+          integratedInputNoise: 0.0007312163500832933,
+          units: {
+            outputDensity: "V/sqrt(Hz)",
+            inputDensity: "V/sqrt(Hz)",
+            integratedOutput: "V",
+            integratedInput: "V",
+          },
+        },
+      ],
+    },
+  };
+}
+
+function resistorNoiseResult(target) {
+  const base = result(target);
+  const density = Math.sqrt(4 * 1.380649e-23 * (273.15 + 27) * 500);
+  return {
+    ...base,
+    data: {
+      analyses: [
+        {
+          analysis: "noise",
+          frequencyHz: [10, 21.5, 46.4, 100, 215, 464, 1000],
+          outputNoiseDensity: Array(7).fill(density),
+          inputNoiseDensity: Array(7).fill(density * 2),
+          integratedOutputNoise: density * Math.sqrt(990),
+          integratedInputNoise: density * Math.sqrt(990) * 2,
+          units: {
+            outputDensity: "V/sqrt(Hz)",
+            inputDensity: "V/sqrt(Hz)",
+            integratedOutput: "V",
+            integratedInput: "V",
+          },
         },
       ],
     },
@@ -405,7 +483,7 @@ describe("the hosted SKY130 qualification", () => {
       ),
     ).toMatchObject({
       target: "cloudflare-container",
-      fixtureId: "ota-5t-structured-op-dc-ac-tran-v2",
+      fixtureId: "ota-5t-structured-op-dc-ac-tran-noise-v3",
       environmentFingerprint: SHA,
       values: { "v(vout)": 0.7589797395133877 },
     });
@@ -480,7 +558,7 @@ describe("the hosted SKY130 qualification", () => {
     expect(submitted.testbench).toContain("set appendwrite");
     expect(submitted.testbench).toContain("write out.raw v(vout)");
     expect(submitted.testbench).toContain("ac dec 10 1 1000000000");
-    expect(accepted.fixtureId).toBe("ota-5t-structured-op-dc-ac-tran-v2");
+    expect(accepted.fixtureId).toBe("ota-5t-structured-op-dc-ac-tran-noise-v3");
   }, 15_000);
 
   it("compiles the persisted Project setup into the qualified request", async () => {
@@ -568,5 +646,57 @@ describe("the hosted SKY130 qualification", () => {
     expect(submitted.inputRevision).toBe(compiled.request.inputRevision);
     expect(submitted.executorTarget).toBe("operator-host");
     expect(accepted.pointCount).toBe(232);
+  });
+
+  it("compiles and validates the model-backed structured Noise slice", async () => {
+    const compiled = await compileHostedSky130NoiseProject();
+    expect(compiled.request.analyses).toEqual(["noise"]);
+    expect(compiled.request.testbench).toContain(
+      "noise v(vout) VINP dec 20 1 1000000000",
+    );
+    expect(compiled.request.testbench).toContain(
+      "write out.raw noise1.all noise2.all",
+    );
+    expect(
+      validateHostedSky130NoiseResult(
+        noiseResult("operator-host", compiled.request.inputRevision),
+        "operator-host",
+        compiled.request.inputRevision,
+      ),
+    ).toMatchObject({
+      pointCount: 181,
+      integratedOutputNoise: 0.002464690192665594,
+    });
+  });
+
+  it("sends the structured Noise slice through the selected executor", async () => {
+    let submitted;
+    const accepted = await runHostedSky130NoiseAcceptance({
+      baseUrl: "https://preview.example",
+      target: "operator-host",
+      fetchImpl: async (_url, init) => {
+        submitted = JSON.parse(init.body);
+        return Response.json(
+          noiseResult("operator-host", submitted.inputRevision),
+        );
+      },
+    });
+    expect(submitted.executorTarget).toBe("operator-host");
+    expect(submitted.analyses).toEqual(["noise"]);
+    expect(accepted.pointCount).toBe(181);
+  });
+
+  it("checks resistor Noise against the 4kTR thermal-noise law", () => {
+    expect(
+      validateResistorNoiseResult(
+        resistorNoiseResult("operator-host"),
+        "operator-host",
+      ),
+    ).toMatchObject({ target: "operator-host", pointCount: 7 });
+    const drifted = resistorNoiseResult("operator-host");
+    drifted.data.analyses[0].outputNoiseDensity[0] *= 2;
+    expect(() => validateResistorNoiseResult(drifted, "operator-host")).toThrow(
+      /inconsistent with 4kTR/u,
+    );
   });
 });

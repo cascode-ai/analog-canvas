@@ -43,13 +43,17 @@ same hierarchy, followed by the existing simulation configure operation.
 
 ## Setup, run and results
 
-Open **Setup**, create or select a named setup, then set OP/DC/AC/TRAN,
+Open **Setup**, create or select a named setup, then set OP/DC/AC/TRAN/Noise,
 process corner, optional temperature, and outputs. The current SKY130
 environment offers TT, FF, SS, FS, and SF. New setups use TT. The runtime
 Profile is selected automatically and shown by a friendly environment name;
 its stable ID remains saved in the Project and visible to Agent/API clients for
 reproducibility. A Profile picker appears only when several compatible
 environments are advertised or a saved environment is no longer available.
+Noise asks for the positive output Net, an optional negative output Net
+(Ground when omitted), the Testbench-root independent input source, and a
+frequency sweep. Its result keeps output/input-referred density curves and
+integrated totals together in one Noise analysis.
 Voltage
 outputs may target a Net at the Testbench root or in a concrete DUT occurrence;
 current outputs may target circuit terminals. Each choice is written to the

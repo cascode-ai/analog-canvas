@@ -72,11 +72,13 @@ not an implicit fallback to a program found on the user's machine.
 The first qualified scope is deliberately narrow and factual: the continuous
 `sky130_fd_pr__nfet_01v8` and `sky130_fd_pr__pfet_01v8` wrappers, the
 Profile's qualified sections (`tt/ff/ss/fs/sf`), and
-OP/DC/AC/TRAN covered by the hosted model acceptance fixture. A separate
+OP/DC/AC/TRAN/Noise covered by the hosted model acceptance fixture. A separate
 independent-source divider smoke gives DC parsing and numerical sweep behavior
 an exact closed-form check on the same pinned runtime. TRAN qualification includes an ideal RC
 step and a structured SKY130 OTA pulse response on the pinned ngspice 46
-environment. Adding another corner or device family extends this same Profile
+environment. Noise qualification includes a closed-form resistor `4kTR` check
+and the structured OTA's input/output spectral densities and integrated totals.
+Adding another corner or device family extends this same Profile
 contract only after a model-backed fixture passes the hosted
 gate; a locally available PDK is not evidence by itself.
 
@@ -470,11 +472,13 @@ into the Project, undo history, Gallery, or recovery copy.
 - `containers/ngspice/profile-contract.test.mjs` binds the Profile to the
   digest-pinned image and exact startup bytes. The Preview gate opens the
   tracked five-transistor OTA Project, compiles its persisted structured setup,
-  and sends that exact prepared OP/DC/AC/TRAN request through the operator-host
+  and sends the prepared OP/DC/AC/TRAN/Noise requests through the operator-host
   executor. It requires the Profile identity and `tt` model selection, checks
   all four compile-time output bindings, compares four OP voltages, selected DC
-  transfer points, representative complex AC samples, and transient extrema
-  against the recorded qualification fixture. Missing local ngspice never
+  transfer points, representative complex AC and Noise samples, transient
+  extrema, and integrated Noise totals against the recorded qualification
+  fixture. A separate resistor run checks spectral and integrated values against
+  `sqrt(4 k T R)`. Missing local ngspice never
   skips this hosted gate.
 - The pinned local authority pack under ignored `.reference-src/` demonstrates
   that ngspice 47 completes a Sky130 NFET operating-point deck with
@@ -586,7 +590,7 @@ reads both plots back.
 
 ## Sources and analyses
 
-`SimulationAnalysis` is `"op" | "dc" | "ac" | "tran"`.
+`SimulationAnalysis` is `"op" | "dc" | "ac" | "tran" | "noise"`.
 
 - `.op` has no parameters.
 - `.dc` sweeps exactly one independent voltage or current source in the
@@ -600,6 +604,11 @@ reads both plots back.
   unless the author asks. `tstart` does not move the start of integration,
   and `tstep` does not make the output equally spaced; the solver's time
   axis is returned as computed.
+- `.noise` selects a hierarchy-aware positive and optional negative voltage
+  anchor, one independent voltage/current source in the Testbench root, and a
+  `dec`/`oct`/`lin` frequency sweep. One user analysis owns both ngspice Noise
+  plots: spectral densities use the stable output ids `noise-output-density`
+  and `noise-input-density`, while integrated input/output noise are scalars.
 
 A voltage or current source instance carries its DC value, its AC magnitude
 and phase, and its transient waveform as formal parameters printed by the
@@ -1161,7 +1170,7 @@ release. A deployment without the binding answers
 - `scripts/preview-simulation-smoke.mjs`: the bundled five-transistor OTA
   Project is the vertical acceptance asset. Its saved `SimulationSetup` is
   parsed and compiled by the production Project/netlist packages before the
-  generated OP/DC/AC/TRAN request reaches Preview. The same gate
+  generated OP/DC/AC/TRAN/Noise requests reach Preview. The same gate
   also runs an ideal RC pulse deck. Returned input revisions, environment
   Profile, model corner, frequency/time axes, probe series, OP values,
   selected AC complex samples, and OTA transient extrema must agree with the

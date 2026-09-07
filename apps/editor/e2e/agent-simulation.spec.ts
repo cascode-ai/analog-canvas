@@ -411,8 +411,8 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
         json: {
           configured: true,
           inputs: ["structured", "raw"],
-          analyses: ["op", "ac", "tran"],
-          parsedAnalyses: ["op", "ac", "tran"],
+          analyses: ["op", "ac", "tran", "noise"],
+          parsedAnalyses: ["op", "ac", "tran", "noise"],
           profiles: [{ id: profile.id, corners: ["tt"] }],
           maxTimeoutMs: 120000,
           maxInputBytes: 1048576,
@@ -484,6 +484,21 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
                 },
               ],
             },
+            {
+              analysis: "noise",
+              plotName: "Noise Analysis",
+              frequencyHz: [1, 10, 100],
+              outputNoiseDensity: [1e-9, 8e-10, 6e-10],
+              inputNoiseDensity: [2e-9, 1.6e-9, 1.2e-9],
+              integratedOutputNoise: 9e-8,
+              integratedInputNoise: 1.8e-7,
+              units: {
+                outputDensity: "V/sqrt(Hz)",
+                inputDensity: "V/sqrt(Hz)",
+                integratedOutput: "V",
+                integratedInput: "V",
+              },
+            },
           ],
         },
         rawfile,
@@ -548,6 +563,15 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   await panel.getByLabel("TRAN step (s)").fill("1e-9");
   await panel.getByLabel("TRAN stop (s)").fill("1e-6");
   await panel.getByLabel("TRAN maximum step (s)").fill("5e-10");
+  await panel.getByLabel("Noise", { exact: true }).check();
+  await panel
+    .getByLabel("Noise output positive")
+    .selectOption({ label: "Testbench · vout" });
+  await panel.getByLabel("Noise output negative").selectOption("");
+  await panel.getByLabel("Input source").selectOption({ index: 0 });
+  await panel.getByLabel("Noise sweep").selectOption("dec");
+  await panel.getByLabel("Start (Hz)").last().fill("1");
+  await panel.getByLabel("Stop (Hz)").last().fill("1000000");
   await panel.getByLabel(/Output name for/).fill("first-output");
   await panel.getByRole("button", { name: "Apply setup" }).click();
   await panel.getByRole("button", { name: "Run", exact: true }).click();
@@ -598,14 +622,20 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   await expect(
     panel.getByRole("heading", { name: "Transient Analysis" }),
   ).toBeVisible();
+  await expect(
+    panel.getByRole("heading", { name: "Noise Analysis" }),
+  ).toBeVisible();
+  await expect(
+    panel.getByRole("region", { name: "Integrated noise" }),
+  ).toContainText("Integrated input-referred noise");
   const plotMeasurements = panel.locator(
     "details.simulation-measurement-results",
   );
   await expect(plotMeasurements).toHaveCount(1);
   await expect(plotMeasurements.locator(":scope > summary")).toContainText(
-    "8 values",
+    "14 values",
   );
-  await expect(panel.locator(".spice-ac-plot svg")).toHaveCount(2);
+  await expect(panel.locator(".spice-ac-plot svg")).toHaveCount(3);
   await expect(panel.locator('svg[aria-label="AC magnitude"]')).toBeVisible();
   await expect(panel.locator('svg[aria-label="AC phase"]')).toHaveCount(0);
   const acDisplay = panel.getByRole("group", { name: "Voltage display" });
@@ -630,7 +660,7 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   const svgBundle = await svgBundlePromise;
   expect(svgBundle.suggestedFilename()).toBe("simulation-plots-svg.zip");
   const svgEntries = unzipSync(readFileSync((await svgBundle.path())!));
-  expect(Object.keys(svgEntries)).toHaveLength(3);
+  expect(Object.keys(svgEntries)).toHaveLength(4);
   const exportedSvg = strFromU8(Object.values(svgEntries)[0]!);
   expect(exportedSvg).toContain('<?xml version="1.0"');
   expect(exportedSvg).toContain('fill="white"');
@@ -642,7 +672,7 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   const pngBundle = await pngBundlePromise;
   expect(pngBundle.suggestedFilename()).toBe("simulation-plots-png.zip");
   const pngEntries = unzipSync(readFileSync((await pngBundle.path())!));
-  expect(Object.keys(pngEntries)).toHaveLength(3);
+  expect(Object.keys(pngEntries)).toHaveLength(4);
   expect([...Object.values(pngEntries)[0]!.slice(0, 8)]).toEqual([
     137, 80, 78, 71, 13, 10, 26, 10,
   ]);
@@ -672,6 +702,13 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   expect(measurementDownload.suggestedFilename()).toBe("measurements.csv");
   expect(readFileSync((await measurementDownload.path())!, "utf8")).toContain(
     '"TRAN","Transient response","first-output","Time-weighted RMS"',
+  );
+  const noiseCsvPromise = page.waitForEvent("download");
+  await resultExport
+    .getByRole("button", { name: /outputs-noise-\d+\.csv/u })
+    .click();
+  expect((await noiseCsvPromise).suggestedFilename()).toMatch(
+    /outputs-noise-\d+\.csv/u,
   );
   resultExport.evaluate((element) => element.removeAttribute("open"));
   await acDisplay.getByRole("button", { name: "Magnitude" }).click();

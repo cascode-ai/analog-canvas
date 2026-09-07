@@ -36,6 +36,7 @@ describe("hosted simulation Profile", () => {
       "dc",
       "ac",
       "tran",
+      "noise",
     ]);
   });
 
