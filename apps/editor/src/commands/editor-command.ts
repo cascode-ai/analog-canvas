@@ -15,6 +15,8 @@ export type EditorCommandRequest =
   | { id: "selection.delete" }
   | { id: "selection.copy" }
   | { id: "selection.copy-image"; format: "png" | "svg" }
+  | { id: "selection.filter.open" }
+  | { id: "search.open" }
   /**
    * `detach` follows Virtuoso's Shift+M: the parts move on their own and each
    * connected wire stays exactly where it was, re-anchored to a Junction stub.
@@ -82,6 +84,8 @@ export interface EditorCommandOperations {
   deleteSelection(): void;
   beginCopy(): void;
   copyVisualSelection(format: "png" | "svg"): void;
+  openSelectionFilter(): void;
+  openSearch(): void;
   beginMove(detach: boolean): void;
   alignSelection(mode: EdgeAlignmentMode): void;
   rotatePlacement(deltaDegrees: 90 | -90): void;
@@ -198,6 +202,8 @@ export function createEditorCommandRouter(
         return context.canRedo ? enabled() : disabled("Nothing to redo");
       case "selection.select-all":
       case "selection.clear":
+      case "selection.filter.open":
+      case "search.open":
         return enabled();
       case "selection.delete":
         // With nothing selected while idle, Delete arms the verb (Cadence
@@ -340,6 +346,12 @@ export function createEditorCommandRouter(
         break;
       case "selection.copy-image":
         options.operations.copyVisualSelection(request.format);
+        break;
+      case "selection.filter.open":
+        options.operations.openSelectionFilter();
+        break;
+      case "search.open":
+        options.operations.openSearch();
         break;
       case "selection.move":
         options.operations.beginMove(request.detach === true);

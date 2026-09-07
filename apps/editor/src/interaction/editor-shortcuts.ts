@@ -99,6 +99,15 @@ export function resolveEditorShortcut(
 
   if (context.isTyping) return null;
 
+  if (commandModifier && key === "f") {
+    return {
+      kind: "run-command",
+      command: {
+        id: event.shiftKey ? "search.open" : "selection.filter.open",
+      },
+    };
+  }
+
   const plain = !event.ctrlKey && !event.metaKey && !event.altKey;
   const interactionActive = context.interactionMode !== "idle";
 

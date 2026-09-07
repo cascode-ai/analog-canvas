@@ -22,6 +22,10 @@ import {
   instanceHitBox,
 } from "../features/wiring/route-interaction-geometry";
 import type { EditorTool } from "../interaction/interaction-state";
+import {
+  DEFAULT_SELECTION_FILTER,
+  type SelectionFilter,
+} from "../features/selection/selection-filter";
 import { serializePolylinePoints } from "./canvas-geometry";
 
 type Instance = SchematicDocument["instances"][number];
@@ -90,6 +94,7 @@ interface EndpointHitTargetProps {
   selectedRouteSegmentIndex: number | null;
   selectedEndpoint: WireSource | null;
   supplementalJunctionIds: readonly string[];
+  selectionFilter?: SelectionFilter;
   endpointLabel: (endpoint: WireSource["endpoint"]) => string;
   onEndpointActions: (
     endpoint: WireSource,
@@ -306,6 +311,7 @@ function EndpointHitTargets({
   selectedRouteSegmentIndex,
   selectedEndpoint,
   supplementalJunctionIds,
+  selectionFilter = DEFAULT_SELECTION_FILTER,
   endpointLabel,
   endpointHitRadius,
   onEndpointActions,
@@ -424,6 +430,14 @@ function EndpointHitTargets({
                 ? "resize-route-start"
                 : "resize-route-end",
             );
+            return;
+          }
+          if (
+            tool === "pointer" &&
+            !selectionFilter[
+              candidate.endpoint.kind === "junction" ? "junction" : "terminal"
+            ]
+          ) {
             return;
           }
           if (tool === "pointer" && candidate.endpoint.kind === "junction") {

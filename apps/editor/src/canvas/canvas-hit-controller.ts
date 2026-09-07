@@ -5,6 +5,11 @@ import type { Annotation, DraftingObject, SchematicDocument } from "@icm/model";
 
 import type { EditorTool } from "../interaction/interaction-state";
 import { planSelectionMove } from "../features/selection/selection-move-plan";
+import {
+  DEFAULT_SELECTION_FILTER,
+  selectionFilterAllowsCanvasHit,
+  type SelectionFilter,
+} from "../features/selection/selection-filter";
 import type { VisualSelection } from "../features/selection/visual-selection";
 import {
   resolveCanvasHitAtPoint,
@@ -20,6 +25,7 @@ export interface CanvasHitControllerDependencies {
     selectedInternalRouteIds: ReadonlySet<string>;
     selectedInternalJunctionIds: ReadonlySet<string>;
     selectedInternalObjectIds: ReadonlySet<string>;
+    selectionFilter?: SelectionFilter;
   };
   session: {
     getInteractionKind: () => string;
@@ -84,6 +90,7 @@ export function createCanvasHitController({
     selectedInternalRouteIds,
     selectedInternalJunctionIds,
     selectedInternalObjectIds,
+    selectionFilter = DEFAULT_SELECTION_FILTER,
   },
   session: {
     getInteractionKind,
@@ -175,6 +182,15 @@ export function createCanvasHitController({
           event.currentTarget.ownerDocument,
           { x: event.clientX, y: event.clientY },
           event.altKey ? 1 : 0,
+          simulationPickMode === null
+            ? (candidate) =>
+                candidate.selected ||
+                selectionFilterAllowsCanvasHit(
+                  selectionFilter,
+                  document,
+                  candidate,
+                )
+            : undefined,
         )
       : null;
     // The offer runs the verb, so it is withheld while a simulation probe is

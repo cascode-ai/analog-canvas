@@ -105,6 +105,20 @@ describe("resolveCanvasHit", () => {
       id: "M1",
     });
   });
+
+  it("removes disabled candidates before priority and Alt cycling", () => {
+    const route = element("route", "route-1");
+    const instance = element("instance", "M1");
+    const accepts = (hit: { kind: string }) => hit.kind !== "route";
+    expect(resolveCanvasHit([route, instance], 0, accepts)).toMatchObject({
+      kind: "instance",
+      id: "M1",
+    });
+    expect(resolveCanvasHit([route, instance], 1, accepts)).toMatchObject({
+      kind: "instance",
+      id: "M1",
+    });
+  });
 });
 
 describe("a hit radius that does not shrink when the view does", () => {

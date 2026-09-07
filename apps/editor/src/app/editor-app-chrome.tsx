@@ -41,6 +41,8 @@ export interface EditorAppChromeProps {
   onManageCells: () => void;
   onNewTestbench: () => void;
   placeProjectCell: CommandAction;
+  selectionFilterOpen: boolean;
+  onOpenSelectionFilter: () => void;
   onOpenSearch: () => void;
   undo: CommandAction;
   redo: CommandAction;
@@ -86,6 +88,8 @@ export function EditorAppChrome({
   onManageCells,
   onNewTestbench,
   placeProjectCell,
+  selectionFilterOpen,
+  onOpenSelectionFilter,
   onOpenSearch,
   undo,
   redo,
@@ -218,12 +222,21 @@ export function EditorAppChrome({
                 </button>
                 <button
                   type="button"
+                  data-testid="selection-filter-button"
+                  aria-haspopup="dialog"
+                  aria-expanded={selectionFilterOpen}
+                  onClick={onOpenSelectionFilter}
+                >
+                  Selection Filter… (Ctrl+F)
+                </button>
+                <button
+                  type="button"
                   data-testid="project-search-button"
                   aria-haspopup="dialog"
                   aria-expanded={searchOpen}
                   onClick={onOpenSearch}
                 >
-                  Search…
+                  Search schematic… (Ctrl+Shift+F)
                 </button>
                 <button
                   type="button"
