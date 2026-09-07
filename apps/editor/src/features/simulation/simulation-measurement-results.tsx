@@ -54,40 +54,81 @@ export function SimulationMeasurementResults({
         </span>
       </summary>
       <div>
-        {[...groups.entries()].map(([key, group]) => (
-          <section key={key}>
-            <header>
-              <strong>{group[0]!.analysis.toUpperCase()}</strong>
-              <span>{group[0]!.plotName}</span>
-            </header>
-            <table>
-              <thead>
-                <tr>
-                  <th>Output</th>
-                  <th>Measurement</th>
-                  <th>Value</th>
-                </tr>
-              </thead>
-              <tbody>
-                {group.map((measurement) => (
-                  <tr key={measurement.id} data-status={measurement.status}>
-                    <td>{measurement.outputLabel}</td>
-                    <td>{measurement.label}</td>
-                    <td>
-                      {measurement.status === "available" ? (
-                        formatMeasurement(measurement.value, measurement.unit)
-                      ) : (
-                        <span title={measurement.reason}>
-                          Unavailable · {measurement.reason}
+        {[...groups.entries()].map(([key, group]) => {
+          const outputs = new Map<string, Measurement[]>();
+          for (const measurement of group)
+            outputs.set(measurement.outputId, [
+              ...(outputs.get(measurement.outputId) ?? []),
+              measurement,
+            ]);
+          return (
+            <section key={key}>
+              <header>
+                <strong>{group[0]!.analysis.toUpperCase()}</strong>
+                <span>{group[0]!.plotName}</span>
+              </header>
+              <div className="simulation-measurement-output-groups">
+                {[...outputs.entries()].map(([outputId, output]) => {
+                  const outputUnavailable = output.filter(
+                    (measurement) => measurement.status === "unavailable",
+                  ).length;
+                  return (
+                    <details
+                      key={outputId}
+                      className="simulation-measurement-output"
+                      open={outputUnavailable > 0}
+                    >
+                      <summary>
+                        <strong>{output[0]!.outputLabel}</strong>
+                        <span
+                          data-status={
+                            outputUnavailable ? "attention" : "ready"
+                          }
+                        >
+                          {output.length}{" "}
+                          {output.length === 1 ? "value" : "values"}
+                          {outputUnavailable
+                            ? ` · ${outputUnavailable} unavailable`
+                            : ""}
                         </span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </section>
-        ))}
+                      </summary>
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Measurement</th>
+                            <th>Value</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {output.map((measurement) => (
+                            <tr
+                              key={measurement.id}
+                              data-status={measurement.status}
+                            >
+                              <td>{measurement.label}</td>
+                              <td>
+                                {measurement.status === "available" ? (
+                                  formatMeasurement(
+                                    measurement.value,
+                                    measurement.unit,
+                                  )
+                                ) : (
+                                  <span title={measurement.reason}>
+                                    Unavailable · {measurement.reason}
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </details>
+                  );
+                })}
+              </div>
+            </section>
+          );
+        })}
       </div>
     </details>
   );

@@ -807,6 +807,49 @@
   color: var(--icm-text-muted);
   font-size: var(--icm-font-xs);
 }
+.simulation-measurement-output-groups {
+  display: grid;
+  gap: 5px;
+}
+.simulation-measurement-output {
+  overflow: hidden;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+}
+.simulation-measurement-output > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 5px 8px;
+  background: var(--icm-surface-muted);
+  cursor: pointer;
+  list-style: none;
+}
+.simulation-measurement-output > summary::-webkit-details-marker {
+  display: none;
+}
+.simulation-measurement-output > summary::before {
+  width: 12px;
+  color: var(--icm-text-muted);
+  content: "›";
+  font-size: 16px;
+  line-height: 1;
+  transform-origin: center;
+  transition: transform 120ms ease;
+}
+.simulation-measurement-output[open] > summary::before {
+  transform: rotate(90deg);
+}
+.simulation-measurement-output > summary > span {
+  margin-left: auto;
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+}
+.simulation-measurement-output > summary > span[data-status="attention"] {
+  color: var(--icm-danger);
+  font-weight: 650;
+}
 .simulation-measurement-results table {
   width: 100%;
   border-collapse: collapse;

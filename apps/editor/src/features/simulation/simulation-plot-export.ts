@@ -57,6 +57,9 @@ export function standaloneSimulationPlotSvg(svg: SVGSVGElement): string {
     const source = sourceElements[index];
     const target = clonedElements[index];
     if (!source || !target) continue;
+    // Definitions and structural containers do not paint content themselves.
+    // Copying their inherited fill would turn the standalone image black.
+    if (source.closest("defs") || source.matches("svg, g")) continue;
     const computed = getComputedStyle(source);
     for (const property of PRESENTATION_PROPERTIES) {
       const value = computed.getPropertyValue(property);
@@ -66,6 +69,13 @@ export function standaloneSimulationPlotSvg(svg: SVGSVGElement): string {
   clone
     .querySelectorAll(".ac-trace-hit, .ac-cursor-hit")
     .forEach((element) => element.remove());
+  clone.querySelectorAll<SVGElement>(".ac-frame").forEach((element) => {
+    // The live frame is transparent. Give the standalone artifact an explicit
+    // background because SVG-to-Canvas otherwise resolves `fill: none` to the
+    // inherited default in Chromium and produces a black plot panel.
+    element.setAttribute("fill", "white");
+    element.style.setProperty("fill", "white");
+  });
   const size = dimensions(svg);
   clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
   clone.setAttribute("width", String(size.width));
