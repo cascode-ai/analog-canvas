@@ -47,6 +47,7 @@ describe("SpiceSimulationSurface workspace", () => {
     expect(markup).toContain('aria-label="Analyses settings"');
     expect(markup).toContain('aria-label="Output probes settings"');
     expect(markup).toContain('aria-label="Output signals settings"');
+    expect(markup).toContain('aria-label="Measurements settings"');
     expect(markup).not.toContain('aria-label="Analyses settings" open=""');
     expect(markup).not.toContain('aria-label="Output probes settings" open=""');
     expect(markup).not.toContain(

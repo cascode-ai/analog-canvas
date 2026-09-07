@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { parseSimulationExpression } from "@icm/model";
+import {
+  parseSimulationExpression,
+  SimulationMeasurementMethodSchema,
+} from "@icm/model";
 import { SimulationOperationSchema } from "@icm/simulation-service/contract";
 import { SimulationFileOperationSchema } from "@icm/simulation-service/files";
 import { AGENT_API_VERSION } from "@icm/agent-adapter";
@@ -77,6 +80,30 @@ const SimulationOutputArgs = z.discriminatedUnion("action", [
     setupId: z.string().min(1),
     documentId: z.string().min(1).optional(),
     outputId: z.string().min(1),
+  }),
+]);
+
+const SimulationMeasurementArgs = z.discriminatedUnion("action", [
+  z.strictObject({
+    action: z.literal("list"),
+    setupId: z.string().min(1),
+    documentId: z.string().min(1).optional(),
+  }),
+  z.strictObject({
+    action: z.literal("upsert"),
+    setupId: z.string().min(1),
+    documentId: z.string().min(1).optional(),
+    measurementId: z.string().min(1).optional(),
+    label: z.string().trim().min(1).max(128),
+    analysis: z.enum(["op", "dc", "ac", "tran"]),
+    outputId: z.string().min(1),
+    method: SimulationMeasurementMethodSchema,
+  }),
+  z.strictObject({
+    action: z.literal("remove"),
+    setupId: z.string().min(1),
+    documentId: z.string().min(1).optional(),
+    measurementId: z.string().min(1),
   }),
 ]);
 
@@ -393,6 +420,10 @@ const TOOLS: readonly ToolEntry[] = [
               recovery: "fix-input",
             },
           };
+        if (next.input.measurements)
+          next.input.measurements = next.input.measurements.filter(
+            (measurement) => measurement.outputId !== parsed.outputId,
+          );
       } else {
         const outputId = parsed.outputId ?? crypto.randomUUID();
         if (
@@ -438,6 +469,124 @@ const TOOLS: readonly ToolEntry[] = [
         );
         if (index < 0) next.input.outputs.push(output);
         else next.input.outputs[index] = output;
+      }
+      return session.client.advancedTransact(
+        {
+          structureEdits: [{ kind: "upsert_simulation_setup", setup: next }],
+        },
+        { ...(parsed.documentId ? { documentId: parsed.documentId } : {}) },
+      );
+    },
+  },
+  {
+    definition: {
+      name: "simulation_measurement",
+      description:
+        "List, add, update, or remove saved scalar measurement rules in one structured Simulation setup. Rules reduce an existing Output with value, sample-at, minimum, maximum, peak-to-peak, mean, or RMS. Ordinary validation failures are recoverable and do not end the Agent session. Full setup replacement remains available through advanced_transact.",
+      inputSchema: {
+        ...jsonSchemaOf(SimulationMeasurementArgs),
+        type: "object",
+      },
+    },
+    handle: async (args, session) => {
+      const parsed = SimulationMeasurementArgs.parse(args);
+      const snapshot = await session.client.snapshot(parsed.documentId, {
+        refresh: true,
+      });
+      const setup = snapshot.snapshot.project.simulationSetups.find(
+        (candidate) => candidate.id === parsed.setupId,
+      );
+      if (!setup)
+        return {
+          ok: false,
+          error: {
+            code: "SIMULATION_SETUP_NOT_FOUND",
+            message: `Setup ${parsed.setupId} does not exist; no Project state was changed.`,
+            recovery: "fix-input",
+          },
+        };
+      if (setup.input.kind !== "structured")
+        return {
+          ok: false,
+          error: {
+            code: "SIMULATION_STRUCTURED_SETUP_REQUIRED",
+            message:
+              "Create a structured Simulation setup first; no Project state was changed.",
+            recovery: "fix-input",
+          },
+        };
+      if (parsed.action === "list")
+        return { ok: true, measurements: setup.input.measurements ?? [] };
+
+      const next = structuredClone(setup);
+      if (next.input.kind !== "structured") throw new Error("unreachable");
+      const measurements = next.input.measurements ?? [];
+      if (parsed.action === "remove") {
+        const filtered = measurements.filter(
+          (measurement) => measurement.id !== parsed.measurementId,
+        );
+        if (filtered.length === measurements.length)
+          return {
+            ok: false,
+            error: {
+              code: "SIMULATION_MEASUREMENT_NOT_FOUND",
+              message: `Measurement ${parsed.measurementId} does not exist; no Project state was changed.`,
+              recovery: "fix-input",
+            },
+          };
+        next.input.measurements = filtered;
+      } else {
+        if (
+          !next.input.analyses.some(
+            (analysis) => analysis.kind === parsed.analysis,
+          )
+        )
+          return {
+            ok: false,
+            error: {
+              code: "SIMULATION_MEASUREMENT_ANALYSIS_UNAVAILABLE",
+              message: `${parsed.analysis.toUpperCase()} is not enabled in this Setup; no Project state was changed.`,
+              recovery: "fix-input",
+            },
+          };
+        if (!next.input.outputs.some((output) => output.id === parsed.outputId))
+          return {
+            ok: false,
+            error: {
+              code: "SIMULATION_MEASUREMENT_OUTPUT_UNAVAILABLE",
+              message: `Output ${parsed.outputId} does not exist; no Project state was changed.`,
+              recovery: "fix-input",
+            },
+          };
+        const measurementId = parsed.measurementId ?? crypto.randomUUID();
+        if (
+          measurements.some(
+            (measurement) =>
+              measurement.id !== measurementId &&
+              measurement.label.toLowerCase() === parsed.label.toLowerCase(),
+          )
+        )
+          return {
+            ok: false,
+            error: {
+              code: "SIMULATION_MEASUREMENT_LABEL_DUPLICATE",
+              message: `A measurement named ${parsed.label} already exists; no Project state was changed.`,
+              recovery: "fix-input",
+            },
+          };
+        const measurement = {
+          id: measurementId,
+          label: parsed.label,
+          analysis: parsed.analysis,
+          outputId: parsed.outputId,
+          method: parsed.method,
+        };
+        const index = measurements.findIndex(
+          (candidate) => candidate.id === measurementId,
+        );
+        if (index < 0) measurements.push(measurement);
+        else measurements[index] = measurement;
+        next.input.measurements = measurements;
       }
       return session.client.advancedTransact(
         {

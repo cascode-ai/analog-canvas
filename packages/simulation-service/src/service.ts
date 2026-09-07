@@ -195,7 +195,8 @@ export class SimulationService {
       this.files,
     );
     if (!preparation.ok) return preparation;
-    const { input, vectors, outputs, warnings, digest } = preparation;
+    const { input, vectors, outputs, measurements, warnings, digest } =
+      preparation;
     if (epoch !== this.epoch)
       return problem(
         "SESSION_CHANGED",
@@ -258,6 +259,7 @@ export class SimulationService {
       environment: input.environment,
       vectors,
       outputs,
+      measurements,
       artifacts,
       warnings,
     };
@@ -369,6 +371,7 @@ export class SimulationService {
           output.result.data,
           run.prepared.vectors,
           run.prepared.outputs,
+          run.prepared.measurements ?? [],
         );
       }
       const artifact = async (name: string, type: string, text: string) =>
@@ -431,6 +434,7 @@ export class SimulationService {
               environment: run.prepared.environment,
               vectors: run.prepared.vectors,
               outputs: run.prepared.outputs,
+              measurements: run.prepared.measurements ?? [],
             },
             environment: output.result.metadata.environment,
             artifacts: evidenceArtifacts,

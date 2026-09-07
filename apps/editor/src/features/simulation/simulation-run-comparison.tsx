@@ -29,6 +29,12 @@ function format(value: number, unit: string): string {
   return `${Number(value.toPrecision(6))}${unit === "1" ? "" : ` ${unit}`}`;
 }
 
+function measurementKey(measurement: Measurement): string {
+  return (measurement.origin ?? "automatic") === "authored"
+    ? `authored\u0000${measurement.measurementId}`
+    : `automatic\u0000${measurement.analysis}\u0000${measurement.outputId}\u0000${measurement.metric}\u0000${measurement.unit}`;
+}
+
 export function SimulationRunComparison({
   runs,
   onRemove,
@@ -45,10 +51,7 @@ export function SimulationRunComparison({
   const rows = new Map<string, Measurement>();
   for (const run of runs)
     for (const measurement of run.measurements)
-      rows.set(
-        `${measurement.analysis}\u0000${measurement.outputId}\u0000${measurement.metric}\u0000${measurement.unit}`,
-        measurement,
-      );
+      rows.set(measurementKey(measurement), measurement);
   return (
     <div className="simulation-run-comparison-table-wrap">
       <table className="simulation-run-comparison-table">
@@ -88,11 +91,7 @@ export function SimulationRunComparison({
               </th>
               {runs.map((run) => {
                 const item = run.measurements.find(
-                  (candidate) =>
-                    candidate.analysis === row.analysis &&
-                    candidate.outputId === row.outputId &&
-                    candidate.metric === row.metric &&
-                    candidate.unit === row.unit,
+                  (candidate) => measurementKey(candidate) === key,
                 );
                 return (
                   <td key={run.id}>

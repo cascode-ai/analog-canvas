@@ -29,6 +29,52 @@ describe("simulation output evaluation", () => {
     expect(result.analyses[0]?.outputs[0]?.values).toEqual([2, 2, 2]);
   });
 
+  it("evaluates saved rules beside automatic summaries", () => {
+    const result = evaluateSimulationOutputs(
+      {
+        schemaVersion: 1,
+        analyses: [
+          {
+            analysis: "tran",
+            plotName: "Transient",
+            timeSeconds: [0, 1, 2],
+            probes: [],
+          },
+        ],
+      },
+      [],
+      [
+        {
+          id: "constant",
+          label: "Reference",
+          expression: { kind: "constant", value: 2 },
+        },
+      ],
+      [
+        {
+          id: "saved-rms",
+          label: "Reference RMS",
+          analysis: "tran",
+          outputId: "constant",
+          method: { kind: "rms", window: { start: 0, stop: 2 } },
+        },
+      ],
+    );
+
+    expect(result.measurements).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ origin: "automatic", metric: "time-rms" }),
+        expect.objectContaining({
+          origin: "authored",
+          measurementId: "saved-rms",
+          label: "Reference RMS",
+          status: "available",
+          value: 2,
+        }),
+      ]),
+    );
+  });
+
   it("keeps a purely real AC acquisition complex for magnitude/phase plotting", () => {
     const result = evaluateSimulationOutputs(
       {

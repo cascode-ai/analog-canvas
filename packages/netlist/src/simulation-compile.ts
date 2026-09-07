@@ -63,6 +63,7 @@ import type {
   SchematicDocument,
   SimulationAnalysisSpec,
   SimulationExpression,
+  SimulationMeasurementSpec,
   SimulationSetup,
   SimulationStructuredInput,
   StableId,
@@ -143,6 +144,7 @@ export type CompiledSimulation =
       readonly request: SimulationRequest;
       readonly vectors: ReadonlyArray<CompiledSimulationVector>;
       readonly outputs: ReadonlyArray<CompiledSimulationOutput>;
+      readonly measurements: ReadonlyArray<SimulationMeasurementSpec>;
       readonly diagnostics: readonly [];
       /**
        * Everything the extraction reported that did not stop the compile --
@@ -918,6 +920,30 @@ export async function compileStructuredSimulation(
       outputs.push({ id: output.id, label: output.label, expression });
   }
 
+  const enabledAnalyses = new Set(input.analyses.map((item) => item.kind));
+  const outputIds = new Set(input.outputs.map((output) => output.id));
+  for (const measurement of input.measurements ?? []) {
+    if (!enabledAnalyses.has(measurement.analysis))
+      diagnostics.push(
+        diagnostic(
+          "SIMULATION_MEASUREMENT_ANALYSIS_UNAVAILABLE",
+          input.rootDocumentId,
+          `Measurement ${measurement.label} requires ${measurement.analysis.toUpperCase()}, which this Setup does not run`,
+          locator(input.rootDocumentId, [], "document", input.rootDocumentId),
+        ),
+      );
+    if (!outputIds.has(measurement.outputId))
+      diagnostics.push(
+        diagnostic(
+          "SIMULATION_MEASUREMENT_OUTPUT_UNAVAILABLE",
+          input.rootDocumentId,
+          `Measurement ${measurement.label} references missing Output ${measurement.outputId}`,
+          locator(input.rootDocumentId, [], "document", input.rootDocumentId),
+          [measurement.outputId],
+        ),
+      );
+  }
+
   if (diagnostics.length) return { ok: false, diagnostics };
 
   // Every reached Cell but the root: the root is instantiated below, not
@@ -967,6 +993,7 @@ export async function compileStructuredSimulation(
     },
     vectors,
     outputs,
+    measurements: structuredClone(input.measurements ?? []),
     diagnostics: [],
     warnings: analysis.diagnostics,
   };

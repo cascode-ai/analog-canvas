@@ -2,14 +2,14 @@
 
 Status: `accepted`
 
-Current Project schema: `44`
+Current Project schema: `45`
 
 Primary owners: `packages/model` (current shape) and
 `packages/project-protocol` (file boundary)
 
 An `.icproj.json` file is canonical JSON for one complete `CircuitProject`.
 `@icm/project-protocol` exposes `parseProject`. The file boundary accepts every
-schema covered by its explicit 24→44 upgrade chain. Schema 32 added optional
+schema covered by its explicit 24→45 upgrade chain. Schema 32 added optional
 presentation-only `Annotation.textColor`; schema 33 removes ownerless
 `explicit-equivalence` connectivity. The 32→33 adapter advances the version
 stamp only when that retired record is absent. If one exists, it rejects at the
@@ -49,9 +49,11 @@ Schema 43 replaces primitive probes with named outputs and bounded expression
 trees; the 42→43 adapter preserves each target as a leaf output and derives an
 initial human-readable label. Schema 44 makes terminal identity explicit for
 current expressions; the 43→44 adapter preserves the previously supported
-independent-source sign by selecting its `+` terminal. The public file boundary
-supplies only schema 44 in
-memory and writes only schema 44; versions older than 24 or newer than 44
+independent-source sign by selecting its `+` terminal. Schema 45 adds optional
+saved scalar measurement rules to structured setups;
+the 44→45 adapter invents no measurement intent. The public file boundary
+supplies only schema 45 in
+memory and writes only schema 45; versions older than 24 or newer than 45
 are rejected.
 
 ## Current authorities
@@ -125,7 +127,9 @@ are rejected.
   one entry per kind, and output ids and labels are unique. Each output owns
   one bounded expression over voltage/current acquisitions and constants;
   `output.label` is the sole authored name used by OP/DC/AC/TRAN results,
-  plots, CSV, and MCP. A raw input owns bounded author
+  plots, CSV, and MCP. Optional measurement rules reference one enabled
+  analysis and one Output and persist a scalar reduction, never a Run result.
+  A raw input owns bounded author
   files in the shared virtual relative namespace and declares external bytes
   by logical identity, mount path, and digest; it never stores a host path. Both
   forms store only a Profile ID plus the author's corner and temperature
@@ -136,8 +140,8 @@ are rejected.
 ## Read and write
 
 ```text
-import text -> parse JSON -> require Project schema 24 through 43
--> converge to schema 44 -> strict schema-44 validation -> install unbound
+import text -> parse JSON -> require Project schema 24 through 45
+-> converge to schema 45 -> strict schema-45 validation -> install unbound
 export -> strict validation -> canonical key ordering -> Blob download
 ```
 
@@ -161,7 +165,7 @@ open, and recovery remain exact.
 Canonical serialization ends with one newline and is byte-stable across
 serialize/parse/serialize. The current corpus is listed in
 `fixtures/projects/compatibility-corpus.json`; its accepted entries must all be
-already canonical Project schema 44. The rejected corpus names expected
+already canonical Project schema 45. The rejected corpus names expected
 validation failures.
 
 Viewport, selection, undo history, canvas overlays, Agent credentials,

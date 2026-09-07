@@ -183,6 +183,48 @@ export const SimulationOutputSpecSchema = z.strictObject({
   expression: SimulationExpressionSchema,
 });
 
+export const SimulationMeasurementWindowSchema = z
+  .strictObject({
+    /** Analysis-domain coordinate in SI units (V/A, Hz, or seconds). */
+    start: z.number().finite(),
+    /** Analysis-domain coordinate in SI units (V/A, Hz, or seconds). */
+    stop: z.number().finite(),
+  })
+  .refine((window) => window.stop > window.start, {
+    message: "Measurement window stop must be greater than start",
+    path: ["stop"],
+  });
+
+export const SimulationMeasurementMethodSchema = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("value") }),
+  z.strictObject({
+    kind: z.literal("sample-at"),
+    /** Analysis-domain coordinate in SI units. */
+    coordinate: z.number().finite(),
+  }),
+  ...(["minimum", "maximum", "peak-to-peak"] as const).map((kind) =>
+    z.strictObject({
+      kind: z.literal(kind),
+      window: SimulationMeasurementWindowSchema.optional(),
+    }),
+  ),
+  ...(["mean", "rms"] as const).map((kind) =>
+    z.strictObject({
+      kind: z.literal(kind),
+      window: SimulationMeasurementWindowSchema,
+    }),
+  ),
+]);
+
+/** A saved rule that reduces one authored Output to one scalar per Run. */
+export const SimulationMeasurementSpecSchema = z.strictObject({
+  id: StableIdSchema,
+  label: z.string().trim().min(1).max(128),
+  analysis: z.enum(["op", "dc", "ac", "tran"]),
+  outputId: StableIdSchema,
+  method: SimulationMeasurementMethodSchema,
+});
+
 function expressionDepth(expression: SimulationExpression): number {
   if (
     expression.kind === "voltage" ||
@@ -331,6 +373,8 @@ export const SimulationStructuredInputSchema = z
     rootDocumentId: StableIdSchema,
     analyses: z.array(SimulationAnalysisSpecSchema).min(1),
     outputs: z.array(SimulationOutputSpecSchema).max(1024),
+    /** Saved scalar-measurement rules; absent is equivalent to an empty list. */
+    measurements: z.array(SimulationMeasurementSpecSchema).max(256).optional(),
     environment: SimulationEnvironmentSelectionSchema,
   })
   .superRefine((input, context) => {
@@ -346,6 +390,7 @@ export const SimulationStructuredInputSchema = z
       kinds.add(analysis.kind);
     }
     reportDuplicateIds(input.outputs, "outputs", context);
+    reportDuplicateIds(input.measurements ?? [], "measurements", context);
     const labels = new Set<string>();
     for (const [index, output] of input.outputs.entries()) {
       const label = output.label.toLowerCase();
@@ -362,6 +407,51 @@ export const SimulationStructuredInputSchema = z
           code: "custom",
           message: "Simulation expression exceeds maximum depth 32",
           path: ["outputs", index, "expression"],
+        });
+      }
+    }
+    const measurementLabels = new Set<string>();
+    for (const [index, measurement] of (input.measurements ?? []).entries()) {
+      const label = measurement.label.toLowerCase();
+      if (measurementLabels.has(label)) {
+        context.addIssue({
+          code: "custom",
+          message: `Duplicate simulation measurement label: ${measurement.label}`,
+          path: ["measurements", index, "label"],
+        });
+      }
+      measurementLabels.add(label);
+      if (
+        measurement.analysis === "op" &&
+        measurement.method.kind !== "value"
+      ) {
+        context.addIssue({
+          code: "custom",
+          message: "Operating-point measurements use the value method",
+          path: ["measurements", index, "method"],
+        });
+      }
+      if (
+        measurement.analysis !== "op" &&
+        measurement.method.kind === "value"
+      ) {
+        context.addIssue({
+          code: "custom",
+          message:
+            "The value method is only valid for operating-point measurements",
+          path: ["measurements", index, "method"],
+        });
+      }
+      if (
+        (measurement.method.kind === "mean" ||
+          measurement.method.kind === "rms") &&
+        measurement.analysis !== "tran"
+      ) {
+        context.addIssue({
+          code: "custom",
+          message:
+            "Mean and RMS measurements are currently supported only for transient analysis",
+          path: ["measurements", index, "method"],
         });
       }
     }

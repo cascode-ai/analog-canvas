@@ -3,6 +3,7 @@ import { SimulationResultSchema } from "@icm/spice-run";
 import {
   ObjectLocatorSchema,
   SimulationEnvironmentSelectionSchema,
+  SimulationMeasurementSpecSchema,
 } from "@icm/model";
 import type {
   CompiledSimulationExpression,
@@ -112,6 +113,7 @@ export const PreparedSchema = z.strictObject({
   environment: EnvironmentSchema,
   vectors: z.array(VectorSchema),
   outputs: z.array(CompiledOutputSchema),
+  measurements: z.array(SimulationMeasurementSpecSchema).optional(),
   artifacts: z.array(ArtifactRefSchema),
   warnings: z.array(z.string()),
 });
@@ -151,9 +153,22 @@ export const AutomaticMeasurementSchema = z.discriminatedUnion("status", [
       "peak-to-peak",
       "time-mean",
       "time-rms",
+      "sample-at",
     ]),
     label: z.string(),
     unit: z.string(),
+    origin: z.enum(["automatic", "authored"]).optional(),
+    measurementId: Id.optional(),
+    evidence: z
+      .union([
+        z.strictObject({ kind: z.literal("point"), coordinate: z.number() }),
+        z.strictObject({
+          kind: z.literal("window"),
+          start: z.number(),
+          stop: z.number(),
+        }),
+      ])
+      .optional(),
     status: z.literal("available"),
     value: z.number().finite(),
   }),
@@ -171,9 +186,22 @@ export const AutomaticMeasurementSchema = z.discriminatedUnion("status", [
       "peak-to-peak",
       "time-mean",
       "time-rms",
+      "sample-at",
     ]),
     label: z.string(),
     unit: z.string(),
+    origin: z.enum(["automatic", "authored"]).optional(),
+    measurementId: Id.optional(),
+    evidence: z
+      .union([
+        z.strictObject({ kind: z.literal("point"), coordinate: z.number() }),
+        z.strictObject({
+          kind: z.literal("window"),
+          start: z.number(),
+          stop: z.number(),
+        }),
+      ])
+      .optional(),
     status: z.literal("unavailable"),
     reason: z.string(),
   }),

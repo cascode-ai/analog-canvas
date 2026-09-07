@@ -73,6 +73,7 @@ function available(
     metric,
     label,
     unit: output.unit,
+    origin: "automatic",
     status: "available",
     value,
   };
@@ -96,6 +97,7 @@ function unavailable(
     metric,
     label,
     unit: output.unit,
+    origin: "automatic",
     status: "unavailable",
     reason,
   };
@@ -218,6 +220,9 @@ export function automaticMeasurementsToCsv(
         "Unit",
         "Status",
         "Reason",
+        "Origin",
+        "Measurement ID",
+        "Evidence",
       ],
       ...measurements.map((item) => [
         item.analysis.toUpperCase(),
@@ -228,6 +233,9 @@ export function automaticMeasurementsToCsv(
         item.unit === "1" ? "" : item.unit,
         item.status,
         item.status === "unavailable" ? item.reason : "",
+        item.origin ?? "automatic",
+        item.measurementId,
+        item.evidence ? JSON.stringify(item.evidence) : "",
       ]),
     ]
       .map((row) => row.map(quote).join(","))
