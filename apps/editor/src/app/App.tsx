@@ -275,9 +275,9 @@ import { useRecoveryCoordinator } from "../document/recovery-coordinator";
 import { useSelectionController } from "../features/selection/selection-controller";
 import { SelectionFilterPopover } from "../features/selection/selection-filter-popover";
 import {
+  createSelectionPolicy,
   DEFAULT_SELECTION_FILTER,
   selectionFilterSummary,
-  selectionForDocument,
   type SelectionFilter,
 } from "../features/selection/selection-filter";
 import { deriveSelectionInspectionModel } from "../features/selection/selection-inspection-model";
@@ -521,6 +521,14 @@ export function App({
     DEFAULT_SELECTION_FILTER,
   );
   const [selectionFilterOpen, setSelectionFilterOpen] = useState(false);
+  const selectionPolicy = useMemo(
+    () => createSelectionPolicy(document, selectionFilter),
+    [document, selectionFilter],
+  );
+  const unfilteredSelectionPolicy = useMemo(
+    () => createSelectionPolicy(document, DEFAULT_SELECTION_FILTER),
+    [document],
+  );
   const uniqueSuffixCounter = useRef(0);
   const [viewBox, setRawViewBox] = useState<GridRect>(DEFAULT_VIEWBOX);
   const cameraRuntimeRef = useRef<CameraRuntime | null>(null);
@@ -2531,7 +2539,7 @@ export function App({
       selectedInternalRouteIds,
       selectedInternalJunctionIds,
       selectedInternalObjectIds,
-      selectionFilter,
+      selectionPolicy,
     },
     session: {
       getInteractionKind: () => getCurrentInteractionState().kind,
@@ -2618,7 +2626,7 @@ export function App({
       resolver,
       routeGeometryRecords,
       styleProfile,
-      selectionFilter,
+      selectionPolicy,
     },
     viewport: {
       defaultViewBox: DEFAULT_VIEWBOX,
@@ -2837,8 +2845,23 @@ export function App({
   }
 
   function selectAllObjects(): void {
-    replaceSelection(selectionForDocument(document, selectionFilter));
+    replaceSelection(selectionPolicy.selectAll());
     setSelectedEndpoint(null);
+  }
+
+  function applySelectionFilter(nextFilter: SelectionFilter): void {
+    const nextPolicy = createSelectionPolicy(document, nextFilter);
+    setSelectionFilter(nextFilter);
+    replaceSelection(nextPolicy.retainSelection(visualSelection));
+    if (
+      selectedEndpoint &&
+      !nextPolicy.allowsEndpoint(selectedEndpoint.endpoint.kind, "select")
+    ) {
+      setSelectedEndpoint(null);
+    }
+    if (!nextPolicy.allowsClass("route", "handle")) {
+      setSelectedRouteSegmentIndex(null);
+    }
   }
 
   function clearEditorSelection(): void {
@@ -3749,7 +3772,7 @@ export function App({
   };
 
   const canvasEventHandlers = createEditorCanvasEventHandlers({
-    model: { tool, document, resolver },
+    model: { tool, document, resolver, selectionPolicy },
     session: {
       interactionKind: () => getCurrentInteractionState().kind,
       cellSymbolLayoutEnabled,
@@ -3794,6 +3817,19 @@ export function App({
         const hit = target.closest("[data-canvas-hit-kind]");
         const kind = hit?.getAttribute("data-canvas-hit-kind");
         const id = hit?.getAttribute("data-canvas-hit-id");
+        if (
+          kind &&
+          id &&
+          (kind === "route" ||
+            kind === "drafting" ||
+            kind === "junction" ||
+            kind === "instance" ||
+            kind === "annotation") &&
+          !selectionPolicy.allowsCanvasHit({ kind, id }, "context-menu")
+        ) {
+          setCanvasContextMenu({ x: clientX, y: clientY });
+          return;
+        }
         if (
           id &&
           (kind === "route" ||
@@ -5153,6 +5189,8 @@ export function App({
           }}
           wireUnderSymbol={{
             warnings: wireUnderSymbolWarnings,
+            canSelectRoute: () =>
+              selectionPolicy.allowsClass("route", "select"),
             onSelectRoute: (routeId) => {
               selectOnly("route", [routeId]);
               setStatus("Selected a wire buried under a symbol");
@@ -5242,6 +5280,7 @@ export function App({
                 ? (selectedInstance?.id ?? null)
                 : null,
               wouldMoveIds,
+              selectionPolicy,
               onInstanceClick: (instance, additive) => {
                 if (simulationPickNetsActive) return;
                 if (suppressInstanceClick.current) {
@@ -5324,9 +5363,9 @@ export function App({
               selectedRouteSegmentIndex,
               selectedEndpoint,
               supplementalJunctionIds: supplementalSelection.junctionIds,
-              selectionFilter: simulationPickActive
-                ? DEFAULT_SELECTION_FILTER
-                : selectionFilter,
+              selectionPolicy: simulationPickActive
+                ? unfilteredSelectionPolicy
+                : selectionPolicy,
               endpointLabel: endpointTestId,
               onEndpointActions: (candidate, clientX, clientY) => {
                 if (
@@ -5408,42 +5447,7 @@ export function App({
             tool,
             selectedDraftingId,
             supplementalDraftingIds: supplementalSelection.draftingIds,
-            onPointerDown: (event, object, draggable) => {
-              if (
-                event.button === 0 &&
-                consumeArmedDeleteOnObject("draftingIds", object.id)
-              ) {
-                event.stopPropagation();
-                event.preventDefault();
-                return;
-              }
-              const groupIds = draftingSelectionIds(object.id);
-              if (draggable && groupIds.length > 1) {
-                if (event.shiftKey || event.ctrlKey || event.metaKey) {
-                  selectDraftingObject(object.id, true);
-                  return;
-                }
-                selectVisualObjects("drafting", groupIds, false);
-                beginVisualSelectionMoveFromSelection(
-                  event,
-                  {
-                    instanceIds: [],
-                    routeIds: [],
-                    junctionIds: [],
-                    annotationIds: [],
-                    draftingIds: groupIds,
-                  },
-                  event.currentTarget,
-                );
-              } else if (draggable) beginDraftingDrag(event, object);
-              else {
-                event.stopPropagation();
-                selectDraftingObject(
-                  object.id,
-                  event.shiftKey || event.ctrlKey || event.metaKey,
-                );
-              }
-            },
+            selectionPolicy,
             onConstructionLineEdit: (event, object) => {
               event.stopPropagation();
               insertConstructionVertex(
@@ -5478,10 +5482,32 @@ export function App({
           draftingHandles={{
             document,
             resolver,
-            selectedDraftingId,
-            selectedDraftingIds: visualSelection.draftingIds,
-            onHandlePointerDown: beginDraftingHandleDrag,
-            onGroupScalePointerDown: beginWaveformGroupScale,
+            selectedDraftingId:
+              selectedDrafting &&
+              selectionPolicy.allowsDrafting(selectedDrafting, "handle")
+                ? selectedDraftingId
+                : null,
+            selectedDraftingIds:
+              selectionPolicy.retainSelection(visualSelection).draftingIds,
+            onHandlePointerDown: (event, object, handle) => {
+              if (!selectionPolicy.allowsDrafting(object, "handle")) return;
+              beginDraftingHandleDrag(event, object, handle);
+            },
+            onGroupScalePointerDown: (event, group, bounds) => {
+              if (
+                !group.objectIds.every((id) => {
+                  const object = document.drafting?.objects.find(
+                    (candidate) => candidate.id === id,
+                  );
+                  return (
+                    object !== undefined &&
+                    selectionPolicy.allowsDrafting(object, "handle")
+                  );
+                })
+              )
+                return;
+              beginWaveformGroupScale(event, group, bounds);
+            },
             onDeleteVertex: deleteConstructionVertex,
           }}
           interactionPreviews={{
@@ -5598,7 +5624,7 @@ export function App({
       <SelectionFilterPopover
         open={selectionFilterOpen}
         filter={selectionFilter}
-        onChange={setSelectionFilter}
+        onChange={applySelectionFilter}
         onClose={() => setSelectionFilterOpen(false)}
       />
       <EditorStatusbar

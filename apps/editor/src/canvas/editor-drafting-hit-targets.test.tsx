@@ -7,6 +7,10 @@ import {
   EditorDraftingHandles,
   EditorDraftingHitTargets,
 } from "./editor-drafting-hit-targets";
+import {
+  createSelectionPolicy,
+  DEFAULT_SELECTION_FILTER,
+} from "../features/selection/selection-filter";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 
@@ -37,7 +41,10 @@ describe("EditorDraftingHitTargets", () => {
           tool="arrow"
           selectedDraftingId={null}
           supplementalDraftingIds={[]}
-          onPointerDown={vi.fn()}
+          selectionPolicy={createSelectionPolicy(
+            document,
+            DEFAULT_SELECTION_FILTER,
+          )}
           onConstructionLineEdit={vi.fn()}
           onArrowEdit={vi.fn()}
           onTextEdit={vi.fn()}

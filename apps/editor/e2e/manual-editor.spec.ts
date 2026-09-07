@@ -5482,11 +5482,136 @@ test("opens Selection Filter with Ctrl+F and filters Select All", async ({
   await filter.getByRole("button", { name: "None" }).click();
   await filter.getByLabel("Instances").check();
   await filter.getByRole("button", { name: "Close" }).click();
+  await expect(page.locator(".route-handle")).toHaveCount(0);
   await page.keyboard.press("Control+d");
   await page.getByTestId("route-hit-route-ui-1").click({ force: true });
   await expect(page.getByTestId("route-hit-route-ui-1")).not.toHaveClass(
     /selected/,
   );
+});
+
+test("Selection Filter blocks direct wire, junction, and shape operations", async ({
+  page,
+}) => {
+  const project = createEmptyProject("selection-policy", "Selection policy");
+  const document = project.documents[0]!;
+  document.nets.push({ id: "net-1", terminals: [] });
+  document.junctions.push(
+    {
+      id: "left",
+      netId: "net-1",
+      position: { x: 240, y: 220 },
+      role: "route-anchor",
+    },
+    {
+      id: "right",
+      netId: "net-1",
+      position: { x: 440, y: 220 },
+      role: "route-anchor",
+    },
+  );
+  document.routes.push(
+    createRoutePath({
+      id: "filtered-wire",
+      netId: "net-1",
+      start: { kind: "junction", junctionId: "left" },
+      end: { kind: "junction", junctionId: "right" },
+      bends: [],
+      modes: ["manual"],
+    }),
+  );
+  document.drafting = {
+    objects: [
+      {
+        id: "filtered-shape",
+        kind: "rectangle",
+        locked: false,
+        zIndex: 0,
+        anchor: { kind: "free", position: { x: 340, y: 340 } },
+        center: { x: 340, y: 340 },
+        width: 160,
+        height: 80,
+        rotation: 0,
+        lineStyle: "solid",
+      },
+    ],
+  };
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "selection-policy.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+
+  await page.keyboard.press("Control+f");
+  const filter = page.getByTestId("selection-filter-popover");
+  await filter.getByRole("button", { name: "None" }).click();
+  await filter.getByRole("button", { name: "Close" }).click();
+
+  const screenPoint = async (locator: Locator, pointIndex = 0) =>
+    locator.evaluate((element, index) => {
+      const svg = (element as SVGGraphicsElement).ownerSVGElement;
+      const matrix = (element as SVGGraphicsElement).getScreenCTM();
+      if (!svg || !matrix) throw new Error("SVG hit target is not measurable");
+      const point = svg.createSVGPoint();
+      if (element instanceof SVGCircleElement) {
+        point.x = element.cx.baseVal.value;
+        point.y = element.cy.baseVal.value;
+      } else {
+        const vertex = (element as SVGPolylineElement).points[index];
+        if (!vertex) throw new Error("SVG hit target has no point");
+        point.x = vertex.x;
+        point.y = vertex.y;
+      }
+      const screen = point.matrixTransform(matrix);
+      return { x: screen.x, y: screen.y };
+    }, pointIndex);
+
+  const route = page.getByTestId("route-hit-filtered-wire");
+  const routeStart = await screenPoint(route);
+  const routeEnd = await screenPoint(route, 1);
+  const routeCenter = {
+    x: (routeStart.x + routeEnd.x) / 2,
+    y: (routeStart.y + routeEnd.y) / 2,
+  };
+  const shape = page.getByTestId("drafting-hit-filtered-shape");
+  const shapeCorner = await screenPoint(shape);
+  const junction = page.getByTestId("junction-left");
+  const junctionPoint = await screenPoint(junction);
+
+  for (const point of [routeCenter, junctionPoint, shapeCorner]) {
+    await page.mouse.click(point.x, point.y);
+  }
+  await expect(route).not.toHaveClass(/selected/u);
+  await expect(junction).not.toHaveClass(/active/u);
+  await expect(shape).not.toHaveClass(/selected/u);
+
+  const routePointsBefore = await route.getAttribute("points");
+  const shapeBoundsBefore = await shape.boundingBox();
+  await page.mouse.move(routeCenter.x, routeCenter.y);
+  await page.mouse.down();
+  await page.mouse.move(routeCenter.x + 80, routeCenter.y + 50, { steps: 4 });
+  await page.mouse.up();
+  await page.mouse.move(shapeCorner.x, shapeCorner.y);
+  await page.mouse.down();
+  await page.mouse.move(shapeCorner.x + 80, shapeCorner.y + 50, { steps: 4 });
+  await page.mouse.up();
+  expect(await route.getAttribute("points")).toBe(routePointsBefore);
+  expect(await shape.boundingBox()).toEqual(shapeBoundsBefore);
+
+  await page.keyboard.press("Delete");
+  await page.mouse.click(routeCenter.x, routeCenter.y);
+  await page.mouse.click(shapeCorner.x, shapeCorner.y);
+  await page.keyboard.press("Escape");
+  await expect(route).toHaveCount(1);
+  await expect(shape).toHaveCount(1);
+
+  await page.mouse.dblclick(shapeCorner.x, shapeCorner.y);
+  await expect(page.locator('[data-testid^="drafting-hit-note-"]')).toHaveCount(
+    0,
+  );
+  await page.mouse.click(routeCenter.x, routeCenter.y, { button: "right" });
+  await expect(route).not.toHaveClass(/selected/u);
 });
 
 test("highlights the complete current-document Net from a selected route", async ({

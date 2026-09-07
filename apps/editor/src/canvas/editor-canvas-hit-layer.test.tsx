@@ -10,6 +10,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import { EditorCanvasHitLayer } from "./editor-canvas-hit-layer";
+import {
+  createSelectionPolicy,
+  DEFAULT_SELECTION_FILTER,
+} from "../features/selection/selection-filter";
 
 function emptyEndpointProps(document = createEmptyDocument("cell", "Cell")) {
   return {
@@ -20,6 +24,7 @@ function emptyEndpointProps(document = createEmptyDocument("cell", "Cell")) {
     selectedRouteSegmentIndex: null,
     selectedEndpoint: null,
     supplementalJunctionIds: [],
+    selectionPolicy: createSelectionPolicy(document, DEFAULT_SELECTION_FILTER),
     endpointLabel: vi.fn(),
     endpointHitRadius: 6,
     onEndpointActions: vi.fn(),
@@ -44,6 +49,7 @@ function emptySelectionProps(document = createEmptyDocument("cell", "Cell")) {
     supplementalAnnotationIds: [],
     cellSymbolLayoutInstanceId: null,
     wouldMoveIds: new Set<string>(),
+    selectionPolicy: createSelectionPolicy(document, DEFAULT_SELECTION_FILTER),
     onInstanceClick: vi.fn(),
     onInstanceOpen: vi.fn(),
     onInstancePointerDown: vi.fn(),

@@ -309,6 +309,24 @@ never highlight or select labels outside the dragged rectangle.
 
 ## Selection alignment
 
+The session-only **Selection Filter** is enforced by one editor-local
+`SelectionPolicy`. Every direct acquisition surface asks that policy before an
+existing object can be selected, dragged, edited, opened by context menu,
+consumed by a verb-first command, or manipulated through a handle. Click,
+directional marquee, Select All, Wire/Junction endpoint hits, drafting shapes,
+and buried-wire warning spans therefore cannot disagree about selectability.
+Changing the filter immediately removes newly disabled classes from the
+current formal selection and dismisses their route or drafting handles.
+
+Filtering changes targetability, not the schematic model. Drawing tools,
+Simulation probe picking, visibility, connectivity, and creation remain
+unchanged. In particular, Wires and Junctions disabled in the filter still
+follow a selected device when the movement closure requires them; this is an
+electrical consequence of moving the selected device, not a second direct
+selection. Project Search and diagnostic navigation remain explicit locator
+operations rather than pointer acquisition and may focus their canonical
+object without changing the filter.
+
 The six visual alignment commands — left, horizontal center, right, top,
 vertical center, and bottom — share one editor command and one alignment
 planner. The Edit menu and the shared canvas context menu are presentation

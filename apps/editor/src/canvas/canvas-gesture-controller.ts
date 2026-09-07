@@ -15,8 +15,8 @@ import {
   marqueeSelection,
 } from "../features/selection/marquee-selection";
 import {
-  DEFAULT_SELECTION_FILTER,
-  type SelectionFilter,
+  type SelectableCanvasHit,
+  type SelectionPolicy,
 } from "../features/selection/selection-filter";
 import {
   EMPTY_VISUAL_SELECTION,
@@ -64,7 +64,7 @@ export interface CanvasGestureControllerDependencies {
     resolver: SymbolResolver;
     routeGeometryRecords: readonly RouteGeometryRecord[];
     styleProfile: SchematicStyleProfile;
-    selectionFilter?: SelectionFilter;
+    selectionPolicy: SelectionPolicy;
   };
   viewport: {
     defaultViewBox: GridRect;
@@ -223,7 +223,7 @@ export function createCanvasGestureController({
     resolver,
     routeGeometryRecords,
     styleProfile,
-    selectionFilter = DEFAULT_SELECTION_FILTER,
+    selectionPolicy,
   },
   viewport: {
     defaultViewBox,
@@ -426,13 +426,34 @@ export function createCanvasGestureController({
     ) {
       return;
     }
+    const directHitElement = (event.target as Element).closest?.(
+      "[data-canvas-hit-kind][data-canvas-hit-id]",
+    );
+    const directHitKind = directHitElement?.getAttribute(
+      "data-canvas-hit-kind",
+    ) as SelectableCanvasHit["kind"] | null;
+    const directHitId = directHitElement?.getAttribute("data-canvas-hit-id");
+    const directEndpointKind = (event.target as Element)
+      .closest?.("[data-endpoint-kind]")
+      ?.getAttribute("data-endpoint-kind") as "junction" | "terminal" | null;
+    const filteredTargetActsAsCanvas = Boolean(
+      (directHitKind &&
+        directHitId &&
+        !selectionPolicy.allowsCanvasHit(
+          { kind: directHitKind, id: directHitId },
+          "select",
+        )) ||
+      (directEndpointKind &&
+        !selectionPolicy.allowsEndpoint(directEndpointKind, "select")),
+    );
     const gesture = classifyCanvasGestureStart({
       button: event.button,
       altKey: event.altKey,
       interactionKind: getInteractionKind(),
       targetIsCanvas:
         event.target === event.currentTarget ||
-        (event.target as Element).tagName === "rect",
+        (event.target as Element).tagName === "rect" ||
+        filteredTargetActsAsCanvas,
       placementPending: componentPlacementPending || waveformPlacementPending,
       vddRailMode,
       copyPlacementPending,
@@ -642,7 +663,7 @@ export function createCanvasGestureController({
           styleProfile,
           rect,
           marqueeMode(boxPreview.start, boxPreview.end),
-          selectionFilter,
+          selectionPolicy,
         );
     replaceSelection(selection);
     clearSelectedEndpoint();

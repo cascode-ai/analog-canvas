@@ -22,10 +22,9 @@ import {
   type RouteGeometryRecord,
 } from "../wiring/route-interaction-geometry";
 import {
+  createSelectionPolicy,
   DEFAULT_SELECTION_FILTER,
-  selectionFilterAllowsAnnotation,
-  selectionFilterAllowsDrafting,
-  type SelectionFilter,
+  type SelectionPolicy,
 } from "./selection-filter";
 
 /**
@@ -61,20 +60,29 @@ export function marqueeSelection(
   styleProfile: SchematicStyleProfile,
   rect: Rect,
   mode: MarqueeMode,
-  filter: SelectionFilter = DEFAULT_SELECTION_FILTER,
+  policy: SelectionPolicy = createSelectionPolicy(
+    document,
+    DEFAULT_SELECTION_FILTER,
+  ),
 ): MarqueeSelectionSet {
   const window = mode === "window";
   const boxSelected = (bounds: Rect): boolean =>
     window ? rectContainsRect(rect, bounds) : rectsIntersect(bounds, rect);
 
   return {
-    instanceIds: (filter.instance ? document.instances : [])
+    instanceIds: (policy.allowsClass("instance", "select")
+      ? document.instances
+      : []
+    )
       .filter((instance) => {
         const bounds = instanceHitBox(instance, resolver);
         return bounds !== null && boxSelected(bounds);
       })
       .map((instance) => instance.id),
-    routeIds: (filter.route ? routeGeometryRecords : [])
+    routeIds: (policy.allowsClass("route", "select")
+      ? routeGeometryRecords
+      : []
+    )
       .filter(({ geometry }) =>
         window
           ? polylineInRect(geometry.centerline, rect)
@@ -89,13 +97,16 @@ export function marqueeSelection(
               ),
       )
       .map(({ route }) => route.id),
-    junctionIds: (filter.junction ? document.junctions : [])
+    junctionIds: (policy.allowsClass("junction", "select")
+      ? document.junctions
+      : []
+    )
       .filter((junction) => pointInRect(junction.position, rect))
       .map((junction) => junction.id),
     annotationIds: document.annotations
       .filter(
         (annotation) =>
-          selectionFilterAllowsAnnotation(filter, annotation) &&
+          policy.allowsAnnotation(annotation, "select") &&
           isSchematicAnnotationVisible(document, annotation) &&
           boxSelected(
             annotationHitBox(
@@ -116,7 +127,7 @@ export function marqueeSelection(
       .map((annotation) => annotation.id),
     draftingIds: (document.drafting?.objects ?? [])
       .filter((object) => {
-        if (!selectionFilterAllowsDrafting(filter, object)) return false;
+        if (!policy.allowsDrafting(object, "select")) return false;
         const geometry = resolveDraftingObjectGeometry(
           document,
           resolver,
