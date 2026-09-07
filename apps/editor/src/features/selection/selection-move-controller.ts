@@ -1,5 +1,6 @@
 import {
   planInstanceContactTransform,
+  projectRoutingTransformGeometry,
   gateRoutingOperationPlan,
   planRoutingTransform,
   type RoutingOperationPlan,
@@ -10,6 +11,7 @@ import {
 } from "@icm/edit-engine";
 import {
   deriveNetConnectivity,
+  deriveDocumentContactEvidence,
   endpointKey,
   isMosBulkTerminal,
   isVisibleEndpoint,
@@ -60,7 +62,8 @@ type TransactionResult = { ok: boolean };
 
 export interface PreparedInstanceMove {
   plan: RoutingOperationPlan;
-  finalDocument: SchematicDocument;
+  /** Transient geometry, never a replacement for the committed Document. */
+  previewDocument: SchematicDocument;
   /** Reuse existing SVG nodes while topology is unchanged. */
   visualRoutePoints?: ReadonlyMap<string, readonly Point[]>;
 }
@@ -467,6 +470,8 @@ export function createSelectionMoveController({
   let preparedCache:
     | { source: SchematicDocument; key: string; value: PreparedInstanceMove }
     | undefined;
+  let contactBoundaryCache:
+    { source: SchematicDocument; key: string; separates: boolean } | undefined;
   const prepareResolvedMove = (
     preview: InstanceMovePreview,
     resolved: {
@@ -515,7 +520,7 @@ export function createSelectionMoveController({
       const geometry = resolveDocumentRoutingGeometry(sourceDocument, resolver);
       const value: PreparedInstanceMove = {
         plan,
-        finalDocument: sourceDocument,
+        previewDocument: sourceDocument,
         visualRoutePoints: new Map(
           [
             ...plan.affected.internalRoutes,
@@ -529,18 +534,68 @@ export function createSelectionMoveController({
       preparedCache = { source: sourceDocument, key, value };
       return value;
     }
-    const gate = gateRoutingOperationPlan(sourceDocument, plan, {
-      symbolResolver: resolver,
-    });
-    if (!gate.ok) throw new Error(gate.message);
-    const finalDocument = gate.evaluated.finalDocument;
+    const blocking = plan.diagnostics.find((d) => d.severity === "error");
+    if (blocking) throw new Error(blocking.message);
+    const boundaryKey = JSON.stringify([
+      plan.affected.instances,
+      plan.affected.internalJunctions,
+    ]);
+    if (
+      contactBoundaryCache?.source !== sourceDocument ||
+      contactBoundaryCache.key !== boundaryKey
+    ) {
+      const movingInstances = new Set(plan.affected.instances);
+      const movingJunctions = new Set(plan.affected.internalJunctions);
+      const inside = (endpoint: RouteEndpoint) =>
+        endpoint.kind === "terminal"
+          ? movingInstances.has(endpoint.instanceId)
+          : movingJunctions.has(endpoint.junctionId);
+      contactBoundaryCache = {
+        source: sourceDocument,
+        key: boundaryKey,
+        separates: deriveDocumentContactEvidence(
+          sourceDocument,
+          resolver,
+        ).contacts.some(
+          (contact) =>
+            contact.endpoints.some(inside) &&
+            contact.endpoints.some((endpoint) => !inside(endpoint)),
+        ),
+      };
+    }
+    // Most pointer frames only deform existing conductors. Apply the same
+    // geometry edits without full-Document validation on every frame. Real
+    // contact changes (including a direct bond separating) use the complete
+    // transaction preview; every release still uses the strict commit gate.
+    const geometryOnly =
+      plan.intent === "transform" &&
+      !contactBoundaryCache.separates &&
+      plan.edits.every(
+        (edit) =>
+          edit.kind === "move_instance" ||
+          edit.kind === "move_junction" ||
+          edit.kind === "set_route_path",
+      );
+    let finalDocument: SchematicDocument;
+    if (geometryOnly)
+      finalDocument = projectRoutingTransformGeometry(sourceDocument, plan);
+    else {
+      const gate = gateRoutingOperationPlan(sourceDocument, plan, {
+        symbolResolver: resolver,
+      });
+      if (!gate.ok) throw new Error(gate.message);
+      finalDocument = gate.evaluated.finalDocument;
+    }
     const sameIds = (
       before: readonly { id: string }[],
       after: readonly { id: string }[],
     ) =>
       before.length === after.length &&
       after.every((item) => before.some((old) => old.id === item.id));
-    const value: PreparedInstanceMove = { plan, finalDocument };
+    const value: PreparedInstanceMove = {
+      plan,
+      previewDocument: finalDocument,
+    };
     if (
       plan.intent === "transform" &&
       sameIds(sourceDocument.routes, finalDocument.routes) &&
@@ -626,6 +681,7 @@ export function createSelectionMoveController({
         setStatus("Snapped pin endpoints and connected them without a wire");
       else if (disconnectedEndpointKeys.length)
         setStatus("Moved selection without wires; original endpoints are open");
+      else if (prefixEdits.length) setStatus("Moved and transformed selection");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Move failed");
     }

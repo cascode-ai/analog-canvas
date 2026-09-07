@@ -15,6 +15,39 @@ import {
 } from "./routing-operation-plan.js";
 import type { WireSource } from "./routing-planner.js";
 
+/** Transient geometry from the same typed plan, before transaction normalization.
+ * This is not a committed Document and must never be persisted.
+ */
+export function projectRoutingTransformGeometry(
+  document: SchematicDocument,
+  plan: RoutingOperationPlan,
+): SchematicDocument {
+  const projected = structuredClone(document);
+  for (const edit of plan.edits) {
+    if (edit.kind === "move_instance") {
+      const instance = projected.instances.find(
+        (i) => i.id === edit.instanceId,
+      );
+      if (instance?.placement)
+        instance.placement.position = { ...edit.position };
+    } else if (edit.kind === "move_junction") {
+      const junction = projected.junctions.find(
+        (j) => j.id === edit.junctionId,
+      );
+      if (junction) junction.position = { ...edit.position };
+    } else if (edit.kind === "set_route_path") {
+      projected.routes = projected.routes.map((r) =>
+        r.id === edit.route.id ? structuredClone(edit.route) : r,
+      );
+    } else if (edit.kind === "remove_route_geometry") {
+      projected.routes = projected.routes.filter((r) => r.id !== edit.routeId);
+    } else {
+      throw new Error(`Not a transform geometry edit: ${edit.kind}`);
+    }
+  }
+  return projected;
+}
+
 /** One final-position plan for moving geometry and an explicit snapped pin drop.
  * Project the authored geometry BEFORE normalization so every contact edit
  * addresses exactly the legs that precede it in the final atomic transaction.
@@ -36,27 +69,7 @@ export function planInstanceContactTransform(
     transform.diagnostics.some((d) => d.severity === "error")
   )
     return transform;
-  const projected = structuredClone(document);
-  for (const edit of transform.edits) {
-    if (edit.kind === "move_instance") {
-      const instance = projected.instances.find(
-        (i) => i.id === edit.instanceId,
-      );
-      if (instance?.placement)
-        instance.placement.position = { ...edit.position };
-    } else if (edit.kind === "move_junction") {
-      const junction = projected.junctions.find(
-        (j) => j.id === edit.junctionId,
-      );
-      if (junction) junction.position = { ...edit.position };
-    } else if (edit.kind === "set_route_path") {
-      projected.routes = projected.routes.map((r) =>
-        r.id === edit.route.id ? structuredClone(edit.route) : r,
-      );
-    } else if (edit.kind === "remove_route_geometry") {
-      projected.routes = projected.routes.filter((r) => r.id !== edit.routeId);
-    }
-  }
+  const projected = projectRoutingTransformGeometry(document, transform);
   const movingIds = new Set(seed.instanceIds);
   const instances = projected.instances.filter((i) => movingIds.has(i.id));
   if (!instances.length) return transform;

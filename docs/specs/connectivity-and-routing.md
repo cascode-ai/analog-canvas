@@ -145,9 +145,11 @@ Route transaction.
   stretch kernel. Local bends may adapt, but unrelated conductors are not rerouted.
   Unsafe protected geometry rejects atomically. Same-Net ordinary overlaps are
   normalized rather than rejected merely to preserve an old Junction dot.
-- Instance drag preview carries a validated operation plan; release commits that
-  same plan against its source revision. Rejection or cancellation restores the
-  original preview. A successful move and its contacts form one undo operation.
+- Instance drag preview carries one operation plan; ordinary geometry uses its
+  lightweight projection while contact changes use the full transaction preview.
+  Release strictly validates and commits that same plan against its source
+  revision. Rejection or cancellation restores the original preview. A successful
+  move and its contacts form one undo operation.
 - `C` clones the selected internal electrical subgraph. Ordinary boundary
   Routes and terminal membership are not copied, so copied boundary pins are
   open. A selected Cell Pin, supply marker, or Net-label owner retains its own

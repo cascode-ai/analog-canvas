@@ -626,7 +626,7 @@ export function useSelectionInteraction(
           session.projectedDocument !== options.document
         ) {
           const projectedDocument =
-            resolved.prepared?.finalDocument ??
+            resolved.prepared?.previewDocument ??
             (cached && "document" in cached
               ? cached.document
               : projectInstanceMove(
@@ -1054,7 +1054,7 @@ export function useSelectionInteraction(
           ? {
               ...input,
               document:
-                resolved.prepared?.finalDocument ??
+                resolved.prepared?.previewDocument ??
                 projectInstanceMove(
                   previewBaseDocument,
                   resolved.moves,

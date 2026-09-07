@@ -5932,7 +5932,7 @@ test("turns a marquee selection as one body, not three parts in place", async ({
   expect(afterSpreadY).toBeGreaterThan(100);
 });
 
-test("keeps the junction dot while a wire at a tap is dragged", async ({
+test("lets a tap follow a dragged wire and normalizes ordinary overlapping branches", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -5970,34 +5970,40 @@ test("keeps the junction dot while a wire at a tap is dragged", async ({
   const tapBefore = (await allRoutePoints()).find(
     (points) => points.length === 2 && points[0]!.x === points[1]!.x,
   )!;
+  const dotBefore = Number(await dots.first().getAttribute("cy"));
+  const fixedTapEnd = tapBefore.reduce((a, b) => (a.y < b.y ? a : b));
 
-  // Down: the tap cannot follow, so the junction stays put and the dragged run
-  // doglegs to reach it. The wire still follows the pointer.
+  // The ordinary branch stretches with its moving contact; the far endpoint
+  // stays fixed. A previous dot location is not a drag constraint.
   await dragSegment(300, 380);
   await expect(dots).toHaveCount(1);
   const lowered = await allRoutePoints();
   expect(lowered.some((points) => points.some((point) => point.y > 380))).toBe(
     true,
   );
-  // The tap is untouched, so the contact it makes is still the same contact.
+  expect(Number(await dots.first().getAttribute("cy"))).toBeGreaterThan(
+    dotBefore,
+  );
   expect(
-    lowered.some(
-      (points) =>
-        points.length === 2 &&
-        points[0]!.x === tapBefore[0]!.x &&
-        points[0]!.y === tapBefore[0]!.y &&
-        points[1]!.y === tapBefore[1]!.y,
+    lowered.some((points) =>
+      points.some((p) => p.x === fixedTapEnd.x && p.y === fixedTapEnd.y),
     ),
   ).toBe(true);
 
   await clickCommand(page, "Edit", "Undo");
   await expect(dots).toHaveCount(1);
 
-  // Up past the tap's far end: carrying the junction there would turn the tap
-  // around and bury it inside the wire, so the drag holds at the last
-  // position where every branch is still its own line.
+  // Moving beyond the old tip is legal too. Coverage is unioned instead of
+  // freezing the pointer just to keep a formerly visible Junction dot.
   await dragSegment(300, 160);
+  const raised = await allRoutePoints();
+  expect(
+    Math.min(...raised.flatMap((points) => points.map((p) => p.y))),
+  ).toBeLessThan(fixedTapEnd.y);
+  await expect(page.getByTestId("status")).not.toContainText("would overlap");
+  await clickCommand(page, "Edit", "Undo");
   await expect(dots).toHaveCount(1);
+  expect(Number(await dots.first().getAttribute("cy"))).toBe(dotBefore);
 });
 
 test("swaps a comparator's + and - without turning the body over", async ({

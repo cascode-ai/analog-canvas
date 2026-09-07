@@ -43,8 +43,12 @@ describe("prepared instance movement", () => {
     );
     expect(away.preparationError).toBeUndefined();
     expect(
-      away.prepared?.finalDocument.instances[0]!.placement!.position.x,
+      away.prepared?.previewDocument.instances[0]!.placement!.position.x,
     ).toBe(140);
+    // Ordinary pointer frames project the typed plan without executing a
+    // whole-Document transaction. Release owns validation and the revision.
+    expect(away.prepared?.previewDocument.revision).toBe(document.revision);
+    expect(away.prepared?.visualRoutePoints).toBeDefined();
     const restored = controller.resolveInstanceMove(
       preview,
       { x: 100, y: 100 },
@@ -52,7 +56,7 @@ describe("prepared instance movement", () => {
       true,
     );
     expect(restored.preparationError).toBeUndefined();
-    expect(restored.prepared?.finalDocument).toEqual(document);
+    expect(restored.prepared?.previewDocument).toEqual(document);
     controller.completeInstanceMove(preview, { x: 100, y: 100 }, 4, true);
     expect(transactConnectivity).not.toHaveBeenCalled();
     expect(setStatus).not.toHaveBeenCalled();
