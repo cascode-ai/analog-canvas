@@ -185,6 +185,38 @@ describe("managed simulation operations", () => {
     expect(response?.status).toBe(401);
   });
 
+  it("exposes drain and state counts only to administrators", async () => {
+    const { env, runtime } = harness();
+    const denied = await routeManagedSimulationRequest(
+      new Request("https://canvas.test/api/simulation/operations"),
+      env,
+      runtime,
+    );
+    expect(denied?.status).toBe(403);
+    const adminRuntime = {
+      ...runtime,
+      principalOf: async () => ({
+        id: "admin-a",
+        displayName: "Admin",
+        email: "admin@example.test",
+        provider: "test",
+        role: "user",
+        isAdmin: true,
+      }),
+    };
+    const drained = await routeManagedSimulationRequest(
+      new Request("https://canvas.test/api/simulation/operations", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ accepting: false }),
+      }),
+      env,
+      adminRuntime,
+    );
+    expect(drained?.status).toBe(200);
+    expect(await drained!.json()).toMatchObject({ accepting: false });
+  });
+
   it("persists input, queues once, and finishes independently of a browser", async () => {
     const { bucket, env, jobs, runtime } = harness();
     const started = await routeManagedSimulationRequest(

@@ -192,7 +192,7 @@ export async function routeManagedSimulationRequest(
   runtime: SimulationOperationsRuntime = defaultRuntime,
 ): Promise<Response | null> {
   const url = new URL(request.url);
-  if (!url.pathname.startsWith("/api/simulation/runs")) return null;
+  if (!url.pathname.startsWith("/api/simulation/")) return null;
   if (!configured(env))
     return Response.json(
       {
@@ -223,6 +223,38 @@ export async function routeManagedSimulationRequest(
     if (ownerCookie) response.headers.append("set-cookie", ownerCookie);
     return response;
   };
+
+  if (url.pathname === "/api/simulation/operations") {
+    if (!principal.isAdmin)
+      return ownedResponse(
+        Response.json({ error: "simulation-admin-required" }, { status: 403 }),
+      );
+    if (request.method !== "GET" && request.method !== "POST")
+      return ownedResponse(
+        Response.json({ error: "method-not-allowed" }, { status: 405 }),
+      );
+    const response = await control(env)!.fetch(
+      "https://simulation-control/operations",
+      request.method === "POST"
+        ? {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: await request.text(),
+          }
+        : undefined,
+    );
+    return ownedResponse(
+      new Response(response.body, {
+        status: response.status,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+  }
+
+  if (!url.pathname.startsWith("/api/simulation/runs"))
+    return ownedResponse(
+      Response.json({ error: "not-found" }, { status: 404 }),
+    );
 
   if (url.pathname === "/api/simulation/runs") {
     if (request.method === "GET") {
@@ -351,34 +383,47 @@ export async function routeManagedSimulationRequest(
   const match = url.pathname.match(
     /^\/api\/simulation\/runs\/([^/]+)(\/(?:cancel|result))?$/u,
   );
-  if (!match) return Response.json({ error: "not-found" }, { status: 404 });
+  if (!match)
+    return ownedResponse(
+      Response.json({ error: "not-found" }, { status: 404 }),
+    );
   const runId = decodeURIComponent(match[1]!);
   const run = await readRun(env, runId);
   if (!run || !ownerMayRead(run, principal))
-    return Response.json({ error: "RUN_NOT_FOUND" }, { status: 404 });
+    return ownedResponse(
+      Response.json({ error: "RUN_NOT_FOUND" }, { status: 404 }),
+    );
   if (!match[2]) {
     if (request.method !== "GET")
-      return Response.json({ error: "method-not-allowed" }, { status: 405 });
+      return ownedResponse(
+        Response.json({ error: "method-not-allowed" }, { status: 405 }),
+      );
     return ownedResponse(Response.json({ run }));
   }
   if (match[2] === "/result") {
     if (request.method !== "GET")
-      return Response.json({ error: "method-not-allowed" }, { status: 405 });
+      return ownedResponse(
+        Response.json({ error: "method-not-allowed" }, { status: 405 }),
+      );
     const result = run.artifacts.find(
       (artifact) => artifact.name === "response.json",
     );
     if (!result)
-      return Response.json(
-        {
-          error: "RESULT_NOT_READY",
-          state: run.state,
-          retryAfterMs: 1_000,
-        },
-        { status: 409, headers: { "retry-after": "1" } },
+      return ownedResponse(
+        Response.json(
+          {
+            error: "RESULT_NOT_READY",
+            state: run.state,
+            retryAfterMs: 1_000,
+          },
+          { status: 409, headers: { "retry-after": "1" } },
+        ),
       );
     const object = await env.SIMULATION_ARTIFACTS!.get(result.id);
     if (!object)
-      return Response.json({ error: "RESULT_EXPIRED" }, { status: 410 });
+      return ownedResponse(
+        Response.json({ error: "RESULT_EXPIRED" }, { status: 410 }),
+      );
     return new Response(await object.text(), {
       headers: {
         "content-type": result.mediaType,
@@ -388,15 +433,16 @@ export async function routeManagedSimulationRequest(
     });
   }
   if (request.method !== "POST")
-    return Response.json({ error: "method-not-allowed" }, { status: 405 });
+    return ownedResponse(
+      Response.json({ error: "method-not-allowed" }, { status: 405 }),
+    );
   const transitioned = await transitionRun(env, runId, {
     kind: "cancel-requested",
     at: runtime.now(),
   });
   if (!transitioned)
-    return Response.json(
-      { error: "cancel-transition-failed" },
-      { status: 409 },
+    return ownedResponse(
+      Response.json({ error: "cancel-transition-failed" }, { status: 409 }),
     );
   if (transitioned.state === "cancelling") {
     await routeSimulationRequest(
@@ -408,7 +454,7 @@ export async function routeManagedSimulationRequest(
       env,
     );
   }
-  return Response.json({ run: transitioned });
+  return ownedResponse(Response.json({ run: transitioned }));
 }
 
 function infrastructureProblem(code: string): Problem {

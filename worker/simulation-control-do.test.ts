@@ -173,4 +173,52 @@ describe("simulation control durable object", () => {
       retryAfterMs: 2_000,
     });
   });
+
+  it("drains new work without invalidating idempotent reads of accepted work", async () => {
+    const control = new SimulationControlDO(sqliteState());
+    const accepted = await body<{ run: { id: string } }>(
+      await control.fetch(
+        new Request("https://control/accept", {
+          method: "POST",
+          body: JSON.stringify(admission()),
+        }),
+      ),
+    );
+    const drained = await control.fetch(
+      new Request("https://control/operations", {
+        method: "POST",
+        body: JSON.stringify({ accepting: false }),
+      }),
+    );
+    expect(await body(drained)).toMatchObject({
+      accepting: false,
+      counts: { queued: 1 },
+    });
+    expect(
+      (
+        await body<{ run: { id: string } }>(
+          await control.fetch(
+            new Request("https://control/accept", {
+              method: "POST",
+              body: JSON.stringify(admission()),
+            }),
+          ),
+        )
+      ).run.id,
+    ).toBe(accepted.run.id);
+    const refused = await control.fetch(
+      new Request("https://control/accept", {
+        method: "POST",
+        body: JSON.stringify({
+          ...admission("request-new"),
+          requestFingerprint: digest("c"),
+        }),
+      }),
+    );
+    expect(refused.status).toBe(409);
+    expect(await body(refused)).toMatchObject({
+      error: "SIMULATION_DRAINED",
+      retryAfterMs: 30_000,
+    });
+  });
 });

@@ -61,6 +61,7 @@ export class SimulationControlDO {
     const url = new URL(request.url);
     if (url.pathname === "/anonymous-session")
       return this.anonymousSession(request);
+    if (url.pathname === "/operations") return this.operations(request);
     if (request.method === "POST" && url.pathname === "/accept")
       return this.accept(request);
     if (request.method === "GET" && url.pathname === "/runs")
@@ -105,6 +106,16 @@ export class SimulationControlDO {
         expires_at INTEGER NOT NULL
       ) WITHOUT ROWID
     `);
+    this.sql.exec(`
+      CREATE TABLE IF NOT EXISTS simulation_operations (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      ) WITHOUT ROWID
+    `);
+    this.sql.exec(
+      `INSERT OR IGNORE INTO simulation_operations (key, value)
+       VALUES ('accepting', 'true')`,
+    );
   }
 
   private async accept(request: Request): Promise<Response> {
@@ -138,6 +149,9 @@ export class SimulationControlDO {
           ? ({ run, accepted: false } as const)
           : ({ error: "REQUEST_ID_REUSED" } as const);
       }
+
+      if (!this.isAccepting())
+        return { error: "SIMULATION_DRAINED", retryAfterMs: 30_000 } as const;
 
       const queuedGlobal = this.count("state = 'queued'");
       if (queuedGlobal >= this.policy.maxQueuedGlobal)
@@ -303,6 +317,41 @@ export class SimulationControlDO {
           "cache-control": "no-store",
         },
       },
+    );
+  }
+
+  private async operations(request: Request): Promise<Response> {
+    if (request.method === "POST") {
+      const body = (await request.json().catch(() => null)) as {
+        accepting?: unknown;
+      } | null;
+      if (!body || typeof body.accepting !== "boolean")
+        return json({ error: "invalid-operations-command" }, 400);
+      this.sql.exec(
+        `UPDATE simulation_operations SET value = ? WHERE key = 'accepting'`,
+        body.accepting ? "true" : "false",
+      );
+    } else if (request.method !== "GET") {
+      return json({ error: "method-not-allowed" }, 405);
+    }
+    const counts = Object.fromEntries(
+      this.sql
+        .exec<{ state: string; count: number }>(
+          `SELECT state, COUNT(*) AS count FROM simulation_runs GROUP BY state`,
+        )
+        .toArray()
+        .map((row) => [row.state, row.count]),
+    );
+    return json({ accepting: this.isAccepting(), counts });
+  }
+
+  private isAccepting(): boolean {
+    return (
+      this.sql
+        .exec<{ value: string }>(
+          `SELECT value FROM simulation_operations WHERE key = 'accepting'`,
+        )
+        .one().value === "true"
     );
   }
 
