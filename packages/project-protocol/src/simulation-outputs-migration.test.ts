@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createEmptyProject } from "@icm/model";
+import { CURRENT_PROJECT_SCHEMA_VERSION, createEmptyProject } from "@icm/model";
 
 import { tryParseProjectWithMetadata } from "./load.js";
 import { upgradeSchema42To43WithReport } from "./previous-to-current.js";
@@ -191,7 +191,7 @@ describe("schema 42 to 43 simulation outputs", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.sourceSchemaVersion).toBe(42);
-    expect(result.project.schemaVersion).toBe(46);
+    expect(result.project.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
     expect(result.project.simulationSetups).toHaveLength(2);
     expect(result.project.simulationSetups[0]).toMatchObject({
       version: 2,

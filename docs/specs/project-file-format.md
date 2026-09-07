@@ -2,14 +2,14 @@
 
 Status: `accepted`
 
-Current Project schema: `46`
+Current Project schema: `47`
 
 Primary owners: `packages/model` (current shape) and
 `packages/project-protocol` (file boundary)
 
 An `.icproj.json` file is canonical JSON for one complete `CircuitProject`.
 `@icm/project-protocol` exposes `parseProject`. The file boundary accepts every
-schema covered by its explicit 24→46 upgrade chain. Schema 32 added optional
+schema covered by its explicit 24→47 upgrade chain. Schema 32 added optional
 presentation-only `Annotation.textColor`; schema 33 removes ownerless
 `explicit-equivalence` connectivity. The 32→33 adapter advances the version
 stamp only when that retired record is absent. If one exists, it rejects at the
@@ -53,9 +53,11 @@ independent-source sign by selecting its `+` terminal. Schema 45 adds optional
 saved scalar measurement rules to structured setups;
 the 44→45 adapter invents no measurement intent. Schema 46 adds structured
 Noise analysis intent with hierarchy-aware output anchors and a Testbench-root
-independent input source; the 45→46 adapter invents no analysis. The public file boundary
-supplies only schema 46 in
-memory and writes only schema 46; versions older than 24 or newer than 46
+independent input source; the 45→46 adapter invents no analysis. Schema 47
+adds optional hierarchy-aware MOS operating-point selections; the 46→47
+adapter selects no device implicitly. The public file boundary
+supplies only schema 47 in
+memory and writes only schema 47; versions older than 24 or newer than 47
 are rejected.
 
 ## Current authorities
@@ -131,7 +133,9 @@ are rejected.
   `output.label` is the sole authored name used by OP/DC/AC/TRAN results,
   plots, CSV, and MCP. Optional measurement rules reference one enabled
   analysis and one Output and persist a scalar reduction, never a Run result.
-  Noise owns a differential voltage target and root independent input source;
+  Selected MOS operating-point details name concrete hierarchy occurrences;
+  the compiler derives VGS/VDS/VBS and drain-entering ID from terminal and Bulk
+  connectivity without persisting simulator vectors. Noise owns a differential voltage target and root independent input source;
   its two density curves use stable protocol output ids instead of duplicating
   ordinary Output expressions.
   A raw input owns bounded author
@@ -145,8 +149,8 @@ are rejected.
 ## Read and write
 
 ```text
-import text -> parse JSON -> require Project schema 24 through 46
--> converge to schema 46 -> strict schema-46 validation -> install unbound
+import text -> parse JSON -> require Project schema 24 through 47
+-> converge to schema 47 -> strict schema-47 validation -> install unbound
 export -> strict validation -> canonical key ordering -> Blob download
 ```
 
@@ -170,7 +174,7 @@ open, and recovery remain exact.
 Canonical serialization ends with one newline and is byte-stable across
 serialize/parse/serialize. The current corpus is listed in
 `fixtures/projects/compatibility-corpus.json`; its accepted entries must all be
-already canonical Project schema 46. The rejected corpus names expected
+already canonical Project schema 47. The rejected corpus names expected
 validation failures.
 
 Viewport, selection, undo history, canvas overlays, Agent credentials,

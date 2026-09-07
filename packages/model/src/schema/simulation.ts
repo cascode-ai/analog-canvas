@@ -213,6 +213,19 @@ export const SimulationOutputSpecSchema = z.strictObject({
   expression: SimulationExpressionSchema,
 });
 
+/**
+ * One concrete MOS occurrence whose terminal-derived operating-point details
+ * should be collected. The compiler resolves the device and its Bulk binding;
+ * persisted setup state never stores simulator vector names or model-private
+ * parameters.
+ */
+export const SimulationDeviceOperatingPointSpecSchema = z.strictObject({
+  id: StableIdSchema,
+  documentId: StableIdSchema,
+  instanceId: StableIdSchema,
+  occurrence: SimulationProbeOccurrenceSchema,
+});
+
 export const SimulationMeasurementWindowSchema = z
   .strictObject({
     /** Analysis-domain coordinate in SI units (V/A, Hz, or seconds). */
@@ -403,6 +416,11 @@ export const SimulationStructuredInputSchema = z
     rootDocumentId: StableIdSchema,
     analyses: z.array(SimulationAnalysisSpecSchema).min(1),
     outputs: z.array(SimulationOutputSpecSchema).max(1024),
+    /** Selected MOS occurrences; absent is equivalent to an empty list. */
+    deviceOperatingPoints: z
+      .array(SimulationDeviceOperatingPointSpecSchema)
+      .max(256)
+      .optional(),
     /** Saved scalar-measurement rules; absent is equivalent to an empty list. */
     measurements: z.array(SimulationMeasurementSpecSchema).max(256).optional(),
     environment: SimulationEnvironmentSelectionSchema,
@@ -420,7 +438,23 @@ export const SimulationStructuredInputSchema = z
       kinds.add(analysis.kind);
     }
     reportDuplicateIds(input.outputs, "outputs", context);
+    reportDuplicateIds(
+      input.deviceOperatingPoints ?? [],
+      "deviceOperatingPoints",
+      context,
+    );
     reportDuplicateIds(input.measurements ?? [], "measurements", context);
+    if (
+      (input.deviceOperatingPoints?.length ?? 0) > 0 &&
+      !input.analyses.some((analysis) => analysis.kind === "op")
+    ) {
+      context.addIssue({
+        code: "custom",
+        message:
+          "Device operating-point details require an operating-point analysis",
+        path: ["deviceOperatingPoints"],
+      });
+    }
     const labels = new Set<string>();
     for (const [index, output] of input.outputs.entries()) {
       const label = output.label.toLowerCase();

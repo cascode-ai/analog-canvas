@@ -31,6 +31,7 @@ import {
 } from "./simulation-output-results";
 import { deriveOperatingPointCanvasProjection } from "./operating-point-projection";
 import type { OperatingPointDisplay } from "./operating-point-labels";
+import { DeviceOperatingPointResults } from "./device-operating-point-results";
 
 import {
   buildSimulationArtifactArchive,
@@ -1079,16 +1080,21 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
                   </span>
                 </div>
                 {run?.outputData ? (
-                  <SimulationOutputResults
-                    resultKey={`${run.id}:op`}
-                    data={{
-                      ...run.outputData,
-                      analyses: run.outputData.analyses.filter(
-                        (analysis) => analysis.analysis === "op",
-                      ),
-                    }}
-                    outputs={runPresentation?.outputs ?? []}
-                  />
+                  <>
+                    <DeviceOperatingPointResults
+                      devices={run.outputData.deviceOperatingPoints ?? []}
+                    />
+                    <SimulationOutputResults
+                      resultKey={`${run.id}:op`}
+                      data={{
+                        ...run.outputData,
+                        analyses: run.outputData.analyses.filter(
+                          (analysis) => analysis.analysis === "op",
+                        ),
+                      }}
+                      outputs={runPresentation?.outputs ?? []}
+                    />
+                  </>
                 ) : null}
                 {!run?.outputData &&
                   run?.result?.data?.analyses

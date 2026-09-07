@@ -1,4 +1,5 @@
 import type {
+  CompiledSimulationDeviceOperatingPoint,
   CompiledSimulationExpression,
   CompiledSimulationOutput,
   CompiledSimulationVector,
@@ -233,6 +234,7 @@ export function evaluateSimulationOutputs(
   vectors: readonly CompiledSimulationVector[],
   outputs: readonly CompiledSimulationOutput[],
   measurementSpecs: readonly SimulationMeasurementSpec[] = [],
+  deviceOperatingPointSpecs: readonly CompiledSimulationDeviceOperatingPoint[] = [],
 ): SimulationOutputData {
   const diagnostics: SimulationOutputData["diagnostics"] = [];
   const analyses: SimulationOutputData["analyses"] = data.analyses.map(
@@ -331,6 +333,54 @@ export function evaluateSimulationOutputs(
       };
     },
   );
+  const operatingPoint = data.analyses.find(
+    (analysis) => analysis.analysis === "op",
+  );
+  const deviceOperatingPoints = deviceOperatingPointSpecs.map((device) => {
+    const acquisitions = operatingPoint
+      ? sourceSeries(operatingPoint, vectors)
+      : new Map();
+    return {
+      id: device.id,
+      documentId: device.documentId,
+      instanceId: device.instanceId,
+      occurrence: [...device.occurrence],
+      reference: device.reference,
+      polarity: device.polarity,
+      values: device.values.map((parameter) => {
+        if (!operatingPoint)
+          return {
+            parameter: parameter.parameter,
+            label: parameter.label,
+            unit: parameter.unit,
+            status: "unavailable" as const,
+            reason: "The run returned no operating-point analysis",
+          };
+        try {
+          const series = evaluate(parameter.expression, acquisitions, 1);
+          const value = series.real[0];
+          if (value === undefined || value === null || !Number.isFinite(value))
+            throw new Error("The operating-point value is unavailable");
+          return {
+            parameter: parameter.parameter,
+            label: parameter.label,
+            unit: parameter.unit,
+            status: "available" as const,
+            value,
+          };
+        } catch (error) {
+          return {
+            parameter: parameter.parameter,
+            label: parameter.label,
+            unit: parameter.unit,
+            status: "unavailable" as const,
+            reason:
+              error instanceof Error ? error.message : "Evaluation failed",
+          };
+        }
+      }),
+    };
+  });
   return {
     schemaVersion: 1,
     diagnostics,
@@ -339,7 +389,31 @@ export function evaluateSimulationOutputs(
       ...deriveAutomaticMeasurements(analyses),
       ...deriveAuthoredMeasurements(analyses, measurementSpecs),
     ],
+    ...(deviceOperatingPoints.length ? { deviceOperatingPoints } : {}),
   };
+}
+
+export function simulationDeviceOperatingPointsToCsv(
+  devices: NonNullable<SimulationOutputData["deviceOperatingPoints"]>,
+): string {
+  const quote = (value: string | number) =>
+    `"${String(value).replaceAll('"', '""')}"`;
+  return (
+    [
+      ["Device", "Parameter", "Value", "Unit", "Status"],
+      ...devices.flatMap((device) =>
+        device.values.map((value) => [
+          device.reference,
+          value.label,
+          value.status === "available" ? value.value : value.reason,
+          value.unit,
+          value.status,
+        ]),
+      ),
+    ]
+      .map((row) => row.map(quote).join(","))
+      .join("\n") + "\n"
+  );
 }
 
 export function simulationOutputAnalysisToCsv(

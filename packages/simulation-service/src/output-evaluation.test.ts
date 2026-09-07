@@ -3,6 +3,98 @@ import { describe, expect, it } from "vitest";
 import { evaluateSimulationOutputs } from "./output-evaluation.js";
 
 describe("simulation output evaluation", () => {
+  it("groups terminal-derived MOS values without exposing private vectors", () => {
+    const result = evaluateSimulationOutputs(
+      {
+        schemaVersion: 1,
+        analyses: [
+          {
+            analysis: "op",
+            plotName: "Operating Point",
+            probes: [
+              { name: "v(g)", quantity: "voltage", value: 1.2, unit: "V" },
+              { name: "v(s)", quantity: "voltage", value: 0.2, unit: "V" },
+              {
+                name: "i(vsense)",
+                quantity: "current",
+                value: 0.001,
+                unit: "A",
+              },
+            ],
+          },
+        ],
+      },
+      [
+        { probeId: "vg", vector: "v(g)", quantity: "voltage" },
+        { probeId: "vs", vector: "v(s)", quantity: "voltage" },
+        { probeId: "id", vector: "i(vsense)", quantity: "current" },
+      ],
+      [],
+      [],
+      [
+        {
+          id: "op-m1",
+          documentId: "dut",
+          instanceId: "M1",
+          occurrence: ["XDUT"],
+          reference: "XM1",
+          polarity: "nmos",
+          values: [
+            {
+              parameter: "vgs",
+              label: "VGS",
+              unit: "V",
+              expression: {
+                kind: "subtract",
+                left: {
+                  kind: "acquisition",
+                  acquisitionId: "vg",
+                  quantity: "voltage",
+                },
+                right: {
+                  kind: "acquisition",
+                  acquisitionId: "vs",
+                  quantity: "voltage",
+                },
+              },
+            },
+            {
+              parameter: "id",
+              label: "ID",
+              unit: "A",
+              expression: {
+                kind: "acquisition",
+                acquisitionId: "id",
+                quantity: "current",
+              },
+            },
+          ],
+        },
+      ],
+    );
+
+    expect(result.deviceOperatingPoints).toEqual([
+      expect.objectContaining({
+        reference: "XM1",
+        values: [
+          expect.objectContaining({
+            parameter: "vgs",
+            status: "available",
+            value: 1,
+          }),
+          expect.objectContaining({
+            parameter: "id",
+            status: "available",
+            value: 0.001,
+          }),
+        ],
+      }),
+    ]);
+    expect(JSON.stringify(result.deviceOperatingPoints)).not.toContain(
+      "vsense",
+    );
+  });
+
   it("publishes Noise density and integrated values without ngspice vector names", () => {
     const result = evaluateSimulationOutputs(
       {

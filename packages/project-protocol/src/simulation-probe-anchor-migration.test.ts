@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createEmptyProject } from "@icm/model";
+import { CURRENT_PROJECT_SCHEMA_VERSION, createEmptyProject } from "@icm/model";
 
 import { parseProjectWithMetadata } from "./load.js";
 import {
@@ -89,7 +89,7 @@ describe("schema 39 to 40 simulation probe anchors", () => {
       sourceSchemaVersion: 39,
       migrated: true,
       project: {
-        schemaVersion: 46,
+        schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
         simulationSetups: [
           {
             input: {

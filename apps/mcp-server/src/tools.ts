@@ -109,6 +109,29 @@ const SimulationMeasurementArgs = z.discriminatedUnion("action", [
   }),
 ]);
 
+const SimulationDeviceOperatingPointArgs = z.discriminatedUnion("action", [
+  z.strictObject({
+    action: z.literal("list"),
+    setupId: z.string().min(1),
+    documentId: z.string().min(1).optional(),
+  }),
+  z.strictObject({
+    action: z.literal("upsert"),
+    setupId: z.string().min(1),
+    documentId: z.string().min(1).optional(),
+    deviceOperatingPointId: z.string().min(1).optional(),
+    targetDocumentId: z.string().min(1),
+    instanceId: z.string().min(1),
+    occurrence: z.array(z.string().min(1)).max(64).default([]),
+  }),
+  z.strictObject({
+    action: z.literal("remove"),
+    setupId: z.string().min(1),
+    documentId: z.string().min(1).optional(),
+    deviceOperatingPointId: z.string().min(1),
+  }),
+]);
+
 const ExportFileArgs = z
   .strictObject({
     artifact: z.enum(["project", "svg", "png", "pdf"]),
@@ -596,6 +619,96 @@ const TOOLS: readonly ToolEntry[] = [
         if (index < 0) measurements.push(measurement);
         else measurements[index] = measurement;
         next.input.measurements = measurements;
+      }
+      return session.client.advancedTransact(
+        {
+          structureEdits: [{ kind: "upsert_simulation_setup", setup: next }],
+        },
+        { ...(parsed.documentId ? { documentId: parsed.documentId } : {}) },
+      );
+    },
+  },
+  {
+    definition: {
+      name: "simulation_device_operating_point",
+      description:
+        "List, add, update, or remove selected MOS occurrences whose OP result should include terminal-derived VGS, VDS, VBS, and drain-entering ID. The target is hierarchy-aware. Ordinary validation failures are returned without ending the Agent session.",
+      inputSchema: {
+        ...jsonSchemaOf(SimulationDeviceOperatingPointArgs),
+        type: "object",
+      },
+    },
+    handle: async (args, session) => {
+      const parsed = SimulationDeviceOperatingPointArgs.parse(args);
+      const snapshot = await session.client.snapshot(parsed.documentId, {
+        refresh: true,
+      });
+      const setup = snapshot.snapshot.project.simulationSetups.find(
+        (candidate) => candidate.id === parsed.setupId,
+      );
+      if (!setup)
+        return {
+          ok: false,
+          error: {
+            code: "SIMULATION_SETUP_NOT_FOUND",
+            message: `Setup ${parsed.setupId} does not exist; no Project state was changed.`,
+            recovery: "fix-input",
+          },
+        };
+      if (setup.input.kind !== "structured")
+        return {
+          ok: false,
+          error: {
+            code: "SIMULATION_STRUCTURED_SETUP_REQUIRED",
+            message:
+              "Create a structured Simulation setup first; no Project state was changed.",
+            recovery: "fix-input",
+          },
+        };
+      if (parsed.action === "list")
+        return {
+          ok: true,
+          deviceOperatingPoints: setup.input.deviceOperatingPoints ?? [],
+        };
+      const next = structuredClone(setup);
+      if (next.input.kind !== "structured") throw new Error("unreachable");
+      const selections = next.input.deviceOperatingPoints ?? [];
+      if (parsed.action === "remove") {
+        const filtered = selections.filter(
+          (selection) => selection.id !== parsed.deviceOperatingPointId,
+        );
+        if (filtered.length === selections.length)
+          return {
+            ok: false,
+            error: {
+              code: "SIMULATION_DEVICE_OPERATING_POINT_NOT_FOUND",
+              message: `Device operating-point selection ${parsed.deviceOperatingPointId} does not exist; no Project state was changed.`,
+              recovery: "fix-input",
+            },
+          };
+        next.input.deviceOperatingPoints = filtered;
+      } else {
+        if (!next.input.analyses.some((analysis) => analysis.kind === "op"))
+          return {
+            ok: false,
+            error: {
+              code: "SIMULATION_OPERATING_POINT_ANALYSIS_REQUIRED",
+              message:
+                "Enable OP in this Setup before selecting MOS operating-point details; no Project state was changed.",
+              recovery: "fix-input",
+            },
+          };
+        const id = parsed.deviceOperatingPointId ?? crypto.randomUUID();
+        const selection = {
+          id,
+          documentId: parsed.targetDocumentId,
+          instanceId: parsed.instanceId,
+          occurrence: parsed.occurrence,
+        };
+        const index = selections.findIndex((candidate) => candidate.id === id);
+        if (index < 0) selections.push(selection);
+        else selections[index] = selection;
+        next.input.deviceOperatingPoints = selections;
       }
       return session.client.advancedTransact(
         {

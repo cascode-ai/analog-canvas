@@ -242,6 +242,8 @@ setups. The 44→45 adapter does not invent rules; existing Projects continue
 to receive only automatic summaries until an author adds a measurement.
 Schema 46 adds a structured Noise request. The 45→46 adapter likewise
 advances only the version: it never invents an analysis, source, or probe.
+Schema 47 adds optional hierarchy-aware MOS operating-point selections. The
+46→47 adapter selects no device; existing setups retain their exact output.
 
 ```ts
 interface ProjectSimulationSetup {
@@ -255,6 +257,12 @@ interface SimulationStructuredInput {
   rootDocumentId: StableId; // the Testbench Cell, a Document of the Project
   analyses: SimulationAnalysisSpec[]; // non-empty; at most one entry per kind
   outputs: SimulationOutputSpec[]; // ids and case-folded labels unique
+  deviceOperatingPoints?: Array<{
+    id: StableId;
+    documentId: StableId;
+    instanceId: StableId;
+    occurrence: StableId[];
+  }>;
   measurements?: SimulationMeasurementSpec[]; // saved scalar reductions
   environment: { profileId: string; corner?: string; temperatureC?: number };
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createEmptyProject } from "@icm/model";
+import { CURRENT_PROJECT_SCHEMA_VERSION, createEmptyProject } from "@icm/model";
 
 import { parseProjectWithMetadata } from "./load.js";
 import {
@@ -22,7 +22,7 @@ describe("schema 40 to 41", () => {
     const result = parseProjectWithMetadata(
       JSON.stringify({ ...current, schemaVersion: 40 }),
     );
-    expect(result.project.schemaVersion).toBe(46);
+    expect(result.project.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
     expect(result.sourceSchemaVersion).toBe(40);
     expect(result.migrated).toBe(true);
   });

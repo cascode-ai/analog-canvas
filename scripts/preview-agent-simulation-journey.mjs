@@ -49,6 +49,20 @@ qualifiedSetup.input.analyses.push({
   startHz: 1,
   stopHz: 1e9,
 });
+qualifiedSetup.input.deviceOperatingPoints = [
+  {
+    id: "acceptance-op-m1",
+    documentId: "document-ota-5t",
+    instanceId: "M1",
+    occurrence: ["XDUT"],
+  },
+  {
+    id: "acceptance-op-m3",
+    documentId: "document-ota-5t",
+    instanceId: "M3",
+    occurrence: ["XDUT"],
+  },
+];
 const compiled = await compileStructuredSimulation(project, qualifiedSetup);
 assert(compiled.ok, "The acceptance Project no longer compiles");
 
@@ -401,24 +415,46 @@ try {
   assert.equal(refused.ok, false);
   assert.equal(refused.error.recovery, "fix-input");
 
+  const setupWithoutDeviceOperatingPoints = structuredClone(qualifiedSetup);
+  delete setupWithoutDeviceOperatingPoints.input.deviceOperatingPoints;
   const restored = await tool("advanced_transact", {
     structureEdits: [
-      { kind: "upsert_simulation_setup", setup: qualifiedSetup },
+      {
+        kind: "upsert_simulation_setup",
+        setup: setupWithoutDeviceOperatingPoints,
+      },
     ],
   });
   assert.equal(restored.ok, true);
+  let configuredRevision = restored.projectStructure.toRevision;
+  for (const selection of qualifiedSetup.input.deviceOperatingPoints) {
+    const configured = await tool("simulation_device_operating_point", {
+      action: "upsert",
+      setupId: setup.id,
+      deviceOperatingPointId: selection.id,
+      targetDocumentId: selection.documentId,
+      instanceId: selection.instanceId,
+      occurrence: selection.occurrence,
+    });
+    assert.equal(configured.ok, true);
+    configuredRevision = configured.projectStructure.toRevision;
+  }
   const prepared = await tool("simulation", {
     request: {
       operation: "prepare",
       source: {
         kind: "project-setup",
         setupId: setup.id,
-        expectedStructureRevision: restored.projectStructure.toRevision,
+        expectedStructureRevision: configuredRevision,
       },
     },
   });
   assert.equal(prepared.ok, true);
   assert.deepEqual(prepared.prepared.vectors, compiled.vectors);
+  assert.deepEqual(
+    prepared.prepared.deviceOperatingPoints,
+    compiled.deviceOperatingPoints,
+  );
   const finished = await startAndRead(prepared.prepared);
   assert.equal(finished.state, "finished");
   const exports = [];
@@ -455,6 +491,39 @@ try {
   assert(
     fullRun.outputData.measurements?.length,
     "The completed OTA run returned no automatic measurements",
+  );
+  const mosOperatingPoints = fullRun.outputData.deviceOperatingPoints;
+  assert.equal(
+    mosOperatingPoints?.length,
+    2,
+    "The completed OTA run returned no selected MOS operating-point details",
+  );
+  const mosValue = (deviceId, parameter) => {
+    const value = mosOperatingPoints
+      .find((device) => device.instanceId === deviceId)
+      ?.values.find((candidate) => candidate.parameter === parameter);
+    assert.equal(
+      value?.status,
+      "available",
+      `${deviceId}.${parameter} is unavailable`,
+    );
+    assert(
+      Number.isFinite(value.value),
+      `${deviceId}.${parameter} is not finite`,
+    );
+    return value.value;
+  };
+  assert(mosValue("M1", "vgs") > 0, "NMOS VGS polarity is incorrect");
+  assert(mosValue("M1", "id") > 0, "NMOS drain-entering ID is incorrect");
+  assert(mosValue("M3", "vgs") < 0, "PMOS VGS polarity is incorrect");
+  assert(mosValue("M3", "id") < 0, "PMOS drain-entering ID is incorrect");
+  assert(
+    Math.abs(mosValue("M1", "vbs")) < 1e-9,
+    "NMOS cell-default Bulk did not resolve to its source supply",
+  );
+  assert(
+    Math.abs(mosValue("M3", "vbs")) < 1e-9,
+    "PMOS cell-default Bulk did not resolve to its source supply",
   );
 
   const resultArtifacts = finished.artifacts
@@ -495,6 +564,7 @@ try {
         label: output.label,
         expressionKind: output.expression.kind,
       })),
+      deviceOperatingPoints: qualifiedSetup.input.deviceOperatingPoints,
     },
     source: {
       id: sourceReport.id,
@@ -564,6 +634,7 @@ try {
       outputs: analysis.outputs.map((output) => output.label),
     })),
     measurementCount: fullRun.outputData.measurements?.length ?? 0,
+    deviceOperatingPoints: mosOperatingPoints,
     integratedNoise: {
       output: acceptedNoise.integratedOutputNoise,
       input: acceptedNoise.integratedInputNoise,

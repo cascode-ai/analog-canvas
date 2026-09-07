@@ -7,6 +7,7 @@ import {
   parseSimulationExpression,
   type ProjectSimulationSetup,
   type SimulationMeasurementSpec,
+  type SimulationDeviceOperatingPointSpec,
   type SimulationExpression,
   type SimulationOutputSpec,
   type SimulationStructuredInput,
@@ -20,6 +21,7 @@ import {
   matchSimulationVoltageProbeOptions,
   simulationProbeSelectionKey,
   simulationProbeTargetKey,
+  simulationDeviceOperatingPointTargetKey,
   type SimulationProbeOption,
 } from "./simulation-probe-options";
 import { SimulationMeasurementEditor } from "./simulation-measurement-editor";
@@ -95,6 +97,11 @@ export function SetupEditor({
   const [measurements, setMeasurements] = useState<SimulationMeasurementSpec[]>(
     [...(saved?.measurements ?? [])],
   );
+  const [deviceOperatingPoints, setDeviceOperatingPoints] = useState<
+    SimulationDeviceOperatingPointSpec[]
+  >([...(saved?.deviceOperatingPoints ?? [])]);
+  const [deviceOperatingPointChoice, setDeviceOperatingPointChoice] =
+    useState("");
   const [setupName, setSetupName] = useState(
     setup?.name ?? draftContext?.setupName ?? "Setup 1",
   );
@@ -444,6 +451,9 @@ export function SetupEditor({
                   : []),
               ],
               outputs,
+              ...(deviceOperatingPoints.length
+                ? { deviceOperatingPoints }
+                : {}),
               ...(measurements.length ? { measurements } : {}),
               environment: {
                 profileId: data.get("profileId"),
@@ -618,6 +628,7 @@ export function SetupEditor({
                   name="op"
                   type="checkbox"
                   checked={opEnabled}
+                  disabled={deviceOperatingPoints.length > 0}
                   onChange={(event) =>
                     setOpEnabled(event.currentTarget.checked)
                   }
@@ -1009,6 +1020,92 @@ export function SetupEditor({
             }
           />
           <small>First terminal sets the positive current direction.</small>
+        </SimulationSettingsSection>
+        <SimulationSettingsSection
+          title="Device operating point"
+          summary={`${deviceOperatingPoints.length} selected`}
+        >
+          <div className="simulation-inline-fields columns-2">
+            <label>
+              MOS occurrence
+              <select
+                aria-label="MOS operating-point device"
+                value={deviceOperatingPointChoice}
+                onChange={(event) =>
+                  setDeviceOperatingPointChoice(event.currentTarget.value)
+                }
+              >
+                <option value="">Choose a MOS</option>
+                {probeOptions.deviceOperatingPoint.map((option) => (
+                  <option
+                    key={option.key}
+                    value={option.key}
+                    disabled={deviceOperatingPoints.some(
+                      (item) =>
+                        simulationDeviceOperatingPointTargetKey(item) ===
+                        option.key,
+                    )}
+                  >
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              disabled={!deviceOperatingPointChoice}
+              onClick={() => {
+                const option = probeOptions.deviceOperatingPoint.find(
+                  (candidate) => candidate.key === deviceOperatingPointChoice,
+                );
+                if (!option) return;
+                setDeviceOperatingPoints((current) => [
+                  ...current,
+                  { id: crypto.randomUUID(), ...option.target },
+                ]);
+                setDeviceOperatingPointChoice("");
+                setOpEnabled(true);
+                onDirty(true);
+              }}
+            >
+              Add operating-point details
+            </button>
+          </div>
+          <ul
+            className="simulation-probe-list"
+            aria-label="Selected MOS operating-point devices"
+          >
+            {deviceOperatingPoints.map((item) => {
+              const key = simulationDeviceOperatingPointTargetKey(item);
+              const label =
+                probeOptions.deviceOperatingPoint.find(
+                  (option) => option.key === key,
+                )?.label ?? `${item.instanceId} (unavailable)`;
+              return (
+                <li key={item.id}>
+                  <span>
+                    <strong>{label}</strong>
+                    <small>VGS · VDS · VBS · ID</small>
+                  </span>
+                  <button
+                    type="button"
+                    aria-label={`Remove operating-point details for ${label}`}
+                    onClick={() => {
+                      setDeviceOperatingPoints((current) =>
+                        current.filter((candidate) => candidate.id !== item.id),
+                      );
+                      onDirty(true);
+                    }}
+                  >
+                    Remove
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          {deviceOperatingPoints.length ? (
+            <small>OP remains enabled while device details are selected.</small>
+          ) : null}
         </SimulationSettingsSection>
         <SimulationSettingsSection
           title="Output signals"
