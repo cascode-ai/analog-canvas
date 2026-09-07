@@ -11,12 +11,12 @@ import {
   createSimulationInputMetadata,
 } from "@icm/spice-run";
 import { SimulationFiles, sha256 } from "./files.js";
+import { SimulationService } from "./service.js";
 import {
-  SimulationService,
   ExecutionFailure,
   type Executor,
   type ExecutionInput,
-} from "./service.js";
+} from "./executor.js";
 import type { Capabilities, SimulationReply } from "./contract.js";
 
 const caps: Capabilities = {

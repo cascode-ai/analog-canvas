@@ -30,6 +30,7 @@ import {
   type SimulationResult,
 } from "@icm/spice-run";
 import hostedSky130Profile from "../containers/ngspice/hosted-sky130-profile.json";
+import { isSimulationInputPath } from "@icm/model";
 
 /** What a container-backed runner has to offer this module. */
 export interface NgspiceRunner {
@@ -392,13 +393,7 @@ export async function routeSimulationRequest(
   const files = body.files ?? [];
   const dependencies = body.dependencies ?? [];
   const safePath = (p: unknown): p is string =>
-    typeof p === "string" &&
-    p.length > 0 &&
-    p.length <= 240 &&
-    !p.startsWith("/") &&
-    !/[\\:\u0000-\u001f]/u.test(p) &&
-    p.split("/").every((v) => !!v && v !== "." && v !== "..") &&
-    p.toLowerCase() !== ".spiceinit";
+    typeof p === "string" && isSimulationInputPath(p);
   if (
     !Array.isArray(files) ||
     files.length > 24 ||

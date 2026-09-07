@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createHostedExecutor } from "./hosted-executor.js";
-import type { ExecutionInput } from "./service.js";
+import type { ExecutionInput } from "./executor.js";
 const input: ExecutionInput = {
   mode: "raw",
   netlist: "",
@@ -11,6 +11,23 @@ const input: ExecutionInput = {
   environment: { profileId: "p" },
 };
 describe("hosted executor recovery", () => {
+  it("preserves cancellation uncertainty and the executor retry delay", async () => {
+    const executor = createHostedExecutor(async () =>
+      Response.json({ error: "cancel-response-unknown" }, { status: 502 }),
+    );
+    await expect(executor.cancel("token")).rejects.toMatchObject({
+      problem: { stage: "cancel", recovery: "retry-same-request" },
+    });
+    const busy = createHostedExecutor(async () =>
+      Response.json(
+        { error: "simulator-busy" },
+        { status: 503, headers: { "retry-after": "7" } },
+      ),
+    );
+    await expect(busy.execute(input, "token")).rejects.toMatchObject({
+      problem: { retryAfterMs: 7000 },
+    });
+  });
   it("reports unavailable capability transport as retryable, not an internal/session failure", async () => {
     const executor = createHostedExecutor(async () => {
       throw Error("offline");

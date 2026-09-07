@@ -1,65 +1,27 @@
+import { prepareExecutionInput } from "./prepare-input.js";
 import type { CircuitProject } from "@icm/model";
-import { compileStructuredSimulation } from "@icm/netlist";
-import {
-  simulationAnalysisToCsv,
-  buildSimulationDeck,
-  deckNeedsModelLibrary,
-} from "@icm/spice-run";
-import type { z } from "zod";
-import { SimulationResultSchema } from "@icm/spice-run";
+import { simulationAnalysisToCsv } from "@icm/spice-run";
 import {
   SimulationOperationSchema,
   problem,
   type ArtifactRef,
-  type Capabilities,
   type Prepared,
-  type Problem,
   type SimulationOperation,
 } from "./contract.js";
-import {
-  outputVolumeWarning,
-  type ResultVolumeAnalysis,
-} from "./result-volume.js";
-import { SimulationFiles, sha256 } from "./files.js";
+import { SimulationFiles } from "./files.js";
 import {
   evaluateSimulationOutputs,
   simulationOutputAnalysisToCsv,
 } from "./output-evaluation.js";
 import { automaticMeasurementsToCsv } from "./automatic-measurements.js";
 
-export interface ExecutionInput {
-  mode: "structured" | "raw";
-  netlist: string;
-  testbench: string;
-  inputRevision: string;
-  environment: Prepared["environment"];
-  files: { path: string; text: string }[];
-  dependencies: { id: string; mountPath: string; sha256: string }[];
-  entryPath?: string;
-  preparedDeck?: string;
-}
-export interface Executor {
-  capabilities(): Promise<Capabilities>;
-  execute(
-    input: ExecutionInput,
-    runToken: string,
-    timeoutMs?: number,
-  ): Promise<{
-    result: z.infer<typeof SimulationResultSchema>;
-    rawfile?: string;
-    executedDeck?: string;
-    cancelled?: boolean;
-  }>;
-  cancel(runToken: string): Promise<void>;
-}
-export class ExecutionFailure extends Error {
-  constructor(
-    readonly problem: Problem,
-    readonly acceptedUnknown = false,
-  ) {
-    super(problem.message);
-  }
-}
+import {
+  ExecutionFailure,
+  type ExecutionInput,
+  type Executor,
+} from "./executor.js";
+import { runReceipt } from "./run-receipt.js";
+import { ProjectInputIdentity } from "./input-identity.js";
 import { type Run, type SimulationReply } from "./contract.js";
 type PrepareSource = Extract<
   SimulationOperation,
@@ -79,65 +41,13 @@ type StoredPrepared = {
   source: PrepareSource;
 };
 const TTL = 15 * 60_000;
-type RawSimulationInput = Extract<
-  CircuitProject["simulationSetups"][number]["input"],
-  { kind: "raw" }
->;
-
-async function rawInputRevision(input: RawSimulationInput) {
-  return sha256(
-    JSON.stringify({
-      kind: input.kind,
-      entry: input.entry,
-      files: input.files,
-      dependencies: input.dependencies,
-      environment: input.environment,
-    }),
-  );
-}
-
-function unresolvedDependencyProblem(
-  input: RawSimulationInput,
-): SimulationReply {
-  return {
-    ok: false,
-    error: {
-      code: "SIMULATION_DEPENDENCY_UNAVAILABLE",
-      message:
-        "One or more Project simulation dependencies are unavailable in this session",
-      stage: "prepare",
-      recovery: "fix-input",
-      diagnostics: input.dependencies.map((dependency, index) => ({
-        code: "SIMULATION_DEPENDENCY_UNAVAILABLE",
-        message: `Dependency ${dependency.id} (${dependency.mountPath}) is not resolved`,
-        severity: "error",
-        field: `input.dependencies[${index}]`,
-      })),
-    },
-  };
-}
-
-function receipt(view: Run): Run {
-  const copy = structuredClone(view);
-  if (copy.result && JSON.stringify(copy.result).length > 96000) {
-    delete copy.result.data;
-    copy.result.log =
-      copy.result.log.slice(0, 4096) +
-      "\n[Full evidence is in File Resource artifacts.]";
-    copy.result.diagnostics = copy.result.diagnostics
-      .slice(0, 64)
-      .map((d) => ({ ...d, text: d.text.slice(0, 1000) }));
-    copy.resultPreview = true;
-  }
-  return copy;
-}
-
 /** One live session owns this service. UI visibility has no effect on execution. */
 export class SimulationService {
   private prepared = new Map<string, StoredPrepared>();
   private runs = new Map<string, InternalRun>();
   private starts = new Map<string, { key: string; runId: string }>();
   private epoch = 0;
+  private inputIdentity = new ProjectInputIdentity();
   constructor(
     readonly files: SimulationFiles,
     private executor: Executor,
@@ -146,6 +56,7 @@ export class SimulationService {
   ) {}
   async clear() {
     this.epoch++;
+    this.inputIdentity.clear();
     const active = [...this.runs.values()].filter(
       (r) => r.view.state === "running" || r.view.state === "cancelling",
     );
@@ -199,33 +110,19 @@ export class SimulationService {
                 ? "changed"
                 : "unavailable";
           } else {
-            const setupId = run.source.setupId;
-            const project = structuredClone(this.getProject());
-            const setup = project.simulationSetups.find(
-              (candidate) => candidate.id === setupId,
+            const revision = await this.inputIdentity.read(
+              this.getProject(),
+              run.source.setupId,
             );
-            if (setup?.input.kind === "structured") {
-              const compiled = await compileStructuredSimulation(
-                project,
-                setup,
-              );
-              run.view.inputStatus = !compiled.ok
+            run.view.inputStatus =
+              revision === null
                 ? "unavailable"
-                : compiled.request.inputRevision === run.view.inputRevision
+                : revision === run.view.inputRevision
                   ? "unchanged"
                   : "changed";
-            } else if (
-              setup?.input.kind === "raw" &&
-              setup.input.dependencies.length === 0
-            ) {
-              run.view.inputStatus =
-                (await rawInputRevision(setup.input)) === run.view.inputRevision
-                  ? "unchanged"
-                  : "changed";
-            } else run.view.inputStatus = "unavailable";
           }
         }
-        return { ok: true, run: receipt(run.view) };
+        return { ok: true, run: runReceipt(run.view) };
       }
       if ((op.preparedId ? 1 : 0) + (op.runId ? 1 : 0) !== 1)
         return problem(
@@ -284,199 +181,21 @@ export class SimulationService {
       );
     const epoch = this.epoch;
     const caps = await this.executor.capabilities();
-    let input: ExecutionInput;
-    let vectors: Prepared["vectors"] = [];
-    let outputs: Prepared["outputs"] = [];
-    let warnings: string[] = [];
-    let structuredAnalyses: ResultVolumeAnalysis[] | null = null;
-    if (op.source.kind === "project-setup") {
-      const setupId = op.source.setupId;
-      const project = structuredClone(this.getProject());
-      if (project.structureRevision !== op.source.expectedStructureRevision)
-        return problem(
-          "PROJECT_STRUCTURE_REVISION_CONFLICT",
-          `Expected Project structure revision ${op.source.expectedStructureRevision}, received ${project.structureRevision}`,
-          "prepare",
-          "reprepare",
-        );
-      const setup = project.simulationSetups.find(
-        (candidate) => candidate.id === setupId,
+    if (!caps.configured)
+      return problem(
+        "simulation-not-configured",
+        "Configure an execution environment to run simulations; authored input remains available.",
+        "prepare",
+        "retry-after",
       );
-      if (!setup)
-        return problem(
-          "SIMULATION_SETUP_MISSING",
-          `Simulation setup does not exist: ${setupId}`,
-          "prepare",
-        );
-      if (setup.input.kind === "structured") {
-        const compiled = await compileStructuredSimulation(project, setup);
-        if (!compiled.ok)
-          return {
-            ok: false,
-            error: {
-              code: "SIMULATION_COMPILE_REFUSED",
-              message: "Correct the located input and prepare again",
-              stage: "prepare",
-              recovery: "fix-input",
-              diagnostics: compiled.diagnostics.map((d) => {
-                const { sourceRef: _source, ...primary } = d.primary;
-                return {
-                  code: d.code,
-                  message: d.message,
-                  severity: d.severity,
-                  primary: {
-                    ...primary,
-                    hierarchyPath: [...d.primary.hierarchyPath],
-                  },
-                };
-              }),
-            },
-          };
-        input = {
-          mode: "structured",
-          netlist: compiled.request.netlist,
-          testbench: compiled.request.testbench,
-          inputRevision: compiled.request.inputRevision!,
-          environment: setup.input.environment,
-          files: [],
-          dependencies: [],
-        };
-        vectors = [...compiled.vectors];
-        outputs = structuredClone([...compiled.outputs]);
-        warnings = compiled.warnings.map((w) => w.message);
-        structuredAnalyses = setup.input.analyses.map((analysis) =>
-          analysis.kind === "tran"
-            ? {
-                kind: analysis.kind,
-                stepSeconds: analysis.stepSeconds,
-                stopSeconds: analysis.stopSeconds,
-                ...(analysis.startSeconds === undefined
-                  ? {}
-                  : { startSeconds: analysis.startSeconds }),
-              }
-            : { ...analysis },
-        );
-      } else {
-        const rawInput = setup.input;
-        const entry = rawInput.files.find(
-          (file) => file.path === rawInput.entry,
-        );
-        if (!entry)
-          return problem(
-            "SIMULATION_ENTRY_UNAVAILABLE",
-            "The Project simulation entry is not present in its authored files",
-            "prepare",
-          );
-        input = {
-          mode: "raw",
-          netlist: "",
-          testbench: entry.text,
-          inputRevision: await rawInputRevision(rawInput),
-          environment: rawInput.environment,
-          files: rawInput.files.map((file) => ({ ...file })),
-          dependencies: rawInput.dependencies.map((dependency) => ({
-            ...dependency,
-          })),
-          entryPath: rawInput.entry,
-        };
-      }
-    } else {
-      const read = this.files.snapshot(
-        op.source.workspaceId,
-        op.source.expectedRevision,
-      );
-      if (!read.ok) return read;
-      const { workspace } = read;
-      input = {
-        mode: "raw",
-        netlist: "",
-        testbench: workspace.files.find((f) => f.path === workspace.entry)!
-          .text,
-        inputRevision: await sha256(
-          JSON.stringify({
-            entry: workspace.entry,
-            files: workspace.files,
-            environment: op.source.environment,
-          }),
-        ),
-        environment: op.source.environment,
-        files: workspace.files.map((f) => ({ ...f })),
-        dependencies: [],
-      };
-      // Preserve entry-relative includes by running the actual entry path.
-      input.entryPath = workspace.entry!;
-    }
-    const profile = caps.profiles.find(
-      (p) => p.id === input.environment.profileId,
+    const preparation = await prepareExecutionInput(
+      op,
+      caps,
+      this.getProject,
+      this.files,
     );
-    if (!profile)
-      return problem(
-        "SIMULATION_PROFILE_UNKNOWN",
-        "Select a Profile advertised by capabilities",
-        "prepare",
-      );
-    if (input.mode === "raw" && input.dependencies.length > 0) {
-      const available = new Map(
-        (profile.dependencies ?? []).map((dependency) => [
-          dependency.id,
-          dependency.sha256,
-        ]),
-      );
-      if (
-        input.dependencies.some(
-          (dependency) => available.get(dependency.id) !== dependency.sha256,
-        )
-      )
-        return unresolvedDependencyProblem({
-          kind: "raw",
-          entry: input.entryPath!,
-          files: input.files,
-          dependencies: input.dependencies,
-          environment: input.environment,
-        });
-    }
-    if (
-      input.environment.corner &&
-      !profile.corners.includes(input.environment.corner)
-    )
-      return problem(
-        "SIMULATION_CORNER_UNSUPPORTED",
-        "The selected Profile does not support this corner",
-        "prepare",
-      );
-    if (structuredAnalyses) {
-      const unsupported = structuredAnalyses.find(
-        (analysis) => !caps.analyses.includes(analysis.kind),
-      );
-      if (unsupported)
-        return problem(
-          "SIMULATION_ANALYSIS_UNQUALIFIED",
-          `Analysis ${unsupported.kind} is not qualified by the selected Profile`,
-          "prepare",
-        );
-      const volumeWarning = outputVolumeWarning(
-        structuredAnalyses,
-        vectors.length,
-        caps.maxOutputBytes,
-      );
-      if (volumeWarning) warnings.push(volumeWarning);
-    }
-    input.preparedDeck =
-      input.mode === "raw"
-        ? input.testbench
-        : buildSimulationDeck(
-            input,
-            caps.modelLibrary &&
-              deckNeedsModelLibrary(input.netlist + "\n" + input.testbench)
-              ? {
-                  directive: "lib",
-                  path: caps.modelLibrary.path,
-                  section:
-                    input.environment.corner ?? caps.modelLibrary.section,
-                }
-              : null,
-          );
-    const digest = await sha256(JSON.stringify(input));
+    if (!preparation.ok) return preparation;
+    const { input, vectors, outputs, warnings, digest } = preparation;
     if (epoch !== this.epoch)
       return problem(
         "SESSION_CHANGED",
@@ -568,7 +287,7 @@ export class SimulationService {
         );
       const run = this.runs.get(old.runId);
       return run
-        ? { ok: true, run: receipt(run.view) }
+        ? { ok: true, run: runReceipt(run.view) }
         : problem(
             "RUN_STATE_LOST",
             "The earlier run is unavailable and was not restarted",
@@ -670,6 +389,12 @@ export class SimulationService {
           analysis.analysis + "-" + i + ".csv",
           "text/csv",
           simulationAnalysisToCsv(analysis),
+        );
+      if (run.view.outputData)
+        await artifact(
+          "outputs.json",
+          "application/json",
+          JSON.stringify(run.view.outputData),
         );
       for (const [i, analysis] of (
         run.view.outputData?.analyses ?? []

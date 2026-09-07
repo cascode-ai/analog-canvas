@@ -1,6 +1,9 @@
 import { z } from "zod";
 import { SimulationResultSchema } from "@icm/spice-run";
-import { ObjectLocatorSchema } from "@icm/model";
+import {
+  ObjectLocatorSchema,
+  SimulationEnvironmentSelectionSchema,
+} from "@icm/model";
 import type {
   CompiledSimulationExpression,
   CompiledSimulationOutput,
@@ -8,11 +11,7 @@ import type {
 
 export const Id = z.string().min(1).max(256);
 export const Digest = z.string().regex(/^[a-f0-9]{64}$/u);
-export const EnvironmentSchema = z.strictObject({
-  profileId: Id,
-  corner: z.string().min(1).optional(),
-  temperatureC: z.number().finite().optional(),
-});
+export const EnvironmentSchema = SimulationEnvironmentSelectionSchema;
 export const ProblemSchema = z.strictObject({
   code: Id,
   message: z.string(),
