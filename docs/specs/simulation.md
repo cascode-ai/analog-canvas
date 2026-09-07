@@ -168,8 +168,11 @@ The implementation has these boundaries:
 - Model owns saved setups and canonical voltage/current expressions.
 - Netlist compiles structured intent. The service's preparation module resolves
   raw/structured inputs, capabilities and immutable deck identity.
-- SimulationService owns run lifecycle, idempotency and retention. Executor is
-  its execution port; GUI and MCP use the same service and File Resource.
+- SimulationService owns preparation and the session-facing run presentation.
+  Its Executor is the execution port; GUI and MCP use the same service and File
+  Resource. On Preview, the managed control plane owns authoritative hosted run
+  admission, idempotency, queueing, retry, cancellation and retention. Local
+  and production direct transports keep the same semantic service contract.
 - spice-run separates request/result types, deck assembly, metadata and terminal
   verdicts. Its public exports remain the same.
 - GUI setup editing, diagnostic display and result materialization are separate
@@ -998,11 +1001,16 @@ generated it, so an Agent can retry the identical start rather than duplicate it
 File Resource `list` recovers session draft IDs after a lost create response;
 it returns revision/entry/expiry metadata, not file bodies.
 
-The browser owns receipts, not a persistent queue: tab loss/reload may lose run
-state, and normal executor deadlines still apply. Revoking the session cancels
-known active work and clears its drafts/evidence. One active run, eight raw
-workspaces (24 files / 1 MiB each), and 15-minute artifact/input retention bound
-local resources; expired input can be prepared again. Export returns File
+The browser owns its presentation receipts, not execution authority. On the
+managed Preview transport, tab loss does not stop an admitted run: the owner can
+list its server records, and bounded immutable input/result evidence remains in
+the artifact store for one day. The queue admits at most 50 waiting runs, one
+queued and one active per owner, waits at most five minutes, and dispatches only
+the operator host's one declared slot. On direct/local transport, the earlier
+session deadline and 15-minute File Resource retention remain unchanged.
+Revoking a live browser session requests cancellation of active work and clears
+its local drafts/evidence. One active session run, eight raw workspaces (24 files
+/ 1 MiB each) bound local resources; expired input can be prepared again. Export returns File
 Resource references for prepared/executed deck, rawfile when produced, log,
 structured result, and CSV. Large read responses omit full arrays and bound the
 log/diagnostic preview, explicitly setting `resultPreview`. Full evidence remains

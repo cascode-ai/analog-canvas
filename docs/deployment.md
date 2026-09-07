@@ -179,13 +179,16 @@ concurrency count.
 container image, and the fingerprint identifies it, not the machine
 underneath. `execution.target` is the separate transport identity.
 
-The preview's `/api/simulate` is open on purpose — no login, no rate limit,
-no daily budget — by the owner's decision of 2026-09-04, after the cost
-question went away with the Cloudflare Container: the host is the owner's
-own machine, and the harness's isolation (an unprivileged account, a
-read-only root, no network route, one slot, a deadline that kills the
-process tree) is the whole boundary. Do not add an admission gate to the
-preview's simulation without the owner asking for one.
+The editor and browser Agent use `/api/simulation/runs` on Preview. A durable
+control object owns idempotency, per-owner/global admission, leases,
+cancellation, five-minute queue wait, and 24-hour run metadata; Cloudflare
+Queue dispatches one job at a time to the operator host and R2 retains bounded
+immutable inputs/results for one day. A signed-in account is the preferred
+owner. Preview can issue an opaque HttpOnly anonymous simulation capability so
+the feature does not depend on an OAuth provider; global admission remains the
+hard capacity boundary. `/api/simulate` remains the internal/direct execution
+contract and the explicit production/local transport until managed resources
+are promoted there. A failed managed start never falls back to it.
 
 ### The retired staging environment
 
