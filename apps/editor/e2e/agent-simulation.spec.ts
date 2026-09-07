@@ -716,10 +716,17 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
       .getBoundingClientRect();
     return { height: plot.height, toolbarGap: plot.top - toolbar.bottom };
   });
-  await magnitudePlot.hover();
+  await magnitudeToolbar.hover();
   await expect(
     magnitudeToolbar.getByRole("button", { name: "Zoom in" }),
   ).toBeVisible();
+  const toolbarBox = await magnitudeToolbar.boundingBox();
+  const lastToolBox = await magnitudeToolbar
+    .getByRole("button", { name: "Open plot" })
+    .boundingBox();
+  expect(lastToolBox!.x + lastToolBox!.width).toBeLessThanOrEqual(
+    toolbarBox!.x + toolbarBox!.width,
+  );
   const plotLayoutAfterToolbar = await magnitudePlot.evaluate((element) => {
     const plot = element.getBoundingClientRect();
     const toolbar = element
@@ -746,12 +753,10 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
     "innerHTML",
     plotBeforeWheel,
   );
-  await magnitudePlot
-    .locator("..")
-    .getByRole("button", { name: "Fit plot" })
-    .click();
+  await magnitudeToolbar.hover();
+  await magnitudeToolbar.getByRole("button", { name: "Fit plot" }).click();
   await expect(magnitudePlot).toHaveJSProperty("innerHTML", plotBeforeWheel);
-  await magnitudePlot.hover();
+  await magnitudeToolbar.hover();
   await expect(
     panel.getByRole("button", { name: "Zoom in" }).first(),
   ).toBeVisible();
@@ -785,6 +790,9 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
     .locator(".spice-ac-plot")
     .first();
   const transientShell = transientPlot.locator("..");
+  const transientToolbar = transientShell.getByLabel("Plot tools", {
+    exact: true,
+  });
   await expect(transientPlot.locator(".ac-trace-hit")).toHaveAttribute(
     "fill",
     "none",
@@ -794,9 +802,7 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
     .locator('svg text[text-anchor="middle"]')
     .last();
   const fullTimeLabel = await rightTimeLabel.textContent();
-  const toolbarBounds = await transientShell
-    .getByLabel("Plot tools", { exact: true })
-    .boundingBox();
+  const toolbarBounds = await transientToolbar.boundingBox();
   const transientBounds = await transientPlot.boundingBox();
   expect(transientBounds).not.toBeNull();
   await page.mouse.move(
@@ -819,7 +825,7 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   ).toHaveCount(0);
   await expect(rightTimeLabel).not.toHaveText(fullTimeLabel ?? "");
   const zoomTimeLabel = await rightTimeLabel.textContent();
-  await transientShell.getByRole("button", { name: "More plot tools" }).click();
+  await transientToolbar.hover();
   await transientShell.getByRole("button", { name: "Previous view" }).click();
   await expect(rightTimeLabel).toHaveText(fullTimeLabel ?? "");
   await transientShell.getByRole("button", { name: "Next view" }).click();
@@ -829,6 +835,7 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   const yLabels = await transientPlot
     .locator('svg text[text-anchor="end"]')
     .allTextContents();
+  await transientToolbar.hover();
   await transientShell.getByRole("button", { name: "Control X axes" }).click();
   const xDrag = (await transientPlot.boundingBox())!;
   await page.mouse.move(
@@ -849,11 +856,12 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
       .locator('svg text[text-anchor="end"]')
       .allTextContents(),
   ).toEqual(yLabels);
-  await transientShell.getByRole("button", { name: "More plot tools" }).click();
+  await transientToolbar.hover();
   await transientShell
     .getByRole("button", { name: "Fit X", exact: true })
     .click();
   await expect(rightTimeLabel).toHaveText(fullTimeLabel ?? "");
+  await transientToolbar.hover();
   await transientShell.getByRole("button", { name: "Control XY axes" }).click();
   await transientPlot.click({
     position: {
@@ -873,6 +881,7 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
     },
   });
   await expect(fixedReadout).toHaveText(measurement ?? "");
+  await transientToolbar.hover();
   await transientShell.getByRole("button", { name: "Place marker B" }).click();
   await transientPlot.click({
     position: {
@@ -902,7 +911,7 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   await page.mouse.up();
   await expect(fixedReadout).not.toHaveText(markerTextBeforeDrag ?? "");
   const markersBeforeRemount = await fixedReadout.textContent();
-  await transientShell.getByRole("button", { name: "More plot tools" }).click();
+  await transientToolbar.hover();
   await transientShell
     .getByRole("button", { name: "Ranges", exact: true })
     .click();
@@ -939,8 +948,7 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
     .click();
   await expect(rightTimeLabel).toHaveText(savedTicks ?? "");
   await expect(fixedReadout).toHaveText(markersBeforeRemount ?? "");
-  await transientPlot.hover();
-  await transientShell.getByRole("button", { name: "More plot tools" }).click();
+  await transientToolbar.hover();
   await transientShell.getByRole("button", { name: "Previous view" }).click();
   await expect(rightTimeLabel).toHaveText(fullTimeLabel ?? "");
   await transientShell.getByRole("button", { name: "Next view" }).click();
@@ -1019,8 +1027,7 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   await expect(panel.getByRole("status")).toHaveText("finished · completed");
   await panel.getByRole("tab", { name: "Plot" }).click();
   await expect(panel.locator(".ac-cursor-readout")).toHaveCount(0);
-  await transientPlot.hover();
-  await transientShell.getByRole("button", { name: "More plot tools" }).click();
+  await transientToolbar.hover();
   await expect(
     transientShell.getByRole("button", { name: "Previous view" }),
   ).toBeDisabled();
@@ -1031,7 +1038,8 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   const comparisonTable = panel.locator(".simulation-run-comparison-table");
   await expect(comparisonTable.locator("thead th")).toHaveCount(3);
   await expect(comparisonTable).toContainText("Current");
-  await expect(comparisonTable).toContainText("TRAN · Time-weighted RMS");
+  await expect(comparisonTable).toContainText("Transient Analysis");
+  await expect(comparisonTable).toContainText("Time-weighted RMS");
   await expect(
     comparisonTable.getByRole("button", {
       name: "Remove E2E setup from comparison",

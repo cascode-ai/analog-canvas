@@ -32,6 +32,19 @@ function run(
         status: "available",
         value,
       },
+      {
+        id: `1:out:maximum:${id}`,
+        analysisIndex: 1,
+        analysis: "ac",
+        plotName: "AC",
+        outputId: "out",
+        outputLabel: "Vout",
+        metric: "maximum",
+        label: "Maximum",
+        unit: "V",
+        status: "available",
+        value: value * 2,
+      },
     ],
   };
 }
@@ -49,7 +62,11 @@ describe("SimulationRunComparison", () => {
     );
     expect(markup).toContain("Before");
     expect(markup).toContain("After");
-    expect(markup).toContain("TRAN · Maximum");
+    expect(markup).toContain("Transient Analysis");
+    expect(markup).toContain("AC Analysis");
+    expect(markup).toContain('aria-label="Transient analysis"');
+    expect(markup).toContain('aria-label="AC analysis"');
+    expect(markup).toContain("<small>Maximum</small>");
     expect(markup).toContain("1 V");
     expect(markup).toContain("1.2 V");
     expect(markup).toContain("Remove Before from comparison");
