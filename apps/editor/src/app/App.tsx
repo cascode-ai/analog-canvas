@@ -259,6 +259,13 @@ import {
 } from "../presentation/razavi-presentation";
 import { useRecoveryCoordinator } from "../document/recovery-coordinator";
 import { useSelectionController } from "../features/selection/selection-controller";
+import { SelectionFilterPopover } from "../features/selection/selection-filter-popover";
+import {
+  DEFAULT_SELECTION_FILTER,
+  selectionFilterSummary,
+  selectionForDocument,
+  type SelectionFilter,
+} from "../features/selection/selection-filter";
 import { deriveSelectionInspectionModel } from "../features/selection/selection-inspection-model";
 import { usePropertiesEditor } from "../features/properties/use-properties-editor";
 import { createPropertyEditPlanner } from "../features/properties/property-edit-planner";
@@ -507,6 +514,10 @@ export function App({
     clearKinds: clearSelectionKinds,
     reset: resetSelection,
   } = useSelectionController();
+  const [selectionFilter, setSelectionFilter] = useState<SelectionFilter>(
+    DEFAULT_SELECTION_FILTER,
+  );
+  const [selectionFilterOpen, setSelectionFilterOpen] = useState(false);
   const uniqueSuffixCounter = useRef(0);
   const [viewBox, setRawViewBox] = useState<GridRect>(DEFAULT_VIEWBOX);
   const cameraRuntimeRef = useRef<CameraRuntime | null>(null);
@@ -2824,6 +2835,7 @@ export function App({
       selectedInternalRouteIds,
       selectedInternalJunctionIds,
       selectedInternalObjectIds,
+      selectionFilter,
     },
     session: {
       getInteractionKind: () => getCurrentInteractionState().kind,
@@ -2905,7 +2917,13 @@ export function App({
     continueCanvasGesture,
     finishCanvasGesture,
   } = createCanvasGestureController({
-    model: { document, resolver, routeGeometryRecords, styleProfile },
+    model: {
+      document,
+      resolver,
+      routeGeometryRecords,
+      styleProfile,
+      selectionFilter,
+    },
     viewport: {
       defaultViewBox: DEFAULT_VIEWBOX,
       contentBounds: contentSceneBounds,
@@ -3120,17 +3138,7 @@ export function App({
   }
 
   function selectAllObjects(): void {
-    replaceSelection({
-      instanceIds: document.instances
-        .filter((instance) => instance.placement)
-        .map((instance) => instance.id),
-      routeIds: document.routes.map((route) => route.id),
-      junctionIds: document.junctions.map((junction) => junction.id),
-      annotationIds: document.annotations.map((annotation) => annotation.id),
-      draftingIds: (document.drafting?.objects ?? []).map(
-        (object) => object.id,
-      ),
-    });
+    replaceSelection(selectionForDocument(document, selectionFilter));
     setSelectedEndpoint(null);
   }
 
@@ -3713,6 +3721,14 @@ export function App({
         armVerb("copy");
       },
       copyVisualSelection: visualClipboard.copy,
+      openSelectionFilter: () => {
+        closeSearch();
+        setSelectionFilterOpen(true);
+      },
+      openSearch: () => {
+        setSelectionFilterOpen(false);
+        setSearchOpen(true);
+      },
       beginMove: (detach) => {
         if (canBeginKeyboardSelectionMove()) {
           beginKeyboardSelectionMoveFromSelection(undefined, { detach });
@@ -3838,15 +3854,6 @@ export function App({
         ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)
       )
         return;
-      if (
-        (event.ctrlKey || event.metaKey) &&
-        event.key.toLowerCase() === "f" &&
-        !isTypingTarget(event.target)
-      ) {
-        event.preventDefault();
-        setSearchOpen(true);
-        return;
-      }
       if (event.key === "Escape" && simulationPickActive) {
         event.preventDefault();
         setSimulationPickMode(null);
@@ -3862,6 +3869,11 @@ export function App({
       if (event.key === "Escape" && searchOpen) {
         event.preventDefault();
         closeSearch();
+        return;
+      }
+      if (event.key === "Escape" && selectionFilterOpen) {
+        event.preventDefault();
+        setSelectionFilterOpen(false);
         return;
       }
       if (event.key === "Escape" && insertDialogOpen) {
@@ -4329,13 +4341,17 @@ export function App({
           onOpenRecovery: openRecoveryDialog,
         }}
         searchOpen={searchOpen}
+        selectionFilterOpen={selectionFilterOpen}
         onManageCells={() => setCellManagerOpen(true)}
         onNewTestbench={() => openNewTestbenchDialog()}
         placeProjectCell={{
           enabled: cellInsertCandidates.length > 0,
           execute: placeCellInstance,
         }}
-        onOpenSearch={() => setSearchOpen(true)}
+        onOpenSelectionFilter={() =>
+          editorCommands.execute({ id: "selection.filter.open" })
+        }
+        onOpenSearch={() => editorCommands.execute({ id: "search.open" })}
         undo={{
           enabled: editorCommands.state({ id: "history.undo" }).enabled,
           execute: () => editorCommands.execute({ id: "history.undo" }),
@@ -5952,6 +5968,9 @@ export function App({
               selectedRouteSegmentIndex,
               selectedEndpoint,
               supplementalJunctionIds: supplementalSelection.junctionIds,
+              selectionFilter: simulationPickActive
+                ? DEFAULT_SELECTION_FILTER
+                : selectionFilter,
               endpointLabel: endpointTestId,
               ...(simulationPickTerminalsActive
                 ? {
@@ -6255,6 +6274,12 @@ export function App({
           onPlaceOnCanvas={beginWaveformPlacement}
         />
       ) : null}
+      <SelectionFilterPopover
+        open={selectionFilterOpen}
+        filter={selectionFilter}
+        onChange={setSelectionFilter}
+        onClose={() => setSelectionFilterOpen(false)}
+      />
       <EditorStatusbar
         visitStats={visitStats}
         status={status}
@@ -6273,6 +6298,10 @@ export function App({
         wheelBehavior={wheelBehavior}
         onWheelBehaviorChange={setWheelBehavior}
         zoomPercent={zoomPercent}
+        selectionFilterSummary={selectionFilterSummary(selectionFilter)}
+        onOpenSelectionFilter={() =>
+          editorCommands.execute({ id: "selection.filter.open" })
+        }
         issues={{
           checkStatus: projectCheck.status,
           errorCount: issueCounts.errorCount,

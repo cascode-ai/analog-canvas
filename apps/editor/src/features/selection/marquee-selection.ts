@@ -21,6 +21,12 @@ import {
   instanceHitBox,
   type RouteGeometryRecord,
 } from "../wiring/route-interaction-geometry";
+import {
+  DEFAULT_SELECTION_FILTER,
+  selectionFilterAllowsAnnotation,
+  selectionFilterAllowsDrafting,
+  type SelectionFilter,
+} from "./selection-filter";
 
 /**
  * Classic drafting-tool marquee semantics: dragging left-to-right is a
@@ -55,19 +61,20 @@ export function marqueeSelection(
   styleProfile: SchematicStyleProfile,
   rect: Rect,
   mode: MarqueeMode,
+  filter: SelectionFilter = DEFAULT_SELECTION_FILTER,
 ): MarqueeSelectionSet {
   const window = mode === "window";
   const boxSelected = (bounds: Rect): boolean =>
     window ? rectContainsRect(rect, bounds) : rectsIntersect(bounds, rect);
 
   return {
-    instanceIds: document.instances
+    instanceIds: (filter.instance ? document.instances : [])
       .filter((instance) => {
         const bounds = instanceHitBox(instance, resolver);
         return bounds !== null && boxSelected(bounds);
       })
       .map((instance) => instance.id),
-    routeIds: routeGeometryRecords
+    routeIds: (filter.route ? routeGeometryRecords : [])
       .filter(({ geometry }) =>
         window
           ? polylineInRect(geometry.centerline, rect)
@@ -82,12 +89,13 @@ export function marqueeSelection(
               ),
       )
       .map(({ route }) => route.id),
-    junctionIds: document.junctions
+    junctionIds: (filter.junction ? document.junctions : [])
       .filter((junction) => pointInRect(junction.position, rect))
       .map((junction) => junction.id),
     annotationIds: document.annotations
       .filter(
         (annotation) =>
+          selectionFilterAllowsAnnotation(filter, annotation) &&
           isSchematicAnnotationVisible(document, annotation) &&
           boxSelected(
             annotationHitBox(
@@ -108,6 +116,7 @@ export function marqueeSelection(
       .map((annotation) => annotation.id),
     draftingIds: (document.drafting?.objects ?? [])
       .filter((object) => {
+        if (!selectionFilterAllowsDrafting(filter, object)) return false;
         const geometry = resolveDraftingObjectGeometry(
           document,
           resolver,

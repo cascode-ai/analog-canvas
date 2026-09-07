@@ -79,6 +79,18 @@ describe("editor shortcut contract", () => {
     }
   });
 
+  it("gives Ctrl/Cmd+F to Selection Filter and shifts schematic Search", () => {
+    for (const modifiers of [{ ctrlKey: true }, { metaKey: true }]) {
+      expect(resolve("f", {}, modifiers)).toEqual(
+        command({ id: "selection.filter.open" }),
+      );
+      expect(resolve("f", {}, { ...modifiers, shiftKey: true })).toEqual(
+        command({ id: "search.open" }),
+      );
+    }
+    expect(resolve("f", { isTyping: true }, { ctrlKey: true })).toBeNull();
+  });
+
   it("arbitrates browser refresh chords before blocking their defaults", () => {
     for (const modifiers of [
       { ctrlKey: true },

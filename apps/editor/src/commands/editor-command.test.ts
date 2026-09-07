@@ -43,6 +43,8 @@ function fixture(overrides: Partial<EditorCommandContext> = {}) {
     deleteSelection: vi.fn(),
     beginCopy: vi.fn(),
     copyVisualSelection: vi.fn(),
+    openSelectionFilter: vi.fn(),
+    openSearch: vi.fn(),
     beginMove: vi.fn(),
     alignSelection: vi.fn(),
     rotatePlacement: vi.fn(),
@@ -77,6 +79,15 @@ function fixture(overrides: Partial<EditorCommandContext> = {}) {
 }
 
 describe("editor command router", () => {
+  it("routes Search and Selection Filter through distinct commands", () => {
+    const { router, operations } = fixture();
+    router.execute({ id: "selection.filter.open" });
+    expect(operations.openSelectionFilter).toHaveBeenCalledOnce();
+    expect(operations.openSearch).not.toHaveBeenCalled();
+    router.execute({ id: "search.open" });
+    expect(operations.openSearch).toHaveBeenCalledOnce();
+  });
+
   it("copies visual content without arming circuit copy or mutating history", () => {
     const { router, operations } = fixture();
     router.execute({ id: "selection.copy-image", format: "svg" });

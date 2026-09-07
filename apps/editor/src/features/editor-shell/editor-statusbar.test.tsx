@@ -22,6 +22,8 @@ describe("editor statusbar", () => {
         onDrawAngleModeChange={vi.fn()}
         annotationGrid={5}
         zoomPercent={100}
+        selectionFilterSummary={null}
+        onOpenSelectionFilter={vi.fn()}
         onToggleWireOptions={vi.fn()}
         onWireRoutingModeChange={vi.fn()}
         onWireCornerOrderChange={vi.fn()}
@@ -62,6 +64,8 @@ describe("editor statusbar", () => {
         onDrawAngleModeChange={vi.fn()}
         annotationGrid={5}
         zoomPercent={100}
+        selectionFilterSummary={null}
+        onOpenSelectionFilter={vi.fn()}
         issues={issues}
         onToggleWireOptions={vi.fn()}
         onWireRoutingModeChange={vi.fn()}
@@ -86,6 +90,41 @@ describe("editor statusbar", () => {
     expect(markup).toContain('data-severity="error"');
     expect(markup).toContain("2 errors, 1 warning");
     expect(markup).toContain("Action required");
+  });
+
+  it("shows a compact entry point only while selection is filtered", () => {
+    const markup = renderToStaticMarkup(
+      <EditorStatusbar
+        status="Ready"
+        tool="pointer"
+        vddRailMode={false}
+        pendingSymbolId={null}
+        wireOptionsOpen={false}
+        wireRoutingMode="orthogonal"
+        wireCornerOrder="auto"
+        recoveryLabel={null}
+        gridDotsVisible
+        drawAngleMode="free"
+        wheelBehavior="auto"
+        onWheelBehaviorChange={vi.fn()}
+        onDrawAngleModeChange={vi.fn()}
+        annotationGrid={5}
+        zoomPercent={100}
+        selectionFilterSummary="Filter: Wires"
+        onOpenSelectionFilter={vi.fn()}
+        onToggleWireOptions={vi.fn()}
+        onWireRoutingModeChange={vi.fn()}
+        onWireCornerOrderChange={vi.fn()}
+        onToggleGridDots={vi.fn()}
+        onOpenAnalytics={vi.fn()}
+        onAnnotationGridChange={vi.fn()}
+        onZoomOut={vi.fn()}
+        onZoomIn={vi.fn()}
+        onFitView={vi.fn()}
+      />,
+    );
+    expect(markup).toContain('data-testid="selection-filter-status"');
+    expect(markup).toContain("Filter: Wires");
   });
 
   it.each(["unchecked", "checking", "stale", "failed"] as const)(

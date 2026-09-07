@@ -49,10 +49,14 @@ function readHit(element: Element): CanvasHit | null {
  * Resolve once at pointer-down. `elements` must be in paint order (topmost
  * first), as returned by `document.elementsFromPoint()`.
  */
-export function rankCanvasHits(elements: readonly Element[]): CanvasHit[] {
+export function rankCanvasHits(
+  elements: readonly Element[],
+  accepts: (hit: CanvasHit) => boolean = () => true,
+): CanvasHit[] {
   const hits = elements
     .map(readHit)
-    .filter((hit): hit is CanvasHit => hit !== null);
+    .filter((hit): hit is CanvasHit => hit !== null)
+    .filter(accepts);
   const unique = hits.filter(
     (hit, index) =>
       hits.findIndex(
@@ -75,8 +79,9 @@ export function rankCanvasHits(elements: readonly Element[]): CanvasHit[] {
 export function resolveCanvasHit(
   elements: readonly Element[],
   cycle = 0,
+  accepts?: (hit: CanvasHit) => boolean,
 ): CanvasHit | null {
-  const hits = rankCanvasHits(elements);
+  const hits = rankCanvasHits(elements, accepts);
   if (hits.length === 0) return null;
   return hits[Math.min(Math.max(0, cycle), hits.length - 1)]!;
 }
@@ -85,10 +90,12 @@ export function resolveCanvasHitAtPoint(
   owner: { elementsFromPoint?(x: number, y: number): Element[] },
   client: { x: number; y: number },
   cycle = 0,
+  accepts?: (hit: CanvasHit) => boolean,
 ): CanvasHit | null {
   return resolveCanvasHit(
     owner.elementsFromPoint?.(client.x, client.y) ?? [],
     cycle,
+    accepts,
   );
 }
 
