@@ -54,6 +54,9 @@ describe("release channel", () => {
     // Simulation runs are the preview's whole purpose; agent sessions and
     // analytics are its own namespaces. None of these reach shared data.
     expect(previewWriteRefusal(req("/api/simulate", "POST"), env)).toBeNull();
+    expect(
+      previewWriteRefusal(req("/api/simulation/runs", "POST"), env),
+    ).toBeNull();
     expect(previewWriteRefusal(req("/api/track", "POST"), env)).toBeNull();
     expect(
       previewWriteRefusal(req("/api/agent/sessions", "POST"), env),

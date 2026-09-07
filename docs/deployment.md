@@ -119,12 +119,14 @@ configuration change, like any other.
 ### Where the simulator runs
 
 The Worker never runs ngspice itself; it hands the deck to a harness over
-HTTP (`worker/simulation.ts`). The harness is the image
+HTTP (`worker/simulation.ts`). On the operator host a small gateway authenticates
+the request and forwards it over an internal network to the harness image
 `containers/ngspice/Dockerfile`, pinned to the benchmark base image by
 digest, and it runs on **an operator-run host**, named by the var
 `SIMULATION_UPSTREAM_URL`: Docker behind a Cloudflare Tunnel, so the host
 opens no inbound port and its only public name is the tunnel's. It answers
-`/run` only to the bearer token in its `SIMULATION_ACCESS_TOKEN`; the Worker
+`/run` only to the bearer token in its `SIMULATION_ACCESS_TOKEN`; that token is
+held by the gateway and never enters the executor. The Worker
 presents the same value from its secret `SIMULATION_UPSTREAM_TOKEN`, which
 `deploy-preview.yml` sets from the repository secret of the same name on
 every deploy.
@@ -144,11 +146,13 @@ performed the run.
 The current operator host is the Frankfurt machine, under its `analogcanvas`
 account, in `~/analog-canvas-sim/`. Its desired state is not private machine
 configuration: [`containers/ngspice/host/compose.yaml`](../containers/ngspice/host/compose.yaml)
-is the sole definition of the harness container, tunnel container, internal
-network, egress boundary, private run-root volume, restart policy, and resource
-limits. The harness has a read-only root, no capabilities, bounded PIDs, 8 CPUs
-and 16 GiB, no published host port, and no egress. `cloudflared` alone joins
-both the internal network and an egress network.
+is the sole definition of the trusted authentication gateway, untrusted
+executor, tunnel container, internal network, egress boundary, private
+run-root volume, restart policy, and resource limits. Only the gateway receives
+the bearer token. The executor that runs authored `.control` code has a
+read-only root, no capabilities, bounded PIDs, 8 CPUs and 16 GiB, no published
+host port, no credential, and no egress. `cloudflared` alone joins both the
+internal network and an egress network.
 
 The `Simulator host` workflow (`.github/workflows/simulator-host.yml`) copies
 the exact tracked `containers/ngspice/` tree into a commit-addressed release on
@@ -175,13 +179,16 @@ concurrency count.
 container image, and the fingerprint identifies it, not the machine
 underneath. `execution.target` is the separate transport identity.
 
-The preview's `/api/simulate` is open on purpose — no login, no rate limit,
-no daily budget — by the owner's decision of 2026-09-04, after the cost
-question went away with the Cloudflare Container: the host is the owner's
-own machine, and the harness's isolation (an unprivileged account, a
-read-only root, no network route, one slot, a deadline that kills the
-process tree) is the whole boundary. Do not add an admission gate to the
-preview's simulation without the owner asking for one.
+The editor and browser Agent use `/api/simulation/runs` on Preview. A durable
+control object owns idempotency, per-owner/global admission, leases,
+cancellation, five-minute queue wait, and 24-hour run metadata; Cloudflare
+Queue dispatches one job at a time to the operator host and R2 retains bounded
+immutable inputs/results for one day. A signed-in account is the preferred
+owner. Preview can issue an opaque HttpOnly anonymous simulation capability so
+the feature does not depend on an OAuth provider; global admission remains the
+hard capacity boundary. `/api/simulate` remains the internal/direct execution
+contract and the explicit production/local transport until managed resources
+are promoted there. A failed managed start never falls back to it.
 
 ### The retired staging environment
 

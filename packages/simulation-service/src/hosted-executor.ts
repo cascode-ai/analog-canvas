@@ -6,6 +6,44 @@ import {
   type ExecutionInput,
 } from "./executor.js";
 
+export type HostedExecutionPayload = Record<string, unknown> | null;
+
+export function decodeHostedExecutionPayload(
+  input: ExecutionInput,
+  body: HostedExecutionPayload,
+) {
+  const { rawfile, executedDeck, cancelled, ...value } = body ?? {};
+  const parsed = SimulationResultSchema.safeParse(value);
+  if (!parsed.success)
+    throw new ExecutionFailure(
+      {
+        code: "SIMULATION_RESULT_INVALID",
+        message:
+          "The executor returned an invalid result; this run was not retried.",
+        stage: "read",
+        recovery: "not-retryable",
+      },
+      true,
+    );
+  if (
+    parsed.data.metadata.input.inputRevision !== input.inputRevision ||
+    parsed.data.metadata.environment.profileId !== input.environment.profileId
+  )
+    throw new ExecutionFailure({
+      code: "SIMULATION_IDENTITY_MISMATCH",
+      message:
+        "Result input/environment identity differs from the prepared input",
+      stage: "read",
+      recovery: "not-retryable",
+    });
+  return {
+    result: parsed.data,
+    cancelled: cancelled === true,
+    ...(typeof rawfile === "string" ? { rawfile } : {}),
+    ...(typeof executedDeck === "string" ? { executedDeck } : {}),
+  };
+}
+
 export function createHostedExecutor(
   fetchImpl: typeof fetch = fetch,
 ): Executor {
@@ -117,37 +155,7 @@ export function createHostedExecutor(
         },
         "start",
       );
-      const { rawfile, executedDeck, cancelled, ...value } = body ?? {};
-      const parsed = SimulationResultSchema.safeParse(value);
-      if (!parsed.success)
-        throw new ExecutionFailure(
-          {
-            code: "SIMULATION_RESULT_INVALID",
-            message:
-              "The executor returned an invalid result; this run was not retried.",
-            stage: "read",
-            recovery: "not-retryable",
-          },
-          true,
-        );
-      if (
-        parsed.data.metadata.input.inputRevision !== input.inputRevision ||
-        parsed.data.metadata.environment.profileId !==
-          input.environment.profileId
-      )
-        throw new ExecutionFailure({
-          code: "SIMULATION_IDENTITY_MISMATCH",
-          message:
-            "Result input/environment identity differs from the prepared input",
-          stage: "read",
-          recovery: "not-retryable",
-        });
-      return {
-        result: parsed.data,
-        cancelled: cancelled === true,
-        ...(typeof rawfile === "string" ? { rawfile } : {}),
-        ...(typeof executedDeck === "string" ? { executedDeck } : {}),
-      };
+      return decodeHostedExecutionPayload(input, body);
     },
     async cancel(runToken: string) {
       await post({ operation: "cancel", runToken }, "cancel");

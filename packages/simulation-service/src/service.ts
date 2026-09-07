@@ -358,7 +358,10 @@ export class SimulationService {
     epoch: number,
   ) {
     try {
-      const output = await this.executor.execute(input, run.token, timeoutMs);
+      const output = await this.executor.execute(input, run.token, timeoutMs, {
+        preparedId: run.prepared.id,
+        preparedDigest: run.prepared.digest,
+      });
       if (epoch !== this.epoch) return;
       run.view.result = output.result;
       if (output.result.data && run.prepared.outputs.length > 0) {

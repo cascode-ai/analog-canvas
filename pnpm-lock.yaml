@@ -25,6 +25,9 @@ importers:
       "@icm/render-svg":
         specifier: workspace:*
         version: link:packages/render-svg
+      "@icm/simulation-service":
+        specifier: workspace:*
+        version: link:packages/simulation-service
       "@icm/spice-run":
         specifier: workspace:*
         version: link:packages/spice-run

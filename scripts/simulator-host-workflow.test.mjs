@@ -30,8 +30,9 @@ describe("the operator simulator host", () => {
     expect(bootstrap).not.toContain("sudo");
   });
 
-  it("keeps the harness private and resource bounded in one desired-state file", () => {
+  it("keeps the gateway and executor private and resource bounded in one desired-state file", () => {
     expect(compose).toContain("container_name: analog-canvas-ngspice");
+    expect(compose).toContain("container_name: analog-canvas-ngspice-executor");
     expect(compose).toContain("read_only: true");
     expect(compose).toMatch(/cap_drop:\s*\n\s*- ALL/u);
     expect(compose).toContain("pids_limit: 256");
@@ -42,6 +43,20 @@ describe("the operator simulator host", () => {
     expect(compose).toContain(
       "cloudflare/cloudflared:2025.8.1@sha256:b77d84e8704db38db22c22661cf7e56468c526e3a6a5fe9c8b7c151452fa1472",
     );
+  });
+
+  it("keeps the host token out of the untrusted executor", () => {
+    const executor = compose.slice(
+      compose.indexOf("  executor:"),
+      compose.indexOf("  simulator:"),
+    );
+    const gateway = compose.slice(
+      compose.indexOf("  simulator:"),
+      compose.indexOf("  tunnel:"),
+    );
+    expect(executor).not.toContain("SIMULATION_ACCESS_TOKEN");
+    expect(gateway).toContain("SIMULATION_ACCESS_TOKEN");
+    expect(gateway).toContain("SIMULATION_EXECUTOR_URL: http://executor:8080");
   });
 
   it("uses the tracked topology instead of repeating docker run flags", () => {
@@ -55,6 +70,9 @@ describe("the operator simulator host", () => {
 
   it("bounds the one-time legacy takeover to the two known containers", () => {
     expect(deploy).toContain("replace_legacy_container analog-canvas-ngspice");
+    expect(deploy).toContain(
+      "replace_legacy_container analog-canvas-ngspice-executor",
+    );
     expect(deploy).toContain("replace_legacy_container analog-canvas-tunnel");
     expect(deploy).not.toMatch(/docker (?:system|volume|network) prune/u);
   });

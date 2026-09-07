@@ -6,12 +6,15 @@ result data is stored here. A replacement host needs Docker, `curl`,
 `sha256sum`, this repository, and the deployment secrets; the tracked
 bootstrap installs the pinned Compose plugin.
 
-`compose.yaml` is the sole desired-state definition. It gives the harness a
-private run-root volume and an internal network with no egress. `cloudflared`
-joins that network and a separate egress network, so it is the only path to the
-harness. Neither service publishes a host port. `deploy.sh` and `health.sh` are
-thin operators over that definition; `../verify-host-runtime.sh` independently
-checks the security and resource boundary after deployment.
+`compose.yaml` is the sole desired-state definition. It separates the trusted
+bearer-token gateway from the untrusted ngspice executor, gives the executor a
+private run-root volume, and places both on an internal network with no egress.
+`cloudflared` joins that network and a separate egress network, so it is the
+only public path to the gateway. The token never enters the executor container,
+where authored `.control` code runs. No service publishes a host port.
+`deploy.sh` and `health.sh` are thin operators over that definition;
+`../verify-host-runtime.sh` independently checks the security and resource
+boundary after deployment.
 
 ## Repository-owned deployment
 

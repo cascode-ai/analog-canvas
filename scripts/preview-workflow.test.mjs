@@ -33,6 +33,17 @@ describe("the preview deploy", () => {
     expect(preview).not.toContain("volare");
   });
 
+  it("reconciles the preview's bounded queue and artifact store before deploy", () => {
+    const resources = preview.indexOf("Reconcile managed simulation resources");
+    const deploy = preview.indexOf("Deploy to preview");
+    expect(resources).toBeGreaterThanOrEqual(0);
+    expect(deploy).toBeGreaterThan(resources);
+    expect(preview).toContain("analog-canvas-simulation-preview-dlq");
+    expect(preview).toContain("--message-retention-period-secs");
+    expect(preview).toContain("simulation-artifact-retention");
+    expect(preview).toContain("--expire-days 1");
+  });
+
   it("verifies what a preview is for", () => {
     expect(preview).toContain("/api/channel");
     expect(preview).toContain('"preview"');

@@ -1,14 +1,12 @@
 name: analog-canvas-sim
 
 services:
-  simulator:
+  executor:
     image: analog-canvas-ngspice:${SIMULATION_IMAGE_TAG:-local}
     build:
       context: ../../..
       dockerfile: containers/ngspice/Dockerfile
-    container_name: analog-canvas-ngspice
-    environment:
-      SIMULATION_ACCESS_TOKEN: ${SIMULATION_ACCESS_TOKEN:?set SIMULATION_ACCESS_TOKEN in the host runtime env}
+    container_name: analog-canvas-ngspice-executor
     restart: unless-stopped
     read_only: true
     cap_drop:
@@ -31,6 +29,33 @@ services:
         target: /tmp
         tmpfs:
           size: 1073741824
+    networks:
+      - simulation
+
+  # The public tunnel reaches this small trusted process. The bearer token is
+  # deliberately absent from `executor`: an authored .control program runs
+  # there under the same uid as the harness and must not be able to recover
+  # the credential from /proc or inherited process state.
+  simulator:
+    image: analog-canvas-ngspice:${SIMULATION_IMAGE_TAG:-local}
+    container_name: analog-canvas-ngspice
+    command:
+      - node
+      - /opt/harness/gateway.mjs
+    environment:
+      SIMULATION_ACCESS_TOKEN: ${SIMULATION_ACCESS_TOKEN:?set SIMULATION_ACCESS_TOKEN in the host runtime env}
+      SIMULATION_EXECUTOR_URL: http://executor:8080
+    depends_on:
+      - executor
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 64
+    cpus: 0.5
+    mem_limit: 256m
     networks:
       - simulation
 

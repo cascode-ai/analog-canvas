@@ -84,7 +84,7 @@ function advertisedMaxOutputBytes(env: SimulationEnv): number {
  */
 const CLOUDFLARE_CONTAINER_INSTANCE_KEY = `profile:${hostedSky130Profile.id}`;
 
-interface SimulationRequestBody {
+export interface SimulationRequestBody {
   operation?: unknown;
   mode?: unknown;
   environment?: {
