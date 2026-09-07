@@ -196,7 +196,7 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
     "v(ibias)",
     "v(xdut.tail)",
     "v(xdut.nleft)",
-    "v(xdut.vinp)",
+    "v(vinp)",
   ])
     expect(deck).toContain(vector);
   expect(deck).toMatch(/i\(vicmprb\d+\)/u);
