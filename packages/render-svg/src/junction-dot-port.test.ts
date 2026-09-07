@@ -178,10 +178,48 @@ function straightTap(): SchematicDocument {
 
 describe("junction dots at Port pins", () => {
   it("keeps the branch dot when a moved group parks the Port on the tee", () => {
-    // The regression: a rearrange that makes the Port pin coincide with the
-    // three-way branch must not erase the branch's junction dot.
     expect(junctionCircleCount(renderDocumentSvg(tee(true), resolver))).toBe(1);
   });
+
+  it.each(["port", "port-filled"])(
+    "renders a real three-way %s branch without requiring a Junction object",
+    (symbolId) => {
+      const document = tee(true);
+      document.instances.find((i) => i.id === "P1")!.symbolId = symbolId;
+      for (const route of document.routes) {
+        if (route.start.kind === "junction")
+          route.start = { kind: "terminal", instanceId: "P1", pinName: "P" };
+        const last = route.legs.at(-1)!;
+        if (last.to.kind === "endpoint" && last.to.endpoint.kind === "junction")
+          last.to.endpoint = {
+            kind: "terminal",
+            instanceId: "P1",
+            pinName: "P",
+          };
+      }
+      document.junctions = [
+        {
+          id: "east",
+          netId: "net-t",
+          position: { x: 520, y: 240 },
+          role: "route-anchor",
+        },
+      ];
+      document.routes.push(
+        createRoutePath({
+          id: "east-wire",
+          netId: "net-t",
+          start: { kind: "terminal", instanceId: "P1", pinName: "P" },
+          end: { kind: "junction", junctionId: "east" },
+          bends: [],
+          modes: ["manual"],
+        }),
+      );
+      expect(junctionCircleCount(renderDocumentSvg(document, resolver))).toBe(
+        1,
+      );
+    },
+  );
 
   it("stays dotless where the Port rides a straight through-wire", () => {
     // The owner-reported orphan: a dot in the middle of a plain wire next

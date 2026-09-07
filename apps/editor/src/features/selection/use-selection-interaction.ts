@@ -45,6 +45,8 @@ type TransactionResult = { ok: boolean; revision: number };
 interface ResolvedInstanceMove {
   snap: SnapResult;
   moves: { instanceId: string; position: Point }[];
+  prepared?: import("./selection-move-controller").PreparedInstanceMove;
+  preparationError?: string;
 }
 
 interface MoveProjectionInput {
@@ -181,7 +183,7 @@ export interface UseSelectionInteractionOptions {
     suppressSnap: boolean,
     previous?: SnapResult,
     projectedDocument?: SchematicDocument,
-  ) => { snap: SnapResult; moves: { instanceId: string; position: Point }[] };
+  ) => ResolvedInstanceMove;
   completeInstanceMove: (
     preview: InstanceMovePreview,
     position: Point,
@@ -613,15 +615,21 @@ export function useSelectionInteraction(
       };
       options.snapGuides(resolved.snap.guides);
       try {
-        if (session.projectedDocument !== options.document) {
+        if (resolved.preparationError)
+          throw new Error(resolved.preparationError);
+        if (
+          resolved.prepared ||
+          session.projectedDocument !== options.document
+        ) {
           const projectedDocument =
-            cached && "document" in cached
+            resolved.prepared?.finalDocument ??
+            (cached && "document" in cached
               ? cached.document
               : projectInstanceMove(
                   session.projectedDocument,
                   resolved.moves,
                   session.movePlan,
-                );
+                ));
           session.lastProjection = {
             screenPoint: { ...screenPoint },
             suppressSnap,
@@ -666,6 +674,8 @@ export function useSelectionInteraction(
         options.setProjectedMovePreview(session.projectedDocument);
       } catch (error) {
         session.lastProjection = null;
+        session.visual?.restore();
+        session.routeVisual?.restore();
         options.setProjectedMovePreview(null);
         options.setStatus(
           error instanceof Error ? error.message : "Move preview failed",
@@ -1022,6 +1032,7 @@ export function useSelectionInteraction(
         detachDrag ? previewBaseDocument : undefined,
       );
       lastSnap = resolved.snap;
+      if (resolved.preparationError) throw new Error(resolved.preparationError);
       const input = {
         screenPoint: { ...screenPoint },
         suppressSnap,
@@ -1029,23 +1040,26 @@ export function useSelectionInteraction(
         sourceRevision: options.document.revision,
         resolved,
       };
-      lastProjection = detachDrag
-        ? {
-            ...input,
-            document: projectInstanceMove(
-              previewBaseDocument,
-              resolved.moves,
-              preview.movePlan,
-            ),
-          }
-        : {
-            ...input,
-            routePoints: projectInstanceMoveVisual(
-              options.document,
-              resolved.moves,
-              preview.movePlan,
-            ),
-          };
+      lastProjection =
+        detachDrag || resolved.prepared
+          ? {
+              ...input,
+              document:
+                resolved.prepared?.finalDocument ??
+                projectInstanceMove(
+                  previewBaseDocument,
+                  resolved.moves,
+                  preview.movePlan,
+                ),
+            }
+          : {
+              ...input,
+              routePoints: projectInstanceMoveVisual(
+                options.document,
+                resolved.moves,
+                preview.movePlan,
+              ),
+            };
       return lastProjection;
     };
     options.canvasDragSessionRef.current = startCanvasDragSession({
@@ -1117,6 +1131,8 @@ export function useSelectionInteraction(
               suppressSnap,
             );
           } catch (error) {
+            movingVisual?.restore();
+            boundaryRouteVisual?.restore();
             options.setStatus(
               error instanceof Error ? error.message : "Move failed",
             );

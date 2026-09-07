@@ -67,6 +67,31 @@ function documentWith(
 }
 
 describe("same-Net conductor topology normalization", () => {
+  it("unions repeated coverage inside one Route and is idempotent", () => {
+    const document = documentWith(
+      [junction("a", 0, 0), junction("b", 50, 50)],
+      [
+        route("fold", "a", "b", [
+          { x: 100, y: 0 },
+          { x: 50, y: 0 },
+        ]),
+      ],
+    );
+    expect(normalizeSameNetConductorTopology(document, resolver).changed).toBe(
+      true,
+    );
+    // The retraced spur survives, but no interval is drawn twice.
+    expect(document.routes).toHaveLength(3);
+    expect(normalizeSameNetConductorTopology(document, resolver).changed).toBe(
+      false,
+    );
+    const contact = deriveDocumentContactEvidence(
+      document,
+      resolver,
+    ).contacts.find((c) => c.point.x === 50 && c.point.y === 0);
+    expect(contact && contactRequiresJunctionDot(contact)).toBe(true);
+  });
+
   it("unions an overlapping branch path and materializes its missing T vertex", () => {
     const document = documentWith(
       [

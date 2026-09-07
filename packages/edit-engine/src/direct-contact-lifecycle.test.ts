@@ -14,6 +14,8 @@ import { describe, expect, it } from "vitest";
 
 import { executeTransaction } from "./transaction.js";
 import { DocumentHistory } from "./history.js";
+import { planRoutingTransform } from "./routing-transform-planner.js";
+import { gateRoutingOperationPlan } from "./routing-operation-plan.js";
 import { transformMaySeparateDirectContact } from "./transaction-direct-contact.js";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
@@ -96,6 +98,32 @@ function materializeClaimLabels(document: SchematicDocument): void {
 }
 
 describe("direct-contact transform lifecycle", () => {
+  it("returns a moved pin to its original direct contact through the GUI transform planner", () => {
+    let document = fixture();
+    const original = {
+      ...document.instances.find((i) => i.id === "A")!.placement!.position,
+    };
+    for (const delta of [
+      { x: -40, y: 0 },
+      { x: 40, y: 0 },
+    ]) {
+      const plan = planRoutingTransform(
+        document,
+        resolver,
+        { instanceIds: ["A"], routeIds: [], junctionIds: [] },
+        { kind: "translate", delta },
+      );
+      const result = gateRoutingOperationPlan(document, plan, context);
+      if (!result.ok) throw new Error(result.message);
+      document = result.evaluated.finalDocument;
+    }
+    expect(
+      document.instances.find((i) => i.id === "A")!.placement!.position,
+    ).toEqual(original);
+    expect(document.routes).toHaveLength(0);
+    expect(document.nets[0]!.terminals).toHaveLength(2);
+  });
+
   it("uses coincident visible endpoints as the conservative transform guard", () => {
     const contact = fixture();
     expect(

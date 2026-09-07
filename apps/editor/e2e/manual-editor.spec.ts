@@ -18,6 +18,69 @@ import {
   recoveryProjectTexts,
 } from "./editor-fixtures.js";
 
+test("a directly connected device can move away and return with its wire, undo and redo", async ({
+  page,
+}) => {
+  const project = createEmptyProject(
+    "contact-round-trip",
+    "Contact round trip",
+  );
+  const document = project.documents[0]!;
+  document.instances = [250, 290].map((y, index) => ({
+    id: "R" + (index + 1),
+    reference: "R" + (index + 1),
+    symbolId: "resistor",
+    netlist: { parameters: {} },
+    placement: {
+      position: { x: 300, y },
+      rotation: 0 as const,
+      mirror: "none" as const,
+    },
+  }));
+  document.nets = [
+    {
+      id: "bond",
+      terminals: [
+        { instanceId: "R1", pinName: "2" },
+        { instanceId: "R2", pinName: "1" },
+      ],
+    },
+  ];
+  await page.goto("/editor");
+  await page
+    .getByTestId("project-file")
+    .setInputFiles({
+      name: "contact.icproj.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify(project)),
+    });
+  const hit = page.getByTestId("hit-R1");
+  await expect(hit).toBeVisible();
+  const before = (await hit.boundingBox())!;
+  const origin = {
+    x: before.x + before.width / 2,
+    y: before.y + before.height / 2,
+  };
+  await page.mouse.move(origin.x, origin.y);
+  await page.mouse.down();
+  await page.mouse.move(origin.x + 120, origin.y, { steps: 8 });
+  await page.mouse.up();
+  await expect(page.locator('[data-canvas-hit-kind="route"]')).toHaveCount(1);
+  const away = (await hit.boundingBox())!;
+  expect(away.x).toBeGreaterThan(before.x + 40);
+  await page.mouse.move(away.x + away.width / 2, away.y + away.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(origin.x, origin.y, { steps: 8 });
+  await page.mouse.up();
+  await expect(page.locator('[data-canvas-hit-kind="route"]')).toHaveCount(0);
+  expect((await hit.boundingBox())!.x).toBeCloseTo(before.x, 0);
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(page.locator('[data-canvas-hit-kind="route"]')).toHaveCount(1);
+  await page.keyboard.press("ControlOrMeta+Shift+z");
+  await expect(page.locator('[data-canvas-hit-kind="route"]')).toHaveCount(0);
+  expect((await hit.boundingBox())!.x).toBeCloseTo(before.x, 0);
+});
+
 interface PdfTextRun {
   fontSize: number;
   text: string;

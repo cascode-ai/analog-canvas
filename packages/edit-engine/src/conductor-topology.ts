@@ -250,7 +250,7 @@ export function normalizeSameNetConductorTopology(
     const routes = document.routes
       .filter((route) => route.netId === net.id && routeCanNormalize(route))
       .sort((left, right) => left.id.localeCompare(right.id, "en"));
-    if (routes.length < 2) continue;
+    if (routes.length === 0) continue;
 
     const routePoints = new Map(
       routes.flatMap((route) => {
