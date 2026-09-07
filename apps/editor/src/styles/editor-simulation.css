@@ -354,6 +354,25 @@
   margin: 6px 0;
   font-size: var(--icm-font-sm);
 }
+.simulation-environment-summary {
+  display: grid;
+  grid-template-columns: minmax(110px, 0.8fr) minmax(130px, 1.2fr) auto;
+  align-items: baseline;
+  gap: 8px;
+  margin: 6px 0;
+  font-size: var(--icm-font-sm);
+}
+.simulation-environment-summary > strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.simulation-environment-summary > small {
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+  white-space: nowrap;
+}
 .simulation-inline-fields {
   display: grid;
   gap: 8px;

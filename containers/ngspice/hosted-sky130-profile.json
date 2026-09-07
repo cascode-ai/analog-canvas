@@ -1,6 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "sky130-core-continuous-ngspice46-v1",
+  "displayName": "SKY130 1.8 V · ngspice 46",
   "sourceImage": "ghcr.io/arcadia-1/circuit-bench-sky130-ngspice@sha256:2da03dc7f1ead7ddc33f2f930a0487ae8618e51518009344584a98fca41a621d",
   "platform": "linux/x64",
   "simulator": {
@@ -14,7 +15,7 @@
     "library": {
       "directive": "lib",
       "runtimePath": "/opt/sky130/continuous/sky130.lib.spice",
-      "sections": ["tt"]
+      "sections": ["tt", "ff", "ss", "fs", "sf"]
     }
   },
   "startup": {
@@ -23,7 +24,7 @@
   },
   "qualifiedScope": {
     "devices": ["sky130_fd_pr__nfet_01v8", "sky130_fd_pr__pfet_01v8"],
-    "sections": ["tt"],
+    "sections": ["tt", "ff", "ss", "fs", "sf"],
     "analyses": ["op", "dc", "ac", "tran"]
   }
 }

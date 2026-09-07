@@ -46,6 +46,8 @@ const RESULT_TABS = [
 const DEVELOPMENT_PROFILE_ID = import.meta.env.DEV
   ? "sky130-core-continuous-ngspice46-v1"
   : "";
+const DEVELOPMENT_PROFILE_LABEL = "SKY130 1.8 V · ngspice 46";
+const DEVELOPMENT_CORNERS = ["tt", "ff", "ss", "fs", "sf"] as const;
 type ResultTab = (typeof RESULT_TABS)[number][0];
 
 function preferredResultTab(run: Run): ResultTab {
@@ -1129,6 +1131,9 @@ function SetupEditor({
   const [profileId, setProfileId] = useState(
     saved?.environment.profileId ?? DEVELOPMENT_PROFILE_ID,
   );
+  const [corner, setCorner] = useState(
+    saved?.environment.corner ?? (DEVELOPMENT_PROFILE_ID ? "tt" : ""),
+  );
   const rawSaved = setup?.input.kind === "raw" ? setup.input : undefined;
   const [switchFromRaw, setSwitchFromRaw] = useState(false);
   const [pickCandidates, setPickCandidates] = useState<
@@ -1143,6 +1148,32 @@ function SetupEditor({
     )
       setProfileId(defaultProfileId);
   }, [capabilities?.profiles[0]?.id, profileId, saved?.environment.profileId]);
+  const advertisedProfiles =
+    capabilities?.profiles ??
+    (DEVELOPMENT_PROFILE_ID
+      ? [
+          {
+            id: DEVELOPMENT_PROFILE_ID,
+            label: DEVELOPMENT_PROFILE_LABEL,
+            corners: [...DEVELOPMENT_CORNERS],
+          },
+        ]
+      : []);
+  const selectedProfile = advertisedProfiles.find(
+    (profile) => profile.id === profileId,
+  );
+  const defaultCorner = selectedProfile?.corners[0] ?? "";
+  useEffect(() => {
+    if (!corner && !saved?.environment.corner && defaultCorner)
+      setCorner(defaultCorner);
+  }, [corner, defaultCorner, saved?.environment.corner]);
+  const profileUnavailable = !!profileId && !!capabilities && !selectedProfile;
+  const showProfilePicker = advertisedProfiles.length > 1 || profileUnavailable;
+  const environmentLabel =
+    selectedProfile?.label ??
+    (profileUnavailable
+      ? `${profileId} (unavailable)`
+      : "Loading environment…");
   const selectedDcSourceId = dcSources.some(
     (source) => source.id === dcSourceId,
   )
@@ -1379,40 +1410,66 @@ function SetupEditor({
             }}
           />
         </label>
-        <label>
-          Environment profile
-          <select
-            name="profileId"
-            required
-            value={profileId}
-            onChange={(event) => setProfileId(event.currentTarget.value)}
-          >
-            {!profileId ? (
-              <option value="" disabled>
-                {capabilities ? "No profiles available" : "Loading profiles…"}
-              </option>
-            ) : null}
-            {profileId &&
-            !capabilities?.profiles.some(
-              (profile) => profile.id === profileId,
-            ) ? (
-              <option value={profileId}>{profileId}</option>
-            ) : null}
-            {capabilities?.profiles.map((profile) => (
-              <option key={profile.id} value={profile.id}>
-                {profile.id}
-              </option>
-            ))}
-          </select>
-        </label>
+        {showProfilePicker ? (
+          <label>
+            Environment
+            <select
+              name="profileId"
+              required
+              value={profileId}
+              onChange={(event) => {
+                const nextId = event.currentTarget.value;
+                const nextProfile = advertisedProfiles.find(
+                  (profile) => profile.id === nextId,
+                );
+                setProfileId(nextId);
+                if (!nextProfile?.corners.includes(corner))
+                  setCorner(nextProfile?.corners[0] ?? "");
+              }}
+            >
+              {profileUnavailable ? (
+                <option value={profileId}>{profileId} (unavailable)</option>
+              ) : null}
+              {advertisedProfiles.map((profile) => (
+                <option key={profile.id} value={profile.id}>
+                  {profile.label ?? profile.id}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : (
+          <div className="simulation-environment-summary">
+            <span>Environment</span>
+            <strong>{environmentLabel}</strong>
+            <small>Managed automatically</small>
+            <input name="profileId" type="hidden" value={profileId} />
+          </div>
+        )}
         <div className="simulation-setup-group simulation-inline-fields columns-2">
           <label>
-            Corner
-            <input
+            Process corner
+            <select
               name="corner"
-              defaultValue={saved?.environment.corner ?? ""}
-              placeholder="Profile default"
-            />
+              value={corner}
+              onChange={(event) => setCorner(event.currentTarget.value)}
+              disabled={!selectedProfile}
+            >
+              {!corner ? (
+                <option value="">
+                  {selectedProfile ? "Profile default" : "Unavailable"}
+                </option>
+              ) : null}
+              {corner && !selectedProfile?.corners.includes(corner) ? (
+                <option value={corner}>
+                  {corner.toUpperCase()} (unavailable)
+                </option>
+              ) : null}
+              {selectedProfile?.corners.map((candidate) => (
+                <option key={candidate} value={candidate}>
+                  {candidate.toUpperCase()}
+                </option>
+              ))}
+            </select>
           </label>
           <label>
             Temperature (°C)

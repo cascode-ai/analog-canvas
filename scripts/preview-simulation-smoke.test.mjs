@@ -3,13 +3,16 @@ import { describe, expect, it } from "vitest";
 import {
   compileHostedSky130Project,
   compileHostedSky130TransientProject,
+  hostedSky130CornerRequest,
   runHostedSky130Acceptance,
+  runHostedSky130CornerAcceptance,
   runHostedSky130TransientAcceptance,
   runPreviewSimulationSmoke,
   validateHostedSky130TransientResult,
   validateDcDividerResult,
   validateExecutorParity,
   validateHostedSky130Result,
+  validateHostedSky130CornerResult,
   validatePreviewSimulationResult,
 } from "./preview-simulation-smoke.mjs";
 
@@ -21,6 +24,8 @@ const MODEL_SHA =
   "0bf299f0e3e1616478203d370107865635fd08935bb1a9cf9db18efd31703100";
 const STARTUP_SHA =
   "5ad94681e17bba379ac84d01fe7773458b34f9bbd77c127a3738f1af47ad5634";
+const CORNER_ENVIRONMENT_SHA =
+  "33c245e5df6dc12077b6a2e4ebf308777b0e9014fe9bfdafc3285c614688561d";
 const EXPECTED_VECTORS = [
   { probeId: "probe-vout", vector: "v(vout)", quantity: "voltage" },
   { probeId: "probe-ibias", vector: "v(ibias)", quantity: "voltage" },
@@ -161,6 +166,35 @@ function modelResult(
       ],
     },
     ...overrides,
+  };
+}
+
+function cornerResult(target, corner = "ff") {
+  const base = result(target);
+  return {
+    ...base,
+    metadata: {
+      ...base.metadata,
+      input: { inputRevision: `preview-sky130-corner-${corner}` },
+      configuration: {
+        modelLibrary: { directive: "lib", section: corner },
+      },
+      environment: {
+        ...base.metadata.environment,
+        fingerprint: CORNER_ENVIRONMENT_SHA,
+      },
+    },
+    data: {
+      analyses: [
+        {
+          analysis: "op",
+          probes: [
+            { name: "i(vdn)", value: -0.0002526337154561964 },
+            { name: "i(vsp)", value: -9.451994627332483e-7 },
+          ],
+        },
+      ],
+    },
   };
 }
 
@@ -321,6 +355,46 @@ describe("the Preview dual-executor smoke", () => {
 });
 
 describe("the hosted SKY130 qualification", () => {
+  it("builds and validates the selected process-corner request", async () => {
+    expect(hostedSky130CornerRequest("ff")).toMatchObject({
+      environment: { profileId: PROFILE_ID, corner: "ff" },
+      inputRevision: "preview-sky130-corner-ff",
+    });
+    expect(
+      validateHostedSky130CornerResult(
+        cornerResult("operator-host"),
+        "operator-host",
+        "ff",
+      ),
+    ).toMatchObject({
+      corner: "ff",
+      nfetCurrentA: -0.0002526337154561964,
+    });
+
+    let submitted;
+    await runHostedSky130CornerAcceptance({
+      baseUrl: "https://preview.example",
+      target: "operator-host",
+      corner: "ff",
+      fetchImpl: async (_url, init) => {
+        submitted = JSON.parse(init.body);
+        return Response.json(cornerResult("operator-host"));
+      },
+    });
+    expect(submitted.environment).toEqual({
+      profileId: PROFILE_ID,
+      corner: "ff",
+    });
+  });
+
+  it("refuses process-corner numerical drift", () => {
+    const candidate = cornerResult("operator-host");
+    candidate.data.analyses[0].probes[0].value = -0.001;
+    expect(() =>
+      validateHostedSky130CornerResult(candidate, "operator-host", "ff"),
+    ).toThrow(/unexpected ff currents/u);
+  });
+
   it("accepts the model-backed OTA operating point", () => {
     expect(
       validateHostedSky130Result(

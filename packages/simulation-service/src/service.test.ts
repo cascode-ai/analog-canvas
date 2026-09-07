@@ -132,6 +132,46 @@ async function prepareRaw(f: ReturnType<typeof fixture>) {
   return { prepared, workspaceId: created.workspace.id };
 }
 describe("shared simulation lifecycle", () => {
+  it("prepares the corner selected by a structured setup", async () => {
+    const project = CircuitProjectSchema.parse(ota);
+    const setup = project.simulationSetups[0];
+    if (!setup || setup.input.kind !== "structured")
+      throw new Error("fixture has no structured setup");
+    setup.input.environment = { profileId: "test", corner: "ff" };
+    const f = fixture();
+    f.executor.capabilities = async () => ({
+      ...caps,
+      analyses: ["op", "dc", "ac", "tran"],
+      profiles: [{ id: "test", corners: ["tt", "ff"] }],
+      modelLibrary: { path: "/models/sky130.lib.spice", section: "tt" },
+    });
+    const service = new SimulationService(f.files, f.executor, () => project);
+    const prepared = unwrap(
+      await service.handle(
+        {
+          operation: "prepare",
+          source: {
+            kind: "project-setup",
+            setupId: setup.id,
+            expectedStructureRevision: project.structureRevision,
+          },
+        },
+        "prepare-ff",
+      ),
+      "prepared",
+    );
+    const artifact = prepared.artifacts.find(
+      (candidate) => candidate.name === "prepared.cir",
+    );
+    expect(artifact).toBeDefined();
+    expect(
+      await f.files.handle({ action: "artifact", artifactId: artifact!.id }),
+    ).toMatchObject({
+      ok: true,
+      text: expect.stringContaining('.lib "/models/sky130.lib.spice" ff'),
+    });
+  });
+
   it("prepares the explicitly addressed setup when a Project has several", async () => {
     const f = fixture();
     f.project.simulationSetups = ["A", "B"].map((name) => ({

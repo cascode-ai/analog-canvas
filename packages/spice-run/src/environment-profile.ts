@@ -1,6 +1,8 @@
 export interface HostedSimulationProfile {
   readonly schemaVersion: 1;
   readonly id: string;
+  /** Human-facing name; the stable id remains the automation contract. */
+  readonly displayName?: string;
   readonly sourceImage: string;
   readonly platform: string;
   readonly simulator: {

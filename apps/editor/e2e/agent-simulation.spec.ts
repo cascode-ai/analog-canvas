@@ -13,7 +13,12 @@ const profile = JSON.parse(
     ),
     "utf8",
   ),
-) as { id: string; simulator: { version: string } };
+) as {
+  id: string;
+  displayName: string;
+  simulator: { version: string };
+  models: { library: { runtimePath: string } };
+};
 import { openMenu, downloadBytes } from "./editor-fixtures.js";
 import { parseProject } from "@icm/project-protocol";
 const ota = JSON.parse(
@@ -75,7 +80,17 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
         inputs: ["structured", "raw"],
         analyses: ["op", "dc", "ac", "tran"],
         parsedAnalyses: ["op", "dc", "ac", "tran"],
-        profiles: [{ id: profile.id, corners: ["tt"] }],
+        profiles: [
+          {
+            id: profile.id,
+            label: profile.displayName,
+            corners: ["tt", "ff", "ss", "fs", "sf"],
+          },
+        ],
+        modelLibrary: {
+          path: profile.models.library.runtimePath,
+          section: "tt",
+        },
         maxTimeoutMs: 120000,
         maxInputBytes: 1048576,
         cancel: true,
@@ -97,7 +112,13 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
   await expect(panel.getByLabel("Stop (Hz)")).toHaveValue("1000000000");
   await expect(panel.getByLabel("DC sweep source")).toHaveValue("VINP");
   await expect(panel.getByLabel("TRAN stop (s)")).toHaveValue("0.000004");
-  await expect(panel.getByLabel("Environment profile")).toHaveValue(profile.id);
+  await expect(
+    panel.getByText(profile.displayName, { exact: true }),
+  ).toBeVisible();
+  await expect(panel.getByLabel("Process corner")).toHaveValue("tt");
+  await panel.getByLabel("Process corner").selectOption("ff");
+  await expect(panel.getByLabel("Process corner")).toHaveValue("ff");
+  await panel.getByLabel("Process corner").selectOption("tt");
   await expect(
     panel.getByRole("button", { name: "Remove output" }),
   ).toHaveCount(4);
@@ -148,6 +169,7 @@ test("the qualified OTA setup opens unchanged and preserves all root and hierarc
   expect(deck).toMatch(/i\(v\.xdut\.vicmprb\d+\)/u);
   expect(deck).toMatch(/ac dec 10 1 (?:1000000000|1e\+?9)/i);
   expect(deck).toContain("dc VINP 0.88 0.92 0.005");
+  expect(deck).toContain(`.lib "${profile.models.library.runtimePath}" tt`);
   expect(deck).toContain("tran 2e-8 0.000004");
   expect(executions).toBe(0);
   await panel.getByRole("button", { name: "Minimize simulation" }).click();

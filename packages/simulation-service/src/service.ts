@@ -467,7 +467,12 @@ export class SimulationService {
             input,
             caps.modelLibrary &&
               deckNeedsModelLibrary(input.netlist + "\n" + input.testbench)
-              ? { directive: "lib", ...caps.modelLibrary }
+              ? {
+                  directive: "lib",
+                  path: caps.modelLibrary.path,
+                  section:
+                    input.environment.corner ?? caps.modelLibrary.section,
+                }
               : null,
           );
     const digest = await sha256(JSON.stringify(input));

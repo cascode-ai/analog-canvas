@@ -187,6 +187,8 @@ export const CapabilitiesSchema = z.strictObject({
   profiles: z.array(
     z.strictObject({
       id: Id,
+      /** Human-facing name. Automation continues to select the stable id. */
+      label: z.string().min(1).max(128).optional(),
       corners: z.array(z.string()),
       /** Environment-owned files addressable by raw Project dependencies. */
       dependencies: z
