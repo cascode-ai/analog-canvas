@@ -611,6 +611,13 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
     '"TRAN","Transient response","first-output","Time-weighted RMS"',
   );
   resultExport.evaluate((element) => element.removeAttribute("open"));
+  await panel.getByRole("tab", { name: "Compare" }).click();
+  await expect(panel.getByText("Session only", { exact: false })).toBeVisible();
+  await panel.getByRole("button", { name: "Keep current" }).click();
+  await expect(
+    panel.getByRole("button", { name: "Current kept" }),
+  ).toBeDisabled();
+  await panel.getByRole("tab", { name: "Plot" }).click();
   expect(
     await panel
       .locator(".ac-response .ac-trace")
@@ -919,6 +926,16 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   await expect(
     panel.getByRole("button", { name: "Hide new-output" }),
   ).toHaveCount(2);
+  await panel.getByRole("tab", { name: "Compare" }).click();
+  const comparisonTable = panel.locator(".simulation-run-comparison-table");
+  await expect(comparisonTable.locator("thead th")).toHaveCount(3);
+  await expect(comparisonTable).toContainText("Current");
+  await expect(comparisonTable).toContainText("TRAN · Time-weighted RMS");
+  await expect(
+    comparisonTable.getByRole("button", {
+      name: "Remove E2E setup from comparison",
+    }),
+  ).toBeVisible();
   pending = new Promise<void>((r) => {
     release = r;
   });

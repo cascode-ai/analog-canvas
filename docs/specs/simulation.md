@@ -1002,7 +1002,11 @@ the same output browser, explicit plot tools, marker, expanded view, and
 back-annotation boundary; TRAN uses a linear time axis and does not revive
 Digital Simulation. The compact result export action produces standalone SVG
 or PNG from the visible plot state and downloads complete numeric CSV from File
-Resource artifacts, so displayed decimation is never presented as full data.
+Resource artifacts, so displayed decimation is never presented as full data. A
+browser session may retain a bounded set of completed structured results for
+comparison; rows align only by stable output id, analysis, metric, and unit,
+never by display label or array index. This first comparison view is session
+state, not Project or Cloud Project persistence.
 
 Recoverable problems use `{code,message,stage,recovery,diagnostics?}`. Ordinary
 compile errors, unavailable Profiles, simulator failures and busy responses do

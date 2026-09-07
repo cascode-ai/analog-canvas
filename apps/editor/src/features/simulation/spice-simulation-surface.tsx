@@ -50,10 +50,15 @@ import {
   downloadSimulationPlot,
   type SimulationPlotExportFormat,
 } from "./simulation-plot-export";
+import {
+  SimulationRunComparison,
+  type SimulationComparisonRun,
+} from "./simulation-run-comparison";
 
 const RESULT_TABS = [
   ["plot", "Plot"],
   ["operating-point", "Operating Point"],
+  ["compare", "Compare"],
   ["console", "Console"],
   ["files", "Files"],
 ] as const;
@@ -67,6 +72,7 @@ const DEVELOPMENT_PROFILE_ID = import.meta.env.DEV
 const DEVELOPMENT_PROFILE_LABEL = "SKY130 1.8 V · ngspice 46";
 const DEVELOPMENT_CORNERS = ["tt", "ff", "ss", "fs", "sf"] as const;
 const DEFAULT_SIMULATION_TEMPERATURE_C = 27;
+const MAX_COMPARISON_RUNS = 5;
 type ResultTab = (typeof RESULT_TABS)[number][0];
 
 function preferredResultTab(run: Run): ResultTab {
@@ -145,6 +151,7 @@ interface PreparedPresentation {
   readonly outputs: SimulationStructuredInput["outputs"];
   readonly analysisLabel: string;
   readonly rootDocumentId?: string;
+  readonly setupName: string;
 }
 
 function legacyProbe(output: SimulationOutputSpec): SimulationProbeSpec | null {
@@ -218,6 +225,9 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   const [canvasOpDisplay, setCanvasOpDisplay] =
     useState<OperatingPointDisplay>("named");
   const resultsBodyRef = useRef<HTMLDivElement>(null);
+  const [retainedComparisonRuns, setRetainedComparisonRuns] = useState<
+    readonly SimulationComparisonRun[]
+  >([]);
   const setupMenuRef = useRef<HTMLDetailsElement>(null);
   useEffect(() => {
     const closeSetupMenu = (event: PointerEvent): void => {
@@ -368,6 +378,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
               : input?.kind === "raw"
                 ? "RAW"
                 : "",
+          setupName: selectedSetup?.name ?? "Simulation",
           ...(input?.kind === "structured"
             ? { rootDocumentId: input.rootDocumentId }
             : {}),
@@ -524,6 +535,36 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
           canvasOpDisplay,
         )
       : undefined;
+  const currentComparisonRun: SimulationComparisonRun | undefined =
+    run?.outputData?.measurements?.length && runPresentation
+      ? {
+          id: run.id,
+          label: runPresentation.setupName,
+          inputRevision: run.inputRevision,
+          environment: runPresentation.prepared.environment,
+          measurements: run.outputData.measurements,
+          current: true,
+        }
+      : undefined;
+  const comparisonRuns = [
+    ...retainedComparisonRuns.filter(
+      (candidate) => candidate.id !== currentComparisonRun?.id,
+    ),
+    ...(currentComparisonRun ? [currentComparisonRun] : []),
+  ];
+  const retainCurrentComparison = (): void => {
+    if (!currentComparisonRun) return;
+    setRetainedComparisonRuns((current) => {
+      if (current.some((candidate) => candidate.id === currentComparisonRun.id))
+        return current;
+      // Reserve one column for the next/current run.
+      if (current.length >= MAX_COMPARISON_RUNS - 1) return current;
+      return [
+        ...current,
+        structuredClone({ ...currentComparisonRun, current: false }),
+      ];
+    });
+  };
   const artifactCategories = ["Netlist", "Results", "Evidence", "Log", "Other"];
   const runPreparedArtifactIds = new Set(
     runPresentation?.prepared.artifacts.map((artifact) => artifact.id) ?? [],
@@ -1125,6 +1166,58 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
                     Run an operating-point analysis to see values.
                   </p>
                 ) : null}
+              </div>
+            ) : null}
+
+            {resultTab === "compare" ? (
+              <div className="simulation-comparison-view">
+                <header>
+                  <span>
+                    <strong>Run comparison</strong>
+                    <small>
+                      Session only · matches stable output and measurement IDs
+                    </small>
+                  </span>
+                  <button
+                    type="button"
+                    disabled={
+                      !currentComparisonRun ||
+                      retainedComparisonRuns.some(
+                        (candidate) => candidate.id === currentComparisonRun.id,
+                      ) ||
+                      retainedComparisonRuns.length >= MAX_COMPARISON_RUNS - 1
+                    }
+                    onClick={retainCurrentComparison}
+                  >
+                    {retainedComparisonRuns.some(
+                      (candidate) => candidate.id === currentComparisonRun?.id,
+                    )
+                      ? "Current kept"
+                      : "Keep current"}
+                  </button>
+                  {retainedComparisonRuns.length ? (
+                    <button
+                      type="button"
+                      onClick={() => setRetainedComparisonRuns([])}
+                    >
+                      Clear kept
+                    </button>
+                  ) : null}
+                </header>
+                {comparisonRuns.length < 2 && currentComparisonRun ? (
+                  <p className="simulation-comparison-hint">
+                    Keep this result, change the circuit or conditions, then run
+                    again to compare.
+                  </p>
+                ) : null}
+                <SimulationRunComparison
+                  runs={comparisonRuns}
+                  onRemove={(runId) =>
+                    setRetainedComparisonRuns((current) =>
+                      current.filter((candidate) => candidate.id !== runId),
+                    )
+                  }
+                />
               </div>
             ) : null}
 

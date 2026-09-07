@@ -825,6 +825,77 @@
 .simulation-measurement-results tr[data-status="unavailable"] td:last-child {
   color: var(--icm-danger);
 }
+.simulation-comparison-view > header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.simulation-comparison-view > header > span {
+  display: grid;
+  margin-right: auto;
+}
+.simulation-comparison-view small,
+.simulation-comparison-hint {
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+}
+.simulation-comparison-hint {
+  margin: 0 0 10px;
+}
+.simulation-run-comparison-table-wrap {
+  overflow: auto;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+}
+.simulation-run-comparison-table {
+  width: 100%;
+  min-width: 520px;
+  border-collapse: collapse;
+  font-size: var(--icm-font-xs);
+}
+.simulation-run-comparison-table th,
+.simulation-run-comparison-table td {
+  min-width: 130px;
+  padding: 7px 9px;
+  border-right: 1px solid var(--icm-border);
+  border-bottom: 1px solid var(--icm-border);
+  text-align: left;
+  vertical-align: top;
+}
+.simulation-run-comparison-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--icm-surface-muted);
+}
+.simulation-run-comparison-table thead th:not(:first-child) {
+  padding-right: 30px;
+}
+.simulation-run-comparison-table thead th > span,
+.simulation-run-comparison-table tbody th {
+  display: grid;
+}
+.simulation-run-comparison-table thead button {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  min-width: 24px;
+  min-height: 24px;
+  padding: 0;
+}
+.simulation-run-comparison-table td:last-child,
+.simulation-run-comparison-table th:last-child {
+  border-right: 0;
+}
+.simulation-run-comparison-table tbody tr:last-child > * {
+  border-bottom: 0;
+}
+.simulation-comparison-missing {
+  color: var(--icm-text-muted);
+}
+.simulation-comparison-unavailable {
+  color: var(--icm-danger);
+}
 .simulation-empty-result {
   display: grid;
   min-height: 110px;

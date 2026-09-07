@@ -83,6 +83,13 @@ unavailable without turning a successful simulator Run into a failure. The
 same typed rows are returned to Agent clients and exported as
 `measurements.csv`.
 
+**Compare** can keep up to five completed structured results in the current
+Simulation session and align their measurements by stable output identity,
+analysis, metric and unit. Keep a result, edit the circuit or conditions, run
+again, and inspect the current and retained columns. These comparison copies
+are intentionally transient: they are not hidden inside the Project or Cloud
+Project record, and closing the Project session clears them.
+
 Closing the drawer keeps a run alive. **Cancel run** asks the execution
 service to cancel; it is not simulated by hiding a spinner. Replacing the
 Project or closing its editor ends that browser-owned scope. Revoking an
@@ -93,8 +100,9 @@ are transient, not saved inside the Project.
 
 This is the B/C local-DUT and minimal human interface slice, not completion
 of all F1R/F5 requirements in the [v13 plan](../roadmap/simulation-vertical-integration-plan-v13.md).
-Cross-Project publication, structured TRAN and multi-run comparison remain
-outside this slice. Raw/Agent workflows retain their existing capabilities.
+Cross-Project publication, persistent result archives, and overlaid multi-run
+waveforms remain outside this slice. Raw/Agent workflows retain their existing
+capabilities.
 Browser regressions use a controlled executor
 to verify interaction/protocol behavior; they do **not** certify OTA numbers,
 model qualification or the separate real Preview acceptance journey.
