@@ -20,6 +20,15 @@ export const SELECTION_CLASSES = [
 export type SelectionClass = (typeof SELECTION_CLASSES)[number];
 export type SelectionFilter = Readonly<Record<SelectionClass, boolean>>;
 
+/**
+ * The ways an existing canvas object can become the direct target of a user
+ * operation. They deliberately share one class decision today: the enum makes
+ * every input surface state which interaction it is requesting, without
+ * allowing those surfaces to invent separate filter semantics later.
+ */
+export type SelectionInteraction =
+  "select" | "drag" | "edit" | "context-menu" | "armed-verb" | "handle";
+
 function uniformSelectionFilter(enabled: boolean): SelectionFilter {
   return Object.fromEntries(
     SELECTION_CLASSES.map((kind) => [kind, enabled]),
@@ -98,7 +107,7 @@ export function selectionClassForDrafting(
   }
 }
 
-type SelectableCanvasHit = {
+export type SelectableCanvasHit = {
   kind:
     | "handle"
     | "annotation"
@@ -109,6 +118,29 @@ type SelectableCanvasHit = {
     | "junction";
   id: string;
 };
+
+export interface SelectionPolicy {
+  readonly filter: SelectionFilter;
+  allowsClass(kind: SelectionClass, interaction: SelectionInteraction): boolean;
+  allowsCanvasHit(
+    hit: SelectableCanvasHit,
+    interaction: SelectionInteraction,
+  ): boolean;
+  allowsAnnotation(
+    annotation: Annotation,
+    interaction: SelectionInteraction,
+  ): boolean;
+  allowsDrafting(
+    object: DraftingObject,
+    interaction: SelectionInteraction,
+  ): boolean;
+  allowsEndpoint(
+    kind: "junction" | "terminal",
+    interaction: SelectionInteraction,
+  ): boolean;
+  retainSelection(selection: VisualSelection): VisualSelection;
+  selectAll(): VisualSelection;
+}
 
 /** Classify one existing canvas hit without adding a second object model. */
 export function selectionClassForCanvasHit(
@@ -151,6 +183,73 @@ export function selectionFilterAllowsCanvasHit(
   // A stale DOM node is not an eligible target; filtering it lets the next
   // live object in the paint stack answer the press instead.
   return kind !== null && filter[kind];
+}
+
+function sameSelection(left: VisualSelection, right: VisualSelection): boolean {
+  return (Object.keys(left) as (keyof VisualSelection)[]).every(
+    (key) =>
+      left[key].length === right[key].length &&
+      left[key].every((id, index) => id === right[key][index]),
+  );
+}
+
+/**
+ * One editor-local authority for direct targetability. The policy is not a
+ * persisted model, Engine edit, or Agent contract. Drawing and Simulation
+ * pick modes bypass it explicitly; electrical movement closure is computed
+ * after selection and therefore remains intact when Wires or Junctions are
+ * disabled.
+ */
+export function createSelectionPolicy(
+  document: SchematicDocument,
+  filter: SelectionFilter,
+): SelectionPolicy {
+  const allowsClass = (kind: SelectionClass): boolean => filter[kind];
+  const allowsAnnotation = (annotation: Annotation): boolean =>
+    allowsClass(selectionClassForAnnotation(annotation));
+  const allowsDrafting = (object: DraftingObject): boolean =>
+    allowsClass(selectionClassForDrafting(object));
+  const allowsCanvasHit = (hit: SelectableCanvasHit): boolean => {
+    // A generic handle cannot establish its own class. Concrete route and
+    // drafting handles ask allowsClass() for their owner before they render or
+    // start an edit; a handle that exists is therefore already authorized and
+    // must remain a passthrough target for its specialized drag controller.
+    if (hit.kind === "handle") return true;
+    const kind = selectionClassForCanvasHit(document, hit);
+    return kind !== null && allowsClass(kind);
+  };
+  const retainSelection = (selection: VisualSelection): VisualSelection => {
+    const retained: VisualSelection = {
+      instanceIds: allowsClass("instance") ? selection.instanceIds : [],
+      routeIds: allowsClass("route") ? selection.routeIds : [],
+      junctionIds: allowsClass("junction") ? selection.junctionIds : [],
+      annotationIds: selection.annotationIds.filter((id) => {
+        const annotation = document.annotations.find(
+          (candidate) => candidate.id === id,
+        );
+        return annotation ? allowsAnnotation(annotation) : false;
+      }),
+      draftingIds: selection.draftingIds.filter((id) => {
+        const object = document.drafting?.objects.find(
+          (candidate) => candidate.id === id,
+        );
+        return object ? allowsDrafting(object) : false;
+      }),
+    };
+    return sameSelection(selection, retained) ? selection : retained;
+  };
+  return {
+    filter,
+    allowsClass: (kind, _interaction) => allowsClass(kind),
+    allowsCanvasHit: (hit, _interaction) => allowsCanvasHit(hit),
+    allowsAnnotation: (annotation, _interaction) =>
+      allowsAnnotation(annotation),
+    allowsDrafting: (object, _interaction) => allowsDrafting(object),
+    allowsEndpoint: (kind, _interaction) =>
+      allowsClass(kind === "junction" ? "junction" : "terminal"),
+    retainSelection,
+    selectAll: () => selectionForDocument(document, filter),
+  };
 }
 
 export function selectionFilterAllowsAnnotation(

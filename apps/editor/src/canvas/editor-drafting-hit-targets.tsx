@@ -16,16 +16,14 @@ import type {
 } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
-import {
-  draftingDragOrigin,
-  type DraftingHandle,
-} from "../features/drafting/drafting-manipulation";
+import { type DraftingHandle } from "../features/drafting/drafting-manipulation";
 import { draftingGroupBounds } from "../features/drafting/drafting-group-scale";
 import {
   draftingPathData,
   quadraticMidpoint,
 } from "../features/drafting/drafting-path";
 import type { EditorTool } from "../interaction/interaction-state";
+import type { SelectionPolicy } from "../features/selection/selection-filter";
 import { serializePolylinePoints } from "./canvas-geometry";
 
 export function EditorDraftingHitTargets({
@@ -34,7 +32,7 @@ export function EditorDraftingHitTargets({
   tool,
   selectedDraftingId,
   supplementalDraftingIds,
-  onPointerDown,
+  selectionPolicy,
   onConstructionLineEdit,
   onArrowEdit,
   onTextEdit,
@@ -45,11 +43,7 @@ export function EditorDraftingHitTargets({
   tool: EditorTool;
   selectedDraftingId: string | null;
   supplementalDraftingIds: readonly string[];
-  onPointerDown: (
-    event: ReactPointerEvent<SVGElement>,
-    object: DraftingObject,
-    draggable: boolean,
-  ) => void;
+  selectionPolicy: SelectionPolicy;
   onConstructionLineEdit: (
     event: ReactMouseEvent<SVGElement>,
     object: Extract<DraftingObject, { kind: "construction-line" }>,
@@ -73,7 +67,6 @@ export function EditorDraftingHitTargets({
       tool === "rectangle" ||
       tool === "circle";
     const geometry = resolveDraftingObjectGeometry(document, resolver, object);
-    const draggable = !object.locked && Boolean(draftingDragOrigin(object));
     const selected =
       selectedDraftingId === object.id ||
       supplementalDraftingIds.includes(object.id);
@@ -88,11 +81,11 @@ export function EditorDraftingHitTargets({
       "data-canvas-hit-kind": "drafting",
       "data-canvas-hit-id": object.id,
       "data-drag-object-id": object.id,
-      onPointerDown: (event: ReactPointerEvent<SVGElement>) =>
-        onPointerDown(event, object, draggable),
       ...(object.kind === "text"
         ? {
             onContextMenu: (event: ReactMouseEvent<SVGElement>) => {
+              if (!selectionPolicy.allowsDrafting(object, "context-menu"))
+                return;
               event.preventDefault();
               event.stopPropagation();
               onTextContextMenu(object, event.clientX, event.clientY);
@@ -108,7 +101,9 @@ export function EditorDraftingHitTargets({
       geometry.kind === "construction-line"
     ) {
       const doubleClick = (event: ReactMouseEvent<SVGElement>) =>
-        onConstructionLineEdit(event, object);
+        selectionPolicy.allowsDrafting(object, "edit")
+          ? onConstructionLineEdit(event, object)
+          : undefined;
       return geometry.curveControls.some(Boolean) ? (
         <path
           key={object.id}
@@ -149,7 +144,9 @@ export function EditorDraftingHitTargets({
           />
         );
       const doubleClick = (event: ReactMouseEvent<SVGElement>) =>
-        onArrowEdit(event, object);
+        selectionPolicy.allowsDrafting(object, "edit")
+          ? onArrowEdit(event, object)
+          : undefined;
       const { "data-testid": _testId, ...headCommon } = common;
       return (
         <g key={object.id}>
@@ -247,6 +244,7 @@ export function EditorDraftingHitTargets({
         {...geometry.bounds}
         onDoubleClick={(event) => {
           if (object.kind !== "text") return;
+          if (!selectionPolicy.allowsDrafting(object, "edit")) return;
           event.stopPropagation();
           onTextEdit(object);
         }}
