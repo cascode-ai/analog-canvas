@@ -18,6 +18,8 @@ import type { SchematicEdit } from "./edit-schema.js";
 import { deviceDescriptor } from "@icm/devices";
 import {
   endpointKey,
+  isVisibleEndpoint,
+  isMosBulkTerminal,
   findRouteSegmentsAtPoint,
   resolveEndpointConnection,
   resolveDocumentRoutingGeometry,
@@ -105,6 +107,13 @@ export function placementWireSources(
     instance.symbolVariantId,
   );
   if (!resolved) return [];
+  const placedDocument = {
+    ...document,
+    instances: [
+      ...document.instances.filter((candidate) => candidate.id !== instance.id),
+      instance,
+    ],
+  };
   return resolved.definition.pins.flatMap((pin): WireSource[] => {
     const endpoint = {
       kind: "terminal" as const,
@@ -112,21 +121,11 @@ export function placementWireSources(
       pinName: pin.name,
     };
     const connection = resolveEndpointConnection(
-      {
-        ...document,
-        instances: [
-          ...document.instances.filter(
-            (candidate) => candidate.id !== instance.id,
-          ),
-          instance,
-        ],
-      },
+      placedDocument,
       resolver,
       endpoint,
     );
-    return connection &&
-      !resolved.variant?.hiddenPinNames.includes(pin.name) &&
-      pin.presentation.visibility !== "implicit"
+    return connection && isVisibleEndpoint(placedDocument, resolver, endpoint)
       ? [
           {
             endpoint,
@@ -138,6 +137,9 @@ export function placementWireSources(
               )?.id ?? null,
             connection,
             preludeEdits: [],
+            ...(isMosBulkTerminal(placedDocument, endpoint)
+              ? { routePresentation: "bulk-dashed" as const }
+              : {}),
           },
         ]
       : [];

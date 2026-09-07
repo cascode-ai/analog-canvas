@@ -89,6 +89,27 @@ function move(
   return commit.document;
 }
 describe("final-position contact transform", () => {
+  it("uses the shared visibility contract for explicitly shown MOS bulk pins", () => {
+    const d = createEmptyDocument("bulk-contact", "Bulk contact");
+    const instance = {
+      id: "M",
+      symbolId: "nmos",
+      symbolVariantId: "textbook-3terminal",
+      placement: {
+        position: { x: 100, y: 100 },
+        rotation: 0 as const,
+        mirror: "none" as const,
+      },
+    };
+    d.instances.push(instance);
+    const body = (document: SchematicDocument) =>
+      placementWireSources(document, resolver, instance).find(
+        (s) => s.endpoint.kind === "terminal" && s.endpoint.pinName === "B",
+      );
+    expect(body(d)).toBeUndefined();
+    d.nets.push({ id: "body", terminals: [{ instanceId: "M", pinName: "B" }] });
+    expect(body(d)?.routePresentation).toBe("bulk-dashed");
+  });
   it("connects every contacted pin across different wires, just like placement", () => {
     const d = fixture();
     const moved = move(d, { x: 0, y: -100 });

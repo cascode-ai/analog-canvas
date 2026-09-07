@@ -74,6 +74,7 @@ export interface InstanceMovePreview {
 }
 
 interface CommandMoveSession {
+  semanticPreview?: boolean;
   documentId: string;
   baseRevision: number;
   movePlan: SelectionMovePlan;
@@ -617,8 +618,11 @@ export function useSelectionInteraction(
       try {
         if (resolved.preparationError)
           throw new Error(resolved.preparationError);
+        session.semanticPreview ||= Boolean(
+          resolved.prepared && !resolved.prepared.visualRoutePoints,
+        );
         if (
-          resolved.prepared ||
+          session.semanticPreview ||
           session.projectedDocument !== options.document
         ) {
           const projectedDocument =
@@ -642,13 +646,14 @@ export function useSelectionInteraction(
           return true;
         }
         const routePoints =
-          cached && "routePoints" in cached
+          resolved.prepared?.visualRoutePoints ??
+          (cached && "routePoints" in cached
             ? cached.routePoints
             : projectInstanceMoveVisual(
                 session.projectedDocument,
                 resolved.moves,
                 session.movePlan,
-              );
+              ));
         session.lastProjection = {
           screenPoint: { ...screenPoint },
           suppressSnap,
@@ -1002,6 +1007,7 @@ export function useSelectionInteraction(
     options.setProjectedMovePreview(null);
     const tolerance = options.logicalRadiusForPixels(svg, 7);
     let lastSnap: SnapResult | undefined;
+    let semanticPreview = false;
     let lastProjection: MoveProjectionCache | VisualMoveProjectionCache | null =
       null;
     let movingVisual: ReturnType<typeof startCanvasDragVisual> | null = null;
@@ -1040,8 +1046,11 @@ export function useSelectionInteraction(
         sourceRevision: options.document.revision,
         resolved,
       };
+      semanticPreview ||= Boolean(
+        resolved.prepared && !resolved.prepared.visualRoutePoints,
+      );
       lastProjection =
-        detachDrag || resolved.prepared
+        detachDrag || semanticPreview
           ? {
               ...input,
               document:
@@ -1054,11 +1063,13 @@ export function useSelectionInteraction(
             }
           : {
               ...input,
-              routePoints: projectInstanceMoveVisual(
-                options.document,
-                resolved.moves,
-                preview.movePlan,
-              ),
+              routePoints:
+                resolved.prepared?.visualRoutePoints ??
+                projectInstanceMoveVisual(
+                  options.document,
+                  resolved.moves,
+                  preview.movePlan,
+                ),
             };
       return lastProjection;
     };

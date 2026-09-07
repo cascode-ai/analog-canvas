@@ -47,13 +47,11 @@ test("a directly connected device can move away and return with its wire, undo a
     },
   ];
   await page.goto("/editor");
-  await page
-    .getByTestId("project-file")
-    .setInputFiles({
-      name: "contact.icproj.json",
-      mimeType: "application/json",
-      buffer: Buffer.from(JSON.stringify(project)),
-    });
+  await page.getByTestId("project-file").setInputFiles({
+    name: "contact.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
   const hit = page.getByTestId("hit-R1");
   await expect(hit).toBeVisible();
   const before = (await hit.boundingBox())!;

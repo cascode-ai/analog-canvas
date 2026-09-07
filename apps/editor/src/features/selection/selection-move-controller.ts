@@ -61,6 +61,8 @@ type TransactionResult = { ok: boolean };
 export interface PreparedInstanceMove {
   plan: RoutingOperationPlan;
   finalDocument: SchematicDocument;
+  /** Reuse existing SVG nodes while topology is unchanged. */
+  visualRoutePoints?: ReadonlyMap<string, readonly Point[]>;
 }
 
 export function createSelectionMoveController({
@@ -504,11 +506,57 @@ export function createSelectionMoveController({
         ...visualMoveEdits(preview.movePlan, delta, sourceDocument),
       ],
     };
+    // Passing back over the drag origin is a valid no-op preview. There is
+    // nothing to transact, so do not send it to the nonempty-operation gate.
+    if (
+      (plan.edits.length === 0 || (delta.x === 0 && delta.y === 0)) &&
+      !plan.diagnostics.some((d) => d.severity === "error")
+    ) {
+      const geometry = resolveDocumentRoutingGeometry(sourceDocument, resolver);
+      const value: PreparedInstanceMove = {
+        plan,
+        finalDocument: sourceDocument,
+        visualRoutePoints: new Map(
+          [
+            ...plan.affected.internalRoutes,
+            ...plan.affected.boundaryRoutes,
+          ].flatMap((id) => {
+            const route = geometry.routes.get(id);
+            return route ? [[id, route.centerline] as const] : [];
+          }),
+        ),
+      };
+      preparedCache = { source: sourceDocument, key, value };
+      return value;
+    }
     const gate = gateRoutingOperationPlan(sourceDocument, plan, {
       symbolResolver: resolver,
     });
     if (!gate.ok) throw new Error(gate.message);
-    const value = { plan, finalDocument: gate.evaluated.finalDocument };
+    const finalDocument = gate.evaluated.finalDocument;
+    const sameIds = (
+      before: readonly { id: string }[],
+      after: readonly { id: string }[],
+    ) =>
+      before.length === after.length &&
+      after.every((item) => before.some((old) => old.id === item.id));
+    const value: PreparedInstanceMove = { plan, finalDocument };
+    if (
+      plan.intent === "transform" &&
+      sameIds(sourceDocument.routes, finalDocument.routes) &&
+      sameIds(sourceDocument.junctions, finalDocument.junctions)
+    ) {
+      const geometry = resolveDocumentRoutingGeometry(finalDocument, resolver);
+      value.visualRoutePoints = new Map(
+        [
+          ...plan.affected.internalRoutes,
+          ...plan.affected.boundaryRoutes,
+        ].flatMap((id) => {
+          const route = geometry.routes.get(id);
+          return route ? [[id, route.centerline] as const] : [];
+        }),
+      );
+    }
     preparedCache = { source: sourceDocument, key, value };
     return value;
   };
