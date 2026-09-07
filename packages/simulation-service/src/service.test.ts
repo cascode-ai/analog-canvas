@@ -369,7 +369,7 @@ describe("shared simulation lifecycle", () => {
       ),
       "prepared",
     );
-    unwrap(
+    const started = unwrap(
       await f.service.handle(
         {
           operation: "start",
@@ -394,6 +394,24 @@ describe("shared simulation lifecycle", () => {
       undefined,
     );
     f.release();
+    await vi.waitFor(async () =>
+      expect(
+        unwrap(
+          await f.service.handle({ operation: "read", runId: started.id }),
+          "run",
+        ),
+      ).toMatchObject({ state: "finished", inputStatus: "unchanged" }),
+    );
+    const saved = f.project.simulationSetups[0]!;
+    if (saved.input.kind !== "raw") throw new Error("raw fixture");
+    saved.input.dependencies[0]!.sha256 = "b".repeat(64);
+    f.project.structureRevision++;
+    expect(
+      unwrap(
+        await f.service.handle({ operation: "read", runId: started.id }),
+        "run",
+      ),
+    ).toMatchObject({ inputStatus: "changed" });
   });
 
   it("rejects stale Project setup preparation by structure revision", async () => {
