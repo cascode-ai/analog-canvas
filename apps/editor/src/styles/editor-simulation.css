@@ -682,6 +682,29 @@
   margin: 0 0 8px;
   font-size: var(--icm-font-sm);
 }
+
+.simulation-op-canvas-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  background: var(--icm-surface-muted);
+}
+
+.simulation-op-canvas-controls label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.simulation-op-canvas-controls span {
+  margin-left: auto;
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+}
 .simulation-empty-result {
   display: grid;
   min-height: 110px;

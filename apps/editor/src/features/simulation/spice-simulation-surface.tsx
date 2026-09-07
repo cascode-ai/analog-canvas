@@ -25,6 +25,11 @@ import { DcResultsExplorer } from "./dc-results-explorer";
 import { TransientResultsExplorer } from "./transient-results-explorer";
 import { SimulationOutputResults } from "./simulation-output-results";
 import {
+  deriveOperatingPointCanvasProjection,
+  type OperatingPointCanvasProjection,
+} from "./operating-point-projection";
+import type { OperatingPointDisplay } from "./operating-point-labels";
+import {
   deriveSimulationProbeOptions,
   matchSimulationTerminalCurrentProbeOptions,
   matchSimulationVoltageProbeOptions,
@@ -120,6 +125,10 @@ export interface SpiceSimulationSurfaceProps {
     rootDocumentId?: string,
   ): void;
   onFocusDiagnostic?(locator: ObjectLocator): void;
+  /** Session-only OP values ready for exact object-addressed canvas display. */
+  onOperatingPointProjection?(
+    projection: OperatingPointCanvasProjection | null,
+  ): void;
 }
 
 export type SimulationSetupSaveResult =
@@ -200,6 +209,9 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   const [artifactPreview, setArtifactPreview] =
     useState<SimulationArtifactContent>();
   const [artifactBusy, setArtifactBusy] = useState<string>();
+  const [canvasOpEnabled, setCanvasOpEnabled] = useState(false);
+  const [canvasOpDisplay, setCanvasOpDisplay] =
+    useState<OperatingPointDisplay>("named");
   const setupMenuRef = useRef<HTMLDetailsElement>(null);
   useEffect(() => {
     const closeSetupMenu = (event: PointerEvent): void => {
@@ -210,6 +222,9 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     document.addEventListener("pointerdown", closeSetupMenu);
     return () => document.removeEventListener("pointerdown", closeSetupMenu);
   }, []);
+  const operatingPointProjectionRef = useRef(props.onOperatingPointProjection);
+  operatingPointProjectionRef.current = props.onOperatingPointProjection;
+  useEffect(() => () => operatingPointProjectionRef.current?.(null), []);
   const previousSetupId = useRef<string | null>(props.selectedSetupId);
   useEffect(() => {
     if (previousSetupId.current === props.selectedSetupId) return;
@@ -218,6 +233,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     setRun(undefined);
     setProblem(undefined);
     setArtifactPreview(undefined);
+    props.onOperatingPointProjection?.(null);
     setResultsOpen(false);
     setSetupOpen(true);
   }, [props.selectedSetupId]);
@@ -249,6 +265,26 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     } else if ("run" in reply) {
       setRun(reply.run);
       setProblem(undefined);
+      const presentation = preparedPresentations.current.get(
+        reply.run.preparedId,
+      );
+      if (
+        canvasOpEnabled &&
+        reply.run.state === "finished" &&
+        reply.run.inputStatus !== "changed" &&
+        presentation?.rootDocumentId
+      ) {
+        props.onOperatingPointProjection?.(
+          deriveOperatingPointCanvasProjection(
+            project,
+            presentation.rootDocumentId,
+            reply.run.inputRevision,
+            reply.run.outputData,
+            presentation.outputs,
+            canvasOpDisplay,
+          ),
+        );
+      } else props.onOperatingPointProjection?.(null);
       if (
         reply.run.result ||
         reply.run.error ||
@@ -302,6 +338,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     lock.current = true;
     setBusy(true);
     setProblem(undefined);
+    props.onOperatingPointProjection?.(null);
     try {
       const reply = await session.handle({
         operation: "prepare",
@@ -439,6 +476,17 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   const runPresentation = run
     ? preparedPresentations.current.get(run.preparedId)
     : undefined;
+  const canvasOpProjection =
+    run && runPresentation?.rootDocumentId
+      ? deriveOperatingPointCanvasProjection(
+          project,
+          runPresentation.rootDocumentId,
+          run.inputRevision,
+          run.outputData,
+          runPresentation.outputs,
+          canvasOpDisplay,
+        )
+      : undefined;
   const artifactCategories = ["Netlist", "Results", "Evidence", "Log", "Other"];
   const runPreparedArtifactIds = new Set(
     runPresentation?.prepared.artifacts.map((artifact) => artifact.id) ?? [],
@@ -883,6 +931,52 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
 
             {resultTab === "operating-point" ? (
               <div className="simulation-analysis-view">
+                <div className="simulation-op-canvas-controls">
+                  <button
+                    type="button"
+                    aria-pressed={canvasOpEnabled}
+                    disabled={
+                      !canvasOpProjection?.values.length ||
+                      run?.inputStatus === "changed"
+                    }
+                    onClick={() => {
+                      const enabled = !canvasOpEnabled;
+                      setCanvasOpEnabled(enabled);
+                      props.onOperatingPointProjection?.(
+                        enabled && canvasOpProjection
+                          ? canvasOpProjection
+                          : null,
+                      );
+                    }}
+                  >
+                    {canvasOpEnabled ? "Hide canvas values" : "Show on canvas"}
+                  </button>
+                  <label>
+                    Canvas labels
+                    <select
+                      value={canvasOpDisplay}
+                      disabled={!canvasOpEnabled}
+                      onChange={(event) => {
+                        const display = event.currentTarget
+                          .value as OperatingPointDisplay;
+                        setCanvasOpDisplay(display);
+                        if (canvasOpEnabled && canvasOpProjection)
+                          props.onOperatingPointProjection?.({
+                            ...canvasOpProjection,
+                            display,
+                          });
+                      }}
+                    >
+                      <option value="named">Named and focused</option>
+                      <option value="all">All collected</option>
+                    </select>
+                  </label>
+                  <span>
+                    {run?.inputStatus === "changed"
+                      ? "Paused: the circuit changed"
+                      : `${canvasOpProjection?.values.length ?? 0} direct Net voltage${canvasOpProjection?.values.length === 1 ? "" : "s"}`}
+                  </span>
+                </div>
                 {run?.outputData ? (
                   <SimulationOutputResults
                     resultKey={`${run.id}:op`}

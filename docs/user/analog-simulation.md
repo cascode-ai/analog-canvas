@@ -60,11 +60,14 @@ does not run unapplied form edits. Input diagnostics leave the Project and
 session intact: correct the input and run again. Run failures keep available
 evidence and never automatically resubmit work.
 
-OP values and AC plots consume the shared structured result. Console,
-diagnostics, input identity and downloadable deck/raw/CSV artifacts are
-available alongside the result. Bounded result previews are labelled; export
-the complete artifacts when needed. Editing the Project marks older results
-as belonging to an earlier revision.
+OP values and AC plots consume the shared structured result. For direct Net
+voltage outputs, **Operating Point → Show on canvas** paints the value on the
+exact authored Net and hierarchy occurrence; choose named/focused Nets or all
+collected Nets. Derived expressions and raw node-name text are never guessed
+back onto canvas objects. Editing the Project pauses these labels until a new
+matching run completes. Console, diagnostics, input identity and downloadable
+deck/raw/CSV artifacts are available alongside the result. Bounded result
+previews are labelled; export the complete artifacts when needed.
 
 Closing the drawer keeps a run alive. **Cancel run** asks the execution
 service to cancel; it is not simulated by hiding a spinner. Replacing the

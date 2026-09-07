@@ -544,6 +544,13 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   await expect(panel.getByRole("region", { name: "OP results" })).toContainText(
     "0.500000",
   );
+  await expect(panel.getByText("1 direct Net voltage")).toBeVisible();
+  await panel.getByRole("button", { name: "Show on canvas" }).click();
+  await expect(page.getByTestId("operating-point-badges")).toContainText(
+    "500 mV",
+  );
+  await panel.getByRole("button", { name: "Hide canvas values" }).click();
+  await expect(page.getByTestId("operating-point-badges")).toHaveCount(0);
   await panel.getByRole("tab", { name: "Plot" }).click();
   await expect(panel.locator(".spice-ac-plot svg")).toHaveCount(3);
   await expect(panel.locator('svg[aria-label="AC magnitude"]')).toBeVisible();
