@@ -787,6 +787,41 @@
 .simulation-analysis-card-body > .transient-results-explorer > header {
   display: none;
 }
+.noise-results-explorer {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+.noise-results-explorer > .transient-results-explorer > header {
+  display: none;
+}
+.simulation-integrated-results {
+  overflow: hidden;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  background: var(--icm-surface);
+}
+.simulation-integrated-results h4 {
+  margin: 0;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--icm-border);
+  background: var(--icm-surface-muted);
+  font-size: var(--icm-font-sm);
+}
+.simulation-integrated-results table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.simulation-integrated-results th,
+.simulation-integrated-results td {
+  padding: 7px 10px;
+  text-align: left;
+}
+.simulation-integrated-results th:last-child,
+.simulation-integrated-results td:last-child {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
 .simulation-output-results > .simulation-measurement-results {
   margin-top: 0;
 }

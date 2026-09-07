@@ -13,6 +13,7 @@ import {
 } from "./ac-results-explorer";
 import { ScalarResultsExplorer } from "./transient-results-explorer";
 import { SimulationMeasurementResults } from "./simulation-measurement-results";
+import { NoiseResultsExplorer } from "./noise-results-explorer";
 
 export type SimulationAnalysisKind = "op" | "dc" | "ac" | "tran" | "noise";
 
@@ -106,6 +107,15 @@ export function SimulationOutputResults({
               </table>
             </SimulationAnalysisCard>
           );
+        if (analysis.analysis === "noise")
+          return (
+            <SimulationAnalysisCard key={`noise-${analysisIndex}`} kind="noise">
+              <NoiseResultsExplorer
+                analysis={analysis}
+                resultKey={`${resultKey}:noise:${analysisIndex}`}
+              />
+            </SimulationAnalysisCard>
+          );
         if (!analysis.domain) return null;
         const complex = analysis.outputs.filter((output) => output.imaginary);
         const scalar = analysis.outputs.filter((output) => !output.imaginary);
@@ -178,9 +188,7 @@ export function SimulationOutputResults({
                   }
                   domainLabel={analysis.domain!.name}
                   domainUnit={analysis.domain!.unit}
-                  logarithmicX={
-                    analysis.analysis === "ac" || analysis.analysis === "noise"
-                  }
+                  logarithmicX={analysis.analysis === "ac"}
                   traces={unitOutputs.map((output, colorIndex) => ({
                     id: output.id,
                     label: output.label,

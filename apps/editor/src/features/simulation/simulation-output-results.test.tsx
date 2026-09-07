@@ -54,4 +54,59 @@ describe("Simulation Output Results", () => {
       markup.indexOf("</section>"),
     );
   });
+
+  it("keeps Noise spectra and integrated totals in one dedicated result", () => {
+    const markup = renderToStaticMarkup(
+      <SimulationOutputResults
+        resultKey="run-noise"
+        outputs={[]}
+        data={{
+          schemaVersion: 1,
+          diagnostics: [],
+          analyses: [
+            {
+              analysis: "noise",
+              plotName: "Noise Analysis",
+              domain: { name: "Frequency", unit: "Hz", values: [1, 10] },
+              outputs: [
+                {
+                  id: "noise-output-density",
+                  label: "Output noise density",
+                  unit: "V/sqrt(Hz)",
+                  values: [1e-9, 2e-9],
+                },
+                {
+                  id: "noise-input-density",
+                  label: "Input-referred noise density",
+                  unit: "V/sqrt(Hz)",
+                  values: [3e-9, 4e-9],
+                },
+              ],
+              integrated: [
+                {
+                  id: "noise-integrated-output",
+                  label: "Integrated output noise",
+                  unit: "V",
+                  value: 9e-8,
+                },
+                {
+                  id: "noise-integrated-input",
+                  label: "Integrated input-referred noise",
+                  unit: "V",
+                  value: 1.8e-7,
+                },
+              ],
+            },
+          ],
+        }}
+      />,
+    );
+
+    expect(markup).toContain("Noise Analysis");
+    expect(markup).toContain('class="noise-results-explorer"');
+    expect(markup).toContain('aria-label="Integrated noise"');
+    expect(markup).toContain("Output noise density");
+    expect(markup).toContain("Integrated input-referred noise");
+    expect(markup).toContain("1.80000e-7 V");
+  });
 });

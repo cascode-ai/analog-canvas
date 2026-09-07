@@ -1,10 +1,14 @@
 import type {
   SimulationMeasurementMethod,
   SimulationMeasurementSpec,
-  SimulationOutputSpec,
 } from "@icm/model";
 
 type AnalysisKind = SimulationMeasurementSpec["analysis"];
+
+export interface SimulationMeasurementOutputOption {
+  readonly id: string;
+  readonly label: string;
+}
 
 const METHOD_LABELS = {
   value: "Value",
@@ -35,7 +39,7 @@ function defaultMethod(analysis: AnalysisKind): SimulationMeasurementMethod {
 }
 
 function coordinateLabel(analysis: AnalysisKind): string {
-  if (analysis === "ac") return "Frequency / Hz";
+  if (analysis === "ac" || analysis === "noise") return "Frequency / Hz";
   if (analysis === "tran") return "Time / s";
   return "Sweep value / SI";
 }
@@ -55,7 +59,7 @@ export function SimulationMeasurementEditor({
   onChange,
 }: {
   analyses: readonly AnalysisKind[];
-  outputs: readonly SimulationOutputSpec[];
+  outputs: readonly SimulationMeasurementOutputOption[];
   measurements: readonly SimulationMeasurementSpec[];
   onChange(next: SimulationMeasurementSpec[]): void;
 }) {

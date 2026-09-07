@@ -202,4 +202,105 @@ describe("SpiceSimulationSurface workspace", () => {
     expect(markup).not.toContain("authored file(s)");
     expect(markup).not.toContain("Profile: raw-profile");
   });
+
+  it("edits a saved Noise analysis with stable density measurement targets", () => {
+    const project = createEmptyProject("noise-simulation", "Noise");
+    const root = project.documents[0]!;
+    root.instances.push(
+      {
+        id: "source-v1",
+        symbolId: "voltage-source",
+        reference: "V1",
+        placement: null,
+        netlist: {
+          binding: { kind: "primitive", deviceClass: "voltage-source" },
+          parameters: { dc: "0", acMagnitude: "1" },
+        },
+      },
+      {
+        id: "resistor-r1",
+        symbolId: "resistor",
+        reference: "R1",
+        placement: null,
+        netlist: {
+          binding: { kind: "primitive", deviceClass: "resistor" },
+          parameters: { resistance: "1k" },
+        },
+      },
+    );
+    root.nets.push({
+      id: "net-out",
+      terminals: [
+        { instanceId: "source-v1", pinName: "P" },
+        { instanceId: "resistor-r1", pinName: "1" },
+      ],
+    });
+    project.simulationSetups.push({
+      id: "setup-noise",
+      name: "Noise",
+      version: 2,
+      input: {
+        kind: "structured",
+        rootDocumentId: root.id,
+        analyses: [
+          {
+            kind: "noise",
+            output: {
+              positive: {
+                documentId: root.id,
+                occurrence: [],
+                anchor: {
+                  kind: "terminal",
+                  instanceId: "source-v1",
+                  pinName: "P",
+                },
+              },
+            },
+            inputSourceInstanceId: "source-v1",
+            sweep: "dec",
+            points: 20,
+            startHz: 10,
+            stopHz: 1e6,
+          },
+        ],
+        outputs: [],
+        measurements: [
+          {
+            id: "noise-at-1k",
+            label: "Noise at 1 kHz",
+            analysis: "noise",
+            outputId: "noise-output-density",
+            method: { kind: "sample-at", coordinate: 1e3 },
+          },
+        ],
+        environment: { profileId: "sky130-core-continuous-ngspice46-v1" },
+      },
+    });
+
+    const markup = renderToStaticMarkup(
+      <SpiceSimulationSurface
+        open
+        maximized={false}
+        project={project}
+        activeDocumentId={root.id}
+        selectedSetupId="setup-noise"
+        onSelectSetupId={() => undefined}
+        session={{} as BrowserSimulationSession}
+        onToggleMaximized={() => undefined}
+        onMinimize={() => undefined}
+        onExit={() => undefined}
+        onSaveSetup={() => ({ status: "applied" })}
+        onDeleteSetup={() => true}
+      />,
+    );
+
+    expect(markup).toContain('type="checkbox" name="noise" checked=""');
+    expect(markup).toContain('aria-label="Noise output positive"');
+    expect(markup).toContain('name="noiseInputSourceInstanceId"');
+    expect(markup).toContain('name="noiseStartHz"');
+    expect(markup).toContain('value="10"');
+    expect(markup).toContain("Output noise density");
+    expect(markup).toContain("Input-referred noise density");
+    expect(markup).toContain("Noise at 1 kHz");
+  });
 });
