@@ -13,7 +13,7 @@ describe("SimulationMeasurementResults", () => {
     unit: "V",
   };
 
-  it("keeps successful detail compact behind a visible summary", () => {
+  it("groups one Output's measurements behind its own summary", () => {
     const markup = renderToStaticMarkup(
       <SimulationMeasurementResults
         measurements={[
@@ -25,11 +25,23 @@ describe("SimulationMeasurementResults", () => {
             status: "available",
             value: 1.25,
           },
+          {
+            ...base,
+            id: "0:out:minimum",
+            metric: "minimum",
+            label: "Minimum",
+            status: "available",
+            value: 0.25,
+          },
         ]}
       />,
     );
     expect(markup).toContain("Measurements");
-    expect(markup).toContain("1 value");
+    expect(markup).toContain("2 values");
+    expect(markup.match(/simulation-measurement-output"/gu)).toHaveLength(1);
+    expect(markup.match(/<strong>Vout<\/strong>/gu)).toHaveLength(1);
+    expect(markup).toContain("Maximum");
+    expect(markup).toContain("Minimum");
     expect(markup).not.toContain("<details open");
   });
 
@@ -49,6 +61,7 @@ describe("SimulationMeasurementResults", () => {
       />,
     );
     expect(markup).toContain('open=""');
+    expect(markup).toContain('class="simulation-measurement-output" open=""');
     expect(markup).toContain("1 unavailable");
     expect(markup).toContain("At least two samples are required");
   });

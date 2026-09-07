@@ -7,6 +7,7 @@ import type { SimulationOutputData } from "@icm/simulation-service/contract";
 
 import {
   ComplexResultsExplorer,
+  complexAcPoint,
   unwrapPhaseDegrees,
 } from "./ac-results-explorer";
 import { ScalarResultsExplorer } from "./transient-results-explorer";
@@ -103,6 +104,7 @@ export function SimulationOutputResults({
                     id: output.id,
                     label: output.label,
                     colorIndex,
+                    unit: output.unit,
                     quantity:
                       output.unit === "V"
                         ? "voltage"
@@ -113,18 +115,11 @@ export function SimulationOutputResults({
                             : output.unit,
                     ...(probe ? { probe } : {}),
                     points: analysis.domain!.values.map((frequency, i) => ({
-                      frequency,
-                      magnitudeDb:
-                        20 *
-                        Math.log10(
-                          Math.max(
-                            Math.hypot(
-                              output.values[i] ?? Number.NaN,
-                              output.imaginary![i] ?? Number.NaN,
-                            ),
-                            1e-30,
-                          ),
-                        ),
+                      ...complexAcPoint(
+                        frequency,
+                        output.values[i] ?? Number.NaN,
+                        output.imaginary![i] ?? Number.NaN,
+                      ),
                       phaseDeg: phases[i] ?? Number.NaN,
                     })),
                   };

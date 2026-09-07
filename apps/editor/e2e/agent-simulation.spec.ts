@@ -1,11 +1,25 @@
 import { test, expect, type WebSocketRoute } from "@playwright/test";
 import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { strFromU8, unzipSync } from "fflate";
 import {
   createSimulationEnvironmentMetadata,
   createSimulationInputMetadata,
   readSimulationData,
 } from "@icm/spice-run";
+
+const loadModule = createRequire(import.meta.url);
+const { PNG } = loadModule("pngjs") as {
+  PNG: {
+    sync: {
+      read(input: Buffer): {
+        readonly width: number;
+        readonly height: number;
+        readonly data: Uint8Array;
+      };
+    };
+  };
+};
 const profile = JSON.parse(
   readFileSync(
     new URL(
@@ -567,7 +581,9 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   const opMeasurements = panel.locator(
     "details.simulation-measurement-results",
   );
-  await expect(opMeasurements.locator("summary")).toContainText("1 value");
+  await expect(opMeasurements.locator(":scope > summary")).toContainText(
+    "1 value",
+  );
   await expect(opMeasurements).not.toHaveAttribute("open", "");
   await panel.getByRole("button", { name: "Show on canvas" }).click();
   await expect(page.getByTestId("operating-point-badges")).toContainText(
@@ -579,14 +595,22 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   const plotMeasurements = panel.locator(
     "details.simulation-measurement-results",
   );
-  await expect(plotMeasurements.locator("summary")).toContainText("8 values");
-  await expect(panel.locator(".spice-ac-plot svg")).toHaveCount(3);
+  await expect(plotMeasurements.locator(":scope > summary")).toContainText(
+    "8 values",
+  );
+  await expect(panel.locator(".spice-ac-plot svg")).toHaveCount(2);
   await expect(panel.locator('svg[aria-label="AC magnitude"]')).toBeVisible();
+  await expect(panel.locator('svg[aria-label="AC phase"]')).toHaveCount(0);
+  const acDisplay = panel.getByRole("group", { name: "Voltage display" });
+  await acDisplay.getByRole("button", { name: "Bode" }).click();
+  await expect(panel.locator('svg[aria-label="AC db20"]')).toBeVisible();
   await expect(panel.locator('svg[aria-label="AC phase"]')).toBeVisible();
+  await expect(panel.getByLabel("Voltage reference")).toHaveValue("");
+  await expect(panel.getByText("ref 1 V", { exact: false })).toHaveCount(2);
   await expect
     .poll(
       async () =>
-        (await panel.locator('svg[aria-label="AC magnitude"]').boundingBox())
+        (await panel.locator('svg[aria-label="AC db20"]').boundingBox())
           ?.height ?? 0,
     )
     .toBeGreaterThan(300);
@@ -615,6 +639,21 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   expect([...Object.values(pngEntries)[0]!.slice(0, 8)]).toEqual([
     137, 80, 78, 71, 13, 10, 26, 10,
   ]);
+  const phasePngEntry = Object.entries(pngEntries).find(([name]) =>
+    name.includes("ac-phase"),
+  );
+  expect(phasePngEntry).toBeDefined();
+  const phasePng = PNG.sync.read(Buffer.from(phasePngEntry![1]));
+  let darkPixels = 0;
+  for (let index = 0; index < phasePng.data.length; index += 4) {
+    if (
+      phasePng.data[index]! < 32 &&
+      phasePng.data[index + 1]! < 32 &&
+      phasePng.data[index + 2]! < 32
+    )
+      darkPixels += 1;
+  }
+  expect(darkPixels / (phasePng.width * phasePng.height)).toBeLessThan(0.25);
   const csvDownloadPromise = page.waitForEvent("download");
   await resultExport.getByRole("button", { name: "outputs-op-0.csv" }).click();
   expect((await csvDownloadPromise).suggestedFilename()).toBe(
@@ -628,6 +667,9 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
     '"TRAN","Transient response","first-output","Time-weighted RMS"',
   );
   resultExport.evaluate((element) => element.removeAttribute("open"));
+  await acDisplay.getByRole("button", { name: "Magnitude" }).click();
+  await expect(panel.locator('svg[aria-label="AC magnitude"]')).toBeVisible();
+  await expect(panel.locator('svg[aria-label="AC phase"]')).toHaveCount(0);
   await panel.getByRole("tab", { name: "Compare" }).click();
   await expect(panel.getByText("Session only", { exact: false })).toBeVisible();
   await panel.getByRole("button", { name: "Keep current" }).click();

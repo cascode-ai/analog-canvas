@@ -807,6 +807,49 @@
   color: var(--icm-text-muted);
   font-size: var(--icm-font-xs);
 }
+.simulation-measurement-output-groups {
+  display: grid;
+  gap: 5px;
+}
+.simulation-measurement-output {
+  overflow: hidden;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+}
+.simulation-measurement-output > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 5px 8px;
+  background: var(--icm-surface-muted);
+  cursor: pointer;
+  list-style: none;
+}
+.simulation-measurement-output > summary::-webkit-details-marker {
+  display: none;
+}
+.simulation-measurement-output > summary::before {
+  width: 12px;
+  color: var(--icm-text-muted);
+  content: "›";
+  font-size: 16px;
+  line-height: 1;
+  transform-origin: center;
+  transition: transform 120ms ease;
+}
+.simulation-measurement-output[open] > summary::before {
+  transform: rotate(90deg);
+}
+.simulation-measurement-output > summary > span {
+  margin-left: auto;
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+}
+.simulation-measurement-output > summary > span[data-status="attention"] {
+  color: var(--icm-danger);
+  font-weight: 650;
+}
 .simulation-measurement-results table {
   width: 100%;
   border-collapse: collapse;
@@ -1219,6 +1262,53 @@
 }
 .ac-results-explorer > header button {
   margin-left: auto;
+}
+.ac-view-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin-bottom: 5px;
+}
+.ac-view-toolbar > strong {
+  min-width: 72px;
+}
+.ac-view-toolbar > [role="group"] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--icm-border);
+  border-radius: 7px;
+  background: var(--icm-surface-muted);
+}
+.ac-view-toolbar button {
+  min-height: 26px;
+  padding: 3px 8px;
+  border: 0;
+  background: transparent;
+}
+.ac-view-toolbar button[aria-pressed="true"] {
+  background: var(--icm-surface);
+  color: var(--icm-accent);
+  box-shadow: 0 1px 2px rgb(16 24 40 / 12%);
+}
+.ac-view-toolbar > label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+}
+.ac-view-toolbar select {
+  min-height: 28px;
+  max-width: 180px;
+}
+.ac-plot-row > strong small {
+  color: var(--icm-text-muted);
+  font-weight: 500;
 }
 .simulation-plot-layout {
   display: grid;

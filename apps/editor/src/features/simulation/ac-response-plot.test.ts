@@ -16,38 +16,56 @@ function singlePole(): AcTrace {
   for (let decade = 0; decade <= 6; decade += 1) {
     const frequency = 10 ** decade;
     const ratio = frequency / 1000;
+    const magnitudeDb = 40 - 10 * Math.log10(1 + ratio * ratio);
+    const phaseDeg = -(Math.atan(ratio) * 180) / Math.PI;
+    const magnitude = 10 ** (magnitudeDb / 20);
     points.push({
       frequency,
-      magnitudeDb: 40 - 10 * Math.log10(1 + ratio * ratio),
-      phaseDeg: -(Math.atan(ratio) * 180) / Math.PI,
+      real: magnitude * Math.cos((phaseDeg * Math.PI) / 180),
+      imaginary: magnitude * Math.sin((phaseDeg * Math.PI) / 180),
+      magnitude,
+      magnitudeDb,
+      phaseDeg,
     });
   }
-  return { label: "vdb(vout)", points };
+  return { label: "vout/vin", unit: "1", points };
 }
 
 describe("AC response plot", () => {
   it("puts whole decades on the frequency axis", () => {
-    const layout = layoutAcPlot([singlePole()], { width: 600, height: 300 });
+    const layout = layoutAcPlot(
+      [singlePole()],
+      { width: 600, height: 300 },
+      "db20",
+    );
     expect(layout).not.toBeNull();
     // A sweep from 1 Hz to 1 MHz reads as decades, not as raw sample points.
     expect(layout!.frequency.ticks).toEqual([1, 100, 1e4, 1e6]);
   });
 
   it("contains the data with readable adaptive grid steps", () => {
-    const layout = layoutAcPlot([singlePole()], { width: 600, height: 300 })!;
+    const layout = layoutAcPlot(
+      [singlePole()],
+      { width: 600, height: 300 },
+      "db20",
+    )!;
     // The trace spans about -20 dB to 40 dB; the axis must contain it and
     // land on round gridlines rather than on the data's own extremes.
-    expect(layout.magnitude.min).toBeLessThan(-20);
-    expect(layout.magnitude.max).toBeGreaterThan(
+    expect(layout.value.min).toBeLessThan(-20);
+    expect(layout.value.max).toBeGreaterThan(
       singlePole().points[0]!.magnitudeDb,
     );
     expect(layout.frequency.min).toBeLessThan(1);
     expect(layout.frequency.max).toBeGreaterThan(1e6);
-    expect(layout.magnitude.ticks).toContain(0);
+    expect(layout.value.ticks).toContain(0);
   });
 
   it("reads a frequency back from a position, for a crosshair", () => {
-    const layout = layoutAcPlot([singlePole()], { width: 600, height: 300 })!;
+    const layout = layoutAcPlot(
+      [singlePole()],
+      { width: 600, height: 300 },
+      "db20",
+    )!;
     const left = layout.frequencyAt(layout.frame.x);
     const right = layout.frequencyAt(layout.frame.x + layout.frame.width);
 
@@ -64,12 +82,13 @@ describe("AC response plot", () => {
     const layout = layoutAcPlot(
       [singlePole()],
       { width: 600, height: 300 },
+      "db20",
       range,
     )!;
     const svg = acResponseSvg(
       [singlePole()],
       { width: 600, height: 300 },
-      { kind: "magnitude", frequencyRange: range },
+      { kind: "db20", frequencyRange: range, valueUnit: "dB" },
     )!;
 
     expect(layout.frequency.min).toBe(range[0]);
@@ -81,7 +100,7 @@ describe("AC response plot", () => {
     const magnitude = acResponseSvg(
       [singlePole()],
       { width: 600, height: 300 },
-      { kind: "magnitude" },
+      { kind: "db20", valueUnit: "dB" },
     )!;
     const phase = acResponseSvg(
       [singlePole()],
@@ -95,7 +114,7 @@ describe("AC response plot", () => {
     expect(phase.match(/<polyline class="ac-trace ac-trace-/gu)).toHaveLength(
       1,
     );
-    expect(magnitude).toContain('aria-label="AC magnitude"');
+    expect(magnitude).toContain('aria-label="AC db20"');
     expect(phase).toContain('aria-label="AC phase"');
     expect(magnitude).toContain("dB");
     expect(phase).toContain("°");
@@ -107,7 +126,8 @@ describe("AC response plot", () => {
       [trace],
       { width: 600, height: 300 },
       {
-        kind: "magnitude",
+        kind: "db20",
+        valueUnit: "dB",
         selectedTraceId: trace.id,
       },
     )!;
@@ -122,7 +142,8 @@ describe("AC response plot", () => {
       [trace],
       { width: 600, height: 300 },
       {
-        kind: "magnitude",
+        kind: "db20",
+        valueUnit: "dB",
         selectedTraceId: trace.id,
         cursorFrequency: 1e3,
         cursorFrequencyB: 1e4,
@@ -141,7 +162,7 @@ describe("AC response plot", () => {
     // looks like a measurement.
     expect(layoutAcPlot([], { width: 600, height: 300 })).toBeNull();
     expect(
-      layoutAcPlot([{ label: "vdb(vout)", points: [] }], {
+      layoutAcPlot([{ label: "vout", unit: "V", points: [] }], {
         width: 600,
         height: 300,
       }),
@@ -152,8 +173,18 @@ describe("AC response plot", () => {
       layoutAcPlot(
         [
           {
-            label: "vdb(vout)",
-            points: [{ frequency: 0, magnitudeDb: 1, phaseDeg: 0 }],
+            label: "vout",
+            unit: "V",
+            points: [
+              {
+                frequency: 0,
+                real: 1,
+                imaginary: 0,
+                magnitude: 1,
+                magnitudeDb: 0,
+                phaseDeg: 0,
+              },
+            ],
           },
         ],
         { width: 600, height: 300 },
@@ -169,15 +200,15 @@ describe("AC response plot", () => {
     // would leave anyone who cannot separate the hues with nothing.
     const svg = acResponseSvg(
       [
-        { label: "vdb(vout)", points: singlePole().points },
-        { label: "vdb(vout_loaded)", points: singlePole().points },
+        { label: "vout", unit: "V", points: singlePole().points },
+        { label: "vout_loaded", unit: "V", points: singlePole().points },
       ],
       { width: 600, height: 300 },
-      { kind: "magnitude" },
+      { kind: "magnitude", valueUnit: "V" },
     )!;
 
-    expect(svg).toContain("vdb(vout)");
-    expect(svg).toContain("vdb(vout_loaded)");
+    expect(svg).toContain("vout");
+    expect(svg).toContain("vout_loaded");
     expect(svg).toContain("ac-trace-0");
     expect(svg).toContain("ac-trace-1");
   });

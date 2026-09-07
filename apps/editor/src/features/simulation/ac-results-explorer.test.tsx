@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 
-import { AcResultsExplorer, unwrapPhaseDegrees } from "./ac-results-explorer";
+import {
+  AcResultsExplorer,
+  complexAcPoint,
+  referenceAcTrace,
+  unwrapPhaseDegrees,
+} from "./ac-results-explorer";
 
 describe("AC Results Explorer", () => {
   it("unwraps phase without inventing 360-degree discontinuities", () => {
@@ -13,7 +18,7 @@ describe("AC Results Explorer", () => {
     ]);
   });
 
-  it("presents one Output with separate magnitude and phase plots", () => {
+  it("defaults a voltage Output to linear magnitude and offers AC views", () => {
     const markup = renderToStaticMarkup(
       <AcResultsExplorer
         analysis={{
@@ -47,14 +52,41 @@ describe("AC Results Explorer", () => {
     );
 
     expect(markup).toContain("VOUT");
-    expect(markup).toContain("Voltage magnitude");
-    expect(markup).toContain("Voltage phase");
+    expect(markup).toContain("Voltage Magnitude");
+    expect(markup).not.toContain("Voltage Phase");
     expect(markup).not.toContain("<h4>Voltage</h4>");
     expect(markup).toContain('aria-label="AC magnitude"');
-    expect(markup).toContain('aria-label="AC phase"');
-    expect(markup.match(/data-trace-index="0"/gu)).toHaveLength(2);
+    expect(markup).not.toContain('aria-label="AC phase"');
+    expect(markup.match(/data-trace-index="0"/gu)).toHaveLength(1);
+    expect(markup).toContain('aria-label="Voltage display"');
+    expect(markup).toContain('aria-pressed="true">Magnitude');
+    expect(markup).toContain("0.7V");
     expect(markup).toContain('aria-label="Plot tools"');
     expect(markup).toContain('aria-label="Open plot"');
     expect(markup).not.toContain("Wheel to zoom");
+  });
+
+  it("uses another complex trace as a presentation-only reference", () => {
+    const trace = {
+      id: "out",
+      label: "Vout",
+      unit: "V",
+      quantity: "voltage",
+      points: [complexAcPoint(1e3, 2, 2)],
+    };
+    const reference = {
+      id: "in",
+      label: "Vin",
+      unit: "V",
+      quantity: "voltage",
+      points: [complexAcPoint(1e3, 1, 1)],
+    };
+
+    const relative = referenceAcTrace(trace, reference);
+
+    expect(relative.unit).toBe("1");
+    expect(relative.points[0]?.real).toBeCloseTo(2);
+    expect(relative.points[0]?.imaginary).toBeCloseTo(0);
+    expect(relative.points[0]?.magnitudeDb).toBeCloseTo(20 * Math.log10(2));
   });
 });

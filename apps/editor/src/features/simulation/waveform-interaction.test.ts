@@ -30,21 +30,37 @@ describe("waveform axes", () => {
       [
         {
           label: "out",
+          unit: "V",
           points: [
-            { frequency: 100, magnitudeDb: 1, phaseDeg: 0 },
-            { frequency: 1000, magnitudeDb: 5, phaseDeg: 10 },
+            {
+              frequency: 100,
+              real: 1,
+              imaginary: 0,
+              magnitude: 1,
+              magnitudeDb: 0,
+              phaseDeg: 0,
+            },
+            {
+              frequency: 1000,
+              real: 5,
+              imaginary: 0,
+              magnitude: 5,
+              magnitudeDb: 20 * Math.log10(5),
+              phaseDeg: 0,
+            },
           ],
         },
       ],
       { width: 500, height: 280 },
+      "magnitude",
       [240, 280],
-      { kind: "magnitude", range: [2, 3] },
+      [2, 3],
     )!;
     expect(result.frequency.ticks.length).toBeGreaterThan(2);
     expect(
       result.frequency.ticks.every((tick) => tick >= 240 && tick <= 280),
     ).toBe(true);
-    expect(result.magnitude.min).toBe(2);
-    expect(result.magnitude.max).toBe(3);
+    expect(result.value.min).toBe(2);
+    expect(result.value.max).toBe(3);
   });
 });
