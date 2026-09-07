@@ -537,12 +537,12 @@ test("human simulation uses saved setup, survives minimizing, recovers a bad inp
   await page.getByTestId("open-analog-simulation").click();
   await expect(panel.getByRole("status")).toHaveText("finished · completed");
   // A completed run belongs to its setup, not whichever setup is currently visible.
-  await panel.getByLabel("Simulation setup", { exact: true }).click();
+  await panel.getByTitle("Simulation setup", { exact: true }).click();
   await panel.getByRole("button", { name: "New setup", exact: true }).click();
   await expect(panel.getByRole("status")).not.toHaveText(
     "finished · completed",
   );
-  await panel.getByLabel("Simulation setup", { exact: true }).click();
+  await panel.getByTitle("Simulation setup", { exact: true }).click();
   await panel.getByRole("button", { name: "E2E setup", exact: true }).click();
   await expect(panel.getByRole("status")).toHaveText("finished · completed");
   expect(executions).toBe(1);

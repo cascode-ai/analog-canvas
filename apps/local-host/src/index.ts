@@ -48,7 +48,7 @@ export async function startLocalHost(
   const server = createServer(async (request, response) => {
     response.setHeader(
       "Content-Security-Policy",
-      "default-src 'self'; img-src 'self' blob: data:; style-src 'self'; script-src 'self'; worker-src 'self'; connect-src 'self'",
+      "default-src 'self'; img-src 'self' blob: data:; style-src 'self'; script-src 'self'; worker-src 'self' blob:; connect-src 'self'",
     );
     response.setHeader("Cross-Origin-Opener-Policy", "same-origin");
     response.setHeader("X-Content-Type-Options", "nosniff");

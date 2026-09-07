@@ -42,7 +42,11 @@ describe("optional local simulation", () => {
       expect(
         (await post(origin, { operation: "cancel", runToken: "r" })).status,
       ).toBe(503);
-      expect((await fetch(origin + "/")).status).toBe(200);
+      const editor = await fetch(origin + "/");
+      expect(editor.status).toBe(200);
+      expect(editor.headers.get("content-security-policy")).toContain(
+        "worker-src 'self' blob:",
+      );
       expect(
         (await fetch(origin + "/api/simulate", { method: "PUT" })).status,
       ).toBe(405);

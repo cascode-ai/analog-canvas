@@ -75,6 +75,7 @@ function preferredResultTab(run: Run): ResultTab {
 }
 
 interface PreparedPresentation {
+  readonly setupId: string;
   readonly prepared: Prepared;
   readonly outputs: SimulationStructuredInput["outputs"];
   readonly analysisLabel: string;
@@ -102,6 +103,8 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   const selectedSetup = project.simulationSetups.find(
     (setup) => setup.id === props.selectedSetupId,
   );
+  const activeSetupId = useRef(props.selectedSetupId);
+  activeSetupId.current = props.selectedSetupId;
   const [capabilities, setCapabilities] = useState<Capabilities>();
   const [prepared, setPrepared] = useState<Prepared>();
   const [run, setRun] = useState<Run>();
@@ -171,6 +174,13 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
   }, []);
   const receive = (reply: SimulationReply) => {
     if (!alive.current) return;
+    if ((selectedSetup?.id ?? null) !== activeSetupId.current) return;
+    if (reply.ok && "run" in reply) {
+      const owner = preparedPresentations.current.get(
+        reply.run.preparedId,
+      )?.setupId;
+      if (owner !== activeSetupId.current) return;
+    }
     if (!reply.ok) {
       setProblem(reply.error);
       if (selectedSetup) {
@@ -292,6 +302,7 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
       if (reply.ok && "prepared" in reply) {
         const input = selectedSetup?.input;
         preparedPresentations.current.set(reply.prepared.id, {
+          setupId: selectedSetup!.id,
           prepared: structuredClone(reply.prepared),
           outputs:
             input?.kind === "structured" ? structuredClone(input.outputs) : [],
