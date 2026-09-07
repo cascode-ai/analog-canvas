@@ -63,6 +63,8 @@ export class SimulationControlDO {
       return this.anonymousSession(request);
     if (request.method === "POST" && url.pathname === "/accept")
       return this.accept(request);
+    if (request.method === "GET" && url.pathname === "/runs")
+      return this.list(url.searchParams.get("ownerId"));
     const runMatch = url.pathname.match(/^\/runs\/([^/]+)$/u);
     if (!runMatch) return json({ error: "not-found" }, 404);
     const runId = decodeURIComponent(runMatch[1]!);
@@ -172,6 +174,24 @@ export class SimulationControlDO {
   private read(runId: string): Response {
     const run = this.readRecord(runId);
     return run ? json({ run }) : json({ error: "RUN_NOT_FOUND" }, 404);
+  }
+
+  private list(ownerId: string | null): Response {
+    if (!ownerId) return json({ error: "owner-required" }, 400);
+    const runs = this.sql
+      .exec<RunRow>(
+        `SELECT record_json FROM simulation_runs
+         WHERE owner_id = ? ORDER BY created_at DESC LIMIT 50`,
+        ownerId,
+      )
+      .toArray()
+      .flatMap((row) => {
+        const parsed = ManagedRunRecordSchema.safeParse(
+          JSON.parse(row.record_json),
+        );
+        return parsed.success ? [parsed.data] : [];
+      });
+    return json({ runs });
   }
 
   private async transition(runId: string, request: Request): Promise<Response> {

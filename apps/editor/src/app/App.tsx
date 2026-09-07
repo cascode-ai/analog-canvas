@@ -736,8 +736,14 @@ export function App({
         files: browserAgentFileHost.simulationFiles,
         getProjectSessionId: () => editorDocumentController.projectSessionId,
         getProject: () => editorDocumentController.project,
+        transport: releaseChannel === "preview" ? "managed" : "direct",
       }),
-    [editorDocumentController, projectSessionId],
+    [
+      browserAgentFileHost.simulationFiles,
+      editorDocumentController,
+      projectSessionId,
+      releaseChannel,
+    ],
   );
   const [analogSimulationState, setAnalogSimulationState] = useState<
     "closed" | "open" | "maximized" | "minimized"
@@ -752,8 +758,9 @@ export function App({
       new BrowserSimulationSession({
         getProjectSessionId: () => editorDocumentController.projectSessionId,
         getProject: () => editorDocumentController.project,
+        transport: releaseChannel === "preview" ? "managed" : "direct",
       }),
-    [editorDocumentController, projectSessionId],
+    [editorDocumentController, projectSessionId, releaseChannel],
   );
   useEffect(
     () => () => {

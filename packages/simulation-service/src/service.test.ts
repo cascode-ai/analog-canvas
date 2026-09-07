@@ -215,6 +215,7 @@ describe("shared simulation lifecycle", () => {
       expect.objectContaining({ testbench: "B deck\n.end\n" }),
       expect.any(String),
       undefined,
+      { preparedId: prepared.id, preparedDigest: prepared.digest },
     );
     f.release();
   });
@@ -392,6 +393,7 @@ describe("shared simulation lifecycle", () => {
       }),
       expect.any(String),
       undefined,
+      { preparedId: prepared.id, preparedDigest: prepared.digest },
     );
     f.release();
     await vi.waitFor(async () =>

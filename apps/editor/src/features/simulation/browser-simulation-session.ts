@@ -11,6 +11,8 @@ export interface BrowserSimulationSessionOptions {
   getProject(): CircuitProject;
   files?: SimulationFiles;
   fetch?: typeof fetch;
+  /** Explicit deployment composition; never inferred after a start fails. */
+  transport?: "direct" | "managed";
 }
 
 /** Shared browser composition, not a second run registry. Each owner has an
@@ -52,12 +54,23 @@ export class BrowserSimulationSession {
     try {
       this.service ??= import("@icm/simulation-service")
         .then(
-          ({ SimulationService, createHostedExecutor }) =>
+          ({
+            SimulationService,
+            createHostedExecutor,
+            createManagedHostedExecutor,
+          }) =>
             new SimulationService(
               this.files,
-              createHostedExecutor(
-                this.options.fetch ?? ((...args) => globalThis.fetch(...args)),
-              ),
+              this.options.transport === "managed"
+                ? createManagedHostedExecutor({
+                    fetch:
+                      this.options.fetch ??
+                      ((...args) => globalThis.fetch(...args)),
+                  })
+                : createHostedExecutor(
+                    this.options.fetch ??
+                      ((...args) => globalThis.fetch(...args)),
+                  ),
               this.options.getProject,
             ),
         )

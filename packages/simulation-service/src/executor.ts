@@ -14,12 +14,17 @@ export interface ExecutionInput {
   entryPath?: string;
   preparedDeck?: string;
 }
+export interface ExecutionIdentity {
+  preparedId: string;
+  preparedDigest: string;
+}
 export interface Executor {
   capabilities(): Promise<Capabilities>;
   execute(
     input: ExecutionInput,
     runToken: string,
     timeoutMs?: number,
+    identity?: ExecutionIdentity,
   ): Promise<{
     result: SimulationResult;
     rawfile?: string;

@@ -225,6 +225,17 @@ export async function routeManagedSimulationRequest(
   };
 
   if (url.pathname === "/api/simulation/runs") {
+    if (request.method === "GET") {
+      const response = await control(env)!.fetch(
+        `https://simulation-control/runs?ownerId=${encodeURIComponent(principal.id)}`,
+      );
+      return ownedResponse(
+        new Response(response.body, {
+          status: response.status,
+          headers: { "content-type": "application/json" },
+        }),
+      );
+    }
     if (request.method !== "POST")
       return ownedResponse(
         Response.json({ error: "method-not-allowed" }, { status: 405 }),

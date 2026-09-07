@@ -138,6 +138,12 @@ describe("simulation control durable object", () => {
       state: "running",
       lease: { id: "lease-a" },
     });
+    const listed = await body<{ runs: { id: string }[] }>(
+      await restoredInstance.fetch(
+        new Request("https://control/runs?ownerId=owner-a"),
+      ),
+    );
+    expect(listed.runs.map((run) => run.id)).toEqual([accepted.run.id]);
   });
 
   it("enforces the per-owner queue limit atomically", async () => {
