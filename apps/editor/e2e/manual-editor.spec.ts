@@ -3348,6 +3348,11 @@ test("Properties toggles reference label visibility for one or many components",
   await expect(
     componentProperties.locator(":scope > .property-disclosure"),
   ).toHaveCount(4);
+  expect(
+    await componentProperties
+      .locator(":scope > .property-disclosure > summary > span")
+      .allTextContents(),
+  ).toEqual(["Identity", "Parameters", "Placement", "Appearance"]);
   await expect(
     componentProperties.locator(
       ':scope > details[aria-label="Component appearance"]',
