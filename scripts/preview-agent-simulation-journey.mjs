@@ -8,6 +8,9 @@ import { createInterface } from "node:readline";
 import { chromium } from "@playwright/test";
 import { compileStructuredSimulation } from "../packages/netlist/dist/index.js";
 import { parseProject } from "../packages/project-protocol/dist/index.js";
+import { SimulationOutputDataSchema } from "../packages/simulation-service/dist/contract.js";
+import { SimulationResultSchema } from "../packages/spice-run/dist/index.js";
+import { materializeSimulationRunEvidence } from "./lib/simulation-run-evidence.mjs";
 import { validateHostedSky130Result } from "./preview-simulation-smoke.mjs";
 
 const baseUrl = new URL(
@@ -298,15 +301,37 @@ try {
   }
   assert(finished, "The run returned no final state");
   assert.equal(finished.run.state, "finished");
-  assert.equal(finished.run.result?.outcome.status, "completed");
+  const exports = [];
+  const exportedArtifactNames = new Set();
+  const fullRun = await materializeSimulationRunEvidence(
+    finished.run,
+    async (artifact) => {
+      exports.push(await exportArtifact(artifact, artifact.name));
+      exportedArtifactNames.add(artifact.name);
+      const value = JSON.parse(
+        await readFile(join(outputDirectory, artifact.name), "utf8"),
+      );
+      return artifact.name === "result.json"
+        ? SimulationResultSchema.parse(value)
+        : SimulationOutputDataSchema.parse(value);
+    },
+  );
+  assert.equal(fullRun.result?.outcome.status, "completed");
   const accepted = validateHostedSky130Result(
-    finished.run.result,
+    fullRun.result,
     "operator-host",
     prepared.prepared.inputRevision,
     prepared.prepared.vectors,
   );
+  assert(
+    fullRun.outputData?.analyses.length,
+    "The completed OTA run returned no evaluated named outputs",
+  );
+  assert(
+    fullRun.outputData.measurements?.length,
+    "The completed OTA run returned no automatic measurements",
+  );
 
-  const exports = [];
   const resultArtifacts = finished.run.artifacts
     .filter(
       (artifact) =>
@@ -316,6 +341,7 @@ try {
     )
     .sort((left, right) => left.name.localeCompare(right.name));
   for (const artifact of resultArtifacts) {
+    if (exportedArtifactNames.has(artifact.name)) continue;
     exports.push(await exportArtifact(artifact, artifact.name));
   }
   exports.push(
@@ -378,14 +404,14 @@ try {
     artifacts: prepared.prepared.artifacts,
   };
   report.run = {
-    state: finished.run.state,
-    outcome: finished.run.result.outcome.status,
-    profileId: finished.run.result.metadata.environment.profileId,
+    state: fullRun.state,
+    outcome: fullRun.result.outcome.status,
+    profileId: fullRun.result.metadata.environment.profileId,
     environmentFingerprint: accepted.environmentFingerprint,
     inputRevision: prepared.prepared.inputRevision,
     preparedId: prepared.prepared.id,
     runId: finished.run.id,
-    analyses: finished.run.result.data?.analyses.map((analysis) => ({
+    analyses: fullRun.result.data?.analyses.map((analysis) => ({
       kind: analysis.analysis,
       plotName: analysis.plotName,
       points:
@@ -398,6 +424,11 @@ try {
               : analysis.timeSeconds.length,
       outputs: analysis.probes.map((probe) => probe.name),
     })),
+    namedOutputs: fullRun.outputData.analyses.map((analysis) => ({
+      kind: analysis.analysis,
+      outputs: analysis.outputs.map((output) => output.label),
+    })),
+    measurementCount: fullRun.outputData.measurements?.length ?? 0,
   };
   report.exports = exports;
   await tool("disconnect");
