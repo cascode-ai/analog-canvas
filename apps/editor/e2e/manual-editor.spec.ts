@@ -3335,7 +3335,7 @@ test("Properties toggles reference label visibility for one or many components",
     "Identity",
     "Parameters",
     "Display",
-    "Advanced parameters",
+    "Netlist overrides",
     "Placement",
   ]) {
     await expect(
